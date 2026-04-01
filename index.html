@@ -1,739 +1,1100 @@
-<div id="dragon-hud-app">
-  <!-- 悬浮在界面上的常驻入口 -->
-  <div id="hud-entry" class="hud-entry-card">
-    <div class="entry-decor-line"></div>
-    <div class="entry-avatar">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-    </div>
-    <div class="entry-info">
-      <div class="entry-name" id="entry-name">SYSTEM OFFLINE</div>
-      <div class="entry-meta" id="entry-meta">等待神念连接...</div>
-    </div>
-    <div class="entry-hp-bar">
-      <div class="entry-hp-fill" id="entry-hp-fill"></div>
-    </div>
-  </div>
-
-  <!-- 顶层全屏全息主控台 -->
-  <div id="hud-overlay" class="hud-overlay">
-    <div class="hud-container">
-      <!-- 顶部科技切角 Header -->
-      <div class="hud-header">
-        <div class="hud-header-left">
-          <div class="hud-logo">DRAGON_OS // V2.0</div>
-          <div class="hud-title"><span id="hud-char-name" class="text-gold">CHAR_NAME</span> 神经元深潜终端</div>
-        </div>
-        <div class="hud-header-right">
-          <div class="hud-time" id="hud-world-time">ERA: UNKNOWN</div>
-          <button class="hud-close-btn" id="btn-close-hud">TERMINATE</button>
-        </div>
-      </div>
-
-      <!-- 左侧全局导航 -->
-      <div class="hud-main-layout">
-        <div class="hud-sidebar">
-          <button class="nav-item active" data-target="home">本源数据 <span class="nav-en">CORE</span></button>
-          <button class="nav-item" data-target="combat">武魂血脉 <span class="nav-en">SOUL</span></button>
-          <button class="nav-item" data-target="equip">武装序列 <span class="nav-en">GEAR</span></button>
-          <button class="nav-item" data-target="social">因果羁绊 <span class="nav-en">LINK</span></button>
-          <button class="nav-item" data-target="forge">星网工坊 <span class="nav-en">FORGE</span></button>
-          <button class="nav-item" data-target="world">纪元格局 <span class="nav-en">WORLD</span></button>
-        </div>
-
-        <!-- 右侧视口内容区 -->
-        <div class="hud-viewport">
-          <!-- 视口装饰角 -->
-          <div class="vp-corner tl"></div><div class="vp-corner tr"></div>
-          <div class="vp-corner bl"></div><div class="vp-corner br"></div>
-
-          <!-- 动态渲染区 -->
-          <div id="hud-content" class="hud-content-scroll">
-            <!-- 内容由 JS 动态生成 -->
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<style>
-/* =========================================
-   硬核机甲科幻 + 暗金龙神 风格
-   ========================================= */
-#dragon-hud-app {
-  --c-bg: rgba(5, 8, 14, 0.95);
-  --c-panel: rgba(13, 20, 36, 0.85);
-  --c-cyan: #00E5FF;
-  --c-gold: #FFC107;
-  --c-gold-dark: #B38600;
-  --c-red: #FF003C;
-  --c-purple: #B5179E;
-  --c-text-main: #E2E8F0;
-  --c-text-mut: #64748B;
-  --glow-cyan: 0 0 10px rgba(0, 229, 255, 0.4);
-  --glow-gold: 0 0 15px rgba(255, 193, 7, 0.4);
+<style id="dragon-os-styles">
+  /* =========================================
+     1. 核心视觉变量 (AAA Game UI Theme)
+     ========================================= */
+  .dragon-os-root, .dragon-os-root *, .dragon-os-root *::before, .dragon-os-root *::after { box-sizing: border-box; }
   
-  font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
-  position: relative;
-  z-index: 2147483640;
-}
+  :root {
+    --os-cyan: #00E5FF;
+    --os-cyan-dim: rgba(0, 229, 255, 0.2);
+    --os-gold: #FFD700;
+    --os-gold-dim: rgba(255, 215, 0, 0.2);
+    --os-red: #FF003C;
+    --os-purple: #B5179E;
+    --os-bg-base: #030712;
+    --os-panel-bg: rgba(9, 14, 23, 0.85);
+    --os-text-main: #F8FAFC;
+    --os-text-mut: #64748B;
+    
+    --glow-cyan: 0 0 15px rgba(0, 229, 255, 0.5), inset 0 0 10px rgba(0, 229, 255, 0.2);
+    --glow-gold: 0 0 15px rgba(255, 215, 0, 0.5), inset 0 0 10px rgba(255, 215, 0, 0.2);
+    --glow-red: 0 0 15px rgba(255, 0, 60, 0.5);
+  }
 
-/* ----- 聊天框右下角常驻入口 ----- */
-.hud-entry-card {
-  position: fixed;
-  right: 30px;
-  bottom: 80px;
-  width: 240px;
-  background: linear-gradient(135deg, rgba(10,15,25,0.95), rgba(0,0,0,0.95));
-  border: 1px solid var(--c-cyan);
-  box-shadow: var(--glow-cyan);
-  /* 机甲倾斜切角 */
-  clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);
-  padding: 12px 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-  z-index: 2147483641;
-}
-.hud-entry-card:hover {
-  transform: translateX(-5px);
-  border-color: var(--c-gold);
-  box-shadow: var(--glow-gold);
-}
-.entry-decor-line {
-  position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c-cyan);
-}
-.hud-entry-card:hover .entry-decor-line { background: var(--c-gold); }
-.entry-avatar { width: 36px; height: 36px; color: var(--c-cyan); display:flex; align-items:center; justify-content:center; }
-.hud-entry-card:hover .entry-avatar { color: var(--c-gold); }
-.entry-info { flex: 1; }
-.entry-name { font-size: 14px; font-weight: 900; color: var(--c-text-main); letter-spacing: 1px; text-transform: uppercase; }
-.entry-meta { font-size: 10px; color: var(--c-text-mut); margin-top: 2px; }
-.entry-hp-bar { position: absolute; bottom: 0; left: 15px; right: 15px; height: 2px; background: rgba(255,255,255,0.1); }
-.entry-hp-fill { height: 100%; background: var(--c-red); box-shadow: 0 0 5px var(--c-red); width: 0%; transition: 0.5s; }
+  /* =========================================
+     2. 全息模态框主窗体 (Holographic Overlay)
+     ========================================= */
+  .dragon-os-root {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    padding: 2vh 2vw; z-index: 2147483647; 
+    opacity: 0; visibility: hidden; pointer-events: none; transition: 0.3s ease-out;
+    font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; color: var(--os-text-main);
+  }
+  .dragon-os-root.is-active {
+    opacity: 1; visibility: visible; pointer-events: auto;
+  }
 
-/* ----- 全屏全息主控台 ----- */
-.hud-overlay {
-  position: fixed; inset: 0;
-  background: radial-gradient(circle at center, rgba(0,229,255,0.05) 0%, rgba(0,0,0,0.9) 100%);
-  backdrop-filter: blur(12px);
-  display: flex; align-items: center; justify-content: center;
-  opacity: 0; visibility: hidden; pointer-events: none;
-  transition: 0.3s ease;
-}
-.hud-overlay.is-active {
-  opacity: 1; visibility: visible; pointer-events: auto;
-}
+  /* 外部遮罩与图床背景 */
+  .dragon-os-backdrop {
+    position: absolute; inset: 0; 
+    background-color: rgba(0, 0, 0, 0.7);
+    /* 调用图床：深空科技纹理 */
+    background-image: url('https://images.unsplash.com/photo-1614729939124-032f0b56c9ce?q=80&w=2000&auto=format&fit=crop');
+    background-size: cover; background-position: center; background-blend-mode: overlay;
+    backdrop-filter: blur(15px);
+    z-index: -1;
+  }
 
-/* 主窗体 */
-.hud-container {
-  width: 90vw; max-width: 1400px; height: 85vh;
-  background: var(--c-bg);
-  border: 1px solid rgba(255,255,255,0.1);
-  box-shadow: 0 0 60px rgba(0,0,0,0.8), inset 0 0 30px rgba(0,229,255,0.05);
-  clip-path: polygon(30px 0, 100% 0, 100% calc(100% - 30px), calc(100% - 30px) 100%, 0 100%, 0 30px);
-  display: flex; flex-direction: column;
-  transform: scale(0.95); transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-.hud-overlay.is-active .hud-container {
-  transform: scale(1);
-}
+  /* 扫描线特效 (CRT Scanline) */
+  .dragon-os-backdrop::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2));
+    background-size: 100% 4px;
+  }
 
-/* 头部 */
-.hud-header {
-  display: flex; justify-content: space-between; align-items: flex-end;
-  padding: 20px 30px 15px;
-  border-bottom: 2px solid var(--c-cyan);
-  background: linear-gradient(90deg, rgba(0,229,255,0.1), transparent);
-}
-.hud-logo { font-size: 10px; color: var(--c-cyan); letter-spacing: 2px; margin-bottom: 4px; }
-.hud-title { font-size: 24px; font-weight: 900; letter-spacing: 2px; color: var(--c-text-main); text-transform: uppercase; }
-.text-gold { color: var(--c-gold); text-shadow: var(--glow-gold); }
+  /* 主面板外壳 */
+  .dragon-panel {
+    width: 1400px; max-width: 100%; height: 90vh; position: relative;
+    background: var(--os-panel-bg);
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    box-shadow: 0 30px 60px rgba(0,0,0,0.8), inset 0 0 50px rgba(0, 229, 255, 0.05);
+    /* 机甲切角 */
+    clip-path: polygon(40px 0, 100% 0, 100% calc(100% - 40px), calc(100% - 40px) 100%, 0 100%, 0 40px);
+    display: flex; flex-direction: column;
+    transform: scale(0.95) translateY(20px); transition: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .dragon-os-root.is-active .dragon-panel { transform: scale(1) translateY(0); }
 
-.hud-header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
-.hud-time { font-family: monospace; font-size: 12px; color: var(--c-text-mut); }
-.hud-close-btn {
-  background: rgba(255,0,60,0.1); border: 1px solid var(--c-red); color: var(--c-red);
-  padding: 6px 16px; font-size: 12px; font-weight: bold; cursor: pointer; letter-spacing: 1px;
-  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
-  transition: 0.2s;
-}
-.hud-close-btn:hover { background: var(--c-red); color: #fff; box-shadow: 0 0 15px var(--c-red); }
+  /* 面板高光装饰角 */
+  .dragon-panel::before, .dragon-panel::after {
+    content: ''; position: absolute; width: 100px; height: 100px; pointer-events: none; z-index: 10;
+  }
+  .dragon-panel::before { top: 0; left: 0; border-top: 3px solid var(--os-cyan); border-left: 3px solid var(--os-cyan); }
+  .dragon-panel::after { bottom: 0; right: 0; border-bottom: 3px solid var(--os-cyan); border-right: 3px solid var(--os-cyan); }
 
-/* 主体布局 */
-.hud-main-layout {
-  display: flex; flex: 1; overflow: hidden;
-}
+  /* =========================================
+     3. 头部导航与侧边栏 (Navigation)
+     ========================================= */
+  .os-header {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    padding: 20px 40px; background: linear-gradient(90deg, rgba(0, 229, 255, 0.15) 0%, transparent 100%);
+    border-bottom: 2px solid var(--os-cyan);
+  }
+  .os-logo { font-size: 12px; color: var(--os-cyan); font-family: monospace; letter-spacing: 4px; margin-bottom: 4px; }
+  .os-title { font-size: 28px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; display: flex; align-items: center; gap: 15px; }
+  
+  .text-gold { 
+    color: var(--os-gold); text-shadow: 0 0 10px rgba(255, 215, 0, 0.6);
+    background: linear-gradient(to bottom, #FFFDE7, #FFD700); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
 
-/* 侧边导航 */
-.hud-sidebar {
-  width: 220px; border-right: 1px solid rgba(255,255,255,0.05);
-  display: flex; flex-direction: column; padding: 20px 0;
-  background: rgba(0,0,0,0.3);
-}
-.nav-item {
-  background: transparent; border: none; border-left: 3px solid transparent;
-  color: var(--c-text-mut); padding: 16px 30px; text-align: left;
-  font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s;
-  display: flex; flex-direction: column; gap: 4px;
-}
-.nav-en { font-size: 10px; font-family: monospace; opacity: 0.5; letter-spacing: 2px; }
-.nav-item:hover { background: rgba(0,229,255,0.05); color: var(--c-text-main); }
-.nav-item.active {
-  border-left-color: var(--c-cyan); color: var(--c-cyan); 
-  background: linear-gradient(90deg, rgba(0,229,255,0.1), transparent);
-  text-shadow: var(--glow-cyan);
-}
-.nav-item.active .nav-en { color: var(--c-cyan); opacity: 1; }
+  .os-header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+  .os-close-btn {
+    background: rgba(255,0,60,0.1); border: 1px solid var(--os-red); color: var(--os-red);
+    padding: 8px 24px; font-size: 13px; font-weight: 900; cursor: pointer; letter-spacing: 2px;
+    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+    transition: 0.2s;
+  }
+  .os-close-btn:hover { background: var(--os-red); color: #fff; box-shadow: var(--glow-red); }
 
-/* 视口内容区 */
-.hud-viewport {
-  flex: 1; position: relative; padding: 30px; overflow: hidden; display: flex; flex-direction: column;
-}
-/* 角落准星装饰 */
-.vp-corner { position: absolute; width: 15px; height: 15px; border: 2px solid var(--c-cyan); opacity: 0.5; }
-.vp-corner.tl { top: 15px; left: 15px; border-right: none; border-bottom: none; }
-.vp-corner.tr { top: 15px; right: 15px; border-left: none; border-bottom: none; }
-.vp-corner.bl { bottom: 15px; left: 15px; border-right: none; border-top: none; }
-.vp-corner.br { bottom: 15px; right: 15px; border-left: none; border-top: none; }
+  .os-layout { display: flex; flex: 1; overflow: hidden; }
+  
+  .os-sidebar {
+    width: 240px; background: rgba(0,0,0,0.4); border-right: 1px solid rgba(255,255,255,0.05);
+    display: flex; flex-direction: column; padding: 20px 0; overflow-y: auto;
+  }
+  .os-sidebar::-webkit-scrollbar { width: 0; }
 
-.hud-content-scroll {
-  flex: 1; overflow-y: auto; padding-right: 15px;
-  animation: fadeUp 0.4s ease forwards;
-}
-.hud-content-scroll::-webkit-scrollbar { width: 4px; }
-.hud-content-scroll::-webkit-scrollbar-thumb { background: rgba(0,229,255,0.5); }
+  .os-nav-item {
+    background: transparent; border: none; border-left: 4px solid transparent;
+    color: var(--os-text-mut); padding: 18px 30px; text-align: left;
+    font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s;
+    display: flex; flex-direction: column; gap: 6px; position: relative;
+  }
+  .os-nav-en { font-size: 10px; font-family: monospace; opacity: 0.5; letter-spacing: 2px; }
+  .os-nav-item:hover { background: rgba(0, 229, 255, 0.05); color: #fff; padding-left: 35px; }
+  .os-nav-item.active {
+    border-left-color: var(--os-cyan); color: var(--os-cyan); 
+    background: linear-gradient(90deg, rgba(0, 229, 255, 0.15), transparent);
+    text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
+  }
+  .os-nav-item.active .os-nav-en { color: var(--os-cyan); opacity: 1; }
 
-@keyframes fadeUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+  /* 角色切换器 */
+  .char-selector-wrap { padding: 0 20px 20px; border-bottom: 1px dashed rgba(255,255,255,0.1); margin-bottom: 20px; }
+  .char-selector-lbl { font-size: 10px; color: var(--os-cyan); margin-bottom: 8px; font-family: monospace; }
+  .char-select {
+    width: 100%; background: rgba(0,0,0,0.5); border: 1px solid var(--os-cyan); color: var(--os-cyan);
+    padding: 10px; font-size: 14px; font-weight: bold; outline: none; cursor: pointer;
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+  }
+  .char-select option { background: #0f172a; color: #fff; }
 
-/* =========================================
-   通用数据组件库 (UI Kit)
-   ========================================= */
-.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-bottom: 20px; }
-.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin-bottom: 20px; }
-.grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 15px; margin-bottom: 20px; }
+  /* =========================================
+     4. 视口与通用组件 (UI Kit)
+     ========================================= */
+  .os-viewport {
+    flex: 1; position: relative; padding: 30px; overflow-y: auto; overflow-x: hidden;
+  }
+  .os-viewport::-webkit-scrollbar { width: 6px; }
+  .os-viewport::-webkit-scrollbar-thumb { background: rgba(0, 229, 255, 0.4); border-radius: 3px; }
+  
+  .view-pane { display: none; animation: viewFadeUp 0.4s ease forwards; }
+  .view-pane.active { display: block; }
+  @keyframes viewFadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 
-/* 赛博卡片 */
-.cyber-box {
-  background: var(--c-panel); border: 1px solid rgba(255,255,255,0.05);
-  padding: 20px; position: relative;
-  /* 斜角背景 */
-  background-image: linear-gradient(45deg, transparent 95%, rgba(0,229,255,0.05) 95%);
-}
-.cyber-box::before {
-  content: ''; position: absolute; left: 0; top: 20px; bottom: 20px; width: 2px; background: var(--c-cyan);
-}
-.box-title {
-  font-size: 14px; font-weight: bold; color: var(--c-cyan); letter-spacing: 1px; 
-  margin-bottom: 16px; display: flex; justify-content: space-between;
-  border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;
-}
-.box-title.gold { color: var(--c-gold); } .cyber-box.gold::before { background: var(--c-gold); }
-.box-title.red { color: var(--c-red); } .cyber-box.red::before { background: var(--c-red); }
+  /* 布局网格 */
+  .g-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-bottom: 24px; }
+  .g-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-bottom: 24px; }
+  .g-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; margin-bottom: 24px; }
 
-/* 倾斜进度条 */
-.skew-bar-wrap { margin-bottom: 12px; }
-.skew-bar-info { display: flex; justify-content: space-between; font-size: 12px; color: var(--c-text-main); margin-bottom: 4px; font-family: monospace; }
-.skew-bar-bg { height: 10px; background: rgba(0,0,0,0.6); transform: skewX(-30deg); border: 1px solid rgba(255,255,255,0.1); overflow: hidden; }
-.skew-bar-fill { height: 100%; transition: width 0.5s ease-out; position: relative; }
-.skew-bar-fill::after { 
-  content:''; position: absolute; inset:0; 
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent); 
-  animation: scan 2s infinite linear; 
-}
-@keyframes scan { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
-.bg-hp { background: var(--c-red); box-shadow: 0 0 10px var(--c-red); }
-.bg-sp { background: var(--c-cyan); box-shadow: 0 0 10px var(--c-cyan); }
-.bg-men { background: var(--c-purple); box-shadow: 0 0 10px var(--c-purple); }
+  /* 机甲面板卡片 */
+  .mech-card {
+    background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255,255,255,0.08);
+    padding: 20px; position: relative;
+    clip-path: polygon(0 0, calc(100% - 15px) 0, 100% 15px, 100% 100%, 15px 100%, 0 calc(100% - 15px));
+    transition: 0.3s;
+  }
+  .mech-card:hover { border-color: rgba(0, 229, 255, 0.3); background: rgba(0, 229, 255, 0.02); }
+  .mech-card.wide { grid-column: 1 / -1; }
+  .mech-card.border-gold:hover { border-color: var(--os-gold); background: rgba(255, 215, 0, 0.02); }
+  
+  /* 卡片标题 */
+  .mc-title {
+    font-size: 16px; font-weight: 900; color: var(--os-cyan); letter-spacing: 1px; 
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px dashed rgba(255,255,255,0.1);
+  }
+  .mc-title-en { font-size: 10px; font-family: monospace; color: var(--os-text-mut); font-weight: normal; }
+  .mc-title.gold { color: var(--os-gold); border-bottom-color: rgba(255, 215, 0, 0.2); }
+  .mc-title.red { color: var(--os-red); border-bottom-color: rgba(255, 0, 60, 0.2); }
 
-/* 键值对列表 */
-.kv-item { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; font-size: 13px; }
-.kv-key { color: var(--c-text-mut); }
-.kv-val { color: var(--c-text-main); font-family: monospace; font-weight: bold; text-align: right; }
+  /* 属性条 (Bar) */
+  .bar-wrap { margin-bottom: 16px; }
+  .bar-info { display: flex; justify-content: space-between; font-size: 12px; color: var(--os-text-main); margin-bottom: 6px; font-family: monospace; font-weight: bold; }
+  .bar-bg { height: 12px; background: rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.1); transform: skewX(-30deg); overflow: hidden; }
+  .bar-fill { height: 100%; transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1); position: relative; }
+  .bar-fill::after { 
+    content:''; position: absolute; inset:0; 
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent); 
+    animation: barScan 1.5s infinite linear; 
+  }
+  @keyframes barScan { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+  .c-hp { background: var(--os-red); box-shadow: var(--glow-red); }
+  .c-sp { background: var(--os-cyan); box-shadow: var(--glow-cyan); }
+  .c-men { background: var(--os-purple); box-shadow: 0 0 15px rgba(181, 23, 158, 0.5); }
 
-/* 六边形属性块 */
-.hex-stat {
-  background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); 
-  padding: 15px 10px; text-align: center; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
-}
-.hex-v { font-size: 24px; font-weight: 900; color: var(--c-text-main); font-family: monospace; }
-.hex-k { font-size: 11px; color: var(--c-text-mut); margin-top: 4px; letter-spacing: 1px; }
+  /* 六边形雷达数值 */
+  .hex-val-box {
+    background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.1); 
+    padding: 20px 10px; text-align: center; 
+    clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);
+    position: relative;
+  }
+  .hex-val-box::before { content: ''; position: absolute; left: 0; top: 15px; bottom: 15px; width: 3px; background: var(--os-cyan); }
+  .hex-val-box.gold::before { background: var(--os-gold); }
+  .hv-num { font-size: 28px; font-weight: 900; color: #fff; font-family: monospace; }
+  .hv-lbl { font-size: 11px; color: var(--os-text-mut); margin-top: 6px; letter-spacing: 1px; }
 
-/* 标签 Tag */
-.tags { display: flex; flex-wrap: wrap; gap: 8px; }
-.tag {
-  padding: 4px 8px; border: 1px solid; border-radius: 2px; font-size: 11px; font-weight: bold;
-  background: rgba(0,0,0,0.5); clip-path: polygon(0 0, calc(100% - 5px) 0, 100% 5px, 100% 100%, 5px 100%, 0 calc(100% - 5px));
-}
-.tag-norm { border-color: rgba(255,255,255,0.2); color: var(--c-text-main); }
-.tag-buff { border-color: #00E676; color: #00E676; background: rgba(0,230,118,0.1); }
-.tag-debuff { border-color: var(--c-red); color: var(--c-red); background: rgba(255,0,60,0.1); }
-.tag-gold { border-color: var(--c-gold); color: var(--c-gold); }
+  /* 键值对列表 */
+  .kv-list { display: flex; flex-direction: column; gap: 10px; }
+  .kv-item { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 6px; }
+  .kv-key { color: var(--os-text-mut); }
+  .kv-val { color: var(--os-text-main); font-weight: bold; text-align: right; max-width: 60%; word-break: break-all; }
 
-/* =========================================
-   专有视图：武魂与魂环流光
-   ========================================= */
-.ring-orbit-container { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 15px; }
-.ring-core {
-  display: flex; align-items: center; gap: 12px; padding: 10px 20px;
-  background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); border-radius: 40px;
-}
-.ring-orb {
-  width: 30px; height: 30px; border-radius: 50%; border: 2px solid; position: relative;
-  display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; background: #000;
-}
-/* 发光轨道动画 */
-.ring-orb::before {
-  content:''; position: absolute; inset: -6px; border-radius: 50%;
-  border: 1px dashed; border-color: inherit; animation: rotateRing 5s linear infinite;
-}
-@keyframes rotateRing { 100% { transform: rotate(360deg); } }
+  /* 标签 (Tags) */
+  .tag-group { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag {
+    padding: 6px 12px; font-size: 12px; font-weight: bold; letter-spacing: 1px;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+    clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+  }
+  .tag.buff { border-color: #00E676; color: #00E676; background: rgba(0, 230, 118, 0.1); }
+  .tag.debuff { border-color: var(--os-red); color: var(--os-red); background: rgba(255, 0, 60, 0.1); }
+  .tag.gold { border-color: var(--os-gold); color: var(--os-gold); background: rgba(255, 215, 0, 0.1); }
+  .tag.purple { border-color: var(--os-purple); color: var(--os-purple); background: rgba(181, 23, 158, 0.1); }
 
-.color-white { color: #FFF; border-color: #FFF; box-shadow: 0 0 10px #FFF; }
-.color-yellow { color: #FFEB3B; border-color: #FFEB3B; box-shadow: 0 0 10px #FFEB3B; }
-.color-purple { color: #E040FB; border-color: #E040FB; box-shadow: 0 0 10px #E040FB; }
-.color-black { color: #9E9E9E; border-color: #000; box-shadow: 0 0 10px #000; background:#222; }
-.color-red { color: #FF1744; border-color: #FF1744; box-shadow: 0 0 15px #FF1744; }
-.color-orange { color: #FF9100; border-color: #FF9100; box-shadow: 0 0 15px #FF9100; }
-.color-gold { color: #FFD700; border-color: #FFD700; box-shadow: 0 0 20px #FFD700; }
+  /* 数据区块 (Data Block) */
+  .data-block { background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; }
+  .db-title { font-size: 14px; font-weight: bold; color: var(--os-cyan); margin-bottom: 8px; display: flex; justify-content: space-between;}
+  .db-sub { font-size: 12px; color: var(--os-text-mut); line-height: 1.6; }
 
-.ring-detail { display: flex; flex-direction: column; }
-.ring-id { font-size: 14px; font-weight: bold; color: #FFF; }
-.ring-age { font-size: 11px; color: var(--c-text-mut); }
+  /* =========================================
+     5. 专属视觉：机甲外骨骼拓扑图
+     ========================================= */
+  .anatomy-container { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 24px; margin-bottom: 24px; }
+  .anatomy-stage {
+    position: relative; height: 380px; background: rgba(0,0,0,0.6);
+    border: 1px solid var(--border-cyan); border-radius: 12px; overflow: hidden;
+  }
+  .anatomy-stage::before {
+    content:''; position: absolute; inset:0; 
+    background: radial-gradient(circle at center, rgba(0, 229, 255, 0.1) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  /* CSS 拼凑的机甲骨骼轮廓 */
+  .mech-bone { position: absolute; background: rgba(0,229,255,0.05); border: 1px dashed rgba(0,229,255,0.3); transition: 0.3s; }
+  .mb-head { left:50%; top:10%; width:44px; height:44px; transform:translateX(-50%); clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); }
+  .mb-torso { left:50%; top:26%; width:70px; height:100px; transform:translateX(-50%); clip-path: polygon(20% 0%, 80% 0%, 100% 20%, 80% 100%, 20% 100%, 0% 20%); }
+  .mb-arm-l { left:15%; top:30%; width:24px; height:90px; transform:rotate(15deg); clip-path: polygon(0 0, 100% 10px, 100% 100%, 0 calc(100% - 10px)); }
+  .mb-arm-r { right:15%; top:30%; width:24px; height:90px; transform:rotate(-15deg); clip-path: polygon(0 10px, 100% 0, 100% calc(100% - 10px), 0 100%); }
+  .mb-leg-l { left:32%; top:56%; width:28px; height:120px; clip-path: polygon(0 0, 100% 0, 80% 100%, 20% 100%); }
+  .mb-leg-r { right:32%; top:56%; width:28px; height:120px; clip-path: polygon(0 0, 100% 0, 80% 100%, 20% 100%); }
+  
+  /* 交互光点 */
+  .a-hotspot {
+    position: absolute; transform: translate(-50%, -50%); width: 50px; height: 50px;
+    border: 1px solid rgba(255,255,255,0.2); background: rgba(15, 23, 42, 0.9);
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: bold; cursor: pointer; transition: 0.2s; z-index: 10;
+    color: var(--os-text-mut);
+  }
+  .a-hotspot:hover { border-color: var(--os-cyan); color: #fff; box-shadow: var(--glow-cyan); }
+  .a-hotspot.filled { border-color: var(--os-gold); color: var(--os-gold); background: rgba(255, 215, 0, 0.1); }
+  .a-hotspot.active { 
+    transform: translate(-50%, -50%) scale(1.15); 
+    background: rgba(181, 23, 158, 0.4); border-color: var(--os-purple); color: #fff;
+    box-shadow: 0 0 20px rgba(181, 23, 158, 0.6);
+  }
+  .a-hotspot.active ~ .mech-bone { border-color: var(--os-purple); background: rgba(181, 23, 158, 0.1); }
 
-/* =========================================
-   表单与输入
-   ========================================= */
-.f-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-.f-item { display: flex; flex-direction: column; gap: 8px; }
-.f-lbl { font-size: 12px; color: var(--c-cyan); font-weight: bold; }
-.f-input { 
-  background: rgba(0,0,0,0.5); border: 1px solid var(--c-text-mut); color: #FFF;
-  padding: 10px 15px; font-family: inherit; font-size: 14px; outline: none; transition: 0.2s;
-  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
-}
-.f-input:focus { border-color: var(--c-cyan); background: rgba(0,229,255,0.05); }
-.f-submit {
-  grid-column: 1 / -1; padding: 15px; font-size: 16px; font-weight: 900; letter-spacing: 4px;
-  background: var(--c-cyan); color: #000; border: none; cursor: pointer; transition: 0.2s;
-  clip-path: polygon(0 0, calc(100% - 15px) 0, 100% 15px, 100% 100%, 15px 100%, 0 calc(100% - 15px));
-}
-.f-submit:hover { background: #fff; box-shadow: var(--glow-cyan); }
-.f-submit:active { transform: scale(0.98); }
+  .anatomy-detail-panel {
+    background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.05); 
+    padding: 24px; display: flex; flex-direction: column; justify-content: center;
+    clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
+  }
 
+  /* =========================================
+     6. 专属视觉：魂环星轨矩阵
+     ========================================= */
+  .ring-track-box { background: rgba(0,0,0,0.3); padding: 20px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 16px; }
+  .ring-orbit { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 15px; }
+  .ring-node {
+    display: flex; align-items: center; gap: 12px; padding: 10px 20px; border-radius: 40px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); cursor: pointer; transition: 0.3s;
+  }
+  .ring-node:hover { background: rgba(255,255,255,0.08); }
+  .ring-node.active { 
+    background: rgba(255, 215, 0, 0.15); border-color: var(--os-gold); box-shadow: var(--glow-gold);
+    transform: translateY(-3px);
+  }
+  
+  /* 魂环本体与自转动画 */
+  .ring-orb {
+    width: 36px; height: 36px; border-radius: 50%; border: 3px solid; position: relative;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900;
+    background: radial-gradient(circle, currentColor 0%, transparent 70%);
+    color: inherit;
+  }
+  .ring-orb::before, .ring-orb::after {
+    content:''; position:absolute; border-radius: 50%; border: 1px dashed; border-color: inherit;
+  }
+  .ring-orb::before { inset: -6px; animation: spin 6s linear infinite; }
+  .ring-orb::after { inset: -10px; border: 1px dotted; animation: spinReverse 10s linear infinite; opacity: 0.5; }
+  @keyframes spin { 100% { transform: rotate(360deg); } }
+  @keyframes spinReverse { 100% { transform: rotate(-360deg); } }
+
+  .ring-info { display: flex; flex-direction: column; }
+  .r-id { font-size: 15px; font-weight: bold; color: #fff; }
+  .r-age { font-size: 11px; color: var(--os-text-mut); font-family: monospace; }
+
+  /* 魂环色阶映射 */
+  .clr-white { color: #FFF; border-color: #FFF; text-shadow: 0 0 8px #FFF; }
+  .clr-yellow { color: #FFEB3B; border-color: #FFEB3B; text-shadow: 0 0 8px #FFEB3B; }
+  .clr-purple { color: #E040FB; border-color: #E040FB; text-shadow: 0 0 8px #E040FB; }
+  .clr-black { color: #9E9E9E; border-color: #111; text-shadow: 0 0 8px #000; background:#222; }
+  .clr-red { color: #FF1744; border-color: #FF1744; text-shadow: 0 0 8px #FF1744; }
+  .clr-orange { color: #FF9100; border-color: #FF9100; text-shadow: 0 0 8px #FF9100; }
+  .clr-gold { color: var(--os-gold); border-color: var(--os-gold); text-shadow: var(--glow-gold); }
+
+  /* =========================================
+     7. 星网工坊表单 (Forge Interactive)
+     ========================================= */
+  .forge-form { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+  .form-group { display: flex; flex-direction: column; gap: 8px; }
+  .form-lbl { font-size: 12px; color: var(--os-cyan); font-weight: bold; letter-spacing: 1px; font-family: monospace; }
+  .form-ctrl { 
+    background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2); color: #fff; 
+    padding: 12px 16px; font-family: inherit; font-size: 14px; outline: none; transition: 0.2s;
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+  }
+  .form-ctrl:focus { border-color: var(--os-cyan); background: rgba(0, 229, 255, 0.05); box-shadow: var(--glow-cyan); }
+  .form-ctrl option { background: #0f172a; }
+  .btn-submit {
+    grid-column: 1 / -1; padding: 16px; font-size: 16px; font-weight: 900; letter-spacing: 4px;
+    background: linear-gradient(90deg, #0284c7, #00E5FF); color: #000; border: none; cursor: pointer; transition: 0.2s;
+    clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
+  }
+  .btn-submit:hover { filter: brightness(1.2); box-shadow: var(--glow-cyan); color: #fff; }
+  .btn-submit:active { transform: scale(0.98); }
+
+  @media(max-width: 1024px) {
+    .g-3, .g-4, .anatomy-container, .forge-form { grid-template-columns: 1fr; }
+  }
 </style>
 
 <script>
   // =========================================
-  //  核心渲染引擎 (Dragon HUD Engine)
+  //  核心渲染引擎 (Dragon OS Engine V2)
   // =========================================
   (function() {
-    const HUD = {
+    // 防止全局污染，封装在闭包内
+    const OS = {
       sd: {},
-      activeChar: '',
-      
-      init() {
-        // 初始化入口
-        this.bindEvents();
-        this.refreshData();
-        this.renderEntryCard();
-        
-        // 监听酒馆 MVU 更新事件
-        if (typeof eventOn === 'function' && window.Mvu?.events?.VARIABLE_UPDATE_ENDED) {
-          eventOn(window.Mvu.events.VARIABLE_UPDATE_ENDED, () => {
-            this.refreshData();
-            this.renderEntryCard();
-            if(document.getElementById('hud-overlay').classList.contains('is-active')) {
-              this.renderViewport();
-            }
-          });
-        }
+      actChar: '',
+      curGlobal: 'char',
+      curSub: 'c-home',
+      selBone: 'head',
+      selArmor: 'torso',
+      selRing: '',
+
+      // 矢量图标库
+      icons: {
+        'char': '<svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+        'world': '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>',
+        'org': '<svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+        'sys': '<svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>'
       },
 
-      refreshData() {
-        // 通过酒馆全局函数获取数据
-        if (typeof getAllVariables === 'function') {
-          const vars = getAllVariables();
-          this.sd = (vars && vars.stat_data && vars.stat_data.sd) ? vars.stat_data.sd : {};
-        }
-        
-        // 智能锚定主角
-        const chars = this.sd.char || {};
-        this.activeChar = '';
-        for (let k in chars) { if (chars[k].is_player) { this.activeChar = k; break; } }
-        if (!this.activeChar) this.activeChar = chars['主角'] ? '主角' : (chars['USER'] ? 'USER' : Object.keys(chars)[0]);
-      },
-
-      // 工具函数
-      safe(val, fb='N/A') { return (val === undefined || val === null || val === '') ? fb : val; },
-      kv(k, v, color='var(--c-text-main)') { return `<div class="kv-item"><span class="kv-key">${k}</span><span class="kv-val" style="color:${color}">${v}</span></div>`; },
-      tag(txt, type='norm') { return `<span class="tag tag-${type}">${txt}</span>`; },
-
-      getRingClass(color, year) {
-        if(color?.includes('金')) return 'color-gold';
-        if(color?.includes('橙') || year>=1000000) return 'color-orange';
-        if(color?.includes('红') || year>=100000) return 'color-red';
-        if(color?.includes('黑') || year>=10000) return 'color-black';
-        if(color?.includes('紫') || year>=1000) return 'color-purple';
-        if(color?.includes('黄') || year>=100) return 'color-yellow';
+      // 工具库
+      getPortal() { try { return (window.top && window.top.document) ? window.top.document : document; } catch(e) { return document; } },
+      safe(v, fb='-') { return (v===undefined || v===null || v==='') ? fb : v; },
+      kv(k, v, col='var(--os-text-main)') { return `<div class="kv-item"><span class="kv-key">${k}</span><span class="kv-val" style="color:${col}">${v}</span></div>`; },
+      tag(t, c='norm') { return `<span class="tag tag-${c}">${t}</span>`; },
+      ringColor(c, y) {
+        if(c?.includes('金')) return 'color-gold'; if(c?.includes('橙') || y>=1000000) return 'color-orange';
+        if(c?.includes('红') || y>=100000) return 'color-red'; if(c?.includes('黑') || y>=10000) return 'color-black';
+        if(c?.includes('紫') || y>=1000) return 'color-purple'; if(c?.includes('黄') || y>=100) return 'color-yellow';
         return 'color-white';
       },
 
-      bindEvents() {
-        // 入口点击打开面板
-        document.getElementById('hud-entry').addEventListener('click', () => {
-          this.refreshData();
-          document.getElementById('hud-char-name').innerText = this.activeChar || 'UNKNOWN';
-          document.getElementById('hud-world-time').innerText = `ERA: ${this.sd.world?.time?.calendar || '00.00.00'}`;
-          document.getElementById('hud-overlay').classList.add('is-active');
-          
-          // 默认触发第一项
-          document.querySelector('.nav-item[data-target="home"]').click();
-        });
+      // 数据刷新
+      refreshData() {
+        if (typeof getAllVariables === 'function') {
+          // @ts-ignore
+          const vars = getAllVariables();
+          // @ts-ignore
+          this.sd = _.get(vars, 'stat_data.sd', {});
+        }
+        const chars = this.sd.char || {};
+        if (!this.actChar || !chars[this.actChar]) {
+          this.actChar = '';
+          for (let k in chars) { if (chars[k].is_player) { this.actChar = k; break; } }
+          if (!this.actChar) this.actChar = chars['主角'] ? '主角' : (chars['USER'] ? 'USER' : Object.keys(chars)[0]);
+        }
+        return !!this.actChar;
+      },
 
-        // 关闭面板
-        document.getElementById('btn-close-hud').addEventListener('click', () => {
-          document.getElementById('hud-overlay').classList.remove('is-active');
-        });
+      // 挂载主模态框 DOM
+      mountModal() {
+        const doc = this.getPortal();
+        if (doc.getElementById('dragon-os-app')) return;
+        
+        const styleStr = document.getElementById('dragon-os-styles').innerHTML;
+        const styleNode = doc.createElement('style');
+        styleNode.innerHTML = styleStr;
+        doc.head.appendChild(styleNode);
 
-        // 侧边栏切换
-        document.querySelectorAll('.nav-item').forEach(btn => {
-          btn.addEventListener('click', (e) => {
-            document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-            const target = e.currentTarget;
-            target.classList.add('active');
-            this.renderViewport(target.getAttribute('data-target'));
+        const html = `
+          <div class="dragon-os-root" id="dragon-os-app">
+            <div class="dragon-os-backdrop"></div>
+            <div class="dragon-panel">
+              <div class="os-header">
+                <div>
+                  <div class="os-logo">DRAGON_OS // NEURAL_LINK_ESTABLISHED</div>
+                  <div class="os-title"><span class="text-gold" id="os-h-title">CHAR_NAME</span> <span>全息中枢终端</span></div>
+                </div>
+                <div class="os-header-right">
+                  <div style="font-family:monospace; color:var(--os-cyan); font-size:12px;" id="os-h-time">ERA: UNKNOWN</div>
+                  <button class="os-close-btn" id="os-btn-close">TERMINATE</button>
+                </div>
+              </div>
+              
+              <div class="os-layout">
+                <!-- 左侧侧边栏 -->
+                <div class="os-sidebar">
+                  <div class="char-selector-wrap" id="char-sel-wrap">
+                    <div class="char-selector-lbl">// SELECT ENTITY 锚定目标</div>
+                    <select class="char-select" id="os-char-select"></select>
+                  </div>
+                  
+                  <div id="nav-group-char">
+                    <button class="os-nav-item active" data-target="c-home">本源数据 <span class="os-nav-en">CORE_STATS</span></button>
+                    <button class="os-nav-item" data-target="c-combat">武魂矩阵 <span class="os-nav-en">SOUL_MATRIX</span></button>
+                    <button class="os-nav-item" data-target="c-equip">武装折叠 <span class="os-nav-en">GEAR_INV</span></button>
+                    <button class="os-nav-item" data-target="c-social">因果羁绊 <span class="os-nav-en">SOCIAL_LINK</span></button>
+                    <button class="os-nav-item" data-target="c-forge">星网工坊 <span class="os-nav-en">FORGE_REQ</span></button>
+                  </div>
+                  
+                  <div style="margin: 20px 30px 10px; font-size:10px; color:var(--os-text-mut); font-family:monospace;">// GLOBAL DATA</div>
+                  <button class="os-nav-item" data-target="world">世界纪元 <span class="os-nav-en">WORLD_ENV</span></button>
+                  <button class="os-nav-item" data-target="org">全球势力 <span class="os-nav-en">FACTIONS</span></button>
+                </div>
+
+                <!-- 右侧视口 -->
+                <div class="os-viewport" id="os-viewport">
+                   <!-- 动态渲染内容 -->
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        const wrapper = doc.createElement('div');
+        wrapper.innerHTML = html;
+        doc.body.appendChild(wrapper.firstElementChild);
+
+        // 绑定静态事件
+        doc.getElementById('os-btn-close').addEventListener('click', () => doc.getElementById('dragon-os-app').classList.remove('is-active'));
+        doc.getElementById('os-char-select').addEventListener('change', (e) => { this.actChar = e.target.value; this.renderRoute(); });
+        
+        const navs = doc.querySelectorAll('.os-nav-item');
+        navs.forEach(nav => {
+          nav.addEventListener('click', (e) => {
+            navs.forEach(n => n.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            this.curSub = e.currentTarget.getAttribute('data-target');
+            this.renderRoute();
           });
         });
 
-        // 事件委托：星网工坊表单提交
-        document.getElementById('hud-content').addEventListener('click', (e) => {
-          if (e.target && e.target.id === 'btn-forge-submit') {
-            this.submitForgeRequest();
+        // 事件代理 (点击部位/魂环/提交)
+        doc.getElementById('os-viewport').addEventListener('click', (e) => {
+          const t = e.target.closest('.a-hotspot');
+          if(t) {
+             const typ = t.getAttribute('data-type');
+             const slot = t.getAttribute('data-slot');
+             if(typ === 'bone') this.selBone = slot;
+             if(typ === 'armor') this.selArmor = slot;
+             this.renderRoute();
           }
+          const r = e.target.closest('.ring-node');
+          if(r) {
+             this.selRing = r.getAttribute('data-id');
+             this.renderRoute();
+          }
+          const btn = e.target.closest('#btn-forge-do');
+          if(btn) this.submitForge();
         });
       },
 
-      // 渲染常驻入口
-      renderEntryCard() {
-        if(!this.activeChar) return;
-        const c = this.sd.char[this.activeChar];
-        const s = c.stat || {};
-        document.getElementById('entry-name').innerText = this.activeChar;
-        document.getElementById('entry-meta').innerText = `Lv.${s.lv||1} | ${s.men_realm||'凡境'}`;
+      // 路由与数据渲染
+      renderRoute() {
+        this.refreshData();
+        const doc = this.getPortal();
+        const chars = this.sd.char || {};
         
-        const hpP = Math.min(100, (s.vit||0)/(s.vit_max||1)*100);
-        document.getElementById('entry-hp-fill').style.width = `${hpP}%`;
-      },
+        // 刷新头部
+        doc.getElementById('os-h-title').innerText = this.actChar || 'NO_SIGNAL';
+        doc.getElementById('os-h-time').innerText = `TICK: ${this.sd.world?.time?.tick||0} // ${this.sd.world?.time?.calendar||'UNKNOWN'}`;
+        
+        // 刷新下拉框
+        const sel = doc.getElementById('os-char-select');
+        sel.innerHTML = Object.keys(chars).map(k => `<option value="${k}" ${k===this.actChar?'selected':''}>${k}</option>`).join('');
 
-      // 渲染右侧内容区
-      renderViewport(targetId) {
-        if(!targetId) {
-           const activeBtn = document.querySelector('.nav-item.active');
-           targetId = activeBtn ? activeBtn.getAttribute('data-target') : 'home';
-        }
-        const c = this.sd.char[this.activeChar] || {};
         let html = '';
+        if(this.curSub === 'c-home') html = this.tplHome();
+        if(this.curSub === 'c-combat') html = this.tplCombat();
+        if(this.curSub === 'c-equip') html = this.tplEquip();
+        if(this.curSub === 'c-social') html = this.tplSocial();
+        if(this.curSub === 'c-forge') html = this.tplForge();
+        if(this.curSub === 'world') html = this.tplWorld();
+        if(this.curSub === 'org') html = this.tplOrg();
 
-        if (targetId === 'home') {
-           const s = c.stat || {};
-           let buffs = '';
-           for(let k in (s.conditions||{})) {
-             const v = s.conditions[k];
-             buffs += this.tag(`${k} x${v.层数||1}`, v.类型==='debuff'?'debuff':'buff');
-           }
-
-           html = `
-             <div class="grid-2">
-               <div class="cyber-box">
-                 <div class="box-title">PHYSICAL & ENERGY <span>机能监控</span></div>
-                 
-                 <div class="skew-bar-wrap">
-                   <div class="skew-bar-info"><span>VIT.气血</span><span>${s.vit||0}/${s.vit_max||1}</span></div>
-                   <div class="skew-bar-bg"><div class="skew-bar-fill bg-hp" style="width:${Math.min(100,(s.vit||0)/(s.vit_max||1)*100)}%"></div></div>
-                 </div>
-                 <div class="skew-bar-wrap">
-                   <div class="skew-bar-info"><span>SP.魂力</span><span>${s.sp||0}/${s.sp_max||1}</span></div>
-                   <div class="skew-bar-bg"><div class="skew-bar-fill bg-sp" style="width:${Math.min(100,(s.sp||0)/(s.sp_max||1)*100)}%"></div></div>
-                 </div>
-                 <div class="skew-bar-wrap">
-                   <div class="skew-bar-info"><span>MEN.精神</span><span>${s.men||0}/${s.men_max||1}</span></div>
-                   <div class="skew-bar-bg"><div class="skew-bar-fill bg-men" style="width:${Math.min(100,(s.men||0)/(s.men_max||1)*100)}%"></div></div>
-                 </div>
-
-                 <div class="grid-3" style="margin-top:20px;">
-                    <div class="hex-stat"><div class="hex-v">${s.str||0}</div><div class="hex-k">STR.力量</div></div>
-                    <div class="hex-stat"><div class="hex-v">${s.def||0}</div><div class="hex-k">DEF.防御</div></div>
-                    <div class="hex-stat"><div class="hex-v">${s.agi||0}</div><div class="hex-k">AGI.敏捷</div></div>
-                 </div>
-               </div>
-
-               <div class="cyber-box">
-                 <div class="box-title">IDENTITY & STATUS <span>身份与状态</span></div>
-                 ${this.kv('骨龄 Age', s.age||'N/A')}
-                 ${this.kv('天赋评级', s.talent_tier||'N/A')}
-                 ${this.kv('先天魂力', s.innate_sp_lv||0, 'var(--c-cyan)')}
-                 ${this.kv('躯体伤势', c.status?.wound||'无', c.status?.wound==='无'?'#00E676':'var(--c-red)')}
-                 ${this.kv('活跃领域', c.status?.active_domain||'无', 'var(--c-purple)')}
-                 ${this.kv('魂核引擎', `共 ${c.energy?.core?.数量||0} 颗 (进度 ${c.energy?.core?.progress||0}%)`, 'var(--c-gold)')}
-                 
-                 <div class="box-title" style="margin-top:20px; border:none;">ACTIVE CONDITIONS <span>异常阵列</span></div>
-                 <div class="tags">${buffs || this.tag('躯体扫描正常', 'norm')}</div>
-               </div>
-             </div>
-           `;
-        }
-        else if (targetId === 'combat') {
-           // 武魂与魂环
-           let spHtml = '';
-           for(let k in (c.spirit||{})) {
-             const sp = c.spirit[k];
-             spHtml += `<div class="cyber-box wide">
-               <div class="box-title">SPIRIT MATRIX <span>武魂: ${sp.表象名称||k} (${sp.element||'无属性'})</span></div>`;
-             for(let sName in (sp.soul_spirits||{})) {
-                const ss = sp.soul_spirits[sName];
-                spHtml += `<div style="margin-bottom:15px;">
-                  <div style="font-size:13px;color:var(--c-text-mut);">${ss.表象名称||sName} (${ss.年限||0}年魂灵)</div>
-                  <div class="ring-orbit-container">`;
-                for(let rId in (ss.rings||{})) {
-                   const r = ss.rings[rId];
-                   const ringColor = r.颜色||'白';
-                   const rCls = this.getRingClass(ringColor, r.年限);
-                   const skName = Object.keys(r.魂技||{})[0] || '未定魂技';
-                   const sk = r.魂技?.[skName] || {};
-                   
-                   // 魂环与技能组合块
-                   spHtml += `
-                     <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.05); border-radius:8px; padding:10px; width: 100%; display:flex; gap:15px; align-items:center;">
-                       <div class="ring-core">
-                         <div class="ring-orb ${rCls}">${ringColor[0]}</div>
-                         <div class="ring-detail">
-                           <div class="ring-id">${rId}环</div><div class="ring-age">${r.年限||0}年</div>
-                         </div>
-                       </div>
-                       <div style="flex:1; border-left:2px solid var(--c-cyan); padding-left:15px;">
-                         <div style="font-weight:bold; color:#fff; font-size:14px; margin-bottom:4px;">${skName} ${this.tag(sk.技能类型||'未知','norm')}</div>
-                         <div style="font-size:11px; color:var(--c-text-mut); line-height:1.5;">
-                            消耗: <span style="color:var(--c-cyan)">${sk.消耗||'无'}</span> | 加成: ${sk.加成属性||'无'} <br/>
-                            <span style="color:#fff;">${sk.特效量化参数||sk.画面描述||'缺少数据录入'}</span>
-                         </div>
-                       </div>
-                     </div>
-                   `;
-                }
-                spHtml += `</div></div>`;
-             }
-             spHtml += `</div>`;
-           }
-
-           // 血脉
-           const bl = c.bloodline_power || {};
-           if(bl.bloodline && bl.bloodline !== '无') {
-             let blTags = '';
-             for(let k in (bl.skills||{})) blTags += this.tag(k, 'gold');
-             for(let k in (bl.blood_rings||{})) blTags += this.tag(`气血${k}环 (${bl.blood_rings[k].颜色})`, 'debuff');
-
-             spHtml = `
-               <div class="cyber-box wide gold" style="margin-bottom:20px;">
-                 <div class="box-title gold">DRAGON BLOODLINE <span>古龙血脉: ${bl.bloodline}</span></div>
-                 <div class="grid-3">
-                   ${this.kv('破封层数', `${bl.seal_lv||0} 阶`)}
-                   ${this.kv('血脉魂核', bl.core||'未凝聚')}
-                   ${this.kv('生命之火', bl.life_fire?'燃烧中':'未点燃', bl.life_fire?'var(--c-red)':'#fff')}
-                 </div>
-                 <div class="tags" style="margin-top:10px;">${blTags}</div>
-               </div>
-             ` + spHtml;
-           }
-
-           html = spHtml;
-        }
-        else if (targetId === 'equip') {
-           const eq = c.equip || {};
-           const inv = c.inventory || {};
-           
-           let invHtml = '';
-           for(let k in inv) {
-             const v = inv[k];
-             invHtml += `<div style="background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.05); padding:10px; border-radius:6px;">
-               <div style="font-size:13px; font-weight:bold; color:#fff;">${k} <span style="float:right; color:var(--c-cyan)">x${v.数量||1}</span></div>
-               <div style="font-size:11px; color:var(--c-text-mut); margin-top:4px;">${v.品质||'常规'} | ${v.类型||'杂项'}</div>
-             </div>`;
-           }
-
-           html = `
-             <div class="grid-2">
-               <div class="cyber-box">
-                 <div class="box-title">MECH & WEAPON <span>外骨骼终端</span></div>
-                 <div style="margin-bottom:15px; border-bottom:1px dashed rgba(255,255,255,0.1); padding-bottom:10px;">
-                    <div style="color:var(--c-gold); font-weight:bold; margin-bottom:8px;">本命武器: ${eq.wpn?.name||'无'} (${eq.wpn?.tier||'无阶'})</div>
-                    <div class="tags">${Object.keys(eq.wpn?.traits||{}).map(k=>this.tag(k,'debuff')).join('')||this.tag('无绝对特性')}</div>
-                 </div>
-                 <div>
-                    <div style="color:var(--c-cyan); font-weight:bold; margin-bottom:8px;">机甲终端: ${eq.mech?.type||'无'} (${eq.mech?.lv||'无级'})</div>
-                    ${this.kv('主武器', eq.mech?.weapon||'无')}
-                    ${this.kv('战损状态', eq.mech?.status||'完好', eq.mech?.status==='重创'?'var(--c-red)':'#00E676')}
-                 </div>
-               </div>
-               <div class="cyber-box">
-                 <div class="box-title">ARMOR SYSTEM <span>斗铠系统</span></div>
-                 <div style="font-size:16px; font-weight:bold; color:#fff; margin-bottom:8px;">${eq.armor?.name||'未着装'} <span style="font-size:12px;color:var(--c-cyan)">${eq.armor?.lv||0}阶</span></div>
-                 ${this.kv('穿戴状态', eq.armor?.equip_status||'未装备', eq.armor?.equip_status==='已装备'?'#00E676':'#fff')}
-                 ${this.kv('附带领域', eq.armor?.domain||'无', 'var(--c-purple)')}
-                 ${this.kv('核心金属', eq.armor?.material||'无')}
-                 <div class="tags" style="margin-top:10px;">
-                   ${Object.entries(eq.armor?.parts||{}).filter(([k,v])=>v.状态!=='未打造').map(([k,v])=>this.tag(k,'cyan')).join('') || this.tag('暂无部件激活')}
-                 </div>
-               </div>
-             </div>
-             <div class="cyber-box wide">
-               <div class="box-title">FOLDING CABIN <span>储物空间折叠舱</span></div>
-               <div class="grid-3">${invHtml || '<div style="color:var(--c-text-mut); font-size:12px;">空间内部空空如也</div>'}</div>
-             </div>
-           `;
-        }
-        else if (targetId === 'forge') {
-           const jobs = c.job || {};
-           let jHtml = '';
-           for(let k in jobs) {
-             jHtml += `${this.kv(k, `Lv.${jobs[k].lv||0} (胜率:${jobs[k].limits?.success_rate||0}%)`, 'var(--c-gold)')}`
-           }
-
-           let matOpts = '<option value="">[请通过神经元接驳选择...]</option>';
-           for(let k in (c.inventory||{})) {
-             if(c.inventory[k].类型 === '材料' || k.includes('金属')) {
-                matOpts += `<option value="${k}">${k} (持有量: ${c.inventory[k].数量||0})</option>`;
-             }
-           }
-
-           html = `
-             <div class="grid-2">
-               <div class="cyber-box">
-                 <div class="box-title">LICENSE <span>副职执照</span></div>
-                 <div class="kv-list">${jHtml || '<span style="color:#64748b;font-size:12px;">未考取认证</span>'}</div>
-               </div>
-               <div class="cyber-box gold">
-                 <div class="box-title gold">FUNDS <span>联邦资产</span></div>
-                 <div class="kv-list">
-                   ${this.kv('联邦币', this.sd.char[this.activeChar]?.wealth?.fed_coin||0, 'var(--c-gold)')}
-                   ${this.kv('唐门积分', this.sd.char[this.activeChar]?.wealth?.tang_pt||0, 'var(--c-cyan)')}
-                   ${this.kv('血神功勋', this.sd.char[this.activeChar]?.wealth?.blood_pt||0, 'var(--c-red)')}
-                 </div>
-               </div>
-             </div>
-
-             <div class="cyber-box wide">
-               <div class="box-title">STAR-NET FORGE <span>星网工坊控制台</span></div>
-               <div style="font-size:12px; color:var(--c-text-mut); line-height:1.6;">
-                 WARNING: 任何实体物质的锻造与重塑，均需经过世界意志(AI)的仲裁计算。请在下方输入参数，系统将打包指令注入量子通讯信道。
-               </div>
-               <div class="f-grid">
-                 <div class="f-item">
-                   <label class="f-lbl">// SELECT JOB 挂载职业</label>
-                   <select class="f-input" id="f-job">
-                     <option value="锻造师">锻造师 Blacksmith</option><option value="设计师">设计师 Designer</option>
-                     <option value="制造师">制造师 Maker</option><option value="修理师">修理师 Fixer</option>
-                   </select>
-                 </div>
-                 <div class="f-item">
-                   <label class="f-lbl">// EXTRACT MAT 提取核心材料</label>
-                   <select class="f-input" id="f-mat">${matOpts}</select>
-                 </div>
-                 <div class="f-item" style="grid-column: 1/-1">
-                   <label class="f-lbl">// TARGET SPEC 设定目标产物结构</label>
-                   <input type="text" class="f-input" id="f-tar" placeholder="输入蓝图名称 (e.g. 千锻沉银 / 一字斗铠胸甲)">
-                 </div>
-                 <div class="f-item" style="grid-column: 1/-1">
-                   <label class="f-lbl">// AMOUNT 能量/材料消耗倍率</label>
-                   <input type="number" class="f-input" id="f-num" value="1">
-                 </div>
-                 <button class="f-submit" id="btn-forge-submit">EXECUTE // 注入魂力</button>
-               </div>
-             </div>
-           `;
-        }
-        else if (targetId === 'world') {
-           const w = this.sd.world || {};
-           const sys = this.sd.sys || {};
-           
-           html = `
-             <div class="grid-2">
-               <div class="cyber-box">
-                 <div class="box-title">TIME & ENVIRONMENT <span>时空信标</span></div>
-                 <div style="font-size:24px; color:var(--c-cyan); font-family:monospace; font-weight:900; margin-bottom:15px; text-shadow:var(--glow-cyan);">${w.time?.calendar||'UNKNOWN ERA'}</div>
-                 <div class="kv-list">
-                   ${this.kv('绝对刻度 TICK', w.time?.tick||0)}
-                   ${this.kv('世界线偏差 DEVIATION', w.deviation||0, 'var(--c-red)')}
-                   ${this.kv('星斗怨气累积(引发兽潮)', `${w.forest_killed_age||0} Yrs`, 'var(--c-purple)')}
-                 </div>
-               </div>
-               <div class="cyber-box red">
-                 <div class="box-title red">BROADCAST <span>全域系统广播</span></div>
-                 <div style="padding:15px; background:rgba(255,0,60,0.1); border:1px solid rgba(255,0,60,0.3); border-radius:6px; color:#fff; font-size:13px; line-height:1.6;">
-                   > ${sys.rsn || '监控网络一切正常。'}
-                 </div>
-               </div>
-             </div>
-             <div class="cyber-box wide">
-               <div class="box-title">GLOBAL RANKINGS <span>星网天机大盘</span></div>
-               <div class="grid-3">
-                 <div class="data-block">
-                   <div class="d-title">少年天才榜</div>
-                   <div style="font-size:20px; font-weight:bold; color:#fff;">${Object.keys(w.rankings?.youth_talent?.top30||{}).length} <span style="font-size:12px;color:var(--c-text-mut)">人在榜</span></div>
-                 </div>
-                 <div class="data-block">
-                   <div class="d-title">大陆风云榜</div>
-                   <div style="font-size:20px; font-weight:bold; color:#fff;">${Object.keys(w.rankings?.continent_wind?.top100||{}).length} <span style="font-size:12px;color:var(--c-text-mut)">人在榜</span></div>
-                 </div>
-                 <div class="data-block">
-                   <div class="d-title" style="color:var(--c-gold)">地下拍卖行 (${w.auction?.status||'休市'})</div>
-                   <div style="font-size:12px; color:#fff;">下期刷新: TICK ${w.auction?.next_tick||0}</div>
-                 </div>
-               </div>
-             </div>
-           `;
-        }
-        else {
-           html = `<div style="color:#fff;">模块正在构建中...</div>`;
-        }
-
-        document.getElementById('hud-content').innerHTML = html;
+        doc.getElementById('os-viewport').innerHTML = `<div class="view-pane active">${html}</div>`;
       },
 
-      // 执行星网工坊锻造请求
-      submitForgeRequest() {
+      /* ========== 模板：本源数据 ========== */
+      tplHome() {
+        const c = this.sd.char[this.actChar] || {};
+        const s = c.stat || {}; const st = c.status || {}; const en = c.energy || {};
+        
+        let buffHtml = '';
+        // @ts-ignore
+        _.forEach(s.conditions||{}, (v,k) => buffHtml += this.tag(`${k} x${v.层数||1}`, v.类型==='debuff'?'debuff':'buff'));
+
+        return `
+          <div class="g-2">
+            <div class="cyber-card">
+              <div class="mc-title">PHYSIOLOGY <span>基础生理底蕴</span></div>
+              <div class="g-2">
+                <div class="kv-list">
+                  ${this.kv('骨龄', s.age||0)} ${this.kv('先天魂力', s.innate_sp_lv||0)}
+                  ${this.kv('天赋阶层', s.talent_tier||'正常')} ${this.kv('资质得分', s.talent_roll||0)}
+                </div>
+                <div class="kv-list">
+                  ${this.kv('阶级背景', s.background||'无')} ${this.kv('邪魂师', s.is_evil?'是':'否', s.is_evil?'var(--os-red)':'#fff')}
+                  ${this.kv('底子波动', Number(s.hidden_variance||0).toFixed(2))} ${this.kv('修炼倍率', Number(s.multiplier?.cultivation||1).toFixed(2))}
+                </div>
+              </div>
+              <div style="margin-top:20px;">
+                <div class="bar-wrap">
+                  <div class="bar-info"><span>VIT. 气血</span><span>${s.vit||0} / ${s.vit_max||1}</span></div>
+                  <div class="bar-bg"><div class="bar-fill c-hp" style="width:${Math.min(100,(s.vit||0)/(s.vit_max||1)*100)}%"></div></div>
+                </div>
+                <div class="bar-wrap">
+                  <div class="bar-info"><span>SP. 魂力</span><span>${s.sp||0} / ${s.sp_max||1}</span></div>
+                  <div class="bar-bg"><div class="bar-fill c-sp" style="width:${Math.min(100,(s.sp||0)/(s.sp_max||1)*100)}%"></div></div>
+                </div>
+                <div class="bar-wrap">
+                  <div class="bar-info"><span>MEN. 精神 (${s.men_realm||'凡境'})</span><span>${s.men||0} / ${s.men_max||1}</span></div>
+                  <div class="bar-bg"><div class="bar-fill c-men" style="width:${Math.min(100,(s.men||0)/(s.men_max||1)*100)}%"></div></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="cyber-card">
+              <div class="mc-title red">STATUS & ENVIRONMENT <span class="mc-title-en">状态监控网络</span></div>
+              <div class="kv-list" style="margin-bottom:20px;">
+                ${this.kv('存活判定', st.alive?'ALIVE':'DEAD', st.alive?'#00E676':'var(--os-red)')}
+                ${this.kv('当前行为', st.action||'日常')}
+                ${this.kv('物理伤势', st.wound||'无', st.wound!=='无'?'var(--os-red)':'#fff')}
+                ${this.kv('活跃领域', st.active_domain||'无', 'var(--os-purple)')}
+                ${this.kv('透支惩罚', `${s.lv_penalty||0} 级`, s.lv_penalty>0?'var(--os-red)':'#fff')}
+                ${this.kv('仙草吸收', `${st.consuming_herb_age||0} 年`)}
+              </div>
+              <div class="mc-title" style="font-size:13px; border:none; margin-bottom:8px;">BUFF MATRIX <span>异常矩阵</span></div>
+              <div class="tag-group">${buffHtml || this.tag('躯体扫描正常，无异常', 'norm')}</div>
+            </div>
+
+            <div class="cyber-card wide">
+              <div class="mc-title gold">RADAR & ENGINE <span class="mc-title-en">三维雷达与魂核引擎</span></div>
+              <div class="g-4">
+                <div class="hex-stat"><div class="hv-num">${s.str||0}</div><div class="hv-lbl">STR.力量 (+${s.trained_bonus?.str||0})</div></div>
+                <div class="hex-stat"><div class="hv-num">${s.def||0}</div><div class="hv-lbl">DEF.防御 (+${s.trained_bonus?.def||0})</div></div>
+                <div class="hex-stat"><div class="hv-num">${s.agi||0}</div><div class="hv-lbl">AGI.敏捷 (+${s.trained_bonus?.agi||0})</div></div>
+                <div class="hex-stat gold"><div class="hv-num text-gold">${en.core?.数量||0}</div><div class="hv-lbl">魂核 (进度 ${en.core?.progress||0}%)</div></div>
+              </div>
+            </div>
+          </div>
+        `;
+      },
+
+      /* ========== 模板：武魂血脉 ========== */
+      tplCombat() {
+        const c = this.sd.char[this.actChar] || {};
+        const b = c.soul_bone || {};
+        const bl = c.bloodline_power || {};
+        const sp = c.spirit || {};
+
+        // 魂骨拓扑
+        const bMap = [{k:'head',n:'头部魂骨',x:50,y:10},{k:'torso',n:'躯干魂骨',x:50,y:26},{k:'leftArm',n:'左臂魂骨',x:18,y:30},{k:'rightArm',n:'右臂魂骨',x:82,y:30},{k:'leftLeg',n:'左腿魂骨',x:35,y:58},{k:'rightLeg',n:'右腿魂骨',x:65,y:58}];
+        let bDots = '', bData = null;
+        bMap.forEach(d => {
+          const has = !!b[d.n]; const act = this.selBone === d.k;
+          if(act) bData = b[d.n];
+          bDots += `<div class="a-hotspot ${has?'filled':''} ${act?'active':''}" data-type="bone" data-slot="${d.k}" style="left:${d.x}%; top:${d.y}%">${d.n.replace('魂骨','')}</div>`;
+        });
+        let bSkHtml = ''; 
+        // @ts-ignore
+        _.forEach(bData?.附带技能||{}, (v,k)=>bSkHtml+=this.tag(k,'purple'));
+
+        // 血脉
+        let blHtml = '';
+        if(bl.bloodline && bl.bloodline !== '无') {
+          blHtml = `<div class="cyber-card wide border-gold">
+            <div class="mc-title gold">DRAGON BLOODLINE <span>古龙血脉: ${bl.bloodline}</span></div>
+            <div class="g-3">
+              <div class="kv-list">${this.kv('破封层数', `${bl.seal_lv||0} 阶`, 'var(--os-gold)')}${this.kv('血脉魂核', bl.core||'未凝聚')}${this.kv('生命之火', bl.life_fire?'燃烧中':'未点燃', bl.life_fire?'var(--os-red)':'#fff')}</div>
+              <div style="grid-column: span 2">
+                <div class="tag-group">`;
+          // @ts-ignore
+          _.forEach(bl.skills||{}, (v,k)=> blHtml+=this.tag(`${k} (${v.状态||''})`, 'gold'));
+          // @ts-ignore
+          _.forEach(bl.blood_rings||{}, (v,k)=> blHtml+=this.tag(`气血${k}环 (${v.颜色})`, 'debuff'));
+          blHtml += `</div></div></div></div>`;
+        }
+
+        // 武魂轨
+        let spHtml = '';
+        // @ts-ignore
+        _.forEach(sp, (v, k) => {
+          let dmHtml = ''; 
+          // @ts-ignore
+          _.forEach(v.domains||{}, (dv,dk)=> dmHtml+=this.tag(`领域: ${dk}`, 'purple'));
+          let csHtml = ''; 
+          // @ts-ignore
+          _.forEach(v.custom_skills||{}, (cv,ck)=> csHtml+=this.tag(`自创: ${ck}`, 'norm'));
+          
+          spHtml += `<div class="cyber-card wide">
+            <div class="mc-title">SOUL MATRIX <span>武魂: ${v.表象名称||k} (${v.element||'无属性'})</span></div>
+            ${dmHtml||csHtml ? `<div class="tag-group" style="margin-bottom:16px;">${dmHtml}${csHtml}</div>`:''}
+          `;
+          // @ts-ignore
+          _.forEach(v.soul_spirits||{}, (ss, sName) => {
+            spHtml += `<div class="data-block" style="margin-bottom:16px;">
+              <div class="db-title">${ss.表象名称||sName} (${ss.年限||0}年魂灵) <span style="color:var(--os-text-mut); font-weight:normal;">占载: ${ss.占用精神力||0}</span></div>
+              <div class="ring-orbit">`;
+            // @ts-ignore
+            _.forEach(ss.rings||{}, (r, rId) => {
+              const rKey = `${k}_${sName}_${rId}`; const isAct = this.selRing === rKey;
+              spHtml += `<div class="ring-node ${isAct?'active':''}" data-id="${rKey}">
+                <div class="ring-orb ${this.ringColor(r.颜色,r.年限)}">${r.颜色||'白'}</div>
+                <div class="ring-info"><div class="r-id">${rId}环</div><div class="r-age">${r.年限||0}年</div></div>
+              </div>`;
+              if(isAct) {
+                 const skName = Object.keys(r.魂技||{})[0]||'未知魂技'; const sk = r.魂技?.[skName]||{};
+                 spHtml += `<div style="width:100%; margin-top:16px; padding:16px; background:rgba(0,0,0,0.5); border-left:3px solid var(--os-gold);">
+                   <div class="mc-title gold" style="border:none; margin-bottom:10px;">${skName} ${this.tag(sk.状态||'未定','norm')}</div>
+                   <div class="g-3" style="border-bottom:1px dashed rgba(255,255,255,0.1); padding-bottom:12px; margin-bottom:12px;">
+                     <div class="kv-list">
+                       ${this.kv('类型', sk.技能类型||'无')}${this.kv('加成', sk.加成属性||'无')}${this.kv('目标', sk.对象||'无')}
+                     </div>
+                     <div class="kv-list">
+                       ${this.kv('释放消耗', sk.消耗||'无', 'var(--os-cyan)')}
+                     </div>
+                     <div class="kv-list">
+                       ${sk.仲裁逻辑 ? `${this.kv('伤害类型', sk.仲裁逻辑.伤害类型||'无')}${this.kv('基础威力倍率', sk.仲裁逻辑.基础威力倍率||0)}${this.kv('穿透/附带状态', `${sk.仲裁逻辑.穿透修饰||0} / ${sk.仲裁逻辑.附加状态||'无'}`)}` : ''}
+                     </div>
+                   </div>
+                   <div style="color:var(--os-silver); font-size:13px; line-height:1.6;">${sk.特效量化参数||sk.画面描述||'缺少录入数据...'}</div>
+                 </div>`;
+              }
+            });
+            spHtml += `</div></div>`;
+          });
+          spHtml += `</div>`;
+        });
+
+        let artHtml = '';
+        // @ts-ignore
+        _.forEach(c.arts||{}, (v,k)=> artHtml+=`<div class="data-block"><div class="db-title">${k} <span style="color:var(--os-gold)">Lv.${v.lv||0}</span></div><div class="kv-list">${this.kv('境界', v.境界||'未入门')}${this.kv('熟练度', v.exp||0)}</div></div>`);
+        // @ts-ignore
+        _.forEach(c.special_abilities||{}, (v,k)=> artHtml+=`<div class="data-block border-gold"><div class="db-title text-cyan">${k}</div><div class="db-sub">${v.类型||'无'} <br/><br/> ${v.描述||''}</div></div>`);
+
+        return `
+          <div class="anatomy-container">
+            <div class="anatomy-stage">
+              <div class="anatomy-bg"></div>
+              <div class="mech-bone mb-head"></div><div class="mech-bone mb-torso"></div><div class="mech-bone mb-arm-l"></div><div class="mech-bone mb-arm-r"></div><div class="mech-bone mb-leg-l"></div><div class="mech-bone mb-leg-r"></div>
+              ${bDots}
+            </div>
+            <div class="anatomy-detail-panel">
+              <div class="mc-title" style="color:var(--os-purple); border-color:var(--os-purple);">SOUL BONE LINK <span>魂骨连结矩阵</span></div>
+              ${bData ? `
+                 <div style="font-size:22px; font-weight:900; color:#fff; margin-bottom:16px;">${bData.名称||'未命名'}</div>
+                 <div class="kv-list" style="margin-bottom:16px;">
+                   ${this.kv('年份底蕴', `${bData.年限||0} 年`, 'var(--os-gold)')}
+                   ${this.kv('掉落来源', bData.来源||'未知')}
+                 </div>
+                 <div class="tag-group">${bSkHtml||this.tag('无附带技能', 'norm')}</div>
+              ` : '<div style="color:var(--os-text-mut)">未选中或该部位空缺</div>'}
+            </div>
+          </div>
+          ${blHtml}
+          ${spHtml}
+          ${artHtml ? `<div class="cyber-card wide"><div class="mc-title">ARTS & ABILITIES <span>绝学与特殊能力</span></div><div class="g-3">${artHtml}</div></div>`:''}
+        `;
+      },
+
+      /* ========== 模板：武装折叠 ========== */
+      tplEquip() {
+        const c = this.sd.char[this.actChar] || {};
+        const eq = c.equip || {}; const arm = eq.armor || {};
+        
+        // 斗铠拓扑
+        const aMap = [{k:'head',n:'头盔',x:50,y:10},{k:'torso',n:'胸铠',x:50,y:26},{k:'leftArm',n:'左臂',x:18,y:30},{k:'rightArm',n:'右臂',x:82,y:30},{k:'leftLeg',n:'左腿',x:35,y:58},{k:'rightLeg',n:'右腿',x:65,y:58}];
+        let aDots = '', aData = null, actP = 0;
+        aMap.forEach(d => {
+          const pt = arm.parts?.[d.n]; const has = pt && pt.状态 !== '未打造';
+          if(has) actP++;
+          const act = this.selArmor === d.k; if(act) aData = pt;
+          aDots += `<div class="a-hotspot ${has?'filled':''} ${act?'active':''}" data-type="armor" data-slot="${d.k}" style="left:${d.x}%; top:${d.y}%">${d.n}</div>`;
+        });
+
+        let invHtml = '';
+        // @ts-ignore
+        _.forEach(c.inventory||{}, (v,k)=> {
+          let ef = ''; 
+          // @ts-ignore
+          _.forEach(v.特效||{}, (ev,ek)=>{if(ev!==false) ef+=this.tag(ek,'gold')});
+          invHtml += `<div class="data-block">
+            <div class="db-title">${k} <span style="color:var(--os-cyan)">x${v.数量||1}</span></div>
+            <div class="kv-list" style="margin-bottom:10px;">
+              ${this.kv('类型/品质', `${v.类型||'无'} | ${v.品质||'无'} | ${v.品阶||'无'}`)}
+              ${v.market_value?.price ? this.kv('黑市估值', `${v.market_value.price} ${v.market_value.currency}`, 'var(--os-gold)') : ''}
+              ${v.融合参数?.契合度 ? this.kv('融合契合度', `${v.融合参数.契合度}%`, 'var(--os-cyan)') : ''}
+            </div>
+            ${ef ? `<div class="tag-group" style="margin-bottom:10px;">${ef}</div>`:''}
+            <div style="font-size:11px; color:var(--os-text-mut); font-style:italic;">${v.描述||''}</div>
+          </div>`;
+        });
+
+        let accHtml = '';
+        // @ts-ignore
+        _.forEach(eq.accessories||{}, (v,k)=> accHtml+=this.tag(`${k}: ${v.描述||''}`, 'norm'));
+
+        return `
+          <div class="anatomy-container">
+            <div class="anatomy-stage">
+              <div class="anatomy-bg"></div>
+              <div class="mech-bone mb-head"></div><div class="mech-bone mb-torso"></div><div class="mech-bone mb-arm-l"></div><div class="mech-bone mb-arm-r"></div><div class="mech-bone mb-leg-l"></div><div class="mech-bone mb-leg-r"></div>
+              ${aDots}
+            </div>
+            <div class="anatomy-detail-panel">
+              <div class="mc-title">BATTLE ARMOR <span>斗铠系统: ${arm.name||'未着装'} (${arm.lv||0}阶)</span></div>
+              <div class="kv-list" style="margin-bottom:20px;">
+                ${this.kv('穿戴状态', arm.equip_status||'未装备', arm.equip_status==='已装备'?'#00E676':'#fff')}
+                ${this.kv('核心金属', arm.material||'无')}
+                ${this.kv('部位激活率', `${actP}/10 部件`)}
+                ${this.kv('附带领域', arm.domain||'无', 'var(--os-purple)')}
+              </div>
+              <div style="border-top:1px dashed rgba(255,255,255,0.1); padding-top:16px;">
+                 <div style="color:#fff; font-weight:bold; margin-bottom:8px;">扫描部件: ${aData ? (aData.状态||'未打造') : '未选中'}</div>
+                 ${this.kv('品质系数', aData?.品质系数||1.0)}
+              </div>
+            </div>
+          </div>
+          
+          <div class="g-2">
+            <div class="cyber-card">
+               <div class="mc-title">MECH TERMINAL <span>机甲终端</span></div>
+               <div class="kv-list">
+                 ${this.kv('机甲类型', eq.mech?.type||'无')} ${this.kv('机甲阶级', eq.mech?.lv||'无级', 'var(--os-gold)')}
+                 ${this.kv('机甲材质', eq.mech?.material||'无')} ${this.kv('主武器', eq.mech?.weapon||'无')}
+                 ${this.kv('战损状态', eq.mech?.status||'完好', eq.mech?.status==='重创'?'var(--os-red)':'#00E676')}
+               </div>
+            </div>
+            <div class="cyber-card">
+               <div class="mc-title">WEAPON <span>本命武器</span></div>
+               <div class="kv-list" style="margin-bottom:16px;">
+                 ${this.kv('武器名称', eq.wpn?.name||'无')} ${this.kv('品阶', eq.wpn?.tier||'无阶', 'var(--os-purple)')}
+               </div>
+               <div class="tag-group">${Object.keys(eq.wpn?.traits||{}).map(k=>this.tag(k,'debuff')).join('')||this.tag('无绝对特性','norm')}</div>
+            </div>
+          </div>
+
+          <div class="cyber-card wide">
+            <div class="mc-title">ACCESSORIES <span>储物魂导器 (杂项)</span></div>
+            <div class="tag-group">${accHtml || '<span style="color:var(--os-text-mut)">未佩戴空间装备</span>'}</div>
+          </div>
+
+          <div class="cyber-card wide">
+            <div class="mc-title">INVENTORY FOLD <span>折叠舱内视图</span></div>
+            <div class="g-3">${invHtml || '<div style="color:var(--os-text-mut)">空间内部空空如也</div>'}</div>
+          </div>
+        `;
+      },
+
+      /* ========== 模板：因果羁绊 ========== */
+      tplSocial() {
+        const c = this.sd.char[this.actChar] || {};
+        const soc = c.social || {}; const w = c.wealth || {};
+
+        let relHtml = '';
+        // @ts-ignore
+        _.forEach(soc.relations||{}, (v,k) => {
+          relHtml += `<div class="data-block" style="border-left:3px solid var(--os-purple)">
+            <div class="db-title">${k} <span style="color:var(--os-gold)">好感: ${v.好感度||0}</span></div>
+            <div class="kv-list" style="margin-bottom:8px;">
+              ${this.kv('羁绊状态', v.关系||'陌生')} ${this.kv('发展路线', v.relation_route||'无')}
+              ${this.kv('社会职业', v.npc_job||'无')}
+            </div>
+            ${v.favor_buff ? this.tag(v.favor_buff, 'buff') : ''}
+          </div>`;
+        });
+
+        let facHtml = '';
+        // @ts-ignore
+        _.forEach(soc.factions||{}, (v,k) => facHtml += this.tag(`${k} : ${v.身份||'外围'} (权限级: ${v.权限级||0})`, 'gold'));
+
+        let hisHtml = '';
+        // @ts-ignore
+        _.forEach(c.combat_history||{}, (v,k) => hisHtml += `<div class="data-block">${this.kv(k, `x${v.count||0} (Tick:${v.last_tick||0})`)}</div>`);
+        
+        let knHtml = '';
+        (c.unlocked_knowledges||[]).forEach((k,i) => knHtml += `<div style="font-size:13px; color:var(--os-text-main); margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:8px;"><span style="color:var(--os-cyan)">[${i}]</span> ${k}</div>`);
+        
+        let recHtml = '';
+        // @ts-ignore
+        _.forEach(c.records||{}, (v,k) => recHtml += `<div class="data-block">${this.kv(`[${v.类型||'记录'}] ${k}`, v.状态||'', 'var(--os-cyan)')}</div>`);
+
+        return `
+          <div class="g-2">
+            <div class="cyber-card">
+              <div class="mc-title">REPUTATION <span>全域声望与身份</span></div>
+              <div class="kv-list" style="margin-bottom:20px;">
+                ${this.kv('主身份', soc.main_identity||'无')} ${this.kv('社会阶级', soc.fame_level||'籍籍无名')}
+                ${this.kv('声望总值', soc.reputation||0, 'var(--os-gold)')} ${this.kv('情报状态', soc.public_intel?'全网公开':'隐秘保密', soc.public_intel?'var(--os-cyan)':'var(--os-silver)')}
+              </div>
+              <div class="tag-group">${Object.keys(soc.titles||{}).map(k=>this.tag(k,'norm')).join('')||this.tag('无称号','norm')}</div>
+            </div>
+            <div class="cyber-card border-gold">
+              <div class="mc-title gold">FUNDS & ASSETS <span>联邦资产局</span></div>
+              <div class="kv-list">
+                ${this.kv('联邦币', w.fed_coin||0, 'var(--os-gold)')}
+                ${this.kv('星罗币', w.star_coin||0, 'var(--os-silver)')}
+                ${this.kv('唐门积分', w.tang_pt||0, 'var(--os-cyan)')}
+                ${this.kv('史莱克徽章', w.shrek_pt||0, '#00E676')}
+                ${this.kv('血神功勋', w.blood_pt||0, 'var(--os-red)')}
+              </div>
+            </div>
+          </div>
+          
+          <div class="cyber-card wide">
+            <div class="mc-title">FACTIONS <span>阵营与组织悬索</span></div>
+            <div class="tag-group">${facHtml || '<span style="color:var(--os-text-mut)">独行散修</span>'}</div>
+          </div>
+
+          <div class="cyber-card wide">
+            <div class="mc-title">SOCIAL LINK <span>神经元人际网</span></div>
+            <div class="g-3">${relHtml || '<span style="color:var(--os-text-mut)">孤身一人</span>'}</div>
+          </div>
+
+          <div class="g-2">
+             <div class="cyber-card">
+               <div class="mc-title">LOGS & HISTORY <span>任务卷宗与雷达</span></div>
+               <div class="g-2">
+                 <div><div style="font-size:12px;color:var(--os-cyan);margin-bottom:8px;">// 战斗雷达</div>${hisHtml||'<div style="color:var(--os-text-mut)">近期无战事</div>'}</div>
+                 <div><div style="font-size:12px;color:var(--os-cyan);margin-bottom:8px;">// 任务记录</div>${recHtml||'<div style="color:var(--os-text-mut)">无挂载任务</div>'}</div>
+               </div>
+             </div>
+             <div class="cyber-card">
+               <div class="mc-title">INTEL DECRYPTED <span>已破译核心情报</span></div>
+               <div style="background:rgba(0,0,0,0.5); padding:16px; border-radius:8px; height:200px; overflow-y:auto;">
+                 ${knHtml||'<div style="color:var(--os-text-mut)">未截获任何机密</div>'}
+               </div>
+             </div>
+          </div>
+        `;
+      },
+
+      /* ========== 模板：星网工坊 ========== */
+      tplForge() {
+        const c = this.sd.char[this.actChar] || {};
+        const jobs = c.job || {}; const inv = c.inventory || {};
+        
+        let jHtml = '';
+        // @ts-ignore
+        _.forEach(jobs, (v,k) => {
+          let techHtml = ''; 
+          // @ts-ignore
+          _.forEach(v.core_tech||{}, (tv,tk)=> techHtml+=this.tag(tk,'norm'));
+          jHtml += `<div class="data-block">
+            <div class="db-title" style="color:var(--os-gold); font-size:16px;">${k} <span style="color:#fff; font-size:12px;">Lv.${v.lv||0}</span></div>
+            <div class="kv-list" style="margin-bottom:12px;">
+              ${this.kv('头衔', v.title||'无')} ${this.kv('累积经验', v.exp||0)}
+              ${this.kv('融合上限', v.limits?.max_fusion||1)} ${this.kv('系统预测胜率', `${v.limits?.success_rate||0}%`, 'var(--os-cyan)')}
+            </div>
+            <div class="tag-group">${techHtml}</div>
+          </div>`;
+        });
+        
+        let matOpts = '<option value="">[神经元接驳: 请选择...]</option>';
+        // @ts-ignore
+        _.forEach(inv, (v,k) => { if(v.类型==='材料' || k.includes('金属') || k.includes('设计图')) matOpts += `<option value="${k}">${k} (持有量: ${v.数量||0})</option>`; });
+
+        const reqs = ['trade_request','donate_request','promotion_request','hunt_request','ascension_request','combat_action_request','knowledge_unlock_request'];
+        let reqHtml = '';
+        reqs.forEach(r => {
+          const rv = c[r];
+          if(rv && Object.values(rv).some(val => val && val!=='无' && val!==0 && val!==false)) {
+            reqHtml += `<div class="data-block" style="border-left:3px solid var(--os-red); margin-bottom:10px;">
+              <div class="db-title">[${r}]</div>
+              <div style="font-size:12px; color:var(--os-text-main); font-family:monospace; word-wrap:break-word;">${JSON.stringify(rv)}</div>
+            </div>`;
+          }
+        });
+
+        return `
+          <div class="cyber-card wide border-gold">
+            <div class="mc-title gold">LICENSES <span>副职业执照认证</span></div>
+            <div class="g-3">${jHtml || '<div style="color:var(--os-text-mut)">系统未查询到任何副职业执照</div>'}</div>
+          </div>
+          
+          <div class="g-2">
+            <div class="cyber-card">
+              <div class="mc-title">FORGE CONSOLE <span>星网工坊指令台</span></div>
+              <div style="font-size:12px; color:var(--os-text-mut); margin-bottom:20px; line-height:1.6;">
+                WARNING: 物理锻造与物质重塑均需消耗系统算力。请设定参数，前端将自动封包指令并注入量子信道，等待世界意志(AI)的下一回合仲裁。
+              </div>
+              <div class="forge-form">
+                <div class="f-group"><label class="f-lbl">// CALL LICENSE 调用执照</label>
+                  <select class="f-ctrl" id="f-job"><option value="锻造师">锻造师 Blacksmith</option><option value="设计师">设计师 Designer</option><option value="制造师">制造师 Maker</option><option value="修理师">修理师 Fixer</option></select>
+                </div>
+                <div class="f-group"><label class="f-lbl">// EXTRACT MAT 提取折叠舱材料</label>
+                  <select class="f-ctrl" id="f-mat">${matOpts}</select>
+                </div>
+                <div class="f-group" style="grid-column: 1/-1;"><label class="f-lbl">// TARGET BLUEPRINT 设定目标产物</label>
+                  <input type="text" class="f-ctrl" id="f-tar" placeholder="(e.g. 千锻沉银 / 一字斗铠胸甲)">
+                </div>
+                <div class="f-group" style="grid-column: 1/-1;"><label class="f-lbl">// ENERGY MULTIPLIER 消耗倍率/数量</label>
+                  <input type="number" class="f-ctrl" id="f-num" value="1">
+                </div>
+                <button class="f-submit" id="btn-forge-do">EXECUTE // 注入魂力</button>
+              </div>
+            </div>
+            <div class="cyber-card">
+              <div class="mc-title red">PENDING REQUESTS <span>待结算系统级请求</span></div>
+              <div style="font-size:12px; color:var(--os-text-mut); margin-bottom:16px; line-height:1.6;">
+                当前角色神经元上挂载的、等待进入下一轮事件队列结算的行动请求拦截监控：
+              </div>
+              <div style="background:rgba(0,0,0,0.6); padding:16px; border-radius:8px; height: 350px; overflow-y:auto; border:1px solid rgba(255,255,255,0.05);">
+                ${reqHtml || '<div style="color:var(--os-text-mut); text-align:center; padding-top:40px;">[ QUEUE EMPTY ]<br/>当前无任何排队请求。</div>'}
+              </div>
+            </div>
+          </div>
+        `;
+      },
+
+      /* ========== 模板：全域世界 ========== */
+      tplWorld() {
+        const w = this.sd.world || {};
+        const sys = this.sd.sys || {};
+        
+        let logHtml = '';
+        Object.keys(sys.seq||{}).sort().reverse().slice(0, 10).forEach(k => logHtml += `<div class="data-block" style="margin-bottom:10px; border-left:2px solid var(--os-cyan);"><div class="db-title">[${k}]</div><div class="db-sub" style="margin-bottom:0;">${sys.seq[k].事件}</div></div>`);
+        
+        let tlHtml = '';
+        Object.keys(w.timeline||{}).sort((a,b)=>(w.timeline[b].trigger_tick||0)-(w.timeline[a].trigger_tick||0)).slice(0,10).forEach(k => {
+            const ev = w.timeline[k];
+            tlHtml += `<div class="data-block" style="margin-bottom:10px; border-left:2px solid var(--os-gold);"><div class="db-title">Tick ${ev.trigger_tick} <span class="tag tag-norm" style="float:right;">${ev.status}</span></div><div class="db-sub" style="margin-bottom:0; color:#fff;">${ev.event}</div></div>`;
+        });
+
+        let flHtml = '';
+        // @ts-ignore
+        _.forEach(w.flags||{}, (v,k) => flHtml+=this.tag(k,'gold'));
+
+        return `
+          <div class="g-2">
+            <div class="cyber-card">
+              <div class="mc-title">TIME & ENVIRONMENT <span>时空信标</span></div>
+              <div style="font-size:28px; font-family:monospace; font-weight:900; color:var(--os-cyan); text-shadow:var(--glow-cyan); margin-bottom:20px;">${w.time?.calendar||'UNKNOWN ERA'}</div>
+              <div class="kv-list">
+                ${this.kv('绝对刻度 TICK', w.time?.tick||0)}
+                ${this.kv('上次结算时间戳', w.time?.last_settle_tick||0)}
+                ${this.kv('世界线偏差值 DEVIATION', w.deviation||0, 'var(--os-red)')}
+                ${this.kv('因果偏差累积倍率', w.deviation_multiplier||1)}
+                ${this.kv('星斗被杀魂兽累积 (诱发兽潮)', `${w.forest_killed_age||0} Yrs`, 'var(--os-purple)')}
+              </div>
+              <div class="db-title" style="margin-top:20px;">世界线锚点/标记 (Flags)</div>
+              <div class="tag-group">${flHtml || '<span style="color:var(--os-text-mut)">未触发特殊标记</span>'}</div>
+            </div>
+
+            <div class="cyber-card">
+              <div class="mc-title gold">GLOBAL RANKINGS & AUCTION <span>星网大盘</span></div>
+              <div class="g-2">
+                <div class="data-block">
+                  <div class="db-title">少年天才榜</div>
+                  <div style="font-size:24px; font-weight:900; color:#fff;">${Object.keys(w.rankings?.youth_talent?.top30||{}).length} <span style="font-size:12px;color:var(--os-text-mut);font-weight:normal;">人在榜</span></div>
+                </div>
+                <div class="data-block">
+                  <div class="db-title">大陆风云榜</div>
+                  <div style="font-size:24px; font-weight:900; color:#fff;">${Object.keys(w.rankings?.continent_wind?.top100||{}).length} <span style="font-size:12px;color:var(--os-text-mut);font-weight:normal;">人在榜</span></div>
+                </div>
+              </div>
+              <div class="data-block" style="border-color:var(--os-gold); background:rgba(255,215,0,0.05);">
+                <div class="db-title" style="color:var(--os-gold)">地下拍卖行 (${w.auction?.status||'休市'})</div>
+                <div class="kv-list">
+                  ${this.kv('下期刷新 TICK', w.auction?.next_tick||0)}
+                  ${this.kv('当前上架拍品数', Object.keys(w.auction?.items||{}).length, '#fff')}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="cyber-card wide">
+             <div class="mc-title red">SYSTEM BROADCAST <span>全域系统广播</span></div>
+             <div style="background:rgba(255,0,60,0.1); border:1px solid rgba(255,0,60,0.3); padding:20px; border-radius:8px; font-size:15px; color:#fff; line-height:1.6; text-shadow:0 0 10px rgba(255,0,60,0.5);">
+                > [SYS_LOG] ${this.sd.sys?.rsn || '系统运行平稳，未捕捉到混沌波动。'}
+             </div>
+             <div class="g-2" style="margin-top:20px;">
+                <div class="data-block">${this.kv('上一次世界检定 D100', this.sd.sys?.last_roll||0, 'var(--os-gold)')}</div>
+                <div class="data-block">${this.kv('系统判定最终成功率 FSR', `${this.sd.sys?.fsr||0}%`, 'var(--os-cyan)')}</div>
+             </div>
+          </div>
+
+          <div class="g-2">
+            <div class="cyber-card">
+              <div class="mc-title">TIMELINE <span>编年史事件</span></div>
+              <div style="height:400px; overflow-y:auto; padding-right:10px;">${tlHtml || '<div style="color:var(--os-text-mut)">无重大事件记录</div>'}</div>
+            </div>
+            <div class="cyber-card">
+              <div class="mc-title">EVENTS LOG <span>历史事件序列</span></div>
+              <div style="height:400px; overflow-y:auto; padding-right:10px;">${logHtml || '<div style="color:var(--os-text-mut)">无序列记录</div>'}</div>
+            </div>
+          </div>
+        `;
+      },
+
+      /* ========== 模板：全球势力 ========== */
+      tplOrg() {
+        const w = this.sd.world || {};
+        let orgHtml = '';
+        // @ts-ignore
+        _.forEach(this.sd.org||{}, (v,k) => {
+          orgHtml+=`<div class="cyber-card">
+            <div class="mc-title gold">${k} <span class="tag tag-norm">${v.status||'正常'}</span></div>
+            <div class="kv-list">
+              ${this.kv('全球影响力', v.inf||0)} ${this.kv('组织规模', v.size||0)}
+              ${this.kv('极限斗罗底蕴', v.power_stats?.limit_douluo||0, 'var(--os-gold)')}
+              ${this.kv('超级斗罗储备', v.power_stats?.super_douluo||0, 'var(--os-red)')}
+              ${this.kv('封号斗罗储备', v.power_stats?.title_douluo||0, 'var(--os-purple)')}
+              ${this.kv('在册重要成员数', Object.keys(v.mem||{}).length)}
+            </div>
+          </div>`;
+        });
+        let locHtml = '';
+        // @ts-ignore
+        _.forEach(w.locations||{}, (v,k) => {
+          locHtml+=`<div class="data-block">
+            <div class="db-title" style="font-size:15px; color:#fff;">${k}</div>
+            <div class="kv-list">
+              ${this.kv('实际掌控', v.掌控势力||'无', 'var(--os-cyan)')} ${this.kv('经济状况', v.经济状况||'未知')}
+              ${this.kv('人口基数', v.人口||0)} ${this.kv('守护军团', v.守护军团||'无')}
+              ${this.kv('入驻分部商店数', Object.keys(v.stores||{}).length, 'var(--os-gold)')}
+            </div>
+          </div>`;
+        });
+
+        return `
+          <div class="cyber-card wide" style="margin-bottom:24px;">
+            <div class="mc-title">FACTIONS DATABASE <span>全球顶尖势力档案</span></div>
+            <div class="g-3">${orgHtml || '<div style="color:var(--os-text-mut)">无势力数据</div>'}</div>
+          </div>
+          <div class="cyber-card wide">
+            <div class="mc-title">LOCATIONS NETWORK <span>大陆主要城市网点</span></div>
+            <div class="g-4">${locHtml || '<div style="color:var(--os-text-mut)">无城市网点数据</div>'}</div>
+          </div>
+        `;
+      },
+
+      // 提交工坊指令
+      submitForge() {
         const job = document.getElementById('f-job').value;
         const mat = document.getElementById('f-mat').value || '未指定';
         const tar = document.getElementById('f-tar').value;
         const num = document.getElementById('f-num').value;
-        
-        if(!tar) { alert('ERROR: 缺少目标产物定义！'); return; }
+        if(!tar) { alert('【系统阻断】未输入目标产物结构蓝图！'); return; }
         
         const cmd = `【副职业请求】\n职业：${job}\n目标：${tar}\n材料：${mat}\n数量：${num}\n归档字段：制作请求`;
         
-        const pDoc = getPortal();
-        const $ta = $(pDoc).find('#send_textarea');
-        const $btn = $(pDoc).find('#send_but');
+        const pDoc = this.getPortal();
+        const $ta = p$(pDoc).find('#send_textarea');
+        const $btn = p$(pDoc).find('#send_but');
         
         if($ta.length && $btn.length) {
           $ta.val(cmd).trigger('input');
           $btn.trigger('click');
-          document.getElementById('hud-overlay').classList.remove('is-active');
+          document.getElementById('dragon-os-app').classList.remove('is-active');
         } else {
-          alert('SYSTEM FAILURE: 无法定位量子通信信道(聊天输入框)，请手动复制以下指令：\n\n' + cmd);
+          alert('【连接失败】无法定位量子通信信道(聊天输入框)，请手动复制以下指令：\n\n' + cmd);
         }
       }
     };
 
-    // 页面加载完成后启动
-    $(function() {
-      if(typeof waitGlobalInitialized === 'function') {
-        waitGlobalInitialized('Mvu').then(() => HUD.init());
-      } else {
-        setTimeout(() => HUD.init(), 1000);
-      }
-    });
+    // ========== 启动点 ==========
+    // @ts-ignore
+    if (typeof $ !== 'undefined') {
+       // @ts-ignore
+      $(function() {
+        if (typeof waitGlobalInitialized === 'function') {
+          // @ts-ignore
+          waitGlobalInitialized('Mvu').then(() => HUD.init());
+        } else {
+          setTimeout(() => HUD.init(), 1000);
+        }
+      });
+    }
   })();
 </script>
