@@ -16,7 +16,7 @@
       document.body.appendChild(detailModal);
     }
 
-    const modalPanel = detailModal.querySelector('.mvu-modal-panel');
+    const modalPanel = detailModal ? detailModal.querySelector('.mvu-modal-panel') : null;
     const modalTitle = document.getElementById('modalTitle');
     const modalSubtitle = document.getElementById('modalSubtitle');
     const modalLevel = document.getElementById('modalLevel');
@@ -4093,10 +4093,10 @@ ${JSON.stringify(patchOps, null, 2)}
 
       hideInventoryHoverPanel();
       currentModalPreviewKey = '';
-      detailModal.classList.remove('show', 'drawer-left');
-      modalPanel.classList.remove('drawer-left', 'vault-mode');
-      modalBody.classList.remove('vault-body');
-      detailModal.setAttribute('aria-hidden', 'true');
+      if (detailModal) detailModal.classList.remove('show', 'drawer-left');
+      if (modalPanel) modalPanel.classList.remove('drawer-left', 'vault-mode');
+      if (modalBody) modalBody.classList.remove('vault-body');
+      if (detailModal) detailModal.setAttribute('aria-hidden', 'true');
     }
 
     function bindVueModalDelegation(mountEl) {
