@@ -10,7 +10,7 @@
   const MAP_COORD_SYSTEM_IMAGE = 'image';
   const MAP_COORD_SYSTEM_LOCAL = 'local';
   const ASSETS = {
-    world: encodeURI('https://cdn.jsdelivr.net/gh/sasajyunainui/lwcs@main/MAP.jpeg')
+    world: encodeURI('https://cdn.jsdelivr.net/gh/sasajyunainui/lwcs@main/MAP.webp')
   };
 
   const SMALL_SETTLEMENT_NAMES = new Set(['傲来城', '上陵城', '海陆城', '烈火盆地']);
@@ -1384,6 +1384,18 @@
     .split-left-page[data-target='page-map'] {
       padding-left: 0 !important;
       padding-right: 0 !important;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none !important;
+      -ms-overflow-style: none !important;
+    }
+
+    #page-map::-webkit-scrollbar,
+    .split-left-page[data-target='page-map']::-webkit-scrollbar {
+      width: 0 !important;
+      height: 0 !important;
     }
 
     #page-map .map-layout,
@@ -1405,7 +1417,7 @@
       background: transparent !important;
       border: 0 !important;
       box-shadow: none !important;
-      overflow: hidden !important;
+      overflow: visible !important;
     }
 
     #page-map .map-layout > .map-hero-card {
@@ -1414,8 +1426,10 @@
     }
 
     .split-left-page[data-target='page-map'] > .map-hero-card {
-      height: 100% !important;
+      height: auto !important;
       min-height: 0 !important;
+      flex: 0 0 auto !important;
+      padding-bottom: 6px !important;
     }
 
     #page-map .map-layout,
@@ -1478,7 +1492,7 @@
     .map-canvas.map-canvas-large.interactive-map {
       position: relative;
       display: block;
-      width: calc(100% + 24px) !important;
+      width: 100% !important;
       max-width: none !important;
       height: auto !important;
       min-height: 0 !important;
@@ -1487,15 +1501,16 @@
       align-self: stretch !important;
       aspect-ratio: ${WORLD_IMAGE_WIDTH} / ${WORLD_IMAGE_HEIGHT} !important;
       margin-top: 42px !important;
-      margin-left: -12px !important;
-      margin-right: -12px !important;
+      margin-left: 0 !important;
+      margin-right: 0 !important;
       margin-bottom: 8px;
       border-radius: 14px;
-      border: 1px solid rgba(118,148,174,0.34);
-      background: linear-gradient(180deg, #233f58, #172838);
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05), 0 18px 36px rgba(0,0,0,0.26);
+      border: 1px solid rgba(148,190,220,0.46);
+      background: linear-gradient(180deg, #1c3142, #12202d);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04), 0 16px 30px rgba(0,0,0,0.22);
       overflow: hidden;
       cursor: crosshair;
+      isolation: isolate;
     }
 
     .map-canvas.dragging {
@@ -1542,13 +1557,18 @@
       display: none !important;
     }
 
+    .map-canvas::before,
+    .map-canvas::after {
+      display: none !important;
+    }
+
     .map-control-strip {
       position: relative;
       z-index: 2;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
       margin: 0;
       padding: 0;
       flex: 0 0 auto;
@@ -1605,7 +1625,8 @@
       background-repeat: no-repeat;
       background-size: 100% 100%;
       background-position: center;
-      filter: saturate(0.96) contrast(1.02) brightness(0.92);
+      filter: saturate(1) contrast(1.03) brightness(0.98);
+      image-rendering: auto;
     }
 
     .map-mini-viewport {
@@ -1638,23 +1659,39 @@
     }
 
 
-    .map-tool-btn {
-      width: 30px;
-      height: 30px;
-      border: 1px solid rgba(181,202,220,0.24);
-      border-radius: 50%;
-      background: linear-gradient(180deg, rgba(32,50,66,0.96), rgba(16,27,39,0.96));
-      color: #eef4f8;
-      font-size: 15px;
-      font-weight: 700;
+    .map-tool-btn,
+    button.map-tool-btn,
+    .map-control-strip > .map-tool-btn {
+      width: 32px;
+      height: 32px;
+      padding: 0 !important;
+      display: inline-flex !important;
+      align-items: center;
+      justify-content: center;
+      appearance: none !important;
+      -webkit-appearance: none !important;
+      border: 1px solid rgba(154,227,255,0.56);
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(18,34,46,0.98), rgba(11,23,33,0.98));
+      color: #f8fdff;
+      font-family: var(--font-ui);
+      font-size: 16px;
+      line-height: 1;
+      font-weight: 800;
       cursor: pointer;
-      box-shadow: 0 6px 14px rgba(0,0,0,0.24), inset 0 0 0 1px rgba(255,255,255,0.05);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.65);
+      box-shadow: 0 8px 18px rgba(0,0,0,0.28), inset 0 0 0 1px rgba(255,255,255,0.05);
       transition: transform 0.12s ease, filter 0.12s ease, opacity 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, background 0.12s ease, color 0.12s ease;
+      outline: none;
     }
 
-    .map-tool-btn:hover {
+    .map-tool-btn:hover,
+    button.map-tool-btn:hover,
+    .map-control-strip > .map-tool-btn:hover {
       transform: translateY(-1px);
-      filter: brightness(1.08);
+      filter: brightness(1.08) contrast(1.04);
+      border-color: rgba(191,239,255,0.82);
+      box-shadow: 0 10px 22px rgba(0,0,0,0.30), inset 0 0 0 1px rgba(255,255,255,0.08);
     }
 
     .map-tool-btn:disabled {
@@ -1666,9 +1703,9 @@
     }
 
     .map-tool-btn.active {
-      border-color: rgba(111,212,255,0.42);
+      border-color: rgba(111,212,255,0.82);
       color: #ffffff;
-      box-shadow: inset 0 0 12px rgba(111,212,255,0.16), 0 6px 14px rgba(0,0,0,0.24), inset 0 0 0 1px rgba(255,255,255,0.05);
+      box-shadow: inset 0 0 14px rgba(111,212,255,0.18), 0 8px 18px rgba(0,0,0,0.26), inset 0 0 0 1px rgba(255,255,255,0.07);
     }
 
     .map-tool-btn[data-map-control='enter'].active {
@@ -1845,8 +1882,9 @@
       background-repeat: no-repeat;
       background-size: 100% 100%;
       background-position: center;
-      filter: saturate(1.02) contrast(1.04) brightness(0.97);
-      box-shadow: inset 0 0 90px rgba(0,0,0,0.06);
+      filter: saturate(1) contrast(1.03) brightness(0.99);
+      box-shadow: inset 0 0 28px rgba(0,0,0,0.03);
+      image-rendering: auto;
     }
 
     .map-terrain-svg {
@@ -2107,15 +2145,19 @@
       transform: translate(calc(-50% + var(--label-offset-x, 0px)), calc(2px + var(--label-offset-y, 0px)));
       padding: 0;
       border-radius: 0;
-      font-size: 9px;
-      font-weight: 600;
-      letter-spacing: 0.2px;
-      color: rgba(244,248,250,0.94);
+      font-family: var(--font-ui);
+      font-size: 10px;
+      line-height: 1.15;
+      font-weight: 700;
+      letter-spacing: 0.12px;
+      color: rgba(248,252,255,0.98);
       white-space: nowrap;
       background: transparent;
       border: none;
       box-shadow: none;
-      text-shadow: 0 1px 0 rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.55);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.96), 0 0 6px rgba(0,0,0,0.74);
+      text-rendering: geometricPrecision;
+      -webkit-font-smoothing: antialiased;
       pointer-events: none;
       user-select: none;
     }
