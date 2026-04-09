@@ -4019,7 +4019,7 @@ ${JSON.stringify(patchOps, null, 2)}
         modalSummary,
         modalBody
       } = refs;
-      if (!detailModal || !modalPanel || !modalTitle || !modalSubtitle || !modalLevel || !modalPath || !modalSummary || !modalBody) {
+      if (!detailModal || !modalPanel || !modalTitle || !modalBody) {
         return;
       }
       if (activeSubUI && typeof activeSubUI.destroy === 'function') {
@@ -4032,11 +4032,11 @@ ${JSON.stringify(patchOps, null, 2)}
         modalPanel.classList.add('archive-mode');
         modalPanel.classList.toggle('vault-mode', previewKey === '储物仓库详细页');
         modalBody.className = previewKey === '储物仓库详细页' ? 'modal-body archive-body vault-body' : 'modal-body archive-body';
-        modalLevel.textContent = '';
-        modalPath.textContent = '';
+        if (modalLevel) modalLevel.textContent = '';
+        if (modalPath) modalPath.textContent = '';
         modalTitle.textContent = liveArchive.title;
-        modalSubtitle.textContent = '';
-        modalSummary.textContent = '';
+        if (modalSubtitle) modalSubtitle.textContent = '';
+        if (modalSummary) modalSummary.textContent = '';
         modalBody.innerHTML = liveArchive.body;
         if (typeof liveArchive.onMount === 'function') {
           activeSubUI = liveArchive.onMount(modalBody);
@@ -4072,22 +4072,22 @@ ${JSON.stringify(patchOps, null, 2)}
           modalPanel.classList.add('archive-mode');
           modalPanel.classList.toggle('vault-mode', isVaultSkeleton);
           modalBody.className = isVaultSkeleton ? 'modal-body archive-body vault-body' : 'modal-body archive-body';
-          modalLevel.textContent = '';
-          modalPath.textContent = '';
+          if (modalLevel) modalLevel.textContent = '';
+          if (modalPath) modalPath.textContent = '';
           modalTitle.textContent = skeletonArchive.title;
-          modalSubtitle.textContent = '';
-          modalSummary.textContent = '';
+          if (modalSubtitle) modalSubtitle.textContent = '';
+          if (modalSummary) modalSummary.textContent = '';
           modalBody.innerHTML = skeletonArchive.body;
           return;
         }
         modalPanel.classList.add('archive-mode');
         modalPanel.classList.remove('vault-mode');
         modalBody.className = 'modal-body archive-body';
-        modalLevel.textContent = '';
-        modalPath.textContent = '';
+        if (modalLevel) modalLevel.textContent = '';
+        if (modalPath) modalPath.textContent = '';
         modalTitle.textContent = previewKey || '详细信息';
-        modalSubtitle.textContent = '';
-        modalSummary.textContent = '';
+        if (modalSubtitle) modalSubtitle.textContent = '';
+        if (modalSummary) modalSummary.textContent = '';
         modalBody.innerHTML = '';
         return;
       }
@@ -4098,22 +4098,22 @@ ${JSON.stringify(patchOps, null, 2)}
         modalPanel.classList.add('archive-mode');
         modalPanel.classList.toggle('vault-mode', isVaultModal);
         modalBody.className = isVaultModal ? 'modal-body archive-body vault-body' : 'modal-body archive-body';
-        modalLevel.textContent = '';
-        modalPath.textContent = '';
+        if (modalLevel) modalLevel.textContent = '';
+        if (modalPath) modalPath.textContent = '';
         modalTitle.textContent = view.title;
-        modalSubtitle.textContent = '';
-        modalSummary.textContent = '';
+        if (modalSubtitle) modalSubtitle.textContent = '';
+        if (modalSummary) modalSummary.textContent = '';
         modalBody.innerHTML = view.body;
         return;
       }
       const config = previewMap[previewKey] || buildDynamicPreview(previewKey || '详细弹窗');
       modalPanel.classList.remove('archive-mode', 'vault-mode');
       modalBody.className = 'modal-body';
-      modalLevel.textContent = '';
-      modalPath.textContent = '';
+      if (modalLevel) modalLevel.textContent = '';
+      if (modalPath) modalPath.textContent = '';
       modalTitle.textContent = config.title;
-      modalSubtitle.textContent = '';
-      modalSummary.textContent = '';
+      if (modalSubtitle) modalSubtitle.textContent = '';
+      if (modalSummary) modalSummary.textContent = '';
       modalBody.innerHTML = renderGenericModalBody(config);
     }
 
@@ -4162,8 +4162,8 @@ ${JSON.stringify(patchOps, null, 2)}
       openModal(previewKey);
     });
 
-    modalClose.addEventListener('click', closeModal);
-    detailModal.addEventListener('click', (event) => {
+    if (modalClose) modalClose.addEventListener('click', closeModal);
+    if (detailModal) detailModal.addEventListener('click', (event) => {
       const eventTarget = event.target instanceof Element ? event.target : (event.target && event.target.parentElement ? event.target.parentElement : null);
       const actionBtn = eventTarget ? eventTarget.closest('.armory-action-btn') : null;
       if (actionBtn && modalBody.contains(actionBtn)) {

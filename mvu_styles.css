@@ -217,19 +217,27 @@
     .header-loc {
       min-width: 0;
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 6px;
       font-family: var(--font-ui);
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
-      line-height: 1.35;
+      line-height: 1.2;
       letter-spacing: .18px;
       color: #eefbff;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      white-space: normal;
       text-shadow: 0 1px 3px rgba(0,0,0,0.40), 0 0 10px rgba(95,233,255,0.08);
       opacity: 1;
+    }
+
+    .header-loc span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: normal;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
     }
 
     .archive-split-name-text,
@@ -1149,11 +1157,10 @@
     }
 
     .simple-row {
-      border: 1px solid rgba(255,255,255,0.06);
+      border: none;
       border-radius: 2px 8px 8px 2px;
       padding: 6px 7px 6px 10px;
-      background: rgba(7,16,30,0.82);
-      box-shadow: inset 0 0 10px rgba(0,0,0,0.18);
+      background: linear-gradient(90deg, rgba(255,255,255,0.04), transparent);
       border-left: 2px solid rgba(255,255,255,0.2);
     }
 
@@ -2334,25 +2341,27 @@
     .archive-split-loc {
       min-width: 0;
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 6px;
       font-family: var(--font-ui);
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
-      line-height: 1.35;
+      line-height: 1.2;
       letter-spacing: .16px;
       color: #f2fbff;
       text-shadow: 0 1px 3px rgba(0,0,0,0.42), 0 0 10px rgba(95,233,255,0.08);
       opacity: 1;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      white-space: normal;
     }
 
     .archive-split-loc span {
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
+      white-space: normal;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
     }
 
     .archive-split-loc svg {
@@ -3733,11 +3742,10 @@
 
     .meta-item,
     .status-row {
-      border: 1px solid rgba(255,255,255,0.06);
+      border: none;
       border-radius: 2px 8px 8px 2px;
       padding: 6px 7px 6px 10px;
-      background: rgba(7,16,30,0.82);
-      box-shadow: inset 0 0 10px rgba(0,0,0,0.18);
+      background: linear-gradient(90deg, rgba(223,246,255,0.12), rgba(223,246,255,0.02));
       border-left: 2px solid rgba(143,233,255,0.32);
     }
 

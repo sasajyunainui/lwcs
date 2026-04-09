@@ -7122,10 +7122,8 @@
   }
 
   function handleMapPointerDown(event) {
-    if (event.button !== 2) return;
+    if (event.button !== 0) return;
     const point = resolveMapClientPoint(event.currentTarget, event.clientX, event.clientY);
-    event.preventDefault();
-    event.stopPropagation();
     mapDragState.active = true;
     mapDragState.moved = false;
     mapDragState.startX = point ? point.localX : event.clientX;
@@ -7304,9 +7302,6 @@
     document.querySelectorAll('.map-canvas.interactive-map').forEach(canvasEl => {
       if (canvasEl.dataset.mapBound === '1') return;
       canvasEl.dataset.mapBound = '1';
-      canvasEl.addEventListener('contextmenu', event => {
-        event.preventDefault();
-      });
       canvasEl.addEventListener('wheel', handleMapWheel, { passive: false });
       canvasEl.addEventListener('pointerdown', handleMapPointerDown);
       canvasEl.addEventListener('pointermove', handleMapCanvasHover);
