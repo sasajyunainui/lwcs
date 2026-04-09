@@ -20,9 +20,9 @@ function requestTabChange(target) {
 
 const LeftPanel = {
   template: `
-    <div class="mvu-vue-wrapper mvu-root left-panel" style="position:fixed;top:0;left:0;bottom:0;z-index:100;">
+    <div class="mvu-vue-wrapper mvu-root left-panel" :class="{ 'is-folded': isFolded }" style="position:fixed;top:0;left:0;bottom:0;z-index:100;">
       <div class="split-shell-bg-sibling split-shell-bg-left"></div>
-      <div class="split-shell split-shell-left">
+      <div class="split-shell split-shell-left" @mouseenter="unfold" @mouseleave="fold">
         <div class="ring-group top-left-rings">
           <div class="astro-circle ring-cyan-1"></div>
           <div class="astro-circle ring-cyan-2"></div>
@@ -91,19 +91,29 @@ const LeftPanel = {
           <button class="mvu-tab-btn" :class="{ active: tabState.current === 'page-terminal' }" data-target="page-terminal" @click="setTab('page-terminal')">终端</button>
         </div>
       </div>
+      <button
+        type="button"
+        class="mvu-fold-btn left-btn"
+        :title="isFolded ? '展开左侧栏' : '折叠左侧栏'"
+        @mouseenter="unfold"
+        @click.stop="toggleFold"
+      >{{ isFolded ? '›' : '‹' }}</button>
     </div>
   `,
   setup() {
-    const isFolded = ref(false);
-    return { isFolded, tabState: mvuTabState, setTab: requestTabChange };
+    const isFolded = ref(true);
+    const fold = () => { isFolded.value = true; };
+    const unfold = () => { isFolded.value = false; };
+    const toggleFold = () => { isFolded.value = !isFolded.value; };
+    return { isFolded, fold, unfold, toggleFold, tabState: mvuTabState, setTab: requestTabChange };
   }
 };
 
 const RightPanel = {
   template: `
-    <div class="mvu-vue-wrapper mvu-root right-panel" style="position:fixed;top:0;right:0;bottom:0;z-index:100;">
+    <div class="mvu-vue-wrapper mvu-root right-panel" :class="{ 'is-folded': isFolded }" style="position:fixed;top:0;right:0;bottom:0;z-index:100;">
       <div class="split-shell-bg-sibling split-shell-bg-right"></div>
-      <div class="split-shell split-shell-right">
+      <div class="split-shell split-shell-right" @mouseenter="unfold" @mouseleave="fold">
         <div class="ring-group top-left-rings">
           <div class="astro-circle ring-cyan-1"></div>
           <div class="astro-circle ring-cyan-2"></div>
@@ -176,11 +186,21 @@ const RightPanel = {
           <button class="mvu-tab-btn" :class="{ active: tabState.current === 'page-terminal' }" data-target="page-terminal" @click="setTab('page-terminal')">终端</button>
         </div>
       </div>
+      <button
+        type="button"
+        class="mvu-fold-btn right-btn"
+        :title="isFolded ? '展开右侧栏' : '折叠右侧栏'"
+        @mouseenter="unfold"
+        @click.stop="toggleFold"
+      >{{ isFolded ? '‹' : '›' }}</button>
     </div>
   `,
   setup() {
-    const isFolded = ref(false);
-    return { isFolded, tabState: mvuTabState, setTab: requestTabChange };
+    const isFolded = ref(true);
+    const fold = () => { isFolded.value = true; };
+    const unfold = () => { isFolded.value = false; };
+    const toggleFold = () => { isFolded.value = !isFolded.value; };
+    return { isFolded, fold, unfold, toggleFold, tabState: mvuTabState, setTab: requestTabChange };
   }
 };
 

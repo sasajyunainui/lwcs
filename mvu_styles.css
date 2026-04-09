@@ -4919,11 +4919,15 @@
   pointer-events: auto;
 }
 
+.mvu-vue-wrapper .mvu-fold-btn {
+  pointer-events: auto;
+}
+
 .mvu-vue-wrapper.left-panel { left: 0; width: 380px; }
 .mvu-vue-wrapper.right-panel { right: 0; width: 360px; }
 
 /* ==========================================
-   MVU Vue 折叠控制与挂载点专属样式
+   MVU Vue 折叠控制与真正的屏幕边缘热区
    ========================================== */
 .mvu-app-container {
   position: relative;
@@ -4947,65 +4951,100 @@
   border-radius: 16px 0 0 16px;
 }
 
-/* 左侧向屏幕内侧(左边)折叠隐藏 */
+/* 左右面板完整滑出屏幕，只保留真正贴边的热区 */
 .left-panel.is-folded {
   transform: translateX(-100%);
 }
 
-/* 右侧向屏幕内侧(右边)折叠隐藏 */
 .right-panel.is-folded {
   transform: translateX(100%);
 }
 
-/* 悬浮边缘折叠按钮 */
+/* 真正的屏幕边缘热区 */
 .mvu-fold-btn {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 24px;
-  height: 64px;
-  background: rgba(0, 229, 255, 0.15);
-  border: 1px solid rgba(0, 229, 255, 0.35);
-  color: var(--cyan);
-  font-family: var(--font-tech);
-  font-size: 16px;
-  font-weight: bold;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 9999;
+  top: 14px;
+  bottom: 72px;
+  width: 14px;
+  height: auto;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: rgba(77, 240, 255, 0.02);
+  color: transparent;
+  font-size: 0;
+  line-height: 0;
+  cursor: ew-resize;
+  z-index: 10001;
+  user-select: none;
+  -webkit-user-select: none;
   backdrop-filter: blur(8px);
-  transition: all 0.2s ease;
+  -webkit-backdrop-filter: blur(8px);
+  opacity: 0;
+  box-shadow: none;
+  transition: opacity 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
 }
 
-.mvu-fold-btn:hover {
-  background: rgba(0, 229, 255, 0.3);
-  box-shadow: 0 0 12px rgba(0,229,255,0.4);
+.mvu-fold-btn::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 2px;
+  height: 112px;
+  border-radius: 999px;
+  background: rgba(77, 240, 255, 0.72);
+  box-shadow: 0 0 10px rgba(0,229,255,0.24);
+  transform: translateY(-50%);
+  opacity: 0.72;
+  transition: opacity 0.18s ease, height 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
 }
 
 .left-btn {
-  right: -24px;
-  border-radius: 0 8px 8px 0;
-  border-left: none;
+  right: -14px;
+  border-radius: 0 12px 12px 0;
 }
 
-/* 左侧折叠后，按钮必须留在屏幕可视区内 */
-.left-panel.is-folded .left-btn {
-  right: -24px;
-  transform: translate(100%, -50%);
+.left-btn::before {
+  right: 4px;
 }
 
 .right-btn {
-  left: -24px;
-  border-radius: 8px 0 0 8px;
-  border-right: none;
+  left: -14px;
+  border-radius: 12px 0 0 12px;
 }
 
-/* 右侧折叠后，按钮必须留在屏幕可视区内 */
-.right-panel.is-folded .right-btn {
-  left: -24px;
-  transform: translate(-100%, -50%);
+.right-btn::before {
+  left: 4px;
+}
+
+.left-panel.is-folded .mvu-fold-btn,
+.right-panel.is-folded .mvu-fold-btn {
+  opacity: 1;
+}
+
+.left-panel.is-folded .mvu-fold-btn::before,
+.right-panel.is-folded .mvu-fold-btn::before {
+  opacity: 0.78;
+  height: 160px;
+}
+
+.left-panel.is-folded .mvu-fold-btn:hover,
+.right-panel.is-folded .mvu-fold-btn:hover {
+  background: rgba(77, 240, 255, 0.08);
+  box-shadow: 0 0 18px rgba(0,229,255,0.18);
+}
+
+.left-panel.is-folded .mvu-fold-btn:hover::before,
+.right-panel.is-folded .mvu-fold-btn:hover::before {
+  opacity: 1;
+  background: rgba(77,240,255,0.92);
+  box-shadow: 0 0 14px rgba(0,229,255,0.32);
+}
+
+.left-panel:not(.is-folded) .mvu-fold-btn,
+.right-panel:not(.is-folded) .mvu-fold-btn {
+  opacity: 0;
+  pointer-events: none;
 }
 
 
