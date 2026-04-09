@@ -393,10 +393,10 @@
       gap: 8px;
     }
 
-    .panel,
-    .module-card,
+    .mvu-panel,
+    .mvu-module-card,
     .strip,
-    .simple-card {
+    .mvu-simple-card {
       position: relative;
       overflow: hidden;
       border-radius: 14px;
@@ -408,10 +408,10 @@
       box-shadow: inset 0 0 16px rgba(0,0,0,0.24);
     }
 
-    .panel::before,
-    .module-card::before,
+    .mvu-panel::before,
+    .mvu-module-card::before,
     .strip::before,
-    .simple-card::before {
+    .mvu-simple-card::before {
       content: '';
       position: absolute;
       inset: 0;
@@ -422,10 +422,10 @@
       background-size: 16px 16px;
     }
 
-    .panel::after,
-    .module-card::after,
+    .mvu-panel::after,
+    .mvu-module-card::after,
     .strip::after,
-    .simple-card::after,
+    .mvu-simple-card::after,
     .social-chip::after {
       content: '';
       position: absolute;
@@ -445,7 +445,7 @@
       z-index: 2;
     }
 
-    .panel {
+    .mvu-panel {
       padding: 9px 10px 9px;
       border-left: 3px solid var(--gold);
       display: flex;
@@ -612,19 +612,19 @@
     }
 
     .social-chip:hover,
-    .module-card:hover,
+    .mvu-module-card:hover,
     .strip:hover,
-    .simple-card:hover {
+    .mvu-simple-card:hover {
       box-shadow: var(--shadow-cyan);
       border-color: rgba(0,229,255,0.20);
       transform: translateY(-1px);
     }
 
     .social-chip:hover::after,
-    .module-card:hover::after,
+    .mvu-module-card:hover::after,
     .strip:hover::after,
-    .simple-card:hover::after,
-    .panel:hover::after {
+    .mvu-simple-card:hover::after,
+    .mvu-panel:hover::after {
       animation: cardSweep .62s cubic-bezier(0.22, 1, 0.36, 1) 1;
     }
 
@@ -649,7 +649,7 @@
       min-height: 0;
     }
 
-    .module-card {
+    .mvu-module-card {
       padding: 8px 8px 8px;
       display: flex;
       flex-direction: column;
@@ -815,7 +815,12 @@
     }
 
     .ring-white { color: #f8fafc; }
+    .ring-yellow { color: #ffe77a; }
+    .ring-purple { color: #d946ef; }
+    .ring-black { color: #94a3b8; }
+    .ring-red { color: var(--red); }
     .ring-gold { color: var(--gold); }
+    .ring-orangegold { color: #ffb347; }
     @keyframes ringSpin { 100% { transform: rotate(360deg); } }
 
     .strip-right {
@@ -1106,7 +1111,7 @@
       align-items: stretch;
     }
 
-    .simple-card {
+    .mvu-simple-card {
       padding: 7px 8px 7px;
       min-height: 0;
       height: 100%;
@@ -1116,15 +1121,15 @@
       transition: .18s ease;
     }
 
-    .simple-card .simple-title {
+    .mvu-simple-card .simple-title {
       margin: 0;
       font-size: 13px;
       color: var(--white);
       font-family: var(--font-title);
     }
 
-    .simple-card .simple-title::before,
-    .simple-card .simple-title::after { display: none; }
+    .mvu-simple-card .simple-title::before,
+    .mvu-simple-card .simple-title::after { display: none; }
 
     .simple-sub {
       position: relative;
@@ -1194,7 +1199,7 @@
       height: 100%;
     }
 
-    .stack-3 .simple-card {
+    .stack-3 .mvu-simple-card {
       flex: 1 1 0;
       min-height: 0;
     }
@@ -1269,8 +1274,8 @@
       background: rgba(255,215,0,0.06);
     }
 
-    .map-side-stack .simple-card,
-    .terminal-side-stack .simple-card {
+    .map-side-stack .mvu-simple-card,
+    .terminal-side-stack .mvu-simple-card {
       padding: 9px 10px;
     }
 
@@ -1852,7 +1857,7 @@
       background: rgba(0,0,0,0.36);
     }
 
-    .tab-btn {
+    .mvu-tab-btn {
       appearance: none;
       border: none;
       background: transparent;
@@ -1868,7 +1873,7 @@
       transition: .22s cubic-bezier(0.22, 1, 0.36, 1);
     }
 
-    .tab-btn::before {
+    .mvu-tab-btn::before {
       content: '';
       position: absolute;
       top: 0;
@@ -1900,20 +1905,20 @@
       }
     }
 
-    .tab-btn:hover { background: rgba(0,229,255,0.05); color: var(--white); }
+    .mvu-tab-btn:hover { background: rgba(0,229,255,0.05); color: var(--white); }
 
-    .tab-btn:hover::before,
-    .tab-btn.active::before {
+    .mvu-tab-btn:hover::before,
+    .mvu-tab-btn.active::before {
       animation: tabSweep .58s cubic-bezier(0.22, 1, 0.36, 1) 1;
     }
 
-    .tab-btn.active {
+    .mvu-tab-btn.active {
       color: var(--cyan);
       text-shadow: 0 0 8px rgba(0,229,255,0.28);
       background: linear-gradient(0deg, rgba(0,229,255,0.08), transparent);
     }
 
-    .tab-btn.active::after {
+    .mvu-tab-btn.active::after {
       content: '';
       position: absolute;
       left: 0;
@@ -1998,10 +2003,10 @@
       height: 170px;
     }
 
-    .split-shell .panel,
-    .split-shell .module-card,
+    .split-shell .mvu-panel,
+    .split-shell .mvu-module-card,
     .split-shell .strip,
-    .split-shell .simple-card {
+    .split-shell .mvu-simple-card {
       background: linear-gradient(180deg, rgba(0,229,255,0.05), rgba(255,255,255,0.02));
       border-color: rgba(0,229,255,0.08);
       box-shadow: inset 0 0 14px rgba(0,229,255,0.04);
@@ -2051,14 +2056,14 @@
       height: 0;
     }
 
-    .split-shell-right .stack-3 .simple-card {
+    .split-shell-right .stack-3 .mvu-simple-card {
       height: auto;
       min-height: fit-content;
       flex: 0 0 auto;
     }
 
-    .split-shell-right .simple-card,
-    .split-shell-right .module-card {
+    .split-shell-right .mvu-simple-card,
+    .split-shell-right .mvu-module-card {
       padding: 10px 12px;
     }
 
@@ -2069,7 +2074,7 @@
       min-height: 24px;
     }
 
-    .split-shell-right .simple-card .simple-title {
+    .split-shell-right .mvu-simple-card .simple-title {
       margin: 0;
       font-family: var(--font-title);
       font-size: 13px;
@@ -2215,7 +2220,7 @@
       pointer-events: auto;
     }
 
-    .split-footer-tabs .tab-btn {
+    .split-footer-tabs .mvu-tab-btn {
       position: relative;
       z-index: 41;
       pointer-events: auto;
@@ -2291,10 +2296,10 @@
       min-height: 30px;
     }
 
-    .split-shell-left .panel,
+    .split-shell-left .mvu-panel,
     .split-shell-left .strip,
-    .split-shell-right .module-card,
-    .split-shell-right .simple-card {
+    .split-shell-right .mvu-module-card,
+    .split-shell-right .mvu-simple-card {
       border-radius: 16px;
       padding: 14px 16px;
       box-shadow:
@@ -2303,7 +2308,7 @@
         0 10px 26px rgba(0,0,0,0.12);
     }
 
-    .split-shell-left .panel.core-card {
+    .split-shell-left .mvu-panel.core-card {
       min-height: 132px;
     }
 
@@ -2425,7 +2430,7 @@
       z-index: 120;
     }
 
-    .split-archive-stack .panel,
+    .split-archive-stack .mvu-panel,
     .split-archive-stack .right-stack {
       position: relative;
       z-index: 1;
@@ -2435,7 +2440,7 @@
       z-index: 6;
     }
 
-    .modal-mask {
+    .mvu-modal-mask {
       position: fixed;
       inset: 0;
       z-index: 120;
@@ -2449,11 +2454,11 @@
       -webkit-backdrop-filter: blur(10px);
     }
 
-    .modal-mask.show {
+    .mvu-modal-mask.show {
       display: flex;
     }
 
-    .modal-panel {
+    .mvu-modal-panel {
       position: relative;
       z-index: 1;
       isolation: isolate;
@@ -2527,12 +2532,12 @@
       }
     }
 
-    .modal-mask.show {
+    .mvu-modal-mask.show {
       display: flex;
       animation: modalMaskFade .2s ease-out both;
     }
 
-    .modal-mask.drawer-left {
+    .mvu-modal-mask.drawer-left {
       align-items: stretch;
       justify-content: flex-start;
       padding: 10px 0 10px 10px;
@@ -2541,11 +2546,11 @@
       -webkit-backdrop-filter: none;
     }
 
-    .modal-mask.show .modal-panel {
+    .mvu-modal-mask.show .mvu-modal-panel {
       animation: modalPanelBoot .28s cubic-bezier(0.22, 1, 0.36, 1) both;
     }
 
-    .modal-mask.show.drawer-left .modal-panel { animation: drawerLeftBoot .22s cubic-bezier(0.22, 1, 0.36, 1) both; }
+    .mvu-modal-mask.show.drawer-left .mvu-modal-panel { animation: drawerLeftBoot .22s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
     .modal-head {
       position: relative;
@@ -2576,7 +2581,7 @@
         transparent);
     }
 
-    .modal-mask.show .modal-head::after {
+    .mvu-modal-mask.show .modal-head::after {
       animation: modalLineSweep .56s cubic-bezier(0.22, 1, 0.36, 1) both;
     }
 
@@ -2639,7 +2644,7 @@
       display: none !important;
     }
 
-    .modal-panel.drawer-left {
+    .mvu-modal-panel.drawer-left {
       width: min(460px, calc(100vw - 20px));
       max-width: min(460px, calc(100vw - 20px));
       height: calc(100vh - 20px);
@@ -2671,14 +2676,14 @@
       color: var(--text-sub);
     }
 
-    .modal-panel.archive-mode {
+    .mvu-modal-panel.archive-mode {
       max-width: min(780px, calc(100vw - 36px));
       max-height: calc(100% - 10px);
       min-height: min(620px, calc(100vh - 28px));
       overflow: visible;
     }
 
-    .modal-panel.archive-mode.vault-mode {
+    .mvu-modal-panel.archive-mode.vault-mode {
       max-width: min(780px, calc(100vw - 36px));
     }
 
@@ -2686,28 +2691,28 @@
       padding-right: 0;
     }
 
-    .modal-panel.drawer-left.archive-mode {
+    .mvu-modal-panel.drawer-left.archive-mode {
       max-width: min(460px, calc(100vw - 20px));
       max-height: calc(100vh - 20px);
       height: calc(100vh - 20px);
       overflow: hidden;
     }
 
-    .modal-panel.archive-mode .modal-summary {
+    .mvu-modal-panel.archive-mode .modal-summary {
       display: none;
     }
 
-    .modal-panel.drawer-left .modal-head {
+    .mvu-modal-panel.drawer-left .modal-head {
       align-items: center;
       gap: 8px;
       padding: 10px 10px 8px;
     }
 
-    .modal-panel.drawer-left .modal-title {
+    .mvu-modal-panel.drawer-left .modal-title {
       font-size: 15px;
     }
 
-    .modal-panel {
+    .mvu-modal-panel {
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -2723,7 +2728,7 @@
       -ms-overflow-style: none;
     }
 
-    #detailModal.modal-mask {
+    #detailModal.mvu-modal-mask {
       position: fixed;
       inset: 0;
       z-index: 10050;
@@ -2750,7 +2755,7 @@
       -webkit-backdrop-filter: none;
     }
 
-    #detailModal .modal-panel {
+    #detailModal .mvu-modal-panel {
       position: relative;
       z-index: 1;
       isolation: isolate;
@@ -2772,11 +2777,11 @@
       transform: none;
     }
 
-    #detailModal.show .modal-panel {
+    #detailModal.show .mvu-modal-panel {
       animation: modalPanelBoot .28s cubic-bezier(0.22, 1, 0.36, 1) both;
     }
 
-    #detailModal.drawer-left .modal-panel {
+    #detailModal.drawer-left .mvu-modal-panel {
       width: min(460px, calc(100vw - 20px));
       max-width: min(460px, calc(100vw - 20px));
       height: calc(100vh - 20px);
@@ -2784,7 +2789,7 @@
       border-radius: 18px;
     }
 
-    #detailModal.show.drawer-left .modal-panel {
+    #detailModal.show.drawer-left .mvu-modal-panel {
       animation: drawerLeftBoot .22s cubic-bezier(0.22, 1, 0.36, 1) both;
     }
 
@@ -2822,13 +2827,13 @@
       overflow-x: hidden;
     }
 
-    #detailModal .modal-panel.archive-mode {
+    #detailModal .mvu-modal-panel.archive-mode {
       max-width: min(780px, calc(100vw - 36px));
       max-height: calc(100vh - 28px);
       min-height: min(620px, calc(100vh - 28px));
     }
 
-    #detailModal .modal-panel.drawer-left.archive-mode {
+    #detailModal .mvu-modal-panel.drawer-left.archive-mode {
       max-width: min(460px, calc(100vw - 20px));
       max-height: calc(100vh - 20px);
       height: calc(100vh - 20px);
@@ -2908,8 +2913,8 @@
       display: none;
     }
 
-    .modal-panel.archive-mode,
-    .modal-panel.drawer-left.archive-mode {
+    .mvu-modal-panel.archive-mode,
+    .mvu-modal-panel.drawer-left.archive-mode {
       overflow: hidden;
     }
 
@@ -2964,36 +2969,36 @@
       grid-column: 1 / -1;
     }
 
-    .modal-panel.drawer-left .archive-modal-grid,
-    .modal-panel.drawer-left .equipment-layout,
-    .modal-panel.drawer-left .vault-layout,
-    .modal-panel.drawer-left .lineage-layout,
-    .modal-panel.drawer-left .relation-layout,
-    .modal-panel.drawer-left .intel-layout,
-    .modal-panel.drawer-left .profile-snapshot,
-    .modal-panel.drawer-left .spirit-entry-grid {
+    .mvu-modal-panel.drawer-left .archive-modal-grid,
+    .mvu-modal-panel.drawer-left .equipment-layout,
+    .mvu-modal-panel.drawer-left .vault-layout,
+    .mvu-modal-panel.drawer-left .lineage-layout,
+    .mvu-modal-panel.drawer-left .relation-layout,
+    .mvu-modal-panel.drawer-left .intel-layout,
+    .mvu-modal-panel.drawer-left .profile-snapshot,
+    .mvu-modal-panel.drawer-left .spirit-entry-grid {
       grid-template-columns: 1fr;
     }
 
-    .modal-panel.drawer-left .archive-card.full {
+    .mvu-modal-panel.drawer-left .archive-card.full {
       grid-column: auto;
     }
 
-    .modal-panel.drawer-left .archive-card-title {
+    .mvu-modal-panel.drawer-left .archive-card-title {
       white-space: normal;
     }
 
-    .modal-panel.drawer-left .archive-card-head {
+    .mvu-modal-panel.drawer-left .archive-card-head {
       flex-wrap: wrap;
       align-items: center;
     }
 
-    .modal-panel.drawer-left .archive-card-head::after {
+    .mvu-modal-panel.drawer-left .archive-card-head::after {
       min-width: 100%;
       order: 3;
     }
 
-    .modal-panel.drawer-left .inventory-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .mvu-modal-panel.drawer-left .inventory-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
 
     .radar-shell {
@@ -3274,8 +3279,8 @@
       opacity: 0.78;
     }
 
-    .simple-card .simple-title::before,
-    .simple-card .simple-title::after {
+    .mvu-simple-card .simple-title::before,
+    .mvu-simple-card .simple-title::after {
       display: block !important;
     }
 
@@ -3844,6 +3849,8 @@
       color: var(--gold);
     }
 
+    .ring-chip.orangegold { border-color: rgba(255,179,71,0.30); background: rgba(255,179,71,0.10); color: #ffb347; }
+
     .status-pill.alert,
     .tag-chip.alert,
     .ring-chip.red {
@@ -3975,6 +3982,12 @@
       color: var(--gold);
     }
 
+    .spirit-mini-ring.orangegold {
+      border-color: rgba(255,179,71,0.30);
+      background: rgba(255,179,71,0.10);
+      color: #ffb347;
+    }
+
     .soul-hierarchy {
       position: relative;
       z-index: 1;
@@ -4022,6 +4035,7 @@
     .ring-block.black { border-color: rgba(148,163,184,0.22); background: rgba(148,163,184,0.06); }
     .ring-block.red { border-color: rgba(255,77,122,0.22); background: rgba(255,77,122,0.06); }
     .ring-block.gold { border-color: rgba(255,215,0,0.22); background: rgba(255,215,0,0.06); }
+    .ring-block.orangegold { border-color: rgba(255,179,71,0.30); background: rgba(255,179,71,0.10); }
 
     .ring-block-head {
       display: flex;
@@ -4985,12 +4999,12 @@
 
     /* Final title normalization */
     .modal-title,
-    .modal-panel.drawer-left .modal-title,
+    .mvu-modal-panel.drawer-left .modal-title,
     .module-name,
     .split-shell-right .module-name,
     .simple-title,
-    .simple-card .simple-title,
-    .split-shell-right .simple-card .simple-title,
+    .mvu-simple-card .simple-title,
+    .split-shell-right .mvu-simple-card .simple-title,
     .panel-title,
     .strip-title,
     .archive-card-title {

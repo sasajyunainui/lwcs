@@ -20,7 +20,7 @@ function requestTabChange(target) {
 
 const LeftPanel = {
   template: `
-    <div class="mvu-vue-wrapper left-panel" style="position:fixed;top:0;left:0;bottom:0;z-index:100;">
+    <div class="mvu-vue-wrapper mvu-root left-panel" style="position:fixed;top:0;left:0;bottom:0;z-index:100;">
       <div class="split-shell-bg-sibling split-shell-bg-left"></div>
       <div class="split-shell split-shell-left">
         <div class="ring-group top-left-rings">
@@ -48,7 +48,7 @@ const LeftPanel = {
                 </div>
               </div>
 
-              <div class="panel core-card clickable" data-preview="生命图谱详细页"></div>
+              <div class="mvu-panel core-card clickable" data-preview="生命图谱详细页"></div>
 
               <div class="strip dual-spirit-strip single-track">
                 <div class="dual-spirit-body">
@@ -67,28 +67,28 @@ const LeftPanel = {
           </div>
 
           <div class="split-page split-left-page" :class="{ active: tabState.current === 'page-map' }" data-target="page-map">
-            <div class="module-card hero-card core-card map-hero-card clickable" data-preview="全息星图主画布"></div>
+            <div class="mvu-module-card hero-card core-card map-hero-card clickable" data-preview="全息星图主画布"></div>
           </div>
 
           <div class="split-page split-left-page" :class="{ active: tabState.current === 'page-world' }" data-target="page-world">
-            <div class="module-card hero-card core-card clickable" data-preview="世界状态总览"></div>
+            <div class="mvu-module-card hero-card core-card clickable" data-preview="世界状态总览"></div>
           </div>
 
           <div class="split-page split-left-page" :class="{ active: tabState.current === 'page-org' }" data-target="page-org">
-            <div class="module-card hero-card core-card clickable" data-preview="势力矩阵总览"></div>
+            <div class="mvu-module-card hero-card core-card clickable" data-preview="势力矩阵总览"></div>
           </div>
 
           <div class="split-page split-left-page" :class="{ active: tabState.current === 'page-terminal' }" data-target="page-terminal">
-            <div class="module-card hero-card core-card terminal-hero-card clickable" data-preview="系统播报与日志"></div>
+            <div class="mvu-module-card hero-card core-card terminal-hero-card clickable" data-preview="系统播报与日志"></div>
           </div>
         </div>
 
         <div class="footer-tabs split-footer-tabs split-side-tabs-left" id="splitFooterTabsLeft">
-          <button class="tab-btn" :class="{ active: tabState.current === 'page-archive' }" data-target="page-archive" @click="setTab('page-archive')">档案</button>
-          <button class="tab-btn" :class="{ active: tabState.current === 'page-map' }" data-target="page-map" @click="setTab('page-map')">星图</button>
-          <button class="tab-btn" :class="{ active: tabState.current === 'page-world' }" data-target="page-world" @click="setTab('page-world')">世界</button>
-          <button class="tab-btn" :class="{ active: tabState.current === 'page-org' }" data-target="page-org" @click="setTab('page-org')">势力</button>
-          <button class="tab-btn" :class="{ active: tabState.current === 'page-terminal' }" data-target="page-terminal" @click="setTab('page-terminal')">终端</button>
+          <button class="mvu-tab-btn" :class="{ active: tabState.current === 'page-archive' }" data-target="page-archive" @click="setTab('page-archive')">档案</button>
+          <button class="mvu-tab-btn" :class="{ active: tabState.current === 'page-map' }" data-target="page-map" @click="setTab('page-map')">星图</button>
+          <button class="mvu-tab-btn" :class="{ active: tabState.current === 'page-world' }" data-target="page-world" @click="setTab('page-world')">世界</button>
+          <button class="mvu-tab-btn" :class="{ active: tabState.current === 'page-org' }" data-target="page-org" @click="setTab('page-org')">势力</button>
+          <button class="mvu-tab-btn" :class="{ active: tabState.current === 'page-terminal' }" data-target="page-terminal" @click="setTab('page-terminal')">终端</button>
         </div>
       </div>
     </div>
@@ -101,7 +101,7 @@ const LeftPanel = {
 
 const RightPanel = {
   template: `
-    <div class="mvu-vue-wrapper right-panel" style="position:fixed;top:0;right:0;bottom:0;z-index:100;">
+    <div class="mvu-vue-wrapper mvu-root right-panel" style="position:fixed;top:0;right:0;bottom:0;z-index:100;">
       <div class="split-shell-bg-sibling split-shell-bg-right"></div>
       <div class="split-shell split-shell-right">
         <div class="ring-group top-left-rings">
@@ -119,11 +119,11 @@ const RightPanel = {
           <div class="split-page split-right-page" :class="{ active: tabState.current === 'page-archive' }" data-target="page-archive">
             <div class="split-archive-stack split-archive-right">
               <div class="right-stack">
-                <div class="module-card entry-card clickable" data-preview="武装工坊详细页"></div>
-                <div class="module-card entry-card clickable" data-preview="储物仓库详细页"></div>
+                <div class="mvu-module-card entry-card clickable" data-preview="武装工坊详细页"></div>
+                <div class="mvu-module-card entry-card clickable" data-preview="储物仓库详细页"></div>
               </div>
 
-              <div class="simple-card archive-social-card">
+              <div class="mvu-simple-card archive-social-card">
                 <div class="simple-head"><div class="simple-title">社交摘要</div></div>
                 <div class="social-summary">
                   <div class="social-chip clickable" data-preview="社会档案详细页"><b>名望等级</b><span></span></div>
@@ -137,43 +137,43 @@ const RightPanel = {
 
           <div class="split-page split-right-page" :class="{ active: tabState.current === 'page-map' }" data-target="page-map">
             <div class="stack-3 map-side-stack">
-              <div class="simple-card live-card map-side-card clickable" data-preview="当前节点详情"></div>
-              <div class="simple-card entry-card map-side-card clickable" data-preview="图层控制与跑图"></div>
-              <div class="simple-card live-card map-side-card clickable" data-preview="动态地点与扩展节点"></div>
+              <div class="mvu-simple-card live-card map-side-card clickable" data-preview="当前节点详情"></div>
+              <div class="mvu-simple-card entry-card map-side-card clickable" data-preview="图层控制与跑图"></div>
+              <div class="mvu-simple-card live-card map-side-card clickable" data-preview="动态地点与扩展节点"></div>
             </div>
           </div>
 
           <div class="split-page split-right-page" :class="{ active: tabState.current === 'page-world' }" data-target="page-world">
             <div class="stack-3">
-              <div class="simple-card live-card clickable" data-preview="编年史档案"></div>
-              <div class="simple-card entry-card clickable" data-preview="天道金榜"></div>
-              <div class="simple-card live-card clickable" data-preview="拍卖与警报"></div>
+              <div class="mvu-simple-card live-card clickable" data-preview="编年史档案"></div>
+              <div class="mvu-simple-card entry-card clickable" data-preview="天道金榜"></div>
+              <div class="mvu-simple-card live-card clickable" data-preview="拍卖与警报"></div>
             </div>
           </div>
 
           <div class="split-page split-right-page" :class="{ active: tabState.current === 'page-org' }" data-target="page-org">
             <div class="stack-3">
-              <div class="simple-card live-card clickable" data-preview="我的阵营详情"></div>
-              <div class="simple-card live-card clickable" data-preview="本地据点详情"></div>
-              <div class="simple-card entry-card clickable" data-preview="交易网络"></div>
+              <div class="mvu-simple-card live-card clickable" data-preview="我的阵营详情"></div>
+              <div class="mvu-simple-card live-card clickable" data-preview="本地据点详情"></div>
+              <div class="mvu-simple-card entry-card clickable" data-preview="交易网络"></div>
             </div>
           </div>
 
           <div class="split-page split-right-page" :class="{ active: tabState.current === 'page-terminal' }" data-target="page-terminal">
             <div class="stack-3 terminal-side-stack">
-              <div class="simple-card live-card terminal-side-card clickable" data-preview="操作总线"></div>
-              <div class="simple-card entry-card terminal-side-card clickable" data-preview="试炼与情报"></div>
-              <div class="simple-card live-card terminal-side-card clickable" data-preview="近期见闻"></div>
+              <div class="mvu-simple-card live-card terminal-side-card clickable" data-preview="操作总线"></div>
+              <div class="mvu-simple-card entry-card terminal-side-card clickable" data-preview="试炼与情报"></div>
+              <div class="mvu-simple-card live-card terminal-side-card clickable" data-preview="近期见闻"></div>
             </div>
           </div>
         </div>
 
         <div class="footer-tabs split-footer-tabs split-side-tabs-right" id="splitFooterTabsRight">
-          <button class="tab-btn" :class="{ active: tabState.current === 'page-archive' }" data-target="page-archive" @click="setTab('page-archive')">档案</button>
-          <button class="tab-btn" :class="{ active: tabState.current === 'page-map' }" data-target="page-map" @click="setTab('page-map')">星图</button>
-          <button class="tab-btn" :class="{ active: tabState.current === 'page-world' }" data-target="page-world" @click="setTab('page-world')">世界</button>
-          <button class="tab-btn" :class="{ active: tabState.current === 'page-org' }" data-target="page-org" @click="setTab('page-org')">势力</button>
-          <button class="tab-btn" :class="{ active: tabState.current === 'page-terminal' }" data-target="page-terminal" @click="setTab('page-terminal')">终端</button>
+          <button class="mvu-tab-btn" :class="{ active: tabState.current === 'page-archive' }" data-target="page-archive" @click="setTab('page-archive')">档案</button>
+          <button class="mvu-tab-btn" :class="{ active: tabState.current === 'page-map' }" data-target="page-map" @click="setTab('page-map')">星图</button>
+          <button class="mvu-tab-btn" :class="{ active: tabState.current === 'page-world' }" data-target="page-world" @click="setTab('page-world')">世界</button>
+          <button class="mvu-tab-btn" :class="{ active: tabState.current === 'page-org' }" data-target="page-org" @click="setTab('page-org')">势力</button>
+          <button class="mvu-tab-btn" :class="{ active: tabState.current === 'page-terminal' }" data-target="page-terminal" @click="setTab('page-terminal')">终端</button>
         </div>
       </div>
     </div>

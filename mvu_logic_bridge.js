@@ -16,7 +16,7 @@
       document.body.appendChild(detailModal);
     }
 
-    const modalPanel = detailModal.querySelector('.modal-panel');
+    const modalPanel = detailModal.querySelector('.mvu-modal-panel');
     const modalTitle = document.getElementById('modalTitle');
     const modalSubtitle = document.getElementById('modalSubtitle');
     const modalLevel = document.getElementById('modalLevel');
@@ -1186,30 +1186,54 @@
       return text.length > max ? `${text.slice(0, Math.max(1, max - 1))}…` : text;
     }
 
-    function mapRingClass(color) {
+    function resolveRingTier(color, age, options = {}) {
       const key = toText(color, '').trim();
-      if (key === '黄' || key === '黄色') return 'ring-white';
-      if (key === '紫' || key === '紫色') return 'ring-white';
-      if (key === '黑' || key === '黑色') return 'ring-gold';
-      if (key === '红' || key === '红色') return 'ring-gold';
-      if (key === '金' || key === '金色') return 'ring-gold';
-      return 'ring-white';
-    }
+      const years = toNumber(age, NaN);
+      const forceGold = !!(options && options.forceGold);
 
-    function mapRingChipClass(color) {
-      const key = toText(color, '').trim();
-      if (key === '黄' || key === '黄色') return 'yellow';
-      if (key === '紫' || key === '紫色') return 'purple';
-      if (key === '黑' || key === '黑色') return 'black';
-      if (key === '红' || key === '红色') return 'red';
+      if (forceGold) return 'gold';
+
+      if (Number.isFinite(years) && years > 0) {
+        if (years >= 200000) return 'orangegold';
+        if (years >= 100000) return 'red';
+        if (years >= 10000) return 'black';
+        if (years >= 1000) return 'purple';
+        if (years >= 100) return 'yellow';
+        return 'white';
+      }
+
+      if (key === '橙金' || key === '橙金色') return 'orangegold';
       if (key === '金' || key === '金色') return 'gold';
+      if (key === '红' || key === '红色') return 'red';
+      if (key === '黑' || key === '黑色') return 'black';
+      if (key === '紫' || key === '紫色') return 'purple';
+      if (key === '黄' || key === '黄色') return 'yellow';
+      if (key === '白' || key === '白色') return 'white';
       return 'white';
     }
 
-    function ringGlyph(color, index) {
-      const map = { 白: '白', 黄: '黄', 紫: '紫', 黑: '黑', 红: '红', 金: '金' };
+    function mapRingClass(color, age, options = {}) {
+      return `ring-${resolveRingTier(color, age, options)}`;
+    }
+
+    function mapRingChipClass(color, age, options = {}) {
+      return resolveRingTier(color, age, options);
+    }
+
+    function ringGlyph(color, index, age, options = {}) {
+      const tier = resolveRingTier(color, age, options);
+      const tierGlyphMap = {
+        white: '白',
+        yellow: '黄',
+        purple: '紫',
+        black: '黑',
+        red: '红',
+        gold: '金',
+        orangegold: '橙'
+      };
+      const map = { 白: '白', 黄: '黄', 紫: '紫', 黑: '黑', 红: '红', 金: '金', 橙金: '橙' };
       const key = toText(color, '').trim();
-      return map[key] || String(index || '环');
+      return map[key] || tierGlyphMap[tier] || String(index || '环');
     }
 
     function getMvuHost() {
@@ -1317,10 +1341,6 @@
     }
 
     function getPreferredActiveCharacterName() {
-      try {
-        const value = toText(window.__MVU_ACTIVE_CHARACTER__, '').trim();
-        if (value) return value;
-      } catch (_) {}
       return toText(preferredActiveCharacterName, '').trim();
     }
 
@@ -1349,6 +1369,19 @@
       if (playerEntry) return playerEntry;
 
       return charEntries[0] || ['未知角色', {}];
+    }
+
+    function formatAppearanceText(appearance) {
+      const data = appearance && typeof appearance === 'object' ? appearance : {};
+      const parts = [
+        toText(data['发色'], ''),
+        toText(data['瞳色'], ''),
+        toText(data['身高'], ''),
+        toText(data['体型'], '')
+      ].filter(Boolean);
+      const features = Array.isArray(data['特殊特征']) ? data['特殊特征'].filter(Boolean) : [];
+      const featureText = features.length ? `；特征：${features.join('、')}` : '';
+      return parts.length ? `${parts.join(' / ')}${featureText}` : '未设定';
     }
 
     function normalizeLocationName(sd, rawLoc) {
@@ -1413,8 +1446,8 @@
           .map(([ringIndex, ring]) => {
             const skills = buildSkillList(ring && ring['魂技']);
             const ringInfo = {
-              glyph: ringGlyph(ring && ring['颜色'], ringIndex),
-              ringClass: mapRingClass(ring && ring['颜色']),
+              glyph: ringGlyph(ring && ring['颜色'], ringIndex, ring && ring['年限']),
+              ringClass: mapRingClass(ring && ring['颜色'], ring && ring['年限']),
               title: `第${ringIndex}魂环 · ${skills[0] ? skills[0].name : soulName}`,
               desc: `${toText(ring && ring['颜色'], '未定')} / ${formatAge(ring && ring['年限'])}`,
               skills
@@ -1429,7 +1462,6 @@
           state: toText(soulData && soulData['状态'], '未知'),
           age: formatAge(soulData && soulData['年限']),
           comp: `${toNumber(soulData && soulData['契合度'], 100)}%`,
-          cost: `占用精神力：${formatNumber(soulData && soulData['占用精神力'])}`,
           rings: ringEntries.length ? ringEntries : [{
             glyph: '空',
             ringClass: mapRingClass('白'),
@@ -1447,7 +1479,6 @@
           state: '未激活',
           age: '--',
           comp: '--',
-          cost: '占用精神力：0',
           rings: [{
             glyph: '空',
             ringClass: mapRingClass('白'),
@@ -1491,8 +1522,8 @@
       const ringEntries = safeEntries(deepGet(activeChar, 'bloodline_power.blood_rings', {}))
         .sort((a, b) => toNumber(a[0], 0) - toNumber(b[0], 0))
         .map(([index, ring]) => ({
-          glyph: ringGlyph(ring && ring['颜色'], index),
-          ringClass: mapRingClass(ring && ring['颜色']),
+          glyph: ringGlyph(ring && ring['颜色'], index, ring && ring['年限'], { forceGold: true }),
+          ringClass: mapRingClass(ring && ring['颜色'], ring && ring['年限'], { forceGold: true }),
           title: `血脉环位 · ${index}`,
           desc: `${toText(ring && ring['颜色'], '未形成')} / ${safeEntries(ring && ring['魂技']).length || 0}项能力`,
           skills: buildSkillList(ring && ring['魂技'])
@@ -1666,6 +1697,8 @@
       return {
         sd,
         activeName,
+        appearanceText: formatAppearanceText(deepGet(activeChar, 'appearance', {})),
+        personalityText: toText(deepGet(activeChar, 'personality', '未设定'), '未设定'),
         activeChar: activeChar || {},
         currentLoc,
         normalizedLoc: locationInfo.name,
@@ -2138,9 +2171,9 @@
         ? `${shortenText(snapshot.pendingIntelContent, 10)} / +${snapshot.pendingIntelImpact}`
         : (snapshot.unlockedKnowledges.length ? shortenText(snapshot.unlockedKnowledges[snapshot.unlockedKnowledges.length - 1], 12) : '暂无');
 
-      document.querySelectorAll('[data-preview="生命图谱详细页"].panel.core-card').forEach(el => { el.innerHTML = buildArchiveCoreCard(snapshot); });
-      document.querySelectorAll('[data-preview="武装工坊详细页"].module-card').forEach(el => { el.innerHTML = buildArmoryCard(snapshot); });
-      document.querySelectorAll('[data-preview="储物仓库详细页"].module-card').forEach(el => { el.innerHTML = buildVaultCard(snapshot); });
+      document.querySelectorAll('[data-preview="生命图谱详细页"].mvu-panel.core-card').forEach(el => { el.innerHTML = buildArchiveCoreCard(snapshot); });
+      document.querySelectorAll('[data-preview="武装工坊详细页"].mvu-module-card').forEach(el => { el.innerHTML = buildArmoryCard(snapshot); });
+      document.querySelectorAll('[data-preview="储物仓库详细页"].mvu-module-card').forEach(el => { el.innerHTML = buildVaultCard(snapshot); });
       renderSpiritStrips(snapshot);
 
       if (typeof window.__sheepMapResync === 'function') {
@@ -2199,29 +2232,29 @@
         el.removeAttribute('data-preview');
         el.innerHTML = buildWorldHeroCard(snapshot);
       });
-      document.querySelectorAll('[data-preview="编年史档案"].simple-card').forEach(el => { el.innerHTML = buildSimpleCard('编年史', null, [
+      document.querySelectorAll('[data-preview="编年史档案"].mvu-simple-card').forEach(el => { el.innerHTML = buildSimpleCard('编年史', null, [
         { label: '最近事件', value: snapshot.latestTimeline ? toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]) : '暂无' },
         { label: '推进状态', value: snapshot.latestTimeline ? `${toText(deepGet(snapshot.latestTimeline[1], 'status', 'pending'), 'pending')} / Tick ${toText(deepGet(snapshot.latestTimeline[1], 'trigger_tick', 0), '0')}` : '暂无时间线' }
       ]); });
-      document.querySelectorAll('[data-preview="天道金榜"].simple-card').forEach(el => { el.innerHTML = buildSimpleCard('天道金榜', null, [
+      document.querySelectorAll('[data-preview="天道金榜"].mvu-simple-card').forEach(el => { el.innerHTML = buildSimpleCard('天道金榜', null, [
         { label: '榜单摘要', value: `少年榜 ${snapshot.youthRankingEntries.length} / 风云榜 ${snapshot.continentRankingEntries.length}` },
         { label: '当前在榜', value: snapshot.recentTitles.find(title => /榜/.test(title)) || '无' }
       ]); });
-      document.querySelectorAll('[data-preview="拍卖与警报"].simple-card').forEach(el => { el.innerHTML = buildSimpleCard('拍卖行与警报', null, [
+      document.querySelectorAll('[data-preview="拍卖与警报"].mvu-simple-card').forEach(el => { el.innerHTML = buildSimpleCard('拍卖行与警报', null, [
         { label: '拍卖行', value: `${toText(deepGet(snapshot, 'sd.world.auction.status', '休市'), '休市')} / ${toText(deepGet(snapshot, 'sd.world.auction.location', '无'), '无')}` },
         { label: '生态警报', value: snapshot.worldAlert }
       ]); });
 
       document.querySelectorAll('[data-preview="势力矩阵总览"].hero-card').forEach(el => { el.innerHTML = buildOrgHeroCard(snapshot); });
-      document.querySelectorAll('[data-preview="我的阵营详情"].simple-card').forEach(el => { el.innerHTML = buildSimpleCard('我的阵营', null, [
+      document.querySelectorAll('[data-preview="我的阵营详情"].mvu-simple-card').forEach(el => { el.innerHTML = buildSimpleCard('我的阵营', null, [
         { label: '当前所属', value: snapshot.factions[0] ? snapshot.factions[0][0] : '无' },
         { label: '身份', value: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '未加入' }
       ]); });
-      document.querySelectorAll('[data-preview="本地据点详情"].simple-card').forEach(el => { el.innerHTML = buildSimpleCard('本地据点', null, [
+      document.querySelectorAll('[data-preview="本地据点详情"].mvu-simple-card').forEach(el => { el.innerHTML = buildSimpleCard('本地据点', null, [
         { label: '掌控势力', value: toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知') },
         { label: '经济状况', value: `${toText(deepGet(snapshot, 'locationData.经济状况', '未知'), '未知')} / ${toText(deepGet(snapshot, 'locationData.守护军团', '守护军团未知'), '守护军团未知')}` }
       ]); });
-      document.querySelectorAll('[data-preview="交易网络"].simple-card').forEach(el => { el.innerHTML = buildSimpleCard('交易网络', null, [
+      document.querySelectorAll('[data-preview="交易网络"].mvu-simple-card').forEach(el => { el.innerHTML = buildSimpleCard('交易网络', null, [
         { label: '本地商店', value: snapshot.storeNames.length ? snapshot.storeNames.join(' / ') : '暂无商店' },
         { label: '状态', value: snapshot.storeNames.length ? '可交易 / 可查看库存' : '无商店 / 不可交易' }
       ]); });
@@ -2359,7 +2392,9 @@
                     <h3>${htmlEscape(snapshot.activeName)}</h3>
                     <div class="identity-meta-grid">
                       <div class="meta-item"><b>年龄 / 性别</b><span>${htmlEscape(`${toText(stat.age, '0')}岁 / ${toText(stat.gender, '未知')}`)}</span></div>
+                      <div class="meta-item"><b>外貌</b><span>${htmlEscape(snapshot.appearanceText)}</span></div>
                       <div class="meta-item"><b>等级</b><span>${htmlEscape(`Lv.${toText(stat.lv, '0')}`)}</span></div>
+                      <div class="meta-item"><b>性格</b><span>${htmlEscape(snapshot.personalityText)}</span></div>
                       <div class="meta-item"><b>系别</b><span>${htmlEscape(toText(stat.type, '未知'))}</span></div>
                       <div class="meta-item"><b>天赋梯队</b><span>${htmlEscape(toText(stat.talent_tier, '未定'))}</span></div>
                       <div class="meta-item"><b>精神境界</b><span>${htmlEscape(toText(stat.men_realm, '灵元境'))}</span></div>
@@ -3018,7 +3053,7 @@
                       <div class="soul-meta">
                         <div class="meta-item"><b>年限</b><span>${htmlEscape(soul.age)}</span></div>
                         <div class="meta-item"><b>契合度</b><span>${htmlEscape(soul.comp)}</span></div>
-                        <div class="meta-item"><b>精神占用</b><span>${htmlEscape(soul.cost)}</span></div>
+                        <div class="meta-item"><b>状态</b><span>${htmlEscape(soul.state)}</span></div>
                       </div>
                       <div class="soul-ring-section">
                         <div class="rings soul-ring-lane">
@@ -3030,11 +3065,11 @@
                 </div>
               </div>
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">术法修行</div><span class="state-tag warn">arts</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">术法修行</div></div>
                 ${makeTimelineStack(artCards)}
               </div>
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">特殊能力</div><span class="state-tag live">special_abilities</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">特殊能力</div></div>
                 ${makeSkillStrip(specialAbilitySkills)}
               </div>
             </div>
@@ -3091,9 +3126,9 @@
                 </div>
               </div>
               <div class="archive-card full spirit-flow-card">
-                <div class="archive-card-head"><div class="archive-card-title">金色魂环轨道</div></div>
+                <div class="archive-card-head"><div class="archive-card-title">气血魂环轨道</div></div>
                 <div class="orbit-track">
-                  ${snapshot.bloodline.rings.map(ring => `<div class="ring ring-gold interactive-ring">${htmlEscape(ring.glyph)}${buildRingHoverMarkup(ring)}</div>`).join('')}
+                  ${snapshot.bloodline.rings.map(ring => `<div class="ring ${ring.ringClass || 'ring-gold'} interactive-ring">${htmlEscape(ring.glyph)}${buildRingHoverMarkup(ring)}</div>`).join('')}
                 </div>
               </div>
               <div class="archive-card full">

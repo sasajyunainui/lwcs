@@ -2788,7 +2788,7 @@
             <div class='map-hud-card live'><b>位置链</b><span data-map-chain>正在读取地图数据</span></div>
           </div>
         </div>
-        <div class='simple-card map-side-card map-route-card map-left-route-card'>
+        <div class='mvu-simple-card map-side-card map-route-card map-left-route-card'>
           <div class='simple-head'>
             <div class='simple-title'>动作</div>
             <span class='map-side-badge gold'>操作</span>
@@ -2817,7 +2817,7 @@
       </div>
 
       <div class='stack-3 map-side-stack'>
-        <div class='simple-card map-side-card'>
+        <div class='mvu-simple-card map-side-card'>
           <div class='simple-head'>
             <div class='simple-title'>详细信息</div>
             <span class='map-side-badge'>详情</span>
@@ -2833,7 +2833,7 @@
           </div>
         </div>
 
-        <div class='simple-card map-side-card'>
+        <div class='mvu-simple-card map-side-card'>
           <div class='simple-head'>
             <div class='simple-title'>导航</div>
             <span class='map-side-badge gold'>导航</span>
@@ -2849,7 +2849,7 @@
           </div>
         </div>
 
-        <div class='simple-card map-side-card'>
+        <div class='mvu-simple-card map-side-card'>
           <div class='simple-head'>
             <div class='simple-title'>在场人物</div>
             <span class='map-side-badge'>人物</span>
@@ -3963,7 +3963,7 @@
   }
 
   function bindTabResync() {
-    document.querySelectorAll(`.tab-btn[data-target='page-map']`).forEach(btn => {
+    document.querySelectorAll(`.mvu-tab-btn[data-target='page-map']`).forEach(btn => {
       if (btn.dataset.sheepMapBound === '1') return;
       btn.dataset.sheepMapBound = '1';
       btn.addEventListener('click', () => {
