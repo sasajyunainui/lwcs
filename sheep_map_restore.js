@@ -3952,13 +3952,29 @@
   function refreshSplitMapPages() {
     const leftSource = document.querySelector('#page-map .map-layout > .map-hero-card');
     const rightSource = document.querySelector('#page-map .map-layout > .map-side-stack');
+
+    function resetMapBindingFlags(root) {
+      if (!root || !(root instanceof Element)) return root;
+      if (root.dataset) {
+        delete root.dataset.mapBound;
+        delete root.dataset.mapMiniBound;
+      }
+      root.querySelectorAll('[data-map-bound], [data-map-mini-bound], .map-canvas.interactive-map, .map-mini-world, [data-map-node-layer], [data-map-control], [data-map-action-slot], [data-map-npc-select], [data-map-travel-cycle], [data-map-travel-panel], [data-map-layer-pill]').forEach(el => {
+        if (el.dataset) {
+          delete el.dataset.mapBound;
+          delete el.dataset.mapMiniBound;
+        }
+      });
+      return root;
+    }
+
     document.querySelectorAll(`.split-left-page[data-target='page-map']`).forEach(page => {
       page.innerHTML = '';
-      if (leftSource) page.appendChild(leftSource.cloneNode(true));
+      if (leftSource) page.appendChild(resetMapBindingFlags(leftSource.cloneNode(true)));
     });
     document.querySelectorAll(`.split-right-page[data-target='page-map']`).forEach(page => {
       page.innerHTML = '';
-      if (rightSource) page.appendChild(rightSource.cloneNode(true));
+      if (rightSource) page.appendChild(resetMapBindingFlags(rightSource.cloneNode(true)));
     });
   }
 
