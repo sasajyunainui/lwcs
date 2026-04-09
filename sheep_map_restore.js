@@ -1670,19 +1670,21 @@
       justify-content: center;
       appearance: none !important;
       -webkit-appearance: none !important;
-      border: 1px solid rgba(154,227,255,0.56);
+      border: 1px solid rgba(154,227,255,0.72) !important;
       border-radius: 8px;
-      background: linear-gradient(180deg, rgba(18,34,46,0.98), rgba(11,23,33,0.98));
-      color: #f8fdff;
-      font-family: var(--font-ui);
-      font-size: 16px;
+      background: linear-gradient(180deg, rgba(18,34,46,0.98), rgba(11,23,33,0.98)) !important;
+      color: #f8fdff !important;
+      font-family: 'Segoe UI Symbol', 'Noto Sans Symbols 2', var(--font-ui), sans-serif !important;
+      font-size: 18px !important;
       line-height: 1;
       font-weight: 800;
       cursor: pointer;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.65);
-      box-shadow: 0 8px 18px rgba(0,0,0,0.28), inset 0 0 0 1px rgba(255,255,255,0.05);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.72) !important;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.28), inset 0 0 0 1px rgba(255,255,255,0.05) !important;
       transition: transform 0.12s ease, filter 0.12s ease, opacity 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, background 0.12s ease, color 0.12s ease;
       outline: none;
+      opacity: 1 !important;
+      user-select: none;
     }
 
     .map-tool-btn:hover,
@@ -1690,8 +1692,8 @@
     .map-control-strip > .map-tool-btn:hover {
       transform: translateY(-1px);
       filter: brightness(1.08) contrast(1.04);
-      border-color: rgba(191,239,255,0.82);
-      box-shadow: 0 10px 22px rgba(0,0,0,0.30), inset 0 0 0 1px rgba(255,255,255,0.08);
+      border-color: rgba(191,239,255,0.82) !important;
+      box-shadow: 0 10px 22px rgba(0,0,0,0.30), inset 0 0 0 1px rgba(255,255,255,0.08) !important;
     }
 
     .map-tool-btn:disabled {
@@ -1703,16 +1705,16 @@
     }
 
     .map-tool-btn.active {
-      border-color: rgba(111,212,255,0.82);
-      color: #ffffff;
-      box-shadow: inset 0 0 14px rgba(111,212,255,0.18), 0 8px 18px rgba(0,0,0,0.26), inset 0 0 0 1px rgba(255,255,255,0.07);
+      border-color: rgba(111,212,255,0.82) !important;
+      color: #ffffff !important;
+      box-shadow: inset 0 0 14px rgba(111,212,255,0.18), 0 8px 18px rgba(0,0,0,0.26), inset 0 0 0 1px rgba(255,255,255,0.07) !important;
     }
 
     .map-tool-btn[data-map-control='enter'].active {
-      border-color: rgba(118,226,255,0.62);
-      color: #dffbff;
-      background: linear-gradient(180deg, rgba(28,66,82,0.98), rgba(14,36,48,0.98));
-      box-shadow: inset 0 0 14px rgba(106,220,255,0.18), 0 6px 14px rgba(0,0,0,0.24), 0 0 10px rgba(80,206,245,0.16);
+      border-color: rgba(118,226,255,0.62) !important;
+      color: #dffbff !important;
+      background: linear-gradient(180deg, rgba(28,66,82,0.98), rgba(14,36,48,0.98)) !important;
+      box-shadow: inset 0 0 14px rgba(106,220,255,0.18), 0 6px 14px rgba(0,0,0,0.24), 0 0 10px rgba(80,206,245,0.16) !important;
     }
 
     .map-tool-btn[data-map-control='back'].active {
@@ -2829,23 +2831,6 @@
             <div class='simple-row'><b>类别</b><span data-map-focus-type>无</span></div>
             <div class='simple-row'><b>功能</b><span data-map-focus-faction>无</span></div>
             <div class='simple-row'><b>可用</b><span data-map-focus-childmap>无</span></div>
-            <div class='simple-row'><b>人物</b><span data-map-focus-characters>未见人物</span></div>
-          </div>
-        </div>
-
-        <div class='mvu-simple-card map-side-card'>
-          <div class='simple-head'>
-            <div class='simple-title'>导航</div>
-            <span class='map-side-badge gold'>导航</span>
-          </div>
-          <div class='map-layer-pills'>
-            <span class='map-layer-pill current' data-map-layer-pill='continent'>大陆</span>
-            <span class='map-layer-pill' data-map-layer-pill='city'>城市</span>
-            <span class='map-layer-pill' data-map-layer-pill='facility'>设施</span>
-          </div>
-          <div class='simple-list'>
-            <div class='simple-row'><b>层级</b><span data-map-layer-brief>加载中</span></div>
-            <div class='simple-row'><b>路径</b><span data-map-preview-path>未进入预览</span></div>
           </div>
         </div>
 
@@ -2903,6 +2888,8 @@
   const mapDragState = { active: false, startX: 0, startY: 0, originX: 0, originY: 0, sourceCanvas: null, moved: false, lastDragAt: 0 };
   const miniMapDragState = { active: false, sourceEl: null, pointerId: null, offsetX: 0, offsetY: 0 };
   let pointerBound = false;
+  let hoverSyncRaf = 0;
+  let hoverSyncCanvas = null;
 
   function isWorldCoordMap(mapId = mapState.currentMapId, mapLevel = mapState.mapLevel) {
     const safeMapId = toText(mapId, 'map_douluo_world');
@@ -3072,12 +3059,17 @@
 
   function buildEffectiveSd(rawSd) {
     if (!rawSd || typeof rawSd !== 'object') return { sd: null, rawSd: null };
+    const liveMap = (rawSd.map && typeof rawSd.map === 'object' && Object.keys(rawSd.map).length)
+      ? rawSd.map
+      : ((rawSd.display_map && typeof rawSd.display_map === 'object' && Object.keys(rawSd.display_map).length)
+        ? rawSd.display_map
+        : (deepGet(rawSd, 'display_all.map', {}) || {}));
     return {
       sd: {
         sys: rawSd.sys || {},
         world: rawSd.world || {},
         org: rawSd.org || {},
-        map: rawSd.map || {},
+        map: liveMap,
         char: rawSd.char || {}
       },
       rawSd
@@ -3539,7 +3531,10 @@
 
   function buildMapSnapshot(sd) {
     const [activeName, activeChar] = resolveActiveCharacter(sd || {});
-    const mapData = sd && sd.map && typeof sd.map === 'object' ? sd.map : {};
+    const mapData = sd && typeof sd === 'object'
+      ? ((sd.map && typeof sd.map === 'object' && Object.keys(sd.map).length ? sd.map
+        : (sd.display_map && typeof sd.display_map === 'object' ? sd.display_map : (deepGet(sd, 'display_all.map', {}) || {}))))
+      : {};
     return buildSnapshotFromMapPayload(mapData, sd, activeName, activeChar);
   }
 
@@ -7127,8 +7122,10 @@
   }
 
   function handleMapPointerDown(event) {
-    if (event.button !== 0) return;
+    if (event.button !== 2) return;
     const point = resolveMapClientPoint(event.currentTarget, event.clientX, event.clientY);
+    event.preventDefault();
+    event.stopPropagation();
     mapDragState.active = true;
     mapDragState.moved = false;
     mapDragState.startX = point ? point.localX : event.clientX;
@@ -7219,16 +7216,26 @@
     syncInteractiveMapUI({ center: false });
   }
 
+  function scheduleHoverSync(canvasEl = null) {
+    hoverSyncCanvas = canvasEl || null;
+    if (hoverSyncRaf) return;
+    hoverSyncRaf = requestAnimationFrame(() => {
+      const activeCanvas = hoverSyncCanvas;
+      hoverSyncRaf = 0;
+      hoverSyncCanvas = null;
+      updateMapCoordinateReadout(activeCanvas);
+      renderMapInfoState();
+    });
+  }
+
   function handleMapCanvasHover(event) {
     setMapHoverPoint(event.currentTarget, event.clientX, event.clientY);
-    updateMapCoordinateReadout(event.currentTarget);
-    renderMapInfoState();
+    scheduleHoverSync(event.currentTarget);
   }
 
   function handleMapCanvasLeave() {
     setMapHoverPoint(null, null, null);
-    updateMapCoordinateReadout();
-    renderMapInfoState();
+    scheduleHoverSync(null);
   }
 
   function handleNodeLayerClick(event) {
@@ -7297,6 +7304,9 @@
     document.querySelectorAll('.map-canvas.interactive-map').forEach(canvasEl => {
       if (canvasEl.dataset.mapBound === '1') return;
       canvasEl.dataset.mapBound = '1';
+      canvasEl.addEventListener('contextmenu', event => {
+        event.preventDefault();
+      });
       canvasEl.addEventListener('wheel', handleMapWheel, { passive: false });
       canvasEl.addEventListener('pointerdown', handleMapPointerDown);
       canvasEl.addEventListener('pointermove', handleMapCanvasHover);

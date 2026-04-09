@@ -16,7 +16,7 @@
       document.body.appendChild(detailModal);
     }
 
-    const modalPanel = detailModal ? detailModal.querySelector('.mvu-modal-panel') : null;
+    const modalPanel = detailModal ? (detailModal.querySelector('.mvu-modal-panel') || detailModal.querySelector('.modal-panel')) : null;
     const modalTitle = document.getElementById('modalTitle');
     const modalSubtitle = document.getElementById('modalSubtitle');
     const modalLevel = document.getElementById('modalLevel');
@@ -24,6 +24,24 @@
     const modalSummary = document.getElementById('modalSummary');
     const modalBody = document.getElementById('modalBody');
     const modalClose = document.getElementById('modalClose');
+
+    function getModalRefs() {
+      const currentDetailModal = document.getElementById('detailModal') || detailModal;
+      const currentModalPanel = currentDetailModal
+        ? (currentDetailModal.querySelector('.mvu-modal-panel') || currentDetailModal.querySelector('.modal-panel') || modalPanel)
+        : modalPanel;
+      return {
+        detailModal: currentDetailModal,
+        modalPanel: currentModalPanel,
+        modalTitle: document.getElementById('modalTitle') || modalTitle,
+        modalSubtitle: document.getElementById('modalSubtitle') || modalSubtitle,
+        modalLevel: document.getElementById('modalLevel') || modalLevel,
+        modalPath: document.getElementById('modalPath') || modalPath,
+        modalSummary: document.getElementById('modalSummary') || modalSummary,
+        modalBody: document.getElementById('modalBody') || modalBody,
+        modalClose: document.getElementById('modalClose') || modalClose
+      };
+    }
     const BASE_CANVAS_WIDTH = 636;
     const BASE_CANVAS_HEIGHT = 462;
     const CANVAS_WIDTH = 1060;
@@ -3979,16 +3997,31 @@ ${JSON.stringify(patchOps, null, 2)}
     window.addEventListener('map-action-dispatch', handleMapActionDispatch);
 
     function openModal(previewKey, options = {}) {
+      const refs = getModalRefs();
       if (!options.preserveMapDispatchContext) {
         mapDispatchContext = null;
       }
       currentModalPreviewKey = previewKey || '';
-      renderModalContent(currentModalPreviewKey);
-      detailModal.classList.add('show');
-      detailModal.setAttribute('aria-hidden', 'false');
+      renderModalContent(currentModalPreviewKey, refs);
+      if (!refs.detailModal) return;
+      refs.detailModal.classList.add('show');
+      refs.detailModal.setAttribute('aria-hidden', 'false');
     }
 
-    function renderModalContent(previewKey) {
+    function renderModalContent(previewKey, refs = getModalRefs()) {
+      const {
+        detailModal,
+        modalPanel,
+        modalTitle,
+        modalSubtitle,
+        modalLevel,
+        modalPath,
+        modalSummary,
+        modalBody
+      } = refs;
+      if (!detailModal || !modalPanel || !modalTitle || !modalSubtitle || !modalLevel || !modalPath || !modalSummary || !modalBody) {
+        return;
+      }
       if (activeSubUI && typeof activeSubUI.destroy === 'function') {
         activeSubUI.destroy();
         activeSubUI = null;
