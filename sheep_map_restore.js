@@ -2167,6 +2167,17 @@
       box-shadow: 0 0 0 2px rgba(39,117,151,0.18), 0 2px 8px rgba(0,0,0,0.32);
     }
 
+    .map-node[data-node='史莱克学院'] {
+      z-index: 5;
+    }
+    .map-node[data-node='史莱克学院'] .map-dot {
+      width: 14px;
+      height: 14px;
+      background: #ffd872;
+      box-shadow: 0 0 0 3px rgba(38,30,16,0.6), 0 4px 14px rgba(0,0,0,0.45);
+      border: 1px solid rgba(255,255,255,0.8);
+    }
+
     .map-node.current .map-node-label {
       color: #ffd0c9;
     }
@@ -2882,6 +2893,7 @@
     currentMapId: 'map_douluo_world',
     mapLevel: 'world',
     baseSnapshot: null,
+    previewViewStack: [],
     previewKey: '',
     previewTrail: [],
     layerFollowsZoom: true,
@@ -3040,7 +3052,7 @@
     }
 
     if (!bound) {
-      setInterval(handler, 1500);
+      console.warn('sheep_map_restore: MVU update event not bound; polling fallback disabled to avoid forced map refresh.');
     }
   }
 
@@ -3060,28 +3072,13 @@
 
   function buildEffectiveSd(rawSd) {
     if (!rawSd || typeof rawSd !== 'object') return { sd: null, rawSd: null };
-    const displayAll = rawSd.display_all && typeof rawSd.display_all === 'object' ? rawSd.display_all : null;
-    const displayChars = rawSd.display_chars && typeof rawSd.display_chars === 'object' ? rawSd.display_chars : null;
-    const displayWorld = displayAll && displayAll.world && typeof displayAll.world === 'object' ? displayAll.world : {};
-    const rawWorld = rawSd.world && typeof rawSd.world === 'object' ? rawSd.world : {};
-    const effectiveWorld = {
-      ...rawWorld,
-      ...displayWorld,
-      locations: Object.prototype.hasOwnProperty.call(displayWorld, 'locations') ? (displayWorld.locations || {}) : (rawWorld.locations || {}),
-      rankings: Object.prototype.hasOwnProperty.call(displayWorld, 'rankings') ? (displayWorld.rankings || {}) : (rawWorld.rankings || {})
-    };
-
     return {
       sd: {
-        sys: displayAll && displayAll.sys ? displayAll.sys : (rawSd.sys || {}),
-        world: effectiveWorld,
-        org: displayAll && displayAll.org && typeof displayAll.org === 'object' ? displayAll.org : (rawSd.org || {}),
-        map: displayAll && displayAll.map && typeof displayAll.map === 'object'
-          ? displayAll.map
-          : (rawSd.display_map && typeof rawSd.display_map === 'object' ? rawSd.display_map : (rawSd.map || {})),
-        char: displayAll && displayAll.char && typeof displayAll.char === 'object'
-          ? displayAll.char
-          : (displayChars || rawSd.char || {})
+        sys: rawSd.sys || {},
+        world: rawSd.world || {},
+        org: rawSd.org || {},
+        map: rawSd.map || {},
+        char: rawSd.char || {}
       },
       rawSd
     };
@@ -3856,6 +3853,20 @@
     const payload = getPreviewPayload(mapState.snapshot, nodeName);
     const sourceSnapshot = mapState.baseSnapshot || mapState.snapshot;
     if (!payload || !sourceSnapshot) return false;
+    const currentViewState = {
+      selectedNode: toText(mapState.selectedNode, ''),
+      selectedFreePoint: mapState.selectedFreePoint
+        ? { x: toNumber(mapState.selectedFreePoint.x, NaN), y: toNumber(mapState.selectedFreePoint.y, NaN) }
+        : null,
+      zoom: toNumber(mapState.zoom, DEFAULT_MAP_ZOOM),
+      panX: toNumber(mapState.panX, 0),
+      panY: toNumber(mapState.panY, 0),
+      layer: toText(mapState.layer, inferInitialLayer(mapState.snapshot || sourceSnapshot)),
+      currentMapId: toText(mapState.currentMapId, ''),
+      exitedNodeName: toText(nodeName, '')
+    };
+    if (!Array.isArray(mapState.previewViewStack)) mapState.previewViewStack = [];
+    mapState.previewViewStack.push(currentViewState);
     mapState.previewTrail = Array.isArray(mapState.previewTrail) ? [...mapState.previewTrail, nodeName] : [nodeName];
     syncPreviewKeyFromTrail();
     mapState.pendingTravelRequest = null;
@@ -3864,26 +3875,60 @@
     return true;
   }
 
+  function restorePreviewViewState(viewState) {
+    if (!viewState || typeof viewState !== 'object') return;
+    const desiredNode = toText(viewState.selectedNode || viewState.exitedNodeName, '');
+    const desiredLayer = toText(viewState.layer, '');
+    if (desiredLayer) mapState.layer = desiredLayer;
+    mapState.zoom = clamp(toNumber(viewState.zoom, mapState.zoom), MIN_MAP_ZOOM, MAX_MAP_ZOOM);
+    mapState.panX = toNumber(viewState.panX, 0);
+    mapState.panY = toNumber(viewState.panY, 0);
+    if (viewState.selectedFreePoint
+      && Number.isFinite(toNumber(viewState.selectedFreePoint.x, NaN))
+      && Number.isFinite(toNumber(viewState.selectedFreePoint.y, NaN))) {
+      mapState.selectedFreePoint = {
+        x: toNumber(viewState.selectedFreePoint.x, 0),
+        y: toNumber(viewState.selectedFreePoint.y, 0)
+      };
+      mapState.selectedNode = '';
+      return;
+    }
+    mapState.selectedFreePoint = null;
+    if (desiredNode && mapState.itemMap && mapState.itemMap.has(desiredNode)) {
+      mapState.selectedNode = desiredNode;
+      return;
+    }
+    if (desiredLayer) {
+      const resolvedNode = resolveSelectedNodeForLayer(desiredLayer);
+      if (resolvedNode) mapState.selectedNode = resolvedNode;
+    }
+  }
+
   function exitPreviewMode() {
     if (!hasActivePreview() || !mapState.baseSnapshot) return false;
     const nextTrail = Array.isArray(mapState.previewTrail) ? [...mapState.previewTrail] : [];
-    nextTrail.pop();
+    const exitedNodeName = nextTrail.pop() || '';
+    const viewState = Array.isArray(mapState.previewViewStack) ? (mapState.previewViewStack.pop() || null) : null;
     mapState.previewTrail = nextTrail;
     syncPreviewKeyFromTrail();
     mapState.pendingTravelRequest = null;
     if (!mapState.previewTrail.length) {
       syncMapStateFromSnapshot(mapState.baseSnapshot, { preserveSelection: false, forceLayer: inferInitialLayer(mapState.baseSnapshot), initializeLayer: false });
+      restorePreviewViewState(viewState || { exitedNodeName });
       return true;
     }
     const parentPayload = getPreviewPayloadByTrail(mapState.baseSnapshot, mapState.previewTrail);
     if (!parentPayload) {
       mapState.previewTrail = [];
       syncPreviewKeyFromTrail();
+      mapState.previewViewStack = [];
       syncMapStateFromSnapshot(mapState.baseSnapshot, { preserveSelection: false, forceLayer: inferInitialLayer(mapState.baseSnapshot), initializeLayer: false });
+      restorePreviewViewState(viewState || { exitedNodeName });
       return true;
     }
     const parentSnapshot = buildSnapshotFromMapPayload(parentPayload, mapState.baseSnapshot.sd, mapState.baseSnapshot.activeName, mapState.baseSnapshot.activeChar);
     syncMapStateFromSnapshot(parentSnapshot, { preserveSelection: false, forceLayer: inferInitialLayer(parentSnapshot), initializeLayer: false });
+    restorePreviewViewState(viewState || { exitedNodeName });
     return true;
   }
 
@@ -3898,7 +3943,9 @@
   function ensurePageMapMarkup() {
     const pageMap = document.getElementById('page-map');
     if (!pageMap) return false;
-    pageMap.innerHTML = mapHtml;
+    if (!pageMap.querySelector('.map-layout')) {
+      pageMap.innerHTML = mapHtml;
+    }
     return true;
   }
 
@@ -3925,19 +3972,6 @@
       });
     });
   }
-
-  function resyncMapShell(options = {}) {
-    const { center = false, syncVisual = true } = options || {};
-    ensurePageMapMarkup();
-    refreshSplitMapPages();
-    bindTabResync();
-    if (syncVisual) scheduleSync(center);
-  }
-
-  try {
-    window.__sheepMapResync = resyncMapShell;
-    window.__sheepMapRefreshLive = (preserveSelection = true) => refreshLiveMap(preserveSelection);
-  } catch (_) {}
 
   function resyncMapShell(options = {}) {
     const { center = false, syncVisual = true } = options || {};
@@ -4035,10 +4069,102 @@
     return mapState.itemMap.get(name) || null;
   }
 
+  function buildScatterLayoutRatio(index, total, options = {}) {
+    const safeTotal = Math.max(1, toNumber(total, 1));
+    const safeIndex = Math.max(0, toNumber(index, 0));
+    const centerX = clamp(toNumber(options.centerX, 0.5), 0.18, 0.82);
+    const centerY = clamp(toNumber(options.centerY, 0.5), 0.18, 0.82);
+    const radiusBase = clamp(toNumber(options.radiusBase, 0.2), 0.12, 0.3);
+    const radiusStep = clamp(toNumber(options.radiusStep, 0.1), 0.06, 0.16);
+    const yScale = clamp(toNumber(options.yScale, 0.85), 0.7, 1);
+    const capacities = [6, 10, 14, 18];
+    let ring = 0;
+    let cursor = safeIndex;
+    while (ring < capacities.length - 1 && cursor >= capacities[ring]) {
+      cursor -= capacities[ring];
+      ring += 1;
+    }
+    const ringCount = capacities[ring] || Math.max(6, safeTotal);
+    const angle = (-Math.PI / 2) + (cursor / Math.max(1, ringCount)) * Math.PI * 2;
+    const radius = radiusBase + ring * radiusStep;
+    return {
+      left: clamp(centerX + Math.cos(angle) * radius, 0.08, 0.92),
+      top: clamp(centerY + Math.sin(angle) * radius * yScale, 0.08, 0.92)
+    };
+  }
+
+  function resolveLocalSubMapCustomLayout(snapshot, key) {
+    const currentMapId = toText(snapshot && snapshot.currentMapId, '');
+    const mapName = toText(deepGet(snapshot, 'mapMeta.name', ''), '');
+    const focusName = toText(snapshot && snapshot.currentFocusName, '');
+    const currentLoc = toText(snapshot && snapshot.currentLoc, '');
+    const previewAnchor = toText(deepGet(snapshot, 'previewMeta.anchor_name', ''), '');
+    const trailText = Array.isArray(mapState.previewTrail) ? mapState.previewTrail.join(' > ') : '';
+    const contextText = [currentMapId, mapName, focusName, currentLoc, previewAnchor, trailText].join(' | ');
+
+    const isShrekAcademy = /史莱克学院/.test(contextText);
+    const isShrekCity = !isShrekAcademy && /史莱克城/.test(contextText);
+
+    if (isShrekCity) {
+      if (key === '史莱克学院') return { left: 0.5, top: 0.46 };
+      if (key === '唐门总部' || key === '唐门史莱克分部') return { left: 0.24, top: 0.5 };
+      if (key === '传灵塔总部') return { left: 0.76, top: 0.5 };
+      return null;
+    }
+
+    if (isShrekAcademy) {
+      if (key === '海神岛(内院)') return { left: 0.5, top: 0.38 };
+      if (key === '海神阁') return { left: 0.5, top: 0.22 };
+      if (key === '外院教学楼' || key === '外院教学区') return { left: 0.34, top: 0.68 };
+      return null;
+    }
+
+    return null;
+  }
+
   function getMapNodeDisplayRatio(name, itemOverride = null) {
     const key = toText(name, '');
     if (!key) return null;
     const item = itemOverride || getItemByName(key);
+
+    const snapshot = mapState.snapshot || null;
+    const parentMapLevel = snapshot && snapshot.mapLevel;
+    const inSubMap = parentMapLevel === 'city' || parentMapLevel === 'facility';
+    const isLocalSubMap = inSubMap && toText(mapState.coordSystem, MAP_COORD_SYSTEM_LOCAL) === MAP_COORD_SYSTEM_LOCAL;
+
+    if (isLocalSubMap) {
+      const siblings = Array.isArray(snapshot && snapshot.items) ? snapshot.items.filter(Boolean) : [];
+      const fixedRatio = resolveLocalSubMapCustomLayout(snapshot, key);
+      if (fixedRatio) return fixedRatio;
+
+      const fixedNameSet = new Set(
+        siblings
+          .map(sibling => toText(sibling && sibling.name, ''))
+          .filter(Boolean)
+          .filter(nameText => !!resolveLocalSubMapCustomLayout(snapshot, nameText))
+      );
+
+      const scatterTargets = siblings.filter(sibling => {
+        const siblingName = toText(sibling && sibling.name, '');
+        return siblingName && !fixedNameSet.has(siblingName);
+      });
+
+      const scatterIndex = scatterTargets.findIndex(sibling => toText(sibling && sibling.name, '') === key);
+      if (scatterIndex >= 0) {
+        const contextText = [
+          toText(snapshot && snapshot.currentMapId, ''),
+          toText(deepGet(snapshot, 'mapMeta.name', ''), ''),
+          toText(snapshot && snapshot.currentFocusName, ''),
+          toText(snapshot && snapshot.currentLoc, ''),
+          toText(deepGet(snapshot, 'previewMeta.anchor_name', ''), '')
+        ].join(' | ');
+        const isShrekAcademy = /史莱克学院/.test(contextText);
+        return buildScatterLayoutRatio(scatterIndex, scatterTargets.length, isShrekAcademy
+          ? { centerX: 0.58, centerY: 0.6, radiusBase: 0.18, radiusStep: 0.1, yScale: 0.82 }
+          : { centerX: 0.5, centerY: 0.56, radiusBase: 0.2, radiusStep: 0.1, yScale: 0.84 });
+      }
+    }
+
     if (item && item.validCoord) return projectCoord({ x: item.x, y: item.y });
     return null;
   }
@@ -6218,14 +6344,17 @@
 
     if (mapState.baseSnapshot && mapState.baseSnapshot.activeChar && mapState.baseSnapshot.activeChar.status) {
       mapState.baseSnapshot.activeChar.status.loc = finalLocName;
-      if (Number.isFinite(targetCoord.x) && Number.isFinite(targetCoord.y) && targetCoord.x >= 0 && targetCoord.y >= 0) {
-        mapState.baseSnapshot.activeChar.status.current_x = targetCoord.x;
-        mapState.baseSnapshot.activeChar.status.current_y = targetCoord.y;
-        mapState.baseSnapshot.activeChar.status.coord_system = toText(request && request.coord_system, toText(mapState.coordSystem, MAP_COORD_SYSTEM_LOCAL));
-        mapState.baseSnapshot.currentFocusCoord = { x: targetCoord.x, y: targetCoord.y };
+      const isWorldMove = !hasActivePreview() || mapState.coordSystem === MAP_COORD_SYSTEM_IMAGE;
+      if (isWorldMove) {
+        if (Number.isFinite(targetCoord.x) && Number.isFinite(targetCoord.y) && targetCoord.x >= 0 && targetCoord.y >= 0) {
+          mapState.baseSnapshot.activeChar.status.current_x = targetCoord.x;
+          mapState.baseSnapshot.activeChar.status.current_y = targetCoord.y;
+          mapState.baseSnapshot.activeChar.status.coord_system = toText(request && request.coord_system, toText(mapState.coordSystem, MAP_COORD_SYSTEM_LOCAL));
+          mapState.baseSnapshot.currentFocusCoord = { x: targetCoord.x, y: targetCoord.y };
+        }
+        mapState.baseSnapshot.currentLoc = finalLocName;
+        mapState.baseSnapshot.currentFocusName = finalLocName;
       }
-      mapState.baseSnapshot.currentLoc = finalLocName;
-      mapState.baseSnapshot.currentFocusName = finalLocName;
     }
 
     if (typeof window.sendToAI === 'function' && mapState.baseSnapshot && mapState.baseSnapshot.activeChar) {
@@ -7193,6 +7322,7 @@
         }
         mapState.selectedFreePoint = null;
         if (hasActivePreview() && mapState.baseSnapshot) {
+          mapState.previewViewStack = [];
           mapState.previewTrail = [];
           syncPreviewKeyFromTrail();
           syncMapStateFromSnapshot(mapState.baseSnapshot, { preserveSelection: false, forceLayer: inferInitialLayer(mapState.baseSnapshot), initializeLayer: false });
@@ -7303,6 +7433,7 @@
 
   async function refreshLiveMap(preserveSelection = true) {
     try {
+      const firstLoad = !mapState.hasLoaded;
       const vars = await getAllVariablesSafe();
       const root = resolveRootData(vars);
       const effective = root && root.sd ? buildEffectiveSd(root.sd) : { sd: null };
@@ -7318,24 +7449,31 @@
           snapshot = buildSnapshotFromMapPayload(previewPayload, baseSnapshot.sd, baseSnapshot.activeName, baseSnapshot.activeChar);
         } else {
           mapState.previewTrail = [];
+          mapState.previewViewStack = [];
           syncPreviewKeyFromTrail();
         }
       }
       syncMapStateFromSnapshot(snapshot, { preserveSelection });
       const currentPreviewTrail = Array.isArray(mapState.previewTrail) ? mapState.previewTrail.join('>') : '';
-      const shouldCenter = !mapState.hasLoaded
+      const shouldCenter = firstLoad
         || previousMapId !== snapshot.currentMapId
         || previousCurrent !== mapState.currentNode
         || previousPreviewTrail !== currentPreviewTrail;
+      const shellMissing = !document.querySelector('#page-map .map-layout')
+        || !document.querySelector(".split-left-page[data-target='page-map'] .map-hero-card")
+        || !document.querySelector(".split-right-page[data-target='page-map'] .map-side-stack");
       mapState.hasLoaded = true;
       window.__sheepMapSnapshot = snapshot;
-      resyncMapShell({ center: shouldCenter, syncVisual: false });
+      if (firstLoad || shellMissing) {
+        resyncMapShell({ center: shouldCenter, syncVisual: false });
+      }
       scheduleSync(shouldCenter);
     } catch (error) {
       console.error('sheep map live refresh failed', error);
       if (!mapState.hasLoaded) {
         const fallbackSnapshot = buildFallbackSnapshot();
         mapState.baseSnapshot = fallbackSnapshot;
+        mapState.previewViewStack = [];
         mapState.previewTrail = [];
         syncPreviewKeyFromTrail();
         syncMapStateFromSnapshot(fallbackSnapshot, { preserveSelection: false, forceLayer: inferInitialLayer(fallbackSnapshot), initializeLayer: false });
@@ -7364,9 +7502,9 @@
     mapState.currentNode = mapState.snapshot.currentLoc;
     mapState.selectedNode = mapState.snapshot.currentLoc;
     resyncMapShell({ center: true });
-    setTimeout(() => resyncMapShell({ center: false }), 80);
-    setTimeout(() => resyncMapShell({ center: false }), 240);
-    setTimeout(() => resyncMapShell({ center: false }), 640);
+    setTimeout(() => scheduleSync(false), 80);
+    setTimeout(() => scheduleSync(false), 240);
+    setTimeout(() => scheduleSync(false), 640);
     window.addEventListener('resize', () => scheduleSync(false));
 
     (async () => {

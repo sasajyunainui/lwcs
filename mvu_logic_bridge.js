@@ -1304,28 +1304,13 @@
     function buildEffectiveSd(rawSd) {
       if (!rawSd || typeof rawSd !== 'object') return { sd: null, rawSd: null };
 
-      const displayAll = rawSd.display_all && typeof rawSd.display_all === 'object' ? rawSd.display_all : null;
-      const displayChars = rawSd.display_chars && typeof rawSd.display_chars === 'object' ? rawSd.display_chars : null;
-      const displayWorld = displayAll && displayAll.world && typeof displayAll.world === 'object' ? displayAll.world : {};
-      const rawWorld = rawSd.world && typeof rawSd.world === 'object' ? rawSd.world : {};
-      const hasDisplayLocations = displayWorld && Object.prototype.hasOwnProperty.call(displayWorld, 'locations');
-      const hasDisplayRankings = displayWorld && Object.prototype.hasOwnProperty.call(displayWorld, 'rankings');
-      const effectiveWorld = {
-        ...rawWorld,
-        ...displayWorld,
-        locations: hasDisplayLocations ? (displayWorld.locations || {}) : (rawWorld.locations || {}),
-        rankings: hasDisplayRankings ? (displayWorld.rankings || {}) : (rawWorld.rankings || {})
-      };
-
       return {
         sd: {
-          sys: displayAll && displayAll.sys ? displayAll.sys : (rawSd.sys || {}),
-          world: effectiveWorld,
-          org: displayAll && displayAll.org && typeof displayAll.org === 'object' ? displayAll.org : (rawSd.org || {}),
-          map: displayAll && displayAll.map && typeof displayAll.map === 'object' ? displayAll.map : ((rawSd.display_map && typeof rawSd.display_map === 'object' ? rawSd.display_map : (rawSd.map || {}))),
-          char: displayAll && displayAll.char && typeof displayAll.char === 'object'
-            ? displayAll.char
-            : (displayChars || rawSd.char || {})
+          sys: rawSd.sys || {},
+          world: rawSd.world || {},
+          org: rawSd.org || {},
+          map: rawSd.map || {},
+          char: rawSd.char || {}
         },
         rawSd
       };
