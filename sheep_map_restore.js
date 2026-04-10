@@ -1848,8 +1848,8 @@
       inset: 0;
       transform-origin: center center;
       z-index: 1;
-      will-change: transform;
-      backface-visibility: hidden;
+      will-change: auto;
+      backface-visibility: visible;
     }
 
     .map-terrain,
@@ -1887,8 +1887,8 @@
       background-position: center;
       filter: none;
       box-shadow: inset 0 0 28px rgba(0,0,0,0.03);
-      image-rendering: -webkit-optimize-contrast;
-      image-rendering: crisp-edges;
+      image-rendering: auto;
+      image-rendering: smooth;
     }
 
     .map-terrain-svg {
@@ -3999,13 +3999,29 @@
       return root;
     }
 
-    document.querySelectorAll(`.split-left-page[data-target='page-map']`).forEach(page => {
+    function hasHydratedLeftMap(page) {
+      if (!page) return false;
+      return !!page.querySelector('.map-canvas.interactive-map [data-map-node-layer]');
+    }
+
+    function hasHydratedRightMap(page) {
+      if (!page) return false;
+      return !!page.querySelector('.map-side-stack [data-map-current-name]');
+    }
+
+    function hydrateMapShell(page, source, isReady) {
+      if (!page || !source) return false;
+      if (isReady(page)) return false;
       page.innerHTML = '';
-      if (leftSource) page.appendChild(resetMapBindingFlags(leftSource.cloneNode(true)));
+      page.appendChild(resetMapBindingFlags(source.cloneNode(true)));
+      return true;
+    }
+
+    document.querySelectorAll(`.split-left-page[data-target='page-map']`).forEach(page => {
+      hydrateMapShell(page, leftSource, hasHydratedLeftMap);
     });
     document.querySelectorAll(`.split-right-page[data-target='page-map']`).forEach(page => {
-      page.innerHTML = '';
-      if (rightSource) page.appendChild(resetMapBindingFlags(rightSource.cloneNode(true)));
+      hydrateMapShell(page, rightSource, hasHydratedRightMap);
     });
   }
 
