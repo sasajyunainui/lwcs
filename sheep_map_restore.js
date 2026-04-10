@@ -2713,6 +2713,8 @@
       width: 28px !important;
       height: 28px !important;
       font-size: 14px !important;
+      background: linear-gradient(180deg, rgba(26,50,66,0.98), rgba(16,33,48,0.98)) !important;
+      color: #ffffff !important;
     }
 
     .map-hero-card.is-compact .map-legend-strip {
@@ -5724,54 +5726,48 @@
     return { x: 0, y: 0 };
   }
 
-  function buildNodeHtml(item, isCurrent, isOrigin) {
-    const manualPos = getMapNodeDisplayRatio(item && item.name, item);
-    const pos = manualPos || projectCoord({ x: item.x, y: item.y });
-    const left = (pos.left * 100).toFixed(2);
-    const top = (pos.top * 100).toFixed(2);
-    const rawState = toText(item && item.state, '');
-    const stateLabelMap = { intact: '完整', ruins: '遗址', rebuild: '重建中', rebuilt: '已重建' };
-    const stateToken = /^(intact|ruins|rebuild|rebuilt)$/i.test(rawState) ? rawState.toLowerCase() : '';
-    const stateText = stateToken ? stateLabelMap[stateToken] : rawState;
-    const pointKindClass = `point-kind-${toText(item.pointKind, 'node').replace(/[^a-z0-9_-]/gi, '') || 'node'}`;
-    const classes = ['map-node', 'point', pointKindClass];
+  function updateNodeHtmlClasses(el, item, isCurrent, isOrigin) {
     const isEnterable = !!(item && item.canEnter);
-    if (isCurrent) classes.push('current');
-    if (isOrigin) classes.push('origin');
-    if (isEnterable) classes.push('enterable');
-    if (stateToken) classes.push(`state-${stateToken}`);
-    const labelOffset = getMapNodeLabelOffset(item && item.name);
-    const importanceValue = item ? toNumber(item.importance, NaN) : NaN;
-    const importanceText = Number.isFinite(importanceValue) ? `${Math.round(importanceValue)}` : '';
-    const tooltipText = [
-      item && item.name,
-      item && item.type ? `类型：${item.type}` : '',
-      item && item.faction && item.faction !== '未知' ? `阵营：${item.faction}` : '',
-      stateText && stateText !== '可见' ? `状态：${stateText}` : '',
-      importanceText ? `重要度：${importanceText}` : '',
-      item && item.desc && item.desc !== '无' ? item.desc : '',
-      isEnterable ? '可继续下钻预览' : '',
-      item && item.childMapId && item.childMapId !== '无' ? '子图：可进入' : ''
-    ].filter(Boolean).join(' · ');
-    const stateTag = stateToken && stateToken !== 'intact' ? `<span class='map-node-state-tag is-${stateToken}'>${htmlEscape(stateText)}</span>` : '';
-    const label = `<span class='map-node-label'>${htmlEscape(item.name)}${isEnterable ? `<span class='map-node-enter-tag'>↘</span>` : ''}${stateTag}</span>`;
-    return `
-      <button type='button' class='${classes.join(' ')}' data-node='${htmlEscape(item.name)}' style='left:${left}%;top:${top}%;--label-offset-x:${toNumber(labelOffset && labelOffset.x, 0)}px;--label-offset-y:${toNumber(labelOffset && labelOffset.y, 0)}px;'>
-        <span class='map-dot${item.major ? ' major' : ''}'></span>
-        ${label}
-      </button>
-    `;
+    if (isCurrent) el.classList.add('current'); else el.classList.remove('current');
+    if (isOrigin) el.classList.add('origin'); else el.classList.remove('origin');
+    if (isEnterable) el.classList.add('enterable'); else el.classList.remove('enterable');
   }
 
   function renderMapNodeLayer() {
     const visibleItems = getRenderableItems();
     const visibleCurrentNode = getVisibleCurrentNode();
-    const html = visibleItems.map(item => buildNodeHtml(item, !mapState.selectedFreePoint && item.name === mapState.selectedNode, !mapState.currentFreePoint && item.name === visibleCurrentNode)).join('');
-    const nodeKey = `${mapState.currentMapId}|${mapState.layer}|${mapState.selectedNode}|${visibleCurrentNode}|${visibleItems.map(item => `${item.name}:${item.canEnter ? 1 : 0}:${item.major ? 1 : 0}:${toText(item.state, '')}`).join('|')}`;
+    const structureKey = `${mapState.currentMapId}|${mapState.layer}|${visibleItems.length}`;
     document.querySelectorAll('[data-map-node-layer]').forEach(el => {
-      if (el.dataset.renderKey === nodeKey) return;
-      el.innerHTML = html;
-      el.dataset.renderKey = nodeKey;
+      if (el.dataset.structureKey !== structureKey) {
+        el.innerHTML = visibleItems.map(item => {
+          const manualPos = getMapNodeDisplayRatio(item && item.name, item);
+          const pos = manualPos || projectCoord({ x: item.x, y: item.y });
+          const left = (pos.left * 100).toFixed(2);
+          const top = (pos.top * 100).toFixed(2);
+          const rawState = toText(item && item.state, '');
+          const stateToken = /^(intact|ruins|rebuild|rebuilt)$/i.test(rawState) ? rawState.toLowerCase() : '';
+          const stateText = stateToken ? { intact: '完整', ruins: '遗址', rebuild: '重建中', rebuilt: '已重建' }[stateToken] : rawState;
+          const pointKindClass = `point-kind-${toText(item.pointKind, 'node').replace(/[^a-z0-9_-]/gi, '') || 'node'}`;
+          const classes = ['map-node', 'point', pointKindClass];
+          if (stateToken) classes.push(`state-${stateToken}`);
+          const labelOffset = getMapNodeLabelOffset(item && item.name);
+          const isEnterable = !!(item && item.canEnter);
+          const stateTag = stateToken && stateToken !== 'intact' ? `<span class='map-node-state-tag is-${stateToken}'>${htmlEscape(stateText)}</span>` : '';
+          const label = `<span class='map-node-label'>${htmlEscape(item.name)}${isEnterable ? `<span class='map-node-enter-tag'>↘</span>` : ''}${stateTag}</span>`;
+          return `<button type='button' class='${classes.join(' ')}' data-node='${htmlEscape(item.name)}' style='left:${left}%;top:${top}%;--label-offset-x:${toNumber(labelOffset && labelOffset.x, 0)}px;--label-offset-y:${toNumber(labelOffset && labelOffset.y, 0)}px;'><span class='map-dot${item.major ? ' major' : ''}'></span>${label}</button>`;
+        }).join('');
+        el.dataset.structureKey = structureKey;
+      }
+      
+      // Efficiently update dynamic classes without touching innerHTML
+      const nodeEls = el.querySelectorAll('.map-node');
+      for (let i = 0; i < visibleItems.length; i++) {
+        const item = visibleItems[i];
+        const nodeEl = nodeEls[i];
+        if (nodeEl) {
+          updateNodeHtmlClasses(nodeEl, item, !mapState.selectedFreePoint && item.name === mapState.selectedNode, !mapState.currentFreePoint && item.name === visibleCurrentNode);
+        }
+      }
     });
   }
 

@@ -175,7 +175,7 @@ const RightPanel = {
           <div class="split-page split-right-page" :class="{ active: tabState.current === 'page-world' }" data-target="page-world">
             <div class="stack-3">
               <div class="mvu-simple-card live-card clickable" data-preview="编年史档案"></div>
-              <div class="mvu-simple-card entry-card clickable" data-preview="天道金榜"></div>
+              <div class="mvu-simple-card entry-card" data-rank-card="天道金榜"></div>
               <div class="mvu-simple-card live-card clickable" data-preview="拍卖与警报"></div>
             </div>
           </div>

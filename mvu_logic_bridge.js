@@ -2276,10 +2276,21 @@
         { label: '最近事件', value: snapshot.latestTimeline ? toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]) : '暂无' },
         { label: '推进状态', value: snapshot.latestTimeline ? `${toText(deepGet(snapshot.latestTimeline[1], 'status', 'pending'), 'pending')} / Tick ${toText(deepGet(snapshot.latestTimeline[1], 'trigger_tick', 0), '0')}` : '暂无时间线' }
       ]); });
-      document.querySelectorAll('[data-preview="天道金榜"].mvu-simple-card').forEach(el => { el.innerHTML = buildSimpleCard('天道金榜', null, [
-        { label: '榜单摘要', value: `少年榜 ${snapshot.youthRankingEntries.length} / 风云榜 ${snapshot.continentRankingEntries.length}` },
-        { label: '当前在榜', value: snapshot.recentTitles.find(title => /榜/.test(title)) || '无' }
-      ]); });
+      document.querySelectorAll('[data-rank-card="天道金榜"].mvu-simple-card').forEach(el => { 
+        el.innerHTML = `
+          <div class="simple-head"><div class="simple-title">天道金榜</div></div>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: stretch; height: 100%; min-height: 52px;">
+            <div class="mvu-panel clickable" data-preview="少年天才榜" style="padding: 8px 12px; margin: 0; display: flex; flex-direction: column; justify-content: center;">
+              <div style="font-size: 10px; color: #85afb8; margin-bottom: 4px;">少年天才榜</div>
+              <div style="font-size: 12px; color: #fff; font-weight: bold;">${snapshot.youthRankingEntries.length} 人上榜</div>
+            </div>
+            <div class="mvu-panel clickable" data-preview="大陆风云榜" style="padding: 8px 12px; margin: 0; display: flex; flex-direction: column; justify-content: center;">
+              <div style="font-size: 10px; color: #85afb8; margin-bottom: 4px;">大陆风云榜</div>
+              <div style="font-size: 12px; color: #fff; font-weight: bold;">${snapshot.continentRankingEntries.length} 人上榜</div>
+            </div>
+          </div>
+        `; 
+      });
       document.querySelectorAll('[data-preview="拍卖与警报"].mvu-simple-card').forEach(el => { el.innerHTML = buildSimpleCard('拍卖行与警报', null, [
         { label: '拍卖行', value: `${toText(deepGet(snapshot, 'sd.world.auction.status', '休市'), '休市')} / ${toText(deepGet(snapshot, 'sd.world.auction.location', '无'), '无')}` },
         { label: '生态警报', value: snapshot.worldAlert }
@@ -3212,20 +3223,27 @@
         };
       }
 
-      if (previewKey === '天道金榜') {
+      if (previewKey === '少年天才榜') {
         return {
-          title: '天道金榜弹窗',
-          summary: '少年榜与风云榜的实时摘要。',
+          title: '少年天才榜',
+          summary: '收录大陆30岁以下天资卓越者的榜单（TOP 30）。',
           body: `
-            <div class="archive-modal-grid">
-              <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">少年天才榜</div><span class="state-tag live">TOP 30</span></div>
-                ${makeTimelineStack(snapshot.youthRankingEntries.slice(0, 8).map(([rank, item]) => ({ title: `第${rank}名 · ${toText(item && item['角色名'], '未知')}`, desc: `评分 ${toText(item && item['评分'], 0)}` })))}
-              </div>
-              <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">大陆风云榜</div><span class="state-tag warn">TOP 100</span></div>
-                ${makeTimelineStack(snapshot.continentRankingEntries.slice(0, 8).map(([rank, item]) => ({ title: `第${rank}名 · ${toText(item && item['角色名'], '未知')}`, desc: `评分 ${toText(item && item['评分'], 0)}` })))}
-              </div>
+            <div class="archive-card">
+              <div class="archive-card-head"><div class="archive-card-title">当前排行</div><span class="state-tag live">更新中</span></div>
+              ${makeTimelineStack(snapshot.youthRankingEntries.slice(0, 15).map(([rank, item]) => ({ title: `第${rank}名 · ${toText(item && item['角色名'], '未知')}`, desc: `评分 ${toText(item && item['评分'], 0)}` })))}
+            </div>
+          `
+        };
+      }
+
+      if (previewKey === '大陆风云榜') {
+        return {
+          title: '大陆风云榜',
+          summary: '收录全大陆绝对实力强者的最高榜单（TOP 100）。',
+          body: `
+            <div class="archive-card">
+              <div class="archive-card-head"><div class="archive-card-title">当前排行</div><span class="state-tag warn">更新中</span></div>
+              ${makeTimelineStack(snapshot.continentRankingEntries.slice(0, 15).map(([rank, item]) => ({ title: `第${rank}名 · ${toText(item && item['角色名'], '未知')}`, desc: `评分 ${toText(item && item['评分'], 0)}` })))}
             </div>
           `
         };
