@@ -232,12 +232,10 @@
 
     .header-loc span {
       min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
       white-space: normal;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
     }
 
     .archive-split-name-text,
@@ -2412,12 +2410,10 @@
 
     .archive-split-loc span {
       min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
       white-space: normal;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
     }
 
     .archive-split-loc svg {

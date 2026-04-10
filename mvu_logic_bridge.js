@@ -1368,11 +1368,17 @@
       return preferredActiveCharacterName;
     }
 
-    function resolveActiveCharacter(sd) {
+    function resolveActiveCharacter(sd, forcePlayer = false) {
       const chars = sd && sd.char ? sd.char : {};
       const charEntries = safeEntries(chars);
       const preferredName = getPreferredActiveCharacterName();
-      if (preferredName && chars[preferredName]) return [preferredName, chars[preferredName]];
+      
+      if (forcePlayer) {
+        const playerEntry = charEntries.find(([, char]) => !!deepGet(char, 'is_player', false) || !!deepGet(char, 'base.is_player', false));
+        if (playerEntry) return playerEntry;
+      }
+      
+      if (!forcePlayer && preferredName && chars[preferredName]) return [preferredName, chars[preferredName]];
       const namedCandidates = [
         deepGet(sd, 'sys.player_name', ''),
         '主角',
@@ -1658,7 +1664,7 @@
     }
 
     function buildSnapshot(sd) {
-      const [activeName, activeChar] = resolveActiveCharacter(sd || {});
+      const [activeName, activeChar] = resolveActiveCharacter(sd || {}, true);
       const currentLoc = toText(deepGet(activeChar, 'status.loc', '未知'), '未知');
       const locationInfo = resolveLocationData(sd, currentLoc);
       const locationData = locationInfo.data || {};
@@ -1819,10 +1825,10 @@
       const stat = deepGet(snapshot, 'activeChar.stat', {});
       const social = deepGet(snapshot, 'activeChar.social', {});
       const worldTimeText = toText(deepGet(snapshot, 'sd.world.time.calendar', '斗罗历未同步'), '斗罗历未同步');
-      const headerComboText = `${worldTimeText} ｜ ${snapshot.currentLoc}`;
-      document.querySelectorAll('.header-loc span').forEach(el => { el.textContent = headerComboText; });
+      const headerComboHtml = `<span style="opacity:1;font-size:12px;color:#fff;">${worldTimeText}</span><span style="opacity:0.65;font-size:11px;">${snapshot.currentLoc}</span>`;
+      document.querySelectorAll('.header-loc span').forEach(el => { el.innerHTML = headerComboHtml; });
       document.querySelectorAll('.char-name').forEach(el => { el.textContent = snapshot.activeName; });
-      document.querySelectorAll('.archive-split-loc span').forEach(el => { el.textContent = headerComboText; });
+      document.querySelectorAll('.archive-split-loc span').forEach(el => { el.innerHTML = headerComboHtml; });
       document.querySelectorAll('.archive-split-name-text').forEach(el => { el.textContent = snapshot.activeName; });
       if (splitBottomTime) splitBottomTime.textContent = '';
       if (splitBottomLoc) splitBottomLoc.textContent = '';
@@ -3289,7 +3295,7 @@
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">势力梯阵</div><span class="state-tag live">按影响力排序</span></div>
-                ${makeFactionLadder(snapshot.orgEntries.slice(0, 8).map(([name, item]) => ({
+                ${makeFactionLadder(snapshot.orgEntries.map(([name, item]) => ({
                   name,
                   desc: `影响力 ${formatNumber(item && item.inf)} / ${toText(item && item.status, '正常')} / 极限斗罗 ${toText(deepGet(item, 'power_stats.limit_douluo', 0), '0')} / 超级斗罗 ${toText(deepGet(item, 'power_stats.super_douluo', 0), '0')} / 封号斗罗 ${toText(deepGet(item, 'power_stats.title_douluo', 0), '0')}`,
                   className: snapshot.factions.some(([fac]) => fac === name) ? 'highlight' : ''
