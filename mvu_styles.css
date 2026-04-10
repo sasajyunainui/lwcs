@@ -1955,7 +1955,7 @@
       overflow: hidden;
       border-radius: 16px;
       border: 1px solid rgba(255,255,255,0.10);
-      background: linear-gradient(180deg, rgba(8,24,34,0.72), rgba(10,30,38,0.78));
+      background: var(--bg);
       backdrop-filter: var(--bg-blur);
       -webkit-backdrop-filter: var(--bg-blur);
       border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1984,8 +1984,7 @@
       pointer-events: none;
       background:
         radial-gradient(circle at left top, rgba(255,255,255,0.07), transparent 22%),
-        radial-gradient(circle at right bottom, rgba(255,215,0,0.08), transparent 24%),
-        linear-gradient(180deg, rgba(4,12,18,0.10), rgba(4,12,18,0.20));
+        radial-gradient(circle at right bottom, rgba(255,215,0,0.08), transparent 24%);
       z-index: 0;
     }
 
@@ -2012,9 +2011,9 @@
     .split-shell .mvu-module-card,
     .split-shell .strip,
     .split-shell .mvu-simple-card {
-      background: linear-gradient(180deg, rgba(0,229,255,0.08), rgba(255,255,255,0.03));
-      border-color: rgba(0,229,255,0.12);
-      box-shadow: inset 0 0 16px rgba(0,229,255,0.06);
+      background: linear-gradient(180deg, rgba(0,229,255,0.05), rgba(255,255,255,0.02));
+      border-color: rgba(0,229,255,0.08);
+      box-shadow: inset 0 0 14px rgba(0,229,255,0.04);
     }
 
     .split-shell-left {
@@ -2049,9 +2048,10 @@
       display: flex;
       flex-direction: column;
       gap: 5px;
-      overflow: hidden;
+      overflow: visible;
       padding-right: 2px;
-      height: 100%;
+      height: auto;
+      min-height: 0;
     }
 
     .split-shell-right .stack-3::-webkit-scrollbar {
@@ -2061,12 +2061,12 @@
 
     .split-shell-right .stack-3 .mvu-simple-card {
       min-height: 0;
-      flex: 1 1 0;
+      flex: 0 0 auto;
     }
 
     .split-shell-right .map-side-stack .mvu-simple-card {
       min-height: 0;
-      flex: 1 1 0;
+      flex: 0 0 auto;
     }
 
     .split-shell-right .mvu-simple-card,
@@ -2225,6 +2225,32 @@
       overflow: hidden;
       box-shadow: 0 10px 22px rgba(0,0,0,0.28);
       pointer-events: auto;
+    }
+
+    .split-right-page[data-target='page-map'] {
+      display: block !important;
+      height: auto !important;
+      min-height: 0 !important;
+    }
+
+    .split-right-page[data-target='page-map'] > .map-side-stack {
+      height: auto !important;
+      min-height: max-content !important;
+      overflow: visible !important;
+      padding-bottom: 6px !important;
+    }
+
+    .split-right-page[data-target='page-map'] .map-side-card {
+      flex: 0 0 auto !important;
+      min-height: 0 !important;
+    }
+
+    .split-right-page[data-target='page-map'] .map-side-card:first-child {
+      min-height: 280px;
+    }
+
+    .split-right-page[data-target='page-map'] .map-side-card:last-child {
+      min-height: 330px;
     }
 
     .split-footer-tabs .mvu-tab-btn {
@@ -3689,8 +3715,8 @@
     .timeline-card {
       border-radius: 12px;
       border: 1px solid rgba(210,245,255,0.12);
-      background: rgba(223,246,255,0.11);
-      box-shadow: inset 0 0 12px rgba(223,246,255,0.06);
+      background: rgba(223,246,255,0.08);
+      box-shadow: inset 0 0 10px rgba(223,246,255,0.04);
     }
 
     .identity-card,
@@ -3742,7 +3768,7 @@
       border: none;
       border-radius: 2px 8px 8px 2px;
       padding: 6px 7px 6px 10px;
-      background: linear-gradient(90deg, rgba(223,246,255,0.16), rgba(223,246,255,0.04));
+      background: linear-gradient(90deg, rgba(223,246,255,0.12), rgba(223,246,255,0.02));
       border-left: 2px solid rgba(143,233,255,0.32);
     }
 
@@ -4910,11 +4936,11 @@
   bottom: 0;
   z-index: 100;
   pointer-events: none;
-  --bg: rgba(8, 24, 34, 0.68);
-  --bg-blur: blur(20px);
-  --panel: rgba(170, 255, 245, 0.075);
-  --panel-strong: rgba(170, 255, 245, 0.12);
-  --shadow-cyan: 0 6px 18px rgba(77,240,255,0.18);
+  --bg: rgba(10, 30, 38, 0.42);
+  --bg-blur: blur(24px);
+  --panel: rgba(170, 255, 245, 0.045);
+  --panel-strong: rgba(170, 255, 245, 0.075);
+  --shadow-cyan: 0 6px 18px rgba(77,240,255,0.14);
 }
 
 .mvu-vue-wrapper .split-shell {

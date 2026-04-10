@@ -5662,7 +5662,12 @@
     `;
     const activeSnapshot = mapState.snapshot || buildFallbackSnapshot();
     const bgToken = `${mapState.currentMapId}|${toText(deepGet(activeSnapshot, 'mapMeta.name', ''), '')}|${Array.isArray(activeSnapshot.items) ? activeSnapshot.items.length : 0}`;
-    const bgImage = getMapBackdropCssImage(mapState.currentMapId, activeSnapshot);
+    const terrainCache = renderMapTerrain.__cache || (renderMapTerrain.__cache = { token: '', bgImage: '' });
+    if (terrainCache.token !== bgToken) {
+      terrainCache.bgImage = getMapBackdropCssImage(mapState.currentMapId, activeSnapshot);
+      terrainCache.token = bgToken;
+    }
+    const bgImage = terrainCache.bgImage;
     document.querySelectorAll('[data-map-terrain]').forEach(el => {
       if (el.dataset.renderToken !== 'terrain:v2') {
         el.innerHTML = terrainHtml;
@@ -7426,10 +7431,15 @@
 
   function syncInteractiveMapUI(options = {}) {
     const { center = false } = options;
+    const snapshot = mapState.snapshot || buildFallbackSnapshot();
+    const terrainToken = `${mapState.currentMapId}|${toText(deepGet(snapshot, 'mapMeta.name', ''), '')}|${Array.isArray(snapshot.items) ? snapshot.items.length : 0}`;
     enforceMapCanvasAspect();
     applyMapResponsiveMode();
     normalizeMapSelection();
-    renderMapTerrain();
+    if (syncInteractiveMapUI.__terrainToken !== terrainToken) {
+      renderMapTerrain();
+      syncInteractiveMapUI.__terrainToken = terrainToken;
+    }
     ensureMapInteractionBindings();
     if (center) {
       if (mapState.selectedFreePoint) centerMapOnCoord(mapState.selectedFreePoint, getPrimaryMapCanvas());
