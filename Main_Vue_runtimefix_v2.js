@@ -8,7 +8,10 @@ function handleGlobalFold() {
   if (mvuPinState.value) return;
   if (window.__mvuFoldTimer) clearTimeout(window.__mvuFoldTimer);
   window.__mvuFoldTimer = setTimeout(() => {
-    mvuFoldState.value = true;
+    // 如果当前有弹窗正在显示，则阻止自动折叠侧边栏
+    if (!document.querySelector('.modal-mask.show')) {
+      mvuFoldState.value = true;
+    }
   }, 3000);
 }
 
