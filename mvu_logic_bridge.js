@@ -1297,25 +1297,71 @@
     function bindMvuUpdates(handler) {
       const host = getMvuHost();
       const eventName = host && host.events ? host.events.VARIABLE_UPDATE_ENDED : '';
+      const POLL_KEY = '__mvuRefreshPollTimer';
+      const POLL_VIS_KEY = '__mvuRefreshPollVisibilityBound';
+      const POLL_FOCUS_KEY = '__mvuRefreshPollFocusBound';
       let bound = false;
 
-      if (host && eventName && typeof host.on === 'function') {
-        host.on(eventName, handler);
-        bound = true;
-      } else if (host && eventName && typeof host.addEventListener === 'function') {
-        host.addEventListener(eventName, handler);
-        bound = true;
-      }
-
-      if (!bound && eventName) {
+      let running = false;
+      const safeHandler = async (...args) => {
+        if (running) return;
+        running = true;
         try {
-          window.addEventListener(eventName, handler);
+          await Promise.resolve(handler(...args));
+        } catch (error) {
+          console.warn('[DragonUI] MVU 实时刷新执行失败', error);
+        } finally {
+          running = false;
+        }
+      };
+
+      if (host && eventName && typeof host.on === 'function') {
+        try {
+          host.on(eventName, safeHandler);
           bound = true;
         } catch (err) {}
       }
 
+      if (host && eventName && typeof host.addEventListener === 'function') {
+        try {
+          host.addEventListener(eventName, safeHandler);
+          bound = true;
+        } catch (err) {}
+      }
+
+      if (eventName) {
+        try {
+          window.addEventListener(eventName, safeHandler);
+          bound = true;
+        } catch (err) {}
+        try {
+          if (window.top && window.top !== window && typeof window.top.addEventListener === 'function') {
+            window.top.addEventListener(eventName, safeHandler);
+            bound = true;
+          }
+        } catch (err) {}
+      }
+
+      if (!window[POLL_KEY]) {
+        window[POLL_KEY] = window.setInterval(safeHandler, 1500);
+      }
+
+      if (!window[POLL_VIS_KEY]) {
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') safeHandler();
+        });
+        window[POLL_VIS_KEY] = true;
+      }
+
+      if (!window[POLL_FOCUS_KEY]) {
+        window.addEventListener('focus', safeHandler);
+        window[POLL_FOCUS_KEY] = true;
+      }
+
+      safeHandler();
+
       if (!bound) {
-        setInterval(handler, 1500);
+        console.warn('[DragonUI] MVU 更新事件未绑定成功，已启用 polling 兜底。');
       }
     }
 
