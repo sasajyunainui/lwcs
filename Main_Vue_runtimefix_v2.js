@@ -87,7 +87,7 @@ const LeftPanel = {
           </div>
 
           <div class="split-page split-left-page" :class="{ active: tabState.current === 'page-world' }" data-target="page-world">
-            <div class="mvu-module-card hero-card core-card clickable" data-preview="世界状态总览"></div>
+            <div class="mvu-module-card hero-card core-card" data-preview="世界状态总览"></div>
           </div>
 
           <div class="split-page split-left-page" :class="{ active: tabState.current === 'page-org' }" data-target="page-org">

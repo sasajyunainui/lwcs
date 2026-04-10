@@ -619,20 +619,20 @@
       transition: .22s cubic-bezier(0.22, 1, 0.36, 1);
     }
 
-    .social-chip:hover,
-    .mvu-module-card:hover,
-    .strip:hover,
-    .mvu-simple-card:hover {
+    .social-chip.clickable:hover,
+    .mvu-module-card.clickable:hover,
+    .strip.clickable:hover,
+    .mvu-simple-card.clickable:hover {
       box-shadow: var(--shadow-cyan);
       border-color: rgba(0,229,255,0.20);
       transform: translateY(-1px);
     }
 
-    .social-chip:hover::after,
-    .mvu-module-card:hover::after,
-    .strip:hover::after,
-    .mvu-simple-card:hover::after,
-    .mvu-panel:hover::after {
+    .social-chip.clickable:hover::after,
+    .mvu-module-card.clickable:hover::after,
+    .strip.clickable:hover::after,
+    .mvu-simple-card.clickable:hover::after,
+    .mvu-panel.clickable:hover::after {
       animation: cardSweep .62s cubic-bezier(0.22, 1, 0.36, 1) 1;
     }
 
@@ -2022,6 +2022,10 @@
       cursor: pointer;
       transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
     }
+    
+    .split-shell .mvu-module-card:not(.clickable) { cursor: default; pointer-events: none; }
+    .split-shell .mvu-module-card:not(.clickable) * { pointer-events: none; }
+    
     .split-shell .mvu-panel.clickable:hover,
     .split-shell .mvu-module-card.clickable:hover,
     .split-shell .mvu-simple-card.clickable:hover {

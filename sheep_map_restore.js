@@ -7106,7 +7106,7 @@
     const point = resolveMapClientPoint(canvasEl, event.clientX, event.clientY);
     const oldZoom = Math.max(MIN_MAP_ZOOM, toNumber(mapState.zoom, MIN_MAP_ZOOM));
     const oldRenderZoom = getMapRenderZoom(oldZoom);
-    const step = event.deltaY < 0 ? 0.12 : -0.12;
+    const step = event.deltaY < 0 ? 0.28 : -0.28;
     const nextZoom = clamp(Number((oldZoom + step).toFixed(2)), MIN_MAP_ZOOM, MAX_MAP_ZOOM);
     const nextRenderZoom = getMapRenderZoom(nextZoom);
     if (Math.abs(nextZoom - oldZoom) < 1e-6) return;
@@ -7121,7 +7121,7 @@
     mapState.zoom = nextZoom;
     clampMapPan();
     setMapHoverPoint(canvasEl, event.clientX, event.clientY);
-    syncInteractiveMapUI({ center: false });
+    syncInteractiveMapUI({ center: false, updateInfo: false });
   }
 
   function handleMapPointerDown(event) {
@@ -7140,7 +7140,6 @@
       event.currentTarget.setPointerCapture(event.pointerId);
     }
 
-    setMapHoverPoint(event.currentTarget, event.clientX, event.clientY);
   }
 
   function handleMapPointerMove(event) {
@@ -7154,7 +7153,6 @@
     if (Math.abs(currentX - mapDragState.startX) > 4 || Math.abs(currentY - mapDragState.startY) > 4) mapDragState.moved = true;
     clampMapPan();
     applyMapWorldTransform();
-    setMapHoverPoint(canvasEl, event.clientX, event.clientY);
   }
 
   function handleMiniMapPointerDown(event) {
@@ -7210,6 +7208,7 @@
     if (event && event.currentTarget && typeof event.currentTarget.releasePointerCapture === 'function') {
       try { event.currentTarget.releasePointerCapture(event.pointerId); } catch(e) {}
     }
+    setMapHoverPoint(mapDragState.sourceCanvas || getPrimaryMapCanvas(), event.clientX, event.clientY);
     document.querySelectorAll('.map-canvas.interactive-map').forEach(canvasEl => canvasEl.classList.remove('dragging'));
   }
 
@@ -7229,10 +7228,12 @@
     mapState.selectedNode = '';
     mapState.selectedFreePoint = freePoint;
     if (!hasPendingTravelRequestForTarget()) mapState.pendingTravelRequest = null;
-    syncInteractiveMapUI({ center: false });
+    syncInteractiveMapUI({ center: false, updateInfo: true });
   }
 
   function scheduleHoverSync(canvasEl = null) {
+    // Block intense DOM recalculation while actively dragging to prevent lag and visual flickering
+    if (mapDragState.active || miniMapDragState.active) return;
     hoverSyncCanvas = canvasEl || null;
     if (hoverSyncRaf) return;
     hoverSyncRaf = requestAnimationFrame(() => {
@@ -7349,12 +7350,12 @@
         const control = btn.dataset.mapControl;
         if (control === 'zoom-in') {
           mapState.zoom = clamp(Number((mapState.zoom + 0.22).toFixed(2)), MIN_MAP_ZOOM, MAX_MAP_ZOOM);
-          syncInteractiveMapUI({ center: false });
+          syncInteractiveMapUI({ center: false, updateInfo: false });
           return;
         }
         if (control === 'zoom-out') {
           mapState.zoom = clamp(Number((mapState.zoom - 0.22).toFixed(2)), MIN_MAP_ZOOM, MAX_MAP_ZOOM);
-          syncInteractiveMapUI({ center: false });
+          syncInteractiveMapUI({ center: false, updateInfo: false });
           return;
         }
         if (control === 'focus') {
@@ -7375,7 +7376,7 @@
         mapState.zoom = DEFAULT_MAP_ZOOM;
         mapState.panX = 0;
         mapState.panY = 0;
-        syncInteractiveMapUI({ center: false });
+        syncInteractiveMapUI({ center: false, updateInfo: true });
       });
     });
 
@@ -7444,8 +7445,8 @@
     });
   }
 
-  function syncInteractiveMapUI(options = {}) {
-    const { center = false } = options;
+  function syncInteractiveMapUI(options = {}, fullDataSync = false) {
+    const { center = false, updateInfo = fullDataSync } = options;
     const snapshot = mapState.snapshot || buildFallbackSnapshot();
     const terrainToken = `${mapState.currentMapId}|${toText(deepGet(snapshot, 'mapMeta.name', ''), '')}|${Array.isArray(snapshot.items) ? snapshot.items.length : 0}`;
     enforceMapCanvasAspect();
@@ -7463,18 +7464,23 @@
     }
     renderMapVisualState();
     applyMapWorldTransform();
-    renderMapInfoState();
+    if (updateInfo) {
+      renderMapInfoState();
+    }
   }
 
-  function scheduleSync(center = false) {
+  function scheduleSync(center = false, updateInfo = false) {
     scheduleSync.__center = !!(scheduleSync.__center || center);
+    scheduleSync.__updateInfo = !!(scheduleSync.__updateInfo || updateInfo);
     if (scheduleSync.__raf) return;
     scheduleSync.__raf = requestAnimationFrame(() => {
       const nextCenter = !!scheduleSync.__center;
+      const nextUpdateInfo = !!scheduleSync.__updateInfo;
       scheduleSync.__raf = 0;
       scheduleSync.__center = false;
+      scheduleSync.__updateInfo = false;
       try {
-        syncInteractiveMapUI({ center: nextCenter });
+        syncInteractiveMapUI({ center: nextCenter, updateInfo: nextUpdateInfo });
       } catch (error) {
         console.error('sheep map restore failed', error);
       }
@@ -7517,7 +7523,7 @@
       if (firstLoad || shellMissing) {
         resyncMapShell({ center: shouldCenter, syncVisual: false });
       }
-      scheduleSync(shouldCenter);
+      scheduleSync(shouldCenter, true);
     } catch (error) {
       console.error('sheep map live refresh failed', error);
       if (!mapState.hasLoaded) {
@@ -7529,7 +7535,7 @@
         syncMapStateFromSnapshot(fallbackSnapshot, { preserveSelection: false, forceLayer: inferInitialLayer(fallbackSnapshot), initializeLayer: false });
         mapState.hasLoaded = true;
         resyncMapShell({ center: true, syncVisual: false });
-        scheduleSync(true);
+        scheduleSync(true, true);
       }
     }
   }
