@@ -1515,6 +1515,9 @@
 
     .map-canvas.dragging {
       cursor: crosshair;
+      -webkit-user-drag: none;
+      user-select: none;
+      -webkit-user-select: none;
     }
 
     .map-canvas.is-editing {
@@ -1858,6 +1861,8 @@
 
     .map-terrain {
       pointer-events: none;
+      -webkit-user-drag: none;
+      user-select: none;
       z-index: 1;
       overflow: hidden;
     }
@@ -7139,6 +7144,7 @@
     if (typeof event.currentTarget.setPointerCapture === 'function') {
       event.currentTarget.setPointerCapture(event.pointerId);
     }
+    event.preventDefault();
 
   }
 
