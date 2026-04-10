@@ -1665,18 +1665,18 @@
     .map-control-strip > .map-tool-btn {
       width: 36px;
       height: 36px;
-      padding: 0 !important;
+      padding: 2px !important;
       display: inline-flex !important;
       align-items: center;
       justify-content: center;
       appearance: none !important;
       -webkit-appearance: none !important;
-      border: 1px solid rgba(154,227,255,0.72) !important;
+      border: 1px solid rgba(180,240,255,0.85) !important;
       border-radius: 8px;
-      background: linear-gradient(180deg, rgba(18,34,46,0.98), rgba(11,23,33,0.98)) !important;
-      color: #f8fdff !important;
+      background: linear-gradient(180deg, rgba(26,50,66,0.98), rgba(16,33,48,0.98)) !important;
+      color: #ffffff !important;
       font-family: 'Segoe UI Symbol', 'Noto Sans Symbols 2', var(--font-ui), sans-serif !important;
-      font-size: 19px !important;
+      font-size: 22px !important;
       line-height: 1;
       font-weight: 800;
       cursor: pointer;
@@ -7230,8 +7230,14 @@
       const activeCanvas = hoverSyncCanvas;
       hoverSyncRaf = 0;
       hoverSyncCanvas = null;
-      updateMapCoordinateReadout(activeCanvas);
-      renderMapInfoState();
+      if (activeCanvas) {
+        updateMapCoordinateReadout(activeCanvas);
+        // 节流处理复杂的侧边栏刷新，避免每帧都刷 NPC HTML
+        if (!hoverSyncRaf.__lastRender || Date.now() - hoverSyncRaf.__lastRender > 60) {
+          renderMapInfoState();
+          hoverSyncRaf.__lastRender = Date.now();
+        }
+      }
     });
   }
 

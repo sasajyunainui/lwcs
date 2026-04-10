@@ -1984,7 +1984,8 @@
       pointer-events: none;
       background:
         radial-gradient(circle at left top, rgba(255,255,255,0.07), transparent 22%),
-        radial-gradient(circle at right bottom, rgba(255,215,0,0.08), transparent 24%);
+        radial-gradient(circle at right bottom, rgba(255,215,0,0.08), transparent 24%),
+        linear-gradient(180deg, rgba(8, 28, 42, 0.15), rgba(8, 28, 42, 0.45));
       z-index: 0;
     }
 
@@ -2011,9 +2012,9 @@
     .split-shell .mvu-module-card,
     .split-shell .strip,
     .split-shell .mvu-simple-card {
-      background: linear-gradient(180deg, rgba(0,229,255,0.05), rgba(255,255,255,0.02));
-      border-color: rgba(0,229,255,0.08);
-      box-shadow: inset 0 0 14px rgba(0,229,255,0.04);
+      background: linear-gradient(180deg, rgba(14, 38, 50, 0.58), rgba(12, 34, 46, 0.72));
+      border-color: rgba(60, 180, 210, 0.22);
+      box-shadow: inset 0 0 16px rgba(0,0,0,0.2);
     }
 
     .split-shell-left {
@@ -2306,11 +2307,13 @@
     }
 
     .split-archive-left {
-      grid-template-rows: auto minmax(138px, 0.98fr) minmax(124px, 0.78fr) minmax(116px, 0.74fr);
+      grid-template-rows: none;
+      grid-auto-rows: min-content;
     }
 
     .split-archive-right {
-      grid-template-rows: minmax(220px, 1.42fr) minmax(150px, 0.86fr);
+      grid-template-rows: none;
+      grid-auto-rows: min-content;
     }
 
     .split-archive-stack > * {
@@ -3714,9 +3717,9 @@
     .faction-row,
     .timeline-card {
       border-radius: 12px;
-      border: 1px solid rgba(210,245,255,0.12);
-      background: rgba(223,246,255,0.08);
-      box-shadow: inset 0 0 10px rgba(223,246,255,0.04);
+      border: 1px solid rgba(110, 180, 210, 0.22);
+      background: linear-gradient(180deg, rgba(14, 38, 50, 0.58), rgba(12, 34, 46, 0.72));
+      box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.15);
     }
 
     .identity-card,
