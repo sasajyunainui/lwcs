@@ -1441,7 +1441,7 @@
     }
 
     #page-map .map-layout > .map-side-stack {
-      display: none !important;
+      display: flex !important;
     }
 
     #page-map .map-layout > .map-hero-card .map-left-route-card {
@@ -1602,7 +1602,7 @@
       top: auto;
       z-index: 2;
       flex: 0 0 auto;
-      width: 120px;
+      width: 136px;
     }
 
     .map-mini-world {
@@ -1625,8 +1625,9 @@
       background-repeat: no-repeat;
       background-size: 100% 100%;
       background-position: center;
-      filter: saturate(1) contrast(1.03) brightness(0.98);
-      image-rendering: auto;
+      filter: none;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
     }
 
     .map-mini-viewport {
@@ -1662,8 +1663,8 @@
     .map-tool-btn,
     button.map-tool-btn,
     .map-control-strip > .map-tool-btn {
-      width: 32px;
-      height: 32px;
+      width: 36px;
+      height: 36px;
       padding: 0 !important;
       display: inline-flex !important;
       align-items: center;
@@ -1675,7 +1676,7 @@
       background: linear-gradient(180deg, rgba(18,34,46,0.98), rgba(11,23,33,0.98)) !important;
       color: #f8fdff !important;
       font-family: 'Segoe UI Symbol', 'Noto Sans Symbols 2', var(--font-ui), sans-serif !important;
-      font-size: 18px !important;
+      font-size: 19px !important;
       line-height: 1;
       font-weight: 800;
       cursor: pointer;
@@ -1773,7 +1774,6 @@
       line-height: 1;
       white-space: nowrap;
       box-shadow: 0 4px 12px rgba(0,0,0,0.18);
-      backdrop-filter: blur(6px);
     }
 
     .map-legend-dot {
@@ -1807,7 +1807,6 @@
       max-width: 260px;
       overflow: hidden;
       text-overflow: ellipsis;
-      backdrop-filter: blur(6px);
     }
 
     .map-coord-strip {
@@ -1835,7 +1834,6 @@
       overflow: hidden;
       text-overflow: ellipsis;
       box-shadow: inset 0 0 10px rgba(0,0,0,0.18);
-      backdrop-filter: blur(6px);
     }
 
     .map-coord-chip.live {
@@ -1884,9 +1882,10 @@
       background-repeat: no-repeat;
       background-size: 100% 100%;
       background-position: center;
-      filter: saturate(1) contrast(1.03) brightness(0.99);
+      filter: none;
       box-shadow: inset 0 0 28px rgba(0,0,0,0.03);
-      image-rendering: auto;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
     }
 
     .map-terrain-svg {
@@ -2294,7 +2293,6 @@
       background: rgba(8,16,24,0.58);
       border: 1px solid rgba(180,206,227,0.10);
       box-shadow: 0 6px 18px rgba(0,0,0,0.18);
-      backdrop-filter: blur(6px);
     }
 
     .map-hud-card b {
@@ -3513,7 +3511,7 @@
       return resolveMapLayerByZoom(clamp(zoomHint, MIN_MAP_ZOOM, MAX_MAP_ZOOM));
     }
     const level = toText(snapshot && snapshot.mapLevel, 'world');
-    if (level === 'district' || level === 'city') return 'facility';
+    if (level === 'facility' || level === 'district' || level === 'city') return 'facility';
     if (level === 'region') return 'city';
     return 'continent';
   }
@@ -5481,13 +5479,17 @@
 
   function setMapText(selector, value) {
     document.querySelectorAll(selector).forEach(el => {
-      el.textContent = value;
+      const nextValue = value == null ? '' : String(value);
+      if (el.textContent === nextValue) return;
+      el.textContent = nextValue;
     });
   }
 
   function setMapHtml(selector, value) {
     document.querySelectorAll(selector).forEach(el => {
-      el.innerHTML = value;
+      const nextValue = value == null ? '' : String(value);
+      if (el.innerHTML === nextValue) return;
+      el.innerHTML = nextValue;
     });
   }
 
@@ -7071,9 +7073,11 @@
 
   function applyMapWorldTransform() {
     const renderZoom = getMapRenderZoom();
+    const panX = Math.round(toNumber(mapState.panX, 0));
+    const panY = Math.round(toNumber(mapState.panY, 0));
     document.querySelectorAll('[data-map-world]').forEach(world => {
       const nodeUiScale = clamp(1 / Math.max(renderZoom, 1), 0.08, 1);
-      world.style.transform = `translate(${mapState.panX}px, ${mapState.panY}px) scale(${renderZoom})`;
+      world.style.transform = `translate3d(${panX}px, ${panY}px, 0) scale(${Number(renderZoom.toFixed(3))})`;
       world.style.setProperty('--node-ui-scale', String(nodeUiScale));
     });
     updateMapCoordinateReadout();

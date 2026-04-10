@@ -1211,6 +1211,14 @@
 
       if (forceGold) return 'gold';
 
+      if (key === '橙' || key === '橙色' || key === '橙金' || key === '橙金色') return 'orangegold';
+      if (key === '金' || key === '金色') return 'gold';
+      if (key === '红' || key === '红色') return 'red';
+      if (key === '黑' || key === '黑色') return 'black';
+      if (key === '紫' || key === '紫色') return 'purple';
+      if (key === '黄' || key === '黄色') return 'yellow';
+      if (key === '白' || key === '白色') return 'white';
+
       if (Number.isFinite(years) && years > 0) {
         if (years >= 200000) return 'orangegold';
         if (years >= 100000) return 'red';
@@ -1219,14 +1227,6 @@
         if (years >= 100) return 'yellow';
         return 'white';
       }
-
-      if (key === '橙金' || key === '橙金色') return 'orangegold';
-      if (key === '金' || key === '金色') return 'gold';
-      if (key === '红' || key === '红色') return 'red';
-      if (key === '黑' || key === '黑色') return 'black';
-      if (key === '紫' || key === '紫色') return 'purple';
-      if (key === '黄' || key === '黄色') return 'yellow';
-      if (key === '白' || key === '白色') return 'white';
       return 'white';
     }
 
@@ -1567,6 +1567,25 @@
         core,
         lifeFire: !!deepGet(activeChar, 'bloodline_power.life_fire', false),
         bloodline: toText(bloodline, '无')
+      };
+    }
+
+    function getPrimaryFactionPowerStats(snapshot) {
+      const preferredName = toText(
+        deepGet(snapshot, 'locationData.掌控势力', snapshot && snapshot.factions && snapshot.factions[0] ? snapshot.factions[0][0] : ''),
+        snapshot && snapshot.factions && snapshot.factions[0] ? snapshot.factions[0][0] : ''
+      );
+      const fallbackEntry = snapshot && Array.isArray(snapshot.orgEntries) && snapshot.orgEntries.length ? snapshot.orgEntries[0] : ['', {}];
+      const matchedEntry = snapshot && Array.isArray(snapshot.orgEntries)
+        ? (snapshot.orgEntries.find(([name]) => name === preferredName) || fallbackEntry)
+        : fallbackEntry;
+      const matchedName = toText(matchedEntry && matchedEntry[0], preferredName || '未知');
+      const matchedData = matchedEntry && matchedEntry[1] ? matchedEntry[1] : {};
+      return {
+        name: matchedName,
+        limit: toNumber(deepGet(matchedData, 'power_stats.limit_douluo', 0), 0),
+        super: toNumber(deepGet(matchedData, 'power_stats.super_douluo', 0), 0),
+        title: toNumber(deepGet(matchedData, 'power_stats.title_douluo', 0), 0)
       };
     }
 
@@ -2128,10 +2147,13 @@
         <div class="matrix-board">
           ${topOrgs.map(([name, data], index) => `<div class="matrix-node ${snapshot.factions.some(([fac]) => fac === name) || index === 0 ? 'gold' : ''}"><b>${htmlEscape(name)}</b><span>${htmlEscape(`影响力 ${formatNumber(data && data.inf)} / ${toText(data && data.status, '正常')}`)}</span></div>`).join('')}
         </div>
+        ${(() => { const factionStats = getPrimaryFactionPowerStats(snapshot); return `
         <div class="hero-list">
-          <div class="hero-row"><b>活跃势力</b><span>${htmlEscape(String(snapshot.orgEntries.length))}</span></div>
-          <div class="hero-row"><b>当前归属</b><span>${htmlEscape(snapshot.factions[0] ? snapshot.factions[0][0] : '无') }</span></div>
+          <div class="hero-row"><b>极限斗罗</b><span>${htmlEscape(String(factionStats.limit))}</span></div>
+          <div class="hero-row"><b>超级斗罗</b><span>${htmlEscape(String(factionStats.super))}</span></div>
+          <div class="hero-row"><b>封号斗罗</b><span>${htmlEscape(String(factionStats.title))}</span></div>
         </div>
+        `; })()}
         <div class="module-foot">
           <span class="foot-hint">本地高亮：${htmlEscape(toText(deepGet(snapshot, 'locationData.掌控势力', snapshot.factions[0] ? snapshot.factions[0][0] : '未知'), '未知'))}</span>
           <span class="enter-chip gold-chip">展开矩阵</span>
@@ -3066,12 +3088,10 @@
                         <div>
                           <div class="soul-expand-title">${htmlEscape(soul.name)}</div>
                         </div>
-                        <span class="state-tag ${soul.state === '活跃' ? 'live' : 'warn'}">${htmlEscape(soul.state)}</span>
                       </div>
                       <div class="soul-meta">
                         <div class="meta-item"><b>年限</b><span>${htmlEscape(soul.age)}</span></div>
                         <div class="meta-item"><b>契合度</b><span>${htmlEscape(soul.comp)}</span></div>
-                        <div class="meta-item"><b>状态</b><span>${htmlEscape(soul.state)}</span></div>
                       </div>
                       <div class="soul-ring-section">
                         <div class="rings soul-ring-lane">
@@ -3253,7 +3273,7 @@
                 <div class="archive-card-head"><div class="archive-card-title">势力梯阵</div><span class="state-tag live">按影响力排序</span></div>
                 ${makeFactionLadder(snapshot.orgEntries.slice(0, 8).map(([name, item]) => ({
                   name,
-                  desc: `影响力 ${formatNumber(item && item.inf)} / ${toText(item && item.status, '正常')} / 封号斗罗 ${toText(deepGet(item, 'power_stats.limit_douluo', 0), '0')}`,
+                  desc: `影响力 ${formatNumber(item && item.inf)} / ${toText(item && item.status, '正常')} / 极限斗罗 ${toText(deepGet(item, 'power_stats.limit_douluo', 0), '0')} / 超级斗罗 ${toText(deepGet(item, 'power_stats.super_douluo', 0), '0')} / 封号斗罗 ${toText(deepGet(item, 'power_stats.title_douluo', 0), '0')}`,
                   className: snapshot.factions.some(([fac]) => fac === name) ? 'highlight' : ''
                 })))}
               </div>

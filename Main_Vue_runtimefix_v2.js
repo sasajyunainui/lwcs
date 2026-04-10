@@ -1,6 +1,7 @@
 const { createApp, ref, reactive } = Vue;
 
 const mvuTabState = window.__MVU_TAB_STATE__ || (window.__MVU_TAB_STATE__ = reactive({ current: 'page-archive' }));
+const mvuFoldState = window.__MVU_SIDE_FOLD_STATE__ || (window.__MVU_SIDE_FOLD_STATE__ = ref(true));
 
 function setSharedTab(target) {
   mvuTabState.current = target || 'page-archive';
@@ -101,7 +102,7 @@ const LeftPanel = {
     </div>
   `,
   setup() {
-    const isFolded = ref(true);
+    const isFolded = mvuFoldState;
     const fold = () => { isFolded.value = true; };
     const unfold = () => { isFolded.value = false; };
     const toggleFold = () => { isFolded.value = !isFolded.value; };
@@ -196,7 +197,7 @@ const RightPanel = {
     </div>
   `,
   setup() {
-    const isFolded = ref(true);
+    const isFolded = mvuFoldState;
     const fold = () => { isFolded.value = true; };
     const unfold = () => { isFolded.value = false; };
     const toggleFold = () => { isFolded.value = !isFolded.value; };
