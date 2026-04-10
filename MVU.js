@@ -1,3914 +1,5 @@
 ﻿﻿import { registerMvuSchema } from 'https://testingcf.jsdelivr.net/gh/StageDog/tavern_resource/dist/util/mvu_zod.js';
 
-const TRAVEL_METHOD_COEFFICIENT = {
-  "步行": 1.0,           
-  "校园短驳车": 0.4,
-  "魂导汽车": 0.5,       
-  "魂导列车": 0.2,       
-  "远洋巨轮": 0.8,       
-  "飞行(机甲/斗铠)": 0.05, 
-  "空间传送(极限斗罗)": 0.01, 
-  "空间传送(神级)": 0         
-};
-
-const ABYSS_LORE_DICT = {
-  "深渊铁律": {
-    "不死特性": "深渊生物被普通攻击击杀后会化为能量回归深渊重生。只有被【黄金龙枪】、【白银龙枪】或血神军团特制武器击杀，才能彻底吞噬其生命能量。",
-    "位面结构": "共108层，每层由一位帝王统治。前36层对标普通封号斗罗，中36层对标超级斗罗，后36层对标极限斗罗及半神。"
-  },
-  "炮灰与中坚": {
-    "四爪蝙蝠": { 战力对标: "10~39级", 特性: "数量庞大，超声波侦查与攻击" },
-    "六爪蝙蝠": { 战力对标: "40~69级", 特性: "体积大，强力音波攻击" },
-    "深渊炸弹蜂": { 战力对标: "10~39级", 特性: "受蜂帝指挥，极度惧怕次声波，可自爆" },
-    "噬蜥": { 战力对标: "10~69级", 特性: "吞噬生命能量，防御极强，弱点是眼睛" },
-    "六爪魔": { 战力对标: "40~69级", 特性: "擅长隐藏偷袭，释放大片密集地刺" },
-    "巴安": { 战力对标: "70~89级", 特性: "体型如肉山，防御极强，拥有再生能力，喷吐魔焰" },
-    "守护天牛": { 战力对标: "70~89级", 特性: "防御力极其惊人，张开双翼形成巨大护盾" },
-    "深渊猛犸": { 战力对标: "70~89级", 特性: "体型巨大，攻防极其出色，最凶猛的冲锋者" },
-    "深渊魔傀": { 战力对标: "70~89级", 特性: "最强空军，双头两条命，身体承受力极强" }
-  },
-  "高阶种族": {
-    "黑皇族": { 战力对标: "90级以上", 特性: "人类形态，最强一脉，释放黑色旋涡吞噬能量" },
-    "魔魅族": { 战力对标: "90级以上", 特性: "速度奇快，释放死咒，绝望战刀" },
-    "深渊恶镰": { 战力对标: "90级以上", 特性: "深渊执法者，极致速度与杀戮，掌握空间之法" },
-    "附体魔": { 战力对标: "90级以上", 特性: "精神体，善于隐藏，能附体并控制目标" }
-  },
-  "十大帝君": {
-    "灵帝": { 排名: 2, 战力对标: "准神", 特性: "深渊灵龙，深渊大军统帅，精神力是神元境的5倍，无敌迷雾与虚弱之光" },
-    "烈帝": { 排名: 3, 战力对标: "百级(神级)", 特性: "魂力百级，近战极其恐怖，手持巨大长戟" },
-    "魔帝": { 排名: 4, 战力对标: "准神", 特性: "深渊魔傀之主，体力百级(深渊第一强硬)，黑暗天域" },
-    "智帝": { 排名: 5, 战力对标: "准神", 特性: "深渊第一强控，绝对成立的战场分割能力【九宫格】" },
-    "化帝": { 排名: 7, 战力对标: "准神", 特性: "千变万化，能变换成各种深渊领主的战斗形态" },
-    "黑帝": { 排名: 9, 战力对标: "准神", 特性: "黑皇族之主，擅长吞噬能力" },
-    "蜂帝": { 排名: 10, 战力对标: "准神", 特性: "深渊炸弹蜂之主，精神力极强，群体爆炸攻击" }
-  },
-  "至高主宰": {
-    "深渊圣君": { 战力对标: "神级", 特性: "深渊位面之主，实力无限接近于神" }
-  }
-};
-
-function getAbyssStats(tier, species) {
-  let lv = 10;
-  let speciesMult = { str: 1.0, def: 1.0, agi: 1.0, vit_max: 1.0, men_max: 1.0, sp_max: 1.0 };
-
-  
-  if (tier === "低阶生物") {
-    lv = 20 + Math.floor(Math.random() * 20); 
-    speciesMult = { str: 0.8, def: 0.8, agi: 1.2, vit_max: 0.8, men_max: 0.5, sp_max: 1.0 };
-  } else if (tier === "中阶生物") {
-    lv = 40 + Math.floor(Math.random() * 30); 
-    speciesMult = { str: 1.2, def: 1.2, agi: 1.0, vit_max: 1.2, men_max: 0.8, sp_max: 1.2 };
-  } else if (tier === "高阶生物") {
-    lv = 70 + Math.floor(Math.random() * 20); 
-    speciesMult = { str: 1.5, def: 1.5, agi: 1.5, vit_max: 1.5, men_max: 1.2, sp_max: 1.5 };
-  } else if (tier === "深渊王者" || tier === "深渊帝君") {
-    lv = 99; 
-    speciesMult = { str: 2.0, def: 2.0, agi: 2.0, vit_max: 2.0, men_max: 2.0, sp_max: 2.0 };
-  }
-
-  
-  if (species.includes("蝙蝠") || species.includes("魔魅") || species.includes("恶镰")) {
-    speciesMult.agi *= 1.5; speciesMult.def *= 0.7;
-  } else if (species.includes("巴安") || species.includes("天牛") || species.includes("猛犸")) {
-    speciesMult.def *= 1.8; speciesMult.vit_max *= 1.8; speciesMult.agi *= 0.6;
-  } else if (species.includes("黑皇")) {
-    speciesMult.sp_max *= 1.5; speciesMult.men_max *= 1.5;
-  }
-
-  
-  let base = getBaseStats(lv);
-  let finalStats = {
-    种族: species,
-    等阶: tier,
-    对标等级: lv,
-    str: Math.floor(base.str * speciesMult.str),
-    def: Math.floor(base.def * speciesMult.def),
-    agi: Math.floor(base.agi * speciesMult.agi),
-    vit_max: Math.floor(base.vit_max * speciesMult.vit_max),
-    men_max: Math.floor(base.men_max * speciesMult.men_max),
-    sp_max: Math.floor(base.sp_max * speciesMult.sp_max)
-  };
-
-  
-  if (species === "灵帝") {
-    finalStats.对标等级 = 99.5; 
-    finalStats.men_max = 250000; 
-  } else if (species === "烈帝") {
-    finalStats.对标等级 = 100; 
-    let godBase = getBaseStats(100);
-    finalStats.sp_max = godBase.sp_max; 
-    finalStats.str = Math.floor(godBase.str * 1.5); 
-  } else if (species === "魔帝") {
-    finalStats.对标等级 = 99.5; 
-    let godBase = getBaseStats(100);
-    finalStats.vit_max = godBase.vit_max; 
-    finalStats.def = Math.floor(godBase.def * 2.0); 
-  } else if (species === "智帝" || species === "化帝" || species === "黑帝" || species === "蜂帝") {
-    finalStats.对标等级 = 99.5; 
-    let demiGodBase = getBaseStats(99.5);
-    finalStats.sp_max = Math.floor(demiGodBase.sp_max * 1.5);
-  } else if (species === "深渊圣君") {
-    finalStats.对标等级 = 100; 
-    let godBase = getBaseStats(100);
-    finalStats.str = godBase.str * 3;
-    finalStats.def = godBase.def * 3;
-    finalStats.vit_max = godBase.vit_max * 3;
-    finalStats.sp_max = godBase.sp_max * 3;
-    finalStats.men_max = godBase.men_max * 3;
-  }
-
-  return finalStats;
-}
-
-const WORLD_MAP_TREE = {
-  "斗罗大陆": {
-    type: "大陆", level: 1, x: 1687, y: 641, desc: "斗罗联邦与诸多学院、势力、禁区共同构成的主大陆舞台", default_faction: "斗罗联邦", importance: 100,
-    children: {
-      "史莱克城": { 
-        type: "核心主城", level: 2, x: 2106, y: 623, desc: "大陆中心，全联邦的信仰", default_faction: "史莱克学院", importance: 96,
-        condition: (sd) => !sd.world?.flags?.['event_shrek_destroyed_2'],
-        children: {
-          "史莱克学院": { 
-            type: "学院总部", level: 3, x: 2858, y: 928, desc: "大陆第一学院，汇聚最顶尖魂师与魂导体系天才", icon: "facility", default_faction: "史莱克学院", importance: 95,
-            children: {
-              "外院教学区": { type: "教学区", level: 4, x: 1538, y: 2201, desc: "外院基础教学与公开课程展开的主要区域", default_faction: "史莱克学院", importance: 72 },
-              "工读生宿舍": { type: "生活区", level: 4, x: 1442, y: 1926, desc: "工读生与低年级学员集中起居的生活区", default_faction: "史莱克学院", importance: 55 },
-              "海神岛(内院)": { type: "核心禁地", level: 4, x: 2993, y: 131, desc: "内院与海神阁核心区域，外人极难踏足", default_faction: "史莱克学院", importance: 99 },
-              "学院锻造师协会": { type: "协会分部", level: 4, x: 2129, y: 754, desc: "服务学院锻造实训与高阶金属加工的内部据点", default_faction: "锻造师协会", importance: 68 },
-              "学院机甲师协会": { type: "协会分部", level: 4, x: 508, y: 935, desc: "学院机甲实操与战术训练的重要接口", default_faction: "机甲师协会", importance: 68 },
-              "学院制造师协会": { type: "协会分部", level: 4, x: 2020, y: 2040, desc: "承担魂导制造课题与实作资源调配的内部站点", default_faction: "制造师协会", importance: 67 },
-              "学院设计师协会": { type: "协会分部", level: 4, x: 1008, y: 561, desc: "机甲与魂导设计方案评审的学院工作点", default_faction: "设计师协会", importance: 66 },
-              "学院修理师协会": { type: "协会分部", level: 4, x: 2663, y: 630, desc: "负责维修实训、赛后整备与应急检修的学院据点", default_faction: "修理师协会", importance: 66 }
-            }
-          },
-          "唐门总部": { type: "势力总部", level: 3, x: 2743, y: 2025, desc: "斗罗殿所在地，唐门真正的中枢", default_faction: "唐门", importance: 93 },
-          "传灵塔总部": { type: "势力总部", level: 3, x: 6, y: 1244, desc: "八十一层宏伟建筑，传灵塔权力与研究的核心", default_faction: "传灵塔", importance: 93 },
-          "史莱克大拍卖场": { type: "交易中心", level: 3, x: 3165, y: 1551, desc: "汇聚顶级资源、魂导器与稀有拍品的高端交易场", default_faction: "史莱克城商贸体系", importance: 72 },
-          "城市杂货店": { type: "普通商店", level: 3, x: 2310, y: 2023, desc: "面向学员与旅客的基础补给铺", default_faction: "史莱克城商贸体系", importance: 24 }
-        }
-      },
-      "明都": { 
-        type: "首都", level: 2, x: 1103, y: 496, desc: "斗罗联邦政治与科技中心", default_faction: "斗罗联邦", importance: 95,
-        local_resources: ["高阶机甲图纸", "稀有稀有金属", "黑市情报"],
-        opportunities: ["卷入地下机甲黑拳赛", "在黑市淘到违禁的魂导器零件", "遭遇联邦军方的突击检查"],
-        children: {
-          "日月皇家魂师学院": { type: "学院总部", level: 3, x: 3073, y: 1425, desc: "日月系魂导科技与魂师教育的旗舰学院", default_faction: "斗罗联邦", importance: 88 },
-          "战神殿总部": { type: "军方核心", level: 3, x: 1408, y: 501, desc: "位于明都西山地下，十八层地狱", default_faction: "战神殿", importance: 96 },
-          "明都军区驻地": { type: "军事要塞", level: 3, x: 2966, y: 1936, desc: "联邦中央军团驻扎地", default_faction: "斗罗联邦", importance: 90 },
-          "锻造师协会总部": { type: "协会总部", level: 3, x: 1811, y: 1295, desc: "掌管联邦锻造师认证与高阶稀有金属流转的总部", default_faction: "锻造师协会", importance: 84 },
-          "机甲师协会总部": { type: "协会总部", level: 3, x: 2161, y: 336, desc: "联邦机甲师评级、竞赛与技术交流的最高枢纽", default_faction: "机甲师协会", importance: 84 },
-          "制造师协会总部": { type: "协会总部", level: 3, x: 225, y: 120, desc: "负责高阶魂导制造标准与资源统筹的核心机构", default_faction: "制造师协会", importance: 83 },
-          "设计师协会总部": { type: "协会总部", level: 3, x: 1727, y: 218, desc: "汇聚联邦尖端设计师与机甲方案评审的中心", default_faction: "设计师协会", importance: 82 },
-          "修理师协会总部": { type: "协会总部", level: 3, x: 2788, y: 728, desc: "统筹高端机甲、魂导器维修标准与抢修力量的总部", default_faction: "修理师协会", importance: 82 },
-          "唐门明都分部": { type: "势力分部", level: 3, x: 2805, y: 567, desc: "潜伏于联邦首都阴影中的唐门据点", default_faction: "唐门", importance: 78 },
-          "传灵塔明都分部": { type: "势力分部", level: 3, x: 1380, y: 1098, desc: "明都魂灵交易与塔系事务的核心分部", default_faction: "传灵塔", importance: 80 },
-          "明都大拍卖场": { type: "交易中心", level: 3, x: 2339, y: 284, desc: "权贵、军方与黑市情报交织的高端拍卖场", default_faction: "明都商贸体系", importance: 72 },
-          "城市杂货店": { type: "普通商店", level: 3, x: 2799, y: 568, desc: "面向旅人与居民的综合补给铺", default_faction: "明都商贸体系", importance: 24 }
-        }
-      },
-      "天斗城": { 
-        type: "主城", level: 2, x: 1753, y: 501, desc: "历史悠久的北方古城", default_faction: "天斗地方政务体系", importance: 82,
-        children: {
-          "本体宗总部": { type: "宗门总部", level: 3, x: 1068, y: 478, desc: "本体宗在北境活动与传承的绝对核心", default_faction: "本体宗", importance: 90 },
-          "泰坦巨猿家族": { type: "家族驻地", level: 3, x: 804, y: 1461, desc: "与魂兽血脉和顶级战力传承相关的显赫驻地", default_faction: "泰坦巨猿家族", importance: 84 },
-          "唐门天斗分部": { type: "势力分部", level: 3, x: 1559, y: 293, desc: "地下拥有弑神级防御的唐门重镇据点", default_faction: "唐门", importance: 79 },
-          "传灵塔天斗分部": { type: "势力分部", level: 3, x: 565, y: 823, desc: "负责北方魂灵业务与塔系事务的骨干分部", default_faction: "传灵塔", importance: 76 },
-          "锻造师协会分会": { type: "协会分部", level: 3, x: 2499, y: 651, desc: "天斗城锻造认证、委托与材料调度中心", default_faction: "锻造师协会", importance: 64 },
-          "机甲师协会分会": { type: "协会分部", level: 3, x: 1371, y: 1175, desc: "机甲训练、评级与竞演活动的重要窗口", default_faction: "机甲师协会", importance: 64 },
-          "制造师协会分会": { type: "协会分部", level: 3, x: 823, y: 1146, desc: "负责魂导制造订单、学徒进修与工坊协作的分会", default_faction: "制造师协会", importance: 63 },
-          "设计师协会分会": { type: "协会分部", level: 3, x: 2303, y: 654, desc: "承担设计评审、方案交流与外包协调的地方分会", default_faction: "设计师协会", importance: 62 },
-          "修理师协会分会": { type: "协会分部", level: 3, x: 1607, y: 90, desc: "负责维修师认证与大型器械保养的城市分会", default_faction: "修理师协会", importance: 62 },
-          "天斗大拍卖场": { type: "交易中心", level: 3, x: 2665, y: 1600, desc: "北方珍稀拍品、消息与委托集中流转的交易中心", default_faction: "天斗城商贸体系", importance: 69 },
-          "城市杂货店": { type: "普通商店", level: 3, x: 775, y: 682, desc: "兼售旅装、药品与基础魂导零件的平价铺面", default_faction: "天斗城商贸体系", importance: 24 },
-          "圣灵教秘密据点": { 
-            type: "邪教据点", level: 3, x: 1813, y: 874, desc: "潜伏于古城暗巷与地下网络中的隐秘祭坛", default_faction: "圣灵教", importance: 70,
-            condition: (sd) => sd.char[sd.sys?.player_name]?.social?.factions?.['圣灵教'] || sd.char[sd.sys?.player_name]?.unlocked_knowledges?.includes('圣灵教天斗据点')
-          }
-        }
-      },
-      "星罗城(斗罗大陆)": {
-        type: "主城", level: 2, x: 1884, y: 921, desc: "斗罗大陆上的正式星罗城节点，多用于旧地理称呼与路线映射", default_faction: "星罗地方体系", importance: 60
-      },
-      "东海城": { 
-        type: "沿海城市", level: 2, x: 1293, y: 1304, desc: "东海第二大城市", default_faction: "东海城行政体系", importance: 78,
-        children: {
-          "东海学院": { type: "学院总部", level: 3, x: 908, y: 1050, desc: "培养海滨魂师与魂导人才的地方名校", default_faction: "东海学院", importance: 82 },
-          "东海城防军驻地": { type: "军事驻地", level: 3, x: 2482, y: 409, desc: "负责港区巡防、海岸警戒与城市治安的防卫据点", default_faction: "东海城行政体系", importance: 74 },
-          "唐门东海分部": { type: "势力分部", level: 3, x: 602, y: 1967, desc: "唐门在东海沿岸的重要经营与联络据点", default_faction: "唐门", importance: 72 },
-          "传灵塔东海分部": { type: "势力分部", level: 3, x: 2496, y: 443, desc: "十八天柱之一，负责东海魂灵业务的重镇", default_faction: "传灵塔", importance: 76 },
-          "锻造师协会分会": { type: "协会分部", level: 3, x: 659, y: 1298, desc: "服务港口工业、锻造委托与学徒流转的城市分会", default_faction: "锻造师协会", importance: 63 },
-          "机甲师协会分会": { type: "协会分部", level: 3, x: 2940, y: 2215, desc: "东海机甲实训、考核与战术演练的窗口", default_faction: "机甲师协会", importance: 63 },
-          "制造师协会分会": { type: "协会分部", level: 3, x: 2762, y: 1133, desc: "承接海滨城市魂导制造与订单协作的分会", default_faction: "制造师协会", importance: 62 },
-          "设计师协会分会": { type: "协会分部", level: 3, x: 820, y: 1474, desc: "负责设计交流、工坊合作与器械图纸流转的分会", default_faction: "设计师协会", importance: 61 },
-          "修理师协会分会": { type: "协会分部", level: 3, x: 1898, y: 149, desc: "处理船只、机甲与魂导装置维修需求的分会", default_faction: "修理师协会", importance: 61 },
-          "东海拍卖场": { type: "交易中心", level: 3, x: 684, y: 1795, desc: "港口珍货、魂灵材料与情报委托集散的拍卖场", default_faction: "东海城商贸体系", importance: 66 },
-          "城市杂货店": { type: "普通商店", level: 3, x: 1037, y: 1327, desc: "售卖出海补给、日用品与低阶魂导零件的店铺", default_faction: "东海城商贸体系", importance: 22 }
-        }
-      },
-      "天海城": { 
-        type: "沿海主城", level: 2, x: 1130, y: 1377, desc: "东海岸第一大城市", default_faction: "天海城行政体系", importance: 80,
-        children: {
-          "天海中级学院": { type: "学院总部", level: 3, x: 1614, y: 781, desc: "天海地区培养中坚魂师与魂导人才的地方名校", default_faction: "天海中级学院", importance: 78 },
-          "唐门天海分部": { type: "势力分部", level: 3, x: 508, y: 776, desc: "唐门在东海岸航运与灰色贸易线上的关键联络点", default_faction: "唐门", importance: 72 },
-          "传灵塔天海分部": { type: "势力分部", level: 3, x: 729, y: 365, desc: "承担天海地区魂灵业务与高端魂兽资源中转的骨干分部", default_faction: "传灵塔", importance: 74 },
-          "锻造师协会分会": { type: "协会分部", level: 3, x: 2661, y: 1881, desc: "服务港务、船坞与城市工坊体系的锻造分会", default_faction: "锻造师协会", importance: 62 },
-          "机甲师协会分会": { type: "协会分部", level: 3, x: 2687, y: 758, desc: "负责机甲考核、训练与海岸守备协作的地方分会", default_faction: "机甲师协会", importance: 62 },
-          "制造师协会分会": { type: "协会分部", level: 3, x: 615, y: 349, desc: "负责魂导制造协同、工坊承接与海贸器械改装的分会", default_faction: "制造师协会", importance: 61 },
-          "设计师协会分会": { type: "协会分部", level: 3, x: 1405, y: 1816, desc: "汇集城市设计师与造舰器械方案评审的地方分会", default_faction: "设计师协会", importance: 60 },
-          "修理师协会分会": { type: "协会分部", level: 3, x: 1932, y: 413, desc: "承担港口机械、机甲与魂导器紧急检修的城市分会", default_faction: "修理师协会", importance: 60 },
-          "天海大拍卖场": { type: "交易中心", level: 3, x: 1683, y: 1709, desc: "海贸珍货、远洋材料与委托情报活跃流转的拍卖场", default_faction: "天海城商贸体系", importance: 67 },
-          "城市杂货店": { type: "普通商店", level: 3, x: 1284, y: 1914, desc: "售卖旅装、海上补给与低阶魂导零件的沿海店铺", default_faction: "天海城商贸体系", importance: 22 }
-        }
-      },
-      "傲来城": { 
-        type: "城镇", level: 2, x: 1383, y: 1260, desc: "临海而生的小城，也是许多人启程的故乡", default_faction: "傲来城行政体系", importance: 58,
-        children: {
-          "红山学院": { type: "学院总部", level: 3, x: 2929, y: 165, desc: "承担地方魂师启蒙与基础培养任务的海滨学院", default_faction: "红山学院", importance: 68 },
-          "唐门傲来分部": { type: "势力分部", level: 3, x: 1926, y: 1640, desc: "规模不大却维系海滨情报与货物流通的老据点", default_faction: "唐门", importance: 60 },
-          "传灵塔傲来分部": { type: "势力分部", level: 3, x: 164, y: 313, desc: "负责低阶魂灵业务与地方塔务的基层分部", default_faction: "传灵塔", importance: 58 },
-          "锻造师协会分会": { type: "协会分部", level: 3, x: 3172, y: 1117, desc: "面向渔港工坊与民用器械委托的锻造分会", default_faction: "锻造师协会", importance: 48 },
-          "机甲师协会分会": { type: "协会分部", level: 3, x: 1840, y: 1887, desc: "承担地方机甲训练与基础考核事务的小型分会", default_faction: "机甲师协会", importance: 48 },
-          "制造师协会分会": { type: "协会分部", level: 3, x: 1892, y: 782, desc: "服务民用魂导制造与修缮订单的地方分会", default_faction: "制造师协会", importance: 47 },
-          "设计师协会分会": { type: "协会分部", level: 3, x: 1035, y: 2009, desc: "提供简易方案设计与器械图纸流转的基层分会", default_faction: "设计师协会", importance: 46 },
-          "修理师协会分会": { type: "协会分部", level: 3, x: 2946, y: 1730, desc: "负责渔具、机巧与低阶魂导装置保养维修的分会", default_faction: "修理师协会", importance: 46 },
-          "城市杂货店": { type: "普通商店", level: 3, x: 1198, y: 982, desc: "售卖渔具、旅行用品与日常补给的小店", default_faction: "傲来城商贸体系", importance: 18 }
-        }
-      },
-      "天定城": { 
-        type: "城市", level: 2, x: 1506, y: 416, desc: "天定星空魂师学院所在地，兼具学术与城防价值的内陆城市", default_faction: "天定城行政体系", importance: 66,
-        children: {
-          "天定星空魂师学院": { type: "学院总部", level: 3, x: 103, y: 764, desc: "以星空观想与传统魂师教育闻名的地方学院", default_faction: "天定星空魂师学院", importance: 76 },
-          "唐门天定分部": { type: "势力分部", level: 3, x: 766, y: 1445, desc: "负责周边内陆情报与资源调度的唐门据点", default_faction: "唐门", importance: 62 },
-          "传灵塔天定分部": { type: "势力分部", level: 3, x: 2810, y: 997, desc: "面向地方魂灵交易与魂兽情报联络的分部", default_faction: "传灵塔", importance: 60 },
-          "锻造师协会分会": { type: "协会分部", level: 3, x: 1799, y: 719, desc: "服务周边工坊与学院实训委托的锻造分会", default_faction: "锻造师协会", importance: 50 },
-          "机甲师协会分会": { type: "协会分部", level: 3, x: 541, y: 303, desc: "承担地方机甲演训与资格认证的分会", default_faction: "机甲师协会", importance: 50 },
-          "制造师协会分会": { type: "协会分部", level: 3, x: 1944, y: 237, desc: "负责器械制造协同与学徒进修事务的分会", default_faction: "制造师协会", importance: 49 },
-          "设计师协会分会": { type: "协会分部", level: 3, x: 3070, y: 597, desc: "偏重学院方案评审与地方器械设计的分会", default_faction: "设计师协会", importance: 48 },
-          "修理师协会分会": { type: "协会分部", level: 3, x: 2379, y: 1417, desc: "负责城市机巧与魂导设备维护的基层分会", default_faction: "修理师协会", importance: 48 },
-          "城市杂货店": { type: "普通商店", level: 3, x: 2792, y: 1955, desc: "学生、旅者与守军都常来补给的老店", default_faction: "天定城商贸体系", importance: 18 }
-        }
-      },
-      "天灵城": {
-        type: "城市", level: 2, x: 1598, y: 585, desc: "位于天斗城与天定城之间的内陆交通城市，是北境商路与学院势力辐射交汇的重要中转节点", default_faction: "天灵城行政体系", importance: 68,
-        children: {
-          "天灵中级学院": { type: "学院总部", level: 3, x: 51, y: 2075, desc: "承担天灵城及周边区域魂师启蒙与进阶教育任务的地方学院", default_faction: "天灵中级学院", importance: 74 },
-          "唐门天灵分部": { type: "势力分部", level: 3, x: 1944, y: 183, desc: "负责天灵城商路情报与物资转运的唐门据点", default_faction: "唐门", importance: 64 },
-          "传灵塔天灵分部": { type: "势力分部", level: 3, x: 2150, y: 1405, desc: "服务地方魂灵业务与魂兽情报联络的传灵塔分部", default_faction: "传灵塔", importance: 64 },
-          "锻造师协会分会": { type: "协会分部", level: 3, x: 2242, y: 1890, desc: "服务城市工坊、商路护具与学院实训的锻造分会", default_faction: "锻造师协会", importance: 52 },
-          "机甲师协会分会": { type: "协会分部", level: 3, x: 1042, y: 698, desc: "承担地方机甲训练、认证与护卫协作事务的分会", default_faction: "机甲师协会", importance: 52 },
-          "制造师协会分会": { type: "协会分部", level: 3, x: 1215, y: 13, desc: "负责魂导制造协同、订单承接与学徒进修事务的分会", default_faction: "制造师协会", importance: 51 },
-          "设计师协会分会": { type: "协会分部", level: 3, x: 1021, y: 765, desc: "承担器械方案评审、图纸流转与地方设计支持的分会", default_faction: "设计师协会", importance: 50 },
-          "修理师协会分会": { type: "协会分部", level: 3, x: 192, y: 860, desc: "负责车辆、机巧与魂导装置检修维护的分会", default_faction: "修理师协会", importance: 50 },
-          "天灵拍卖场": { type: "交易中心", level: 3, x: 2499, y: 259, desc: "汇集北境商路货物、稀有材料与委托消息的中型拍卖场", default_faction: "天灵城商贸体系", importance: 58 },
-          "城市杂货店": { type: "普通商店", level: 3, x: 2771, y: 1502, desc: "面向旅者、学员与商队成员的综合补给铺", default_faction: "天灵城商贸体系", importance: 20 }
-        }
-      },
-      "海陆城": { 
-        type: "城市", level: 2, x: 972, y: 1422, desc: "南部沿海枢纽，连接海贸与内陆运输", default_faction: "海陆城行政体系", importance: 64,
-        children: {
-          "海陆中级学院": { type: "学院总部", level: 3, x: 728, y: 1148, desc: "兼顾航运、实战与地方魂师培养的沿海学院", default_faction: "海陆中级学院", importance: 72 },
-          "唐门海陆分部": { type: "势力分部", level: 3, x: 2056, y: 2101, desc: "掌握南部沿海货运与联络网络的重要据点", default_faction: "唐门", importance: 62 },
-          "传灵塔海陆分部": { type: "势力分部", level: 3, x: 2532, y: 1801, desc: "服务海陆节点魂灵流通与商贸合作的分部", default_faction: "传灵塔", importance: 60 },
-          "锻造师协会分会": { type: "协会分部", level: 3, x: 2216, y: 1773, desc: "偏重港口工坊、船具与民用器械锻造的分会", default_faction: "锻造师协会", importance: 50 },
-          "机甲师协会分会": { type: "协会分部", level: 3, x: 110, y: 659, desc: "负责地方机甲考核与运输护卫训练的分会", default_faction: "机甲师协会", importance: 50 },
-          "制造师协会分会": { type: "协会分部", level: 3, x: 1219, y: 1556, desc: "承担商路器械与魂导设备制造协作的分会", default_faction: "制造师协会", importance: 49 },
-          "设计师协会分会": { type: "协会分部", level: 3, x: 652, y: 404, desc: "为船具、运输器械与学院课题提供设计支持的分会", default_faction: "设计师协会", importance: 48 },
-          "修理师协会分会": { type: "协会分部", level: 3, x: 891, y: 728, desc: "负责港机、车辆与魂导装置日常检修的分会", default_faction: "修理师协会", importance: 48 },
-          "城市杂货店": { type: "普通商店", level: 3, x: 1569, y: 963, desc: "商旅、学员与水手常用的综合补给铺", default_faction: "海陆城商贸体系", importance: 18 }
-        }
-      },
-      "上陵城": { 
-        type: "城市", level: 2, x: 1931, y: 345, desc: "靠近隐世势力活动范围、氛围低调的山前城市", default_faction: "上陵城行政体系", importance: 62,
-        children: {
-          "唐门上陵分部": { type: "势力分部", level: 3, x: 697, y: 1663, desc: "负责山前城镇与隐世势力边缘情报的据点", default_faction: "唐门", importance: 60 },
-          "传灵塔上陵分部": { type: "势力分部", level: 3, x: 1789, y: 970, desc: "承担周边魂灵业务与地方联络事务的分部", default_faction: "传灵塔", importance: 58 },
-          "锻造师协会分会": { type: "协会分部", level: 3, x: 264, y: 54, desc: "服务山城工坊与猎装器械的锻造分会", default_faction: "锻造师协会", importance: 48 },
-          "机甲师协会分会": { type: "协会分部", level: 3, x: 28, y: 1049, desc: "承担地方机甲考核与护卫训练的基层分会", default_faction: "机甲师协会", importance: 48 },
-          "制造师协会分会": { type: "协会分部", level: 3, x: 1028, y: 1675, desc: "负责民用魂导器与山路器械制造协作的分会", default_faction: "制造师协会", importance: 47 },
-          "设计师协会分会": { type: "协会分部", level: 3, x: 1939, y: 336, desc: "偏重山区实用装备与器械方案改良的分会", default_faction: "设计师协会", importance: 46 },
-          "修理师协会分会": { type: "协会分部", level: 3, x: 2532, y: 1832, desc: "处理山路运输器械与魂导装置维修的分会", default_faction: "修理师协会", importance: 46 },
-          "城市杂货店": { type: "普通商店", level: 3, x: 1803, y: 589, desc: "猎人、商旅与山民都离不开的补给小店", default_faction: "上陵城商贸体系", importance: 18 }
-        }
-      },
-      "烈火盆地": { 
-        type: "城市", level: 2, x: 578, y: 425, desc: "西部集贸与矿业城市，矿脉与工坊林立", default_faction: "烈火盆地行政体系", importance: 70,
-        children: {
-          "唐门烈火分部": { type: "势力分部", level: 3, x: 1616, y: 1088, desc: "唐门在矿区、集贸与灰市网络中的重要支点", default_faction: "唐门", importance: 66 },
-          "传灵塔烈火分部": { type: "势力分部", level: 3, x: 1545, y: 502, desc: "负责矿区魂灵业务与高危资源中转的分部", default_faction: "传灵塔", importance: 64 },
-          "锻造师协会分会": { type: "协会分部", level: 3, x: 603, y: 934, desc: "服务矿脉开采、军用锻件与工坊订单的核心分会", default_faction: "锻造师协会", importance: 60 },
-          "机甲师协会分会": { type: "协会分部", level: 3, x: 2649, y: 2091, desc: "面向矿区护卫、重型机甲与实战演练的地方分会", default_faction: "机甲师协会", importance: 59 },
-          "制造师协会分会": { type: "协会分部", level: 3, x: 1056, y: 1106, desc: "承担矿区器械、冶炼设备与魂导装置制造协作的分会", default_faction: "制造师协会", importance: 58 },
-          "设计师协会分会": { type: "协会分部", level: 3, x: 2272, y: 1975, desc: "偏重耐高温装备与矿用器械设计的地方分会", default_faction: "设计师协会", importance: 57 },
-          "修理师协会分会": { type: "协会分部", level: 3, x: 2658, y: 2236, desc: "负责矿用机械、重型机甲与熔炼装置维修的分会", default_faction: "修理师协会", importance: 57 },
-          "城市杂货店": { type: "普通商店", level: 3, x: 2917, y: 410, desc: "矿工、商队与冒险者常光顾的耐用补给铺", default_faction: "烈火盆地商贸体系", importance: 20 }
-        }
-      },
-      "北海城": { 
-        type: "军事城市", level: 2, x: 2588, y: 162, desc: "东北部海滨重镇", default_faction: "北海军团", importance: 81,
-        children: {
-          "北海军团驻地": { type: "军事驻地", level: 3, x: 2038, y: 1544, desc: "负责北方海疆巡防、远海训练与战备动员的核心军港", default_faction: "北海军团", importance: 86 },
-          "唐门北海分部": { type: "势力分部", level: 3, x: 2901, y: 1682, desc: "唐门在寒海航线与北地据点网络中的重要节点", default_faction: "唐门", importance: 70 },
-          "传灵塔北海分部": { type: "势力分部", level: 3, x: 144, y: 1438, desc: "面向北境魂灵贸易与寒带魂兽资源的关键分部", default_faction: "传灵塔", importance: 72 },
-          "锻造师协会分会": { type: "协会分部", level: 3, x: 1747, y: 218, desc: "服务军港装备、船坞锻件与寒地工坊的分会", default_faction: "锻造师协会", importance: 61 },
-          "机甲师协会分会": { type: "协会分部", level: 3, x: 1312, y: 821, desc: "承担军用机甲训练、考核与协同演练事务的窗口", default_faction: "机甲师协会", importance: 61 },
-          "制造师协会分会": { type: "协会分部", level: 3, x: 251, y: 2052, desc: "负责寒区魂导装备制造与补给协作的分会", default_faction: "制造师协会", importance: 60 },
-          "设计师协会分会": { type: "协会分部", level: 3, x: 748, y: 2224, desc: "偏重军港器械与寒地装备方案设计的地方分会", default_faction: "设计师协会", importance: 59 },
-          "修理师协会分会": { type: "协会分部", level: 3, x: 2665, y: 270, desc: "负责军港机械、寒区机甲与魂导装置整备维护的分会", default_faction: "修理师协会", importance: 59 },
-          "城市杂货店": { type: "普通商店", level: 3, x: 1515, y: 869, desc: "面向士兵、渔民与旅者的寒地补给铺", default_faction: "北海城商贸体系", importance: 20 }
-        }
-      },
-      "无尽山脉": { 
-        type: "边疆/禁区", level: 2, x: 437, y: 362, desc: "血神军团与深渊通道所在的极寒边疆山脉", default_faction: "自然地带", importance: 92,
-        children: {
-          "血神军团驻地": { type: "军团总部", level: 3, x: 626, y: 461, desc: "镇守深渊通道、常年抵御深渊侵袭的血色防线", default_faction: "血神军团", importance: 95 },
-          "深渊通道": { type: "位面入口", level: 3, x: 1608, y: 30, desc: "连接深渊位面的灾厄裂口，一旦失守便是大陆浩劫", default_faction: "自然地带", importance: 100 },
-          "深渊位面": { type: "异位面", level: 3, x: 298, y: 1326, desc: "一百零八层深渊构成的吞噬世界，孕育无数深渊生物", default_faction: "自然地带", importance: 100 }
-        }
-      },
-      "东南山脉": { type: "地形/区域", level: 2, x: 2297, y: 765, desc: "位于大陆东南部、连接海岸与内陆的连绵山脉地带，山势崎岖、通路稀少", default_faction: "自然地带", importance: 54 },
-      "明斗山脉": { type: "地形/区域", level: 2, x: 1420, y: 649, desc: "横贯大陆中部、影响明都与天斗交通格局的重要山脉", default_faction: "自然地带", importance: 58 },
-      "东北山地": { type: "地形/区域", level: 2, x: 2225, y: 155, desc: "通往北境寒海的重要山地缓冲带，气候冷峻而地势复杂", default_faction: "自然地带", importance: 53 },
-      "东南山地": { type: "地形/区域", level: 2, x: 1857, y: 815, desc: "湿热林地与丘陵山岭交错的东南山地，连接海岸与内陆边缘聚落", default_faction: "自然地带", importance: 52 },
-      "日月山脉": { type: "地形/区域", level: 2, x: 992, y: 475, desc: "明都周边矿脉富集、军工与魂导试验活动频繁的山系", default_faction: "自然地带", importance: 58 },
-      "立马平原": { type: "地形/区域", level: 2, x: 1926, y: 556, desc: "贯穿中东部的辽阔平原，是商路延展与大规模机动的天然走廊", default_faction: "自然地带", importance: 57 },
-      "景阳山脉": { type: "地形/区域", level: 2, x: 993, y: 924, desc: "大陆南部矿脉与魂兽活动都较频繁的重要山脉节点", default_faction: "自然地带", importance: 55 },
-      "落日森林": {
-        type: "禁区", level: 2, x: 1785, y: 302, desc: "天斗—史莱克之间偏北的古老森林，也是无数秘闻滋生之地", default_faction: "自然地带", importance: 84,
-        children: {
-          "冰火两仪眼": { type: "核心禁地", level: 3, x: 2940, y: 1755, desc: "冰火交汇、孕育无数仙草与奇毒的绝密秘境", default_faction: "自然地带", importance: 98 }
-        }
-      },
-      "邪魔森林": { type: "禁区", level: 2, x: 742, y: 861, desc: "瘴气、邪魂兽与诡异传说并存的西部危险林区", default_faction: "自然地带", importance: 76 },
-      "星斗大森林": { 
-        type: "禁区", level: 2, x: 2077, y: 806, desc: "魂兽最后的净土，也是大陆最危险的生命禁区之一", default_faction: "自然地带", importance: 94,
-        local_resources: ["高阶魂兽", "珍稀灵草", "生命之水"],
-        opportunities: ["遭遇万年魂兽袭击", "发现一株罕见的仙草", "感受到生命之湖的呼唤"],
-        children: {
-          "生命之湖": { type: "核心禁地", level: 3, x: 1336, y: 912, desc: "凶兽沉睡之地，顶级存在气息笼罩的森林核心", default_faction: "自然地带", importance: 100 }
-        }
-      },
-      "极北之地": { 
-        type: "禁区", level: 2, x: 1994, y: 38, desc: "大陆最北端的无尽冰川，冰属性魂兽与极寒风暴统治的禁区", default_faction: "自然地带", importance: 92,
-        local_resources: ["万年冰髓", "极寒冰花", "冰属性魂兽"],
-        opportunities: ["遭遇罕见的极寒风暴", "发现一处未知的冰属性遗迹", "遭遇万年冰熊的袭击"],
-        children: {
-          "圣灵教极北据点": { 
-            type: "邪教据点", level: 3, x: 1535, y: 1912, desc: "依附极寒地形与隐秘遗迹活动的圣灵教北境据点", default_faction: "圣灵教", importance: 66,
-            condition: (sd) => sd.char[sd.sys?.player_name]?.social?.factions?.['圣灵教'] || sd.char[sd.sys?.player_name]?.unlocked_knowledges?.includes('圣灵教极北据点')
-          }
-        }
-      }
-    }
-  },
-  "星罗大陆": {
-    type: "大陆", level: 1, x: 537, y: 1800, desc: "以星罗帝国为核心统治力量、崇尚强者与军备的海外大陆", default_faction: "星罗帝国", importance: 96,
-    children: {
-      "星罗城": { 
-        type: "海外首都", level: 2, x: 537, y: 1801, desc: "星罗帝国首都，皇权、军力与贵族势力高度集中的核心都会", default_faction: "星罗帝国", importance: 90,
-        children: {
-          "怪物学院": { type: "学院总部", level: 3, x: 84, y: 323, desc: "以极限实战和怪物式训练闻名的星罗名校", default_faction: "星罗帝国", importance: 86 },
-          "星罗皇家学院": { type: "学院总部", level: 3, x: 877, y: 326, desc: "星罗贵胄与精英魂师接受正统教育的传统学府", default_faction: "星罗帝国", importance: 84 },
-          "唐门星罗分部": { type: "势力分部", level: 3, x: 3068, y: 719, desc: "唐门在星罗帝都经营的战略分部", default_faction: "唐门", importance: 74 },
-          "传灵塔星罗分部": { type: "势力分部", level: 3, x: 1082, y: 933, desc: "负责帝都魂灵贸易与塔系事务的关键据点", default_faction: "传灵塔", importance: 76 },
-          "锻造师协会分会": { type: "协会分部", level: 3, x: 1886, y: 2109, desc: "为星罗军工与贵族订单服务的锻造分会", default_faction: "锻造师协会", importance: 64 },
-          "机甲师协会分会": { type: "协会分部", level: 3, x: 1881, y: 1543, desc: "机甲师评级、实训与擂台活动的重要窗口", default_faction: "机甲师协会", importance: 64 },
-          "制造师协会分会": { type: "协会分部", level: 3, x: 31, y: 377, desc: "负责帝都魂导制造协作与高端订单流转的分会", default_faction: "制造师协会", importance: 63 },
-          "设计师协会分会": { type: "协会分部", level: 3, x: 2543, y: 616, desc: "汇集宫廷与民间器械设计力量的地方分会", default_faction: "设计师协会", importance: 62 },
-          "修理师协会分会": { type: "协会分部", level: 3, x: 82, y: 859, desc: "负责大型器械、机甲与魂导装置整备检修的分会", default_faction: "修理师协会", importance: 62 },
-          "星罗大拍卖场": { type: "交易中心", level: 3, x: 1005, y: 1316, desc: "帝都珍宝、战利品与贵族委托活跃流通的拍卖场", default_faction: "星罗城商贸体系", importance: 69 },
-          "城市杂货店": { type: "普通商店", level: 3, x: 542, y: 670, desc: "兼顾军旅、贵族与平民日常补给的老牌铺面", default_faction: "星罗城商贸体系", importance: 24 }
-        }
-      }
-    }
-  },
-  "斗灵大陆": {
-    type: "大陆", level: 1, x: 1622, y: 1838, desc: "由斗灵帝国统辖、沿海港城与塔系势力高度活跃的海外大陆", default_faction: "斗灵帝国", importance: 92,
-    children: {
-      "天斗城(斗灵帝国)": {
-        type: "海外首都", level: 2, x: 1827, y: 1694, desc: "斗灵帝国首都，延续天斗之名的海外皇城", default_faction: "斗灵帝国", importance: 88,
-        children: {
-          "斗灵皇宫": { type: "皇权中枢", level: 3, x: 2528, y: 784, desc: "斗灵帝国政务、礼制与禁卫力量的最高中枢", default_faction: "斗灵帝国", importance: 94 },
-          "唐门斗灵天斗分部": { type: "势力分部", level: 3, x: 1230, y: 1263, desc: "唐门在斗灵帝都埋设的战略支点", default_faction: "唐门", importance: 72 },
-          "传灵塔斗灵天斗分部": { type: "势力分部", level: 3, x: 627, y: 1203, desc: "负责帝都魂灵业务与塔系事务的核心分部", default_faction: "传灵塔", importance: 75 },
-          "锻造师协会分会": { type: "协会分部", level: 3, x: 1232, y: 116, desc: "为帝都工坊、皇室与军备体系服务的锻造分会", default_faction: "锻造师协会", importance: 63 },
-          "机甲师协会分会": { type: "协会分部", level: 3, x: 2487, y: 90, desc: "帝都机甲训练、认证与擂台活动的重要窗口", default_faction: "机甲师协会", importance: 63 },
-          "制造师协会分会": { type: "协会分部", level: 3, x: 9, y: 2053, desc: "负责帝都魂导制造协作与高端订单流转的分会", default_faction: "制造师协会", importance: 62 },
-          "设计师协会分会": { type: "协会分部", level: 3, x: 2510, y: 845, desc: "汇集帝都器械方案、军用设计与图纸评审的分会", default_faction: "设计师协会", importance: 61 },
-          "修理师协会分会": { type: "协会分部", level: 3, x: 525, y: 508, desc: "处理皇城器械、机甲与魂导设备维护的分会", default_faction: "修理师协会", importance: 61 },
-          "斗灵大拍卖场": { type: "交易中心", level: 3, x: 715, y: 1224, desc: "帝都高价拍品、珍稀魂灵材料与委托情报汇集之地", default_faction: "天斗城(斗灵帝国)商贸体系", importance: 70 },
-          "城市杂货店": { type: "普通商店", level: 3, x: 216, y: 478, desc: "兼售旅装、礼品与基础魂导零件的帝都补给铺", default_faction: "天斗城(斗灵帝国)商贸体系", importance: 22 }
-        }
-      },
-      "灵波城": { 
-        type: "城市", level: 2, x: 1521, y: 1743, desc: "传灵塔斗灵总部所在地，也是斗灵沿海的重要都会", default_faction: "斗灵帝国", importance: 72,
-        children: {
-          "传灵塔灵波分部": { type: "势力分部", level: 3, x: 1783, y: 2093, desc: "传灵塔在斗灵帝国的标志性分部", default_faction: "传灵塔", importance: 82 },
-          "唐门灵波分部": { type: "势力分部", level: 3, x: 347, y: 267, desc: "唐门在斗灵沿海的重要联络与经营据点", default_faction: "唐门", importance: 74 },
-          "锻造师协会分会": { type: "协会分部", level: 3, x: 1706, y: 2138, desc: "承担斗灵沿海锻造委托与认证业务的城市分会", default_faction: "锻造师协会", importance: 63 },
-          "机甲师协会分会": { type: "协会分部", level: 3, x: 1934, y: 2135, desc: "机甲师考核、对练与赛事合作的地方据点", default_faction: "机甲师协会", importance: 63 },
-          "制造师协会分会": { type: "协会分部", level: 3, x: 2790, y: 1545, desc: "负责魂导制造协作与港口工坊联动的分会", default_faction: "制造师协会", importance: 62 },
-          "设计师协会分会": { type: "协会分部", level: 3, x: 1418, y: 1612, desc: "汇集斗灵沿海器械设计与方案优化事务的分会", default_faction: "设计师协会", importance: 61 },
-          "修理师协会分会": { type: "协会分部", level: 3, x: 3122, y: 1776, desc: "负责港务器械、机甲与魂导装置检修的分会", default_faction: "修理师协会", importance: 61 },
-          "城市杂货店": { type: "普通商店", level: 3, x: 1086, y: 517, desc: "兼售港口补给、旅装与低阶魂导零件的小铺", default_faction: "灵波城商贸体系", importance: 22 },
-          "圣灵教灵波据点": { 
-            type: "邪教据点", level: 3, x: 2603, y: 132, desc: "隐藏于港区阴影与走私网络中的邪教据点", default_faction: "圣灵教", importance: 68,
-            condition: (sd) => sd.char[sd.sys?.player_name]?.social?.factions?.['圣灵教'] || sd.char[sd.sys?.player_name]?.unlocked_knowledges?.includes('圣灵教灵波据点')
-          }
-        }
-      }
-    }
-  },
-  "无尽海域": {
-    type: "海洋", level: 1, x: 1083, y: 1625, desc: "连接诸大陆与群岛、潜伏无数海魂兽霸主的广阔海域", default_faction: "自然地带", importance: 94,
-    children: {
-      "魔鬼群岛": { type: "秘境/岛屿", level: 2, x: 2787, y: 132, desc: "北海城外海三十公里、用于高强度生存训练的险恶群岛", default_faction: "自然地带", importance: 74 }
-    }
-  }
-};
-const MAP_IMAGE_WIDTH = 3174;
-const MAP_IMAGE_HEIGHT = 2246;
-const MAP_COORD_SYSTEM_IMAGE = 'image';
-const MAP_COORD_SYSTEM_LOCAL = 'local';
-
-function mapCoordClamp(value, min, max) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return min;
-  return Math.min(max, Math.max(min, num));
-}
-
-function mapCoordToNumber(value, fallback = NaN) {
-  const num = Number(value);
-  return Number.isFinite(num) ? num : fallback;
-}
-
-function isWorldMapId(mapId = 'map_douluo_world') {
-  return !mapId || mapId === 'map_douluo_world';
-}
-
-function resolveMapCoordSystemByMapId(mapId = 'map_douluo_world') {
-  return isWorldMapId(mapId) ? MAP_COORD_SYSTEM_IMAGE : MAP_COORD_SYSTEM_LOCAL;
-}
-
-const MAP_TRAVEL_SCALE_BY_LEVEL = {
-  world: 1,
-  city: 0.07,
-  facility: 0.02
-};
-
-function normalizeTravelMapLevel(level = 'world') {
-  const safeLevel = String(level || 'world').trim().toLowerCase();
-  if (safeLevel === 'facility' || safeLevel === 'district') return 'facility';
-  if (safeLevel === 'city') return 'city';
-  if (safeLevel === 'world' || safeLevel === 'continent' || safeLevel === 'region') return 'world';
-  return 'world';
-}
-
-function getTravelScaleByMapLevel(level = 'world') {
-  return MAP_TRAVEL_SCALE_BY_LEVEL[normalizeTravelMapLevel(level)] || MAP_TRAVEL_SCALE_BY_LEVEL.world;
-}
-
-function getMapNodeCommonPathDepth(startPath = [], endPath = []) {
-  const a = Array.isArray(startPath) ? startPath : [];
-  const b = Array.isArray(endPath) ? endPath : [];
-  const maxDepth = Math.min(a.length, b.length);
-  let depth = 0;
-  for (let i = 0; i < maxDepth; i++) {
-    if (a[i] !== b[i]) break;
-    depth++;
-  }
-  return depth;
-}
-
-function resolveTravelMapLevel(startLoc, endLoc, sd = null, coordSystem = MAP_COORD_SYSTEM_IMAGE) {
-  const safeCoordSystem = String(coordSystem || MAP_COORD_SYSTEM_IMAGE).trim();
-  if (safeCoordSystem === MAP_COORD_SYSTEM_IMAGE) return 'world';
-  if (!sd) return 'city';
-  const startEntry = findMapNodeEntry(startLoc, sd);
-  const endEntry = findMapNodeEntry(endLoc, sd);
-  const startPath = Array.isArray(startEntry?.path) ? startEntry.path : [];
-  const endPath = Array.isArray(endEntry?.path) ? endEntry.path : [];
-  const commonDepth = getMapNodeCommonPathDepth(startPath, endPath);
-  if (commonDepth >= 3) return 'facility';
-  if (commonDepth >= 2) return 'city';
-  if (startPath.length >= 3 || endPath.length >= 3) return 'facility';
-  if (startPath.length >= 2 || endPath.length >= 2) return 'city';
-  return 'world';
-}
-
-const FLAT_LOCATIONS = {};
-function flattenMapTree(node, name) {
-  if (node.x !== undefined && node.y !== undefined) {
-    FLAT_LOCATIONS[name] = { x: node.x, y: node.y };
-    if (!node.coord_system) node.coord_system = node.level <= 2 ? MAP_COORD_SYSTEM_IMAGE : MAP_COORD_SYSTEM_LOCAL;
-  }
-  if (node.children) {
-    for (let childName in node.children) {
-      flattenMapTree(node.children[childName], childName);
-    }
-  }
-}
-for (let rootName in WORLD_MAP_TREE) {
-  flattenMapTree(WORLD_MAP_TREE[rootName], rootName);
-}
-
-
-function calculateTravelTick(startLoc, endLoc, method) {
-  let start = FLAT_LOCATIONS[startLoc];
-  let end = FLAT_LOCATIONS[endLoc];
-  if (!start || !end) return 6; 
-  
-  let distance = Math.sqrt(Math.pow(start.x - end.x, 2) + Math.pow(start.y - end.y, 2));
-  let coef = TRAVEL_METHOD_COEFFICIENT[method] || 1.0;
-  let travelLevel = resolveTravelMapLevel(startLoc, endLoc, null, MAP_COORD_SYSTEM_IMAGE);
-  let scaledDistance = distance * getTravelScaleByMapLevel(travelLevel);
-  
-  
-  let ticks = Math.floor(scaledDistance * coef);
-  return Math.max(1, ticks); 
-}
-
-function calculateTravelResourceCost(method, distance, char = {}) {
-  const stat = char.stat || {};
-  const wealth = char.wealth || {};
-  const equip = char.equip || {};
-  const lv = Number(stat.lv || 0);
-  const hasDoukai = Number(equip?.armor?.lv || 0) > 0 && String(equip?.armor?.equip_status || '未装备') === '已装备';
-  const hasMecha = String(equip?.mech?.lv || '无') !== '无' && String(equip?.mech?.equip_status || '未装备') === '已装备';
-
-  let fedCoin = 0;
-  let sp = 0;
-  let vit = 0;
-  let canAfford = true;
-  let reason = '';
-  let note = '';
-
-  if (method === '步行') {
-    vit = Math.floor(distance * 5);
-  } else if (method === '校园短驳车') {
-    fedCoin = Math.max(1, Math.floor(distance * 2));
-    note = '校内通勤';
-  } else if (['魂导列车', '魂导汽车', '远洋巨轮'].includes(method)) {
-    fedCoin = Math.floor(distance * 10);
-  } else if (method === '飞行(机甲/斗铠)') {
-    if (hasDoukai) {
-      sp = Math.floor(distance * 12);
-      vit = Math.max(1, Math.floor(distance * 2));
-      note = '斗铠飞行';
-    } else if (hasMecha) {
-      sp = Math.floor(distance * 10);
-      vit = Math.max(1, Math.floor(distance));
-      fedCoin = Math.max(1, Math.floor(distance * 3));
-      note = '机甲飞行';
-    } else if (lv >= 70) {
-      sp = Math.floor(distance * 20);
-      vit = Math.max(1, Math.floor(distance * 5));
-      note = '肉身飞行';
-    } else {
-      canAfford = false;
-      reason = '需70级以上或装备机甲/斗铠';
-    }
-  } else if (method === '空间传送(极限斗罗)') {
-    if (lv >= 98) {
-      note = '极限传送';
-    } else {
-      canAfford = false;
-      reason = '需极限斗罗或特殊权限';
-    }
-  } else if (method === '空间传送(神级)') {
-    note = '神级传送';
-  }
-
-  const curCoin = Number(wealth.fed_coin || 0);
-  const curSp = Number(stat.sp || 0);
-  const curVit = Number(stat.vit || 0);
-  if (canAfford && fedCoin > curCoin) { canAfford = false; reason = '联邦币不足'; }
-  if (canAfford && sp > curSp) { canAfford = false; reason = '魂力不足'; }
-  if (canAfford && vit > curVit) { canAfford = false; reason = '体力不足'; }
-
-  return { fedCoin, sp, vit, canAfford, reason, note };
-}
-
-
-function findMapNodeEntry(targetName, sd) {
-  let found = null;
-  const visit = (node, name, path = []) => {
-    if (found || !node) return;
-    if (sd && typeof node.condition === 'function' && !node.condition(sd)) return;
-    const nextPath = [...path, name];
-    if (name === targetName) {
-      found = { name, node, path: nextPath };
-      return;
-    }
-    if (node.children) {
-      Object.keys(node.children).forEach(childName => {
-        visit(node.children[childName], childName, nextPath);
-      });
-    }
-  };
-  Object.keys(WORLD_MAP_TREE).forEach(rootName => {
-    visit(WORLD_MAP_TREE[rootName], rootName, []);
-  });
-  return found;
-}
-
-function inferMapNodeIcon(name, type = '') {
-  const safeName = String(name || '');
-  const safeType = String(type || '');
-  if (/遗址|废墟/.test(safeName) || /废墟/.test(safeType)) return 'ruins';
-  if (/新城|重建/.test(safeName) || /重建/.test(safeType)) return 'construction';
-  if (/首都|核心主城|海外首都/.test(safeType)) return 'capital';
-  if (/沿海|港/.test(safeType) || /海港/.test(safeName)) return 'port';
-  if (/主城|城市/.test(safeType) || /城|都/.test(safeName)) return 'city';
-  if (/城镇/.test(safeType)) return 'town';
-  if (/学院|协会|总部|驻地|拍卖场|商店|军团|军区|要塞|分部|剧院|基地/.test(`${safeName}${safeType}`)) return 'facility';
-  if (/森林|山脉|山地|盆地|平原|海域|群岛|深海|之地|生命之湖|冰火两仪眼/.test(safeName) || /禁区|地形|区域|海洋|边疆/.test(safeType)) return 'terrain';
-  return 'node';
-}
-
-function inferMapNodeFaction(name, type = '', parentName = '') {
-  const safeName = String(name || '');
-  const safeType = String(type || '');
-  const safeParent = String(parentName || '');
-  const combined = `${safeName} ${safeType}`;
-  if (/史莱克/.test(combined)) return '史莱克学院';
-  if (/唐门/.test(combined)) return '唐门';
-  if (/传灵塔/.test(combined)) return '传灵塔';
-  if (/锻造师协会/.test(combined)) return '锻造师协会';
-  if (/机甲师协会/.test(combined)) return '机甲师协会';
-  if (/制造师协会/.test(combined)) return '制造师协会';
-  if (/设计师协会/.test(combined)) return '设计师协会';
-  if (/修理师协会/.test(combined)) return '修理师协会';
-  if (/战神殿/.test(combined)) return '战神殿';
-  if (/圣灵教/.test(combined)) return '圣灵教';
-  if (/本体宗/.test(combined)) return '本体宗';
-  if (/泰坦巨猿家族/.test(combined)) return '泰坦巨猿家族';
-  if (/血神军团/.test(combined)) return '血神军团';
-  if (/北海军团/.test(combined)) return '北海军团';
-  if (/斗灵帝国|灵波城/.test(combined)) return '斗灵帝国';
-  if (/星罗帝国|怪物学院|星罗皇家学院/.test(combined)) return '星罗帝国';
-  if (/明都军区|中央军团|斗罗联邦|日月皇家魂师学院/.test(combined)) return '斗罗联邦';
-  if (/森林|山脉|山地|盆地|平原|海域|群岛|深海|之地|生命之湖|冰火两仪眼/.test(safeName) || /禁区|地形|区域|海洋|边疆/.test(safeType)) return '自然地带';
-  if (/拍卖场|交易中心|商店/.test(combined)) return safeParent ? `${safeParent}商贸体系` : '地方商贸体系';
-  if (safeParent && /(城|都)$/.test(safeParent)) return `${safeParent}地方体系`;
-  return '未知';
-}
-
-function inferMapNodeDescription(name, type = '', parentName = '') {
-  const safeName = String(name || '未知地点');
-  const safeType = String(type || '地图节点');
-  if (/学院/.test(`${safeName}${safeType}`)) return `${safeName}，重要的学院与人才培养节点。`;
-  if (/协会/.test(`${safeName}${safeType}`)) return `${safeName}，提供职业认证、资源流通与技术支持。`;
-  if (/拍卖场|交易中心/.test(`${safeName}${safeType}`)) return `${safeName}，承担高价值物资交易与情报流通。`;
-  if (/商店/.test(`${safeName}${safeType}`)) return `${safeName}，提供基础补给与日常采购服务。`;
-  if (/军团|军区|驻地|要塞|战神殿/.test(`${safeName}${safeType}`)) return `${safeName}，重要的军事与防务节点。`;
-  if (/总部|分部|宗门|家族/.test(`${safeName}${safeType}`)) return `${safeName}，对应势力在当地的重要据点。`;
-  if (/森林|山脉|山地|盆地|平原|海域|群岛|深海|之地|生命之湖|冰火两仪眼/.test(safeName) || /禁区|地形|区域|海洋|边疆/.test(safeType)) return `${safeName}，${safeType}。`;
-  return parentName ? `${safeName}，位于${parentName}范围内的${safeType}。` : `${safeName}，${safeType}。`;
-}
-
-function inferMapNodeImportance(name, type = '', level = 0, canEnter = false) {
-  const safeName = String(name || '');
-  const safeType = String(type || '');
-  if (/首都|核心主城|海外首都/.test(safeType)) return 95;
-  if (/主城|沿海主城|军事城市/.test(safeType)) return 85;
-  if (/沿海城市|城市/.test(safeType)) return 72;
-  if (/城镇/.test(safeType)) return 58;
-  if (/学院总部|势力总部|军方核心|军团总部|宗门总部/.test(safeType)) return 88;
-  if (/家族驻地|军事驻地|协会总部|交易中心/.test(safeType)) return 74;
-  if (/势力分部|协会分会/.test(safeType)) return 60;
-  if (/普通商店/.test(safeType)) return 28;
-  if (/核心禁地|位面入口|异位面/.test(safeType)) return 90;
-  if (/禁区|边疆/.test(safeType)) return 82;
-  if (/地形|区域|海洋/.test(safeType) || /森林|山脉|山地|盆地|平原|海域|群岛|深海|之地/.test(safeName)) return 45;
-  const base = Math.max(20, Math.min(80, 100 - level * 12));
-  return canEnter ? Math.max(base, 55) : base;
-}
-
-function toTextList(value) {
-  if (Array.isArray(value)) return value.map(v => String(v || '').trim()).filter(Boolean);
-  const text = String(value || '').trim();
-  if (!text) return [];
-  return text.split(/[、，,|/]+/).map(v => String(v || '').trim()).filter(Boolean);
-}
-
-function inferMapNodeKind(name, type = '', canEnter = false) {
-  const text = `${String(name || '')} ${String(type || '')}`;
-  if (canEnter) {
-    if (/学院/.test(text)) return 'academy_hub';
-    if (/分部|唐门/.test(text)) return 'branch_hub';
-    if (/驻地|防军|军团|军区|要塞/.test(text)) return 'garrison_hub';
-    if (/城|主城|都市|首都/.test(text)) return 'city_hub';
-    return 'hub';
-  }
-  if (/拍卖|黑市|商店|杂货|交易/.test(text)) return 'commerce';
-  if (/图书馆|教学|知识|藏书/.test(text)) return 'study';
-  if (/实验|研究|工坊|制造|锻造|修理|暗器/.test(text)) return 'craft';
-  if (/修炼|训练|演武|斗魂|实训|擂台/.test(text)) return 'training';
-  if (/宿舍|生活|休息|居住/.test(text)) return 'rest';
-  if (/指挥|情报|巡防|侦察/.test(text)) return 'intel';
-  if (/接待|前台|办事|政务|行政/.test(text)) return 'administration';
-  return 'landmark';
-}
-
-function inferMapNodeInteractions(nodeKind, name = '', type = '', canEnter = false) {
-  const text = `${String(name || '')} ${String(type || '')}`;
-  if (canEnter) return ['enter', 'inspect'];
-  if (nodeKind === 'commerce') return /拍卖/.test(text) ? ['inspect', 'bid'] : ['inspect', 'trade'];
-  if (nodeKind === 'study') return /图书馆|藏书|静室/.test(text) ? ['inspect', 'study', 'meditate'] : ['inspect', 'study'];
-  if (nodeKind === 'craft') return ['inspect', 'craft'];
-  if (nodeKind === 'training') return /演武|斗魂|擂|实战/.test(text) ? ['inspect', 'train', 'battle'] : ['inspect', 'train'];
-  if (nodeKind === 'rest') return ['inspect', 'rest', 'meditate'];
-  if (nodeKind === 'intel') return ['inspect', 'intel'];
-  if (nodeKind === 'administration') return ['inspect', 'brief'];
-  return ['inspect'];
-}
-
-function inferMapNodeServices(nodeKind, name = '', type = '', canEnter = false) {
-  const text = `${String(name || '')} ${String(type || '')}`;
-  if (canEnter) return ['preview'];
-  if (nodeKind === 'commerce') return /黑市/.test(text) ? ['black_market'] : (/拍卖/.test(text) ? ['auction'] : ['shop']);
-  if (nodeKind === 'study') return ['study'];
-  if (nodeKind === 'craft') return ['craft'];
-  if (nodeKind === 'training') return /演武|斗魂|擂|实战/.test(text) ? ['battle'] : ['train'];
-  if (nodeKind === 'rest') return ['rest'];
-  if (nodeKind === 'intel') return ['intel'];
-  if (nodeKind === 'administration') return ['briefing'];
-  return [];
-}
-
-function inferMapNodeActionSlots(nodeKind, name = '', type = '', canEnter = false, interactions = [], services = []) {
-  const text = `${String(name || '')} ${String(type || '')}`;
-  if (canEnter) return ['enter', 'inspect'];
-  if (nodeKind === 'commerce') return /拍卖/.test(text) ? ['bid', 'inspect'] : ['trade', 'inspect'];
-  if (nodeKind === 'study') return /图书馆|藏书|静室/.test(text) ? ['study', 'meditate', 'inspect'] : ['study', 'inspect'];
-  if (nodeKind === 'craft') return ['craft', 'inspect'];
-  if (nodeKind === 'training') return (services || []).includes('battle') || /演武|斗魂|擂|实战/.test(text) ? ['train', 'battle', 'inspect'] : ['train', 'inspect'];
-  if (nodeKind === 'rest') return ['rest', 'meditate', 'inspect'];
-  if (nodeKind === 'intel') return ['intel', 'inspect'];
-  if (nodeKind === 'administration') return ['brief', 'inspect'];
-  if ((interactions || []).length) return interactions.slice(0, 3);
-  return ['inspect'];
-}
-
-function normalizeMapNodeDisplayMeta(name, rawNode = {}, options = {}) {
-  const safeName = String(name || rawNode.name || '未知节点');
-  const safeType = rawNode.type || options.type || '未知节点';
-  const safeMapId = options.current_map_id || options.currentMapId || rawNode.map_id || options.map_id || 'map_douluo_world';
-  const safeCoordSystem = String(options.coord_system || options.coordinate_system || rawNode.coord_system || rawNode.coordinate_system || '').trim();
-  const safeLevel = rawNode.level !== undefined ? rawNode.level : (options.level !== undefined ? options.level : 0);
-  const safeChildMapId = options.child_map_id || rawNode.child_map_id || '无';
-  const safeCanEnter = options.can_enter !== undefined ? !!options.can_enter : !!(safeChildMapId && safeChildMapId !== '无');
-  const safeState = String(options.state || rawNode.state || 'intact');
-  const explicitNodeKind = String(rawNode.node_kind || options.node_kind || '').trim();
-  const resolvedNodeKind = explicitNodeKind || inferMapNodeKind(safeName, safeType, safeCanEnter);
-  const explicitInteractions = toTextList(rawNode.interactions !== undefined ? rawNode.interactions : options.interactions);
-  const explicitServices = toTextList(rawNode.services !== undefined ? rawNode.services : options.services);
-  const explicitActionSlots = toTextList(rawNode.action_slots !== undefined ? rawNode.action_slots : (rawNode.actionSlots !== undefined ? rawNode.actionSlots : (options.action_slots !== undefined ? options.action_slots : options.actionSlots)));
-  const resolvedInteractions = explicitInteractions.length ? explicitInteractions : inferMapNodeInteractions(resolvedNodeKind, safeName, safeType, safeCanEnter);
-  const resolvedServices = explicitServices.length ? explicitServices : inferMapNodeServices(resolvedNodeKind, safeName, safeType, safeCanEnter);
-  const resolvedActionSlots = explicitActionSlots.length ? explicitActionSlots : inferMapNodeActionSlots(resolvedNodeKind, safeName, safeType, safeCanEnter, resolvedInteractions, resolvedServices);
-  const safeEventId = String(rawNode.event_id || rawNode.eventId || options.event_id || options.eventId || '').trim();
-  return {
-    name: safeName,
-    base_name: options.base_name || rawNode.base_name || safeName,
-    x: rawNode.x !== undefined ? rawNode.x : -1,
-    y: rawNode.y !== undefined ? rawNode.y : -1,
-    level: safeLevel,
-    type: safeType,
-    desc: rawNode.desc && rawNode.desc !== '无' ? rawNode.desc : inferMapNodeDescription(safeName, safeType, options.parent_name || ''),
-    icon: rawNode.icon || inferMapNodeIcon(safeName, safeType),
-    coord_system: safeCoordSystem || resolveMapCoordSystemByMapId(safeMapId),
-    faction: rawNode.faction && rawNode.faction !== '未知' ? rawNode.faction : inferMapNodeFaction(safeName, safeType, options.parent_name || ''),
-    importance: rawNode.importance !== undefined ? rawNode.importance : inferMapNodeImportance(safeName, safeType, safeLevel, safeCanEnter),
-    can_enter: safeCanEnter,
-    child_map_id: safeChildMapId,
-    source: rawNode.source || options.source || 'static',
-    state: safeState,
-    node_kind: resolvedNodeKind,
-    interactions: resolvedInteractions,
-    services: resolvedServices,
-    action_slots: resolvedActionSlots,
-    event_id: safeEventId
-  };
-}
-
-function buildSyntheticPreviewMapId(parentMapId, nodeName) {
-  const parentPart = String(parentMapId || 'map_preview').replace(/[^a-zA-Z0-9_]+/g, '_');
-  const nodePart = encodeURIComponent(String(nodeName || 'node')).replace(/%/g, '').toLowerCase() || 'node';
-  return `map_preview_${parentPart}_${nodePart}`.slice(0, 120);
-}
-
-function hasVisibleMapNodeChildren(node, sd) {
-  if (!node || !node.children) return false;
-  return Object.keys(node.children).some(childName => {
-    const childNode = node.children[childName];
-    if (!childNode) return false;
-    if (sd && typeof childNode.condition === 'function' && !childNode.condition(sd)) return false;
-    return true;
-  });
-}
-
-function collectVisibleMapChildren(targetName, sd, childMapLookup = {}, currentMapId = 'map_douluo_world') {
-  const entry = findMapNodeEntry(targetName, sd);
-  const result = {};
-  if (!entry || !entry.node || !entry.node.children) return result;
-  Object.keys(entry.node.children).forEach(childName => {
-    const childNode = entry.node.children[childName];
-    if (!childNode) return;
-    if (sd && typeof childNode.condition === 'function' && !childNode.condition(sd)) return;
-    const hasNestedChildren = hasVisibleMapNodeChildren(childNode, sd);
-    const resolvedChildMapId = childMapLookup[childName] || (hasNestedChildren ? buildSyntheticPreviewMapId(currentMapId, childName) : '无');
-    result[childName] = normalizeMapNodeDisplayMeta(childName, {
-      ...childNode,
-      faction: childNode.default_faction || childNode.faction || '未知'
-    }, {
-      current_map_id: currentMapId,
-      parent_name: targetName,
-      can_enter: !!childMapLookup[childName] || hasNestedChildren,
-      child_map_id: resolvedChildMapId,
-      source: 'static'
-    });
-  });
-  return result;
-}
-
-function collectVisibleSettlementsForMap(currentMapId, currentContextNodeName, sd) {
-  const visibleSettlements = {};
-  _(sd?.world?.settlements).forEach((settlementData, settlementId) => {
-    if (!settlementData || settlementData.visible === false) return;
-    if ((settlementData.parent_map_id || 'map_douluo_world') !== currentMapId) return;
-    const settlementState = settlementData.state || 'intact';
-    const stateData = settlementData.states?.[settlementState] || {};
-    const settlementChildMapId = stateData.child_map_id || '无';
-    visibleSettlements[settlementId] = normalizeMapNodeDisplayMeta(stateData.node_name || settlementData.name || settlementId, {
-      name: stateData.node_name || settlementData.name || settlementId,
-      base_name: settlementData.name || settlementId,
-      x: settlementData.x !== undefined ? settlementData.x : 0,
-      y: settlementData.y !== undefined ? settlementData.y : 0,
-      type: settlementData.type || 'settlement',
-      desc: stateData.desc || settlementData.desc || settlementData.states?.intact?.desc || '无',
-      icon: stateData.icon || 'city',
-      faction: settlementData.metadata?.faction || settlementData.default_faction || '未知',
-      node_kind: stateData.node_kind || settlementData.node_kind || '',
-      interactions: stateData.interactions || settlementData.interactions || [],
-      services: stateData.services || settlementData.services || [],
-      action_slots: stateData.action_slots || settlementData.actionSlots || settlementData.action_slots || [],
-      event_id: stateData.event_id || settlementData.event_id || '',
-      importance: settlementData.metadata?.importance !== undefined ? settlementData.metadata.importance : 60,
-      source: 'settlement'
-    }, {
-      current_map_id: currentMapId,
-      parent_name: currentContextNodeName,
-      can_enter: settlementChildMapId !== '无',
-      child_map_id: settlementChildMapId,
-      state: settlementState,
-      source: 'settlement'
-    });
-  });
-  return visibleSettlements;
-}
-
-function collectVisibleDynamicLocationsForMap(currentMapId, currentContextNodeName, sd) {
-  const visibleDynamicLocations = {};
-  _(sd?.world?.dynamic_locations).forEach((locData, locName) => {
-    const sameMap = (locData.map_id || 'map_douluo_world') === currentMapId;
-    const sameParent = (locData.归属父节点 || '无') === currentContextNodeName;
-    if (!sameMap && !sameParent) return;
-    const safeChildMapId = locData.child_map_id || '无';
-    const normalized = normalizeMapNodeDisplayMeta(locName, {
-      name: locName,
-      x: locData.x !== undefined ? locData.x : -1,
-      y: locData.y !== undefined ? locData.y : -1,
-      level: locData.层级 !== undefined ? locData.层级 : 4,
-      type: locData.type || locData.node_type || '动态地点',
-      desc: locData.desc || locData.描述 || '无',
-      icon: locData.icon || 'marker',
-      faction: locData.faction || locData.default_faction || '未知',
-      importance: locData.importance,
-      state: locData.state || 'intact',
-      child_map_id: safeChildMapId,
-      can_enter: locData.can_enter,
-      node_kind: locData.node_kind || '',
-      interactions: locData.interactions || [],
-      services: locData.services || [],
-      action_slots: locData.action_slots || locData.actionSlots || [],
-      event_id: locData.event_id || locData.eventId || '',
-      source: 'dynamic'
-    }, {
-      current_map_id: currentMapId,
-      parent_name: currentContextNodeName,
-      can_enter: locData.can_enter !== undefined ? !!locData.can_enter : !!(safeChildMapId && safeChildMapId !== '无'),
-      child_map_id: safeChildMapId,
-      state: locData.state || 'intact',
-      source: 'dynamic'
-    });
-    visibleDynamicLocations[locName] = {
-      ...normalized,
-      parent: locData.归属父节点 || '无',
-      map_id: locData.map_id || 'map_douluo_world',
-      settlement_id: locData.settlement_id || '无'
-    };
-  });
-  return visibleDynamicLocations;
-}
-
-function collectActivePatchesForMap(currentMapId, sd) {
-  const activePatches = {};
-  _(sd?.world?.map_patches).forEach((patchData, patchId) => {
-    if (!patchData || !patchData.active) return;
-    if ((patchData.map_id || '无') !== currentMapId) return;
-    activePatches[patchId] = {
-      map_id: patchData.map_id || '无',
-      layer: patchData.layer || 'effect',
-      asset: patchData.asset || '',
-      bounds: patchData.bounds || { x: 0, y: 0, w: 0, h: 0 }
-    };
-  });
-  return activePatches;
-}
-
-function collectAvailableChildMapsFromVisibleEntries(visibleNodes = {}, visibleSettlements = {}) {
-  const availableChildMaps = {};
-  _(visibleNodes).forEach((nodeData, nodeName) => {
-    if (nodeData?.can_enter && nodeData?.child_map_id && nodeData.child_map_id !== '无') availableChildMaps[nodeName] = nodeData.child_map_id;
-  });
-  _(visibleSettlements).forEach((settlementData) => {
-    if (settlementData?.child_map_id && settlementData.child_map_id !== '无') availableChildMaps[settlementData.name] = settlementData.child_map_id;
-  });
-  return availableChildMaps;
-}
-
-function collectMapTravelCandidates(visibleNodes = {}, visibleDynamicLocations = {}, visibleSettlements = {}) {
-  return _.uniq([
-    ...Object.keys(visibleNodes),
-    ...Object.keys(visibleDynamicLocations),
-    ...Object.keys(visibleSettlements).map(id => visibleSettlements[id]?.name)
-  ]).filter(Boolean);
-}
-
-function resolveMapFocusCoordByName(locName, sd) {
-  const flatCoord = FLAT_LOCATIONS[locName];
-  if (flatCoord && flatCoord.x !== undefined && flatCoord.y !== undefined) {
-    return { x: flatCoord.x, y: flatCoord.y };
-  }
-  const entry = findMapNodeEntry(locName, sd);
-  return {
-    x: entry?.node?.x !== undefined ? entry.node.x : (FLAT_LOCATIONS[locName]?.x || 0),
-    y: entry?.node?.y !== undefined ? entry.node.y : (FLAT_LOCATIONS[locName]?.y || 0)
-  };
-}
-
-function isWorldLocationName(locName, sd) {
-  if (!locName || !sd) return false;
-  if (sd?.world?.dynamic_locations?.[locName]) {
-    return isWorldMapId(sd.world.dynamic_locations[locName].map_id || 'map_douluo_world');
-  }
-  const entry = findMapNodeEntry(locName, sd);
-  return !!(entry && Array.isArray(entry.path) && entry.path.length <= 1);
-}
-function buildPreviewChildMaps(currentMapId, currentContextNodeName, sd, availableChildMaps = {}, depth = 0, visited = new Set()) {
-  const previewChildMaps = {};
-  if (depth > 6) return previewChildMaps;
-  Object.keys(availableChildMaps || {}).forEach(nodeName => {
-    const childMapId = availableChildMaps[nodeName];
-    if (!childMapId || childMapId === '无') return;
-    const visitKey = `${currentMapId}::${nodeName}::${childMapId}`;
-    if (visited.has(visitKey)) return;
-    const nextVisited = new Set(visited);
-    nextVisited.add(visitKey);
-    const childMapMetaFromSd = sd?.world?.maps?.[childMapId] || {};
-    const childMapLookup = childMapMetaFromSd.child_maps || {};
-    const childVisibleNodes = collectVisibleMapChildren(nodeName, sd, childMapLookup, childMapId);
-    const childVisibleSettlements = collectVisibleSettlementsForMap(childMapId, nodeName, sd);
-    const childVisibleDynamicLocations = collectVisibleDynamicLocationsForMap(childMapId, nodeName, sd);
-    const childActivePatches = collectActivePatchesForMap(childMapId, sd);
-    const childAvailableChildMaps = collectAvailableChildMapsFromVisibleEntries(childVisibleNodes, childVisibleSettlements);
-    const nestedPreviewChildMaps = buildPreviewChildMaps(childMapId, nodeName, sd, childAvailableChildMaps, depth + 1, nextVisited);
-    const inferredChildMapLevel = childMapMetaFromSd.map_level || (Object.values(childVisibleNodes).some(node => (node?.level || 0) >= 4) ? 'facility' : 'city');
-    const childCoordSystem = resolveMapCoordSystemByMapId(childMapId);
-    const childMapMeta = _.defaultsDeep({}, childMapMetaFromSd, {
-      name: childMapMetaFromSd.name || `${nodeName}区域预览`,
-      map_level: inferredChildMapLevel,
-      parent_map_id: currentMapId,
-      anchor_loc: nodeName,
-      coord_system: childCoordSystem,
-      coordinate_system: childCoordSystem,
-      child_maps: childAvailableChildMaps
-    });
-    const childCoords = [
-      ...Object.values(childVisibleNodes || {}),
-      ...Object.values(childVisibleSettlements || {}),
-      ...Object.values(childVisibleDynamicLocations || {})
-    ].map(item => ({ x: Number(item?.x), y: Number(item?.y) })).filter(coord => Number.isFinite(coord.x) && Number.isFinite(coord.y));
-    const fallbackFocusCoord = resolveMapFocusCoordByName(nodeName, sd);
-    const focusCoord = childCoordSystem === MAP_COORD_SYSTEM_IMAGE
-      ? fallbackFocusCoord
-      : (childCoords.length
-          ? {
-              x: Number((childCoords.reduce((sum, coord) => sum + coord.x, 0) / childCoords.length).toFixed(2)),
-              y: Number((childCoords.reduce((sum, coord) => sum + coord.y, 0) / childCoords.length).toFixed(2))
-            }
-          : fallbackFocusCoord);
-    previewChildMaps[nodeName] = {
-      coord_system: childCoordSystem,
-      current_map_id: childMapId,
-      current_zoom_hint: childMapMeta.tile?.default_zoom || 0,
-      current_focus: { loc: nodeName, x: focusCoord.x, y: focusCoord.y, settlement_id: '无', map_id: childMapId, coord_system: childCoordSystem },
-      map_meta: childMapMeta,
-      visible_nodes: childVisibleNodes,
-      visible_settlements: childVisibleSettlements,
-      visible_dynamic_locations: childVisibleDynamicLocations,
-      active_patches: childActivePatches,
-      travel_candidates: collectMapTravelCandidates(childVisibleNodes, childVisibleDynamicLocations, childVisibleSettlements),
-      available_child_maps: childAvailableChildMaps,
-      preview_meta: { anchor_name: nodeName, parent_name: currentContextNodeName, parent_map_id: currentMapId },
-      preview_child_maps: nestedPreviewChildMaps
-    };
-  });
-  return previewChildMaps;
-}
-
-function detectShrekSettlementState(sd) {
-  if (sd?.world?.flags?.['event_new_shrek_built']) return 'rebuilt';
-  if (sd?.world?.flags?.['event_new_shrek_rebuilding']) return 'rebuild';
-  if (sd?.world?.flags?.['event_shrek_destroyed_2']) return 'ruins';
-  return 'intact';
-}
-
-
-
-const TypeMultipliers = {
-  "强攻系": { sp_max: 1.0, men_max: 1.0, str: 1.0, def: 1.0, agi: 1.0, vit_max: 1.0 },
-  "防御系": { sp_max: 1.0, men_max: 1.0, str: 0.9, def: 1.5, agi: 0.7, vit_max: 1.0 },
-  "敏攻系": { sp_max: 1.0, men_max: 1.0, str: 0.8, def: 0.7, agi: 1.6, vit_max: 0.8 },
-  "控制系": { sp_max: 1.0, men_max: 1.2, str: 0.9, def: 0.8, agi: 1.1, vit_max: 0.9 },
-  "辅助系": { sp_max: 1.2, men_max: 1.2, str: 0.7, def: 0.6, agi: 0.8, vit_max: 0.7 },
-  "食物系": { sp_max: 1.2, men_max: 1.2, str: 0.7, def: 0.6, agi: 0.8, vit_max: 0.7 },
-  "治疗系": { sp_max: 1.2, men_max: 1.2, str: 0.7, def: 0.6, agi: 0.8, vit_max: 0.7 },
-  "精神系": { sp_max: 1.0, men_max: 1.7, str: 0.7, def: 0.6, agi: 0.8, vit_max: 0.7 },
-  "元素系": { sp_max: 1.0, men_max: 1.5, str: 0.8, def: 0.6, agi: 0.8, vit_max: 0.7 }
-};
-
-
-const ArmorBaseStats = {
-  1: { sp_max: 20000, men_max: 1000, str: 5000, agi: 2500, vit_max: 5000 },
-  2: { sp_max: 25000, men_max: 2000, str: 8000, agi: 4000, vit_max: 8000 },
-  3: { sp_max: 34090, men_max: 3000, str: 10785, agi: 4490, vit_max: 10785 },
-  4: { sp_max: 105910, men_max: 5000, str: 17215, agi: 8010, vit_max: 17215 }
-};
-const MechBaseStats = {
-  "黄级": { sp_max: 5500, men_max: 225, str: 750, agi: 375, vit_max: 750 },
-  "紫级": { sp_max: 5500, men_max: 225, str: 750, agi: 375, vit_max: 750 },
-  "黑级": { sp_max: 21053, men_max: 2237, str: 6052, agi: 3026, vit_max: 6052 },
-  "红级": { sp_max: 34090, men_max: 3000, str: 10785, agi: 4490, vit_max: 10785 }
-};
-
-
-const JobExpThresholds = [0, 1000, 5000, 12000, 60000, 80000, 400000, 500000, 3000000, 99999999];
-function getRingBonus(age) {
-  return {
-    str: Math.floor(age * 0.05),
-    def: Math.floor(age * 0.05),
-    agi: Math.floor(age * 0.05),
-    vit_max: Math.floor(age * 0.05),
-    men_max: Math.floor(age * 0.01),
-    sp_max: Math.floor(age * 0.1)
-  };
-}
-function getBeastStats(age, species) {
-  
-  let lv = 1;
-  if (age >= 100000) lv = 90 + Math.floor((age - 100000) / 100000);
-  else if (age >= 10000) lv = 50 + Math.floor((age - 10000) / 300);
-  else if (age >= 1000) lv = 30 + Math.floor((age - 1000) / 50);
-  else if (age >= 100) lv = 10 + Math.floor(age / 10);
-  else lv = Math.max(1, Math.floor(age / 10));
-  
-  
-  const base = getBaseStats(lv);
-  
-  
-  const speciesMult = {
-    "龙类": { str: 1.5, vit_max: 1.5, def: 1.3, agi: 0.9 },
-    "蛛类": { agi: 1.6, str: 0.8, def: 0.8 },
-    "熊类": { str: 1.8, def: 1.5, agi: 0.6 },
-    "植物系": { vit_max: 2.0, str: 0.7, def: 0.8 },
-    "海魂兽": { sp_max: 1.3, men_max: 1.2, agi: 1.1 },
-    "鸟类": { agi: 1.8, str: 0.7, vit_max: 0.8 },
-    "猫科": { agi: 1.5, str: 1.2, def: 0.9 },
-    "蛇类": { agi: 1.4, str: 1.0, def: 0.9, men_max: 1.1 }
-  }[species] || { str: 1.0, def: 1.0, agi: 1.0, vit_max: 1.0, men_max: 1.0, sp_max: 1.0 };
-  
-  
-  return {
-    年限: age,
-    对标等级: lv,
-    str: Math.floor(base.str * (speciesMult.str || 1.0)),
-    def: Math.floor(base.def * (speciesMult.def || 1.0)),
-    agi: Math.floor(base.agi * (speciesMult.agi || 1.0)),
-    vit_max: Math.floor(base.vit_max * (speciesMult.vit_max || 1.0)),
-    men_max: Math.floor(base.men_max * (speciesMult.men_max || 1.0)),
-    sp_max: Math.floor(base.sp_max * (speciesMult.sp_max || 1.0))
-  };
-}
-
-function calcYouthTalentRankScore(char) {
-  if (!char) return -999999;
-
-  const age = Number(char.stat?.age || 0);
-  const lv = Number(char.stat?.lv || 0);
-  const rep = Number(char.social?.reputation || 0);
-
-  
-  if (age >= 18 || rep < 500) return -999999;
-
-  const talentBonusMap = {
-    "绝世妖孽": 120,
-    "顶级天才": 90,
-    "天才": 60,
-    "优秀": 30,
-    "正常": 0,
-    "劣等": -30
-  };
-
-  const talentBonus = talentBonusMap[char.stat?.talent_tier] || 0;
-
-  
-  return Math.floor(
-    (rep / 100) +
-    (lv * 2) +
-    talentBonus
-  );
-}
-
-function calcContinentRankScore(char, data) {
-  if (!char) return -999999;
-  
-  
-  if (!char.status?.alive) return -999999;
-
-  
-  const armorLv = Number(char.equip?.armor?.lv || 0);
-  if (armorLv <= 0) return -999999; 
-
-  let armorBaseScore = 0;
-  if (armorLv === 1) armorBaseScore = 10000;
-  else if (armorLv === 2) armorBaseScore = 100000;
-  else if (armorLv === 3) armorBaseScore = 1000000;
-  else if (armorLv >= 4) armorBaseScore = 10000000;
-
-  
-  let maxFactionInf = 0;
-  if (char.social?.factions) {
-    _(char.social.factions).forEach((facData, facName) => {
-      const orgInf = Number(data.sd.org[facName]?.inf || 0);
-      if (orgInf > maxFactionInf) maxFactionInf = orgInf;
-    });
-  }
-  const factionBonus = Math.floor(maxFactionInf * 0.5);
-
-  
-  const rep = Number(char.social?.reputation || 0);
-  const lvBonus = Number(char.stat?.lv || 0) * 10;
-
-  
-  return armorBaseScore + factionBonus + rep + lvBonus;
-}
-
-function generateBackgroundNPCs(data) {
-  if (!data.sd.org) return;
-
-  
-  const surnames = ["唐", "龙", "舞", "玉", "戴", "千", "徐", "冷", "云", "原", "震", "冥", "血", "夜"];
-  const names = ["尘", "月", "风", "天", "冥", "浩", "渊", "星", "冰", "影", "狂", "绝", "破", "空"];
-  const titles = ["雷霆", "暗影", "裂空", "瀚海", "狂风", "炽火", "幽冥", "破灭", "天霜", "圣光"];
-
-  function getRandomName(faction) {
-    let sn = surnames[Math.floor(Math.random() * surnames.length)];
-    let n = names[Math.floor(Math.random() * names.length)];
-    let t = titles[Math.floor(Math.random() * titles.length)];
-    
-    return `[${faction}·${t}斗罗] ${sn}${n}`;
-  }
-
-  _(data.sd.org).forEach((orgData, orgName) => {
-    if (!orgData.power_stats) return;
-
-    
-    let currentCounts = { limit: 0, super: 0, title: 0 };
-    _(data.sd.char).forEach((c, cName) => {
-      if (c.status?.alive && c.social?.factions?.[orgName]) {
-        let lv = c.stat?.lv || 0;
-        if (lv >= 99) currentCounts.limit++;
-        else if (lv >= 95) currentCounts.super++;
-        else if (lv >= 90) currentCounts.title++;
-      }
-    });
-
-    
-    const targetStats = orgData.power_stats;
-    const toGenerate = [
-      { type: 'limit', count: targetStats.limit_douluo - currentCounts.limit, minLv: 99, maxLv: 99 },
-      { type: 'super', count: targetStats.super_douluo - currentCounts.super, minLv: 95, maxLv: 98 },
-      { type: 'title', count: targetStats.title_douluo - currentCounts.title, minLv: 90, maxLv: 94 }
-    ];
-
-    toGenerate.forEach(tier => {
-      for (let i = 0; i < tier.count; i++) {
-        let newName = getRandomName(orgName);
-        let genLv = Math.floor(Math.random() * (tier.maxLv - tier.minLv + 1)) + tier.minLv;
-        
-        
-        data.sd.char[newName] = {
-          stat: { 
-            lv: genLv, 
-            age: 80 + Math.floor(Math.random() * 50), 
-            talent_tier: genLv >= 99 ? "绝世妖孽" : genLv >= 95 ? "顶级天才" : "天才",
-            type: "强攻系"
-          },
-          social: {
-            reputation: genLv * 100,
-            factions: { [orgName]: { 身份: "隐世底蕴", 权限级: 5 } }
-          },
-          status: { alive: true, loc: `${orgName}总部` }
-        };
-        
-      }
-    });
-  });
-}
-
-
-function autoBreakthrough(data) {
-  _(data.sd.char).forEach((c, charName) => {
-    if (!c.status?.alive) return;
-    let isBeast = c.stat.age >= 10000 || c.social?.factions?.["魂兽一族"];
-    if (isBeast) return; 
-    
-    let currentLv = c.stat.lv;
-    if (currentLv >= 100) return; 
-
-    let nextLvStats = getBaseStats(currentLv + 1);
-    
-    
-    if (c.stat.sp_max >= nextLvStats.sp_max) {
-      
-      
-      let coreCount = c.energy?.core?.数量 || 0;
-      let maxLv = 69;
-      if (coreCount === 1) maxLv = 89;
-      else if (coreCount === 2) maxLv = 98;
-      else if (coreCount >= 3) maxLv = 150;
-      
-      if (currentLv >= maxLv) return; 
-
-      
-      c.stat.lv += 1;
-      let newLv = c.stat.lv;
-
-      
-      if (newLv % 10 === 0) {
-        let ringIndex = newLv / 10;
-        let spiritKeys = Object.keys(c.spirit || {});
-        if (spiritKeys.length === 0) return; 
-        
-        spiritKeys.forEach(spiritKey => {
-          let targetSpirit = c.spirit[spiritKey];
-          if (!targetSpirit.soul_spirits) targetSpirit.soul_spirits = {};
-
-          let ringAssigned = false;
-
-          _(targetSpirit.soul_spirits).forEach((ss, ssName) => {
-            if (ringAssigned) return;
-            
-            let cap = 1;
-            if (ss.年限 >= 100000) cap = 4;
-            else if (ss.年限 >= 10000) cap = 3;
-            else if (ss.年限 >= 1000) cap = 2;
-
-            let currentRingsCount = Object.keys(ss.rings || {}).length;
-
-            if (currentRingsCount < cap) {
-              let newRingColor = ss.年限 >= 100000 ? "红" : ss.年限 >= 10000 ? "黑" : ss.年限 >= 1000 ? "紫" : "黄";
-              
-              ss.rings[ringIndex.toString()] = {
-                年限: ss.年限,
-                颜色: newRingColor,
-                魂技: {
-                  [`第${ringIndex}魂技`]: { 状态: "未生成", 对象: "无", 加成属性: "无", 技能类型: "无", 消耗: "无" }
-                }
-              };
-              ringAssigned = true;
-              
-              if (data.sd.sys.rsn === "初始化" || !data.sd.sys.rsn) data.sd.sys.rsn = "";
-              data.sd.sys.rsn += ` [修为突破] ${charName} 踏入 ${newLv} 级！其【${ssName}】底蕴深厚，自动为【${spiritKey}】衍生出第 ${ringIndex} 个魂环！`;
-            }
-          });
-
-          if (!ringAssigned) {
-            let newSpiritIndex = Object.keys(targetSpirit.soul_spirits).length;
-            
-            let age = 400, color = "黄";
-            if (c.stat.talent_tier === "绝世妖孽" || c.stat.talent_tier === "顶级天才") { age = 15000; color = "黑"; }
-            else if (c.stat.talent_tier === "天才") { age = 3000; color = "紫"; }
-
-            let spiritName = `第${newSpiritIndex + 1}魂灵`;
-            targetSpirit.soul_spirits[spiritName] = {
-              表象名称: "未展露",
-              年限: age,
-              状态: "活跃",
-              rings: {
-                [ringIndex.toString()]: {
-                  年限: age,
-                  颜色: color,
-                  魂技: { [`第${ringIndex}魂技`]: { 状态: "未生成", 对象: "无", 加成属性: "无", 技能类型: "无", 消耗: "无" } }
-                }
-              }
-            };
-            
-            if (data.sd.sys.rsn === "初始化" || !data.sd.sys.rsn) data.sd.sys.rsn = "";
-            data.sd.sys.rsn += ` [修为突破] ${charName} 踏入 ${newLv} 级！成功融合全新魂灵，为【${spiritKey}】附加第 ${ringIndex} 个魂环！`;
-          }
-        });
-      }
-    }
-  });
-}
-
-const FactionDistribution = {
-  "唐门": {
-    hq: "史莱克城", 
-    branches: ["天斗城", "东海城", "明都", "天海城", "星罗城", "灵波城", "傲来城", "北海城", "烈火盆地", "上陵城", "天定城", "海陆城"] 
-  },
-  "传灵塔": {
-    hq: "史莱克城", 
-    branches: ["天斗城", "东海城", "明都", "天海城", "星罗城", "灵波城", "傲来城", "北海城", "烈火盆地", "上陵城", "天定城", "海陆城"] 
-  },
-
-  "锻造师协会": {
-    hq: "明都", 
-    branches: ["天斗城", "东海城", "明都", "天海城", "星罗城", "灵波城", "傲来城", "北海城", "烈火盆地", "上陵城", "天定城", "海陆城"] 
-  },
-  "机甲师协会": {
-    hq: "明都", 
-    branches: ["天斗城", "东海城", "明都", "天海城", "星罗城", "灵波城", "傲来城", "北海城", "烈火盆地", "上陵城", "天定城", "海陆城"] 
-  },
-  "制造师协会": {
-    hq: "明都", 
-    branches: ["天斗城", "东海城", "明都", "天海城", "星罗城", "灵波城", "傲来城", "北海城", "烈火盆地", "上陵城", "天定城", "海陆城"] 
-  },
-  "设计师协会": {
-    hq: "明都", 
-    branches: ["天斗城", "东海城", "明都", "天海城", "星罗城", "灵波城", "傲来城", "北海城", "烈火盆地", "上陵城", "天定城", "海陆城"] 
-  },
-  "修理师协会": {
-    hq: "明都", 
-    branches: ["天斗城", "东海城", "明都", "天海城", "星罗城", "灵波城", "傲来城", "北海城", "烈火盆地", "上陵城", "天定城", "海陆城"] 
-  },
-  "战神殿": {
-    hq: "明都", 
-    branches: [] 
-  },
-  "圣灵教": {
-    hq: "秘密据点", 
-    branches: ["天斗城", "灵波城", "极北之地"] 
-  },
-
-  
-  "史莱克学院": {
-    hq: "史莱克城",
-    branches: []
-  },
-  "日月皇家魂师学院": {
-    hq: "明都",
-    branches: []
-  },
-  "怪物学院": {
-    hq: "星罗城", 
-    branches: []
-  },
-  "星罗皇家学院": {
-    hq: "星罗城",
-    branches: []
-  },
-  "天定星空魂师学院": {
-    hq: "天定城", 
-    branches: []
-  },
-  "东海学院": {
-    hq: "东海城",
-    branches: []
-  },
-  "天海中级学院": {
-    hq: "天海城",
-    branches: []
-  },
-  "海陆中级学院": {
-    hq: "海陆城",
-    branches: []
-  },
-  "红山学院": {
-    hq: "傲来城",
-    branches: []
-  },
-
-  "斗罗联邦": {
-    hq: "明都", 
-    branches: ["斗罗大陆"]
-  },
-  "星罗帝国": {
-    hq: "星罗城",
-    branches: ["星罗大陆"]
-  },
-  "斗灵帝国": {
-    hq: "天斗城(斗灵帝国)",
-    branches: ["灵波城","斗灵大陆" ]
-  },
-  "血神军团": {
-    hq: "无尽山脉", 
-    branches: []
-  },
-  "本体宗": {
-    hq: "天斗城", 
-    branches: []
-  },
-  "泰坦巨猿家族": {
-    hq: "天斗城",
-    branches: []
-  },
-  "蓝电霸王龙家族": {
-    hq: "隐世之地", 
-    branches: []
-  }
-};
-
-function refreshContinentRanking(data) {
-  if (!data.sd.world.rankings) data.sd.world.rankings = {};
-  if (!data.sd.world.rankings.continent_wind) {
-    data.sd.world.rankings.continent_wind = {
-      last榜单: {},
-      top100: {}
-    };
-  }
-
-  const board = data.sd.world.rankings.continent_wind;
-  const oldRanks = { ...(board.last榜单 || {}) };
-  const candidates = [];
-
-  
-  _(data.sd.char).forEach((char, charName) => {
-    const score = calcContinentRankScore(char, data);
-    if (score <= -999999) {
-      
-      if (char.social?.titles) {
-        delete char.social.titles["大陆风云榜"];
-        _(Object.keys(char.social.titles)).forEach(k => {
-          if (/^大陆风云榜第\d+名$/.test(k)) delete char.social.titles[k];
-        });
-      }
-      return;
-    }
-    candidates.push({ charName, score });
-  });
-
-  
-  candidates.sort((a, b) => b.score - a.score);
-
-  
-  const top100 = candidates.slice(0, 100);
-  const newRanks = {};
-  let broadcastMsgs = [];
-
-  top100.forEach((entry, idx) => {
-    const rank = idx + 1;
-    newRanks[entry.charName] = rank;
-    const c = data.sd.char[entry.charName];
-
-    if (!c.social.titles) c.social.titles = {};
-    _(Object.keys(c.social.titles)).forEach(k => {
-      if (/^大陆风云榜第\d+名$/.test(k)) delete c.social.titles[k];
-    });
-
-    const wasOnBoard = !!oldRanks[entry.charName];
-    const oldRank = oldRanks[entry.charName] || null;
-
-    c.social.titles["大陆风云榜"] = { 来源: "传灵塔评定", 声望加成: 0 };
-    c.social.titles[`大陆风云榜第${rank}名`] = { 来源: "传灵塔评定", 声望加成: 0 };
-
-    if (!wasOnBoard) {
-      broadcastMsgs.push(`[风云震动] ${entry.charName} 强势杀入【大陆风云榜第${rank}名】！`);
-    } else {
-      const diff = oldRank - rank;
-      if (diff >= 5) {
-        broadcastMsgs.push(`[风云异动] ${entry.charName} 排名飙升至【大陆风云榜第${rank}名】！`);
-      }
-    }
-  });
-
-  
-  _(oldRanks).forEach((oldRank, charName) => {
-    if (!newRanks[charName] && data.sd.char[charName]) {
-      const c = data.sd.char[charName];
-      if (c.social?.titles) {
-        delete c.social.titles["大陆风云榜"];
-        _(Object.keys(c.social.titles)).forEach(k => {
-          if (/^大陆风云榜第\d+名$/.test(k)) delete c.social.titles[k];
-        });
-      }
-      if (!c.status.alive) {
-         broadcastMsgs.push(`[巨星陨落] 原风云榜第${oldRank}名 ${charName} 确认死亡，已从榜单除名！`);
-      } else {
-         broadcastMsgs.push(`[风云跌落] ${charName} 已遗憾跌出【大陆风云榜】。`);
-      }
-    }
-  });
-
-  
-  board.top100 = _(top100)
-    .map((entry, idx) => [String(idx + 1), { 角色名: entry.charName, 评分: entry.score }])
-    .fromPairs()
-    .value();
-  board.last榜单 = newRanks;
-
-  if (broadcastMsgs.length > 0) {
-    
-    data.sd.sys.rsn = broadcastMsgs.slice(0, 3).join(" ");
-  }
-}
-function refreshYouthTalentRanking(data) {
-  if (!data.sd.world.rankings) data.sd.world.rankings = {};
-  if (!data.sd.world.rankings.youth_talent) {
-    data.sd.world.rankings.youth_talent = {
-      last榜单: {},
-      top30: {}
-    };
-  }
-
-  const board = data.sd.world.rankings.youth_talent;
-  const oldRanks = { ...(board.last榜单 || {}) };
-
-  const candidates = [];
-  
-  
-  let currentTick = data.sd.world.time.tick;
-  let isYear7 = currentTick >= 367920 && currentTick < 420480;
-  
-  const fixedRanks = isYear7 ? {
-    "舞丝朵": 9,
-    "龙尘": 10,
-    "骆桂星": 17,
-    "徐愉程": 19,
-    "杨念夏": 27,
-    "郑怡然": 30
-  } : {};
-
-  _(data.sd.char).forEach((char, charName) => {
-    const score = calcYouthTalentRankScore(char);
-    if (score <= -999999) {
-      if (char.social?.titles) {
-        delete char.social.titles["少年天才榜"];
-        _(Object.keys(char.social.titles)).forEach(k => {
-          if (/^少年天才榜第\d+名$/.test(k)) delete char.social.titles[k];
-        });
-      }
-      return;
-    }
-
-    candidates.push({
-      charName,
-      score,
-      reputation: Number(char.social?.reputation || 0),
-      lv: Number(char.stat?.lv || 0),
-    });
-  });
-
-  
-  candidates.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    if (b.reputation !== a.reputation) return b.reputation - a.reputation;
-    return b.lv - a.lv;
-  });
-
-  
-  const top30Array = new Array(30).fill(null);
-
-
-  
-  const fixedCandidates = candidates.filter(c => fixedRanks[c.charName]);
-  
-  fixedCandidates.sort((a, b) => fixedRanks[a.charName] - fixedRanks[b.charName]);
-
-  fixedCandidates.forEach(c => {
-    let targetIdx = fixedRanks[c.charName] - 1;
-    
-    while (targetIdx < 30 && top30Array[targetIdx] !== null) {
-      targetIdx++;
-    }
-    
-    if (targetIdx < 30) {
-      top30Array[targetIdx] = c;
-    }
-  });
-
-  
-  const normalCandidates = candidates.filter(c =>!fixedRanks[c.charName]);
-  let normalIdx = 0;
-  for (let i = 0; i < 30; i++) {
-    if (top30Array[i] === null && normalIdx < normalCandidates.length) {
-      top30Array[i] = normalCandidates[normalIdx++];
-    }
-  }
-
-  
-  const top30 = top30Array.filter(c => c !== null);
-  
-  const newRanks = {};
-  let broadcastMsgs = [];
-
-  top30.forEach((entry, idx) => {
-    const rank = idx + 1;
-    newRanks[entry.charName] = rank;
-
-    const c = data.sd.char[entry.charName];
-    if (!c.social.titles) c.social.titles = {};
-
-    _(Object.keys(c.social.titles)).forEach(k => {
-      if (/^少年天才榜第\d+名$/.test(k)) delete c.social.titles[k];
-    });
-
-    const wasOnBoard = !!oldRanks[entry.charName];
-    const oldRank = oldRanks[entry.charName] || null;
-
-    c.social.titles["少年天才榜"] = { 来源: "传灵塔评定", 声望加成: 0 };
-    c.social.titles[`少年天才榜第${rank}名`] = { 来源: "传灵塔评定", 声望加成: 0 };
-
-    if (!wasOnBoard) {
-      broadcastMsgs.push(`[榜单收录] ${entry.charName} 以 ${entry.score} 分跻身【少年天才榜第${rank}名】！`);
-    } else {
-      const diff = oldRank - rank;
-      if (diff >= 3) {
-        broadcastMsgs.push(`[榜单异动] ${entry.charName} 排名飙升至【少年天才榜第${rank}名】！`);
-      } else if (diff <= -3) {
-        broadcastMsgs.push(`[榜单异动] ${entry.charName} 下滑至【少年天才榜第${rank}名】。`);
-      }
-    }
-  });
-
-  _(oldRanks).forEach((oldRank, charName) => {
-    if (!newRanks[charName] && data.sd.char[charName]) {
-      const c = data.sd.char[charName];
-      if (c.social?.titles) {
-        delete c.social.titles["少年天才榜"];
-        _(Object.keys(c.social.titles)).forEach(k => {
-          if (/^少年天才榜第\d+名$/.test(k)) delete c.social.titles[k];
-        });
-      }
-      broadcastMsgs.push(`[榜单跌落] ${charName} 已跌出【少年天才榜】。`);
-    }
-  });
-
-  board.top30 = _(top30)
-    .map((entry, idx) => [
-      String(idx + 1),
-      { 角色名: entry.charName, 评分: entry.score }
-    ])
-    .fromPairs()
-    .value();
-
-  board.last榜单 = newRanks;
-
-  if (broadcastMsgs.length > 0) {
-    data.sd.sys.rsn = broadcastMsgs.join(" ");
-  }
-}
-
-function checkDestinyAnchors(data, currentTick) {
-  if (!data.sd.world.flags) data.sd.world.flags = {};
-  
-  if (currentTick >= 367920 && !data.sd.world.flags["anchor_year_7_youth_talent"]) {
-    
-    const anchors = {
-      "舞丝朵": { age: 14, lv: 41, rep: 4500, faction: "史莱克学院" }, 
-      "龙尘": { age: 14, lv: 42, rep: 4000, faction: "日月皇家魂导师学院" }, 
-      "骆桂星": { age: 13, lv: 38, rep: 3000, faction: "史莱克学院" }, 
-      "徐愉程": { age: 13, lv: 41, rep: 2500, faction: "史莱克学院" },
-      "杨念夏": { age: 13, lv: 37, rep: 1500, faction: "史莱克学院" },
-      "郑怡然": { age: 13, lv: 36, rep: 1000, faction: "史莱克学院" }
-    };
-    let triggered = false;
-    _(anchors).forEach((target, name) => {
-      if (data.sd.char[name]) {
-        let c = data.sd.char[name];
-        c.stat.age = target.age;
-        c.stat.lv = Math.max(c.stat.lv, target.lv); 
-        c.social.reputation = target.rep; 
-        
-        if (!c.social.factions) c.social.factions = {};
-        c.social.factions[target.faction] = { 身份: "外院学生", 权限级: 1 };
-        triggered = true;
-      }
-    });
-
-    if (triggered) {
-      
-      data.sd.sys.rsn = `[命运锚点] 世界线收束！第七年时间锁触发，核心天才数据已强制校准。`;
-      refreshYouthTalentRanking(data); 
-      refreshContinentRanking(data);
-    }
-     
-    generateBackgroundNPCs(data);
-    
-    
-    autoBreakthrough(data);
-    
-    data.sd.world.flags["anchor_year_7_youth_talent"] = true;
-  }
-}
-
-function getBaseStats(lv) {
-  let spBase = 100;
-  if (lv <= 10) spBase = 100 + (lv - 1) * 73.66;
-  else if (lv <= 30) spBase = 763 + (lv - 10) * 161.85;
-  else if (lv <= 50) spBase = 4000 + Math.pow(lv - 30, 2) * 27.5;
-  else if (lv <= 70) spBase = 15000 + (lv - 50) * 1000;
-  else if (lv <= 90) spBase = 35000 + (lv - 70) * 1250;
-  else if (lv <= 95) spBase = 60000 + (lv - 90) * 6818;
-  else if (lv < 98) spBase = 94090 + (lv - 95) * 15303.3;
-  else if (lv === 98) spBase = 140000;
-  else if (lv === 99) spBase = 200000;
-  else if (lv === 99.5) spBase = 400000;
-  else if (lv >= 100) spBase = 700000;
-  spBase = Math.floor(spBase);
-
-  let strBase = 10;
-  if (lv <= 10) strBase = 10 + (lv - 1) * 4.66;
-  else if (lv <= 30) strBase = 52 + (lv - 10) * 22.4;
-  else if (lv <= 50) strBase = 500 + Math.pow(lv - 30, 2) * 3.75;
-  else if (lv <= 70) strBase = 2000 + Math.pow(lv - 50, 2) * 12.5;
-  else if (lv <= 90) strBase = 7000 + (lv - 70) * 400;
-  else if (lv <= 95) strBase = 15000 + (lv - 90) * 2157;
-  else if (lv < 98) strBase = 25785 + (lv - 95) * 3071.6;
-  else if (lv === 98) strBase = 35000;
-  else if (lv === 99) strBase = 43000;
-  else if (lv === 99.5) strBase = 60000;
-  else if (lv >= 100) strBase = 80000;
-  strBase = Math.floor(strBase);
-  
-  let menBase = lv;
-  if (lv <= 20) menBase = lv;
-  else if (lv <= 30) menBase = 20 + (lv - 20) * 3;
-  else if (lv <= 50) menBase = 50 + Math.pow(lv - 30, 2) * 1.125;
-  else if (lv <= 70) menBase = 500 + Math.pow(lv - 50, 2) * 6.25;
-  else if (lv <= 90) menBase = 3000 + (lv - 70) * 100;
-  else if (lv <= 95) menBase = 5000 + (lv - 90) * 600;
-  else if (lv < 98) menBase = 8000 + (lv - 95) * 2000;
-  else if (lv === 98) menBase = 15000;
-  else if (lv === 99) menBase = 19000;
-  else if (lv === 99.5) menBase = 23000;
-  else if (lv >= 100) menBase = 50000;
-  
-  return {
-    sp_max: spBase,
-    men_max: Math.floor(menBase),
-    str: strBase,
-    def: strBase,
-    agi: Math.floor(strBase / 2),
-    vit_max: strBase
-  };
-}
-
-const SkillEngine = {
-  "强攻系": [
-    { max: 60, 形态: "强袭爆发(物理/能量)", 加成: "力量/魂力", 燃料: "附加常规体力" },
-    { max: 85, 形态: "自身狂化/属性提升", 加成: "力量/魂力", 燃料: "纯耗魂力" },
-    { max: 95, 形态: "霸体/护盾", 加成: "防御/体力", 燃料: "附加大量体力" },
-    { max: 100, 形态: "重力压制/眩晕", 加成: "力量", 燃料: "附加常规体力" }
-  ],
-  "防御系": [
-    { max: 60, 形态: "主坦减伤/肉体护盾", 加成: "防御/体力", 燃料: "附加大量体力" },
-    { max: 85, 形态: "体质提升/抗性增加", 加成: "防御/魂力", 燃料: "纯耗魂力" },
-    { max: 95, 形态: "嘲讽/减速泥沼", 加成: "防御", 燃料: "附加常规体力" },
-    { max: 100, 形态: "盾击/反甲爆裂", 加成: "防御/力量", 燃料: "附加常规体力" }
-  ],
-  "敏攻系": [
-    { max: 60, 形态: "单体刺杀/多段连击", 加成: "敏捷/力量", 燃料: "附加常规体力" },
-    { max: 85, 形态: "速度提升/闪避", 加成: "敏捷/魂力", 燃料: "纯耗魂力" },
-    { max: 95, 形态: "致盲/沉默", 加成: "敏捷", 燃料: "附加常规体力" },
-    { max: 100, 形态: "残影分身/瞬移", 加成: "敏捷", 燃料: "三维透支" }
-  ],
-  "控制系": [
-    { max: 60, 形态: "实体束缚/地形改变", 加成: "魂力", 燃料: "纯耗魂力" },
-    { max: 80, 形态: "群体虚弱/迟缓", 加成: "魂力", 燃料: "纯耗魂力" },
-    { max: 95, 形态: "精神冲击/毒素真伤", 加成: "魂力/精神力", 燃料: "纯耗魂力" },
-    { max: 100, 形态: "召唤藤蔓/傀儡", 加成: "精神力", 燃料: "魂神平摊" }
-  ],
-  "精神系": [
-    { max: 60, 形态: "纯粹灵魂伤害", 加成: "精神力", 燃料: "精神主导" },
-    { max: 85, 形态: "催眠/幻境/五感剥夺", 加成: "精神力", 燃料: "精神系专属拆分" },
-    { max: 95, 形态: "视野共享/弱点标记", 加成: "精神力", 燃料: "精神系专属拆分" },
-    { max: 100, 形态: "精神体投影", 加成: "精神力", 燃料: "双轨均摊" }
-  ],
-  "辅助系": [
-    { max: 70, 形态: "团队面板提升", 加成: "魂力上限", 燃料: "纯耗魂力" },
-    { max: 85, 形态: "敌方破甲/涣散", 加成: "魂力上限", 燃料: "纯耗魂力" },
-    { max: 95, 形态: "群体能量护盾", 加成: "魂力上限", 燃料: "纯耗魂力" },
-    { max: 100, 形态: "微弱回血/回蓝", 加成: "魂力上限", 燃料: "纯耗魂力" }
-  ],
-  "治疗系": [
-    { max: 70, 形态: "高额回血/断肢重生", 加成: "魂力上限", 燃料: "纯耗魂力" },
-    { max: 85, 形态: "净化异常状态", 加成: "魂力上限", 燃料: "纯耗魂力" },
-    { max: 95, 形态: "免死/生命结界", 加成: "魂力上限", 燃料: "纯耗魂力" },
-    { max: 100, 形态: "生命抽取/毒奶", 加成: "魂力上限", 燃料: "纯耗魂力" }
-  ],
-  "食物系": [
-    { max: 60, 形态: "造物(恢复血量/魂力)", 加成: "魂力", 燃料: "纯耗魂力" },
-    { max: 80, 形态: "造物(提升面板/解毒)", 加成: "魂力", 燃料: "纯耗魂力" },
-    { max: 95, 形态: "造物(赋予飞行/隐身)", 加成: "魂力", 燃料: "纯耗魂力" },
-    { max: 100, 形态: "造物(爆炸物/毒药)", 加成: "魂力", 燃料: "纯耗魂力" }
-  ],
-  "元素系": [
-    { max: 40, 形态: "元素毁灭AOE", 加成: "精神力/魂力", 燃料: "附加微量精神力" },
-    { max: 70, 形态: "元素结界/冰封/流沙", 加成: "精神力", 燃料: "双轨均摊" },
-    { max: 85, 形态: "元素附魔/加速", 加成: "魂力", 燃料: "纯耗魂力" },
-    { max: 95, 形态: "抗拒火环/水盾", 加成: "魂力上限", 燃料: "纯耗魂力" },
-    { max: 100, 形态: "召唤元素精灵", 加成: "精神力", 燃料: "双轨均摊" }
-  ]
-};
-const GoldenDragonSkills = {
-  1: {
-    技能名称: "【第一层·金龙爪(右)】", 状态: "已固化", 对象: "敌方/单体", 加成属性: "力量", 技能类型: "输出/破甲", cast_time: 10,
-    仲裁逻辑: { 
-      瞬间交锋模块: { 基础威力倍率: 200, 伤害类型: "物理近战", 穿透修饰: 40, 护盾绝对值: 0, 瞬间恢复比例: 0 },
-      状态挂载模块: { 状态名称: "无", 持续回合: 0, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "无", 持续真伤dot: 0 },
-      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
-    },
-    特效量化参数: "[粉碎特性] 结算时无视目标 40% 防御力，若目标处于护盾状态，对护盾造成双倍破坏力。",
-    消耗: "体力:150", 画面描述: "右臂异化为巨大的暗金龙爪，附带霸道的“粉碎”特性，能轻易捏碎同阶魂师的武魂与防御。"
-  },
-  2: {
-    技能名称: "【第二层·黄金龙体】", 状态: "已固化", 对象: "自身/增益", 加成属性: "力量/体力/防御", 技能类型: "辅助/强化", cast_time: 15,
-    仲裁逻辑: { 
-      瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
-      状态挂载模块: { 状态名称: "黄金龙体", 持续回合: 3, 面板修改比例: { str: 1.5, def: 1.5, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "霸体", 持续真伤dot: 0 },
-      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
-    },
-    特效量化参数: "[黄金龙体]状态下，自身【力量】、【防御】面板临时提升 50%，并获得霸体效果。",
-    消耗: "体力:100(启动)+20/回合(维持)", 画面描述: "金鳞蔓延至右侧躯干，气血透体而出，肉体强度获得全方位跨阶暴涨。"
-  },
-  3: {
-    技能名称: "【第三层·金龙咆哮】", 状态: "已固化", 对象: "敌方/群体", 加成属性: "精神/力量", 技能类型: "控制/输出", cast_time: 20,
-    仲裁逻辑: { 
-      瞬间交锋模块: { 基础威力倍率: 120, 伤害类型: "物理近战", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
-      状态挂载模块: { 状态名称: "血脉震慑", 持续回合: 1, 面板修改比例: { str: 0.8, def: 0.8, agi: 0.8, men_max: 1.0 }, 特殊机制标识: "硬控眩晕", 持续真伤dot: 0 },
-      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
-    },
-    特效量化参数: "[血脉压制] 对范围内敌人造成伤害，并附加 1 回合眩晕与 20% 全属性削弱（对龙类武魂效果翻倍）。",
-    消耗: "体力:300", 画面描述: "胸口爆发出震天动地的龙吟，实质化的音波夹杂着上位龙族的恐怖威压席卷全场。"
-  },
-  4: {
-    技能名称: "【第四层·金龙霸体】", 状态: "已固化", 对象: "自身/增益", 加成属性: "防御/体力", 技能类型: "防御/辅助", cast_time: 0,
-    仲裁逻辑: { 
-      瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 5000, 瞬间恢复比例: 0 },
-      状态挂载模块: { 状态名称: "绝对防御", 持续回合: 2, 面板修改比例: { str: 1.0, def: 2.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "免死/伤害减免", 持续真伤dot: 0 },
-      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
-    },
-    特效量化参数: "[金龙霸体] 瞬间凝聚 5000 点护盾，防御力翻倍，持续 2 回合。期间免疫一次致死打击。",
-    消耗: "体力:500", 画面描述: "全身龙鳞瞬间闭合，化作一层坚不可摧的暗金铠甲，硬抗毁灭性打击。"
-  },
-  5: {
-    技能名称: "【第五层·金龙爪(左)】", 状态: "已固化", 对象: "敌方/单体", 加成属性: "力量/精神", 技能类型: "输出/异常/解控", cast_time: 10,
-    仲裁逻辑: { 
-      瞬间交锋模块: { 基础威力倍率: 150, 伤害类型: "物理近战", 穿透修饰: 10, 护盾绝对值: 0, 瞬间恢复比例: 0 },
-      状态挂载模块: { 状态名称: "撕裂流血", 持续回合: 3, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "双爪共鸣解控", 持续真伤dot: 1000 },
-      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
-    },
-    特效量化参数: "[撕裂特性]: 命中后每回合扣除目标 1000 点绝对值体力，持续 3 回合。 | [双爪共鸣]: 若双爪相互碰撞，瞬间震碎自身及队友身上一切【精神吞噬】、【幻境】及【强力控制】类光环效果。",
-    消耗: "体力:150", 画面描述: "左臂异化为带有“撕裂”特性的金龙爪。双爪交击时能发出龙吟脆鸣，激荡出的金色光晕是所有精神幻境的绝对克星。"
-  },
-  6: {
-    技能名称: "【第六层·黄金龙吼】", 状态: "已固化", 对象: "敌方/群体", 加成属性: "精神/气血", 技能类型: "控制/削弱", cast_time: 20,
-    仲裁逻辑: { 
-      瞬间交锋模块: { 基础威力倍率: 100, 伤害类型: "纯精神冲击", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
-      状态挂载模块: { 状态名称: "血脉压制", 持续回合: 2, 面板修改比例: { str: 0.85, def: 0.85, agi: 0.85, men_max: 0.85 }, 特殊机制标识: "打断施法", 持续真伤dot: 0 },
-      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
-    },
-    特效量化参数: "[基础效果]: 降低范围内所有敌人 15% 的全属性面板。 | [血脉压制]: 对龙类武魂/魂兽削弱效果翻倍至 30%，并有极大概率强制打断其当前魂技。",
-    消耗: "体力:200 | 精神力:800", 画面描述: "发出一声震天动地的纯正龙吟。声波中蕴含着金龙王至高无上的血脉威压，令万兽臣服。"
-  },
-  7: {
-    技能名称: "【第七层·血脉反哺(二)】", 状态: "已固化", 对象: "自身/被动", 加成属性: "全属性", 技能类型: "被动/永久增幅", cast_time: 0,
-    仲裁逻辑: { 
-      瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
-      状态挂载模块: { 状态名称: "无", 持续回合: 0, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "永久属性提升", 持续真伤dot: 0 },
-      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
-    },
-    特效量化参数: "解除封印瞬间，自身【力量】、【体力】、【防御】、【魂力上限】永久额外提升当前属性的 5%。",
-    消耗: "无", 画面描述: "气血之力再次洗髓伐骨，进一步夯实了肉体底蕴。"
-  },
-  8: {
-    技能名称: "【第八层·金龙狂暴领域】", 状态: "已固化", 对象: "己方/群体", 加成属性: "力量/体力/防御", 技能类型: "辅助/领域", cast_time: 30,
-    仲裁逻辑: { 
-      瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
-      状态挂载模块: { 状态名称: "狂暴增幅", 持续回合: 5, 面板修改比例: { str: 1.15, def: 1.15, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "龙族共鸣", 持续真伤dot: 0 },
-      召唤与场地模块: { 实体名称: "狂暴领域", 持续回合: 5, 继承属性比例: 0, 核心机制描述: "领域内友军全属性提升15%，龙族武魂提升30%" }
-    },
-    特效量化参数: "[基础增幅]: 领域范围内，自身及所有队友的【力量】、【体力】、【防御】面板临时提升 15%。 | [龙族共鸣]: 若增幅目标拥有【龙系武魂】，则增幅效果翻倍（提升 30%）。",
-    消耗: "体力:500(启动)+100/回合(维持)", 画面描述: "暗金色的光环以自身为中心轰然扩散，点燃了领域内所有友军的气血，龙族血脉更是如沸水般咆哮。"
-  },
-  9: {
-    技能名称: "【第九层·气血漩涡(被动)】", 状态: "已固化", 对象: "自身/被动", 加成属性: "体力", 技能类型: "被动/续航与增幅", cast_time: 0,
-    仲裁逻辑: { 
-      瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
-      状态挂载模块: { 状态名称: "无", 持续回合: 0, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "体力恢复翻倍", 持续真伤dot: 0 },
-      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
-    },
-    特效量化参数: "[底蕴暴涨]: 解除封印瞬间，自身【体力】基础属性永久额外提升当前属性的 10%。 | [生生不息]: 战斗中每回合的自然体力恢复量强制翻倍。",
-    消耗: "无", 画面描述: "胸口处凝聚出实质化的暗金色气血漩涡，心脏跳动如战鼓，气血生生不息，再无枯竭之忧。"
-  },
-  10: {
-    技能名称: "【第十层·金龙震爆】", 状态: "已固化", 对象: "敌方/单体", 加成属性: "力量/气血", 技能类型: "输出/爆发", cast_time: 20,
-    仲裁逻辑: { 
-      瞬间交锋模块: { 基础威力倍率: 300, 伤害类型: "物理近战", 穿透修饰: 50, 护盾绝对值: 0, 瞬间恢复比例: 0 },
-      状态挂载模块: { 状态名称: "无", 持续回合: 0, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "内脏震碎", 持续真伤dot: 0 },
-      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
-    },
-    特效量化参数: "[形态解锁]: 凝聚“龙核”，永久获得【金龙双翼】。 | [震爆特性]: 命中后，若目标防御力低于自身力量的 50%，强制施加[内脏震碎]（扣除目标 15% 最大体力上限的真实伤害）。",
-    消耗: "体力:1000", 画面描述: "气血漩涡压缩至极致化为龙核，背后展开巨大的暗金龙翼。将毁灭性的气血之力打入敌人体内后瞬间引爆，从内部瓦解一切防御。"
-  },
-  11: {
-    技能名称: "【第十一层·龙罡与龙威(被动)】", 状态: "已固化", 对象: "自身/被动", 加成属性: "防御/精神", 技能类型: "被动/永久增幅", cast_time: 0,
-    仲裁逻辑: { 
-      瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
-      状态挂载模块: { 状态名称: "无", 持续回合: 0, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "免疫击退/精神威压", 持续真伤dot: 0 },
-      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
-    },
-    特效量化参数: "[龙罡护体]: 自身【防御】面板永久额外提升当前属性的 20%，免疫同阶及以下的物理击退/击飞效果。 | [龙威压制]: 自身【精神力】面板永久额外提升当前属性的 5%。",
-    消耗: "无", 画面描述: "体表自然流转着一层坚不可摧的暗金色罡气，举手投足间散发着上位龙族的恐怖威压。"
-  },
-  12: {
-    技能名称: "【第十二层·金龙镇狱杀】", 状态: "已固化", 对象: "敌方/大范围AOE", 加成属性: "力量/精神", 技能类型: "输出/强控", cast_time: 40,
-    仲裁逻辑: { 
-      瞬间交锋模块: { 基础威力倍率: 250, 伤害类型: "物理近战", 穿透修饰: 30, 护盾绝对值: 0, 瞬间恢复比例: 0 },
-      状态挂载模块: { 状态名称: "镇狱禁锢", 持续回合: 1, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "硬控跳过回合", 持续真伤dot: 0 },
-      召唤与场地模块: { 实体名称: "重力囚笼", 持续回合: 1, 继承属性比例: 0, 核心机制描述: "目标无法移动、无法闪避" }
-    },
-    特效量化参数: "[镇压万物]: 对大范围内的所有敌人造成毁灭性打击，并强制施加[镇狱禁锢]（目标无法移动、无法闪避，持续 1 回合）。",
-    消耗: "体力:2000 | 精神力:1000", 画面描述: "无数暗金色的巨龙虚影从天而降，化作绝对的重力囚笼，将整片空间彻底镇杀。"
-  },
-  13: {
-    技能名称: "【第十三层·血脉反哺(三)】", 状态: "已固化", 对象: "自身/被动", 加成属性: "全属性", 技能类型: "被动/永久增幅", cast_time: 0,
-    仲裁逻辑: { 
-      瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
-      状态挂载模块: { 状态名称: "无", 持续回合: 0, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "永久属性提升", 持续真伤dot: 0 },
-      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
-    },
-    特效量化参数: "解除封印瞬间，自身【力量】、【体力】、【防御】、【魂力上限】永久额外提升当前属性的 5%。",
-    消耗: "无", 画面描述: "气血之力已如渊如海，每一次心跳都伴随着雷鸣般的轰响。"
-  },
-  14: {
-    技能名称: "【第十四层·金龙不灭真身】", 状态: "已固化", 对象: "自身/顶级辅助", 加成属性: "体力/防御", 技能类型: "辅助/免死与重塑", cast_time: 50,
-    仲裁逻辑: { 
-      瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
-      状态挂载模块: { 状态名称: "不灭真身", 持续回合: 5, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "免死/技能威力翻倍", 持续真伤dot: 0 },
-      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
-    },
-    特效量化参数: "[滴血重生]: 开启状态下，免疫一切即死判定。若体力归零，强制锁定为 1 点，并瞬间消耗所有剩余魂力，将体力恢复至 100%。 | [真身增幅]: 状态持续期间，所有金龙王血脉技能的基础威力倍率强制提升 100%。",
-    消耗: "体力:5000(启动)+1000/回合(维持)", 画面描述: "彻底化身为一头长达百米的纯血暗金巨龙。只要气血不枯，便是不死不灭的战争机器。"
-  },
-  15: {
-    技能名称: "【第十五层·血脉反哺(四)】", 状态: "已固化", 对象: "自身/被动", 加成属性: "全属性", 技能类型: "被动/永久增幅", cast_time: 0,
-    仲裁逻辑: { 
-      瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
-      状态挂载模块: { 状态名称: "无", 持续回合: 0, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "永久属性提升", 持续真伤dot: 0 },
-      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
-    },
-    特效量化参数: "解除封印瞬间，自身【力量】、【体力】、【防御】、【魂力上限】永久额外提升当前属性的 5%。",
-    消耗: "无", 画面描述: "距离彻底掌控金龙王本源仅一步之遥，肉体强度已堪比真正的神祇。"
-  },
-  16: {
-    技能名称: "【第十六层·黄金瀑布】", 状态: "已固化", 对象: "自身/自动防御与辅助", 加成属性: "精神/防御", 技能类型: "防御/智能护主", cast_time: 0,
-    仲裁逻辑: { 
-      瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
-      状态挂载模块: { 状态名称: "黄金瀑布", 持续回合: 99, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "自动抵消致命攻击/解控", 持续真伤dot: 0 },
-      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
-    },
-    特效量化参数: "[绝对护主]: 被动生效。当面临足以致命的攻击或强控时，自动消耗 10% 最大体力，降下一道黄金瀑布抵消该次攻击/控制，并根据战况自动为宿主施加最合适的增益。",
-    消耗: "被动触发，每次消耗 10% 最大体力", 画面描述: "第八血脉魂环化作液态的黄金光辉环绕周身。它拥有独立的神级灵性，能在宿主遇险的瞬间作出最完美的应变。"
-  }
-};
-function autoGenerateSkill(type, talentTier, ringAge, ringIndex, compatibility = 100) {
-  const roll = Math.floor(Math.random() * 100) + 1;
-  const typeTable = SkillEngine[type] || SkillEngine["强攻系"];
-  const skillForm = typeTable.find(t => roll <= t.max);
-  const talentScore = { "绝世妖孽": 100, "顶级天才": 80, "天才": 60, "优秀": 40, "正常": 20, "劣等": 0 }[talentTier] || 20;
-  const ageScore = ringAge >= 100000 ? 100 : ringAge >= 10000 ? 50 : ringAge >= 1000 ? 20 : ringAge >= 100 ? 0 : -20;
-  
-  
-  let compScore = 0;
-  if (compatibility >= 90) compScore = 20;       
-  else if (compatibility >= 70) compScore = 0;   
-  else if (compatibility >= 40) compScore = -30; 
-  else compScore = -60;                          
-
-  const totalScore = roll + talentScore + ageScore + (ringIndex * 5) + compScore;
-
-  let quality = "C级_劣质";
-  if (totalScore >= 250) quality = "S级_极品";
-  else if (totalScore >= 151) quality = "A级_优秀";
-  else if (totalScore >= 60) quality = "B级_普通";
-
-  const baseCostTable = [0, 250, 500, 1300, 3100, 5000, 7600, 11600, 14600, 20000];
-  let baseCost = baseCostTable[Math.min(ringIndex, 9)] || 250;
-
-  let qMult = 1.0;
-  if (quality === "S级_极品") qMult = 2.5;
-  else if (quality === "A级_优秀") qMult = 1.5;
-  else if (quality === "B级_普通") qMult = 1.0;
-  else if (quality === "C级_劣质") qMult = 1.2;
-
-  let fluctuation = 0.95 + Math.random() * 0.1;
-  let theoreticalCost = Math.floor(baseCost * qMult * fluctuation);
-
-  let isFood = type === "食物系";
-  if (isFood) {
-    theoreticalCost = Math.max(1, Math.floor(theoreticalCost * 0.2));
-  }
-
-  let spCost = 0, vitCost = 0, menCost = 0;
-  switch (skillForm.燃料) {
-    case "附加微量精神力":
-      spCost = Math.floor(theoreticalCost * 1.0);
-      menCost = Math.floor(theoreticalCost * 0.05);
-      break;
-    case "附加常规体力":
-      spCost = Math.floor(theoreticalCost * 1.0);
-      vitCost = Math.floor(theoreticalCost * 0.10);
-      break;
-    case "附加大量体力":
-      spCost = Math.floor(theoreticalCost * 1.0);
-      vitCost = Math.floor(theoreticalCost * 0.20);
-      break;
-    case "双轨均摊":
-    case "魂神平摊":
-      spCost = Math.floor(theoreticalCost * 0.50);
-      menCost = Math.floor(theoreticalCost * 0.50);
-      break;
-    case "极限压榨":
-    case "三维透支":
-      spCost = Math.floor(theoreticalCost * 1.0);
-      vitCost = Math.floor(theoreticalCost * 0.30);
-      menCost = Math.floor(theoreticalCost * 0.10);
-      break;
-    case "精神系专属拆分":
-    case "精神主导":
-      if (ringIndex < 7) {
-        spCost = Math.floor(theoreticalCost * 0.95);
-        menCost = Math.floor(theoreticalCost * 0.05);
-      } else {
-        spCost = Math.floor(theoreticalCost * 0.80);
-        menCost = Math.floor(theoreticalCost * 0.20);
-      }
-      break;
-    case "纯耗魂力":
-    default:
-      spCost = Math.floor(theoreticalCost * 1.0);
-  }
-
-  let isContinuous = /结界|护盾|真身|领域|附魔|狂化|提升|减伤|泥沼|迟缓|虚弱|共享|标记/.test(skillForm.形态);
-
-  let costStrs = [];
-  if (isFood) {
-    if (spCost > 0) costStrs.push(`魂力:${spCost}/个`);
-    if (vitCost > 0) costStrs.push(`体力:${vitCost}/个`);
-    if (menCost > 0) costStrs.push(`精神力:${menCost}/个`);
-  } else if (isContinuous) {
-    if (spCost > 0) costStrs.push(`魂力:${Math.max(1, Math.floor(spCost * 0.5))}(启动)+${Math.max(1, Math.floor(spCost * 0.1))}/回合(维持)`);
-    if (vitCost > 0) costStrs.push(`体力:${Math.max(1, Math.floor(vitCost * 0.5))}(启动)+${Math.max(1, Math.floor(vitCost * 0.1))}/回合(维持)`);
-    if (menCost > 0) costStrs.push(`精神力:${Math.max(1, Math.floor(menCost * 0.5))}(启动)+${Math.max(1, Math.floor(menCost * 0.1))}/回合(维持)`);
-  } else {
-    if (spCost > 0) costStrs.push(`魂力:${spCost}`);
-    if (vitCost > 0) costStrs.push(`体力:${vitCost}`);
-    if (menCost > 0) costStrs.push(`精神力:${menCost}`);
-  }
-
-  let target = "敌方/单体";
-  if (isContinuous || /护盾|狂化|提升|霸体|真身|附魔|免死/.test(skillForm.形态)) target = "自身/增益";
-  else if (/群体|AOE|流沙|泥沼|领域|结界/.test(skillForm.形态)) target = "敌方/群攻";
-  else if (/团队|群体能量护盾/.test(skillForm.形态)) target = "己方/群攻";
-  else if (/回血|净化|重生/.test(skillForm.形态)) target = "己方/单体或群攻";
-
-  let effectType = "输出";
-  if (/护盾|狂化|提升|霸体|真身|附魔|免死|回血|净化|重生/.test(skillForm.形态)) effectType = "辅助";
-  else if (/眩晕|嘲讽|减速|致盲|沉默|束缚|迟缓|虚弱|冰封/.test(skillForm.形态)) effectType = "控制";
-  else if (/瞬移|加速|闪避/.test(skillForm.形态)) effectType = "移动";
-
-  let basePower = 0;
-  let dmgType = "无";
-  
-  if (effectType === "输出") {
-    if (quality === "S级_极品") basePower = 300;
-    else if (quality === "A级_优秀") basePower = 200;
-    else if (quality === "B级_普通") basePower = 120;
-    else basePower = 60;
-    
-    if (type === "精神系") dmgType = "纯精神冲击";
-    else if (type === "元素系" || type === "控制系") dmgType = "能量AOE";
-    else dmgType = "物理近战";
-  }
-let castTime = 0;
-  if (basePower >= 250) {
-    castTime = 40 + Math.floor(Math.random() * 20); // S级大招，前摇 40~60
-  } else if (basePower >= 150) {
-    castTime = 20 + Math.floor(Math.random() * 15); // A级强力技，前摇 20~35
-  } else {
-    castTime = Math.floor(Math.random() * 10);      // B/C级常规技，前摇 0~9 (极快)
-  }
-  
-  // 如果是防御或位移技能，通常前摇更短
-  if (effectType === "防御" || effectType === "移动") {
-    castTime = Math.floor(castTime * 0.5);
-  }
-  let stateName = "无";
-  let duration = 0;
-  let specialMech = "无";
-  let statMods = { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 };
-  let dotDmg = 0;
-
-  if (effectType === "控制") {
-    stateName = "受控状态";
-    duration = 1 + Math.floor(Math.random() * 2); // 控制通常持续 1~2 回合
-    specialMech = "硬控";
-  } 
-  else if (effectType === "辅助") {
-    stateName = "增益状态";
-    duration = 2 + Math.floor(Math.random() * 3); // 增益通常持续 2~4 回合
-    specialMech = "增益";
-    // 随机提升 20% ~ 50% 的面板
-    let buffRatio = 1.2 + (Math.random() * 0.3);
-    if (skillForm.加成.includes("力量")) statMods.str = buffRatio;
-    else if (skillForm.加成.includes("防御")) statMods.def = buffRatio;
-    else if (skillForm.加成.includes("敏捷")) statMods.agi = buffRatio;
-    else statMods.men_max = buffRatio;
-  }
-  else if (effectType === "输出" && Math.random() < 0.3) {
-    // 输出技能有 30% 概率附带流血/灼烧等真伤 DOT
-    stateName = "持续创伤";
-    duration = 2 + Math.floor(Math.random() * 2); // 持续 2~3 回合
-    dotDmg = Math.floor(basePower * 10); // 随便给个基础 DOT 伤害
-  }
-  let armorPen = 0;
-  let shieldValue = 0;
-  let healRatio = 0;
-  
-  let summonName = "无";
-  let summonDuration = 0;
-  let summonInherit = 0;
-  let summonDesc = "无";
-
-  // 1. 穿透修饰 (输出技能概率附带)
-  if (effectType === "输出" && (skillForm.形态.includes("破甲") || skillForm.形态.includes("刺杀") || Math.random() < 0.3)) {
-    armorPen = 10 + Math.floor(Math.random() * 30); // 随机赋予 10%~40% 的穿透/无视防御
-  }
-
-  // 2. 护盾绝对值 (防御/辅助技能附带)
-  if ((effectType === "防御" || effectType === "辅助") && skillForm.形态.includes("护盾")) {
-    // 护盾值与技能品质(basePower)挂钩，再加一点随机波动
-    shieldValue = (basePower || 100) * 50 + Math.floor(Math.random() * 2000); 
-  }
-
-  // 3. 瞬间恢复比例 (治疗/食物/吸血技能)
-  if (skillForm.形态.includes("回血") || skillForm.形态.includes("恢复") || skillForm.形态.includes("吸血")) {
-    healRatio = 10 + Math.floor(Math.random() * 20); // 瞬间恢复 10%~30% 的体力
-  }
-
-  // 4. 召唤与场地模块 (召唤类技能)
-  if (skillForm.形态.includes("召唤") || skillForm.形态.includes("分身") || skillForm.形态.includes("傀儡")) {
-    summonName = "能量实体";
-    summonDuration = 3 + Math.floor(Math.random() * 3);  // 召唤物存在 3~5 回合
-    summonInherit = 30 + Math.floor(Math.random() * 50); // 继承施法者 30%~80% 的属性面板
-    summonDesc = "自主攻击或分担伤害";
-  }
-
- return {
-    状态: "未生成",
-    对象: target,
-    加成属性: skillForm.加成,
-    技能类型: effectType,
-    cast_time: castTime,
-    仲裁逻辑: {
-      瞬间交锋模块: {
-        基础威力倍率: basePower,
-        伤害类型: dmgType,
-        穿透修饰: armorPen,       // 👈 替换原本的 0
-        护盾绝对值: shieldValue,  // 👈 替换原本的 0
-        瞬间恢复比例: healRatio   // 👈 替换原本的 0
-      },
-      状态挂载模块: {
-        状态名称: stateName,
-        持续回合: duration,
-        面板修改比例: statMods,
-        特殊机制标识: specialMech,
-        持续真伤dot: dotDmg
-      },
-      召唤与场地模块: {
-        实体名称: summonName,       // 👈 替换原本的 "无"
-        持续回合: summonDuration,   // 👈 替换原本的 0
-        继承属性比例: summonInherit,// 👈 替换原本的 0
-        核心机制描述: summonDesc    // 👈 替换原本的 "无"
-      }
-    },
-    特效量化参数: `[后台推演] 品质:${quality} | 形态:${skillForm.形态}`,
-    消耗: costStrs.join(" | ") || "无",
-    画面描述: "未生成"
-  };
-}
-
-const WealthSchema = z.object({
-  fed_coin: z.coerce.number().prefault(0).describe('联邦币'),
-  star_coin: z.coerce.number().prefault(0).describe('星罗币'),
-  tang_pt: z.coerce.number().prefault(0).describe('唐门积分'),
-  shrek_pt: z.coerce.number().prefault(0).describe('史莱克徽章/积分'),
-  blood_pt: z.coerce.number().prefault(0).describe('血神军团功勋')
-}).prefault({});
-const AppearanceSchema = z.object({
-  发色: z.string().prefault('未知'),
-  瞳色: z.string().prefault('未知'),
-  身高: z.string().prefault('未知'),
-  体型: z.string().prefault('未知'),
-  特殊特征: z.array(z.string()).prefault([]).describe('角色的独特之处，如伤疤、胎记、特殊神态等')
-}).prefault({});
-
-const ClothingSchema = z.object({
-  wardrobe: z.record(z.string().describe('套装名称'), z.object({
-    上装: z.string().prefault(''),
-    下装: z.string().prefault(''),
-    鞋子: z.string().prefault(''),
-    描述: z.string().prefault('')
-  }).prefault({})).prefault({}).describe('衣柜，存放所有可换的套装'),
-  outfit: z.string().prefault('无').describe('当前着装，值为衣柜里某一套的名称')
-}).prefault({});
-const EquipmentSchema = z.object({
-    wpn: z.object({
-    name: z.string().prefault("无"),
-    tier: z.string().prefault("无").describe('品阶如: 魂导器/神器/超神器'),
-    traits: z.record(z.string(), z.object({ 描述: z.string().prefault("无") }).prefault({})).prefault({}).describe('附带的绝对特性，如:无视防御/吞噬/绝对禁锢'),
-    stats_bonus: z.object({
-      sp_max: z.coerce.number().prefault(0),
-      men_max: z.coerce.number().prefault(0),
-      str: z.coerce.number().prefault(0),
-      def: z.coerce.number().prefault(0),
-      agi: z.coerce.number().prefault(0),
-      vit_max: z.coerce.number().prefault(0)
-    }).prefault({})
-  }).prefault({}),
-  arm: z.string().prefault("无"),
-  armor: z.object({
-    lv: z.coerce.number().prefault(0),
-    name: z.string().prefault("无"),
-    domain: z.string().prefault("无"),
-    material: z.string().prefault("无").describe('锻造金属材质'),
-    equip_status: z.string().prefault("未装备"),
-    parts: z.record(z.string(), z.object({
-      状态: z.string().prefault("未打造"),
-      品质系数: z.coerce.number().prefault(1.0)
-    }).prefault({})).prefault({}),
-    stats_bonus: z.object({
-      lv_equiv: z.coerce.number().prefault(0),
-      sp_max: z.coerce.number().prefault(0),
-      men_max: z.coerce.number().prefault(0),
-      str: z.coerce.number().prefault(0),
-      def: z.coerce.number().prefault(0),
-      agi: z.coerce.number().prefault(0),
-      vit_max: z.coerce.number().prefault(0)
-    }).prefault({})
-  }).prefault({}),
-  mech: z.object({
-    lv: z.string().prefault("无"),
-    type: z.string().prefault("无"),
-    material: z.string().prefault("无").describe('机甲金属材质'),
-    status: z.string().prefault("完好"),
-    equip_status: z.string().prefault("未装备"),
-    weapon: z.string().prefault("无"),
-    品质系数: z.coerce.number().prefault(1.0).describe('0.8为劣质，1.0为标准，1.5以上为极品，最高可达2.0'),
-    stats_bonus: z.object({
-      sp_max: z.coerce.number().prefault(0),
-      men_max: z.coerce.number().prefault(0),
-      str: z.coerce.number().prefault(0),
-      def: z.coerce.number().prefault(0),
-      agi: z.coerce.number().prefault(0),
-      vit_max: z.coerce.number().prefault(0)
-    }).prefault({})
-  }).prefault({}),
-  accessories: z.record(z.string(), z.object({ 描述: z.string().prefault("无") }).prefault({})).prefault({}).describe('储物魂导器等杂项')
-}).prefault({}).transform(equip => {
-  // --- 斗铠属性推演 ---
-  if (equip.armor.lv > 0 && equip.armor.equip_status === "已装备") {
-    let totalQuality = 0, count = 0;
-    let maxQ = -Infinity, minQ = Infinity; // 记录最高和最低品质系数
-    
-    // 1. 先遍历所有部件，统计系数
-    _(equip.armor.parts).forEach(p => {
-      if (p.状态 !== "未打造" && p.状态 !== "重创") { 
-        totalQuality += p.品质系数; 
-        count++; 
-        if (p.品质系数 > maxQ) maxQ = p.品质系数;
-        if (p.品质系数 < minQ) minQ = p.品质系数;
-      }
-    });
-    
-    // 2. 再根据统计结果计算属性
-    if (count > 0) {
-      let avgQ = totalQuality / count;
-      let base = ArmorBaseStats[equip.armor.lv] || ArmorBaseStats[1];
-      let mult = count === 10 ? avgQ : (0.05 * avgQ * count);
-      
-      // 【材质系数差距排斥判定】
-      function getQualityTier(q) {
-        if (q < 1.0) return 0;
-        if (q <= 1.2) return 1;
-        if (q <= 1.5) return 2;
-        if (q <= 1.8) return 3;
-        return 4;
-      }
-      equip.armor.is_rejected = false; 
-      if (count > 1 && getQualityTier(maxQ) !== getQualityTier(minQ)) { 
-        mult *= 0.2; // 能量回路冲突，斗铠提供的属性强行折损 80%！
-        equip.armor.is_rejected = true; // 打上排斥标记
-      }
-
-      equip.armor.stats_bonus.sp_max = Math.floor(base.sp_max * mult);
-      equip.armor.stats_bonus.men_max = Math.floor(base.men_max * mult);
-      equip.armor.stats_bonus.str = Math.floor(base.str * mult);
-      equip.armor.stats_bonus.agi = Math.floor(base.agi * mult);
-      equip.armor.stats_bonus.vit_max = Math.floor(base.vit_max * mult);
-      equip.armor.stats_bonus.def = Math.floor(base.str * mult); // 斗铠防御力基于力量基数
-    } else {
-      equip.armor.stats_bonus = { lv_equiv: 0, sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
-    }
-  } else {
-    equip.armor.stats_bonus = { lv_equiv: 0, sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
-  }
-
-  // --- 机甲属性推演 ---
-  if (equip.mech.lv !== "无" && equip.mech.status !== "重创" && equip.mech.equip_status === "已装备") {
-    let base = MechBaseStats[equip.mech.lv];
-    if (base) {
-      let mult = equip.mech.品质系数 || 1.0;
-      equip.mech.stats_bonus.sp_max = Math.floor(base.sp_max * mult);
-      equip.mech.stats_bonus.men_max = Math.floor(base.men_max * mult);
-      equip.mech.stats_bonus.str = Math.floor(base.str * mult);
-      equip.mech.stats_bonus.agi = Math.floor(base.agi * mult);
-      equip.mech.stats_bonus.vit_max = Math.floor(base.vit_max * mult);
-      equip.mech.stats_bonus.def = Math.floor(base.str * mult);
-    }
-  } else {
-    equip.mech.stats_bonus = { sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
-  }
-  
-  return equip;
-});
-const SkillStructSchema = z.object({
-  状态: z.string().prefault("未生成"),
-  对象: z.string().prefault("无"),
-  加成属性: z.string().prefault("无"),
-  技能类型: z.string().prefault("无"), 
-  主定位: z.string().prefault("无").describe('技能主定位：输出/控制/防御/辅助/特殊。仅表示主要用途，不限制其混合效果'),
-  标签: z.array(z.string()).prefault([]).describe('技能混合标签，如：伤害/硬控/打断/护盾/治疗/霸体/领域/真身/召唤'),
-  cast_time: z.coerce.number().prefault(0).describe('施法前摇数值。数值越小越接近瞬发，数值越大代表蓄力越久，越容易在博弈中被打断'),
-  战斗语义: z.object({
-    主定位: z.string().prefault("无").describe('与主定位含义一致，供AI从语义层理解技能'),
-    作用目标: z.string().prefault("敌方单体").describe('敌方单体/敌方群体/自身/友方单体/友方群体/全场'),
-    战术标签: z.array(z.string()).prefault([]).describe('如：开场技/斩杀技/打断技/保命技/团辅技/反打技'),
-    优先条件: z.array(z.string()).prefault([]).describe('如：敌方蓄力/自身低血/友方低血/残局收割'),
-    风险等级: z.string().prefault("中").describe('低/中/高'),
-    保留倾向: z.coerce.number().prefault(0).describe('0~100，越高越倾向留作后手'),
-    目标偏好: z.array(z.string()).prefault([]).describe('如：辅助/控制/低血/高威胁/蓄力者'),
-    友方偏好: z.array(z.string()).prefault([]).describe('如：最低血量/主力输出/被控单位'),
-    是否持续: z.boolean().prefault(false),
-    是否可打断: z.boolean().prefault(false),
-    是否可被霸体免疫: z.boolean().prefault(true)
-  }).prefault({}),
-  效果列表: z.array(z.object({
-    类型: z.string().prefault("无").describe('伤害/控制/增益/减益/防御/回复/场地/特殊'),
-    状态名称: z.string().prefault("无").describe('若该效果会挂状态，可在此填写状态名'),
-    作用目标: z.string().prefault("默认").describe('默认/敌方单体/敌方群体/自身/友方单体/友方群体/全场'),
-    持续回合: z.coerce.number().prefault(0),
-    标记: z.array(z.string()).prefault([]).describe('如：硬控/霸体/免死/净化/打断/领域/真身'),
-    数值: z.object({
-      威力: z.coerce.number().prefault(0),
-      伤害类型: z.string().prefault("无"),
-      穿透: z.coerce.number().prefault(0),
-      护盾值: z.coerce.number().prefault(0),
-      减伤率: z.coerce.number().prefault(0),
-      吸血比例: z.coerce.number().prefault(0),
-      回复体力: z.coerce.number().prefault(0),
-      回复魂力: z.coerce.number().prefault(0),
-      回复精神力: z.coerce.number().prefault(0),
-      dot: z.coerce.number().prefault(0)
-    }).prefault({}),
-    面板修改: z.object({
-      str: z.coerce.number().prefault(1.0),
-      def: z.coerce.number().prefault(1.0),
-      agi: z.coerce.number().prefault(1.0),
-      men_max: z.coerce.number().prefault(1.0),
-      sp_max: z.coerce.number().prefault(1.0)
-    }).prefault({}),
-    控制: z.object({ 控制类型: z.string().prefault("无"), 效果: z.array(z.string()).prefault([]), 命中方式: z.string().prefault("默认"), 可打断: z.boolean().prefault(false), 可被霸体免疫: z.boolean().prefault(true) }).prefault({}),
-    特殊: z.object({ 特殊类型: z.string().prefault("无"), 场地名称: z.string().prefault("无"), 实体名称: z.string().prefault("无"), 核心机制描述: z.string().prefault("无"), 继承属性比例: z.coerce.number().prefault(0) }).prefault({})
-  })).prefault([]).describe('模块化效果定义。一个技能可同时拥有伤害、控制、增益、防御等多个效果模块'),
-  仲裁逻辑: z.object({
-
-    瞬间交锋模块: z.object({
-      基础威力倍率: z.coerce.number().prefault(0),
-      伤害类型: z.string().prefault("无"),
-      穿透修饰: z.coerce.number().prefault(0),
-      护盾绝对值: z.coerce.number().prefault(0),
-      瞬间恢复比例: z.coerce.number().prefault(0).describe('吸血或治疗的百分比')
-    }).prefault({}),
-    
-    状态挂载模块: z.object({
-      状态名称: z.string().prefault("无"),
-      持续回合: z.coerce.number().prefault(0),
-      面板修改比例: z.object({
-        str: z.coerce.number().prefault(1.0), // 1.2表示提升20%，0.8表示削弱20%
-        def: z.coerce.number().prefault(1.0),
-        agi: z.coerce.number().prefault(1.0),
-        men_max: z.coerce.number().prefault(1.0)
-      }).prefault({}),
-      特殊机制标识: z.string().prefault("无").describe('用文本标识罕见机制，如：硬控眩晕/免死/霸体/净化'),
-      持续真伤dot: z.coerce.number().prefault(0)
-    }).prefault({}),
-
-    召唤与场地模块: z.object({
-      实体名称: z.string().prefault("无"),
-      持续回合: z.coerce.number().prefault(0),
-      继承属性比例: z.coerce.number().prefault(0).describe('召唤物继承施法者面板的百分比'),
-      核心机制描述: z.string().prefault("无").describe('简述其作用，如：每回合自动发射火球/范围内禁疗')
-    }).prefault({})
-  }).prefault({}),
-  附加状态: z.object({
-    状态名称: z.string().prefault("无").describe('如：眩晕、流血、黄金龙体'),
-    状态类别: z.string().prefault("无").describe('buff 或 debuff'),
-    duration: z.coerce.number().prefault(0).describe('持续回合数'),
-    stat_mods: z.object({
-      str: z.coerce.number().prefault(1.0),
-      def: z.coerce.number().prefault(1.0),
-      agi: z.coerce.number().prefault(1.0),
-      sp_max: z.coerce.number().prefault(1.0)
-    }).prefault({}),
-    combat_effects: z.object({
-      dot_damage: z.coerce.number().prefault(0).describe('每回合流血/中毒绝对值伤害'),
-      sp_dot: z.coerce.number().prefault(0).describe('每回合持续消耗的魂力'),
-      men_dot: z.coerce.number().prefault(0).describe('每回合持续消耗的精神力'),
-      skip_turn: z.boolean().prefault(false).describe('是否强制跳过本回合宣告(如：眩晕/冰封/镇狱禁锢)'),
-      armor_pen: z.coerce.number().prefault(0).describe('攻击时无视目标防御的百分比(如：粉碎/破甲)')
-    }).prefault({})
-  }).prefault({}),
-  特效量化参数: z.string().prefault("无").describe('如：每回合扣除1500体力，持续3回合'),
-  消耗: z.string().prefault("无"),
-  画面描述: z.string().prefault("无")
-}).prefault({});
-const SoulBoneSchema = z.record(z.string(), z.object({
-  名称: z.string().prefault("无"),
-  name: z.string().prefault("无"),
-  表象名称: z.string().prefault("无"),
-  年限: z.coerce.number().prefault(0),
-  age: z.coerce.number().prefault(0),
-  来源: z.string().prefault("无"),
-  状态: z.string().prefault("已装载"),
-  status: z.string().prefault("已装载"),
-  品质: z.string().prefault("无"),
-  品阶: z.string().prefault("无"),
-  描述: z.string().prefault("无"),
-  附带技能: z.record(z.string(), SkillStructSchema).prefault({}),
-  stats_bonus: z.object({
-    str: z.coerce.number().prefault(0), def: z.coerce.number().prefault(0), agi: z.coerce.number().prefault(0), vit_max: z.coerce.number().prefault(0), men_max: z.coerce.number().prefault(0), sp_max: z.coerce.number().prefault(0)
-  }).prefault({})
-}).prefault({})).prefault({});
-const BloodlinePowerSchema = z.object({
-  bloodline: z.string().prefault("无").describe('血脉名称'),
-  seal_lv: z.coerce.number().prefault(0).describe('血脉封印解除层数'),
-  core: z.string().prefault("未凝聚").describe('气血魂核状态'),
-  life_fire: z.boolean().prefault(false).describe('生命之火状态'),
-  skills: z.record(z.string(), SkillStructSchema).prefault({}).describe('血脉散技(无魂环)'),
-  blood_rings: z.record(z.string(), z.object({
-    颜色: z.string().prefault("无"),
-    魂技: z.record(z.string(), SkillStructSchema).prefault({})
-  }).prefault({})).prefault({}).describe('气血魂环与附带魂技')
-}).prefault({});
-const StatsSchema = z.object({
-  age: z.coerce.number().prefault(0).describe('年龄'),
-  gender: z.string().prefault("未知").describe('性别'),
-  lv: z.any().transform(val => {
-    if (val === "准神") return 99.5;
-    let num = Number(val);
-    return isNaN(num) ? 1 : num;
-  }).prefault(1),
-  last_herb_lv: z.coerce.number().prefault(-20).describe('上次吸收灵物的等级'),
-  lv_penalty: z.coerce.number().prefault(0).describe('违规吸收导致的等级上限永久扣除'),
-  type: z.string().prefault("强攻系").describe('魂师系别'),
-  talent_tier: z.string().prefault("正常").describe('天赋梯队'),
-  background: z.string().prefault("无").describe('背景阶层标签：顶级势力/一流势力/普通势力/平民'),
-  is_evil: z.boolean().prefault(false).describe('是否为邪魂师'),
-  hidden_variance: z.coerce.number().prefault(0).describe('先天底子波动值'),
-  innate_sp_lv: z.coerce.number().prefault(0).describe('先天魂力'),
-  talent_roll: z.coerce.number().prefault(0).describe('天赋检定最终得分(D100+补正)'),
-
-  sp: z.coerce.number().prefault(10).describe('当前魂力'),
-  sp_max: z.coerce.number().prefault(10).describe('魂力上限'),
-  men: z.coerce.number().prefault(10).describe('当前精神力'),
-  men_max: z.coerce.number().prefault(10).describe('精神力上限'),
-  men_realm: z.string().prefault("灵元境"),
-
-  str: z.coerce.number().prefault(10).describe('力量'),
-  def: z.coerce.number().prefault(10).describe('防御'),
-  agi: z.coerce.number().prefault(10).describe('敏捷'),
-  vit: z.coerce.number().prefault(10).describe('当前体力'),
-  vit_max: z.coerce.number().prefault(10).describe('体力上限'),
-
-  multiplier: z.object({
-    cultivation: z.coerce.number().prefault(1.0).describe('修炼系数'),
-    str: z.coerce.number().prefault(1.0),
-    def: z.coerce.number().prefault(1.0),
-    agi: z.coerce.number().prefault(1.0),
-    vit_max: z.coerce.number().prefault(1.0),
-    men_max: z.coerce.number().prefault(1.0)
-  }).prefault({}),
-
-  trained_bonus: z.object({
-    str: z.coerce.number().prefault(0),
-    def: z.coerce.number().prefault(0),
-    agi: z.coerce.number().prefault(0),
-    vit_max: z.coerce.number().prefault(0),
-    men_max: z.coerce.number().prefault(0)
-  }).prefault({}),
-
-  // 挂载在角色 stat.conditions 下的扩展结构
-  conditions: z.record(z.string(), z.object({ 
-    类型: z.string().prefault("buff"), 
-    层数: z.coerce.number().prefault(1), 
-    描述: z.string().prefault("无"),
-    duration: z.coerce.number().prefault(1).describe('剩余持续回合数，每回合结算阶段减1'),
-    
-    // 原有的基础属性增幅（比如黄金龙体的全属性+50%）
-    stat_mods: z.object({ 
-      str: z.coerce.number().prefault(1.0),
-      def: z.coerce.number().prefault(1.0),
-      agi: z.coerce.number().prefault(1.0),
-      sp_max: z.coerce.number().prefault(1.0)
-    }).prefault({}),
-
-    combat_effects: z.object({
-      dot_damage: z.coerce.number().prefault(0).describe('每回合结算阶段扣除的绝对体力值(如：撕裂/中毒)'),
-      skip_turn: z.boolean().prefault(false).describe('是否强制跳过本回合宣告(如：眩晕/冰封/镇狱禁锢)'),
-      armor_pen: z.coerce.number().prefault(0).describe('攻击时无视目标防御的百分比(如：粉碎/破甲)')
-    }).prefault({})
-  }).prefault({})).prefault({})
-}).prefault({}).transform(data => {
-  if (data.hidden_variance === 0) {
-    data.hidden_variance = 0.95 + Math.random() * 0.1;
-  }
-
-  if (data.lv > 10 && data.trained_bonus.str === 0 && data.trained_bonus.men_max === 0) {
-    const hardWorkFactor = { "绝世妖孽": 1.6, "顶级天才": 1.2, "天才": 1.0, "优秀": 0.8, "正常": 0.5, "劣等": 0.2 }[data.talent_tier] || 0.5;
-    const baseForTrace = getBaseStats(data.lv);
-    const traceMultiplier = 0.005 * (data.lv - 10) * hardWorkFactor;
-    data.trained_bonus.str = Math.floor(baseForTrace.str * traceMultiplier);
-    data.trained_bonus.def = Math.floor(baseForTrace.def * traceMultiplier);
-    data.trained_bonus.agi = Math.floor(baseForTrace.agi * traceMultiplier);
-    data.trained_bonus.vit_max = Math.floor(baseForTrace.vit_max * traceMultiplier);
-    data.trained_bonus.men_max = Math.floor(baseForTrace.men_max * traceMultiplier);
-  }
-return data;
-});
-
-const CharacterSchema = z.object({
-  stat: StatsSchema,
-  equip: EquipmentSchema,
-  appearance: AppearanceSchema, 
-  personality: z.string().prefault("未设定").describe('角色的性格特征，随经历可能发生改变'), 
-  soul_bone: SoulBoneSchema,
-  bloodline_power: BloodlinePowerSchema,  energy: z.object({ 
-    core: z.object({ 
-      数量: z.coerce.number().prefault(0),
-      progress: z.coerce.number().prefault(0).describe('凝聚进度(%)') 
-    }).prefault({}) 
-  }).prefault({}),
-  wealth: WealthSchema,
-
-   status: z.object({
-    loc: z.string().prefault("去向不明"),
-    current_x: z.coerce.number().prefault(0).describe('当前图坐标X（MAP.jpeg 左上角为原点）'),
-    current_y: z.coerce.number().prefault(0).describe('当前图坐标Y（MAP.jpeg 左上角为原点）'),
-    coord_system: z.string().prefault("image").describe('当前位置坐标系：image=MAP.jpeg 图坐标，左上角为原点'),
-    alive: z.boolean().prefault(true),
-    wound: z.string().prefault("无"),
-    action: z.string().prefault("日常").describe('行为状态: 日常/冥想/战斗/睡眠/凝聚魂核'), 
-    active_domain: z.string().prefault("无").describe('当前正在展开的领域名称(斗铠/精神/武魂领域)'), 
-    consuming_herb_age: z.coerce.number().prefault(0).describe('当前正在吸收的灵物年份(阅后即焚)')
-  }).prefault({}),
-  unlocked_knowledges: z.array(z.string()).prefault([]).describe('该角色已解锁的核心情报列表'),
-  knowledge_unlock_request: z.object({
-    content: z.string().prefault("无").describe('解锁的情报内容(用一句话自然语言概括)'),
-    impact: z.coerce.number().prefault(0).describe('对世界线的破坏度(1-10)')
-  }).prefault({}),
-  // 战斗展示层统一读取 sd.world.combat.summary.player_action / settle_result。
-  hunt_request: z.object({
-    killed_age: z.coerce.number().prefault(0).describe('击杀现实魂兽年限'),
-    is_ferocious: z.boolean().prefault(false).describe('是否为凶兽(十万年以上)')
-  }).prefault({}),
- tower_records: z.object({
-    max_floor: z.coerce.number().prefault(0).describe('历史最高通关层数'),
-    discount_available: z.record(z.string(), z.boolean().prefault(true)).prefault({}).describe('各层五折购买资格，key为层数，true表示未使用')
-  }).prefault({}),
-
-  interact_request: z.object({
-    target_npc: z.string().prefault("无").describe('互动对象姓名'),
-    action: z.string().prefault("无").describe('互动类型：闲聊/送礼/切磋/请教/双修/表白'),
-    item_used: z.string().prefault("无").describe('消耗的物品名称(送礼时填写)'),
-    ai_score: z.coerce.number().prefault(0).describe('AI根据剧情判定的互动效果分(-50到50，负数代表搞砸了)')
-  }).prefault({}),
-  travel_request: z.object({
-    target_loc: z.string().prefault("无").describe('目标地点名称，若去未知坐标填"无"'),
-    target_x: z.coerce.number().prefault(-1).describe('目标图坐标X，若去已知地点填-1'),
-    target_y: z.coerce.number().prefault(-1).describe('目标图坐标Y，若去已知地点填-1'),
-    coord_system: z.string().prefault("image").describe('目标坐标系：image=MAP.jpeg 图坐标，左上角为原点'),
-    method: z.string().prefault("步行").describe('交通方式：步行/校园短驳车/魂导汽车/魂导列车/远洋巨轮/飞行(机甲/斗铠)/空间传送(极限斗罗)/空间传送(神级)')
-  }).prefault({}),
-  promotion_request: z.object({
-    target_faction: z.string().prefault("无").describe('目标势力(如:唐门/战神殿)'),
-    target_title: z.string().prefault("无").describe('申请职位(如:红级/预备战神)')
-  }).prefault({}),
-  
-  donate_request: z.object({
-    item_name: z.string().prefault("无").describe('捐献物品名称'),
-    target_faction: z.string().prefault("无").describe('目标势力'),
-    quantity: z.coerce.number().prefault(1).describe('数量')
-  }).prefault({}),
- abyss_kill_request: z.object({
-    kill_tier: z.string().prefault("无").describe('击杀级别：低阶生物/中阶生物/高阶生物/深渊王者'),
-    quantity: z.coerce.number().prefault(1).describe('击杀数量')
-  }).prefault({}),
-
-  combat_history: z.record(
-    z.string(),
-    z.object({ count: z.coerce.number().prefault(0), last_tick: z.coerce.number().prefault(0) }).prefault({})
-  ).prefault({}).transform(data => _(data).entries().takeRight(20).fromPairs().value()),
-
-  job: z.record(z.string(), z.object({
-    lv: z.coerce.number().prefault(0),
-    exp: z.coerce.number().prefault(0),
-    title: z.string().prefault("无"),
-    core_tech: z.record(z.string(), z.boolean().prefault(true)).prefault({}),
-    limits: z.object({ max_fusion: z.coerce.number().prefault(1), success_rate: z.coerce.number().prefault(0) }).prefault({})
-  }).prefault({})).prefault({}).transform(jobs => {
-    _(jobs).forEach((jobData) => {
-      while (jobData.lv < 9 && jobData.exp >= JobExpThresholds[jobData.lv]) {
-        jobData.lv++;
-      }
-      jobData.limits.max_fusion = Math.max(1, Math.floor(jobData.lv / 2));
-
-      if (jobData.lv === 9) {
-        let overflowExp = Math.max(0, jobData.exp - 3000000);
-        let extraRate = Math.floor(overflowExp / 500000);
-        jobData.limits.success_rate = Math.min(50, 10 + extraRate);
-      } else if (jobData.lv > 0) {
-        let currentBaseExp = JobExpThresholds[jobData.lv - 1];
-        let nextLevelExp = JobExpThresholds[jobData.lv];
-        let progress = (jobData.exp - currentBaseExp) / (nextLevelExp - currentBaseExp);
-        progress = Math.max(0, Math.min(1, progress));
-
-        if (jobData.lv % 2 === 0) {
-          jobData.limits.success_rate = Math.floor(80 + 15 * progress);
-        } else {
-          jobData.limits.success_rate = Math.floor(30 + 40 * progress);
-        }
-      } else {
-        jobData.limits.success_rate = 0;
-      }
-    });
-    return jobs;
-  }),
-
-  spirit: z.record(z.string().describe('武魂槽位(如:第一武魂/未知武魂)'), z.object({
-    表象名称: z.string().prefault("未展露").describe('AI填写的具体武魂名'),
-    type: z.string().prefault("强攻系"),
-    element: z.string().prefault("无").describe('元素倾向(如:火/冰/空间/多元素混合/无)'),
-    soul_spirits: z.record(z.string().describe('魂灵槽位(如:第一魂灵)'), z.object({
-      表象名称: z.string().prefault("未展露").describe('AI填写的具体魂灵物种'),
-      年限: z.coerce.number().prefault(0),
-      契合度: z.coerce.number().prefault(60).describe('与武魂的契合度(0-100)，影响融合难度与发挥'), 
-      状态: z.string().prefault("沉睡"),
-      战力面板: z.object({
-        对标等级: z.coerce.number().prefault(0),
-        str: z.coerce.number().prefault(0),
-        def: z.coerce.number().prefault(0),
-        agi: z.coerce.number().prefault(0),
-        vit_max: z.coerce.number().prefault(0),
-        men_max: z.coerce.number().prefault(0),
-        sp_max: z.coerce.number().prefault(0)
-      }).prefault({}).describe('魂灵生前的独立战力面板，供AI战斗参考'),
-      rings: z.record(z.string().describe('第几魂环'), z.object({
-        年限: z.coerce.number().prefault(0),
-        颜色: z.string().prefault("无"),
-        魂技: z.record(z.string().describe('魂技名称'), SkillStructSchema).prefault({})
-      }).prefault({})).prefault({})
-    }).prefault({})).prefault({}),
-  }).prefault({})).prefault({}),
-
-  arts: z.record(z.string(), z.object({ 境界: z.string().prefault("未入门"), lv: z.coerce.number().prefault(0), exp: z.coerce.number().prefault(0), 描述: z.string().prefault("无") }).prefault({})).prefault({}),
-    special_abilities: z.record(z.string().describe('能力名称'), z.object({
-    类型: z.string().prefault("武魂融合技"),
-    描述: z.string().prefault("无")
-  }).prefault({})).prefault({}),
-  martial_fusion_skills: z.record(z.string().describe('融合技名称'), z.object({
-    partner: z.string().prefault("无").describe('融合对象/羁绊队友姓名'),
-    skill_data: SkillStructSchema // 直接复用完整的魂技数值面板
-  }).prefault({})).prefault({}).describe('武魂融合技列表'),
-
-
-  social: z.object({
-    reputation: z.coerce.number().prefault(0),
-    fame_level: z.string().prefault("籍籍无名"),
-    main_identity: z.string().prefault("无").describe('当前主要公开身份'),
-    public_intel: z.boolean().prefault(false).describe('是否为公开情报(声望>5000自动为true)'),
-    factions: z.record(z.string(), z.object({ 身份: z.string().prefault("无"), 权限级: z.coerce.number().prefault(0) }).prefault({})).prefault({}),
-    titles: z.record(z.string(), z.object({ 来源: z.string().prefault("无"), 声望加成: z.coerce.number().prefault(0) }).prefault({})).prefault({}),
-    relations: z.record(z.string(), z.object({ 
-      关系: z.string().prefault("陌生"), 
-      好感度: z.coerce.number().prefault(0), 
-      relation_route: z.string().prefault("朋友线").describe('终极分支: 朋友线/恋人线'),
-      npc_job: z.string().prefault("无"), 
-      favor_buff: z.string().prefault("无"),
-      relation_stage: z.string().prefault("陌生").describe('结构化关系阶段，默认与关系称谓同步'),
-      next_stage: z.string().prefault("认识").describe('下一阶段名称'),
-      next_stage_threshold: z.coerce.number().prefault(11).describe('达到下一阶段所需最低好感度'),
-      route_switchable: z.boolean().prefault(false).describe('当前是否允许切入恋人线等特殊路线'),
-      route_lock_reason: z.string().prefault("好感度不足").describe('路线切换受限时的原因'),
-      progress_note: z.string().prefault("无").describe('当前关系推进提示'),
-      availability: z.string().prefault("未知").describe('关系维护优先级：高风险/待接触/可接触/优先维护'),
-      last_interact_tick: z.coerce.number().prefault(0).describe('最近一次互动发生的 tick'),
-      last_interact_action: z.string().prefault("无").describe('最近一次互动动作'),
-      recent_favor_delta: z.coerce.number().prefault(0).describe('最近一次互动导致的好感变化'),
-      current_relation_bonus: z.string().prefault("无").describe('当前已激活的关系加成说明'),
-      next_unlock_bonus: z.string().prefault("无").describe('下一档可解锁的羁绊加成说明'),
-      next_unlock_threshold: z.coerce.number().prefault(30).describe('下一档羁绊加成所需好感度')
-    }).prefault({})).prefault({}),
-    relation_analysis: z.object({
-      summary: z.string().prefault("当前尚未积累足够的人物关系数据。"),
-      focus_target: z.string().prefault("无"),
-      top_targets: z.array(z.object({
-        target: z.string().prefault("无"),
-        relation: z.string().prefault("陌生"),
-        favor: z.coerce.number().prefault(0),
-        route: z.string().prefault("朋友线"),
-        reason: z.string().prefault("无"),
-        recommended_action: z.string().prefault("继续观察")
-      }).prefault({})).prefault([]),
-      recommended_actions: z.array(z.string()).prefault([]),
-      romance_candidates: z.array(z.string()).prefault([]),
-      trust_targets: z.array(z.string()).prefault([]),
-      risk_targets: z.array(z.string()).prefault([]),
-      blocked_targets: z.array(z.object({
-        target: z.string().prefault("无"),
-        reason: z.string().prefault("无")
-      }).prefault({})).prefault([]),
-      same_location_targets: z.array(z.string()).prefault([]),
-      contactable_targets: z.array(z.string()).prefault([])
-    }).prefault({})
-  }).prefault({}).transform(social => {
-    social.public_intel = social.reputation >= 5000;
-
-    const topTargets = [];
-    const romanceCandidates = [];
-    const trustTargets = [];
-    const riskTargets = [];
-    const blockedTargets = [];
-
-    _(social.relations).forEach((relData, targetName) => {
-      let val = relData.好感度;
-      let route = relData.relation_route || "朋友线";
-      let nextStage = "已达当前路线终点";
-      let nextStageThreshold = 999;
-      let progressNote = "维持当前关系即可。";
-      let recommendedAction = "继续观察";
-      let nextUnlockThreshold = 999;
-      let nextUnlockBonus = "已达当前路线高阶阶段";
-
-      if (val <= -50) relData.关系 = "仇敌";
-      else if (val <= -10) relData.关系 = "敌视";
-      else if (val <= 10) relData.关系 = "陌生";
-      else if (val <= 30) relData.关系 = "认识";
-      else if (val <= 60) relData.关系 = "朋友";
-      else if (val <= 80) relData.关系 = "亲密";
-      else {
-        if (route === "恋人线") {
-          relData.关系 = val >= 95 ? "恋人" : "暧昧";
-        } else {
-          relData.关系 = val >= 95 ? "生死之交" : "挚友";
-        }
-      }
-
-      if (val <= -50) {
-        nextStage = "敌视";
-        nextStageThreshold = -10;
-        progressNote = "当前处于强烈敌对状态，优先避免正面刺激。";
-        recommendedAction = "先缓和冲突或制造间接修复契机";
-        nextUnlockThreshold = -10;
-        nextUnlockBonus = "脱离仇敌阶段";
-      } else if (val <= -10) {
-        nextStage = "陌生";
-        nextStageThreshold = 11;
-        progressNote = "关系紧张，任何互动都可能继续恶化。";
-        recommendedAction = "减少高压对抗，尝试中性接触";
-        nextUnlockThreshold = 11;
-        nextUnlockBonus = "恢复基础接触";
-      } else if (val <= 10) {
-        nextStage = "认识";
-        nextStageThreshold = 11;
-        progressNote = "刚建立认知，适合轻量互动试探反应。";
-        recommendedAction = "从闲聊、短接触或小帮助开始";
-        nextUnlockThreshold = 30;
-        nextUnlockBonus = "进入稳定认识阶段";
-      } else if (val <= 30) {
-        nextStage = "朋友";
-        nextStageThreshold = 31;
-        progressNote = "关系刚起步，需要持续建立信任。";
-        recommendedAction = "通过同行、帮忙、请教等方式加深印象";
-        nextUnlockThreshold = 60;
-        nextUnlockBonus = "进入稳定朋友阶段";
-      } else if (val <= 60) {
-        nextStage = "亲密";
-        nextStageThreshold = 61;
-        progressNote = route === "恋人线" ? "已经具备推进暧昧关系的基础。" : "已经形成可靠伙伴关系。";
-        recommendedAction = route === "恋人线" ? "增加私下互动或专属事件" : "安排并肩行动巩固信任";
-        nextUnlockThreshold = 80;
-        nextUnlockBonus = route === "恋人线" ? "进入暧昧阶段判定" : "进入高强度羁绊阶段";
-      } else if (val <= 80) {
-        nextStage = route === "恋人线" ? "暧昧" : "挚友";
-        nextStageThreshold = 81;
-        progressNote = route === "恋人线" ? "关系已进入高敏感阶段，适合关键表态。" : "已是核心伙伴，可承担高风险协作。";
-        recommendedAction = route === "恋人线" ? "准备表白或专属确认事件" : "安排重大共同经历";
-        nextUnlockThreshold = 95;
-        nextUnlockBonus = route === "恋人线" ? "确认恋人关系" : "确认生死之交";
-      } else {
-        progressNote = route === "恋人线" ? "关系已接近或进入恋人阶段。" : "关系已接近或进入生死之交阶段。";
-        recommendedAction = route === "恋人线" ? "维护专属陪伴与排他性事件" : "作为核心盟友长期经营";
-      }
-
-      relData.relation_stage = relData.关系;
-      relData.next_stage = nextStage;
-      relData.next_stage_threshold = nextStageThreshold;
-      relData.route_switchable = route !== "恋人线" && val >= 60;
-      relData.route_lock_reason = relData.route_switchable ? "无" : (route === "恋人线" ? "当前已处于恋人线" : "好感度需达到 60 后才能稳定切入恋人线");
-      relData.progress_note = progressNote;
-      relData.availability = val <= -10 ? "高风险" : (val <= 10 ? "待接触" : (val <= 60 ? "可接触" : "优先维护"));
-      relData.current_relation_bonus = relData.favor_buff || "无";
-      relData.next_unlock_bonus = nextUnlockBonus;
-      relData.next_unlock_threshold = nextUnlockThreshold;
-
-      topTargets.push({
-        target: targetName,
-        relation: relData.关系,
-        favor: val,
-        route,
-        reason: progressNote,
-        recommended_action: recommendedAction
-      });
-
-      if (val >= 60) trustTargets.push(targetName);
-      if (route === "恋人线" && val >= 60) romanceCandidates.push(targetName);
-      if (val <= -10) riskTargets.push(targetName);
-      if (!relData.route_switchable && route !== "恋人线" && val < 60) {
-        blockedTargets.push({ target: targetName, reason: relData.route_lock_reason });
-      }
-    });
-
-    topTargets.sort((a, b) => Number(b.favor || 0) - Number(a.favor || 0));
-    social.relation_analysis.focus_target = topTargets[0] ? topTargets[0].target : "无";
-    social.relation_analysis.top_targets = topTargets.slice(0, 3);
-    social.relation_analysis.recommended_actions = topTargets.slice(0, 3).map(item => `${item.target}：${item.recommended_action}`);
-    social.relation_analysis.romance_candidates = romanceCandidates.sort((a, b) => Number((social.relations[b] || {}).好感度 || 0) - Number((social.relations[a] || {}).好感度 || 0));
-    social.relation_analysis.trust_targets = trustTargets.sort((a, b) => Number((social.relations[b] || {}).好感度 || 0) - Number((social.relations[a] || {}).好感度 || 0));
-    social.relation_analysis.risk_targets = riskTargets.sort((a, b) => Number((social.relations[a] || {}).好感度 || 0) - Number((social.relations[b] || {}).好感度 || 0));
-    social.relation_analysis.blocked_targets = blockedTargets;
-    social.relation_analysis.same_location_targets = social.relation_analysis.same_location_targets || [];
-    social.relation_analysis.contactable_targets = social.relation_analysis.contactable_targets || [];
-    social.relation_analysis.summary = topTargets.length
-      ? `当前重点关系对象：${topTargets.slice(0, 2).map(item => `${item.target}(${item.relation}/${item.favor})`).join('、')}`
-      : "当前尚未积累足够的人物关系数据。";
-
-    return social;
-  }),
-
-
-  inventory: z.record(z.string(), z.object({
-    数量: z.coerce.number().prefault(1),
-    类型: z.string().prefault("常规"),
-    装备槽位: z.string().prefault("无").describe('武器/头盔/胸铠/机甲/饰品等装备位；非装备可填无'),
-    品质: z.string().prefault("无"),
-    品阶: z.string().prefault("无"),
-    标签: z.array(z.string()).prefault([]).describe('用于筛选或展示的标签，如火属性/票据/任务物品/稀有'),
-    融合参数: z.object({
-      数量: z.coerce.number().prefault(1).describe('融锻包含的金属种类数'),
-      契合度: z.coerce.number().prefault(0).describe('融锻契合度(0-100)')
-    }).prefault({}).describe('仅用于记录融锻金属的特殊属性'),
-    特效: z.record(z.string(), z.boolean().prefault(true)).prefault({}),
-    词条: z.record(z.string(), z.object({
-      类型: z.string().prefault("效果"),
-      数值: z.coerce.number().prefault(0),
-      描述: z.string().prefault("无")
-    }).prefault({})).prefault({}).describe('随机词条/铭刻/附魔/特性说明'),
-    属性加成: z.object({
-      lv_equiv: z.coerce.number().prefault(0),
-      str: z.coerce.number().prefault(0),
-      def: z.coerce.number().prefault(0),
-      agi: z.coerce.number().prefault(0),
-      vit_max: z.coerce.number().prefault(0),
-      sp_max: z.coerce.number().prefault(0),
-      men_max: z.coerce.number().prefault(0)
-    }).prefault({}).describe('道具或装备提供的面板属性加成'),
-    耐久: z.object({
-      当前: z.coerce.number().prefault(0),
-      上限: z.coerce.number().prefault(0)
-    }).prefault({}).describe('装备/工具耐久；0/0 表示未启用'),
-    绑定者: z.string().prefault("无"),
-    使用条件: z.object({
-      最低等级: z.coerce.number().prefault(0),
-      所属势力: z.string().prefault("无"),
-      最低声望: z.coerce.number().prefault(0),
-      地点限制: z.string().prefault("无")
-    }).prefault({}).describe('使用或交易该道具的限制条件'),
-    使用效果: z.array(z.object({
-      target: z.string().prefault("无"),
-      type: z.string().prefault("无"),
-      description: z.string().prefault("无"),
-      value: z.any().optional()
-    }).prefault({})).prefault([]).describe('使用/激活该道具后产生的效果'),
-    可交易: z.boolean().prefault(true),
-    堆叠上限: z.coerce.number().prefault(9999),
-    market_value: z.object({ price: z.coerce.number().prefault(0), currency: z.string().prefault("fed_coin") }).prefault({}),
-    描述: z.string().prefault("无")
-  }).prefault({})).prefault({}),
-
- records: z.record(z.string(), z.object({ 
-    类型: z.string().prefault("悬赏任务"), 
-    状态: z.string().prefault("进行中"),
-    当前进度: z.coerce.number().prefault(0),
-    目标进度: z.coerce.number().prefault(1),
-    奖励币: z.coerce.number().prefault(0),
-    奖励声望: z.coerce.number().prefault(0),
-    描述: z.string().prefault("无")
-  }).prefault({})).prefault({}),
-
-  
-  quest_request: z.object({
-    action: z.string().prefault("无").describe('接取/更新进度/提交/放弃'),
-    quest_name: z.string().prefault("无").describe('任务名称'),
-    quest_desc: z.string().prefault("无").describe('任务描述与目标'),
-    progress_add: z.coerce.number().prefault(0).describe('本次增加的进度(AI根据剧情判断)'),
-    required_count: z.coerce.number().prefault(1).describe('完成所需的总进度'),
-    reward_coin: z.coerce.number().prefault(0).describe('奖励联邦币'),
-    reward_rep: z.coerce.number().prefault(0).describe('奖励声望')
-  }).prefault({})
-}).prefault({}).transform(char => {
-  if (char.bloodline_power?.bloodline === "金龙王") {
-    let currentSealLv = char.bloodline_power.seal_lv || 0;
-    if (!char.bloodline_power.skills) char.bloodline_power.skills = {};
-    
-    for (let i = 1; i <= currentSealLv; i++) {
-      let skillData = GoldenDragonSkills[i];
-      if (skillData && !char.bloodline_power.skills[skillData.技能名称]) {
-        
-        char.bloodline_power.skills[skillData.技能名称] = skillData;
-      }
-    }
-  }
-if (char._initial_state_override) {
-  
-  _.merge(char, char._initial_state_override);
-  delete char._initial_state_override; 
-    if (char.equip.armor.equip_status === "已装备") {
-      let armorLv = char.equip.armor.lv;
-      let reqLv = [0, 50, 70, 80, 90][armorLv] || 0;
-      
-      if (char.stat.lv < reqLv) {
-        char.equip.armor.equip_status = "未装备";
-        char.equip.armor.stats_bonus = { lv_equiv: 0, sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
-        if (!char.stat.conditions["装备反噬"]) char.stat.conditions["装备反噬"] = { 类型: "debuff", 层数: 1, 描述: "强行穿戴高阶斗铠失败，气血震荡" };
-      } 
-      // 同级别机甲与斗铠不可叠加 (红级机甲除外)
-      else if (char.equip.mech.lv !== "无" && char.equip.mech.lv !== "红级" && char.equip.mech.status !== "重创" && char.equip.mech.equip_status === "已装备") {
-        char.equip.armor.equip_status = "未装备"; // 强制卸下斗铠
-        char.equip.armor.stats_bonus = { lv_equiv: 0, sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
-      }
-    }
-
-    // 【机甲穿戴门槛校验】
-    if (char.equip.mech.equip_status === "已装备") {
-      let mechReqLv = { "黄级": 40, "紫级": 50, "黑级": 60, "红级": 80 }[char.equip.mech.lv] || 0;
-      if (char.stat.lv < mechReqLv) {
-        char.equip.mech.equip_status = "未装备";
-        char.equip.mech.stats_bonus = { sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
-        if (!char.stat.conditions["机甲反噬"]) char.stat.conditions["机甲反噬"] = { 类型: "debuff", 层数: 1, 描述: "精神力与魂力不足以驾驭高阶机甲，遭到反噬" };
-      }
-    }    
-    
-    if (char.stat.lv < reqLv) {
-      char.equip.armor.equip_status = "未装备";
-      char.equip.armor.stats_bonus = { lv_equiv: 0, sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
-      if (!char.stat.conditions["装备反噬"]) char.stat.conditions["装备反噬"] = { 类型: "debuff", 层数: 1, 描述: "强行穿戴高阶斗铠失败，气血震荡" };
-    } 
-    
-    else if (char.equip.mech.lv !== "无" && char.equip.mech.lv !== "红级" && char.equip.mech.status !== "重创") {
-      char.equip.armor.equip_status = "未装备";
-      char.equip.armor.stats_bonus = { lv_equiv: 0, sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
-    }
-  }
-
-  
-  if (char.stat.background !== "无" && char.stat.background !== "已推演") {
-    let bgBonus = 0;
-    if (char.stat.background === "顶级势力") bgBonus = 80;
-    else if (char.stat.background === "一流势力") bgBonus = 50;
-    else if (char.stat.background === "普通势力") bgBonus = 20;
-    else if (char.stat.background === "平民") bgBonus = 0;
-
-    let roll = Math.floor(Math.random() * 100) + 1;
-    let totalScore = roll + bgBonus;
-    char.stat.talent_roll = totalScore;
-
-    let tier = "正常";
-    let innate = 3;
-    let factor = 1.0;
-    let maxLimit = 69;
-
-     if (roll >= 150) { 
-        tier = "绝世妖孽"; innate = 10; factor = 4.5; maxLimit = 100; 
-    }
-    else if (roll >= 120) { 
-        tier = "顶级天才"; 
-        if (roll >= 135) {
-            innate = 10; factor = 3.8; maxLimit = 99; 
-        } else {
-            innate = 9; factor = 3.8; maxLimit = 98; 
-        }
-    }
-    else if (roll >= 90) { 
-        tier = "天才"; 
-        if (roll >= 105) {
-            innate = 9; factor = 3.0; maxLimit = 94; 
-        } else {
-            innate = 8; factor = 2.5; maxLimit = 89; 
-        }
-    }
-    else if (roll >= 50) { 
-        tier = "优秀"; innate = roll >= 70 ? 7 : 6; factor = 1.8; maxLimit = 79; 
-    }
-    else if (roll >= 20) { 
-        tier = "正常"; innate = 3 + Math.floor((roll - 20) / 10); factor = 1.0; maxLimit = 49; 
-    }
-    else { 
-        tier = "劣等"; innate = roll >= 10 ? 2 : 1; factor = 0.5; maxLimit = 29; 
-    }
-
-    char.stat.talent_tier = tier;
-    char.stat.innate_sp_lv = innate;
-
-    if (char.stat.lv === 1 && char.stat.age > 6) {
-      let calculatedLv = Math.floor(innate + (char.stat.age - 6) * factor);
-      char.stat.lv = Math.min(maxLimit, Math.max(1, calculatedLv));
-    }
-
-    char.stat.background = "已推演";
-  }
-
-  
-  if (char.stat.lv >= 99 && (char.energy?.core?.数量 || 0) < 3) {
-    if (!char.energy) char.energy = {};
-    if (!char.energy.core) char.energy.core = {};
-    char.energy.core.数量 = 3;
-  } else if (char.stat.lv >= 90 && (char.energy?.core?.数量 || 0) < 2) {
-    if (!char.energy) char.energy = {};
-    if (!char.energy.core) char.energy.core = {};
-    char.energy.core.数量 = 2;
-  } else if (char.stat.lv >= 70 && (char.energy?.core?.数量 || 0) < 1) {
-    if (!char.energy) char.energy = {};
-    if (!char.energy.core) char.energy.core = {};
-    char.energy.core.数量 = 1;
-  }
-
-  
-  let coreCount = char.energy?.core?.数量 || 0;
-  let penalty = char.stat.lv_penalty || 0;
-  let maxLv = 69;
-  if (coreCount === 1) maxLv = 89;
-  else if (coreCount === 2) maxLv = 98;
-  else if (coreCount >= 3) maxLv = 150;
-  char.stat.lv = Math.min(char.stat.lv, maxLv - penalty);
-
-  
-  const base = getBaseStats(char.stat.lv);
-  let maxTypeMult = { sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
-  let spiritKeys = Object.keys(char.spirit || {});
-  if (spiritKeys.length > 0) {
-    spiritKeys.forEach(k => {
-      let tm = TypeMultipliers[char.spirit[k].type] || TypeMultipliers["强攻系"];
-      maxTypeMult.sp_max = Math.max(maxTypeMult.sp_max, tm.sp_max);
-      maxTypeMult.men_max = Math.max(maxTypeMult.men_max, tm.men_max);
-      maxTypeMult.str = Math.max(maxTypeMult.str, tm.str);
-      maxTypeMult.def = Math.max(maxTypeMult.def, tm.def);
-      maxTypeMult.agi = Math.max(maxTypeMult.agi, tm.agi);
-      maxTypeMult.vit_max = Math.max(maxTypeMult.vit_max, tm.vit_max);
-    });
-  } else {
-    maxTypeMult = { ...(TypeMultipliers[char.stat.type] || TypeMultipliers["强攻系"]) };
-  }
-  const typeMult = maxTypeMult;
-  const hiddenVar = char.stat.hidden_variance;
-
-  let final_str = Math.floor(base.str * typeMult.str * hiddenVar) + char.stat.trained_bonus.str;
-  let final_def = Math.floor(base.def * typeMult.def * hiddenVar) + char.stat.trained_bonus.def;
-  let final_agi = Math.floor(base.agi * typeMult.agi * hiddenVar) + char.stat.trained_bonus.agi;
-  let final_vit_max = Math.floor(base.vit_max * typeMult.vit_max * hiddenVar) + char.stat.trained_bonus.vit_max;
-  let final_men_max = Math.floor(base.men_max * typeMult.men_max * hiddenVar) + char.stat.trained_bonus.men_max;
-  let final_sp_max = Math.floor(base.sp_max * typeMult.sp_max * hiddenVar);
-  let bName = char.bloodline_power?.bloodline || "无";
-  
-  if (bName.includes("金龙王")) {
-    let vitInc = final_vit_max * 9; 
-    final_vit_max += Math.min(vitInc, 100000);  
-    let strInc = final_str * 9;
-    final_str += Math.min(strInc, 100000);    
-    let menInc = final_men_max * 4; 
-    final_men_max += Math.min(menInc, 20000);  
-  } else if (bName.includes("银龙王")) {
-    let vitInc = final_vit_max * 1; 
-    final_vit_max += Math.min(vitInc, 20000);  
-    let strInc = final_str * 1;
-    final_str += Math.min(strInc, 20000);   
-    let menInc = final_men_max * 9; 
-    final_men_max += Math.min(menInc, 40000);  
-  }
-  if (char.social?.factions?.["本体宗"]) {
-    let vitInc = final_vit_max * 2;
-    final_vit_max += Math.min(vitInc, 40000);
-  }
-  let previewMen = final_men_max;
-  if (previewMen >= 50000) char.stat.men_realm = "神元境";
-  else if (previewMen >= 20000) char.stat.men_realm = "灵域境";
-  else if (previewMen >= 3000) char.stat.men_realm = "灵渊境";
-  else if (previewMen >= 500) char.stat.men_realm = "灵海境";
-  else if (previewMen >= 50) char.stat.men_realm = "灵通境";
-  else char.stat.men_realm = "灵元境";
-
-  
-  function rollSpirit(talentTier, lv, spiritIndex, realm) {
-    const roll = Math.floor(Math.random() * 100) + 1;
-    const talentScore = { "绝世妖孽": 100, "顶级天才": 80, "天才": 60, "优秀": 40, "正常": 20, "劣等": 0 }[talentTier] || 20;
-    const sequenceScore = [0, 40, 90, 150, 220, 300, 400, 500, 600][spiritIndex] || (spiritIndex * 80);
-    
-    
-    let extraLvScore = 0;
-    if (lv > 95) {
-      extraLvScore = Math.floor(lv - 95) * 50;
-    }
-    
-    const totalScore = roll + talentScore + (lv * 2) + sequenceScore + extraLvScore;
-
-    let age = 50, color = "白", cap = 1;
-    
-   if (totalScore >= 600) { 
-      
-      let extraAge = (totalScore - 600) * 1000;
-      age = 100000 + extraAge + Math.floor(Math.random() * 5000); 
-      color = "红"; cap = 3; 
-    }
-    else if (totalScore >= 300) { 
-      
-      let extraAge = (totalScore - 300) * 200;
-      age = 10000 + extraAge + Math.floor(Math.random() * 2000); 
-      color = "黑"; cap = 4; 
-    }
-    else if (totalScore >= 240) { 
-      
-      let extraAge = (totalScore - 240) * 100;
-      age = 1000 + extraAge + Math.floor(Math.random() * 500); 
-      color = "紫"; cap = 3; 
-    }
-    else if (totalScore >= 180) { 
-      
-      let extraAge = (totalScore - 180) * 10;
-      age = 100 + extraAge + Math.floor(Math.random() * 50); 
-      color = "黄"; cap = 2; 
-    }
-
-    if (age < 100 && (talentTier === "绝世妖孽" || talentTier === "顶级天才")) {
-      age = 100 + Math.floor(Math.random() * 300); // 强制拉高到百年
-      color = "黄"; cap = 2;
-    }
-
-    const realmCaps = { "灵元境": 400, "灵通境": 3000, "灵海境": 15000, "灵渊境": 100000, "灵域境": 999999, "神元境": 999999 };
-    let maxAge = realmCaps[realm] || 400;
-    if (age > maxAge) {
-      if (maxAge >= 100000) { age = 100000; color = "红"; cap = 3; }
-      else if (maxAge >= 15000) { age = 15000; color = "黑"; cap = 4; }
-      else if (maxAge >= 3000) { age = 3000; color = "紫"; cap = 3; }
-      else if (maxAge >= 400) { age = 400; color = "黄"; cap = 2; }
-      else { age = 50; color = "白"; cap = 1; }
-    }
-
-    if (spiritIndex <= 1 && cap > 2) cap = 2;
-    return { age, color, cap };
-  }
-  
-  let isBeast = char.stat.age >= 10000 || char.social?.factions?.["魂兽一族"];
-  let expectedRings = isBeast ? 0 : Math.floor(char.stat.lv / 10);
-  let currentRings = 0;
-  let firstSpiritName = "未知武魂";
-
-  if (!char.spirit) char.spirit = {};
-  spiritKeys = Object.keys(char.spirit);
-  if (spiritKeys.length > 0) {
-    firstSpiritName = spiritKeys[0];
-    let targetSpirit = char.spirit[firstSpiritName];
-    _(targetSpirit.soul_spirits || {}).forEach(ss => {
-      if (ss.rings) currentRings += Object.keys(ss.rings).length;
-    });
-  }
-
-   if (currentRings === 0 && expectedRings > 0) {
-    if (spiritKeys.length === 0) {
-      char.spirit[firstSpiritName] = { 表象名称: "未展露", type: char.stat.type, soul_spirits: {}, domains: {}, custom_skills: {} };
-      spiritKeys = [firstSpiritName];
-    }
-    
-    spiritKeys.forEach(spiritKey => {
-      let targetSpirit = char.spirit[spiritKey];
-      if (!targetSpirit.表象名称) targetSpirit.表象名称 = "未展露";
-      if (!targetSpirit.soul_spirits) targetSpirit.soul_spirits = {};
-
-let ringsNeeded = expectedRings;
-      let currentRingIndex = 1;
-      let spiritIndex = 0;
-      let lastAge = 0; 
-
-      while (ringsNeeded > 0 && spiritIndex < 9) {
-        let spData = rollSpirit(char.stat.talent_tier, char.stat.lv, spiritIndex, char.stat.men_realm);
-
-        if (spData.age <= lastAge) {
-          spData.age = lastAge + Math.floor(Math.random() * 100) + 10; // 保证比上一个高一点点
-          // 同步修正颜色
-          if (spData.age >= 100000) spData.color = "红";
-          else if (spData.age >= 10000) spData.color = "黑";
-          else if (spData.age >= 1000) spData.color = "紫";
-          else if (spData.age >= 100) spData.color = "黄";
-          else spData.color = "白";
-        }
-        lastAge = spData.age; 
-
-        let ringsToProvide = Math.min(spData.cap, ringsNeeded);
-
-        let spiritName = spiritIndex === 0 ? "第1魂灵" : `第${spiritIndex + 1}魂灵`;
-        let talentBonus = { "绝世妖孽": 30, "顶级天才": 20, "天才": 10, "优秀": 0, "正常": -10, "劣等": -20 }[char.stat.talent_tier] || 0;
-        let indexBonus = spiritIndex * 5; // 越靠后的魂灵契合度越高
-        let calculatedComp = Math.min(100, Math.max(0, 60 + talentBonus + indexBonus));
-
-        targetSpirit.soul_spirits[spiritName] = {
-          表象名称: "未展露",
-          年限: spData.age,
-          契合度: calculatedComp,
-          状态: "活跃",
-          战力面板: { 对标等级: 0, str: 0, def: 0, agi: 0, vit_max: 0, men_max: 0, sp_max: 0 }, 
-          rings: {}
-        };
-
-        for (let i = 0; i < ringsToProvide; i++) {
-          targetSpirit.soul_spirits[spiritName].rings[currentRingIndex.toString()] = {
-            年限: spData.age,
-            颜色: spData.color,
-            魂技: {
-              [`第${currentRingIndex}魂技`]: { 状态: "未生成", 描述: "无", 加成基数: "无", 固化消耗: "无" }
-            }
-          };
-          currentRingIndex++;
-        }
-
-        ringsNeeded -= ringsToProvide;
-        spiritIndex++;
-      }
-    });
-
-    
-    let tier = char.stat.talent_tier;
-
-    
-    if (["绝世妖孽", "顶级天才", "天才"].includes(tier)) {
-      let armorLv = 0;
-      if (char.stat.lv >= 99) {
-        armorLv = 4;
-      } else if (char.stat.lv >= 98) {
-        armorLv = Math.random() < 0.5 ? 4 : 3;
-      } else if (char.stat.lv >= 90 && tier === "天才") {
-        if (Math.random() < 0.5) {
-          armorLv = 3;
-        } else {
-          armorLv = 0;
-          char.equip.mech.lv = "红级";
-          char.equip.mech.status = "完好";
-        }
-      } else if (char.stat.lv >= 80) armorLv = 3;
-      else if (char.stat.lv >= 70) armorLv = 2;
-      else if (char.stat.lv >= 50) armorLv = 1;
-
-      if (char.stat.is_evil && armorLv > 3) {
-        armorLv = 3;
-      }
-
-       if (armorLv > 0) {
-        char.equip.armor.lv = armorLv;
-        char.equip.armor.equip_status = "未装备"; // 👈 【修改】：默认不穿斗铠
-        let parts = ["头盔", "胸铠", "左肩", "右肩", "左臂", "右臂", "左腿", "右腿", "战裙", "战靴"];
-        parts.forEach(p => char.equip.armor.parts[p] = { 状态: "完好", 品质系数: 1.0 });
-      }
-    } else if (tier === "优秀") {
-      if (char.stat.lv >= 70) { 
-        char.equip.mech.lv = "黑级"; char.equip.mech.status = "完好"; 
-        char.equip.mech.equip_status = "未装备"; // 👈 【新增】：默认不穿机甲
-      }
-      else if (char.stat.lv >= 50) { 
-        char.equip.mech.lv = "紫级"; char.equip.mech.status = "完好"; 
-        char.equip.mech.equip_status = "未装备"; // 👈 【新增】：默认不穿机甲
-      }
-    }
-
-    
-    let boneCount = 0;
-    if (char.stat.lv >= 90) boneCount += 2;
-    else if (char.stat.lv >= 80) boneCount += 1;
-
-    if (boneCount > 0) {
-      let boneParts = ["头部魂骨", "躯干魂骨", "右臂魂骨", "左臂魂骨", "右腿魂骨", "左腿魂骨"];
-      let sourcePool = ["家族底蕴传承", "长辈私下赐予", "凶险秘境奇遇", "地下黑市重金拍得", "越阶猎杀变异魂兽掉落", "宗门宝库核心兑换"];
-      
-      for (let i = 0; i < Math.min(boneCount, 6); i++) {
-        let randomSource = sourcePool[Math.floor(Math.random() * sourcePool.length)];
-        if (tier === "绝世妖孽") randomSource = "上古神祇遗迹传承";
-
-        char.soul_bone[boneParts[i]] = {
-          名称: `【未鉴定之${boneParts[i].replace('魂骨', '骨')}】`,
-          年限: char.stat.lv >= 90 ? 50000 : 10000,
-          来源: randomSource,
-          附带技能: { "被动增幅": { 状态: "已固化", 对象: "自身", 加成属性: "全属性", 技能类型: "被动/基础属性提升", 消耗: "无" } }
-        };
-      }
-    }
-  }
-
-
-
-  
- let totalSpirits = 0;
-  _(char.spirit).forEach((spiritData) => {
-    totalSpirits += Object.keys(spiritData.soul_spirits || {}).length;
-    _(spiritData.soul_spirits || {}).forEach((spirit) => {
-      
-      
-      if (!spirit.战力面板) spirit.战力面板 = { 对标等级: 0, str: 0, def: 0, agi: 0, vit_max: 0, men_max: 0, sp_max: 0 }; 
-      if (spirit.年限 > 0 && spirit.战力面板.对标等级 === 0) {
-        
-        let species = spirit.表象名称 !== "未展露" ? spirit.表象名称 : "未知";
-        let stats = getBeastStats(spirit.年限, species);
-        
-        spirit.战力面板.对标等级 = stats.对标等级;
-        spirit.战力面板.str = stats.str;
-        spirit.战力面板.def = stats.def;
-        spirit.战力面板.agi = stats.agi;
-        spirit.战力面板.vit_max = stats.vit_max;
-        spirit.战力面板.men_max = stats.men_max;
-        spirit.战力面板.sp_max = stats.sp_max;
-      }
-
-      _(spirit.rings || {}).forEach((ring, ringIndexStr) => {
-        const ringIndex = parseInt(ringIndexStr) || 1;
-        _(ring.魂技 || {}).forEach((skill) => {
-          if (skill.状态 === "未生成") {
-            const generated = autoGenerateSkill(char.stat.type, char.stat.talent_tier, ring.年限, ringIndex, spirit.契合度 || 100);
-            skill.状态 = generated.状态;
-            skill.对象 = generated.对象;
-            skill.加成属性 = generated.加成属性;
-            skill.技能类型 = generated.技能类型;
-            skill.仲裁逻辑 = generated.仲裁逻辑;
-            skill.特效量化参数 = generated.特效量化参数;
-            skill.消耗 = generated.消耗;
-            skill.画面描述 = generated.画面描述;
-          }
-        });
-      });
-    });
-  });
-
-  const realmLimit = { "灵元境": 1, "灵通境": 2, "灵海境": 5, "灵渊境": 9, "灵域境": 99, "神元境": 999 }[char.stat.men_realm] || 1;
-  if (totalSpirits > realmLimit) {
-    char.stat.conditions["精神超载"] = { 类型: "debuff", 层数: 1, 描述: "魂灵数量超出精神力承载极限，面临崩溃风险" };
-  }
-
-  
-  if (char.equip.armor.lv > 0 && char.equip.armor.equip_status === "已装备") {
-    let totalQuality = 0, count = 0;
-    _(char.equip.armor.parts).forEach(p => {
-      if (p.状态 !== "未打造" && p.状态 !== "重创") { totalQuality += p.品质系数; count++; }
-    });
-    if (count > 0) {
-      let avgQ = totalQuality / count;
-      let base = ArmorBaseStats[char.equip.armor.lv] || ArmorBaseStats[1];
-      let mult = count === 10 ? avgQ : (0.05 * avgQ * count);
-      char.equip.armor.stats_bonus.sp_max = Math.floor(base.sp_max * mult);
-      char.equip.armor.stats_bonus.men_max = Math.floor(base.men_max * mult);
-      char.equip.armor.stats_bonus.str = Math.floor(base.str * mult);
-      char.equip.armor.stats_bonus.agi = Math.floor(base.agi * mult);
-      char.equip.armor.stats_bonus.vit_max = Math.floor(base.vit_max * mult);
-      char.equip.armor.stats_bonus.def = Math.floor(base.str * mult);
-    }
-  }
-  if (char.equip.mech.lv !== "无" && char.equip.mech.status !== "重创") {
-    let base = MechBaseStats[char.equip.mech.lv];
-    if (base) {
-      let mult = char.equip.mech.品质系数 || 1.0;
-      char.equip.mech.stats_bonus.sp_max = Math.floor(base.sp_max * mult);
-      char.equip.mech.stats_bonus.men_max = Math.floor(base.men_max * mult);
-      char.equip.mech.stats_bonus.str = Math.floor(base.str * mult);
-      char.equip.mech.stats_bonus.agi = Math.floor(base.agi * mult);
-      char.equip.mech.stats_bonus.vit_max = Math.floor(base.vit_max * mult);
-      char.equip.mech.stats_bonus.def = Math.floor(base.str * mult);
-    }
-  }
-  const wpnBonus = char.equip.wpn?.stats_bonus || {}; 
-  const armorBonus = char.equip.armor?.stats_bonus || {};
-  const mechBonus = char.equip.mech?.stats_bonus || {};
-let boneBonus = { str: 0, def: 0, agi: 0, vit_max: 0, men_max: 0, sp_max: 0 };
-
-_(char.soul_bone).forEach((bone, part) => {
-  if (bone.年限 > 0) {
-    let ringBonus = getRingBonus(bone.年限);
-    
-    if (part === "躯干魂骨") {
-      
-      boneBonus.str += ringBonus.str * 2;
-      boneBonus.def += ringBonus.def * 2;
-      boneBonus.agi += ringBonus.agi * 2;
-      boneBonus.vit_max += ringBonus.vit_max * 2;
-      boneBonus.sp_max += ringBonus.sp_max * 2;
-    } else if (part === "头部魂骨") {
-      
-      boneBonus.men_max += ringBonus.men_max * 2;
-    } else if (part === "左腿魂骨" || part === "右腿魂骨") {
-      
-      boneBonus.str += ringBonus.str;
-      boneBonus.def += ringBonus.def;
-      boneBonus.agi += ringBonus.agi * 2;
-      boneBonus.vit_max += ringBonus.vit_max;
-      boneBonus.men_max += ringBonus.men_max;
-      boneBonus.sp_max += ringBonus.sp_max;
-    } else if (part === "左臂魂骨" || part === "右臂魂骨") {
-      
-      boneBonus.str += ringBonus.str * 2;
-      boneBonus.def += ringBonus.def;
-      boneBonus.agi += ringBonus.agi;
-      boneBonus.vit_max += ringBonus.vit_max;
-      boneBonus.men_max += ringBonus.men_max;
-      boneBonus.sp_max += ringBonus.sp_max;
-    } else {
-      
-      boneBonus.str += ringBonus.str;
-      boneBonus.def += ringBonus.def;
-      boneBonus.agi += ringBonus.agi;
-      boneBonus.vit_max += ringBonus.vit_max;
-      boneBonus.men_max += ringBonus.men_max;
-      boneBonus.sp_max += ringBonus.sp_max;
-    }
-  }
-});
-let ringTotalBonus = { str: 0, def: 0, agi: 0, vit_max: 0, men_max: 0, sp_max: 0 };
-_(char.spirit).forEach(spiritData => {
-  _(spiritData.soul_spirits).forEach(ss => {
-    
-    let compMult = Math.max(0.1, (ss.契合度 !== undefined ? ss.契合度 : 100) / 100);
-    
-    _(ss.rings).forEach(ring => {
-      if (ring.年限 > 0) {
-        let bonus = getRingBonus(ring.年限);
-        ringTotalBonus.str += Math.floor(bonus.str * compMult);
-        ringTotalBonus.def += Math.floor(bonus.def * compMult);
-        ringTotalBonus.agi += Math.floor(bonus.agi * compMult);
-        ringTotalBonus.vit_max += Math.floor(bonus.vit_max * compMult);
-        ringTotalBonus.men_max += Math.floor(bonus.men_max * compMult);
-        ringTotalBonus.sp_max += Math.floor(bonus.sp_max * compMult);
-      }
-    });
-  });
-});
-
-
-
-final_str += ringTotalBonus.str + boneBonus.str;
-final_def += ringTotalBonus.def + boneBonus.def;
-final_agi += ringTotalBonus.agi + boneBonus.agi;
-final_vit_max += ringTotalBonus.vit_max + boneBonus.vit_max;
-final_men_max += ringTotalBonus.men_max + boneBonus.men_max;
-final_sp_max += ringTotalBonus.sp_max + boneBonus.sp_max;
-
-
-if (final_men_max >= 50000) char.stat.men_realm = "神元境";
-else if (final_men_max >= 20000) char.stat.men_realm = "灵域境";
-else if (final_men_max >= 3000) char.stat.men_realm = "灵渊境";
-else if (final_men_max >= 500) char.stat.men_realm = "灵海境";
-else if (final_men_max >= 50) char.stat.men_realm = "灵通境";
-else char.stat.men_realm = "灵元境";
-
-
-char.stat.str = final_str;
-char.stat.def = final_def;
-char.stat.agi = final_agi;
-char.stat.vit_max = final_vit_max;
-char.stat.men_max = final_men_max;
-char.stat.sp_max = final_sp_max;
-
-
-char.stat.str += (wpnBonus.str || 0) + (armorBonus.str || 0) + (mechBonus.str || 0);
-char.stat.def += (wpnBonus.def || 0) + (armorBonus.def || 0) + (mechBonus.def || 0);
-char.stat.agi += (wpnBonus.agi || 0) + (armorBonus.agi || 0) + (mechBonus.agi || 0);
-char.stat.vit_max += (wpnBonus.vit_max || 0) + (armorBonus.vit_max || 0) + (mechBonus.vit_max || 0);
-char.stat.men_max += (wpnBonus.men_max || 0) + (armorBonus.men_max || 0) + (mechBonus.men_max || 0);
-char.stat.sp_max += (wpnBonus.sp_max || 0) + (armorBonus.sp_max || 0) + (mechBonus.sp_max || 0);
-   if (char.stat.sp <= 10 && char.stat.vit <= 10) {
-    let ratio = 1.0;
-    if (char.status.wound === "轻伤") ratio = 0.7;
-    else if (char.status.wound === "重伤") ratio = 0.3;
-    else if (char.status.wound === "濒死") ratio = 0.05;
-    
-    char.stat.sp = Math.floor(char.stat.sp_max * ratio);
-    char.stat.vit = Math.floor(char.stat.vit_max * ratio);
-    char.stat.men = Math.floor(char.stat.men_max * ratio);
-  } else {
-    char.stat.sp = Math.min(char.stat.sp, char.stat.sp_max);
-    char.stat.vit = Math.min(char.stat.vit, char.stat.vit_max);
-    char.stat.men = Math.min(char.stat.men, char.stat.men_max);
-  }
-  
-  let rep = char.social.reputation || 0;
-  if (rep >= 10000) char.social.fame_level = "举世无双";
-  else if (rep >= 5000) char.social.fame_level = "名动联邦";
-  else if (rep >= 2000) char.social.fame_level = "威震一方";
-  else if (rep >= 500) char.social.fame_level = "声名鹊起";
-  else if (rep >= 100) char.social.fame_level = "初露锋芒";
-  else char.social.fame_level = "籍籍无名";
- if (char.equip.armor?.is_rejected) {
-      if (!char.stat.conditions["回路冲突"]) {
-        char.stat.conditions["回路冲突"] = { 
-          类型: "debuff", 
-          层数: 1, 
-          描述: "斗铠各部件材质品质差距过大，能量回路产生排斥，气血不畅！",
-          duration: 99,
-          stat_mods: { str: 0.9, def: 0.9, agi: 0.9, sp_max: 0.9 }, // 自身面板额外削弱 10%
-          combat_effects: { dot_damage: 0, skip_turn: false, armor_pen: 0 }
-        };
-      }
-    } else {
-      delete char.stat.conditions["回路冲突"];
-    }
-
-    // 确保当前状态不超过上限
-    char.stat.vit = Math.min(char.stat.vit, char.stat.vit_max);
-    char.stat.sp = Math.min(char.stat.sp, char.stat.sp_max);
-    char.stat.men = Math.min(char.stat.men, char.stat.men_max);
-
-  return char;
-});
-
-const FactionSchema = z.object({
-  inf: z.coerce.number().prefault(0),
-  size: z.coerce.number().prefault(0),
-  status: z.string().prefault("正常"),
-  next_refresh_tick: z.coerce.number().prefault(0),
-  rel: z.record(z.string(), z.object({ 态度: z.string().prefault("中立") }).prefault({})).prefault({}),
-  mem: z.record(z.string(), z.object({ 职位: z.string().prefault("外围") }).prefault({})).prefault({}),
-  power_stats: z.object({
-    limit_douluo: z.coerce.number().prefault(0).describe('极限斗罗数量'),
-    super_douluo: z.coerce.number().prefault(0).describe('超级斗罗数量'),
-    title_douluo: z.coerce.number().prefault(0).describe('普通封号斗罗数量'),
-  }).prefault({}),
-}).prefault({});
-const BaseProductPool = {
-  "高能压缩干粮": { price: 50, currency: "fed_coin", type: "补给品", description: "长途旅行必备，能快速补充少量体力。", effects: [{ target: "stat.vit", type: "percentage", value: 0.1, target_max: "stat.vit_max" }] },
-  "纯净水": { price: 10, currency: "fed_coin", type: "补给品", description: "基础的饮用水，能缓解口渴。", effects: [] },
-  "初级恢复药剂": { price: 500, currency: "fed_coin", type: "药剂", description: "能恢复少量魂力和体力，战斗后的应急用品。", effects: [{ target: "stat.sp", type: "percentage", value: 0.15, target_max: "stat.sp_max" }, { target: "stat.vit", type: "percentage", value: 0.15, target_max: "stat.vit_max" }] },
-  "中级恢复药剂": { price: 2000, currency: "fed_coin", type: "药剂", description: "效果显著的恢复药剂，能应对大多数战斗消耗。", effects: [{ target: "stat.sp", type: "percentage", value: 0.35, target_max: "stat.sp_max" }, { target: "stat.vit", type: "percentage", value: 0.35, target_max: "stat.vit_max" }] },
-  "高级恢复药剂": { price: 8000, currency: "fed_coin", type: "药剂", description: "珍贵的强效恢复药剂，关键时刻能扭转战局。", effects: [{ target: "stat.sp", type: "percentage", value: 0.70, target_max: "stat.sp_max" }, { target: "stat.vit", type: "percentage", value: 0.70, target_max: "stat.vit_max" }] },
-  "精神恢复冥想香": { price: 1500, currency: "fed_coin", type: "药剂", description: "点燃后能帮助魂师快速集中精神，恢复消耗的精神力。", effects: [{ target: "stat.men", type: "percentage", value: 0.25, target_max: "stat.men_max" }] },
-  "基础解毒散": { price: 300, currency: "fed_coin", type: "药剂", description: "可以解除一些百年魂兽的普通毒素。", effects: [{ target: "stat.conditions", type: "remove_by_name", value: "普通中毒" }] },
-  "千年解毒丹": { price: 2500, currency: "fed_coin", type: "药剂", description: "能有效化解千年魂兽的剧毒，是魂师深入森林的保障。", effects: [{ target: "stat.conditions", type: "remove_by_name", value: "千年剧毒" }] },
-  "力量增幅药剂": { price: 1200, currency: "fed_coin", type: "药剂", description: "饮用后短时间内肌肉膨胀，力量获得显著提升。", effects: [{ target: "stat.conditions", type: "add", value: { "力量增幅": { 类型: "buff", 层数: 1, 描述: "力量临时提升15%，持续3回合。", stat_mods: { str: 1.15 } } } }] },
-  "野外生存帐篷": { price: 1000, currency: "fed_coin", type: "工具", description: "在野外提供一个相对安全的休息点。", effects: [] },
-  "照明魂导器": { price: 800, currency: "fed_coin", type: "工具", description: "最基础的手持照明工具，比火把方便得多。", effects: [] },
-  "普通铁锭": { price: 200, currency: "fed_coin", type: "材料", description: "最基础的锻造材料，用于练习或打造低级工具。", effects: [] },
-  "百锻精铁": { price: 1500, currency: "fed_coin", type: "材料", description: "经过百次锻打的精铁，是打造魂导器的入门材料。", effects: [] },
-  "一级能量核心": { price: 1000, currency: "fed_coin", type: "材料", description: "为低级魂导器供能的标准电池。", effects: [] },
-  "二级能量核心": { price: 5000, currency: "fed_coin", type: "材料", description: "能量输出更稳定的二级核心，适用于中阶魂导器。", effects: [] }
-};
-
-const TangmenShopProducts = {
-  "玄天功秘籍": { price: 500, currency: "tang_pt", type: "功法", description: "唐门基础内功心法，修炼后可大幅提升魂力恢复速度与精纯度。", requirements: { faction: "唐门" }, effects: [{ target: "arts", type: "add", value: { "玄天功": { 境界: "入门", lv: 1, exp: 0, 描述: "唐门绝学" } } }] },
-  "紫极魔瞳秘籍": { price: 500, currency: "tang_pt", type: "功法", description: "唐门瞳术，修炼后可提升视力、动态视觉与精神力。", requirements: { faction: "唐门" }, effects: [{ target: "arts", type: "add", value: { "紫极魔瞳": { 境界: "入门", lv: 1, exp: 0, 描述: "唐门绝学" } } }] },
-  "暗器百解": { price: 2000, currency: "tang_pt", type: "技术", description: "记录了唐门上百种暗器制作与手法的总纲。", requirements: { faction: "唐门", rank: ["黄级", "紫级", "黑级", "红级", "长老", "殿主"] }, effects: [{ target: "arts", type: "add", value: { "暗器百解": { 境界: "入门", lv: 1, exp: 0, 描述: "唐门暗器总纲" } } }] },
-  "百年炽火阳泉草": { price: 8000, currency: "tang_pt", type: "灵物", description: "生长于冰火两仪眼阳泉旁的百年灵草，蕴含纯粹的火属性能量。", requirements: { faction: "唐门", rank: ["黄级", "紫级", "黑级", "红级", "长老", "殿主"] }, effects: [{ target: "status.consuming_herb_age", type: "set", value: 100 }] },
-  "千年寒极冰晶花": { price: 50000, currency: "tang_pt", type: "灵物", description: "生长于冰火两仪眼寒泉旁的千年奇花，蕴含极致的冰属性能量。", requirements: { faction: "唐门", rank: ["紫级", "黑级", "红级", "长老", "殿主"] }, effects: [{ target: "status.consuming_herb_age", type: "set", value: 1000 }] },
-  "万年望穿秋水露": { price: 250000, currency: "tang_pt", type: "灵物", description: "冰火两仪眼孕育的万年仙品，服用后可极大增强精神力与视力。", requirements: { faction: "唐门", rank: ["红级", "长老", "殿主"] }, effects: [{ target: "status.consuming_herb_age", type: "set", value: 10000 }] },
-  "万年魂骨兑换凭证": { price: 500000, currency: "tang_pt", type: "战略资源", description: "唐门最高级别的奖励之一。可从宗门宝库中挑选一块万年魂骨。", requirements: { faction: "唐门", rank: ["红级", "长老", "殿主"] }, effects: [{ target: "inventory", type: "add", value: { "万年魂骨(未指定)": { 数量: 1, 类型: "魂骨", 品质: "万年" } } }] }
-};
-
-const ShrekAcademyShopProducts = {
-  "百年龙鳞果": { price: 500, currency: "shrek_pt", type: "灵物", description: "百年级别的灵果，能小幅强化气血。", requirements: { faction: "史莱克学院" }, effects: [{ target: "status.consuming_herb_age", type: "set", value: 100 }] },
-  "千年海心莲子": { price: 8000, currency: "shrek_pt", type: "灵物", description: "千年级别的仙品莲子，能显著提升精神力。", requirements: { faction: "史莱克学院" }, effects: [{ target: "status.consuming_herb_age", type: "set", value: 1000 }] },
-  "万年绮罗郁金香": { price: 120000, currency: "shrek_pt", type: "灵物", description: "万年级别的仙品，服用后可百毒不侵。", requirements: { faction: "史莱克学院", rank: ["内院弟子", "史莱克七怪", "老师", "宿老", "阁主"] }, effects: [{ target: "status.consuming_herb_age", type: "set", value: 10000 }] },
-  "万年魂骨兑换凭证": { price: 300000, currency: "shrek_pt", type: "战略资源", description: "史莱克学院内院的核心奖励。每人仅限兑换一次。", requirements: { faction: "史莱克学院", rank: ["内院弟子", "史莱克七怪", "老师", "宿老", "阁主"], limit_tag: "redeemed_10k_bone" }, effects: [{ target: "inventory", type: "add", value: { "万年魂骨(未指定)": { 数量: 1, 类型: "魂骨", 品质: "万年" } } }] },
-  "十万年魂骨兑换凭证": { price: 1000000, currency: "shrek_pt", type: "战略资源", description: "史莱克学院的至高奖励。每人终身仅限兑换一次。", requirements: { faction: "史莱克学院", rank: ["宿老", "阁主", "史莱克七怪"], limit_tag: "redeemed_100k_bone" }, effects: [{ target: "inventory", type: "add", value: { "十万年魂骨(未指定)": { 数量: 1, 类型: "魂骨", 品质: "十万年" } } }] }
-};
-
-const AssociationShopProducts = {
-  "锻造师协会": {
-    "百锻金属块": { price: 50000, currency: "fed_coin", type: "材料", description: "经过百次锻打的金属，是锻造师的基础材料。", effects: [{ target: "inventory", type: "add", value: { "百锻金属块": { 数量: 1, 类型: "材料", 品质: "百锻" } } }] },
-    "千锻金属块": { price: 500000, currency: "fed_coin", type: "材料", description: "千锤百炼的稀有金属，拥有了初步的灵性。", effects: [{ target: "inventory", type: "add", value: { "千锻金属块": { 数量: 1, 类型: "材料", 品质: "千锻" } } }] },
-    "灵锻金属块": { price: 10000000, currency: "fed_coin", type: "材料", description: "被赋予生命的金属，是四级以上锻造师的杰作。", effects: [{ target: "inventory", type: "add", value: { "灵锻金属块": { 数量: 1, 类型: "材料", 品质: "灵锻" } } }] },
-    "魂锻金属块": { price: 80000000, currency: "fed_coin", type: "材料", description: "与灵魂相融的金属，圣匠的标志。", effects: [{ target: "inventory", type: "add", value: { "魂锻金属块": { 数量: 1, 类型: "材料", 品质: "魂锻" } } }] },
-    "天锻金属块": { price: 500000000, currency: "fed_coin", type: "材料", description: "引动天地法则淬炼而成的神级金属。", effects: [{ target: "inventory", type: "add", value: { "天锻金属块": { 数量: 1, 类型: "材料", 品质: "天锻" } } }] }
-  },
-  "设计师协会": {
-    "一字斗铠设计图": { price: 100000, currency: "fed_coin", type: "图纸", description: "标准的一字斗铠设计蓝图。", effects: [{ target: "inventory", type: "add", value: { "一字斗铠设计图": { 数量: 1, 类型: "图纸" } } }] },
-    "二字斗铠设计图": { price: 2000000, currency: "fed_coin", type: "图纸", description: "蕴含领域雏形的二字斗铠设计图。", effects: [{ target: "inventory", type: "add", value: { "二字斗铠设计图": { 数量: 1, 类型: "图纸" } } }] },
-    "三字斗铠设计图": { price: 20000000, currency: "fed_coin", type: "图纸", description: "能够赋予斗铠真正领域的三字斗铠设计图。", effects: [{ target: "inventory", type: "add", value: { "三字斗铠设计图": { 数量: 1, 类型: "图纸" } } }] },
-    "四字斗铠设计图": { price: 150000000, currency: "fed_coin", type: "图纸", description: "传说中的四字斗铠设计图。", effects: [{ target: "inventory", type: "add", value: { "四字斗铠设计图": { 数量: 1, 类型: "图纸" } } }] }
-  },
- "机甲师协会": {
-    "黄级机甲现货": { price: 6000000, currency: "fed_coin", type: "装备", description: "制式黄级机甲(流水线白板，品质系数1.0)。", effects: [{ target: "inventory", type: "add", value: { "黄级机甲现货": { 数量: 1, 类型: "装备", 品质: "黄级" } } }] },
-    "紫级机甲现货": { price: 80000000, currency: "fed_coin", type: "装备", description: "制式紫级机甲(流水线白板，品质系数1.0)。", effects: [{ target: "inventory", type: "add", value: { "紫级机甲现货": { 数量: 1, 类型: "装备", 品质: "紫级" } } }] },
-    "黑级机甲现货": { price: 1000000000, currency: "fed_coin", type: "装备", description: "制式黑级机甲(流水线白板，品质系数1.0)。", effects: [{ target: "inventory", type: "add", value: { "黑级机甲现货": { 数量: 1, 类型: "装备", 品质: "黑级" } } }] },
-    "红级机甲定制": { price: 5000000000, currency: "fed_coin", type: "服务", description: "神级机甲的顶级代工定制服务(需自备神级材料)。", effects: [] }
-  },
-  "修理师协会": {
-    "基础维护套件": { price: 50000, currency: "fed_coin", type: "消耗品", description: "用于机甲和魂导器的日常保养。", effects: [{ target: "inventory", type: "add", value: { "基础维护套件": { 数量: 1, 类型: "消耗品" } } }] },
-    "精密修复模块": { price: 500000, currency: "fed_coin", type: "消耗品", description: "可以修复机甲或斗铠的中度损伤。", effects: [{ target: "inventory", type: "add", value: { "精密修复模块": { 数量: 1, 类型: "消耗品" } } }] },
-    "机甲超频模块": { price: 5000000, currency: "fed_coin", type: "消耗品", description: "一次性模块，能让机甲在短时间内爆发出超越极限的性能。", effects: [{ target: "inventory", type: "add", value: { "机甲超频模块": { 数量: 1, 类型: "消耗品" } } }] },
-    "斗铠本源蕴养液": { price: 20000000, currency: "fed_coin", type: "消耗品", description: "极其珍贵的蕴养液，能修复受损的斗铠本源。", effects: [{ target: "inventory", type: "add", value: { "斗铠本源蕴养液": { 数量: 1, 类型: "消耗品" } } }] },
-    "神级重塑核心": { price: 500000000, currency: "fed_coin", type: "核心部件", description: "传说中的物品，据说能让彻底损毁的斗铠甚至神器重获新生。", effects: [{ target: "inventory", type: "add", value: { "神级重塑核心": { 数量: 1, 类型: "核心部件" } } }] }
-  }
-};
-export const Schema = z.object({
-  sd: z.object({
-    sys: z.object({
-      rsn: z.string().prefault("初始化"),
-      seq: z.record(z.string(), z.object({ 事件: z.string().prefault("无") }).prefault({})).prefault({}),
-      last_roll: z.coerce.number().prefault(0).describe('最近一次D100物理检定客观点数'),
-      fsr: z.coerce.number().prefault(0).describe('当前交互行为的最终成功率')
-    }).prefault({}),
-    char: z.record(z.string(), CharacterSchema).prefault({}),
-    org: z.record(z.string(), FactionSchema).prefault({}),
-    world: z.object({
-      time: z.object({
-        tick: z.coerce.number().prefault(0),
-        last_settle_tick: z.coerce.number().prefault(0),
-        calendar: z.string().prefault("斗罗历X年X月X日"),
-        last_lv_up: z.coerce.number().prefault(0)
-      }).prefault({}),
-      flags: z.record(z.string(), z.boolean().prefault(true)).prefault({}), 
-      deviation: z.coerce.number().prefault(0).describe('世界线偏差值(0-100)'),
-      deviation_multiplier: z.coerce.number().prefault(1.0).describe('偏差值累计倍率'),
-      forest_killed_age: z.coerce.number().prefault(0).describe('星斗大森林累计被杀魂兽年限'),
-      timeline: z.record(z.string(), z.object({ trigger_tick: z.coerce.number().prefault(0), event: z.string().prefault("无"), status: z.string().prefault("pending") }).prefault({})).prefault({}),
-      auction: z.object({
-        status: z.string().prefault("休市"),
-        next_tick: z.coerce.number().prefault(7),
-        location: z.string().prefault("无"),
-        items: z.record(z.string(), z.object({ tier: z.string().prefault("低阶"), lore: z.string().prefault("无"), price: z.coerce.number().prefault(0) }).prefault({})).prefault({})
-      }).prefault({}),
-      rankings: z.object({
-        youth_talent: z.object({
-          last榜单: z.record(z.string(), z.coerce.number().prefault(0)).prefault({}),
-          top30: z.record(z.string(), z.object({
-            角色名: z.string().prefault("无"),
-            评分: z.coerce.number().prefault(0)
-          }).prefault({})).prefault({})
-        }).prefault({})
-      }).prefault({}),
-   locations: z.record(z.string().describe('地点名称'), z.object({
-        掌控势力: z.string().prefault("未知"),
-        人口: z.coerce.number().prefault(0),
-        守护军团: z.string().prefault("无"),
-        经济状况: z.enum(['繁荣', '普通', '萧条', '未知']).prefault('未知'),
-        x: z.coerce.number().prefault(-1),
-        y: z.coerce.number().prefault(-1),
-        type: z.string().prefault('地图节点'),
-        desc: z.string().prefault('无'),
-        state: z.string().prefault('intact'),
-        child_map_id: z.string().prefault('无'),
-        icon: z.string().prefault('node'),
-        node_kind: z.string().prefault(''),
-        interactions: z.array(z.string()).prefault([]),
-        services: z.array(z.string()).prefault([]),
-        action_slots: z.array(z.string()).prefault([]),
-        event_id: z.string().prefault(''),
-        children: z.record(z.string(), z.any()).prefault({}),
-        
-        
-        stores: z.record(z.string().describe('商店名，如：传灵塔分店'), z.object({
-          inventory: z.record(z.string().describe('商品ID或名称'), z.object({
-            price: z.coerce.number().prefault(0).describe('价格'),
-            currency: z.string().prefault("fed_coin").describe('货币类型'),
-            stock: z.coerce.number().prefault(0).describe('库存'),
-            req_fame: z.coerce.number().prefault(0).describe('声望要求'),
-            description: z.string().prefault("").describe('物品描述'),
-            effects: z.array(z.any()).prefault([]).describe('购买效果')
-          }).prefault({})).prefault({}).describe('商品库存列表'),
-          next_refresh_tick: z.coerce.number().prefault(0).describe('下次刷新时间')
-        }).prefault({})).prefault({}).describe('该城市拥有的商店列表')
-      }).prefault({})).prefault({}).describe('世界主要地点的数据化索引'), 
-
-      
-      dynamic_locations: z.record(
-        z.string().describe('动态生成的具体地点名称，如：东海学院旁小吃街'), 
-        z.object({
-          归属父节点: z.string().describe('填入它属于哪个已有的大地图节点，如：东海学院'),
-          层级: z.coerce.number().prefault(4),
-          描述: z.string().prefault("无"),
-          x: z.coerce.number().prefault(-1).describe('动态地点X坐标，未知时填-1'),
-          y: z.coerce.number().prefault(-1).describe('动态地点Y坐标，未知时填-1'),
-          map_id: z.string().prefault("无").describe('所属地图ID，如：map_douluo_world'),
-          node_type: z.string().prefault("动态地点").describe('节点类型：地标/街区/临时营地/工地/废墟等'),
-          icon: z.string().prefault("marker").describe('前端渲染使用的图标标识'),
-          settlement_id: z.string().prefault("无").describe('若归属于某个城市实体则填写其 settlement ID'),
-          faction: z.string().prefault('未知'),
-          importance: z.coerce.number().prefault(0),
-          state: z.string().prefault('intact'),
-          child_map_id: z.string().prefault('无'),
-          can_enter: z.boolean().prefault(false),
-          node_kind: z.string().prefault(''),
-          interactions: z.array(z.string()).prefault([]),
-          services: z.array(z.string()).prefault([]),
-          action_slots: z.array(z.string()).prefault([]),
-          event_id: z.string().prefault('')
-        }).prefault({})
-      ).prefault({}).describe('随剧情动态拓展的子地图节点'), 
-      maps: z.record(
-        z.string().describe('地图ID，如：map_douluo_world'),
-        z.object({
-          name: z.string().prefault('未命名地图'),
-          map_level: z.string().prefault('world').describe('world/continent/region/city/district'),
-          parent_map_id: z.string().prefault('无'),
-          anchor_loc: z.string().prefault('无').describe('锚定的现有地点名称'),
-          bounds: z.object({
-            min_x: z.coerce.number().prefault(0),
-            min_y: z.coerce.number().prefault(0),
-            width: z.coerce.number().prefault(0),
-            height: z.coerce.number().prefault(0)
-          }).prefault({}),
-          tile: z.object({
-            enabled: z.boolean().prefault(false),
-            tile_size: z.coerce.number().prefault(512),
-            min_zoom: z.coerce.number().prefault(0),
-            max_zoom: z.coerce.number().prefault(0),
-            default_zoom: z.coerce.number().prefault(0),
-            tile_source: z.string().prefault('')
-          }).prefault({}),
-          visual: z.object({
-            theme: z.string().prefault('terrain'),
-            show_grid: z.boolean().prefault(false),
-            fog_of_war: z.boolean().prefault(false)
-          }).prefault({}),
-          entry_rule: z.object({
-            mode: z.string().prefault('manual'),
-            zoom_threshold: z.coerce.number().prefault(0)
-          }).prefault({}),
-          child_maps: z.record(z.string(), z.string().prefault('无')).prefault({})
-        }).prefault({})
-      ).prefault({}).describe('前端地图分层注册表'),
-      settlements: z.record(
-        z.string().describe('城市/据点实体ID，如：shrek_city'),
-        z.object({
-          name: z.string().prefault('未命名据点'),
-          parent_map_id: z.string().prefault('map_douluo_world'),
-          loc_name: z.string().prefault('无').describe('当前锚定地点名'),
-          x: z.coerce.number().prefault(0),
-          y: z.coerce.number().prefault(0),
-          type: z.string().prefault('city'),
-          state: z.string().prefault('intact').describe('intact/damaged/ruins/rebuild/rebuilt'),
-          visible: z.boolean().prefault(true),
-          states: z.record(z.string().describe('状态名'), z.object({
-            label: z.string().prefault('无'),
-            node_name: z.string().prefault('无'),
-            desc: z.string().prefault('无'),
-            child_map_id: z.string().prefault('无'),
-            icon: z.string().prefault('city'),
-            condition_flag: z.string().prefault('无'),
-            node_kind: z.string().prefault(''),
-            interactions: z.array(z.string()).prefault([]),
-            services: z.array(z.string()).prefault([]),
-            action_slots: z.array(z.string()).prefault([]),
-            event_id: z.string().prefault('')
-          }).prefault({})).prefault({}),
-          metadata: z.object({
-            faction: z.string().prefault('未知'),
-            importance: z.coerce.number().prefault(0),
-            public_intel: z.boolean().prefault(true)
-          }).prefault({})
-        }).prefault({})
-      ).prefault({}).describe('城市/主据点实体及其状态版本'),
-      map_patches: z.record(
-        z.string().describe('地图补丁ID'),
-        z.object({
-          map_id: z.string().prefault('无'),
-          patch_type: z.string().prefault('overlay').describe('overlay/state_change/visibility/construction/destruction'),
-          target_id: z.string().prefault('无'),
-          layer: z.string().prefault('effect').describe('terrain/structure/effect/marker'),
-          active: z.boolean().prefault(false),
-          priority: z.coerce.number().prefault(0),
-          asset: z.string().prefault(''),
-          bounds: z.object({ x: z.coerce.number().prefault(0), y: z.coerce.number().prefault(0), w: z.coerce.number().prefault(0), h: z.coerce.number().prefault(0) }).prefault({}),
-          desc: z.string().prefault('无'),
-          condition_flag: z.string().prefault('无')
-        }).prefault({})
-      ).prefault({}).describe('地图覆盖层与事件补丁'),
-      bestiary: z.record(z.string().describe('物种或怪物名称，如：巴安'), z.object({
-      }).prefault({})).prefault({}).describe('怪物图鉴，记录已遭遇怪物的标准数据'),
-      combat: z.object({
-is_active: z.boolean().prefault(false).describe('是否处于战斗中'),
-  combat_type: z.enum(['切磋', '死战', '未知']).prefault('未知').describe('战斗烈度，决定是否触发锁血保护与死亡结算'),
-  initiative: z.string().prefault('无').describe('掌握先手权的角色名。若为"无"则代表公平开局；若有名字则代表突发偷袭，防守方首回合反应率减半'),
-  allow_flee: z.boolean().prefault(true).describe('是否允许逃跑。若为false则代表背水一战，触发困兽机制'),
-  round: z.coerce.number().prefault(0).describe('当前回合数'),
-        phase: z.enum(['无', '宣告阶段', '对轰判定阶段', '回合结算阶段']).prefault('无').describe('当前战斗阶段'),
-        environment: z.string().prefault('正常').describe('战场环境或全局领域法则'),
-        summary: z.object({
-          player_action: z.object({
-            action_type: z.string().prefault('无').describe('最近一次由前端战斗仲裁写回的玩家动作摘要'),
-            element_count: z.coerce.number().prefault(1).describe('若为元素相关动作，则记录元素数量'),
-            is_charged: z.boolean().prefault(false).describe('最近一次动作是否属于蓄力释放')
-          }).prefault({}),
-          settle_result: z.object({
-            target_npc: z.string().prefault('无').describe('最近一次战果摘要中的目标'),
-            result: z.string().prefault('无').describe('最近一次战果摘要：胜利/失败/平局/未决等'),
-            is_killed: z.boolean().prefault(false).describe('最近一次战果摘要中是否确认击杀')
-          }).prefault({}),
-          round_count: z.coerce.number().prefault(0).describe('最近一次前端仲裁持续的回合数'),
-          mode: z.string().prefault('无').describe('最近一次仲裁模式：single_round/multi_round'),
-          generated_by: z.string().prefault('无').describe('写入该摘要的来源模块')
-        }).prefault({}).describe('战斗摘要，供展示层统一读取'),
-        
-        participants: z.record(z.string().describe('参战者姓名或怪物名'), z.object({
-          faction: z.enum(['己方', '敌对', '中立']).prefault('敌对').describe('所属阵营'),
-          status: z.string().prefault('存活').describe('存活/重伤/濒死/死亡/逃跑'),
-          action_declared: z.string().prefault('无').describe('当前回合宣告释放的魂技或动作'),
-          is_summon: z.boolean().prefault(false).describe('是否为离体参战的魂灵'),
-          current_cast_time: z.coerce.number().prefault(0).describe('当前宣告动作的施法前摇数值，供前端博弈读取')
-        }).prefault({})).prefault({}).describe('当前战场所有参战单位的实时状态')
-      }).prefault({})
-    }).prefault({}),
-    display_chars: z.any().optional(),
-    display_map: z.any().optional(),
-    display_all: z.any().optional()
-  }).prefault({})
-}).prefault({}).transform(data => {
-  let currentTick = data.sd.world.time.tick;
-
-  let baseYear = 20000;
-  let totalMinutes = currentTick * 10;
-  
-  let days = Math.floor(totalMinutes / (24 * 60));
-  let remainderMinutes = totalMinutes % (24 * 60);
-  
-  let hours = Math.floor(remainderMinutes / 60);
-  let mins = remainderMinutes % 60;
-  
-  let years = Math.floor(days / 360);
-  let months = Math.floor((days % 360) / 30) + 1;
-  let currentDay = (days % 30) + 1;
-  
-  let hh = hours.toString().padStart(2, '0');
-  let mm = mins.toString().padStart(2, '0');
-  
-  
-  data.sd.world.time.calendar = `斗罗历${baseYear + years}年${months}月${currentDay}日 ${hh}:${mm}`;
-
-  let lastTick = data.sd.world.time.last_settle_tick || currentTick;
-  let delta = currentTick - lastTick;
-
-  const lowerCaseKeys = (obj) => {
-    if (typeof obj !== 'object' || obj === null) return obj;
-    return Object.keys(obj).reduce((acc, key) => {
-      acc[key.toLowerCase()] = obj[key];
-      return acc;
-    }, {});
-  };
-
 const TimelineEvents = {
   "mainline": [
     {
@@ -18388,7 +14479,3914 @@ const TimelineEvents = {
     }
   ]
 };
+const TRAVEL_METHOD_COEFFICIENT = {
+  "步行": 1.0,           
+  "校园短驳车": 0.4,
+  "魂导汽车": 0.5,       
+  "魂导列车": 0.2,       
+  "远洋巨轮": 0.8,       
+  "飞行(机甲/斗铠)": 0.05, 
+  "空间传送(极限斗罗)": 0.01, 
+  "空间传送(神级)": 0         
+};
 
+const ABYSS_LORE_DICT = {
+  "深渊铁律": {
+    "不死特性": "深渊生物被普通攻击击杀后会化为能量回归深渊重生。只有被【黄金龙枪】、【白银龙枪】或血神军团特制武器击杀，才能彻底吞噬其生命能量。",
+    "位面结构": "共108层，每层由一位帝王统治。前36层对标普通封号斗罗，中36层对标超级斗罗，后36层对标极限斗罗及半神。"
+  },
+  "炮灰与中坚": {
+    "四爪蝙蝠": { 战力对标: "10~39级", 特性: "数量庞大，超声波侦查与攻击" },
+    "六爪蝙蝠": { 战力对标: "40~69级", 特性: "体积大，强力音波攻击" },
+    "深渊炸弹蜂": { 战力对标: "10~39级", 特性: "受蜂帝指挥，极度惧怕次声波，可自爆" },
+    "噬蜥": { 战力对标: "10~69级", 特性: "吞噬生命能量，防御极强，弱点是眼睛" },
+    "六爪魔": { 战力对标: "40~69级", 特性: "擅长隐藏偷袭，释放大片密集地刺" },
+    "巴安": { 战力对标: "70~89级", 特性: "体型如肉山，防御极强，拥有再生能力，喷吐魔焰" },
+    "守护天牛": { 战力对标: "70~89级", 特性: "防御力极其惊人，张开双翼形成巨大护盾" },
+    "深渊猛犸": { 战力对标: "70~89级", 特性: "体型巨大，攻防极其出色，最凶猛的冲锋者" },
+    "深渊魔傀": { 战力对标: "70~89级", 特性: "最强空军，双头两条命，身体承受力极强" }
+  },
+  "高阶种族": {
+    "黑皇族": { 战力对标: "90级以上", 特性: "人类形态，最强一脉，释放黑色旋涡吞噬能量" },
+    "魔魅族": { 战力对标: "90级以上", 特性: "速度奇快，释放死咒，绝望战刀" },
+    "深渊恶镰": { 战力对标: "90级以上", 特性: "深渊执法者，极致速度与杀戮，掌握空间之法" },
+    "附体魔": { 战力对标: "90级以上", 特性: "精神体，善于隐藏，能附体并控制目标" }
+  },
+  "十大帝君": {
+    "灵帝": { 排名: 2, 战力对标: "准神", 特性: "深渊灵龙，深渊大军统帅，精神力是神元境的5倍，无敌迷雾与虚弱之光" },
+    "烈帝": { 排名: 3, 战力对标: "百级(神级)", 特性: "魂力百级，近战极其恐怖，手持巨大长戟" },
+    "魔帝": { 排名: 4, 战力对标: "准神", 特性: "深渊魔傀之主，体力百级(深渊第一强硬)，黑暗天域" },
+    "智帝": { 排名: 5, 战力对标: "准神", 特性: "深渊第一强控，绝对成立的战场分割能力【九宫格】" },
+    "化帝": { 排名: 7, 战力对标: "准神", 特性: "千变万化，能变换成各种深渊领主的战斗形态" },
+    "黑帝": { 排名: 9, 战力对标: "准神", 特性: "黑皇族之主，擅长吞噬能力" },
+    "蜂帝": { 排名: 10, 战力对标: "准神", 特性: "深渊炸弹蜂之主，精神力极强，群体爆炸攻击" }
+  },
+  "至高主宰": {
+    "深渊圣君": { 战力对标: "神级", 特性: "深渊位面之主，实力无限接近于神" }
+  }
+};
+
+function getAbyssStats(tier, species) {
+  let lv = 10;
+  let speciesMult = { str: 1.0, def: 1.0, agi: 1.0, vit_max: 1.0, men_max: 1.0, sp_max: 1.0 };
+
+  
+  if (tier === "低阶生物") {
+    lv = 20 + Math.floor(Math.random() * 20); 
+    speciesMult = { str: 0.8, def: 0.8, agi: 1.2, vit_max: 0.8, men_max: 0.5, sp_max: 1.0 };
+  } else if (tier === "中阶生物") {
+    lv = 40 + Math.floor(Math.random() * 30); 
+    speciesMult = { str: 1.2, def: 1.2, agi: 1.0, vit_max: 1.2, men_max: 0.8, sp_max: 1.2 };
+  } else if (tier === "高阶生物") {
+    lv = 70 + Math.floor(Math.random() * 20); 
+    speciesMult = { str: 1.5, def: 1.5, agi: 1.5, vit_max: 1.5, men_max: 1.2, sp_max: 1.5 };
+  } else if (tier === "深渊王者" || tier === "深渊帝君") {
+    lv = 99; 
+    speciesMult = { str: 2.0, def: 2.0, agi: 2.0, vit_max: 2.0, men_max: 2.0, sp_max: 2.0 };
+  }
+
+  
+  if (species.includes("蝙蝠") || species.includes("魔魅") || species.includes("恶镰")) {
+    speciesMult.agi *= 1.5; speciesMult.def *= 0.7;
+  } else if (species.includes("巴安") || species.includes("天牛") || species.includes("猛犸")) {
+    speciesMult.def *= 1.8; speciesMult.vit_max *= 1.8; speciesMult.agi *= 0.6;
+  } else if (species.includes("黑皇")) {
+    speciesMult.sp_max *= 1.5; speciesMult.men_max *= 1.5;
+  }
+
+  
+  let base = getBaseStats(lv);
+  let finalStats = {
+    种族: species,
+    等阶: tier,
+    对标等级: lv,
+    str: Math.floor(base.str * speciesMult.str),
+    def: Math.floor(base.def * speciesMult.def),
+    agi: Math.floor(base.agi * speciesMult.agi),
+    vit_max: Math.floor(base.vit_max * speciesMult.vit_max),
+    men_max: Math.floor(base.men_max * speciesMult.men_max),
+    sp_max: Math.floor(base.sp_max * speciesMult.sp_max)
+  };
+
+  
+  if (species === "灵帝") {
+    finalStats.对标等级 = 99.5; 
+    finalStats.men_max = 250000; 
+  } else if (species === "烈帝") {
+    finalStats.对标等级 = 100; 
+    let godBase = getBaseStats(100);
+    finalStats.sp_max = godBase.sp_max; 
+    finalStats.str = Math.floor(godBase.str * 1.5); 
+  } else if (species === "魔帝") {
+    finalStats.对标等级 = 99.5; 
+    let godBase = getBaseStats(100);
+    finalStats.vit_max = godBase.vit_max; 
+    finalStats.def = Math.floor(godBase.def * 2.0); 
+  } else if (species === "智帝" || species === "化帝" || species === "黑帝" || species === "蜂帝") {
+    finalStats.对标等级 = 99.5; 
+    let demiGodBase = getBaseStats(99.5);
+    finalStats.sp_max = Math.floor(demiGodBase.sp_max * 1.5);
+  } else if (species === "深渊圣君") {
+    finalStats.对标等级 = 100; 
+    let godBase = getBaseStats(100);
+    finalStats.str = godBase.str * 3;
+    finalStats.def = godBase.def * 3;
+    finalStats.vit_max = godBase.vit_max * 3;
+    finalStats.sp_max = godBase.sp_max * 3;
+    finalStats.men_max = godBase.men_max * 3;
+  }
+
+  return finalStats;
+}
+
+const WORLD_MAP_TREE = {
+  "斗罗大陆": {
+    type: "大陆", level: 1, x: 1687, y: 641, desc: "斗罗联邦与诸多学院、势力、禁区共同构成的主大陆舞台", default_faction: "斗罗联邦", importance: 100,
+    children: {
+      "史莱克城": { 
+        type: "核心主城", level: 2, x: 2106, y: 623, desc: "大陆中心，全联邦的信仰", default_faction: "史莱克学院", importance: 96,
+        condition: (sd) => !sd.world?.flags?.['event_shrek_destroyed_2'],
+        children: {
+          "史莱克学院": { 
+            type: "学院总部", level: 3, x: 2858, y: 928, desc: "大陆第一学院，汇聚最顶尖魂师与魂导体系天才", icon: "facility", default_faction: "史莱克学院", importance: 95,
+            children: {
+              "外院教学区": { type: "教学区", level: 4, x: 1538, y: 2201, desc: "外院基础教学与公开课程展开的主要区域", default_faction: "史莱克学院", importance: 72 },
+              "工读生宿舍": { type: "生活区", level: 4, x: 1442, y: 1926, desc: "工读生与低年级学员集中起居的生活区", default_faction: "史莱克学院", importance: 55 },
+              "海神岛(内院)": { type: "核心禁地", level: 4, x: 2993, y: 131, desc: "内院与海神阁核心区域，外人极难踏足", default_faction: "史莱克学院", importance: 99 },
+              "学院锻造师协会": { type: "协会分部", level: 4, x: 2129, y: 754, desc: "服务学院锻造实训与高阶金属加工的内部据点", default_faction: "锻造师协会", importance: 68 },
+              "学院机甲师协会": { type: "协会分部", level: 4, x: 508, y: 935, desc: "学院机甲实操与战术训练的重要接口", default_faction: "机甲师协会", importance: 68 },
+              "学院制造师协会": { type: "协会分部", level: 4, x: 2020, y: 2040, desc: "承担魂导制造课题与实作资源调配的内部站点", default_faction: "制造师协会", importance: 67 },
+              "学院设计师协会": { type: "协会分部", level: 4, x: 1008, y: 561, desc: "机甲与魂导设计方案评审的学院工作点", default_faction: "设计师协会", importance: 66 },
+              "学院修理师协会": { type: "协会分部", level: 4, x: 2663, y: 630, desc: "负责维修实训、赛后整备与应急检修的学院据点", default_faction: "修理师协会", importance: 66 }
+            }
+          },
+          "唐门总部": { type: "势力总部", level: 3, x: 2743, y: 2025, desc: "斗罗殿所在地，唐门真正的中枢", default_faction: "唐门", importance: 93 },
+          "传灵塔总部": { type: "势力总部", level: 3, x: 6, y: 1244, desc: "八十一层宏伟建筑，传灵塔权力与研究的核心", default_faction: "传灵塔", importance: 93 },
+          "史莱克大拍卖场": { type: "交易中心", level: 3, x: 3165, y: 1551, desc: "汇聚顶级资源、魂导器与稀有拍品的高端交易场", default_faction: "史莱克城商贸体系", importance: 72 },
+          "城市杂货店": { type: "普通商店", level: 3, x: 2310, y: 2023, desc: "面向学员与旅客的基础补给铺", default_faction: "史莱克城商贸体系", importance: 24 }
+        }
+      },
+      "明都": { 
+        type: "首都", level: 2, x: 1103, y: 496, desc: "斗罗联邦政治与科技中心", default_faction: "斗罗联邦", importance: 95,
+        local_resources: ["高阶机甲图纸", "稀有稀有金属", "黑市情报"],
+        opportunities: ["卷入地下机甲黑拳赛", "在黑市淘到违禁的魂导器零件", "遭遇联邦军方的突击检查"],
+        children: {
+          "日月皇家魂师学院": { type: "学院总部", level: 3, x: 3073, y: 1425, desc: "日月系魂导科技与魂师教育的旗舰学院", default_faction: "斗罗联邦", importance: 88 },
+          "战神殿总部": { type: "军方核心", level: 3, x: 1408, y: 501, desc: "位于明都西山地下，十八层地狱", default_faction: "战神殿", importance: 96 },
+          "明都军区驻地": { type: "军事要塞", level: 3, x: 2966, y: 1936, desc: "联邦中央军团驻扎地", default_faction: "斗罗联邦", importance: 90 },
+          "锻造师协会总部": { type: "协会总部", level: 3, x: 1811, y: 1295, desc: "掌管联邦锻造师认证与高阶稀有金属流转的总部", default_faction: "锻造师协会", importance: 84 },
+          "机甲师协会总部": { type: "协会总部", level: 3, x: 2161, y: 336, desc: "联邦机甲师评级、竞赛与技术交流的最高枢纽", default_faction: "机甲师协会", importance: 84 },
+          "制造师协会总部": { type: "协会总部", level: 3, x: 225, y: 120, desc: "负责高阶魂导制造标准与资源统筹的核心机构", default_faction: "制造师协会", importance: 83 },
+          "设计师协会总部": { type: "协会总部", level: 3, x: 1727, y: 218, desc: "汇聚联邦尖端设计师与机甲方案评审的中心", default_faction: "设计师协会", importance: 82 },
+          "修理师协会总部": { type: "协会总部", level: 3, x: 2788, y: 728, desc: "统筹高端机甲、魂导器维修标准与抢修力量的总部", default_faction: "修理师协会", importance: 82 },
+          "唐门明都分部": { type: "势力分部", level: 3, x: 2805, y: 567, desc: "潜伏于联邦首都阴影中的唐门据点", default_faction: "唐门", importance: 78 },
+          "传灵塔明都分部": { type: "势力分部", level: 3, x: 1380, y: 1098, desc: "明都魂灵交易与塔系事务的核心分部", default_faction: "传灵塔", importance: 80 },
+          "明都大拍卖场": { type: "交易中心", level: 3, x: 2339, y: 284, desc: "权贵、军方与黑市情报交织的高端拍卖场", default_faction: "明都商贸体系", importance: 72 },
+          "城市杂货店": { type: "普通商店", level: 3, x: 2799, y: 568, desc: "面向旅人与居民的综合补给铺", default_faction: "明都商贸体系", importance: 24 }
+        }
+      },
+      "天斗城": { 
+        type: "主城", level: 2, x: 1753, y: 501, desc: "历史悠久的北方古城", default_faction: "天斗地方政务体系", importance: 82,
+        children: {
+          "本体宗总部": { type: "宗门总部", level: 3, x: 1068, y: 478, desc: "本体宗在北境活动与传承的绝对核心", default_faction: "本体宗", importance: 90 },
+          "泰坦巨猿家族": { type: "家族驻地", level: 3, x: 804, y: 1461, desc: "与魂兽血脉和顶级战力传承相关的显赫驻地", default_faction: "泰坦巨猿家族", importance: 84 },
+          "唐门天斗分部": { type: "势力分部", level: 3, x: 1559, y: 293, desc: "地下拥有弑神级防御的唐门重镇据点", default_faction: "唐门", importance: 79 },
+          "传灵塔天斗分部": { type: "势力分部", level: 3, x: 565, y: 823, desc: "负责北方魂灵业务与塔系事务的骨干分部", default_faction: "传灵塔", importance: 76 },
+          "锻造师协会分会": { type: "协会分部", level: 3, x: 2499, y: 651, desc: "天斗城锻造认证、委托与材料调度中心", default_faction: "锻造师协会", importance: 64 },
+          "机甲师协会分会": { type: "协会分部", level: 3, x: 1371, y: 1175, desc: "机甲训练、评级与竞演活动的重要窗口", default_faction: "机甲师协会", importance: 64 },
+          "制造师协会分会": { type: "协会分部", level: 3, x: 823, y: 1146, desc: "负责魂导制造订单、学徒进修与工坊协作的分会", default_faction: "制造师协会", importance: 63 },
+          "设计师协会分会": { type: "协会分部", level: 3, x: 2303, y: 654, desc: "承担设计评审、方案交流与外包协调的地方分会", default_faction: "设计师协会", importance: 62 },
+          "修理师协会分会": { type: "协会分部", level: 3, x: 1607, y: 90, desc: "负责维修师认证与大型器械保养的城市分会", default_faction: "修理师协会", importance: 62 },
+          "天斗大拍卖场": { type: "交易中心", level: 3, x: 2665, y: 1600, desc: "北方珍稀拍品、消息与委托集中流转的交易中心", default_faction: "天斗城商贸体系", importance: 69 },
+          "城市杂货店": { type: "普通商店", level: 3, x: 775, y: 682, desc: "兼售旅装、药品与基础魂导零件的平价铺面", default_faction: "天斗城商贸体系", importance: 24 },
+          "圣灵教秘密据点": { 
+            type: "邪教据点", level: 3, x: 1813, y: 874, desc: "潜伏于古城暗巷与地下网络中的隐秘祭坛", default_faction: "圣灵教", importance: 70,
+            condition: (sd) => sd.char[sd.sys?.player_name]?.social?.factions?.['圣灵教'] || sd.char[sd.sys?.player_name]?.unlocked_knowledges?.includes('圣灵教天斗据点')
+          }
+        }
+      },
+      "星罗城(斗罗大陆)": {
+        type: "主城", level: 2, x: 1884, y: 921, desc: "斗罗大陆上的正式星罗城节点，多用于旧地理称呼与路线映射", default_faction: "星罗地方体系", importance: 60
+      },
+      "东海城": { 
+        type: "沿海城市", level: 2, x: 1293, y: 1304, desc: "东海第二大城市", default_faction: "东海城行政体系", importance: 78,
+        children: {
+          "东海学院": { type: "学院总部", level: 3, x: 908, y: 1050, desc: "培养海滨魂师与魂导人才的地方名校", default_faction: "东海学院", importance: 82 },
+          "东海城防军驻地": { type: "军事驻地", level: 3, x: 2482, y: 409, desc: "负责港区巡防、海岸警戒与城市治安的防卫据点", default_faction: "东海城行政体系", importance: 74 },
+          "唐门东海分部": { type: "势力分部", level: 3, x: 602, y: 1967, desc: "唐门在东海沿岸的重要经营与联络据点", default_faction: "唐门", importance: 72 },
+          "传灵塔东海分部": { type: "势力分部", level: 3, x: 2496, y: 443, desc: "十八天柱之一，负责东海魂灵业务的重镇", default_faction: "传灵塔", importance: 76 },
+          "锻造师协会分会": { type: "协会分部", level: 3, x: 659, y: 1298, desc: "服务港口工业、锻造委托与学徒流转的城市分会", default_faction: "锻造师协会", importance: 63 },
+          "机甲师协会分会": { type: "协会分部", level: 3, x: 2940, y: 2215, desc: "东海机甲实训、考核与战术演练的窗口", default_faction: "机甲师协会", importance: 63 },
+          "制造师协会分会": { type: "协会分部", level: 3, x: 2762, y: 1133, desc: "承接海滨城市魂导制造与订单协作的分会", default_faction: "制造师协会", importance: 62 },
+          "设计师协会分会": { type: "协会分部", level: 3, x: 820, y: 1474, desc: "负责设计交流、工坊合作与器械图纸流转的分会", default_faction: "设计师协会", importance: 61 },
+          "修理师协会分会": { type: "协会分部", level: 3, x: 1898, y: 149, desc: "处理船只、机甲与魂导装置维修需求的分会", default_faction: "修理师协会", importance: 61 },
+          "东海拍卖场": { type: "交易中心", level: 3, x: 684, y: 1795, desc: "港口珍货、魂灵材料与情报委托集散的拍卖场", default_faction: "东海城商贸体系", importance: 66 },
+          "城市杂货店": { type: "普通商店", level: 3, x: 1037, y: 1327, desc: "售卖出海补给、日用品与低阶魂导零件的店铺", default_faction: "东海城商贸体系", importance: 22 }
+        }
+      },
+      "天海城": { 
+        type: "沿海主城", level: 2, x: 1130, y: 1377, desc: "东海岸第一大城市", default_faction: "天海城行政体系", importance: 80,
+        children: {
+          "天海中级学院": { type: "学院总部", level: 3, x: 1614, y: 781, desc: "天海地区培养中坚魂师与魂导人才的地方名校", default_faction: "天海中级学院", importance: 78 },
+          "唐门天海分部": { type: "势力分部", level: 3, x: 508, y: 776, desc: "唐门在东海岸航运与灰色贸易线上的关键联络点", default_faction: "唐门", importance: 72 },
+          "传灵塔天海分部": { type: "势力分部", level: 3, x: 729, y: 365, desc: "承担天海地区魂灵业务与高端魂兽资源中转的骨干分部", default_faction: "传灵塔", importance: 74 },
+          "锻造师协会分会": { type: "协会分部", level: 3, x: 2661, y: 1881, desc: "服务港务、船坞与城市工坊体系的锻造分会", default_faction: "锻造师协会", importance: 62 },
+          "机甲师协会分会": { type: "协会分部", level: 3, x: 2687, y: 758, desc: "负责机甲考核、训练与海岸守备协作的地方分会", default_faction: "机甲师协会", importance: 62 },
+          "制造师协会分会": { type: "协会分部", level: 3, x: 615, y: 349, desc: "负责魂导制造协同、工坊承接与海贸器械改装的分会", default_faction: "制造师协会", importance: 61 },
+          "设计师协会分会": { type: "协会分部", level: 3, x: 1405, y: 1816, desc: "汇集城市设计师与造舰器械方案评审的地方分会", default_faction: "设计师协会", importance: 60 },
+          "修理师协会分会": { type: "协会分部", level: 3, x: 1932, y: 413, desc: "承担港口机械、机甲与魂导器紧急检修的城市分会", default_faction: "修理师协会", importance: 60 },
+          "天海大拍卖场": { type: "交易中心", level: 3, x: 1683, y: 1709, desc: "海贸珍货、远洋材料与委托情报活跃流转的拍卖场", default_faction: "天海城商贸体系", importance: 67 },
+          "城市杂货店": { type: "普通商店", level: 3, x: 1284, y: 1914, desc: "售卖旅装、海上补给与低阶魂导零件的沿海店铺", default_faction: "天海城商贸体系", importance: 22 }
+        }
+      },
+      "傲来城": { 
+        type: "城镇", level: 2, x: 1383, y: 1260, desc: "临海而生的小城，也是许多人启程的故乡", default_faction: "傲来城行政体系", importance: 58,
+        children: {
+          "红山学院": { type: "学院总部", level: 3, x: 2929, y: 165, desc: "承担地方魂师启蒙与基础培养任务的海滨学院", default_faction: "红山学院", importance: 68 },
+          "唐门傲来分部": { type: "势力分部", level: 3, x: 1926, y: 1640, desc: "规模不大却维系海滨情报与货物流通的老据点", default_faction: "唐门", importance: 60 },
+          "传灵塔傲来分部": { type: "势力分部", level: 3, x: 164, y: 313, desc: "负责低阶魂灵业务与地方塔务的基层分部", default_faction: "传灵塔", importance: 58 },
+          "锻造师协会分会": { type: "协会分部", level: 3, x: 3172, y: 1117, desc: "面向渔港工坊与民用器械委托的锻造分会", default_faction: "锻造师协会", importance: 48 },
+          "机甲师协会分会": { type: "协会分部", level: 3, x: 1840, y: 1887, desc: "承担地方机甲训练与基础考核事务的小型分会", default_faction: "机甲师协会", importance: 48 },
+          "制造师协会分会": { type: "协会分部", level: 3, x: 1892, y: 782, desc: "服务民用魂导制造与修缮订单的地方分会", default_faction: "制造师协会", importance: 47 },
+          "设计师协会分会": { type: "协会分部", level: 3, x: 1035, y: 2009, desc: "提供简易方案设计与器械图纸流转的基层分会", default_faction: "设计师协会", importance: 46 },
+          "修理师协会分会": { type: "协会分部", level: 3, x: 2946, y: 1730, desc: "负责渔具、机巧与低阶魂导装置保养维修的分会", default_faction: "修理师协会", importance: 46 },
+          "城市杂货店": { type: "普通商店", level: 3, x: 1198, y: 982, desc: "售卖渔具、旅行用品与日常补给的小店", default_faction: "傲来城商贸体系", importance: 18 }
+        }
+      },
+      "天定城": { 
+        type: "城市", level: 2, x: 1506, y: 416, desc: "天定星空魂师学院所在地，兼具学术与城防价值的内陆城市", default_faction: "天定城行政体系", importance: 66,
+        children: {
+          "天定星空魂师学院": { type: "学院总部", level: 3, x: 103, y: 764, desc: "以星空观想与传统魂师教育闻名的地方学院", default_faction: "天定星空魂师学院", importance: 76 },
+          "唐门天定分部": { type: "势力分部", level: 3, x: 766, y: 1445, desc: "负责周边内陆情报与资源调度的唐门据点", default_faction: "唐门", importance: 62 },
+          "传灵塔天定分部": { type: "势力分部", level: 3, x: 2810, y: 997, desc: "面向地方魂灵交易与魂兽情报联络的分部", default_faction: "传灵塔", importance: 60 },
+          "锻造师协会分会": { type: "协会分部", level: 3, x: 1799, y: 719, desc: "服务周边工坊与学院实训委托的锻造分会", default_faction: "锻造师协会", importance: 50 },
+          "机甲师协会分会": { type: "协会分部", level: 3, x: 541, y: 303, desc: "承担地方机甲演训与资格认证的分会", default_faction: "机甲师协会", importance: 50 },
+          "制造师协会分会": { type: "协会分部", level: 3, x: 1944, y: 237, desc: "负责器械制造协同与学徒进修事务的分会", default_faction: "制造师协会", importance: 49 },
+          "设计师协会分会": { type: "协会分部", level: 3, x: 3070, y: 597, desc: "偏重学院方案评审与地方器械设计的分会", default_faction: "设计师协会", importance: 48 },
+          "修理师协会分会": { type: "协会分部", level: 3, x: 2379, y: 1417, desc: "负责城市机巧与魂导设备维护的基层分会", default_faction: "修理师协会", importance: 48 },
+          "城市杂货店": { type: "普通商店", level: 3, x: 2792, y: 1955, desc: "学生、旅者与守军都常来补给的老店", default_faction: "天定城商贸体系", importance: 18 }
+        }
+      },
+      "天灵城": {
+        type: "城市", level: 2, x: 1598, y: 585, desc: "位于天斗城与天定城之间的内陆交通城市，是北境商路与学院势力辐射交汇的重要中转节点", default_faction: "天灵城行政体系", importance: 68,
+        children: {
+          "天灵中级学院": { type: "学院总部", level: 3, x: 51, y: 2075, desc: "承担天灵城及周边区域魂师启蒙与进阶教育任务的地方学院", default_faction: "天灵中级学院", importance: 74 },
+          "唐门天灵分部": { type: "势力分部", level: 3, x: 1944, y: 183, desc: "负责天灵城商路情报与物资转运的唐门据点", default_faction: "唐门", importance: 64 },
+          "传灵塔天灵分部": { type: "势力分部", level: 3, x: 2150, y: 1405, desc: "服务地方魂灵业务与魂兽情报联络的传灵塔分部", default_faction: "传灵塔", importance: 64 },
+          "锻造师协会分会": { type: "协会分部", level: 3, x: 2242, y: 1890, desc: "服务城市工坊、商路护具与学院实训的锻造分会", default_faction: "锻造师协会", importance: 52 },
+          "机甲师协会分会": { type: "协会分部", level: 3, x: 1042, y: 698, desc: "承担地方机甲训练、认证与护卫协作事务的分会", default_faction: "机甲师协会", importance: 52 },
+          "制造师协会分会": { type: "协会分部", level: 3, x: 1215, y: 13, desc: "负责魂导制造协同、订单承接与学徒进修事务的分会", default_faction: "制造师协会", importance: 51 },
+          "设计师协会分会": { type: "协会分部", level: 3, x: 1021, y: 765, desc: "承担器械方案评审、图纸流转与地方设计支持的分会", default_faction: "设计师协会", importance: 50 },
+          "修理师协会分会": { type: "协会分部", level: 3, x: 192, y: 860, desc: "负责车辆、机巧与魂导装置检修维护的分会", default_faction: "修理师协会", importance: 50 },
+          "天灵拍卖场": { type: "交易中心", level: 3, x: 2499, y: 259, desc: "汇集北境商路货物、稀有材料与委托消息的中型拍卖场", default_faction: "天灵城商贸体系", importance: 58 },
+          "城市杂货店": { type: "普通商店", level: 3, x: 2771, y: 1502, desc: "面向旅者、学员与商队成员的综合补给铺", default_faction: "天灵城商贸体系", importance: 20 }
+        }
+      },
+      "海陆城": { 
+        type: "城市", level: 2, x: 972, y: 1422, desc: "南部沿海枢纽，连接海贸与内陆运输", default_faction: "海陆城行政体系", importance: 64,
+        children: {
+          "海陆中级学院": { type: "学院总部", level: 3, x: 728, y: 1148, desc: "兼顾航运、实战与地方魂师培养的沿海学院", default_faction: "海陆中级学院", importance: 72 },
+          "唐门海陆分部": { type: "势力分部", level: 3, x: 2056, y: 2101, desc: "掌握南部沿海货运与联络网络的重要据点", default_faction: "唐门", importance: 62 },
+          "传灵塔海陆分部": { type: "势力分部", level: 3, x: 2532, y: 1801, desc: "服务海陆节点魂灵流通与商贸合作的分部", default_faction: "传灵塔", importance: 60 },
+          "锻造师协会分会": { type: "协会分部", level: 3, x: 2216, y: 1773, desc: "偏重港口工坊、船具与民用器械锻造的分会", default_faction: "锻造师协会", importance: 50 },
+          "机甲师协会分会": { type: "协会分部", level: 3, x: 110, y: 659, desc: "负责地方机甲考核与运输护卫训练的分会", default_faction: "机甲师协会", importance: 50 },
+          "制造师协会分会": { type: "协会分部", level: 3, x: 1219, y: 1556, desc: "承担商路器械与魂导设备制造协作的分会", default_faction: "制造师协会", importance: 49 },
+          "设计师协会分会": { type: "协会分部", level: 3, x: 652, y: 404, desc: "为船具、运输器械与学院课题提供设计支持的分会", default_faction: "设计师协会", importance: 48 },
+          "修理师协会分会": { type: "协会分部", level: 3, x: 891, y: 728, desc: "负责港机、车辆与魂导装置日常检修的分会", default_faction: "修理师协会", importance: 48 },
+          "城市杂货店": { type: "普通商店", level: 3, x: 1569, y: 963, desc: "商旅、学员与水手常用的综合补给铺", default_faction: "海陆城商贸体系", importance: 18 }
+        }
+      },
+      "上陵城": { 
+        type: "城市", level: 2, x: 1931, y: 345, desc: "靠近隐世势力活动范围、氛围低调的山前城市", default_faction: "上陵城行政体系", importance: 62,
+        children: {
+          "唐门上陵分部": { type: "势力分部", level: 3, x: 697, y: 1663, desc: "负责山前城镇与隐世势力边缘情报的据点", default_faction: "唐门", importance: 60 },
+          "传灵塔上陵分部": { type: "势力分部", level: 3, x: 1789, y: 970, desc: "承担周边魂灵业务与地方联络事务的分部", default_faction: "传灵塔", importance: 58 },
+          "锻造师协会分会": { type: "协会分部", level: 3, x: 264, y: 54, desc: "服务山城工坊与猎装器械的锻造分会", default_faction: "锻造师协会", importance: 48 },
+          "机甲师协会分会": { type: "协会分部", level: 3, x: 28, y: 1049, desc: "承担地方机甲考核与护卫训练的基层分会", default_faction: "机甲师协会", importance: 48 },
+          "制造师协会分会": { type: "协会分部", level: 3, x: 1028, y: 1675, desc: "负责民用魂导器与山路器械制造协作的分会", default_faction: "制造师协会", importance: 47 },
+          "设计师协会分会": { type: "协会分部", level: 3, x: 1939, y: 336, desc: "偏重山区实用装备与器械方案改良的分会", default_faction: "设计师协会", importance: 46 },
+          "修理师协会分会": { type: "协会分部", level: 3, x: 2532, y: 1832, desc: "处理山路运输器械与魂导装置维修的分会", default_faction: "修理师协会", importance: 46 },
+          "城市杂货店": { type: "普通商店", level: 3, x: 1803, y: 589, desc: "猎人、商旅与山民都离不开的补给小店", default_faction: "上陵城商贸体系", importance: 18 }
+        }
+      },
+      "烈火盆地": { 
+        type: "城市", level: 2, x: 578, y: 425, desc: "西部集贸与矿业城市，矿脉与工坊林立", default_faction: "烈火盆地行政体系", importance: 70,
+        children: {
+          "唐门烈火分部": { type: "势力分部", level: 3, x: 1616, y: 1088, desc: "唐门在矿区、集贸与灰市网络中的重要支点", default_faction: "唐门", importance: 66 },
+          "传灵塔烈火分部": { type: "势力分部", level: 3, x: 1545, y: 502, desc: "负责矿区魂灵业务与高危资源中转的分部", default_faction: "传灵塔", importance: 64 },
+          "锻造师协会分会": { type: "协会分部", level: 3, x: 603, y: 934, desc: "服务矿脉开采、军用锻件与工坊订单的核心分会", default_faction: "锻造师协会", importance: 60 },
+          "机甲师协会分会": { type: "协会分部", level: 3, x: 2649, y: 2091, desc: "面向矿区护卫、重型机甲与实战演练的地方分会", default_faction: "机甲师协会", importance: 59 },
+          "制造师协会分会": { type: "协会分部", level: 3, x: 1056, y: 1106, desc: "承担矿区器械、冶炼设备与魂导装置制造协作的分会", default_faction: "制造师协会", importance: 58 },
+          "设计师协会分会": { type: "协会分部", level: 3, x: 2272, y: 1975, desc: "偏重耐高温装备与矿用器械设计的地方分会", default_faction: "设计师协会", importance: 57 },
+          "修理师协会分会": { type: "协会分部", level: 3, x: 2658, y: 2236, desc: "负责矿用机械、重型机甲与熔炼装置维修的分会", default_faction: "修理师协会", importance: 57 },
+          "城市杂货店": { type: "普通商店", level: 3, x: 2917, y: 410, desc: "矿工、商队与冒险者常光顾的耐用补给铺", default_faction: "烈火盆地商贸体系", importance: 20 }
+        }
+      },
+      "北海城": { 
+        type: "军事城市", level: 2, x: 2588, y: 162, desc: "东北部海滨重镇", default_faction: "北海军团", importance: 81,
+        children: {
+          "北海军团驻地": { type: "军事驻地", level: 3, x: 2038, y: 1544, desc: "负责北方海疆巡防、远海训练与战备动员的核心军港", default_faction: "北海军团", importance: 86 },
+          "唐门北海分部": { type: "势力分部", level: 3, x: 2901, y: 1682, desc: "唐门在寒海航线与北地据点网络中的重要节点", default_faction: "唐门", importance: 70 },
+          "传灵塔北海分部": { type: "势力分部", level: 3, x: 144, y: 1438, desc: "面向北境魂灵贸易与寒带魂兽资源的关键分部", default_faction: "传灵塔", importance: 72 },
+          "锻造师协会分会": { type: "协会分部", level: 3, x: 1747, y: 218, desc: "服务军港装备、船坞锻件与寒地工坊的分会", default_faction: "锻造师协会", importance: 61 },
+          "机甲师协会分会": { type: "协会分部", level: 3, x: 1312, y: 821, desc: "承担军用机甲训练、考核与协同演练事务的窗口", default_faction: "机甲师协会", importance: 61 },
+          "制造师协会分会": { type: "协会分部", level: 3, x: 251, y: 2052, desc: "负责寒区魂导装备制造与补给协作的分会", default_faction: "制造师协会", importance: 60 },
+          "设计师协会分会": { type: "协会分部", level: 3, x: 748, y: 2224, desc: "偏重军港器械与寒地装备方案设计的地方分会", default_faction: "设计师协会", importance: 59 },
+          "修理师协会分会": { type: "协会分部", level: 3, x: 2665, y: 270, desc: "负责军港机械、寒区机甲与魂导装置整备维护的分会", default_faction: "修理师协会", importance: 59 },
+          "城市杂货店": { type: "普通商店", level: 3, x: 1515, y: 869, desc: "面向士兵、渔民与旅者的寒地补给铺", default_faction: "北海城商贸体系", importance: 20 }
+        }
+      },
+      "无尽山脉": { 
+        type: "边疆/禁区", level: 2, x: 437, y: 362, desc: "血神军团与深渊通道所在的极寒边疆山脉", default_faction: "自然地带", importance: 92,
+        children: {
+          "血神军团驻地": { type: "军团总部", level: 3, x: 626, y: 461, desc: "镇守深渊通道、常年抵御深渊侵袭的血色防线", default_faction: "血神军团", importance: 95 },
+          "深渊通道": { type: "位面入口", level: 3, x: 1608, y: 30, desc: "连接深渊位面的灾厄裂口，一旦失守便是大陆浩劫", default_faction: "自然地带", importance: 100 },
+          "深渊位面": { type: "异位面", level: 3, x: 298, y: 1326, desc: "一百零八层深渊构成的吞噬世界，孕育无数深渊生物", default_faction: "自然地带", importance: 100 }
+        }
+      },
+      "东南山脉": { type: "地形/区域", level: 2, x: 2297, y: 765, desc: "位于大陆东南部、连接海岸与内陆的连绵山脉地带，山势崎岖、通路稀少", default_faction: "自然地带", importance: 54 },
+      "明斗山脉": { type: "地形/区域", level: 2, x: 1420, y: 649, desc: "横贯大陆中部、影响明都与天斗交通格局的重要山脉", default_faction: "自然地带", importance: 58 },
+      "东北山地": { type: "地形/区域", level: 2, x: 2225, y: 155, desc: "通往北境寒海的重要山地缓冲带，气候冷峻而地势复杂", default_faction: "自然地带", importance: 53 },
+      "东南山地": { type: "地形/区域", level: 2, x: 1857, y: 815, desc: "湿热林地与丘陵山岭交错的东南山地，连接海岸与内陆边缘聚落", default_faction: "自然地带", importance: 52 },
+      "日月山脉": { type: "地形/区域", level: 2, x: 992, y: 475, desc: "明都周边矿脉富集、军工与魂导试验活动频繁的山系", default_faction: "自然地带", importance: 58 },
+      "立马平原": { type: "地形/区域", level: 2, x: 1926, y: 556, desc: "贯穿中东部的辽阔平原，是商路延展与大规模机动的天然走廊", default_faction: "自然地带", importance: 57 },
+      "景阳山脉": { type: "地形/区域", level: 2, x: 993, y: 924, desc: "大陆南部矿脉与魂兽活动都较频繁的重要山脉节点", default_faction: "自然地带", importance: 55 },
+      "落日森林": {
+        type: "禁区", level: 2, x: 1785, y: 302, desc: "天斗—史莱克之间偏北的古老森林，也是无数秘闻滋生之地", default_faction: "自然地带", importance: 84,
+        children: {
+          "冰火两仪眼": { type: "核心禁地", level: 3, x: 2940, y: 1755, desc: "冰火交汇、孕育无数仙草与奇毒的绝密秘境", default_faction: "自然地带", importance: 98 }
+        }
+      },
+      "邪魔森林": { type: "禁区", level: 2, x: 742, y: 861, desc: "瘴气、邪魂兽与诡异传说并存的西部危险林区", default_faction: "自然地带", importance: 76 },
+      "星斗大森林": { 
+        type: "禁区", level: 2, x: 2077, y: 806, desc: "魂兽最后的净土，也是大陆最危险的生命禁区之一", default_faction: "自然地带", importance: 94,
+        local_resources: ["高阶魂兽", "珍稀灵草", "生命之水"],
+        opportunities: ["遭遇万年魂兽袭击", "发现一株罕见的仙草", "感受到生命之湖的呼唤"],
+        children: {
+          "生命之湖": { type: "核心禁地", level: 3, x: 1336, y: 912, desc: "凶兽沉睡之地，顶级存在气息笼罩的森林核心", default_faction: "自然地带", importance: 100 }
+        }
+      },
+      "极北之地": { 
+        type: "禁区", level: 2, x: 1994, y: 38, desc: "大陆最北端的无尽冰川，冰属性魂兽与极寒风暴统治的禁区", default_faction: "自然地带", importance: 92,
+        local_resources: ["万年冰髓", "极寒冰花", "冰属性魂兽"],
+        opportunities: ["遭遇罕见的极寒风暴", "发现一处未知的冰属性遗迹", "遭遇万年冰熊的袭击"],
+        children: {
+          "圣灵教极北据点": { 
+            type: "邪教据点", level: 3, x: 1535, y: 1912, desc: "依附极寒地形与隐秘遗迹活动的圣灵教北境据点", default_faction: "圣灵教", importance: 66,
+            condition: (sd) => sd.char[sd.sys?.player_name]?.social?.factions?.['圣灵教'] || sd.char[sd.sys?.player_name]?.unlocked_knowledges?.includes('圣灵教极北据点')
+          }
+        }
+      }
+    }
+  },
+  "星罗大陆": {
+    type: "大陆", level: 1, x: 537, y: 1800, desc: "以星罗帝国为核心统治力量、崇尚强者与军备的海外大陆", default_faction: "星罗帝国", importance: 96,
+    children: {
+      "星罗城": { 
+        type: "海外首都", level: 2, x: 537, y: 1801, desc: "星罗帝国首都，皇权、军力与贵族势力高度集中的核心都会", default_faction: "星罗帝国", importance: 90,
+        children: {
+          "怪物学院": { type: "学院总部", level: 3, x: 84, y: 323, desc: "以极限实战和怪物式训练闻名的星罗名校", default_faction: "星罗帝国", importance: 86 },
+          "星罗皇家学院": { type: "学院总部", level: 3, x: 877, y: 326, desc: "星罗贵胄与精英魂师接受正统教育的传统学府", default_faction: "星罗帝国", importance: 84 },
+          "唐门星罗分部": { type: "势力分部", level: 3, x: 3068, y: 719, desc: "唐门在星罗帝都经营的战略分部", default_faction: "唐门", importance: 74 },
+          "传灵塔星罗分部": { type: "势力分部", level: 3, x: 1082, y: 933, desc: "负责帝都魂灵贸易与塔系事务的关键据点", default_faction: "传灵塔", importance: 76 },
+          "锻造师协会分会": { type: "协会分部", level: 3, x: 1886, y: 2109, desc: "为星罗军工与贵族订单服务的锻造分会", default_faction: "锻造师协会", importance: 64 },
+          "机甲师协会分会": { type: "协会分部", level: 3, x: 1881, y: 1543, desc: "机甲师评级、实训与擂台活动的重要窗口", default_faction: "机甲师协会", importance: 64 },
+          "制造师协会分会": { type: "协会分部", level: 3, x: 31, y: 377, desc: "负责帝都魂导制造协作与高端订单流转的分会", default_faction: "制造师协会", importance: 63 },
+          "设计师协会分会": { type: "协会分部", level: 3, x: 2543, y: 616, desc: "汇集宫廷与民间器械设计力量的地方分会", default_faction: "设计师协会", importance: 62 },
+          "修理师协会分会": { type: "协会分部", level: 3, x: 82, y: 859, desc: "负责大型器械、机甲与魂导装置整备检修的分会", default_faction: "修理师协会", importance: 62 },
+          "星罗大拍卖场": { type: "交易中心", level: 3, x: 1005, y: 1316, desc: "帝都珍宝、战利品与贵族委托活跃流通的拍卖场", default_faction: "星罗城商贸体系", importance: 69 },
+          "城市杂货店": { type: "普通商店", level: 3, x: 542, y: 670, desc: "兼顾军旅、贵族与平民日常补给的老牌铺面", default_faction: "星罗城商贸体系", importance: 24 }
+        }
+      }
+    }
+  },
+  "斗灵大陆": {
+    type: "大陆", level: 1, x: 1622, y: 1838, desc: "由斗灵帝国统辖、沿海港城与塔系势力高度活跃的海外大陆", default_faction: "斗灵帝国", importance: 92,
+    children: {
+      "天斗城(斗灵帝国)": {
+        type: "海外首都", level: 2, x: 1827, y: 1694, desc: "斗灵帝国首都，延续天斗之名的海外皇城", default_faction: "斗灵帝国", importance: 88,
+        children: {
+          "斗灵皇宫": { type: "皇权中枢", level: 3, x: 2528, y: 784, desc: "斗灵帝国政务、礼制与禁卫力量的最高中枢", default_faction: "斗灵帝国", importance: 94 },
+          "唐门斗灵天斗分部": { type: "势力分部", level: 3, x: 1230, y: 1263, desc: "唐门在斗灵帝都埋设的战略支点", default_faction: "唐门", importance: 72 },
+          "传灵塔斗灵天斗分部": { type: "势力分部", level: 3, x: 627, y: 1203, desc: "负责帝都魂灵业务与塔系事务的核心分部", default_faction: "传灵塔", importance: 75 },
+          "锻造师协会分会": { type: "协会分部", level: 3, x: 1232, y: 116, desc: "为帝都工坊、皇室与军备体系服务的锻造分会", default_faction: "锻造师协会", importance: 63 },
+          "机甲师协会分会": { type: "协会分部", level: 3, x: 2487, y: 90, desc: "帝都机甲训练、认证与擂台活动的重要窗口", default_faction: "机甲师协会", importance: 63 },
+          "制造师协会分会": { type: "协会分部", level: 3, x: 9, y: 2053, desc: "负责帝都魂导制造协作与高端订单流转的分会", default_faction: "制造师协会", importance: 62 },
+          "设计师协会分会": { type: "协会分部", level: 3, x: 2510, y: 845, desc: "汇集帝都器械方案、军用设计与图纸评审的分会", default_faction: "设计师协会", importance: 61 },
+          "修理师协会分会": { type: "协会分部", level: 3, x: 525, y: 508, desc: "处理皇城器械、机甲与魂导设备维护的分会", default_faction: "修理师协会", importance: 61 },
+          "斗灵大拍卖场": { type: "交易中心", level: 3, x: 715, y: 1224, desc: "帝都高价拍品、珍稀魂灵材料与委托情报汇集之地", default_faction: "天斗城(斗灵帝国)商贸体系", importance: 70 },
+          "城市杂货店": { type: "普通商店", level: 3, x: 216, y: 478, desc: "兼售旅装、礼品与基础魂导零件的帝都补给铺", default_faction: "天斗城(斗灵帝国)商贸体系", importance: 22 }
+        }
+      },
+      "灵波城": { 
+        type: "城市", level: 2, x: 1521, y: 1743, desc: "传灵塔斗灵总部所在地，也是斗灵沿海的重要都会", default_faction: "斗灵帝国", importance: 72,
+        children: {
+          "传灵塔灵波分部": { type: "势力分部", level: 3, x: 1783, y: 2093, desc: "传灵塔在斗灵帝国的标志性分部", default_faction: "传灵塔", importance: 82 },
+          "唐门灵波分部": { type: "势力分部", level: 3, x: 347, y: 267, desc: "唐门在斗灵沿海的重要联络与经营据点", default_faction: "唐门", importance: 74 },
+          "锻造师协会分会": { type: "协会分部", level: 3, x: 1706, y: 2138, desc: "承担斗灵沿海锻造委托与认证业务的城市分会", default_faction: "锻造师协会", importance: 63 },
+          "机甲师协会分会": { type: "协会分部", level: 3, x: 1934, y: 2135, desc: "机甲师考核、对练与赛事合作的地方据点", default_faction: "机甲师协会", importance: 63 },
+          "制造师协会分会": { type: "协会分部", level: 3, x: 2790, y: 1545, desc: "负责魂导制造协作与港口工坊联动的分会", default_faction: "制造师协会", importance: 62 },
+          "设计师协会分会": { type: "协会分部", level: 3, x: 1418, y: 1612, desc: "汇集斗灵沿海器械设计与方案优化事务的分会", default_faction: "设计师协会", importance: 61 },
+          "修理师协会分会": { type: "协会分部", level: 3, x: 3122, y: 1776, desc: "负责港务器械、机甲与魂导装置检修的分会", default_faction: "修理师协会", importance: 61 },
+          "城市杂货店": { type: "普通商店", level: 3, x: 1086, y: 517, desc: "兼售港口补给、旅装与低阶魂导零件的小铺", default_faction: "灵波城商贸体系", importance: 22 },
+          "圣灵教灵波据点": { 
+            type: "邪教据点", level: 3, x: 2603, y: 132, desc: "隐藏于港区阴影与走私网络中的邪教据点", default_faction: "圣灵教", importance: 68,
+            condition: (sd) => sd.char[sd.sys?.player_name]?.social?.factions?.['圣灵教'] || sd.char[sd.sys?.player_name]?.unlocked_knowledges?.includes('圣灵教灵波据点')
+          }
+        }
+      }
+    }
+  },
+  "无尽海域": {
+    type: "海洋", level: 1, x: 1083, y: 1625, desc: "连接诸大陆与群岛、潜伏无数海魂兽霸主的广阔海域", default_faction: "自然地带", importance: 94,
+    children: {
+      "魔鬼群岛": { type: "秘境/岛屿", level: 2, x: 2787, y: 132, desc: "北海城外海三十公里、用于高强度生存训练的险恶群岛", default_faction: "自然地带", importance: 74 }
+    }
+  }
+};
+const MAP_IMAGE_WIDTH = 3174;
+const MAP_IMAGE_HEIGHT = 2246;
+const MAP_COORD_SYSTEM_IMAGE = 'image';
+const MAP_COORD_SYSTEM_LOCAL = 'local';
+
+function mapCoordClamp(value, min, max) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return min;
+  return Math.min(max, Math.max(min, num));
+}
+
+function mapCoordToNumber(value, fallback = NaN) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function isWorldMapId(mapId = 'map_douluo_world') {
+  return !mapId || mapId === 'map_douluo_world';
+}
+
+function resolveMapCoordSystemByMapId(mapId = 'map_douluo_world') {
+  return isWorldMapId(mapId) ? MAP_COORD_SYSTEM_IMAGE : MAP_COORD_SYSTEM_LOCAL;
+}
+
+const MAP_TRAVEL_SCALE_BY_LEVEL = {
+  world: 1,
+  city: 0.07,
+  facility: 0.02
+};
+
+function normalizeTravelMapLevel(level = 'world') {
+  const safeLevel = String(level || 'world').trim().toLowerCase();
+  if (safeLevel === 'facility' || safeLevel === 'district') return 'facility';
+  if (safeLevel === 'city') return 'city';
+  if (safeLevel === 'world' || safeLevel === 'continent' || safeLevel === 'region') return 'world';
+  return 'world';
+}
+
+function getTravelScaleByMapLevel(level = 'world') {
+  return MAP_TRAVEL_SCALE_BY_LEVEL[normalizeTravelMapLevel(level)] || MAP_TRAVEL_SCALE_BY_LEVEL.world;
+}
+
+function getMapNodeCommonPathDepth(startPath = [], endPath = []) {
+  const a = Array.isArray(startPath) ? startPath : [];
+  const b = Array.isArray(endPath) ? endPath : [];
+  const maxDepth = Math.min(a.length, b.length);
+  let depth = 0;
+  for (let i = 0; i < maxDepth; i++) {
+    if (a[i] !== b[i]) break;
+    depth++;
+  }
+  return depth;
+}
+
+function resolveTravelMapLevel(startLoc, endLoc, sd = null, coordSystem = MAP_COORD_SYSTEM_IMAGE) {
+  const safeCoordSystem = String(coordSystem || MAP_COORD_SYSTEM_IMAGE).trim();
+  if (safeCoordSystem === MAP_COORD_SYSTEM_IMAGE) return 'world';
+  if (!sd) return 'city';
+  const startEntry = findMapNodeEntry(startLoc, sd);
+  const endEntry = findMapNodeEntry(endLoc, sd);
+  const startPath = Array.isArray(startEntry?.path) ? startEntry.path : [];
+  const endPath = Array.isArray(endEntry?.path) ? endEntry.path : [];
+  const commonDepth = getMapNodeCommonPathDepth(startPath, endPath);
+  if (commonDepth >= 3) return 'facility';
+  if (commonDepth >= 2) return 'city';
+  if (startPath.length >= 3 || endPath.length >= 3) return 'facility';
+  if (startPath.length >= 2 || endPath.length >= 2) return 'city';
+  return 'world';
+}
+
+const FLAT_LOCATIONS = {};
+function flattenMapTree(node, name) {
+  if (node.x !== undefined && node.y !== undefined) {
+    FLAT_LOCATIONS[name] = { x: node.x, y: node.y };
+    if (!node.coord_system) node.coord_system = node.level <= 2 ? MAP_COORD_SYSTEM_IMAGE : MAP_COORD_SYSTEM_LOCAL;
+  }
+  if (node.children) {
+    for (let childName in node.children) {
+      flattenMapTree(node.children[childName], childName);
+    }
+  }
+}
+for (let rootName in WORLD_MAP_TREE) {
+  flattenMapTree(WORLD_MAP_TREE[rootName], rootName);
+}
+
+
+function calculateTravelTick(startLoc, endLoc, method) {
+  let start = FLAT_LOCATIONS[startLoc];
+  let end = FLAT_LOCATIONS[endLoc];
+  if (!start || !end) return 6; 
+  
+  let distance = Math.sqrt(Math.pow(start.x - end.x, 2) + Math.pow(start.y - end.y, 2));
+  let coef = TRAVEL_METHOD_COEFFICIENT[method] || 1.0;
+  let travelLevel = resolveTravelMapLevel(startLoc, endLoc, null, MAP_COORD_SYSTEM_IMAGE);
+  let scaledDistance = distance * getTravelScaleByMapLevel(travelLevel);
+  
+  
+  let ticks = Math.floor(scaledDistance * coef);
+  return Math.max(1, ticks); 
+}
+
+function calculateTravelResourceCost(method, distance, char = {}) {
+  const stat = char.stat || {};
+  const wealth = char.wealth || {};
+  const equip = char.equip || {};
+  const lv = Number(stat.lv || 0);
+  const hasDoukai = Number(equip?.armor?.lv || 0) > 0 && String(equip?.armor?.equip_status || '未装备') === '已装备';
+  const hasMecha = String(equip?.mech?.lv || '无') !== '无' && String(equip?.mech?.equip_status || '未装备') === '已装备';
+
+  let fedCoin = 0;
+  let sp = 0;
+  let vit = 0;
+  let canAfford = true;
+  let reason = '';
+  let note = '';
+
+  if (method === '步行') {
+    vit = Math.floor(distance * 5);
+  } else if (method === '校园短驳车') {
+    fedCoin = Math.max(1, Math.floor(distance * 2));
+    note = '校内通勤';
+  } else if (['魂导列车', '魂导汽车', '远洋巨轮'].includes(method)) {
+    fedCoin = Math.floor(distance * 10);
+  } else if (method === '飞行(机甲/斗铠)') {
+    if (hasDoukai) {
+      sp = Math.floor(distance * 12);
+      vit = Math.max(1, Math.floor(distance * 2));
+      note = '斗铠飞行';
+    } else if (hasMecha) {
+      sp = Math.floor(distance * 10);
+      vit = Math.max(1, Math.floor(distance));
+      fedCoin = Math.max(1, Math.floor(distance * 3));
+      note = '机甲飞行';
+    } else if (lv >= 70) {
+      sp = Math.floor(distance * 20);
+      vit = Math.max(1, Math.floor(distance * 5));
+      note = '肉身飞行';
+    } else {
+      canAfford = false;
+      reason = '需70级以上或装备机甲/斗铠';
+    }
+  } else if (method === '空间传送(极限斗罗)') {
+    if (lv >= 98) {
+      note = '极限传送';
+    } else {
+      canAfford = false;
+      reason = '需极限斗罗或特殊权限';
+    }
+  } else if (method === '空间传送(神级)') {
+    note = '神级传送';
+  }
+
+  const curCoin = Number(wealth.fed_coin || 0);
+  const curSp = Number(stat.sp || 0);
+  const curVit = Number(stat.vit || 0);
+  if (canAfford && fedCoin > curCoin) { canAfford = false; reason = '联邦币不足'; }
+  if (canAfford && sp > curSp) { canAfford = false; reason = '魂力不足'; }
+  if (canAfford && vit > curVit) { canAfford = false; reason = '体力不足'; }
+
+  return { fedCoin, sp, vit, canAfford, reason, note };
+}
+
+
+function findMapNodeEntry(targetName, sd) {
+  let found = null;
+  const visit = (node, name, path = []) => {
+    if (found || !node) return;
+    if (sd && typeof node.condition === 'function' && !node.condition(sd)) return;
+    const nextPath = [...path, name];
+    if (name === targetName) {
+      found = { name, node, path: nextPath };
+      return;
+    }
+    if (node.children) {
+      Object.keys(node.children).forEach(childName => {
+        visit(node.children[childName], childName, nextPath);
+      });
+    }
+  };
+  Object.keys(WORLD_MAP_TREE).forEach(rootName => {
+    visit(WORLD_MAP_TREE[rootName], rootName, []);
+  });
+  return found;
+}
+
+function inferMapNodeIcon(name, type = '') {
+  const safeName = String(name || '');
+  const safeType = String(type || '');
+  if (/遗址|废墟/.test(safeName) || /废墟/.test(safeType)) return 'ruins';
+  if (/新城|重建/.test(safeName) || /重建/.test(safeType)) return 'construction';
+  if (/首都|核心主城|海外首都/.test(safeType)) return 'capital';
+  if (/沿海|港/.test(safeType) || /海港/.test(safeName)) return 'port';
+  if (/主城|城市/.test(safeType) || /城|都/.test(safeName)) return 'city';
+  if (/城镇/.test(safeType)) return 'town';
+  if (/学院|协会|总部|驻地|拍卖场|商店|军团|军区|要塞|分部|剧院|基地/.test(`${safeName}${safeType}`)) return 'facility';
+  if (/森林|山脉|山地|盆地|平原|海域|群岛|深海|之地|生命之湖|冰火两仪眼/.test(safeName) || /禁区|地形|区域|海洋|边疆/.test(safeType)) return 'terrain';
+  return 'node';
+}
+
+function inferMapNodeFaction(name, type = '', parentName = '') {
+  const safeName = String(name || '');
+  const safeType = String(type || '');
+  const safeParent = String(parentName || '');
+  const combined = `${safeName} ${safeType}`;
+  if (/史莱克/.test(combined)) return '史莱克学院';
+  if (/唐门/.test(combined)) return '唐门';
+  if (/传灵塔/.test(combined)) return '传灵塔';
+  if (/锻造师协会/.test(combined)) return '锻造师协会';
+  if (/机甲师协会/.test(combined)) return '机甲师协会';
+  if (/制造师协会/.test(combined)) return '制造师协会';
+  if (/设计师协会/.test(combined)) return '设计师协会';
+  if (/修理师协会/.test(combined)) return '修理师协会';
+  if (/战神殿/.test(combined)) return '战神殿';
+  if (/圣灵教/.test(combined)) return '圣灵教';
+  if (/本体宗/.test(combined)) return '本体宗';
+  if (/泰坦巨猿家族/.test(combined)) return '泰坦巨猿家族';
+  if (/血神军团/.test(combined)) return '血神军团';
+  if (/北海军团/.test(combined)) return '北海军团';
+  if (/斗灵帝国|灵波城/.test(combined)) return '斗灵帝国';
+  if (/星罗帝国|怪物学院|星罗皇家学院/.test(combined)) return '星罗帝国';
+  if (/明都军区|中央军团|斗罗联邦|日月皇家魂师学院/.test(combined)) return '斗罗联邦';
+  if (/森林|山脉|山地|盆地|平原|海域|群岛|深海|之地|生命之湖|冰火两仪眼/.test(safeName) || /禁区|地形|区域|海洋|边疆/.test(safeType)) return '自然地带';
+  if (/拍卖场|交易中心|商店/.test(combined)) return safeParent ? `${safeParent}商贸体系` : '地方商贸体系';
+  if (safeParent && /(城|都)$/.test(safeParent)) return `${safeParent}地方体系`;
+  return '未知';
+}
+
+function inferMapNodeDescription(name, type = '', parentName = '') {
+  const safeName = String(name || '未知地点');
+  const safeType = String(type || '地图节点');
+  if (/学院/.test(`${safeName}${safeType}`)) return `${safeName}，重要的学院与人才培养节点。`;
+  if (/协会/.test(`${safeName}${safeType}`)) return `${safeName}，提供职业认证、资源流通与技术支持。`;
+  if (/拍卖场|交易中心/.test(`${safeName}${safeType}`)) return `${safeName}，承担高价值物资交易与情报流通。`;
+  if (/商店/.test(`${safeName}${safeType}`)) return `${safeName}，提供基础补给与日常采购服务。`;
+  if (/军团|军区|驻地|要塞|战神殿/.test(`${safeName}${safeType}`)) return `${safeName}，重要的军事与防务节点。`;
+  if (/总部|分部|宗门|家族/.test(`${safeName}${safeType}`)) return `${safeName}，对应势力在当地的重要据点。`;
+  if (/森林|山脉|山地|盆地|平原|海域|群岛|深海|之地|生命之湖|冰火两仪眼/.test(safeName) || /禁区|地形|区域|海洋|边疆/.test(safeType)) return `${safeName}，${safeType}。`;
+  return parentName ? `${safeName}，位于${parentName}范围内的${safeType}。` : `${safeName}，${safeType}。`;
+}
+
+function inferMapNodeImportance(name, type = '', level = 0, canEnter = false) {
+  const safeName = String(name || '');
+  const safeType = String(type || '');
+  if (/首都|核心主城|海外首都/.test(safeType)) return 95;
+  if (/主城|沿海主城|军事城市/.test(safeType)) return 85;
+  if (/沿海城市|城市/.test(safeType)) return 72;
+  if (/城镇/.test(safeType)) return 58;
+  if (/学院总部|势力总部|军方核心|军团总部|宗门总部/.test(safeType)) return 88;
+  if (/家族驻地|军事驻地|协会总部|交易中心/.test(safeType)) return 74;
+  if (/势力分部|协会分会/.test(safeType)) return 60;
+  if (/普通商店/.test(safeType)) return 28;
+  if (/核心禁地|位面入口|异位面/.test(safeType)) return 90;
+  if (/禁区|边疆/.test(safeType)) return 82;
+  if (/地形|区域|海洋/.test(safeType) || /森林|山脉|山地|盆地|平原|海域|群岛|深海|之地/.test(safeName)) return 45;
+  const base = Math.max(20, Math.min(80, 100 - level * 12));
+  return canEnter ? Math.max(base, 55) : base;
+}
+
+function toTextList(value) {
+  if (Array.isArray(value)) return value.map(v => String(v || '').trim()).filter(Boolean);
+  const text = String(value || '').trim();
+  if (!text) return [];
+  return text.split(/[、，,|/]+/).map(v => String(v || '').trim()).filter(Boolean);
+}
+
+function inferMapNodeKind(name, type = '', canEnter = false) {
+  const text = `${String(name || '')} ${String(type || '')}`;
+  if (canEnter) {
+    if (/学院/.test(text)) return 'academy_hub';
+    if (/分部|唐门/.test(text)) return 'branch_hub';
+    if (/驻地|防军|军团|军区|要塞/.test(text)) return 'garrison_hub';
+    if (/城|主城|都市|首都/.test(text)) return 'city_hub';
+    return 'hub';
+  }
+  if (/拍卖|黑市|商店|杂货|交易/.test(text)) return 'commerce';
+  if (/图书馆|教学|知识|藏书/.test(text)) return 'study';
+  if (/实验|研究|工坊|制造|锻造|修理|暗器/.test(text)) return 'craft';
+  if (/修炼|训练|演武|斗魂|实训|擂台/.test(text)) return 'training';
+  if (/宿舍|生活|休息|居住/.test(text)) return 'rest';
+  if (/指挥|情报|巡防|侦察/.test(text)) return 'intel';
+  if (/接待|前台|办事|政务|行政/.test(text)) return 'administration';
+  return 'landmark';
+}
+
+function inferMapNodeInteractions(nodeKind, name = '', type = '', canEnter = false) {
+  const text = `${String(name || '')} ${String(type || '')}`;
+  if (canEnter) return ['enter', 'inspect'];
+  if (nodeKind === 'commerce') return /拍卖/.test(text) ? ['inspect', 'bid'] : ['inspect', 'trade'];
+  if (nodeKind === 'study') return /图书馆|藏书|静室/.test(text) ? ['inspect', 'study', 'meditate'] : ['inspect', 'study'];
+  if (nodeKind === 'craft') return ['inspect', 'craft'];
+  if (nodeKind === 'training') return /演武|斗魂|擂|实战/.test(text) ? ['inspect', 'train', 'battle'] : ['inspect', 'train'];
+  if (nodeKind === 'rest') return ['inspect', 'rest', 'meditate'];
+  if (nodeKind === 'intel') return ['inspect', 'intel'];
+  if (nodeKind === 'administration') return ['inspect', 'brief'];
+  return ['inspect'];
+}
+
+function inferMapNodeServices(nodeKind, name = '', type = '', canEnter = false) {
+  const text = `${String(name || '')} ${String(type || '')}`;
+  if (canEnter) return ['preview'];
+  if (nodeKind === 'commerce') return /黑市/.test(text) ? ['black_market'] : (/拍卖/.test(text) ? ['auction'] : ['shop']);
+  if (nodeKind === 'study') return ['study'];
+  if (nodeKind === 'craft') return ['craft'];
+  if (nodeKind === 'training') return /演武|斗魂|擂|实战/.test(text) ? ['battle'] : ['train'];
+  if (nodeKind === 'rest') return ['rest'];
+  if (nodeKind === 'intel') return ['intel'];
+  if (nodeKind === 'administration') return ['briefing'];
+  return [];
+}
+
+function inferMapNodeActionSlots(nodeKind, name = '', type = '', canEnter = false, interactions = [], services = []) {
+  const text = `${String(name || '')} ${String(type || '')}`;
+  if (canEnter) return ['enter', 'inspect'];
+  if (nodeKind === 'commerce') return /拍卖/.test(text) ? ['bid', 'inspect'] : ['trade', 'inspect'];
+  if (nodeKind === 'study') return /图书馆|藏书|静室/.test(text) ? ['study', 'meditate', 'inspect'] : ['study', 'inspect'];
+  if (nodeKind === 'craft') return ['craft', 'inspect'];
+  if (nodeKind === 'training') return (services || []).includes('battle') || /演武|斗魂|擂|实战/.test(text) ? ['train', 'battle', 'inspect'] : ['train', 'inspect'];
+  if (nodeKind === 'rest') return ['rest', 'meditate', 'inspect'];
+  if (nodeKind === 'intel') return ['intel', 'inspect'];
+  if (nodeKind === 'administration') return ['brief', 'inspect'];
+  if ((interactions || []).length) return interactions.slice(0, 3);
+  return ['inspect'];
+}
+
+function normalizeMapNodeDisplayMeta(name, rawNode = {}, options = {}) {
+  const safeName = String(name || rawNode.name || '未知节点');
+  const safeType = rawNode.type || options.type || '未知节点';
+  const safeMapId = options.current_map_id || options.currentMapId || rawNode.map_id || options.map_id || 'map_douluo_world';
+  const safeCoordSystem = String(options.coord_system || options.coordinate_system || rawNode.coord_system || rawNode.coordinate_system || '').trim();
+  const safeLevel = rawNode.level !== undefined ? rawNode.level : (options.level !== undefined ? options.level : 0);
+  const safeChildMapId = options.child_map_id || rawNode.child_map_id || '无';
+  const safeCanEnter = options.can_enter !== undefined ? !!options.can_enter : !!(safeChildMapId && safeChildMapId !== '无');
+  const safeState = String(options.state || rawNode.state || 'intact');
+  const explicitNodeKind = String(rawNode.node_kind || options.node_kind || '').trim();
+  const resolvedNodeKind = explicitNodeKind || inferMapNodeKind(safeName, safeType, safeCanEnter);
+  const explicitInteractions = toTextList(rawNode.interactions !== undefined ? rawNode.interactions : options.interactions);
+  const explicitServices = toTextList(rawNode.services !== undefined ? rawNode.services : options.services);
+  const explicitActionSlots = toTextList(rawNode.action_slots !== undefined ? rawNode.action_slots : (rawNode.actionSlots !== undefined ? rawNode.actionSlots : (options.action_slots !== undefined ? options.action_slots : options.actionSlots)));
+  const resolvedInteractions = explicitInteractions.length ? explicitInteractions : inferMapNodeInteractions(resolvedNodeKind, safeName, safeType, safeCanEnter);
+  const resolvedServices = explicitServices.length ? explicitServices : inferMapNodeServices(resolvedNodeKind, safeName, safeType, safeCanEnter);
+  const resolvedActionSlots = explicitActionSlots.length ? explicitActionSlots : inferMapNodeActionSlots(resolvedNodeKind, safeName, safeType, safeCanEnter, resolvedInteractions, resolvedServices);
+  const safeEventId = String(rawNode.event_id || rawNode.eventId || options.event_id || options.eventId || '').trim();
+  return {
+    name: safeName,
+    base_name: options.base_name || rawNode.base_name || safeName,
+    x: rawNode.x !== undefined ? rawNode.x : -1,
+    y: rawNode.y !== undefined ? rawNode.y : -1,
+    level: safeLevel,
+    type: safeType,
+    desc: rawNode.desc && rawNode.desc !== '无' ? rawNode.desc : inferMapNodeDescription(safeName, safeType, options.parent_name || ''),
+    icon: rawNode.icon || inferMapNodeIcon(safeName, safeType),
+    coord_system: safeCoordSystem || resolveMapCoordSystemByMapId(safeMapId),
+    faction: rawNode.faction && rawNode.faction !== '未知' ? rawNode.faction : inferMapNodeFaction(safeName, safeType, options.parent_name || ''),
+    importance: rawNode.importance !== undefined ? rawNode.importance : inferMapNodeImportance(safeName, safeType, safeLevel, safeCanEnter),
+    can_enter: safeCanEnter,
+    child_map_id: safeChildMapId,
+    source: rawNode.source || options.source || 'static',
+    state: safeState,
+    node_kind: resolvedNodeKind,
+    interactions: resolvedInteractions,
+    services: resolvedServices,
+    action_slots: resolvedActionSlots,
+    event_id: safeEventId
+  };
+}
+
+function buildSyntheticPreviewMapId(parentMapId, nodeName) {
+  const parentPart = String(parentMapId || 'map_preview').replace(/[^a-zA-Z0-9_]+/g, '_');
+  const nodePart = encodeURIComponent(String(nodeName || 'node')).replace(/%/g, '').toLowerCase() || 'node';
+  return `map_preview_${parentPart}_${nodePart}`.slice(0, 120);
+}
+
+function hasVisibleMapNodeChildren(node, sd) {
+  if (!node || !node.children) return false;
+  return Object.keys(node.children).some(childName => {
+    const childNode = node.children[childName];
+    if (!childNode) return false;
+    if (sd && typeof childNode.condition === 'function' && !childNode.condition(sd)) return false;
+    return true;
+  });
+}
+
+function collectVisibleMapChildren(targetName, sd, childMapLookup = {}, currentMapId = 'map_douluo_world') {
+  const entry = findMapNodeEntry(targetName, sd);
+  const result = {};
+  if (!entry || !entry.node || !entry.node.children) return result;
+  Object.keys(entry.node.children).forEach(childName => {
+    const childNode = entry.node.children[childName];
+    if (!childNode) return;
+    if (sd && typeof childNode.condition === 'function' && !childNode.condition(sd)) return;
+    const hasNestedChildren = hasVisibleMapNodeChildren(childNode, sd);
+    const resolvedChildMapId = childMapLookup[childName] || (hasNestedChildren ? buildSyntheticPreviewMapId(currentMapId, childName) : '无');
+    result[childName] = normalizeMapNodeDisplayMeta(childName, {
+      ...childNode,
+      faction: childNode.default_faction || childNode.faction || '未知'
+    }, {
+      current_map_id: currentMapId,
+      parent_name: targetName,
+      can_enter: !!childMapLookup[childName] || hasNestedChildren,
+      child_map_id: resolvedChildMapId,
+      source: 'static'
+    });
+  });
+  return result;
+}
+
+function collectVisibleSettlementsForMap(currentMapId, currentContextNodeName, sd) {
+  const visibleSettlements = {};
+  _(sd?.world?.settlements).forEach((settlementData, settlementId) => {
+    if (!settlementData || settlementData.visible === false) return;
+    if ((settlementData.parent_map_id || 'map_douluo_world') !== currentMapId) return;
+    const settlementState = settlementData.state || 'intact';
+    const stateData = settlementData.states?.[settlementState] || {};
+    const settlementChildMapId = stateData.child_map_id || '无';
+    visibleSettlements[settlementId] = normalizeMapNodeDisplayMeta(stateData.node_name || settlementData.name || settlementId, {
+      name: stateData.node_name || settlementData.name || settlementId,
+      base_name: settlementData.name || settlementId,
+      x: settlementData.x !== undefined ? settlementData.x : 0,
+      y: settlementData.y !== undefined ? settlementData.y : 0,
+      type: settlementData.type || 'settlement',
+      desc: stateData.desc || settlementData.desc || settlementData.states?.intact?.desc || '无',
+      icon: stateData.icon || 'city',
+      faction: settlementData.metadata?.faction || settlementData.default_faction || '未知',
+      node_kind: stateData.node_kind || settlementData.node_kind || '',
+      interactions: stateData.interactions || settlementData.interactions || [],
+      services: stateData.services || settlementData.services || [],
+      action_slots: stateData.action_slots || settlementData.actionSlots || settlementData.action_slots || [],
+      event_id: stateData.event_id || settlementData.event_id || '',
+      importance: settlementData.metadata?.importance !== undefined ? settlementData.metadata.importance : 60,
+      source: 'settlement'
+    }, {
+      current_map_id: currentMapId,
+      parent_name: currentContextNodeName,
+      can_enter: settlementChildMapId !== '无',
+      child_map_id: settlementChildMapId,
+      state: settlementState,
+      source: 'settlement'
+    });
+  });
+  return visibleSettlements;
+}
+
+function collectVisibleDynamicLocationsForMap(currentMapId, currentContextNodeName, sd) {
+  const visibleDynamicLocations = {};
+  _(sd?.world?.dynamic_locations).forEach((locData, locName) => {
+    const sameMap = (locData.map_id || 'map_douluo_world') === currentMapId;
+    const sameParent = (locData.归属父节点 || '无') === currentContextNodeName;
+    if (!sameMap && !sameParent) return;
+    const safeChildMapId = locData.child_map_id || '无';
+    const normalized = normalizeMapNodeDisplayMeta(locName, {
+      name: locName,
+      x: locData.x !== undefined ? locData.x : -1,
+      y: locData.y !== undefined ? locData.y : -1,
+      level: locData.层级 !== undefined ? locData.层级 : 4,
+      type: locData.type || locData.node_type || '动态地点',
+      desc: locData.desc || locData.描述 || '无',
+      icon: locData.icon || 'marker',
+      faction: locData.faction || locData.default_faction || '未知',
+      importance: locData.importance,
+      state: locData.state || 'intact',
+      child_map_id: safeChildMapId,
+      can_enter: locData.can_enter,
+      node_kind: locData.node_kind || '',
+      interactions: locData.interactions || [],
+      services: locData.services || [],
+      action_slots: locData.action_slots || locData.actionSlots || [],
+      event_id: locData.event_id || locData.eventId || '',
+      source: 'dynamic'
+    }, {
+      current_map_id: currentMapId,
+      parent_name: currentContextNodeName,
+      can_enter: locData.can_enter !== undefined ? !!locData.can_enter : !!(safeChildMapId && safeChildMapId !== '无'),
+      child_map_id: safeChildMapId,
+      state: locData.state || 'intact',
+      source: 'dynamic'
+    });
+    visibleDynamicLocations[locName] = {
+      ...normalized,
+      parent: locData.归属父节点 || '无',
+      map_id: locData.map_id || 'map_douluo_world',
+      settlement_id: locData.settlement_id || '无'
+    };
+  });
+  return visibleDynamicLocations;
+}
+
+function collectActivePatchesForMap(currentMapId, sd) {
+  const activePatches = {};
+  _(sd?.world?.map_patches).forEach((patchData, patchId) => {
+    if (!patchData || !patchData.active) return;
+    if ((patchData.map_id || '无') !== currentMapId) return;
+    activePatches[patchId] = {
+      map_id: patchData.map_id || '无',
+      layer: patchData.layer || 'effect',
+      asset: patchData.asset || '',
+      bounds: patchData.bounds || { x: 0, y: 0, w: 0, h: 0 }
+    };
+  });
+  return activePatches;
+}
+
+function collectAvailableChildMapsFromVisibleEntries(visibleNodes = {}, visibleSettlements = {}) {
+  const availableChildMaps = {};
+  _(visibleNodes).forEach((nodeData, nodeName) => {
+    if (nodeData?.can_enter && nodeData?.child_map_id && nodeData.child_map_id !== '无') availableChildMaps[nodeName] = nodeData.child_map_id;
+  });
+  _(visibleSettlements).forEach((settlementData) => {
+    if (settlementData?.child_map_id && settlementData.child_map_id !== '无') availableChildMaps[settlementData.name] = settlementData.child_map_id;
+  });
+  return availableChildMaps;
+}
+
+function collectMapTravelCandidates(visibleNodes = {}, visibleDynamicLocations = {}, visibleSettlements = {}) {
+  return _.uniq([
+    ...Object.keys(visibleNodes),
+    ...Object.keys(visibleDynamicLocations),
+    ...Object.keys(visibleSettlements).map(id => visibleSettlements[id]?.name)
+  ]).filter(Boolean);
+}
+
+function resolveMapFocusCoordByName(locName, sd) {
+  const flatCoord = FLAT_LOCATIONS[locName];
+  if (flatCoord && flatCoord.x !== undefined && flatCoord.y !== undefined) {
+    return { x: flatCoord.x, y: flatCoord.y };
+  }
+  const entry = findMapNodeEntry(locName, sd);
+  return {
+    x: entry?.node?.x !== undefined ? entry.node.x : (FLAT_LOCATIONS[locName]?.x || 0),
+    y: entry?.node?.y !== undefined ? entry.node.y : (FLAT_LOCATIONS[locName]?.y || 0)
+  };
+}
+
+function isWorldLocationName(locName, sd) {
+  if (!locName || !sd) return false;
+  if (sd?.world?.dynamic_locations?.[locName]) {
+    return isWorldMapId(sd.world.dynamic_locations[locName].map_id || 'map_douluo_world');
+  }
+  const entry = findMapNodeEntry(locName, sd);
+  return !!(entry && Array.isArray(entry.path) && entry.path.length <= 1);
+}
+function buildPreviewChildMaps(currentMapId, currentContextNodeName, sd, availableChildMaps = {}, depth = 0, visited = new Set()) {
+  const previewChildMaps = {};
+  if (depth > 6) return previewChildMaps;
+  Object.keys(availableChildMaps || {}).forEach(nodeName => {
+    const childMapId = availableChildMaps[nodeName];
+    if (!childMapId || childMapId === '无') return;
+    const visitKey = `${currentMapId}::${nodeName}::${childMapId}`;
+    if (visited.has(visitKey)) return;
+    const nextVisited = new Set(visited);
+    nextVisited.add(visitKey);
+    const childMapMetaFromSd = sd?.world?.maps?.[childMapId] || {};
+    const childMapLookup = childMapMetaFromSd.child_maps || {};
+    const childVisibleNodes = collectVisibleMapChildren(nodeName, sd, childMapLookup, childMapId);
+    const childVisibleSettlements = collectVisibleSettlementsForMap(childMapId, nodeName, sd);
+    const childVisibleDynamicLocations = collectVisibleDynamicLocationsForMap(childMapId, nodeName, sd);
+    const childActivePatches = collectActivePatchesForMap(childMapId, sd);
+    const childAvailableChildMaps = collectAvailableChildMapsFromVisibleEntries(childVisibleNodes, childVisibleSettlements);
+    const nestedPreviewChildMaps = buildPreviewChildMaps(childMapId, nodeName, sd, childAvailableChildMaps, depth + 1, nextVisited);
+    const inferredChildMapLevel = childMapMetaFromSd.map_level || (Object.values(childVisibleNodes).some(node => (node?.level || 0) >= 4) ? 'facility' : 'city');
+    const childCoordSystem = resolveMapCoordSystemByMapId(childMapId);
+    const childMapMeta = _.defaultsDeep({}, childMapMetaFromSd, {
+      name: childMapMetaFromSd.name || `${nodeName}区域预览`,
+      map_level: inferredChildMapLevel,
+      parent_map_id: currentMapId,
+      anchor_loc: nodeName,
+      coord_system: childCoordSystem,
+      coordinate_system: childCoordSystem,
+      child_maps: childAvailableChildMaps
+    });
+    const childCoords = [
+      ...Object.values(childVisibleNodes || {}),
+      ...Object.values(childVisibleSettlements || {}),
+      ...Object.values(childVisibleDynamicLocations || {})
+    ].map(item => ({ x: Number(item?.x), y: Number(item?.y) })).filter(coord => Number.isFinite(coord.x) && Number.isFinite(coord.y));
+    const fallbackFocusCoord = resolveMapFocusCoordByName(nodeName, sd);
+    const focusCoord = childCoordSystem === MAP_COORD_SYSTEM_IMAGE
+      ? fallbackFocusCoord
+      : (childCoords.length
+          ? {
+              x: Number((childCoords.reduce((sum, coord) => sum + coord.x, 0) / childCoords.length).toFixed(2)),
+              y: Number((childCoords.reduce((sum, coord) => sum + coord.y, 0) / childCoords.length).toFixed(2))
+            }
+          : fallbackFocusCoord);
+    previewChildMaps[nodeName] = {
+      coord_system: childCoordSystem,
+      current_map_id: childMapId,
+      current_zoom_hint: childMapMeta.tile?.default_zoom || 0,
+      current_focus: { loc: nodeName, x: focusCoord.x, y: focusCoord.y, settlement_id: '无', map_id: childMapId, coord_system: childCoordSystem },
+      map_meta: childMapMeta,
+      visible_nodes: childVisibleNodes,
+      visible_settlements: childVisibleSettlements,
+      visible_dynamic_locations: childVisibleDynamicLocations,
+      active_patches: childActivePatches,
+      travel_candidates: collectMapTravelCandidates(childVisibleNodes, childVisibleDynamicLocations, childVisibleSettlements),
+      available_child_maps: childAvailableChildMaps,
+      preview_meta: { anchor_name: nodeName, parent_name: currentContextNodeName, parent_map_id: currentMapId },
+      preview_child_maps: nestedPreviewChildMaps
+    };
+  });
+  return previewChildMaps;
+}
+
+function detectShrekSettlementState(sd) {
+  if (sd?.world?.flags?.['event_new_shrek_built']) return 'rebuilt';
+  if (sd?.world?.flags?.['event_new_shrek_rebuilding']) return 'rebuild';
+  if (sd?.world?.flags?.['event_shrek_destroyed_2']) return 'ruins';
+  return 'intact';
+}
+
+
+
+const TypeMultipliers = {
+  "强攻系": { sp_max: 1.0, men_max: 1.0, str: 1.0, def: 1.0, agi: 1.0, vit_max: 1.0 },
+  "防御系": { sp_max: 1.0, men_max: 1.0, str: 0.9, def: 1.5, agi: 0.7, vit_max: 1.0 },
+  "敏攻系": { sp_max: 1.0, men_max: 1.0, str: 0.8, def: 0.7, agi: 1.6, vit_max: 0.8 },
+  "控制系": { sp_max: 1.0, men_max: 1.2, str: 0.9, def: 0.8, agi: 1.1, vit_max: 0.9 },
+  "辅助系": { sp_max: 1.2, men_max: 1.2, str: 0.7, def: 0.6, agi: 0.8, vit_max: 0.7 },
+  "食物系": { sp_max: 1.2, men_max: 1.2, str: 0.7, def: 0.6, agi: 0.8, vit_max: 0.7 },
+  "治疗系": { sp_max: 1.2, men_max: 1.2, str: 0.7, def: 0.6, agi: 0.8, vit_max: 0.7 },
+  "精神系": { sp_max: 1.0, men_max: 1.7, str: 0.7, def: 0.6, agi: 0.8, vit_max: 0.7 },
+  "元素系": { sp_max: 1.0, men_max: 1.5, str: 0.8, def: 0.6, agi: 0.8, vit_max: 0.7 }
+};
+
+
+const ArmorBaseStats = {
+  1: { sp_max: 20000, men_max: 1000, str: 5000, agi: 2500, vit_max: 5000 },
+  2: { sp_max: 25000, men_max: 2000, str: 8000, agi: 4000, vit_max: 8000 },
+  3: { sp_max: 34090, men_max: 3000, str: 10785, agi: 4490, vit_max: 10785 },
+  4: { sp_max: 105910, men_max: 5000, str: 17215, agi: 8010, vit_max: 17215 }
+};
+const MechBaseStats = {
+  "黄级": { sp_max: 5500, men_max: 225, str: 750, agi: 375, vit_max: 750 },
+  "紫级": { sp_max: 5500, men_max: 225, str: 750, agi: 375, vit_max: 750 },
+  "黑级": { sp_max: 21053, men_max: 2237, str: 6052, agi: 3026, vit_max: 6052 },
+  "红级": { sp_max: 34090, men_max: 3000, str: 10785, agi: 4490, vit_max: 10785 }
+};
+
+
+const JobExpThresholds = [0, 1000, 5000, 12000, 60000, 80000, 400000, 500000, 3000000, 99999999];
+function getRingBonus(age) {
+  return {
+    str: Math.floor(age * 0.05),
+    def: Math.floor(age * 0.05),
+    agi: Math.floor(age * 0.05),
+    vit_max: Math.floor(age * 0.05),
+    men_max: Math.floor(age * 0.01),
+    sp_max: Math.floor(age * 0.1)
+  };
+}
+function getBeastStats(age, species) {
+  
+  let lv = 1;
+  if (age >= 100000) lv = 90 + Math.floor((age - 100000) / 100000);
+  else if (age >= 10000) lv = 50 + Math.floor((age - 10000) / 300);
+  else if (age >= 1000) lv = 30 + Math.floor((age - 1000) / 50);
+  else if (age >= 100) lv = 10 + Math.floor(age / 10);
+  else lv = Math.max(1, Math.floor(age / 10));
+  
+  
+  const base = getBaseStats(lv);
+  
+  
+  const speciesMult = {
+    "龙类": { str: 1.5, vit_max: 1.5, def: 1.3, agi: 0.9 },
+    "蛛类": { agi: 1.6, str: 0.8, def: 0.8 },
+    "熊类": { str: 1.8, def: 1.5, agi: 0.6 },
+    "植物系": { vit_max: 2.0, str: 0.7, def: 0.8 },
+    "海魂兽": { sp_max: 1.3, men_max: 1.2, agi: 1.1 },
+    "鸟类": { agi: 1.8, str: 0.7, vit_max: 0.8 },
+    "猫科": { agi: 1.5, str: 1.2, def: 0.9 },
+    "蛇类": { agi: 1.4, str: 1.0, def: 0.9, men_max: 1.1 }
+  }[species] || { str: 1.0, def: 1.0, agi: 1.0, vit_max: 1.0, men_max: 1.0, sp_max: 1.0 };
+  
+  
+  return {
+    年限: age,
+    对标等级: lv,
+    str: Math.floor(base.str * (speciesMult.str || 1.0)),
+    def: Math.floor(base.def * (speciesMult.def || 1.0)),
+    agi: Math.floor(base.agi * (speciesMult.agi || 1.0)),
+    vit_max: Math.floor(base.vit_max * (speciesMult.vit_max || 1.0)),
+    men_max: Math.floor(base.men_max * (speciesMult.men_max || 1.0)),
+    sp_max: Math.floor(base.sp_max * (speciesMult.sp_max || 1.0))
+  };
+}
+
+function calcYouthTalentRankScore(char) {
+  if (!char) return -999999;
+
+  const age = Number(char.stat?.age || 0);
+  const lv = Number(char.stat?.lv || 0);
+  const rep = Number(char.social?.reputation || 0);
+
+  
+  if (age >= 18 || rep < 500) return -999999;
+
+  const talentBonusMap = {
+    "绝世妖孽": 120,
+    "顶级天才": 90,
+    "天才": 60,
+    "优秀": 30,
+    "正常": 0,
+    "劣等": -30
+  };
+
+  const talentBonus = talentBonusMap[char.stat?.talent_tier] || 0;
+
+  
+  return Math.floor(
+    (rep / 100) +
+    (lv * 2) +
+    talentBonus
+  );
+}
+
+function calcContinentRankScore(char, data) {
+  if (!char) return -999999;
+  
+  
+  if (!char.status?.alive) return -999999;
+
+  
+  const armorLv = Number(char.equip?.armor?.lv || 0);
+  if (armorLv <= 0) return -999999; 
+
+  let armorBaseScore = 0;
+  if (armorLv === 1) armorBaseScore = 10000;
+  else if (armorLv === 2) armorBaseScore = 100000;
+  else if (armorLv === 3) armorBaseScore = 1000000;
+  else if (armorLv >= 4) armorBaseScore = 10000000;
+
+  
+  let maxFactionInf = 0;
+  if (char.social?.factions) {
+    _(char.social.factions).forEach((facData, facName) => {
+      const orgInf = Number(data.sd.org[facName]?.inf || 0);
+      if (orgInf > maxFactionInf) maxFactionInf = orgInf;
+    });
+  }
+  const factionBonus = Math.floor(maxFactionInf * 0.5);
+
+  
+  const rep = Number(char.social?.reputation || 0);
+  const lvBonus = Number(char.stat?.lv || 0) * 10;
+
+  
+  return armorBaseScore + factionBonus + rep + lvBonus;
+}
+
+function generateBackgroundNPCs(data) {
+  if (!data.sd.org) return;
+
+  
+  const surnames = ["唐", "龙", "舞", "玉", "戴", "千", "徐", "冷", "云", "原", "震", "冥", "血", "夜"];
+  const names = ["尘", "月", "风", "天", "冥", "浩", "渊", "星", "冰", "影", "狂", "绝", "破", "空"];
+  const titles = ["雷霆", "暗影", "裂空", "瀚海", "狂风", "炽火", "幽冥", "破灭", "天霜", "圣光"];
+
+  function getRandomName(faction) {
+    let sn = surnames[Math.floor(Math.random() * surnames.length)];
+    let n = names[Math.floor(Math.random() * names.length)];
+    let t = titles[Math.floor(Math.random() * titles.length)];
+    
+    return `[${faction}·${t}斗罗] ${sn}${n}`;
+  }
+
+  _(data.sd.org).forEach((orgData, orgName) => {
+    if (!orgData.power_stats) return;
+
+    
+    let currentCounts = { limit: 0, super: 0, title: 0 };
+    _(data.sd.char).forEach((c, cName) => {
+      if (c.status?.alive && c.social?.factions?.[orgName]) {
+        let lv = c.stat?.lv || 0;
+        if (lv >= 99) currentCounts.limit++;
+        else if (lv >= 95) currentCounts.super++;
+        else if (lv >= 90) currentCounts.title++;
+      }
+    });
+
+    
+    const targetStats = orgData.power_stats;
+    const toGenerate = [
+      { type: 'limit', count: targetStats.limit_douluo - currentCounts.limit, minLv: 99, maxLv: 99 },
+      { type: 'super', count: targetStats.super_douluo - currentCounts.super, minLv: 95, maxLv: 98 },
+      { type: 'title', count: targetStats.title_douluo - currentCounts.title, minLv: 90, maxLv: 94 }
+    ];
+
+    toGenerate.forEach(tier => {
+      for (let i = 0; i < tier.count; i++) {
+        let newName = getRandomName(orgName);
+        let genLv = Math.floor(Math.random() * (tier.maxLv - tier.minLv + 1)) + tier.minLv;
+        
+        
+        data.sd.char[newName] = {
+          stat: { 
+            lv: genLv, 
+            age: 80 + Math.floor(Math.random() * 50), 
+            talent_tier: genLv >= 99 ? "绝世妖孽" : genLv >= 95 ? "顶级天才" : "天才",
+            type: "强攻系"
+          },
+          social: {
+            reputation: genLv * 100,
+            factions: { [orgName]: { 身份: "隐世底蕴", 权限级: 5 } }
+          },
+          status: { alive: true, loc: `${orgName}总部` }
+        };
+        
+      }
+    });
+  });
+}
+
+
+function autoBreakthrough(data) {
+  _(data.sd.char).forEach((c, charName) => {
+    if (!c.status?.alive) return;
+    let isBeast = c.stat.age >= 10000 || c.social?.factions?.["魂兽一族"];
+    if (isBeast) return; 
+    
+    let currentLv = c.stat.lv;
+    if (currentLv >= 100) return; 
+
+    let nextLvStats = getBaseStats(currentLv + 1);
+    
+    
+    if (c.stat.sp_max >= nextLvStats.sp_max) {
+      
+      
+      let coreCount = c.energy?.core?.数量 || 0;
+      let maxLv = 69;
+      if (coreCount === 1) maxLv = 89;
+      else if (coreCount === 2) maxLv = 98;
+      else if (coreCount >= 3) maxLv = 150;
+      
+      if (currentLv >= maxLv) return; 
+
+      
+      c.stat.lv += 1;
+      let newLv = c.stat.lv;
+
+      
+      if (newLv % 10 === 0) {
+        let ringIndex = newLv / 10;
+        let spiritKeys = Object.keys(c.spirit || {});
+        if (spiritKeys.length === 0) return; 
+        
+        spiritKeys.forEach(spiritKey => {
+          let targetSpirit = c.spirit[spiritKey];
+          if (!targetSpirit.soul_spirits) targetSpirit.soul_spirits = {};
+
+          let ringAssigned = false;
+
+          _(targetSpirit.soul_spirits).forEach((ss, ssName) => {
+            if (ringAssigned) return;
+            
+            let cap = 1;
+            if (ss.年限 >= 100000) cap = 4;
+            else if (ss.年限 >= 10000) cap = 3;
+            else if (ss.年限 >= 1000) cap = 2;
+
+            let currentRingsCount = Object.keys(ss.rings || {}).length;
+
+            if (currentRingsCount < cap) {
+              let newRingColor = ss.年限 >= 100000 ? "红" : ss.年限 >= 10000 ? "黑" : ss.年限 >= 1000 ? "紫" : "黄";
+              
+              ss.rings[ringIndex.toString()] = {
+                年限: ss.年限,
+                颜色: newRingColor,
+                魂技: {
+                  [`第${ringIndex}魂技`]: { 状态: "未生成", 对象: "无", 加成属性: "无", 技能类型: "无", 消耗: "无" }
+                }
+              };
+              ringAssigned = true;
+              
+              if (data.sd.sys.rsn === "初始化" || !data.sd.sys.rsn) data.sd.sys.rsn = "";
+              data.sd.sys.rsn += ` [修为突破] ${charName} 踏入 ${newLv} 级！其【${ssName}】底蕴深厚，自动为【${spiritKey}】衍生出第 ${ringIndex} 个魂环！`;
+            }
+          });
+
+          if (!ringAssigned) {
+            let newSpiritIndex = Object.keys(targetSpirit.soul_spirits).length;
+            
+            let age = 400, color = "黄";
+            if (c.stat.talent_tier === "绝世妖孽" || c.stat.talent_tier === "顶级天才") { age = 15000; color = "黑"; }
+            else if (c.stat.talent_tier === "天才") { age = 3000; color = "紫"; }
+
+            let spiritName = `第${newSpiritIndex + 1}魂灵`;
+            targetSpirit.soul_spirits[spiritName] = {
+              表象名称: "未展露",
+              年限: age,
+              状态: "活跃",
+              rings: {
+                [ringIndex.toString()]: {
+                  年限: age,
+                  颜色: color,
+                  魂技: { [`第${ringIndex}魂技`]: { 状态: "未生成", 对象: "无", 加成属性: "无", 技能类型: "无", 消耗: "无" } }
+                }
+              }
+            };
+            
+            if (data.sd.sys.rsn === "初始化" || !data.sd.sys.rsn) data.sd.sys.rsn = "";
+            data.sd.sys.rsn += ` [修为突破] ${charName} 踏入 ${newLv} 级！成功融合全新魂灵，为【${spiritKey}】附加第 ${ringIndex} 个魂环！`;
+          }
+        });
+      }
+    }
+  });
+}
+
+const FactionDistribution = {
+  "唐门": {
+    hq: "史莱克城", 
+    branches: ["天斗城", "东海城", "明都", "天海城", "星罗城", "灵波城", "傲来城", "北海城", "烈火盆地", "上陵城", "天定城", "海陆城"] 
+  },
+  "传灵塔": {
+    hq: "史莱克城", 
+    branches: ["天斗城", "东海城", "明都", "天海城", "星罗城", "灵波城", "傲来城", "北海城", "烈火盆地", "上陵城", "天定城", "海陆城"] 
+  },
+
+  "锻造师协会": {
+    hq: "明都", 
+    branches: ["天斗城", "东海城", "明都", "天海城", "星罗城", "灵波城", "傲来城", "北海城", "烈火盆地", "上陵城", "天定城", "海陆城"] 
+  },
+  "机甲师协会": {
+    hq: "明都", 
+    branches: ["天斗城", "东海城", "明都", "天海城", "星罗城", "灵波城", "傲来城", "北海城", "烈火盆地", "上陵城", "天定城", "海陆城"] 
+  },
+  "制造师协会": {
+    hq: "明都", 
+    branches: ["天斗城", "东海城", "明都", "天海城", "星罗城", "灵波城", "傲来城", "北海城", "烈火盆地", "上陵城", "天定城", "海陆城"] 
+  },
+  "设计师协会": {
+    hq: "明都", 
+    branches: ["天斗城", "东海城", "明都", "天海城", "星罗城", "灵波城", "傲来城", "北海城", "烈火盆地", "上陵城", "天定城", "海陆城"] 
+  },
+  "修理师协会": {
+    hq: "明都", 
+    branches: ["天斗城", "东海城", "明都", "天海城", "星罗城", "灵波城", "傲来城", "北海城", "烈火盆地", "上陵城", "天定城", "海陆城"] 
+  },
+  "战神殿": {
+    hq: "明都", 
+    branches: [] 
+  },
+  "圣灵教": {
+    hq: "秘密据点", 
+    branches: ["天斗城", "灵波城", "极北之地"] 
+  },
+
+  
+  "史莱克学院": {
+    hq: "史莱克城",
+    branches: []
+  },
+  "日月皇家魂师学院": {
+    hq: "明都",
+    branches: []
+  },
+  "怪物学院": {
+    hq: "星罗城", 
+    branches: []
+  },
+  "星罗皇家学院": {
+    hq: "星罗城",
+    branches: []
+  },
+  "天定星空魂师学院": {
+    hq: "天定城", 
+    branches: []
+  },
+  "东海学院": {
+    hq: "东海城",
+    branches: []
+  },
+  "天海中级学院": {
+    hq: "天海城",
+    branches: []
+  },
+  "海陆中级学院": {
+    hq: "海陆城",
+    branches: []
+  },
+  "红山学院": {
+    hq: "傲来城",
+    branches: []
+  },
+
+  "斗罗联邦": {
+    hq: "明都", 
+    branches: ["斗罗大陆"]
+  },
+  "星罗帝国": {
+    hq: "星罗城",
+    branches: ["星罗大陆"]
+  },
+  "斗灵帝国": {
+    hq: "天斗城(斗灵帝国)",
+    branches: ["灵波城","斗灵大陆" ]
+  },
+  "血神军团": {
+    hq: "无尽山脉", 
+    branches: []
+  },
+  "本体宗": {
+    hq: "天斗城", 
+    branches: []
+  },
+  "泰坦巨猿家族": {
+    hq: "天斗城",
+    branches: []
+  },
+  "蓝电霸王龙家族": {
+    hq: "隐世之地", 
+    branches: []
+  }
+};
+
+function refreshContinentRanking(data) {
+  if (!data.sd.world.rankings) data.sd.world.rankings = {};
+  if (!data.sd.world.rankings.continent_wind) {
+    data.sd.world.rankings.continent_wind = {
+      last榜单: {},
+      top100: {}
+    };
+  }
+
+  const board = data.sd.world.rankings.continent_wind;
+  const oldRanks = { ...(board.last榜单 || {}) };
+  const candidates = [];
+
+  
+  _(data.sd.char).forEach((char, charName) => {
+    const score = calcContinentRankScore(char, data);
+    if (score <= -999999) {
+      
+      if (char.social?.titles) {
+        delete char.social.titles["大陆风云榜"];
+        _(Object.keys(char.social.titles)).forEach(k => {
+          if (/^大陆风云榜第\d+名$/.test(k)) delete char.social.titles[k];
+        });
+      }
+      return;
+    }
+    candidates.push({ charName, score });
+  });
+
+  
+  candidates.sort((a, b) => b.score - a.score);
+
+  
+  const top100 = candidates.slice(0, 100);
+  const newRanks = {};
+  let broadcastMsgs = [];
+
+  top100.forEach((entry, idx) => {
+    const rank = idx + 1;
+    newRanks[entry.charName] = rank;
+    const c = data.sd.char[entry.charName];
+
+    if (!c.social.titles) c.social.titles = {};
+    _(Object.keys(c.social.titles)).forEach(k => {
+      if (/^大陆风云榜第\d+名$/.test(k)) delete c.social.titles[k];
+    });
+
+    const wasOnBoard = !!oldRanks[entry.charName];
+    const oldRank = oldRanks[entry.charName] || null;
+
+    c.social.titles["大陆风云榜"] = { 来源: "传灵塔评定", 声望加成: 0 };
+    c.social.titles[`大陆风云榜第${rank}名`] = { 来源: "传灵塔评定", 声望加成: 0 };
+
+    if (!wasOnBoard) {
+      broadcastMsgs.push(`[风云震动] ${entry.charName} 强势杀入【大陆风云榜第${rank}名】！`);
+    } else {
+      const diff = oldRank - rank;
+      if (diff >= 5) {
+        broadcastMsgs.push(`[风云异动] ${entry.charName} 排名飙升至【大陆风云榜第${rank}名】！`);
+      }
+    }
+  });
+
+  
+  _(oldRanks).forEach((oldRank, charName) => {
+    if (!newRanks[charName] && data.sd.char[charName]) {
+      const c = data.sd.char[charName];
+      if (c.social?.titles) {
+        delete c.social.titles["大陆风云榜"];
+        _(Object.keys(c.social.titles)).forEach(k => {
+          if (/^大陆风云榜第\d+名$/.test(k)) delete c.social.titles[k];
+        });
+      }
+      if (!c.status.alive) {
+         broadcastMsgs.push(`[巨星陨落] 原风云榜第${oldRank}名 ${charName} 确认死亡，已从榜单除名！`);
+      } else {
+         broadcastMsgs.push(`[风云跌落] ${charName} 已遗憾跌出【大陆风云榜】。`);
+      }
+    }
+  });
+
+  
+  board.top100 = _(top100)
+    .map((entry, idx) => [String(idx + 1), { 角色名: entry.charName, 评分: entry.score }])
+    .fromPairs()
+    .value();
+  board.last榜单 = newRanks;
+
+  if (broadcastMsgs.length > 0) {
+    
+    data.sd.sys.rsn = broadcastMsgs.slice(0, 3).join(" ");
+  }
+}
+function refreshYouthTalentRanking(data) {
+  if (!data.sd.world.rankings) data.sd.world.rankings = {};
+  if (!data.sd.world.rankings.youth_talent) {
+    data.sd.world.rankings.youth_talent = {
+      last榜单: {},
+      top30: {}
+    };
+  }
+
+  const board = data.sd.world.rankings.youth_talent;
+  const oldRanks = { ...(board.last榜单 || {}) };
+
+  const candidates = [];
+  
+  
+  let currentTick = data.sd.world.time.tick;
+  let isYear7 = currentTick >= 367920 && currentTick < 420480;
+  
+  const fixedRanks = isYear7 ? {
+    "舞丝朵": 9,
+    "龙尘": 10,
+    "骆桂星": 17,
+    "徐愉程": 19,
+    "杨念夏": 27,
+    "郑怡然": 30
+  } : {};
+
+  _(data.sd.char).forEach((char, charName) => {
+    const score = calcYouthTalentRankScore(char);
+    if (score <= -999999) {
+      if (char.social?.titles) {
+        delete char.social.titles["少年天才榜"];
+        _(Object.keys(char.social.titles)).forEach(k => {
+          if (/^少年天才榜第\d+名$/.test(k)) delete char.social.titles[k];
+        });
+      }
+      return;
+    }
+
+    candidates.push({
+      charName,
+      score,
+      reputation: Number(char.social?.reputation || 0),
+      lv: Number(char.stat?.lv || 0),
+    });
+  });
+
+  
+  candidates.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (b.reputation !== a.reputation) return b.reputation - a.reputation;
+    return b.lv - a.lv;
+  });
+
+  
+  const top30Array = new Array(30).fill(null);
+
+
+  
+  const fixedCandidates = candidates.filter(c => fixedRanks[c.charName]);
+  
+  fixedCandidates.sort((a, b) => fixedRanks[a.charName] - fixedRanks[b.charName]);
+
+  fixedCandidates.forEach(c => {
+    let targetIdx = fixedRanks[c.charName] - 1;
+    
+    while (targetIdx < 30 && top30Array[targetIdx] !== null) {
+      targetIdx++;
+    }
+    
+    if (targetIdx < 30) {
+      top30Array[targetIdx] = c;
+    }
+  });
+
+  
+  const normalCandidates = candidates.filter(c =>!fixedRanks[c.charName]);
+  let normalIdx = 0;
+  for (let i = 0; i < 30; i++) {
+    if (top30Array[i] === null && normalIdx < normalCandidates.length) {
+      top30Array[i] = normalCandidates[normalIdx++];
+    }
+  }
+
+  
+  const top30 = top30Array.filter(c => c !== null);
+  
+  const newRanks = {};
+  let broadcastMsgs = [];
+
+  top30.forEach((entry, idx) => {
+    const rank = idx + 1;
+    newRanks[entry.charName] = rank;
+
+    const c = data.sd.char[entry.charName];
+    if (!c.social.titles) c.social.titles = {};
+
+    _(Object.keys(c.social.titles)).forEach(k => {
+      if (/^少年天才榜第\d+名$/.test(k)) delete c.social.titles[k];
+    });
+
+    const wasOnBoard = !!oldRanks[entry.charName];
+    const oldRank = oldRanks[entry.charName] || null;
+
+    c.social.titles["少年天才榜"] = { 来源: "传灵塔评定", 声望加成: 0 };
+    c.social.titles[`少年天才榜第${rank}名`] = { 来源: "传灵塔评定", 声望加成: 0 };
+
+    if (!wasOnBoard) {
+      broadcastMsgs.push(`[榜单收录] ${entry.charName} 以 ${entry.score} 分跻身【少年天才榜第${rank}名】！`);
+    } else {
+      const diff = oldRank - rank;
+      if (diff >= 3) {
+        broadcastMsgs.push(`[榜单异动] ${entry.charName} 排名飙升至【少年天才榜第${rank}名】！`);
+      } else if (diff <= -3) {
+        broadcastMsgs.push(`[榜单异动] ${entry.charName} 下滑至【少年天才榜第${rank}名】。`);
+      }
+    }
+  });
+
+  _(oldRanks).forEach((oldRank, charName) => {
+    if (!newRanks[charName] && data.sd.char[charName]) {
+      const c = data.sd.char[charName];
+      if (c.social?.titles) {
+        delete c.social.titles["少年天才榜"];
+        _(Object.keys(c.social.titles)).forEach(k => {
+          if (/^少年天才榜第\d+名$/.test(k)) delete c.social.titles[k];
+        });
+      }
+      broadcastMsgs.push(`[榜单跌落] ${charName} 已跌出【少年天才榜】。`);
+    }
+  });
+
+  board.top30 = _(top30)
+    .map((entry, idx) => [
+      String(idx + 1),
+      { 角色名: entry.charName, 评分: entry.score }
+    ])
+    .fromPairs()
+    .value();
+
+  board.last榜单 = newRanks;
+
+  if (broadcastMsgs.length > 0) {
+    data.sd.sys.rsn = broadcastMsgs.join(" ");
+  }
+}
+
+function checkDestinyAnchors(data, currentTick) {
+  if (!data.sd.world.flags) data.sd.world.flags = {};
+  
+  if (currentTick >= 367920 && !data.sd.world.flags["anchor_year_7_youth_talent"]) {
+    
+    const anchors = {
+      "舞丝朵": { age: 14, lv: 41, rep: 4500, faction: "史莱克学院" }, 
+      "龙尘": { age: 14, lv: 42, rep: 4000, faction: "日月皇家魂导师学院" }, 
+      "骆桂星": { age: 13, lv: 38, rep: 3000, faction: "史莱克学院" }, 
+      "徐愉程": { age: 13, lv: 41, rep: 2500, faction: "史莱克学院" },
+      "杨念夏": { age: 13, lv: 37, rep: 1500, faction: "史莱克学院" },
+      "郑怡然": { age: 13, lv: 36, rep: 1000, faction: "史莱克学院" }
+    };
+    let triggered = false;
+    _(anchors).forEach((target, name) => {
+      if (data.sd.char[name]) {
+        let c = data.sd.char[name];
+        c.stat.age = target.age;
+        c.stat.lv = Math.max(c.stat.lv, target.lv); 
+        c.social.reputation = target.rep; 
+        
+        if (!c.social.factions) c.social.factions = {};
+        c.social.factions[target.faction] = { 身份: "外院学生", 权限级: 1 };
+        triggered = true;
+      }
+    });
+
+    if (triggered) {
+      
+      data.sd.sys.rsn = `[命运锚点] 世界线收束！第七年时间锁触发，核心天才数据已强制校准。`;
+      refreshYouthTalentRanking(data); 
+      refreshContinentRanking(data);
+    }
+     
+    generateBackgroundNPCs(data);
+    
+    
+    autoBreakthrough(data);
+    
+    data.sd.world.flags["anchor_year_7_youth_talent"] = true;
+  }
+}
+
+function getBaseStats(lv) {
+  let spBase = 100;
+  if (lv <= 10) spBase = 100 + (lv - 1) * 73.66;
+  else if (lv <= 30) spBase = 763 + (lv - 10) * 161.85;
+  else if (lv <= 50) spBase = 4000 + Math.pow(lv - 30, 2) * 27.5;
+  else if (lv <= 70) spBase = 15000 + (lv - 50) * 1000;
+  else if (lv <= 90) spBase = 35000 + (lv - 70) * 1250;
+  else if (lv <= 95) spBase = 60000 + (lv - 90) * 6818;
+  else if (lv < 98) spBase = 94090 + (lv - 95) * 15303.3;
+  else if (lv === 98) spBase = 140000;
+  else if (lv === 99) spBase = 200000;
+  else if (lv === 99.5) spBase = 400000;
+  else if (lv >= 100) spBase = 700000;
+  spBase = Math.floor(spBase);
+
+  let strBase = 10;
+  if (lv <= 10) strBase = 10 + (lv - 1) * 4.66;
+  else if (lv <= 30) strBase = 52 + (lv - 10) * 22.4;
+  else if (lv <= 50) strBase = 500 + Math.pow(lv - 30, 2) * 3.75;
+  else if (lv <= 70) strBase = 2000 + Math.pow(lv - 50, 2) * 12.5;
+  else if (lv <= 90) strBase = 7000 + (lv - 70) * 400;
+  else if (lv <= 95) strBase = 15000 + (lv - 90) * 2157;
+  else if (lv < 98) strBase = 25785 + (lv - 95) * 3071.6;
+  else if (lv === 98) strBase = 35000;
+  else if (lv === 99) strBase = 43000;
+  else if (lv === 99.5) strBase = 60000;
+  else if (lv >= 100) strBase = 80000;
+  strBase = Math.floor(strBase);
+  
+  let menBase = lv;
+  if (lv <= 20) menBase = lv;
+  else if (lv <= 30) menBase = 20 + (lv - 20) * 3;
+  else if (lv <= 50) menBase = 50 + Math.pow(lv - 30, 2) * 1.125;
+  else if (lv <= 70) menBase = 500 + Math.pow(lv - 50, 2) * 6.25;
+  else if (lv <= 90) menBase = 3000 + (lv - 70) * 100;
+  else if (lv <= 95) menBase = 5000 + (lv - 90) * 600;
+  else if (lv < 98) menBase = 8000 + (lv - 95) * 2000;
+  else if (lv === 98) menBase = 15000;
+  else if (lv === 99) menBase = 19000;
+  else if (lv === 99.5) menBase = 23000;
+  else if (lv >= 100) menBase = 50000;
+  
+  return {
+    sp_max: spBase,
+    men_max: Math.floor(menBase),
+    str: strBase,
+    def: strBase,
+    agi: Math.floor(strBase / 2),
+    vit_max: strBase
+  };
+}
+
+const SkillEngine = {
+  "强攻系": [
+    { max: 60, 形态: "强袭爆发(物理/能量)", 加成: "力量/魂力", 燃料: "附加常规体力" },
+    { max: 85, 形态: "自身狂化/属性提升", 加成: "力量/魂力", 燃料: "纯耗魂力" },
+    { max: 95, 形态: "霸体/护盾", 加成: "防御/体力", 燃料: "附加大量体力" },
+    { max: 100, 形态: "重力压制/眩晕", 加成: "力量", 燃料: "附加常规体力" }
+  ],
+  "防御系": [
+    { max: 60, 形态: "主坦减伤/肉体护盾", 加成: "防御/体力", 燃料: "附加大量体力" },
+    { max: 85, 形态: "体质提升/抗性增加", 加成: "防御/魂力", 燃料: "纯耗魂力" },
+    { max: 95, 形态: "嘲讽/减速泥沼", 加成: "防御", 燃料: "附加常规体力" },
+    { max: 100, 形态: "盾击/反甲爆裂", 加成: "防御/力量", 燃料: "附加常规体力" }
+  ],
+  "敏攻系": [
+    { max: 60, 形态: "单体刺杀/多段连击", 加成: "敏捷/力量", 燃料: "附加常规体力" },
+    { max: 85, 形态: "速度提升/闪避", 加成: "敏捷/魂力", 燃料: "纯耗魂力" },
+    { max: 95, 形态: "致盲/沉默", 加成: "敏捷", 燃料: "附加常规体力" },
+    { max: 100, 形态: "残影分身/瞬移", 加成: "敏捷", 燃料: "三维透支" }
+  ],
+  "控制系": [
+    { max: 60, 形态: "实体束缚/地形改变", 加成: "魂力", 燃料: "纯耗魂力" },
+    { max: 80, 形态: "群体虚弱/迟缓", 加成: "魂力", 燃料: "纯耗魂力" },
+    { max: 95, 形态: "精神冲击/毒素真伤", 加成: "魂力/精神力", 燃料: "纯耗魂力" },
+    { max: 100, 形态: "召唤藤蔓/傀儡", 加成: "精神力", 燃料: "魂神平摊" }
+  ],
+  "精神系": [
+    { max: 60, 形态: "纯粹灵魂伤害", 加成: "精神力", 燃料: "精神主导" },
+    { max: 85, 形态: "催眠/幻境/五感剥夺", 加成: "精神力", 燃料: "精神系专属拆分" },
+    { max: 95, 形态: "视野共享/弱点标记", 加成: "精神力", 燃料: "精神系专属拆分" },
+    { max: 100, 形态: "精神体投影", 加成: "精神力", 燃料: "双轨均摊" }
+  ],
+  "辅助系": [
+    { max: 70, 形态: "团队面板提升", 加成: "魂力上限", 燃料: "纯耗魂力" },
+    { max: 85, 形态: "敌方破甲/涣散", 加成: "魂力上限", 燃料: "纯耗魂力" },
+    { max: 95, 形态: "群体能量护盾", 加成: "魂力上限", 燃料: "纯耗魂力" },
+    { max: 100, 形态: "微弱回血/回蓝", 加成: "魂力上限", 燃料: "纯耗魂力" }
+  ],
+  "治疗系": [
+    { max: 70, 形态: "高额回血/断肢重生", 加成: "魂力上限", 燃料: "纯耗魂力" },
+    { max: 85, 形态: "净化异常状态", 加成: "魂力上限", 燃料: "纯耗魂力" },
+    { max: 95, 形态: "免死/生命结界", 加成: "魂力上限", 燃料: "纯耗魂力" },
+    { max: 100, 形态: "生命抽取/毒奶", 加成: "魂力上限", 燃料: "纯耗魂力" }
+  ],
+  "食物系": [
+    { max: 60, 形态: "造物(恢复血量/魂力)", 加成: "魂力", 燃料: "纯耗魂力" },
+    { max: 80, 形态: "造物(提升面板/解毒)", 加成: "魂力", 燃料: "纯耗魂力" },
+    { max: 95, 形态: "造物(赋予飞行/隐身)", 加成: "魂力", 燃料: "纯耗魂力" },
+    { max: 100, 形态: "造物(爆炸物/毒药)", 加成: "魂力", 燃料: "纯耗魂力" }
+  ],
+  "元素系": [
+    { max: 40, 形态: "元素毁灭AOE", 加成: "精神力/魂力", 燃料: "附加微量精神力" },
+    { max: 70, 形态: "元素结界/冰封/流沙", 加成: "精神力", 燃料: "双轨均摊" },
+    { max: 85, 形态: "元素附魔/加速", 加成: "魂力", 燃料: "纯耗魂力" },
+    { max: 95, 形态: "抗拒火环/水盾", 加成: "魂力上限", 燃料: "纯耗魂力" },
+    { max: 100, 形态: "召唤元素精灵", 加成: "精神力", 燃料: "双轨均摊" }
+  ]
+};
+const GoldenDragonSkills = {
+  1: {
+    技能名称: "【第一层·金龙爪(右)】", 状态: "已固化", 对象: "敌方/单体", 加成属性: "力量", 技能类型: "输出/破甲", cast_time: 10,
+    仲裁逻辑: { 
+      瞬间交锋模块: { 基础威力倍率: 200, 伤害类型: "物理近战", 穿透修饰: 40, 护盾绝对值: 0, 瞬间恢复比例: 0 },
+      状态挂载模块: { 状态名称: "无", 持续回合: 0, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "无", 持续真伤dot: 0 },
+      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
+    },
+    特效量化参数: "[粉碎特性] 结算时无视目标 40% 防御力，若目标处于护盾状态，对护盾造成双倍破坏力。",
+    消耗: "体力:150", 画面描述: "右臂异化为巨大的暗金龙爪，附带霸道的“粉碎”特性，能轻易捏碎同阶魂师的武魂与防御。"
+  },
+  2: {
+    技能名称: "【第二层·黄金龙体】", 状态: "已固化", 对象: "自身/增益", 加成属性: "力量/体力/防御", 技能类型: "辅助/强化", cast_time: 15,
+    仲裁逻辑: { 
+      瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
+      状态挂载模块: { 状态名称: "黄金龙体", 持续回合: 3, 面板修改比例: { str: 1.5, def: 1.5, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "霸体", 持续真伤dot: 0 },
+      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
+    },
+    特效量化参数: "[黄金龙体]状态下，自身【力量】、【防御】面板临时提升 50%，并获得霸体效果。",
+    消耗: "体力:100(启动)+20/回合(维持)", 画面描述: "金鳞蔓延至右侧躯干，气血透体而出，肉体强度获得全方位跨阶暴涨。"
+  },
+  3: {
+    技能名称: "【第三层·金龙咆哮】", 状态: "已固化", 对象: "敌方/群体", 加成属性: "精神/力量", 技能类型: "控制/输出", cast_time: 20,
+    仲裁逻辑: { 
+      瞬间交锋模块: { 基础威力倍率: 120, 伤害类型: "物理近战", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
+      状态挂载模块: { 状态名称: "血脉震慑", 持续回合: 1, 面板修改比例: { str: 0.8, def: 0.8, agi: 0.8, men_max: 1.0 }, 特殊机制标识: "硬控眩晕", 持续真伤dot: 0 },
+      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
+    },
+    特效量化参数: "[血脉压制] 对范围内敌人造成伤害，并附加 1 回合眩晕与 20% 全属性削弱（对龙类武魂效果翻倍）。",
+    消耗: "体力:300", 画面描述: "胸口爆发出震天动地的龙吟，实质化的音波夹杂着上位龙族的恐怖威压席卷全场。"
+  },
+  4: {
+    技能名称: "【第四层·金龙霸体】", 状态: "已固化", 对象: "自身/增益", 加成属性: "防御/体力", 技能类型: "防御/辅助", cast_time: 0,
+    仲裁逻辑: { 
+      瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 5000, 瞬间恢复比例: 0 },
+      状态挂载模块: { 状态名称: "绝对防御", 持续回合: 2, 面板修改比例: { str: 1.0, def: 2.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "免死/伤害减免", 持续真伤dot: 0 },
+      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
+    },
+    特效量化参数: "[金龙霸体] 瞬间凝聚 5000 点护盾，防御力翻倍，持续 2 回合。期间免疫一次致死打击。",
+    消耗: "体力:500", 画面描述: "全身龙鳞瞬间闭合，化作一层坚不可摧的暗金铠甲，硬抗毁灭性打击。"
+  },
+  5: {
+    技能名称: "【第五层·金龙爪(左)】", 状态: "已固化", 对象: "敌方/单体", 加成属性: "力量/精神", 技能类型: "输出/异常/解控", cast_time: 10,
+    仲裁逻辑: { 
+      瞬间交锋模块: { 基础威力倍率: 150, 伤害类型: "物理近战", 穿透修饰: 10, 护盾绝对值: 0, 瞬间恢复比例: 0 },
+      状态挂载模块: { 状态名称: "撕裂流血", 持续回合: 3, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "双爪共鸣解控", 持续真伤dot: 1000 },
+      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
+    },
+    特效量化参数: "[撕裂特性]: 命中后每回合扣除目标 1000 点绝对值体力，持续 3 回合。 | [双爪共鸣]: 若双爪相互碰撞，瞬间震碎自身及队友身上一切【精神吞噬】、【幻境】及【强力控制】类光环效果。",
+    消耗: "体力:150", 画面描述: "左臂异化为带有“撕裂”特性的金龙爪。双爪交击时能发出龙吟脆鸣，激荡出的金色光晕是所有精神幻境的绝对克星。"
+  },
+  6: {
+    技能名称: "【第六层·黄金龙吼】", 状态: "已固化", 对象: "敌方/群体", 加成属性: "精神/气血", 技能类型: "控制/削弱", cast_time: 20,
+    仲裁逻辑: { 
+      瞬间交锋模块: { 基础威力倍率: 100, 伤害类型: "纯精神冲击", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
+      状态挂载模块: { 状态名称: "血脉压制", 持续回合: 2, 面板修改比例: { str: 0.85, def: 0.85, agi: 0.85, men_max: 0.85 }, 特殊机制标识: "打断施法", 持续真伤dot: 0 },
+      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
+    },
+    特效量化参数: "[基础效果]: 降低范围内所有敌人 15% 的全属性面板。 | [血脉压制]: 对龙类武魂/魂兽削弱效果翻倍至 30%，并有极大概率强制打断其当前魂技。",
+    消耗: "体力:200 | 精神力:800", 画面描述: "发出一声震天动地的纯正龙吟。声波中蕴含着金龙王至高无上的血脉威压，令万兽臣服。"
+  },
+  7: {
+    技能名称: "【第七层·血脉反哺(二)】", 状态: "已固化", 对象: "自身/被动", 加成属性: "全属性", 技能类型: "被动/永久增幅", cast_time: 0,
+    仲裁逻辑: { 
+      瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
+      状态挂载模块: { 状态名称: "无", 持续回合: 0, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "永久属性提升", 持续真伤dot: 0 },
+      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
+    },
+    特效量化参数: "解除封印瞬间，自身【力量】、【体力】、【防御】、【魂力上限】永久额外提升当前属性的 5%。",
+    消耗: "无", 画面描述: "气血之力再次洗髓伐骨，进一步夯实了肉体底蕴。"
+  },
+  8: {
+    技能名称: "【第八层·金龙狂暴领域】", 状态: "已固化", 对象: "己方/群体", 加成属性: "力量/体力/防御", 技能类型: "辅助/领域", cast_time: 30,
+    仲裁逻辑: { 
+      瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
+      状态挂载模块: { 状态名称: "狂暴增幅", 持续回合: 5, 面板修改比例: { str: 1.15, def: 1.15, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "龙族共鸣", 持续真伤dot: 0 },
+      召唤与场地模块: { 实体名称: "狂暴领域", 持续回合: 5, 继承属性比例: 0, 核心机制描述: "领域内友军全属性提升15%，龙族武魂提升30%" }
+    },
+    特效量化参数: "[基础增幅]: 领域范围内，自身及所有队友的【力量】、【体力】、【防御】面板临时提升 15%。 | [龙族共鸣]: 若增幅目标拥有【龙系武魂】，则增幅效果翻倍（提升 30%）。",
+    消耗: "体力:500(启动)+100/回合(维持)", 画面描述: "暗金色的光环以自身为中心轰然扩散，点燃了领域内所有友军的气血，龙族血脉更是如沸水般咆哮。"
+  },
+  9: {
+    技能名称: "【第九层·气血漩涡(被动)】", 状态: "已固化", 对象: "自身/被动", 加成属性: "体力", 技能类型: "被动/续航与增幅", cast_time: 0,
+    仲裁逻辑: { 
+      瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
+      状态挂载模块: { 状态名称: "无", 持续回合: 0, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "体力恢复翻倍", 持续真伤dot: 0 },
+      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
+    },
+    特效量化参数: "[底蕴暴涨]: 解除封印瞬间，自身【体力】基础属性永久额外提升当前属性的 10%。 | [生生不息]: 战斗中每回合的自然体力恢复量强制翻倍。",
+    消耗: "无", 画面描述: "胸口处凝聚出实质化的暗金色气血漩涡，心脏跳动如战鼓，气血生生不息，再无枯竭之忧。"
+  },
+  10: {
+    技能名称: "【第十层·金龙震爆】", 状态: "已固化", 对象: "敌方/单体", 加成属性: "力量/气血", 技能类型: "输出/爆发", cast_time: 20,
+    仲裁逻辑: { 
+      瞬间交锋模块: { 基础威力倍率: 300, 伤害类型: "物理近战", 穿透修饰: 50, 护盾绝对值: 0, 瞬间恢复比例: 0 },
+      状态挂载模块: { 状态名称: "无", 持续回合: 0, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "内脏震碎", 持续真伤dot: 0 },
+      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
+    },
+    特效量化参数: "[形态解锁]: 凝聚“龙核”，永久获得【金龙双翼】。 | [震爆特性]: 命中后，若目标防御力低于自身力量的 50%，强制施加[内脏震碎]（扣除目标 15% 最大体力上限的真实伤害）。",
+    消耗: "体力:1000", 画面描述: "气血漩涡压缩至极致化为龙核，背后展开巨大的暗金龙翼。将毁灭性的气血之力打入敌人体内后瞬间引爆，从内部瓦解一切防御。"
+  },
+  11: {
+    技能名称: "【第十一层·龙罡与龙威(被动)】", 状态: "已固化", 对象: "自身/被动", 加成属性: "防御/精神", 技能类型: "被动/永久增幅", cast_time: 0,
+    仲裁逻辑: { 
+      瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
+      状态挂载模块: { 状态名称: "无", 持续回合: 0, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "免疫击退/精神威压", 持续真伤dot: 0 },
+      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
+    },
+    特效量化参数: "[龙罡护体]: 自身【防御】面板永久额外提升当前属性的 20%，免疫同阶及以下的物理击退/击飞效果。 | [龙威压制]: 自身【精神力】面板永久额外提升当前属性的 5%。",
+    消耗: "无", 画面描述: "体表自然流转着一层坚不可摧的暗金色罡气，举手投足间散发着上位龙族的恐怖威压。"
+  },
+  12: {
+    技能名称: "【第十二层·金龙镇狱杀】", 状态: "已固化", 对象: "敌方/大范围AOE", 加成属性: "力量/精神", 技能类型: "输出/强控", cast_time: 40,
+    仲裁逻辑: { 
+      瞬间交锋模块: { 基础威力倍率: 250, 伤害类型: "物理近战", 穿透修饰: 30, 护盾绝对值: 0, 瞬间恢复比例: 0 },
+      状态挂载模块: { 状态名称: "镇狱禁锢", 持续回合: 1, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "硬控跳过回合", 持续真伤dot: 0 },
+      召唤与场地模块: { 实体名称: "重力囚笼", 持续回合: 1, 继承属性比例: 0, 核心机制描述: "目标无法移动、无法闪避" }
+    },
+    特效量化参数: "[镇压万物]: 对大范围内的所有敌人造成毁灭性打击，并强制施加[镇狱禁锢]（目标无法移动、无法闪避，持续 1 回合）。",
+    消耗: "体力:2000 | 精神力:1000", 画面描述: "无数暗金色的巨龙虚影从天而降，化作绝对的重力囚笼，将整片空间彻底镇杀。"
+  },
+  13: {
+    技能名称: "【第十三层·血脉反哺(三)】", 状态: "已固化", 对象: "自身/被动", 加成属性: "全属性", 技能类型: "被动/永久增幅", cast_time: 0,
+    仲裁逻辑: { 
+      瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
+      状态挂载模块: { 状态名称: "无", 持续回合: 0, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "永久属性提升", 持续真伤dot: 0 },
+      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
+    },
+    特效量化参数: "解除封印瞬间，自身【力量】、【体力】、【防御】、【魂力上限】永久额外提升当前属性的 5%。",
+    消耗: "无", 画面描述: "气血之力已如渊如海，每一次心跳都伴随着雷鸣般的轰响。"
+  },
+  14: {
+    技能名称: "【第十四层·金龙不灭真身】", 状态: "已固化", 对象: "自身/顶级辅助", 加成属性: "体力/防御", 技能类型: "辅助/免死与重塑", cast_time: 50,
+    仲裁逻辑: { 
+      瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
+      状态挂载模块: { 状态名称: "不灭真身", 持续回合: 5, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "免死/技能威力翻倍", 持续真伤dot: 0 },
+      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
+    },
+    特效量化参数: "[滴血重生]: 开启状态下，免疫一切即死判定。若体力归零，强制锁定为 1 点，并瞬间消耗所有剩余魂力，将体力恢复至 100%。 | [真身增幅]: 状态持续期间，所有金龙王血脉技能的基础威力倍率强制提升 100%。",
+    消耗: "体力:5000(启动)+1000/回合(维持)", 画面描述: "彻底化身为一头长达百米的纯血暗金巨龙。只要气血不枯，便是不死不灭的战争机器。"
+  },
+  15: {
+    技能名称: "【第十五层·血脉反哺(四)】", 状态: "已固化", 对象: "自身/被动", 加成属性: "全属性", 技能类型: "被动/永久增幅", cast_time: 0,
+    仲裁逻辑: { 
+      瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
+      状态挂载模块: { 状态名称: "无", 持续回合: 0, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "永久属性提升", 持续真伤dot: 0 },
+      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
+    },
+    特效量化参数: "解除封印瞬间，自身【力量】、【体力】、【防御】、【魂力上限】永久额外提升当前属性的 5%。",
+    消耗: "无", 画面描述: "距离彻底掌控金龙王本源仅一步之遥，肉体强度已堪比真正的神祇。"
+  },
+  16: {
+    技能名称: "【第十六层·黄金瀑布】", 状态: "已固化", 对象: "自身/自动防御与辅助", 加成属性: "精神/防御", 技能类型: "防御/智能护主", cast_time: 0,
+    仲裁逻辑: { 
+      瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
+      状态挂载模块: { 状态名称: "黄金瀑布", 持续回合: 99, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "自动抵消致命攻击/解控", 持续真伤dot: 0 },
+      召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
+    },
+    特效量化参数: "[绝对护主]: 被动生效。当面临足以致命的攻击或强控时，自动消耗 10% 最大体力，降下一道黄金瀑布抵消该次攻击/控制，并根据战况自动为宿主施加最合适的增益。",
+    消耗: "被动触发，每次消耗 10% 最大体力", 画面描述: "第八血脉魂环化作液态的黄金光辉环绕周身。它拥有独立的神级灵性，能在宿主遇险的瞬间作出最完美的应变。"
+  }
+};
+function autoGenerateSkill(type, talentTier, ringAge, ringIndex, compatibility = 100) {
+  const roll = Math.floor(Math.random() * 100) + 1;
+  const typeTable = SkillEngine[type] || SkillEngine["强攻系"];
+  const skillForm = typeTable.find(t => roll <= t.max);
+  const talentScore = { "绝世妖孽": 100, "顶级天才": 80, "天才": 60, "优秀": 40, "正常": 20, "劣等": 0 }[talentTier] || 20;
+  const ageScore = ringAge >= 100000 ? 100 : ringAge >= 10000 ? 50 : ringAge >= 1000 ? 20 : ringAge >= 100 ? 0 : -20;
+  
+  
+  let compScore = 0;
+  if (compatibility >= 90) compScore = 20;       
+  else if (compatibility >= 70) compScore = 0;   
+  else if (compatibility >= 40) compScore = -30; 
+  else compScore = -60;                          
+
+  const totalScore = roll + talentScore + ageScore + (ringIndex * 5) + compScore;
+
+  let quality = "C级_劣质";
+  if (totalScore >= 250) quality = "S级_极品";
+  else if (totalScore >= 151) quality = "A级_优秀";
+  else if (totalScore >= 60) quality = "B级_普通";
+
+  const baseCostTable = [0, 250, 500, 1300, 3100, 5000, 7600, 11600, 14600, 20000];
+  let baseCost = baseCostTable[Math.min(ringIndex, 9)] || 250;
+
+  let qMult = 1.0;
+  if (quality === "S级_极品") qMult = 2.5;
+  else if (quality === "A级_优秀") qMult = 1.5;
+  else if (quality === "B级_普通") qMult = 1.0;
+  else if (quality === "C级_劣质") qMult = 1.2;
+
+  let fluctuation = 0.95 + Math.random() * 0.1;
+  let theoreticalCost = Math.floor(baseCost * qMult * fluctuation);
+
+  let isFood = type === "食物系";
+  if (isFood) {
+    theoreticalCost = Math.max(1, Math.floor(theoreticalCost * 0.2));
+  }
+
+  let spCost = 0, vitCost = 0, menCost = 0;
+  switch (skillForm.燃料) {
+    case "附加微量精神力":
+      spCost = Math.floor(theoreticalCost * 1.0);
+      menCost = Math.floor(theoreticalCost * 0.05);
+      break;
+    case "附加常规体力":
+      spCost = Math.floor(theoreticalCost * 1.0);
+      vitCost = Math.floor(theoreticalCost * 0.10);
+      break;
+    case "附加大量体力":
+      spCost = Math.floor(theoreticalCost * 1.0);
+      vitCost = Math.floor(theoreticalCost * 0.20);
+      break;
+    case "双轨均摊":
+    case "魂神平摊":
+      spCost = Math.floor(theoreticalCost * 0.50);
+      menCost = Math.floor(theoreticalCost * 0.50);
+      break;
+    case "极限压榨":
+    case "三维透支":
+      spCost = Math.floor(theoreticalCost * 1.0);
+      vitCost = Math.floor(theoreticalCost * 0.30);
+      menCost = Math.floor(theoreticalCost * 0.10);
+      break;
+    case "精神系专属拆分":
+    case "精神主导":
+      if (ringIndex < 7) {
+        spCost = Math.floor(theoreticalCost * 0.95);
+        menCost = Math.floor(theoreticalCost * 0.05);
+      } else {
+        spCost = Math.floor(theoreticalCost * 0.80);
+        menCost = Math.floor(theoreticalCost * 0.20);
+      }
+      break;
+    case "纯耗魂力":
+    default:
+      spCost = Math.floor(theoreticalCost * 1.0);
+  }
+
+  let isContinuous = /结界|护盾|真身|领域|附魔|狂化|提升|减伤|泥沼|迟缓|虚弱|共享|标记/.test(skillForm.形态);
+
+  let costStrs = [];
+  if (isFood) {
+    if (spCost > 0) costStrs.push(`魂力:${spCost}/个`);
+    if (vitCost > 0) costStrs.push(`体力:${vitCost}/个`);
+    if (menCost > 0) costStrs.push(`精神力:${menCost}/个`);
+  } else if (isContinuous) {
+    if (spCost > 0) costStrs.push(`魂力:${Math.max(1, Math.floor(spCost * 0.5))}(启动)+${Math.max(1, Math.floor(spCost * 0.1))}/回合(维持)`);
+    if (vitCost > 0) costStrs.push(`体力:${Math.max(1, Math.floor(vitCost * 0.5))}(启动)+${Math.max(1, Math.floor(vitCost * 0.1))}/回合(维持)`);
+    if (menCost > 0) costStrs.push(`精神力:${Math.max(1, Math.floor(menCost * 0.5))}(启动)+${Math.max(1, Math.floor(menCost * 0.1))}/回合(维持)`);
+  } else {
+    if (spCost > 0) costStrs.push(`魂力:${spCost}`);
+    if (vitCost > 0) costStrs.push(`体力:${vitCost}`);
+    if (menCost > 0) costStrs.push(`精神力:${menCost}`);
+  }
+
+  let target = "敌方/单体";
+  if (isContinuous || /护盾|狂化|提升|霸体|真身|附魔|免死/.test(skillForm.形态)) target = "自身/增益";
+  else if (/群体|AOE|流沙|泥沼|领域|结界/.test(skillForm.形态)) target = "敌方/群攻";
+  else if (/团队|群体能量护盾/.test(skillForm.形态)) target = "己方/群攻";
+  else if (/回血|净化|重生/.test(skillForm.形态)) target = "己方/单体或群攻";
+
+  let effectType = "输出";
+  if (/护盾|狂化|提升|霸体|真身|附魔|免死|回血|净化|重生/.test(skillForm.形态)) effectType = "辅助";
+  else if (/眩晕|嘲讽|减速|致盲|沉默|束缚|迟缓|虚弱|冰封/.test(skillForm.形态)) effectType = "控制";
+  else if (/瞬移|加速|闪避/.test(skillForm.形态)) effectType = "移动";
+
+  let basePower = 0;
+  let dmgType = "无";
+  
+  if (effectType === "输出") {
+    if (quality === "S级_极品") basePower = 300;
+    else if (quality === "A级_优秀") basePower = 200;
+    else if (quality === "B级_普通") basePower = 120;
+    else basePower = 60;
+    
+    if (type === "精神系") dmgType = "纯精神冲击";
+    else if (type === "元素系" || type === "控制系") dmgType = "能量AOE";
+    else dmgType = "物理近战";
+  }
+let castTime = 0;
+  if (basePower >= 250) {
+    castTime = 40 + Math.floor(Math.random() * 20); // S级大招，前摇 40~60
+  } else if (basePower >= 150) {
+    castTime = 20 + Math.floor(Math.random() * 15); // A级强力技，前摇 20~35
+  } else {
+    castTime = Math.floor(Math.random() * 10);      // B/C级常规技，前摇 0~9 (极快)
+  }
+  
+  // 如果是防御或位移技能，通常前摇更短
+  if (effectType === "防御" || effectType === "移动") {
+    castTime = Math.floor(castTime * 0.5);
+  }
+  let stateName = "无";
+  let duration = 0;
+  let specialMech = "无";
+  let statMods = { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 };
+  let dotDmg = 0;
+
+  if (effectType === "控制") {
+    stateName = "受控状态";
+    duration = 1 + Math.floor(Math.random() * 2); // 控制通常持续 1~2 回合
+    specialMech = "硬控";
+  } 
+  else if (effectType === "辅助") {
+    stateName = "增益状态";
+    duration = 2 + Math.floor(Math.random() * 3); // 增益通常持续 2~4 回合
+    specialMech = "增益";
+    // 随机提升 20% ~ 50% 的面板
+    let buffRatio = 1.2 + (Math.random() * 0.3);
+    if (skillForm.加成.includes("力量")) statMods.str = buffRatio;
+    else if (skillForm.加成.includes("防御")) statMods.def = buffRatio;
+    else if (skillForm.加成.includes("敏捷")) statMods.agi = buffRatio;
+    else statMods.men_max = buffRatio;
+  }
+  else if (effectType === "输出" && Math.random() < 0.3) {
+    // 输出技能有 30% 概率附带流血/灼烧等真伤 DOT
+    stateName = "持续创伤";
+    duration = 2 + Math.floor(Math.random() * 2); // 持续 2~3 回合
+    dotDmg = Math.floor(basePower * 10); // 随便给个基础 DOT 伤害
+  }
+  let armorPen = 0;
+  let shieldValue = 0;
+  let healRatio = 0;
+  
+  let summonName = "无";
+  let summonDuration = 0;
+  let summonInherit = 0;
+  let summonDesc = "无";
+
+  // 1. 穿透修饰 (输出技能概率附带)
+  if (effectType === "输出" && (skillForm.形态.includes("破甲") || skillForm.形态.includes("刺杀") || Math.random() < 0.3)) {
+    armorPen = 10 + Math.floor(Math.random() * 30); // 随机赋予 10%~40% 的穿透/无视防御
+  }
+
+  // 2. 护盾绝对值 (防御/辅助技能附带)
+  if ((effectType === "防御" || effectType === "辅助") && skillForm.形态.includes("护盾")) {
+    // 护盾值与技能品质(basePower)挂钩，再加一点随机波动
+    shieldValue = (basePower || 100) * 50 + Math.floor(Math.random() * 2000); 
+  }
+
+  // 3. 瞬间恢复比例 (治疗/食物/吸血技能)
+  if (skillForm.形态.includes("回血") || skillForm.形态.includes("恢复") || skillForm.形态.includes("吸血")) {
+    healRatio = 10 + Math.floor(Math.random() * 20); // 瞬间恢复 10%~30% 的体力
+  }
+
+  // 4. 召唤与场地模块 (召唤类技能)
+  if (skillForm.形态.includes("召唤") || skillForm.形态.includes("分身") || skillForm.形态.includes("傀儡")) {
+    summonName = "能量实体";
+    summonDuration = 3 + Math.floor(Math.random() * 3);  // 召唤物存在 3~5 回合
+    summonInherit = 30 + Math.floor(Math.random() * 50); // 继承施法者 30%~80% 的属性面板
+    summonDesc = "自主攻击或分担伤害";
+  }
+
+ return {
+    状态: "未生成",
+    对象: target,
+    加成属性: skillForm.加成,
+    技能类型: effectType,
+    cast_time: castTime,
+    仲裁逻辑: {
+      瞬间交锋模块: {
+        基础威力倍率: basePower,
+        伤害类型: dmgType,
+        穿透修饰: armorPen,       // 👈 替换原本的 0
+        护盾绝对值: shieldValue,  // 👈 替换原本的 0
+        瞬间恢复比例: healRatio   // 👈 替换原本的 0
+      },
+      状态挂载模块: {
+        状态名称: stateName,
+        持续回合: duration,
+        面板修改比例: statMods,
+        特殊机制标识: specialMech,
+        持续真伤dot: dotDmg
+      },
+      召唤与场地模块: {
+        实体名称: summonName,       // 👈 替换原本的 "无"
+        持续回合: summonDuration,   // 👈 替换原本的 0
+        继承属性比例: summonInherit,// 👈 替换原本的 0
+        核心机制描述: summonDesc    // 👈 替换原本的 "无"
+      }
+    },
+    特效量化参数: `[后台推演] 品质:${quality} | 形态:${skillForm.形态}`,
+    消耗: costStrs.join(" | ") || "无",
+    画面描述: "未生成"
+  };
+}
+
+const WealthSchema = z.object({
+  fed_coin: z.coerce.number().prefault(0).describe('联邦币'),
+  star_coin: z.coerce.number().prefault(0).describe('星罗币'),
+  tang_pt: z.coerce.number().prefault(0).describe('唐门积分'),
+  shrek_pt: z.coerce.number().prefault(0).describe('史莱克徽章/积分'),
+  blood_pt: z.coerce.number().prefault(0).describe('血神军团功勋')
+}).prefault({});
+const AppearanceSchema = z.object({
+  发色: z.string().prefault('未知'),
+  瞳色: z.string().prefault('未知'),
+  身高: z.string().prefault('未知'),
+  体型: z.string().prefault('未知'),
+  特殊特征: z.array(z.string()).prefault([]).describe('角色的独特之处，如伤疤、胎记、特殊神态等')
+}).prefault({});
+
+const ClothingSchema = z.object({
+  wardrobe: z.record(z.string().describe('套装名称'), z.object({
+    上装: z.string().prefault(''),
+    下装: z.string().prefault(''),
+    鞋子: z.string().prefault(''),
+    描述: z.string().prefault('')
+  }).prefault({})).prefault({}).describe('衣柜，存放所有可换的套装'),
+  outfit: z.string().prefault('无').describe('当前着装，值为衣柜里某一套的名称')
+}).prefault({});
+const EquipmentSchema = z.object({
+    wpn: z.object({
+    name: z.string().prefault("无"),
+    tier: z.string().prefault("无").describe('品阶如: 魂导器/神器/超神器'),
+    traits: z.record(z.string(), z.object({ 描述: z.string().prefault("无") }).prefault({})).prefault({}).describe('附带的绝对特性，如:无视防御/吞噬/绝对禁锢'),
+    stats_bonus: z.object({
+      sp_max: z.coerce.number().prefault(0),
+      men_max: z.coerce.number().prefault(0),
+      str: z.coerce.number().prefault(0),
+      def: z.coerce.number().prefault(0),
+      agi: z.coerce.number().prefault(0),
+      vit_max: z.coerce.number().prefault(0)
+    }).prefault({})
+  }).prefault({}),
+  arm: z.string().prefault("无"),
+  armor: z.object({
+    lv: z.coerce.number().prefault(0),
+    name: z.string().prefault("无"),
+    domain: z.string().prefault("无"),
+    material: z.string().prefault("无").describe('锻造金属材质'),
+    equip_status: z.string().prefault("未装备"),
+    parts: z.record(z.string(), z.object({
+      状态: z.string().prefault("未打造"),
+      品质系数: z.coerce.number().prefault(1.0)
+    }).prefault({})).prefault({}),
+    stats_bonus: z.object({
+      lv_equiv: z.coerce.number().prefault(0),
+      sp_max: z.coerce.number().prefault(0),
+      men_max: z.coerce.number().prefault(0),
+      str: z.coerce.number().prefault(0),
+      def: z.coerce.number().prefault(0),
+      agi: z.coerce.number().prefault(0),
+      vit_max: z.coerce.number().prefault(0)
+    }).prefault({})
+  }).prefault({}),
+  mech: z.object({
+    lv: z.string().prefault("无"),
+    type: z.string().prefault("无"),
+    material: z.string().prefault("无").describe('机甲金属材质'),
+    status: z.string().prefault("完好"),
+    equip_status: z.string().prefault("未装备"),
+    weapon: z.string().prefault("无"),
+    品质系数: z.coerce.number().prefault(1.0).describe('0.8为劣质，1.0为标准，1.5以上为极品，最高可达2.0'),
+    stats_bonus: z.object({
+      sp_max: z.coerce.number().prefault(0),
+      men_max: z.coerce.number().prefault(0),
+      str: z.coerce.number().prefault(0),
+      def: z.coerce.number().prefault(0),
+      agi: z.coerce.number().prefault(0),
+      vit_max: z.coerce.number().prefault(0)
+    }).prefault({})
+  }).prefault({}),
+  accessories: z.record(z.string(), z.object({ 描述: z.string().prefault("无") }).prefault({})).prefault({}).describe('储物魂导器等杂项')
+}).prefault({}).transform(equip => {
+  // --- 斗铠属性推演 ---
+  if (equip.armor.lv > 0 && equip.armor.equip_status === "已装备") {
+    let totalQuality = 0, count = 0;
+    let maxQ = -Infinity, minQ = Infinity; // 记录最高和最低品质系数
+    
+    // 1. 先遍历所有部件，统计系数
+    _(equip.armor.parts).forEach(p => {
+      if (p.状态 !== "未打造" && p.状态 !== "重创") { 
+        totalQuality += p.品质系数; 
+        count++; 
+        if (p.品质系数 > maxQ) maxQ = p.品质系数;
+        if (p.品质系数 < minQ) minQ = p.品质系数;
+      }
+    });
+    
+    // 2. 再根据统计结果计算属性
+    if (count > 0) {
+      let avgQ = totalQuality / count;
+      let base = ArmorBaseStats[equip.armor.lv] || ArmorBaseStats[1];
+      let mult = count === 10 ? avgQ : (0.05 * avgQ * count);
+      
+      // 【材质系数差距排斥判定】
+      function getQualityTier(q) {
+        if (q < 1.0) return 0;
+        if (q <= 1.2) return 1;
+        if (q <= 1.5) return 2;
+        if (q <= 1.8) return 3;
+        return 4;
+      }
+      equip.armor.is_rejected = false; 
+      if (count > 1 && getQualityTier(maxQ) !== getQualityTier(minQ)) { 
+        mult *= 0.2; // 能量回路冲突，斗铠提供的属性强行折损 80%！
+        equip.armor.is_rejected = true; // 打上排斥标记
+      }
+
+      equip.armor.stats_bonus.sp_max = Math.floor(base.sp_max * mult);
+      equip.armor.stats_bonus.men_max = Math.floor(base.men_max * mult);
+      equip.armor.stats_bonus.str = Math.floor(base.str * mult);
+      equip.armor.stats_bonus.agi = Math.floor(base.agi * mult);
+      equip.armor.stats_bonus.vit_max = Math.floor(base.vit_max * mult);
+      equip.armor.stats_bonus.def = Math.floor(base.str * mult); // 斗铠防御力基于力量基数
+    } else {
+      equip.armor.stats_bonus = { lv_equiv: 0, sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
+    }
+  } else {
+    equip.armor.stats_bonus = { lv_equiv: 0, sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
+  }
+
+  // --- 机甲属性推演 ---
+  if (equip.mech.lv !== "无" && equip.mech.status !== "重创" && equip.mech.equip_status === "已装备") {
+    let base = MechBaseStats[equip.mech.lv];
+    if (base) {
+      let mult = equip.mech.品质系数 || 1.0;
+      equip.mech.stats_bonus.sp_max = Math.floor(base.sp_max * mult);
+      equip.mech.stats_bonus.men_max = Math.floor(base.men_max * mult);
+      equip.mech.stats_bonus.str = Math.floor(base.str * mult);
+      equip.mech.stats_bonus.agi = Math.floor(base.agi * mult);
+      equip.mech.stats_bonus.vit_max = Math.floor(base.vit_max * mult);
+      equip.mech.stats_bonus.def = Math.floor(base.str * mult);
+    }
+  } else {
+    equip.mech.stats_bonus = { sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
+  }
+  
+  return equip;
+});
+const SkillStructSchema = z.object({
+  状态: z.string().prefault("未生成"),
+  对象: z.string().prefault("无"),
+  加成属性: z.string().prefault("无"),
+  技能类型: z.string().prefault("无"), 
+  主定位: z.string().prefault("无").describe('技能主定位：输出/控制/防御/辅助/特殊。仅表示主要用途，不限制其混合效果'),
+  标签: z.array(z.string()).prefault([]).describe('技能混合标签，如：伤害/硬控/打断/护盾/治疗/霸体/领域/真身/召唤'),
+  cast_time: z.coerce.number().prefault(0).describe('施法前摇数值。数值越小越接近瞬发，数值越大代表蓄力越久，越容易在博弈中被打断'),
+  战斗语义: z.object({
+    主定位: z.string().prefault("无").describe('与主定位含义一致，供AI从语义层理解技能'),
+    作用目标: z.string().prefault("敌方单体").describe('敌方单体/敌方群体/自身/友方单体/友方群体/全场'),
+    战术标签: z.array(z.string()).prefault([]).describe('如：开场技/斩杀技/打断技/保命技/团辅技/反打技'),
+    优先条件: z.array(z.string()).prefault([]).describe('如：敌方蓄力/自身低血/友方低血/残局收割'),
+    风险等级: z.string().prefault("中").describe('低/中/高'),
+    保留倾向: z.coerce.number().prefault(0).describe('0~100，越高越倾向留作后手'),
+    目标偏好: z.array(z.string()).prefault([]).describe('如：辅助/控制/低血/高威胁/蓄力者'),
+    友方偏好: z.array(z.string()).prefault([]).describe('如：最低血量/主力输出/被控单位'),
+    是否持续: z.boolean().prefault(false),
+    是否可打断: z.boolean().prefault(false),
+    是否可被霸体免疫: z.boolean().prefault(true)
+  }).prefault({}),
+  效果列表: z.array(z.object({
+    类型: z.string().prefault("无").describe('伤害/控制/增益/减益/防御/回复/场地/特殊'),
+    状态名称: z.string().prefault("无").describe('若该效果会挂状态，可在此填写状态名'),
+    作用目标: z.string().prefault("默认").describe('默认/敌方单体/敌方群体/自身/友方单体/友方群体/全场'),
+    持续回合: z.coerce.number().prefault(0),
+    标记: z.array(z.string()).prefault([]).describe('如：硬控/霸体/免死/净化/打断/领域/真身'),
+    数值: z.object({
+      威力: z.coerce.number().prefault(0),
+      伤害类型: z.string().prefault("无"),
+      穿透: z.coerce.number().prefault(0),
+      护盾值: z.coerce.number().prefault(0),
+      减伤率: z.coerce.number().prefault(0),
+      吸血比例: z.coerce.number().prefault(0),
+      回复体力: z.coerce.number().prefault(0),
+      回复魂力: z.coerce.number().prefault(0),
+      回复精神力: z.coerce.number().prefault(0),
+      dot: z.coerce.number().prefault(0)
+    }).prefault({}),
+    面板修改: z.object({
+      str: z.coerce.number().prefault(1.0),
+      def: z.coerce.number().prefault(1.0),
+      agi: z.coerce.number().prefault(1.0),
+      men_max: z.coerce.number().prefault(1.0),
+      sp_max: z.coerce.number().prefault(1.0)
+    }).prefault({}),
+    控制: z.object({ 控制类型: z.string().prefault("无"), 效果: z.array(z.string()).prefault([]), 命中方式: z.string().prefault("默认"), 可打断: z.boolean().prefault(false), 可被霸体免疫: z.boolean().prefault(true) }).prefault({}),
+    特殊: z.object({ 特殊类型: z.string().prefault("无"), 场地名称: z.string().prefault("无"), 实体名称: z.string().prefault("无"), 核心机制描述: z.string().prefault("无"), 继承属性比例: z.coerce.number().prefault(0) }).prefault({})
+  })).prefault([]).describe('模块化效果定义。一个技能可同时拥有伤害、控制、增益、防御等多个效果模块'),
+  仲裁逻辑: z.object({
+
+    瞬间交锋模块: z.object({
+      基础威力倍率: z.coerce.number().prefault(0),
+      伤害类型: z.string().prefault("无"),
+      穿透修饰: z.coerce.number().prefault(0),
+      护盾绝对值: z.coerce.number().prefault(0),
+      瞬间恢复比例: z.coerce.number().prefault(0).describe('吸血或治疗的百分比')
+    }).prefault({}),
+    
+    状态挂载模块: z.object({
+      状态名称: z.string().prefault("无"),
+      持续回合: z.coerce.number().prefault(0),
+      面板修改比例: z.object({
+        str: z.coerce.number().prefault(1.0), // 1.2表示提升20%，0.8表示削弱20%
+        def: z.coerce.number().prefault(1.0),
+        agi: z.coerce.number().prefault(1.0),
+        men_max: z.coerce.number().prefault(1.0)
+      }).prefault({}),
+      特殊机制标识: z.string().prefault("无").describe('用文本标识罕见机制，如：硬控眩晕/免死/霸体/净化'),
+      持续真伤dot: z.coerce.number().prefault(0)
+    }).prefault({}),
+
+    召唤与场地模块: z.object({
+      实体名称: z.string().prefault("无"),
+      持续回合: z.coerce.number().prefault(0),
+      继承属性比例: z.coerce.number().prefault(0).describe('召唤物继承施法者面板的百分比'),
+      核心机制描述: z.string().prefault("无").describe('简述其作用，如：每回合自动发射火球/范围内禁疗')
+    }).prefault({})
+  }).prefault({}),
+  附加状态: z.object({
+    状态名称: z.string().prefault("无").describe('如：眩晕、流血、黄金龙体'),
+    状态类别: z.string().prefault("无").describe('buff 或 debuff'),
+    duration: z.coerce.number().prefault(0).describe('持续回合数'),
+    stat_mods: z.object({
+      str: z.coerce.number().prefault(1.0),
+      def: z.coerce.number().prefault(1.0),
+      agi: z.coerce.number().prefault(1.0),
+      sp_max: z.coerce.number().prefault(1.0)
+    }).prefault({}),
+    combat_effects: z.object({
+      dot_damage: z.coerce.number().prefault(0).describe('每回合流血/中毒绝对值伤害'),
+      sp_dot: z.coerce.number().prefault(0).describe('每回合持续消耗的魂力'),
+      men_dot: z.coerce.number().prefault(0).describe('每回合持续消耗的精神力'),
+      skip_turn: z.boolean().prefault(false).describe('是否强制跳过本回合宣告(如：眩晕/冰封/镇狱禁锢)'),
+      armor_pen: z.coerce.number().prefault(0).describe('攻击时无视目标防御的百分比(如：粉碎/破甲)')
+    }).prefault({})
+  }).prefault({}),
+  特效量化参数: z.string().prefault("无").describe('如：每回合扣除1500体力，持续3回合'),
+  消耗: z.string().prefault("无"),
+  画面描述: z.string().prefault("无")
+}).prefault({});
+const SoulBoneSchema = z.record(z.string(), z.object({
+  名称: z.string().prefault("无"),
+  name: z.string().prefault("无"),
+  表象名称: z.string().prefault("无"),
+  年限: z.coerce.number().prefault(0),
+  age: z.coerce.number().prefault(0),
+  来源: z.string().prefault("无"),
+  状态: z.string().prefault("已装载"),
+  status: z.string().prefault("已装载"),
+  品质: z.string().prefault("无"),
+  品阶: z.string().prefault("无"),
+  描述: z.string().prefault("无"),
+  附带技能: z.record(z.string(), SkillStructSchema).prefault({}),
+  stats_bonus: z.object({
+    str: z.coerce.number().prefault(0), def: z.coerce.number().prefault(0), agi: z.coerce.number().prefault(0), vit_max: z.coerce.number().prefault(0), men_max: z.coerce.number().prefault(0), sp_max: z.coerce.number().prefault(0)
+  }).prefault({})
+}).prefault({})).prefault({});
+const BloodlinePowerSchema = z.object({
+  bloodline: z.string().prefault("无").describe('血脉名称'),
+  seal_lv: z.coerce.number().prefault(0).describe('血脉封印解除层数'),
+  core: z.string().prefault("未凝聚").describe('气血魂核状态'),
+  life_fire: z.boolean().prefault(false).describe('生命之火状态'),
+  skills: z.record(z.string(), SkillStructSchema).prefault({}).describe('血脉散技(无魂环)'),
+  blood_rings: z.record(z.string(), z.object({
+    颜色: z.string().prefault("无"),
+    魂技: z.record(z.string(), SkillStructSchema).prefault({})
+  }).prefault({})).prefault({}).describe('气血魂环与附带魂技')
+}).prefault({});
+const StatsSchema = z.object({
+  age: z.coerce.number().prefault(0).describe('年龄'),
+  gender: z.string().prefault("未知").describe('性别'),
+  lv: z.any().transform(val => {
+    if (val === "准神") return 99.5;
+    let num = Number(val);
+    return isNaN(num) ? 1 : num;
+  }).prefault(1),
+  last_herb_lv: z.coerce.number().prefault(-20).describe('上次吸收灵物的等级'),
+  lv_penalty: z.coerce.number().prefault(0).describe('违规吸收导致的等级上限永久扣除'),
+  type: z.string().prefault("强攻系").describe('魂师系别'),
+  talent_tier: z.string().prefault("正常").describe('天赋梯队'),
+  background: z.string().prefault("无").describe('背景阶层标签：顶级势力/一流势力/普通势力/平民'),
+  is_evil: z.boolean().prefault(false).describe('是否为邪魂师'),
+  hidden_variance: z.coerce.number().prefault(0).describe('先天底子波动值'),
+  innate_sp_lv: z.coerce.number().prefault(0).describe('先天魂力'),
+  talent_roll: z.coerce.number().prefault(0).describe('天赋检定最终得分(D100+补正)'),
+
+  sp: z.coerce.number().prefault(10).describe('当前魂力'),
+  sp_max: z.coerce.number().prefault(10).describe('魂力上限'),
+  men: z.coerce.number().prefault(10).describe('当前精神力'),
+  men_max: z.coerce.number().prefault(10).describe('精神力上限'),
+  men_realm: z.string().prefault("灵元境"),
+
+  str: z.coerce.number().prefault(10).describe('力量'),
+  def: z.coerce.number().prefault(10).describe('防御'),
+  agi: z.coerce.number().prefault(10).describe('敏捷'),
+  vit: z.coerce.number().prefault(10).describe('当前体力'),
+  vit_max: z.coerce.number().prefault(10).describe('体力上限'),
+
+  multiplier: z.object({
+    cultivation: z.coerce.number().prefault(1.0).describe('修炼系数'),
+    str: z.coerce.number().prefault(1.0),
+    def: z.coerce.number().prefault(1.0),
+    agi: z.coerce.number().prefault(1.0),
+    vit_max: z.coerce.number().prefault(1.0),
+    men_max: z.coerce.number().prefault(1.0)
+  }).prefault({}),
+
+  trained_bonus: z.object({
+    str: z.coerce.number().prefault(0),
+    def: z.coerce.number().prefault(0),
+    agi: z.coerce.number().prefault(0),
+    vit_max: z.coerce.number().prefault(0),
+    men_max: z.coerce.number().prefault(0)
+  }).prefault({}),
+
+  // 挂载在角色 stat.conditions 下的扩展结构
+  conditions: z.record(z.string(), z.object({ 
+    类型: z.string().prefault("buff"), 
+    层数: z.coerce.number().prefault(1), 
+    描述: z.string().prefault("无"),
+    duration: z.coerce.number().prefault(1).describe('剩余持续回合数，每回合结算阶段减1'),
+    
+    // 原有的基础属性增幅（比如黄金龙体的全属性+50%）
+    stat_mods: z.object({ 
+      str: z.coerce.number().prefault(1.0),
+      def: z.coerce.number().prefault(1.0),
+      agi: z.coerce.number().prefault(1.0),
+      sp_max: z.coerce.number().prefault(1.0)
+    }).prefault({}),
+
+    combat_effects: z.object({
+      dot_damage: z.coerce.number().prefault(0).describe('每回合结算阶段扣除的绝对体力值(如：撕裂/中毒)'),
+      skip_turn: z.boolean().prefault(false).describe('是否强制跳过本回合宣告(如：眩晕/冰封/镇狱禁锢)'),
+      armor_pen: z.coerce.number().prefault(0).describe('攻击时无视目标防御的百分比(如：粉碎/破甲)')
+    }).prefault({})
+  }).prefault({})).prefault({})
+}).prefault({}).transform(data => {
+  if (data.hidden_variance === 0) {
+    data.hidden_variance = 0.95 + Math.random() * 0.1;
+  }
+
+  if (data.lv > 10 && data.trained_bonus.str === 0 && data.trained_bonus.men_max === 0) {
+    const hardWorkFactor = { "绝世妖孽": 1.6, "顶级天才": 1.2, "天才": 1.0, "优秀": 0.8, "正常": 0.5, "劣等": 0.2 }[data.talent_tier] || 0.5;
+    const baseForTrace = getBaseStats(data.lv);
+    const traceMultiplier = 0.005 * (data.lv - 10) * hardWorkFactor;
+    data.trained_bonus.str = Math.floor(baseForTrace.str * traceMultiplier);
+    data.trained_bonus.def = Math.floor(baseForTrace.def * traceMultiplier);
+    data.trained_bonus.agi = Math.floor(baseForTrace.agi * traceMultiplier);
+    data.trained_bonus.vit_max = Math.floor(baseForTrace.vit_max * traceMultiplier);
+    data.trained_bonus.men_max = Math.floor(baseForTrace.men_max * traceMultiplier);
+  }
+return data;
+});
+
+const CharacterSchema = z.object({
+  stat: StatsSchema,
+  equip: EquipmentSchema,
+  appearance: AppearanceSchema, 
+  personality: z.string().prefault("未设定").describe('角色的性格特征，随经历可能发生改变'), 
+  soul_bone: SoulBoneSchema,
+  bloodline_power: BloodlinePowerSchema,  energy: z.object({ 
+    core: z.object({ 
+      数量: z.coerce.number().prefault(0),
+      progress: z.coerce.number().prefault(0).describe('凝聚进度(%)') 
+    }).prefault({}) 
+  }).prefault({}),
+  wealth: WealthSchema,
+
+   status: z.object({
+    loc: z.string().prefault("去向不明"),
+    current_x: z.coerce.number().prefault(0).describe('当前图坐标X（MAP.jpeg 左上角为原点）'),
+    current_y: z.coerce.number().prefault(0).describe('当前图坐标Y（MAP.jpeg 左上角为原点）'),
+    coord_system: z.string().prefault("image").describe('当前位置坐标系：image=MAP.jpeg 图坐标，左上角为原点'),
+    alive: z.boolean().prefault(true),
+    wound: z.string().prefault("无"),
+    action: z.string().prefault("日常").describe('行为状态: 日常/冥想/战斗/睡眠/凝聚魂核'), 
+    active_domain: z.string().prefault("无").describe('当前正在展开的领域名称(斗铠/精神/武魂领域)'), 
+    consuming_herb_age: z.coerce.number().prefault(0).describe('当前正在吸收的灵物年份(阅后即焚)')
+  }).prefault({}),
+  unlocked_knowledges: z.array(z.string()).prefault([]).describe('该角色已解锁的核心情报列表'),
+  knowledge_unlock_request: z.object({
+    content: z.string().prefault("无").describe('解锁的情报内容(用一句话自然语言概括)'),
+    impact: z.coerce.number().prefault(0).describe('对世界线的破坏度(1-10)')
+  }).prefault({}),
+  // 战斗展示层统一读取 sd.world.combat.summary.player_action / settle_result。
+  hunt_request: z.object({
+    killed_age: z.coerce.number().prefault(0).describe('击杀现实魂兽年限'),
+    is_ferocious: z.boolean().prefault(false).describe('是否为凶兽(十万年以上)')
+  }).prefault({}),
+ tower_records: z.object({
+    max_floor: z.coerce.number().prefault(0).describe('历史最高通关层数'),
+    discount_available: z.record(z.string(), z.boolean().prefault(true)).prefault({}).describe('各层五折购买资格，key为层数，true表示未使用')
+  }).prefault({}),
+
+  interact_request: z.object({
+    target_npc: z.string().prefault("无").describe('互动对象姓名'),
+    action: z.string().prefault("无").describe('互动类型：闲聊/送礼/切磋/请教/双修/表白'),
+    item_used: z.string().prefault("无").describe('消耗的物品名称(送礼时填写)'),
+    ai_score: z.coerce.number().prefault(0).describe('AI根据剧情判定的互动效果分(-50到50，负数代表搞砸了)')
+  }).prefault({}),
+  travel_request: z.object({
+    target_loc: z.string().prefault("无").describe('目标地点名称，若去未知坐标填"无"'),
+    target_x: z.coerce.number().prefault(-1).describe('目标图坐标X，若去已知地点填-1'),
+    target_y: z.coerce.number().prefault(-1).describe('目标图坐标Y，若去已知地点填-1'),
+    coord_system: z.string().prefault("image").describe('目标坐标系：image=MAP.jpeg 图坐标，左上角为原点'),
+    method: z.string().prefault("步行").describe('交通方式：步行/校园短驳车/魂导汽车/魂导列车/远洋巨轮/飞行(机甲/斗铠)/空间传送(极限斗罗)/空间传送(神级)')
+  }).prefault({}),
+  promotion_request: z.object({
+    target_faction: z.string().prefault("无").describe('目标势力(如:唐门/战神殿)'),
+    target_title: z.string().prefault("无").describe('申请职位(如:红级/预备战神)')
+  }).prefault({}),
+  
+  donate_request: z.object({
+    item_name: z.string().prefault("无").describe('捐献物品名称'),
+    target_faction: z.string().prefault("无").describe('目标势力'),
+    quantity: z.coerce.number().prefault(1).describe('数量')
+  }).prefault({}),
+ abyss_kill_request: z.object({
+    kill_tier: z.string().prefault("无").describe('击杀级别：低阶生物/中阶生物/高阶生物/深渊王者'),
+    quantity: z.coerce.number().prefault(1).describe('击杀数量')
+  }).prefault({}),
+
+  combat_history: z.record(
+    z.string(),
+    z.object({ count: z.coerce.number().prefault(0), last_tick: z.coerce.number().prefault(0) }).prefault({})
+  ).prefault({}).transform(data => _(data).entries().takeRight(20).fromPairs().value()),
+
+  job: z.record(z.string(), z.object({
+    lv: z.coerce.number().prefault(0),
+    exp: z.coerce.number().prefault(0),
+    title: z.string().prefault("无"),
+    core_tech: z.record(z.string(), z.boolean().prefault(true)).prefault({}),
+    limits: z.object({ max_fusion: z.coerce.number().prefault(1), success_rate: z.coerce.number().prefault(0) }).prefault({})
+  }).prefault({})).prefault({}).transform(jobs => {
+    _(jobs).forEach((jobData) => {
+      while (jobData.lv < 9 && jobData.exp >= JobExpThresholds[jobData.lv]) {
+        jobData.lv++;
+      }
+      jobData.limits.max_fusion = Math.max(1, Math.floor(jobData.lv / 2));
+
+      if (jobData.lv === 9) {
+        let overflowExp = Math.max(0, jobData.exp - 3000000);
+        let extraRate = Math.floor(overflowExp / 500000);
+        jobData.limits.success_rate = Math.min(50, 10 + extraRate);
+      } else if (jobData.lv > 0) {
+        let currentBaseExp = JobExpThresholds[jobData.lv - 1];
+        let nextLevelExp = JobExpThresholds[jobData.lv];
+        let progress = (jobData.exp - currentBaseExp) / (nextLevelExp - currentBaseExp);
+        progress = Math.max(0, Math.min(1, progress));
+
+        if (jobData.lv % 2 === 0) {
+          jobData.limits.success_rate = Math.floor(80 + 15 * progress);
+        } else {
+          jobData.limits.success_rate = Math.floor(30 + 40 * progress);
+        }
+      } else {
+        jobData.limits.success_rate = 0;
+      }
+    });
+    return jobs;
+  }),
+
+  spirit: z.record(z.string().describe('武魂槽位(如:第一武魂/未知武魂)'), z.object({
+    表象名称: z.string().prefault("未展露").describe('AI填写的具体武魂名'),
+    type: z.string().prefault("强攻系"),
+    element: z.string().prefault("无").describe('元素倾向(如:火/冰/空间/多元素混合/无)'),
+    soul_spirits: z.record(z.string().describe('魂灵槽位(如:第一魂灵)'), z.object({
+      表象名称: z.string().prefault("未展露").describe('AI填写的具体魂灵物种'),
+      年限: z.coerce.number().prefault(0),
+      契合度: z.coerce.number().prefault(60).describe('与武魂的契合度(0-100)，影响融合难度与发挥'), 
+      状态: z.string().prefault("沉睡"),
+      战力面板: z.object({
+        对标等级: z.coerce.number().prefault(0),
+        str: z.coerce.number().prefault(0),
+        def: z.coerce.number().prefault(0),
+        agi: z.coerce.number().prefault(0),
+        vit_max: z.coerce.number().prefault(0),
+        men_max: z.coerce.number().prefault(0),
+        sp_max: z.coerce.number().prefault(0)
+      }).prefault({}).describe('魂灵生前的独立战力面板，供AI战斗参考'),
+      rings: z.record(z.string().describe('第几魂环'), z.object({
+        年限: z.coerce.number().prefault(0),
+        颜色: z.string().prefault("无"),
+        魂技: z.record(z.string().describe('魂技名称'), SkillStructSchema).prefault({})
+      }).prefault({})).prefault({})
+    }).prefault({})).prefault({}),
+  }).prefault({})).prefault({}),
+
+  arts: z.record(z.string(), z.object({ 境界: z.string().prefault("未入门"), lv: z.coerce.number().prefault(0), exp: z.coerce.number().prefault(0), 描述: z.string().prefault("无") }).prefault({})).prefault({}),
+    special_abilities: z.record(z.string().describe('能力名称'), z.object({
+    类型: z.string().prefault("武魂融合技"),
+    描述: z.string().prefault("无")
+  }).prefault({})).prefault({}),
+  martial_fusion_skills: z.record(z.string().describe('融合技名称'), z.object({
+    partner: z.string().prefault("无").describe('融合对象/羁绊队友姓名'),
+    skill_data: SkillStructSchema // 直接复用完整的魂技数值面板
+  }).prefault({})).prefault({}).describe('武魂融合技列表'),
+
+
+  social: z.object({
+    reputation: z.coerce.number().prefault(0),
+    fame_level: z.string().prefault("籍籍无名"),
+    main_identity: z.string().prefault("无").describe('当前主要公开身份'),
+    public_intel: z.boolean().prefault(false).describe('是否为公开情报(声望>5000自动为true)'),
+    factions: z.record(z.string(), z.object({ 身份: z.string().prefault("无"), 权限级: z.coerce.number().prefault(0) }).prefault({})).prefault({}),
+    titles: z.record(z.string(), z.object({ 来源: z.string().prefault("无"), 声望加成: z.coerce.number().prefault(0) }).prefault({})).prefault({}),
+    relations: z.record(z.string(), z.object({ 
+      关系: z.string().prefault("陌生"), 
+      好感度: z.coerce.number().prefault(0), 
+      relation_route: z.string().prefault("朋友线").describe('终极分支: 朋友线/恋人线'),
+      npc_job: z.string().prefault("无"), 
+      favor_buff: z.string().prefault("无"),
+      relation_stage: z.string().prefault("陌生").describe('结构化关系阶段，默认与关系称谓同步'),
+      next_stage: z.string().prefault("认识").describe('下一阶段名称'),
+      next_stage_threshold: z.coerce.number().prefault(11).describe('达到下一阶段所需最低好感度'),
+      route_switchable: z.boolean().prefault(false).describe('当前是否允许切入恋人线等特殊路线'),
+      route_lock_reason: z.string().prefault("好感度不足").describe('路线切换受限时的原因'),
+      progress_note: z.string().prefault("无").describe('当前关系推进提示'),
+      availability: z.string().prefault("未知").describe('关系维护优先级：高风险/待接触/可接触/优先维护'),
+      last_interact_tick: z.coerce.number().prefault(0).describe('最近一次互动发生的 tick'),
+      last_interact_action: z.string().prefault("无").describe('最近一次互动动作'),
+      recent_favor_delta: z.coerce.number().prefault(0).describe('最近一次互动导致的好感变化'),
+      current_relation_bonus: z.string().prefault("无").describe('当前已激活的关系加成说明'),
+      next_unlock_bonus: z.string().prefault("无").describe('下一档可解锁的羁绊加成说明'),
+      next_unlock_threshold: z.coerce.number().prefault(30).describe('下一档羁绊加成所需好感度')
+    }).prefault({})).prefault({}),
+    relation_analysis: z.object({
+      summary: z.string().prefault("当前尚未积累足够的人物关系数据。"),
+      focus_target: z.string().prefault("无"),
+      top_targets: z.array(z.object({
+        target: z.string().prefault("无"),
+        relation: z.string().prefault("陌生"),
+        favor: z.coerce.number().prefault(0),
+        route: z.string().prefault("朋友线"),
+        reason: z.string().prefault("无"),
+        recommended_action: z.string().prefault("继续观察")
+      }).prefault({})).prefault([]),
+      recommended_actions: z.array(z.string()).prefault([]),
+      romance_candidates: z.array(z.string()).prefault([]),
+      trust_targets: z.array(z.string()).prefault([]),
+      risk_targets: z.array(z.string()).prefault([]),
+      blocked_targets: z.array(z.object({
+        target: z.string().prefault("无"),
+        reason: z.string().prefault("无")
+      }).prefault({})).prefault([]),
+      same_location_targets: z.array(z.string()).prefault([]),
+      contactable_targets: z.array(z.string()).prefault([])
+    }).prefault({})
+  }).prefault({}).transform(social => {
+    social.public_intel = social.reputation >= 5000;
+
+    const topTargets = [];
+    const romanceCandidates = [];
+    const trustTargets = [];
+    const riskTargets = [];
+    const blockedTargets = [];
+
+    _(social.relations).forEach((relData, targetName) => {
+      let val = relData.好感度;
+      let route = relData.relation_route || "朋友线";
+      let nextStage = "已达当前路线终点";
+      let nextStageThreshold = 999;
+      let progressNote = "维持当前关系即可。";
+      let recommendedAction = "继续观察";
+      let nextUnlockThreshold = 999;
+      let nextUnlockBonus = "已达当前路线高阶阶段";
+
+      if (val <= -50) relData.关系 = "仇敌";
+      else if (val <= -10) relData.关系 = "敌视";
+      else if (val <= 10) relData.关系 = "陌生";
+      else if (val <= 30) relData.关系 = "认识";
+      else if (val <= 60) relData.关系 = "朋友";
+      else if (val <= 80) relData.关系 = "亲密";
+      else {
+        if (route === "恋人线") {
+          relData.关系 = val >= 95 ? "恋人" : "暧昧";
+        } else {
+          relData.关系 = val >= 95 ? "生死之交" : "挚友";
+        }
+      }
+
+      if (val <= -50) {
+        nextStage = "敌视";
+        nextStageThreshold = -10;
+        progressNote = "当前处于强烈敌对状态，优先避免正面刺激。";
+        recommendedAction = "先缓和冲突或制造间接修复契机";
+        nextUnlockThreshold = -10;
+        nextUnlockBonus = "脱离仇敌阶段";
+      } else if (val <= -10) {
+        nextStage = "陌生";
+        nextStageThreshold = 11;
+        progressNote = "关系紧张，任何互动都可能继续恶化。";
+        recommendedAction = "减少高压对抗，尝试中性接触";
+        nextUnlockThreshold = 11;
+        nextUnlockBonus = "恢复基础接触";
+      } else if (val <= 10) {
+        nextStage = "认识";
+        nextStageThreshold = 11;
+        progressNote = "刚建立认知，适合轻量互动试探反应。";
+        recommendedAction = "从闲聊、短接触或小帮助开始";
+        nextUnlockThreshold = 30;
+        nextUnlockBonus = "进入稳定认识阶段";
+      } else if (val <= 30) {
+        nextStage = "朋友";
+        nextStageThreshold = 31;
+        progressNote = "关系刚起步，需要持续建立信任。";
+        recommendedAction = "通过同行、帮忙、请教等方式加深印象";
+        nextUnlockThreshold = 60;
+        nextUnlockBonus = "进入稳定朋友阶段";
+      } else if (val <= 60) {
+        nextStage = "亲密";
+        nextStageThreshold = 61;
+        progressNote = route === "恋人线" ? "已经具备推进暧昧关系的基础。" : "已经形成可靠伙伴关系。";
+        recommendedAction = route === "恋人线" ? "增加私下互动或专属事件" : "安排并肩行动巩固信任";
+        nextUnlockThreshold = 80;
+        nextUnlockBonus = route === "恋人线" ? "进入暧昧阶段判定" : "进入高强度羁绊阶段";
+      } else if (val <= 80) {
+        nextStage = route === "恋人线" ? "暧昧" : "挚友";
+        nextStageThreshold = 81;
+        progressNote = route === "恋人线" ? "关系已进入高敏感阶段，适合关键表态。" : "已是核心伙伴，可承担高风险协作。";
+        recommendedAction = route === "恋人线" ? "准备表白或专属确认事件" : "安排重大共同经历";
+        nextUnlockThreshold = 95;
+        nextUnlockBonus = route === "恋人线" ? "确认恋人关系" : "确认生死之交";
+      } else {
+        progressNote = route === "恋人线" ? "关系已接近或进入恋人阶段。" : "关系已接近或进入生死之交阶段。";
+        recommendedAction = route === "恋人线" ? "维护专属陪伴与排他性事件" : "作为核心盟友长期经营";
+      }
+
+      relData.relation_stage = relData.关系;
+      relData.next_stage = nextStage;
+      relData.next_stage_threshold = nextStageThreshold;
+      relData.route_switchable = route !== "恋人线" && val >= 60;
+      relData.route_lock_reason = relData.route_switchable ? "无" : (route === "恋人线" ? "当前已处于恋人线" : "好感度需达到 60 后才能稳定切入恋人线");
+      relData.progress_note = progressNote;
+      relData.availability = val <= -10 ? "高风险" : (val <= 10 ? "待接触" : (val <= 60 ? "可接触" : "优先维护"));
+      relData.current_relation_bonus = relData.favor_buff || "无";
+      relData.next_unlock_bonus = nextUnlockBonus;
+      relData.next_unlock_threshold = nextUnlockThreshold;
+
+      topTargets.push({
+        target: targetName,
+        relation: relData.关系,
+        favor: val,
+        route,
+        reason: progressNote,
+        recommended_action: recommendedAction
+      });
+
+      if (val >= 60) trustTargets.push(targetName);
+      if (route === "恋人线" && val >= 60) romanceCandidates.push(targetName);
+      if (val <= -10) riskTargets.push(targetName);
+      if (!relData.route_switchable && route !== "恋人线" && val < 60) {
+        blockedTargets.push({ target: targetName, reason: relData.route_lock_reason });
+      }
+    });
+
+    topTargets.sort((a, b) => Number(b.favor || 0) - Number(a.favor || 0));
+    social.relation_analysis.focus_target = topTargets[0] ? topTargets[0].target : "无";
+    social.relation_analysis.top_targets = topTargets.slice(0, 3);
+    social.relation_analysis.recommended_actions = topTargets.slice(0, 3).map(item => `${item.target}：${item.recommended_action}`);
+    social.relation_analysis.romance_candidates = romanceCandidates.sort((a, b) => Number((social.relations[b] || {}).好感度 || 0) - Number((social.relations[a] || {}).好感度 || 0));
+    social.relation_analysis.trust_targets = trustTargets.sort((a, b) => Number((social.relations[b] || {}).好感度 || 0) - Number((social.relations[a] || {}).好感度 || 0));
+    social.relation_analysis.risk_targets = riskTargets.sort((a, b) => Number((social.relations[a] || {}).好感度 || 0) - Number((social.relations[b] || {}).好感度 || 0));
+    social.relation_analysis.blocked_targets = blockedTargets;
+    social.relation_analysis.same_location_targets = social.relation_analysis.same_location_targets || [];
+    social.relation_analysis.contactable_targets = social.relation_analysis.contactable_targets || [];
+    social.relation_analysis.summary = topTargets.length
+      ? `当前重点关系对象：${topTargets.slice(0, 2).map(item => `${item.target}(${item.relation}/${item.favor})`).join('、')}`
+      : "当前尚未积累足够的人物关系数据。";
+
+    return social;
+  }),
+
+
+  inventory: z.record(z.string(), z.object({
+    数量: z.coerce.number().prefault(1),
+    类型: z.string().prefault("常规"),
+    装备槽位: z.string().prefault("无").describe('武器/头盔/胸铠/机甲/饰品等装备位；非装备可填无'),
+    品质: z.string().prefault("无"),
+    品阶: z.string().prefault("无"),
+    标签: z.array(z.string()).prefault([]).describe('用于筛选或展示的标签，如火属性/票据/任务物品/稀有'),
+    融合参数: z.object({
+      数量: z.coerce.number().prefault(1).describe('融锻包含的金属种类数'),
+      契合度: z.coerce.number().prefault(0).describe('融锻契合度(0-100)')
+    }).prefault({}).describe('仅用于记录融锻金属的特殊属性'),
+    特效: z.record(z.string(), z.boolean().prefault(true)).prefault({}),
+    词条: z.record(z.string(), z.object({
+      类型: z.string().prefault("效果"),
+      数值: z.coerce.number().prefault(0),
+      描述: z.string().prefault("无")
+    }).prefault({})).prefault({}).describe('随机词条/铭刻/附魔/特性说明'),
+    属性加成: z.object({
+      lv_equiv: z.coerce.number().prefault(0),
+      str: z.coerce.number().prefault(0),
+      def: z.coerce.number().prefault(0),
+      agi: z.coerce.number().prefault(0),
+      vit_max: z.coerce.number().prefault(0),
+      sp_max: z.coerce.number().prefault(0),
+      men_max: z.coerce.number().prefault(0)
+    }).prefault({}).describe('道具或装备提供的面板属性加成'),
+    耐久: z.object({
+      当前: z.coerce.number().prefault(0),
+      上限: z.coerce.number().prefault(0)
+    }).prefault({}).describe('装备/工具耐久；0/0 表示未启用'),
+    绑定者: z.string().prefault("无"),
+    使用条件: z.object({
+      最低等级: z.coerce.number().prefault(0),
+      所属势力: z.string().prefault("无"),
+      最低声望: z.coerce.number().prefault(0),
+      地点限制: z.string().prefault("无")
+    }).prefault({}).describe('使用或交易该道具的限制条件'),
+    使用效果: z.array(z.object({
+      target: z.string().prefault("无"),
+      type: z.string().prefault("无"),
+      description: z.string().prefault("无"),
+      value: z.any().optional()
+    }).prefault({})).prefault([]).describe('使用/激活该道具后产生的效果'),
+    可交易: z.boolean().prefault(true),
+    堆叠上限: z.coerce.number().prefault(9999),
+    market_value: z.object({ price: z.coerce.number().prefault(0), currency: z.string().prefault("fed_coin") }).prefault({}),
+    描述: z.string().prefault("无")
+  }).prefault({})).prefault({}),
+
+ records: z.record(z.string(), z.object({ 
+    类型: z.string().prefault("悬赏任务"), 
+    状态: z.string().prefault("进行中"),
+    当前进度: z.coerce.number().prefault(0),
+    目标进度: z.coerce.number().prefault(1),
+    奖励币: z.coerce.number().prefault(0),
+    奖励声望: z.coerce.number().prefault(0),
+    描述: z.string().prefault("无")
+  }).prefault({})).prefault({}),
+
+  
+  quest_request: z.object({
+    action: z.string().prefault("无").describe('接取/更新进度/提交/放弃'),
+    quest_name: z.string().prefault("无").describe('任务名称'),
+    quest_desc: z.string().prefault("无").describe('任务描述与目标'),
+    progress_add: z.coerce.number().prefault(0).describe('本次增加的进度(AI根据剧情判断)'),
+    required_count: z.coerce.number().prefault(1).describe('完成所需的总进度'),
+    reward_coin: z.coerce.number().prefault(0).describe('奖励联邦币'),
+    reward_rep: z.coerce.number().prefault(0).describe('奖励声望')
+  }).prefault({})
+}).prefault({}).transform(char => {
+  if (char.bloodline_power?.bloodline === "金龙王") {
+    let currentSealLv = char.bloodline_power.seal_lv || 0;
+    if (!char.bloodline_power.skills) char.bloodline_power.skills = {};
+    
+    for (let i = 1; i <= currentSealLv; i++) {
+      let skillData = GoldenDragonSkills[i];
+      if (skillData && !char.bloodline_power.skills[skillData.技能名称]) {
+        
+        char.bloodline_power.skills[skillData.技能名称] = skillData;
+      }
+    }
+  }
+if (char._initial_state_override) {
+  
+  _.merge(char, char._initial_state_override);
+  delete char._initial_state_override; 
+    if (char.equip.armor.equip_status === "已装备") {
+      let armorLv = char.equip.armor.lv;
+      let reqLv = [0, 50, 70, 80, 90][armorLv] || 0;
+      
+      if (char.stat.lv < reqLv) {
+        char.equip.armor.equip_status = "未装备";
+        char.equip.armor.stats_bonus = { lv_equiv: 0, sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
+        if (!char.stat.conditions["装备反噬"]) char.stat.conditions["装备反噬"] = { 类型: "debuff", 层数: 1, 描述: "强行穿戴高阶斗铠失败，气血震荡" };
+      } 
+      // 同级别机甲与斗铠不可叠加 (红级机甲除外)
+      else if (char.equip.mech.lv !== "无" && char.equip.mech.lv !== "红级" && char.equip.mech.status !== "重创" && char.equip.mech.equip_status === "已装备") {
+        char.equip.armor.equip_status = "未装备"; // 强制卸下斗铠
+        char.equip.armor.stats_bonus = { lv_equiv: 0, sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
+      }
+    }
+
+    // 【机甲穿戴门槛校验】
+    if (char.equip.mech.equip_status === "已装备") {
+      let mechReqLv = { "黄级": 40, "紫级": 50, "黑级": 60, "红级": 80 }[char.equip.mech.lv] || 0;
+      if (char.stat.lv < mechReqLv) {
+        char.equip.mech.equip_status = "未装备";
+        char.equip.mech.stats_bonus = { sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
+        if (!char.stat.conditions["机甲反噬"]) char.stat.conditions["机甲反噬"] = { 类型: "debuff", 层数: 1, 描述: "精神力与魂力不足以驾驭高阶机甲，遭到反噬" };
+      }
+    }    
+    
+    if (char.stat.lv < reqLv) {
+      char.equip.armor.equip_status = "未装备";
+      char.equip.armor.stats_bonus = { lv_equiv: 0, sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
+      if (!char.stat.conditions["装备反噬"]) char.stat.conditions["装备反噬"] = { 类型: "debuff", 层数: 1, 描述: "强行穿戴高阶斗铠失败，气血震荡" };
+    } 
+    
+    else if (char.equip.mech.lv !== "无" && char.equip.mech.lv !== "红级" && char.equip.mech.status !== "重创") {
+      char.equip.armor.equip_status = "未装备";
+      char.equip.armor.stats_bonus = { lv_equiv: 0, sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
+    }
+  }
+
+  
+  if (char.stat.background !== "无" && char.stat.background !== "已推演") {
+    let bgBonus = 0;
+    if (char.stat.background === "顶级势力") bgBonus = 80;
+    else if (char.stat.background === "一流势力") bgBonus = 50;
+    else if (char.stat.background === "普通势力") bgBonus = 20;
+    else if (char.stat.background === "平民") bgBonus = 0;
+
+    let roll = Math.floor(Math.random() * 100) + 1;
+    let totalScore = roll + bgBonus;
+    char.stat.talent_roll = totalScore;
+
+    let tier = "正常";
+    let innate = 3;
+    let factor = 1.0;
+    let maxLimit = 69;
+
+     if (roll >= 150) { 
+        tier = "绝世妖孽"; innate = 10; factor = 4.5; maxLimit = 100; 
+    }
+    else if (roll >= 120) { 
+        tier = "顶级天才"; 
+        if (roll >= 135) {
+            innate = 10; factor = 3.8; maxLimit = 99; 
+        } else {
+            innate = 9; factor = 3.8; maxLimit = 98; 
+        }
+    }
+    else if (roll >= 90) { 
+        tier = "天才"; 
+        if (roll >= 105) {
+            innate = 9; factor = 3.0; maxLimit = 94; 
+        } else {
+            innate = 8; factor = 2.5; maxLimit = 89; 
+        }
+    }
+    else if (roll >= 50) { 
+        tier = "优秀"; innate = roll >= 70 ? 7 : 6; factor = 1.8; maxLimit = 79; 
+    }
+    else if (roll >= 20) { 
+        tier = "正常"; innate = 3 + Math.floor((roll - 20) / 10); factor = 1.0; maxLimit = 49; 
+    }
+    else { 
+        tier = "劣等"; innate = roll >= 10 ? 2 : 1; factor = 0.5; maxLimit = 29; 
+    }
+
+    char.stat.talent_tier = tier;
+    char.stat.innate_sp_lv = innate;
+
+    if (char.stat.lv === 1 && char.stat.age > 6) {
+      let calculatedLv = Math.floor(innate + (char.stat.age - 6) * factor);
+      char.stat.lv = Math.min(maxLimit, Math.max(1, calculatedLv));
+    }
+
+    char.stat.background = "已推演";
+  }
+
+  
+  if (char.stat.lv >= 99 && (char.energy?.core?.数量 || 0) < 3) {
+    if (!char.energy) char.energy = {};
+    if (!char.energy.core) char.energy.core = {};
+    char.energy.core.数量 = 3;
+  } else if (char.stat.lv >= 90 && (char.energy?.core?.数量 || 0) < 2) {
+    if (!char.energy) char.energy = {};
+    if (!char.energy.core) char.energy.core = {};
+    char.energy.core.数量 = 2;
+  } else if (char.stat.lv >= 70 && (char.energy?.core?.数量 || 0) < 1) {
+    if (!char.energy) char.energy = {};
+    if (!char.energy.core) char.energy.core = {};
+    char.energy.core.数量 = 1;
+  }
+
+  
+  let coreCount = char.energy?.core?.数量 || 0;
+  let penalty = char.stat.lv_penalty || 0;
+  let maxLv = 69;
+  if (coreCount === 1) maxLv = 89;
+  else if (coreCount === 2) maxLv = 98;
+  else if (coreCount >= 3) maxLv = 150;
+  char.stat.lv = Math.min(char.stat.lv, maxLv - penalty);
+
+  
+  const base = getBaseStats(char.stat.lv);
+  let maxTypeMult = { sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
+  let spiritKeys = Object.keys(char.spirit || {});
+  if (spiritKeys.length > 0) {
+    spiritKeys.forEach(k => {
+      let tm = TypeMultipliers[char.spirit[k].type] || TypeMultipliers["强攻系"];
+      maxTypeMult.sp_max = Math.max(maxTypeMult.sp_max, tm.sp_max);
+      maxTypeMult.men_max = Math.max(maxTypeMult.men_max, tm.men_max);
+      maxTypeMult.str = Math.max(maxTypeMult.str, tm.str);
+      maxTypeMult.def = Math.max(maxTypeMult.def, tm.def);
+      maxTypeMult.agi = Math.max(maxTypeMult.agi, tm.agi);
+      maxTypeMult.vit_max = Math.max(maxTypeMult.vit_max, tm.vit_max);
+    });
+  } else {
+    maxTypeMult = { ...(TypeMultipliers[char.stat.type] || TypeMultipliers["强攻系"]) };
+  }
+  const typeMult = maxTypeMult;
+  const hiddenVar = char.stat.hidden_variance;
+
+  let final_str = Math.floor(base.str * typeMult.str * hiddenVar) + char.stat.trained_bonus.str;
+  let final_def = Math.floor(base.def * typeMult.def * hiddenVar) + char.stat.trained_bonus.def;
+  let final_agi = Math.floor(base.agi * typeMult.agi * hiddenVar) + char.stat.trained_bonus.agi;
+  let final_vit_max = Math.floor(base.vit_max * typeMult.vit_max * hiddenVar) + char.stat.trained_bonus.vit_max;
+  let final_men_max = Math.floor(base.men_max * typeMult.men_max * hiddenVar) + char.stat.trained_bonus.men_max;
+  let final_sp_max = Math.floor(base.sp_max * typeMult.sp_max * hiddenVar);
+  let bName = char.bloodline_power?.bloodline || "无";
+  
+  if (bName.includes("金龙王")) {
+    let vitInc = final_vit_max * 9; 
+    final_vit_max += Math.min(vitInc, 100000);  
+    let strInc = final_str * 9;
+    final_str += Math.min(strInc, 100000);    
+    let menInc = final_men_max * 4; 
+    final_men_max += Math.min(menInc, 20000);  
+  } else if (bName.includes("银龙王")) {
+    let vitInc = final_vit_max * 1; 
+    final_vit_max += Math.min(vitInc, 20000);  
+    let strInc = final_str * 1;
+    final_str += Math.min(strInc, 20000);   
+    let menInc = final_men_max * 9; 
+    final_men_max += Math.min(menInc, 40000);  
+  }
+  if (char.social?.factions?.["本体宗"]) {
+    let vitInc = final_vit_max * 2;
+    final_vit_max += Math.min(vitInc, 40000);
+  }
+  let previewMen = final_men_max;
+  if (previewMen >= 50000) char.stat.men_realm = "神元境";
+  else if (previewMen >= 20000) char.stat.men_realm = "灵域境";
+  else if (previewMen >= 3000) char.stat.men_realm = "灵渊境";
+  else if (previewMen >= 500) char.stat.men_realm = "灵海境";
+  else if (previewMen >= 50) char.stat.men_realm = "灵通境";
+  else char.stat.men_realm = "灵元境";
+
+  
+  function rollSpirit(talentTier, lv, spiritIndex, realm) {
+    const roll = Math.floor(Math.random() * 100) + 1;
+    const talentScore = { "绝世妖孽": 100, "顶级天才": 80, "天才": 60, "优秀": 40, "正常": 20, "劣等": 0 }[talentTier] || 20;
+    const sequenceScore = [0, 40, 90, 150, 220, 300, 400, 500, 600][spiritIndex] || (spiritIndex * 80);
+    
+    
+    let extraLvScore = 0;
+    if (lv > 95) {
+      extraLvScore = Math.floor(lv - 95) * 50;
+    }
+    
+    const totalScore = roll + talentScore + (lv * 2) + sequenceScore + extraLvScore;
+
+    let age = 50, color = "白", cap = 1;
+    
+   if (totalScore >= 600) { 
+      
+      let extraAge = (totalScore - 600) * 1000;
+      age = 100000 + extraAge + Math.floor(Math.random() * 5000); 
+      color = "红"; cap = 3; 
+    }
+    else if (totalScore >= 300) { 
+      
+      let extraAge = (totalScore - 300) * 200;
+      age = 10000 + extraAge + Math.floor(Math.random() * 2000); 
+      color = "黑"; cap = 4; 
+    }
+    else if (totalScore >= 240) { 
+      
+      let extraAge = (totalScore - 240) * 100;
+      age = 1000 + extraAge + Math.floor(Math.random() * 500); 
+      color = "紫"; cap = 3; 
+    }
+    else if (totalScore >= 180) { 
+      
+      let extraAge = (totalScore - 180) * 10;
+      age = 100 + extraAge + Math.floor(Math.random() * 50); 
+      color = "黄"; cap = 2; 
+    }
+
+    if (age < 100 && (talentTier === "绝世妖孽" || talentTier === "顶级天才")) {
+      age = 100 + Math.floor(Math.random() * 300); // 强制拉高到百年
+      color = "黄"; cap = 2;
+    }
+
+    const realmCaps = { "灵元境": 400, "灵通境": 3000, "灵海境": 15000, "灵渊境": 100000, "灵域境": 999999, "神元境": 999999 };
+    let maxAge = realmCaps[realm] || 400;
+    if (age > maxAge) {
+      if (maxAge >= 100000) { age = 100000; color = "红"; cap = 3; }
+      else if (maxAge >= 15000) { age = 15000; color = "黑"; cap = 4; }
+      else if (maxAge >= 3000) { age = 3000; color = "紫"; cap = 3; }
+      else if (maxAge >= 400) { age = 400; color = "黄"; cap = 2; }
+      else { age = 50; color = "白"; cap = 1; }
+    }
+
+    if (spiritIndex <= 1 && cap > 2) cap = 2;
+    return { age, color, cap };
+  }
+  
+  let isBeast = char.stat.age >= 10000 || char.social?.factions?.["魂兽一族"];
+  let expectedRings = isBeast ? 0 : Math.floor(char.stat.lv / 10);
+  let currentRings = 0;
+  let firstSpiritName = "未知武魂";
+
+  if (!char.spirit) char.spirit = {};
+  spiritKeys = Object.keys(char.spirit);
+  if (spiritKeys.length > 0) {
+    firstSpiritName = spiritKeys[0];
+    let targetSpirit = char.spirit[firstSpiritName];
+    _(targetSpirit.soul_spirits || {}).forEach(ss => {
+      if (ss.rings) currentRings += Object.keys(ss.rings).length;
+    });
+  }
+
+   if (currentRings === 0 && expectedRings > 0) {
+    if (spiritKeys.length === 0) {
+      char.spirit[firstSpiritName] = { 表象名称: "未展露", type: char.stat.type, soul_spirits: {}, domains: {}, custom_skills: {} };
+      spiritKeys = [firstSpiritName];
+    }
+    
+    spiritKeys.forEach(spiritKey => {
+      let targetSpirit = char.spirit[spiritKey];
+      if (!targetSpirit.表象名称) targetSpirit.表象名称 = "未展露";
+      if (!targetSpirit.soul_spirits) targetSpirit.soul_spirits = {};
+
+let ringsNeeded = expectedRings;
+      let currentRingIndex = 1;
+      let spiritIndex = 0;
+      let lastAge = 0; 
+
+      while (ringsNeeded > 0 && spiritIndex < 9) {
+        let spData = rollSpirit(char.stat.talent_tier, char.stat.lv, spiritIndex, char.stat.men_realm);
+
+        if (spData.age <= lastAge) {
+          spData.age = lastAge + Math.floor(Math.random() * 100) + 10; // 保证比上一个高一点点
+          // 同步修正颜色
+          if (spData.age >= 100000) spData.color = "红";
+          else if (spData.age >= 10000) spData.color = "黑";
+          else if (spData.age >= 1000) spData.color = "紫";
+          else if (spData.age >= 100) spData.color = "黄";
+          else spData.color = "白";
+        }
+        lastAge = spData.age; 
+
+        let ringsToProvide = Math.min(spData.cap, ringsNeeded);
+
+        let spiritName = spiritIndex === 0 ? "第1魂灵" : `第${spiritIndex + 1}魂灵`;
+        let talentBonus = { "绝世妖孽": 30, "顶级天才": 20, "天才": 10, "优秀": 0, "正常": -10, "劣等": -20 }[char.stat.talent_tier] || 0;
+        let indexBonus = spiritIndex * 5; // 越靠后的魂灵契合度越高
+        let calculatedComp = Math.min(100, Math.max(0, 60 + talentBonus + indexBonus));
+
+        targetSpirit.soul_spirits[spiritName] = {
+          表象名称: "未展露",
+          年限: spData.age,
+          契合度: calculatedComp,
+          状态: "活跃",
+          战力面板: { 对标等级: 0, str: 0, def: 0, agi: 0, vit_max: 0, men_max: 0, sp_max: 0 }, 
+          rings: {}
+        };
+
+        for (let i = 0; i < ringsToProvide; i++) {
+          targetSpirit.soul_spirits[spiritName].rings[currentRingIndex.toString()] = {
+            年限: spData.age,
+            颜色: spData.color,
+            魂技: {
+              [`第${currentRingIndex}魂技`]: { 状态: "未生成", 描述: "无", 加成基数: "无", 固化消耗: "无" }
+            }
+          };
+          currentRingIndex++;
+        }
+
+        ringsNeeded -= ringsToProvide;
+        spiritIndex++;
+      }
+    });
+
+    
+    let tier = char.stat.talent_tier;
+
+    
+    if (["绝世妖孽", "顶级天才", "天才"].includes(tier)) {
+      let armorLv = 0;
+      if (char.stat.lv >= 99) {
+        armorLv = 4;
+      } else if (char.stat.lv >= 98) {
+        armorLv = Math.random() < 0.5 ? 4 : 3;
+      } else if (char.stat.lv >= 90 && tier === "天才") {
+        if (Math.random() < 0.5) {
+          armorLv = 3;
+        } else {
+          armorLv = 0;
+          char.equip.mech.lv = "红级";
+          char.equip.mech.status = "完好";
+        }
+      } else if (char.stat.lv >= 80) armorLv = 3;
+      else if (char.stat.lv >= 70) armorLv = 2;
+      else if (char.stat.lv >= 50) armorLv = 1;
+
+      if (char.stat.is_evil && armorLv > 3) {
+        armorLv = 3;
+      }
+
+       if (armorLv > 0) {
+        char.equip.armor.lv = armorLv;
+        char.equip.armor.equip_status = "未装备"; // 👈 【修改】：默认不穿斗铠
+        let parts = ["头盔", "胸铠", "左肩", "右肩", "左臂", "右臂", "左腿", "右腿", "战裙", "战靴"];
+        parts.forEach(p => char.equip.armor.parts[p] = { 状态: "完好", 品质系数: 1.0 });
+      }
+    } else if (tier === "优秀") {
+      if (char.stat.lv >= 70) { 
+        char.equip.mech.lv = "黑级"; char.equip.mech.status = "完好"; 
+        char.equip.mech.equip_status = "未装备"; // 👈 【新增】：默认不穿机甲
+      }
+      else if (char.stat.lv >= 50) { 
+        char.equip.mech.lv = "紫级"; char.equip.mech.status = "完好"; 
+        char.equip.mech.equip_status = "未装备"; // 👈 【新增】：默认不穿机甲
+      }
+    }
+
+    
+    let boneCount = 0;
+    if (char.stat.lv >= 90) boneCount += 2;
+    else if (char.stat.lv >= 80) boneCount += 1;
+
+    if (boneCount > 0) {
+      let boneParts = ["头部魂骨", "躯干魂骨", "右臂魂骨", "左臂魂骨", "右腿魂骨", "左腿魂骨"];
+      let sourcePool = ["家族底蕴传承", "长辈私下赐予", "凶险秘境奇遇", "地下黑市重金拍得", "越阶猎杀变异魂兽掉落", "宗门宝库核心兑换"];
+      
+      for (let i = 0; i < Math.min(boneCount, 6); i++) {
+        let randomSource = sourcePool[Math.floor(Math.random() * sourcePool.length)];
+        if (tier === "绝世妖孽") randomSource = "上古神祇遗迹传承";
+
+        char.soul_bone[boneParts[i]] = {
+          名称: `【未鉴定之${boneParts[i].replace('魂骨', '骨')}】`,
+          年限: char.stat.lv >= 90 ? 50000 : 10000,
+          来源: randomSource,
+          附带技能: { "被动增幅": { 状态: "已固化", 对象: "自身", 加成属性: "全属性", 技能类型: "被动/基础属性提升", 消耗: "无" } }
+        };
+      }
+    }
+  }
+
+
+
+  
+ let totalSpirits = 0;
+  _(char.spirit).forEach((spiritData) => {
+    totalSpirits += Object.keys(spiritData.soul_spirits || {}).length;
+    _(spiritData.soul_spirits || {}).forEach((spirit) => {
+      
+      
+      if (!spirit.战力面板) spirit.战力面板 = { 对标等级: 0, str: 0, def: 0, agi: 0, vit_max: 0, men_max: 0, sp_max: 0 }; 
+      if (spirit.年限 > 0 && spirit.战力面板.对标等级 === 0) {
+        
+        let species = spirit.表象名称 !== "未展露" ? spirit.表象名称 : "未知";
+        let stats = getBeastStats(spirit.年限, species);
+        
+        spirit.战力面板.对标等级 = stats.对标等级;
+        spirit.战力面板.str = stats.str;
+        spirit.战力面板.def = stats.def;
+        spirit.战力面板.agi = stats.agi;
+        spirit.战力面板.vit_max = stats.vit_max;
+        spirit.战力面板.men_max = stats.men_max;
+        spirit.战力面板.sp_max = stats.sp_max;
+      }
+
+      _(spirit.rings || {}).forEach((ring, ringIndexStr) => {
+        const ringIndex = parseInt(ringIndexStr) || 1;
+        _(ring.魂技 || {}).forEach((skill) => {
+          if (skill.状态 === "未生成") {
+            const generated = autoGenerateSkill(char.stat.type, char.stat.talent_tier, ring.年限, ringIndex, spirit.契合度 || 100);
+            skill.状态 = generated.状态;
+            skill.对象 = generated.对象;
+            skill.加成属性 = generated.加成属性;
+            skill.技能类型 = generated.技能类型;
+            skill.仲裁逻辑 = generated.仲裁逻辑;
+            skill.特效量化参数 = generated.特效量化参数;
+            skill.消耗 = generated.消耗;
+            skill.画面描述 = generated.画面描述;
+          }
+        });
+      });
+    });
+  });
+
+  const realmLimit = { "灵元境": 1, "灵通境": 2, "灵海境": 5, "灵渊境": 9, "灵域境": 99, "神元境": 999 }[char.stat.men_realm] || 1;
+  if (totalSpirits > realmLimit) {
+    char.stat.conditions["精神超载"] = { 类型: "debuff", 层数: 1, 描述: "魂灵数量超出精神力承载极限，面临崩溃风险" };
+  }
+
+  
+  if (char.equip.armor.lv > 0 && char.equip.armor.equip_status === "已装备") {
+    let totalQuality = 0, count = 0;
+    _(char.equip.armor.parts).forEach(p => {
+      if (p.状态 !== "未打造" && p.状态 !== "重创") { totalQuality += p.品质系数; count++; }
+    });
+    if (count > 0) {
+      let avgQ = totalQuality / count;
+      let base = ArmorBaseStats[char.equip.armor.lv] || ArmorBaseStats[1];
+      let mult = count === 10 ? avgQ : (0.05 * avgQ * count);
+      char.equip.armor.stats_bonus.sp_max = Math.floor(base.sp_max * mult);
+      char.equip.armor.stats_bonus.men_max = Math.floor(base.men_max * mult);
+      char.equip.armor.stats_bonus.str = Math.floor(base.str * mult);
+      char.equip.armor.stats_bonus.agi = Math.floor(base.agi * mult);
+      char.equip.armor.stats_bonus.vit_max = Math.floor(base.vit_max * mult);
+      char.equip.armor.stats_bonus.def = Math.floor(base.str * mult);
+    }
+  }
+  if (char.equip.mech.lv !== "无" && char.equip.mech.status !== "重创") {
+    let base = MechBaseStats[char.equip.mech.lv];
+    if (base) {
+      let mult = char.equip.mech.品质系数 || 1.0;
+      char.equip.mech.stats_bonus.sp_max = Math.floor(base.sp_max * mult);
+      char.equip.mech.stats_bonus.men_max = Math.floor(base.men_max * mult);
+      char.equip.mech.stats_bonus.str = Math.floor(base.str * mult);
+      char.equip.mech.stats_bonus.agi = Math.floor(base.agi * mult);
+      char.equip.mech.stats_bonus.vit_max = Math.floor(base.vit_max * mult);
+      char.equip.mech.stats_bonus.def = Math.floor(base.str * mult);
+    }
+  }
+  const wpnBonus = char.equip.wpn?.stats_bonus || {}; 
+  const armorBonus = char.equip.armor?.stats_bonus || {};
+  const mechBonus = char.equip.mech?.stats_bonus || {};
+let boneBonus = { str: 0, def: 0, agi: 0, vit_max: 0, men_max: 0, sp_max: 0 };
+
+_(char.soul_bone).forEach((bone, part) => {
+  if (bone.年限 > 0) {
+    let ringBonus = getRingBonus(bone.年限);
+    
+    if (part === "躯干魂骨") {
+      
+      boneBonus.str += ringBonus.str * 2;
+      boneBonus.def += ringBonus.def * 2;
+      boneBonus.agi += ringBonus.agi * 2;
+      boneBonus.vit_max += ringBonus.vit_max * 2;
+      boneBonus.sp_max += ringBonus.sp_max * 2;
+    } else if (part === "头部魂骨") {
+      
+      boneBonus.men_max += ringBonus.men_max * 2;
+    } else if (part === "左腿魂骨" || part === "右腿魂骨") {
+      
+      boneBonus.str += ringBonus.str;
+      boneBonus.def += ringBonus.def;
+      boneBonus.agi += ringBonus.agi * 2;
+      boneBonus.vit_max += ringBonus.vit_max;
+      boneBonus.men_max += ringBonus.men_max;
+      boneBonus.sp_max += ringBonus.sp_max;
+    } else if (part === "左臂魂骨" || part === "右臂魂骨") {
+      
+      boneBonus.str += ringBonus.str * 2;
+      boneBonus.def += ringBonus.def;
+      boneBonus.agi += ringBonus.agi;
+      boneBonus.vit_max += ringBonus.vit_max;
+      boneBonus.men_max += ringBonus.men_max;
+      boneBonus.sp_max += ringBonus.sp_max;
+    } else {
+      
+      boneBonus.str += ringBonus.str;
+      boneBonus.def += ringBonus.def;
+      boneBonus.agi += ringBonus.agi;
+      boneBonus.vit_max += ringBonus.vit_max;
+      boneBonus.men_max += ringBonus.men_max;
+      boneBonus.sp_max += ringBonus.sp_max;
+    }
+  }
+});
+let ringTotalBonus = { str: 0, def: 0, agi: 0, vit_max: 0, men_max: 0, sp_max: 0 };
+_(char.spirit).forEach(spiritData => {
+  _(spiritData.soul_spirits).forEach(ss => {
+    
+    let compMult = Math.max(0.1, (ss.契合度 !== undefined ? ss.契合度 : 100) / 100);
+    
+    _(ss.rings).forEach(ring => {
+      if (ring.年限 > 0) {
+        let bonus = getRingBonus(ring.年限);
+        ringTotalBonus.str += Math.floor(bonus.str * compMult);
+        ringTotalBonus.def += Math.floor(bonus.def * compMult);
+        ringTotalBonus.agi += Math.floor(bonus.agi * compMult);
+        ringTotalBonus.vit_max += Math.floor(bonus.vit_max * compMult);
+        ringTotalBonus.men_max += Math.floor(bonus.men_max * compMult);
+        ringTotalBonus.sp_max += Math.floor(bonus.sp_max * compMult);
+      }
+    });
+  });
+});
+
+
+
+final_str += ringTotalBonus.str + boneBonus.str;
+final_def += ringTotalBonus.def + boneBonus.def;
+final_agi += ringTotalBonus.agi + boneBonus.agi;
+final_vit_max += ringTotalBonus.vit_max + boneBonus.vit_max;
+final_men_max += ringTotalBonus.men_max + boneBonus.men_max;
+final_sp_max += ringTotalBonus.sp_max + boneBonus.sp_max;
+
+
+if (final_men_max >= 50000) char.stat.men_realm = "神元境";
+else if (final_men_max >= 20000) char.stat.men_realm = "灵域境";
+else if (final_men_max >= 3000) char.stat.men_realm = "灵渊境";
+else if (final_men_max >= 500) char.stat.men_realm = "灵海境";
+else if (final_men_max >= 50) char.stat.men_realm = "灵通境";
+else char.stat.men_realm = "灵元境";
+
+
+char.stat.str = final_str;
+char.stat.def = final_def;
+char.stat.agi = final_agi;
+char.stat.vit_max = final_vit_max;
+char.stat.men_max = final_men_max;
+char.stat.sp_max = final_sp_max;
+
+
+char.stat.str += (wpnBonus.str || 0) + (armorBonus.str || 0) + (mechBonus.str || 0);
+char.stat.def += (wpnBonus.def || 0) + (armorBonus.def || 0) + (mechBonus.def || 0);
+char.stat.agi += (wpnBonus.agi || 0) + (armorBonus.agi || 0) + (mechBonus.agi || 0);
+char.stat.vit_max += (wpnBonus.vit_max || 0) + (armorBonus.vit_max || 0) + (mechBonus.vit_max || 0);
+char.stat.men_max += (wpnBonus.men_max || 0) + (armorBonus.men_max || 0) + (mechBonus.men_max || 0);
+char.stat.sp_max += (wpnBonus.sp_max || 0) + (armorBonus.sp_max || 0) + (mechBonus.sp_max || 0);
+   if (char.stat.sp <= 10 && char.stat.vit <= 10) {
+    let ratio = 1.0;
+    if (char.status.wound === "轻伤") ratio = 0.7;
+    else if (char.status.wound === "重伤") ratio = 0.3;
+    else if (char.status.wound === "濒死") ratio = 0.05;
+    
+    char.stat.sp = Math.floor(char.stat.sp_max * ratio);
+    char.stat.vit = Math.floor(char.stat.vit_max * ratio);
+    char.stat.men = Math.floor(char.stat.men_max * ratio);
+  } else {
+    char.stat.sp = Math.min(char.stat.sp, char.stat.sp_max);
+    char.stat.vit = Math.min(char.stat.vit, char.stat.vit_max);
+    char.stat.men = Math.min(char.stat.men, char.stat.men_max);
+  }
+  
+  let rep = char.social.reputation || 0;
+  if (rep >= 10000) char.social.fame_level = "举世无双";
+  else if (rep >= 5000) char.social.fame_level = "名动联邦";
+  else if (rep >= 2000) char.social.fame_level = "威震一方";
+  else if (rep >= 500) char.social.fame_level = "声名鹊起";
+  else if (rep >= 100) char.social.fame_level = "初露锋芒";
+  else char.social.fame_level = "籍籍无名";
+ if (char.equip.armor?.is_rejected) {
+      if (!char.stat.conditions["回路冲突"]) {
+        char.stat.conditions["回路冲突"] = { 
+          类型: "debuff", 
+          层数: 1, 
+          描述: "斗铠各部件材质品质差距过大，能量回路产生排斥，气血不畅！",
+          duration: 99,
+          stat_mods: { str: 0.9, def: 0.9, agi: 0.9, sp_max: 0.9 }, // 自身面板额外削弱 10%
+          combat_effects: { dot_damage: 0, skip_turn: false, armor_pen: 0 }
+        };
+      }
+    } else {
+      delete char.stat.conditions["回路冲突"];
+    }
+
+    // 确保当前状态不超过上限
+    char.stat.vit = Math.min(char.stat.vit, char.stat.vit_max);
+    char.stat.sp = Math.min(char.stat.sp, char.stat.sp_max);
+    char.stat.men = Math.min(char.stat.men, char.stat.men_max);
+
+  return char;
+});
+
+const FactionSchema = z.object({
+  inf: z.coerce.number().prefault(0),
+  size: z.coerce.number().prefault(0),
+  status: z.string().prefault("正常"),
+  next_refresh_tick: z.coerce.number().prefault(0),
+  rel: z.record(z.string(), z.object({ 态度: z.string().prefault("中立") }).prefault({})).prefault({}),
+  mem: z.record(z.string(), z.object({ 职位: z.string().prefault("外围") }).prefault({})).prefault({}),
+  power_stats: z.object({
+    limit_douluo: z.coerce.number().prefault(0).describe('极限斗罗数量'),
+    super_douluo: z.coerce.number().prefault(0).describe('超级斗罗数量'),
+    title_douluo: z.coerce.number().prefault(0).describe('普通封号斗罗数量'),
+  }).prefault({}),
+}).prefault({});
+const BaseProductPool = {
+  "高能压缩干粮": { price: 50, currency: "fed_coin", type: "补给品", description: "长途旅行必备，能快速补充少量体力。", effects: [{ target: "stat.vit", type: "percentage", value: 0.1, target_max: "stat.vit_max" }] },
+  "纯净水": { price: 10, currency: "fed_coin", type: "补给品", description: "基础的饮用水，能缓解口渴。", effects: [] },
+  "初级恢复药剂": { price: 500, currency: "fed_coin", type: "药剂", description: "能恢复少量魂力和体力，战斗后的应急用品。", effects: [{ target: "stat.sp", type: "percentage", value: 0.15, target_max: "stat.sp_max" }, { target: "stat.vit", type: "percentage", value: 0.15, target_max: "stat.vit_max" }] },
+  "中级恢复药剂": { price: 2000, currency: "fed_coin", type: "药剂", description: "效果显著的恢复药剂，能应对大多数战斗消耗。", effects: [{ target: "stat.sp", type: "percentage", value: 0.35, target_max: "stat.sp_max" }, { target: "stat.vit", type: "percentage", value: 0.35, target_max: "stat.vit_max" }] },
+  "高级恢复药剂": { price: 8000, currency: "fed_coin", type: "药剂", description: "珍贵的强效恢复药剂，关键时刻能扭转战局。", effects: [{ target: "stat.sp", type: "percentage", value: 0.70, target_max: "stat.sp_max" }, { target: "stat.vit", type: "percentage", value: 0.70, target_max: "stat.vit_max" }] },
+  "精神恢复冥想香": { price: 1500, currency: "fed_coin", type: "药剂", description: "点燃后能帮助魂师快速集中精神，恢复消耗的精神力。", effects: [{ target: "stat.men", type: "percentage", value: 0.25, target_max: "stat.men_max" }] },
+  "基础解毒散": { price: 300, currency: "fed_coin", type: "药剂", description: "可以解除一些百年魂兽的普通毒素。", effects: [{ target: "stat.conditions", type: "remove_by_name", value: "普通中毒" }] },
+  "千年解毒丹": { price: 2500, currency: "fed_coin", type: "药剂", description: "能有效化解千年魂兽的剧毒，是魂师深入森林的保障。", effects: [{ target: "stat.conditions", type: "remove_by_name", value: "千年剧毒" }] },
+  "力量增幅药剂": { price: 1200, currency: "fed_coin", type: "药剂", description: "饮用后短时间内肌肉膨胀，力量获得显著提升。", effects: [{ target: "stat.conditions", type: "add", value: { "力量增幅": { 类型: "buff", 层数: 1, 描述: "力量临时提升15%，持续3回合。", stat_mods: { str: 1.15 } } } }] },
+  "野外生存帐篷": { price: 1000, currency: "fed_coin", type: "工具", description: "在野外提供一个相对安全的休息点。", effects: [] },
+  "照明魂导器": { price: 800, currency: "fed_coin", type: "工具", description: "最基础的手持照明工具，比火把方便得多。", effects: [] },
+  "普通铁锭": { price: 200, currency: "fed_coin", type: "材料", description: "最基础的锻造材料，用于练习或打造低级工具。", effects: [] },
+  "百锻精铁": { price: 1500, currency: "fed_coin", type: "材料", description: "经过百次锻打的精铁，是打造魂导器的入门材料。", effects: [] },
+  "一级能量核心": { price: 1000, currency: "fed_coin", type: "材料", description: "为低级魂导器供能的标准电池。", effects: [] },
+  "二级能量核心": { price: 5000, currency: "fed_coin", type: "材料", description: "能量输出更稳定的二级核心，适用于中阶魂导器。", effects: [] }
+};
+
+const TangmenShopProducts = {
+  "玄天功秘籍": { price: 500, currency: "tang_pt", type: "功法", description: "唐门基础内功心法，修炼后可大幅提升魂力恢复速度与精纯度。", requirements: { faction: "唐门" }, effects: [{ target: "arts", type: "add", value: { "玄天功": { 境界: "入门", lv: 1, exp: 0, 描述: "唐门绝学" } } }] },
+  "紫极魔瞳秘籍": { price: 500, currency: "tang_pt", type: "功法", description: "唐门瞳术，修炼后可提升视力、动态视觉与精神力。", requirements: { faction: "唐门" }, effects: [{ target: "arts", type: "add", value: { "紫极魔瞳": { 境界: "入门", lv: 1, exp: 0, 描述: "唐门绝学" } } }] },
+  "暗器百解": { price: 2000, currency: "tang_pt", type: "技术", description: "记录了唐门上百种暗器制作与手法的总纲。", requirements: { faction: "唐门", rank: ["黄级", "紫级", "黑级", "红级", "长老", "殿主"] }, effects: [{ target: "arts", type: "add", value: { "暗器百解": { 境界: "入门", lv: 1, exp: 0, 描述: "唐门暗器总纲" } } }] },
+  "百年炽火阳泉草": { price: 8000, currency: "tang_pt", type: "灵物", description: "生长于冰火两仪眼阳泉旁的百年灵草，蕴含纯粹的火属性能量。", requirements: { faction: "唐门", rank: ["黄级", "紫级", "黑级", "红级", "长老", "殿主"] }, effects: [{ target: "status.consuming_herb_age", type: "set", value: 100 }] },
+  "千年寒极冰晶花": { price: 50000, currency: "tang_pt", type: "灵物", description: "生长于冰火两仪眼寒泉旁的千年奇花，蕴含极致的冰属性能量。", requirements: { faction: "唐门", rank: ["紫级", "黑级", "红级", "长老", "殿主"] }, effects: [{ target: "status.consuming_herb_age", type: "set", value: 1000 }] },
+  "万年望穿秋水露": { price: 250000, currency: "tang_pt", type: "灵物", description: "冰火两仪眼孕育的万年仙品，服用后可极大增强精神力与视力。", requirements: { faction: "唐门", rank: ["红级", "长老", "殿主"] }, effects: [{ target: "status.consuming_herb_age", type: "set", value: 10000 }] },
+  "万年魂骨兑换凭证": { price: 500000, currency: "tang_pt", type: "战略资源", description: "唐门最高级别的奖励之一。可从宗门宝库中挑选一块万年魂骨。", requirements: { faction: "唐门", rank: ["红级", "长老", "殿主"] }, effects: [{ target: "inventory", type: "add", value: { "万年魂骨(未指定)": { 数量: 1, 类型: "魂骨", 品质: "万年" } } }] }
+};
+
+const ShrekAcademyShopProducts = {
+  "百年龙鳞果": { price: 500, currency: "shrek_pt", type: "灵物", description: "百年级别的灵果，能小幅强化气血。", requirements: { faction: "史莱克学院" }, effects: [{ target: "status.consuming_herb_age", type: "set", value: 100 }] },
+  "千年海心莲子": { price: 8000, currency: "shrek_pt", type: "灵物", description: "千年级别的仙品莲子，能显著提升精神力。", requirements: { faction: "史莱克学院" }, effects: [{ target: "status.consuming_herb_age", type: "set", value: 1000 }] },
+  "万年绮罗郁金香": { price: 120000, currency: "shrek_pt", type: "灵物", description: "万年级别的仙品，服用后可百毒不侵。", requirements: { faction: "史莱克学院", rank: ["内院弟子", "史莱克七怪", "老师", "宿老", "阁主"] }, effects: [{ target: "status.consuming_herb_age", type: "set", value: 10000 }] },
+  "万年魂骨兑换凭证": { price: 300000, currency: "shrek_pt", type: "战略资源", description: "史莱克学院内院的核心奖励。每人仅限兑换一次。", requirements: { faction: "史莱克学院", rank: ["内院弟子", "史莱克七怪", "老师", "宿老", "阁主"], limit_tag: "redeemed_10k_bone" }, effects: [{ target: "inventory", type: "add", value: { "万年魂骨(未指定)": { 数量: 1, 类型: "魂骨", 品质: "万年" } } }] },
+  "十万年魂骨兑换凭证": { price: 1000000, currency: "shrek_pt", type: "战略资源", description: "史莱克学院的至高奖励。每人终身仅限兑换一次。", requirements: { faction: "史莱克学院", rank: ["宿老", "阁主", "史莱克七怪"], limit_tag: "redeemed_100k_bone" }, effects: [{ target: "inventory", type: "add", value: { "十万年魂骨(未指定)": { 数量: 1, 类型: "魂骨", 品质: "十万年" } } }] }
+};
+
+const AssociationShopProducts = {
+  "锻造师协会": {
+    "百锻金属块": { price: 50000, currency: "fed_coin", type: "材料", description: "经过百次锻打的金属，是锻造师的基础材料。", effects: [{ target: "inventory", type: "add", value: { "百锻金属块": { 数量: 1, 类型: "材料", 品质: "百锻" } } }] },
+    "千锻金属块": { price: 500000, currency: "fed_coin", type: "材料", description: "千锤百炼的稀有金属，拥有了初步的灵性。", effects: [{ target: "inventory", type: "add", value: { "千锻金属块": { 数量: 1, 类型: "材料", 品质: "千锻" } } }] },
+    "灵锻金属块": { price: 10000000, currency: "fed_coin", type: "材料", description: "被赋予生命的金属，是四级以上锻造师的杰作。", effects: [{ target: "inventory", type: "add", value: { "灵锻金属块": { 数量: 1, 类型: "材料", 品质: "灵锻" } } }] },
+    "魂锻金属块": { price: 80000000, currency: "fed_coin", type: "材料", description: "与灵魂相融的金属，圣匠的标志。", effects: [{ target: "inventory", type: "add", value: { "魂锻金属块": { 数量: 1, 类型: "材料", 品质: "魂锻" } } }] },
+    "天锻金属块": { price: 500000000, currency: "fed_coin", type: "材料", description: "引动天地法则淬炼而成的神级金属。", effects: [{ target: "inventory", type: "add", value: { "天锻金属块": { 数量: 1, 类型: "材料", 品质: "天锻" } } }] }
+  },
+  "设计师协会": {
+    "一字斗铠设计图": { price: 100000, currency: "fed_coin", type: "图纸", description: "标准的一字斗铠设计蓝图。", effects: [{ target: "inventory", type: "add", value: { "一字斗铠设计图": { 数量: 1, 类型: "图纸" } } }] },
+    "二字斗铠设计图": { price: 2000000, currency: "fed_coin", type: "图纸", description: "蕴含领域雏形的二字斗铠设计图。", effects: [{ target: "inventory", type: "add", value: { "二字斗铠设计图": { 数量: 1, 类型: "图纸" } } }] },
+    "三字斗铠设计图": { price: 20000000, currency: "fed_coin", type: "图纸", description: "能够赋予斗铠真正领域的三字斗铠设计图。", effects: [{ target: "inventory", type: "add", value: { "三字斗铠设计图": { 数量: 1, 类型: "图纸" } } }] },
+    "四字斗铠设计图": { price: 150000000, currency: "fed_coin", type: "图纸", description: "传说中的四字斗铠设计图。", effects: [{ target: "inventory", type: "add", value: { "四字斗铠设计图": { 数量: 1, 类型: "图纸" } } }] }
+  },
+ "机甲师协会": {
+    "黄级机甲现货": { price: 6000000, currency: "fed_coin", type: "装备", description: "制式黄级机甲(流水线白板，品质系数1.0)。", effects: [{ target: "inventory", type: "add", value: { "黄级机甲现货": { 数量: 1, 类型: "装备", 品质: "黄级" } } }] },
+    "紫级机甲现货": { price: 80000000, currency: "fed_coin", type: "装备", description: "制式紫级机甲(流水线白板，品质系数1.0)。", effects: [{ target: "inventory", type: "add", value: { "紫级机甲现货": { 数量: 1, 类型: "装备", 品质: "紫级" } } }] },
+    "黑级机甲现货": { price: 1000000000, currency: "fed_coin", type: "装备", description: "制式黑级机甲(流水线白板，品质系数1.0)。", effects: [{ target: "inventory", type: "add", value: { "黑级机甲现货": { 数量: 1, 类型: "装备", 品质: "黑级" } } }] },
+    "红级机甲定制": { price: 5000000000, currency: "fed_coin", type: "服务", description: "神级机甲的顶级代工定制服务(需自备神级材料)。", effects: [] }
+  },
+  "修理师协会": {
+    "基础维护套件": { price: 50000, currency: "fed_coin", type: "消耗品", description: "用于机甲和魂导器的日常保养。", effects: [{ target: "inventory", type: "add", value: { "基础维护套件": { 数量: 1, 类型: "消耗品" } } }] },
+    "精密修复模块": { price: 500000, currency: "fed_coin", type: "消耗品", description: "可以修复机甲或斗铠的中度损伤。", effects: [{ target: "inventory", type: "add", value: { "精密修复模块": { 数量: 1, 类型: "消耗品" } } }] },
+    "机甲超频模块": { price: 5000000, currency: "fed_coin", type: "消耗品", description: "一次性模块，能让机甲在短时间内爆发出超越极限的性能。", effects: [{ target: "inventory", type: "add", value: { "机甲超频模块": { 数量: 1, 类型: "消耗品" } } }] },
+    "斗铠本源蕴养液": { price: 20000000, currency: "fed_coin", type: "消耗品", description: "极其珍贵的蕴养液，能修复受损的斗铠本源。", effects: [{ target: "inventory", type: "add", value: { "斗铠本源蕴养液": { 数量: 1, 类型: "消耗品" } } }] },
+    "神级重塑核心": { price: 500000000, currency: "fed_coin", type: "核心部件", description: "传说中的物品，据说能让彻底损毁的斗铠甚至神器重获新生。", effects: [{ target: "inventory", type: "add", value: { "神级重塑核心": { 数量: 1, 类型: "核心部件" } } }] }
+  }
+};
+export const Schema = z.object({
+  sd: z.object({
+    sys: z.object({
+      rsn: z.string().prefault("初始化"),
+      seq: z.record(z.string(), z.object({ 事件: z.string().prefault("无") }).prefault({})).prefault({}),
+      last_roll: z.coerce.number().prefault(0).describe('最近一次D100物理检定客观点数'),
+      fsr: z.coerce.number().prefault(0).describe('当前交互行为的最终成功率')
+    }).prefault({}),
+    char: z.record(z.string(), CharacterSchema).prefault({}),
+    org: z.record(z.string(), FactionSchema).prefault({}),
+    world: z.object({
+      time: z.object({
+        tick: z.coerce.number().prefault(0),
+        last_settle_tick: z.coerce.number().prefault(0),
+        calendar: z.string().prefault("斗罗历X年X月X日"),
+        last_lv_up: z.coerce.number().prefault(0)
+      }).prefault({}),
+      flags: z.record(z.string(), z.boolean().prefault(true)).prefault({}), 
+      deviation: z.coerce.number().prefault(0).describe('世界线偏差值(0-100)'),
+      deviation_multiplier: z.coerce.number().prefault(1.0).describe('偏差值累计倍率'),
+      forest_killed_age: z.coerce.number().prefault(0).describe('星斗大森林累计被杀魂兽年限'),
+      timeline: z.record(z.string(), z.object({ trigger_tick: z.coerce.number().prefault(0), event: z.string().prefault("无"), status: z.string().prefault("pending") }).prefault({})).prefault({}),
+      auction: z.object({
+        status: z.string().prefault("休市"),
+        next_tick: z.coerce.number().prefault(7),
+        location: z.string().prefault("无"),
+        items: z.record(z.string(), z.object({ tier: z.string().prefault("低阶"), lore: z.string().prefault("无"), price: z.coerce.number().prefault(0) }).prefault({})).prefault({})
+      }).prefault({}),
+      rankings: z.object({
+        youth_talent: z.object({
+          last榜单: z.record(z.string(), z.coerce.number().prefault(0)).prefault({}),
+          top30: z.record(z.string(), z.object({
+            角色名: z.string().prefault("无"),
+            评分: z.coerce.number().prefault(0)
+          }).prefault({})).prefault({})
+        }).prefault({})
+      }).prefault({}),
+   locations: z.record(z.string().describe('地点名称'), z.object({
+        掌控势力: z.string().prefault("未知"),
+        人口: z.coerce.number().prefault(0),
+        守护军团: z.string().prefault("无"),
+        经济状况: z.enum(['繁荣', '普通', '萧条', '未知']).prefault('未知'),
+        x: z.coerce.number().prefault(-1),
+        y: z.coerce.number().prefault(-1),
+        type: z.string().prefault('地图节点'),
+        desc: z.string().prefault('无'),
+        state: z.string().prefault('intact'),
+        child_map_id: z.string().prefault('无'),
+        icon: z.string().prefault('node'),
+        node_kind: z.string().prefault(''),
+        interactions: z.array(z.string()).prefault([]),
+        services: z.array(z.string()).prefault([]),
+        action_slots: z.array(z.string()).prefault([]),
+        event_id: z.string().prefault(''),
+        children: z.record(z.string(), z.any()).prefault({}),
+        
+        
+        stores: z.record(z.string().describe('商店名，如：传灵塔分店'), z.object({
+          inventory: z.record(z.string().describe('商品ID或名称'), z.object({
+            price: z.coerce.number().prefault(0).describe('价格'),
+            currency: z.string().prefault("fed_coin").describe('货币类型'),
+            stock: z.coerce.number().prefault(0).describe('库存'),
+            req_fame: z.coerce.number().prefault(0).describe('声望要求'),
+            description: z.string().prefault("").describe('物品描述'),
+            effects: z.array(z.any()).prefault([]).describe('购买效果')
+          }).prefault({})).prefault({}).describe('商品库存列表'),
+          next_refresh_tick: z.coerce.number().prefault(0).describe('下次刷新时间')
+        }).prefault({})).prefault({}).describe('该城市拥有的商店列表')
+      }).prefault({})).prefault({}).describe('世界主要地点的数据化索引'), 
+
+      
+      dynamic_locations: z.record(
+        z.string().describe('动态生成的具体地点名称，如：东海学院旁小吃街'), 
+        z.object({
+          归属父节点: z.string().describe('填入它属于哪个已有的大地图节点，如：东海学院'),
+          层级: z.coerce.number().prefault(4),
+          描述: z.string().prefault("无"),
+          x: z.coerce.number().prefault(-1).describe('动态地点X坐标，未知时填-1'),
+          y: z.coerce.number().prefault(-1).describe('动态地点Y坐标，未知时填-1'),
+          map_id: z.string().prefault("无").describe('所属地图ID，如：map_douluo_world'),
+          node_type: z.string().prefault("动态地点").describe('节点类型：地标/街区/临时营地/工地/废墟等'),
+          icon: z.string().prefault("marker").describe('前端渲染使用的图标标识'),
+          settlement_id: z.string().prefault("无").describe('若归属于某个城市实体则填写其 settlement ID'),
+          faction: z.string().prefault('未知'),
+          importance: z.coerce.number().prefault(0),
+          state: z.string().prefault('intact'),
+          child_map_id: z.string().prefault('无'),
+          can_enter: z.boolean().prefault(false),
+          node_kind: z.string().prefault(''),
+          interactions: z.array(z.string()).prefault([]),
+          services: z.array(z.string()).prefault([]),
+          action_slots: z.array(z.string()).prefault([]),
+          event_id: z.string().prefault('')
+        }).prefault({})
+      ).prefault({}).describe('随剧情动态拓展的子地图节点'), 
+      maps: z.record(
+        z.string().describe('地图ID，如：map_douluo_world'),
+        z.object({
+          name: z.string().prefault('未命名地图'),
+          map_level: z.string().prefault('world').describe('world/continent/region/city/district'),
+          parent_map_id: z.string().prefault('无'),
+          anchor_loc: z.string().prefault('无').describe('锚定的现有地点名称'),
+          bounds: z.object({
+            min_x: z.coerce.number().prefault(0),
+            min_y: z.coerce.number().prefault(0),
+            width: z.coerce.number().prefault(0),
+            height: z.coerce.number().prefault(0)
+          }).prefault({}),
+          tile: z.object({
+            enabled: z.boolean().prefault(false),
+            tile_size: z.coerce.number().prefault(512),
+            min_zoom: z.coerce.number().prefault(0),
+            max_zoom: z.coerce.number().prefault(0),
+            default_zoom: z.coerce.number().prefault(0),
+            tile_source: z.string().prefault('')
+          }).prefault({}),
+          visual: z.object({
+            theme: z.string().prefault('terrain'),
+            show_grid: z.boolean().prefault(false),
+            fog_of_war: z.boolean().prefault(false)
+          }).prefault({}),
+          entry_rule: z.object({
+            mode: z.string().prefault('manual'),
+            zoom_threshold: z.coerce.number().prefault(0)
+          }).prefault({}),
+          child_maps: z.record(z.string(), z.string().prefault('无')).prefault({})
+        }).prefault({})
+      ).prefault({}).describe('前端地图分层注册表'),
+      settlements: z.record(
+        z.string().describe('城市/据点实体ID，如：shrek_city'),
+        z.object({
+          name: z.string().prefault('未命名据点'),
+          parent_map_id: z.string().prefault('map_douluo_world'),
+          loc_name: z.string().prefault('无').describe('当前锚定地点名'),
+          x: z.coerce.number().prefault(0),
+          y: z.coerce.number().prefault(0),
+          type: z.string().prefault('city'),
+          state: z.string().prefault('intact').describe('intact/damaged/ruins/rebuild/rebuilt'),
+          visible: z.boolean().prefault(true),
+          states: z.record(z.string().describe('状态名'), z.object({
+            label: z.string().prefault('无'),
+            node_name: z.string().prefault('无'),
+            desc: z.string().prefault('无'),
+            child_map_id: z.string().prefault('无'),
+            icon: z.string().prefault('city'),
+            condition_flag: z.string().prefault('无'),
+            node_kind: z.string().prefault(''),
+            interactions: z.array(z.string()).prefault([]),
+            services: z.array(z.string()).prefault([]),
+            action_slots: z.array(z.string()).prefault([]),
+            event_id: z.string().prefault('')
+          }).prefault({})).prefault({}),
+          metadata: z.object({
+            faction: z.string().prefault('未知'),
+            importance: z.coerce.number().prefault(0),
+            public_intel: z.boolean().prefault(true)
+          }).prefault({})
+        }).prefault({})
+      ).prefault({}).describe('城市/主据点实体及其状态版本'),
+      map_patches: z.record(
+        z.string().describe('地图补丁ID'),
+        z.object({
+          map_id: z.string().prefault('无'),
+          patch_type: z.string().prefault('overlay').describe('overlay/state_change/visibility/construction/destruction'),
+          target_id: z.string().prefault('无'),
+          layer: z.string().prefault('effect').describe('terrain/structure/effect/marker'),
+          active: z.boolean().prefault(false),
+          priority: z.coerce.number().prefault(0),
+          asset: z.string().prefault(''),
+          bounds: z.object({ x: z.coerce.number().prefault(0), y: z.coerce.number().prefault(0), w: z.coerce.number().prefault(0), h: z.coerce.number().prefault(0) }).prefault({}),
+          desc: z.string().prefault('无'),
+          condition_flag: z.string().prefault('无')
+        }).prefault({})
+      ).prefault({}).describe('地图覆盖层与事件补丁'),
+      bestiary: z.record(z.string().describe('物种或怪物名称，如：巴安'), z.object({
+      }).prefault({})).prefault({}).describe('怪物图鉴，记录已遭遇怪物的标准数据'),
+      combat: z.object({
+is_active: z.boolean().prefault(false).describe('是否处于战斗中'),
+  combat_type: z.enum(['切磋', '死战', '未知']).prefault('未知').describe('战斗烈度，决定是否触发锁血保护与死亡结算'),
+  initiative: z.string().prefault('无').describe('掌握先手权的角色名。若为"无"则代表公平开局；若有名字则代表突发偷袭，防守方首回合反应率减半'),
+  allow_flee: z.boolean().prefault(true).describe('是否允许逃跑。若为false则代表背水一战，触发困兽机制'),
+  round: z.coerce.number().prefault(0).describe('当前回合数'),
+        phase: z.enum(['无', '宣告阶段', '对轰判定阶段', '回合结算阶段']).prefault('无').describe('当前战斗阶段'),
+        environment: z.string().prefault('正常').describe('战场环境或全局领域法则'),
+        summary: z.object({
+          player_action: z.object({
+            action_type: z.string().prefault('无').describe('最近一次由前端战斗仲裁写回的玩家动作摘要'),
+            element_count: z.coerce.number().prefault(1).describe('若为元素相关动作，则记录元素数量'),
+            is_charged: z.boolean().prefault(false).describe('最近一次动作是否属于蓄力释放')
+          }).prefault({}),
+          settle_result: z.object({
+            target_npc: z.string().prefault('无').describe('最近一次战果摘要中的目标'),
+            result: z.string().prefault('无').describe('最近一次战果摘要：胜利/失败/平局/未决等'),
+            is_killed: z.boolean().prefault(false).describe('最近一次战果摘要中是否确认击杀')
+          }).prefault({}),
+          round_count: z.coerce.number().prefault(0).describe('最近一次前端仲裁持续的回合数'),
+          mode: z.string().prefault('无').describe('最近一次仲裁模式：single_round/multi_round'),
+          generated_by: z.string().prefault('无').describe('写入该摘要的来源模块')
+        }).prefault({}).describe('战斗摘要，供展示层统一读取'),
+        
+        participants: z.record(z.string().describe('参战者姓名或怪物名'), z.object({
+          faction: z.enum(['己方', '敌对', '中立']).prefault('敌对').describe('所属阵营'),
+          status: z.string().prefault('存活').describe('存活/重伤/濒死/死亡/逃跑'),
+          action_declared: z.string().prefault('无').describe('当前回合宣告释放的魂技或动作'),
+          is_summon: z.boolean().prefault(false).describe('是否为离体参战的魂灵'),
+          current_cast_time: z.coerce.number().prefault(0).describe('当前宣告动作的施法前摇数值，供前端博弈读取')
+        }).prefault({})).prefault({}).describe('当前战场所有参战单位的实时状态')
+      }).prefault({})
+    }).prefault({}),
+    display_chars: z.any().optional(),
+    display_map: z.any().optional(),
+    display_all: z.any().optional()
+  }).prefault({})
+}).prefault({}).transform(data => {
+  let currentTick = data.sd.world.time.tick;
+
+  let baseYear = 20000;
+  let totalMinutes = currentTick * 10;
+  
+  let days = Math.floor(totalMinutes / (24 * 60));
+  let remainderMinutes = totalMinutes % (24 * 60);
+  
+  let hours = Math.floor(remainderMinutes / 60);
+  let mins = remainderMinutes % 60;
+  
+  let years = Math.floor(days / 360);
+  let months = Math.floor((days % 360) / 30) + 1;
+  let currentDay = (days % 30) + 1;
+  
+  let hh = hours.toString().padStart(2, '0');
+  let mm = mins.toString().padStart(2, '0');
+  
+  
+  data.sd.world.time.calendar = `斗罗历${baseYear + years}年${months}月${currentDay}日 ${hh}:${mm}`;
+
+  let lastTick = data.sd.world.time.last_settle_tick || currentTick;
+  let delta = currentTick - lastTick;
+
+  const lowerCaseKeys = (obj) => {
+    if (typeof obj !== 'object' || obj === null) return obj;
+    return Object.keys(obj).reduce((acc, key) => {
+      acc[key.toLowerCase()] = obj[key];
+      return acc;
+    }, {});
+  };
 if (typeof window.TimelineEvents !== 'undefined') {
 let allEvents = Array.isArray(window.TimelineEvents) ? window.TimelineEvents : Object.values(window.TimelineEvents).flat();
 
