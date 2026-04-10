@@ -1368,29 +1368,33 @@
       return preferredActiveCharacterName;
     }
 
-    function resolveActiveCharacter(sd, forcePlayer = false) {
+    function resolveActiveCharacter(sd) {
       const chars = sd && sd.char ? sd.char : {};
       const charEntries = safeEntries(chars);
       const preferredName = getPreferredActiveCharacterName();
       
-      if (forcePlayer) {
-        const playerEntry = charEntries.find(([, char]) => !!deepGet(char, 'is_player', false) || !!deepGet(char, 'base.is_player', false));
-        if (playerEntry) return playerEntry;
-      }
+      const sysPlayerName = deepGet(sd, 'sys.player_name', '');
+      const realPlayerEntry = sysPlayerName ? charEntries.find(([name]) => name === sysPlayerName) : null;
       
-      if (!forcePlayer && preferredName && chars[preferredName]) return [preferredName, chars[preferredName]];
+      // 如果有偏好名字并且存在
+      if (preferredName && chars[preferredName]) {
+        // 如果当前偏好的不是玩家，但宇宙里已经有了真正的玩家，且并非用户显式固定的，就自动退位让贤
+        const isPreferredPlayer = !!sysPlayerName && preferredName === sysPlayerName;
+        if (!isPreferredPlayer && realPlayerEntry && !window.__MVU_MANUAL_CHAR_SET) {
+          return realPlayerEntry;
+        }
+        return [preferredName, chars[preferredName]];
+      }
+
       const namedCandidates = [
         deepGet(sd, 'sys.player_name', ''),
-        '主角',
-        '玩家'
+        '主角', // fallback 1
+        '玩家'  // fallback 2
       ].filter(Boolean);
 
       for (const name of namedCandidates) {
         if (chars[name]) return [name, chars[name]];
       }
-
-      const playerEntry = charEntries.find(([, char]) => !!deepGet(char, 'is_player', false) || !!deepGet(char, 'base.is_player', false));
-      if (playerEntry) return playerEntry;
 
       return charEntries[0] || ['未知角色', {}];
     }
@@ -1664,7 +1668,7 @@
     }
 
     function buildSnapshot(sd) {
-      const [activeName, activeChar] = resolveActiveCharacter(sd || {}, true);
+      const [activeName, activeChar] = resolveActiveCharacter(sd || {});
       const currentLoc = toText(deepGet(activeChar, 'status.loc', '未知'), '未知');
       const locationInfo = resolveLocationData(sd, currentLoc);
       const locationData = locationInfo.data || {};
@@ -1804,6 +1808,7 @@
       const chars = deepGet(sd, 'char', {});
       if (!targetName || !sd || !chars || !chars[targetName]) return false;
 
+      window.__MVU_MANUAL_CHAR_SET = true; // 标记这是用户手动切换的角色，不再自动被后续的玩家顶掉
       setPreferredActiveCharacterName(targetName);
       liveSnapshot = buildSnapshot(sd);
       renderHeader(liveSnapshot);
