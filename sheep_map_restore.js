@@ -3042,7 +3042,40 @@
     }
 
     if (!bound) {
-      console.warn('sheep_map_restore: MVU update event not bound; polling fallback disabled to avoid forced map refresh.');
+      const POLL_KEY = '__sheepMapPollTimer';
+      const POLL_VIS_KEY = '__sheepMapPollVisibilityBound';
+      const POLL_FOCUS_KEY = '__sheepMapPollFocusBound';
+      let running = false;
+      const safeHandler = async () => {
+        if (running) return;
+        running = true;
+        try {
+          await Promise.resolve(handler());
+        } catch (error) {
+          console.error('sheep_map_restore polling refresh failed', error);
+        } finally {
+          running = false;
+        }
+      };
+
+      if (!window[POLL_KEY]) {
+        window[POLL_KEY] = window.setInterval(safeHandler, 1500);
+      }
+
+      if (!window[POLL_VIS_KEY]) {
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') safeHandler();
+        });
+        window[POLL_VIS_KEY] = true;
+      }
+
+      if (!window[POLL_FOCUS_KEY]) {
+        window.addEventListener('focus', safeHandler);
+        window[POLL_FOCUS_KEY] = true;
+      }
+
+      safeHandler();
+      console.warn('sheep_map_restore: MVU update event not bound; polling fallback enabled.');
     }
   }
 
