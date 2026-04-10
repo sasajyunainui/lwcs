@@ -1660,9 +1660,8 @@
     }
 
 
-    .map-tool-btn,
-    button.map-tool-btn,
-    .map-control-strip > .map-tool-btn {
+    #page-map .map-layout .map-tool-btn,
+    .split-page .map-tool-btn {
       width: 36px;
       height: 36px;
       padding: 2px !important;
@@ -1688,9 +1687,8 @@
       user-select: none;
     }
 
-    .map-tool-btn:hover,
-    button.map-tool-btn:hover,
-    .map-control-strip > .map-tool-btn:hover {
+    #page-map .map-layout .map-tool-btn:hover,
+    .split-page .map-tool-btn:hover {
       transform: translateY(-1px);
       filter: brightness(1.08) contrast(1.04);
       border-color: rgba(191,239,255,0.82) !important;
@@ -2712,9 +2710,9 @@
     }
 
     .map-hero-card.is-compact .map-tool-btn {
-      width: 26px;
-      height: 26px;
-      font-size: 13px;
+      width: 28px !important;
+      height: 28px !important;
+      font-size: 14px !important;
     }
 
     .map-hero-card.is-compact .map-legend-strip {
@@ -7141,6 +7139,11 @@
     mapDragState.originY = mapState.panY;
     mapDragState.sourceCanvas = event.currentTarget;
     document.querySelectorAll('.map-canvas.interactive-map').forEach(canvasEl => canvasEl.classList.add('dragging'));
+    
+    if (typeof event.currentTarget.setPointerCapture === 'function') {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+
     setMapHoverPoint(event.currentTarget, event.clientX, event.clientY);
   }
 
@@ -7175,6 +7178,10 @@
     }
     miniWorldEl.classList.add('dragging');
     updateMapFromMiniMapClientPoint(miniWorldEl, event.clientX, event.clientY);
+    
+    if (typeof event.currentTarget.setPointerCapture === 'function') {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
     event.preventDefault();
     event.stopPropagation();
   }
@@ -7189,6 +7196,9 @@
     if (!miniMapDragState.active) return;
     if (miniMapDragState.pointerId !== null && event && event.pointerId !== undefined && event.pointerId !== miniMapDragState.pointerId) return;
     if (miniMapDragState.sourceEl) miniMapDragState.sourceEl.classList.remove('dragging');
+    if (event && event.currentTarget && typeof event.currentTarget.releasePointerCapture === 'function') {
+      try { event.currentTarget.releasePointerCapture(event.pointerId); } catch(e) {}
+    }
     miniMapDragState.active = false;
     miniMapDragState.sourceEl = null;
     miniMapDragState.pointerId = null;
@@ -7196,11 +7206,14 @@
     miniMapDragState.offsetY = 0;
   }
 
-  function handleMapPointerUp() {
+  function handleMapPointerUp(event) {
     if (!mapDragState.active) return;
     mapDragState.active = false;
     if (mapDragState.moved) mapDragState.lastDragAt = Date.now();
     mapDragState.sourceCanvas = null;
+    if (event && event.currentTarget && typeof event.currentTarget.releasePointerCapture === 'function') {
+      try { event.currentTarget.releasePointerCapture(event.pointerId); } catch(e) {}
+    }
     document.querySelectorAll('.map-canvas.interactive-map').forEach(canvasEl => canvasEl.classList.remove('dragging'));
   }
 

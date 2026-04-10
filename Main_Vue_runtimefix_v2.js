@@ -2,6 +2,21 @@ const { createApp, ref, reactive } = Vue;
 
 const mvuTabState = window.__MVU_TAB_STATE__ || (window.__MVU_TAB_STATE__ = reactive({ current: 'page-archive' }));
 const mvuFoldState = window.__MVU_SIDE_FOLD_STATE__ || (window.__MVU_SIDE_FOLD_STATE__ = ref(true));
+const mvuPinState = window.__MVU_PIN_STATE__ || (window.__MVU_PIN_STATE__ = ref(false));
+
+function handleGlobalFold() {
+  if (mvuPinState.value) return;
+  if (window.__mvuFoldTimer) clearTimeout(window.__mvuFoldTimer);
+  window.__mvuFoldTimer = setTimeout(() => {
+    mvuFoldState.value = true;
+  }, 3000);
+}
+
+function handleGlobalUnfold() {
+  if (window.__mvuFoldTimer) clearTimeout(window.__mvuFoldTimer);
+  window.__mvuFoldTimer = null;
+  mvuFoldState.value = false;
+}
 
 function setSharedTab(target) {
   mvuTabState.current = target || 'page-archive';
@@ -103,8 +118,8 @@ const LeftPanel = {
   `,
   setup() {
     const isFolded = mvuFoldState;
-    const fold = () => { isFolded.value = true; };
-    const unfold = () => { isFolded.value = false; };
+    const fold = handleGlobalFold;
+    const unfold = handleGlobalUnfold;
     const toggleFold = () => { isFolded.value = !isFolded.value; };
     return { isFolded, fold, unfold, toggleFold, tabState: mvuTabState, setTab: requestTabChange };
   }
@@ -115,6 +130,9 @@ const RightPanel = {
     <div class="mvu-vue-wrapper mvu-root right-panel" :class="{ 'is-folded': isFolded }" style="position:fixed;top:0;right:0;bottom:0;z-index:100;">
       <div class="split-shell-bg-sibling split-shell-bg-right"></div>
       <div class="split-shell split-shell-right" @mouseenter="unfold" @mouseleave="fold">
+        <button type="button" class="mvu-pin-btn" :class="{ active: isPinned }" @click.stop="togglePin" title="固定侧边栏(不会自动收起)" @mouseenter="unfold">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M16 4v4l2 3v2h-5v8l-1 2-1-2v-8H6v-2l2-3V4z"></path></svg>
+        </button>
         <div class="ring-group top-left-rings">
           <div class="astro-circle ring-cyan-1"></div>
           <div class="astro-circle ring-cyan-2"></div>
@@ -198,10 +216,12 @@ const RightPanel = {
   `,
   setup() {
     const isFolded = mvuFoldState;
-    const fold = () => { isFolded.value = true; };
-    const unfold = () => { isFolded.value = false; };
+    const isPinned = mvuPinState;
+    const fold = handleGlobalFold;
+    const unfold = handleGlobalUnfold;
     const toggleFold = () => { isFolded.value = !isFolded.value; };
-    return { isFolded, fold, unfold, toggleFold, tabState: mvuTabState, setTab: requestTabChange };
+    const togglePin = () => { isPinned.value = !isPinned.value; };
+    return { isFolded, isPinned, fold, unfold, toggleFold, togglePin, tabState: mvuTabState, setTab: requestTabChange };
   }
 };
 

@@ -1294,9 +1294,9 @@
     }
 
     .map-side-card {
-      background: linear-gradient(180deg, rgba(0,229,255,0.05), rgba(255,255,255,0.02));
-      border-color: rgba(0,229,255,0.08);
-      box-shadow: inset 0 0 14px rgba(0,229,255,0.04);
+      background: linear-gradient(180deg, rgba(30, 80, 110, 0.25), rgba(24, 60, 85, 0.35));
+      border-color: rgba(60, 180, 210, 0.18);
+      box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.08);
     }
 
 
@@ -2012,9 +2012,9 @@
     .split-shell .mvu-module-card,
     .split-shell .strip,
     .split-shell .mvu-simple-card {
-      background: linear-gradient(180deg, rgba(14, 38, 50, 0.58), rgba(12, 34, 46, 0.72));
-      border-color: rgba(60, 180, 210, 0.22);
-      box-shadow: inset 0 0 16px rgba(0,0,0,0.2);
+      background: linear-gradient(180deg, rgba(30, 80, 110, 0.25), rgba(24, 60, 85, 0.35));
+      border-color: rgba(60, 180, 210, 0.18);
+      box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.08);
     }
 
     .split-shell-left {
@@ -2049,10 +2049,9 @@
       display: flex;
       flex-direction: column;
       gap: 5px;
-      overflow: visible;
+      overflow: hidden;
       padding-right: 2px;
-      height: auto;
-      min-height: 0;
+      height: 100%;
     }
 
     .split-shell-right .stack-3::-webkit-scrollbar {
@@ -2062,7 +2061,7 @@
 
     .split-shell-right .stack-3 .mvu-simple-card {
       min-height: 0;
-      flex: 0 0 auto;
+      flex: 1 1 0;
     }
 
     .split-shell-right .map-side-stack .mvu-simple-card {
@@ -2228,13 +2227,13 @@
       pointer-events: auto;
     }
 
-    .split-right-page[data-target='page-map'] {
+    .split-page.active.split-right-page[data-target='page-map'] {
       display: block !important;
       height: auto !important;
       min-height: 0 !important;
     }
 
-    .split-right-page[data-target='page-map'] > .map-side-stack {
+    .split-page.active.split-right-page[data-target='page-map'] > .map-side-stack {
       height: auto !important;
       min-height: max-content !important;
       overflow: visible !important;
@@ -2307,13 +2306,11 @@
     }
 
     .split-archive-left {
-      grid-template-rows: none;
-      grid-auto-rows: min-content;
+      grid-template-rows: auto minmax(138px, 0.98fr) minmax(124px, 0.78fr) minmax(116px, 0.74fr);
     }
 
     .split-archive-right {
-      grid-template-rows: none;
-      grid-auto-rows: min-content;
+      grid-template-rows: minmax(220px, 1.42fr) minmax(150px, 0.86fr);
     }
 
     .split-archive-stack > * {
@@ -3717,9 +3714,9 @@
     .faction-row,
     .timeline-card {
       border-radius: 12px;
-      border: 1px solid rgba(110, 180, 210, 0.22);
-      background: linear-gradient(180deg, rgba(14, 38, 50, 0.58), rgba(12, 34, 46, 0.72));
-      box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.15);
+      border: 1px solid rgba(60, 180, 210, 0.18);
+      background: linear-gradient(180deg, rgba(30, 80, 110, 0.25), rgba(24, 60, 85, 0.35));
+      box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.08);
     }
 
     .identity-card,
@@ -4939,11 +4936,11 @@
   bottom: 0;
   z-index: 100;
   pointer-events: none;
-  --bg: rgba(10, 30, 38, 0.42);
-  --bg-blur: blur(24px);
-  --panel: rgba(170, 255, 245, 0.045);
-  --panel-strong: rgba(170, 255, 245, 0.075);
-  --shadow-cyan: 0 6px 18px rgba(77,240,255,0.14);
+  --bg: rgba(20, 50, 60, 0.52);
+  --bg-blur: blur(16px);
+  --panel: rgba(170, 255, 245, 0.065);
+  --panel-strong: rgba(170, 255, 245, 0.095);
+  --shadow-cyan: 0 6px 18px rgba(77,240,255,0.18);
 }
 
 .mvu-vue-wrapper .split-shell {
@@ -4952,6 +4949,45 @@
 
 .mvu-vue-wrapper .mvu-fold-btn {
   pointer-events: auto;
+}
+
+.mvu-pin-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 99;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  pointer-events: auto;
+}
+
+.mvu-pin-btn:hover {
+  background: rgba(0, 229, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.mvu-pin-btn.active {
+  background: rgba(0, 229, 255, 0.2);
+  color: rgba(0, 229, 255, 1);
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
+}
+
+.mvu-vue-wrapper::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(135,215,245,0.15), rgba(10,30,38,0.0) 80%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .mvu-vue-wrapper.left-panel { left: 0; width: 380px; }
