@@ -1653,6 +1653,7 @@
         || sealLv > 0
         || safeEntries(rawRings).length > 0
         || safeEntries(rawSkills).length > 0;
+      const unlockedRingCount = Math.max(0, Math.floor(sealLv / 2));
       const ringEntries = safeEntries(deepGet(activeChar, 'bloodline_power.blood_rings', {}))
         .sort((a, b) => toNumber(a[0], 0) - toNumber(b[0], 0))
         .map(([index, ring]) => ({
@@ -1662,6 +1663,18 @@
           desc: `${toText(ring && ring['颜色'], '未形成')} / ${safeEntries(ring && ring['魂技']).length || 0}项能力`,
           skills: buildSkillList(ring && ring['魂技'])
         }));
+      const normalizedRingEntries = ringEntries.slice(0, 10);
+      if (normalizedRingEntries.length < unlockedRingCount) {
+        for (let index = normalizedRingEntries.length; index < unlockedRingCount && index < 10; index += 1) {
+          normalizedRingEntries.push({
+            glyph: 'Ⅱ',
+            ringClass: 'ring-gold',
+            title: `第${index + 1}枚金色魂环 · 待成形`,
+            desc: '气血魂环已解锁环位，等待完整成形',
+            skills: buildSkillList(index === 0 ? rawSkills : null)
+          });
+        }
+      }
 
       return {
         kind: 'bloodline',
@@ -1671,13 +1684,7 @@
         badgeClass: 'gold',
         name: `${toText(bloodline, '未觉醒血脉')}`,
         desc: `解封层数：${sealLv} / 气血魂核：${core}`,
-        rings: ringEntries.length ? ringEntries.slice(0, 10) : [{
-          glyph: 'Ⅱ',
-          ringClass: 'ring-gold',
-          title: '第一枚金色魂环 · 待成形',
-          desc: '气血魂环尚未成形',
-          skills: buildSkillList(rawSkills)
-        }],
+        rings: normalizedRingEntries,
         bloodSkills: buildSkillList(rawSkills),
         sealLv,
         core,
