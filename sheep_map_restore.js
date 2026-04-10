@@ -7473,8 +7473,6 @@
     if (updateInfo) {
       renderMapInfoState();
     }
-
-    event.preventDefault(); // 阻止浏览器默认的拖拽图片行为（禁止符号的罪魁祸首）
   }
 
   function scheduleSync(center = false, updateInfo = false) {
