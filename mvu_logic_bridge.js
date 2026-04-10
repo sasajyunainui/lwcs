@@ -1414,18 +1414,71 @@
       return preferredActiveCharacterName;
     }
 
+    function isPlayerCharacterEntry(name, char, playerName = '') {
+      const safeName = toText(name, '').trim();
+      const safePlayerName = toText(playerName, '').trim();
+      return !!safePlayerName && safeName === safePlayerName;
+    }
+
+    function isTangWulinCharacter(name = '') {
+      return toText(name, '').trim() === '唐舞麟';
+    }
+
+    function getPinnedCharacterOrder(name = '') {
+      const safeName = toText(name, '').trim();
+      const pinnedNames = [
+        ['唐舞麟'],
+        ['古月娜', '古月'],
+        ['谢邂'],
+        ['许小言'],
+        ['乐正宇'],
+        ['原恩夜辉'],
+        ['叶星澜'],
+        ['徐笠智'],
+        ['舞长空']
+      ];
+      for (let index = 0; index < pinnedNames.length; index += 1) {
+        if (pinnedNames[index].includes(safeName)) return index + 1;
+      }
+      return -1;
+    }
+
+    function getCharacterDisplayPriority(name, char, options = {}) {
+      const { playerName = '', currentName = '' } = options || {};
+      const safeName = toText(name, '').trim();
+      if (isPlayerCharacterEntry(safeName, char, playerName)) return 0;
+      const pinnedOrder = getPinnedCharacterOrder(safeName);
+      if (pinnedOrder >= 0) return pinnedOrder;
+      if (safeName && safeName === toText(currentName, '').trim()) return 20;
+      return 100;
+    }
+
+    function sortCharacterEntries(entries, options = {}) {
+      return [...(Array.isArray(entries) ? entries : [])].sort((a, b) => {
+        const rankDiff = getCharacterDisplayPriority(a[0], a[1], options) - getCharacterDisplayPriority(b[0], b[1], options);
+        if (rankDiff !== 0) return rankDiff;
+        const lvDiff = toNumber(deepGet(b[1], 'stat.lv', 0), 0) - toNumber(deepGet(a[1], 'stat.lv', 0), 0);
+        if (lvDiff !== 0) return lvDiff;
+        return toText(a[0], '').localeCompare(toText(b[0], ''), 'zh-Hans-CN', { numeric: true, sensitivity: 'base' });
+      });
+    }
+
+    function findRealPlayerEntry(charEntries, playerName = '') {
+      return sortCharacterEntries(charEntries, { playerName }).find(([name, char]) => isPlayerCharacterEntry(name, char, playerName)) || null;
+    }
+
     function resolveActiveCharacter(sd) {
       const chars = sd && sd.char ? sd.char : {};
       const charEntries = safeEntries(chars);
       const preferredName = getPreferredActiveCharacterName();
-      
-      const sysPlayerName = deepGet(sd, 'sys.player_name', '');
-      const realPlayerEntry = sysPlayerName ? charEntries.find(([name]) => name === sysPlayerName) : null;
+      const sysPlayerName = toText(deepGet(sd, 'sys.player_name', ''), '').trim();
+      const sortedEntries = sortCharacterEntries(charEntries, { playerName: sysPlayerName, currentName: preferredName });
+      const realPlayerEntry = findRealPlayerEntry(charEntries, sysPlayerName);
       
       // 如果有偏好名字并且存在
       if (preferredName && chars[preferredName]) {
         // 如果当前偏好的不是玩家，但宇宙里已经有了真正的玩家，且并非用户显式固定的，就自动退位让贤
-        const isPreferredPlayer = !!sysPlayerName && preferredName === sysPlayerName;
+        const isPreferredPlayer = isPlayerCharacterEntry(preferredName, chars[preferredName], sysPlayerName);
         if (!isPreferredPlayer && realPlayerEntry && !window.__MVU_MANUAL_CHAR_SET) {
           return realPlayerEntry;
         }
@@ -1433,16 +1486,23 @@
       }
 
       const namedCandidates = [
-        deepGet(sd, 'sys.player_name', ''),
-        '主角', // fallback 1
-        '玩家'  // fallback 2
+        deepGet(sd, 'sys.player_name', '')
       ].filter(Boolean);
 
       for (const name of namedCandidates) {
         if (chars[name]) return [name, chars[name]];
       }
 
-      return charEntries[0] || ['未知角色', {}];
+      if (realPlayerEntry) {
+        return realPlayerEntry;
+      }
+
+      const pinnedEntry = sortedEntries.find(([name]) => getPinnedCharacterOrder(name) >= 0);
+      if (pinnedEntry) {
+        return pinnedEntry;
+      }
+
+      return sortedEntries[0] || ['未知角色', {}];
     }
 
     function formatAppearanceText(appearance) {
@@ -2438,25 +2498,25 @@
 
       if (previewKey === '角色切换器') {
         const playerName = toText(deepGet(snapshot, 'sd.sys.player_name', ''), '');
-        const charEntries = safeEntries(deepGet(snapshot, 'sd.char', {})).sort((a, b) => {
-          const aCurrent = a[0] === snapshot.activeName ? 1 : 0;
-          const bCurrent = b[0] === snapshot.activeName ? 1 : 0;
-          if (aCurrent !== bCurrent) return bCurrent - aCurrent;
-          const aPlayer = (!!deepGet(a[1], 'is_player', false) || !!deepGet(a[1], 'base.is_player', false) || (!!playerName && a[0] === playerName)) ? 1 : 0;
-          const bPlayer = (!!deepGet(b[1], 'is_player', false) || !!deepGet(b[1], 'base.is_player', false) || (!!playerName && b[0] === playerName)) ? 1 : 0;
-          if (aPlayer !== bPlayer) return bPlayer - aPlayer;
-          return toNumber(deepGet(b[1], 'stat.lv', 0), 0) - toNumber(deepGet(a[1], 'stat.lv', 0), 0);
-        });
+        const charEntries = sortCharacterEntries(safeEntries(deepGet(snapshot, 'sd.char', {})), { playerName, currentName: snapshot.activeName });
         const switchCards = charEntries.length
           ? charEntries.map(([name, char]) => {
               const isCurrent = name === snapshot.activeName;
-              const isPlayer = !!deepGet(char, 'is_player', false) || !!deepGet(char, 'base.is_player', false) || (!!playerName && name === playerName);
+              const isPlayer = isPlayerCharacterEntry(name, char, playerName);
               const lvText = `Lv.${toText(deepGet(char, 'stat.lv', 0), '0')}`;
               const identityText = toText(deepGet(char, 'social.main_identity', deepGet(char, 'base.identity', '无')), '无');
               const locText = toText(deepGet(char, 'status.loc', '未知地点'), '未知地点');
               const actionText = toText(deepGet(char, 'status.action', '日常'), '日常');
+              const searchText = [
+                name,
+                isPlayer ? '玩家' : '角色',
+                identityText,
+                locText,
+                actionText,
+                isTangWulinCharacter(name) ? '唐舞麟' : ''
+              ].filter(Boolean).join(' ').toLowerCase();
               return `
-                <button type="button" class="role-switch-tile${isCurrent ? ' active' : ''}" data-mvu-switch-char="${escapeHtmlAttr(name)}">
+                <button type="button" class="role-switch-tile${isCurrent ? ' active' : ''}" data-mvu-switch-char="${escapeHtmlAttr(name)}" data-switch-search="${escapeHtmlAttr(searchText)}">
                   <div class="role-switch-head"><b>${htmlEscape(name)}</b><span class="state-tag ${isCurrent ? 'live' : (isPlayer ? 'warn' : '')}">${isCurrent ? '当前查看' : (isPlayer ? '玩家' : '角色')}</span></div>
                   <div class="role-switch-meta">${htmlEscape(`${lvText} ｜ ${identityText}`)}</div>
                   <div class="role-switch-meta">${htmlEscape(`${locText} ｜ ${actionText}`)}</div>
@@ -2467,10 +2527,47 @@
         return {
           title: '角色浏览 / 切换弹窗',
           summary: '查看全部角色摘要，并切换当前查看角色。',
+          onMount: mountEl => {
+            const inputEl = mountEl.querySelector('.role-switch-search-input');
+            const countEl = mountEl.querySelector('.role-switch-search-count');
+            const tileEls = Array.from(mountEl.querySelectorAll('.role-switch-tile'));
+            const applyFilter = () => {
+              const keyword = toText(inputEl && inputEl.value, '').trim().toLowerCase();
+              let visibleCount = 0;
+              tileEls.forEach(tile => {
+                const haystack = toText(tile.getAttribute('data-switch-search'), '').toLowerCase();
+                const matched = !keyword || haystack.includes(keyword);
+                tile.style.display = matched ? '' : 'none';
+                if (matched) visibleCount += 1;
+              });
+              if (countEl) {
+                countEl.textContent = keyword ? `匹配 ${visibleCount} / ${tileEls.length} 名` : `共 ${tileEls.length} 名`;
+              }
+            };
+            if (inputEl) {
+              inputEl.addEventListener('input', applyFilter);
+              setTimeout(() => {
+                try { inputEl.focus(); } catch (_) {}
+              }, 0);
+            }
+            applyFilter();
+            return {
+              destroy() {
+                if (inputEl) inputEl.removeEventListener('input', applyFilter);
+              }
+            };
+          },
           body: `
             <div class="archive-modal-grid" style="grid-template-columns:1fr;">
-              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">查看状态</div><span class="state-tag live">switcher</span></div>${makeTileGrid([{ label: '当前查看', value: snapshot.activeName }, { label: '玩家角色', value: playerName || snapshot.activeName }, { label: '角色总数', value: `${charEntries.length} 名` }, { label: '当前地点', value: snapshot.currentLoc }], 'two')}</div>
-              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">角色列表</div><span class="state-tag warn">点击切换</span></div><div class="role-switch-grid">${switchCards}</div></div>
+              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">查看状态</div></div>${makeTileGrid([{ label: '当前查看', value: snapshot.activeName }, { label: '玩家角色', value: playerName || snapshot.activeName }, { label: '角色总数', value: `${charEntries.length} 名` }, { label: '当前地点', value: snapshot.currentLoc }], 'two')}</div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">角色列表</div></div>
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;">
+                  <input type="search" class="role-switch-search-input" placeholder="搜索角色 / 身份 / 地点 / 状态" style="flex:1 1 240px;min-width:220px;height:36px;padding:0 12px;border-radius:10px;border:1px solid rgba(120,220,255,0.24);background:rgba(8,20,30,0.72);color:#dff7ff;outline:none;" />
+                  <span class="role-switch-search-count" style="font-size:12px;color:rgba(220,245,255,0.72);">共 ${charEntries.length} 名</span>
+                </div>
+                <div class="role-switch-grid">${switchCards}</div>
+              </div>
             </div>
           `
         };
