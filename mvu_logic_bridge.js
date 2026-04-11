@@ -180,14 +180,7 @@
         summary: '围绕当前节点展示据点级信息，是星图与势力页的交叉入口。',
         fields: ['activeChar.status.loc', 'sd.world.locations[normalizedLoc]'],
         duties: ['显示掌控势力/人口/守护军团', '显示经济状况', '整理本地设施与商店'],
-        actions: ['跳转交易网络', '跳回地图节点详情']
-      },
-      '交易网络': {
-        title: '交易网络弹窗',
-        summary: '交易不能随地发起，必须绑定当前节点商店、目标对象与库存。',
-        fields: ['sd.world.locations[normalizedLoc].stores', 'sd.char', 'activeChar.wealth', 'activeChar.social.reputation'],
-        duties: ['显示本地商店列表', '显示商品库存与门槛', '展示当前可交易状态'],
-        actions: ['打开交易界面', '按商店切换商品', '无商店时提示不可交易']
+        actions: ['查看本地商店信息', '跳回地图节点详情']
       },
       '系统播报与日志': {
         title: '系统播报 / 日志弹窗',
@@ -216,6 +209,20 @@
         highlights: ['最近广播与动态', '地点与行程相关消息', '值得跟进的线索'],
         duties: ['查看当前最重要的近期消息', '查看地点与人物的最新变化', '判断哪些动静值得优先跟进'],
         actions: ['前往相关地点继续确认', '根据消息调整今日路线']
+      },
+      '怪物图鉴': {
+        title: '怪物图鉴',
+        summary: '已遭遇的深渊生物与魂兽标准数据记录。',
+        fields: ['sd.world.bestiary'],
+        duties: ['查看已记录怪物', '复用物种基础数据', '回顾遭遇对象'],
+        actions: ['按名称查阅', '查看已记录条目']
+      },
+      '森林仇恨值': {
+        title: '森林仇恨值',
+        summary: '星斗大森林累计击杀魂兽年限与兽潮阈值监控。',
+        fields: ['sd.world.forest_killed_age', 'sd.world.flags.beast_tide'],
+        duties: ['查看累计击杀年限', '评估距离兽潮阈值', '观察是否触发兽潮'],
+        actions: ['查看阈值进度', '评估森林风险']
       }
     };
 
@@ -712,11 +719,11 @@
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">战斗轮廓</div><span class="state-tag live">五维图</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">战斗轮廓</div></div>
                 ${makeRadarSvg(['力量', '防御', '敏捷', '精神', '气血底盘'], [0, 0, 0, 0, 0])}
               </div>
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">角色名片</div><span class="state-tag warn">摘要</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">角色名片</div></div>
                 <div class="profile-snapshot">
                   <div class="identity-card">
                     <h3>当前角色</h3>
@@ -752,7 +759,7 @@
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">身份名片</div><span class="state-tag live">公开信息</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">身份名片</div></div>
                 <div class="profile-snapshot"><div class="identity-card"><h3>当前角色</h3>${makeTileGrid([
                   { label: '当前身份', value: '' },
                   { label: '名望层级', value: '' },
@@ -761,11 +768,11 @@
                 ], 'two')}</div></div>
               </div>
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">社会标签</div><span class="state-tag warn">对外印象</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">社会标签</div></div>
                 ${makeTagCloud([])}
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">当前社会位置</div><span class="focus-ribbon">玩家可读</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">当前社会位置</div></div>
                 ${makeTileGrid([
                   { label: '主公开身份', value: '' },
                   { label: '名望等级', value: '' },
@@ -786,7 +793,7 @@
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">所属阶梯</div><span class="state-tag warn">阵营归属</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">所属阶梯</div></div>
                 ${makeFactionLadder([
                   { name: '学院', desc: '', className: 'highlight' },
                   { name: '宗门', desc: '', className: '' },
@@ -795,7 +802,7 @@
                 ])}
               </div>
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">当前阵营位置</div><span class="state-tag live">高亮项</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">当前阵营位置</div></div>
                 ${makeTileGrid([
                   { label: '当前所属', value: '' },
                   { label: '身份', value: '' },
@@ -814,7 +821,7 @@
           body: `
             <div class="archive-modal-grid" style="grid-template-columns:1fr;">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">羁绊星轨图</div><span class="focus-ribbon">关系结构</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">羁绊星轨图</div></div>
                 <div class="topology-board" style="min-height:280px;">
                   <svg class="topology-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
                     <line class="topology-link cyan" x1="50" y1="50" x2="20" y2="25"></line>
@@ -832,7 +839,7 @@
                 </div>
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">核心推进线索</div><span class="focus-ribbon">下一步行动</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">核心推进线索</div></div>
                 <div class="intel-layout"><div class="intel-card"><b></b><span></span></div><div class="intel-card"><b></b><span></span></div></div>
               </div>
             </div>
@@ -846,11 +853,11 @@
           body: `
             <div class="archive-modal-grid" style="grid-template-columns:1fr;">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">线索拓扑网络</div><span class="state-tag live">情报关联</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">线索拓扑网络</div></div>
                 <div class="intel-network-board"></div>
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">解密进度槽</div><span class="state-tag warn">分层追踪</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">解密进度槽</div></div>
                 <div class="intel-progress-slots">
                   <div class="intel-slot"><div class="intel-slot-name">已解锁情报</div><div class="intel-slot-bar-wrap"><div class="intel-slot-bar" style="width:0%;"></div></div><div class="intel-slot-value">0</div></div>
                   <div class="intel-slot"><div class="intel-slot-name">待处理线索</div><div class="intel-slot-bar-wrap"><div class="intel-slot-bar gold" style="width:0%;"></div></div><div class="intel-slot-value" style="color:var(--gold);">0</div></div>
@@ -868,7 +875,7 @@
           body: `
             <div class="equipment-layout">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">当前装备总览</div><span class="state-tag live">先看结果</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">当前装备总览</div></div>
                 ${makeTileGrid([
                   { label: '斗铠', value: '' },
                   { label: '机甲', value: '' },
@@ -879,7 +886,7 @@
                 ])}
               </div>
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">装备槽位分布</div><span class="state-tag live">部位可视化</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">装备槽位分布</div></div>
                 ${makeFigureBoard('当前装载', [
                   { x: 50, y: 12, label: '头盔', className: 'off' },
                   { x: 50, y: 34, label: '胸铠', className: 'off' },
@@ -905,7 +912,7 @@
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">钱包条</div><span class="state-tag live">资产摘要</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">钱包条</div></div>
                 ${makeWalletStrip([
                   { label: '联邦币', value: '', className: 'gold' },
                   { label: '星罗币', value: '', className: 'cyan' },
@@ -915,7 +922,7 @@
                 ])}
               </div>
               <div class="archive-card full vault-main-card">
-                <div class="archive-card-head"><div class="archive-card-title">背包格阵列</div><span class="focus-ribbon">筛选已并入</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">背包格阵列</div></div>
                 <div class="inventory-scroll-shell">${makeInventoryGrid([])}</div>
               </div>
             </div>
@@ -931,11 +938,11 @@
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">武魂本体</div><span class="state-tag ${badgeClass}">${badge}</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">武魂本体</div></div>
                 <div class="spirit-main-card"><h4></h4><div class="spirit-head-tags"><span class="tag-chip ${key === '第一武魂详细页' ? 'live' : 'warn'}">${badge}</span></div></div>
               </div>
               <div class="archive-card full spirit-flow-card">
-                <div class="archive-card-head"><div class="archive-card-title">魂灵展开层级</div><span class="focus-ribbon">悬浮魂环展开魂技</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">魂灵展开层级</div></div>
                 <div class="rings soul-ring-lane">${buildEmptyRingLane(key === '第一武魂详细页' ? 'ring-white' : 'ring-gold')}</div>
               </div>
             </div>
@@ -949,7 +956,7 @@
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">血脉本体</div><span class="state-tag warn">封印体系</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">血脉本体</div></div>
                 <div class="spirit-main-card"><h4></h4><div class="spirit-head-tags"><span class="tag-chip warn">血脉封印</span></div></div>
               </div>
               <div class="archive-card">${makeSealColumn([
@@ -958,7 +965,7 @@
                 { label: '第3层封印', state: '', className: 'locked' },
                 { label: '第4层封印', state: '', className: 'locked' }
               ])}</div>
-              <div class="archive-card full spirit-flow-card"><div class="archive-card-head"><div class="archive-card-title">金色魂环轨道</div><span class="focus-ribbon">双数层优先形成</span></div><div class="orbit-track">${buildEmptyRingLane('ring-gold', 3)}</div></div>
+              <div class="archive-card full spirit-flow-card"><div class="archive-card-head"><div class="archive-card-title">金色魂环轨道</div></div><div class="orbit-track">${buildEmptyRingLane('ring-gold', 3)}</div></div>
             </div>
           `
         };
@@ -970,11 +977,11 @@
           body: `
             <div class="archive-modal-grid" style="grid-template-columns:1fr;">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">宏观时间轴</div><span class="state-tag live">主线推进</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">宏观时间轴</div></div>
                 <div class="history-timeline-wrap"><div class="history-timeline-track"><div class="history-node major"><div class="history-node-date"></div><div class="history-node-dot"></div><div class="history-node-label"></div></div><div class="history-node"><div class="history-node-date"></div><div class="history-node-dot"></div><div class="history-node-label"></div></div><div class="history-node"><div class="history-node-date"></div><div class="history-node-dot"></div><div class="history-node-label"></div></div></div></div>
                 <div class="history-floating-card"><div class="history-floating-title">当前锚点</div><div class="history-floating-desc"></div></div>
               </div>
-              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">近期详细日志</div><span class="state-tag">局部记录</span></div>${makeTimelineStack([])}</div>
+              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">近期详细日志</div></div>${makeTimelineStack([])}</div>
             </div>
           `
         };
@@ -985,7 +992,7 @@
           title: isMapNode ? `本地据点 / ${nodeName}` : (key === '当前节点详情' ? '当前节点详情' : '本地据点 / 当前节点'),
           body: `
             <div class="intel-layout">
-              <div class="archive-card"><div class="archive-card-head"><div class="archive-card-title">据点概览</div><span class="state-tag live">当前驻留</span></div>${makeTileGrid([
+              <div class="archive-card"><div class="archive-card-head"><div class="archive-card-title">据点概览</div></div>${makeTileGrid([
                 { label: '所在地点', value: '' },
                 { label: '掌控势力', value: '' },
                 { label: '常住人口', value: '' },
@@ -993,7 +1000,7 @@
                 { label: '守护军团', value: '' },
                 { label: '商店数量', value: '' }
               ])}</div>
-              <div class="archive-card"><div class="archive-card-head"><div class="archive-card-title">驻地氛围</div><span class="state-tag warn">现场观感</span></div><div class="relation-side-list"><div class="relation-card"><b>街区秩序</b><span></span></div><div class="relation-card"><b>补给情况</b><span></span></div><div class="relation-card"><b>交通状态</b><span></span></div></div></div>
+              <div class="archive-card"><div class="archive-card-head"><div class="archive-card-title">驻地氛围</div></div><div class="relation-side-list"><div class="relation-card"><b>街区秩序</b><span></span></div><div class="relation-card"><b>补给情况</b><span></span></div><div class="relation-card"><b>交通状态</b><span></span></div></div></div>
             </div>
           `
         };
@@ -1004,13 +1011,13 @@
           title: '近期安排',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns:1fr;">
-              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">当前动作</div><span class="state-tag live">角色计划</span></div>${makeTileGrid([
+              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">当前动作</div></div>${makeTileGrid([
                 { label: '当前行动', value: '' },
                 { label: '所在位置', value: '' },
                 { label: '伤势', value: '' },
                 { label: '待处理请求', value: '' }
               ], 'two')}</div>
-              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">请求队列</div><span class="focus-ribbon">按可执行事项列出</span></div>${makeTimelineStack([])}</div>
+              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">请求队列</div></div>${makeTimelineStack([])}</div>
             </div>
           `
         };
@@ -1021,13 +1028,13 @@
           title: '试炼与情报',
           body: `
             <div class="intel-layout">
-              <div class="archive-card"><div class="archive-card-head"><div class="archive-card-title">可前往试炼</div><span class="state-tag live">当前可用</span></div>${makeTileGrid([
+              <div class="archive-card"><div class="archive-card-head"><div class="archive-card-title">可前往试炼</div></div>${makeTileGrid([
                 { label: '升灵台门票', value: '' },
                 { label: '魂灵塔安排', value: '' },
                 { label: '狩猎安排', value: '' },
                 { label: '风险评估', value: '' }
               ])}</div>
-              <div class="archive-card"><div class="archive-card-head"><div class="archive-card-title">已掌握情报</div><span class="state-tag warn">近期重点</span></div><div class="intel-cabinet"></div></div>
+              <div class="archive-card"><div class="archive-card-head"><div class="archive-card-title">已掌握情报</div></div><div class="intel-cabinet"></div></div>
             </div>
           `
         };
@@ -1038,7 +1045,7 @@
           title: '近期见闻 / 城内简报',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns:1fr;">
-              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">城内简报</div><span class="state-tag live">今日风闻</span></div>${makeTimelineStack([
+              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">城内简报</div></div>${makeTimelineStack([
                 { title: '学院', desc: '' },
                 { title: '地区', desc: '' },
                 { title: '商路', desc: '' },
@@ -1055,29 +1062,11 @@
           body: `
             <div class="archive-modal-grid">
             <div class="archive-modal-grid" style="grid-template-columns:1fr;">
-              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">势力梯阵</div><span class="state-tag live">按影响力排序</span></div>${makeFactionLadder([
+              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">势力梯阵</div></div>${makeFactionLadder([
                 { name: '学院', desc: '', className: 'highlight' },
                 { name: '宗门', desc: '', className: '' },
                 { name: '官方', desc: '', className: '' },
                 { name: '特殊', desc: '', className: '' }
-              ])}</div>
-            </div>
-          `
-        };
-      }
-
-      if (key === '交易网络') {
-        return {
-          title: '交易网络弹窗',
-          body: `
-            <div class="archive-modal-grid">
-              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">商店总览</div><span class="state-tag live">节点商店</span></div>${makeFactionLadder([{ name: '本地商店', desc: '', className: '' }])}</div>
-              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">钱包摘要</div><span class="focus-ribbon">交易准备</span></div>${makeWalletStrip([
-                { label: '联邦币', value: '', className: 'gold' },
-                { label: '唐门积分', value: '', className: 'cyan' },
-                { label: '学院积分', value: '', className: 'cyan' },
-                { label: '血神功勋', value: '', className: 'red' },
-                { label: '声望', value: '', className: 'cyan' }
               ])}</div>
             </div>
           `
@@ -1089,7 +1078,7 @@
           title: '系统播报 / 日志弹窗',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns:1fr;">
-              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">系统广播</div><span class="state-tag live">播报</span></div>${makeTimelineStack([
+              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">系统广播</div></div>${makeTimelineStack([
                 { title: '最近播报', desc: '' },
                 { title: '最近事件', desc: '' },
                 { title: '安排摘要', desc: '' },
@@ -1361,7 +1350,9 @@
       safeHandler();
 
       if (!bound) {
-        console.warn('[DragonUI] MVU 更新事件未绑定成功，已启用 polling 兜底。');
+        if (window.__MVU_DEBUG__) {
+          console.info('[DragonUI] MVU 更新事件未绑定成功，已启用 polling 兜底。');
+        }
       }
     }
 
@@ -1693,6 +1684,63 @@
       };
     }
 
+    function getPrimaryFactionEntry(snapshot) {
+      const preferredName = toText(
+        deepGet(snapshot, 'locationData.掌控势力', snapshot && snapshot.factions && snapshot.factions[0] ? snapshot.factions[0][0] : ''),
+        snapshot && snapshot.factions && snapshot.factions[0] ? snapshot.factions[0][0] : ''
+      );
+      const fallbackEntry = snapshot && Array.isArray(snapshot.orgEntries) && snapshot.orgEntries.length ? snapshot.orgEntries[0] : ['', {}];
+      const matchedEntry = snapshot && Array.isArray(snapshot.orgEntries)
+        ? (snapshot.orgEntries.find(([name]) => name === preferredName) || fallbackEntry)
+        : fallbackEntry;
+      return {
+        name: toText(matchedEntry && matchedEntry[0], preferredName || '未知'),
+        data: matchedEntry && matchedEntry[1] ? matchedEntry[1] : {}
+      };
+    }
+
+    function buildFactionRelationMeta(relName, relData) {
+      const safeName = toText(relName, '未知势力');
+      const safeRelData = relData && typeof relData === 'object' ? relData : {};
+      const attitude = toText(deepGet(safeRelData, '态度', deepGet(safeRelData, '关系', '未知')), '未知');
+      const detailParts = safeEntries(safeRelData)
+        .filter(([key]) => !['态度', '关系'].includes(toText(key, '')))
+        .map(([key, value]) => {
+          if (value && typeof value === 'object') {
+            const detailCount = safeEntries(value).length;
+            return `${toText(key, '关系项')} ${detailCount}项`;
+          }
+          const textValue = toText(value, '');
+          return textValue ? `${toText(key, '关系项')} ${textValue}` : toText(key, '关系项');
+        })
+        .filter(Boolean);
+      return {
+        name: safeName,
+        attitude,
+        desc: detailParts.length ? `${attitude} ｜ ${detailParts.join(' / ')}` : attitude,
+        className: /敌对|死敌|仇视|战争/.test(attitude) ? 'warn' : (/同盟|盟友|友好|合作|生死同盟/.test(attitude) ? 'highlight' : '')
+      };
+    }
+
+    function buildFactionRelationCards(orgData, options = {}) {
+      const { max = 6, emptyTitle = '暂无势力关系', emptyDesc = '当前未记录对外关系。' } = options || {};
+      const relationCards = safeEntries(deepGet(orgData, 'rel', {}))
+        .map(([name, relData]) => buildFactionRelationMeta(name, relData))
+        .slice(0, Math.max(1, max))
+        .map(item => ({ title: item.name, desc: item.desc, className: item.className }));
+      return relationCards.length ? relationCards : [{ title: emptyTitle, desc: emptyDesc }];
+    }
+
+    function buildFactionRelationSummary(orgData, max = 3) {
+      return safeEntries(deepGet(orgData, 'rel', {}))
+        .slice(0, Math.max(1, max))
+        .map(([name, relData]) => {
+          const meta = buildFactionRelationMeta(name, relData);
+          return `${meta.name}:${meta.attitude}`;
+        })
+        .join(' / ');
+    }
+
     function getPrimaryFactionPowerStats(snapshot) {
       const preferredName = toText(
         deepGet(snapshot, 'locationData.掌控势力', snapshot && snapshot.factions && snapshot.factions[0] ? snapshot.factions[0][0] : ''),
@@ -1831,6 +1879,8 @@
       const specialAbilityEntries = safeEntries(deepGet(activeChar, 'special_abilities', {}));
       const combatHistoryEntries = safeEntries(deepGet(activeChar, 'combat_history', {})).sort((a, b) => toNumber(deepGet(b[1], 'last_tick', 0), 0) - toNumber(deepGet(a[1], 'last_tick', 0), 0));
       const pendingRequests = collectPendingRequests(activeChar || {}, sd || {});
+      const bestiaryEntries = safeEntries(deepGet(sd, 'world.bestiary', {}));
+      const forestKilledAge = toNumber(deepGet(sd, 'world.forest_killed_age', 0), 0);
       const mapData = sd && sd.map && typeof sd.map === 'object' ? sd.map : {};
       const mapVisibleNodeEntries = safeEntries(deepGet(mapData, 'visible_nodes', {}));
       const mapVisibleSettlementEntries = safeEntries(deepGet(mapData, 'visible_settlements', {}));
@@ -1899,6 +1949,8 @@
         questRecordCount,
         recentTitles,
         worldAlert: warningText,
+        bestiaryEntries,
+        forestKilledAge,
         auctionStatus,
         auctionLocation,
         mapData,
@@ -2238,11 +2290,12 @@
       const latest = snapshot.latestTimeline;
       const worldTime = toText(deepGet(snapshot, 'sd.world.time.calendar', '斗罗历未同步'), '斗罗历未同步');
       const deviation = toNumber(deepGet(snapshot, 'sd.world.deviation', 0), 0);
-      
-      const flags = snapshot.flagEntries || [];
-      const flagBadges = flags.length 
-        ? flags.map(([flagName]) => `<span class="tag-chip ${flagName.includes('兽潮') || flagName.includes('毁灭') ? 'warn' : 'live'}">${htmlEscape(flagName.replace(/^event_|^anchor_/, ''))}</span>`).join('')
-        : '<span class="tag-chip">和平期</span>';
+      const currentAction = toText(deepGet(snapshot, 'activeChar.status.action', '日常'), '日常');
+      const nextPlan = snapshot.pendingRequests[0] || '暂无安排';
+      const latestBroadcast = toText(deepGet(snapshot, 'sd.sys.rsn', '暂无'), '暂无');
+      const latestNews = latest
+        ? toText(deepGet(latest[1], 'event', latest[0]), latest[0])
+        : '暂无最近事件';
 
       return `
         <div class="module-name">时空中枢</div>
@@ -2250,12 +2303,13 @@
           <div class="hero-row"><b>当前时间</b><span>${htmlEscape(worldTime)}</span></div>
           <div class="hero-row"><b>世界偏差</b><span>${htmlEscape(`${deviation} / ${deviation >= 40 ? '高危' : deviation >= 10 ? '波动' : '平稳'}`)}</span></div>
           <div class="hero-row"><b>当前阶段</b><span>${htmlEscape(latest ? latest[0] : snapshot.currentLoc)}</span></div>
-          <div class="hero-row"><b>世界警报</b><span>${htmlEscape(snapshot.worldAlert)}</span></div>
         </div>
         <div class="hero-list">
-          <div class="hero-row" style="flex-direction: column; align-items: flex-start; gap: 8px;">
-             <b>大陆态势</b>
-             <div class="tag-cloud" style="gap:6px;">${flagBadges}</div>
+          <div class="hero-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
+            <b>近期安排</b><span>${htmlEscape(`${currentAction} / ${nextPlan}`)}</span>
+          </div>
+          <div class="hero-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
+            <b>近期见闻</b><span>${htmlEscape(`${latestBroadcast} / ${latestNews}`)}</span>
           </div>
         </div>
         <div class="module-foot">
@@ -2266,6 +2320,8 @@
 
     function buildOrgHeroCard(snapshot) {
       const topOrgs = snapshot.orgEntries.slice(0, 4);
+      const primaryFactionEntry = getPrimaryFactionEntry(snapshot);
+      const relationSummary = buildFactionRelationSummary(primaryFactionEntry && primaryFactionEntry.data ? primaryFactionEntry.data : {}, 3) || '暂无';
       return `
         <div class="module-name">势力矩阵</div>
         <div class="matrix-board">
@@ -2276,6 +2332,7 @@
           <div class="hero-row"><b>极限斗罗</b><span>${htmlEscape(String(factionStats.limit))}</span></div>
           <div class="hero-row"><b>超级斗罗</b><span>${htmlEscape(String(factionStats.super))}</span></div>
           <div class="hero-row"><b>封号斗罗</b><span>${htmlEscape(String(factionStats.title))}</span></div>
+          <div class="hero-row"><b>势力关系</b><span>${htmlEscape(relationSummary)}</span></div>
         </div>
         `; })()}
         <div class="module-foot">
@@ -2429,31 +2486,43 @@
         { label: '掌控势力', value: toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知') },
         { label: '经济状况', value: `${toText(deepGet(snapshot, 'locationData.经济状况', '未知'), '未知')} / ${toText(deepGet(snapshot, 'locationData.守护军团', '守护军团未知'), '守护军团未知')}` }
       ]); });
-      document.querySelectorAll('[data-preview="交易网络"].mvu-simple-card').forEach(el => { el.innerHTML = buildSimpleCard('交易网络', null, [
-        { label: '本地商店', value: snapshot.storeNames.length ? snapshot.storeNames.join(' / ') : '暂无商店' },
-        { label: '状态', value: snapshot.storeNames.length ? '可交易 / 可查看库存' : '无商店 / 不可交易' }
-      ]); });
 
       document.querySelectorAll('[data-preview="系统播报与日志"].terminal-hero-card').forEach(el => { el.innerHTML = buildTerminalHeroCard(snapshot); });
-      document.querySelectorAll('[data-preview="操作总线"].terminal-side-card').forEach(el => { el.innerHTML = `
-        <div class="simple-head"><div class="simple-title">近期安排</div><span class="terminal-side-badge">安排</span></div>
+      document.querySelectorAll('[data-preview="操作总线"].terminal-side-card, [data-preview="操作总线"].mvu-simple-card, [data-preview="操作总线"].simple-card').forEach(el => { el.innerHTML = `
+        <div class="simple-head"><div class="simple-title">近期安排</div></div>
         <div class="simple-list">
           <div class="simple-row"><b>当前行动</b><span>${htmlEscape(toText(deepGet(snapshot, 'activeChar.status.action', '日常'), '日常'))}</span></div>
           <div class="simple-row"><b>下一件事</b><span>${htmlEscape(snapshot.pendingRequests[0] || '暂无安排')}</span></div>
         </div>
       `; });
-      document.querySelectorAll('[data-preview="试炼与情报"].terminal-side-card').forEach(el => { el.innerHTML = `
-        <div class="simple-head"><div class="simple-title">试炼与情报</div><span class="terminal-side-badge gold">情报</span></div>
+      document.querySelectorAll('[data-preview="试炼与情报"].terminal-side-card, [data-preview="试炼与情报"].mvu-simple-card, [data-preview="试炼与情报"].simple-card').forEach(el => { el.innerHTML = `
+        <div class="simple-head"><div class="simple-title">试炼与情报</div></div>
         <div class="simple-list">
           <div class="simple-row"><b>试炼入口</b><span>${htmlEscape(snapshot.inventoryEntries.some(([name]) => /门票|魂灵塔/.test(name)) ? '升灵台 / 魂灵塔 / 狩猎' : '当前无门票，仅常规狩猎')}</span></div>
           <div class="simple-row"><b>情报状态</b><span>${htmlEscape(`已掌握 ${snapshot.unlockedKnowledges.length} 条 / 新线索 ${snapshot.pendingIntelCount} 条`)}</span></div>
         </div>
       `; });
-      document.querySelectorAll('[data-preview="近期见闻"].terminal-side-card').forEach(el => { el.innerHTML = `
-        <div class="simple-head"><div class="simple-title">近期见闻</div><span class="terminal-side-badge">见闻</span></div>
+      document.querySelectorAll('[data-preview="近期见闻"].terminal-side-card, [data-preview="近期见闻"].mvu-simple-card, [data-preview="近期见闻"].simple-card').forEach(el => { el.innerHTML = `
+        <div class="simple-head"><div class="simple-title">近期见闻</div></div>
         <div class="simple-list">
           <div class="simple-row"><b>系统播报</b><span>${htmlEscape(toText(deepGet(snapshot, 'sd.sys.rsn', '暂无'), '暂无'))}</span></div>
           <div class="simple-row"><b>最近事件</b><span>${htmlEscape(snapshot.latestTimeline ? snapshot.latestTimeline[0] : '暂无') }</span></div>
+        </div>
+      `; });
+      document.querySelectorAll('[data-preview="怪物图鉴"].terminal-side-card, [data-preview="怪物图鉴"].mvu-simple-card, [data-preview="怪物图鉴"].simple-card').forEach(el => { el.innerHTML = `
+        <div class="simple-head"><div class="simple-title">怪物图鉴</div></div>
+        <div class="simple-list">
+          <div class="simple-row"><b>已记录</b><span>${htmlEscape(`${snapshot.bestiaryEntries.length} 种`)}</span></div>
+          <div class="simple-row"><b>最近条目</b><span>${htmlEscape(snapshot.bestiaryEntries.slice(0, 2).map(([name]) => name).join(' / ') || '暂无')}</span></div>
+          <div class="simple-row"><b>图鉴状态</b><span>${htmlEscape(snapshot.bestiaryEntries.length ? '探索推进中' : '等待首次遭遇')}</span></div>
+        </div>
+      `; });
+      document.querySelectorAll('[data-preview="森林仇恨值"].terminal-side-card, [data-preview="森林仇恨值"].mvu-simple-card, [data-preview="森林仇恨值"].simple-card').forEach(el => { el.innerHTML = `
+        <div class="simple-head"><div class="simple-title">森林仇恨值</div></div>
+        <div class="simple-list">
+          <div class="simple-row"><b>累计年限</b><span>${htmlEscape(formatNumber(snapshot.forestKilledAge))}</span></div>
+          <div class="simple-row"><b>兽潮阈值</b><span>${htmlEscape(snapshot.forestKilledAge >= 1000000 ? '已越线' : `${formatNumber(Math.max(0, 1000000 - snapshot.forestKilledAge))} 待累积`)}</span></div>
+          <div class="simple-row"><b>危险等级</b><span>${htmlEscape(snapshot.forestKilledAge >= 1000000 ? '兽潮临界' : (snapshot.forestKilledAge >= 700000 ? '高度紧张' : (snapshot.forestKilledAge >= 300000 ? '持续升温' : '相对安全')))}</span></div>
         </div>
       `; });
     }
@@ -2485,7 +2554,7 @@
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">地图总览</div><span class="state-tag live">地图数据</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">地图总览</div></div>
                 ${makeTileGrid([
                   { label: '当前地图', value: getMapDisplayName(snapshot) },
                   { label: '焦点位置', value: toText(deepGet(snapshot, 'mapCurrentFocus.loc', snapshot.currentLoc), snapshot.currentLoc) },
@@ -2495,9 +2564,9 @@
                   { label: '激活补丁', value: `${snapshot.mapActivePatchEntries.length} 项` }
                 ], 'three')}
               </div>
-              <div class="archive-card"><div class="archive-card-head"><div class="archive-card-title">当前节点云图</div><span class="state-tag warn">可点击下钻</span></div>${makeTagCloud(mapItems.slice(0, 10).map(item => ({ text: `${item.name}${item.canEnter ? ' ↘' : ''}`, className: item.current ? 'live' : (item.canEnter ? 'warn' : '') })))}</div>
-              <div class="archive-card"><div class="archive-card-head"><div class="archive-card-title">可进入子图</div><span class="state-tag live">child maps</span></div>${makeTimelineStack(childMapCards)}</div>
-              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">激活补丁</div><span class="focus-ribbon">active_patches</span></div>${makeTimelineStack(patchCards)}</div>
+              <div class="archive-card"><div class="archive-card-head"><div class="archive-card-title">当前节点云图</div></div>${makeTagCloud(mapItems.slice(0, 10).map(item => ({ text: `${item.name}${item.canEnter ? ' ↘' : ''}`, className: item.current ? 'live' : (item.canEnter ? 'warn' : '') })))}</div>
+              <div class="archive-card"><div class="archive-card-head"><div class="archive-card-title">可进入子图</div></div>${makeTimelineStack(childMapCards)}</div>
+              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">激活补丁</div></div>${makeTimelineStack(patchCards)}</div>
             </div>
           `
         };
@@ -2588,7 +2657,7 @@
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">战斗轮廓</div><span class="state-tag live">五维图</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">战斗轮廓</div></div>
                 ${makeRadarSvg(['力量', '防御', '敏捷', '精神', '气血底盘'], [
                   Math.min(100, Math.round(toNumber(stat.str, 0) / 1000 * 100)),
                   Math.min(100, Math.round(toNumber(stat.def, 0) / 1000 * 100)),
@@ -2598,7 +2667,7 @@
                 ])}
               </div>
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">角色名片</div><span class="state-tag warn">摘要</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">角色名片</div></div>
                 <div class="profile-snapshot">
                   <div class="identity-card">
                     <h3>${htmlEscape(snapshot.activeName)}</h3>
@@ -2637,7 +2706,7 @@
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">身份名片</div><span class="state-tag live">公开信息</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">身份名片</div></div>
                 <div class="profile-snapshot">
                   <div class="identity-card">
                     <h3>${htmlEscape(snapshot.activeName)}</h3>
@@ -2651,7 +2720,7 @@
                 </div>
               </div>
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">社会标签</div><span class="state-tag warn">对外印象</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">社会标签</div></div>
                 ${makeTagCloud([
                   { text: snapshot.activeName, className: 'live' },
                   { text: toText(social.fame_level, '籍籍无名'), className: 'warn' },
@@ -2661,7 +2730,7 @@
                 ])}
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">当前社会位置</div><span class="focus-ribbon">玩家可读</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">当前社会位置</div></div>
                 ${makeTileGrid([
                   { label: '主公开身份', value: toText(social.main_identity, '无') },
                   { label: '名望等级', value: toText(social.fame_level, '籍籍无名') },
@@ -2685,7 +2754,7 @@
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">所属阶梯</div><span class="state-tag warn">阵营归属</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">所属阶梯</div></div>
                 ${makeFactionLadder((snapshot.factions.length ? snapshot.factions : [['未加入势力', { 身份: '无', 权限级: 0 }]]).map(([name, info]) => ({
                   name,
                   desc: `身份：${toText(info && info['身份'], '无')} / 权限级：${toText(info && info['权限级'], '0')}`,
@@ -2693,7 +2762,7 @@
                 })))}
               </div>
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">当前阵营位置</div><span class="state-tag live">高亮项</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">当前阵营位置</div></div>
                 ${makeTileGrid([
                   { label: '当前所属', value: snapshot.factions[0] ? snapshot.factions[0][0] : '无' },
                   { label: '身份', value: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '未加入' },
@@ -2702,12 +2771,11 @@
                 ], 'two')}
               </div>
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">可推进方向</div><span class="state-tag warn">下一步</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">可推进方向</div></div>
                 ${makeTagCloud([
                   { text: '晋升申请', className: 'warn' },
                   { text: '势力矩阵' },
                   { text: '本地据点' },
-                  { text: '交易网络' },
                   { text: snapshot.orgEntries[0] ? snapshot.orgEntries[0][0] : '暂无路线' }
                 ])}
               </div>
@@ -2816,7 +2884,7 @@
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">羁绊星轨图</div><span class="focus-ribbon">悬浮节点查看详情与进度</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">羁绊星轨图</div></div>
                 <div class="topology-board" style="min-height: 280px;">
                   <svg class="topology-svg" viewBox="0 0 100 100" preserveAspectRatio="none">${relationLinks}</svg>
                   <div class="topology-node center" style="left:50%;top:50%"><b>${htmlEscape(snapshot.activeName)}</b><span>自我</span></div>
@@ -2824,19 +2892,19 @@
                 </div>
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">核心推进线索</div><span class="focus-ribbon">下一步行动</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">核心推进线索</div></div>
                 <div class="intel-layout">
                   ${relationFocusHtml}
                 </div>
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">关系态势</div><span class="focus-ribbon">在场 / 可接触 / 风险</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">关系态势</div></div>
                 <div class="intel-layout">
                   ${relationContextHtml}
                 </div>
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">关系细节</div><span class="focus-ribbon">进展 / 解锁 / 最近变化</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">关系细节</div></div>
                 <div class="intel-layout">
                   ${relationDetailHtml}
                 </div>
@@ -2867,7 +2935,7 @@
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">核心情报网络</div><span class="state-tag live">情报追踪</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">核心情报网络</div></div>
                 <div class="intel-network-board">
                   <svg class="topology-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
                     ${positions.slice(0, sideIntels.length).map(pos => `<line class="topology-link cyan" x1="50" y1="50" x2="${pos.left.replace('%', '')}" y2="${pos.top.replace('%', '')}"></line>`).join('')}
@@ -2880,7 +2948,7 @@
                 </div>
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">情报进度槽</div><span class="state-tag warn">局部追踪</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">情报进度槽</div></div>
                 <div class="intel-progress-slots">
                   <div class="intel-slot"><div class="intel-slot-name">已解锁情报</div><div class="intel-slot-bar-wrap"><div class="intel-slot-bar" style="width:${Math.min(100, snapshot.unlockedKnowledges.length * 12)}%;"></div></div><div class="intel-slot-value">${snapshot.unlockedKnowledges.length}</div></div>
                   <div class="intel-slot"><div class="intel-slot-name">待整理情报</div><div class="intel-slot-bar-wrap"><div class="intel-slot-bar gold" style="width:${snapshot.pendingIntelCount ? 100 : 0}%;"></div></div><div class="intel-slot-value" style="color:var(--gold);">${snapshot.pendingIntelCount ? `${snapshot.pendingIntelCount} / +${snapshot.pendingIntelImpact}` : '0'}</div></div>
@@ -2888,7 +2956,7 @@
                 </div>
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">战斗记录摘要</div><span class="state-tag warn">combat_history</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">战斗记录摘要</div></div>
                 ${makeTimelineStack(combatHistoryCards)}
               </div>
             </div>
@@ -3184,7 +3252,7 @@
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">钱包条</div><span class="state-tag live">资产摘要</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">钱包条</div></div>
                 ${makeWalletStrip([
                   { label: '联邦币', value: formatNumber(wealth.fed_coin), className: 'gold' },
                   { label: '星罗币', value: formatNumber(wealth.star_coin), className: 'cyan' },
@@ -3194,7 +3262,7 @@
                 ])}
               </div>
               <div class="archive-card full vault-main-card">
-                <div class="archive-card-head"><div class="archive-card-title">背包格阵列</div><span class="focus-ribbon">筛选已并入</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">背包格阵列</div></div>
                 <div class="inventory-inline-tools">
                   ${makeTagCloud([
                     { text: '全部', className: 'live' },
@@ -3240,7 +3308,7 @@
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">武魂本体</div><span class="state-tag live">体系起点</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">武魂本体</div></div>
                 <div class="spirit-main-card">
                   <h4>${htmlEscape(config.spiritName)}</h4>
                   <div class="spirit-head-tags">
@@ -3252,7 +3320,7 @@
                 </div>
               </div>
               <div class="archive-card full spirit-flow-card">
-                <div class="archive-card-head"><div class="archive-card-title">魂灵展开层级</div><span class="focus-ribbon">悬浮魂环展开魂技</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">魂灵展开层级</div></div>
                 <div class="soul-expand-stack">
                   ${config.souls.map(soul => `
                     <div class="soul-expand-card">
@@ -3360,7 +3428,7 @@
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">宏观时间轴</div><span class="state-tag live">主线推进</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">宏观时间轴</div></div>
                 <div class="history-timeline-wrap"><div class="history-timeline-track">
                   ${nodes.map(([name, item], index) => `
                     <div class="history-node ${index === nodes.length - 1 ? 'major' : ''}">
@@ -3376,7 +3444,7 @@
                 </div>
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">近期详细日志</div><span class="state-tag">局部记录</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">近期详细日志</div></div>
                 ${makeTimelineStack(snapshot.timelineEntries.slice(0, 5).map(([name, item]) => ({ title: `${name} / Tick ${toText(item && item.trigger_tick, 0)}`, desc: `${toText(item && item.status, 'pending')} ｜ ${toText(item && item.event, '暂无描述')}` }))) }
               </div>
             </div>
@@ -3390,7 +3458,7 @@
           summary: '收录大陆30岁以下天资卓越者的榜单（TOP 30）。',
           body: `
             <div class="archive-card">
-              <div class="archive-card-head"><div class="archive-card-title">当前排行</div><span class="state-tag live">更新中</span></div>
+              <div class="archive-card-head"><div class="archive-card-title">当前排行</div></div>
               ${makeTimelineStack(snapshot.youthRankingEntries.slice(0, 15).map(([rank, item]) => ({ title: `第${rank}名 · ${toText(item && item['角色名'], '未知')}`, desc: `评分 ${toText(item && item['评分'], 0)}` })))}
             </div>
           `
@@ -3403,7 +3471,7 @@
           summary: '收录全大陆绝对实力强者的最高榜单（TOP 100）。',
           body: `
             <div class="archive-card">
-              <div class="archive-card-head"><div class="archive-card-title">当前排行</div><span class="state-tag warn">更新中</span></div>
+              <div class="archive-card-head"><div class="archive-card-title">当前排行</div></div>
               ${makeTimelineStack(snapshot.continentRankingEntries.slice(0, 15).map(([rank, item]) => ({ title: `第${rank}名 · ${toText(item && item['角色名'], '未知')}`, desc: `评分 ${toText(item && item['评分'], 0)}` })))}
             </div>
           `
@@ -3418,7 +3486,7 @@
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">拍卖状态</div><span class="state-tag live">${htmlEscape(toText(deepGet(snapshot, 'sd.world.auction.status', '休市'), '休市'))}</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">拍卖状态</div></div>
                 ${makeTileGrid([
                   { label: '状态', value: toText(deepGet(snapshot, 'sd.world.auction.status', '休市'), '休市') },
                   { label: '地点', value: toText(deepGet(snapshot, 'sd.world.auction.location', '无'), '无') },
@@ -3426,15 +3494,8 @@
                   { label: '当前拍品', value: `${auctionItems.length} 件` }
                 ], 'two')}
               </div>
-              <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">世界警报</div><span class="state-tag warn">当前风险</span></div>
-                ${makeTagCloud([
-                  { text: snapshot.worldAlert, className: snapshot.worldAlert.includes('高危') ? 'alert' : 'warn' },
-                  ...snapshot.flagEntries.slice(0, 4).map(([name]) => ({ text: name }))
-                ])}
-              </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">拍品列表</div><span class="focus-ribbon">最近可见</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">拍品列表</div></div>
                 ${makeTimelineStack(auctionItems.map(([name, item]) => ({ title: name, desc: `${toText(item && item.tier, '低阶')} ｜ ${formatNumber(item && item.price)} ｜ ${toText(item && item.lore, '暂无说明')}` })))}
               </div>
             </div>
@@ -3443,18 +3504,28 @@
       }
 
       if (previewKey === '势力矩阵总览') {
+        const primaryFactionEntry = getPrimaryFactionEntry(snapshot);
+        const factionRelationCards = buildFactionRelationCards(primaryFactionEntry && primaryFactionEntry.data ? primaryFactionEntry.data : {}, {
+          max: 8,
+          emptyTitle: '暂无势力关系',
+          emptyDesc: '当前主势力未记录对外关系。'
+        });
         return {
           title: '势力矩阵弹窗',
           summary: '所有势力影响力与状态总览。',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">势力梯阵</div><span class="state-tag live">按影响力排序</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">势力梯阵</div></div>
                 ${makeFactionLadder(snapshot.orgEntries.map(([name, item]) => ({
                   name,
                   desc: `影响力 ${formatNumber(item && item.inf)} / ${toText(item && item.status, '正常')} / 极限斗罗 ${toText(deepGet(item, 'power_stats.limit_douluo', 0), '0')} / 超级斗罗 ${toText(deepGet(item, 'power_stats.super_douluo', 0), '0')} / 封号斗罗 ${toText(deepGet(item, 'power_stats.title_douluo', 0), '0')}`,
                   className: snapshot.factions.some(([fac]) => fac === name) ? 'highlight' : ''
                 })))}
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">${htmlEscape(`${primaryFactionEntry && primaryFactionEntry.name ? primaryFactionEntry.name : '主势力'}对外关系`)}</div></div>
+                ${makeTimelineStack(factionRelationCards)}
               </div>
             </div>
           `
@@ -3462,13 +3533,22 @@
       }
 
       if (previewKey === '我的阵营详情') {
+        const currentFactionName = snapshot.factions[0] ? snapshot.factions[0][0] : '';
+        const currentFactionEntry = currentFactionName
+          ? (snapshot.orgEntries.find(([name]) => name === currentFactionName) || [currentFactionName, {}])
+          : ['', {}];
+        const currentFactionRelationCards = buildFactionRelationCards(currentFactionEntry[1] || {}, {
+          max: 8,
+          emptyTitle: '暂无阵营关系',
+          emptyDesc: currentFactionName ? '当前所属势力未记录对外关系。' : '当前角色尚未加入可展示关系的势力。'
+        });
         return {
           title: '我的阵营弹窗',
           summary: '当前角色在各势力中的身份、权限与头衔。',
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">当前所属势力</div><span class="state-tag live">阵营归属</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">当前所属势力</div></div>
                 ${makeFactionLadder((snapshot.factions.length ? snapshot.factions : [['未加入势力', { 身份: '无', 权限级: 0 }]]).map(([name, info], index) => ({
                   name,
                   desc: `身份：${toText(info && info['身份'], '无')} / 权限级：${toText(info && info['权限级'], '0')}`,
@@ -3476,13 +3556,17 @@
                 })))}
               </div>
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">主身份摘要</div><span class="state-tag warn">个人定位</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">主身份摘要</div></div>
                 ${makeTileGrid([
                   { label: '当前所属', value: snapshot.factions[0] ? snapshot.factions[0][0] : '无' },
                   { label: '当前身份', value: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '未加入' },
                   { label: '主公开身份', value: toText(deepGet(snapshot, 'activeChar.social.main_identity', '无'), '无') },
                   { label: '当前称号', value: snapshot.recentTitles[0] || '暂无' }
                 ], 'two')}
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">当前阵营关系</div></div>
+                ${makeTimelineStack(currentFactionRelationCards)}
               </div>
             </div>
           `
@@ -3510,7 +3594,7 @@
           body: `
             <div class="intel-layout">
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">据点概览</div><span class="state-tag live">当前驻留</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">据点概览</div></div>
                 ${makeTileGrid([
                   { label: '所在地点', value: nodeName },
                   { label: '地图来源', value: mapNode ? mapNode.source : 'location' },
@@ -3526,25 +3610,12 @@
                 ])}
               </div>
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">驻地氛围</div><span class="state-tag warn">现场观感 / 地图态</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">驻地氛围</div></div>
                 <div class="relation-side-list">
                   <div class="relation-card"><b>地区状态</b><span>${htmlEscape(toText(nodeInfo.data && nodeInfo.data['经济状况'], '未知'))}</span></div>
                   <div class="relation-card"><b>守备</b><span>${htmlEscape(toText(nodeInfo.data && nodeInfo.data['守护军团'], '无'))}</span></div>
                   <div class="relation-card"><b>地图描述</b><span>${htmlEscape(mapNode ? mapNode.desc : '地图描述待补')}</span></div>
                   <div class="relation-card"><b>补给情况</b><span>${htmlEscape(nodeStores.length ? `可见商店：${nodeStores.map(([name]) => name).join(' / ')}` : '暂未发现商铺')}</span></div>
-                </div>
-              </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">可去区域</div><span class="focus-ribbon">travel candidates</span></div>
-                ${makeTagCloud(
-                  nodeStores.map(([name]) => ({ text: name, className: 'live' }))
-                    .concat(travelTags.map(name => ({ text: name, className: snapshot.mapAvailableChildMaps[name] ? 'warn' : '' })))
-                )}
-              </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">可做事项</div><span class="focus-ribbon">地图行动</span></div>
-                <div class="tag-cloud">
-                  ${actionButtons.length ? actionButtons.map(item => `<button class="tag-chip ${item.className || ''} map-dispatch-action-btn" data-action="${htmlEscape(item.action)}" data-target="${htmlEscape(item.target || nodeName)}" data-current-loc="${htmlEscape(nodeName)}" data-npc-target="${htmlEscape(item.npcTarget || '')}" data-executor-type="${htmlEscape(item.executorType || '')}" data-services="${htmlEscape(item.action === 'craft' ? 'craft' : item.action === 'shop' ? 'shop' : item.action === 'trade' ? 'trade' : '')}">${htmlEscape(item.text)}</button>`).join('') : '<span class="tag-chip">暂时没有额外操作</span>'}
                 </div>
               </div>
             </div>
@@ -3560,7 +3631,7 @@
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">当前位置与视图</div><span class="state-tag live">图层状态</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">当前位置与视图</div></div>
                 ${makeTileGrid([
                   { label: '当前锚点', value: snapshot.currentLoc },
                   { label: '主视图', value: snapshot.normalizedLoc },
@@ -3580,7 +3651,7 @@
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">动态节点列表</div><span class="state-tag warn">剧情拓展</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">动态节点列表</div></div>
                 ${makeTimelineStack(snapshot.dynamicLocationNames.map(name => ({ title: name, desc: `归属：${toText(deepGet(snapshot, ['sd', 'world', 'dynamic_locations', name, '归属父节点'], '未知'), '未知')}` })))}
               </div>
             </div>
@@ -3617,7 +3688,7 @@
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">系统广播</div><span class="state-tag live">播报</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">系统广播</div></div>
                 ${makeTimelineStack([
                   { title: '最近播报', desc: toText(deepGet(snapshot, 'sd.sys.rsn', '暂无'), '暂无') },
                   { title: '最近事件', desc: snapshot.latestTimeline ? snapshot.latestTimeline[0] : '暂无事件' },
@@ -3637,7 +3708,7 @@
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">当前动作</div><span class="state-tag live">角色计划</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">当前动作</div></div>
                 ${makeTileGrid([
                   { label: '当前行动', value: toText(status.action, '日常') },
                   { label: '所在位置', value: snapshot.currentLoc },
@@ -3646,7 +3717,7 @@
                 ], 'two')}
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">安排清单</div><span class="focus-ribbon">按近期事项列出</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">安排清单</div></div>
                 ${makeTimelineStack((snapshot.pendingRequests.length ? snapshot.pendingRequests : ['暂无安排']).map((item, index) => ({ title: `事项 ${index + 1}`, desc: item })))}
               </div>
             </div>
@@ -3661,7 +3732,7 @@
           body: `
             <div class="intel-layout">
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">可前往试炼</div><span class="state-tag live">当前可用</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">可前往试炼</div></div>
                 ${makeTileGrid([
                   { label: '升灵台门票', value: String(snapshot.inventoryEntries.filter(([name]) => /升灵台/.test(name)).length) },
                   { label: '魂灵塔安排', value: `${toText(deepGet(snapshot, 'activeChar.tower_request.action', '无'), '无')} / 最高 ${toText(deepGet(snapshot, 'activeChar.tower_records.max_floor', 0), '0')} 层` },
@@ -3670,7 +3741,7 @@
                 ])}
               </div>
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">已掌握情报</div><span class="state-tag warn">近期重点</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">已掌握情报</div></div>
                 <div class="intel-cabinet">
                   ${(snapshot.unlockedKnowledges.length ? snapshot.unlockedKnowledges.slice(-4).reverse() : ['情报仍待收集']).map(item => `<div class="intel-card"><b>${htmlEscape(item)}</b><span>${htmlEscape(item)}</span></div>`).join('')}
                 </div>
@@ -3687,12 +3758,56 @@
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">城内简报</div><span class="state-tag live">今日风闻</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">城内简报</div></div>
                 ${makeTimelineStack([
                   { title: '系统播报', desc: toText(deepGet(snapshot, 'sd.sys.rsn', '暂无'), '暂无') },
                   ...snapshot.timelineEntries.slice(0, 4).map(([name, item]) => ({ title: name, desc: toText(item && item['event'], '暂无描述') }))
                 ])}
               </div>
+            </div>
+          `
+        };
+      }
+
+      if (previewKey === '怪物图鉴') {
+        const bestiaryCards = (snapshot.bestiaryEntries.length ? snapshot.bestiaryEntries.slice(0, 24) : [['暂无图鉴记录', { empty: true }]]).map(([name, item]) => ({
+          title: item && item.empty ? name : name,
+          desc: item && item.empty
+            ? '暂未记录任何深渊生物或魂兽。'
+            : (safeEntries(item).length
+              ? safeEntries(item).slice(0, 4).map(([key, value]) => `${toText(key, '字段')}：${value && typeof value === 'object' ? `${safeEntries(value).length}项` : toText(value, '无')}`).join(' / ')
+              : '已记录基础数据，可供后续复用。')
+        }));
+        return {
+          title: '怪物图鉴',
+          summary: '已遭遇深渊生物与魂兽的标准化记录。',
+          body: `
+            <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">图鉴总览</div></div>
+                ${makeTileGrid([
+                  { label: '已记录物种', value: `${snapshot.bestiaryEntries.length} 种` },
+                  { label: '最近收录', value: snapshot.bestiaryEntries[0] ? snapshot.bestiaryEntries[0][0] : '暂无' }
+                ], 'two')}
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">已记录物种</div></div>
+                ${makeTimelineStack(bestiaryCards)}
+              </div>
+            </div>
+          `
+        };
+      }
+
+      if (previewKey === '森林仇恨值') {
+        const remaining = Math.max(0, 1000000 - snapshot.forestKilledAge);
+        const progress = Math.max(0, Math.min(100, Number(((snapshot.forestKilledAge / 1000000) * 100).toFixed(1))));
+        return {
+          title: '森林仇恨值',
+          summary: '星斗大森林累计击杀年限与兽潮阈值监控。',
+          body: `
+            <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
+              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">仇恨累计</div></div>${makeTileGrid([{ label: '累计击杀年限', value: formatNumber(snapshot.forestKilledAge) }, { label: '兽潮阈值', value: '1000000' }, { label: '剩余安全空间', value: remaining > 0 ? formatNumber(remaining) : '0' }, { label: '当前状态', value: deepGet(snapshot, 'sd.world.flags.beast_tide', false) ? '兽潮已触发' : (snapshot.forestKilledAge >= 1000000 ? '达到阈值' : '尚未触发') }], 'two')}<div style="margin-top:12px;"><div style="display:flex;justify-content:space-between;font-size:12px;color:#bfdde4;margin-bottom:6px;"><span>阈值进度</span><span>${progress}%</span></div><div style="height:10px;border-radius:999px;background:rgba(255,255,255,0.08);overflow:hidden;border:1px solid rgba(150,217,228,0.12);"><div style="height:100%;width:${progress}%;background:${progress >= 100 ? 'linear-gradient(90deg,#ff6b6b,#ffb36b)' : (progress >= 70 ? 'linear-gradient(90deg,#ffd36b,#ff8a5b)' : 'linear-gradient(90deg,#72e6ff,#7dffb2)')};box-shadow:0 0 12px rgba(255,180,107,0.35);"></div></div></div></div>
             </div>
           `
         };
@@ -3731,7 +3846,7 @@
         }
 
         if (detailModal.classList.contains('show') && currentModalPreviewKey) {
-          const liveSubUiKeys = new Set(['武装工坊详细页', '储物仓库详细页', '交易网络']);
+          const liveSubUiKeys = new Set(['武装工坊详细页', '储物仓库详细页', '当前节点详情', '交易模块弹窗']);
           if (
             liveSubUiKeys.has(currentModalPreviewKey)
             && activeSubUI
@@ -4262,8 +4377,9 @@ ${JSON.stringify(patchOps, null, 2)}
         '世界状态总览',
         '势力矩阵总览',
         '我的阵营详情',
-        '交易网络',
-        '系统播报与日志'
+        '系统播报与日志',
+        '怪物图鉴',
+        '森林仇恨值'
       ]);
       if (!liveSnapshot && (liveRequiredKeys.has(previewKey) || String(previewKey || '').startsWith('地图节点：'))) {
         if (skeletonArchive) {

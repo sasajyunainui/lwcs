@@ -3075,7 +3075,9 @@
       }
 
       safeHandler();
-      console.warn('sheep_map_restore: MVU update event not bound; polling fallback enabled.');
+      if (window.__MVU_DEBUG__) {
+        console.info('sheep_map_restore: MVU update event not bound; polling fallback enabled.');
+      }
     }
   }
 
@@ -7354,8 +7356,8 @@
     event.preventDefault();
     event.stopPropagation();
     const nextNode = node.dataset.node;
-    const nextItem = getItemByName(nextNode);
-    if (!nextItem || !nextItem.canEnter) return;
+    const canPreviewEnter = canEnterPreviewNode(nextNode, mapState.snapshot);
+    if (!canPreviewEnter) return;
     mapState.selectedFreePoint = null;
     if (!hasPendingTravelRequestForTarget()) mapState.pendingTravelRequest = null;
     mapState.selectedNode = nextNode;

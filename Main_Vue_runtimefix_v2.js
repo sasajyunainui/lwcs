@@ -187,15 +187,14 @@ const RightPanel = {
             <div class="stack-3">
               <div class="mvu-simple-card live-card clickable" data-preview="我的阵营详情"></div>
               <div class="mvu-simple-card live-card clickable" data-preview="本地据点详情"></div>
-              <div class="mvu-simple-card entry-card clickable" data-preview="交易网络"></div>
             </div>
           </div>
 
           <div class="split-page split-right-page" :class="{ active: tabState.current === 'page-terminal' }" data-target="page-terminal">
             <div class="stack-3 terminal-side-stack">
-              <div class="mvu-simple-card live-card terminal-side-card clickable" data-preview="操作总线"></div>
               <div class="mvu-simple-card entry-card terminal-side-card clickable" data-preview="试炼与情报"></div>
-              <div class="mvu-simple-card live-card terminal-side-card clickable" data-preview="近期见闻"></div>
+              <div class="mvu-simple-card live-card terminal-side-card clickable" data-preview="怪物图鉴"></div>
+              <div class="mvu-simple-card live-card terminal-side-card clickable" data-preview="森林仇恨值"></div>
             </div>
           </div>
         </div>
