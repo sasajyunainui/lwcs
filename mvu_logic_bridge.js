@@ -3390,10 +3390,35 @@
           };
         }
 
-        const soulBoneCards = (snapshot.soulBoneEntries && snapshot.soulBoneEntries.length ? snapshot.soulBoneEntries.slice(0, 6) : [['暂无魂骨装载', { empty: true }]]).map(([slot, bone]) => ({
-          title: bone && bone.empty ? slot : `${toText(bone && (bone.name || bone['名称'] || bone['表象名称'] || slot), slot)} / ${slot}`,
-          desc: bone && bone.empty ? '尚未装载魂骨。' : `${toText(bone && (bone['状态'] || bone.status), '已装载')} ｜ ${toText(bone && (bone['年限'] || bone.age || bone['品质'] || bone['品阶']), '信息未标注')}`
-        }));
+        const soulBoneCards = (snapshot.soulBoneEntries && snapshot.soulBoneEntries.length ? snapshot.soulBoneEntries.slice(0, 6) : [['暂无魂骨装载', { empty: true }]]).map(([slot, bone]) => {
+          if (bone && bone.empty) {
+            return { title: slot, desc: '尚未装载魂骨。' };
+          }
+          const boneName = toText(bone && (bone.name || bone['名称'] || bone['表象名称']), slot);
+          const age = toText(bone && (bone['年限'] || bone.age), '');
+          const quality = toText(bone && (bone['品质'] || bone['品阶']), '');
+          let descText = `${toText(bone && (bone['状态'] || bone.status), '已装载')}`;
+          if (age || quality) descText += ` ｜ ${[age ? `${age}年` : '', quality].filter(Boolean).join(' ')}`;
+          
+          const stats = bone && bone.stats_bonus;
+          if (stats) {
+            const statParts = [];
+            if (stats.str) statParts.push(`力+${stats.str}`);
+            if (stats.def) statParts.push(`防+${stats.def}`);
+            if (stats.agi) statParts.push(`敏+${stats.agi}`);
+            if (stats.vit_max) statParts.push(`体+${stats.vit_max}`);
+            if (stats.men_max) statParts.push(`精+${stats.men_max}`);
+            if (statParts.length) descText += ` ｜ ${statParts.join(' ')}`;
+          }
+
+          const skillsObj = bone && bone['附带技能'];
+          if (skillsObj && Object.keys(skillsObj).length) {
+            const skillNames = Object.keys(skillsObj).join(' / ');
+            descText += ` ｜ 技能: [${skillNames}]`;
+          }
+
+          return { title: `${boneName} / ${slot}`, desc: descText };
+        });
 
         return {
           title: '武装工坊弹窗',
