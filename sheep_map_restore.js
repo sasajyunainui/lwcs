@@ -4306,12 +4306,12 @@
   }
 
   function getCurrentCoord() {
+    const actualCoord = getActualCurrentCoord();
+    if (actualCoord) return { x: actualCoord.x, y: actualCoord.y };
     if (!hasActivePreview()) {
       if (mapState.currentFreePoint) return { x: mapState.currentFreePoint.x, y: mapState.currentFreePoint.y };
       if (mapState.currentNode) return getMapNodeCoord(mapState.currentNode);
     }
-    const actualCoord = getActualCurrentCoord();
-    if (actualCoord) return { x: actualCoord.x, y: actualCoord.y };
     if (mapState.currentFreePoint) return { x: mapState.currentFreePoint.x, y: mapState.currentFreePoint.y };
     if (mapState.currentNode) return getMapNodeCoord(mapState.currentNode);
     return getDefaultMapCoordCenter();
@@ -6073,10 +6073,16 @@
     return `自动规划：${compact.join(' → ')}`;
   }
 
+  const worldTravelPathCache = new Map();
+
   function findWorldTravelGridPath(startNode, endNode, options = {}) {
     const gridData = getMainMapTerrainGridData('map_douluo_world');
     if (!gridData || !startNode || !endNode) return null;
     const allowWater = options.allowWater !== false;
+    const cacheKey = `${startNode.gx},${startNode.gy}-${endNode.gx},${endNode.gy}-${allowWater}`;
+    if (worldTravelPathCache.has(cacheKey)) {
+      return worldTravelPathCache.get(cacheKey);
+    }
     const dirs = [
       [1, 0], [-1, 0], [0, 1], [0, -1],
       [1, 1], [1, -1], [-1, 1], [-1, -1]
@@ -6104,7 +6110,9 @@
           const [txText, tyText] = traceKey.split(',');
           path.push({ gx: Number(txText), gy: Number(tyText) });
         }
-        return path.reverse();
+        const finalRes = path.reverse();
+        worldTravelPathCache.set(cacheKey, finalRes);
+        return finalRes;
       }
       for (const [dx, dy] of dirs) {
         const ngx = currentNode.gx + dx;
@@ -6373,13 +6381,6 @@
       if (distance > 25) pushFlightMethods();
       if (distance > 1200) pushMethod('空间传送(极限斗罗)');
       return methods.length ? methods : ['步行'];
-    }
-
-    if (ctx.shipEligible) {
-      pushMethod('远洋巨轮');
-      pushFlightMethods();
-      if (distance > 950) pushMethod('空间传送(极限斗罗)');
-      return methods.length ? methods : ['远洋巨轮'];
     }
 
     if (distance <= 50) {
@@ -7554,26 +7555,30 @@
   }
 
   function syncInteractiveMapUI(options = {}, fullDataSync = false) {
-    const { center = false, updateInfo = fullDataSync } = options;
+    const { center = false, updateInfo = fullDataSync, visualOnly = false, infoOnly = false } = options;
     const snapshot = mapState.snapshot || buildFallbackSnapshot();
     const terrainToken = `${mapState.currentMapId}|${toText(deepGet(snapshot, 'mapMeta.name', ''), '')}|${Array.isArray(snapshot.items) ? snapshot.items.length : 0}`;
     enforceMapCanvasAspect();
     applyMapResponsiveMode();
-    normalizeMapSelection();
-    if (syncInteractiveMapUI.__terrainToken !== terrainToken) {
-      renderMapTerrain();
-      syncInteractiveMapUI.__terrainToken = terrainToken;
+    if (!visualOnly) {
+      normalizeMapSelection();
+      if (syncInteractiveMapUI.__terrainToken !== terrainToken) {
+        renderMapTerrain();
+        syncInteractiveMapUI.__terrainToken = terrainToken;
+      }
+      ensureMapInteractionBindings();
     }
-    ensureMapInteractionBindings();
     if (center) {
       if (mapState.selectedFreePoint) centerMapOnCoord(mapState.selectedFreePoint, getPrimaryMapCanvas());
       else if (mapState.selectedNode) centerMapOnNode(mapState.selectedNode);
       else centerMapOnCoord(getCurrentCoord(), getPrimaryMapCanvas());
     }
-    renderMapVisualState();
-    applyMapWorldTransform();
-    if (updateInfo) {
-      renderMapInfoState();
+    if (!infoOnly) {
+      renderMapVisualState();
+      applyMapWorldTransform();
+    }
+    if (updateInfo || infoOnly) {
+      renderMapInfoState(); // 单独刷新侧边栏
     }
   }
 

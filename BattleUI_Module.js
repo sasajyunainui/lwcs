@@ -39,964 +39,3416 @@ class BattleUIComponent {
     const wrapperElement = this.container.querySelector('.battle-module-scope');
     const document = wrapperElement;
 
-    function getLiveSnapshot() {
-      return component.snapshot || snapshot || {};
-    }
-
-    function escapeJsonPointer(text) {
-      return String(text == null ? '' : text).replace(/~/g, '~0').replace(/\//g, '~1');
-    }
-
-    function ensureActorAggregate(aggregate, charName) {
-      if (!aggregate.actors[charName]) {
-        aggregate.actors[charName] = {
-          statDelta: { vit: 0, sp: 0, men: 0 },
-          nextAction: undefined,
-          nextCastTime: undefined,
-          alive: undefined,
-          conditionUpserts: {},
-          conditionRemoves: []
-        };
-      }
-      return aggregate.actors[charName];
-    }
-
-    function applyEffectToAggregate(aggregate, effect) {
-      if (!effect) return;
-      if (effect.kind === 'combat_summary') {
-        if (effect.value) aggregate.resultLines.push(String(effect.value));
-        return;
-      }
-      if (effect.kind === 'combat_active') {
-        aggregate.combat.isActive = !!effect.value;
-        return;
-      }
-      if (effect.kind === 'combat_winner') {
-        aggregate.combat.winner = String(effect.value || '');
-        return;
-      }
-      const actor = ensureActorAggregate(aggregate, String(effect.target || ''));
-      if (effect.kind === 'stat_delta') {
-        actor.statDelta[effect.key] = Number(actor.statDelta[effect.key] || 0) + Number(effect.delta || 0);
-        return;
-      }
-      if (effect.kind === 'condition_upsert') {
-        actor.conditionUpserts[effect.key] = effect.value;
-        actor.conditionRemoves = actor.conditionRemoves.filter(k => k !== effect.key);
-        return;
-      }
-      if (effect.kind === 'condition_remove') {
-        delete actor.conditionUpserts[effect.key];
-        if (!actor.conditionRemoves.includes(effect.key)) actor.conditionRemoves.push(effect.key);
-        return;
-      }
-      if (effect.kind === 'action_set') {
-        actor.nextAction = effect.value;
-        return;
-      }
-      if (effect.kind === 'cast_time_set') {
-        actor.nextCastTime = Math.max(0, Number(effect.value || 0));
-        return;
-      }
-      if (effect.kind === 'alive_set') {
-        actor.alive = !!effect.value;
-      }
-    }
-
-    function aggregateBattleSettlement(roundEvents) {
-      const aggregate = {
-        roundStart: roundEvents.length ? Number(roundEvents[0].round || 0) : 0,
-        roundEnd: roundEvents.length ? Number(roundEvents[roundEvents.length - 1].round || 0) : 0,
-        sceneText: '',
-        narrationLines: [],
-        resultLines: [],
-        actors: {},
-        combat: {
-          isActive: true,
-          winner: '',
-          summary: '',
-          sysReason: ''
-        }
-      };
-      roundEvents.forEach(evt => {
-        if (evt && evt.sceneText && !aggregate.sceneText) aggregate.sceneText = evt.sceneText;
-        if (evt && Array.isArray(evt.narrationLines)) aggregate.narrationLines.push(...evt.narrationLines);
-        (evt && Array.isArray(evt.effects) ? evt.effects : []).forEach(effect => applyEffectToAggregate(aggregate, effect));
-        if (evt && evt.combat && evt.combat.summaryFragment) aggregate.resultLines.push(String(evt.combat.summaryFragment));
-        if (evt && evt.combat && typeof evt.combat.continueBattle === 'boolean') aggregate.combat.isActive = evt.combat.continueBattle;
-      });
-      aggregate.combat.summary = aggregate.resultLines.join(' ');
-      if (!aggregate.combat.summary) aggregate.combat.summary = `第${aggregate.roundStart}至${aggregate.roundEnd}回合战斗完成结算。`;
-      return aggregate;
-    }
-
-    function getPostSettleActorState(charName, actorAgg) {
-      const liveSnapshot = getLiveSnapshot();
-      const charData = liveSnapshot && liveSnapshot.sd && liveSnapshot.sd.char ? (liveSnapshot.sd.char[charName] || {}) : {};
-      const curVit = Number(charData && charData.stat ? charData.stat.vit || 0 : 0);
-      const curSp = Number(charData && charData.stat ? charData.stat.sp || 0 : 0);
-      const curMen = Number(charData && charData.stat ? charData.stat.men || 0 : 0);
-      const nextVit = Math.max(0, curVit + Number(actorAgg && actorAgg.statDelta ? actorAgg.statDelta.vit || 0 : 0));
-      const nextSp = Math.max(0, curSp + Number(actorAgg && actorAgg.statDelta ? actorAgg.statDelta.sp || 0 : 0));
-      const nextMen = Math.max(0, curMen + Number(actorAgg && actorAgg.statDelta ? actorAgg.statDelta.men || 0 : 0));
-      const alive = typeof (actorAgg && actorAgg.alive) === 'boolean'
-        ? !!actorAgg.alive
-        : (nextVit > 0 ? !!(charData && charData.status ? charData.status.alive !== false : true) : false);
-      return { vit: nextVit, sp: nextSp, men: nextMen, alive };
-    }
-
-    function inferBattleSummaryResult(aggregate, battleMeta) {
-      const activeName = String(battleMeta && battleMeta.activeName ? battleMeta.activeName : '').trim();
-      const targetName = String(battleMeta && battleMeta.targetName ? battleMeta.targetName : '').trim();
-      const activeAgg = activeName && aggregate.actors ? aggregate.actors[activeName] : null;
-      const targetAgg = targetName && aggregate.actors ? aggregate.actors[targetName] : null;
-      const activeState = activeAgg ? getPostSettleActorState(activeName, activeAgg) : null;
-      const targetState = targetAgg ? getPostSettleActorState(targetName, targetAgg) : null;
-      const activeDefeated = !!(activeState && (!activeState.alive || activeState.vit <= 0));
-      const targetDefeated = !!(targetState && (!targetState.alive || targetState.vit <= 0));
-
-      if (activeDefeated && targetDefeated) {
-        return { result: '平局', isKilled: true };
-      }
-      if (activeName && aggregate.actors && aggregate.actors[activeName]) {
-        if (!activeState.alive || activeState.vit <= 0) return { result: '失败', isKilled: false };
-      }
-      if (targetName && aggregate.actors && aggregate.actors[targetName]) {
-        const vitDelta = Number(targetAgg && targetAgg.statDelta ? targetAgg.statDelta.vit || 0 : 0);
-        const spDelta = Number(targetAgg && targetAgg.statDelta ? targetAgg.statDelta.sp || 0 : 0);
-        const menDelta = Number(targetAgg && targetAgg.statDelta ? targetAgg.statDelta.men || 0 : 0);
-        const hasDebuff = !!(targetAgg && targetAgg.conditionUpserts && Object.keys(targetAgg.conditionUpserts).length);
-        if (!targetState.alive || targetState.vit <= 0) {
-          return { result: '击败', isKilled: true };
-        }
-        if (vitDelta < 0 || spDelta < 0 || menDelta < 0 || hasDebuff) {
-          return { result: '压制', isKilled: false };
-        }
-        return { result: '未决', isKilled: false };
-      }
-      if (aggregate.combat && aggregate.combat.winner) {
-        if (aggregate.combat.winner === activeName) {
-          return { result: '胜利', isKilled: false };
-        }
-        if (targetName && aggregate.combat.winner === targetName) {
-          return { result: '失败', isKilled: false };
-        }
-        return {
-          result: aggregate.combat.winner === battleMeta.activeName ? '胜利' : '未决',
-          isKilled: false
-        };
-      }
-      return { result: aggregate.combat && aggregate.combat.isActive === false ? '已结束' : '未决', isKilled: false };
-    }
-
-    function buildBattleSummaryPatchValue(aggregate, battleMeta) {
-      const liveSnapshot = getLiveSnapshot();
-      const currentSummary = liveSnapshot && liveSnapshot.sd && liveSnapshot.sd.world && liveSnapshot.sd.world.combat && liveSnapshot.sd.world.combat.summary && typeof liveSnapshot.sd.world.combat.summary === 'object'
-        ? liveSnapshot.sd.world.combat.summary
-        : {};
-      const currentSettle = currentSummary && currentSummary.settle_result && typeof currentSummary.settle_result === 'object' ? currentSummary.settle_result : {};
-      const settle = inferBattleSummaryResult(aggregate, battleMeta || {});
-      return {
-        player_action: {
-          action_type: String(battleMeta && battleMeta.actionType ? battleMeta.actionType : '无') || '无',
-          element_count: 1,
-          is_charged: !!(battleMeta && battleMeta.isCharged)
-        },
-        settle_result: {
-          target_npc: String(battleMeta && battleMeta.targetName ? battleMeta.targetName : (currentSettle.target_npc || '无')) || '无',
-          result: String(settle.result || currentSettle.result || '未决') || '未决',
-          is_killed: !!settle.isKilled
-        },
-        round_count: Math.max(1, Number(aggregate.roundEnd || 0) - Number(aggregate.roundStart || 0) + 1),
-        mode: String(battleMeta && battleMeta.mode ? battleMeta.mode : (currentSummary.mode || 'single_round')) || 'single_round',
-        generated_by: 'BattleUI_Module.js'
-      };
-    }
-
-    function buildBattlePatchOps(aggregate, battleMeta = {}) {
-      const liveSnapshot = getLiveSnapshot();
-      const sd = liveSnapshot && liveSnapshot.sd ? liveSnapshot.sd : {};
-      const allChars = sd && sd.char ? sd.char : {};
-      const patchOps = [];
-      Object.entries(aggregate.actors || {}).forEach(([charName, actorAgg]) => {
-        const charData = allChars[charName] || {};
-        const basePath = `/sd/char/${escapeJsonPointer(charName)}`;
-        const curVit = Number(charData && charData.stat ? charData.stat.vit || 0 : 0);
-        const curSp = Number(charData && charData.stat ? charData.stat.sp || 0 : 0);
-        const curMen = Number(charData && charData.stat ? charData.stat.men || 0 : 0);
-        const nextVit = Math.max(0, curVit + Number(actorAgg.statDelta.vit || 0));
-        const nextSp = Math.max(0, curSp + Number(actorAgg.statDelta.sp || 0));
-        const nextMen = Math.max(0, curMen + Number(actorAgg.statDelta.men || 0));
-        if (nextVit !== curVit) patchOps.push({ op: 'replace', path: `${basePath}/stat/vit`, value: nextVit });
-        if (nextSp !== curSp) patchOps.push({ op: 'replace', path: `${basePath}/stat/sp`, value: nextSp });
-        if (nextMen !== curMen) patchOps.push({ op: 'replace', path: `${basePath}/stat/men`, value: nextMen });
-        if (typeof actorAgg.nextAction === 'string' && actorAgg.nextAction) patchOps.push({ op: 'replace', path: `${basePath}/status/action`, value: actorAgg.nextAction });
-        if (typeof actorAgg.alive === 'boolean') patchOps.push({ op: 'replace', path: `${basePath}/status/alive`, value: actorAgg.alive });
-        else if (nextVit <= 0 && (!charData.status || charData.status.alive !== false)) patchOps.push({ op: 'replace', path: `${basePath}/status/alive`, value: false });
-        Object.entries(actorAgg.conditionUpserts || {}).forEach(([condKey, condValue]) => {
-          patchOps.push({ op: 'replace', path: `${basePath}/stat/conditions/${escapeJsonPointer(condKey)}`, value: condValue });
-        });
-        (actorAgg.conditionRemoves || []).forEach(condKey => {
-          patchOps.push({ op: 'remove', path: `${basePath}/stat/conditions/${escapeJsonPointer(condKey)}` });
-        });
-      });
-      patchOps.push({ op: 'replace', path: `/sd/world/combat/summary`, value: buildBattleSummaryPatchValue(aggregate, battleMeta) });
-      patchOps.push({ op: 'replace', path: `/sd/world/combat/participants`, value: buildBattleParticipantsPatchValue(aggregate, battleMeta) });
-      patchOps.push({ op: 'replace', path: `/sd/world/combat/is_active`, value: !!aggregate.combat.isActive });
-      if (aggregate.roundEnd) patchOps.push({ op: 'replace', path: `/sd/world/combat/round`, value: aggregate.roundEnd });
-      if (aggregate.combat.sysReason) patchOps.push({ op: 'replace', path: `/sd/sys/rsn`, value: aggregate.combat.sysReason });
-      return patchOps;
-    }
-
-    function normalizeSkillAction(action) {
-      const rawCastTime = action && (action.castTime ?? action.cast_time ?? action['cast_time'] ?? action['前摇'] ?? action['施法时间'] ?? action['施法前摇'] ?? action['current_cast_time']);
-      const parsedCastTime = Number(rawCastTime);
-      return {
-        name: String(action && (action.name || action['技能名称']) || '').trim(),
-        type: String(action && (action.type || action['技能类型']) || '').trim(),
-        target: String(action && (action.target || action['对象']) || '').trim(),
-        bonus: String(action && (action.bonus || action['加成属性']) || '').trim(),
-        cost: String(action && (action.cost || action['消耗']) || '').trim(),
-        desc: String(action && (action.desc || action['画面描述']) || '').trim(),
-        castTime: Number.isFinite(parsedCastTime) && parsedCastTime >= 0 ? parsedCastTime : undefined
-      };
-    }
-
-    function parseBattleCostText(costText) {
-      const text = String(costText || '');
-      const delta = { vit: 0, sp: 0, men: 0 };
-      [
-        { key: 'vit', regex: /(体力|气血|生命|血量|vit)\s*[:：]\s*(-?\d+(?:\.\d+)?)/ig },
-        { key: 'sp', regex: /(魂力|灵力|sp)\s*[:：]\s*(-?\d+(?:\.\d+)?)/ig },
-        { key: 'men', regex: /(精神(?:力)?|魂识|men)\s*[:：]\s*(-?\d+(?:\.\d+)?)/ig }
-      ].forEach(rule => {
-        let match;
-        while ((match = rule.regex.exec(text))) {
-          const raw = Number(match[2] || 0);
-          if (Number.isFinite(raw) && raw !== 0) delta[rule.key] -= Math.abs(raw);
-        }
-      });
-      return delta;
-    }
-
-    function inferSkillCastTime(skill, fallbackValue = 0, charName = null) {
-        const explicit = Number(skill && skill.castTime);
-        let baseCast = Math.max(0, Number(fallbackValue || 0));
-        if (Number.isFinite(explicit) && explicit >= 0) baseCast = explicit;
-        else {
-            const liveCast = Number(skill && (skill.current_cast_time ?? skill['current_cast_time']));
-            if (Number.isFinite(liveCast) && liveCast >= 0) baseCast = liveCast;
-        }
-        if (baseCast > 0 && charName) {
-            const enemyLaw = getActiveEnemyLaw(charName, 'time_dilation');
-            if (enemyLaw) {
-                const multi = Number(enemyLaw.cast_time_multiplier || 2.0);
-                baseCast = Math.ceil(baseCast * multi);
+      const root = typeof globalThis !== 'undefined' ? globalThis : window;
+      const lodashGet = root._ && typeof root._.get === 'function'
+        ? root._.get.bind(root._)
+        : (obj, path, fallback) => {
+            const normalized = String(path || '').split('.').filter(Boolean);
+            let cursor = obj;
+            for (const seg of normalized) {
+              if (cursor == null || typeof cursor !== 'object' || !(seg in cursor)) return fallback;
+              cursor = cursor[seg];
             }
-        }
-        return baseCast;
-    }
+            return cursor === undefined ? fallback : cursor;
+          };
 
-    function isMeaningfulBattleActionName(text) {
-      const value = String(text || '').trim();
-      return !!value && !/^(无|应战|战斗中|失去战斗能力)$/.test(value);
-    }
+      function normalizeStatPath(path) {
+        return String(path || '')
+          .replace(/^stat_data\./, '')
+          .replace(/^\.+/, '');
+      }
 
-    function inferEnemyRoundAction(attackerName) {
-      if (!attackerName) return null;
-      const participantData = getBattleParticipantData(attackerName);
-      const attackerData = getBattleCharData(attackerName);
-      const participantAction = String(participantData && participantData.action_declared ? participantData.action_declared : '').trim();
-      const statusAction = String(attackerData && attackerData.status ? attackerData.status.action || '' : '').trim();
-      const chosenName = isMeaningfulBattleActionName(participantAction) ? participantAction : (isMeaningfulBattleActionName(statusAction) ? statusAction : '');
-      if (!chosenName) return null;
-      const declaredCastTime = Math.max(0, Number(participantData && participantData.current_cast_time ? participantData.current_cast_time : 0));
-      return {
-        name: chosenName,
-        type: '',
-        target: '',
-        bonus: '',
-        cost: '',
-        desc: '',
-        castTime: declaredCastTime > 0 ? declaredCastTime : 0
-      };
-    }
+      function hasMvuRuntime() {
+        const host = getHostWindow();
+        return typeof root.getAllVariables === 'function' || typeof host?.getAllVariables === 'function';
+      }
 
-    function shouldEnemyActFirst(activeName, activeSkill, enemyName, enemySkill) {
-      if (!activeName || !enemyName || !enemySkill) return false;
-      const activeData = getBattleCharData(activeName);
-      const enemyData = getBattleCharData(enemyName);
-      const activeAgi = getBattleStatValue(activeData, 'agi');
-      const enemyAgi = getBattleStatValue(enemyData, 'agi');
-      const activeCast = inferSkillCastTime(activeSkill || {}, 0, activeName);
-      const enemyCast = inferSkillCastTime(enemySkill || {}, 0, enemyName);
-      const activeTypeBlob = `${activeSkill && activeSkill.type ? activeSkill.type : ''}/${activeSkill && activeSkill.desc ? activeSkill.desc : ''}/${activeSkill && activeSkill.name ? activeSkill.name : ''}`;
-      const enemyTypeBlob = `${enemySkill && enemySkill.type ? enemySkill.type : ''}/${enemySkill && enemySkill.desc ? enemySkill.desc : ''}/${enemySkill && enemySkill.name ? enemySkill.name : ''}`;
-      const activeTempo = /(控制|爆发|突袭|终结)/.test(activeTypeBlob) ? 4 : 0;
-      const enemyTempo = /(控制|爆发|突袭|终结)/.test(enemyTypeBlob) ? 4 : 0;
-      const activeScore = activeAgi * 0.08 - activeCast + activeTempo;
-      const enemyScore = enemyAgi * 0.08 - enemyCast + enemyTempo;
-      return enemyScore > activeScore + 2;
-    }
-
-    function inferConditionKind(skill) {
-      const text = `${skill && skill.target ? skill.target : ''}/${skill && skill.type ? skill.type : ''}/${skill && skill.desc ? skill.desc : ''}`;
-      if (/敌方/.test(text) || /(控制|削弱|异常)/.test(text)) return 'debuff';
-      if (/领域/.test(text)) return 'field';
-      if (/(蓄力|充能)/.test(text)) return 'charge';
-      if (/(恢复|续航)/.test(text)) return 'sustain';
-      return 'buff';
-    }
-
-    function buildConditionValue(skill) {
-      return {
-        类型: inferConditionKind(skill),
-        层数: 1,
-        描述: String(skill && skill.desc ? skill.desc : '') || `${String(skill && skill.name ? skill.name : '技能')}已生效`
-      };
-    }
-
-    function getBattleCharData(charName) {
-      const liveSnapshot = getLiveSnapshot();
-      const sd = liveSnapshot && liveSnapshot.sd ? liveSnapshot.sd : {};
-      const allChars = sd && sd.char ? sd.char : {};
-      return allChars[charName] || {};
-    }
-
-    function getBattleParticipantData(charName) {
-      const liveSnapshot = getLiveSnapshot();
-      const sd = liveSnapshot && liveSnapshot.sd ? liveSnapshot.sd : {};
-      const combat = sd && sd.world && sd.world.combat ? sd.world.combat : {};
-      const participants = combat && combat.participants ? combat.participants : {};
-      return participants[charName] || {};
-    }
-
-    function getDomainLaw(charData, lawKey) {
-      if (!charData || !charData.spiritual_domain || !charData.spiritual_domain.is_active) return null;
-      const rules = charData.spiritual_domain.combat_modifiers || {};
-      const law = rules[lawKey];
-      if (law && law.enabled) return law;
-      return null;
-    }
-    
-    function getActiveEnemyLaw(activeName, lawKey) {
-      // 因为只查是否被压制，我们可以用现成的 findPrimaryBattleTarget 拿到敌方
-      const targetName = findPrimaryBattleTarget(activeName);
-      if (!targetName) return null;
-      const targetData = getBattleCharData(targetName);
-      return getDomainLaw(targetData, lawKey);
-    }
-
-    function getBattleStatValue(charData, key) {
-      let val = Number(charData && charData.stat ? charData.stat[key] || 0 : 0);
-      const activeDomain = String(charData && charData.status ? charData.status.active_domain || '' : '');
-      if (activeDomain.includes('斗铠领域')) {
-        const isFour = activeDomain.includes('四字');
-        const ratio = isFour ? 1.2 : 1.1;
-        const isAll = activeDomain.includes('全开');
-        // 如果全开或显式包含当前属性名，则给予战斗内倍率
-        if (isAll || activeDomain.includes(key)) {
-          // 仅对基础战斗面板做乘算
-          if (['str','def','agi','sp_max','men_max','vit_max'].includes(key)) {
-            val = Math.floor(val * ratio);
-          }
+      function getAllVariablesSafe() {
+        if (!hasMvuRuntime()) return {};
+        try {
+          const host = getHostWindow();
+          const getter = typeof root.getAllVariables === 'function'
+            ? root.getAllVariables.bind(root)
+            : (typeof host?.getAllVariables === 'function' ? host.getAllVariables.bind(host) : null);
+          return getter ? (getter() || {}) : {};
+        } catch (error) {
+          console.warn('BattleUIBridge: getAllVariables failed', error);
+          return {};
         }
       }
-      
-      // 如果己方开着精神领域并有削减敌方的能力，反之若我是敌方，我也得吃到压制
-      // 换个思路：当前 charData.name 未知，但我们直接从 charData 自己身上查 self_buff 就行
-      const selfDomain = charData && charData.spiritual_domain ? charData.spiritual_domain : null;
-      if (selfDomain && selfDomain.is_active && selfDomain.combat_modifiers && selfDomain.combat_modifiers.self_buff) {
-          const sBuff = selfDomain.combat_modifiers.self_buff;
-          if (sBuff[key] && sBuff[key] > 0) val = Math.floor(val * sBuff[key]);
-      }
-      
-      // 遍历一下全局，有没有哪个人开着精神领域且针对了当前角色所在的阵营？
-      // 为避免循环嵌套太深，这里用 getActiveEnemyLaw 会导致传参不够。直接在调用端外层再打补丁更安全！
-      // 先留白：我们在 estimateEnemySkillEffects 那边直接扣除伤害更容易，或者改用动态比率。
 
-      return val;
-    }
+      function getMvuValue(path, fallback) {
+        const normalized = normalizeStatPath(path);
+        if (!normalized) return lodashGet(getAllVariablesSafe(), 'stat_data', fallback);
+        return lodashGet(getAllVariablesSafe(), `stat_data.${normalized}`, fallback);
+      }
 
-    function estimateEnemySkillEffects(activeName, targetName, skill) {
-      if (!targetName || !skill || !/敌方/.test(String(skill.target || ''))) return [];
-      const attackerData = getBattleCharData(activeName);
-      const targetData = getBattleCharData(targetName);
-      const targetVit = getBattleStatValue(targetData, 'vit');
-      const targetSp = getBattleStatValue(targetData, 'sp');
-      const targetMen = getBattleStatValue(targetData, 'men');
-      const attackerStr = getBattleStatValue(attackerData, 'str');
-      const attackerMen = getBattleStatValue(attackerData, 'men');
-      const targetDef = getBattleStatValue(targetData, 'def');
-      const targetAgi = getBattleStatValue(targetData, 'agi');
-      const costDelta = parseBattleCostText(skill.cost);
-      const spentVit = Math.abs(Number(costDelta.vit || 0));
-      const spentSp = Math.abs(Number(costDelta.sp || 0));
-      const spentMen = Math.abs(Number(costDelta.men || 0));
-      const typeBlob = `${skill && skill.type ? skill.type : ''}/${skill && skill.bonus ? skill.bonus : ''}/${skill && skill.desc ? skill.desc : ''}/${skill && skill.name ? skill.name : ''}`;
-      const isOutput = /(输出|爆发|破甲|物理|单体|群体|AOE|大范围)/.test(typeBlob) || (!/被动|辅助|增益|防御/.test(typeBlob) && /敌方/.test(String(skill.target || '')));
-      const isMental = /(精神|控制|削弱|异常|眩晕|压制|打断|威压|强控)/.test(typeBlob);
-      let vitDamage = 0;
-      let spDamage = 0;
-      let menDamage = 0;
-      if (isOutput) {
-        const attackPower = attackerStr * 0.25 + spentVit * 0.25 + spentSp * 0.4 + spentMen * 0.15;
-        const defense = targetDef * (/(破甲|穿透|无视防御)/.test(typeBlob) ? 0.08 : 0.18) + targetAgi * 0.05;
-        const rawDamage = Math.max(1, Math.floor(Math.max(0, attackPower - defense)));
-        const vitCap = Math.max(1, Math.floor(Math.max(targetVit, 1) * (/(爆发|强控)/.test(typeBlob) ? 0.35 : 0.18)));
-        vitDamage = Math.min(rawDamage, vitCap);
-        if (/群体|AOE|大范围/.test(String(skill.target || ''))) vitDamage = Math.max(1, Math.floor(vitDamage * 0.75));
-      }
-      if (isMental) {
-        const mentalPower = attackerMen * 0.22 + spentMen * 0.85 + spentSp * 0.18;
-        const resolve = targetMen * 0.12 + targetAgi * 0.18;
-        const rawMenDamage = Math.max(vitDamage > 0 ? 4 : 1, Math.floor(Math.max(0, mentalPower - resolve)));
-        const menCap = Math.max(1, Math.floor(Math.max(targetMen, 1) * (/(强控|控制)/.test(typeBlob) ? 0.4 : 0.22)));
-        menDamage = Math.min(rawMenDamage, menCap);
-        if (/(削弱|打断|压制)/.test(typeBlob)) spDamage = Math.min(Math.max(1, Math.floor(menDamage * 0.5)), Math.max(1, Math.floor(Math.max(targetSp, 1) * 0.2)));
-      }
-      if (!vitDamage && !spDamage && !menDamage && !/被动|辅助|增益|防御/.test(typeBlob)) {
-        vitDamage = Math.max(1, Math.min(Math.floor(attackerStr * 0.08 + spentSp * 0.12 + spentVit * 0.08 + spentMen * 0.08), Math.max(1, Math.floor(Math.max(targetVit, 1) * 0.12))));
-      }
-      
-      // 【法则：属性剥夺】 (在计算最终伤害时，如果防守方被情绪剥夺，受到伤害增加)
-      // 此处逻辑已在 getBattleStatValue 的敌方削弱里完成了大半，这里仅补充精神领域的最终修正
-
-      // 【法则：时光回溯】(绝对闪避)
-      const targetDomain = targetData && targetData.spiritual_domain ? targetData.spiritual_domain : {};
-      if (targetDomain.is_active && targetDomain.combat_modifiers && targetDomain.combat_modifiers.conditional_evasion) {
-          const rule = targetDomain.combat_modifiers.conditional_evasion;
-          if (rule.enabled) {
-              const atkStat = getBattleStatValue(attackerData, rule.compare_stat || 'men');
-              const defStat = getBattleStatValue(targetData, rule.compare_stat || 'men');
-              if (atkStat / Math.max(1, defStat) <= (rule.max_ratio || 1.5)) {
-                  vitDamage = 0; spDamage = 0; menDamage = 0;
-                  effects.push({ target: targetName, kind: 'combat_summary', value: `【法则护佑】${rule.success_msg || targetDomain.name + '生效，成功规避伤害！'}` });
-              } else {
-                  effects.push({ target: targetName, kind: 'combat_summary', value: `【法则破碎】${activeName} 凭借碾压般的精神力，强行撕裂了 [${targetDomain.name}] 的时空法则！` });
-              }
+      async function waitForMvuReady() {
+        try {
+          const host = getHostWindow();
+          const waiter = typeof root.waitGlobalInitialized === 'function'
+            ? root.waitGlobalInitialized.bind(root)
+            : (typeof host?.waitGlobalInitialized === 'function' ? host.waitGlobalInitialized.bind(host) : null);
+          if (waiter) {
+            await waiter('Mvu');
           }
-      }
-
-      // 【法则：真实伤害/因果打击】(只针对攻击方)
-      const atkDomain = attackerData && attackerData.spiritual_domain ? attackerData.spiritual_domain : {};
-      if (atkDomain.is_active && atkDomain.combat_modifiers && atkDomain.combat_modifiers.absolute_hit_true_dmg) {
-          const rule = atkDomain.combat_modifiers.absolute_hit_true_dmg;
-          if (rule.enabled) {
-              const extraDmg = Math.floor(getBattleStatValue(attackerData, 'men_max') * (rule.true_dmg_ratio || 0.1));
-              if (extraDmg > 0) {
-                  menDamage += extraDmg;
-                  effects.push({ target: targetName, kind: 'combat_summary', value: `【因果降临】${rule.success_msg || atkDomain.name + '造成了绝对精神重创！'}` });
-              }
-          }
-      }
-
-      // 【法则：灵魂汲取】(攻击方吸血)
-      if (atkDomain.is_active && atkDomain.combat_modifiers && atkDomain.combat_modifiers.soul_leech) {
-          const rule = atkDomain.combat_modifiers.soul_leech;
-          if (rule.enabled && (vitDamage > 0 || menDamage > 0)) {
-              const heal = Math.floor((vitDamage + menDamage) * (rule.leech_ratio || 0.5));
-              effects.push({ target: activeName, kind: 'stat_delta', key: 'vit', delta: heal, reason: '法则反哺' });
-              effects.push({ target: targetName, kind: 'combat_summary', value: `【血气反哺】${rule.success_msg || atkDomain.name + '贪婪地吞噬了生机！'}` });
-          }
-      }
-
-      const effects = [];
-      if (vitDamage) effects.push({ target: targetName, kind: 'stat_delta', key: 'vit', delta: -vitDamage, reason: `受到${skill.name}` });
-      if (spDamage) effects.push({ target: targetName, kind: 'stat_delta', key: 'sp', delta: -spDamage, reason: `受到${skill.name}` });
-      if (menDamage) effects.push({ target: targetName, kind: 'stat_delta', key: 'men', delta: -menDamage, reason: `受到${skill.name}` });
-      return effects;
-    }
-
-    function applyEnemyRoundActionToIncomingEffects(effects, defenderName, enemyAction, attackerName) {
-      const nextEffects = Array.isArray(effects) ? effects.map(effect => ({ ...effect })) : [];
-      if (!defenderName || !enemyAction) return nextEffects;
-      const typeBlob = `${enemyAction && enemyAction.type ? enemyAction.type : ''}/${enemyAction && enemyAction.bonus ? enemyAction.bonus : ''}/${enemyAction && enemyAction.desc ? enemyAction.desc : ''}/${enemyAction && enemyAction.name ? enemyAction.name : ''}`;
-      const isDefense = /(防御|守护|护盾|格挡|壁垒|守势|反冲)/.test(typeBlob);
-      const isControl = /(控制|削弱|异常|束缚|眩晕|禁锢|压制|打断|精神)/.test(typeBlob);
-      if (!isDefense && !isControl) return nextEffects;
-      nextEffects.forEach(effect => {
-        if (!effect || effect.target !== defenderName || effect.kind !== 'stat_delta') return;
-        if (isDefense) {
-          if (effect.key === 'vit') effect.delta = Math.min(-1, Math.ceil(Number(effect.delta || 0) * 0.58));
-          else if (effect.key === 'sp' || effect.key === 'men') effect.delta = Math.min(-1, Math.ceil(Number(effect.delta || 0) * 0.78));
-        } else if (isControl) {
-          if (effect.key === 'vit') effect.delta = Math.min(-1, Math.ceil(Number(effect.delta || 0) * 0.82));
-          else if (effect.key === 'sp' || effect.key === 'men') effect.delta = Math.min(-1, Math.ceil(Number(effect.delta || 0) * 0.72));
+        } catch (error) {
+          console.warn('BattleUIBridge: waitForMvuReady failed', error);
         }
-      });
-      if (isDefense) {
-        nextEffects.push({
-          target: defenderName,
-          kind: 'condition_upsert',
-          key: String(enemyAction && enemyAction.name ? enemyAction.name : '防御架势'),
-          value: buildConditionValue({
-            ...(enemyAction || {}),
-            name: String(enemyAction && enemyAction.name ? enemyAction.name : '防御架势'),
-            target: '自身/己方',
-            type: '防御/增益',
-            desc: `${defenderName}以防御动作削减了迎面而来的冲击。`
-          })
-        });
-      }
-      if (isControl && attackerName) {
-        const controlTax = Math.max(1, Math.floor(Math.max(0, inferSkillCastTime(enemyAction, 0)) / 8) || 1);
-        nextEffects.push({ target: attackerName, kind: 'stat_delta', key: 'men', delta: -controlTax, reason: `受到${String(enemyAction && enemyAction.name ? enemyAction.name : '控制压制')}干扰` });
-        if (/(精神|压制|打断|眩晕|禁锢)/.test(typeBlob)) {
-          nextEffects.push({ target: attackerName, kind: 'stat_delta', key: 'sp', delta: -Math.max(1, Math.floor(controlTax / 2)), reason: `受到${String(enemyAction && enemyAction.name ? enemyAction.name : '控制压制')}干扰` });
-        }
-        nextEffects.push({
-          target: attackerName,
-          kind: 'condition_upsert',
-          key: String(enemyAction && enemyAction.name ? enemyAction.name : '控制压制'),
-          value: buildConditionValue({
-            ...(enemyAction || {}),
-            name: String(enemyAction && enemyAction.name ? enemyAction.name : '控制压制'),
-            target: '敌方/单体',
-            type: '控制/削弱',
-            desc: `${attackerName}在本回合受到压制，动作精度与出手节奏被干扰。`
-          })
-        });
-      }
-      return nextEffects;
-    }
-
-    function estimateCounterAttackEffects(attackerName, defenderName) {
-      if (!attackerName || !defenderName || attackerName === defenderName) return { effects: [], summaryText: '' };
-      const attackerData = getBattleCharData(attackerName);
-      const defenderData = getBattleCharData(defenderName);
-      const declaredAction = arguments.length > 2 && arguments[2] && arguments[2].name ? arguments[2] : inferEnemyRoundAction(attackerName);
-      const actionName = String(declaredAction && declaredAction.name ? declaredAction.name : '反击').trim() || '反击';
-      const castTime = Number(declaredAction && declaredAction.castTime ? declaredAction.castTime : 0);
-      const inferredCastTime = castTime > 0 ? castTime : inferSkillCastTime(declaredAction || { castTime: 0 }, 0);
-      const castMultiplier = inferredCastTime > 0 ? Math.min(1.5, 1 + inferredCastTime / 100) : 1;
-      const attackerStr = getBattleStatValue(attackerData, 'str');
-      const attackerAgi = getBattleStatValue(attackerData, 'agi');
-      const attackerMen = getBattleStatValue(attackerData, 'men');
-      const defenderDef = getBattleStatValue(defenderData, 'def');
-      const defenderAgi = getBattleStatValue(defenderData, 'agi');
-      const defenderVit = getBattleStatValue(defenderData, 'vit');
-      const defenderMen = getBattleStatValue(defenderData, 'men');
-      const typeBlob = `${declaredAction && declaredAction.type ? declaredAction.type : ''}/${declaredAction && declaredAction.bonus ? declaredAction.bonus : ''}/${declaredAction && declaredAction.desc ? declaredAction.desc : ''}/${actionName}`;
-      const isControl = /(控制|削弱|异常|束缚|眩晕|禁锢|压制|打断|精神)/.test(typeBlob);
-      const isDefense = /(防御|守护|护盾|格挡|壁垒|守势|反冲)/.test(typeBlob);
-      const isBurst = /(爆发|终结|重击|突袭|扑击|碎岳|裂影|斩|杀)/.test(typeBlob);
-      const baseVitDamage = Math.max(1, Math.floor(Math.max(0, (attackerStr * 0.12 + attackerAgi * 0.05 - defenderDef * 0.08 - defenderAgi * 0.03) * castMultiplier)));
-      const baseMenRaw = Math.floor(Math.max(0, (attackerMen * 0.08 - defenderMen * 0.04) * castMultiplier));
-      let vitDamage = 0;
-      let menDamage = 0;
-      let spDamage = 0;
-      const effects = [];
-
-      if (isDefense) {
-        vitDamage = Math.min(Math.max(1, Math.floor(baseVitDamage * 0.55)), Math.max(1, Math.floor(Math.max(defenderVit, 1) * 0.08)));
-        effects.push({ target: attackerName, kind: 'condition_upsert', key: actionName, value: buildConditionValue({ ...declaredAction, name: actionName, target: '自身/己方', type: '防御/增益', desc: `${attackerName}以「${actionName}」稳住阵脚，强化了自身防势。` }) });
-      } else if (isControl) {
-        vitDamage = Math.min(Math.max(1, Math.floor(baseVitDamage * 0.6)), Math.max(1, Math.floor(Math.max(defenderVit, 1) * 0.1)));
-        menDamage = baseMenRaw > 0 ? Math.min(Math.max(2, Math.floor(baseMenRaw * 1.5)), Math.max(1, Math.floor(Math.max(defenderMen, 1) * 0.18))) : Math.max(1, Math.floor(Math.max(defenderMen, 1) * 0.06));
-        spDamage = Math.min(Math.max(1, Math.floor(menDamage * 0.5)), Math.max(1, Math.floor(Math.max(getBattleStatValue(defenderData, 'sp'), 1) * 0.12)));
-        effects.push({ target: defenderName, kind: 'condition_upsert', key: actionName, value: buildConditionValue({ ...declaredAction, name: actionName, target: '敌方/单体', type: '控制/削弱', desc: `${attackerName}以「${actionName}」压制了${defenderName}的行动与精神。` }) });
-      } else {
-        const burstMult = isBurst ? 1.28 : 1;
-        vitDamage = Math.min(Math.max(1, Math.floor(baseVitDamage * burstMult)), Math.max(1, Math.floor(Math.max(defenderVit, 1) * (isBurst ? 0.16 : 0.12))));
-        if (baseMenRaw > 0) menDamage = Math.min(Math.max(1, Math.floor(baseMenRaw * (isBurst ? 0.85 : 0.55))), Math.max(1, Math.floor(Math.max(defenderMen, 1) * 0.1)));
+        return hasMvuRuntime();
       }
 
-      if (vitDamage) effects.push({ target: defenderName, kind: 'stat_delta', key: 'vit', delta: -vitDamage, reason: `受到${attackerName}反击` });
-      if (spDamage) effects.push({ target: defenderName, kind: 'stat_delta', key: 'sp', delta: -spDamage, reason: `受到${attackerName}反击` });
-      if (menDamage) effects.push({ target: defenderName, kind: 'stat_delta', key: 'men', delta: -menDamage, reason: `受到${attackerName}反击` });
-
-      const summaryText = isDefense
-        ? `${attackerName}以「${actionName}」稳住阵脚，在强化自身防势的同时逼退了${defenderName}。`
-        : isControl
-          ? `${attackerName}以「${actionName}」完成压制，扰乱了${defenderName}的精神与行动节奏。`
-          : (menDamage
-              ? `${attackerName}以「${actionName}」完成反击，压低了${defenderName}的体力与精神。`
-              : `${attackerName}以「${actionName}」完成反击，压低了${defenderName}的体力。`);
-
-      return {
-        effects,
-        actionName,
-        castTime: inferredCastTime,
-        summaryText
-      };
-    }
-
-    function findPrimaryBattleTarget(activeName) {
-      const liveSnapshot = getLiveSnapshot();
-      const sd = liveSnapshot && liveSnapshot.sd ? liveSnapshot.sd : {};
-      const combat = sd && sd.world && sd.world.combat ? sd.world.combat : {};
-      const currentSummary = combat && combat.summary && typeof combat.summary === 'object' ? combat.summary : {};
-      const currentSettle = currentSummary && currentSummary.settle_result && typeof currentSummary.settle_result === 'object' ? currentSummary.settle_result : {};
-      const currentTarget = String(currentSettle.target_npc || '').trim();
-      if (currentTarget && currentTarget !== '无' && currentTarget !== activeName) return currentTarget;
-      const participants = combat && combat.participants ? combat.participants : {};
-      const participantTarget = Object.entries(participants).find(([name, info]) => name !== activeName && info && info.faction === '敌对' && info.status !== '死亡');
-      if (participantTarget) return participantTarget[0];
-      const allChars = sd && sd.char ? sd.char : {};
-      const charTarget = Object.entries(allChars).find(([name, charData]) => name !== activeName && (!charData || !charData.status || charData.status.alive !== false));
-      return charTarget ? charTarget[0] : '';
-    }
-
-    function buildBattleMeta(activeName, intentText, selectedSkillActions, battleMode) {
-      const normalizedSkills = (Array.isArray(selectedSkillActions) ? selectedSkillActions : []).map(normalizeSkillAction).filter(skill => skill.name);
-      const actionType = normalizedSkills.map(skill => skill.name).filter(Boolean).join('、') || String(intentText || '').trim() || '普通攻击';
-      const skillBlob = normalizedSkills.map(skill => `${skill.name}/${skill.type}/${skill.target}/${skill.desc}`).join('\n');
-      const hasExplicitSelfOnly = normalizedSkills.length > 0 && normalizedSkills.every(skill => !/敌方/.test(String(skill.target || '')));
-      return {
-        activeName,
-        targetName: hasExplicitSelfOnly ? '' : findPrimaryBattleTarget(activeName),
-        actionType,
-        selectedSkillActions: normalizedSkills,
-        mode: battleMode === 'multi_round' ? 'multi_round' : 'single_round',
-        isCharged: /蓄力/.test(`${actionType}\n${skillBlob}`)
-      };
-    }
-
-    function buildParticipantStatus(charName, actorAgg) {
-      const charData = getBattleCharData(charName);
-      const nextState = getPostSettleActorState(charName, actorAgg || { statDelta: { vit: 0, sp: 0, men: 0 } });
-      const vitMax = Number(charData && charData.stat ? charData.stat.vit_max || 0 : 0);
-      if (!nextState.alive || nextState.vit <= 0) return '死亡';
-      if (vitMax > 0) {
-        const ratio = nextState.vit / vitMax;
-        if (ratio <= 0.1) return '濒死';
-        if (ratio <= 0.35) return '重伤';
+      function subscribeMvuUpdates(handler) {
+        if (typeof handler !== 'function') return false;
+        const host = getHostWindow();
+        const eventName = root.Mvu?.events?.VARIABLE_UPDATE_ENDED || host?.Mvu?.events?.VARIABLE_UPDATE_ENDED;
+        const eventOnFn = typeof root.eventOn === 'function' ? root.eventOn.bind(root) : (typeof host?.eventOn === 'function' ? host.eventOn.bind(host) : null);
+        if (!eventName || !eventOnFn) return false;
+        eventOnFn(eventName, handler);
+        return true;
       }
-      return '存活';
-    }
 
-    function buildBattleParticipantsPatchValue(aggregate, battleMeta) {
-      const liveSnapshot = getLiveSnapshot();
-      const sd = liveSnapshot && liveSnapshot.sd ? liveSnapshot.sd : {};
-      const combat = sd && sd.world && sd.world.combat ? sd.world.combat : {};
-      const currentParticipants = combat && combat.participants && typeof combat.participants === 'object' ? combat.participants : {};
-      const nextParticipants = JSON.parse(JSON.stringify(currentParticipants || {}));
-      const activeName = String(battleMeta && battleMeta.activeName ? battleMeta.activeName : '').trim();
-      const targetName = String(battleMeta && battleMeta.targetName ? battleMeta.targetName : '').trim();
-      const exchangeTargetName = targetName || (activeName ? findPrimaryBattleTarget(activeName) : '');
-      const activeCurrent = nextParticipants[activeName] || {};
-      if (activeName) {
-        const activeAgg = aggregate && aggregate.actors ? aggregate.actors[activeName] : null;
-        const activeStatus = buildParticipantStatus(activeName, activeAgg);
-        nextParticipants[activeName] = {
-          faction: activeCurrent.faction || '己方',
-          status: activeStatus,
-          action_declared: activeStatus === '死亡'
-            ? '无'
-            : String(activeAgg && typeof activeAgg.nextAction === 'string' && activeAgg.nextAction ? activeAgg.nextAction : (battleMeta && battleMeta.actionType ? battleMeta.actionType : activeCurrent.action_declared || '无')) || '无',
-          is_summon: !!activeCurrent.is_summon,
-          current_cast_time: activeStatus === '死亡'
-            ? 0
-            : Math.max(0, Number(activeAgg && Number.isFinite(activeAgg.nextCastTime) ? activeAgg.nextCastTime : (activeCurrent.current_cast_time || 0)))
+      function deepClonePlain(value) {
+        return value == null ? value : JSON.parse(JSON.stringify(value));
+      }
+
+      function escapeJsonPointerSegment(segment) {
+        return String(segment).replace(/~/g, '~0').replace(/\//g, '~1');
+      }
+
+      function pushReplaceOp(ops, path, value) {
+        if (value === undefined) return;
+        ops.push({ op: 'replace', path, value: deepClonePlain(value) });
+      }
+
+      function pushParticipantSyncPatch(ops, participant, extraNames = []) {
+        if (!participant || typeof participant !== 'object') return;
+
+        const names = new Set((Array.isArray(extraNames) ? extraNames : [extraNames]).filter(Boolean));
+        if (participant.name) names.add(participant.name);
+        const basePaths = Array.from(names).map(name => `/sd/char/${escapeJsonPointerSegment(name)}`);
+        if (!basePaths.length) return;
+
+        const addToTargets = (suffix, value) => {
+          if (value === undefined) return;
+          basePaths.forEach(base => pushReplaceOp(ops, `${base}${suffix}`, value));
         };
-      }
-      if (exchangeTargetName) {
-        const targetCurrent = nextParticipants[exchangeTargetName] || {};
-        const targetAgg = aggregate && aggregate.actors ? aggregate.actors[exchangeTargetName] : null;
-        const targetStatus = buildParticipantStatus(exchangeTargetName, aggregate && aggregate.actors ? aggregate.actors[exchangeTargetName] : null);
-        nextParticipants[exchangeTargetName] = {
-          faction: targetCurrent.faction || '敌对',
-          status: targetStatus,
-          action_declared: targetStatus === '死亡'
-            ? '无'
-            : String(targetAgg && typeof targetAgg.nextAction === 'string' && targetAgg.nextAction ? targetAgg.nextAction : (targetCurrent.action_declared || '应战')) || '应战',
-          is_summon: !!targetCurrent.is_summon,
-          current_cast_time: targetStatus === '死亡'
-            ? 0
-            : Math.max(0, Number(targetAgg && Number.isFinite(targetAgg.nextCastTime) ? targetAgg.nextCastTime : (targetCurrent.current_cast_time || 0)))
-        };
-      }
-      return nextParticipants;
-    }
 
-    function resolveActiveBattleName() {
-      const liveSnapshot = getLiveSnapshot();
-      const sd = liveSnapshot && liveSnapshot.sd ? liveSnapshot.sd : {};
-      const chars = sd && sd.char ? sd.char : {};
-      const snapshotActive = String(liveSnapshot && liveSnapshot.activeName ? liveSnapshot.activeName : '').trim();
-      if (snapshotActive && chars[snapshotActive]) return snapshotActive;
-      const playerName = String(sd && sd.sys && sd.sys.player_name ? sd.sys.player_name : '').trim();
-      if (playerName && chars[playerName]) return playerName;
-      if (chars['主角']) return '主角';
-      const firstName = Object.keys(chars)[0];
-      return firstName || snapshotActive || '主角';
-    }
-
-    function buildBattleResultLines(aggregate) {
-      const lines = [];
-      Object.entries(aggregate.actors || {}).forEach(([charName, actorAgg]) => {
-        const fragments = [];
-        const resourceLabels = [];
-        if (Number(actorAgg && actorAgg.statDelta ? actorAgg.statDelta.vit || 0 : 0) !== 0) resourceLabels.push('体力');
-        if (Number(actorAgg && actorAgg.statDelta ? actorAgg.statDelta.sp || 0 : 0) !== 0) resourceLabels.push('魂力');
-        if (Number(actorAgg && actorAgg.statDelta ? actorAgg.statDelta.men || 0 : 0) !== 0) resourceLabels.push('精神');
-        if (resourceLabels.length) fragments.push(`${resourceLabels.join('、')}已完成本批次结算`);
-
-        const conditionAdds = Object.keys(actorAgg && actorAgg.conditionUpserts ? actorAgg.conditionUpserts : {});
-        if (conditionAdds.length) fragments.push(`已附加【${conditionAdds.join('】、【')}】`);
-
-        const conditionRemoves = Array.isArray(actorAgg && actorAgg.conditionRemoves) ? actorAgg.conditionRemoves : [];
-        if (conditionRemoves.length) fragments.push(`已解除【${conditionRemoves.join('】、【')}】`);
-
-        if (typeof actorAgg.nextAction === 'string' && actorAgg.nextAction) {
-          fragments.push(actorAgg.nextAction === '战斗中'
-            ? '已进入战斗中状态'
-            : `当前状态已更新为「${actorAgg.nextAction}」`);
-        }
-
-        if (actorAgg && actorAgg.alive === false) fragments.push('已失去战斗能力');
-
-        if (fragments.length) lines.push(`${charName}：${fragments.join('，')}。`);
-      });
-      if (aggregate.combat && aggregate.combat.winner) lines.push(`本批次战斗胜势方：${aggregate.combat.winner}。`);
-      if (aggregate.combat && aggregate.combat.summary) lines.push(aggregate.combat.summary);
-      return lines;
-    }
-
-    function buildBattleSystemInput(aggregate, patchOps) {
-      const analysisText = `战斗批次结算完成：第${aggregate.roundStart}至${aggregate.roundEnd}回合。已合并资源变化、状态变化、存活状态与战斗摘要。`;
-      const resultLines = buildBattleResultLines(aggregate);
-      return [
-        `[场景说明]\n${aggregate.sceneText || '战斗仍在持续，双方保持高速交锋。'}`,
-        aggregate.narrationLines.length ? `[仲裁过程]\n${aggregate.narrationLines.join('\n')}` : '',
-        resultLines.length ? `[仲裁结果]\n${resultLines.join('\n')}` : '',
-        `[描写要求]\n请将以上隐藏结算写成连续、激烈、有冲击感的战斗描写，正文不要出现系统术语。`,
-        `<UpdateVariable>`,
-        `<Analysis>${analysisText}</Analysis>`,
-        `<JSONPatch>`,
-        JSON.stringify(patchOps, null, 2),
-        `</JSONPatch>`,
-        `</UpdateVariable>`
-      ].filter(Boolean).join('\n\n');
-    }
-
-    function collectRoundEvents(intentText, selectedSkillActions, battleMode) {
-      const liveSnapshot = getLiveSnapshot();
-      const sd = liveSnapshot && liveSnapshot.sd ? liveSnapshot.sd : {};
-      const currentRound = Number(sd && sd.world && sd.world.combat ? sd.world.combat.round || 0 : 0);
-      const currentActive = sd && sd.world && sd.world.combat && typeof sd.world.combat.is_active === 'boolean' ? sd.world.combat.is_active : true;
-      const activeName = resolveActiveBattleName();
-      const normalizedIntent = String(intentText || '').trim() || '普通攻击';
-      const battleMeta = buildBattleMeta(activeName, normalizedIntent, selectedSkillActions, battleMode);
-      const maxRounds = battleMeta.mode === 'multi_round' ? 3 : 1;
-      const exchangeTargetName = battleMeta.targetName || findPrimaryBattleTarget(activeName);
-      const skillQueue = (battleMeta.selectedSkillActions.length ? battleMeta.selectedSkillActions : [{
-        name: normalizedIntent,
-        type: battleMeta.targetName ? '输出/动作' : '动作',
-        target: battleMeta.targetName ? '敌方/单体' : '自身/动作',
-        bonus: '无',
-        cost: '无',
-        desc: normalizedIntent
-      }]).slice(0, maxRounds);
-      const roundEvents = [];
-      let continueBattle = currentActive;
-
-      for (let index = 0; index < skillQueue.length && continueBattle; index += 1) {
-        const skill = skillQueue[index];
-        
-        // 1. 回合开始前的精神领域维持消耗判定
-        const activeData = getBattleCharData(activeName);
-        if (activeData && activeData.spiritual_domain && activeData.spiritual_domain.is_active) {
-            const costMen = activeData.spiritual_domain.maintenance_cost?.men || 8000;
-            const currentMen = Number(activeData.stat?.men || 0);
-            if (currentMen >= costMen) {
-                effects.push({ target: activeName, kind: 'stat_delta', key: 'men', delta: -costMen, reason: `维持${activeData.spiritual_domain.name}` });
-            } else {
-                effects.push({ target: activeName, kind: 'combat_summary', value: `【法则反噬】${activeName} 精神透支，无法维持庞大的消耗，[${activeData.spiritual_domain.name}]轰然崩碎！` });
-            }
-        }
-
-        const roundNumber = currentRound + index + 1;
-        const enemyRoundAction = exchangeTargetName ? inferEnemyRoundAction(exchangeTargetName) : null;
-        const declaredTargetName = /敌方/.test(String(skill.target || '')) ? (battleMeta.targetName || exchangeTargetName) : '';
-        const narrationLines = [];
-        const skillCastTime = inferSkillCastTime(skill, 0, activeName);
-        const effects = [{ target: activeName, kind: 'action_set', value: skill.name || normalizedIntent }];
-        effects.push({ target: activeName, kind: 'cast_time_set', value: skillCastTime });
-        const enemyActionTypeBlob = `${enemyRoundAction && enemyRoundAction.type ? enemyRoundAction.type : ''}/${enemyRoundAction && enemyRoundAction.bonus ? enemyRoundAction.bonus : ''}/${enemyRoundAction && enemyRoundAction.desc ? enemyRoundAction.desc : ''}/${enemyRoundAction && enemyRoundAction.name ? enemyRoundAction.name : ''}`;
-        const enemyIsDefense = /(防御|守护|护盾|格挡|壁垒|守势|反冲)/.test(enemyActionTypeBlob);
-        const enemyIsControl = /(控制|削弱|异常|束缚|眩晕|禁锢|压制|打断|精神)/.test(enemyActionTypeBlob);
-        const enemyActsFirst = exchangeTargetName && enemyRoundAction ? shouldEnemyActFirst(activeName, skill, exchangeTargetName, enemyRoundAction) : false;
-        let playerActionResolved = true;
-        let openingSummaryText = '';
-
-        // 【法则：幻境迷失】 (在对方出手宣告时判定是否直接空掉)
-        const illusionRule = getActiveEnemyLaw(activeName, 'illusion_misdirection');
-        if (illusionRule && Math.random() < Number(illusionRule.misdirection_chance || 0.4)) {
-            playerActionResolved = false;
-            effects.push({ 
-                target: activeName, 
-                kind: 'combat_summary', 
-                value: `【幻境迷失】${activeName} 的攻击彻底失去了目标！ ${illusionRule.success_msg || ''}` 
-            });
-            narrationLines.push(`第${roundNumber}回合：${activeName} 深陷幻境，动作完全偏离了预判轨迹。`);
-        }
-
-        if (exchangeTargetName && enemyRoundAction) {
-          effects.push({ target: exchangeTargetName, kind: 'action_set', value: enemyRoundAction.name || '应战' });
-          effects.push({ target: exchangeTargetName, kind: 'cast_time_set', value: Number(enemyRoundAction.castTime || 0) });
-        }
-
-        if (enemyActsFirst && exchangeTargetName && enemyRoundAction) {
-          const opening = estimateCounterAttackEffects(exchangeTargetName, activeName, enemyRoundAction);
-          if (opening.effects.length) {
-            opening.effects.forEach(effect => effects.push(effect));
-            narrationLines.push(`第${roundNumber}回合：${exchangeTargetName}抢得先手，以「${opening.actionName || enemyRoundAction.name || '先手压制'}」率先压上。`);
-            openingSummaryText = `${exchangeTargetName}抢得先手，以「${opening.actionName || enemyRoundAction.name || '先手压制'}」率先压上。`;
-            const openingPreview = aggregateBattleSettlement([...roundEvents, {
-              round: roundNumber,
-              sceneText: '',
-              narrationLines: [],
-              effects,
-              combat: { summaryFragment: '', continueBattle: true }
-            }]);
-            const openingState = getPostSettleActorState(activeName, openingPreview.actors[activeName]);
-            if (!openingState.alive || openingState.vit <= 0) {
-              effects.push({ target: activeName, kind: 'alive_set', value: false });
-              effects.push({ target: activeName, kind: 'action_set', value: '失去战斗能力' });
-              effects.push({ target: activeName, kind: 'cast_time_set', value: 0 });
-              narrationLines.push(`第${roundNumber}回合：${activeName}尚未来得及完成「${skill.name}」，就被${exchangeTargetName}当场压制。`);
-              playerActionResolved = false;
-            }
-          }
-        }
-
-        const costDelta = parseBattleCostText(skill.cost);
-        if (playerActionResolved) {
-          Object.entries(costDelta).forEach(([key, delta]) => {
-            if (delta) effects.push({ target: activeName, kind: 'stat_delta', key, delta, reason: `施放${skill.name}` });
+        if (participant.stat !== undefined) {
+          addToTargets('/stat', participant.stat);
+        } else {
+          ['age', 'lv', 'type', 'talent_tier', 'is_evil', 'sp', 'sp_max', 'men', 'men_max', 'str', 'def', 'agi', 'vit', 'vit_max', 'conditions'].forEach(key => {
+            addToTargets(`/${escapeJsonPointerSegment(key)}`, participant[key]);
           });
-          const playerToEnemyEffects = applyEnemyRoundActionToIncomingEffects(
-            estimateEnemySkillEffects(activeName, declaredTargetName, skill),
-            declaredTargetName,
-            enemyRoundAction,
-            activeName
-          );
-          playerToEnemyEffects.forEach(effect => effects.push(effect));
         }
-        const enemyPrepText = exchangeTargetName && enemyRoundAction && !enemyActsFirst ? (enemyIsDefense ? `${exchangeTargetName}以「${enemyRoundAction.name}」预先收紧防势。` : (enemyIsControl ? `${exchangeTargetName}以「${enemyRoundAction.name}」先行压制了${activeName}的出手节奏。` : '')) : '';
-        if (playerActionResolved && /自身|己方/.test(skill.target) && !/被动/.test(skill.type)) {
-          effects.push({ target: activeName, kind: 'condition_upsert', key: skill.name, value: buildConditionValue(skill) });
-        } else if (playerActionResolved && declaredTargetName && /敌方/.test(skill.target) && /(控制|削弱|异常|输出|爆发|强控)/.test(skill.type)) {
-          if (/(控制|削弱|异常)/.test(skill.type)) {
-            effects.push({ target: declaredTargetName, kind: 'condition_upsert', key: skill.name, value: buildConditionValue(skill) });
-          }
+
+        if (participant.status !== undefined) {
+          addToTargets('/status', participant.status);
+        } else {
+          ['alive', 'wound', 'action', 'active_domain', 'loc', 'current_x', 'current_y'].forEach(key => {
+            addToTargets(`/${escapeJsonPointerSegment(key)}`, participant[key]);
+          });
         }
-        if (playerActionResolved) narrationLines.push(`第${roundNumber}回合：${activeName}施放「${skill.name}」${skill.cost && skill.cost !== '无' ? `，消耗${skill.cost}` : ''}${declaredTargetName ? `，目标锁定【${declaredTargetName}】` : ''}。`);
-        if (!enemyActsFirst && exchangeTargetName && enemyRoundAction && enemyIsDefense) narrationLines.push(`第${roundNumber}回合：${exchangeTargetName}提前以「${enemyRoundAction.name}」收紧防势。`);
-        else if (!enemyActsFirst && exchangeTargetName && enemyRoundAction && enemyIsControl) narrationLines.push(`第${roundNumber}回合：${exchangeTargetName}正在以「${enemyRoundAction.name}」凝聚压制。`, `第${roundNumber}回合：${activeName}的出手节奏受到干扰，攻击效率被压低。`);
 
-        let summaryFragment = playerActionResolved
-          ? (declaredTargetName ? `${openingSummaryText ? `${openingSummaryText} ` : ''}${activeName}在第${roundNumber}回合对${declaredTargetName}执行了战斗动作：${skill.name}。${enemyPrepText ? ` ${enemyPrepText}` : ''}` : `${openingSummaryText ? `${openingSummaryText} ` : ''}${activeName}在第${roundNumber}回合执行了战斗动作：${skill.name}。${enemyPrepText ? ` ${enemyPrepText}` : ''}`)
-          : `${openingSummaryText}${openingSummaryText ? ' ' : ''}${activeName}未能完成「${skill.name}」。`;
+        addToTargets('/conditions', participant.conditions);
+        addToTargets('/active_sustains', participant.active_sustains);
+        addToTargets('/charging_skill', participant.charging_skill);
+        addToTargets('/equip', participant.equip);
+        addToTargets('/bloodline_power', participant.bloodline_power);
+      }
 
-        const event = {
-          round: roundNumber,
-          sceneText: '战斗仍在持续，双方保持高速交锋。',
-          narrationLines,
-          effects,
-          combat: {
-            summaryFragment,
-            continueBattle
-          }
+      function buildCombatJsonPatch(combatData) {
+        const safeCombatData = deepClonePlain(combatData);
+        const ops = [{ op: 'replace', path: '/sd/world/combat', value: safeCombatData }];
+
+        const participants = safeCombatData?.participants;
+        if (!participants) return ops;
+
+        pushParticipantSyncPatch(ops, participants.player, ['主角']);
+        pushParticipantSyncPatch(ops, participants.enemy);
+        (participants.team_player || []).forEach(unit => pushParticipantSyncPatch(ops, unit));
+        (participants.team_enemy || []).forEach(unit => pushParticipantSyncPatch(ops, unit));
+
+        return ops;
+      }
+
+      function buildUpdateVariableText(patchOps, options = {}) {
+        const analysis = String(options.analysis || 'Frontend battle arbitration already produced the exact combat result. Apply the following JSONPatch exactly as given.').trim();
+        return `<UpdateVariable>\n<Analysis>${analysis}</Analysis>\n<JSONPatch>\n${JSON.stringify(patchOps || [], null, 2)}\n</JSONPatch>\n</UpdateVariable>`;
+      }
+
+      function persistCombatData(combatData, options = {}) {
+        const safeCombatData = deepClonePlain(combatData);
+        const patchOps = buildCombatJsonPatch(safeCombatData);
+        if (Array.isArray(options.extraPatchOps)) {
+          patchOps.push(...options.extraPatchOps);
+        }
+        const updateVariableText = buildUpdateVariableText(patchOps, options);
+        const detail = {
+          combatData: safeCombatData,
+          patchOps,
+          updateVariableText,
+          rootPath: '/sd/world/combat'
         };
 
-        let previewAggregate = aggregateBattleSettlement([...roundEvents, event]);
-        let activePreview = getPostSettleActorState(activeName, previewAggregate.actors[activeName]);
-        let targetPreview = exchangeTargetName && previewAggregate.actors[exchangeTargetName]
-          ? getPostSettleActorState(exchangeTargetName, previewAggregate.actors[exchangeTargetName])
-          : null;
+        root.__lastBattleMvuUpdateRequest = detail;
 
-        if (!enemyActsFirst && exchangeTargetName && targetPreview && activePreview.alive && targetPreview.alive && event.combat.continueBattle) {
-          const counter = estimateCounterAttackEffects(exchangeTargetName, activeName, enemyRoundAction);
-          if (counter.effects.length) {
-            effects.push({ target: exchangeTargetName, kind: 'action_set', value: counter.actionName || (enemyRoundAction && enemyRoundAction.name) || '反击' });
-            effects.push({ target: exchangeTargetName, kind: 'cast_time_set', value: Number(counter.castTime || (enemyRoundAction && enemyRoundAction.castTime) || 0) });
-            counter.effects.forEach(effect => effects.push(effect));
-            narrationLines.push(`第${roundNumber}回合：${exchangeTargetName}抓住空隙，以「${counter.actionName || (enemyRoundAction && enemyRoundAction.name) || '反击'}」发起反击。`);
-            summaryFragment = exchangeTargetName
-              ? `${activeName}与${exchangeTargetName}在第${roundNumber}回合完成了一轮攻防交换：${skill.name}。${enemyPrepText ? ` ${enemyPrepText}` : ''} ${counter.summaryText}`
-              : `${activeName}在第${roundNumber}回合完成动作后遭遇反击。 ${counter.summaryText}`;
-            event.combat.summaryFragment = summaryFragment;
-            previewAggregate = aggregateBattleSettlement([...roundEvents, event]);
-            activePreview = getPostSettleActorState(activeName, previewAggregate.actors[activeName]);
-            targetPreview = exchangeTargetName && previewAggregate.actors[exchangeTargetName]
-              ? getPostSettleActorState(exchangeTargetName, previewAggregate.actors[exchangeTargetName]) : null;
+        const bridge = root.BattleUIBridge || {};
+        const adapter = bridge.hostAdapter || root.__battleUIHostAdapter;
+        if (typeof bridge.onCombatDataChanged === 'function') {
+          try {
+            detail.delivery = bridge.onCombatDataChanged(detail);
+          } catch (error) {
+            console.warn('BattleUIBridge.onCombatDataChanged failed', error);
+          }
+        } else if (adapter && typeof adapter.onCombatDataChanged === 'function') {
+          try {
+            detail.delivery = adapter.onCombatDataChanged(detail);
+          } catch (error) {
+            console.warn('BattleUI hostAdapter.onCombatDataChanged failed', error);
           }
         }
 
-        if (!activePreview.alive || activePreview.vit <= 0) {
-          effects.push({ target: activeName, kind: 'alive_set', value: false });
-          effects.push({ target: activeName, kind: 'action_set', value: '失去战斗能力' });
-          effects.push({ target: activeName, kind: 'cast_time_set', value: 0 });
-          event.combat.continueBattle = false;
-        }
-        if (exchangeTargetName && targetPreview && (!targetPreview.alive || targetPreview.vit <= 0)) {
-          effects.push({ target: exchangeTargetName, kind: 'alive_set', value: false });
-          effects.push({ target: exchangeTargetName, kind: 'action_set', value: '失去战斗能力' });
-          effects.push({ target: exchangeTargetName, kind: 'cast_time_set', value: 0 });
-          event.combat.continueBattle = false;
+        try {
+          root.dispatchEvent(new CustomEvent('battle-ui-mvu-update-request', { detail }));
+        } catch (error) {
+          console.warn('battle-ui-mvu-update-request dispatch failed', error);
         }
 
-        roundEvents.push(event);
-        continueBattle = !!event.combat.continueBattle;
+        try {
+          root.dispatchEvent(new CustomEvent('battle-ui-combat-data-changed', { detail }));
+        } catch (error) {
+          console.warn('battle-ui-combat-data-changed dispatch failed', error);
+        }
+
+        return detail;
       }
 
-      return roundEvents;
-    }
-
-    function buildBattleV1SystemInput(intentText, selectedSkillActions, battleMode) {
-      const liveSnapshot = getLiveSnapshot();
-      const sd = liveSnapshot && liveSnapshot.sd ? liveSnapshot.sd : {};
-      const currentActive = sd && sd.world && sd.world.combat && typeof sd.world.combat.is_active === 'boolean' ? sd.world.combat.is_active : true;
-      const activeName = resolveActiveBattleName();
-      const normalizedIntent = String(intentText || '').trim() || '普通攻击';
-      const battleMeta = buildBattleMeta(activeName, normalizedIntent, selectedSkillActions, battleMode);
-      const roundEvents = collectRoundEvents(normalizedIntent, selectedSkillActions, battleMeta.mode);
-      const aggregate = aggregateBattleSettlement(roundEvents);
-      const settle = inferBattleSummaryResult(aggregate, battleMeta);
-      const battleEnded = settle.isKilled || settle.result === '失败' || settle.result === '平局';
-      aggregate.combat.isActive = battleEnded ? false : currentActive;
-      if (settle.result === '平局') aggregate.combat.winner = '';
-      else if (settle.isKilled) aggregate.combat.winner = activeName;
-      else if (settle.result === '失败' && battleMeta.targetName) aggregate.combat.winner = battleMeta.targetName;
-      const settleText = String(settle && settle.result ? settle.result : '未决') || '未决';
-      aggregate.combat.summary = battleMeta.targetName
-        ? `本批次战斗结算：${activeName}对${battleMeta.targetName}执行了「${battleMeta.actionType}」，战果：${settleText}。`
-        : `本批次战斗结算：${activeName}执行了「${battleMeta.actionType}」，战果：${settleText}。`;
-      aggregate.combat.sysReason = battleMeta.targetName
-        ? `[战斗结算] ${activeName}对${battleMeta.targetName}执行了「${battleMeta.actionType}」，战果：${settleText}。`
-        : `[战斗结算] ${activeName}执行了「${battleMeta.actionType}」，战果：${settleText}。`;
-      const patchOps = buildBattlePatchOps(aggregate, battleMeta);
-      return buildBattleSystemInput(aggregate, patchOps);
-    }
-
-
-
-    submitBattleIntent = function() {
-      const selectedSkillActions = (typeof state !== 'undefined' && Array.isArray(state.selectedSkillActions)) ? state.selectedSkillActions : [];
-      const selectedNames = selectedSkillActions.map(a => a && a.name).filter(Boolean);
-      const battleMode = (typeof state !== 'undefined' && state && state.currentMode === 'multi_round') ? 'multi_round' : 'single_round';
-      const intentText = (typeof buildIntentText === 'function' ? buildIntentText() : '') || selectedNames.join('、') || '普通攻击';
-      const output = wrapperElement.querySelector('#ui-intent-output');
-      if (output) output.value = intentText;
-      const playerInput = selectedNames.length ? `我使用了${selectedNames.join('、')}。` : '我发动普通攻击。';
-      const sysPrompt = buildBattleV1SystemInput(intentText, selectedSkillActions, battleMode);
-      if (typeof _options.onAction === 'function') {
-        _options.onAction({
-          playerInput,
-          systemPrompt: sysPrompt,
-          requestKind: 'combat_action'
-        });
+      function getHostWindow() {
+        try {
+          if (root.parent && root.parent !== root && root.parent.document) return root.parent;
+        } catch (error) {
+          console.warn('BattleUIBridge: parent window unavailable, fallback current window', error);
+        }
+        return root;
       }
-    };
 
-    this.syncFromBattleEngine = (typeof syncFromBattleEngine === 'function') ? syncFromBattleEngine : function() {};
-    this.syncFromBattleEngine();
+      function getHostDocument() {
+        return getHostWindow().document || document;
+      }
+
+      function findFirstElement(selectors, doc = getHostDocument()) {
+        for (const selector of selectors) {
+          const node = doc.querySelector(selector);
+          if (node) return node;
+        }
+        return null;
+      }
+
+      function createInputEvent(type) {
+        try {
+          return new InputEvent(type, { bubbles: true, cancelable: true, composed: true });
+        } catch (error) {
+          return new Event(type, { bubbles: true, cancelable: true, composed: true });
+        }
+      }
+
+      function setElementValue(element, value) {
+        if (!element) return false;
+        const nextValue = String(value ?? '');
+        if (element.isContentEditable) {
+          if ('textContent' in element) element.textContent = nextValue;
+          if ('innerText' in element && element.innerText !== nextValue) element.innerText = nextValue;
+          element.dispatchEvent(createInputEvent('input'));
+          element.dispatchEvent(createInputEvent('change'));
+          return true;
+        }
+        const prototype = element.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+        const descriptor = Object.getOwnPropertyDescriptor(prototype, 'value');
+        if (descriptor?.set) descriptor.set.call(element, nextValue);
+        else element.value = nextValue;
+        element.dispatchEvent(createInputEvent('input'));
+        element.dispatchEvent(createInputEvent('change'));
+        return true;
+      }
+
+      function findChatInput(doc = getHostDocument()) {
+        return findFirstElement([
+          '#send_textarea',
+          '#chat_input',
+          '#user-input',
+          '#user_input',
+          'textarea[data-testid="chat-input"]',
+          'textarea[placeholder*="发送"]',
+          'textarea[placeholder*="Send"]',
+          'textarea[name="chat_input"]',
+          'textarea[name="user_input"]',
+          '[contenteditable="true"][data-testid="chat-input"]',
+          'form [contenteditable="true"][role="textbox"]',
+          '[contenteditable="true"][aria-label*="Send"]',
+          '[contenteditable="true"][aria-label*="发送"]',
+          'form textarea',
+          'textarea'
+        ], doc);
+      }
+
+      function findSendButton(doc = getHostDocument()) {
+        return findFirstElement([
+          '#send_but',
+          '#send-button',
+          'button[data-testid="send-button"]',
+          'button[title*="Send"]',
+          'button[aria-label*="Send"]',
+          'button[aria-label*="发送"]',
+          'button[title*="发送"]',
+          'form button[type="submit"]'
+        ], doc);
+      }
+
+      function fillChatInput(text, options = {}) {
+        const doc = options.document || getHostDocument();
+        const input = findChatInput(doc);
+        const ok = setElementValue(input, text);
+        if (ok && typeof input?.focus === 'function') input.focus();
+        return { ok, input };
+      }
+
+      function clickSendButton(options = {}) {
+        const doc = options.document || getHostDocument();
+        const button = findSendButton(doc);
+        if (!button) return { ok: false, button: null };
+        button.click();
+        return { ok: true, button };
+      }
+
+      function queueSystemPrompt(text) {
+        const prompt = String(text || '');
+        root.__battlePendingSystemPrompt = prompt;
+        try {
+          root.dispatchEvent(new CustomEvent('battle-ui-system-prompt-ready', { detail: { systemPrompt: prompt } }));
+        } catch (error) {
+          console.warn('battle-ui-system-prompt-ready dispatch failed', error);
+        }
+        return prompt;
+      }
+
+      function deliverBattleRequest(detail, options = {}) {
+        const bridge = root.BattleUIBridge || {};
+        if (typeof bridge.hostSend === 'function') {
+          return bridge.hostSend({ ...detail, options });
+        }
+        const adapter = bridge.hostAdapter || root.__battleUIHostAdapter;
+        if (adapter && typeof adapter.sendUIRequest === 'function') {
+          return adapter.sendUIRequest({ ...detail, options });
+        }
+        if (adapter && typeof adapter.sendBattleRequest === 'function') {
+          return adapter.sendBattleRequest({ ...detail, options });
+        }
+
+        queueSystemPrompt(detail.systemPrompt);
+        const fillResult = fillChatInput(detail.playerInput, options);
+        const sendResult = options.autoSend === false ? { ok: false, button: null } : clickSendButton(options);
+        return {
+          mode: 'dom-fallback',
+          filled: !!fillResult.ok,
+          sent: !!sendResult.ok,
+          pendingSystemPrompt: detail.systemPrompt,
+          inputFound: !!fillResult.input,
+          sendButtonFound: !!sendResult.button
+        };
+      }
+
+      function looksLikeGenerationUrl(url) {
+        return /(generate|completion|chat-completions|text-completions|api\/backends|v1\/chat\/completions|v1\/completions)/i.test(String(url || ''));
+      }
+
+      function appendPromptText(base, extra) {
+        const baseText = String(base || '').trim();
+        const extraText = String(extra || '').trim();
+        if (!extraText) return base;
+        if (!baseText) return extraText;
+        return `${baseText}\n\n${extraText}`;
+      }
+
+      function consumeQueuedSystemPromptForInjection(meta = {}) {
+        const prompt = String(root.__battlePendingSystemPrompt || '').trim();
+        if (!prompt) return '';
+        root.__battlePendingSystemPrompt = '';
+        root.__battleLastInjectedSystemPrompt = {
+          prompt,
+          ...meta,
+          at: Date.now()
+        };
+        try {
+          root.dispatchEvent(new CustomEvent('battle-ui-system-prompt-consumed', {
+            detail: root.__battleLastInjectedSystemPrompt
+          }));
+        } catch (error) {
+          console.warn('battle-ui-system-prompt-consumed dispatch failed', error);
+        }
+        return prompt;
+      }
+
+      function injectSystemPromptIntoPayload(payload, prompt) {
+        if (!payload || typeof payload !== 'object' || !prompt) {
+          return { payload, injected: false, channel: null };
+        }
+
+        let injected = false;
+        let channel = null;
+
+        if (Array.isArray(payload.messages)) {
+          const messages = payload.messages.map(msg => ({ ...msg }));
+          const firstSystemIndex = messages.findIndex(msg => msg?.role === 'system');
+          if (firstSystemIndex >= 0) {
+            const target = { ...messages[firstSystemIndex] };
+            if (typeof target.content === 'string' || target.content == null) {
+              target.content = appendPromptText(target.content || '', prompt);
+              messages[firstSystemIndex] = target;
+            } else {
+              messages.splice(firstSystemIndex, 0, { role: 'system', content: prompt });
+            }
+          } else {
+            messages.unshift({ role: 'system', content: prompt });
+          }
+          payload = { ...payload, messages };
+          injected = true;
+          channel = 'messages.system';
+        } else if (typeof payload.system === 'string' || payload.system == null) {
+          payload = { ...payload, system: appendPromptText(payload.system || '', prompt) };
+          injected = true;
+          channel = 'system';
+        } else if (typeof payload.systemPrompt === 'string' || payload.systemPrompt == null) {
+          payload = { ...payload, systemPrompt: appendPromptText(payload.systemPrompt || '', prompt) };
+          injected = true;
+          channel = 'systemPrompt';
+        } else if (typeof payload.instruction === 'string' || payload.instruction == null) {
+          payload = { ...payload, instruction: appendPromptText(payload.instruction || '', prompt) };
+          injected = true;
+          channel = 'instruction';
+        } else if (typeof payload.instructions === 'string' || payload.instructions == null) {
+          payload = { ...payload, instructions: appendPromptText(payload.instructions || '', prompt) };
+          injected = true;
+          channel = 'instructions';
+        } else if (typeof payload.prompt === 'string') {
+          payload = { ...payload, prompt: `${prompt}\n\n${payload.prompt}` };
+          injected = true;
+          channel = 'prompt';
+        }
+
+        return { payload, injected, channel };
+      }
+
+      function patchRequestBodyIfNeeded(bodyText, url, transport) {
+        const pendingPrompt = String(root.__battlePendingSystemPrompt || '').trim();
+        if (!pendingPrompt || !looksLikeGenerationUrl(url) || typeof bodyText !== 'string' || !bodyText.trim()) {
+          return { bodyText, injected: false, channel: null };
+        }
+
+        try {
+          const payload = JSON.parse(bodyText);
+          const promptToInject = consumeQueuedSystemPromptForInjection({ url: String(url || ''), transport });
+          if (!promptToInject) return { bodyText, injected: false, channel: null };
+          const result = injectSystemPromptIntoPayload(payload, promptToInject);
+          if (!result.injected) {
+            root.__battlePendingSystemPrompt = promptToInject;
+            return { bodyText, injected: false, channel: null };
+          }
+          return {
+            bodyText: JSON.stringify(result.payload),
+            injected: true,
+            channel: result.channel
+          };
+        } catch (error) {
+          return { bodyText, injected: false, channel: null };
+        }
+      }
+
+      function installFetchHook() {
+        const host = getHostWindow();
+        if (!host || host.__battleUIFetchHookInstalled || typeof host.fetch !== 'function') return;
+        const nativeFetch = host.fetch.bind(host);
+        const HostRequest = host.Request || Request;
+
+        host.fetch = async function(input, init) {
+          let nextInput = input;
+          let nextInit = init;
+          const url = typeof input === 'string' ? input : (input?.url || init?.url || '');
+
+          if (init?.body && typeof init.body === 'string') {
+            const patched = patchRequestBodyIfNeeded(init.body, url, 'fetch:init');
+            if (patched.injected) {
+              nextInit = { ...init, body: patched.bodyText };
+            }
+          } else if (typeof HostRequest !== 'undefined' && input instanceof HostRequest && !init?.body) {
+            try {
+              const cloned = input.clone();
+              const bodyText = await cloned.text();
+              const patched = patchRequestBodyIfNeeded(bodyText, url, 'fetch:request');
+              if (patched.injected) {
+                nextInput = new HostRequest(input, { body: patched.bodyText });
+              }
+            } catch (error) {
+              // ignore request body patch failure
+            }
+          }
+
+          return nativeFetch(nextInput, nextInit);
+        };
+
+        host.__battleUIFetchHookInstalled = true;
+      }
+
+      function installXHRHook() {
+        const host = getHostWindow();
+        const XHR = host?.XMLHttpRequest;
+        if (!XHR || XHR.prototype.__battleUIXHRHookInstalled) return;
+        const nativeOpen = XHR.prototype.open;
+        const nativeSend = XHR.prototype.send;
+
+        XHR.prototype.open = function(method, url, ...rest) {
+          this.__battleUIRequestUrl = url;
+          return nativeOpen.call(this, method, url, ...rest);
+        };
+
+        XHR.prototype.send = function(body) {
+          if (typeof body === 'string') {
+            const patched = patchRequestBodyIfNeeded(body, this.__battleUIRequestUrl, 'xhr');
+            if (patched.injected) {
+              body = patched.bodyText;
+            }
+          }
+          return nativeSend.call(this, body);
+        };
+
+        XHR.prototype.__battleUIXHRHookInstalled = true;
+      }
+
+      function installHostHooks() {
+        installFetchHook();
+        installXHRHook();
+      }
+
+      if (typeof root.sendToAI !== 'function') {
+        root.sendToAI = function(playerInput, systemPrompt, meta = {}) {
+          const requestKind = String(meta?.requestKind || 'battle_arbitration');
+          const detail = {
+            requestSource: 'Battle_UI',
+            requestKind,
+            playerInput: String(playerInput || ''),
+            systemPrompt: String(systemPrompt || ''),
+            mvuUpdate: meta?.mvuUpdate || null,
+            channels: {
+              userInput: String(playerInput || ''),
+              hiddenSystemPrompt: String(systemPrompt || ''),
+              updateVariableText: String(meta?.mvuUpdate?.updateVariableText || ''),
+              requestKind
+            }
+          };
+          detail.delivery = deliverBattleRequest(detail, { autoSend: meta?.autoSend !== false });
+          root.__lastBattleAIRequest = detail;
+          try {
+            root.dispatchEvent(new CustomEvent('battle-ui-ai-request', { detail }));
+          } catch (error) {
+            console.warn('battle-ui-ai-request dispatch failed', error);
+          }
+          return detail;
+        };
+      }
+
+      root.BattleUIBridge = Object.assign(root.BattleUIBridge || {}, {
+        hasMvu() {
+          return hasMvuRuntime();
+        },
+        async waitForMvuReady() {
+          return waitForMvuReady();
+        },
+        getAllVariables() {
+          return getAllVariablesSafe();
+        },
+        getStatData() {
+          return getMvuValue('', {});
+        },
+        getMVU(path) {
+          return getMvuValue(path);
+        },
+        setMVU(path, value) {
+          console.warn('BattleUIBridge.setMVU 未启用：当前按明月秋青规范仅从 getAllVariables()/stat_data 读取 MVU 变量。', path, value);
+          return false;
+        },
+        initCombatContext() {
+          console.warn('BattleUIBridge.initCombatContext 已停用：战斗上下文应由 MVU 系统维护在 stat_data.sd.* 下。');
+          return getMvuValue('sd.world.combat');
+        },
+        getBattleContext() {
+          return getMvuValue('sd.world.combat');
+        },
+        subscribeMvuUpdates(handler) {
+          return subscribeMvuUpdates(handler);
+        },
+        persistCombatData(combatData) {
+          return persistCombatData(combatData);
+        },
+        buildCombatJsonPatch(combatData) {
+          return buildCombatJsonPatch(combatData);
+        },
+        buildUpdateVariableTextFromCombat(combatData, options = {}) {
+          return buildUpdateVariableText(buildCombatJsonPatch(combatData), options);
+        },
+        getLastMvuUpdateRequest() {
+          return root.__lastBattleMvuUpdateRequest || null;
+        },
+        setCombatContext() {
+          console.warn('BattleUIBridge.setCombatContext 已停用：请通过 MVU 系统更新 stat_data.sd.*。');
+          return getMvuValue('sd.world.combat');
+        },
+        findChatInput() {
+          return findChatInput();
+        },
+        findSendButton() {
+          return findSendButton();
+        },
+        pushUserInput(text, options = {}) {
+          const payload = String(text || '');
+          const fillResult = fillChatInput(payload, options);
+          const sendResult = options.autoSend === false ? { ok: false, button: null } : clickSendButton(options);
+          return {
+            text: payload,
+            filled: !!fillResult.ok,
+            sent: !!sendResult.ok,
+            inputFound: !!fillResult.input,
+            sendButtonFound: !!sendResult.button
+          };
+        },
+        setPendingSystemPrompt(text) {
+          return queueSystemPrompt(text);
+        },
+        getPendingSystemPrompt() {
+          return root.__battlePendingSystemPrompt || '';
+        },
+        consumePendingSystemPrompt() {
+          const prompt = root.__battlePendingSystemPrompt || '';
+          root.__battlePendingSystemPrompt = '';
+          return prompt;
+        },
+        clearPendingSystemPrompt() {
+          root.__battlePendingSystemPrompt = '';
+        },
+        setHostAdapter(adapter) {
+          root.__battleUIHostAdapter = adapter || null;
+          return root.__battleUIHostAdapter;
+        },
+        getHostAdapter() {
+          return root.__battleUIHostAdapter || null;
+        },
+        installHostHooks() {
+          installHostHooks();
+        },
+        getLastInjectedSystemPrompt() {
+          return root.__battleLastInjectedSystemPrompt || null;
+        },
+        deliverBattleRequest(detail, options = {}) {
+          return deliverBattleRequest(detail, options);
+        },
+        getLastAIRequest() {
+          return root.__lastBattleAIRequest || null;
+        }
+      });
+
+      root.getBattleUiMvuValue = getMvuValue;
+      root.getBattleUiAllVariables = getAllVariablesSafe;
+      root.waitBattleUiMvuReady = waitForMvuReady;
+
+      installHostHooks();
+    /* __BATTLE_ENGINE_INLINE__ */
+const COMBAT_STAT_KEYS = ["age", "lv", "type", "talent_tier", "is_evil", "sp", "sp_max", "men", "men_max", "str", "def", "agi", "vit", "vit_max", "conditions"];
+const COMBAT_STATUS_KEYS = ["alive", "wound", "action", "active_domain", "loc", "current_x", "current_y"];
+
+function createEmptyCombatLogic() {
+  return {
+    瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
+    状态挂载模块: { 状态名称: "无", 持续回合: 0, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "无", 持续真伤dot: 0 },
+    召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
+  };
+}
+
+function createEmptySkillSemantics() {
+  return {
+    主定位: "无",
+    作用目标: "敌方单体",
+    战术标签: [],
+    优先条件: [],
+    风险等级: "中",
+    保留倾向: 0,
+    目标偏好: [],
+    友方偏好: [],
+    是否持续: false,
+    是否可打断: false,
+    是否可被霸体免疫: true
+  };
+}
+
+function mapSemanticTargetToCombatTarget(target) {
+  const mapping = {
+    "敌方单体": "敌方/单体",
+    "敌方群体": "敌方/群体",
+    "自身": "自身",
+    "友方单体": "己方/单体",
+    "友方群体": "己方/群体",
+    "全场": "全场"
+  };
+  return mapping[target] || target || "敌方/单体";
+}
+
+function mapPrimaryRoleToSkillType(role) {
+  const mapping = {
+    "输出": "输出",
+    "控制": "控制",
+    "防御": "防御",
+    "辅助": "辅助",
+    "特殊": "辅助"
+  };
+  return mapping[role] || "输出";
+}
+
+function mergeSpecialFlags(existing, additions = []) {
+  const set = new Set(String(existing || "无").split(/[\/、,，\s]+/).filter(Boolean).filter(flag => flag !== "无"));
+  (additions || []).forEach(flag => {
+    if (flag && flag !== "无") set.add(flag);
+  });
+  return set.size > 0 ? Array.from(set).join("/") : "无";
+}
+
+function formatCostObjectToString(costObj) {
+  if (!costObj || typeof costObj !== "object") return "无";
+  const buildPart = (obj) => [obj?.魂力 ? `魂力:${obj.魂力}` : "", obj?.体力 ? `体力:${obj.体力}` : "", obj?.精神力 ? `精神力:${obj.精神力}` : ""].filter(Boolean).join(" ") || "无";
+  const upfront = buildPart(costObj.启动 || costObj.upfront || {});
+  const sustain = buildPart(costObj.维持 || costObj.sustain || {});
+  return sustain !== "无" ? `${upfront} 维持:${sustain}` : upfront;
+}
+
+function deepClone(data) {
+  return data == null ? data : JSON.parse(JSON.stringify(data));
+}
+
+function bindCombatMirrorField(target, source, key) {
+  if (!target || !source) return;
+  if (target[key] !== undefined) source[key] = target[key];
+  else if (source[key] !== undefined) target[key] = source[key];
+
+  try {
+    Object.defineProperty(target, key, {
+      configurable: true,
+      enumerable: true,
+      get() {
+        return source[key];
+      },
+      set(value) {
+        source[key] = value;
+      }
+    });
+  } catch (e) {
+    target[key] = source[key];
   }
 }
 
-window.mountBattleUI = function(containerElement, snapshot, options = {}) {
-  return new BattleUIComponent(containerElement, snapshot, options);
-};
+function bindCombatParticipant(char) {
+  if (!char || char.__combatMirrorBound) return char;
+
+  if (char.stat) {
+    COMBAT_STAT_KEYS.forEach(key => bindCombatMirrorField(char, char.stat, key));
+  }
+
+  if (char.status) {
+    COMBAT_STATUS_KEYS.forEach(key => bindCombatMirrorField(char, char.status, key));
+  }
+
+  if (!char.conditions) {
+    if (char.stat?.conditions) char.conditions = char.stat.conditions;
+    else char.conditions = {};
+  }
+
+  if (!char.type && char.stat?.type) char.type = char.stat.type;
+  if (!char.active_domain && char.status?.active_domain) char.active_domain = char.status.active_domain;
+  if (char.alive === undefined && char.status?.alive !== undefined) char.alive = char.status.alive;
+
+  char.__combatMirrorBound = true;
+  return char;
+}
+
+function hydrateCombatData(combatData) {
+  if (!combatData || !combatData.participants) return combatData;
+  bindCombatParticipant(combatData.participants.player);
+  bindCombatParticipant(combatData.participants.enemy);
+  (combatData.participants.team_player || []).forEach(bindCombatParticipant);
+  (combatData.participants.team_enemy || []).forEach(bindCombatParticipant);
+  return combatData;
+}
+
+function normalizeSkillData(skill, fallbackName = "未知技能") {
+  const normalized = deepClone(skill || {});
+  normalized.name = normalized.name || normalized.技能名称 || fallbackName;
+  normalized.主定位 = normalized.主定位 || normalized.战斗语义?.主定位 || normalized.技能类型 || "无";
+  normalized.标签 = Array.isArray(normalized.标签) ? normalized.标签 : [];
+  normalized.战斗语义 = { ...createEmptySkillSemantics(), ...(normalized.战斗语义 || {}) };
+  normalized.效果列表 = Array.isArray(normalized.效果列表) ? normalized.效果列表 : [];
+  normalized.对象 = (normalized.对象 && normalized.对象 !== "无") ? normalized.对象 : mapSemanticTargetToCombatTarget(normalized.战斗语义.作用目标);
+  normalized.技能类型 = (normalized.技能类型 && normalized.技能类型 !== "无") ? normalized.技能类型 : mapPrimaryRoleToSkillType(normalized.主定位);
+  normalized.element = normalized.element || normalized.元素 || "无";
+  normalized.cast_time = Number(normalized.cast_time ?? 0) || 0;
+  normalized.消耗 = typeof normalized.消耗 === "object" ? formatCostObjectToString(normalized.消耗) : (normalized.消耗 || "无");
+
+  if (!normalized.仲裁逻辑) normalized.仲裁逻辑 = createEmptyCombatLogic();
+  if (!normalized.仲裁逻辑.瞬间交锋模块) normalized.仲裁逻辑.瞬间交锋模块 = createEmptyCombatLogic().瞬间交锋模块;
+  if (!normalized.仲裁逻辑.状态挂载模块) normalized.仲裁逻辑.状态挂载模块 = createEmptyCombatLogic().状态挂载模块;
+  if (!normalized.仲裁逻辑.召唤与场地模块) normalized.仲裁逻辑.召唤与场地模块 = createEmptyCombatLogic().召唤与场地模块;
+
+  const clash = normalized.仲裁逻辑.瞬间交锋模块;
+  const state = normalized.仲裁逻辑.状态挂载模块;
+  const field = normalized.仲裁逻辑.召唤与场地模块;
+
+  const damageEffect = normalized.效果列表.find(effect => effect?.类型 === "伤害");
+  if (damageEffect) {
+    const num = damageEffect.数值 || {};
+    clash.基础威力倍率 = clash.基础威力倍率 || Number(num.威力 || 0);
+    clash.伤害类型 = clash.伤害类型 && clash.伤害类型 !== "无" ? clash.伤害类型 : (num.伤害类型 || "无");
+    clash.穿透修饰 = clash.穿透修饰 || Number(num.穿透 || 0);
+    clash.瞬间恢复比例 = clash.瞬间恢复比例 || Number(num.吸血比例 || 0);
+  }
+
+  const defenseEffect = normalized.效果列表.find(effect => effect?.类型 === "防御");
+  if (defenseEffect) {
+    const num = defenseEffect.数值 || {};
+    clash.护盾绝对值 = clash.护盾绝对值 || Number(num.护盾值 || 0);
+  }
+
+  const stateEffect = normalized.效果列表.find(effect => ["控制", "增益", "减益"].includes(effect?.类型));
+  if (stateEffect) {
+    const control = stateEffect.控制 || {};
+    const num = stateEffect.数值 || {};
+    const panelMods = stateEffect.面板修改 || {};
+    state.状态名称 = state.状态名称 && state.状态名称 !== "无" ? state.状态名称 : (stateEffect.状态名称 || "无");
+    state.持续回合 = state.持续回合 || Number(stateEffect.持续回合 || 0);
+    state.面板修改比例 = {
+      str: panelMods.str ?? state.面板修改比例?.str ?? 1.0,
+      def: panelMods.def ?? state.面板修改比例?.def ?? 1.0,
+      agi: panelMods.agi ?? state.面板修改比例?.agi ?? 1.0,
+      men_max: panelMods.men_max ?? state.面板修改比例?.men_max ?? 1.0,
+      sp_max: panelMods.sp_max ?? state.面板修改比例?.sp_max ?? 1.0
+    };
+    state.持续真伤dot = state.持续真伤dot || Number(num.dot || 0);
+    state.特殊机制标识 = mergeSpecialFlags(state.特殊机制标识, [
+      ...(stateEffect.标记 || []),
+      control.控制类型,
+      ...(control.效果 || []),
+      control.可打断 ? "打断" : "",
+      control.可被霸体免疫 === false ? "不可被霸体免疫" : ""
+    ]);
+  }
+
+  const fieldEffect = normalized.效果列表.find(effect => ["场地", "特殊"].includes(effect?.类型));
+  if (fieldEffect) {
+    const special = fieldEffect.特殊 || {};
+    field.实体名称 = field.实体名称 && field.实体名称 !== "无" ? field.实体名称 : (special.实体名称 || special.场地名称 || normalized.name || "无");
+    field.持续回合 = field.持续回合 || Number(fieldEffect.持续回合 || 0);
+    field.继承属性比例 = field.继承属性比例 || Number(special.继承属性比例 || 0);
+    field.核心机制描述 = field.核心机制描述 && field.核心机制描述 !== "无" ? field.核心机制描述 : (special.核心机制描述 || "无");
+    state.特殊机制标识 = mergeSpecialFlags(state.特殊机制标识, [special.特殊类型, ...(fieldEffect.标记 || [])]);
+  }
+
+  return normalized;
+}
+
+function parseSkillCostForChar(skill, char) {
+  const stats = char?.stat || char || {};
+  const costStr = normalizeSkillData(skill).消耗 || "无";
+  const spMatch = costStr.match(/魂力:(\d+)(%?)/);
+  const vitMatch = costStr.match(/体力:(\d+)(%?)/);
+  const menMatch = costStr.match(/精神力:(\d+)(%?)/);
+
+  const reqSp = spMatch ? (spMatch[2] ? Math.floor((stats.sp_max || 0) * parseInt(spMatch[1]) / 100) : parseInt(spMatch[1])) : 0;
+  const reqVit = vitMatch ? (vitMatch[2] ? Math.floor((stats.vit_max || 0) * parseInt(vitMatch[1]) / 100) : parseInt(vitMatch[1])) : 0;
+  const reqMen = menMatch ? (menMatch[2] ? Math.floor((stats.men_max || 0) * parseInt(menMatch[1]) / 100) : parseInt(menMatch[1])) : 0;
+
+  return {
+    reqSp,
+    reqVit,
+    reqMen,
+    canCast: (stats.sp || 0) >= reqSp && (stats.vit || 0) >= reqVit && (stats.men || 0) >= reqMen
+  };
+}
+
+function chooseWeightedOption(options) {
+  const valid = (options || []).filter(option => option && option.weight > 0);
+  if (valid.length === 0) return null;
+  const totalWeight = valid.reduce((sum, option) => sum + option.weight, 0);
+  let roll = Math.random() * totalWeight;
+  for (const option of valid) {
+    roll -= option.weight;
+    if (roll <= 0) return option;
+  }
+  return valid[0];
+}
+
+function rollD100() {
+  return Math.floor(Math.random() * 100) + 1;
+}
+
+function rollBranchByPriority(branches, phaseLabel) {
+  const traces = [];
+  for (const branch of (branches || [])) {
+    if (!branch) continue;
+    const weight = Math.max(0, Math.min(95, Math.floor(branch.weight || 0)));
+    if (weight <= 0) continue;
+
+    const roll = rollD100();
+    const hit = roll <= weight;
+    traces.push(`[${phaseLabel}] ${branch.name || '未命名分支'} 权重:${weight} Roll:${roll} 判定:${hit ? '命中' : '未命中'}`);
+
+    if (hit) {
+      return { option: branch, trace: traces.join(' | '), roll, weight };
+    }
+  }
+
+  return { option: null, trace: traces.join(' | ') };
+}
+
+function getSpecialAbilitySkillData(charData, abilityName) {
+  const ability = charData?.special_abilities?.[abilityName];
+  if (!ability) return null;
+  if (ability.skill_data) return ability.skill_data;
+  if (ability.仲裁逻辑 || ability.cast_time !== undefined || ability.技能类型) return ability;
+  return null;
+}
+
+function applyStateToCharacter(targetChar, stateModule, sourceName, forceBuff) {
+  if (!targetChar || !stateModule || !stateModule.状态名称 || stateModule.状态名称 === "无") return false;
+  if (!targetChar.conditions) targetChar.conditions = {};
+
+  const specialFlag = stateModule.特殊机制标识 || "无";
+  const isBuff = forceBuff === true || specialFlag.includes("增益") || specialFlag.includes("霸体") || specialFlag.includes("免死") || specialFlag.includes("真身");
+
+  targetChar.conditions[stateModule.状态名称] = {
+    类型: isBuff ? "buff" : "debuff",
+    层数: 1,
+    描述: `由[${sourceName || stateModule.状态名称}]附加`,
+    duration: stateModule.持续回合 || 0,
+    stat_mods: stateModule.面板修改比例 || { str: 1.0, def: 1.0, agi: 1.0, sp_max: 1.0 },
+    combat_effects: {
+      skip_turn: specialFlag.includes("硬控"),
+      dot_damage: stateModule.持续真伤dot || 0,
+      armor_pen: 0
+    }
+  };
+  return true;
+}
+
+function settleConditionsAtRoundEnd(char, label) {
+  if (!char || !char.conditions) return { log: "", totalDot: 0, expired: [] };
+
+  let totalDot = 0;
+  let expired = [];
+  let parts = [];
+
+  Object.keys(char.conditions).forEach(key => {
+    let cond = char.conditions[key];
+    if (!cond) return;
+
+    let combatEffects = cond.combat_effects || {};
+    let dot = Math.max(0, combatEffects.dot_damage || 0);
+    if (dot > 0) {
+      char.vit = Math.max(0, char.vit - dot);
+      totalDot += dot;
+      parts.push(`[状态结算] ${label}受[${key}]影响，额外损失 ${dot} 点体力`);
+    }
+
+    if (typeof cond.duration === "number") {
+      cond.duration -= 1;
+      if (cond.duration <= 0) expired.push(key);
+    }
+  });
+
+  expired.forEach(key => {
+    delete char.conditions[key];
+    if (char.active_sustains) {
+      Object.keys(char.active_sustains).forEach(sustainKey => {
+        if (char.active_sustains[sustainKey]?.related_condition === key) delete char.active_sustains[sustainKey];
+      });
+    }
+    parts.push(`[状态消散] ${label}的[${key}]已结束`);
+  });
+
+  return { log: parts.join(" "), totalDot, expired };
+}
+
+function splitSkillCostModes(costStr) {
+  const raw = String(costStr || "无").trim();
+  if (!raw || raw === "无") return { upfront: "无", sustain: "", hasSustain: false };
+
+  const parts = raw.split(/维持[:：]?/);
+  return {
+    upfront: (parts[0] || "无").trim() || "无",
+    sustain: (parts[1] || "").trim(),
+    hasSustain: parts.length > 1
+  };
+}
+
+function parseCostStringForChar(costStr, char) {
+  return parseSkillCostForChar({ 消耗: costStr || "无" }, char);
+}
+
+function formatParsedCost(parsed) {
+  if (!parsed) return "无消耗";
+  const parts = [];
+  if (parsed.reqSp) parts.push(`魂力:${parsed.reqSp}`);
+  if (parsed.reqVit) parts.push(`体力:${parsed.reqVit}`);
+  if (parsed.reqMen) parts.push(`精神力:${parsed.reqMen}`);
+  return parts.length > 0 ? parts.join(" ") : "无消耗";
+}
+
+function registerSustainEffect(char, key, config) {
+  if (!char || !config || !config.sustain_cost || config.sustain_cost === "无") return;
+  if (!char.active_sustains) char.active_sustains = {};
+  char.active_sustains[key] = { ...config };
+}
+
+function resolveActionSustainConfig(char, actionType, skill, stateName) {
+  const skillName = skill?.name || actionType || stateName || "持续效果";
+  const costParts = splitSkillCostModes(skill?.消耗 || "无");
+  const trueStateName = stateName || skill?.仲裁逻辑?.状态挂载模块?.状态名称 || "";
+
+  if (costParts.hasSustain && costParts.sustain && costParts.sustain !== "无") {
+    return {
+      name: skillName,
+      sustain_cost: costParts.sustain,
+      effect_type: actionType?.includes("领域") ? "domain" : (actionType === "点燃生命之火" ? "life_fire" : (trueStateName ? "condition" : "generic")),
+      related_condition: trueStateName || ""
+    };
+  }
+
+  if (actionType === "点燃生命之火") {
+    return {
+      name: skillName,
+      sustain_cost: `体力:${Math.max(1, Math.floor((char?.vit_max || 1) * 0.05))}`,
+      effect_type: "life_fire",
+      related_condition: ""
+    };
+  }
+
+  if (["展开斗铠领域", "展开精神领域", "展开武魂领域"].includes(actionType)) {
+    return {
+      name: skillName,
+      sustain_cost: `精神力:${Math.max(30, Math.floor((char?.men_max || 1) * 0.05))}`,
+      effect_type: "domain",
+      related_condition: ""
+    };
+  }
+
+  if ((trueStateName || skillName).includes("真身")) {
+    return {
+      name: skillName,
+      sustain_cost: `魂力:${Math.max(50, Math.floor((char?.sp_max || 1) * 0.05))}`,
+      effect_type: "condition",
+      related_condition: trueStateName || skillName
+    };
+  }
+
+  return null;
+}
+
+function settleSustainEffectsAtRoundEnd(char, label) {
+  if (!char?.active_sustains) return { log: "", broken: [] };
+
+  const logs = [];
+  const broken = [];
+
+  Object.entries(char.active_sustains).forEach(([key, effect]) => {
+    if (!effect) return;
+
+    if (effect.effect_type === "domain" && (!char.active_domain || char.active_domain === "无")) {
+      delete char.active_sustains[key];
+      return;
+    }
+    if (effect.effect_type === "life_fire" && !char.bloodline_power?.life_fire) {
+      delete char.active_sustains[key];
+      return;
+    }
+    if (effect.effect_type === "condition" && effect.related_condition && !char.conditions?.[effect.related_condition]) {
+      delete char.active_sustains[key];
+      return;
+    }
+
+    const parsed = parseCostStringForChar(effect.sustain_cost, char);
+    if (!parsed.canCast) {
+      if (effect.effect_type === "domain") char.active_domain = "无";
+      else if (effect.effect_type === "life_fire" && char.bloodline_power) char.bloodline_power.life_fire = false;
+      else if (effect.effect_type === "condition" && effect.related_condition && char.conditions) delete char.conditions[effect.related_condition];
+
+      delete char.active_sustains[key];
+      broken.push(effect.name || key);
+      logs.push(`[维持中断] ${label}已无力维持[${effect.name || key}]，效果自动解除`);
+      return;
+    }
+
+    char.sp -= parsed.reqSp;
+    char.vit -= parsed.reqVit;
+    char.men -= parsed.reqMen;
+    logs.push(`[维持结算] ${label}维持[${effect.name || key}]，消耗 ${formatParsedCost(parsed)}`);
+  });
+
+  return { log: logs.join(" "), broken };
+}
+
+function getBehaviorProfile(actor, target, battleState = {}) {
+  const hpRatio = (actor?.vit || 0) / Math.max(1, actor?.vit_max || 1);
+  const targetHpRatio = (target?.vit || 0) / Math.max(1, target?.vit_max || 1);
+  const profile = {
+    aggression: 10,
+    caution: 10,
+    control: 10,
+    mobility: 10,
+    burst: 10,
+    finisher: 0
+  };
+
+  switch (actor?.type) {
+    case "强攻系":
+      profile.aggression += 25; profile.burst += 20; profile.caution -= 5; break;
+    case "敏攻系":
+      profile.mobility += 30; profile.aggression += 15; profile.caution += 5; break;
+    case "防御系":
+      profile.caution += 30; profile.control += 10; profile.aggression -= 10; break;
+    case "控制系":
+      profile.control += 30; profile.caution += 10; break;
+    case "辅助系":
+    case "治疗系":
+    case "食物系":
+      profile.caution += 25; profile.control += 15; profile.aggression -= 15; break;
+  }
+
+  if (hpRatio < 0.35) { profile.caution += 25; profile.burst += 10; }
+  if (hpRatio < 0.2) { profile.caution += 35; profile.aggression -= 5; }
+  if (targetHpRatio < 0.3) { profile.finisher += 25; profile.aggression += 10; }
+  if (battleState.combatType === "死战" || battleState.isDeadlyFight) { profile.aggression += 15; profile.burst += 10; }
+  if (battleState.combatType === "擂台切磋") { profile.caution += 10; profile.aggression -= 5; profile.burst -= 5; }
+  if (battleState.isChargingHighThreat) { profile.control += 20; profile.mobility += 10; }
+  if ((actor?.men_max || 0) > (target?.men_max || 0) * 1.2) profile.control += 10;
+
+  return profile;
+}
+
+function adjustBehaviorWeight(branchName, baseWeight, actor, target, battleState = {}) {
+  if (!baseWeight || baseWeight <= 0) return 0;
+  const profile = getBehaviorProfile(actor, target, battleState);
+  let weight = baseWeight;
+
+  if (["武魂融合技", "点燃生命之火", "开启真身"].includes(branchName)) weight += profile.burst * 0.8 + profile.aggression * 0.4;
+  else if (branchName === "展开领域") weight += profile.control * 0.8 + profile.caution * 0.3;
+  else if (branchName === "召唤魂灵") weight += profile.control * 0.5 + profile.caution * 0.3;
+  else if (branchName === "穿戴装备") weight += profile.caution * 0.9;
+  else if (branchName === "亡命奔逃") weight += profile.caution * 1.1 - profile.aggression * 0.4;
+  else if (branchName === "危机自保") weight += profile.caution * 0.7 + profile.control * 0.5;
+  else if (branchName === "强势对轰") weight += profile.aggression * 0.9 + profile.burst * 0.5 + profile.finisher * 0.5 - profile.caution * 0.3;
+  else if (branchName === "伺机闪避") weight += profile.mobility * 0.9 + profile.caution * 0.4;
+  else if (branchName === "肉体兜底") weight += profile.caution * 0.2;
+
+  weight += Math.floor(Math.random() * 11) - 5;
+  return Math.max(0, Math.floor(weight));
+}
+
+function ensureActorDecisionMemory(actor) {
+  if (!actor) return { last_action: "", recent_actions: {} };
+  if (!actor.decision_memory) {
+    actor.decision_memory = { last_action: "", recent_actions: {} };
+  }
+  if (!actor.decision_memory.recent_actions) actor.decision_memory.recent_actions = {};
+  return actor.decision_memory;
+}
+
+function scoreCandidateAction(actor, target, battleState, candidate) {
+  if (!candidate) return 0;
+  const memory = ensureActorDecisionMemory(actor);
+  const branchName = candidate.name || "未命名动作";
+  let weight = Math.max(0, Math.floor(candidate.weight || 0));
+
+  const repeatCount = memory.recent_actions[branchName] || 0;
+  if (repeatCount > 0) weight -= repeatCount * 12;
+  if (memory.last_action === branchName) weight -= 8;
+
+  const targetHpRatio = (target?.vit || 0) / Math.max(1, target?.vit_max || 1);
+  if (branchName === "强势对轰" && targetHpRatio < 0.35) weight += 10;
+  if (branchName === "亡命奔逃" && (actor?.vit || 0) / Math.max(1, actor?.vit_max || 1) > 0.35) weight -= 15;
+  if (branchName === "危机自保" && battleState?.isChargingHighThreat) weight += 8;
+
+  return Math.max(0, weight);
+}
+
+function chooseActorActionByCandidates(actor, target, battleState, candidates, phaseLabel) {
+  const scoredCandidates = (candidates || []).map(candidate => ({
+    ...candidate,
+    weight: scoreCandidateAction(actor, target, battleState, candidate)
+  }));
+  return rollBranchByPriority(scoredCandidates, phaseLabel);
+}
+
+function recordActorActionMemory(actor, actionName) {
+  if (!actor || !actionName) return;
+  const memory = ensureActorDecisionMemory(actor);
+  Object.keys(memory.recent_actions).forEach(key => {
+    memory.recent_actions[key] = Math.max(0, (memory.recent_actions[key] || 0) - 1);
+    if (memory.recent_actions[key] <= 0) delete memory.recent_actions[key];
+  });
+  memory.recent_actions[actionName] = (memory.recent_actions[actionName] || 0) + 2;
+  memory.last_action = actionName;
+}
+
+function buildBattleStateContext(actor, target, combatData, extra = {}) {
+  const canFlee = combatData?.allow_flee !== false;
+  const isDesperateNoEscape = (actor?.vit || 0) < (actor?.vit_max || 1) * 0.3 && !canFlee;
+  return {
+    combatType: combatData?.combat_type || "突发遭遇",
+    isDeadlyFight: extra.isDeadlyFight ?? ((combatData?.combat_type || "突发遭遇") === "死战" || (combatData?.combat_type || "突发遭遇") === "突发遭遇"),
+    ratio: extra.ratio ?? 1,
+    playerPower: extra.playerPower ?? 0,
+    isChargingHighThreat: !!extra.isChargingHighThreat,
+    actorHpRatio: (actor?.vit || 0) / Math.max(1, actor?.vit_max || 1),
+    targetHpRatio: (target?.vit || 0) / Math.max(1, target?.vit_max || 1),
+    canFlee: canFlee,
+    isDesperateNoEscape: isDesperateNoEscape,
+    actor,
+    target,
+    combatData,
+    ...extra
+  };
+}
+
+function chooseAndBuildActorAction(actor, target, battleState, candidates, phaseLabel, logPrefix = "") {
+  const choice = chooseActorActionByCandidates(actor, target, battleState, candidates, phaseLabel);
+  if (!choice.option) return null;
+
+  const action = choice.option.build();
+  recordActorActionMemory(actor, choice.option.name || action.type);
+  action.log = `${logPrefix}${choice.trace} ${action.log}`.trim();
+  return action;
+}
+
+function collectCombatSkills(charData, alliedTeam = []) {
+  const skills = [];
+
+  if (charData?.spirit) {
+    Object.entries(charData.spirit).forEach(([spKey, sp]) => {
+      const spName = sp.表象名称 || spKey || "武魂";
+      Object.values(sp.soul_spirits || {}).forEach(ss => {
+        Object.values(ss.rings || {}).forEach(ring => {
+          Object.entries(ring.魂技 || {}).forEach(([skillName, skillData]) => {
+            if (skillData?.状态 !== "未生成") {
+              const nSkill = normalizeSkillData(skillData, skillName);
+              nSkill.source_tag = spName;
+              skills.push(nSkill);
+            }
+          });
+        });
+      });
+    });
+  }
+
+  if (charData?.bloodline_power) {
+    Object.entries(charData.bloodline_power.skills || {}).forEach(([skillName, skillData]) => {
+      if (skillData?.状态 !== "未生成") {
+        const nSkill = normalizeSkillData(skillData, skillName);
+        nSkill.source_tag = "血脉之力";
+        skills.push(nSkill);
+      }
+    });
+    Object.values(charData.bloodline_power.blood_rings || {}).forEach(ring => {
+      Object.entries(ring.魂技 || {}).forEach(([skillName, skillData]) => {
+        if (skillData?.状态 !== "未生成") {
+          const nSkill = normalizeSkillData(skillData, skillName);
+          nSkill.source_tag = "气血魂技";
+          skills.push(nSkill);
+        }
+      });
+    });
+  }
+
+  if (charData?.soul_bone) {
+    Object.values(charData.soul_bone).forEach(bone => {
+      Object.entries(bone.附带技能 || {}).forEach(([skillName, skillData]) => {
+        if (skillData?.状态 !== "未生成" && skillData?.技能类型 !== "被动/基础属性提升") {
+          const nSkill = normalizeSkillData(skillData, skillName);
+          nSkill.source_tag = "魂骨技能";
+          skills.push(nSkill);
+        }
+      });
+    });
+  }
+
+  if (charData?.martial_fusion_skills) {
+    Object.entries(charData.martial_fusion_skills).forEach(([fusionName, fusionSkill]) => {
+      const partnerAlive = alliedTeam.some(unit => unit.name === fusionSkill.partner && unit.vit > 0);
+      if (partnerAlive && fusionSkill.skill_data) {
+        const nSkill = normalizeSkillData(fusionSkill.skill_data, `武魂融合技·${fusionName}`);
+        nSkill.source_tag = "武魂融合技";
+        skills.push(nSkill);
+      }
+    });
+  }
+
+  if (charData?.special_abilities) {
+    Object.keys(charData.special_abilities).forEach(abilityName => {
+      const skillData = getSpecialAbilitySkillData(charData, abilityName);
+      if (skillData) {
+        const nSkill = normalizeSkillData(skillData, abilityName);
+        nSkill.source_tag = "特殊能力";
+        skills.push(nSkill);
+      }
+    });
+  }
+
+  return skills;
+}
+
+function onPlayerAttack(playerInput, options = {}) {
+  let combatData = window.BattleUIBridge?.getMVU("sd.world.combat");
+  hydrateCombatData(combatData);
+  let defender = combatData.participants.enemy;
+  let attacker = combatData.participants.player;
+  const mode = options.mode === "multi_round" ? "multi_round" : "single_round";
+  const modeLabel = mode === "multi_round" ? "自动续推" : "单回合";
+  const maxRounds = mode === "multi_round" ? 4 : 1;
+
+  // --- 第一步：环境定调与状态快照 ---
+  // 1. 旁路预判（仅限我方碾压敌方时可直接跳过，且不更新 MVU）
+  let lvDiff = attacker.lv - defender.lv;
+  if (lvDiff >= 30) {
+    let systemPrompt = `[战力碾压旁路] 玩家等级碾压对手，无需进行繁琐博弈。请 AI 直接描写玩家以摧枯拉朽之势秒杀敌人的画面！`;
+    sendToAI(playerInput, systemPrompt, { requestKind: 'battle_shortcut' });
+    return;
+  }
+
+  // 2. 状态快照与控制拦截 (完全基于 Schema 属性驱动)
+  defender.is_controlled = false;
+  defender.temp_agi_mult = 1.0; 
+
+  if (defender.conditions) {
+    for (let key in defender.conditions) {
+      let cond = defender.conditions[key];
+      if (cond.combat_effects && cond.combat_effects.skip_turn === true) {
+        defender.is_controlled = true;
+      }
+      if (cond.stat_mods && cond.stat_mods.agi !== undefined) {
+        defender.temp_agi_mult *= cond.stat_mods.agi; 
+      }
+    }
+  }
+  defender.temp_agi_mult = Math.max(0.1, defender.temp_agi_mult);
+
+  let roundCount = 0;
+  let battleLog = [];
+  let continueSimulation = true;
+  let latestPlayerActionSummary = {
+    action_type: '无',
+    element_count: 1,
+    is_charged: false
+  };
+
+  while (roundCount < maxRounds && continueSimulation && defender.vit > 0) {
+    roundCount++;
+    let roundLog = `[第${roundCount}回合] `;
+
+    let isCharging = attacker.charging_skill != null;
+    let playerAction = null;
+
+    // 1. 玩家硬控拦截扫描
+    let isPlayerControlled = false;
+    if (attacker.conditions) {
+      for (let key in attacker.conditions) {
+        if (attacker.conditions[key].combat_effects && attacker.conditions[key].combat_effects.skip_turn === true) {
+          isPlayerControlled = true;
+          break;
+        }
+      }
+    }
+
+    if (isPlayerControlled) {
+      roundLog += `[状态受控] 玩家处于硬控状态，本回合无法动作！ `;
+      playerAction = { action_type: "被控挨打", cast_time: 100, skill: null };
+      attacker.charging_skill = null; 
+    } else if (isCharging) {
+      playerAction = attacker.charging_skill;
+      if (playerAction.cast_time <= 40) {
+        roundLog += `[蓄力完成] 玩家完成了蓄力，释放了[${playerAction.skill.name}]！ `;
+        attacker.charging_skill = null;
+      } else {
+        playerAction.cast_time -= 30;
+        roundLog += `[蓄力中] 玩家正在为[${playerAction.skill.name}]蓄力，当前剩余前摇：${playerAction.cast_time}。本回合无法动作！ `;
+        playerAction = { action_type: "蓄力挨打", cast_time: 100, skill: null }; 
+      }
+    } else {
+      playerAction = parsePlayerIntent(playerInput);
+
+      // 💥【终极动作序列时间片机制】一回合能做出的总行动上限为 cast_time = 40！
+      let totalTimeCost = 0;
+      let validPreActions = [];
+      let carryOverAction = null;
+
+      // 1. 先把预先声明的副动作逐个填入时间槽
+      if (playerAction.pre_actions && playerAction.pre_actions.length > 0) {
+        for (let i = 0; i < playerAction.pre_actions.length; i++) {
+          let pa = playerAction.pre_actions[i];
+          if (totalTimeCost + pa.cast_time <= 40) {
+            totalTimeCost += pa.cast_time;
+            validPreActions.push(pa);
+          } else {
+            // 只要超了40，后面所有的动作（包括没放出来的副动作和主动作）全部转为蓄力拖延到下一回合
+            carryOverAction = pa;
+            // 把没用掉的剩余时间拿来减前摇
+            carryOverAction.cast_time -= Math.max(0, 40 - totalTimeCost);
+            break;
+          }
+        }
+      }
+
+      // 2. 如果副动作还没爆表，轮到尝试塞入主动作
+      if (!carryOverAction) {
+        if (totalTimeCost + playerAction.cast_time <= 40) {
+          totalTimeCost += playerAction.cast_time;
+          // 全套连招完成！顺利打出！
+        } else {
+          // 主动作超时了，转为蓄力
+          carryOverAction = playerAction;
+          carryOverAction.cast_time -= Math.max(0, 40 - totalTimeCost);
+        }
+      }
+
+      // 执行成功挤入本回合时间片的副动作
+      validPreActions.forEach(preAct => {
+        let preCostLog = applyActionCost(attacker, preAct);
+        if (preCostLog) roundLog += preCostLog + " ";
+        if (preAct.action_type === "穿戴装备") {
+          attacker.equip[preAct.equip_target].equip_status = "已装备";
+          roundLog += `[连招生效] 玩家在电光火石间成功穿戴了${preAct.equip_target === 'armor' ? '斗铠' : '机甲'}！ `;
+        }
+      });
+      // 为了让后续流程还能认得出主动作，必须将原本的 pre_actions 覆写为实际生效的这几个
+      playerAction.pre_actions = validPreActions;
+
+      // 3. 判定本回合到底是出手，还是蓄力挨打
+      if (carryOverAction) {
+        attacker.charging_skill = carryOverAction;
+        roundLog += `[连招中断/转蓄力] 动作太过繁琐或前摇过长！玩家开始为[${carryOverAction.skill?.name || carryOverAction.action_type}]进行蓄力准备，当前剩余前摇：${carryOverAction.cast_time}。本回合失去主攻击机会！ `;
+        // 主动作被没收，变成了“蓄力挨打”态，用来触发后续的防御与闪避博弈
+        playerAction = { action_type: "蓄力挨打", cast_time: 100, skill: null };
+      } else {
+        if (playerAction.action_type !== "施法失败") {
+          let costLog = applyActionCost(attacker, playerAction);
+          if (costLog) roundLog += costLog + " ";
+        }
+      }
+    }
+
+    latestPlayerActionSummary = {
+      action_type: String(playerAction?.skill?.name || attacker?.charging_skill?.skill?.name || playerAction?.action_type || attacker?.action_declared || '无'),
+      element_count: Math.max(1, Number(playerAction?.element_count || playerAction?.skill?.element_count || 1)),
+      is_charged: Boolean(playerAction?.is_charged || playerAction?.skill?.is_charged || attacker?.charging_skill)
+    };
+
+    let ratio = calculateReactionRatio(attacker, defender, playerAction, combatData);
+    let npcAction = defender.is_controlled ? 
+                    { type: "无法反应", log: "NPC处于被控状态，无法动作。" } : 
+                    determineNpcAction(combatData, playerAction, ratio);
+    
+    let settleResult = executeClash(playerAction, npcAction, combatData);
+    roundLog += npcAction.log + " " + settleResult.desc;
+
+    if (attacker.charging_skill != null) {
+      let damageRatio = settleResult.dmg / attacker.vit_max;
+      let isControlled = attacker.conditions && attacker.conditions["眩晕"];
+      
+      let hasSuperArmor = false;
+      if (attacker.conditions) {
+        for (let key in attacker.conditions) {
+          if (key.includes("霸体") ) hasSuperArmor = true;
+        }
+      }
+      
+      if (npcAction.type === "危机自保" && npcAction.skill.技能类型 === "控制" && npcAction.skill.cast_time < 10) {
+        let pMult = getWoundMult(attacker);
+        let dMult = getWoundMult(defender);
+        if (defender.men_max > attacker.men_max || (defender.agi * dMult) > (attacker.agi * pMult)) {
+          if (hasSuperArmor) {
+            roundLog += ` NPC释放[${npcAction.skill.name}]试图打断，但玩家处于霸体状态，强行免疫了控制！`;
+          } else {
+            let backlashDmg = Math.floor(attacker.vit_max * 0.05); 
+            attacker.vit -= backlashDmg;
+            if (!attacker.conditions) attacker.conditions = {};
+            attacker.conditions["僵直"] = { 
+              类型: "debuff", 层数: 1, 描述: "施法被打断的反噬", duration: 1, 
+              stat_mods: { str: 1.0, def: 1.0, agi: 1.0, sp_max: 1.0 }, 
+              combat_effects: { skip_turn: true, dot_damage: 0, armor_pen: 0 } 
+            };
+            roundLog += ` NPC释放[${npcAction.skill.name}]成功打断玩家施法！玩家遭到反噬，承受 ${backlashDmg} 点真伤并陷入[僵直]！`;
+            attacker.charging_skill = null;
+            let attackerUpkeep = settleSustainEffectsAtRoundEnd(attacker, "玩家");
+            let defenderUpkeep = settleSustainEffectsAtRoundEnd(defender, "NPC");
+            if (attackerUpkeep.log) roundLog += ` ${attackerUpkeep.log}`;
+            if (defenderUpkeep.log) roundLog += ` ${defenderUpkeep.log}`;
+            let attackerRoundEnd = settleConditionsAtRoundEnd(attacker, "玩家");
+            let defenderRoundEnd = settleConditionsAtRoundEnd(defender, "NPC");
+            if (attackerRoundEnd.log) roundLog += ` ${attackerRoundEnd.log}`;
+            if (defenderRoundEnd.log) roundLog += ` ${defenderRoundEnd.log}`;
+            if (attacker.vit <= 0 || defender.vit <= 0) continueSimulation = false;
+            battleLog.push(roundLog);
+            continue;
+          }
+        }
+      }
+
+      if (!hasSuperArmor && (damageRatio >= 0.3 || isControlled)) {
+        roundLog += ` [蓄力打断] 玩家受到重创或硬控，蓄力被强制打断！`;
+        attacker.charging_skill = null;
+      } else if (hasSuperArmor && isControlled) {
+        roundLog += ` [霸体强抗] 玩家遭遇硬控，但凭借霸体强行稳住阵脚，蓄力继续！`;
+        delete attacker.conditions["眩晕"]; 
+      }
+    }
+    
+    
+    // 简单判断 NPC 是否被打断 (如果玩家伤害极高或带有硬控，视为打断)
+    let isNpcInterrupted = (settleResult.dmg / defender.vit_max >= 0.15) || (playerAction.skill?.仲裁逻辑?.状态挂载模块?.特殊机制标识?.includes("硬控"));
+    
+    if (npcAction.type === "穿戴装备") {
+      if (!isNpcInterrupted) {
+        defender.equip[npcAction.skill.equip_target].equip_status = "已装备";
+        roundLog += ` [装备生效] NPC成功穿戴了${npcAction.skill.equip_target === 'armor' ? '斗铠' : '机甲'}，防御力大增！`;
+      } else {
+        roundLog += ` [穿戴失败] 玩家的猛烈攻击强行打断了NPC的装备穿戴过程！`;
+      }
+    }
+    
+    // --- 第四步：打击烈度与破防标尺 ---
+    let finalDmg = settleResult.dmg;
+    if (finalDmg > 0) {
+      if (finalDmg < defender.def * 0.1) {
+        defender.vit -= 1;
+        roundLog += ` [未破防] 攻击如同刮痧，NPC仅强制扣除 1 点体力。`;
+      } else {
+        defender.vit -= finalDmg;
+        if (finalDmg > defender.sp_max * 0.5) {
+          if (!defender.conditions) defender.conditions = {};
+          defender.conditions["重度流血"] = { 
+            类型: "debuff", 层数: 1, 描述: "重创导致的流血", duration: 3, 
+            stat_mods: { str: 1.0, def: 1.0, agi: 1.0, sp_max: 1.0 }, 
+            combat_effects: { skip_turn: false, dot_damage: Math.floor(defender.vit_max * 0.05), armor_pen: 0 } 
+          };
+          roundLog += ` [重创打击] 伤害极高！NPC遭到重创，被附加[重度流血]状态！`;
+        }
+      }
+    }
+
+    // --- 第五步：装备护主与战损结算 ---
+    let combatType = combatData.combat_type || "突发遭遇";
+    
+    if (defender.vit < defender.vit_max * 0.1) {
+      let hasMech = defender.equip?.mech?.lv !== "无" && defender.equip?.mech?.status !== "重创";
+      let hasArmor = defender.equip?.armor?.equip_status === "已装备";
+      
+      if (combatType === "擂台切磋" && defender.vit <= defender.vit_max * 0.05) {
+        defender.vit = Math.floor(defender.vit_max * 0.05); // 强制锁血 5%
+        roundLog += ` [擂台保护] 胜负已分！裁判强行介入，终止了致命一击！`;
+        continueSimulation = false; // 强制结束战斗
+      } else if (hasMech || hasArmor) {
+        defender.vit = Math.floor(defender.vit_max * 0.1);
+        let armorLog = applyArmorDamage(defender); 
+        roundLog += ` [装备护主] 致命打击触发替死锁血！NPC体力强制锁定在10%！${armorLog}`;
+      } else if (combatType === "升灵台虚拟战斗" || combatType === "魂灵塔冲塔") {
+        // 虚拟战斗中，敌方体力归零照常死亡，如果是己方或判定特殊保护，需要锁定体力并标记退出
+        let saveLog = triggerDeathSave(defender);
+        if (saveLog) {
+          defender.vit = Math.floor(defender.vit_max * 0.1);
+          roundLog += ` ${saveLog}`;
+        } else {
+          // 虚拟环境，如果是玩家/模拟死亡也是正常走到 vit <= 0，靠 settleBattle 拦截
+        }
+      } else {
+        let saveLog = triggerDeathSave(defender);
+        if (saveLog) {
+          defender.vit = Math.floor(defender.vit_max * 0.1);
+          roundLog += ` ${saveLog}`;
+        }
+      }
+    }
+
+    let attackerUpkeep = settleSustainEffectsAtRoundEnd(attacker, "玩家");
+    let defenderUpkeep = settleSustainEffectsAtRoundEnd(defender, "NPC");
+    if (attackerUpkeep.log) roundLog += ` ${attackerUpkeep.log}`;
+    if (defenderUpkeep.log) roundLog += ` ${defenderUpkeep.log}`;
+
+
+    let attackerRoundEnd = settleConditionsAtRoundEnd(attacker, "玩家");
+    let defenderRoundEnd = settleConditionsAtRoundEnd(defender, "NPC");
+    if (attackerRoundEnd.log) roundLog += ` ${attackerRoundEnd.log}`;
+    if (defenderRoundEnd.log) roundLog += ` ${defenderRoundEnd.log}`;
+
+    if (attacker.vit <= 0 || defender.vit <= 0) {
+      continueSimulation = false;
+    } else if (attacker.charging_skill == null) {
+      if (mode === "single_round") {
+        continueSimulation = false;
+        roundLog += ` [单回合仲裁] 当前模式为单回合，本次暗箱演算到此结束。`;
+      } else {
+        const continueThresholdReached = settleResult.dmg / Math.max(1, attacker.vit_max) >= 0.05;
+        if (continueThresholdReached) {
+          continueSimulation = false;
+          roundLog += ` [续推终止] 本回合攻防烈度已达阈值，暗箱续推停止。`;
+        } else {
+          const continueRoll = Math.random();
+          const continueHit = continueRoll < 0.7;
+          continueSimulation = continueHit;
+          roundLog += ` [续推判定] 本回合伤害未达阈值，触发70%概率续推。Roll:${continueRoll.toFixed(2)} 判定:${continueHit ? '继续' : '停止'}。`;
+        }
+      }
+    }
+    
+    battleLog.push(roundLog);
+  }
+
+  let isWin = defender.vit <= 0;
+  const unresolvedReason = (!isWin && attacker.vit > 0 && defender.vit > 0)
+    ? (mode === "single_round" ? "single_round_limit" : "simulation_stopped")
+    : "";
+  let extraPatchOps = [];
+  let settleResult = settleBattle(attacker, defender, isWin, {
+    mode,
+    roundCount,
+    maxRounds,
+    unresolvedReason,
+    combatData
+  });
+  if (settleResult.log) battleLog.push(settleResult.log);
+  if (settleResult.extraPatchOps) extraPatchOps = settleResult.extraPatchOps;
+
+  const settleSummaryResult = isWin ? '胜利' : (attacker.vit <= 0 ? '失败' : (unresolvedReason ? '未决' : '平局'));
+  combatData.summary = Object.assign({}, combatData.summary || {}, {
+    player_action: {
+      action_type: latestPlayerActionSummary.action_type,
+      element_count: latestPlayerActionSummary.element_count,
+      is_charged: latestPlayerActionSummary.is_charged
+    },
+    settle_result: {
+      target_npc: String(defender?.name || defender?.char_name || defender?.名称 || '未知目标'),
+      result: settleSummaryResult,
+      is_killed: Boolean(isWin && defender.vit <= 0)
+    },
+    round_count: roundCount,
+    mode,
+    generated_by: 'Battle_UI'
+  });
+
+  const mvuUpdate = window.BattleUIBridge?.persistCombatData?.(combatData, {
+    analysis: 'Frontend battle arbitration already produced the exact combat result. Apply the following JSONPatch exactly as given.',
+    extraPatchOps
+  }) || null;
+
+  let systemPrompt = `[前端暗箱演算完毕][${modeLabel}] 共进行 ${roundCount} 回合。\n战报：\n${battleLog.join("\n")}\n请严格根据战报描写画面！`;
+  if (mvuUpdate?.updateVariableText) {
+    systemPrompt += `\n\n[MVU变量更新要求]\n你必须在本次回复结尾附加一个 <UpdateVariable> 块。请严格原样输出下面这段 JSONPatch，不要修改 op、path、value：\n${mvuUpdate.updateVariableText}`;
+  }
+  sendToAI(playerInput, systemPrompt, { mvuUpdate, requestKind: 'battle_arbitration' });
+}
+
+// ==========================================
+// 📍 2. 战前消耗与战后结算区 (彻底净化版)
+// ==========================================
+function applyActionCost(attackerChar, playerAction) {
+  let stats = attackerChar.stat || attackerChar;
+  let status = attackerChar.status || {};
+  let log = "";
+  
+  // 💥 1. 通用真实面板扣费逻辑 (支持固定值与百分比，绝不硬编码！)
+  if (playerAction.skill && playerAction.skill.消耗 !== "无") {
+    const costParts = splitSkillCostModes(playerAction.skill.消耗);
+    const parsedCost = parseCostStringForChar(costParts.upfront, attackerChar);
+
+    if (parsedCost.canCast) {
+      stats.sp -= parsedCost.reqSp;
+      stats.vit -= parsedCost.reqVit;
+      stats.men -= parsedCost.reqMen;
+
+      const sustainConfig = resolveActionSustainConfig(attackerChar, playerAction.action_type, playerAction.skill, playerAction.skill?.仲裁逻辑?.状态挂载模块?.状态名称);
+      const shouldRegisterSustain = costParts.hasSustain || ["展开斗铠领域", "展开精神领域", "展开武魂领域", "点燃生命之火"].includes(playerAction.action_type) || ((sustainConfig?.related_condition || sustainConfig?.name || "").includes("真身"));
+      if (shouldRegisterSustain && sustainConfig) {
+        if (costParts.hasSustain && costParts.sustain) sustainConfig.sustain_cost = costParts.sustain;
+        registerSustainEffect(attackerChar, `${playerAction.action_type || 'skill'}:${playerAction.skill.name}`, sustainConfig);
+      }
+
+      log = `[战前消耗] 释放[${playerAction.skill.name}]，扣除 ${parsedCost.reqSp ? '魂力:'+parsedCost.reqSp : ''} ${parsedCost.reqVit ? '体力:'+parsedCost.reqVit : ''} ${parsedCost.reqMen ? '精神力:'+parsedCost.reqMen : ''}。${shouldRegisterSustain ? '(已登记持续维持)' : ''}`;
+    } else {
+      playerAction.action_type = "施法失败";
+      log = `[状态枯竭] 自身状态不足以支撑[${playerAction.skill.name}]的启动消耗，施法失败！`;
+      return log;
+    }
+  }
+  
+  // 💥 2. 纯机制类状态切换 (不涉及具体数值伤害，仅改变底层状态)
+  if (playerAction.action_type === "吸血反哺") {
+    let ratio = playerAction.heal_ratio > 0 ? playerAction.heal_ratio : 0.3;
+    let spGain = Math.floor(stats.sp_max * ratio);
+    let vitGain = Math.floor(stats.vit_max * ratio);
+    stats.sp = Math.min(stats.sp_max, stats.sp + spGain);
+    stats.vit = Math.min(stats.vit_max, stats.vit + vitGain);
+    log = `[机制反哺] 触发吸血/减耗机制，强制恢复状态！`;
+  }
+  else if (playerAction.action_type === "点燃生命之火") {
+    if (attackerChar.bloodline_power) {
+      attackerChar.bloodline_power.life_fire = true;
+      const sustainConfig = resolveActionSustainConfig(attackerChar, playerAction.action_type, playerAction.skill, "");
+      if (sustainConfig) registerSustainEffect(attackerChar, `life_fire:${playerAction.skill?.name || '点燃生命之火'}`, sustainConfig);
+      log += ` [底蕴透支] 强行点燃生命之火！气血如烘炉般燃烧，全属性临时翻倍！(警告：战后熄灭将面临毁灭性反噬)`;
+    } else {
+      playerAction.action_type = "法则失败";
+      log = `[状态枯竭] 未觉醒相关血脉，无法点燃生命之火！`;
+    }
+  }
+  // 领域状态挂载 (扣费已在上面通用逻辑完成，这里只挂载标识)
+  else if (playerAction.action_type === "展开斗铠领域") {
+    status.active_domain = attackerChar.equip?.armor?.lv >= 4 ? "【四字斗铠领域】全开(未定)" : "【三字斗铠领域】全开(未定)";
+    const sustainConfig = resolveActionSustainConfig(attackerChar, playerAction.action_type, playerAction.skill, "");
+    if (sustainConfig) registerSustainEffect(attackerChar, `domain:${playerAction.action_type}`, sustainConfig);
+    log += ` [领域降临] 斗铠法则主场展开！`;
+  }
+  else if (playerAction.action_type === "展开精神领域") {
+    status.active_domain = "【精神领域】全开";
+    const sustainConfig = resolveActionSustainConfig(attackerChar, playerAction.action_type, playerAction.skill, "");
+    if (sustainConfig) registerSustainEffect(attackerChar, `domain:${playerAction.action_type}`, sustainConfig);
+    log += ` [领域降临] 精神法则主场展开！`;
+  }
+  else if (playerAction.action_type === "展开武魂领域") {
+    status.active_domain = "【武魂领域】全开";
+    const sustainConfig = resolveActionSustainConfig(attackerChar, playerAction.action_type, playerAction.skill, "");
+    if (sustainConfig) registerSustainEffect(attackerChar, `domain:${playerAction.action_type}`, sustainConfig);
+    log += ` [领域降临] 武魂本源领域展开！`;
+  }
+
+  return log;
+}
+
+function settleBattle(attackerChar, defenderChar, isWin, options = {}) {
+  let log = "";
+  let extraPatchOps = [];
+  let attackerStats = attackerChar.stat || attackerChar;
+  let defenderStats = defenderChar.stat || defenderChar;
+  let defenderName = defenderChar.name || "敌人";
+  
+  // 读取战斗类型
+  let combatData = options.combatData || window.BattleUIBridge?.getMVU("sd.world.combat");
+  let combatType = combatData.combat_type || "突发遭遇";
+  let inventory = window.BattleUIBridge?.getMVU("sd.char.主角.inventory") || {};
+  
+  // --- 触发世界战斗图鉴录入 ---
+  let bestiary = window.BattleUIBridge?.getMVU("sd.world.bestiary") || {};
+  if (defenderName && defenderName !== "敌人" && defenderName !== "未知") {
+    let monsterEntry = bestiary[defenderName];
+    if (!monsterEntry) {
+      extraPatchOps.push({
+        op: "add",
+        path: `/sd/world/bestiary/${defenderName}`,
+        value: { 交手次数: 1, 首次记录: `由 ${attackerChar.name || "主角"} 在${combatType}中遭遇` }
+      });
+    } else {
+      extraPatchOps.push({
+        op: "replace",
+        path: `/sd/world/bestiary/${defenderName}/交手次数`,
+        value: (monsterEntry.交手次数 || 1) + 1
+      });
+    }
+  }
+  
+  if (combatType === "升灵台虚拟战斗") {
+    if (isWin) {
+      let killedAge = combatData.killed_age || defenderStats.age || 100;
+      let partySize = combatData.party_size || 1;
+      let ticket = combatData.ascension_ticket || "初级升灵台门票";
+      let maxAge = ticket === "高级升灵台门票" ? 100000 : (ticket === "中级升灵台门票" ? 20000 : 3000);
+      killedAge = Math.min(killedAge, maxAge);
+
+      let rings = Object.keys(attackerChar.rings || {});
+      let totalRings = rings.length;
+      if (totalRings > 0) {
+        let gain = Math.floor(killedAge / partySize / totalRings);
+        log = `[升灵台结算] 击溃虚拟魂兽！化为纯净修为能量涌入体内(${partySize}人平分)，拥有 ${totalRings} 个魂环均获得大约 ${gain} 年修为提升！(请 AI 描写吸收能量的画面)`;
+        rings.forEach(rIndex => {
+          const oldAge = attackerChar.rings[rIndex].年限 || 10;
+          extraPatchOps.push({ op: "replace", path: `/sd/char/主角/rings/${rIndex}/年限`, value: oldAge + gain });
+        });
+      } else {
+        log = `[升灵台结算] 虚拟魂兽死亡！但玩家尚未拥有魂环，无法吸收升灵能量，能量缓缓消散...`;
+      }
+    } else {
+      log = `[升灵台保护] 玩家受到致命创伤，升灵台保护机制触发！一道接引光芒落下，强制将其弹出升灵台。(虚拟战败，无实质损伤，但终止了本次历练)`;
+      attackerChar.vit = 1;
+    }
+    return { log, extraPatchOps };
+  }
+
+  if (combatType === "魂灵塔冲塔") {
+    let floor = combatData.floor || 1;
+    if (isWin) {
+      let ageDesc = "十年";
+      if (floor >= 40) ageDesc = "十万年";
+      else if (floor >= 30) ageDesc = "万年";
+      else if (floor >= 20) ageDesc = "千年";
+      else if (floor >= 10) ageDesc = "百年";
+
+      log = `🏆[冲塔成功] 镇守第 ${floor} 层的 ${defenderName} 被彻底击溃！玩家成功通关本层，获得了该层魂灵的【五折购买特权】，并获赠【${ageDesc}魂灵(冲塔自选)】！(请 AI 描写通关奖励降落的场景)`;
+      extraPatchOps.push({ op: "replace", path: `/sd/char/主角/tower_records/discount_available/${floor}`, value: true });
+
+      let itemName = `${ageDesc}魂灵(冲塔自选)`;
+      let currentItem = inventory[itemName];
+      if (currentItem) {
+        extraPatchOps.push({ op: "replace", path: `/sd/char/主角/inventory/${itemName}/数量`, value: (currentItem.数量 || 0) + 1 });
+      } else {
+        extraPatchOps.push({ op: "replace", path: `/sd/char/主角/inventory/${itemName}`, value: { 数量: 1, 类型: "魂灵", 品质: "普通", 描述: `魂灵塔第${floor}层战利品` } });
+      }
+    } else {
+      log = `💀[冲塔失败] 玩家遭到 ${defenderName} 重创，魂灵塔阵法排斥之力发动，将其强行传送出塔外！(请 AI 描写重伤弹出塔外的虚弱状态)`;
+      attackerChar.vit = 1;
+    }
+    return { log, extraPatchOps };
+  }
+
+  if (isWin) {
+    let lvDiff = defenderStats.lv - attackerStats.lv;
+    
+    const fList = Object.keys(defenderChar.social?.factions || {});
+    const isBeast = fList.includes("魂兽一族") || fList.some(name => name.includes("魂兽")) || defenderStats.age >= 100;
+    const isAbyss = fList.includes("深渊生物") || fList.some(name => name.includes("深渊"));
+    let isBeastOrAbyss = isBeast || isAbyss;
+    
+    if (lvDiff <= -5) {
+      log = `[实战结算] 击败了对手，但因等级碾压(等级差≤-5)，毫无实战感悟，收益为 0。`;
+    } else {
+      let myTalentScore = { "绝世妖孽": 5, "顶级天才": 4, "天才": 3, "优秀": 2, "正常": 1, "劣等": 0 }[attackerStats.talent_tier] || 1;
+      let targetTalentScore = 1;
+      
+      if (isBeastOrAbyss) {
+        if (defenderStats.age >= 100000) targetTalentScore = 5;
+        else if (defenderStats.age >= 10000) targetTalentScore = 3;
+        else if (defenderStats.age >= 1000) targetTalentScore = 2;
+        else targetTalentScore = 0;
+      } else {
+        targetTalentScore = { "绝世妖孽": 5, "顶级天才": 4, "天才": 3, "优秀": 2, "正常": 1, "劣等": 0 }[defenderStats.talent_tier] || 1;
+      }
+      let talentMult = Math.max(0.1, 1 + (targetTalentScore - myTalentScore) * 0.2);
+      
+      let lvMult = 1.0;
+      if (lvDiff >= 3) lvMult = 1.5 + (lvDiff - 3) * 0.2;
+      
+      let historyMult = 1.0;
+      if (!isBeastOrAbyss) {
+        if (!attackerChar.combat_history) attackerChar.combat_history = {};
+        let history = attackerChar.combat_history[defenderName];
+        if (history) {
+          if (history.count === 1) historyMult = 0.5;
+          else if (history.count === 2) historyMult = 0.1;
+          else if (history.count >= 3) historyMult = 0;
+        }
+      }
+      
+      let finalMult = talentMult * lvMult * historyMult;
+      
+      if (finalMult <= 0) {
+         log = `[实战结算] 击败了对手，但因多次交手已无新感悟，收益递减为 0。`;
+      } else {
+         let baseGain = 10;
+         let finalGain = Math.floor(baseGain * finalMult);
+         
+         if (finalGain > 0) {
+           if (!attackerStats.trained_bonus) attackerStats.trained_bonus = { str:0, def:0, agi:0, vit_max:0, men_max:0 };
+           attackerStats.trained_bonus.str += finalGain;
+           attackerStats.trained_bonus.def += finalGain;
+           attackerStats.trained_bonus.agi += finalGain;
+           attackerStats.trained_bonus.vit_max += finalGain;
+           attackerStats.trained_bonus.men_max += Math.floor(finalGain * 0.5);
+           log = `[实战结算] 战斗胜利！(等级差:${lvDiff}, 天赋乘区:${talentMult.toFixed(1)}, 递减:${historyMult}) 获得 ${finalGain} 点实战六维成长！`;
+         } else {
+           log = `[实战结算] 战斗胜利，但综合评估后收益微乎其微。`;
+         }
+      }
+    }
+
+    if (!isBeastOrAbyss) {
+      if (!attackerChar.combat_history) attackerChar.combat_history = {};
+      if (!attackerChar.combat_history[defenderName]) attackerChar.combat_history[defenderName] = { count: 0, last_tick: 0 };
+      attackerChar.combat_history[defenderName].count += 1;
+    }
+    if (combatType === "擂台切磋") {
+      log += ` 🏆[擂台结算] 堂堂正正地赢得了比赛！(请 AI 描写观众的欢呼与对手的反应)`;
+    } else if (isBeastOrAbyss) {
+      if (isAbyss) {
+        attackerChar.abyss_kill_request = { kill_tier: defenderStats.talent_tier || '炮灰', quantity: 1 };
+        log += ` 💀[深渊击杀确认] 斩杀深渊生物，正在向战神殿系统发送战功兑换申请！(请 AI 描写深渊能量消散的画面)`;
+      } else {
+        log += ` 💀[魂兽击杀确认] 魂兽死亡！(请 AI 描写魂环浮现与战利品掉落的画面)`;
+      }
+    } else {
+      log += ` 💀[生死决断] 敌人已被彻底击溃！(请 AI 描写搜刮战利品或审问的画面)`;
+    }
+  } else {
+    if (options.unresolvedReason === "single_round_limit") {
+      log = `[实战结算] 单回合仲裁结束，当前尚未分出胜负，双方仍在激烈对峙。`;
+    } else if (options.unresolvedReason === "simulation_stopped") {
+      log = `[实战结算] 暗箱续推暂告一段落，当前仍未决出胜负，战局进入新的对峙阶段。`;
+    } else {
+      log = `[实战结算] 战斗失败或逃跑，未能获得实战成长。`;
+    }
+  }
+
+  return { log, extraPatchOps };
+}
+
+function applyArmorDamage(defender) {
+  let log = "";
+  if (defender.equip.mech.lv !== "无" && defender.equip.mech.status !== "重创") {
+    if (defender.equip.mech.status === "完好") {
+      defender.equip.mech.status = "受损";
+      defender.equip.mech.品质系数 = 0.5;
+      log = `[战损] 敌方最外层的机甲装甲大面积凹陷，状态降级为【受损】！`;
+    } else if (defender.equip.mech.status === "受损") {
+      defender.equip.mech.status = "重创";
+      defender.equip.mech.品质系数 = 0;
+      log = `[战损] 敌方机甲核心法阵爆裂，状态降级为【重创】，彻底瘫痪！`;
+    }
+    return log; 
+  }
+  if (defender.equip.armor.equip_status === "已装备") {
+    let parts = Object.keys(defender.equip.armor.parts);
+    let intactParts = parts.filter(p => defender.equip.armor.parts[p].状态 === "完好");
+    if (intactParts.length > 0) {
+      let targetPart = intactParts[Math.floor(Math.random() * intactParts.length)];
+      defender.equip.armor.parts[targetPart].状态 = "碎裂";
+      defender.equip.armor.parts[targetPart].品质系数 = 0;
+      log = `[战损] 敌方贴身的斗铠【${targetPart}】承受不住透体的重击，轰然碎裂！`;
+    }
+  }
+  return log;
+}
+
+function triggerDeathSave(defender) {
+  return null; // 预留接口
+}
+
+// ==========================================
+// 📍 伤势折损计算
+// ==========================================
+function getWoundMult(char) {
+  let currentVit = Math.max(0, char?.vit || 0);
+  let maxVit = Math.max(1, char?.vit_max || 1);
+  let ratio = currentVit / maxVit;
+  if (ratio > 0.5) return 1.0;
+  if (ratio > 0.3) return 0.9;
+  if (ratio > 0.1) return 0.7;
+  return 0.5;
+}
+
+// ==========================================
+// 📍 核心结算区：动作博弈与交锋
+// ==========================================
+function calculateReactionRatio(attacker, defender, playerAction, combatData) {
+  let pMult = getWoundMult(attacker);
+  let dMult = getWoundMult(defender);
+  
+  let castPenalty = Math.min(0.9, playerAction.cast_time / 100); 
+  let attackerSpeed = (attacker.agi * pMult) * (1 - castPenalty);
+  
+  let defenderReaction = (defender.agi * dMult) + defender.men_max;
+  let ratio = defenderReaction / Math.max(1, attackerSpeed);
+
+  if (combatData && combatData.initiative !== "无" && combatData.initiative !== defender.name) {
+    ratio *= 0.5; 
+  }
+  
+  return ratio;
+}
+
+function executeClash(playerAction, npcAction, combatData) {
+  hydrateCombatData(combatData);
+  let attacker = combatData.participants.player; 
+  let attackerFinalStat = attacker.final || attacker;
+  let defender = combatData.participants.enemy;
+  let defenderFinalStat = defender.final || defender;
+  let result = { dmg: 0, desc: "" };
+
+  playerAction.skill = normalizeSkillData(playerAction.skill || {
+    name: "普通攻击",
+    技能类型: "输出",
+    对象: "敌方/单体",
+    仲裁逻辑: createEmptyCombatLogic()
+  }, playerAction.skill?.name || "普通攻击");
+  if (npcAction.skill) {
+    npcAction.skill = normalizeSkillData(npcAction.skill, npcAction.skill.name || npcAction.skill.技能名称 || "未知技能");
+  }
+
+  let pLogic = playerAction.skill.仲裁逻辑 || {};
+  let pClash = pLogic.瞬间交锋模块 || { 基础威力倍率: 0, 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 };
+  let pState = pLogic.状态挂载模块 || { 状态名称: "无", 持续回合: 0, 面板修改比例: {}, 特殊机制标识: "无", 持续真伤dot: 0 };
+  
+  let nLogic = npcAction.skill ? (npcAction.skill.仲裁逻辑 || {}) : {};
+  let nClash = nLogic.瞬间交锋模块 || { 基础威力倍率: 0, 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 };
+
+  let pMult = getWoundMult(attacker);
+  let dMult = getWoundMult(defender);
+  let aStr = attackerFinalStat.str * pMult;
+  let aAgi = attackerFinalStat.agi * pMult;
+  let dStr = defenderFinalStat.str * dMult; 
+  let dDef = defenderFinalStat.def * dMult;
+  let dAgi = defenderFinalStat.agi * dMult;
+
+  let hasSuperArmor = false;
+  if (attacker.conditions) {
+    for (let key in attacker.conditions) {
+      if (key.includes("霸体") || key.includes("真身")) hasSuperArmor = true;
+    }
+  }
+
+  if (npcAction.type === "危机自保" && npcAction.skill.技能类型 === "控制" && npcAction.skill.cast_time < 10) { 
+    if (defenderFinalStat.men_max > attackerFinalStat.men_max || dAgi > aAgi) {
+      if (hasSuperArmor) {
+        result.desc = `NPC释放[${npcAction.skill.name}]试图打断，但玩家处于霸体状态，强行免疫了控制！`;
+      } else {
+        result.desc = `NPC释放[${npcAction.skill.name}]成功打断玩家施法！玩家遭到反噬。`;
+        return result; 
+      }
+    }
+  }
+
+  let isAOE = playerAction.skill.技能类型 === "群攻" || pClash.伤害类型 === "纯精神冲击";
+  let grazeMultiplier = 1.0; 
+
+  if (!isAOE && npcAction.type === "伺机闪避") {
+    let absoluteDodgeThreshold = (aAgi + attackerFinalStat.men_max) * 1.5;
+    if (dAgi > absoluteDodgeThreshold) {
+      result.desc = "NPC触发绝对闪避，残影规避了所有伤害！";
+      return result;
+    }
+    
+    let dodgeRate = (dAgi / (aAgi + attackerFinalStat.men_max)) * 50;
+    let roll = Math.random() * 100;
+
+    if (roll < dodgeRate) {
+      result.desc = `NPC凭借敏捷优势惊险躲过了攻击！`;
+      return result;
+    } else if (roll < dodgeRate + 30) { 
+      let grazePercent = (roll - dodgeRate) / 30; 
+      grazeMultiplier = 0.3 + (0.5 * grazePercent); 
+      result.desc = `NPC未能完全闪避，被攻击擦伤！(承受 ${(grazeMultiplier * 100).toFixed(0)}% 伤害)`;
+    }
+  }
+
+  let remainPower = pClash.基础威力倍率;
+  let npcShield = nClash.护盾绝对值 || 0;
+
+  if (npcAction.type === "强势对轰") {
+    remainPower -= nClash.基础威力倍率;
+    if (remainPower <= 0) {
+      result.desc = `NPC的[${npcAction.skill.name}]威力更胜一筹，碾碎了玩家的攻击！`;
+      return result; 
+    }
+    result.desc = `双方对轰！玩家威力占优，余威继续命中。`;
+  } else if (npcAction.type === "危机自保" && npcAction.skill.技能类型 === "防御") {
+    remainPower -= nClash.基础威力倍率; 
+    if (remainPower <= 0) {
+      result.desc = `NPC的防御技能完美挡下了这一击。`;
+      return result;
+    }
+    result.desc = `攻击突破了NPC的防御技能阻碍。`;
+  }
+
+  let finalDmg = 0;
+  let dmgType = pClash.伤害类型;
+  
+  let actualDef = dDef * (1 - (pClash.穿透修饰 / 100));
+  actualDef = Math.max(1, actualDef); 
+
+  if (dmgType === "物理近战") finalDmg = remainPower * (aStr / actualDef);
+  else if (dmgType === "能量AOE") finalDmg = remainPower * (attackerFinalStat.men_max / actualDef);
+  else if (dmgType === "纯精神冲击") finalDmg = remainPower * (attackerFinalStat.men_max / defenderFinalStat.men_max);
+
+  if (npcAction.type === "肉体兜底") {
+    finalDmg = finalDmg / 1.2; 
+    result.desc = "NPC收缩防御，用纯肉体硬抗了这一击。";
+  }
+
+  if (npcShield > 0) {
+    finalDmg = Math.max(0, finalDmg - npcShield);
+    if (finalDmg === 0) {
+      result.desc += ` 但被NPC的 ${npcShield} 点绝对护盾完全吸收！`;
+    } else {
+      result.desc += ` 击碎了NPC的 ${npcShield} 点护盾后，剩余威力命中本体。`;
+    }
+  }
+
+  let fluctuation = 0.9 + (Math.random() * 0.2); 
+  finalDmg = finalDmg * fluctuation * grazeMultiplier;
+  
+  result.dmg = Math.floor(finalDmg);
+  if (result.dmg > 0) {
+    result.desc += ` 造成了 ${result.dmg} 点最终伤害。`;
+  }
+
+  if (pClash.瞬间恢复比例 > 0) {
+    let healAmount = Math.floor(attackerFinalStat.vit_max * (pClash.瞬间恢复比例 / 100));
+    attacker.vit = Math.min(attackerFinalStat.vit_max, attacker.vit + healAmount);
+    result.desc += ` [机制触发] 玩家瞬间恢复了 ${healAmount} 点体力！`;
+  }
+
+  if (pState.状态名称 !== "无" && (result.dmg > 0 || pClash.基础威力倍率 === 0)) {
+    let targetObj = playerAction.skill.对象.includes("自身") || playerAction.skill.对象.includes("己方") ? attacker : defender;
+    let isBuff = pState.特殊机制标识.includes("增益") || pState.特殊机制标识.includes("霸体") || pState.特殊机制标识.includes("免死");
+    
+    let isImmune = false;
+    if (!isBuff && pState.特殊机制标识.includes("硬控")) {
+      let atkStat = pClash.伤害类型 === "物理近战" ? aStr : attackerFinalStat.men_max;
+      let defStat = pClash.伤害类型 === "物理近战" ? dStr : defenderFinalStat.men_max; 
+      if (defStat > atkStat * 1.5) isImmune = true;
+    }
+
+    if (isImmune) {
+      result.desc += ` 但目标凭借绝对的属性碾压，强行豁免了[${pState.状态名称}]控制！`;
+    } else {
+      if (!targetObj.conditions) targetObj.conditions = {};
+      targetObj.conditions[pState.状态名称] = {
+        类型: isBuff ? "buff" : "debuff",
+        层数: 1,
+        描述: `由[${playerAction.skill.name}]附加`,
+        duration: pState.持续回合,
+        stat_mods: pState.面板修改比例,
+        combat_effects: {
+          skip_turn: pState.特殊机制标识.includes("硬控"),
+          dot_damage: pState.持续真伤dot,
+          armor_pen: 0
+        }
+      };
+      let targetNameStr = targetObj === attacker ? "自身" : "NPC";
+      result.desc += ` 并对${targetNameStr}施加了[${pState.状态名称}]状态！`;
+    }
+  }
+
+  return result;
+}
+
+function buildStrategicCandidates(defender, attacker, combatData, playerAction, ratio, availableSkills, allyTeam, makeNpcAction) {
+  const combatType = combatData.combat_type || "突发遭遇";
+  const isDeadlyFight = combatType === "死战" || combatType === "突发遭遇";
+  const lvDiff = (attacker.lv || 1) - (defender.lv || 1);
+  const playerPower = playerAction.skill?.仲裁逻辑?.瞬间交锋模块?.基础威力倍率 || 0;
+  const isChargingHighThreat = !!attacker.charging_skill || playerAction.action_type === "蓄力挨打" || ((playerAction.cast_time || 0) >= 20 && playerPower >= 120);
+  const activeBuffs = Object.keys(defender.conditions || {});
+  const behaviorState = buildBattleStateContext(defender, attacker, combatData, { combatType, isDeadlyFight, ratio, isChargingHighThreat, playerPower });
+
+  const strategicBranches = [];
+
+  if (defender.martial_fusion_skills) {
+    Object.entries(defender.martial_fusion_skills).forEach(([fusionName, fusionSkill]) => {
+      const partnerAlive = allyTeam.some(unit => unit.name === fusionSkill.partner && unit.vit > 0);
+      if (!partnerAlive || !fusionSkill.skill_data) return;
+
+      let weight = 0;
+      if (isDeadlyFight) {
+        if (lvDiff >= 5) weight += 80;
+        if (isChargingHighThreat) weight += 60;
+        if (defender.vit < defender.vit_max * 0.5) weight += 30;
+      } else if (defender.vit < defender.vit_max * 0.4 || isChargingHighThreat) {
+        weight += 50;
+      }
+
+      strategicBranches.push({
+        name: "武魂融合技",
+        weight: adjustBehaviorWeight("武魂融合技", weight, defender, attacker, behaviorState),
+        build() {
+          const skill = normalizeSkillData(fusionSkill.skill_data, `武魂融合技·${fusionName}`);
+          skill.name = `武魂融合技·${skill.name}`;
+          return makeNpcAction("武魂融合技", `[绝地反击] 面对${lvDiff >= 5 ? '不可战胜的强敌' : '巨大的压力'}，NPC与${fusionSkill.partner}气息交融，果断施展了武魂融合技！`, skill);
+        }
+      });
+    });
+  }
+
+  const trueBodySkill = availableSkills.find(skill => {
+    const stateName = skill.仲裁逻辑?.状态挂载模块?.状态名称 || "";
+    return /真身/.test(skill.name || "") || /真身/.test(stateName);
+  });
+  if (trueBodySkill) {
+    const trueBodyState = trueBodySkill.仲裁逻辑?.状态挂载模块?.状态名称 || "无";
+    if (!activeBuffs.includes(trueBodyState)) {
+      let weight = 0;
+      if (isDeadlyFight) {
+        if (lvDiff >= 0) weight += 70;
+        if (isChargingHighThreat) weight += 60;
+      } else if (defender.vit < defender.vit_max * 0.6 || isChargingHighThreat) {
+        weight += 50;
+      }
+
+      strategicBranches.push({
+        name: "开启真身",
+        weight: adjustBehaviorWeight("开启真身", weight, defender, attacker, behaviorState),
+        build() {
+          const sustainConfig = resolveActionSustainConfig(defender, "开启真身", trueBodySkill, trueBodyState);
+          applyStateToCharacter(defender, trueBodySkill.仲裁逻辑?.状态挂载模块, trueBodySkill.name, true);
+          if (sustainConfig) registerSustainEffect(defender, `truebody:${trueBodySkill.name}`, sustainConfig);
+          return makeNpcAction("开启真身", `[质变底牌] NPC仰天长啸，第七魂环闪耀，直接释放了[${trueBodySkill.name}]！`, trueBodySkill);
+        }
+      });
+    }
+  }
+
+  const lifeFireSkill = defender.bloodline_power?.skills?.["点燃生命之火"];
+  if (isDeadlyFight && lifeFireSkill && !defender.bloodline_power?.life_fire && behaviorState.isDesperateNoEscape) {
+    let weight = 0;
+    if (lvDiff >= 10 && defender.vit < defender.vit_max * 0.8) weight += 60;
+    else if (defender.vit < defender.vit_max * 0.3) weight += 80;
+    if (isChargingHighThreat) weight += 25;
+
+    let fireLog = `[绝命搏杀] 面对${lvDiff >= 10 ? '令人绝望的实力差距' : '生死绝境'}，NPC做出了极其疯狂的举动！强行点燃了生命之火做殊死一搏！`;
+    if (!behaviorState.canFlee) {
+      fireLog = `[困兽犹斗] 被迫背水一战，已经退无可退！NPC被逼入绝境，发出一声绝望的狂吼，强行点燃了生命之火，誓要同归于尽！`;
+    }
+
+    strategicBranches.push({
+      name: "点燃生命之火",
+      weight: adjustBehaviorWeight("点燃生命之火", weight, defender, attacker, behaviorState),
+      build() {
+        const sustainConfig = resolveActionSustainConfig(defender, "点燃生命之火", lifeFireSkill, "");
+        defender.bloodline_power.life_fire = true;
+        if (sustainConfig) registerSustainEffect(defender, `life_fire:${lifeFireSkill.name || '点燃生命之火'}`, sustainConfig);
+        return makeNpcAction("点燃生命之火", fireLog, lifeFireSkill);
+      }
+    });
+  }
+
+  const hasDomain = (defender.active_domain || "无") === "无" && (defender.equip?.armor?.lv >= 3 || defender.men_max >= 30000);
+  if (hasDomain) {
+    let weight = 0;
+    if (defender.vit >= defender.vit_max * 0.9) weight += 40;
+    if (defender.vit < defender.vit_max * 0.5) weight += 80;
+    if (isChargingHighThreat) weight += 30;
+
+    strategicBranches.push({
+      name: "展开领域",
+      weight: adjustBehaviorWeight("展开领域", weight, defender, attacker, behaviorState),
+      build() {
+        const actionType = defender.equip?.armor?.lv >= 3 ? "展开斗铠领域" : "展开精神领域";
+        const sustainConfig = resolveActionSustainConfig(defender, actionType, null, "");
+        defender.active_domain = actionType === "展开斗铠领域" ? (defender.equip?.armor?.lv >= 4 ? "【四字斗铠领域】全开(未定)" : "【三字斗铠领域】全开(未定)") : "【精神领域】全开";
+        if (sustainConfig) registerSustainEffect(defender, `domain:${actionType}`, sustainConfig);
+        return makeNpcAction(actionType, `[主场展开] NPC不愿陷入被动，果断张开领域法则抢占先机！`);
+      }
+    });
+  }
+
+  let bestSpirit = null;
+  let maxSpiritLv = 0;
+  Object.values(defender.spirit || {}).forEach(sp => {
+    Object.values(sp.soul_spirits || {}).forEach(ss => {
+      if (ss.状态 === "活跃" && ss.战力面板?.对标等级 > maxSpiritLv) {
+        maxSpiritLv = ss.战力面板.对标等级;
+        bestSpirit = ss;
+      }
+    });
+  });
+  if (bestSpirit && defender.men >= 500) {
+    let weight = 0;
+    const playerLv = attacker.lv || 1;
+    if (maxSpiritLv >= playerLv - 15) {
+      weight += 20;
+      if (maxSpiritLv >= playerLv) weight += 40;
+      if (defender.vit >= defender.vit_max * 0.9) weight += 30;
+      if (defender.vit < defender.vit_max * 0.4) weight += 60;
+    }
+
+    strategicBranches.push({
+      name: "召唤魂灵",
+      weight: adjustBehaviorWeight("召唤魂灵", weight, defender, attacker, behaviorState),
+      build() {
+        return makeNpcAction("召唤魂灵", `[战术召唤] NPC消耗精神力，将【${bestSpirit.表象名称}】实体化召唤至战场！(对标等级: ${maxSpiritLv})`);
+      }
+    });
+  }
+
+  const hasArmor = defender.equip?.armor?.lv > 0 && defender.equip?.armor?.equip_status !== "已装备";
+  const hasMech = defender.equip?.mech?.lv !== "无" && defender.equip?.mech?.status !== "重创" && defender.equip?.mech?.equip_status !== "已装备";
+  if (hasArmor || hasMech) {
+    let armorLv = defender.equip?.armor?.lv || 0;
+    let isRejected = defender.equip?.armor?.is_rejected || false;
+    let minQ = Infinity;
+    let pCount = 0;
+
+    if (hasArmor && defender.equip?.armor?.parts) {
+      Object.values(defender.equip.armor.parts).forEach(part => {
+        if (part.状态 !== "未打造" && part.状态 !== "重创") {
+          if (part.品质系数 < minQ) minQ = part.品质系数;
+          pCount++;
+        }
+      });
+    }
+
+    let armorCast = Math.max(0, 20 - armorLv * 5);
+    if (armorLv === 1 && !isRejected && minQ > 1.2 && pCount > 0) armorCast = Math.max(0, armorCast - 5);
+    const mechLv = defender.equip?.mech?.lv || "无";
+    const mechCast = mechLv === "红级" ? 0 : 50;
+    const equipCastTime = hasArmor ? armorCast : mechCast;
+
+    let weight = 0;
+    let decisionLog = "";
+    if (equipCastTime === 0) weight += 500;
+    if (combatType === "死战" && defender.vit >= defender.vit_max * 0.95) {
+      weight += 200;
+      decisionLog = "面临生死决战，NPC不敢托大，开局便试图引动装备护体！";
+    }
+    if (playerPower >= 150) {
+      weight += 80;
+      decisionLog = "感受到对方攻击中蕴含的毁灭性波动，NPC深知肉体无法硬抗，强行尝试穿戴装备！";
+    }
+    if ((playerAction.cast_time || 0) > equipCastTime || ratio >= 1.2) {
+      weight += 60;
+      if (!decisionLog) decisionLog = "NPC察觉到对方前摇破绽，从容地开始释放装备。";
+    }
+    if (defender.vit < defender.vit_max * 0.4) {
+      weight += 50;
+      if (!decisionLog) decisionLog = "身受重创的NPC陷入绝境，拼着被打断的风险也要强行穿戴装备！";
+    }
+
+    weight -= equipCastTime;
+    strategicBranches.push({
+      name: "穿戴装备",
+      weight: adjustBehaviorWeight("穿戴装备", weight, defender, attacker, behaviorState),
+      build() {
+        return makeNpcAction("穿戴装备", `[战术决断] ${decisionLog || 'NPC准备强化自身防御层级。'} (前摇: ${equipCastTime})`, {
+          name: hasArmor ? "斗铠附体" : "召唤机甲",
+          技能类型: "辅助",
+          cast_time: equipCastTime,
+          equip_target: hasArmor ? "armor" : "mech"
+        });
+      }
+    });
+  }
+
+  const hasMechOrArmor = (defender.equip?.mech?.lv !== "无" && defender.equip?.mech?.status !== "重创") || (defender.equip?.armor?.equip_status === "已装备");
+  if (behaviorState.canFlee && combatType !== "擂台切磋" && defender.vit < defender.vit_max * 0.15 && !hasMechOrArmor) {
+    strategicBranches.push({
+      name: "亡命奔逃",
+      weight: adjustBehaviorWeight("亡命奔逃", 50, defender, attacker, behaviorState),
+      build() {
+        return makeNpcAction("亡命奔逃", `[濒死溃逃] NPC身受重创，丧失了战意，放弃防守转身亡命奔逃！`);
+      }
+    });
+  } else if (!behaviorState.canFlee && defender.vit < defender.vit_max * 0.15) {
+    // 如果濒死但无法逃跑，给肉体兜底和死斗加一点补救权重
+    behaviorState.isDesperateNoEscape = true;
+  }
+
+  return { strategicBranches, behaviorState, combatType, activeBuffs };
+}
+
+function buildNpcSkillCandidateContext(defender, attacker, playerAction, availableSkills, behaviorState, activeBuffs, isLowHealth) {
+  const pMult = getWoundMult(attacker);
+  const dMult = getWoundMult(defender);
+  const attackerSpeed = (attacker.agi * pMult) - ((playerAction.cast_time || 0) * 10);
+  const validSkills = availableSkills.filter(skill => {
+    const castTime = skill.cast_time || 0;
+    const npcSpeed = (defender.agi * dMult) - (castTime * 10);
+    const cost = parseSkillCostForChar(skill, defender);
+    return cost.canCast && npcSpeed > Math.max(1, attackerSpeed) * 0.8;
+  });
+
+  function pickSkillWithWeight(skills) {
+    const weighted = (skills || []).map(skill => {
+      const stateName = skill.仲裁逻辑?.状态挂载模块?.状态名称 || "无";
+      if (stateName !== "无" && ["辅助", "防御"].includes(skill.技能类型) && activeBuffs.includes(stateName)) {
+        return { skill, weight: 0, name: skill.name || "未命名技能", build() { return skill; } };
+      }
+
+      let weight = 10;
+      const skillPower = skill.仲裁逻辑?.瞬间交锋模块?.基础威力倍率 || 0;
+      const cost = parseSkillCostForChar(skill, defender);
+      const spRatio = cost.reqSp > 0 ? cost.reqSp / Math.max(1, defender.sp) : 0;
+      const vitRatio = cost.reqVit > 0 ? cost.reqVit / Math.max(1, defender.vit) : 0;
+
+      if (defender.type === "强攻系") {
+        if (skill.技能类型 === "输出") weight += 40 + Math.floor(skillPower / 10);
+        if (skill.技能类型 === "防御") weight += 20;
+      } else if (defender.type === "敏攻系") {
+        if (skill.技能类型 === "输出" && skill.cast_time <= 15) weight += 60;
+        if (skill.技能类型 === "输出" && skill.cast_time > 20) weight -= 30;
+      } else if (defender.type === "防御系") {
+        if (skill.技能类型 === "防御") weight += 80;
+        if (skill.技能类型 === "输出") weight += 10;
+      } else if (defender.type === "控制系") {
+        if (skill.技能类型 === "控制") weight += 80;
+      } else if (["辅助系", "治疗系", "食物系"].includes(defender.type)) {
+        if (skill.技能类型 === "辅助") weight += 80;
+        if (skill.技能类型 === "防御") weight += 50;
+        if (skill.技能类型 === "输出") weight -= 30;
+      }
+
+      const isUltimate = skillPower >= 200 || /真身|第八魂技|第九魂技|武魂融合技|生命之火/.test(skill.name || "");
+      if (isUltimate) {
+        const enemyHpRatio = attacker.vit / Math.max(1, attacker.vit_max);
+        const myHpRatio = defender.vit / Math.max(1, defender.vit_max);
+        if (behaviorState.combatType === "擂台切磋") weight -= 30;
+        else {
+          if (enemyHpRatio < 0.4) weight += 60;
+          if (myHpRatio < 0.3) weight += 50;
+          if (enemyHpRatio > 0.8 && myHpRatio > 0.8) weight -= 20;
+        }
+      }
+
+      weight -= Math.floor((skill.cast_time || 0) / 5);
+      if (!isLowHealth) {
+        if (spRatio > 0.5 || vitRatio > 0.5) weight = Math.floor(weight * 0.3);
+        else if (spRatio > 0.3 || vitRatio > 0.3) weight = Math.floor(weight * 0.7);
+      } else if (vitRatio > 0.5) {
+        weight = Math.floor(weight * 0.5);
+      }
+
+      return {
+        skill,
+        weight: Math.max(0, weight),
+        name: skill.name || "未命名技能",
+        build() {
+          return skill;
+        }
+      };
+    });
+
+    const picked = rollBranchByPriority(weighted, "行为预演/技能选择");
+    if (!picked.option) return { skill: null, trace: picked.trace };
+    return { skill: picked.option.build(), trace: picked.trace };
+  }
+
+  const defSkills = validSkills.filter(skill => skill.技能类型 === "防御" || skill.技能类型 === "控制");
+  const atkSkills = validSkills.filter(skill => skill.技能类型 === "输出");
+  const controlSkills = validSkills.filter(skill => skill.技能类型 === "控制" || (skill.仲裁逻辑?.状态挂载模块?.特殊机制标识 || "").includes("硬控"));
+
+  const defSkillPick = pickSkillWithWeight(defSkills);
+  const atkSkillPick = pickSkillWithWeight(atkSkills);
+  const controlSkillPick = pickSkillWithWeight(controlSkills);
+  const defSkill = defSkillPick.skill;
+  const atkSkill = atkSkillPick.skill;
+  const hardControlSkill = controlSkillPick.skill || controlSkills[0] || null;
+  const npcAtkPower = atkSkill?.仲裁逻辑?.瞬间交锋模块?.基础威力倍率 || 0;
+  const skillTraceLog = [defSkillPick.trace, atkSkillPick.trace, controlSkillPick.trace].filter(Boolean).join(" | ");
+
+  return { defSkill, atkSkill, hardControlSkill, npcAtkPower, skillTraceLog };
+}
+
+function buildTacticalCandidates(defender, attacker, playerAction, behaviorState, skillContext, makeNpcAction, isSupport, isLowHealth) {
+  const { defSkill, atkSkill, hardControlSkill, npcAtkPower } = skillContext;
+  const playerPower = behaviorState.playerPower || 0;
+  const isChargingHighThreat = !!behaviorState.isChargingHighThreat;
+
+  let isLockedBySpirit = false;
+  if ((playerAction.cast_time || 0) > 0) {
+    const pState = playerAction.skill?.仲裁逻辑?.状态挂载模块 || {};
+    if (pState.特殊机制标识 && (pState.特殊机制标识.includes("锁定") || pState.特殊机制标识.includes("威压"))) {
+      if (attacker.men_max > defender.men_max) isLockedBySpirit = true;
+    }
+  }
+
+  const tacticalBranches = [];
+  if (isLockedBySpirit && defSkill) {
+    tacticalBranches.push({
+      name: "危机自保",
+      weight: adjustBehaviorWeight("危机自保", 120, defender, attacker, behaviorState),
+      build() {
+        return makeNpcAction("危机自保", `[气机锁定] NPC被玩家恐怖的精神力死死锁定，不敢轻举妄动，只能全力转为防御！`, defSkill);
+      }
+    });
+  } else if (isChargingHighThreat) {
+    if (hardControlSkill) {
+      tacticalBranches.push({
+        name: "危机自保",
+        weight: adjustBehaviorWeight("危机自保", 120, defender, attacker, behaviorState),
+        build() {
+          return makeNpcAction("危机自保", `[破绽捕捉] NPC察觉到玩家正在蓄力，果断释放[${hardControlSkill.name}]试图打断！`, hardControlSkill);
+        }
+      });
+    }
+    if (atkSkill) {
+      tacticalBranches.push({
+        name: "强势对轰",
+        weight: adjustBehaviorWeight("强势对轰", 90, defender, attacker, behaviorState),
+        build() {
+          return makeNpcAction("强势对轰", `[破绽捕捉] NPC见玩家露出极大的前摇破绽，立刻释放[${atkSkill.name}]企图趁机重创玩家！`, atkSkill);
+        }
+      });
+    }
+    tacticalBranches.push({
+      name: "伺机闪避",
+      weight: adjustBehaviorWeight("伺机闪避", 60, defender, attacker, behaviorState),
+      build() {
+        return makeNpcAction("伺机闪避", `[致命预警] NPC察觉到毁灭性的蓄力波动，但无力打断，只能全力游走试图拉开距离。`);
+      }
+    });
+  } else if (isSupport || isLowHealth || playerPower >= 250) {
+    if (defSkill) {
+      tacticalBranches.push({
+        name: "危机自保",
+        weight: adjustBehaviorWeight("危机自保", 60, defender, attacker, behaviorState),
+        build() {
+          return makeNpcAction("危机自保", `[谨慎应对] NPC判断局势不利，选择以[${defSkill.name}]稳住阵脚。`, defSkill);
+        }
+      });
+    }
+    if (atkSkill) {
+      let clashWeight = playerPower > npcAtkPower * 1.5 ? 20 : 55;
+      tacticalBranches.push({
+        name: "强势对轰",
+        weight: adjustBehaviorWeight("强势对轰", clashWeight, defender, attacker, behaviorState),
+        build() {
+          return makeNpcAction("强势对轰", playerPower > npcAtkPower * 1.5 ? `[孤注一掷] 尽管身处劣势，NPC仍狠下心正面搏杀！` : `[强势对轰] NPC不甘示弱，释放[${atkSkill.name}]正面迎击！`, atkSkill);
+        }
+      });
+    }
+    tacticalBranches.push({
+      name: "伺机闪避",
+      weight: adjustBehaviorWeight("伺机闪避", 85, defender, attacker, behaviorState),
+      build() {
+        return makeNpcAction("伺机闪避", `[劣势规避] NPC判断继续硬拼代价过高，选择战术性闪避。`);
+      }
+    });
+  } else {
+    if (atkSkill) {
+      tacticalBranches.push({
+        name: "强势对轰",
+        weight: adjustBehaviorWeight("强势对轰", 75, defender, attacker, behaviorState),
+        build() {
+          return makeNpcAction("强势对轰", `[主动进攻] NPC抓住节奏，释放[${atkSkill.name}]尝试夺回主动权！`, atkSkill);
+        }
+      });
+    }
+    if (defSkill) {
+      tacticalBranches.push({
+        name: "危机自保",
+        weight: adjustBehaviorWeight("危机自保", 45, defender, attacker, behaviorState),
+        build() {
+          return makeNpcAction("危机自保", `[稳扎稳打] NPC选择先用[${defSkill.name}]保护自身。`, defSkill);
+        }
+      });
+    }
+    tacticalBranches.push({
+      name: "伺机闪避",
+      weight: adjustBehaviorWeight("伺机闪避", 30, defender, attacker, behaviorState),
+      build() {
+        return makeNpcAction("伺机闪避", `[战术拉扯] NPC利用身法周旋，试图重排节奏。`);
+      }
+    });
+  }
+
+  tacticalBranches.push({
+    name: "肉体兜底",
+    weight: adjustBehaviorWeight("肉体兜底", 20, defender, attacker, behaviorState),
+    build() {
+      return makeNpcAction("肉体兜底", `[从容应对] NPC无合适魂技，收缩防御，准备肉体硬抗。`, null, { def_mult: 1.2 });
+    }
+  });
+
+  return tacticalBranches;
+}
+
+// ==========================================
+// 📍 NPC 决策逻辑 (真实读取版)
+// ==========================================
+function determineNpcAction(combatData, playerAction, ratio) {
+  hydrateCombatData(combatData);
+  let defender = combatData.participants.enemy;
+  let attacker = combatData.participants.player;
+
+  function makeNpcAction(type, log, skill = null, extra = {}) {
+    return Object.assign({
+      type,
+      log,
+      skill: skill ? normalizeSkillData(skill, skill.name || skill.技能名称 || type) : null,
+      def_mult: 1.0
+    }, extra);
+  }
+
+  if (ratio < 0.5) {
+    return makeNpcAction("无法反应", "[速度碾压] NPC根本无法看清攻击轨迹，来不及做出任何反应！本回合防御力减半。", null, { def_mult: 0.5 });
+  }
+
+  const combatType = combatData.combat_type || "突发遭遇";
+  const isDeadlyFight = combatType === "死战" || combatType === "突发遭遇";
+  const lvDiff = (attacker.lv || 1) - (defender.lv || 1);
+  const playerPower = playerAction.skill?.仲裁逻辑?.瞬间交锋模块?.基础威力倍率 || 0;
+  const isChargingHighThreat = !!attacker.charging_skill || playerAction.action_type === "蓄力挨打" || ((playerAction.cast_time || 0) >= 20 && playerPower >= 120);
+  const isSupport = ["辅助系", "治疗系", "食物系"].includes(defender.type);
+  const isLowHealth = defender.vit < defender.vit_max * 0.3;
+  const activeBuffs = Object.keys(defender.conditions || {});
+  const allyTeam = combatData.participants.team_enemy || [];
+  const availableSkills = collectCombatSkills(defender, allyTeam);
+  const strategicContext = buildStrategicCandidates(defender, attacker, combatData, playerAction, ratio, availableSkills, allyTeam, makeNpcAction);
+  const behaviorState = strategicContext.behaviorState;
+  const strategicAction = chooseAndBuildActorAction(defender, attacker, behaviorState, strategicContext.strategicBranches, "行为预演/战略阶段");
+  if (strategicAction) return strategicAction;
+  const skillContext = buildNpcSkillCandidateContext(defender, attacker, playerAction, availableSkills, behaviorState, activeBuffs, isLowHealth);
+  const tacticalBranches = buildTacticalCandidates(defender, attacker, playerAction, behaviorState, skillContext, makeNpcAction, isSupport, isLowHealth);
+
+  const tacticalAction = chooseAndBuildActorAction(defender, attacker, behaviorState, tacticalBranches, "行为预演/战术阶段", `${skillContext.skillTraceLog ? skillContext.skillTraceLog + ' | ' : ''}`);
+  if (tacticalAction) return tacticalAction;
+  const tacticalChoice = chooseActorActionByCandidates(defender, attacker, behaviorState, tacticalBranches, "行为预演/战术阶段");
+  return makeNpcAction("肉体兜底", `${skillContext.skillTraceLog ? skillContext.skillTraceLog + ' | ' : ''}${tacticalChoice.trace ? tacticalChoice.trace + ' ' : ''}[从容应对] NPC无合适魂技，收缩防御，准备肉体硬抗。`, null, { def_mult: 1.2 });
+}
+
+// ==========================================
+// 📍 5. 高阶机制伤害修饰与炸膛判定
+// ==========================================
+function applyHighTierMechanics(attackerChar, defenderChar, playerAction, baseResult) {
+  let result = { ...baseResult };
+  let attackerStats = attackerChar.stat || attackerChar;
+  let defenderStats = defenderChar.stat || defenderChar;
+
+  let isHoly = playerAction.skill.element === "神圣" || playerAction.skill.element === "光明" || playerAction.skill.element === "生命";
+  if (isHoly && defenderStats.is_evil) {
+    result.dmg = Math.floor(result.dmg * 2.0); 
+    result.desc += " [神圣克制] 纯粹的光明之力如同沸水泼雪，无视等级压制，对邪魂师造成双倍真实伤害！";
+  }
+
+  if (playerAction.action_type === "多元素融合") {
+    let elementCount = playerAction.element_count || 2;
+    let isSilverDragon = attackerChar.bloodline_power?.bloodline?.includes("银龙王") || 
+                         Object.values(attackerChar.spirit || {}).some(sp => sp.表象名称?.includes("元素使"));
+
+    let failRate = 0;
+    if (!isSilverDragon) {
+      let baseFailRate = (elementCount - 1) * 35; 
+      let menAdvantage = (attackerStats.men / defenderStats.men_max) * 15; 
+      failRate = Math.max(5, baseFailRate - menAdvantage); 
+    }
+
+    let roll = Math.floor(Math.random() * 100) + 1; 
+    
+    if (roll <= failRate) {
+      result.dmg = 0;
+      result.backlash_dmg = Math.floor(attackerStats.vit_max * 0.3); 
+      result.desc += ` [元素炸膛] 精神力失控！${elementCount}种元素在手中轰然引爆，遭到极致反噬！(Roll: ${roll} <= 炸膛率: ${Math.floor(failRate)}%)`;
+    } else {
+      let multiplier = Math.pow(1.5, elementCount - 1); 
+      if (isSilverDragon) result.desc += ` [血脉特权] 银龙王血脉无视元素排斥，炸膛率强制归零！`;
+      if (playerAction.is_charged) {
+        multiplier *= 1.5; 
+        result.desc += ` [极致蓄力] 元素被压缩到极致！`;
+      }
+      result.dmg = Math.floor(result.dmg * multiplier);
+      result.desc += ` [元素共鸣] ${elementCount}种元素完美融合！威力呈指数级暴涨！(威力倍率: x${multiplier.toFixed(2)})`;
+    }
+  }
+
+  return result;
+}
+
+// ==========================================
+// 📍 6. 辅助区：意图解析与NPC决策 (真实读取版)
+// ==========================================
+function parsePlayerIntent(playerInput) {
+  let combatData = window.BattleUIBridge?.getMVU("sd.world.combat");
+  hydrateCombatData(combatData);
+  let attacker = combatData.participants.player;
+  let charData = window.BattleUIBridge?.getMVU("sd.char." + attacker.name) || window.BattleUIBridge?.getMVU("sd.char.主角"); 
+  bindCombatParticipant(charData);
+  
+  let action = {
+    action_type: "常规攻击",
+    cast_time: 10,
+    is_charged: false,
+    skill: normalizeSkillData({
+      name: "普通攻击",
+      技能类型: "输出",
+      对象: "敌方/单体",
+      仲裁逻辑: {
+        瞬间交锋模块: { 基础威力倍率: 100, 伤害类型: "物理近战", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
+        状态挂载模块: { 状态名称: "无", 持续回合: 0, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "无", 持续真伤dot: 0 },
+        召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
+      }
+    }, "普通攻击")
+  };
+  if (!charData) return action;
+
+  let matchedSkill = null;
+  let matchedSkillName = "";
+  // 为了支持多重施法，我们需要找出所有被提及的技能。但为了保守兼容单技能模式，我们先选出最主要的那个。
+  // TODO: 后续可以升级为返回技能数组，这里先保留主技能逻辑，把时间累计放进 pre_actions 处理中
+  let directSkills = collectCombatSkills(charData, combatData.participants.team_player || []);
+  directSkills.forEach(skill => {
+    let plainName = (skill.name || "").replace(/^武魂融合技·/, "");
+    if (playerInput.includes(skill.name) || (plainName && playerInput.includes(plainName))) {
+      // 如果提及多个，这里会被覆盖为最后一个，目前作为主动作
+      matchedSkill = skill;
+      matchedSkillName = skill.name;
+    }
+  });
+
+  if (matchedSkill) {
+    action.action_type = matchedSkillName.includes("武魂融合技") ? "武魂融合技" : "释放魂技";
+    action.cast_time = matchedSkill.cast_time || 10;
+    action.skill = normalizeSkillData(matchedSkill, matchedSkillName);
+  }
+
+  // 💥 [核心改造] 副动作(Pre-Actions)多维复合解析引擎
+  // 把玩家提及的额外操作统一压入 pre_actions 数组。之后会在外层判断总 cast_time。
+  action.pre_actions = [];
+  
+  // 1. 生命之火 (通常认为是极速瞬间爆发)
+  if (playerInput.includes("生命之火")) {
+    let lifeFireSkillData = charData.bloodline_power?.skills?.["点燃生命之火"];
+    if (lifeFireSkillData) {
+      action.pre_actions.push({
+        action_type: "点燃生命之火",
+        skill: normalizeSkillData(lifeFireSkillData, "点燃生命之火"),
+        cast_time: 5 // 给一点微小的基础耗时，防止无限套娃
+      });
+    }
+  }
+  
+  // 2. 穿戴斗铠 (极其吃前摇)
+  if (playerInput.includes("斗铠") && (playerInput.includes("穿") || playerInput.includes("释放") || playerInput.includes("附体"))) {
+    let armorLv = charData.equip?.armor?.lv || 1;
+    let isRejected = charData.equip?.armor?.is_rejected || false;
+    let minQ = Infinity;
+    let pCount = 0;
+    if (charData.equip?.armor?.parts) {
+      Object.values(charData.equip.armor.parts).forEach(p => {
+        if (p.状态 !== "未打造" && p.状态 !== "重创") {
+          if (p.品质系数 < minQ) minQ = p.品质系数;
+          pCount++;
+        }
+      });
+    }
+
+    let armorCast = Math.max(0, 20 - armorLv * 5);
+    if (armorLv === 1 && !isRejected && minQ > 1.2 && pCount > 0) {
+      armorCast = Math.max(0, armorCast - 5);
+    }
+
+    // 不再硬性判断是否瞬间，统统塞进去，外层的 40上限 机制会教他做人
+    action.pre_actions.push({
+      action_type: "穿戴装备",
+      equip_target: "armor",
+      cast_time: armorCast,
+      skill: normalizeSkillData({ name: armorCast <= 0 ? "斗铠瞬间附体" : "斗铠附体读条", 技能类型: "辅助", 消耗: "无" })
+    });
+    playerInput = playerInput.replace(/斗铠/g, "已解析的斗铠");
+  }
+
+  // 3. 展开各类领域 (通常较快)
+  if (playerInput.includes("斗铠领域")) {
+    action.pre_actions.push({ action_type: "展开斗铠领域", cast_time: 0, skill: normalizeSkillData({ name: "展开斗铠领域", 技能类型: "辅助", 消耗: "无" }) });
+  } else if (playerInput.includes("精神领域")) {
+    action.pre_actions.push({ action_type: "展开精神领域", cast_time: 0, skill: normalizeSkillData({ name: "展开精神领域", 技能类型: "辅助", 消耗: "无" }) });
+  } else if (playerInput.includes("武魂领域")) {
+    action.pre_actions.push({ action_type: "展开武魂领域", cast_time: 0, skill: normalizeSkillData({ name: "展开武魂领域", 技能类型: "辅助", 消耗: "无" }) });
+  }
+
+  // 4. 武魂融合技判定 (这是一个巨大的主动作，会覆盖掉普通的释放魂技)
+  if (playerInput.includes("武魂融合技")) {
+    let hasFusion = false;
+    Object.entries(charData.martial_fusion_skills || {}).forEach(([fusionName, fusionSkill]) => {
+      let partnerName = fusionSkill.partner;
+      let partnerInBattle = (combatData.participants.team_player || []).find(p => p.name === partnerName && p.vit > 0);
+      if (partnerInBattle && fusionSkill.skill_data) {
+        hasFusion = true;
+        action.action_type = "武魂融合技";
+        action.skill = normalizeSkillData(fusionSkill.skill_data, `武魂融合技·${fusionName}`);
+        action.skill.name = `武魂融合技·${action.skill.name}`;
+        action.cast_time = action.skill.cast_time || 30;
+      }
+    });
+    if (!hasFusion) {
+      action.action_type = "施法失败";
+      action.cast_time = 0;
+    }
+  } else if (!matchedSkill) {
+    // 如果没有任何武魂融合技、也没有匹配到具体魂技，但是匹配到了一些其它的特殊主动作
+    if (playerInput.includes("多元素融合")) {
+      action.action_type = "多元素融合";
+      action.element_count = 2;
+      if (playerInput.includes("蓄力")) action.is_charged = true;
+      let isSilverDragon = charData.bloodline_power?.bloodline?.includes("银龙王") || Object.values(charData.spirit || {}).some(sp => sp.表象名称?.includes("元素使"));
+      if (isSilverDragon) action.cast_time = 5;
+      action.skill = normalizeSkillData({ name: "多元素融合", 技能类型: "输出", 消耗: "无" });
+    } else if (playerInput.includes("吸血反哺")) {
+      action.action_type = "吸血反哺";
+      action.heal_ratio = 0.3;
+    } else if (playerInput.includes("机甲") && (playerInput.includes("召唤") || playerInput.includes("进入"))) {
+      // 普通机甲同理，必须作为主动作读条
+      action.action_type = "穿戴装备";
+      let mechLv = charData.equip?.mech?.lv || "黄级";
+      action.cast_time = mechLv === "红级" ? 0 : 50; 
+      action.equip_target = "mech";
+      action.skill = normalizeSkillData({ name: "召唤机甲", 技能类型: "辅助", 消耗: "无" });
+    }
+  }
+
+  return action;
+}
+
+// ==========================================
+// 📍 团战前置：行动轴与索敌逻辑
+// ==========================================
+
+// 1. 生成全局行动轴
+function generateActionQueue(combatData) {
+  let allFighters = [];
+  
+  (combatData.participants.team_player || []).forEach(p => { bindCombatParticipant(p); if (p.vit > 0) allFighters.push({ char: p, side: "player" }); });
+  (combatData.participants.team_enemy || []).forEach(e => { bindCombatParticipant(e); if (e.vit > 0) allFighters.push({ char: e, side: "enemy" }); });
+
+  let typePriority = {
+    "辅助系": 1, 
+    "控制系": 2, 
+    "敏攻系": 2,
+    "强攻系": 2,
+    "精神系": 2,
+    "元素系": 2,
+    "防御系": 3, 	
+    "治疗系": 3, 
+    "食物系": 3  
+  };
+
+  allFighters.sort((a, b) => {
+    let pA = typePriority[a.char.type] || 4;
+    let pB = typePriority[b.char.type] || 4;
+    if (pA !== pB) return pA - pB;
+    
+    let agiA = a.char.agi * getWoundMult(a.char);
+    let agiB = b.char.agi * getWoundMult(b.char);
+    return agiB - agiA; 
+  });
+
+  return allFighters;
+}
+
+// 2. D100 索敌逻辑
+function findTarget(attackerChar, enemyTeam) {
+  bindCombatParticipant(attackerChar);
+  (enemyTeam || []).forEach(bindCombatParticipant);
+  let validTargets = enemyTeam.filter(t => t.vit > 0);
+  if (validTargets.length === 0) return null;
+  if (validTargets.length === 1) return validTargets[0];
+
+  let totalWeight = 0;
+  let weightedTargets = validTargets.map(target => {
+    let weight = 10; 
+    let isSupport = ["辅助系", "治疗系", "食物系", "控制系"].includes(target.type);
+    let isTank = ["防御系", "强攻系"].includes(target.type);
+    let hpRatio = target.vit / target.vit_max;
+
+    if (attackerChar.type === "敏攻系") {
+      if (isSupport) weight += 60; 
+      if (hpRatio < 0.3) weight += 30; 
+    } else if (attackerChar.type === "强攻系") {
+      if (isTank) weight += 50; 
+      if (hpRatio < 0.5) weight += 40; 
+    } else if (attackerChar.type === "控制系") {
+      if (isTank) weight += 40; 
+      if (isSupport) weight += 40; 
+    } else {
+      if (hpRatio < 0.5) weight += 50;
+    }
+
+    totalWeight += weight;
+    return { target: target, weight: weight };
+  });
+
+  let roll = Math.random() * totalWeight;
+  for (let wt of weightedTargets) {
+    roll -= wt.weight;
+    if (roll <= 0) return wt.target;
+  }
+  return weightedTargets[0].target;
+}
+
+function findAllyTarget(actorChar, allyTeam) {
+  if (!allyTeam || allyTeam.length === 0) return actorChar;
+  let validAllies = allyTeam.filter(t => t.vit > 0);
+  if (validAllies.length === 0) return actorChar;
+
+  let lowestHpRatio = 1.0;
+  let targetAlly = actorChar;
+
+  for (let ally of validAllies) {
+    bindCombatParticipant(ally);
+    let hpRatio = ally.vit / Math.max(1, ally.vit_max);
+    if (hpRatio < lowestHpRatio) {
+      lowestHpRatio = hpRatio;
+      targetAlly = ally;
+    }
+  }
+  return targetAlly;
+}
+
+function chooseTargetForActor(actorEntry, battleState) {
+  if (!actorEntry || !battleState?.combatData) return null;
+  const enemyTeam = actorEntry.side === "player"
+    ? (battleState.combatData.participants.team_enemy || [])
+    : (battleState.combatData.participants.team_player || []);
+  const allyTeam = actorEntry.side === "player"
+    ? (battleState.combatData.participants.team_player || [])
+    : (battleState.combatData.participants.team_enemy || []);
+  return {
+    enemyTarget: findTarget(actorEntry.char, enemyTeam),
+    allyTarget: findAllyTarget(actorEntry.char, allyTeam)
+  };
+}
+
+function buildAutoActionForActor(actorEntry, targets, battleState) {
+  const actor = actorEntry?.char;
+  if (!actor) return null;
+  bindCombatParticipant(actor);
+  const enemyTarget = targets?.enemyTarget;
+  const allyTarget = targets?.allyTarget;
+  if (enemyTarget) bindCombatParticipant(enemyTarget);
+  if (allyTarget) bindCombatParticipant(allyTarget);
+
+  const allyTeam = actorEntry.side === "player"
+    ? (battleState.combatData.participants.team_player || []).filter(unit => unit.name !== actor.name)
+    : (battleState.combatData.participants.team_enemy || []).filter(unit => unit.name !== actor.name);
+
+  const makeActorAction = (type, log, skill = null, extra = {}) => Object.assign({
+    type,
+    log,
+    skill: skill ? normalizeSkillData(skill, skill.name || skill.技能名称 || type) : null,
+    def_mult: 1.0
+  }, extra);
+
+  const observedTargetAction = enemyTarget?.charging_skill || {
+    action_type: "常规攻击",
+    cast_time: 10,
+    skill: normalizeSkillData({
+      name: "普通攻击",
+      技能类型: "输出",
+      对象: "敌方/单体",
+      仲裁逻辑: createEmptyCombatLogic(),
+      消耗: "无"
+    }, "普通攻击")
+  };
+
+  const ratio = enemyTarget?.charging_skill
+    ? calculateReactionRatio(enemyTarget, actor, observedTargetAction, {
+        combat_type: battleState.combatData.combat_type || "突发遭遇",
+        initiative: actor.name,
+        participants: { player: enemyTarget, enemy: actor }
+      })
+    : 1;
+
+  const availableSkills = collectCombatSkills(actor, allyTeam);
+  const strategicContext = buildStrategicCandidates(actor, enemyTarget, battleState.combatData, observedTargetAction, ratio, availableSkills, allyTeam, makeActorAction);
+  const isSupport = ["辅助系", "治疗系", "食物系"].includes(actor.type);
+  const isLowHealth = actor.vit < actor.vit_max * 0.3;
+
+  const strategicAction = chooseAndBuildActorAction(actor, enemyTarget, strategicContext.behaviorState, strategicContext.strategicBranches, "行为预演/主动战略阶段");
+  const convertDecisionToTurnAction = (decisionAction) => {
+    if (!decisionAction) return null;
+    const neutralSkill = normalizeSkillData({
+      name: decisionAction.type || "战术动作",
+      技能类型: "辅助",
+      对象: "自身",
+      仲裁逻辑: createEmptyCombatLogic(),
+      消耗: "无"
+    }, decisionAction.type || "战术动作");
+
+    return {
+      action_type: decisionAction.type || "释放技能",
+      cast_time: decisionAction.skill?.cast_time || 10,
+      skill: decisionAction.skill || neutralSkill,
+      source: "auto_actor",
+      decision_log: decisionAction.log,
+      def_mult: decisionAction.def_mult || 1.0
+    };
+  };
+  if (strategicAction) return convertDecisionToTurnAction(strategicAction);
+
+  const skillContext = buildNpcSkillCandidateContext(actor, enemyTarget, observedTargetAction, availableSkills, strategicContext.behaviorState, strategicContext.activeBuffs, isLowHealth);
+  const tacticalBranches = buildTacticalCandidates(actor, enemyTarget, observedTargetAction, strategicContext.behaviorState, skillContext, makeActorAction, isSupport, isLowHealth);
+  const tacticalAction = chooseAndBuildActorAction(actor, enemyTarget, strategicContext.behaviorState, tacticalBranches, "行为预演/主动战术阶段", `${skillContext.skillTraceLog ? skillContext.skillTraceLog + ' | ' : ''}`);
+  if (tacticalAction) return convertDecisionToTurnAction(tacticalAction);
+
+  return {
+    action_type: "常规攻击",
+    cast_time: 10,
+    skill: normalizeSkillData({
+      name: "普通攻击",
+      技能类型: "输出",
+      对象: "敌方/单体",
+      仲裁逻辑: {
+        瞬间交锋模块: { 基础威力倍率: 100, 伤害类型: "物理近战", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
+        状态挂载模块: { 状态名称: "无", 特殊机制标识: "无", 持续回合: 0, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, sp_max: 1.0 }, 持续真伤dot: 0 }
+      },
+      消耗: "无"
+    }, "普通攻击"),
+    source: "auto_actor",
+    decision_log: "[行为预演/主动战术阶段] 无更优动作，回落为普通攻击。"
+  };
+}
+
+function createActorTurnCombatData(actorEntry, target, battleState) {
+  const actor = actorEntry.char;
+  const actorAllies = actorEntry.side === "player"
+    ? (battleState.combatData.participants.team_player || []).filter(unit => unit.name !== actor.name)
+    : (battleState.combatData.participants.team_enemy || []).filter(unit => unit.name !== actor.name);
+  const targetAllies = actorEntry.side === "player"
+    ? (battleState.combatData.participants.team_enemy || []).filter(unit => unit.name !== target.name)
+    : (battleState.combatData.participants.team_player || []).filter(unit => unit.name !== target.name);
+
+  return {
+    combat_type: battleState.combatData.combat_type || "突发遭遇",
+    initiative: actor.name,
+    participants: {
+      player: actor,
+      enemy: target,
+      team_player: actorAllies,
+      team_enemy: targetAllies
+    }
+  };
+}
+
+function isActorHardControlled(char) {
+  if (!char?.conditions) return false;
+  return Object.values(char.conditions).some(cond => cond?.combat_effects?.skip_turn === true);
+}
+
+function runActorTurn(actorEntry, battleState) {
+  if (!actorEntry || !battleState?.combatData) return null;
+  const actor = actorEntry.char;
+  bindCombatParticipant(actor);
+  if (actor.vit <= 0) {
+    return { actor: actor.name, side: actorEntry.side, skipped: true, reason: "已失去战斗力" };
+  }
+
+  if (isActorHardControlled(actor)) {
+    return { actor: actor.name, side: actorEntry.side, skipped: true, reason: "处于硬控状态", log: `[团战执行] ${actor.name}处于硬控状态，本回合无法行动。` };
+  }
+
+  const targets = chooseTargetForActor(actorEntry, battleState);
+  if (!targets || !targets.enemyTarget) {
+    return { actor: actor.name, side: actorEntry.side, skipped: true, reason: "无可用目标" };
+  }
+  bindCombatParticipant(targets.enemyTarget);
+  bindCombatParticipant(targets.allyTarget);
+
+  let action = null;
+  let actionLog = "";
+  if (actor.charging_skill) {
+    action = actor.charging_skill;
+    if ((action.cast_time || 0) <= 40) {
+      actionLog += `[团战执行] ${actor.name}完成蓄力，释放[${action.skill?.name || action.action_type}]！ `;
+      actor.charging_skill = null;
+    } else {
+      action.cast_time -= 30;
+      return {
+        actor: actor.name,
+        side: actorEntry.side,
+        target: targets.enemyTarget.name,
+        charging: true,
+        action,
+        log: `[团战执行] ${actor.name}继续为[${action.skill?.name || action.action_type}]蓄力，剩余前摇:${action.cast_time}。`
+      };
+    }
+  } else {
+    action = buildAutoActionForActor(actorEntry, targets, battleState);
+
+    let totalTimeCost = 0;
+    let validPreActions = [];
+    let carryOverAction = null;
+
+    if (action.pre_actions && action.pre_actions.length > 0) {
+      for (let i = 0; i < action.pre_actions.length; i++) {
+        let pa = action.pre_actions[i];
+        if (totalTimeCost + pa.cast_time <= 40) {
+          totalTimeCost += pa.cast_time;
+          validPreActions.push(pa);
+        } else {
+          carryOverAction = pa;
+          carryOverAction.cast_time -= Math.max(0, 40 - totalTimeCost);
+          break;
+        }
+      }
+    }
+
+    if (!carryOverAction) {
+      if (totalTimeCost + (action.cast_time || 0) <= 40) {
+        totalTimeCost += (action.cast_time || 0);
+      } else {
+        carryOverAction = action;
+        carryOverAction.cast_time -= Math.max(0, 40 - totalTimeCost);
+      }
+    }
+
+    validPreActions.forEach(preAct => {
+      const preCostLog = applyActionCost(actor, preAct);
+      if (preCostLog) actionLog += preCostLog + " ";
+      if (preAct.action_type === "穿戴装备") {
+        actor.equip[preAct.equip_target].equip_status = "已装备";
+        actionLog += `[连招生效] ${actor.name}趁隙穿戴了${preAct.equip_target === 'armor' ? '斗铠' : '机甲'}！`;
+      }
+    });
+    action.pre_actions = validPreActions;
+
+    if (carryOverAction) {
+      actor.charging_skill = carryOverAction;
+      return {
+        actor: actor.name,
+        side: actorEntry.side,
+        target: targets.enemyTarget.name,
+        charging: true,
+        action: actor.charging_skill,
+        log: `[团战执行/转蓄力] 连招耗时过长，${actor.name}进入蓄力状态准备[${carryOverAction.skill?.name || carryOverAction.action_type}]，剩余前摇:${carryOverAction.cast_time}。`
+      };
+    }
+
+    if (action.action_type !== "施法失败") {
+      const costLog = applyActionCost(actor, action);
+      if (action.decision_log) actionLog += action.decision_log + " ";
+      if (costLog) actionLog += costLog + " ";
+    }
+  }
+
+  let finalTarget = targets.enemyTarget;
+  const skillTargetObj = action?.skill?.对象 || "敌方/单体";
+  if (skillTargetObj.includes("己方") || skillTargetObj.includes("友方")) {
+    finalTarget = targets.allyTarget;
+  } else if (skillTargetObj.includes("自身")) {
+    finalTarget = actor;
+  }
+
+  const actorTurnCombatData = createActorTurnCombatData(actorEntry, finalTarget, battleState);
+  const ratio = calculateReactionRatio(actor, finalTarget, action, actorTurnCombatData);
+  let reactionAction = { type: "无法反应", log: "无", skill: null, def_mult: 1.0 };
+  if (finalTarget === actor || skillTargetObj.includes("己方") || skillTargetObj.includes("友方")) {
+    reactionAction.log = `[配合] ${finalTarget.name}毫无防备地接受了${actor.name}的辅助。`;
+  } else {
+    reactionAction = finalTarget.is_controlled
+      ? { type: "无法反应", log: `${finalTarget.name}处于被控状态，无法动作。`, skill: null, def_mult: 1.0 }
+      : determineNpcAction(actorTurnCombatData, action, ratio);
+  }
+
+  const settleResult = executeClash(action, reactionAction, actorTurnCombatData);
+  let turnLog = `${actionLog}[团战执行] ${actor.name}以[${action?.skill?.name || action?.action_type || '未知动作'}]指向[${finalTarget.name}]。 ${reactionAction.log} ${settleResult.desc}`.trim();
+
+  let finalDmg = settleResult.dmg;
+  if (finalDmg > 0) {
+    if (finalDmg < finalTarget.def * 0.1) {
+      finalTarget.vit -= 1;
+      turnLog += ` [未破防] 对${finalTarget.name}仅造成 1 点强制伤害。`;
+    } else {
+      finalTarget.vit -= finalDmg;
+      if (finalDmg > finalTarget.sp_max * 0.5) {
+        if (!finalTarget.conditions) finalTarget.conditions = {};
+        finalTarget.conditions["重度流血"] = {
+          类型: "debuff", 层数: 1, 描述: "重创导致的流血", duration: 3,
+          stat_mods: { str: 1.0, def: 1.0, agi: 1.0, sp_max: 1.0 },
+          combat_effects: { skip_turn: false, dot_damage: Math.floor(finalTarget.vit_max * 0.05), armor_pen: 0 }
+        };
+        turnLog += ` [重创打击] ${finalTarget.name}被附加[重度流血]状态！`;
+      }
+    }
+  }
+
+  if (reactionAction.type === "穿戴装备") {
+    const isTargetInterrupted = (settleResult.dmg / Math.max(1, finalTarget.vit_max) >= 0.15) || (action.skill?.仲裁逻辑?.状态挂载模块?.特殊机制标识?.includes("硬控"));
+    if (!isTargetInterrupted) {
+      finalTarget.equip[reactionAction.skill.equip_target].equip_status = "已装备";
+      turnLog += ` [装备生效] ${finalTarget.name}成功完成装备穿戴。`;
+    } else {
+      turnLog += ` [穿戴失败] ${finalTarget.name}的装备穿戴被强行打断。`;
+    }
+  }
+
+  if (finalTarget.vit < finalTarget.vit_max * 0.1 && finalTarget !== actor && !skillTargetObj.includes("己方") && !skillTargetObj.includes("友方")) {
+    let hasMech = finalTarget.equip?.mech?.lv !== "无" && finalTarget.equip?.mech?.status !== "重创";
+    let hasArmor = finalTarget.equip?.armor?.equip_status === "已装备";
+    if (hasMech || hasArmor) {
+      finalTarget.vit = Math.floor(finalTarget.vit_max * 0.1);
+      turnLog += ` [装备护主] ${finalTarget.name}触发装备护主，强制锁血至 10%。${applyArmorDamage(finalTarget)}`;
+    }
+  }
+
+  return {
+    actor: actor.name,
+    side: actorEntry.side,
+    target: finalTarget.name,
+    action,
+    reactionAction,
+    settleResult,
+    log: turnLog,
+    actorVit: actor.vit,
+    targetVit: finalTarget.vit
+  };
+}
+
+function getTeamLivingCount(team) {
+  return (team || []).filter(unit => {
+    bindCombatParticipant(unit);
+    return unit.vit > 0;
+  }).length;
+}
+
+function settleTeamRoundEnd(combatData, logs) {
+  const allUnits = [
+    ...(combatData.participants.team_player || []),
+    ...(combatData.participants.team_enemy || [])
+  ];
+
+  allUnits.forEach(unit => {
+    bindCombatParticipant(unit);
+    if (unit.vit <= 0) return;
+
+    const sustainResult = settleSustainEffectsAtRoundEnd(unit, unit.name || "未知单位");
+    const conditionResult = settleConditionsAtRoundEnd(unit, unit.name || "未知单位");
+    if (sustainResult.log) logs.push(`[团战回合尾] ${sustainResult.log}`);
+    if (conditionResult.log) logs.push(`[团战回合尾] ${conditionResult.log}`);
+  });
+}
+
+function runTeamBattleSimulation(combatData, maxRounds = 3) {
+  hydrateCombatData(combatData);
+  let logs = [];
+  let rounds = 0;
+  const startingRound = Number(combatData.round || 0);
+
+  while (rounds < maxRounds) {
+    rounds++;
+    const currentRound = startingRound + rounds;
+    combatData.round = currentRound;
+    logs.push(`[团战第${currentRound}回合开始]`);
+
+    const queue = generateActionQueue(combatData);
+    for (const actorEntry of queue) {
+      const teamPlayerAlive = getTeamLivingCount(combatData.participants.team_player || []);
+      const teamEnemyAlive = getTeamLivingCount(combatData.participants.team_enemy || []);
+      if (teamPlayerAlive <= 0 || teamEnemyAlive <= 0) break;
+
+      const turnResult = runActorTurn(actorEntry, { combatData, round: currentRound, logs });
+      if (turnResult?.log) logs.push(turnResult.log);
+    }
+
+    settleTeamRoundEnd(combatData, logs);
+
+    const teamPlayerAlive = getTeamLivingCount(combatData.participants.team_player || []);
+    const teamEnemyAlive = getTeamLivingCount(combatData.participants.team_enemy || []);
+    logs.push(`[团战回合总结] 我方存活:${teamPlayerAlive} 敌方存活:${teamEnemyAlive}`);
+
+    if (teamPlayerAlive <= 0 || teamEnemyAlive <= 0) {
+      break;
+    }
+  }
+
+  const finalPlayerAlive = getTeamLivingCount(combatData.participants.team_player || []);
+  const finalEnemyAlive = getTeamLivingCount(combatData.participants.team_enemy || []);
+  const winner = finalEnemyAlive <= 0 ? "player" : (finalPlayerAlive <= 0 ? "enemy" : "unfinished");
+  
+  // 如果是团战模拟结束且是虚拟环境死亡，修正战利品结算与强制锁血弹出
+  const combatType = combatData.combat_type || "突发遭遇";
+  if (combatType === "升灵台虚拟战斗" || combatType === "魂灵塔冲塔") {
+    if (winner === "enemy") {
+       (combatData.participants.team_player || []).forEach(p => {
+         if (p.vit <= 0) p.vit = 1; 
+       });
+       if (combatData.participants.player && combatData.participants.player.vit <= 0) {
+         combatData.participants.player.vit = 1;
+       }
+       logs.push(`[虚拟战败保护] 玩家方全员战败，触发安全协议，强制弹出并锁定体力为 1！`);
+    }
+  }
+
+  return {
+    rounds,
+    roundStart: startingRound + 1,
+    roundEnd: Number(combatData.round || startingRound),
+    winner,
+    playerAlive: finalPlayerAlive,
+    enemyAlive: finalEnemyAlive,
+    logs
+  };
+}
+
+function runTeamBattleRound(combatData) {
+  hydrateCombatData(combatData);
+  const currentRound = Number(combatData.round || 0) + 1;
+  combatData.round = currentRound;
+  let logs = [`[团战第${currentRound}回合开始]`];
+
+  const queue = generateActionQueue(combatData);
+  for (const actorEntry of queue) {
+    const teamPlayerAlive = getTeamLivingCount(combatData.participants.team_player || []);
+    const teamEnemyAlive = getTeamLivingCount(combatData.participants.team_enemy || []);
+    if (teamPlayerAlive <= 0 || teamEnemyAlive <= 0) break;
+
+    const turnResult = runActorTurn(actorEntry, { combatData, round: currentRound, logs });
+    if (turnResult?.log) logs.push(turnResult.log);
+  }
+
+  settleTeamRoundEnd(combatData, logs);
+
+  const teamPlayerAlive = getTeamLivingCount(combatData.participants.team_player || []);
+  const teamEnemyAlive = getTeamLivingCount(combatData.participants.team_enemy || []);
+  const winner = teamEnemyAlive <= 0 ? "player" : (teamPlayerAlive <= 0 ? "enemy" : "unfinished");
+  logs.push(`[团战回合总结] 我方存活:${teamPlayerAlive} 敌方存活:${teamEnemyAlive}`);
+
+  return {
+    rounds: 1,
+    roundStart: currentRound,
+    roundEnd: currentRound,
+    winner,
+    playerAlive: teamPlayerAlive,
+    enemyAlive: teamEnemyAlive,
+    logs
+  };
+}
+
+function ui_executeBattleFlow(combatData, options = {}) {
+  if (!combatData) {
+    return { mode: options.mode || "single_round", roundsExecuted: 0, winner: "unfinished", logs: ["[UI执行] 未提供 combatData。"], snapshot: null };
+  }
+
+  const mode = options.mode === "multi_round" ? "multi_round" : "single_round";
+  const rounds = Math.max(1, Number(options.rounds || 1));
+  const result = mode === "multi_round"
+    ? runTeamBattleSimulation(combatData, rounds)
+    : runTeamBattleRound(combatData);
+
+  return {
+    mode,
+    roundsRequested: mode === "multi_round" ? rounds : 1,
+    roundsExecuted: result.rounds || 0,
+    roundStart: result.roundStart,
+    roundEnd: result.roundEnd,
+    winner: result.winner || "unfinished",
+    playerAlive: result.playerAlive,
+    enemyAlive: result.enemyAlive,
+    logs: result.logs || [],
+    snapshot: ui_getBattleSnapshot(combatData)
+  };
+}
+
+// ==========================================
+// 📍 UI 适配器层 (对外暴露接口)
+// ==========================================
+
+function ui_getBattleSnapshot(combatData) {
+  if (!combatData) return null;
+  hydrateCombatData(combatData);
+
+  const buildUnitSnapshot = (char) => {
+    if (!char) return null;
+    return {
+      name: char.name || "未知",
+      lv: char.lv || 1,
+      type: char.type || "未知系",
+      vit: char.vit || 0,
+      vit_max: char.vit_max || 1,
+      sp: char.sp || 0,
+      sp_max: char.sp_max || 1,
+      men: char.men || 0,
+      men_max: char.men_max || 1,
+      active_domain: char.active_domain || "无",
+      conditions: Object.entries(char.conditions || {}).map(([name, cond]) => ({
+        name,
+        type: cond.类型 || "buff",
+        duration: cond.duration || 0,
+        desc: cond.描述 || "",
+        skip_turn: cond.combat_effects?.skip_turn || false,
+        dot: cond.combat_effects?.dot_damage || 0
+      })),
+      sustains: Object.keys(char.active_sustains || {}),
+      isCharging: !!char.charging_skill,
+      chargingCastTime: char.charging_skill?.cast_time || 0
+    };
+  };
+
+  return {
+    round: Number(combatData.round || 0),
+    combat_type: combatData.combat_type || "突发遭遇",
+    initiative: combatData.initiative || "无",
+    player: buildUnitSnapshot(combatData.participants.player),
+    enemy: buildUnitSnapshot(combatData.participants.enemy),
+    team_player: (combatData.participants.team_player || []).map(buildUnitSnapshot).filter(Boolean),
+    team_enemy: (combatData.participants.team_enemy || []).map(buildUnitSnapshot).filter(Boolean)
+  };
+}
+
+function ui_getAvailableActions(charData, combatData) {
+  if (!charData) return [];
+  bindCombatParticipant(charData);
+  const allyTeam = (combatData?.participants?.team_player || []).filter(unit => unit.name !== charData.name);
+  const availableSkills = collectCombatSkills(charData, allyTeam);
+  
+  const actions = [];
+  
+  availableSkills.forEach(skill => {
+    const costParsed = parseSkillCostForChar(skill, charData);
+    actions.push({
+      id: `skill_${skill.name}`,
+      type: "skill",
+      name: skill.name,
+      category: skill.source_tag || "魂技", // 核心修改：按来源分类
+      semantic_role: skill.主定位 || skill.技能类型 || "输出",
+      tags: skill.标签 || [],
+      cast_time: skill.cast_time || 0,
+      cost_text: skill.消耗 || "无",
+      enabled: costParsed.canCast,
+      reason: costParsed.canCast ? "" : "状态不足",
+      raw_skill: skill
+    });
+  });
+
+  if (charData.equip?.armor?.lv > 0 && charData.equip?.armor?.equip_status !== "已装备") {
+    actions.push({
+      id: "equip_armor",
+      type: "equip",
+      name: "斗铠附体",
+      category: "特殊动作",
+      enabled: true,
+      reason: ""
+    });
+  }
+
+  if (charData.equip?.mech?.lv && charData.equip.mech.lv !== "无" && charData.equip?.mech?.equip_status !== "已装备" && charData.equip?.mech?.status !== "重创") {
+    actions.push({
+      id: "equip_mech",
+      type: "equip",
+      name: "召唤机甲",
+      category: "特殊动作",
+      enabled: true,
+      reason: ""
+    });
+  }
+
+  if (charData.bloodline_power?.skills?.["点燃生命之火"] && !charData.bloodline_power?.life_fire) {
+    actions.push({
+      id: "special_lifefire",
+      type: "special",
+      name: "点燃生命之火",
+      category: "特殊动作",
+      enabled: true,
+      reason: ""
+    });
+  }
+
+  actions.push({
+    id: "action_flee",
+    type: "tactical",
+    name: "亡命奔逃",
+    category: "特殊动作",
+    enabled: true,
+    reason: ""
+  });
+
+  return actions;
+}
+
+        initBattleUiFromMvu();
+    }
+}
+
+window.BattleUIComponent = BattleUIComponent;
