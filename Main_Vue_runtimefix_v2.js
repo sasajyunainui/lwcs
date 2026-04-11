@@ -9,7 +9,8 @@ function handleGlobalFold() {
   if (window.__mvuFoldTimer) clearTimeout(window.__mvuFoldTimer);
   window.__mvuFoldTimer = setTimeout(() => {
     // 如果当前有弹窗正在显示，则阻止自动折叠侧边栏
-    if (!document.querySelector('.modal-mask.show')) {
+    const hasOpenModal = !!document.querySelector('.modal-mask.show, .mvu-modal-mask.show, #detailModal.show');
+    if (!hasOpenModal) {
       mvuFoldState.value = true;
     }
   }, 3000);
@@ -194,7 +195,7 @@ const RightPanel = {
             <div class="stack-3 terminal-side-stack">
               <div class="mvu-simple-card entry-card terminal-side-card clickable" data-preview="试炼与情报"></div>
               <div class="mvu-simple-card live-card terminal-side-card clickable" data-preview="怪物图鉴"></div>
-              <div class="mvu-simple-card live-card terminal-side-card clickable" data-preview="森林仇恨值"></div>
+              <div class="mvu-simple-card live-card terminal-side-card clickable" data-preview="任务界面"></div>
             </div>
           </div>
         </div>

@@ -2290,6 +2290,40 @@
       gap: 8px;
     }
 
+    .map-hover-tooltip {
+      position: absolute;
+      left: 0;
+      top: 0;
+      z-index: 11;
+      min-width: 0;
+      max-width: 180px;
+      padding: 0;
+      border-radius: 0;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      pointer-events: none;
+      backdrop-filter: none;
+      transform: translate(10px, -10px);
+    }
+
+    .map-hover-tooltip b {
+      display: block;
+      margin-bottom: 2px;
+      font-size: 10px;
+      color: #eef7ff;
+      font-weight: 600;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.85), 0 0 6px rgba(0,0,0,0.45);
+    }
+
+    .map-hover-tooltip span {
+      display: block;
+      font-size: 10px;
+      line-height: 1.35;
+      color: rgba(220,238,248,0.88);
+      text-shadow: 0 1px 3px rgba(0,0,0,0.85), 0 0 6px rgba(0,0,0,0.45);
+    }
+
     .map-hud-card {
       border-radius: 12px;
       padding: 8px 9px;
@@ -2792,6 +2826,10 @@
           <div class='map-canvas-hud'>
             <div class='map-hud-card live'><b>位置链</b><span data-map-chain>正在读取地图数据</span></div>
           </div>
+          <div class='map-hover-tooltip is-hidden' data-map-hover-tooltip>
+            <b data-map-hover-coord>--,--</b>
+            <span data-map-hover-terrain>地形：无</span>
+          </div>
         </div>
         <div class='mvu-simple-card map-side-card map-route-card map-left-route-card'>
           <div class='simple-head'>
@@ -2829,8 +2867,6 @@
           </div>
           <div class='simple-list'>
             <div class='simple-row'><b>当前位置</b><span data-map-current-name>载入中 · --,--</span></div>
-            <div class='simple-row'><b>鼠标</b><span data-map-current-coord>--,--</span></div>
-            <div class='simple-row'><b>地形</b><span data-map-target-terrain>无</span></div>
             <div class='simple-row'><b>类别</b><span data-map-focus-type>无</span></div>
             <div class='simple-row'><b>功能</b><span data-map-focus-faction>无</span></div>
             <div class='simple-row'><b>可用</b><span data-map-focus-childmap>无</span></div>
@@ -5902,6 +5938,10 @@
   function updateMapCoordinateReadout(canvasEl = null) {
     const activeCanvas = canvasEl || mapDragState.sourceCanvas || mapState.hoverCanvas || getPrimaryMapCanvas();
     renderMapCrosshair(activeCanvas);
+    const tooltipEl = activeCanvas ? activeCanvas.querySelector('[data-map-hover-tooltip]') : null;
+    const tooltipCoordEl = tooltipEl ? tooltipEl.querySelector('[data-map-hover-coord]') : null;
+    const tooltipTerrainEl = tooltipEl ? tooltipEl.querySelector('[data-map-hover-terrain]') : null;
+    const hideTooltip = () => { if (tooltipEl) tooltipEl.classList.add('is-hidden'); };
     if (!activeCanvas || !activeCanvas.clientWidth || !activeCanvas.clientHeight) return;
     const focusCoord = getSelectedCoord();
     const focusImageCoord = convertMapCoordToImageCoord(focusCoord);
@@ -5910,6 +5950,7 @@
     setMapText('[data-map-focus-coord]', `焦点 图 ${focusImageCoord.x},${focusImageCoord.y}`);
     setMapText('[data-map-center-coord]', `视口 图 ${centerImageCoord.x},${centerImageCoord.y}`);
     if (mapState.cursorClientX === null || mapState.cursorClientY === null) {
+      hideTooltip();
       setMapText('[data-map-cursor-coord]', '游标 --,--');
       return;
     }
@@ -5918,16 +5959,30 @@
         ? convertMapLocalPointToCanvasRatio(mapState.hoverLocalX, mapState.hoverLocalY, activeCanvas)
         : projectCoord(mapState.hoverCoord);
       const hoverImageCoord = convertMapRatioToImageCoord(hoverRatio.left, hoverRatio.top);
+      const terrainMapId = toText(deepGet(mapState.snapshot, 'currentMapId', mapState.currentMapId), mapState.currentMapId);
+      const hoverTerrainInfo = resolveTerrainInfoByCoord(mapState.hoverCoord, terrainMapId);
+      const hoverTerrainText = formatTerrainText(hoverTerrainInfo, terrainMapId);
       setMapText('[data-map-cursor-coord]', `游标 图 ${hoverImageCoord.x},${hoverImageCoord.y}`);
+      if (tooltipEl) {
+        tooltipEl.classList.remove('is-hidden');
+        tooltipEl.style.left = `${Math.max(8, Math.min(activeCanvas.clientWidth - 24, toNumber(mapState.hoverLocalX, 0)))}px`;
+        tooltipEl.style.top = `${Math.max(8, Math.min(activeCanvas.clientHeight - 24, toNumber(mapState.hoverLocalY, 0)))}px`;
+      }
+      if (tooltipCoordEl) tooltipCoordEl.textContent = `${hoverImageCoord.x},${hoverImageCoord.y}`;
+      if (tooltipTerrainEl) tooltipTerrainEl.textContent = `地形：${hoverTerrainText || '无'}`;
       return;
     }
     const point = resolveMapClientPoint(activeCanvas, mapState.cursorClientX, mapState.cursorClientY);
     if (!point || !point.inside) {
+      hideTooltip();
       setMapText('[data-map-cursor-coord]', '游标 --,--');
       return;
     }
     const cursorRatio = convertMapLocalPointToCanvasRatio(point.localX, point.localY, activeCanvas);
     const cursorImageCoord = convertMapRatioToImageCoord(cursorRatio.left, cursorRatio.top);
+    if (tooltipEl) {
+      tooltipEl.classList.add('is-hidden');
+    }
     setMapText('[data-map-cursor-coord]', `游标 图 ${cursorImageCoord.x},${cursorImageCoord.y}`);
   }
 
@@ -6703,9 +6758,6 @@
           : projectCoord(hoverCoord))
       : null;
     const hoverImageCoord = hoverImageRatio ? convertMapRatioToImageCoord(hoverImageRatio.left, hoverImageRatio.top) : null;
-    const hoverGridDisplay = hoverImageRatio
-      ? resolveMapDisplayGridFromRatio(hoverImageRatio.left, hoverImageRatio.top, terrainMapId)
-      : null;
     const pendingCoord = pending ? { x: toNumber(pending.target_x, NaN), y: toNumber(pending.target_y, NaN) } : null;
     const previewCoord = previewRequest ? { x: toNumber(previewRequest.target_x, NaN), y: toNumber(previewRequest.target_y, NaN) } : null;
     const pendingTerrainInfo = resolveTerrainInfoByCoord(pendingCoord, terrainMapId);
@@ -6868,7 +6920,7 @@
     setMapText('[data-map-anchor]', focusName);
     setMapText('[data-map-current-name]', currentSummaryText);
     const hoverCoordDisplayText = hoverCoord && hoverImageCoord
-      ? `图 ${hoverImageCoord.x},${hoverImageCoord.y}${hoverGridDisplay ? ` · 格 ${hoverGridDisplay.x},${hoverGridDisplay.y}` : ''}` : '--,--';
+      ? `图 ${hoverImageCoord.x},${hoverImageCoord.y}` : '--,--';
     setMapText('[data-map-current-coord]', hoverCoordDisplayText);
     setMapText('[data-map-current-terrain]', panelTerrainText);
     setMapText('[data-map-target-terrain]', panelTerrainText);

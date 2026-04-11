@@ -362,7 +362,21 @@ class BattleUIComponent {
     }
 
     function getBattleStatValue(charData, key) {
-      return Number(charData && charData.stat ? charData.stat[key] || 0 : 0);
+      let val = Number(charData && charData.stat ? charData.stat[key] || 0 : 0);
+      const activeDomain = String(charData && charData.status ? charData.status.active_domain || '' : '');
+      if (activeDomain.includes('斗铠领域')) {
+        const isFour = activeDomain.includes('四字');
+        const ratio = isFour ? 1.2 : 1.1;
+        const isAll = activeDomain.includes('全开');
+        // 如果全开或显式包含当前属性名，则给予战斗内倍率
+        if (isAll || activeDomain.includes(key)) {
+          // 仅对基础战斗面板做乘算
+          if (['str','def','agi','sp_max','men_max','vit_max'].includes(key)) {
+            val = Math.floor(val * ratio);
+          }
+        }
+      }
+      return val;
     }
 
     function estimateEnemySkillEffects(activeName, targetName, skill) {

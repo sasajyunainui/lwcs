@@ -157,8 +157,8 @@
       '拍卖与警报': {
         title: '拍卖行 / 世界警报弹窗',
         summary: '拍卖状态、拍品与当前世界警报。',
-        fields: ['sd.world.auction', 'sd.world.flags', 'sd.world.forest_killed_age'],
-        duties: ['显示拍卖状态与拍品', '显示世界警报与异常旗标', '显示下次刷新时间'],
+        fields: ['sd.world.auction', 'sd.world.forest_killed_age'],
+        duties: ['显示拍卖状态与拍品', '显示生态风险与兽潮相关阈值', '显示下次刷新时间'],
         actions: ['查看拍卖清单', '评估当前世界风险']
       },
       '势力矩阵总览': {
@@ -500,7 +500,11 @@
       const obj = accessories && typeof accessories === 'object' ? accessories : {};
       return Object.entries(obj).map(([name, item]) => ({
         name,
-        desc: toText(deepGet(item, '描述', '无'), '无')
+        desc: (() => {
+          const desc = toText(deepGet(item, '描述', '无'), '无');
+          const meta = safeEntries(item).filter(([key]) => key !== '描述').slice(0, 3).map(([key, value]) => `${toText(key, '字段')}：${value && typeof value === 'object' ? `${safeEntries(value).length}项` : toText(value, '无')}`).join(' / ');
+          return meta ? `${desc} ｜ ${meta}` : desc;
+        })()
       }));
     }
 
@@ -539,6 +543,7 @@
 
     function buildArmoryActionRequest(snapshot, actionType) {
       if (!snapshot || !snapshot.sd) return null;
+      if (!isSnapshotPlayerControlled(snapshot)) return null;
       const activeKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
       if (!activeKey) return null;
       const chars = deepGet(snapshot, 'sd.char', {});
@@ -689,17 +694,59 @@
       `;
     }
 
+    const modalPaginationState = Object.create(null);
+
     function makeTimelineStack(items) {
       return `
         <div class="timeline-stack">
           ${(items || []).map(item => `
-            <div class="timeline-card">
+            <div class="timeline-card${item && item.preview ? ' clickable' : ''}"${item && item.preview ? ` data-preview="${escapeHtmlAttr(item.preview)}"` : ''}>
               <b>${item.title}</b>
               <span>${item.desc}</span>
             </div>
           `).join('')}
         </div>
       `;
+    }
+
+    function paginateModalItems(items, previewKey, sectionKey, pageSize = 50) {
+      const list = Array.isArray(items) ? items : [];
+      const safePreviewKey = toText(previewKey, 'modal');
+      const safeSectionKey = toText(sectionKey, 'section');
+      const stateKey = `${safePreviewKey}::${safeSectionKey}`;
+      const totalPages = Math.max(1, Math.ceil(list.length / Math.max(1, pageSize)));
+      const currentPage = Math.max(1, Math.min(totalPages, toNumber(modalPaginationState[stateKey], 1) || 1));
+      modalPaginationState[stateKey] = currentPage;
+      const start = (currentPage - 1) * pageSize;
+      return {
+        stateKey,
+        page: currentPage,
+        totalPages,
+        total: list.length,
+        items: list.slice(start, start + pageSize)
+      };
+    }
+
+    function makeModalPaginationControls(sectionKey, page, totalPages, total) {
+      if (totalPages <= 1) return '';
+      return `
+        <div class="tag-cloud armory-quick-actions" style="margin-top:12px;justify-content:flex-end;">
+          <button type="button" class="tag-chip clickable" data-page-nav="prev" data-page-section="${escapeHtmlAttr(sectionKey)}" ${page <= 1 ? 'disabled' : ''}>上一页</button>
+          <span class="tag-chip">第 ${page} / ${totalPages} 页 · 共 ${total} 条</span>
+          <button type="button" class="tag-chip clickable" data-page-nav="next" data-page-section="${escapeHtmlAttr(sectionKey)}" ${page >= totalPages ? 'disabled' : ''}>下一页</button>
+        </div>
+      `;
+    }
+
+    function makePaginatedTimelineSection(items, previewKey, sectionKey, emptyItems = [], pageSize = 50) {
+      const pageData = paginateModalItems(items, previewKey, sectionKey, pageSize);
+      const displayItems = pageData.items.length ? pageData.items : emptyItems;
+      return `${makeTimelineStack(displayItems)}${makeModalPaginationControls(sectionKey, pageData.page, pageData.totalPages, pageData.total)}`;
+    }
+
+    function makePaginatedFactionLadder(items, previewKey, sectionKey, pageSize = 50) {
+      const pageData = paginateModalItems(items, previewKey, sectionKey, pageSize);
+      return `${makeFactionLadder(pageData.items)}${makeModalPaginationControls(sectionKey, pageData.page, pageData.totalPages, pageData.total)}`;
     }
 
     const archiveModalBuilders = Object.create(null);
@@ -918,7 +965,7 @@
                   { label: '星罗币', value: '', className: 'cyan' },
                   { label: '唐门积分', value: '', className: 'cyan' },
                   { label: '学院积分', value: '', className: 'cyan' },
-                  { label: '血神功勋', value: '', className: 'red' }
+                  { label: '战功', value: '', className: 'red' }
                 ])}
               </div>
               <div class="archive-card full vault-main-card">
@@ -1496,6 +1543,12 @@
       return sortedEntries[0] || ['未知角色', {}];
     }
 
+    function isSnapshotPlayerControlled(snapshot) {
+      const playerName = toText(deepGet(snapshot, 'sd.sys.player_name', ''), '').trim();
+      const activeName = toText(snapshot && snapshot.activeName, '').trim();
+      return isPlayerCharacterEntry(activeName, deepGet(snapshot, 'activeChar', {}), playerName);
+    }
+
     function formatAppearanceText(appearance) {
       const data = appearance && typeof appearance === 'object' ? appearance : {};
       const parts = [
@@ -1828,6 +1881,42 @@
       return result;
     }
 
+    function buildRecentNewsSummary(snapshot, options = {}) {
+      const { seqLimit = 2, intelLimit = 2 } = options || {};
+      const globalNews = (snapshot.seqEntries || []).slice(0, Math.max(1, seqLimit)).map(([key, item]) => ({
+        title: `全局 / ${key}`,
+        desc: toText(deepGet(item, '事件', '暂无记录'), '暂无记录')
+      }));
+      const personalNews = (snapshot.unlockedKnowledges || []).slice(-Math.max(1, intelLimit)).reverse().map((text, index) => ({
+        title: `个人 / 见闻 ${index + 1}`,
+        desc: toText(text, '暂无记录')
+      }));
+      return {
+        globalNews,
+        personalNews,
+        cards: globalNews.concat(personalNews).length ? globalNews.concat(personalNews) : [{ title: '近期见闻', desc: '暂无新的全局或个人见闻。' }],
+        summary: globalNews[0] ? globalNews[0].desc : (personalNews[0] ? personalNews[0].desc : '暂无近期见闻')
+      };
+    }
+
+    function buildRecentPlanSummary(snapshot, options = {}) {
+      const { worldLimit = 2, recordLimit = 2 } = options || {};
+      const worldPlans = (snapshot.timelineEntries || []).filter(([, item]) => toText(deepGet(item, 'status', 'pending'), 'pending') !== 'done').slice(0, Math.max(1, worldLimit)).map(([name, item]) => ({
+        title: `世界 / ${name}`,
+        desc: `${toText(deepGet(item, 'event', '无'), '无')} ｜ Tick ${toText(deepGet(item, 'trigger_tick', 0), '0')} ｜ ${toText(deepGet(item, 'status', 'pending'), 'pending')}`
+      }));
+      const personalPlans = (snapshot.recordEntries || []).filter(([, item]) => toText(item && item['状态'], '进行中') !== '已完成' && toText(item && item['状态'], '进行中') !== '已放弃').slice(0, Math.max(1, recordLimit)).map(([name, item]) => ({
+        title: `个人 / ${name}`,
+        desc: `${toText(item && item['描述'], '无描述')} ｜ ${toText(item && item['状态'], '进行中')} ｜ ${toNumber(item && item['当前进度'], 0)}/${toNumber(item && item['目标进度'], 1)}`
+      }));
+      return {
+        worldPlans,
+        personalPlans,
+        cards: worldPlans.concat(personalPlans).length ? worldPlans.concat(personalPlans) : [{ title: '近期安排', desc: '暂无待处理的世界日程或个人任务。' }],
+        summary: worldPlans[0] ? worldPlans[0].desc : (personalPlans[0] ? personalPlans[0].desc : '暂无近期安排')
+      };
+    }
+
     function buildSnapshot(sd) {
       const [activeName, activeChar] = resolveActiveCharacter(sd || {});
       const currentLoc = toText(deepGet(activeChar, 'status.loc', '未知'), '未知');
@@ -2069,7 +2158,9 @@
       const accessoryEntries = listAccessoryEntries(deepGet(snapshot, 'activeChar.equip.accessories', {}));
       const jobs = safeEntries(deepGet(snapshot, 'activeChar.job', {}));
       const jobSummary = jobs.length ? `${jobs[0][0]} Lv.${toText(deepGet(jobs[0][1], 'lv', 0), '0')}` : '未展开';
-      const armorSummary = toNumber(armor.lv, 0) > 0 ? `${toText(armor.name, `${armor.lv}字斗铠`)} / ${toText(armor.equip_status, '未装备')} / ${toText(armor.material, '无材质')}` : '未装备';
+      const jobCoreTechSummary = jobs.length ? (Object.keys(deepGet(jobs[0][1], 'core_tech', {})).slice(0, 2).join(' / ') || '暂无核心技术') : '暂无核心技术';
+      const jobLimitSummary = jobs.length ? `融锻上限 ${toText(deepGet(jobs[0][1], 'limits.max_fusion', 1), '1')} / 成功率 ${toText(deepGet(jobs[0][1], 'limits.success_rate', 0), '0')}%` : '暂无工坊上限';
+      const armorSummary = toNumber(armor.lv, 0) > 0 ? `${toText(armor.name, `${armor.lv}字斗铠`)} / ${toText(armor.equip_status, '未装备')}` : '未装备';
       const mechSummary = toText(mech.lv, '无') !== '无' ? `${toText(mech.lv, '无')}·${toText(mech.type, '未定型')} / ${toText(mech.equip_status || mech.status, '未装备')}` : '无';
       const accessorySummary = accessoryEntries.length ? `${accessoryEntries.length}件` : '无';
       return `
@@ -2077,10 +2168,6 @@
         <div class="module-grid">
           <div class="mini-box"><b>当前斗铠</b><span>${htmlEscape(armorSummary)}</span></div>
           <div class="mini-box"><b>当前机甲</b><span>${htmlEscape(mechSummary)}</span></div>
-        </div>
-        <div class="module-foot">
-          <span class="foot-hint">主武器：${htmlEscape(`${toText(weapon.name, '无')} / ${toText(weapon.tier, '无品阶')}`)} ｜ 附件：${htmlEscape(accessorySummary)}</span>
-          <span class="enter-chip">${htmlEscape(`副职 ${jobSummary}`)}</span>
         </div>
       `;
     }
@@ -2095,7 +2182,7 @@
         </div>
         <div class="module-foot">
           <span class="foot-hint">记录物资总计 ${htmlEscape(String(snapshot.inventoryEntries.length || 0))} 件</span>
-          <span class="enter-chip gold-chip">${htmlEscape(`积分：${formatNumber(wealth.tang_pt)} / ${formatNumber(wealth.shrek_pt)} / ${formatNumber(wealth.blood_pt)}`)}</span>
+          <span class="enter-chip gold-chip">${htmlEscape(`积分/战功：${formatNumber(wealth.tang_pt)} / ${formatNumber(wealth.shrek_pt)} / ${formatNumber(wealth.blood_pt)}`)}</span>
         </div>
       `;
     }
@@ -2287,15 +2374,13 @@
     }
 
     function buildWorldHeroCard(snapshot) {
-      const latest = snapshot.latestTimeline;
       const worldTime = toText(deepGet(snapshot, 'sd.world.time.calendar', '斗罗历未同步'), '斗罗历未同步');
       const deviation = toNumber(deepGet(snapshot, 'sd.world.deviation', 0), 0);
-      const currentAction = toText(deepGet(snapshot, 'activeChar.status.action', '日常'), '日常');
-      const nextPlan = snapshot.pendingRequests[0] || '暂无安排';
-      const latestBroadcast = toText(deepGet(snapshot, 'sd.sys.rsn', '暂无'), '暂无');
-      const latestNews = latest
-        ? toText(deepGet(latest[1], 'event', latest[0]), latest[0])
-        : '暂无最近事件';
+      const forestRatio = Math.max(0, Math.min(100, Number(((toNumber(snapshot.forestKilledAge, 0) / 1000000) * 100).toFixed(1))));
+      const forestStage = forestRatio >= 100 ? '兽潮临界' : (forestRatio >= 70 ? '高度紧张' : (forestRatio >= 30 ? '持续升温' : '相对安全'));
+      const latest = snapshot.latestTimeline;
+      const planSummary = buildRecentPlanSummary(snapshot, { worldLimit: 1, recordLimit: 1 });
+      const newsSummary = buildRecentNewsSummary(snapshot, { seqLimit: 1, intelLimit: 1 });
 
       return `
         <div class="module-name">时空中枢</div>
@@ -2306,14 +2391,21 @@
         </div>
         <div class="hero-list">
           <div class="hero-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
-            <b>近期安排</b><span>${htmlEscape(`${currentAction} / ${nextPlan}`)}</span>
+            <b>近期安排</b><span>${htmlEscape(planSummary.summary)}</span>
           </div>
           <div class="hero-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
-            <b>近期见闻</b><span>${htmlEscape(`${latestBroadcast} / ${latestNews}`)}</span>
+            <b>近期见闻</b><span>${htmlEscape(newsSummary.summary)}</span>
+          </div>
+          <div class="hero-row" style="flex-direction: column; align-items: flex-start; gap: 6px;">
+            <b>森林仇恨值</b>
+            <span>${htmlEscape(`${forestStage} / ${formatNumber(snapshot.forestKilledAge)} / 1000000`)}</span>
+            <div style="width:100%;height:8px;border-radius:999px;background:rgba(255,255,255,0.08);overflow:hidden;border:1px solid rgba(150,217,228,0.12);">
+              <div style="height:100%;width:${forestRatio}%;background:${forestRatio >= 100 ? 'linear-gradient(90deg,#ff6b6b,#ffb36b)' : (forestRatio >= 70 ? 'linear-gradient(90deg,#ffd36b,#ff8a5b)' : 'linear-gradient(90deg,#72e6ff,#7dffb2)')};box-shadow:0 0 10px rgba(255,180,107,0.28);"></div>
+            </div>
           </div>
         </div>
         <div class="module-foot">
-          <span class="foot-hint">重大旗标：${htmlEscape(String(snapshot.flagEntries.length))}</span>
+          <span class="foot-hint">风险摘要：${htmlEscape(snapshot.worldAlert)}</span>
         </div>
       `;
     }
@@ -2344,21 +2436,20 @@
 
     function buildTerminalHeroCard(snapshot) {
       const sys = deepGet(snapshot, 'sd.sys', {});
-      const recentSeq = snapshot.seqEntries.slice(0, 2);
+      const recentNews = buildRecentNewsSummary(snapshot, { seqLimit: 2, intelLimit: 1 });
+      const recentPlans = buildRecentPlanSummary(snapshot, { worldLimit: 2, recordLimit: 1 });
       const latestBroadcast = toText(sys.rsn, '暂无播报');
-      const latestEvent = snapshot.latestTimeline
-        ? snapshot.latestTimeline[0]
-        : (recentSeq[0] ? toText(deepGet(recentSeq[0][1], '事件', '暂无事件'), '暂无事件') : '暂无事件');
-      const pendingRequestText = snapshot.pendingRequests[0] || '暂无安排';
+      const latestEvent = recentNews.cards[0] ? recentNews.cards[0].desc : '暂无事件';
+      const pendingRequestText = recentPlans.cards[0] ? recentPlans.cards[0].desc : '暂无安排';
       const intelText = snapshot.pendingIntelCount
         ? `${snapshot.pendingIntelContent} / 新线索 ${snapshot.pendingIntelCount} 条`
-        : (recentSeq[0] ? toText(deepGet(recentSeq[0][1], '事件', '暂无新情报'), '暂无新情报') : '暂无新情报');
+        : (recentNews.personalNews[0] ? recentNews.personalNews[0].desc : '暂无新情报');
       return `
         <div class="module-name">系统播报</div>
         <div class="terminal-overview">
           <div class="terminal-metric live clickable" data-preview="近期见闻"><b>系统状态</b><span>${htmlEscape(snapshot.worldAlert.includes('高危') ? '高压同步' : '稳定')}</span></div>
           <div class="terminal-metric clickable" data-preview="系统播报与日志"><b>最近播报</b><span>${htmlEscape(shortenText(latestBroadcast, 14))}</span></div>
-          <div class="terminal-metric clickable" data-preview="操作总线"><b>当前安排</b><span>${htmlEscape(snapshot.pendingRequests.length ? `${snapshot.pendingRequests.length} 项` : '暂无')}</span></div>
+          <div class="terminal-metric clickable" data-preview="操作总线"><b>当前安排</b><span>${htmlEscape(recentPlans.cards.length ? `${recentPlans.cards.length} 项` : '暂无')}</span></div>
           <div class="terminal-metric gold clickable" data-preview="试炼与情报"><b>新线索</b><span>${htmlEscape(snapshot.pendingIntelCount ? `${snapshot.pendingIntelCount} 条` : '暂无')}</span></div>
         </div>
         <div class="terminal-log">
@@ -2453,19 +2544,30 @@
         el.removeAttribute('data-preview');
         el.innerHTML = buildWorldHeroCard(snapshot);
       });
-      document.querySelectorAll('[data-preview="编年史档案"].mvu-simple-card').forEach(el => { el.innerHTML = buildSimpleCard('编年史', null, [
+      document.querySelectorAll('[data-preview="编年史档案"].mvu-simple-card').forEach(el => {
+        el.style.overflow = 'hidden';
+        el.style.flex = '1.2 1 0';
+        el.innerHTML = buildSimpleCard('编年史', null, [
         { label: '最近事件', value: snapshot.latestTimeline ? toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]) : '暂无' },
         { label: '推进状态', value: snapshot.latestTimeline ? `${toText(deepGet(snapshot.latestTimeline[1], 'status', 'pending'), 'pending')} / Tick ${toText(deepGet(snapshot.latestTimeline[1], 'trigger_tick', 0), '0')}` : '暂无时间线' }
-      ]); });
+      ]);
+        const simpleList = el.querySelector('.simple-list');
+        if (simpleList) {
+          simpleList.style.overflow = 'hidden';
+          simpleList.style.maxHeight = 'none';
+        }
+      });
       document.querySelectorAll('[data-rank-card="天道金榜"].mvu-simple-card').forEach(el => { 
+        el.style.overflow = 'hidden';
+        el.style.flex = '0.8 1 0';
         el.innerHTML = `
           <div class="simple-head"><div class="simple-title">天道金榜</div></div>
-          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: stretch; height: 100%; min-height: 52px;">
-            <div class="mvu-panel clickable" data-preview="少年天才榜" style="padding: 8px 12px; margin: 0; display: flex; flex-direction: column; justify-content: center;">
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: stretch; height: 100%; min-height: 40px; overflow: hidden;">
+            <div class="mvu-panel clickable" data-preview="少年天才榜" style="padding: 4px 10px; margin: 0; display: flex; flex-direction: column; justify-content: center; min-height: 0; overflow: hidden;">
               <div style="font-size: 10px; color: #85afb8; margin-bottom: 4px;">少年天才榜</div>
               <div style="font-size: 12px; color: #fff; font-weight: bold;">${snapshot.youthRankingEntries.length} 人上榜</div>
             </div>
-            <div class="mvu-panel clickable" data-preview="大陆风云榜" style="padding: 8px 12px; margin: 0; display: flex; flex-direction: column; justify-content: center;">
+            <div class="mvu-panel clickable" data-preview="大陆风云榜" style="padding: 4px 10px; margin: 0; display: flex; flex-direction: column; justify-content: center; min-height: 0; overflow: hidden;">
               <div style="font-size: 10px; color: #85afb8; margin-bottom: 4px;">大陆风云榜</div>
               <div style="font-size: 12px; color: #fff; font-weight: bold;">${snapshot.continentRankingEntries.length} 人上榜</div>
             </div>
@@ -2491,8 +2593,10 @@
       document.querySelectorAll('[data-preview="操作总线"].terminal-side-card, [data-preview="操作总线"].mvu-simple-card, [data-preview="操作总线"].simple-card').forEach(el => { el.innerHTML = `
         <div class="simple-head"><div class="simple-title">近期安排</div></div>
         <div class="simple-list">
-          <div class="simple-row"><b>当前行动</b><span>${htmlEscape(toText(deepGet(snapshot, 'activeChar.status.action', '日常'), '日常'))}</span></div>
-          <div class="simple-row"><b>下一件事</b><span>${htmlEscape(snapshot.pendingRequests[0] || '暂无安排')}</span></div>
+          ${(() => { const planSummary = buildRecentPlanSummary(snapshot, { worldLimit: 1, recordLimit: 1 }); return `
+          <div class="simple-row"><b>世界安排</b><span>${htmlEscape(planSummary.worldPlans[0] ? planSummary.worldPlans[0].desc : '暂无')}</span></div>
+          <div class="simple-row"><b>个人待办</b><span>${htmlEscape(planSummary.personalPlans[0] ? planSummary.personalPlans[0].desc : '暂无')}</span></div>
+          `; })()}
         </div>
       `; });
       document.querySelectorAll('[data-preview="试炼与情报"].terminal-side-card, [data-preview="试炼与情报"].mvu-simple-card, [data-preview="试炼与情报"].simple-card').forEach(el => { el.innerHTML = `
@@ -2500,13 +2604,16 @@
         <div class="simple-list">
           <div class="simple-row"><b>试炼入口</b><span>${htmlEscape(snapshot.inventoryEntries.some(([name]) => /门票|魂灵塔/.test(name)) ? '升灵台 / 魂灵塔 / 狩猎' : '当前无门票，仅常规狩猎')}</span></div>
           <div class="simple-row"><b>情报状态</b><span>${htmlEscape(`已掌握 ${snapshot.unlockedKnowledges.length} 条 / 新线索 ${snapshot.pendingIntelCount} 条`)}</span></div>
+          <div class="simple-row"><b>深渊击杀</b><span>${htmlEscape(toText(deepGet(snapshot, 'activeChar.abyss_kill_request.kill_tier', '无'), '无') !== '无' ? `${toText(deepGet(snapshot, 'activeChar.abyss_kill_request.kill_tier', '无'), '无')} × ${toNumber(deepGet(snapshot, 'activeChar.abyss_kill_request.quantity', 1), 1)}` : '暂无待结算')}</span></div>
         </div>
       `; });
       document.querySelectorAll('[data-preview="近期见闻"].terminal-side-card, [data-preview="近期见闻"].mvu-simple-card, [data-preview="近期见闻"].simple-card').forEach(el => { el.innerHTML = `
         <div class="simple-head"><div class="simple-title">近期见闻</div></div>
         <div class="simple-list">
-          <div class="simple-row"><b>系统播报</b><span>${htmlEscape(toText(deepGet(snapshot, 'sd.sys.rsn', '暂无'), '暂无'))}</span></div>
-          <div class="simple-row"><b>最近事件</b><span>${htmlEscape(snapshot.latestTimeline ? snapshot.latestTimeline[0] : '暂无') }</span></div>
+          ${(() => { const newsSummary = buildRecentNewsSummary(snapshot, { seqLimit: 1, intelLimit: 1 }); return `
+          <div class="simple-row"><b>全局见闻</b><span>${htmlEscape(newsSummary.globalNews[0] ? newsSummary.globalNews[0].desc : '暂无')}</span></div>
+          <div class="simple-row"><b>个人见闻</b><span>${htmlEscape(newsSummary.personalNews[0] ? newsSummary.personalNews[0].desc : '暂无')}</span></div>
+          `; })()}
         </div>
       `; });
       document.querySelectorAll('[data-preview="怪物图鉴"].terminal-side-card, [data-preview="怪物图鉴"].mvu-simple-card, [data-preview="怪物图鉴"].simple-card').forEach(el => { el.innerHTML = `
@@ -2517,14 +2624,17 @@
           <div class="simple-row"><b>图鉴状态</b><span>${htmlEscape(snapshot.bestiaryEntries.length ? '探索推进中' : '等待首次遭遇')}</span></div>
         </div>
       `; });
-      document.querySelectorAll('[data-preview="森林仇恨值"].terminal-side-card, [data-preview="森林仇恨值"].mvu-simple-card, [data-preview="森林仇恨值"].simple-card').forEach(el => { el.innerHTML = `
-        <div class="simple-head"><div class="simple-title">森林仇恨值</div></div>
-        <div class="simple-list">
-          <div class="simple-row"><b>累计年限</b><span>${htmlEscape(formatNumber(snapshot.forestKilledAge))}</span></div>
-          <div class="simple-row"><b>兽潮阈值</b><span>${htmlEscape(snapshot.forestKilledAge >= 1000000 ? '已越线' : `${formatNumber(Math.max(0, 1000000 - snapshot.forestKilledAge))} 待累积`)}</span></div>
-          <div class="simple-row"><b>危险等级</b><span>${htmlEscape(snapshot.forestKilledAge >= 1000000 ? '兽潮临界' : (snapshot.forestKilledAge >= 700000 ? '高度紧张' : (snapshot.forestKilledAge >= 300000 ? '持续升温' : '相对安全')))}</span></div>
-        </div>
-      `; });
+      document.querySelectorAll('[data-preview="任务界面"].terminal-side-card, [data-preview="任务界面"].mvu-simple-card, [data-preview="任务界面"].simple-card').forEach(el => {
+        const quest = deepGet(snapshot, 'activeChar.quest_request', {});
+        el.innerHTML = `
+          <div class="simple-head"><div class="simple-title">任务界面</div></div>
+          <div class="simple-list">
+            <div class="simple-row"><b>当前任务</b><span>${htmlEscape(toText(quest.quest_name, '无') !== '无' ? toText(quest.quest_name, '未接取') : '未接取')}</span></div>
+            <div class="simple-row"><b>奖励摘要</b><span>${htmlEscape(toText(quest.action, '无') !== '无' ? `金币 ${formatNumber(quest.reward_coin)} / 声望 ${formatNumber(quest.reward_rep)}` : '暂无任务')}</span></div>
+            <div class="simple-row"><b>推进进度</b><span>${htmlEscape(toText(quest.action, '无') !== '无' ? `+${toNumber(quest.progress_add, 0)} / 需 ${toNumber(quest.required_count, 1)}` : '暂无进度')}</span></div>
+          </div>
+        `;
+      });
     }
 
     function buildLiveArchiveModal(previewKey) {
@@ -2534,6 +2644,8 @@
       const social = deepGet(snapshot, 'activeChar.social', {});
       const status = deepGet(snapshot, 'activeChar.status', {});
       const wealth = deepGet(snapshot, 'activeChar.wealth', {});
+      const clothing = deepGet(snapshot, 'activeChar.clothing', {});
+      const wardrobeEntries = safeEntries(deepGet(snapshot, 'activeChar.clothing.wardrobe', {}));
       const armor = deepGet(snapshot, 'activeChar.equip.armor', {});
       const mech = deepGet(snapshot, 'activeChar.equip.mech', {});
       const jobs = safeEntries(deepGet(snapshot, 'activeChar.job', {}));
@@ -2606,26 +2718,40 @@
           onMount: mountEl => {
             const inputEl = mountEl.querySelector('.role-switch-search-input');
             const countEl = mountEl.querySelector('.role-switch-search-count');
+            const prevBtn = mountEl.querySelector('[data-role-page-nav="prev"]');
+            const nextBtn = mountEl.querySelector('[data-role-page-nav="next"]');
+            const pageIndicatorEl = mountEl.querySelector('.role-switch-page-indicator');
             const tileEls = Array.from(mountEl.querySelectorAll('.role-switch-tile'));
+            let currentPage = 1;
+            const pageSize = 50;
             const applyFilter = () => {
               const keyword = toText(inputEl && inputEl.value, '').trim().toLowerCase();
-              let visibleCount = 0;
+              const matchedTiles = [];
               tileEls.forEach(tile => {
                 const haystack = toText(tile.getAttribute('data-switch-search'), '').toLowerCase();
                 const matched = !keyword || haystack.includes(keyword);
-                tile.style.display = matched ? '' : 'none';
-                if (matched) visibleCount += 1;
+                if (matched) matchedTiles.push(tile);
+                tile.style.display = 'none';
               });
+              const totalPages = Math.max(1, Math.ceil(matchedTiles.length / pageSize));
+              currentPage = Math.max(1, Math.min(totalPages, currentPage));
+              const start = (currentPage - 1) * pageSize;
+              matchedTiles.slice(start, start + pageSize).forEach(tile => { tile.style.display = ''; });
               if (countEl) {
-                countEl.textContent = keyword ? `匹配 ${visibleCount} / ${tileEls.length} 名` : `共 ${tileEls.length} 名`;
+                countEl.textContent = keyword ? `匹配 ${matchedTiles.length} / ${tileEls.length} 名` : `共 ${tileEls.length} 名`;
               }
+              if (pageIndicatorEl) pageIndicatorEl.textContent = `第 ${currentPage} / ${totalPages} 页`;
+              if (prevBtn) prevBtn.disabled = currentPage <= 1;
+              if (nextBtn) nextBtn.disabled = currentPage >= totalPages;
             };
             if (inputEl) {
-              inputEl.addEventListener('input', applyFilter);
+              inputEl.addEventListener('input', () => { currentPage = 1; applyFilter(); });
               setTimeout(() => {
                 try { inputEl.focus(); } catch (_) {}
               }, 0);
             }
+            if (prevBtn) prevBtn.addEventListener('click', () => { currentPage = Math.max(1, currentPage - 1); applyFilter(); });
+            if (nextBtn) nextBtn.addEventListener('click', () => { currentPage += 1; applyFilter(); });
             applyFilter();
             return {
               destroy() {
@@ -2643,6 +2769,11 @@
                   <span class="role-switch-search-count" style="font-size:12px;color:rgba(220,245,255,0.72);">共 ${charEntries.length} 名</span>
                 </div>
                 <div class="role-switch-grid">${switchCards}</div>
+                <div class="tag-cloud armory-quick-actions" style="margin-top:12px;justify-content:flex-end;">
+                  <button type="button" class="tag-chip role-switch-page-btn" data-role-page-nav="prev">上一页</button>
+                  <span class="tag-chip role-switch-page-indicator">第 1 / 1 页</span>
+                  <button type="button" class="tag-chip role-switch-page-btn" data-role-page-nav="next">下一页</button>
+                </div>
               </div>
             </div>
           `
@@ -2690,6 +2821,7 @@
                       <div class="status-row"><b>当前领域</b><span>${htmlEscape(toText(status.active_domain, '无'))}</span></div>
                       <div class="status-row"><b>魂核状态</b><span>${htmlEscape(`${toText(deepGet(snapshot, 'activeChar.energy.core.数量', 0), '0')} 枚 / 进度 ${toText(deepGet(snapshot, 'activeChar.energy.core.progress', 0), '0')}%`)}</span></div>
                       <div class="status-row"><b>血脉状态</b><span>${htmlEscape(`${toText(deepGet(snapshot, 'activeChar.bloodline_power.bloodline', '无'), '无')} / ${toText(deepGet(snapshot, 'activeChar.bloodline_power.seal_lv', 0), '0')}层`)}</span></div>
+                      <div class="status-row"><b>灵物吸收</b><span>${htmlEscape(toNumber(status.consuming_herb_age, 0) > 0 ? `${formatNumber(toNumber(status.consuming_herb_age, 0))} 年` : '当前无吸收') }</span></div>
                     </div>
                   </div>
                 </div>
@@ -2702,7 +2834,7 @@
       if (previewKey === '社会档案详细页') {
         return {
           title: '社会档案弹窗',
-          summary: '当前角色的公开身份、名望与头衔摘要。',
+          summary: '当前角色的公开身份、名望、头衔与社会可见度摘要。',
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card">
@@ -2730,6 +2862,15 @@
                 ])}
               </div>
               <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">公开情报状态</div></div>
+                ${makeTileGrid([
+                  { label: '当前公开度', value: snapshot.publicIntel ? '已公开' : '未公开' },
+                  { label: '公开判定', value: social.public_intel ? '达到公开阈值' : '仍属私密档案' },
+                  { label: '声望阈值参考', value: '5000' },
+                  { label: '当前声望', value: formatNumber(social.reputation) }
+                ], 'two')}
+              </div>
+              <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">当前社会位置</div></div>
                 ${makeTileGrid([
                   { label: '主公开身份', value: toText(social.main_identity, '无') },
@@ -2742,6 +2883,21 @@
                   { label: '主阵营身份', value: snapshot.primaryFaction ? `${snapshot.primaryFaction[0]} / ${toText(deepGet(snapshot.primaryFaction[1], '身份', '无'), '无')}` : '无' }
                 ])}
               </div>
+              <div class="archive-card">
+                <div class="archive-card-head"><div class="archive-card-title">当前着装</div></div>
+                ${makeTileGrid([
+                  { label: '当前套装', value: toText(clothing.outfit, '无') },
+                  { label: '衣柜套数', value: String(wardrobeEntries.length) },
+                  { label: '上装', value: toText(deepGet(clothing, ['wardrobe', clothing.outfit, '上装'], '无'), '无') },
+                  { label: '下装', value: toText(deepGet(clothing, ['wardrobe', clothing.outfit, '下装'], '无'), '无') },
+                  { label: '鞋子', value: toText(deepGet(clothing, ['wardrobe', clothing.outfit, '鞋子'], '无'), '无') },
+                  { label: '套装描述', value: toText(deepGet(clothing, ['wardrobe', clothing.outfit, '描述'], '暂无描述'), '暂无描述') }
+                ], 'two')}
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">衣柜收纳</div></div>
+                ${makeTimelineStack(wardrobeEntries.length ? wardrobeEntries.map(([name, item]) => ({ title: name, desc: `${toText(item && item['上装'], '无')} / ${toText(item && item['下装'], '无')} / ${toText(item && item['鞋子'], '无')} ｜ ${toText(item && item['描述'], '暂无描述')}` })) : [{ title: '暂无衣柜记录', desc: '当前角色尚未记录可切换套装。' }])}
+              </div>
             </div>
           `
         };
@@ -2750,7 +2906,7 @@
       if (previewKey === '所属势力详细页') {
         return {
           title: '阵营身份弹窗',
-          summary: '当前角色已加入势力与可推进方向。',
+          summary: '当前角色已加入势力与当前阵营位置摘要。',
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card full">
@@ -2771,12 +2927,12 @@
                 ], 'two')}
               </div>
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">可推进方向</div></div>
+                <div class="archive-card-head"><div class="archive-card-title">阵营现实摘要</div></div>
                 ${makeTagCloud([
-                  { text: '晋升申请', className: 'warn' },
-                  { text: '势力矩阵' },
-                  { text: '本地据点' },
-                  { text: snapshot.orgEntries[0] ? snapshot.orgEntries[0][0] : '暂无路线' }
+                  { text: snapshot.factions[0] ? snapshot.factions[0][0] : '未加入势力', className: 'warn' },
+                  { text: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '无身份' },
+                  { text: snapshot.orgEntries[0] ? snapshot.orgEntries[0][0] : '暂无主势力' },
+                  { text: snapshot.currentLoc || '位置未知' }
                 ])}
               </div>
             </div>
@@ -2880,7 +3036,7 @@
 
         return {
           title: '人物关系弹窗',
-          summary: '当前角色关系网络与核心推进线索。',
+          summary: '当前角色关系网络、分析结论与核心推进线索。',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
@@ -2899,6 +3055,17 @@
               </div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">关系态势</div></div>
+                <div class="intel-layout">
+                  <div class="intel-card"><b>分析摘要</b><span>${htmlEscape(toText(deepGet(snapshot, 'relationAnalysis.summary', '当前尚未积累足够的人物关系数据。'), '当前尚未积累足够的人物关系数据。'))}</span></div>
+                  <div class="intel-card"><b>分析焦点</b><span>${htmlEscape(toText(deepGet(snapshot, 'relationAnalysis.focus_target', '无'), '无'))}</span></div>
+                  <div class="intel-card"><b>推荐动作</b><span>${htmlEscape((Array.isArray(deepGet(snapshot, 'relationAnalysis.recommended_actions', [])) ? deepGet(snapshot, 'relationAnalysis.recommended_actions', []) : []).slice(0, 3).join(' / ') || '暂无')}</span></div>
+                  <div class="intel-card"><b>恋爱候选</b><span>${htmlEscape((Array.isArray(deepGet(snapshot, 'relationAnalysis.romance_candidates', [])) ? deepGet(snapshot, 'relationAnalysis.romance_candidates', []) : []).slice(0, 3).join(' / ') || '暂无')}</span></div>
+                  <div class="intel-card"><b>信任对象</b><span>${htmlEscape((Array.isArray(deepGet(snapshot, 'relationAnalysis.trust_targets', [])) ? deepGet(snapshot, 'relationAnalysis.trust_targets', []) : []).slice(0, 3).join(' / ') || '暂无')}</span></div>
+                  <div class="intel-card"><b>风险对象</b><span>${htmlEscape((Array.isArray(deepGet(snapshot, 'relationAnalysis.risk_targets', [])) ? deepGet(snapshot, 'relationAnalysis.risk_targets', []) : []).slice(0, 3).join(' / ') || '暂无')}</span></div>
+                </div>
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">关系场景分析</div></div>
                 <div class="intel-layout">
                   ${relationContextHtml}
                 </div>
@@ -2981,11 +3148,14 @@
         const accessories = deepGet(snapshot, 'activeChar.equip.accessories', {});
         const accessoryEntries = listAccessoryEntries(accessories);
         const jobs = safeEntries(deepGet(snapshot, 'activeChar.job', {}));
+        const isPlayerControlled = isSnapshotPlayerControlled(snapshot);
         const armorSummary = toNumber(armor.lv, 0) > 0 ? `${toText(armor.name, `${armor.lv}字斗铠`)} / ${toText(armor.equip_status, '未装备')}` : '未装备';
         const mechSummary = toText(mech.lv, '无') !== '无' ? `${toText(mech.lv, '无')}·${toText(mech.type, '未定型')} / ${toText(mech.equip_status || mech.status, '未装备')}` : '未部署';
         const weaponSummary = weapon && (weapon.name || weapon['名称']) ? `${toText(weapon.name || weapon['名称'], '无')} / ${toText(weapon.tier || weapon['品阶'], '无品阶')}` : '无';
         const accessorySummary = summarizeAccessoryEntries(accessoryEntries);
         const jobSummary = jobs.length ? jobs.slice(0, 2).map(([name, info]) => `${name} Lv.${toText(info && info.lv, 0)}`).join(' / ') : '未掌握';
+        const jobCoreTechSummary = jobs.length ? (Object.keys(deepGet(jobs[0][1], 'core_tech', {})).slice(0, 2).join(' / ') || '暂无核心技术') : '暂无核心技术';
+        const jobLimitSummary = jobs.length ? `融锻上限 ${toText(deepGet(jobs[0][1], 'limits.max_fusion', 1), '1')} / 成功率 ${toText(deepGet(jobs[0][1], 'limits.success_rate', 0), '0')}%` : '暂无工坊上限';
         const battleForm = `${toText(deepGet(snapshot, 'activeChar.status.action', '日常'), '日常')} / ${toText(deepGet(snapshot, 'activeChar.status.active_domain', '常态'), '常态')}`;
         const armorExists = toNumber(armor.lv, 0) > 0 || !!toText(armor.name || armor['名称'], '');
         const mechExists = toText(mech.lv, '无') !== '无' || !!toText(mech.name || mech['名称'] || mech.type, '');
@@ -3019,12 +3189,6 @@
               return 'on';
             })()
         }));
-        const quickActionButtons = [
-          armorExists ? `<button type="button" class="tag-chip ${armorEquipped ? 'warn' : 'live'} armory-action-btn" data-armory-action="${armorEquipped ? 'unequip_armor' : 'equip_armor'}">${armorEquipped ? '卸下斗铠' : '穿戴斗铠'}</button>` : '',
-          mechExists ? `<button type="button" class="tag-chip ${mechEquipped ? 'warn' : 'live'} armory-action-btn" data-armory-action="${mechEquipped ? 'unequip_mech' : 'equip_mech'}">${mechEquipped ? '卸下机甲' : '装备机甲'}</button>` : '',
-          armorExists ? `<button type="button" class="tag-chip clickable" data-preview="武装详情：斗铠">斗铠详情</button>` : '',
-          mechExists ? `<button type="button" class="tag-chip clickable" data-preview="武装详情：机甲">机甲详情</button>` : ''
-        ].filter(Boolean).join('');
 
         if (previewKey === '武装详情：斗铠') {
           return {
@@ -3037,10 +3201,7 @@
                   ${makeTileGrid([
                     { label: '名称', value: toText(armor.name, '无') },
                     { label: '字级', value: toNumber(armor.lv, 0) > 0 ? `${toNumber(armor.lv, 0)}字斗铠` : '无' },
-                    { label: '领域', value: toText(armor.domain, '无') },
-                    { label: '材质', value: toText(armor.material, '无') },
-                    { label: '装备状态', value: toText(armor.equip_status, '未装备') },
-                    { label: '排斥状态', value: armor.is_rejected ? '存在排斥' : '正常' }
+                    { label: '领域', value: toText(armor.domain, '无') }
                   ])}
                 </div>
                 <div class="archive-card full">
@@ -3050,10 +3211,6 @@
                 <div class="archive-card">
                   <div class="archive-card-head"><div class="archive-card-title">斗铠部件</div></div>
                   ${makeInteractiveFigureBoard(toText(armor.name, '斗铠'), armorSlots, { preview: '武装详情：斗铠' })}
-                </div>
-                <div class="archive-card">
-                  <div class="archive-card-head"><div class="archive-card-title">操作</div></div>
-                  <div class="tag-cloud armory-quick-actions">${quickActionButtons}<button type="button" class="tag-chip clickable" data-preview="武装工坊详细页">返回武装</button></div>
                 </div>
               </div>
             `
@@ -3082,13 +3239,6 @@
                   <div class="archive-card-head"><div class="archive-card-title">机甲加成</div></div>
                   ${makeTileGrid(mechBonusItems)}
                 </div>
-                <div class="archive-card full">
-                  <div class="archive-card-head"><div class="archive-card-title">操作</div></div>
-                  <div class="tag-cloud armory-quick-actions">
-                    ${mechExists ? `<button type="button" class="tag-chip live armory-action-btn" data-armory-action="equip_mech">装备机甲</button><button type="button" class="tag-chip warn armory-action-btn" data-armory-action="unequip_mech">卸下机甲</button>` : '<span class="tag-chip">暂无可用机甲</span>'}
-                    <button type="button" class="tag-chip clickable" data-preview="武装工坊详细页">返回武装</button>
-                  </div>
-                </div>
               </div>
             `
           };
@@ -3114,8 +3264,8 @@
                   ${makeTileGrid(weaponBonusItems)}
                 </div>
                 <div class="archive-card full">
-                  <div class="archive-card-head"><div class="archive-card-title">导航</div></div>
-                  <div class="tag-cloud armory-quick-actions"><button type="button" class="tag-chip clickable" data-preview="武装工坊详细页">返回武装</button></div>
+                  <div class="archive-card-head"><div class="archive-card-title">武器特性</div></div>
+                  ${makeTimelineStack(safeEntries(deepGet(weapon, 'traits', {})).length ? safeEntries(deepGet(weapon, 'traits', {})).map(([name, item]) => ({ title: name, desc: toText(deepGet(item, '描述', '无'), '无') })) : [{ title: '暂无武器特性', desc: '当前主武器未记录额外特性。' }])}
                 </div>
               </div>
             `
@@ -3140,12 +3290,10 @@
                   <div class="archive-card-head"><div class="archive-card-title">附件摘要</div></div>
                   ${makeTileGrid([
                     { label: '附件数量', value: String(accessoryEntries.length) },
-                    { label: '当前摘要', value: accessorySummary }
+                    { label: '当前摘要', value: accessorySummary },
+                    { label: '首个附件', value: accessoryEntries[0] ? accessoryEntries[0].name : '无' },
+                    { label: '附加说明', value: accessoryEntries[0] ? accessoryEntries[0].desc : '当前未装配附件' }
                   ])}
-                </div>
-                <div class="archive-card full">
-                  <div class="archive-card-head"><div class="archive-card-title">导航</div></div>
-                  <div class="tag-cloud armory-quick-actions"><button type="button" class="tag-chip clickable" data-preview="武装工坊详细页">返回武装</button></div>
                 </div>
               </div>
             `
@@ -3175,10 +3323,6 @@
                     { label: '装配状态', value: toText(armor.equip_status, '未装备') }
                   ] : fallbackPartItems)}
                 </div>
-                <div class="archive-card full">
-                  <div class="archive-card-head"><div class="archive-card-title">导航</div></div>
-                  <div class="tag-cloud armory-quick-actions"><button type="button" class="tag-chip clickable" data-preview="武装详情：斗铠">返回斗铠</button><button type="button" class="tag-chip clickable" data-preview="武装工坊详细页">返回武装</button></div>
-                </div>
               </div>
             `
           };
@@ -3188,7 +3332,7 @@
           title: '武装工坊弹窗',
           summary: '',
           body: `
-            <div class="equipment-layout">
+            <div class="equipment-layout armory-layout-single">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">当前武装</div></div>
                 ${makeInteractiveTileGrid([
@@ -3204,17 +3348,21 @@
                 <div class="archive-card-head"><div class="archive-card-title">斗铠部件</div></div>
                 ${makeInteractiveFigureBoard(toText(armor.name, '斗铠'), armorSlots, { preview: '武装详情：斗铠' })}
               </div>
-              <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">装备操作</div></div>
-                <div class="tag-cloud armory-quick-actions">${quickActionButtons || '<span class="tag-chip">暂无可操作装备</span>'}</div>
-              </div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">副职业工坊</div></div>
-                <div id="armoryProfessionMount"></div>
+                ${makeTileGrid(jobs.length ? [
+                  { label: '主副职', value: jobSummary },
+                  { label: '核心技术', value: jobCoreTechSummary },
+                  { label: '工坊上限', value: jobLimitSummary }
+                ] : [{ label: '主副职', value: '未展开' }, { label: '核心技术', value: '暂无' }, { label: '工坊上限', value: '暂无' }], 'three')}
+                ${isPlayerControlled ? '<div id="armoryProfessionMount"></div>' : '<div class="tag-cloud armory-quick-actions"><span class="tag-chip">仅玩家角色可进行锻造/工坊操作</span></div>'}
               </div>
             </div>
           `,
           onMount: (container) => {
+            if (!isPlayerControlled) {
+              return null;
+            }
             const professionMount = container.querySelector('#armoryProfessionMount');
             if (professionMount && typeof window.mountProfessionUI === 'function') {
               return window.mountProfessionUI(professionMount, snapshot, {
@@ -3258,8 +3406,21 @@
                   { label: '星罗币', value: formatNumber(wealth.star_coin), className: 'cyan' },
                   { label: '唐门积分', value: formatNumber(wealth.tang_pt), className: 'cyan' },
                   { label: '学院积分', value: formatNumber(wealth.shrek_pt), className: 'cyan' },
-                  { label: '血神功勋', value: formatNumber(wealth.blood_pt), className: 'red' }
+                  { label: '战功', value: formatNumber(wealth.blood_pt), className: 'red' }
                 ])}
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">物资细项总览</div></div>
+                ${makeTimelineStack(snapshot.inventoryEntries.slice(0, 8).map(([name, item]) => ({
+                  title: `${name} / ${toText(item && item['类型'], '物品')}`,
+                  desc: [
+                    `品质 ${toText(item && (item['品质'] || item['品阶']), '普通')}`,
+                    `标签 ${(Array.isArray(item && item['标签']) ? item['标签'].slice(0, 3).join(' / ') : '无') || '无'}`,
+                    `耐久 ${toText(deepGet(item, ['耐久', '当前'], 0), 0)}/${toText(deepGet(item, ['耐久', '上限'], 0), 0)}`,
+                    `交易 ${deepGet(item, '可交易', true) ? '可交易' : '绑定'}`,
+                    `市价 ${formatNumber(deepGet(item, ['market_value', 'price'], 0))} ${toText(deepGet(item, ['market_value', 'currency'], 'fed_coin'), 'fed_coin')}`
+                  ].join(' ｜ ')
+                })))}
               </div>
               <div class="archive-card full vault-main-card">
                 <div class="archive-card-head"><div class="archive-card-title">背包格阵列</div></div>
@@ -3452,14 +3613,68 @@
         };
       }
 
+      if (String(previewKey || '').startsWith('榜单角色：')) {
+        const targetName = String(previewKey).replace('榜单角色：', '').trim();
+        const targetChar = deepGet(snapshot, ['sd', 'char', targetName], null);
+        const rankingEntry = snapshot.youthRankingEntries.find(([, item]) => toText(item && item['角色名'], '未知') === targetName)
+          || snapshot.continentRankingEntries.find(([, item]) => toText(item && item['角色名'], '未知') === targetName)
+          || null;
+        const targetStat = deepGet(targetChar, 'stat', {});
+        const targetSocial = deepGet(targetChar, 'social', {});
+        const targetArmor = deepGet(targetChar, 'equip.armor', {});
+        const targetMech = deepGet(targetChar, 'equip.mech', {});
+        const targetWeapon = deepGet(targetChar, 'equip.wpn', {});
+        const targetAccessories = listAccessoryEntries(deepGet(targetChar, 'equip.accessories', {}));
+        const targetSpiritEntries = safeEntries(deepGet(targetChar, 'spirit', {}));
+        return {
+          title: `${targetName} / 角色基本信息`,
+          summary: '榜单角色的轻量信息面板：属性、武魂与装备概览。',
+          body: `
+            <div class="archive-modal-grid">
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">基础信息</div></div>
+                ${makeTileGrid([
+                  { label: '角色名', value: targetName || '未知' },
+                  { label: '榜单名次', value: rankingEntry ? `第${rankingEntry[0]}名` : '未定位' },
+                  { label: '评分', value: rankingEntry ? toText(rankingEntry[1] && rankingEntry[1]['评分'], 0) : '未知' },
+                  { label: '等级', value: targetChar ? `Lv.${toText(targetStat.lv, 0)}` : '未收录' },
+                  { label: '系别', value: targetChar ? toText(targetStat.type, '未知') : '未收录' },
+                  { label: '名望', value: targetChar ? `${toText(targetSocial.fame_level, '籍籍无名')} / ${formatNumber(targetSocial.reputation)}` : '未收录' },
+                  { label: '魂力', value: targetChar ? `${formatNumber(targetStat.sp)} / ${formatNumber(targetStat.sp_max)}` : '未收录' },
+                  { label: '气血', value: targetChar ? `${formatNumber(targetStat.vit)} / ${formatNumber(targetStat.vit_max)}` : '未收录' },
+                  { label: '精神力', value: targetChar ? `${formatNumber(targetStat.men)} / ${formatNumber(targetStat.men_max)}` : '未收录' },
+                  { label: '力量', value: targetChar ? formatNumber(targetStat.str) : '未收录' },
+                  { label: '防御', value: targetChar ? formatNumber(targetStat.def) : '未收录' },
+                  { label: '敏捷', value: targetChar ? formatNumber(targetStat.agi) : '未收录' }
+                ], 'three')}
+              </div>
+              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">武魂概览</div></div>${makeTimelineStack(targetSpiritEntries.length ? targetSpiritEntries.map(([spiritName, spirit]) => ({ title: spiritName, desc: `类型 ${toText(spirit && spirit.type, '未知')} / 元素 ${toText(spirit && spirit.element, '无')} / 魂灵 ${safeEntries(deepGet(spirit, 'souls', {})).length}` })) : [{ title: '暂无武魂记录', desc: targetChar ? '当前角色未记录武魂数据。' : '该榜单角色暂无角色档案。' }])}</div>
+              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">装备概览</div></div>${makeTileGrid([
+                { label: '斗铠', value: targetChar ? (toText(targetArmor.name, '无') !== '无' ? `${toText(targetArmor.name, '无')} / ${toText(targetArmor.equip_status, '未装备')}` : '无') : '未收录' },
+                { label: '机甲', value: targetChar ? (toText(targetMech.lv, '无') !== '无' ? `${toText(targetMech.lv, '无')}·${toText(targetMech.type, '未定型')} / ${toText(targetMech.equip_status || targetMech.status, '未装备')}` : '无') : '未收录' },
+                { label: '主武器', value: targetChar ? (targetWeapon && (targetWeapon.name || targetWeapon['名称']) ? `${toText(targetWeapon.name || targetWeapon['名称'], '无')} / ${toText(targetWeapon.tier || targetWeapon['品阶'], '无品阶')}` : '无') : '未收录' },
+                { label: '附件', value: targetChar ? summarizeAccessoryEntries(targetAccessories) : '未收录' }
+              ], 'two')}</div>
+            </div>
+          `
+        };
+      }
+
       if (previewKey === '少年天才榜') {
+        const lastBoardEntries = safeEntries(deepGet(snapshot, 'sd.world.rankings.youth_talent.last榜单', {})).sort((a, b) => toNumber(b[1], 0) - toNumber(a[1], 0));
         return {
           title: '少年天才榜',
           summary: '收录大陆30岁以下天资卓越者的榜单（TOP 30）。',
           body: `
-            <div class="archive-card">
-              <div class="archive-card-head"><div class="archive-card-title">当前排行</div></div>
-              ${makeTimelineStack(snapshot.youthRankingEntries.slice(0, 15).map(([rank, item]) => ({ title: `第${rank}名 · ${toText(item && item['角色名'], '未知')}`, desc: `评分 ${toText(item && item['评分'], 0)}` })))}
+            <div class="archive-modal-grid">
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">上期榜单快照</div></div>
+                ${makePaginatedTimelineSection(lastBoardEntries.map(([name, score], index) => ({ title: `上期 ${index + 1} · ${name}`, desc: `评分 ${toText(score, 0)}`, preview: `榜单角色：${name}` })), '少年天才榜', 'last-board', [{ title: '暂无上期榜单', desc: '当前未记录 last榜单 快照。' }], 50)}
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">当前排行</div></div>
+                ${makePaginatedTimelineSection(snapshot.youthRankingEntries.slice(0, 30).map(([rank, item]) => ({ title: `第${rank}名 · ${toText(item && item['角色名'], '未知')}`, desc: `评分 ${toText(item && item['评分'], 0)}`, preview: `榜单角色：${toText(item && item['角色名'], '未知')}` })), '少年天才榜', 'current-board', [{ title: '暂无当前排行', desc: '当前未记录少年榜。' }], 50)}
+              </div>
             </div>
           `
         };
@@ -3472,7 +3687,7 @@
           body: `
             <div class="archive-card">
               <div class="archive-card-head"><div class="archive-card-title">当前排行</div></div>
-              ${makeTimelineStack(snapshot.continentRankingEntries.slice(0, 15).map(([rank, item]) => ({ title: `第${rank}名 · ${toText(item && item['角色名'], '未知')}`, desc: `评分 ${toText(item && item['评分'], 0)}` })))}
+              ${makePaginatedTimelineSection(snapshot.continentRankingEntries.slice(0, 100).map(([rank, item]) => ({ title: `第${rank}名 · ${toText(item && item['角色名'], '未知')}`, desc: `评分 ${toText(item && item['评分'], 0)}`, preview: `榜单角色：${toText(item && item['角色名'], '未知')}` })), '大陆风云榜', 'current-board', [{ title: '暂无当前排行', desc: '当前未记录大陆风云榜。' }], 50)}
             </div>
           `
         };
@@ -3512,20 +3727,31 @@
         });
         return {
           title: '势力矩阵弹窗',
-          summary: '所有势力影响力与状态总览。',
+          summary: '所有势力影响力、上下级关系与状态总览。',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">势力梯阵</div></div>
-                ${makeFactionLadder(snapshot.orgEntries.map(([name, item]) => ({
+                ${makePaginatedFactionLadder(snapshot.orgEntries.map(([name, item]) => ({
                   name,
                   desc: `影响力 ${formatNumber(item && item.inf)} / ${toText(item && item.status, '正常')} / 极限斗罗 ${toText(deepGet(item, 'power_stats.limit_douluo', 0), '0')} / 超级斗罗 ${toText(deepGet(item, 'power_stats.super_douluo', 0), '0')} / 封号斗罗 ${toText(deepGet(item, 'power_stats.title_douluo', 0), '0')}`,
                   className: snapshot.factions.some(([fac]) => fac === name) ? 'highlight' : ''
-                })))}
+                })), '势力矩阵总览', 'org-ladder', 50)}
               </div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">${htmlEscape(`${primaryFactionEntry && primaryFactionEntry.name ? primaryFactionEntry.name : '主势力'}对外关系`)}</div></div>
                 ${makeTimelineStack(factionRelationCards)}
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">势力结构补充</div></div>
+                ${makePaginatedTimelineSection(snapshot.orgEntries.map(([name, item]) => ({
+                  title: name,
+                  desc: `上级：${toText(item && item.parent_faction, '无')} ｜ 成员数：${safeEntries(item && item.mem).length} ｜ 下次刷新：${toText(item && item.next_refresh_tick, 0)}`
+                })), '势力矩阵总览', 'org-structure', [{ title: '暂无势力结构', desc: '当前未记录势力结构补充信息。' }], 50)}
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">主势力成员</div></div>
+                ${makePaginatedTimelineSection(safeEntries(primaryFactionEntry && primaryFactionEntry.data && primaryFactionEntry.data.mem).map(([memberName, memberInfo]) => ({ title: memberName, desc: `职位：${toText(memberInfo && memberInfo['职位'], '外围')}` })), '势力矩阵总览', 'primary-members', [{ title: '暂无成员档案', desc: '当前主势力未记录成员名册。' }], 50)}
               </div>
             </div>
           `
@@ -3544,7 +3770,7 @@
         });
         return {
           title: '我的阵营弹窗',
-          summary: '当前角色在各势力中的身份、权限与头衔。',
+          summary: '当前角色在各势力中的身份、权限、申请与捐献动向。',
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card full">
@@ -3567,6 +3793,33 @@
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">当前阵营关系</div></div>
                 ${makeTimelineStack(currentFactionRelationCards)}
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">阵营事务请求</div></div>
+                ${makeTimelineStack([
+                  {
+                    title: '晋升申请',
+                    desc: toText(deepGet(snapshot, 'activeChar.promotion_request.target_faction', '无'), '无') !== '无'
+                      ? `${toText(deepGet(snapshot, 'activeChar.promotion_request.target_faction', '无'), '无')} / ${toText(deepGet(snapshot, 'activeChar.promotion_request.target_title', '无'), '无')}`
+                      : '当前无晋升申请'
+                  },
+                  {
+                    title: '捐献申请',
+                    desc: toText(deepGet(snapshot, 'activeChar.donate_request.item_name', '无'), '无') !== '无'
+                      ? `${toText(deepGet(snapshot, 'activeChar.donate_request.item_name', '无'), '无')} × ${toNumber(deepGet(snapshot, 'activeChar.donate_request.quantity', 1), 1)} / ${toText(deepGet(snapshot, 'activeChar.donate_request.target_faction', '无'), '无')}`
+                      : '当前无捐献申请'
+                  },
+                  {
+                    title: '任务请求',
+                    desc: toText(deepGet(snapshot, 'activeChar.quest_request.action', '无'), '无') !== '无'
+                      ? `${toText(deepGet(snapshot, 'activeChar.quest_request.action', '无'), '无')} / ${toText(deepGet(snapshot, 'activeChar.quest_request.quest_name', '无'), '无')}`
+                      : '当前无任务请求'
+                  }
+                ])}
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">所属势力名册</div></div>
+                ${makePaginatedTimelineSection(safeEntries(currentFactionEntry[1] && currentFactionEntry[1].mem).map(([memberName, memberInfo]) => ({ title: memberName, desc: `职位：${toText(memberInfo && memberInfo['职位'], '外围')}` })), '我的阵营详情', 'faction-members', [{ title: '暂无成员记录', desc: currentFactionName ? '当前所属势力尚未记录成员档案。' : '当前未加入可展示成员名册的势力。' }], 50)}
               </div>
             </div>
           `
@@ -3665,6 +3918,10 @@
           summary: '当前节点商店与可见库存。',
           body: '',
           onMount: (container) => {
+            if (!isSnapshotPlayerControlled(snapshot)) {
+              container.innerHTML = '<div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">只读浏览</div></div><div class="intel-layout"><div class="intel-card"><b>当前角色不可操作</b><span>非玩家角色仅允许查看，不开放交易等请求界面。</span></div></div></div>';
+              return null;
+            }
             if (typeof window.mountTradeUI === 'function') {
               return window.mountTradeUI(container, snapshot, {
                 initialTab: tradeLaunchOptions.initialTab,
@@ -3702,23 +3959,34 @@
       }
 
       if (previewKey === '操作总线') {
+        const planSummary = buildRecentPlanSummary(snapshot, { worldLimit: 6, recordLimit: 6 });
         return {
           title: '近期安排',
-          summary: '当前动作与近期安排。',
+          summary: '世界日程与个人待办的双视角安排板。',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">当前动作</div></div>
+                <div class="archive-card-head"><div class="archive-card-title">当前状态</div></div>
                 ${makeTileGrid([
                   { label: '当前行动', value: toText(status.action, '日常') },
                   { label: '所在位置', value: snapshot.currentLoc },
                   { label: '伤势', value: toText(status.wound, '无伤') },
-                  { label: '安排数量', value: String(snapshot.pendingRequests.length) }
+                  { label: '世界安排', value: String(planSummary.worldPlans.length) },
+                  { label: '个人待办', value: String(planSummary.personalPlans.length) },
+                  { label: '请求摘要', value: String(snapshot.pendingRequests.length) }
                 ], 'two')}
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">安排清单</div></div>
-                ${makeTimelineStack((snapshot.pendingRequests.length ? snapshot.pendingRequests : ['暂无安排']).map((item, index) => ({ title: `事项 ${index + 1}`, desc: item })))}
+                <div class="archive-card-head"><div class="archive-card-title">世界日程</div></div>
+                ${makeTimelineStack(planSummary.worldPlans.length ? planSummary.worldPlans : [{ title: '暂无世界安排', desc: '当前未记录待触发的世界日程。' }])}
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">个人待办</div></div>
+                ${makeTimelineStack(planSummary.personalPlans.length ? planSummary.personalPlans : [{ title: '暂无个人待办', desc: '当前未记录进行中的个人任务。' }])}
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">请求摘要</div></div>
+                ${makeTimelineStack((snapshot.pendingRequests.length ? snapshot.pendingRequests : ['暂无请求摘要']).map((item, index) => ({ title: `请求 ${index + 1}`, desc: item })))}
               </div>
             </div>
           `
@@ -3726,6 +3994,7 @@
       }
 
       if (previewKey === '试炼与情报') {
+        const towerDiscountEntries = safeEntries(deepGet(snapshot, 'activeChar.tower_records.discount_available', {})).filter(([, value]) => !!value);
         return {
           title: '试炼与情报',
           summary: '当前可去试炼与已解锁情报摘要。',
@@ -3736,7 +4005,10 @@
                 ${makeTileGrid([
                   { label: '升灵台门票', value: String(snapshot.inventoryEntries.filter(([name]) => /升灵台/.test(name)).length) },
                   { label: '魂灵塔安排', value: `${toText(deepGet(snapshot, 'activeChar.tower_request.action', '无'), '无')} / 最高 ${toText(deepGet(snapshot, 'activeChar.tower_records.max_floor', 0), '0')} 层` },
+                  { label: '塔层折扣', value: towerDiscountEntries.length ? `${towerDiscountEntries.length} 层可用` : '暂无' },
                   { label: '狩猎安排', value: toText(deepGet(snapshot, 'activeChar.hunt_request.killed_age', 0), '0') === '0' ? '暂无' : '待结算' },
+                  { label: '深渊击杀', value: toText(deepGet(snapshot, 'activeChar.abyss_kill_request.kill_tier', '无'), '无') !== '无' ? `${toText(deepGet(snapshot, 'activeChar.abyss_kill_request.kill_tier', '无'), '无')} × ${toNumber(deepGet(snapshot, 'activeChar.abyss_kill_request.quantity', 1), 1)}` : '暂无待结算' },
+                  { label: '当前战功', value: formatNumber(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0)) },
                   { label: '风险评估', value: snapshot.pendingIntelCount ? `${snapshot.worldAlert} / 线索 +${snapshot.pendingIntelImpact}` : snapshot.worldAlert }
                 ])}
               </div>
@@ -3746,23 +4018,57 @@
                   ${(snapshot.unlockedKnowledges.length ? snapshot.unlockedKnowledges.slice(-4).reverse() : ['情报仍待收集']).map(item => `<div class="intel-card"><b>${htmlEscape(item)}</b><span>${htmlEscape(item)}</span></div>`).join('')}
                 </div>
               </div>
+              <div class="archive-card">
+                <div class="archive-card-head"><div class="archive-card-title">魂灵塔折扣资格</div></div>
+                ${makeTimelineStack(towerDiscountEntries.length ? towerDiscountEntries.slice(0, 10).map(([floor]) => ({ title: `${floor} 层`, desc: '五折资格未使用' })) : [{ title: '暂无折扣资格', desc: '当前未记录可用五折层。' }])}
+              </div>
+            </div>
+          `
+        };
+      }
+
+      if (previewKey === '任务界面') {
+        const quest = deepGet(snapshot, 'activeChar.quest_request', {});
+        const hasQuest = toText(quest.action, '无') !== '无';
+        return {
+          title: '任务界面',
+          summary: '当前正在追踪的任务目标与进度。',
+          body: `
+            <div class="archive-modal-grid">
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">当前任务</div></div>
+                ${makeTileGrid(hasQuest ? [
+                  { label: '任务名称', value: toText(quest.quest_name, '未知') },
+                  { label: '动作类型', value: toText(quest.action, '未知') },
+                  { label: '单次进度', value: `+${toNumber(quest.progress_add, 0)}` },
+                  { label: '目标需求', value: String(toNumber(quest.required_count, 1)) },
+                  { label: '奖励金币', value: formatNumber(quest.reward_coin) },
+                  { label: '奖励声望', value: formatNumber(quest.reward_rep) }
+                ] : [{ label: '状态', value: '当前未接取任务' }], 'two')}
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">任务说明</div></div>
+                <div class="intel-layout"><div class="intel-card"><b>任务详情</b><span>${htmlEscape(hasQuest ? toText(quest.quest_desc, '无附加说明') : '当前没有正在追踪的任务说明。')}</span></div></div>
+              </div>
             </div>
           `
         };
       }
 
       if (previewKey === '近期见闻') {
+        const newsSummary = buildRecentNewsSummary(snapshot, { seqLimit: 8, intelLimit: 8 });
         return {
           title: '近期见闻 / 城内简报',
-          summary: '系统播报与最近世界事件的合并简报。',
+          summary: '全局剧情备忘录与个人情报库的合并简报。',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">城内简报</div></div>
-                ${makeTimelineStack([
-                  { title: '系统播报', desc: toText(deepGet(snapshot, 'sd.sys.rsn', '暂无'), '暂无') },
-                  ...snapshot.timelineEntries.slice(0, 4).map(([name, item]) => ({ title: name, desc: toText(item && item['event'], '暂无描述') }))
-                ])}
+                <div class="archive-card-head"><div class="archive-card-title">全局见闻</div></div>
+                ${makeTimelineStack(newsSummary.globalNews.length ? newsSummary.globalNews : [{ title: '暂无全局见闻', desc: 'sys.seq 当前未记录新的剧情备忘。' }])}
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">个人见闻</div></div>
+                ${makeTimelineStack(newsSummary.personalNews.length ? newsSummary.personalNews : [{ title: '暂无个人见闻', desc: '当前角色尚未收录新的情报。' }])}
               </div>
             </div>
           `
@@ -3775,7 +4081,7 @@
           desc: item && item.empty
             ? '暂未记录任何深渊生物或魂兽。'
             : (safeEntries(item).length
-              ? safeEntries(item).slice(0, 4).map(([key, value]) => `${toText(key, '字段')}：${value && typeof value === 'object' ? `${safeEntries(value).length}项` : toText(value, '无')}`).join(' / ')
+              ? safeEntries(item).slice(0, 6).map(([key, value]) => `${toText(key, '字段')}：${value && typeof value === 'object' ? `${safeEntries(value).length}项` : toText(value, '无')}`).join(' / ')
               : '已记录基础数据，可供后续复用。')
         }));
         return {
@@ -3787,8 +4093,14 @@
                 <div class="archive-card-head"><div class="archive-card-title">图鉴总览</div></div>
                 ${makeTileGrid([
                   { label: '已记录物种', value: `${snapshot.bestiaryEntries.length} 种` },
-                  { label: '最近收录', value: snapshot.bestiaryEntries[0] ? snapshot.bestiaryEntries[0][0] : '暂无' }
+                  { label: '最近收录', value: snapshot.bestiaryEntries[0] ? snapshot.bestiaryEntries[0][0] : '暂无' },
+                  { label: '可复用状态', value: snapshot.bestiaryEntries.length ? '可作为后续标准数据源' : '等待首次收录' },
+                  { label: '字段覆盖', value: snapshot.bestiaryEntries[0] ? `${safeEntries(snapshot.bestiaryEntries[0][1]).length} 项` : '0 项' }
                 ], 'two')}
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">最近收录详情</div></div>
+                ${makeTimelineStack(snapshot.bestiaryEntries[0] ? [{ title: snapshot.bestiaryEntries[0][0], desc: safeEntries(snapshot.bestiaryEntries[0][1]).length ? safeEntries(snapshot.bestiaryEntries[0][1]).map(([key, value]) => `${toText(key, '字段')}：${value && typeof value === 'object' ? `${safeEntries(value).length}项` : toText(value, '无')}`).join(' / ') : '当前仅建立了空白图鉴壳。' }] : [{ title: '暂无最近收录', desc: '当前图鉴仍为空。' }])}
               </div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">已记录物种</div></div>
@@ -3802,12 +4114,22 @@
       if (previewKey === '森林仇恨值') {
         const remaining = Math.max(0, 1000000 - snapshot.forestKilledAge);
         const progress = Math.max(0, Math.min(100, Number(((snapshot.forestKilledAge / 1000000) * 100).toFixed(1))));
+        const stage = progress >= 100 ? '兽潮临界' : (progress >= 70 ? '高度紧张' : (progress >= 30 ? '持续升温' : '相对安全'));
         return {
           title: '森林仇恨值',
           summary: '星斗大森林累计击杀年限与兽潮阈值监控。',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
-              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">仇恨累计</div></div>${makeTileGrid([{ label: '累计击杀年限', value: formatNumber(snapshot.forestKilledAge) }, { label: '兽潮阈值', value: '1000000' }, { label: '剩余安全空间', value: remaining > 0 ? formatNumber(remaining) : '0' }, { label: '当前状态', value: deepGet(snapshot, 'sd.world.flags.beast_tide', false) ? '兽潮已触发' : (snapshot.forestKilledAge >= 1000000 ? '达到阈值' : '尚未触发') }], 'two')}<div style="margin-top:12px;"><div style="display:flex;justify-content:space-between;font-size:12px;color:#bfdde4;margin-bottom:6px;"><span>阈值进度</span><span>${progress}%</span></div><div style="height:10px;border-radius:999px;background:rgba(255,255,255,0.08);overflow:hidden;border:1px solid rgba(150,217,228,0.12);"><div style="height:100%;width:${progress}%;background:${progress >= 100 ? 'linear-gradient(90deg,#ff6b6b,#ffb36b)' : (progress >= 70 ? 'linear-gradient(90deg,#ffd36b,#ff8a5b)' : 'linear-gradient(90deg,#72e6ff,#7dffb2)')};box-shadow:0 0 12px rgba(255,180,107,0.35);"></div></div></div></div>
+              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">仇恨累计</div></div>${makeTileGrid([{ label: '累计击杀年限', value: formatNumber(snapshot.forestKilledAge) }, { label: '兽潮阈值', value: '1000000' }, { label: '剩余安全空间', value: remaining > 0 ? formatNumber(remaining) : '0' }, { label: '当前阶段', value: stage }], 'two')}<div style="margin-top:12px;"><div style="display:flex;justify-content:space-between;font-size:12px;color:#bfdde4;margin-bottom:6px;"><span>阈值进度</span><span>${progress}%</span></div><div style="height:10px;border-radius:999px;background:rgba(255,255,255,0.08);overflow:hidden;border:1px solid rgba(150,217,228,0.12);"><div style="height:100%;width:${progress}%;background:${progress >= 100 ? 'linear-gradient(90deg,#ff6b6b,#ffb36b)' : (progress >= 70 ? 'linear-gradient(90deg,#ffd36b,#ff8a5b)' : 'linear-gradient(90deg,#72e6ff,#7dffb2)')};box-shadow:0 0 12px rgba(255,180,107,0.35);"></div></div></div></div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">阶段说明</div></div>
+                ${makeTimelineStack([
+                  { title: '0% - 29%', desc: '相对安全 / 森林尚未进入高压状态。' },
+                  { title: '30% - 69%', desc: '持续升温 / 已经开始积累明显仇恨。' },
+                  { title: '70% - 99%', desc: '高度紧张 / 接近恐怖阈值，应避免继续屠戮。' },
+                  { title: '100%', desc: '兽潮临界 / 已达到恐怖事件触发线。' }
+                ])}
+              </div>
             </div>
           `
         };
@@ -3828,7 +4150,7 @@
         renderLiveCards(liveSnapshot);
         
         const isCombatActive = !!deepGet(liveSnapshot, 'sd.world.combat.is_active');
-        if (isCombatActive) {
+        if (isCombatActive && isSnapshotPlayerControlled(liveSnapshot)) {
           if (!activeBattleUI && typeof window.mountBattleUI === 'function') {
             activeBattleUI = window.mountBattleUI(document.getElementById('battle-overlay'), liveSnapshot, {
               onAction: (actionData) => {
@@ -3846,6 +4168,9 @@
         }
 
         if (detailModal.classList.contains('show') && currentModalPreviewKey) {
+          if (currentModalPreviewKey === '角色切换器') {
+            return;
+          }
           const liveSubUiKeys = new Set(['武装工坊详细页', '储物仓库详细页', '当前节点详情', '交易模块弹窗']);
           if (
             liveSubUiKeys.has(currentModalPreviewKey)
@@ -4267,6 +4592,10 @@ ${JSON.stringify(patchOps, null, 2)}
       const action = toText(detail.action, '');
       const services = normalizeMapDispatchServices(detail);
       if (!action && !services.length) return;
+      if (!isSnapshotPlayerControlled(liveSnapshot)) {
+        if (typeof window.alert === 'function') window.alert('当前为非玩家角色视角，仅允许浏览，不能发起交易/锻造/战斗等操作。');
+        return;
+      }
 
       if (action === 'craft' || services.includes('craft')) {
         mapDispatchContext = { ...detail, action, services };
@@ -4484,6 +4813,10 @@ ${JSON.stringify(patchOps, null, 2)}
       if (actionBtn && modalBody.contains(actionBtn)) {
         event.preventDefault();
         event.stopPropagation();
+        if (!isSnapshotPlayerControlled(liveSnapshot)) {
+          if (typeof window.alert === 'function') window.alert('当前为非玩家角色视角，仅允许浏览，不能进行装备/锻造等操作。');
+          return;
+        }
         const actionData = buildArmoryActionRequest(liveSnapshot, actionBtn.dataset.armoryAction || '');
         if (actionData && typeof window.sendToAI === 'function') {
           window.sendToAI(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
@@ -4497,6 +4830,20 @@ ${JSON.stringify(patchOps, null, 2)}
         event.stopPropagation();
         const targetName = switchCharBtn.getAttribute('data-mvu-switch-char') || '';
         applyActiveCharacterSelection(targetName, { closeModal: true });
+        return;
+      }
+
+      const pageBtn = eventTarget ? eventTarget.closest('[data-page-nav][data-page-section]') : null;
+      if (pageBtn && modalBody.contains(pageBtn)) {
+        event.preventDefault();
+        event.stopPropagation();
+        const sectionKey = pageBtn.getAttribute('data-page-section') || 'section';
+        const nav = pageBtn.getAttribute('data-page-nav') || '';
+        const stateKey = `${currentModalPreviewKey}::${sectionKey}`;
+        const currentPage = Math.max(1, toNumber(modalPaginationState[stateKey], 1) || 1);
+        if (nav === 'prev') modalPaginationState[stateKey] = Math.max(1, currentPage - 1);
+        if (nav === 'next') modalPaginationState[stateKey] = currentPage + 1;
+        renderModalContent(currentModalPreviewKey);
         return;
       }
 

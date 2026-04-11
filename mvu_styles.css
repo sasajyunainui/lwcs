@@ -2057,7 +2057,7 @@
 
     .split-shell-right .split-shell-stage {
       overflow-y: auto;
-      overflow-x: hidden;
+      overflow-x: visible;
     }
 
     .split-shell-right .split-shell-stage::-webkit-scrollbar {
@@ -2083,7 +2083,7 @@
       min-height: 0;
       flex: 1 1 auto;
       overflow-y: auto;
-      overflow-x: hidden;
+      overflow-x: visible;
       scrollbar-width: none;
       -ms-overflow-style: none;
     }
@@ -2215,7 +2215,7 @@
 
     .split-shell-left .split-shell-stage {
       overflow-y: auto;
-      overflow-x: hidden;
+      overflow-x: visible;
       overscroll-behavior: contain;
       scrollbar-width: none;
       -ms-overflow-style: none;
@@ -2788,7 +2788,7 @@
       flex: 1 1 auto;
       min-height: 0;
       overflow-y: auto !important;
-      overflow-x: hidden !important;
+      overflow-x: visible !important;
       scrollbar-width: none;
       -ms-overflow-style: none;
     }
@@ -4222,6 +4222,10 @@
     .intel-layout {
       grid-template-columns: 1fr 1fr;
       align-items: start;
+    }
+
+    .equipment-layout.armory-layout-single {
+      grid-template-columns: 1fr;
     }
 
     .figure-board {
