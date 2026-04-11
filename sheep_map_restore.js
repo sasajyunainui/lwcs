@@ -6516,12 +6516,8 @@
       mapState.baseSnapshot.activeChar.status.loc = finalLocName;
       const isWorldMove = !hasActivePreview() || mapState.coordSystem === MAP_COORD_SYSTEM_IMAGE;
       if (isWorldMove) {
-        if (Number.isFinite(targetCoord.x) && Number.isFinite(targetCoord.y) && targetCoord.x >= 0 && targetCoord.y >= 0) {
-          mapState.baseSnapshot.activeChar.status.current_x = targetCoord.x;
-          mapState.baseSnapshot.activeChar.status.current_y = targetCoord.y;
-          mapState.baseSnapshot.activeChar.status.coord_system = toText(request && request.coord_system, toText(mapState.coordSystem, MAP_COORD_SYSTEM_LOCAL));
-          mapState.baseSnapshot.currentFocusCoord = { x: targetCoord.x, y: targetCoord.y };
-        }
+        mapState.baseSnapshot.activeChar.status.coord_system = toText(request && request.coord_system, toText(mapState.coordSystem, MAP_COORD_SYSTEM_LOCAL));
+        mapState.baseSnapshot.currentFocusCoord = { x: targetCoord.x, y: targetCoord.y };
         mapState.baseSnapshot.currentLoc = finalLocName;
         mapState.baseSnapshot.currentFocusName = finalLocName;
       }
@@ -6539,12 +6535,6 @@
           { op: 'replace', path: `/sd/world/time/tick`, value: (Number(deepGet(mapState.baseSnapshot.sd, 'world.time.tick', 0)) + request.est_ticks) },
           { op: 'replace', path: `/sd/sys/rsn`, value: `[地图移动完成] 玩家乘坐 ${request.method} 抵达 ${finalLocName}${targetTerrainInfo ? `（${toText(targetTerrainInfo.name, '未知地形')}）` : ''}，历时 ${request.est_duration}。` }
         ];
-        if (Number.isFinite(targetCoord.x) && Number.isFinite(targetCoord.y) && targetCoord.x >= 0 && targetCoord.y >= 0) {
-          patchOps.splice(1, 0,
-            { op: 'replace', path: `/sd/char/${activePath}/status/current_x`, value: targetCoord.x },
-            { op: 'replace', path: `/sd/char/${activePath}/status/current_y`, value: targetCoord.y }
-          );
-        }
 
         if (request.costs) {
           if (request.costs.fedCoin > 0) {

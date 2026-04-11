@@ -484,7 +484,7 @@
     function buildStatsBonusItems(statsBonus, options = {}) {
       const bonus = statsBonus && typeof statsBonus === 'object' ? statsBonus : {};
       const items = [];
-      if (options.includeLvEquiv) items.push({ label: '等效等级', value: String(toNumber(bonus.lv_equiv, 0)) });
+      if (options.includeLvEquiv && toNumber(bonus.lv_equiv, 0) > 0) items.push({ label: '等效等级', value: String(toNumber(bonus.lv_equiv, 0)) });
       items.push(
         { label: '气血加成', value: formatNumber(toNumber(bonus.vit_max, 0)) },
         { label: '魂力加成', value: formatNumber(toNumber(bonus.sp_max, 0)) },
@@ -2036,7 +2036,6 @@
       const primaryFaction = factions[0] || null;
       const topRelation = relations[0] || null;
       const questRecordCount = recordEntries.filter(([, item]) => toText(item && item['状态'], '进行中') !== '已放弃').length;
-      const positionText = `${toNumber(deepGet(activeChar, 'status.current_x', 0), 0)}, ${toNumber(deepGet(activeChar, 'status.current_y', 0), 0)}`;
       const warningText = toNumber(deepGet(sd, 'world.deviation', 0), 0) >= 40
         ? `偏差 ${toNumber(deepGet(sd, 'world.deviation', 0), 0)} / 高危`
         : (deepGet(sd, 'world.flags.beast_tide', false)
@@ -2053,7 +2052,6 @@
         activeChar: activeChar || {},
         currentLoc,
         normalizedLoc: locationInfo.name,
-        positionText,
         locationData,
         storeNames,
         dynamicLocationNames,
@@ -2553,7 +2551,7 @@
         document.querySelectorAll('[data-preview="当前节点详情"].map-side-card').forEach(el => {
           const focusNode = resolveDisplayMapNode(snapshot, snapshot.currentLoc);
           el.innerHTML = buildSimpleCard('当前位置', { text: '当前' }, [
-            { label: '地点', value: snapshot.currentLoc },
+            { label: '地点', value: snapshot.normalizedLoc !== snapshot.currentLoc ? `${snapshot.normalizedLoc} · ${snapshot.currentLoc}` : snapshot.currentLoc },
             { label: '地图', value: fallbackMapDisplayName },
             { label: '节点类型', value: focusNode ? focusNode.type : toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知') },
             { label: '入口', value: focusNode && focusNode.childMapId !== '无' ? '可进入子图' : '当前无子图入口' }
