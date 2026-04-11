@@ -283,7 +283,7 @@
       `;
     }
 
-    function makeRadarSvg(labels, values, accent = 'cyan') {
+    function makeRadarSvg(labels, values, realValues = null, accent = 'cyan') {
       const size = 220;
       const cx = 110;
       const cy = 110;
@@ -330,7 +330,7 @@
       const legend = labels.map((label, idx) => `
         <div class="legend-chip">
           <b>${label}</b>
-          <span>${values[idx]}</span>
+          <span>${realValues ? realValues[idx] : values[idx]}</span>
         </div>
       `).join('');
 
@@ -2835,13 +2835,22 @@
             <div class="archive-modal-grid">
               <div class="archive-card">
                 <div class="archive-card-head"><div class="archive-card-title">战斗轮廓</div></div>
-                ${makeRadarSvg(['力量', '防御', '敏捷', '精神', '气血底盘'], [
-                  Math.min(100, Math.round(toNumber(stat.str, 0) / 1000 * 100)),
-                  Math.min(100, Math.round(toNumber(stat.def, 0) / 1000 * 100)),
-                  Math.min(100, Math.round(toNumber(stat.agi, 0) / 1000 * 100)),
-                  Math.min(100, Math.round(toNumber(stat.men_max, 0) / 1000 * 100)),
-                  Math.min(100, Math.round(toNumber(stat.vit_max, 0) / 1000 * 100))
-                ])}
+                ${(() => {
+                  const lv = toNumber(stat.lv, 1);
+                  const divisor = Math.max(1000, lv * lv * 100); // 动态基准线，确保雷达图撑满但不过爆
+                  const fStr = toNumber(deepGet(snapshot, 'activeChar.stat.final.str', stat.str), 0);
+                  const fDef = toNumber(deepGet(snapshot, 'activeChar.stat.final.def', stat.def), 0);
+                  const fAgi = toNumber(deepGet(snapshot, 'activeChar.stat.final.agi', stat.agi), 0);
+                  const fMen = toNumber(deepGet(snapshot, 'activeChar.stat.final.men_max', stat.men_max), 0);
+                  const fVit = toNumber(deepGet(snapshot, 'activeChar.stat.final.vit_max', stat.vit_max), 0);
+                  return makeRadarSvg(['力量', '防御', '敏捷', '精神', '气血底盘'], [
+                    Math.min(100, Math.round(fStr / divisor * 100)),
+                    Math.min(100, Math.round(fDef / divisor * 100)),
+                    Math.min(100, Math.round(fAgi / divisor * 100)),
+                    Math.min(100, Math.round(fMen / (divisor * 0.5) * 100)),
+                    Math.min(100, Math.round(fVit / divisor * 100))
+                  ], [formatNumber(fStr), formatNumber(fDef), formatNumber(fAgi), formatNumber(fMen), formatNumber(fVit)]);
+                })()}
               </div>
               <div class="archive-card">
                 <div class="archive-card-head"><div class="archive-card-title">角色名片</div></div>
