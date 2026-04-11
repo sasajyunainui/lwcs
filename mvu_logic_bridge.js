@@ -1596,10 +1596,19 @@
         target: toText(skill && skill['对象'], '--'),
         bonus: toText(skill && skill['加成属性'], '无'),
         cost: toText(skill && skill['消耗'], '无消耗'),
-        desc: toText(skill && skill['画面描述'], '') || toText(skill && skill['特效量化参数'], '暂无描述'),
+        desc: (() => {
+          let base = toText(skill && skill['画面描述'], '') || toText(skill && skill['特效量化参数'], '暂无描述');
+          let clash = deepGet(skill, '仲裁逻辑.瞬间交锋模块');
+          let state = deepGet(skill, '仲裁逻辑.状态挂载模块');
+          if (clash && clash['基础威力倍率'] > 0) base += `<br/><span style="color:var(--cyan);">[威力倍率: ${clash['基础威力倍率']}% | 伤害类型: ${clash['伤害类型'] || '无'} | 护盾: ${clash['护盾绝对值'] || 0}]</span>`;
+          if (state && state['状态名称'] !== '无') base += `<br/><span style="color:var(--gold);">[附加状态: ${state['状态名称']} | 机制: ${state['特殊机制标识'] || '无'} | 持续: ${state['持续回合']}回]</span>`;
+          return base;
+        })(),
         status: toText(skill && skill['状态'], '已觉醒'),
         mainRole: toText(skill && skill['主定位'], '无'),
-        tags: (Array.isArray(skill && skill['标签']) ? skill['标签'] : []).concat(
+        tags: (Array.isArray(skill && skill['标签']) ? skill['标签'] : [])
+          .concat(deepGet(skill, '战斗语义.战术标签', []))
+          .concat(
           toText(skill && skill['技能类型'], '')
         ).filter(Boolean)
       }));
@@ -3390,6 +3399,16 @@
           };
         }
 
+        const getBoneBonus = (age, part) => {
+          let rb = { str: Math.floor(age * 0.05), def: Math.floor(age * 0.05), agi: Math.floor(age * 0.05), vit_max: Math.floor(age * 0.05), men_max: Math.floor(age * 0.01), sp_max: Math.floor(age * 0.1) };
+          let bonus = { ...rb };
+          if (part === "躯干魂骨") { bonus.str*=2; bonus.def*=2; bonus.agi*=2; bonus.vit_max*=2; bonus.sp_max*=2; }
+          else if (part === "头部魂骨") { bonus.men_max*=2; }
+          else if (part === "左腿魂骨" || part === "右腿魂骨") { bonus.agi*=2; }
+          else if (part === "左臂魂骨" || part === "右臂魂骨") { bonus.str*=2; }
+          return bonus;
+        };
+
         const soulBoneCards = (snapshot.soulBoneEntries && snapshot.soulBoneEntries.length ? snapshot.soulBoneEntries.slice(0, 6) : [['暂无魂骨装载', { empty: true }]]).map(([slot, bone]) => {
           if (bone && bone.empty) {
             return { title: slot, desc: '尚未装载魂骨。' };
@@ -3400,21 +3419,35 @@
           let descText = `${toText(bone && (bone['状态'] || bone.status), '已装载')}`;
           if (age || quality) descText += ` ｜ ${[age ? `${age}年` : '', quality].filter(Boolean).join(' ')}`;
           
-          const stats = bone && bone.stats_bonus;
-          if (stats) {
+          const realAge = toNumber(age, 0);
+          if (realAge > 0) {
+            const stats = getBoneBonus(realAge, slot);
             const statParts = [];
-            if (stats.str) statParts.push(`力+${stats.str}`);
-            if (stats.def) statParts.push(`防+${stats.def}`);
-            if (stats.agi) statParts.push(`敏+${stats.agi}`);
-            if (stats.vit_max) statParts.push(`体+${stats.vit_max}`);
-            if (stats.men_max) statParts.push(`精+${stats.men_max}`);
-            if (statParts.length) descText += ` ｜ ${statParts.join(' ')}`;
+            if (stats.str) statParts.push(`力+${formatNumber(stats.str)}`);
+            if (stats.def) statParts.push(`防+${formatNumber(stats.def)}`);
+            if (stats.agi) statParts.push(`敏+${formatNumber(stats.agi)}`);
+            if (stats.vit_max) statParts.push(`体+${formatNumber(stats.vit_max)}`);
+            if (stats.men_max) statParts.push(`精+${formatNumber(stats.men_max)}`);
+            if (statParts.length) descText += ` ｜ 属性加成: ${statParts.join(' ')}`;
           }
 
           const skillsObj = bone && bone['附带技能'];
           if (skillsObj && Object.keys(skillsObj).length) {
-            const skillNames = Object.keys(skillsObj).join(' / ');
-            descText += ` ｜ 技能: [${skillNames}]`;
+            const parsedSkills = buildSkillList(skillsObj);
+            const skillsHtml = parsedSkills.map(skill => `
+              <div class="ring-hover-skill" style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05); margin-top:8px; padding:8px; border-radius:8px;">
+                <b style="color:var(--gold);font-size:11px;display:block;margin-bottom:6px;">${skill.name}</b>
+                <div class="ring-hover-meta" style="margin-top:0;">
+                  <div class="ring-hover-meta-row"><em>主定位 / 状态</em><strong>${skill.mainRole || '无'} / ${skill.status || '已觉醒'}</strong></div>
+                  <div class="ring-hover-meta-row"><em>作用对象</em><strong>${skill.target || '--'}</strong></div>
+                </div>
+                <div class="ring-hover-meta-row" style="font-size:9px;color:#85afb8;margin-bottom:6px;line-height:1.3;"><em>消耗</em><br/><strong>${skill.cost || '无消耗'}</strong></div>
+                <div class="ring-hover-meta-row" style="font-size:9px;color:#85afb8;margin-bottom:6px;line-height:1.3;"><em>加成属性</em><br/><strong>${skill.bonus || '无'}</strong></div>
+                <div style="font-size:10px;color:var(--text);line-height:1.4;">${skill.desc || '暂无描述'}</div>
+                <div class="ring-hover-tags" style="margin-top:6px;">${(skill.tags || []).map(tag => `<span class="tag-chip">${tag}</span>`).join('')}</div>
+              </div>
+            `).join('');
+            descText += skillsHtml;
           }
 
           return { title: `${boneName} / ${slot}`, desc: descText };
