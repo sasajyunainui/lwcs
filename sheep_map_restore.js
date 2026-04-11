@@ -4289,10 +4289,56 @@
 
   function getActualCurrentCoord() {
     const snapshot = getActualCurrentSnapshot();
-    const x = toNumber(deepGet(snapshot, 'activeChar.status.current_x', NaN), NaN);
-    const y = toNumber(deepGet(snapshot, 'activeChar.status.current_y', NaN), NaN);
-    if (Number.isFinite(x) && Number.isFinite(y) && x >= 0 && y >= 0) return { x, y };
-    const focus = snapshot && snapshot.currentFocusCoord;
+    if (!snapshot) return null;
+    const sd = snapshot.sd || {};
+    
+    // 1. 递归查找节点坐标的方法
+    const findCoordRecursive = (nodeName, depth = 0) => {
+      if (!nodeName || depth > 10) return null;
+      // 先在当前地图的渲染库中找
+      const item = getItemByName(nodeName);
+      if (item && Number.isFinite(item.x) && Number.isFinite(item.y) && item.x >= 0 && item.y >= 0) {
+        return { x: item.x, y: item.y };
+      }
+      // 再去大地图字典找
+      const worldLoc = deepGet(sd, `world.locations.${nodeName}`);
+      if (worldLoc && Number.isFinite(worldLoc.x) && Number.isFinite(worldLoc.y) && worldLoc.x >= 0 && worldLoc.y >= 0) {
+        return { x: worldLoc.x, y: worldLoc.y };
+      }
+      // 最后去动态地点库里找，看有没有独立的坐标，或者“归属父节点”
+      const dynLoc = deepGet(sd, `world.dynamic_locations.${nodeName}`);
+      if (dynLoc) {
+        if (Number.isFinite(dynLoc.x) && Number.isFinite(dynLoc.y) && dynLoc.x >= 0 && dynLoc.y >= 0) {
+          return { x: dynLoc.x, y: dynLoc.y };
+        }
+        if (dynLoc['归属父节点']) {
+          return findCoordRecursive(dynLoc['归属父节点'], depth + 1);
+        }
+      }
+      
+      // 如果连动态地点都没登记（或者断线了），启动智能模糊认亲
+      // 用当前名字去反查世界主城，看包含哪个主城的名字
+      const knownLocations = Object.keys(deepGet(sd, 'world.locations', {}));
+      for (const loc of knownLocations) {
+        // 如果节点名包含主城名，比如 "东海学院操场" 包含了 "东海"
+        // 为了防止误判，通常只取前两个字或严格匹配城名
+        if (nodeName.includes(loc) || (loc.length >= 2 && nodeName.includes(loc.substring(0, 2)))) {
+           const parentWorldLoc = deepGet(sd, `world.locations.${loc}`);
+           if (parentWorldLoc && Number.isFinite(parentWorldLoc.x) && Number.isFinite(parentWorldLoc.y) && parentWorldLoc.x >= 0 && parentWorldLoc.y >= 0) {
+              return { x: parentWorldLoc.x, y: parentWorldLoc.y };
+           }
+        }
+      }
+      
+      return null;
+    };
+
+    const actualLocName = getActualCurrentLoc();
+    const resolvedCoord = findCoordRecursive(actualLocName);
+    if (resolvedCoord) return resolvedCoord;
+
+    // 如果彻底找不到任何节点关联的坐标，才回退到当前视角的焦点
+    const focus = snapshot.currentFocusCoord;
     if (focus && Number.isFinite(focus.x) && Number.isFinite(focus.y)) return { x: focus.x, y: focus.y };
     return null;
   }
@@ -7341,24 +7387,22 @@
     syncInteractiveMapUI({ center: false, updateInfo: true });
   }
 
+  let hoverSyncTimeout = null;
   function scheduleHoverSync(canvasEl = null) {
-    // Block intense DOM recalculation while actively dragging to prevent lag and visual flickering
     if (mapDragState.active || miniMapDragState.active) return;
     hoverSyncCanvas = canvasEl || null;
-    if (hoverSyncRaf) return;
-    hoverSyncRaf = requestAnimationFrame(() => {
-      const activeCanvas = hoverSyncCanvas;
-      hoverSyncRaf = 0;
-      hoverSyncCanvas = null;
-      if (activeCanvas) {
-        updateMapCoordinateReadout(activeCanvas);
-        // 节流处理复杂的侧边栏刷新，避免每帧都刷 NPC HTML
-        if (!hoverSyncRaf.__lastRender || Date.now() - hoverSyncRaf.__lastRender > 60) {
+    if (hoverSyncCanvas) {
+      updateMapCoordinateReadout(hoverSyncCanvas);
+    }
+    if (hoverSyncTimeout) {
+      clearTimeout(hoverSyncTimeout);
+    }
+    hoverSyncTimeout = setTimeout(() => {
+        hoverSyncTimeout = null;
+        if (!mapDragState.active && !miniMapDragState.active) {
           renderMapInfoState();
-          hoverSyncRaf.__lastRender = Date.now();
         }
-      }
-    });
+    }, 120);
   }
 
   function handleMapCanvasHover(event) {
