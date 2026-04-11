@@ -615,6 +615,7 @@
               data-hover-qty="${attr(`×${item.qty}`)}"
               data-hover-source="${attr(item.source || '--')}"
               data-hover-usage="${attr(item.usage || item.meta || '--')}"
+              data-hover-equip="${attr(item.canEquip ? 'true' : '')}"
               data-hover-tags="${attr((item.tags || []).join('|'))}">
               <div class="cell-top">
                 <b>${item.name}</b>
@@ -1594,12 +1595,13 @@
         type: toText(skill && skill['技能类型'], '未定义'),
         target: toText(skill && skill['对象'], '--'),
         bonus: toText(skill && skill['加成属性'], '无'),
-        cost: toText(skill && skill['消耗'], '无'),
-        desc: toText((skill && (skill['画面描述'] || skill['特效量化参数'] || deepGet(skill, '仲裁逻辑.状态挂载模块.状态名称', ''))) || '暂无描述', '暂无描述'),
-        tags: [
-          toText(skill && skill['技能类型'], '').trim(),
-          toText(skill && skill['对象'], '').trim()
-        ].filter(Boolean)
+        cost: toText(skill && skill['消耗'], '无消耗'),
+        desc: toText(skill && skill['画面描述'], '') || toText(skill && skill['特效量化参数'], '暂无描述'),
+        status: toText(skill && skill['状态'], '已觉醒'),
+        mainRole: toText(skill && skill['主定位'], '无'),
+        tags: (Array.isArray(skill && skill['标签']) ? skill['标签'] : []).concat(
+          toText(skill && skill['技能类型'], '')
+        ).filter(Boolean)
       }));
 
       if (skills.length) return skills;
@@ -1945,6 +1947,47 @@
       const secondarySpirit = spiritEntries[1] ? buildSpiritConfig(spiritEntries[1][0], spiritEntries[1][1], '第二武魂详细页', '第二武魂', 'gold') : null;
       const bloodline = buildBloodlineConfig(activeChar || {});
 
+      // --- 收集额外能力与功法，放到外层给生命图谱使用 ---
+      const safeRecords = (obj) => {
+        return Object.entries(obj || {}).filter(([k, v]) => k !== '无' && typeof v === 'object' && v !== null).map(([k, v]) => ({
+          name: k,
+          ...v
+        }));
+      };
+      const extraSkills = [];
+      safeRecords(deepGet(activeChar, 'arts', {})).forEach(art => {
+        extraSkills.push({
+          category: '功法绝学',
+          name: art.name,
+          level: `Lv.${art.lv || 1} / ${toText(art.境界, '未入门')}`,
+          desc: toText(art.描述, '暂无描述')
+        });
+      });
+      safeRecords(deepGet(activeChar, 'bloodline_power.skills', {})).forEach(skill => {
+        extraSkills.push({
+          category: '血脉散技',
+          name: skill.name,
+          level: toText(skill.状态, '已掌握'),
+          desc: toText(skill.描述, '无说明')
+        });
+      });
+      safeRecords(deepGet(activeChar, 'martial_fusion_skills', {})).forEach(fusion => {
+        extraSkills.push({
+          category: '武魂融合技',
+          name: fusion.name,
+          level: `搭档: ${toText(fusion.partner, '未知')}`,
+          desc: toText(deepGet(fusion, 'skill_data.描述', '无'), '爆发技')
+        });
+      });
+      safeRecords(deepGet(activeChar, 'special_abilities', {})).forEach(abi => {
+        extraSkills.push({
+          category: '特长能力',
+          name: abi.name,
+          level: toText(abi.类型, '被动'),
+          desc: toText(abi.描述, '暂无描述')
+        });
+      });
+
       const nextNodeCandidates = [
         locationInfo.name,
         currentLoc,
@@ -2052,7 +2095,8 @@
         mapActivePatchEntries,
         mapAvailableChildMaps,
         mapTravelCandidates,
-        publicIntel: !!deepGet(activeChar, 'social.public_intel', false)
+        publicIntel: !!deepGet(activeChar, 'social.public_intel', false),
+        extraSkills
       };
     }
 
@@ -2163,11 +2207,13 @@
       const armorSummary = toNumber(armor.lv, 0) > 0 ? `${toText(armor.name, `${armor.lv}字斗铠`)} / ${toText(armor.equip_status, '未装备')}` : '未装备';
       const mechSummary = toText(mech.lv, '无') !== '无' ? `${toText(mech.lv, '无')}·${toText(mech.type, '未定型')} / ${toText(mech.equip_status || mech.status, '未装备')}` : '无';
       const accessorySummary = accessoryEntries.length ? `${accessoryEntries.length}件` : '无';
+      const boneCount = snapshot.soulBoneEntries ? snapshot.soulBoneEntries.length : 0;
       return `
         <div class="module-name">武装工坊</div>
-        <div class="module-grid">
+        <div class="module-grid" style="grid-template-columns: repeat(3, 1fr);">
           <div class="mini-box"><b>当前斗铠</b><span>${htmlEscape(armorSummary)}</span></div>
           <div class="mini-box"><b>当前机甲</b><span>${htmlEscape(mechSummary)}</span></div>
+          <div class="mini-box"><b>装载魂骨</b><span>${htmlEscape(boneCount ? `${boneCount} 块` : '未装配')}</span></div>
         </div>
       `;
     }
@@ -2826,6 +2872,13 @@
                   </div>
                 </div>
               </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">功法与额外特长</div></div>
+                ${makeTimelineStack(snapshot.extraSkills && snapshot.extraSkills.length ? snapshot.extraSkills.map(skill => ({
+                  title: `${skill.category} - ${skill.name}`,
+                  desc: `${skill.level} | ${skill.desc}`
+                })) : [{ title: '暂无额外能力', desc: '该角色当前未习得特殊功法或掌握额外特长。' }])}
+              </div>
             </div>
           `
         };
@@ -3328,6 +3381,11 @@
           };
         }
 
+        const soulBoneCards = (snapshot.soulBoneEntries && snapshot.soulBoneEntries.length ? snapshot.soulBoneEntries.slice(0, 6) : [['暂无魂骨装载', { empty: true }]]).map(([slot, bone]) => ({
+          title: bone && bone.empty ? slot : `${toText(bone && (bone.name || bone['名称'] || bone['表象名称'] || slot), slot)} / ${slot}`,
+          desc: bone && bone.empty ? '尚未装载魂骨。' : `${toText(bone && (bone['状态'] || bone.status), '已装载')} ｜ ${toText(bone && (bone['年限'] || bone.age || bone['品质'] || bone['品阶']), '信息未标注')}`
+        }));
+
         return {
           title: '武装工坊弹窗',
           summary: '',
@@ -3344,9 +3402,9 @@
                   { label: '战斗形态', value: battleForm }
                 ])}
               </div>
-              <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">斗铠部件</div></div>
-                ${makeInteractiveFigureBoard(toText(armor.name, '斗铠'), armorSlots, { preview: '武装详情：斗铠' })}
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">魂骨装载</div></div>
+                ${makeTimelineStack(soulBoneCards)}
               </div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">副职业工坊</div></div>
@@ -3391,7 +3449,8 @@
             type: `${toText(item && item['类型'], '物品')} / ${toText(item && item['品阶'], toText(item && item['品质'], '普通'))}`,
             rarity: toText(item && (item['品质'] || item['品阶']), '普通'),
             source: toText(item && item['绑定者'], '背包持有'),
-            usage: toText(item && item['描述'], '暂无描述'),
+            usage: toText(item && item['描述'], '暂无属性说明'),
+            canEquip: !!(window.EquipmentManager && window.EquipmentManager.parseEquipSlot(name, item)),
             tags: [toText(item && item['类型'], ''), toText(item && item['品质'], ''), toText(item && item['品阶'], '')].filter(Boolean)
           }));
         return {
@@ -3452,17 +3511,6 @@
           : (secondaryTrack && secondaryTrack.kind === 'bloodline' ? null : secondaryTrack);
 
         if (!config) return null;
-        const artCards = (snapshot.artEntries.length ? snapshot.artEntries.slice(0, 6) : [['暂无术法记录', { empty: true }]]).map(([name, info]) => ({
-          title: info && info.empty ? name : `${name} / ${toText(info && info['境界'], '未入门')}`,
-          desc: info && info.empty ? '暂无技艺记录。' : `Lv.${toText(info && info.lv, 0)} / EXP ${formatNumber(toNumber(info && info.exp, 0))} ｜ ${toText(info && info['描述'], '暂无描述')}`
-        }));
-        const specialAbilitySkills = snapshot.specialAbilityEntries.length
-          ? snapshot.specialAbilityEntries.slice(0, 6).map(([name, info]) => ({
-              name,
-              desc: toText(info && info['描述'], '暂无描述'),
-              tags: [toText(info && info['类型'], '特殊能力')].filter(Boolean)
-            }))
-          : [{ name: '暂无特殊能力', desc: '尚未觉醒特殊能力。', tags: [] }];
         return {
           title: `${config.badge}弹窗`,
           summary: '武魂、魂灵、魂环与魂技的实时展开。',
@@ -3503,14 +3551,6 @@
                   `).join('')}
                 </div>
               </div>
-              <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">术法修行</div></div>
-                ${makeTimelineStack(artCards)}
-              </div>
-              <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">特殊能力</div></div>
-                ${makeSkillStrip(specialAbilitySkills)}
-              </div>
             </div>
           `
         };
@@ -3520,10 +3560,6 @@
 
 
       if (previewKey === '血脉封印详细页') {
-        const soulBoneCards = (snapshot.soulBoneEntries.length ? snapshot.soulBoneEntries.slice(0, 6) : [['暂无魂骨装载', { empty: true }]]).map(([slot, bone]) => ({
-          title: bone && bone.empty ? slot : `${toText(bone && (bone.name || bone['名称'] || bone['表象名称'] || slot), slot)} / ${slot}`,
-          desc: bone && bone.empty ? '尚未装载魂骨。' : `${toText(bone && (bone['状态'] || bone.status), '已装载')} ｜ ${toText(bone && (bone['年限'] || bone.age || bone['品质'] || bone['品阶']), '信息未标注')}`
-        }));
         return {
           title: '血脉封印弹窗',
           summary: '血脉层级、气血魂环与当前已固化能力。',
@@ -3569,10 +3605,6 @@
                 <div class="orbit-track">
                   ${snapshot.bloodline.rings.map(ring => `<div class="ring ${ring.ringClass || 'ring-gold'} interactive-ring">${htmlEscape(ring.glyph)}${buildRingHoverMarkup(ring)}</div>`).join('')}
                 </div>
-              </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">魂骨装载</div></div>
-                ${makeTimelineStack(soulBoneCards)}
               </div>
             </div>
           `
@@ -4198,11 +4230,11 @@
         <div class="ring-hover-skill">
           <b>${skill.name}</b>
           <div class="ring-hover-meta">
-            <div class="ring-hover-meta-row"><em>技能类型</em><strong>${skill.type || '未定义'}</strong></div>
+            <div class="ring-hover-meta-row"><em>主定位 / 状态</em><strong>${skill.mainRole || '无'} / ${skill.status || '已觉醒'}</strong></div>
             <div class="ring-hover-meta-row"><em>作用对象</em><strong>${skill.target || '--'}</strong></div>
-            <div class="ring-hover-meta-row"><em>加成属性</em><strong>${skill.bonus || '无'}</strong></div>
-            <div class="ring-hover-meta-row"><em>消耗</em><strong>${skill.cost || '无'}</strong></div>
           </div>
+          <div class="ring-hover-meta-row" style="font-size:9px;color:#85afb8;margin-bottom:6px;line-height:1.3;"><em>消耗</em><br/><strong>${skill.cost || '无消耗'}</strong></div>
+          <div class="ring-hover-meta-row" style="font-size:9px;color:#85afb8;margin-bottom:6px;line-height:1.3;"><em>加成属性</em><br/><strong>${skill.bonus || '无'}</strong></div>
           <span>${skill.desc || '暂无描述'}</span>
           <div class="ring-hover-tags">${(skill.tags || []).map(tag => `<span class="ring-hover-chip">${tag}</span>`).join('')}</div>
         </div>
@@ -4385,6 +4417,12 @@
             <div class="meta-item"><b>用途</b><span>${cell.dataset.hoverUsage || '--'}</span></div>
           </div>
           <div class="inventory-hover-tags">${[cell.dataset.hoverSource || '', ...tags].filter(Boolean).map(tag => `<span class="tag-chip">${tag}</span>`).join('')}</div>
+          ${cell.dataset.hoverEquip === 'true' ? `
+          <button type="button" class="inventory-hover-action-btn" 
+            onclick="if(window.EquipmentManager) window.EquipmentManager.performEquip(0, '${(cell.dataset.hoverTitle || '').replace(/'/g, "\\'")}');">
+            穿戴装备 / 装载
+          </button>
+          ` : ''}
         `;
         activeInventoryHoverCell = cell;
       }
@@ -4922,6 +4960,7 @@ window.EquipmentManager = {
     const activeChar = vars.sd.char[activeName];
     const inventory = activeChar.inventory || {};
     const equip = activeChar.equip || {};
+    const soulBone = activeChar.soul_bone || {};
     const itemData = inventory[itemName];
 
     if (!itemData || (itemData.数量 || 0) <= 0) {
@@ -4951,6 +4990,15 @@ window.EquipmentManager = {
         }
       }
     }
+    
+    // --- 约束：魂骨一经融合无法直接替换 ---
+    if (slotInfo.mainSlot === 'soul_bone') {
+      const existingBone = soulBone[slotInfo.subSlot];
+      if (existingBone && typeof existingBone === 'object' && existingBone['名称'] && !existingBone['名称'].includes('未鉴定之')) {
+        window.MVU_Toast.show(`【装载失败】\n${slotInfo.subSlot} 已融合了【${existingBone['名称']}】！\n魂骨一经融合无法直接替换，除非强行剥离！`, 'error');
+        return;
+      }
+    }
 
     const patches = [];
     const charPath = `/sd/char/${this.escapePtr(activeName)}`;
@@ -4963,41 +5011,51 @@ window.EquipmentManager = {
       patches.push({ op: 'replace', path: `${charPath}/inventory/${this.escapePtr(itemName)}/数量`, value: currentQty - 1 });
     }
 
-    // 2. 取下旧装备（如果有）放入背包
-    let oldItem = null;
-    let equipPath = `${charPath}/equip/${slotInfo.mainSlot}`;
-    if (slotInfo.subSlot) {
-      equipPath += `/parts/${slotInfo.subSlot}`;
-      oldItem = equip[slotInfo.mainSlot]?.parts?.[slotInfo.subSlot];
+    if (slotInfo.mainSlot === 'soul_bone') {
+      // 魂骨装载路线：直接写入 soul_bone 下级节点
+      const newBoneData = {
+        名称: itemName,
+        年限: itemData['年限'] || (itemData['品质'] && itemData['品质'].includes('万') ? 10000 : 1000),
+        品质: itemData['品质'] || '常规',
+        状态: '已装载'
+      };
+      patches.push({ op: 'add', path: `${charPath}/soul_bone/${slotInfo.subSlot}`, value: newBoneData });
     } else {
-      oldItem = equip[slotInfo.mainSlot];
-    }
-
-    if (oldItem && typeof oldItem === 'object' && oldItem.name && oldItem.name !== '无') {
-      const oldName = oldItem.name;
-      const oldToInv = Object.assign({}, oldItem, { 数量: 1 });
-      delete oldToInv.equip_status; // 清除穿戴状态标识
-      
-      if (inventory[oldName]) {
-        patches.push({ op: 'replace', path: `${charPath}/inventory/${this.escapePtr(oldName)}/数量`, value: (inventory[oldName].数量 || 1) + 1 });
+      // 常规装备更换路线
+      let oldItem = null;
+      let equipPath = `${charPath}/equip/${slotInfo.mainSlot}`;
+      if (slotInfo.subSlot) {
+        equipPath += `/parts/${slotInfo.subSlot}`;
+        oldItem = equip[slotInfo.mainSlot]?.parts?.[slotInfo.subSlot];
       } else {
-        patches.push({ op: 'add', path: `${charPath}/inventory/${this.escapePtr(oldName)}`, value: oldToInv });
+        oldItem = equip[slotInfo.mainSlot];
       }
-    }
 
-    // 3. 穿上新装备
-    const newEquipData = Object.assign({}, itemData, { name: itemName });
-    delete newEquipData.数量; // 穿到身上失去数量属性
-    
-    // 如果父节点缺失，先补充父节点
-    if (slotInfo.subSlot && (!equip[slotInfo.mainSlot] || !equip[slotInfo.mainSlot].parts)) {
-        patches.push({ op: 'add', path: `${charPath}/equip/${slotInfo.mainSlot}/parts`, value: {} });
-    }
+      // 2. 取下旧装备（如果有）放入背包
+      if (oldItem && typeof oldItem === 'object' && oldItem.name && oldItem.name !== '无') {
+        const oldName = oldItem.name;
+        const oldToInv = Object.assign({}, oldItem, { 数量: 1 });
+        delete oldToInv.equip_status;
+        
+        if (inventory[oldName]) {
+          patches.push({ op: 'replace', path: `${charPath}/inventory/${this.escapePtr(oldName)}/数量`, value: (inventory[oldName].数量 || 1) + 1 });
+        } else {
+          patches.push({ op: 'add', path: `${charPath}/inventory/${this.escapePtr(oldName)}`, value: oldToInv });
+        }
+      }
 
-    if (oldItem !== undefined) {
-      patches.push({ op: 'replace', path: equipPath, value: newEquipData });
-    } else {
-      patches.push({ op: 'add', path: equipPath, value: newEquipData });
+      // 3. 穿上新装备
+      const newEquipData = Object.assign({}, itemData, { name: itemName });
+      delete newEquipData.数量;
+      if (slotInfo.subSlot && (!equip[slotInfo.mainSlot] || !equip[slotInfo.mainSlot].parts)) {
+          patches.push({ op: 'add', path: `${charPath}/equip/${slotInfo.mainSlot}/parts`, value: {} });
+      }
+
+      if (oldItem !== undefined) {
+        patches.push({ op: 'replace', path: equipPath, value: newEquipData });
+      } else {
+        patches.push({ op: 'add', path: equipPath, value: newEquipData });
+      }
     }
 
     // 4. 提交到底层 MVU
@@ -5020,6 +5078,14 @@ window.EquipmentManager = {
     if (/战裙/.test(tName)) return { mainSlot: 'armor', subSlot: '战裙' };
     if (/战靴/.test(tName)) return { mainSlot: 'armor', subSlot: '战靴' };
     if (/戒指/.test(tName)) return { mainSlot: 'armor', subSlot: '戒指' };
+    
+    // 匹配魂骨
+    if (tName.includes('头部魂骨') || /头骨/.test(tName)) return { mainSlot: 'soul_bone', subSlot: '头部魂骨' };
+    if (tName.includes('躯干魂骨') || /躯干骨/.test(tName)) return { mainSlot: 'soul_bone', subSlot: '躯干魂骨' };
+    if (tName.includes('左臂魂骨') || /左臂骨/.test(tName)) return { mainSlot: 'soul_bone', subSlot: '左臂魂骨' };
+    if (tName.includes('右臂魂骨') || /右臂骨/.test(tName)) return { mainSlot: 'soul_bone', subSlot: '右臂魂骨' };
+    if (tName.includes('左腿魂骨') || /左腿骨/.test(tName)) return { mainSlot: 'soul_bone', subSlot: '左腿魂骨' };
+    if (tName.includes('右腿魂骨') || /右腿骨/.test(tName)) return { mainSlot: 'soul_bone', subSlot: '右腿魂骨' };
     
     // 匹配其他品类
     if (/机甲/.test(tName)) return { mainSlot: 'mech', subSlot: null };
