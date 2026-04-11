@@ -423,13 +423,32 @@ class ProfessionUIComponent {
   }
 
   getCurrentUiState() {
+    const tierVal = this.$('#prof-tier')?.value || '1';
+    let parsedTier = Number(tierVal);
+    let subtype = '';
+    if (tierVal.startsWith('mech-')) { parsedTier = Number(tierVal.split('-')[1]); subtype = 'mech'; }
+    else if (tierVal.startsWith('armor-')) { parsedTier = Number(tierVal.split('-')[1]); subtype = 'armor'; }
     return {
       activeMode: this.activeMode,
-      tier: this.$('#prof-tier')?.value || '1',
+      tier: parsedTier || 1,
+      subtype: subtype,
       cost: this.$('#prof-cost')?.value || '1',
       target: this.$('#prof-target')?.value || '',
       selectedMaterials: this.getSelectedMaterialNames()
     };
+  }
+
+  syncCostInputState() {
+    const costInput = this.$('#prof-cost');
+    if (!costInput) return;
+    const state = this.getCurrentUiState();
+    if (state.subtype === 'mech' || state.subtype === 'armor') {
+      costInput.disabled = true;
+      costInput.value = '自动锁定';
+    } else {
+      costInput.disabled = false;
+      if (costInput.value === '自动锁定') costInput.value = '1';
+    }
   }
 
   restoreUiState(state = {}) {
@@ -441,7 +460,15 @@ class ProfessionUIComponent {
     });
     this.updateModeChrome();
 
-    if (this.$('#prof-tier')) this.$('#prof-tier').value = state.tier || '1';
+    if (this.$('#prof-tier')) {
+      if (this.activeMode !== 'forge') {
+        if (state.subtype && state.tier) {
+          this.$('#prof-tier').value = `${state.subtype}-${state.tier}`;
+        }
+      } else {
+        this.$('#prof-tier').value = state.tier || '1';
+      }
+    }
     if (this.$('#prof-cost')) this.$('#prof-cost').value = state.cost || '1';
     if (this.$('#prof-target')) this.$('#prof-target').value = state.target || '';
 
@@ -454,6 +481,8 @@ class ProfessionUIComponent {
     });
 
     this.updatePreview();
+    this.syncCostInputState();
+    this.autoGenerateTargetName();
   }
 
   updateData(newSnapshot) {
@@ -535,10 +564,34 @@ class ProfessionUIComponent {
   updateTierOptions() {
     const tierSel = this.$('#prof-tier');
     if (!tierSel) return;
-    Array.from(tierSel.options || []).forEach((opt, index) => {
-      const tier = Number(opt.value || index + 1);
-      opt.textContent = this.getTierDisplayName(this.activeMode, tier);
-    });
+    const currentVal = tierSel.value;
+    tierSel.innerHTML = '';
+    if (this.activeMode !== 'forge') {
+      const suffix = ({ manufacture: '制造', design: '设计', repair: '修理' })[this.activeMode] || '处理';
+      tierSel.innerHTML = `
+        <option value="mech-1">黄级机甲${suffix}</option>
+        <option value="armor-2">一字斗铠${suffix}</option>
+        <option value="mech-2">紫级机甲${suffix}</option>
+        <option value="armor-3">二字斗铠${suffix}</option>
+        <option value="mech-3">黑级机甲${suffix}</option>
+        <option value="armor-4">三字斗铠${suffix}</option>
+        <option value="mech-4">红级机甲${suffix}</option>
+        <option value="armor-5">四字斗铠${suffix}</option>
+      `;
+    } else {
+      for (let i = 1; i <= 5; i++) {
+        const opt = document.createElement('option');
+        opt.value = String(i);
+        opt.textContent = this.getTierDisplayName(this.activeMode, i);
+        tierSel.appendChild(opt);
+      }
+    }
+    if (Array.from(tierSel.options).some(o => o.value === currentVal)) {
+      tierSel.value = currentVal;
+    } else {
+      tierSel.selectedIndex = 0;
+    }
+    this.syncCostInputState();
   }
 
   setActiveMode(mode) {
@@ -548,6 +601,25 @@ class ProfessionUIComponent {
     this.populateMaterialList();
     this.autoGenerateTargetName();
     this.updatePreview();
+  }
+
+  autoGenerateTargetName() {
+    const state = this.getCurrentUiState();
+    const mode = this.activeMode;
+    const targetInput = this.$('#prof-target');
+    if (!targetInput) return;
+
+    if (mode === 'forge') {
+      const mat = Array.from(this.el.querySelectorAll('.material-checkbox:checked')).map(cb => cb.value)[0] || '未知金属';
+      targetInput.value = `${mat}(${this.getForgeTierLabel(state.tier)})`;
+    } else {
+      const opt = this.$('#prof-tier').selectedOptions?.[0];
+      const text = opt ? opt.textContent.replace(/制造|设计|修理|处理/, '') : '';
+      if (state.subtype === 'armor') targetInput.value = `${text}胸铠`;
+      else if (state.subtype === 'mech') targetInput.value = text;
+      else targetInput.value = `${this.getGearTierFamilyLabel(state.tier)}部件`;
+    }
+    this.syncCostInputState();
   }
 
   // --- 职业算法核心 (移植原代码) ---
@@ -644,14 +716,22 @@ class ProfessionUIComponent {
   }
 
   getManufactureRecipe(targetName, materialNames, tier, qty = 1) {
-    if (/黄级机甲/.test(targetName)) return { mode: 'mech', fixedTierNeeds: { 1: 50 }, expectedTier: 1, note: '固定配方：50份百锻金属' };
-    if (/紫级机甲/.test(targetName)) return { mode: 'mech', fixedTierNeeds: { 2: 2, 1: 40 }, expectedTier: 2, note: '固定配方：2份千锻金属 + 40份百锻金属' };
-    if (/黑级机甲/.test(targetName)) return { mode: 'mech', fixedTierNeeds: { 3: 2, 2: 30 }, expectedTier: 3, note: '固定配方：2份灵锻金属 + 30份千锻金属' };
-    if (/红级机甲/.test(targetName)) return { mode: 'mech', fixedTierNeeds: { 4: 2, 3: 20 }, expectedTier: 4, note: '固定配方：2份魂锻金属 + 20份灵锻金属' };
+    const state = this.currentFormState;
+    const isMech = state.subtype === 'mech' || /机甲/.test(targetName);
+    const isArmor = state.subtype === 'armor' || /斗铠|一字|二字|三字|四字/.test(targetName) || materialNames.some(name => /斗铠设计图/.test(name));
+
+    if (isMech) {
+      if (tier === 1 || /黄级/.test(targetName)) return { mode: 'mech', fixedTierNeeds: { 2: 1, 1: 50 }, expectedTier: 1, note: '固定配方：1份千锻金属 + 50份百锻金属' };
+      if (tier === 2 || /紫级/.test(targetName)) return { mode: 'mech', fixedTierNeeds: { 3: 1, 1: 40 }, expectedTier: 2, note: '固定配方：1份灵锻金属 + 40份百锻金属' };
+      if (tier === 3 || /黑级/.test(targetName)) return { mode: 'mech', fixedTierNeeds: { 4: 1, 2: 30 }, expectedTier: 3, note: '固定配方：1份魂锻金属 + 30份千锻金属' };
+      if (tier === 4 || /红级/.test(targetName)) return { mode: 'mech', fixedTierNeeds: { 5: 1, 4: 10, 3: 10 }, expectedTier: 4, note: '固定配方：1份天锻金属 + 10份魂锻 + 10份灵锻' };
+    }
     
-    const blueprint = this.getArmorBlueprintNameByTier(tier);
-    if (/斗铠|一字|二字|三字|四字/.test(targetName) || materialNames.some(name => /斗铠设计图/.test(name))) {
-      return { mode: 'armor', blueprint, blueprintCost: 1, variableQty: Math.max(1, qty), note: `斗铠制造：固定消耗【${blueprint}】1张，其余材料必须使用对应位阶金属并按勾选数量消耗` };
+    if (isArmor) {
+      const blueprint = this.getArmorBlueprintNameByTier(tier);
+      const isChest = /胸/.test(targetName);
+      const metalCount = isChest ? 3 : 2;
+      return { mode: 'armor', blueprint, blueprintCost: 1, variableQty: metalCount, note: `斗铠制造：固定消耗【${blueprint}】1张 + ${metalCount}块同阶金属 (胸铠3块，其余2块)` };
     }
     return null;
   }

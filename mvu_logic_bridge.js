@@ -4860,6 +4860,197 @@ ${JSON.stringify(patchOps, null, 2)}
     });
 
     document.addEventListener('click', (event) => {
+// =========================================================================
+// 全局通知/Toast (取代浏览器原生的 alert)
+// =========================================================================
+window.MVU_Toast = {
+  show(msg, type = 'info', duration = 3500) {
+    let container = document.getElementById('mvu-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'mvu-toast-container';
+      container.className = 'mvu-toast-container';
+      document.body.appendChild(container);
+    }
+    
+    const toast = document.createElement('div');
+    toast.className = `mvu-toast ${type === 'error' ? 'error' : ''}`;
+    toast.innerHTML = htmlEscape(msg).replace(/\n/g, '<br/>');
+
+    const closeBtn = document.createElement('div');
+    closeBtn.className = 'mvu-toast-close';
+    closeBtn.innerHTML = '&times;';
+    closeBtn.onclick = () => {
+      closeToast();
+    };
+    toast.appendChild(closeBtn);
+    
+    container.appendChild(toast);
+
+    let hideTimeout;
+    const closeToast = () => {
+      if (hideTimeout) clearTimeout(hideTimeout);
+      toast.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(-10px) scale(0.95)';
+      setTimeout(() => {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, 300);
+    };
+
+    if (duration > 0) hideTimeout = setTimeout(closeToast, duration);
+  }
+};
+
+// =========================================================================
+// 装备与换装管理器 (Equipment Manager)
+// 负责在前端直接处理物品栏与装备栏的对调、混穿约束验证，以及生成 JSON Patch
+// =========================================================================
+window.EquipmentManager = {
+  async performEquip(charIndex, itemName) {
+    const vars = typeof window.getAllVariables === 'function' ? await window.getAllVariables() : null;
+    if (!vars || !vars.sd || !vars.sd.char) {
+      window.MVU_Toast.show('获取角色数据失败，无法换装', 'error');
+      return;
+    }
+    const charNames = Object.keys(vars.sd.char);
+    const activeName = charNames[charIndex];
+    if (!activeName) {
+      window.MVU_Toast.show('未找到目标角色信息', 'error');
+      return;
+    }
+    const activeChar = vars.sd.char[activeName];
+    const inventory = activeChar.inventory || {};
+    const equip = activeChar.equip || {};
+    const itemData = inventory[itemName];
+
+    if (!itemData || (itemData.数量 || 0) <= 0) {
+      window.MVU_Toast.show(`背包中未找到物品: ${itemName}`, 'error');
+      return;
+    }
+
+    const slotInfo = this.parseEquipSlot(itemName, itemData);
+    if (!slotInfo) {
+      window.MVU_Toast.show(`【${itemName}】不可装备！`, 'error');
+      return;
+    }
+
+    // --- 约束：不允许不同级别的斗铠混穿 ---
+    if (slotInfo.mainSlot === 'armor') {
+      const newTier = this.getArmorTier(itemName);
+      if (newTier) {
+        const armorParts = (equip.armor && equip.armor.parts) ? equip.armor.parts : {};
+        for (const [key, piece] of Object.entries(armorParts)) {
+          if (piece && typeof piece === 'object' && piece.name && piece.name !== '无' && key !== slotInfo.subSlot) {
+            const pieceTier = this.getArmorTier(piece.name);
+            if (pieceTier && pieceTier !== newTier) {
+              window.MVU_Toast.show(`【换装失败】\n背包中的【${newTier}】不可与身上的【${pieceTier}】混穿！\n必须成套更换相同级别的斗铠。`, 'error');
+              return;
+            }
+          }
+        }
+      }
+    }
+
+    const patches = [];
+    const charPath = `/sd/char/${this.escapePtr(activeName)}`;
+    
+    // 1. 扣除背包新装备
+    const currentQty = itemData.数量 || 1;
+    if (currentQty <= 1) {
+      patches.push({ op: 'remove', path: `${charPath}/inventory/${this.escapePtr(itemName)}` });
+    } else {
+      patches.push({ op: 'replace', path: `${charPath}/inventory/${this.escapePtr(itemName)}/数量`, value: currentQty - 1 });
+    }
+
+    // 2. 取下旧装备（如果有）放入背包
+    let oldItem = null;
+    let equipPath = `${charPath}/equip/${slotInfo.mainSlot}`;
+    if (slotInfo.subSlot) {
+      equipPath += `/parts/${slotInfo.subSlot}`;
+      oldItem = equip[slotInfo.mainSlot]?.parts?.[slotInfo.subSlot];
+    } else {
+      oldItem = equip[slotInfo.mainSlot];
+    }
+
+    if (oldItem && typeof oldItem === 'object' && oldItem.name && oldItem.name !== '无') {
+      const oldName = oldItem.name;
+      const oldToInv = Object.assign({}, oldItem, { 数量: 1 });
+      delete oldToInv.equip_status; // 清除穿戴状态标识
+      
+      if (inventory[oldName]) {
+        patches.push({ op: 'replace', path: `${charPath}/inventory/${this.escapePtr(oldName)}/数量`, value: (inventory[oldName].数量 || 1) + 1 });
+      } else {
+        patches.push({ op: 'add', path: `${charPath}/inventory/${this.escapePtr(oldName)}`, value: oldToInv });
+      }
+    }
+
+    // 3. 穿上新装备
+    const newEquipData = Object.assign({}, itemData, { name: itemName });
+    delete newEquipData.数量; // 穿到身上失去数量属性
+    
+    // 如果父节点缺失，先补充父节点
+    if (slotInfo.subSlot && (!equip[slotInfo.mainSlot] || !equip[slotInfo.mainSlot].parts)) {
+        patches.push({ op: 'add', path: `${charPath}/equip/${slotInfo.mainSlot}/parts`, value: {} });
+    }
+
+    if (oldItem !== undefined) {
+      patches.push({ op: 'replace', path: equipPath, value: newEquipData });
+    } else {
+      patches.push({ op: 'add', path: equipPath, value: newEquipData });
+    }
+
+    // 4. 提交到底层 MVU
+    this.submitPatch(patches, itemName);
+  },
+
+  parseEquipSlot(name, data) {
+    const tName = name || '';
+    // 匹配斗铠部件
+    if (/头盔|头骨/.test(tName)) return { mainSlot: 'armor', subSlot: '头盔' };
+    if (/胸铠|躯干骨/.test(tName)) return { mainSlot: 'armor', subSlot: '胸铠' };
+    if (/左肩/.test(tName)) return { mainSlot: 'armor', subSlot: '左肩' };
+    if (/右肩/.test(tName)) return { mainSlot: 'armor', subSlot: '右肩' };
+    if (/左臂/.test(tName)) return { mainSlot: 'armor', subSlot: '左臂' };
+    if (/右臂/.test(tName)) return { mainSlot: 'armor', subSlot: '右臂' };
+    if (/左手|手骨/.test(tName)) return { mainSlot: 'armor', subSlot: '左臂' }; // 容错兼容
+    if (/右手/.test(tName)) return { mainSlot: 'armor', subSlot: '右臂' }; // 容错兼容
+    if (/左腿|左腿骨/.test(tName)) return { mainSlot: 'armor', subSlot: '左腿' };
+    if (/右腿|右腿骨/.test(tName)) return { mainSlot: 'armor', subSlot: '右腿' };
+    if (/战裙/.test(tName)) return { mainSlot: 'armor', subSlot: '战裙' };
+    if (/战靴/.test(tName)) return { mainSlot: 'armor', subSlot: '战靴' };
+    if (/戒指/.test(tName)) return { mainSlot: 'armor', subSlot: '戒指' };
+    
+    // 匹配其他品类
+    if (/机甲/.test(tName)) return { mainSlot: 'mech', subSlot: null };
+    if (/(剑|刀|枪|炮|弓|盾|锤|暗器|匕首)$/.test(tName)) return { mainSlot: 'wpn', subSlot: null };
+    
+    return null;
+  },
+
+  getArmorTier(name) {
+    if (name.includes('一字')) return '一字斗铠';
+    if (name.includes('二字')) return '二字斗铠';
+    if (name.includes('三字')) return '三字斗铠';
+    if (name.includes('四字')) return '四字斗铠';
+    return null;
+  },
+
+  escapePtr(str) {
+    return String(str).replace(/~/g, '~0').replace(/\//g, '~1');
+  },
+
+  submitPatch(patches, itemName) {
+    if (typeof window.sendToAI === 'function') {
+      const prompt = `[前端换装请求]\n动作: 角色穿戴了 ${itemName}\n请将以下 JSON Patch 静默应用到底层变量中，这完成了备用装备与当前装备的互相替换。\n<UpdateVariable>\n${JSON.stringify(patches, null, 2)}\n</UpdateVariable>\n此操作已通过前端换装规则约束校验。`;
+      window.sendToAI(`我要换装：穿戴 ${itemName}`, prompt, { requestKind: 'equip_swap' });
+    } else {
+      console.log("【模拟换装Patch】", patches);
+      window.MVU_Toast.show('已生成换装 JSON Patch (见控制台)，但未连接到酒馆通信接口。', 'info');
+    }
+  }
+};
+
       const eventTarget = event.target instanceof Element ? event.target : (event.target && event.target.parentElement ? event.target.parentElement : null);
       const actionBtn = eventTarget ? eventTarget.closest('.map-dispatch-action-btn') : null;
       if (!actionBtn) return;

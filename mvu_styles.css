@@ -5200,4 +5200,68 @@
       display: block !important;
     }
 
+  /* ==========================================
+     MVU Toast 通知组件
+     ========================================== */
+  .mvu-toast-container {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    pointer-events: none;
+  }
+
+  .mvu-toast {
+    position: relative;
+    min-width: 280px;
+    max-width: 480px;
+    padding: 16px 36px 16px 24px;
+    border-radius: 12px;
+    background: rgba(8, 20, 30, 0.95);
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(0, 229, 255, 0.1);
+    backdrop-filter: blur(12px);
+    color: var(--white);
+    font-family: var(--font-tech);
+    font-size: 14px;
+    line-height: 1.6;
+    text-align: center;
+    pointer-events: auto;
+    animation: mvuToastIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .mvu-toast-close {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-dim);
+    font-size: 16px;
+    transition: color 0.2s;
+  }
+
+  .mvu-toast-close:hover {
+    color: var(--white);
+  }
+
+  .mvu-toast.error {
+    border-color: rgba(255, 77, 122, 0.4);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(255, 77, 122, 0.15);
+    color: #ffd6e0;
+  }
+
+  @keyframes mvuToastIn {
+    from { opacity: 0; transform: translateY(-20px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
 

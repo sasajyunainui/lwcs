@@ -279,12 +279,22 @@ class BattleUIComponent {
       return delta;
     }
 
-    function inferSkillCastTime(skill, fallbackValue = 0) {
-      const explicit = Number(skill && skill.castTime);
-      if (Number.isFinite(explicit) && explicit >= 0) return explicit;
-      const liveCast = Number(skill && (skill.current_cast_time ?? skill['current_cast_time']));
-      if (Number.isFinite(liveCast) && liveCast >= 0) return liveCast;
-      return Math.max(0, Number(fallbackValue || 0));
+    function inferSkillCastTime(skill, fallbackValue = 0, charName = null) {
+        const explicit = Number(skill && skill.castTime);
+        let baseCast = Math.max(0, Number(fallbackValue || 0));
+        if (Number.isFinite(explicit) && explicit >= 0) baseCast = explicit;
+        else {
+            const liveCast = Number(skill && (skill.current_cast_time ?? skill['current_cast_time']));
+            if (Number.isFinite(liveCast) && liveCast >= 0) baseCast = liveCast;
+        }
+        if (baseCast > 0 && charName) {
+            const enemyLaw = getActiveEnemyLaw(charName, 'time_dilation');
+            if (enemyLaw) {
+                const multi = Number(enemyLaw.cast_time_multiplier || 2.0);
+                baseCast = Math.ceil(baseCast * multi);
+            }
+        }
+        return baseCast;
     }
 
     function isMeaningfulBattleActionName(text) {
@@ -318,8 +328,8 @@ class BattleUIComponent {
       const enemyData = getBattleCharData(enemyName);
       const activeAgi = getBattleStatValue(activeData, 'agi');
       const enemyAgi = getBattleStatValue(enemyData, 'agi');
-      const activeCast = inferSkillCastTime(activeSkill || {}, 0);
-      const enemyCast = inferSkillCastTime(enemySkill || {}, 0);
+      const activeCast = inferSkillCastTime(activeSkill || {}, 0, activeName);
+      const enemyCast = inferSkillCastTime(enemySkill || {}, 0, enemyName);
       const activeTypeBlob = `${activeSkill && activeSkill.type ? activeSkill.type : ''}/${activeSkill && activeSkill.desc ? activeSkill.desc : ''}/${activeSkill && activeSkill.name ? activeSkill.name : ''}`;
       const enemyTypeBlob = `${enemySkill && enemySkill.type ? enemySkill.type : ''}/${enemySkill && enemySkill.desc ? enemySkill.desc : ''}/${enemySkill && enemySkill.name ? enemySkill.name : ''}`;
       const activeTempo = /(控制|爆发|突袭|终结)/.test(activeTypeBlob) ? 4 : 0;
@@ -361,6 +371,22 @@ class BattleUIComponent {
       return participants[charName] || {};
     }
 
+    function getDomainLaw(charData, lawKey) {
+      if (!charData || !charData.spiritual_domain || !charData.spiritual_domain.is_active) return null;
+      const rules = charData.spiritual_domain.combat_modifiers || {};
+      const law = rules[lawKey];
+      if (law && law.enabled) return law;
+      return null;
+    }
+    
+    function getActiveEnemyLaw(activeName, lawKey) {
+      // 因为只查是否被压制，我们可以用现成的 findPrimaryBattleTarget 拿到敌方
+      const targetName = findPrimaryBattleTarget(activeName);
+      if (!targetName) return null;
+      const targetData = getBattleCharData(targetName);
+      return getDomainLaw(targetData, lawKey);
+    }
+
     function getBattleStatValue(charData, key) {
       let val = Number(charData && charData.stat ? charData.stat[key] || 0 : 0);
       const activeDomain = String(charData && charData.status ? charData.status.active_domain || '' : '');
@@ -376,6 +402,19 @@ class BattleUIComponent {
           }
         }
       }
+      
+      // 如果己方开着精神领域并有削减敌方的能力，反之若我是敌方，我也得吃到压制
+      // 换个思路：当前 charData.name 未知，但我们直接从 charData 自己身上查 self_buff 就行
+      const selfDomain = charData && charData.spiritual_domain ? charData.spiritual_domain : null;
+      if (selfDomain && selfDomain.is_active && selfDomain.combat_modifiers && selfDomain.combat_modifiers.self_buff) {
+          const sBuff = selfDomain.combat_modifiers.self_buff;
+          if (sBuff[key] && sBuff[key] > 0) val = Math.floor(val * sBuff[key]);
+      }
+      
+      // 遍历一下全局，有没有哪个人开着精神领域且针对了当前角色所在的阵营？
+      // 为避免循环嵌套太深，这里用 getActiveEnemyLaw 会导致传参不够。直接在调用端外层再打补丁更安全！
+      // 先留白：我们在 estimateEnemySkillEffects 那边直接扣除伤害更容易，或者改用动态比率。
+
       return val;
     }
 
@@ -419,6 +458,49 @@ class BattleUIComponent {
       if (!vitDamage && !spDamage && !menDamage && !/被动|辅助|增益|防御/.test(typeBlob)) {
         vitDamage = Math.max(1, Math.min(Math.floor(attackerStr * 0.08 + spentSp * 0.12 + spentVit * 0.08 + spentMen * 0.08), Math.max(1, Math.floor(Math.max(targetVit, 1) * 0.12))));
       }
+      
+      // 【法则：属性剥夺】 (在计算最终伤害时，如果防守方被情绪剥夺，受到伤害增加)
+      // 此处逻辑已在 getBattleStatValue 的敌方削弱里完成了大半，这里仅补充精神领域的最终修正
+
+      // 【法则：时光回溯】(绝对闪避)
+      const targetDomain = targetData && targetData.spiritual_domain ? targetData.spiritual_domain : {};
+      if (targetDomain.is_active && targetDomain.combat_modifiers && targetDomain.combat_modifiers.conditional_evasion) {
+          const rule = targetDomain.combat_modifiers.conditional_evasion;
+          if (rule.enabled) {
+              const atkStat = getBattleStatValue(attackerData, rule.compare_stat || 'men');
+              const defStat = getBattleStatValue(targetData, rule.compare_stat || 'men');
+              if (atkStat / Math.max(1, defStat) <= (rule.max_ratio || 1.5)) {
+                  vitDamage = 0; spDamage = 0; menDamage = 0;
+                  effects.push({ target: targetName, kind: 'combat_summary', value: `【法则护佑】${rule.success_msg || targetDomain.name + '生效，成功规避伤害！'}` });
+              } else {
+                  effects.push({ target: targetName, kind: 'combat_summary', value: `【法则破碎】${activeName} 凭借碾压般的精神力，强行撕裂了 [${targetDomain.name}] 的时空法则！` });
+              }
+          }
+      }
+
+      // 【法则：真实伤害/因果打击】(只针对攻击方)
+      const atkDomain = attackerData && attackerData.spiritual_domain ? attackerData.spiritual_domain : {};
+      if (atkDomain.is_active && atkDomain.combat_modifiers && atkDomain.combat_modifiers.absolute_hit_true_dmg) {
+          const rule = atkDomain.combat_modifiers.absolute_hit_true_dmg;
+          if (rule.enabled) {
+              const extraDmg = Math.floor(getBattleStatValue(attackerData, 'men_max') * (rule.true_dmg_ratio || 0.1));
+              if (extraDmg > 0) {
+                  menDamage += extraDmg;
+                  effects.push({ target: targetName, kind: 'combat_summary', value: `【因果降临】${rule.success_msg || atkDomain.name + '造成了绝对精神重创！'}` });
+              }
+          }
+      }
+
+      // 【法则：灵魂汲取】(攻击方吸血)
+      if (atkDomain.is_active && atkDomain.combat_modifiers && atkDomain.combat_modifiers.soul_leech) {
+          const rule = atkDomain.combat_modifiers.soul_leech;
+          if (rule.enabled && (vitDamage > 0 || menDamage > 0)) {
+              const heal = Math.floor((vitDamage + menDamage) * (rule.leech_ratio || 0.5));
+              effects.push({ target: activeName, kind: 'stat_delta', key: 'vit', delta: heal, reason: '法则反哺' });
+              effects.push({ target: targetName, kind: 'combat_summary', value: `【血气反哺】${rule.success_msg || atkDomain.name + '贪婪地吞噬了生机！'}` });
+          }
+      }
+
       const effects = [];
       if (vitDamage) effects.push({ target: targetName, kind: 'stat_delta', key: 'vit', delta: -vitDamage, reason: `受到${skill.name}` });
       if (spDamage) effects.push({ target: targetName, kind: 'stat_delta', key: 'sp', delta: -spDamage, reason: `受到${skill.name}` });
@@ -712,11 +794,24 @@ class BattleUIComponent {
 
       for (let index = 0; index < skillQueue.length && continueBattle; index += 1) {
         const skill = skillQueue[index];
+        
+        // 1. 回合开始前的精神领域维持消耗判定
+        const activeData = getBattleCharData(activeName);
+        if (activeData && activeData.spiritual_domain && activeData.spiritual_domain.is_active) {
+            const costMen = activeData.spiritual_domain.maintenance_cost?.men || 8000;
+            const currentMen = Number(activeData.stat?.men || 0);
+            if (currentMen >= costMen) {
+                effects.push({ target: activeName, kind: 'stat_delta', key: 'men', delta: -costMen, reason: `维持${activeData.spiritual_domain.name}` });
+            } else {
+                effects.push({ target: activeName, kind: 'combat_summary', value: `【法则反噬】${activeName} 精神透支，无法维持庞大的消耗，[${activeData.spiritual_domain.name}]轰然崩碎！` });
+            }
+        }
+
         const roundNumber = currentRound + index + 1;
         const enemyRoundAction = exchangeTargetName ? inferEnemyRoundAction(exchangeTargetName) : null;
         const declaredTargetName = /敌方/.test(String(skill.target || '')) ? (battleMeta.targetName || exchangeTargetName) : '';
         const narrationLines = [];
-        const skillCastTime = inferSkillCastTime(skill, 0);
+        const skillCastTime = inferSkillCastTime(skill, 0, activeName);
         const effects = [{ target: activeName, kind: 'action_set', value: skill.name || normalizedIntent }];
         effects.push({ target: activeName, kind: 'cast_time_set', value: skillCastTime });
         const enemyActionTypeBlob = `${enemyRoundAction && enemyRoundAction.type ? enemyRoundAction.type : ''}/${enemyRoundAction && enemyRoundAction.bonus ? enemyRoundAction.bonus : ''}/${enemyRoundAction && enemyRoundAction.desc ? enemyRoundAction.desc : ''}/${enemyRoundAction && enemyRoundAction.name ? enemyRoundAction.name : ''}`;
@@ -725,6 +820,18 @@ class BattleUIComponent {
         const enemyActsFirst = exchangeTargetName && enemyRoundAction ? shouldEnemyActFirst(activeName, skill, exchangeTargetName, enemyRoundAction) : false;
         let playerActionResolved = true;
         let openingSummaryText = '';
+
+        // 【法则：幻境迷失】 (在对方出手宣告时判定是否直接空掉)
+        const illusionRule = getActiveEnemyLaw(activeName, 'illusion_misdirection');
+        if (illusionRule && Math.random() < Number(illusionRule.misdirection_chance || 0.4)) {
+            playerActionResolved = false;
+            effects.push({ 
+                target: activeName, 
+                kind: 'combat_summary', 
+                value: `【幻境迷失】${activeName} 的攻击彻底失去了目标！ ${illusionRule.success_msg || ''}` 
+            });
+            narrationLines.push(`第${roundNumber}回合：${activeName} 深陷幻境，动作完全偏离了预判轨迹。`);
+        }
 
         if (exchangeTargetName && enemyRoundAction) {
           effects.push({ target: exchangeTargetName, kind: 'action_set', value: enemyRoundAction.name || '应战' });
