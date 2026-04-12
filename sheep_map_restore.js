@@ -7390,18 +7390,6 @@
     mapState.selectedNode = nextNode;
     mapState.travelMethodOverride = null;
 
-    // 自定义双击检测逻辑（防原生 dblclick 丢失）
-    const now = Date.now();
-    if (node._lastClickTime && now - node._lastClickTime < 300) {
-      const canPreviewEnter = canEnterPreviewNode(nextNode, mapState.snapshot);
-      if (canPreviewEnter) {
-        if (enterPreviewMode(nextNode)) syncInteractiveMapUI({ center: true });
-        node._lastClickTime = 0;
-        return;
-      }
-    }
-    node._lastClickTime = now;
-
     syncInteractiveMapUI({ center: false });
   }
 
@@ -7456,7 +7444,16 @@
     });
   }
 
-  function handleNodeLayerDoubleClick(event) {}
+  function handleNodeLayerDoubleClick(event) {
+    const node = event.target.closest('.map-node[data-node]');
+    if (!node) return;
+    const nextNode = node.dataset.node;
+    mapState.selectedNode = nextNode;
+    const canPreviewEnter = canEnterPreviewNode(nextNode, mapState.snapshot);
+    if (canPreviewEnter) {
+      if (enterPreviewMode(nextNode)) syncInteractiveMapUI({ center: true });
+    }
+  }
 
   function ensureMapInteractionBindings() {
     if (!pointerBound) {
