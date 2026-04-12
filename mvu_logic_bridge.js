@@ -2099,7 +2099,6 @@
         mapZoomHint: toNumber(deepGet(mapData, 'current_zoom_hint', 0), 0),
         mapCurrentFocus,
         mapVisibleNodeEntries,
-        mapVisibleSettlementEntries,
         mapVisibleDynamicEntries,
         mapActivePatchEntries,
         mapAvailableChildMaps,
@@ -2336,9 +2335,6 @@
         });
       };
 
-      snapshot.mapVisibleSettlementEntries.forEach(([id, item]) => {
-        pushItem(item && item.name ? item.name : id, item, { source: 'settlement', type: '主城/据点', state: toText(item && item.state, '完整'), canEnter: !!(item && item.child_map_id && item.child_map_id !== '无'), childMapId: item && item.child_map_id, major: true, desc: `状态：${toText(item && item.state, '完整')}` });
-      });
       snapshot.mapVisibleNodeEntries.forEach(([name, item]) => {
         pushItem(name, item, { source: toText(item && item.source, 'static'), type: toText(item && item.type, '地图节点'), state: toText(item && item.level ? `Lv.${item.level}` : '可见', '可见'), canEnter: !!deepGet(item, 'can_enter', false), childMapId: item && item.child_map_id, major: !!deepGet(item, 'can_enter', false) || toNumber(item && item.level, 0) <= 2 });
       });
@@ -2350,8 +2346,6 @@
     }
 
     function resolveDisplayMapNode(snapshot, nodeName) {
-      const settlement = snapshot.mapVisibleSettlementEntries.find(([, item]) => toText(item && item.name, '') === nodeName);
-      if (settlement) return { name: nodeName, source: 'settlement', type: '主城/据点', state: toText(settlement[1] && settlement[1].state, '完整'), childMapId: toText(settlement[1] && settlement[1].child_map_id, '无'), x: settlement[1] && settlement[1].x, y: settlement[1] && settlement[1].y, desc: `状态：${toText(settlement[1] && settlement[1].state, '完整')}` };
       const node = snapshot.mapVisibleNodeEntries.find(([name]) => name === nodeName);
       if (node) return { name: nodeName, source: toText(node[1] && node[1].source, 'static'), type: toText(node[1] && node[1].type, '地图节点'), state: node[1] && node[1].level ? `Lv.${node[1].level}` : '可见', childMapId: toText(node[1] && node[1].child_map_id, '无'), x: node[1] && node[1].x, y: node[1] && node[1].y, desc: toText(node[1] && node[1].desc, '无') };
       const dynamicNode = snapshot.mapVisibleDynamicEntries.find(([name]) => name === nodeName);
@@ -2577,13 +2571,11 @@
           <div class="simple-head"><div class="simple-title">动态地点</div><span class="map-side-badge">动态</span></div>
           <div class="map-event-strip">
             <span class="map-event-chip live">时间线 ${htmlEscape(String(snapshot.timelineEntries.length))}</span>
-            <span class="map-event-chip">主城 ${htmlEscape(String(snapshot.mapVisibleSettlementEntries.length))}</span>
             <span class="map-event-chip warn">动态点 ${htmlEscape(String(snapshot.mapVisibleDynamicEntries.length))}</span>
             <span class="map-event-chip warn">补丁 ${htmlEscape(String(snapshot.mapActivePatchEntries.length))}</span>
           </div>
           <div class="simple-list">
             <div class="simple-row"><b>扩展节点</b><span>${htmlEscape(snapshot.mapVisibleDynamicEntries[0] ? snapshot.mapVisibleDynamicEntries[0][0] : '暂无')}</span></div>
-            <div class="simple-row"><b>当前主城</b><span>${htmlEscape(snapshot.mapVisibleSettlementEntries[0] ? toText(snapshot.mapVisibleSettlementEntries[0][1] && snapshot.mapVisibleSettlementEntries[0][1].name, '暂无') : '暂无')}</span></div>
             <div class="simple-row"><b>最近变化</b><span>${htmlEscape(snapshot.latestTimeline ? snapshot.latestTimeline[0] : '无')}</span></div>
           </div>
         `; });
@@ -2726,7 +2718,6 @@
                   { label: '当前地图', value: getMapDisplayName(snapshot) },
                   { label: '焦点位置', value: toText(deepGet(snapshot, 'mapCurrentFocus.loc', snapshot.currentLoc), snapshot.currentLoc) },
                   { label: '可见节点', value: `${mapItems.length} 个` },
-                  { label: '可见主城', value: `${snapshot.mapVisibleSettlementEntries.length} 个` },
                   { label: '动态地点', value: `${snapshot.mapVisibleDynamicEntries.length} 个` },
                   { label: '激活补丁', value: `${snapshot.mapActivePatchEntries.length} 项` }
                 ], 'three')}

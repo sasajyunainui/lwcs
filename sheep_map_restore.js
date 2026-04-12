@@ -3653,9 +3653,6 @@
     };
     const currentFocus = { loc: currentLocName };
     const currentFocusName = currentLocName;
-    const mapMeta = {};
-    const mapLevel = currentContextNodeName === '斗罗大陆' ? 'world' : 'city';
-    const coordSystem = MAP_COORD_SYSTEM_IMAGE;
 
     const mapMeta = Object.keys(mapMetaFromSd || {}).length ? mapMetaFromSd : (deepGet(mapData, 'map_meta', {}) || {});
     const mapLevel = toText(deepGet(mapMeta, 'map_level', inferMapLevelFromId(currentMapId)), inferMapLevelFromId(currentMapId));
