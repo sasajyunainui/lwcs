@@ -2,13 +2,10 @@
   if (window.__sheepMapRestoreLoaded) return;
   window.__sheepMapRestoreLoaded = true;
 
-  const WORLD_SIZE = 2000;
   const WORLD_IMAGE_WIDTH = 3174;
   const WORLD_IMAGE_HEIGHT = 2246;
-  const DEFAULT_WORLD_BOUNDS = { minX: 0, minY: 0, width: WORLD_SIZE, height: WORLD_SIZE };
   const DEFAULT_IMAGE_BOUNDS = { minX: 0, minY: 0, width: WORLD_IMAGE_WIDTH, height: WORLD_IMAGE_HEIGHT };
   const MAP_COORD_SYSTEM_IMAGE = 'image';
-  const MAP_COORD_SYSTEM_LOCAL = 'local';
   const ASSETS = {
     world: encodeURI('https://cdn.jsdelivr.net/gh/sasajyunainui/lwcs@main/MAP.webp')
   };
@@ -1511,6 +1508,7 @@
       overflow: hidden;
       cursor: crosshair;
       isolation: isolate;
+      touch-action: none;
     }
 
     .map-canvas.dragging {
@@ -2909,7 +2907,7 @@
     selectedNpc: '',
     lastNodeAction: null,
     snapshot: null,
-    bounds: { ...DEFAULT_WORLD_BOUNDS },
+    bounds: { ...DEFAULT_IMAGE_BOUNDS },
     items: [],
     itemMap: new Map(),
     activePatches: [],
@@ -2936,12 +2934,8 @@
     return safeMapId === 'map_douluo_world' || safeLevel === 'world' || safeLevel === 'continent';
   }
 
-  function resolveSnapshotCoordSystem(currentMapId = 'map_douluo_world', mapLevel = 'world') {
-    return isWorldCoordMap(currentMapId, mapLevel) ? MAP_COORD_SYSTEM_IMAGE : MAP_COORD_SYSTEM_LOCAL;
-  }
-
-  function shouldUseImageMapCoordSystem(mapId = mapState.currentMapId, mapLevel = mapState.mapLevel, coordSystem = mapState.coordSystem) {
-    return isWorldCoordMap(mapId, mapLevel) && toText(coordSystem, MAP_COORD_SYSTEM_LOCAL) === MAP_COORD_SYSTEM_IMAGE;
+  function resolveSnapshotCoordSystem() {
+    return MAP_COORD_SYSTEM_IMAGE;
   }
 
   function getImageCoordFromRatio(left, top) {
@@ -2951,23 +2945,15 @@
     };
   }
 
-  function getDefaultMapCoordCenter(mapId = mapState.currentMapId, mapLevel = mapState.mapLevel, coordSystem = mapState.coordSystem) {
-    if (shouldUseImageMapCoordSystem(mapId, mapLevel, coordSystem)) {
-      return {
-        x: Number(((WORLD_IMAGE_WIDTH - 1) / 2).toFixed(2)),
-        y: Number(((WORLD_IMAGE_HEIGHT - 1) / 2).toFixed(2))
-      };
-    }
-    return { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2 };
+  function getDefaultMapCoordCenter() {
+    return {
+      x: Number(((WORLD_IMAGE_WIDTH - 1) / 2).toFixed(2)),
+      y: Number(((WORLD_IMAGE_HEIGHT - 1) / 2).toFixed(2))
+    };
   }
 
   function getCoordFromMapRatio(left, top) {
-    if (shouldUseImageMapCoordSystem()) return getImageCoordFromRatio(left, top);
-    const projection = getCurrentProjection();
-    return {
-      x: projection.coordMinX + clamp(toNumber(left, 0), 0, 1) * (projection.coordMaxX - projection.coordMinX),
-      y: projection.coordMinY + clamp(toNumber(top, 0), 0, 1) * (projection.coordMaxY - projection.coordMinY)
-    };
+    return getImageCoordFromRatio(left, top);
   }
 
   function toText(value, fallback = '') {
@@ -3349,10 +3335,7 @@
 
   function deriveNodeBehaviorMeta(name, rawItem = {}, options = {}) {
     const type = toText(options.type !== undefined ? options.type : rawItem.type, '');
-    const childMapId = toText(options.childMapId !== undefined ? options.childMapId : (rawItem.child_map_id || rawItem.childMapId), '无');
-    const canEnter = options.canEnter !== undefined
-      ? !!options.canEnter
-      : !!deepGet(rawItem, 'can_enter', false) || !!(childMapId && childMapId !== '无');
+    const canEnter = !!options.canEnter;
     const explicitKind = toText(options.nodeKind !== undefined ? options.nodeKind : (rawItem.node_kind || rawItem.nodeKind), '');
     const nodeKind = explicitKind || inferNodeKind(name, type, canEnter);
     const interactions = toTextList(options.interactions !== undefined ? options.interactions : rawItem.interactions);
@@ -3390,14 +3373,12 @@
     const icon = toText(extra.icon || (rawItem && rawItem.icon) || '', '');
     const state = toText(extra.state || (rawItem && rawItem.state) || '可见', '可见');
     const type = toText(extra.type || (rawItem && rawItem.type) || (icon || '节点'), '节点');
-    const childMapId = toText(extra.childMapId || (rawItem && rawItem.child_map_id) || '无', '无');
     const faction = toText(extra.faction || (rawItem && rawItem.faction) || deepGet(rawItem, 'metadata.faction', '未知'), '未知');
     const importance = toNumber(extra.importance !== undefined ? extra.importance : (rawItem && rawItem.importance !== undefined ? rawItem.importance : deepGet(rawItem, 'metadata.importance', NaN)), NaN);
-    const canEnter = !!(extra.canEnter || deepGet(rawItem, 'can_enter', false) || (childMapId && childMapId !== '无'));
+    const canEnter = !!extra.canEnter;
     const pointKind = toText(extra.pointKind || inferPointKind(displayName, source, type, icon), 'node');
     const behaviorMeta = deriveNodeBehaviorMeta(displayName, rawItem || {}, {
       type,
-      childMapId,
       canEnter,
       nodeKind: extra.nodeKind,
       interactions: extra.interactions,
@@ -3417,7 +3398,6 @@
       faction,
       importance,
       canEnter,
-      childMapId,
       x,
       y,
       validCoord,
@@ -3451,9 +3431,8 @@
         type: toText(item && item.type, '地图节点'),
         icon: toText(item && item.icon, ''),
         state: toText(item && item.state, item && item.level ? `Lv.${item.level}` : '可见'),
-        childMapId: item && item.child_map_id,
-        canEnter: !!deepGet(item, 'can_enter', false) || !!(item && item.child_map_id && item.child_map_id !== '无'),
-        major: !!deepGet(item, 'can_enter', false) || toNumber(item && item.level, 0) <= 2,
+        canEnter: !!(item && item.children && Object.keys(item.children).length > 0),
+        major: !!(item && item.children && Object.keys(item.children).length > 0) || toNumber(item && item.level, 0) <= 2,
         desc: toText(item && item.desc, '无'),
         faction: toText(item && item.faction, '未知'),
         importance: toNumber(item && item.importance, NaN),
@@ -3465,8 +3444,6 @@
     });
 
     snapshot.visibleDynamics.forEach(([name, item]) => {
-      const dynamicChildMapId = toText(item && (item.child_map_id || item.childMapId), '无');
-      const dynamicCanEnter = !!deepGet(item, 'can_enter', false) || !!(dynamicChildMapId && dynamicChildMapId !== '无');
       pushUnique(createRenderItem(name, item || {}, {
         id: name,
         baseName: name,
@@ -3474,9 +3451,8 @@
         type: toText(item && item.type, '动态地点'),
         state: toText(item && item.state, '动态'),
         pointKind: 'dynamic',
-        childMapId: dynamicChildMapId,
-        canEnter: dynamicCanEnter,
-        major: dynamicCanEnter,
+        canEnter: !!(item && item.children && Object.keys(item.children).length > 0),
+        major: !!(item && item.children && Object.keys(item.children).length > 0),
         desc: toText(item && item.desc, '无'),
         faction: toText(item && item.faction, '未知'),
         importance: toNumber(item && item.importance, NaN),
@@ -3496,17 +3472,17 @@
   }
 
   function sanitizeBounds(bounds) {
-    const minX = clamp(toNumber(bounds.minX, 0), 0, WORLD_SIZE);
-    const minY = clamp(toNumber(bounds.minY, 0), 0, WORLD_SIZE);
-    const maxX = clamp(toNumber(bounds.minX, 0) + Math.max(1, toNumber(bounds.width, WORLD_SIZE)), 1, WORLD_SIZE);
-    const maxY = clamp(toNumber(bounds.minY, 0) + Math.max(1, toNumber(bounds.height, WORLD_SIZE)), 1, WORLD_SIZE);
+    const minX = clamp(toNumber(bounds.minX, 0), 0, WORLD_IMAGE_WIDTH);
+    const minY = clamp(toNumber(bounds.minY, 0), 0, WORLD_IMAGE_HEIGHT);
+    const maxX = clamp(toNumber(bounds.minX, 0) + Math.max(1, toNumber(bounds.width, WORLD_IMAGE_WIDTH)), 1, WORLD_IMAGE_WIDTH);
+    const maxY = clamp(toNumber(bounds.minY, 0) + Math.max(1, toNumber(bounds.height, WORLD_IMAGE_HEIGHT)), 1, WORLD_IMAGE_HEIGHT);
     const width = Math.max(220, maxX - minX);
     const height = Math.max(220, maxY - minY);
     return {
-      minX: clamp(minX, 0, WORLD_SIZE - 1),
-      minY: clamp(minY, 0, WORLD_SIZE - 1),
-      width: clamp(width, 220, WORLD_SIZE),
-      height: clamp(height, 220, WORLD_SIZE)
+      minX: clamp(minX, 0, WORLD_IMAGE_WIDTH - 1),
+      minY: clamp(minY, 0, WORLD_IMAGE_HEIGHT - 1),
+      width: clamp(width, 220, WORLD_IMAGE_WIDTH),
+      height: clamp(height, 220, WORLD_IMAGE_HEIGHT)
     };
   }
 
@@ -3516,38 +3492,19 @@
       if (item && item.validCoord) pts.push({ x: item.x, y: item.y });
     });
     if (focusCoord && Number.isFinite(focusCoord.x) && Number.isFinite(focusCoord.y)) pts.push(focusCoord);
-    if (!pts.length) return { ...DEFAULT_WORLD_BOUNDS };
+    if (!pts.length) return { ...DEFAULT_IMAGE_BOUNDS };
     const pad = pts.length <= 4 ? 180 : 140;
     let minX = Math.min(...pts.map(p => p.x)) - pad;
     let minY = Math.min(...pts.map(p => p.y)) - pad;
     let maxX = Math.max(...pts.map(p => p.x)) + pad;
     let maxY = Math.max(...pts.map(p => p.y)) + pad;
-    minX = clamp(minX, 0, WORLD_SIZE - 220);
-    minY = clamp(minY, 0, WORLD_SIZE - 220);
-    maxX = clamp(maxX, minX + 220, WORLD_SIZE);
-    maxY = clamp(maxY, minY + 220, WORLD_SIZE);
+    minX = clamp(minX, 0, WORLD_IMAGE_WIDTH - 220);
+    minY = clamp(minY, 0, WORLD_IMAGE_HEIGHT - 220);
+    maxX = clamp(maxX, minX + 220, WORLD_IMAGE_WIDTH);
+    maxY = clamp(maxY, minY + 220, WORLD_IMAGE_HEIGHT);
     return sanitizeBounds({ minX, minY, width: maxX - minX, height: maxY - minY });
   }
 
-  function resolveProjectionBounds(currentMapId, mapMeta, items, focusCoord) {
-    const level = toText(deepGet(mapMeta, 'map_level', inferMapLevelFromId(currentMapId)), inferMapLevelFromId(currentMapId));
-    if (currentMapId === 'map_douluo_world' || level === 'world' || level === 'continent') {
-      return { ...DEFAULT_WORLD_BOUNDS };
-    }
-    const metaBounds = mapMeta && mapMeta.bounds && typeof mapMeta.bounds === 'object'
-      ? {
-          minX: toNumber(mapMeta.bounds.min_x, NaN),
-          minY: toNumber(mapMeta.bounds.min_y, NaN),
-          width: toNumber(mapMeta.bounds.width, NaN),
-          height: toNumber(mapMeta.bounds.height, NaN)
-        }
-      : null;
-    const hasMetaBounds = !!(metaBounds && Number.isFinite(metaBounds.minX) && Number.isFinite(metaBounds.minY) && Number.isFinite(metaBounds.width) && Number.isFinite(metaBounds.height) && metaBounds.width > 0 && metaBounds.height > 0);
-    const derivedBounds = deriveBoundsFromItems(items || [], focusCoord);
-    if (items && items.length) return derivedBounds;
-    if (hasMetaBounds) return sanitizeBounds(metaBounds);
-    return { ...DEFAULT_WORLD_BOUNDS };
-  }
 
   function inferInitialLayer(snapshot) {
     const zoomHint = toNumber(snapshot && snapshot.currentZoomHint, NaN);
@@ -3576,27 +3533,29 @@
     return buildSnapshotFromMapPayload(sd, activeName, activeChar);
   }
 
-  function buildSnapshotFromMapPayload(sd, activeName, activeChar) {
-    // 【前端独立渲染引擎】从此告别 display_map 的施舍！
+  function buildSnapshotFromMapPayload(payload, activeName, activeChar) {
+    const isPreview = payload && payload.current_map_id && payload.current_map_id !== 'map_douluo_world';
+    const sd = isPreview ? (payload.sd || mapState.baseSnapshot?.sd) : payload;
     const currentLocFull = toText(deepGet(activeChar, 'status.loc', '斗罗大陆-未知地点'), '斗罗大陆-未知地点');
     const pathSegments = currentLocFull.split('-').filter(Boolean);
     const currentLocName = pathSegments[pathSegments.length - 1] || '未知地点';
-    const currentMapId = 'map_douluo_world'; // 在单图架构下永远是这个，子图只靠名字过滤坐标
-    
-    // 1. 就地取材：自己生成可视动态节点
+    const currentMapId = isPreview ? payload.current_map_id : 'map_douluo_world';
+
     const visibleDynamics = {};
     const dynamicSource = deepGet(sd, 'world.dynamic_locations', {});
     for (const [dynName, dynData] of Object.entries(dynamicSource)) {
-      if (dynData && (dynData['归属父节点'] === '斗罗大陆' || !dynData['归属父节点'])) {
+      if (dynData && (isPreview ? dynData['归属父节点'] === payload.preview_meta?.anchor_name : (dynData['归属父节点'] === '斗罗大陆' || !dynData['归属父节点']))) {
          visibleDynamics[dynName] = dynData;
       }
     }
 
-
-    // 3. 就地取材：主快照永远、必须是世界大地图的顶层节点！不能自动切块，否则无法返回上级！
     const visibleNodes = {};
-    const rootLocations = deepGet(sd, 'world.locations', {});
-    Object.assign(visibleNodes, rootLocations);
+    if (isPreview && payload.visible_nodes) {
+      Object.assign(visibleNodes, payload.visible_nodes);
+    } else {
+      const rootLocations = deepGet(sd, 'world.locations', {});
+      Object.assign(visibleNodes, rootLocations);
+    }
 
     const currentFocusCoord = {
       x: toNumber(deepGet(activeChar, 'status.current_x', -1), NaN),
@@ -3621,11 +3580,13 @@
       visibleNodes: safeEntries(visibleNodes),
       visibleDynamics: safeEntries(visibleDynamics),
       activePatches: [],
-      mapLevel: 'world',
-      coord_system: resolveSnapshotCoordSystem(currentMapId, 'world')
+      mapLevel: isPreview ? payload.map_meta?.map_level || 'city' : 'world',
+      mapMeta: isPreview ? payload.map_meta : null,
+      previewMeta: isPreview ? payload.preview_meta : null,
+      coord_system: resolveSnapshotCoordSystem()
     };
     snapshot.items = buildRuntimeMapItems(snapshot);
-    snapshot.bounds = snapshot.coordSystem === MAP_COORD_SYSTEM_IMAGE && isWorldCoordMap(currentMapId, 'world') ? { ...DEFAULT_IMAGE_BOUNDS } : resolveProjectionBounds(currentMapId, null, snapshot.items, snapshot.currentFocusCoord);
+    snapshot.bounds = { ...DEFAULT_IMAGE_BOUNDS };
     return snapshot;
   }
 
@@ -3682,41 +3643,6 @@
       : '';
   }
 
-  function getChildMapIdForNode(nodeName = mapState.selectedNode, container = mapState.snapshot) {
-    if (!container || !nodeName) return '';
-    const key = toText(nodeName, '');
-    if (!key) return '';
-    const availableChildMaps = container.availableChildMaps || container.available_child_maps || {};
-    const item = (container.itemMap && typeof container.itemMap.get === 'function' ? container.itemMap.get(key) : null)
-      || (Array.isArray(container.items)
-        ? container.items.find(entry => {
-            const name = toText(entry && entry.name, '');
-            const baseName = toText(entry && entry.baseName, '');
-            const id = toText(entry && entry.id, '');
-            return name === key || baseName === key || id === key;
-          })
-        : null)
-      || null;
-    const candidates = [
-      item && item.childMapId,
-      availableChildMaps[key],
-      item && item.id ? availableChildMaps[toText(item.id, '')] : '',
-      item && item.baseName ? availableChildMaps[toText(item.baseName, '')] : '',
-      item && item.name ? availableChildMaps[toText(item.name, '')] : ''
-    ];
-    for (const candidate of candidates) {
-      const childMapId = toText(candidate, '');
-      if (childMapId && childMapId !== '无') return childMapId;
-    }
-    return '';
-  }
-
-  function buildSyntheticPreviewMapId(nodeName, parentMapId = 'preview') {
-    const safeParent = toText(parentMapId, 'preview').replace(/[^\w\u4e00-\u9fa5]+/g, '_').replace(/^_+|_+$/g, '') || 'preview';
-    const safeName = toText(nodeName, 'node').replace(/[^\w\u4e00-\u9fa5]+/g, '_').replace(/^_+|_+$/g, '') || 'node';
-    return `preview_${safeParent}_${safeName}`;
-  }
-
   function getRawLocationNodeByName(nodeName, locations = null) {
     const key = toText(nodeName, '');
     const rootLocations = locations && typeof locations === 'object'
@@ -3754,7 +3680,7 @@
     const children = rawLocation && rawLocation.children && typeof rawLocation.children === 'object' ? rawLocation.children : null;
     const childEntries = children ? Object.entries(children) : [];
     if (!childEntries.length) return null;
-    const currentMapId = getChildMapIdForNode(nodeName, container) || buildSyntheticPreviewMapId(nodeName, parentMapId || toText(container && container.currentMapId, 'preview'));
+    const currentMapId = `preview_${nodeName}`;
     const visibleNodeEntries = [];
     const availableChildMaps = {};
     const previewChildMaps = {};
@@ -3762,19 +3688,17 @@
     childEntries.forEach(([childName, childValue]) => {
       const child = childValue && typeof childValue === 'object' ? childValue : {};
       const hasChildren = !!(child.children && typeof child.children === 'object' && Object.keys(child.children).length);
-      const childMapId = hasChildren ? (toText(child.child_map_id || child.childMapId, '') || buildSyntheticPreviewMapId(childName, currentMapId)) : '无';
       const x = toNumber(child.x, NaN);
       const y = toNumber(child.y, NaN);
       if (Number.isFinite(x) && Number.isFinite(y)) validCoords.push({ x, y });
       visibleNodeEntries.push([childName, {
-        x: Number.isFinite(x) ? x : toNumber(rawLocation && rawLocation.x, 0),
-        y: Number.isFinite(y) ? y : toNumber(rawLocation && rawLocation.y, 0),
+        children: child.children || null,
+        x: Number.isFinite(x) ? x : toNumber(rawLocation && rawLocation.x, NaN),
+        y: Number.isFinite(y) ? y : toNumber(rawLocation && rawLocation.y, NaN),
         type: toText(child.type, '地图节点'),
         icon: toText(child.icon, ''),
         desc: toText(child.desc, '无'),
         level: toNumber(child.level, 3),
-        can_enter: hasChildren,
-        child_map_id: childMapId,
         source: 'static',
         faction: toText(child.default_faction || child.faction, '未知'),
         importance: toNumber(child.importance, NaN),
@@ -3785,20 +3709,19 @@
         event_id: toText(child.event_id || child.eventId, '')
       }]);
       if (hasChildren) {
-        availableChildMaps[childName] = childMapId;
         const nestedPayload = buildPreviewPayloadFromRawLocation(childName, child, container, currentMapId);
         if (nestedPayload) previewChildMaps[childName] = nestedPayload;
       }
     });
-    const focusCoord = validCoords.length
-      ? {
-          x: Number((validCoords.reduce((sum, coord) => sum + coord.x, 0) / validCoords.length).toFixed(2)),
-          y: Number((validCoords.reduce((sum, coord) => sum + coord.y, 0) / validCoords.length).toFixed(2))
-        }
-      : {
-          x: toNumber(rawLocation && rawLocation.x, 0),
-          y: toNumber(rawLocation && rawLocation.y, 0)
-        };
+    let focusCoord = { x: NaN, y: NaN };
+    if (validCoords.length > 0) {
+      focusCoord.x = Number((validCoords.reduce((sum, coord) => sum + coord.x, 0) / validCoords.length).toFixed(2));
+      focusCoord.y = Number((validCoords.reduce((sum, coord) => sum + coord.y, 0) / validCoords.length).toFixed(2));
+    } else if (rawLocation && Number.isFinite(toNumber(rawLocation.x, NaN)) && Number.isFinite(toNumber(rawLocation.y, NaN))) {
+      focusCoord.x = toNumber(rawLocation.x, NaN);
+      focusCoord.y = toNumber(rawLocation.y, NaN);
+    }
+
     const inferredMapLevel = childEntries.some(([, childValue]) => toNumber(childValue && childValue.level, 0) >= 4) ? 'facility' : 'city';
     return {
       current_map_id: currentMapId,
@@ -3807,7 +3730,7 @@
       map_meta: {
         name: `${nodeName}区域预览`,
         map_level: inferredMapLevel,
-        parent_map_id: toText(container && container.currentMapId, parentMapId || 'map_douluo_world'),
+        parent_map_id: parentMapId || 'map_douluo_world',
         anchor_loc: nodeName,
         child_maps: availableChildMaps
       },
@@ -3818,8 +3741,8 @@
       available_child_maps: availableChildMaps,
       preview_meta: {
         anchor_name: nodeName,
-        parent_name: toText(deepGet(container, 'previewMeta.anchor_name', deepGet(container, 'currentLoc', '')), deepGet(container, 'currentLoc', '')),
-        parent_map_id: toText(container && container.currentMapId, parentMapId || 'map_douluo_world')
+        parent_name: container?.previewMeta?.anchor_name || container?.currentLoc || '',
+        parent_map_id: parentMapId || 'map_douluo_world'
       },
       preview_child_maps: previewChildMaps
     };
@@ -3863,11 +3786,7 @@
         }
       }
     }
-    // 检查 mapState.itemMap 中这个节点是否被显式标记为 canEnter (比如从 buildRuntimeMapItems 继承来的属性)
-    const item = mapState.itemMap ? mapState.itemMap.get(nodeName) : null;
-    if (item && item.canEnter) return true;
-
-    return false;
+    return !!getRawLocationNodeByName(nodeName);
   }
 
   function syncMapStateFromSnapshot(snapshot, options = {}) {
@@ -3879,7 +3798,7 @@
     mapState.items = snapshot.items;
     mapState.itemMap = new Map(snapshot.items.map(item => [item.name, item]));
     mapState.activePatches = snapshot.activePatches.map(([id, patch]) => ({ id, layer: toText(patch && patch.layer, 'overlay'), asset: toText(patch && patch.asset, id), bounds: patch && patch.bounds ? patch.bounds : { x: 0, y: 0, w: 0, h: 0 } }));
-    mapState.coordSystem = toText(snapshot && (snapshot.coordSystem || snapshot.coord_system), isWorldCoordMap(snapshot.currentMapId, snapshot.mapLevel) ? MAP_COORD_SYSTEM_IMAGE : MAP_COORD_SYSTEM_LOCAL);
+    mapState.coordSystem = MAP_COORD_SYSTEM_IMAGE;
     mapState.currentMapId = snapshot.currentMapId;
     mapState.mapLevel = snapshot.mapLevel;
     mapState.layerFollowsZoom = shouldMapLayerFollowZoom(snapshot);
@@ -4080,30 +3999,11 @@
     window.__sheepMapRefreshLive = (preserveSelection = true) => refreshLiveMap(preserveSelection);
   } catch (_) {}
 
-  function getCurrentProjection() {
-    if (shouldUseImageMapCoordSystem()) {
-      return { coordMinX: 0, coordMaxX: Math.max(1, WORLD_IMAGE_WIDTH - 1), coordMinY: 0, coordMaxY: Math.max(1, WORLD_IMAGE_HEIGHT - 1) };
-    }
-    const b = mapState.bounds || DEFAULT_WORLD_BOUNDS;
-    return {
-      coordMinX: toNumber(b.minX, 0),
-      coordMaxX: toNumber(b.minX, 0) + Math.max(1, toNumber(b.width, WORLD_SIZE)),
-      coordMinY: toNumber(b.minY, 0),
-      coordMaxY: toNumber(b.minY, 0) + Math.max(1, toNumber(b.height, WORLD_SIZE))
-    };
-  }
-
   function projectCoord(coord) {
-    if (shouldUseImageMapCoordSystem()) {
-      return {
-        left: clamp(toNumber(coord && coord.x, 0) / Math.max(1, WORLD_IMAGE_WIDTH - 1), 0, 1),
-        top: clamp(toNumber(coord && coord.y, 0) / Math.max(1, WORLD_IMAGE_HEIGHT - 1), 0, 1)
-      };
-    }
-    const projection = getCurrentProjection();
-    const xRatio = (coord.x - projection.coordMinX) / Math.max(0.0001, projection.coordMaxX - projection.coordMinX);
-    const yRatio = (coord.y - projection.coordMinY) / Math.max(0.0001, projection.coordMaxY - projection.coordMinY);
-    return { left: xRatio, top: yRatio };
+    return {
+      left: clamp(toNumber(coord && coord.x, 0) / Math.max(1, WORLD_IMAGE_WIDTH - 1), 0, 1),
+      top: clamp(toNumber(coord && coord.y, 0) / Math.max(1, WORLD_IMAGE_HEIGHT - 1), 0, 1)
+    };
   }
 
   function convertMapCoordToLocalPoint(coord, canvasEl) {
@@ -4161,106 +4061,6 @@
 
   function getItemByName(name) {
     return mapState.itemMap.get(name) || null;
-  }
-
-  function buildScatterLayoutRatio(index, total, options = {}) {
-    const safeTotal = Math.max(1, toNumber(total, 1));
-    const safeIndex = Math.max(0, toNumber(index, 0));
-    const centerX = clamp(toNumber(options.centerX, 0.5), 0.18, 0.82);
-    const centerY = clamp(toNumber(options.centerY, 0.5), 0.18, 0.82);
-    const radiusBase = clamp(toNumber(options.radiusBase, 0.2), 0.12, 0.3);
-    const radiusStep = clamp(toNumber(options.radiusStep, 0.1), 0.06, 0.16);
-    const yScale = clamp(toNumber(options.yScale, 0.85), 0.7, 1);
-    const capacities = [6, 10, 14, 18];
-    let ring = 0;
-    let cursor = safeIndex;
-    while (ring < capacities.length - 1 && cursor >= capacities[ring]) {
-      cursor -= capacities[ring];
-      ring += 1;
-    }
-    const ringCount = capacities[ring] || Math.max(6, safeTotal);
-    const angle = (-Math.PI / 2) + (cursor / Math.max(1, ringCount)) * Math.PI * 2;
-    const radius = radiusBase + ring * radiusStep;
-    return {
-      left: clamp(centerX + Math.cos(angle) * radius, 0.08, 0.92),
-      top: clamp(centerY + Math.sin(angle) * radius * yScale, 0.08, 0.92)
-    };
-  }
-
-  function resolveLocalSubMapCustomLayout(snapshot, key) {
-    const currentMapId = toText(snapshot && snapshot.currentMapId, '');
-    const mapName = toText(deepGet(snapshot, 'mapMeta.name', ''), '');
-    const focusName = toText(snapshot && snapshot.currentFocusName, '');
-    const currentLoc = toText(snapshot && snapshot.currentLoc, '');
-    const previewAnchor = toText(deepGet(snapshot, 'previewMeta.anchor_name', ''), '');
-    const trailText = Array.isArray(mapState.previewTrail) ? mapState.previewTrail.join(' > ') : '';
-    const contextText = [currentMapId, mapName, focusName, currentLoc, previewAnchor, trailText].join(' | ');
-
-    const isShrekAcademy = /史莱克学院/.test(contextText);
-    const isShrekCity = !isShrekAcademy && /史莱克城/.test(contextText);
-
-    if (isShrekCity) {
-      if (key === '史莱克学院') return { left: 0.5, top: 0.46 };
-      if (key === '唐门总部' || key === '唐门史莱克分部') return { left: 0.24, top: 0.5 };
-      if (key === '传灵塔总部') return { left: 0.76, top: 0.5 };
-      return null;
-    }
-
-    if (isShrekAcademy) {
-      if (key === '海神岛(内院)') return { left: 0.5, top: 0.38 };
-      if (key === '海神阁') return { left: 0.5, top: 0.22 };
-      if (key === '外院教学楼' || key === '外院教学区') return { left: 0.34, top: 0.68 };
-      return null;
-    }
-
-    return null;
-  }
-
-  function getMapNodeDisplayRatio(name, itemOverride = null) {
-    const key = toText(name, '');
-    if (!key) return null;
-    const item = itemOverride || getItemByName(key);
-
-    const snapshot = mapState.snapshot || null;
-    const parentMapLevel = snapshot && snapshot.mapLevel;
-    const inSubMap = parentMapLevel === 'city' || parentMapLevel === 'facility';
-    const isLocalSubMap = inSubMap && toText(mapState.coordSystem, MAP_COORD_SYSTEM_LOCAL) === MAP_COORD_SYSTEM_LOCAL;
-
-    if (isLocalSubMap) {
-      const siblings = Array.isArray(snapshot && snapshot.items) ? snapshot.items.filter(Boolean) : [];
-      const fixedRatio = resolveLocalSubMapCustomLayout(snapshot, key);
-      if (fixedRatio) return fixedRatio;
-
-      const fixedNameSet = new Set(
-        siblings
-          .map(sibling => toText(sibling && sibling.name, ''))
-          .filter(Boolean)
-          .filter(nameText => !!resolveLocalSubMapCustomLayout(snapshot, nameText))
-      );
-
-      const scatterTargets = siblings.filter(sibling => {
-        const siblingName = toText(sibling && sibling.name, '');
-        return siblingName && !fixedNameSet.has(siblingName);
-      });
-
-      const scatterIndex = scatterTargets.findIndex(sibling => toText(sibling && sibling.name, '') === key);
-      if (scatterIndex >= 0) {
-        const contextText = [
-          toText(snapshot && snapshot.currentMapId, ''),
-          toText(deepGet(snapshot, 'mapMeta.name', ''), ''),
-          toText(snapshot && snapshot.currentFocusName, ''),
-          toText(snapshot && snapshot.currentLoc, ''),
-          toText(deepGet(snapshot, 'previewMeta.anchor_name', ''), '')
-        ].join(' | ');
-        const isShrekAcademy = /史莱克学院/.test(contextText);
-        return buildScatterLayoutRatio(scatterIndex, scatterTargets.length, isShrekAcademy
-          ? { centerX: 0.58, centerY: 0.6, radiusBase: 0.18, radiusStep: 0.1, yScale: 0.82 }
-          : { centerX: 0.5, centerY: 0.56, radiusBase: 0.2, radiusStep: 0.1, yScale: 0.84 });
-      }
-    }
-
-    if (item && item.validCoord) return projectCoord({ x: item.x, y: item.y });
-    return null;
   }
 
   function getMapNodeCoord(name) {
@@ -4364,7 +4164,7 @@
     map_id: 'map_douluo_world',
     version: 'terrain-grid-96x68-firstpass-001',
     source: '基于 MAP.jpeg 颜色格网提取的世界地图首轮粗地形。',
-    bounds: { min_x: 0, min_y: 0, width: 2000, height: 2000 },
+    bounds: { min_x: 0, min_y: 0, width: 3174, height: 2246 },
     gridWidth: 96,
     gridHeight: 68,
     rows: [
@@ -4463,7 +4263,7 @@
       relX = x / Math.max(1, WORLD_IMAGE_WIDTH - 1);
       relY = y / Math.max(1, WORLD_IMAGE_HEIGHT - 1);
     } else {
-      const bounds = gridData.bounds || { min_x: 0, min_y: 0, width: 2000, height: 2000 };
+      const bounds = gridData.bounds || { min_x: 0, min_y: 0, width: WORLD_IMAGE_WIDTH, height: WORLD_IMAGE_HEIGHT };
       relX = (x - toNumber(bounds.min_x, 0)) / Math.max(1, toNumber(bounds.width, 1));
       relY = (y - toNumber(bounds.min_y, 0)) / Math.max(1, toNumber(bounds.height, 1));
     }
@@ -4499,7 +4299,7 @@
     version: 'terrain-remap-002',
     coordinate_system: 'sd.world.maps.map_douluo_world.bounds absolute x/y',
     source: '根据当前 MAP.jpeg 主地图底图重新人工提取的前端地形分区，采用海域底层 + 大陆底层 + 高优先级地貌覆盖。',
-    bounds: { min_x: 0, min_y: 0, width: 2000, height: 2000 },
+    bounds: { min_x: 0, min_y: 0, width: 3174, height: 2246 },
     note: '优先保证点击地形与底图视觉一致；通过 priority 控制重叠区命中顺序，高优先级区域覆盖低优先级底层。',
     regions: {
       north_frigid_sea: {
@@ -4597,8 +4397,8 @@
           points: [
             { x: 0, y: 1500 },
             { x: 1400, y: 1500 },
-            { x: 1400, y: 2000 },
-            { x: 0, y: 2000 }
+            { x: 1400, y: 2246 },
+            { x: 0, y: 2246 }
           ]
         }
       },
@@ -5136,11 +4936,11 @@
     const px = toNumber(x, NaN);
     const py = toNumber(y, NaN);
     if (!Number.isFinite(px) || !Number.isFinite(py) || !terrainData) return null;
-    const bounds = terrainData.bounds || { min_x: 0, min_y: 0, width: 2000, height: 2000 };
+    const bounds = terrainData.bounds || { min_x: 0, min_y: 0, width: WORLD_IMAGE_WIDTH, height: WORLD_IMAGE_HEIGHT };
     const minX = toNumber(bounds.min_x, 0);
     const minY = toNumber(bounds.min_y, 0);
-    const width = Math.max(1, toNumber(bounds.width, 2000));
-    const height = Math.max(1, toNumber(bounds.height, 2000));
+    const width = Math.max(1, toNumber(bounds.width, WORLD_IMAGE_WIDTH));
+    const height = Math.max(1, toNumber(bounds.height, WORLD_IMAGE_HEIGHT));
     if (toText(mapId, 'map_douluo_world') === 'map_douluo_world') {
       return {
         x: Number((minX + clamp(px / Math.max(1, WORLD_IMAGE_WIDTH - 1), 0, 1) * width).toFixed(2)),
@@ -5415,8 +5215,7 @@
     const best = items.reduce((acc, item) => {
       let dist = Infinity;
       if (useRenderedRatio && targetRatio) {
-        const ratio = getMapNodeDisplayRatio(item.name, item);
-        if (!ratio) return acc;
+        const ratio = projectCoord({ x: item.x, y: item.y });
         dist = Math.hypot(ratio.left - targetRatio.left, ratio.top - targetRatio.top);
       } else {
         dist = Math.hypot(item.x - coord.x, item.y - coord.y);
@@ -5518,20 +5317,7 @@
   }
 
   function centerMapOnNode(nodeName) {
-    const canvasEl = getPrimaryMapCanvas();
-    const ratio = getMapNodeDisplayRatio(nodeName);
-    if (!canvasEl || !ratio || !canvasEl.clientWidth || !canvasEl.clientHeight) {
-      centerMapOnCoord(getMapNodeCoord(nodeName), canvasEl);
-      return;
-    }
-    const renderZoom = getMapRenderZoom();
-    const posX = ratio.left * canvasEl.clientWidth;
-    const posY = ratio.top * canvasEl.clientHeight;
-    const cx = canvasEl.clientWidth / 2;
-    const cy = canvasEl.clientHeight / 2;
-    mapState.panX = Number((-(posX - cx) * renderZoom).toFixed(2));
-    mapState.panY = Number((-(posY - cy) * renderZoom).toFixed(2));
-    clampMapPan();
+    centerMapOnCoord(getMapNodeCoord(nodeName), getPrimaryMapCanvas());
   }
 
   function centerMapOnRatio(left, top, canvasEl = getPrimaryMapCanvas()) {
@@ -5740,12 +5526,12 @@
 
     function buildDebugMapBackdropSvg(mapId = mapState.currentMapId, snapshot = mapState.snapshot) {
       const activeSnapshot = snapshot || mapState.snapshot || buildFallbackSnapshot();
-      const bounds = activeSnapshot && activeSnapshot.bounds ? activeSnapshot.bounds : (mapState.bounds || DEFAULT_WORLD_BOUNDS);
+      const bounds = activeSnapshot && activeSnapshot.bounds ? activeSnapshot.bounds : (mapState.bounds || DEFAULT_IMAGE_BOUNDS);
       const safeBounds = {
         minX: toNumber(bounds.minX, 0),
         minY: toNumber(bounds.minY, 0),
-        width: Math.max(1, toNumber(bounds.width, WORLD_SIZE)),
-        height: Math.max(1, toNumber(bounds.height, WORLD_SIZE))
+        width: Math.max(1, toNumber(bounds.width, WORLD_IMAGE_WIDTH)),
+        height: Math.max(1, toNumber(bounds.height, WORLD_IMAGE_HEIGHT))
       };
       const palette = getDebugMapBackdropPalette(mapId);
       const bgTop = mixHexColor('#050a11', palette.ink, 0.12);
@@ -5780,14 +5566,16 @@
     }
 
     function getMapBackdropCssImage(mapId = mapState.currentMapId, snapshot = mapState.snapshot) {
-      if (mapId === 'map_douluo_world') return `url('${ASSETS.world}')`;
-      return svgToCssDataUri(buildDebugMapBackdropSvg(mapId, snapshot));
+      if (mapId && mapId !== 'map_douluo_world' && (mapId.includes('preview') || mapId.includes('city') || mapId.includes('district') || mapId.includes('region'))) return svgToCssDataUri(buildDebugMapBackdropSvg(mapId, snapshot));
+      return `url('${ASSETS.world}')`;
     }
 
     const terrainHtml = `
       <div class='map-terrain-art'></div>
       <div class='map-terrain-mask'></div>
     `;
+    const svgHtml = `<div class='map-terrain-svg'></div><div class='map-terrain-mask'></div>`;
+
     const activeSnapshot = mapState.snapshot || buildFallbackSnapshot();
     const bgToken = `${mapState.currentMapId}|${toText(deepGet(activeSnapshot, 'mapMeta.name', ''), '')}|${Array.isArray(activeSnapshot.items) ? activeSnapshot.items.length : 0}`;
     const terrainCache = renderMapTerrain.__cache || (renderMapTerrain.__cache = { token: '', bgImage: '' });
@@ -5797,11 +5585,15 @@
     }
     const bgImage = terrainCache.bgImage;
     document.querySelectorAll('[data-map-terrain]').forEach(el => {
-      if (el.dataset.renderToken !== 'terrain:v2') {
-        el.innerHTML = terrainHtml;
-        el.dataset.renderToken = 'terrain:v2';
+      const isSvgMode = bgImage.includes('data:image/svg+xml');
+      const expectedToken = isSvgMode ? 'terrain:svg' : 'terrain:v2';
+
+      if (el.dataset.renderToken !== expectedToken) {
+        el.innerHTML = isSvgMode ? svgHtml : terrainHtml;
+        el.dataset.renderToken = expectedToken;
       }
-      const art = el.querySelector('.map-terrain-art');
+
+      const art = el.querySelector(isSvgMode ? '.map-terrain-svg' : '.map-terrain-art');
       if (art && art.dataset.bgToken !== bgToken) {
         art.style.backgroundImage = bgImage;
         art.dataset.bgToken = bgToken;
@@ -5816,7 +5608,6 @@
   }
 
   function renderMapPatchLayer() {
-    const projection = getCurrentProjection();
     const patchKey = `${mapState.currentMapId}|${mapState.activePatches.map(patch => `${patch.id || ''}:${patch.asset || ''}:${toNumber(patch.bounds?.x, 0)},${toNumber(patch.bounds?.y, 0)},${toNumber(patch.bounds?.w, 0)},${toNumber(patch.bounds?.h, 0)}`).join('|')}`;
     const patchHtml = mapState.activePatches.map(patch => {
       const bounds = patch.bounds || {};
@@ -5827,10 +5618,10 @@
       if (!Number.isFinite(x) || !Number.isFinite(y) || w <= 0 || h <= 0) return '';
       const from = projectCoord({ x, y });
       const to = projectCoord({ x: x + w, y: y + h });
-      const fallbackLeft = ((x - projection.coordMinX) / Math.max(1, projection.coordMaxX - projection.coordMinX)) * 100;
-      const fallbackTop = ((y - projection.coordMinY) / Math.max(1, projection.coordMaxY - projection.coordMinY)) * 100;
-      const fallbackWidth = (w / Math.max(1, projection.coordMaxX - projection.coordMinX)) * 100;
-      const fallbackHeight = (h / Math.max(1, projection.coordMaxY - projection.coordMinY)) * 100;
+      const fallbackLeft = (x / Math.max(1, WORLD_IMAGE_WIDTH - 1)) * 100;
+      const fallbackTop = (y / Math.max(1, WORLD_IMAGE_HEIGHT - 1)) * 100;
+      const fallbackWidth = (w / Math.max(1, WORLD_IMAGE_WIDTH - 1)) * 100;
+      const fallbackHeight = (h / Math.max(1, WORLD_IMAGE_HEIGHT - 1)) * 100;
       const left = Number.isFinite(from.left) ? from.left * 100 : fallbackLeft;
       const top = Number.isFinite(from.top) ? from.top * 100 : fallbackTop;
       const width = Number.isFinite(to.left) && Number.isFinite(from.left) ? (to.left - from.left) * 100 : fallbackWidth;
@@ -5868,8 +5659,7 @@
     document.querySelectorAll('[data-map-node-layer]').forEach(el => {
       if (el.dataset.structureKey !== structureKey) {
         el.innerHTML = visibleItems.map(item => {
-          const manualPos = getMapNodeDisplayRatio(item && item.name, item);
-          const pos = manualPos || projectCoord({ x: item.x, y: item.y });
+          const pos = projectCoord({ x: item.x, y: item.y });
           const left = (pos.left * 100).toFixed(2);
           const top = (pos.top * 100).toFixed(2);
           const rawState = toText(item && item.state, '');
@@ -6444,7 +6234,7 @@
     const preview = getMapTravelPreview();
     if (!preview) return null;
     const targetCoord = getSelectedCoord();
-    const coordSystem = toText(mapState.coordSystem, isWorldCoordMap() ? MAP_COORD_SYSTEM_IMAGE : MAP_COORD_SYSTEM_LOCAL);
+    const coordSystem = MAP_COORD_SYSTEM_IMAGE;
     if (mapState.selectedFreePoint) {
       return { target_loc: '无', target_x: roundCoord(mapState.selectedFreePoint.x), target_y: roundCoord(mapState.selectedFreePoint.y), coord_system: coordSystem, method: preview.method, est_ticks: preview.ticks, est_duration: preview.duration, coord_text: preview.coordText, costs: preview.costs, route_plan: toText(preview.routePlanText, '') };
     }
@@ -6511,7 +6301,7 @@
       mapState.baseSnapshot.activeChar.status.loc = finalLocName;
       const isWorldMove = !hasActivePreview() || mapState.coordSystem === MAP_COORD_SYSTEM_IMAGE;
       if (isWorldMove) {
-        mapState.baseSnapshot.activeChar.status.coord_system = toText(request && request.coord_system, toText(mapState.coordSystem, MAP_COORD_SYSTEM_LOCAL));
+        mapState.baseSnapshot.activeChar.status.coord_system = MAP_COORD_SYSTEM_IMAGE;
         mapState.baseSnapshot.currentFocusCoord = { x: targetCoord.x, y: targetCoord.y };
         mapState.baseSnapshot.currentLoc = finalLocName;
         mapState.baseSnapshot.currentFocusName = finalLocName;
@@ -6829,9 +6619,8 @@
     const focusStateText = isFreeSelection ? (pendingForSelection ? '待确认' : (travelPreview ? '可规划' : '已选中')) : (stateLabelMap[rawFocusState] || rawFocusState);
     const focusImportance = focusItem ? toNumber(focusItem.importance, NaN) : NaN;
     const focusImportanceText = isFreeSelection ? '坐标点' : (Number.isFinite(focusImportance) && focusImportance > 0 ? `${Math.round(focusImportance)}` : '未标定');
-    const focusChildMapText = focusItem && focusItem.childMapId && focusItem.childMapId !== '无' ? '可进入子图' : '无';
     const focusDescBaseText = isFreeSelection ? '已选中该坐标，可在左侧选择方式后直接移动。' : (focusItem ? toText(focusItem.desc, '暂无节点说明。') : '视野内无节点');
-    const focusAvailableText = isFreeSelection ? '无固定设施' : (canPreviewEnter ? '可进入子图' : (focusServiceText !== '无' ? focusServiceText : (focusChildMapText !== '无' ? focusChildMapText : '无')));
+    const focusAvailableText = isFreeSelection ? '无固定设施' : (canPreviewEnter ? '可进入子图' : (focusServiceText !== '无' ? focusServiceText : '无'));
     const actionModeText = travelPreview ? (pendingForSelection ? '移动待确认' : '移动规划') : '驻留 / 查看';
     const actionOperationText = travelPreview ? (pendingForSelection ? '确认前往' : '规划路线') : (isFreeSelection ? '查看坐标' : primaryInteractionLabel);
     const actionTargetText = pending ? `${pendingTarget}${pendingTerrainShort}` : (previewRequest ? `${previewTarget}${previewTerrainShort}` : focusName);
@@ -6876,8 +6665,8 @@
       : focusActionDisplay;
     const panelAvailableText = hoverCoord
       ? (panelItem
-        ? ((panelItem.childMapId && panelItem.childMapId !== '无') ? '可进入子图' : (Array.isArray(panelItem.services) && panelItem.services.length ? formatBehaviorLabels(panelItem.services, getNodeServiceLabel) : '无'))
-        : '无固定设施')
+        ? (canEnterPreviewNode(panelItem.name, snapshot) ? '可进入子图' : (Array.isArray(panelItem.services) && panelItem.services.length ? formatBehaviorLabels(panelItem.services, getNodeServiceLabel) : '无'))
+        : '无固定设施') 
       : focusAvailableText;
     const panelDescText = hoverCoord
       ? (panelItem
@@ -7276,11 +7065,6 @@
     mapDragState.sourceCanvas = event.currentTarget;
     document.querySelectorAll('.map-canvas.interactive-map').forEach(canvasEl => canvasEl.classList.add('dragging'));
     
-    if (typeof event.currentTarget.setPointerCapture === 'function') {
-      event.currentTarget.setPointerCapture(event.pointerId);
-    }
-    event.preventDefault();
-
   }
 
   function handleMapPointerMove(event) {
