@@ -4295,7 +4295,9 @@
 
   function getActualCurrentLoc() {
     const snapshot = getActualCurrentSnapshot() || {};
-    return toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc), toText(snapshot.currentLoc, '斗罗大陆-未知地点'));
+    let loc = toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc), toText(snapshot.currentLoc, '斗罗大陆-未知地点'));
+    // 前端显示时，默认剥离掉大模型强制写的最高级前缀，保持 UI 清爽
+    return loc.replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
   }
 
   function getActualCurrentCoord() {

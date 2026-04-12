@@ -549,7 +549,7 @@
       const chars = deepGet(snapshot, 'sd.char', {});
       const activeChar = chars && typeof chars === 'object' ? (chars[activeKey] || {}) : {};
       const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, activeKey));
-      const currentLoc = toText(deepGet(activeChar, 'status.loc', snapshot.currentLoc || '当前位置'), '当前位置');
+      const currentLoc = toText(deepGet(activeChar, 'status.loc', snapshot.currentLoc || '当前位置'), '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
       const armor = deepGet(activeChar, 'equip.armor', {});
       const mech = deepGet(activeChar, 'equip.mech', {});
       const weapon = deepGet(activeChar, 'equip.wpn', {});
@@ -1930,7 +1930,7 @@
 
     function buildSnapshot(sd) {
       const [activeName, activeChar] = resolveActiveCharacter(sd || {});
-      const currentLoc = toText(deepGet(activeChar, 'status.loc', '未知'), '未知');
+      const currentLoc = toText(deepGet(activeChar, 'status.loc', '未知'), '未知').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
       const locationInfo = resolveLocationData(sd, currentLoc);
       const locationData = locationInfo.data || {};
       const storeNames = safeEntries(locationData && locationData.stores).map(([name]) => name);
@@ -2746,7 +2746,7 @@
               const isPlayer = isPlayerCharacterEntry(name, char, playerName);
               const lvText = `Lv.${toText(deepGet(char, 'stat.lv', 0), '0')}`;
               const identityText = toText(deepGet(char, 'social.main_identity', deepGet(char, 'base.identity', '无')), '无');
-              const locText = toText(deepGet(char, 'status.loc', '未知地点'), '未知地点');
+              const locText = toText(deepGet(char, 'status.loc', '未知地点'), '未知地点').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
               const actionText = toText(deepGet(char, 'status.action', '日常'), '日常');
               const searchText = [
                 name,
