@@ -1597,7 +1597,10 @@
         bonus: toText(skill && skill['加成属性'], '无'),
         cost: toText(skill && skill['消耗'], '无消耗'),
         desc: (() => {
-          let base = toText(skill && skill['画面描述'], '') || toText(skill && skill['特效量化参数'], '暂无描述');
+          let rawDesc = toText(skill && skill['画面描述'], '');
+          // 拦截AI瞎填的占位符，把它当做没写
+          if (rawDesc === '未生成' || rawDesc === '无') rawDesc = '';
+          let base = rawDesc || toText(skill && skill['特效量化参数'], '暂无描述');
           let clash = deepGet(skill, '仲裁逻辑.瞬间交锋模块');
           let state = deepGet(skill, '仲裁逻辑.状态挂载模块');
           if (clash && clash['基础威力倍率'] > 0) base += `<br/><span style="color:var(--cyan);">[威力倍率: ${clash['基础威力倍率']}% | 伤害类型: ${clash['伤害类型'] || '无'} | 护盾: ${clash['护盾绝对值'] || 0}]</span>`;
@@ -2024,7 +2027,6 @@
       const forestKilledAge = toNumber(deepGet(sd, 'world.forest_killed_age', 0), 0);
       const mapData = sd && sd.map && typeof sd.map === 'object' ? sd.map : {};
       const mapVisibleNodeEntries = safeEntries(deepGet(mapData, 'visible_nodes', {}));
-      const mapVisibleSettlementEntries = safeEntries(deepGet(mapData, 'visible_settlements', {}));
       const mapVisibleDynamicEntries = safeEntries(deepGet(mapData, 'visible_dynamic_locations', {}));
       const mapActivePatchEntries = safeEntries(deepGet(mapData, 'active_patches', {}));
       const mapAvailableChildMaps = deepGet(mapData, 'available_child_maps', {}) || {};
@@ -3947,16 +3949,11 @@
                 <div class="archive-card-head"><div class="archive-card-title">据点概览</div></div>
                 ${makeTileGrid([
                   { label: '所在地点', value: nodeName },
-                  { label: '地图来源', value: mapNode ? mapNode.source : 'location' },
-                  { label: '节点类型', value: mapNode ? mapNode.type : '普通地点' },
-                  { label: '节点状态', value: mapNode ? mapNode.state : '可见' },
                   { label: '掌控势力', value: toText(nodeInfo.data && nodeInfo.data['掌控势力'], '未知') },
                   { label: '常住人口', value: formatNumber(nodeInfo.data && nodeInfo.data['人口']) },
                   { label: '经济状况', value: toText(nodeInfo.data && nodeInfo.data['经济状况'], '未知') },
                   { label: '守护军团', value: toText(nodeInfo.data && nodeInfo.data['守护军团'], '无') },
                   { label: '商店数量', value: `${nodeStores.length} 处` },
-                  { label: '子图入口', value: mapNode && mapNode.childMapId !== '无' ? '可进入子图' : '无' },
-                  { label: '节点坐标', value: mapNode ? `${toNumber(mapNode.x, 0)}, ${toNumber(mapNode.y, 0)}` : snapshot.positionText }
                 ])}
               </div>
               <div class="archive-card">

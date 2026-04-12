@@ -3605,23 +3605,58 @@
 
   function buildMapSnapshot(sd) {
     const [activeName, activeChar] = resolveActiveCharacter(sd || {});
-    const mapData = sd && typeof sd === 'object'
-      ? ((sd.map && typeof sd.map === 'object' && Object.keys(sd.map).length ? sd.map
-        : (sd.display_map && typeof sd.display_map === 'object' ? sd.display_map : (deepGet(sd, 'display_all.map', {}) || {}))))
-      : {};
-    return buildSnapshotFromMapPayload(mapData, sd, activeName, activeChar);
+    return buildSnapshotFromMapPayload(sd, activeName, activeChar);
   }
 
-  function buildSnapshotFromMapPayload(mapData, sd, activeName, activeChar) {
-    const currentMapId = toText(deepGet(mapData, 'current_map_id', 'map_douluo_world'), 'map_douluo_world');
-    const currentFocus = deepGet(mapData, 'current_focus', {}) || {};
-    const currentLoc = toText(deepGet(currentFocus, 'loc', deepGet(activeChar, 'status.loc', '未知')), toText(deepGet(activeChar, 'status.loc', '未知'), '未知'));
-    const currentFocusName = toText(deepGet(currentFocus, 'loc', currentLoc), currentLoc);
+  function buildSnapshotFromMapPayload(sd, activeName, activeChar) {
+    // 【前端独立渲染引擎】从此告别 display_map 的施舍！
+    const currentLocFull = toText(deepGet(activeChar, 'status.loc', '斗罗大陆-未知地点'), '斗罗大陆-未知地点');
+    const pathSegments = currentLocFull.split('-').filter(Boolean);
+    // 决定当前在哪一层画图（如果人在大城里，就拿大城作为画图老爹）
+    const currentContextNodeName = pathSegments.length > 1 ? pathSegments[pathSegments.length - 2] : '斗罗大陆';
+    const currentLocName = pathSegments[pathSegments.length - 1] || '未知地点';
+    const currentMapId = 'map_douluo_world'; // 在单图架构下永远是这个，子图只靠名字过滤坐标
+    
+    // 1. 就地取材：自己生成可视动态节点
+    const visibleDynamics = {};
+    const dynamicSource = deepGet(sd, 'world.dynamic_locations', {});
+    for (const [dynName, dynData] of Object.entries(dynamicSource)) {
+      if (dynData && dynData['归属父节点'] === currentContextNodeName) {
+         visibleDynamics[dynName] = dynData;
+      }
+    }
+
+    // 2. 就地取材：自己生成可视大城/据点
+    const visibleSettlements = {};
+    const settlementSource = deepGet(sd, 'world.settlements', {});
+    for (const [setId, setData] of Object.entries(settlementSource)) {
+      if (setData && (setData.loc_name === currentContextNodeName || currentContextNodeName === '斗罗大陆')) {
+         visibleSettlements[setId] = setData;
+      }
+    }
+
+    // 3. 就地取材：自己从大树里切出当前层的静态可视节点
+    const visibleNodes = {};
+    const rootLocations = deepGet(sd, 'world.locations', {});
+    if (currentContextNodeName === '斗罗大陆') {
+       Object.assign(visibleNodes, rootLocations);
+    } else {
+       const parentNode = getRawLocationNodeByName(currentContextNodeName);
+       if (parentNode && parentNode.node && parentNode.node.children) {
+          Object.assign(visibleNodes, parentNode.node.children);
+       }
+    }
+
     const currentFocusCoord = {
-      x: toNumber(deepGet(currentFocus, 'x', NaN), NaN),
-      y: toNumber(deepGet(currentFocus, 'y', NaN), NaN)
+      x: toNumber(deepGet(activeChar, 'status.current_x', -1), NaN),
+      y: toNumber(deepGet(activeChar, 'status.current_y', -1), NaN)
     };
-    const mapMetaFromSd = deepGet(sd, `world.maps.${currentMapId}`, {}) || {};
+    const currentFocus = { loc: currentLocName };
+    const currentFocusName = currentLocName;
+    const mapMeta = {};
+    const mapLevel = currentContextNodeName === '斗罗大陆' ? 'world' : 'city';
+    const coordSystem = MAP_COORD_SYSTEM_IMAGE;
+
     const mapMeta = Object.keys(mapMetaFromSd || {}).length ? mapMetaFromSd : (deepGet(mapData, 'map_meta', {}) || {});
     const mapLevel = toText(deepGet(mapMeta, 'map_level', inferMapLevelFromId(currentMapId)), inferMapLevelFromId(currentMapId));
     const coordSystem = resolveSnapshotCoordSystem(mapData, mapMeta, currentMapId);
@@ -3629,21 +3664,21 @@
       sd,
       activeName,
       activeChar,
-      currentLoc,
+      currentLoc: currentLocName,
       currentFocus,
       currentFocusName,
       currentFocusCoord,
       coordSystem,
       currentMapId,
-      currentZoomHint: toNumber(deepGet(mapData, 'current_zoom_hint', 0), 0),
-      availableChildMaps: deepGet(mapData, 'available_child_maps', {}) || {},
-      travelCandidates: Array.isArray(deepGet(mapData, 'travel_candidates', [])) ? deepGet(mapData, 'travel_candidates', []) : [],
-      visibleNodes: safeEntries(deepGet(mapData, 'visible_nodes', {})),
-      previewChildMaps: deepGet(mapData, 'preview_child_maps', {}) || {},
-      visibleSettlements: safeEntries(deepGet(mapData, 'visible_settlements', {})),
+      currentZoomHint: 0,
+      availableChildMaps: {},
+      travelCandidates: Object.keys(visibleNodes),
+      visibleNodes: safeEntries(visibleNodes),
+      previewChildMaps: {},
+      visibleSettlements: safeEntries(visibleSettlements),
       previewMeta: deepGet(mapData, 'preview_meta', null) || null,
-      visibleDynamics: safeEntries(deepGet(mapData, 'visible_dynamic_locations', {})),
-      activePatches: safeEntries(deepGet(mapData, 'active_patches', {})),
+      visibleDynamics: safeEntries(visibleDynamics),
+      activePatches: [],
       mapMeta,
       mapLevel
     };
@@ -3827,7 +3862,6 @@
         child_maps: availableChildMaps
       },
       visible_nodes: Object.fromEntries(visibleNodeEntries),
-      visible_settlements: {},
       visible_dynamic_locations: {},
       active_patches: {},
       travel_candidates: visibleNodeEntries.map(([childName]) => childName),
@@ -3843,18 +3877,10 @@
 
   function getNestedPreviewChildMap(container, nodeName) {
     if (!container || !nodeName) return null;
-    const previewMap = container.previewChildMaps || container.preview_child_maps || {};
-    const key = toText(nodeName, '');
-    if (previewMap && typeof previewMap === 'object') {
-      if (previewMap[key]) return previewMap[key];
-      const childMapId = getChildMapIdForNode(key, container);
-      if (childMapId) {
-        const matchedPayload = Object.values(previewMap).find(payload => toText(deepGet(payload, 'current_map_id', ''), '') === childMapId);
-        if (matchedPayload) return matchedPayload;
-      }
-    }
-    const rawLocationMatch = getRawLocationNodeByName(key);
-    return rawLocationMatch ? buildPreviewPayloadFromRawLocation(key, rawLocationMatch.node, container) : null;
+    const targetKey = String(nodeName).split('-').pop();
+    const rawLocationMatch = getRawLocationNodeByName(targetKey);
+    if (!rawLocationMatch || !rawLocationMatch.node || !rawLocationMatch.node.children) return null;
+    return buildPreviewPayloadFromRawLocation(targetKey, rawLocationMatch.node, container);
   }
 
   function getPreviewPayloadByTrail(snapshot, trail = mapState.previewTrail) {
@@ -3874,9 +3900,8 @@
   }
 
   function canEnterPreviewNode(nodeName = mapState.selectedNode, snapshot = mapState.snapshot) {
-    if (getPreviewPayload(snapshot, nodeName)) return true;
-    
-    // 如果当前选中的节点进不去，检查我们实际所在的 loc 的父层级是否匹配它，或者它本身就是父层级
+    // 前端自给自足判定法：能从大树里挖出包裹，或者身上有 dynamic 子节点，就能进！
+    if (getNestedPreviewChildMap(snapshot, nodeName)) return true;
     const actualLoc = getActualCurrentLoc();
     const dynLoc = deepGet(snapshot.sd, `world.dynamic_locations.${actualLoc}`);
     if (dynLoc && dynLoc['归属父节点'] === nodeName) {
@@ -6491,8 +6516,12 @@
     const request = hasPendingTravelRequestForTarget() ? mapState.pendingTravelRequest : queueMapTravelRequest();
     if (!request) return;
     const isFreeTravel = request.target_loc === '无';
-    const finalLocName = isFreeTravel ? `荒野区域(${request.coord_text})` : request.target_loc;
     const resolvedNamedCoord = !isFreeTravel ? getMapNodeCoord(request.target_loc) : null;
+    // 根据【绝对路径铁律】，补齐斗罗大陆前缀（如果AI没传的话）
+    const finalLocName = isFreeTravel 
+      ? `斗罗大陆-未知荒野` 
+      : (request.target_loc.startsWith('斗罗大陆-') || request.target_loc.startsWith('斗灵大陆-') ? request.target_loc : `斗罗大陆-${request.target_loc}`);
+      
     const targetCoord = {
       x: Number.isFinite(Number(request.target_x)) && Number(request.target_x) >= 0 ? Number(request.target_x) : (resolvedNamedCoord ? roundCoord(resolvedNamedCoord.x) : -1),
       y: Number.isFinite(Number(request.target_y)) && Number(request.target_y) >= 0 ? Number(request.target_y) : (resolvedNamedCoord ? roundCoord(resolvedNamedCoord.y) : -1)
@@ -6541,9 +6570,25 @@
         const targetTerrainLine = targetTerrainBrief ? `目标地形：${targetTerrainBrief}` : '';
         const patchOps = [
           { op: 'replace', path: `/sd/char/${activePath}/status/loc`, value: String(finalLocName) },
-          { op: 'replace', path: `/sd/world/time/tick`, value: (Number(deepGet(mapState.baseSnapshot.sd, 'world.time.tick', 0)) + request.est_ticks) },
-          { op: 'replace', path: `/sd/sys/rsn`, value: `[地图移动完成] 玩家乘坐 ${request.method} 抵达 ${finalLocName}${targetTerrainInfo ? `（${toText(targetTerrainInfo.name, '未知地形')}）` : ''}，历时 ${request.est_duration}。` }
         ];
+
+        // 严格执行【野外双轨坐标法】：去野外强写 x, y，进城强写 -1！
+        if (isFreeTravel && targetCoord.x >= 0 && targetCoord.y >= 0) {
+          patchOps.push(
+            { op: 'add', path: `/sd/char/${activePath}/status/current_x`, value: targetCoord.x },
+            { op: 'add', path: `/sd/char/${activePath}/status/current_y`, value: targetCoord.y }
+          );
+        } else {
+          patchOps.push(
+            { op: 'add', path: `/sd/char/${activePath}/status/current_x`, value: -1 },
+            { op: 'add', path: `/sd/char/${activePath}/status/current_y`, value: -1 }
+          );
+        }
+        
+        patchOps.push(
+          { op: 'replace', path: `/sd/world/time/tick`, value: (Number(deepGet(mapState.baseSnapshot.sd, 'world.time.tick', 0)) + request.est_ticks) },
+          { op: 'replace', path: `/sd/sys/rsn`, value: `[地图移动完成] 玩家乘坐 ${request.method} 抵达 ${finalLocName.replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '')}${targetTerrainInfo ? `（${toText(targetTerrainInfo.name, '未知地形')}）` : ''}，历时 ${request.est_duration}。` }
+        );
 
         if (request.costs) {
           if (request.costs.fedCoin > 0) {
