@@ -2936,8 +2936,8 @@
     return safeMapId === 'map_douluo_world' || safeLevel === 'world' || safeLevel === 'continent';
   }
 
-  function resolveSnapshotCoordSystem(currentMapId = 'map_douluo_world') {
-    return MAP_COORD_SYSTEM_IMAGE;
+  function resolveSnapshotCoordSystem(currentMapId = 'map_douluo_world', mapLevel = 'world') {
+    return isWorldCoordMap(currentMapId, mapLevel) ? MAP_COORD_SYSTEM_IMAGE : MAP_COORD_SYSTEM_LOCAL;
   }
 
   function shouldUseImageMapCoordSystem(mapId = mapState.currentMapId, mapLevel = mapState.mapLevel, coordSystem = mapState.coordSystem) {
@@ -3580,8 +3580,6 @@
     // 【前端独立渲染引擎】从此告别 display_map 的施舍！
     const currentLocFull = toText(deepGet(activeChar, 'status.loc', '斗罗大陆-未知地点'), '斗罗大陆-未知地点');
     const pathSegments = currentLocFull.split('-').filter(Boolean);
-    // 决定当前在哪一层画图（如果人在大城里，就拿大城作为画图老爹）
-    const currentContextNodeName = pathSegments.length > 1 ? pathSegments[pathSegments.length - 2] : '斗罗大陆';
     const currentLocName = pathSegments[pathSegments.length - 1] || '未知地点';
     const currentMapId = 'map_douluo_world'; // 在单图架构下永远是这个，子图只靠名字过滤坐标
     
@@ -3589,23 +3587,16 @@
     const visibleDynamics = {};
     const dynamicSource = deepGet(sd, 'world.dynamic_locations', {});
     for (const [dynName, dynData] of Object.entries(dynamicSource)) {
-      if (dynData && dynData['归属父节点'] === currentContextNodeName) {
+      if (dynData && (dynData['归属父节点'] === '斗罗大陆' || !dynData['归属父节点'])) {
          visibleDynamics[dynName] = dynData;
       }
     }
 
 
-    // 3. 就地取材：自己从大树里切出当前层的静态可视节点
+    // 3. 就地取材：主快照永远、必须是世界大地图的顶层节点！不能自动切块，否则无法返回上级！
     const visibleNodes = {};
     const rootLocations = deepGet(sd, 'world.locations', {});
-    if (currentContextNodeName === '斗罗大陆') {
-       Object.assign(visibleNodes, rootLocations);
-    } else {
-       const parentNode = getRawLocationNodeByName(currentContextNodeName);
-       if (parentNode && parentNode.node && parentNode.node.children) {
-          Object.assign(visibleNodes, parentNode.node.children);
-       }
-    }
+    Object.assign(visibleNodes, rootLocations);
 
     const currentFocusCoord = {
       x: toNumber(deepGet(activeChar, 'status.current_x', -1), NaN),
@@ -3614,8 +3605,6 @@
     const currentFocus = { loc: currentLocName };
     const currentFocusName = currentLocName;
 
-    const mapLevel = currentContextNodeName === '斗罗大陆' ? 'world' : 'city';
-    const coordSystem = MAP_COORD_SYSTEM_IMAGE;
     const snapshot = {
       sd,
       activeName,
@@ -3624,7 +3613,7 @@
       currentFocus,
       currentFocusName,
       currentFocusCoord,
-      coordSystem,
+      coordSystem: resolveSnapshotCoordSystem(currentMapId, 'world'),
       currentMapId,
       currentZoomHint: 0,
       availableChildMaps: {},
@@ -3632,10 +3621,11 @@
       visibleNodes: safeEntries(visibleNodes),
       visibleDynamics: safeEntries(visibleDynamics),
       activePatches: [],
-      mapLevel
+      mapLevel: 'world',
+      coord_system: resolveSnapshotCoordSystem(currentMapId, 'world')
     };
     snapshot.items = buildRuntimeMapItems(snapshot);
-    snapshot.bounds = snapshot.coordSystem === MAP_COORD_SYSTEM_IMAGE && isWorldCoordMap(currentMapId, mapLevel) ? { ...DEFAULT_IMAGE_BOUNDS } : resolveProjectionBounds(currentMapId, null, snapshot.items, snapshot.currentFocusCoord);
+    snapshot.bounds = snapshot.coordSystem === MAP_COORD_SYSTEM_IMAGE && isWorldCoordMap(currentMapId, 'world') ? { ...DEFAULT_IMAGE_BOUNDS } : resolveProjectionBounds(currentMapId, null, snapshot.items, snapshot.currentFocusCoord);
     return snapshot;
   }
 
@@ -7416,7 +7406,6 @@
   }
 
   function cycleTravelMethod() {
-    if (hasActivePreview()) return;
     const distance = getMapTravelPreview()?.distance || 0;
     const snapshot = mapState.snapshot || buildFallbackSnapshot();
     const methods = getAvailableTravelMethods(distance, mapState.currentMapId, snapshot);
@@ -7431,7 +7420,40 @@
     if (idx === -1) idx = 0;
     idx = (idx + 1) % methods.length;
     mapState.travelMethodOverride = methods[idx];
-    syncInteractiveMapUI({ center: false });
+    
+    // 老板发话：不能卡！！坚决不能用全局庞大的 syncInteractiveMapUI！
+    // 仅仅更新移动面板相关的局部文字！实现零延迟丝滑切换！
+    const travelPreview = getMapTravelPreview();
+    const pending = mapState.pendingTravel;
+    const previewRequest = mapState.previewRequest;
+    
+    const actionMoveBaseText = pending ? `${pending.est_duration}` : previewRequest ? `${previewRequest.est_duration}` : (travelPreview ? travelPreview.duration : '无');
+    const actionMoveText = pending
+      ? `${actionMoveBaseText}${pending.route_plan ? ` · ${pending.route_plan}` : ''}`
+      : previewRequest
+        ? `${actionMoveBaseText}${previewRequest.route_plan ? ` · ${previewRequest.route_plan}` : ''}`
+        : (travelPreview
+          ? `${actionMoveBaseText}${travelPreview.routePlanText ? ` · ${travelPreview.routePlanText}` : ''}`
+          : actionMoveBaseText);
+          
+    const actionCostText = pending
+      ? (pending.costs?.text || '无')
+      : previewRequest
+        ? (previewRequest.costs?.canAfford
+          ? (previewRequest.costs?.text || '无')
+          : ['不可用', previewRequest.costs?.reason || '', previewRequest.costs?.text && previewRequest.costs.text !== '无消耗' ? previewRequest.costs.text : ''].filter(Boolean).join(' · '))
+        : (travelPreview && travelPreview.costs && travelPreview.costs.text !== '无消耗' ? travelPreview.costs.text : '无消耗');
+
+    const travelMethodText = pending ? pending.method : previewRequest ? previewRequest.method : (travelPreview ? travelPreview.method : '无');
+    const travelMethodDisplay = travelMethodText === '无' ? '无' : travelMethodText;
+    
+    setMapText('[data-map-request-method]', travelMethodDisplay);
+    setMapText('[data-map-request-coord]', actionMoveText);
+    setMapText('[data-map-request-cost]', actionCostText);
+    
+    document.querySelectorAll('[data-map-travel-action]').forEach(card => {
+      card.classList.toggle('disabled', !travelPreview || hasActivePreview());
+    });
   }
 
   function handleNodeLayerDoubleClick(event) {}
