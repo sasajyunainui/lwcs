@@ -25,6 +25,7 @@
     const modalBody = document.getElementById('modalBody');
     const modalClose = document.getElementById('modalClose');
 
+    let modalStack = [];
     function getModalRefs() {
       const currentDetailModal = document.getElementById('detailModal') || detailModal;
       const currentModalPanel = currentDetailModal
@@ -2046,6 +2047,8 @@
       const auctionStatus = toText(deepGet(sd, 'world.auction.status', '休市'), '休市');
       const auctionLocation = toText(deepGet(sd, 'world.auction.location', '无'), '无');
 
+      const chars = sd && sd.char ? sd.char : {};
+      const charEntries = safeEntries(chars);
       return {
         sd,
         activeName,
@@ -2067,6 +2070,7 @@
         youthRankingEntries,
         continentRankingEntries,
         flagEntries,
+        charEntries,
         orgEntries,
         titleEntries,
         recordEntries,
@@ -3807,39 +3811,86 @@
       }
 
       if (previewKey === '势力矩阵总览') {
-        const primaryFactionEntry = getPrimaryFactionEntry(snapshot);
-        const factionRelationCards = buildFactionRelationCards(primaryFactionEntry && primaryFactionEntry.data ? primaryFactionEntry.data : {}, {
-          max: 8,
-          emptyTitle: '暂无势力关系',
-          emptyDesc: '当前主势力未记录对外关系。'
-        });
         return {
           title: '势力矩阵弹窗',
-          summary: '所有势力影响力、上下级关系与状态总览。',
+          summary: '点击势力名称，查看该势力的详细结构与在场人物档案。',
+          body: `
+            <div class="archive-modal-grid">
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">势力梯阵</div></div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 10px;">
+                  ${snapshot.orgEntries.map(([name, item]) => `
+                    <button type="button" class="role-switch-tile clickable" data-preview="org_detail_${escapeHtmlAttr(name)}" style="text-align:left; border:1px solid rgba(255,255,255,0.08); background:rgba(0,0,0,0.2); padding:12px; border-radius:8px; cursor:pointer;">
+                      <div class="role-switch-head" style="margin-bottom:6px;font-size:15px;"><b>${htmlEscape(name)}</b><span class="state-tag">点击详情</span></div>
+                      <div class="role-switch-meta" style="font-size:12px;color:var(--text-muted);">
+                        规模：${formatNumber(item && item.size || 0)} ｜ 状态：${toText(item && item.status, '正常')} <br>
+                        顶尖战力：${toText(deepGet(item, 'power_stats.title_douluo', 0), '0')} 位封号斗罗
+                      </div>
+                    </button>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+          `
+        };
+      }
+
+      if (String(previewKey || '').startsWith('org_detail_')) {
+        const targetOrgName = String(previewKey).replace('org_detail_', '').trim();
+        const targetOrgEntry = snapshot.orgEntries.find(([name]) => name === targetOrgName) || [targetOrgName, {}];
+        const targetOrgData = targetOrgEntry[1] || {};
+        
+        const factionRelationCards = buildFactionRelationCards(targetOrgData, {
+          max: 8,
+          emptyTitle: '暂无对外关系',
+          emptyDesc: '当前势力未记录对外关系。'
+        });
+
+        // Automatically gather characters belonging to this organization
+        const orgMembers = [];
+        for (const [charName, charInfo] of snapshot.charEntries) {
+           const factions = safeEntries(deepGet(charInfo, 'social.factions', {}));
+           const matchingFaction = factions.find(([fName]) => fName === targetOrgName);
+           if (matchingFaction) {
+               orgMembers.push({
+                 name: charName,
+                 desc: `身份：${toText(matchingFaction[1] && matchingFaction[1]['身份'], '成员')} ｜ 权限：Lv.${toText(matchingFaction[1] && matchingFaction[1]['权限级'], '1')}`
+               });
+           }
+        }
+
+        return {
+          title: `${targetOrgName} / 势力档案`,
+          summary: '展示该势力的规模战力、对外关系以及已知成员名册。',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">势力梯阵</div></div>
-                ${makePaginatedFactionLadder(snapshot.orgEntries.map(([name, item]) => ({
-                  name,
-                  desc: `影响力 ${formatNumber(item && item.inf)} / ${toText(item && item.status, '正常')} / 极限斗罗 ${toText(deepGet(item, 'power_stats.limit_douluo', 0), '0')} / 超级斗罗 ${toText(deepGet(item, 'power_stats.super_douluo', 0), '0')} / 封号斗罗 ${toText(deepGet(item, 'power_stats.title_douluo', 0), '0')}`,
-                  className: snapshot.factions.some(([fac]) => fac === name) ? 'highlight' : ''
-                })), '势力矩阵总览', 'org-ladder', 50)}
+                <div class="archive-card-head"><div class="archive-card-title">势力概况</div></div>
+                ${makeTileGrid([
+                  { label: '影响力', value: formatNumber(targetOrgData.inf || 0) },
+                  { label: '势力规模', value: formatNumber(targetOrgData.size || 0) },
+                  { label: '当前状态', value: toText(targetOrgData.status, '正常') },
+                  { label: '极限斗罗', value: deepGet(targetOrgData, 'power_stats.limit_douluo', 0) },
+                  { label: '超级斗罗', value: deepGet(targetOrgData, 'power_stats.super_douluo', 0) },
+                  { label: '封号斗罗', value: deepGet(targetOrgData, 'power_stats.title_douluo', 0) }
+                ])}
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">${htmlEscape(`${primaryFactionEntry && primaryFactionEntry.name ? primaryFactionEntry.name : '主势力'}对外关系`)}</div></div>
+                <div class="archive-card-head"><div class="archive-card-title">对外关系</div></div>
                 ${makeTimelineStack(factionRelationCards)}
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">势力结构补充</div></div>
-                ${makePaginatedTimelineSection(snapshot.orgEntries.map(([name, item]) => ({
-                  title: name,
-                  desc: `上级：${toText(item && item.parent_faction, '无')} ｜ 成员数：${safeEntries(item && item.mem).length} ｜ 下次刷新：${toText(item && item.next_refresh_tick, 0)}`
-                })), '势力矩阵总览', 'org-structure', [{ title: '暂无势力结构', desc: '当前未记录势力结构补充信息。' }], 50)}
-              </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">主势力成员</div></div>
-                ${makePaginatedTimelineSection(safeEntries(primaryFactionEntry && primaryFactionEntry.data && primaryFactionEntry.data.mem).map(([memberName, memberInfo]) => ({ title: memberName, desc: `职位：${toText(memberInfo && memberInfo['职位'], '外围')}` })), '势力矩阵总览', 'primary-members', [{ title: '暂无成员档案', desc: '当前主势力未记录成员名册。' }], 50)}
+                <div class="archive-card-head"><div class="archive-card-title">角色名册</div></div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 10px;">
+                  ${orgMembers.length > 0 ? orgMembers.map(m => `
+                    <button type="button" class="role-switch-tile clickable" data-preview="榜单角色：${escapeHtmlAttr(m.name)}" style="text-align:left; border:1px solid rgba(255,255,255,0.08); background:rgba(0,0,0,0.2); padding:12px; border-radius:8px; cursor:pointer;">
+                      <div class="role-switch-head" style="margin-bottom:6px;font-size:15px;"><b>${htmlEscape(m.name)}</b><span class="state-tag">角色</span></div>
+                      <div class="role-switch-meta" style="font-size:12px;color:var(--text-muted);">
+                        ${htmlEscape(m.desc)}
+                      </div>
+                    </button>
+                  `).join('') : '<div style="padding:12px; color:var(--text-muted);">未搜索到属于该势力的已知角色。</div>'}
+                </div>
               </div>
             </div>
           `
@@ -4733,8 +4784,19 @@ ${JSON.stringify(patchOps, null, 2)}
       if (!options.preserveMapDispatchContext) {
         mapDispatchContext = null;
       }
-      currentModalPreviewKey = previewKey || '';
-      renderModalContent(currentModalPreviewKey, refs);
+
+      const targetKey = previewKey || '';
+      if (targetKey) {
+        if (!modalStack.length || modalStack[modalStack.length - 1] !== targetKey) {
+          modalStack.push(targetKey);
+        }
+      }
+      currentModalPreviewKey = modalStack[modalStack.length - 1] || '';
+      
+      if (currentModalPreviewKey) {
+        renderModalContent(currentModalPreviewKey, refs);
+      }
+
       if (!refs.detailModal) return;
       refs.detailModal.classList.add('show');
       refs.detailModal.setAttribute('aria-hidden', 'false');
@@ -4850,6 +4912,18 @@ ${JSON.stringify(patchOps, null, 2)}
       modalBody.innerHTML = renderGenericModalBody(config);
     }
 
+    function popModalOrClose() {
+      if (modalStack.length > 1) {
+        modalStack.pop();
+        currentModalPreviewKey = modalStack[modalStack.length - 1] || '';
+        if (currentModalPreviewKey) {
+          renderModalContent(currentModalPreviewKey, getModalRefs());
+          return;
+        }
+      }
+      closeModal();
+    }
+
     function closeModal() {
       if (activeSubUI && typeof activeSubUI.destroy === 'function') {
         activeSubUI.destroy();
@@ -4859,6 +4933,7 @@ ${JSON.stringify(patchOps, null, 2)}
 
       hideInventoryHoverPanel();
       currentModalPreviewKey = '';
+      modalStack = [];
       if (detailModal) detailModal.classList.remove('show', 'drawer-left');
       if (modalPanel) modalPanel.classList.remove('drawer-left', 'vault-mode');
       if (modalBody) modalBody.classList.remove('vault-body');
@@ -4895,7 +4970,7 @@ ${JSON.stringify(patchOps, null, 2)}
       openModal(previewKey);
     });
 
-    if (modalClose) modalClose.addEventListener('click', closeModal);
+    if (modalClose) modalClose.addEventListener('click', popModalOrClose);
     if (detailModal) detailModal.addEventListener('click', (event) => {
       const eventTarget = event.target instanceof Element ? event.target : (event.target && event.target.parentElement ? event.target.parentElement : null);
       const actionBtn = eventTarget ? eventTarget.closest('.armory-action-btn') : null;
@@ -4945,7 +5020,7 @@ ${JSON.stringify(patchOps, null, 2)}
         return;
       }
 
-      if (event.target === detailModal) closeModal();
+      if (event.target === detailModal) popModalOrClose();
     });
 
     document.addEventListener('click', (event) => {

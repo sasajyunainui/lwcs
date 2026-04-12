@@ -3468,6 +3468,32 @@
       }));
     });
 
+
+    // 力导向节点自动避让 (Relaxation)：让距离过近的节点互相推开
+    if (items.length > 1) {
+      const safeDist = 65; // 要求节点之间的最小物理像素距离
+      for (let iter = 0; iter < 10; iter++) {
+        let moved = false;
+        for (let i = 0; i < items.length; i++) {
+          for (let j = i + 1; j < items.length; j++) {
+            let dx = items[j].x - items[i].x;
+            let dy = items[j].y - items[i].y;
+            let dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < safeDist) {
+              if (dist === 0) { dx = (Math.random() - 0.5); dy = (Math.random() - 0.5); dist = Math.sqrt(dx*dx+dy*dy); }
+              const pushFactor = (safeDist - dist) / 2;
+              const pushX = (dx / dist) * pushFactor;
+              const pushY = (dy / dist) * pushFactor;
+              items[i].x -= pushX; items[i].y -= pushY;
+              items[j].x += pushX; items[j].y += pushY;
+              moved = true;
+            }
+          }
+        }
+        if (!moved) break;
+      }
+    }
+
     return items;
   }
 
@@ -6083,7 +6109,14 @@
       const waterRatio = travelContext.routeProfile.waterCells / totalCells;
       coefficient = (landRatio * 0.135) + (waterRatio * 0.25);
     }
-    const ticks = Math.max(1, Math.floor(distance * coefficient));
+
+    // 自动利用预览深度(Depth)缩减局部坐标系的旅行时间：层级越深(区域越微缩)，耗时越短
+    const depth = Array.isArray(mapState.previewTrail) ? mapState.previewTrail.length : 0;
+    let localScale = 1.0;
+    if (depth === 1) localScale = 0.08;      // 城市级街道移动，耗时缩减到原比例的 8%
+    else if (depth >= 2) localScale = 0.01;  // 设施/学院内部走动，耗时缩减到原比例的 1%
+
+    const ticks = Math.max(1, Math.floor(distance * coefficient * localScale));
     const coordText = formatMapImageCoord(end, '');
     return { method: actualMethod, ticks, distance, duration: formatMapTravelDuration(ticks), coordText, costs, routePlanText: toText(travelContext && travelContext.routePlanText, ''), routeProfile: travelContext && travelContext.routeProfile ? travelContext.routeProfile : null };
   }
@@ -6391,7 +6424,9 @@
       for (const [charId, charInfo] of Object.entries(charData)) {
         const npcName = toText(charInfo && (charInfo.name || deepGet(charInfo, 'base.name', '')), charId);
         if (!npcName || npcName === activeName || charId === activeName) continue;
-        if (charInfo && charInfo.status && charInfo.status.loc === item.name) {
+        const charLoc = toText(charInfo && charInfo.status && charInfo.status.loc, '');
+        const charLocSegments = charLoc.split('-').filter(Boolean);
+        if (charLocSegments.includes(item.name) || charLoc === item.name) {
           talkTargets.push(npcName);
         }
       }
@@ -6698,7 +6733,9 @@
       for (const [charId, charInfo] of Object.entries(charData)) {
         const npcName = toText(charInfo && (charInfo.name || deepGet(charInfo, 'base.name', '')), charId);
         if (!npcName || npcName === activeName || charId === activeName) continue;
-        if (charInfo && charInfo.status && charInfo.status.loc === focusName) {
+        const charLoc = toText(charInfo && charInfo.status && charInfo.status.loc, '');
+        const charLocSegments = charLoc.split('-').filter(Boolean);
+        if (charLocSegments.includes(focusName) || charLoc === focusName) {
           const npcMetaParts = [];
           const npcFaction = toText(charInfo && (charInfo.faction || deepGet(charInfo, 'org.name', '') || deepGet(charInfo, 'org.main', '')), '');
           const npcState = toText(deepGet(charInfo, 'status.action', ''), '');
