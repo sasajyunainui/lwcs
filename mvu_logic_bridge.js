@@ -1590,16 +1590,16 @@
     }
 
     function buildSkillList(skillObj) {
-      const skills = safeEntries(skillObj).map(([name, skill]) => ({
-        name,
+      const skills = safeEntries(skillObj).map(([rawName, skill]) => ({
+        name: rawName.replace(/\[后台推演\]\s*/g, ''),
         type: toText(skill && skill['技能类型'], '未定义'),
         target: toText(skill && skill['对象'], '--'),
         bonus: toText(skill && skill['加成属性'], '无'),
         cost: toText(skill && skill['消耗'], '无消耗'),
         desc: (() => {
-          let rawDesc = toText(skill && skill['画面描述'], '');
+          let rawDesc = toText(skill && skill['画面描述'], '').replace(/\[后台推演\]\s*/g, '');
           // 拦截AI瞎填的占位符，把它当做没写
-          if (rawDesc === '未生成' || rawDesc === '无') rawDesc = '';
+          if (rawDesc === '未生成' || rawDesc === '无' || rawDesc.trim() === '') rawDesc = '';
           let base = rawDesc || toText(skill && skill['特效量化参数'], '暂无描述');
           let clash = deepGet(skill, '仲裁逻辑.瞬间交锋模块');
           let state = deepGet(skill, '仲裁逻辑.状态挂载模块');
@@ -2281,14 +2281,12 @@
 
 
     function getMapMeta(snapshot) {
-      const mapId = toText(snapshot && snapshot.mapCurrentMapId, 'map_douluo_world');
-      return deepGet(snapshot, `sd.world.maps.${mapId}`, {});
+      // maps 被彻底移除，底层不再提供任何写死的 map_meta。直接返回空壳。
+      return {};
     }
 
     function getMapDisplayName(snapshot, mapId = null) {
       const safeMapId = toText(mapId || (snapshot && snapshot.mapCurrentMapId), 'map_douluo_world');
-      const explicitName = toText(deepGet(snapshot, `sd.world.maps.${safeMapId}.name`, ''), '');
-      if (explicitName) return explicitName;
       if (safeMapId === 'map_douluo_world') return '斗罗大陆总图';
       if (/^map_debug_/i.test(safeMapId)) return '区域子图';
       if (/^map_/i.test(safeMapId)) return '未命名子图';

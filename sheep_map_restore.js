@@ -2936,19 +2936,8 @@
     return safeMapId === 'map_douluo_world' || safeLevel === 'world' || safeLevel === 'continent';
   }
 
-  function resolveSnapshotCoordSystem(mapData = {}, mapMeta = {}, currentMapId = 'map_douluo_world') {
-    const explicit = toText(
-      deepGet(mapData, 'coord_system', '')
-      || deepGet(mapData, 'coordinate_system', '')
-      || deepGet(mapData, 'current_focus.coord_system', '')
-      || deepGet(mapData, 'current_focus.coordinate_system', '')
-      || deepGet(mapMeta, 'coord_system', '')
-      || deepGet(mapMeta, 'coordinate_system', ''),
-      ''
-    );
-    if (explicit === MAP_COORD_SYSTEM_IMAGE || explicit === MAP_COORD_SYSTEM_LOCAL) return explicit;
-    const safeLevel = toText(deepGet(mapMeta, 'map_level', inferMapLevelFromId(currentMapId)), inferMapLevelFromId(currentMapId));
-    return isWorldCoordMap(currentMapId, safeLevel) ? MAP_COORD_SYSTEM_IMAGE : MAP_COORD_SYSTEM_LOCAL;
+  function resolveSnapshotCoordSystem(currentMapId = 'map_douluo_world') {
+    return MAP_COORD_SYSTEM_IMAGE;
   }
 
   function shouldUseImageMapCoordSystem(mapId = mapState.currentMapId, mapLevel = mapState.mapLevel, coordSystem = mapState.coordSystem) {
@@ -3453,27 +3442,6 @@
       items.push(item);
     };
 
-    snapshot.visibleSettlements.forEach(([id, item]) => {
-      const name = resolveSettlementDisplayName(item && item.name ? item.name : id, item || {});
-      pushUnique(createRenderItem(name, item || {}, {
-        id,
-        baseName: item && item.name ? item.name : id,
-        source: 'settlement',
-        type: toText(item && item.type, '主城/据点'),
-        state: toText(item && item.state, '完整'),
-        icon: toText(item && item.icon, 'city'),
-        childMapId: item && item.child_map_id,
-        canEnter: !!(item && item.can_enter || (item && item.child_map_id && item.child_map_id !== '无')),
-        major: true,
-        desc: toText(item && item.desc, `状态：${toText(item && item.state, '完整')}`),
-        faction: toText(item && item.faction, '未知'),
-        importance: toNumber(item && item.importance, 60),
-        current: name === snapshot.currentLoc || name === snapshot.currentFocusName,
-        currentMapId: snapshot.currentMapId,
-        mapLevel: snapshot.mapLevel,
-        coordSystem: snapshot.coordSystem
-      }));
-    });
 
     snapshot.visibleNodes.forEach(([name, item]) => {
       pushUnique(createRenderItem(name, item || {}, {
@@ -3626,14 +3594,6 @@
       }
     }
 
-    // 2. 就地取材：自己生成可视大城/据点
-    const visibleSettlements = {};
-    const settlementSource = deepGet(sd, 'world.settlements', {});
-    for (const [setId, setData] of Object.entries(settlementSource)) {
-      if (setData && (setData.loc_name === currentContextNodeName || currentContextNodeName === '斗罗大陆')) {
-         visibleSettlements[setId] = setData;
-      }
-    }
 
     // 3. 就地取材：自己从大树里切出当前层的静态可视节点
     const visibleNodes = {};
@@ -3654,9 +3614,8 @@
     const currentFocus = { loc: currentLocName };
     const currentFocusName = currentLocName;
 
-    const mapMeta = Object.keys(mapMetaFromSd || {}).length ? mapMetaFromSd : (deepGet(mapData, 'map_meta', {}) || {});
-    const mapLevel = toText(deepGet(mapMeta, 'map_level', inferMapLevelFromId(currentMapId)), inferMapLevelFromId(currentMapId));
-    const coordSystem = resolveSnapshotCoordSystem(mapData, mapMeta, currentMapId);
+    const mapLevel = currentContextNodeName === '斗罗大陆' ? 'world' : 'city';
+    const coordSystem = MAP_COORD_SYSTEM_IMAGE;
     const snapshot = {
       sd,
       activeName,
@@ -3671,16 +3630,12 @@
       availableChildMaps: {},
       travelCandidates: Object.keys(visibleNodes),
       visibleNodes: safeEntries(visibleNodes),
-      previewChildMaps: {},
-      visibleSettlements: safeEntries(visibleSettlements),
-      previewMeta: deepGet(mapData, 'preview_meta', null) || null,
       visibleDynamics: safeEntries(visibleDynamics),
       activePatches: [],
-      mapMeta,
       mapLevel
     };
     snapshot.items = buildRuntimeMapItems(snapshot);
-    snapshot.bounds = snapshot.coordSystem === MAP_COORD_SYSTEM_IMAGE && isWorldCoordMap(currentMapId, mapLevel) ? { ...DEFAULT_IMAGE_BOUNDS } : resolveProjectionBounds(currentMapId, mapMeta, snapshot.items, snapshot.currentFocusCoord);
+    snapshot.bounds = snapshot.coordSystem === MAP_COORD_SYSTEM_IMAGE && isWorldCoordMap(currentMapId, mapLevel) ? { ...DEFAULT_IMAGE_BOUNDS } : resolveProjectionBounds(currentMapId, null, snapshot.items, snapshot.currentFocusCoord);
     return snapshot;
   }
 
@@ -3714,14 +3669,10 @@
       currentMapId: 'map_douluo_world',
       currentZoomHint: 0,
       availableChildMaps: {},
-      previewChildMaps: {},
-      previewMeta: null,
       travelCandidates: [],
       visibleNodes: [],
-      visibleSettlements: [],
       visibleDynamics: [],
       activePatches: [],
-      mapMeta: { name: '世界地图', map_level: 'world' },
       mapLevel: 'world',
       coordSystem: MAP_COORD_SYSTEM_IMAGE
     };
@@ -6852,12 +6803,6 @@
     const previewTerrainInfo = resolveTerrainInfoByCoord(previewCoord, terrainMapId) || focusTerrainInfo;
     const focusTerrainText = formatTerrainText(focusTerrainInfo, terrainMapId);
     const focusTerrainNarrative = formatTerrainNarrative(focusTerrainInfo, terrainMapId, { fallback: '' });
-    const settlementCount = snapshot.visibleSettlements.length;
-    const nodeCount = snapshot.visibleNodes.length;
-    const dynamicCount = snapshot.visibleDynamics.length;
-    const patchCount = snapshot.activePatches.length;
-    const recentDynamic = snapshot.visibleDynamics[0] ? snapshot.visibleDynamics[0][0] : '';
-    const recentPatch = snapshot.activePatches[0] ? (snapshot.activePatches[0][1].asset || snapshot.activePatches[0][0]) : '';
     const actionLabel = !travelPreview ? '当前位置' : pendingForSelection ? '启程前进' : '规划路线';
     const pendingTerrainShort = pendingTerrainInfo ? ` · ${toText(pendingTerrainInfo.name, '未知地形')}` : '';
     const previewTerrainShort = previewTerrainInfo ? ` · ${toText(previewTerrainInfo.name, '未知地形')}` : '';
@@ -6905,7 +6850,7 @@
       ? (previewCurrentBranch
           ? (focusItem ? `${focusNodeKindText} · ${canPreviewEnter ? '可继续进入子图' : `可执行 ${focusInteractionText}`}${focusServiceText !== '无' ? ` · 提供 ${focusServiceText}` : ''}` : `当前为 ${previewAnchorName} 子图预览，不影响角色实际位置`)
           : `当前为远端区域预览 · 真实位置仍在 ${currentName}`)
-      : (isFreeSelection ? (focusTerrainNarrative ? `自由坐标 · ${focusTerrainNarrative}` : '自由坐标 · 可规划前往') : (recentPatch ? `优先查看补丁：${recentPatch}` : (recentDynamic ? `优先关注动态地点：${recentDynamic}` : '暂无动态建议')));
+      : (isFreeSelection ? (focusTerrainNarrative ? `自由坐标 · ${focusTerrainNarrative}` : '自由坐标 · 可规划前往') : '暂无动态建议');
     const panelName = hoverCoord
       ? (panelItem ? toText(panelItem.name, formatFreePoint(panelCoord, '坐标')) : formatFreePoint(panelCoord, '坐标'))
       : focusName;
@@ -6945,11 +6890,7 @@
         : (focusItem ? focusDescBaseText : '视野内无节点');
     const travelNote = inPreview
       ? `【子图预览】${focusName}${focusTerrainNarrative ? ` · ${focusTerrainNarrative}` : ''} · 当前位置保持为【${currentName}】`
-      : pending ? `已安排前往 ${pendingTarget}${pendingTerrainShort}${pending.route_plan ? ` · ${pending.route_plan}` : ''}，预计 ${pending.est_duration}。` : previewRequest ? `准备前往 ${previewTarget}${previewTerrainShort}${previewRequest.route_plan ? ` · ${previewRequest.route_plan}` : ''}，推荐 ${previewRequest.method}，预计 ${previewRequest.est_duration}。` : `当前地图 ${getMapDisplayName(snapshot.currentMapId, snapshot.mapMeta)}，可视节点 ${getVisibleMapNodeCount()} 个。`;
-    const eventMainText = inPreview && focusItem ? `交互 ${Array.isArray(focusItem.interactions) ? focusItem.interactions.length : 0}` : `主城 ${settlementCount}`;
-    const eventSubText = inPreview && focusItem ? `服务 ${Array.isArray(focusItem.services) ? focusItem.services.length : 0}` : `节点 ${nodeCount}`;
-    const eventDynamicText = inPreview && focusItem ? `事件 ${focusEventText === '无' ? '无' : '已挂接'}` : `动态 ${dynamicCount} / 补丁 ${patchCount}`;
-    const recentDynamicText = activeNodeAction ? activeNodeAction.note : (recentPatch || recentDynamic || '暂无变化');
+      : pending ? `已安排前往 ${pendingTarget}${pendingTerrainShort}${pending.route_plan ? ` · ${pending.route_plan}` : ''}，预计 ${pending.est_duration}。` : previewRequest ? `准备前往 ${previewTarget}${previewTerrainShort}${previewRequest.route_plan ? ` · ${previewRequest.route_plan}` : ''}，推荐 ${previewRequest.method}，预计 ${previewRequest.est_duration}。` : `当前地图 ${getMapDisplayName(snapshot.currentMapId, null)}，可视节点 ${snapshot.visibleNodes.length} 个。`;
     const inspectButtonLabel = inPreview && focusItem && !canPreviewEnter ? primaryInteractionLabel : '查看';
 
     const characterEntries = [];
@@ -7036,10 +6977,6 @@
     setMapText('[data-map-request-cost]', actionCostText);
     setMapText('[data-map-request-panel-hint]', pendingForSelection ? '点击此框即可动身' : (previewRequest ? '点击此框即可移动' : '先选择目标'));
     setMapText('[data-map-request-json]', travelNote);
-    setMapText('[data-map-event-main]', eventMainText);
-    setMapText('[data-map-event-sub]', eventSubText);
-    setMapText('[data-map-event-dynamic]', eventDynamicText);
-    setMapText('[data-map-dynamic-recent]', recentDynamicText);
     setMapText('[data-map-request-state]', pending ? `待前往 ${pendingTarget} / ${pending.method}${pending.route_plan ? ` / ${pending.route_plan}` : ''} / ${pending.est_duration}` : previewRequest ? `可前往 ${previewTarget} / ${previewRequest.method}${previewRequest.route_plan ? ` / ${previewRequest.route_plan}` : ''} / ${previewRequest.est_duration}` : '留驻当前地点');
     setMapText('[data-map-request-chip]', pending ? '已规划' : previewRequest ? '待确认' : '停留中');
     setMapText('[data-map-foot-hint]', inPreview
