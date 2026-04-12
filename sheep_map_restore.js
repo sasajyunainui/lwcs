@@ -3874,7 +3874,18 @@
   }
 
   function canEnterPreviewNode(nodeName = mapState.selectedNode, snapshot = mapState.snapshot) {
-    return !!getPreviewPayload(snapshot, nodeName);
+    if (getPreviewPayload(snapshot, nodeName)) return true;
+    
+    // 如果当前选中的节点进不去，检查我们实际所在的 loc 的父层级是否匹配它，或者它本身就是父层级
+    const actualLoc = getActualCurrentLoc();
+    const dynLoc = deepGet(snapshot.sd, `world.dynamic_locations.${actualLoc}`);
+    if (dynLoc && dynLoc['归属父节点'] === nodeName) {
+       return true;
+    }
+    if (actualLoc.includes(nodeName)) {
+       return true;
+    }
+    return false;
   }
 
   function syncMapStateFromSnapshot(snapshot, options = {}) {
@@ -4284,62 +4295,63 @@
 
   function getActualCurrentLoc() {
     const snapshot = getActualCurrentSnapshot() || {};
-    return toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc), toText(snapshot.currentLoc, '未知地点'));
+    return toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc), toText(snapshot.currentLoc, '斗罗大陆-未知地点'));
   }
 
   function getActualCurrentCoord() {
     const snapshot = getActualCurrentSnapshot();
     if (!snapshot) return null;
     const sd = snapshot.sd || {};
-    
-    // 1. 递归查找节点坐标的方法
-    const findCoordRecursive = (nodeName, depth = 0) => {
-      if (!nodeName || depth > 10) return null;
-      // 先在当前地图的渲染库中找
-      const item = getItemByName(nodeName);
-      if (item && Number.isFinite(item.x) && Number.isFinite(item.y) && item.x >= 0 && item.y >= 0) {
-        return { x: item.x, y: item.y };
-      }
-      // 再去大地图字典找
-      const worldLoc = deepGet(sd, `world.locations.${nodeName}`);
-      if (worldLoc && Number.isFinite(worldLoc.x) && Number.isFinite(worldLoc.y) && worldLoc.x >= 0 && worldLoc.y >= 0) {
-        return { x: worldLoc.x, y: worldLoc.y };
-      }
-      // 最后去动态地点库里找，看有没有独立的坐标，或者“归属父节点”
-      const dynLoc = deepGet(sd, `world.dynamic_locations.${nodeName}`);
-      if (dynLoc) {
-        if (Number.isFinite(dynLoc.x) && Number.isFinite(dynLoc.y) && dynLoc.x >= 0 && dynLoc.y >= 0) {
-          return { x: dynLoc.x, y: dynLoc.y };
-        }
-        if (dynLoc['归属父节点']) {
-          return findCoordRecursive(dynLoc['归属父节点'], depth + 1);
-        }
-      }
-      
-      // 如果连动态地点都没登记（或者断线了），启动智能模糊认亲
-      // 用当前名字去反查世界主城，看包含哪个主城的名字
-      const knownLocations = Object.keys(deepGet(sd, 'world.locations', {}));
-      for (const loc of knownLocations) {
-        // 如果节点名包含主城名，比如 "东海学院操场" 包含了 "东海"
-        // 为了防止误判，通常只取前两个字或严格匹配城名
-        if (nodeName.includes(loc) || (loc.length >= 2 && nodeName.includes(loc.substring(0, 2)))) {
-           const parentWorldLoc = deepGet(sd, `world.locations.${loc}`);
-           if (parentWorldLoc && Number.isFinite(parentWorldLoc.x) && Number.isFinite(parentWorldLoc.y) && parentWorldLoc.x >= 0 && parentWorldLoc.y >= 0) {
-              return { x: parentWorldLoc.x, y: parentWorldLoc.y };
-           }
-        }
-      }
-      
-      return null;
-    };
-
+    const charStatus = deepGet(snapshot, 'activeChar.status') || {};
     const actualLocName = getActualCurrentLoc();
-    const resolvedCoord = findCoordRecursive(actualLocName);
-    if (resolvedCoord) return resolvedCoord;
 
-    // 如果彻底找不到任何节点关联的坐标，才回退到当前视角的焦点
-    const focus = snapshot.currentFocusCoord;
-    if (focus && Number.isFinite(focus.x) && Number.isFinite(focus.y)) return { x: focus.x, y: focus.y };
+    // 1. 如果你在大地图野外，优先采用身上的绝对坐标作为唯一真理（防止在野外地图消失）
+    if (mapState.currentMapId === 'map_douluo_world') {
+       if (Number.isFinite(charStatus.current_x) && charStatus.current_x >= 0 && 
+           Number.isFinite(charStatus.current_y) && charStatus.current_y >= 0) {
+           return { x: charStatus.current_x, y: charStatus.current_y };
+       }
+    }
+
+    // 2. 降维解析绝对路径 (如："斗罗大陆-东海城-东海学院-外院")
+    const pathSegments = actualLocName.split('-').filter(Boolean);
+    // 如果路径极短且没坐标，说明是未知的系统级节点
+    if (!pathSegments.length) return null;
+
+    // 从最小的地点（数组最后一位）开始往上冒泡找坐标
+    for (let i = pathSegments.length - 1; i >= 0; i--) {
+       const targetName = pathSegments[i];
+       // 先尝试在当前正在渲染的同层节点(可见列表)里找
+       if (Array.isArray(snapshot.items)) {
+         const found = snapshot.items.find(item => item.name === targetName || item.name.includes(targetName));
+         if (found && Number.isFinite(found.x) && Number.isFinite(found.y)) return { x: found.x, y: found.y };
+       }
+       
+       // 如果没画出来，直接去全量静态底层字典里查老底
+       const staticLocs = deepGet(sd, 'world.locations', {});
+       for (const locKey in staticLocs) {
+          const locData = staticLocs[locKey];
+          if (!locData) continue;
+          if (locKey === targetName || locData.name === targetName) {
+             if (Number.isFinite(locData.x) && Number.isFinite(locData.y)) return { x: locData.x, y: locData.y };
+          }
+          if (locData.children) {
+             for (const childKey in locData.children) {
+                const child = locData.children[childKey];
+                if (childKey === targetName || (child && child.name === targetName)) {
+                   if (Number.isFinite(child.x) && Number.isFinite(child.y)) return { x: child.x, y: child.y };
+                }
+             }
+          }
+       }
+       
+       // 最后如果是在动态地点字典里
+       const dynLoc = deepGet(sd, `world.dynamic_locations.${targetName}`);
+       if (dynLoc && Number.isFinite(dynLoc.x) && Number.isFinite(dynLoc.y) && dynLoc.x >= 0 && dynLoc.y >= 0) {
+          return { x: dynLoc.x, y: dynLoc.y };
+       }
+    }
+
     return null;
   }
 
@@ -4354,13 +4366,7 @@
   function getCurrentCoord() {
     const actualCoord = getActualCurrentCoord();
     if (actualCoord) return { x: actualCoord.x, y: actualCoord.y };
-    if (!hasActivePreview()) {
-      if (mapState.currentFreePoint) return { x: mapState.currentFreePoint.x, y: mapState.currentFreePoint.y };
-      if (mapState.currentNode) return getMapNodeCoord(mapState.currentNode);
-    }
-    if (mapState.currentFreePoint) return { x: mapState.currentFreePoint.x, y: mapState.currentFreePoint.y };
-    if (mapState.currentNode) return getMapNodeCoord(mapState.currentNode);
-    return getDefaultMapCoordCenter();
+    return null; // 绝不再回退到 0,0 或者强制取焦点坐标
   }
 
   function getSelectedCoord() {
@@ -6863,11 +6869,9 @@
         ? toText(panelItem.type, '节点')
         : ((panelTerrainInfo && Array.isArray(panelTerrainInfo.terrainTypes) && panelTerrainInfo.terrainTypes.some(type => /海/.test(toText(type, '')))) ? '海域坐标点' : '野外坐标点'))
       : focusTypeDisplay;
-    const currentSummaryBase = currentName;
-    const currentSummaryCoord = currentCoord;
-    const currentSummaryText = /\d+\s*,\s*\d+/.test(currentSummaryBase)
-      ? currentSummaryBase
-      : `${currentSummaryBase} · ${roundCoord(currentSummaryCoord.x)},${roundCoord(currentSummaryCoord.y)}`;
+    const currentSummaryBase = getActualCurrentLoc();
+    // 取消在右侧面板的“当前位置”处硬拼坐标数字的逻辑
+    const currentSummaryText = currentSummaryBase;
     const panelActionText = hoverCoord
       ? (panelItem ? formatBehaviorLabels(panelItem.interactions, getNodeInteractionLabel) : '查看地形 / 点击后规划移动')
       : focusActionDisplay;
