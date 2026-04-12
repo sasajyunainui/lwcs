@@ -6293,22 +6293,23 @@
     const availableMethods = getAvailableTravelMethods(distance, mapState.currentMapId, snapshot, travelContext);
     const actualMethod = availableMethods.includes(method) ? method : availableMethods[0];
     const costs = calculateTravelCost(actualMethod, distance, snapshot);
+    // 原著比例尺纠正 (1 Tick = 10分钟)：东海到天海(178px)大巴4h=24ticks；明斗到明都(1100px)飞行2h=12ticks
     let coefficient = {
-      '步行': 1,
-      '校园短驳车': 0.4,
-      '魂导汽车': 0.5,
-      '魂导列车': 0.2,
-      '远洋巨轮': 0.8,
-      '斗铠飞行': 0.05,
-      '机甲飞行': 0.05,
-      '肉身飞行': 0.05,
-      '空间传送(极限斗罗)': 0.01
+      '步行': 1.5,             // 跨城约两天(44小时)
+      '校园短驳车': 0.25,      
+      '魂导汽车': 0.135,       // 原著4小时
+      '魂导列车': 0.06,        // 极速列车，跨城一个多小时
+      '远洋巨轮': 0.25,        // 跨海数天
+      '斗铠飞行': 0.03,        // 比肉身稍快
+      '机甲飞行': 0.034,       
+      '肉身飞行': 0.034,       // 原著：明斗山脉(1420,649)到明都(1103,496)距离约352px，2小时(12 ticks)
+      '空间传送(极限斗罗)': 0.005 // 瞬息即至(半小时内)
     }[actualMethod] ?? 1;
     if (travelContext && travelContext.routeProfile && travelContext.routeProfile.requiresSea && actualMethod === '远洋巨轮') {
       const totalCells = Math.max(1, travelContext.routeProfile.landCells + travelContext.routeProfile.waterCells);
       const landRatio = travelContext.routeProfile.landCells / totalCells;
       const waterRatio = travelContext.routeProfile.waterCells / totalCells;
-      coefficient = (landRatio * 0.5) + (waterRatio * 0.8);
+      coefficient = (landRatio * 0.135) + (waterRatio * 0.25);
     }
     const ticks = Math.max(1, Math.floor(distance * coefficient));
     const coordText = formatMapImageCoord(end, '');
