@@ -3720,9 +3720,14 @@
   function getRawLocationNodeByName(nodeName, locations = null) {
     const key = toText(nodeName, '');
     const rootLocations = locations && typeof locations === 'object'
-      ? locations
-      : (deepGet((mapState.baseSnapshot && mapState.baseSnapshot.sd) || (mapState.snapshot && mapState.snapshot.sd) || {}, 'world.locations', {}) || {});
-    if (!key || !rootLocations || typeof rootLocations !== 'object') return null;
+      ? { custom: locations }
+      : {
+          locs: deepGet((mapState.baseSnapshot && mapState.baseSnapshot.sd) || (mapState.snapshot && mapState.snapshot.sd) || {}, 'world.locations', {}) || {},
+          wilds: deepGet((mapState.baseSnapshot && mapState.baseSnapshot.sd) || (mapState.snapshot && mapState.snapshot.sd) || {}, 'world.wild_zones', {}) || {},
+          realms: deepGet((mapState.baseSnapshot && mapState.baseSnapshot.sd) || (mapState.snapshot && mapState.snapshot.sd) || {}, 'world.secret_realms', {}) || {},
+          dungeons: deepGet((mapState.baseSnapshot && mapState.baseSnapshot.sd) || (mapState.snapshot && mapState.snapshot.sd) || {}, 'world.dungeons', {}) || {}
+        };
+    
     const visit = currentLocations => {
       if (!currentLocations || typeof currentLocations !== 'object') return null;
       for (const [rawName, rawNode] of Object.entries(currentLocations)) {
@@ -3735,7 +3740,14 @@
       }
       return null;
     };
-    return visit(rootLocations);
+    
+    for (const [category, dict] of Object.entries(rootLocations)) {
+      if (dict && typeof dict === 'object') {
+        const result = visit(dict);
+        if (result) return result;
+      }
+    }
+    return null;
   }
 
   function buildPreviewPayloadFromRawLocation(nodeName, rawLocation, container = mapState.snapshot, parentMapId = '') {
@@ -3840,14 +3852,21 @@
   function canEnterPreviewNode(nodeName = mapState.selectedNode, snapshot = mapState.snapshot) {
     // 前端自给自足判定法：能从大树里挖出包裹，或者身上有 dynamic 子节点，就能进！
     if (getNestedPreviewChildMap(snapshot, nodeName)) return true;
-    const actualLoc = getActualCurrentLoc();
-    const dynLoc = deepGet(snapshot.sd, `world.dynamic_locations.${actualLoc}`);
-    if (dynLoc && dynLoc['归属父节点'] === nodeName) {
-       return true;
+    // 如果是大树里没有的静态节点，检查它是不是某个 dynamic 节点的父节点（即它下面有动态子节点）
+    // 或者它本身就是一个可以往下钻的节点。
+    // 移除对 actualLoc 的依赖，只要节点存在下级就可以预览！
+    if (snapshot && snapshot.sd && snapshot.sd.world && snapshot.sd.world.dynamic_locations) {
+      const dyns = snapshot.sd.world.dynamic_locations;
+      for (const key in dyns) {
+        if (dyns[key] && dyns[key]['归属父节点'] === nodeName) {
+          return true;
+        }
+      }
     }
-    if (actualLoc.includes(nodeName)) {
-       return true;
-    }
+    // 检查 mapState.itemMap 中这个节点是否被显式标记为 canEnter (比如从 buildRuntimeMapItems 继承来的属性)
+    const item = mapState.itemMap ? mapState.itemMap.get(nodeName) : null;
+    if (item && item.canEnter) return true;
+
     return false;
   }
 
@@ -7381,6 +7400,8 @@
     scheduleHoverSync(null);
   }
 
+  let _globalLastClickNodeName = null;
+  let _globalLastClickTime = 0;
   function handleNodeLayerClick(event) {
     const node = event.target.closest('.map-node[data-node]');
     if (!node) return;
@@ -7389,6 +7410,19 @@
     if (!hasPendingTravelRequestForTarget()) mapState.pendingTravelRequest = null;
     mapState.selectedNode = nextNode;
     mapState.travelMethodOverride = null;
+
+    // 全局防抖的手工双击逻辑：解决 DOM 重绘吃掉原生 dblclick 的问题！
+    const now = Date.now();
+    if (_globalLastClickNodeName === nextNode && now - _globalLastClickTime < 350) {
+      const canPreviewEnter = canEnterPreviewNode(nextNode, mapState.snapshot);
+      if (canPreviewEnter) {
+        if (enterPreviewMode(nextNode)) syncInteractiveMapUI({ center: true });
+        _globalLastClickTime = 0;
+        return;
+      }
+    }
+    _globalLastClickNodeName = nextNode;
+    _globalLastClickTime = now;
 
     syncInteractiveMapUI({ center: false });
   }
