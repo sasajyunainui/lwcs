@@ -3436,7 +3436,7 @@
               <div class="ring-hover-skill" style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05); margin-top:8px; padding:8px; border-radius:8px;">
                 <b style="color:var(--gold);font-size:11px;display:block;margin-bottom:6px;">${skill.name}</b>
                 <div class="ring-hover-meta" style="margin-top:0;">
-                  <div class="ring-hover-meta-row"><em>主定位 / 状态</em><strong>${skill.mainRole || '无'} / ${skill.status || '已觉醒'}</strong></div>
+                  <div class="ring-hover-meta-row"><em>主定位</em><strong>${skill.mainRole || '无'}</strong></div>
                   <div class="ring-hover-meta-row"><em>作用对象</em><strong>${skill.target || '--'}</strong></div>
                 </div>
                 <div class="ring-hover-meta-row" style="font-size:9px;color:#85afb8;margin-bottom:6px;line-height:1.3;"><em>消耗</em><br/><strong>${skill.cost || '无消耗'}</strong></div>
@@ -4295,7 +4295,7 @@
         <div class="ring-hover-skill">
           <b>${skill.name}</b>
           <div class="ring-hover-meta">
-            <div class="ring-hover-meta-row"><em>主定位 / 状态</em><strong>${skill.mainRole || '无'} / ${skill.status || '已觉醒'}</strong></div>
+            <div class="ring-hover-meta-row"><em>主定位</em><strong>${skill.mainRole || '无'}</strong></div>
             <div class="ring-hover-meta-row"><em>作用对象</em><strong>${skill.target || '--'}</strong></div>
           </div>
           <div class="ring-hover-meta-row" style="font-size:9px;color:#85afb8;margin-bottom:6px;line-height:1.3;"><em>消耗</em><br/><strong>${skill.cost || '无消耗'}</strong></div>
