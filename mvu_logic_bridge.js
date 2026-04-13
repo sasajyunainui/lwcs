@@ -558,10 +558,10 @@
       const armorName = toText(armor.name || armor['名称'], '当前斗铠');
       const mechName = toText(mech.name || mech['名称'] || mech.type || mech['型号'], '当前机甲');
       const actionMap = {
-        equip_mech: { title: '装备机甲', playerInput: `我要在【${currentLoc}】装备机甲【${mechName}】。`, note: `请按 MVU 装备规则将 char.equip.mech.equip_status 处理为“已装备”。若当前斗铠已装备且机甲不是红级，请同步处理斗铠卸下并清空对应 stats_bonus。` },
-        unequip_mech: { title: '卸下机甲', playerInput: `我要在【${currentLoc}】解除机甲【${mechName}】的装载。`, note: `请将 char.equip.mech.equip_status 处理为“未装备”，并将 mech.stats_bonus 清零。` },
+        equip_mech: { title: '装备机甲', playerInput: `我要在【${currentLoc}】装备机甲【${mechName}】。`, note: `请按 MVU 装备规则将 char.equip.mech.equip_status 处理为“已装备”。若当前斗铠已装备且机甲不是红级，请同步处理斗铠卸下并清空对应 _stats_bonus。` },
+        unequip_mech: { title: '卸下机甲', playerInput: `我要在【${currentLoc}】解除机甲【${mechName}】的装载。`, note: `请将 char.equip.mech.equip_status 处理为“未装备”，并将 mech._stats_bonus 清零。` },
         equip_armor: { title: '穿戴斗铠', playerInput: `我要在【${currentLoc}】穿戴斗铠【${armorName}】。`, note: `请按 MVU 装备规则尝试将 char.equip.armor.equip_status 处理为“已装备”。需要校验斗铠等级门槛（1字50级/2字70级/3字80级/4字90级）；若不满足则保持未装备并写入装备反噬。若当前已装备非红级机甲，斗铠不能保持已装备。` },
-        unequip_armor: { title: '卸下斗铠', playerInput: `我要在【${currentLoc}】解除斗铠【${armorName}】的装备状态。`, note: `请将 char.equip.armor.equip_status 处理为“未装备”，并将 armor.stats_bonus 清零。` }
+        unequip_armor: { title: '卸下斗铠', playerInput: `我要在【${currentLoc}】解除斗铠【${armorName}】的装备状态。`, note: `请将 char.equip.armor.equip_status 处理为“未装备”，并将 armor._stats_bonus 清零。` }
       };
       const actionMeta = actionMap[actionType];
       if (!actionMeta) return null;
@@ -1855,7 +1855,7 @@
         push(`升灵台：${toText(ascension.ticket_type)}`);
       }
 
-      const combatSummary = deepGet(sd, 'world.combat.summary', {});
+      const combatSummary = deepGet(sd, 'world.combat._summary', deepGet(sd, 'world.combat.summary', {}));
       const combatAction = deepGet(combatSummary, 'player_action', {});
       if (combatAction && toText(combatAction.action_type, '无') !== '无') {
         const elementCount = toNumber(combatAction.element_count, 1);
@@ -1945,8 +1945,8 @@
       const relations = safeEntries(deepGet(activeChar, 'social.relations', {})).sort((a, b) => toNumber(deepGet(b[1], '好感度', 0), 0) - toNumber(deepGet(a[1], '好感度', 0), 0));
       const unlockedKnowledges = Array.isArray(activeChar && activeChar.unlocked_knowledges) ? activeChar.unlocked_knowledges : [];
       const inventoryEntries = safeEntries(activeChar && activeChar.inventory);
-      const youthRankingEntries = safeEntries(deepGet(sd, 'world.rankings.youth_talent.top30', {})).sort((a, b) => toNumber(a[0], 0) - toNumber(b[0], 0));
-      const continentRankingEntries = safeEntries(deepGet(sd, 'world.rankings.continent_wind.top100', {})).sort((a, b) => toNumber(a[0], 0) - toNumber(b[0], 0));
+      const youthRankingEntries = safeEntries(deepGet(sd, 'world.rankings.youth_talent._top30', deepGet(sd, 'world.rankings.youth_talent.top30', {}))).sort((a, b) => toNumber(a[0], 0) - toNumber(b[0], 0));
+      const continentRankingEntries = safeEntries(deepGet(sd, 'world.rankings.continent_wind._top100', deepGet(sd, 'world.rankings.continent_wind.top100', {}))).sort((a, b) => toNumber(a[0], 0) - toNumber(b[0], 0));
       const flagEntries = safeEntries(deepGet(sd, 'world.flags', {})).filter(([, value]) => !!value);
       const orgEntries = safeEntries(sd && sd.org).sort((a, b) => {
         const aFav = factions.some(([name]) => name === a[0]) ? 1 : 0;
@@ -2089,7 +2089,7 @@
         pendingIntelImpact,
         primaryFaction,
         topRelation,
-        relationAnalysis: deepGet(activeChar, 'social.relation_analysis', {}),
+        relationAnalysis: deepGet(activeChar, 'social._relation_analysis', deepGet(activeChar, 'social.relation_analysis', {})),
 
         questRecordCount,
         recentTitles,
@@ -2107,7 +2107,7 @@
         mapActivePatchEntries,
         mapAvailableChildMaps,
         mapTravelCandidates,
-        publicIntel: !!deepGet(activeChar, 'social.public_intel', false),
+        publicIntel: !!deepGet(activeChar, 'social._public_intel', deepGet(activeChar, 'social.public_intel', false)),
         extraSkills
       };
     }
@@ -2139,7 +2139,7 @@
     function renderHeader(snapshot) {
       const stat = deepGet(snapshot, 'activeChar.stat', {});
       const social = deepGet(snapshot, 'activeChar.social', {});
-      const worldTimeText = toText(deepGet(snapshot, 'sd.world.time.calendar', '斗罗历未同步'), '斗罗历未同步');
+      const worldTimeText = toText(deepGet(snapshot, 'sd.world.time._calendar', deepGet(snapshot, 'sd.world.time.calendar', '斗罗历未同步')), '斗罗历未同步');
       const headerComboHtml = `<span style="opacity:1;font-size:12px;color:#fff;">${worldTimeText}</span><span style="opacity:0.65;font-size:11px;">${snapshot.currentLoc}</span>`;
       document.querySelectorAll('.header-loc span').forEach(el => { el.innerHTML = headerComboHtml; });
       document.querySelectorAll('.char-name').forEach(el => { el.textContent = snapshot.activeName; });
@@ -2199,7 +2199,7 @@
             <div class="line"><div class="fill" style="color: var(--red); width: ${ratioPercent(stat.vit, stat.vit_max)}%;"></div></div>
           </div>
           <div class="stat-item">
-            <div class="stat-label">精神力 (MEN) · ${htmlEscape(toText(stat.men_realm, '灵元境'))}</div>
+            <div class="stat-label">精神力 (MEN) · ${htmlEscape(toText(stat._men_realm, toText(stat.men_realm, '灵元境')))}</div>
             <div class="stat-value">${htmlEscape(`${formatNumber(stat.men)} / ${formatNumber(stat.men_max)}`)}</div>
             <div class="line"><div class="fill" style="color: var(--white); width: ${ratioPercent(stat.men, stat.men_max)}%;"></div></div>
           </div>
@@ -2425,7 +2425,7 @@
     }
 
     function buildWorldHeroCard(snapshot) {
-      const worldTime = toText(deepGet(snapshot, 'sd.world.time.calendar', '斗罗历未同步'), '斗罗历未同步');
+      const worldTime = toText(deepGet(snapshot, 'sd.world.time._calendar', deepGet(snapshot, 'sd.world.time.calendar', '斗罗历未同步')), '斗罗历未同步');
       const deviation = toNumber(deepGet(snapshot, 'sd.world.deviation', 0), 0);
       const forestRatio = Math.max(0, Math.min(100, Number(((toNumber(snapshot.forestKilledAge, 0) / 1000000) * 100).toFixed(1))));
       const forestStage = forestRatio >= 100 ? '兽潮临界' : (forestRatio >= 70 ? '高度紧张' : (forestRatio >= 30 ? '持续升温' : '相对安全'));
@@ -2583,7 +2583,7 @@
         `; });
       }
 
-      document.querySelectorAll('.archive-social-card .social-chip[data-preview="社会档案详细页"] span').forEach(el => { el.textContent = `${toText(social.fame_level, '籍籍无名')} / ${formatNumber(social.reputation)}`; });
+      document.querySelectorAll('.archive-social-card .social-chip[data-preview="社会档案详细页"] span').forEach(el => { el.textContent = `${toText(social._fame_level, toText(social.fame_level, '籍籍无名'))} / ${formatNumber(social.reputation)}`; });
       document.querySelectorAll('.archive-social-card .social-chip[data-preview="所属势力详细页"] span').forEach(el => { el.textContent = `${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}`; });
       document.querySelectorAll('.archive-social-card .social-chip[data-preview="人物关系详细页"] span').forEach(el => { el.textContent = topRelationText; });
       document.querySelectorAll('.archive-social-card .social-chip[data-preview="情报库详细页"] span').forEach(el => { el.textContent = `${snapshot.unlockedKnowledges.length} / ${latestIntelText}`; });
@@ -2866,8 +2866,8 @@
                       <div class="meta-item"><b>性格</b><span>${htmlEscape(snapshot.personalityText)}</span></div>
                       <div class="meta-item"><b>系别</b><span>${htmlEscape(toText(stat.type, '未知'))}</span></div>
                       <div class="meta-item"><b>天赋梯队</b><span>${htmlEscape(toText(stat.talent_tier, '未定'))}</span></div>
-                      <div class="meta-item"><b>精神境界</b><span>${htmlEscape(toText(stat.men_realm, '灵元境'))}</span></div>
-                      <div class="meta-item"><b>名望</b><span>${htmlEscape(`${toText(social.fame_level, '籍籍无名')} / ${formatNumber(social.reputation)}`)}</span></div>
+                      <div class="meta-item"><b>精神境界</b><span>${htmlEscape(toText(stat._men_realm, toText(stat.men_realm, '灵元境')))}</span></div>
+                      <div class="meta-item"><b>名望</b><span>${htmlEscape(`${toText(social._fame_level, toText(social.fame_level, '籍籍无名'))} / ${formatNumber(social.reputation)}`)}</span></div>
                     </div>
                   </div>
                   <div class="status-card">
@@ -2908,7 +2908,7 @@
                     <h3>${htmlEscape(snapshot.activeName)}</h3>
                     <div class="identity-meta-grid">
                       <div class="meta-item"><b>当前身份</b><span>${htmlEscape(toText(social.main_identity, '无'))}</span></div>
-                      <div class="meta-item"><b>名望层级</b><span>${htmlEscape(toText(social.fame_level, '籍籍无名'))}</span></div>
+                      <div class="meta-item"><b>名望层级</b><span>${htmlEscape(toText(social._fame_level, toText(social.fame_level, '籍籍无名')))}</span></div>
                       <div class="meta-item"><b>公开情报</b><span>${htmlEscape(snapshot.publicIntel ? '已公开' : '未公开')}</span></div>
                       <div class="meta-item"><b>主要圈层</b><span>${htmlEscape(snapshot.factions.map(([name]) => name).join(' / ') || '暂无')}</span></div>
                     </div>
@@ -2919,9 +2919,9 @@
                 <div class="archive-card-head"><div class="archive-card-title">社会标签</div></div>
                 ${makeTagCloud([
                   { text: snapshot.activeName, className: 'live' },
-                  { text: toText(social.fame_level, '籍籍无名'), className: 'warn' },
+                  { text: toText(social._fame_level, toText(social.fame_level, '籍籍无名')), className: 'warn' },
                   { text: toText(social.main_identity, '无') },
-                  { text: social.public_intel ? '公开情报' : '私密档案' },
+                  { text: (social._public_intel ?? social.public_intel) ? '公开情报' : '私密档案' },
                   { text: `称号 ${snapshot.recentTitles.length}` }
                 ])}
               </div>
@@ -2929,7 +2929,7 @@
                 <div class="archive-card-head"><div class="archive-card-title">公开情报状态</div></div>
                 ${makeTileGrid([
                   { label: '当前公开度', value: snapshot.publicIntel ? '已公开' : '未公开' },
-                  { label: '公开判定', value: social.public_intel ? '达到公开阈值' : '仍属私密档案' },
+                  { label: '公开判定', value: (social._public_intel ?? social.public_intel) ? '达到公开阈值' : '仍属私密档案' },
                   { label: '声望阈值参考', value: '5000' },
                   { label: '当前声望', value: formatNumber(social.reputation) }
                 ], 'two')}
@@ -2938,7 +2938,7 @@
                 <div class="archive-card-head"><div class="archive-card-title">当前社会位置</div></div>
                 ${makeTileGrid([
                   { label: '主公开身份', value: toText(social.main_identity, '无') },
-                  { label: '名望等级', value: toText(social.fame_level, '籍籍无名') },
+                  { label: '名望等级', value: toText(social._fame_level, toText(social.fame_level, '籍籍无名')) },
                   { label: '当前声望', value: formatNumber(social.reputation) },
                   { label: '公开度', value: snapshot.publicIntel ? '公开' : '未公开' },
                   { label: '阵营关联', value: snapshot.factions.map(([name]) => name).join(' / ') || '无' },
@@ -3033,12 +3033,12 @@
                 </div>
                 <div class="relation-hover-skill">
                   <span>${htmlEscape(toText(rel && rel['favor_buff'], '暂无额外关系加成说明'))}</span>
-                  <span>${htmlEscape(toText(rel && rel['progress_note'], '暂无推进提示'))}</span>
-                  <span>${htmlEscape(`下一阶段：${toText(rel && rel['next_stage'], '无')} / ${toNumber(rel && rel['next_stage_threshold'], 0)}`)}</span>
+                  <span>${htmlEscape(toText(rel && rel['_progress_note'], toText(rel && rel['progress_note'], '暂无推进提示')))}</span>
+                  <span>${htmlEscape(`下一阶段：${toText(rel && rel['_next_stage'], toText(rel && rel['next_stage'], '无'))} / ${toNumber(rel && rel['_next_stage_threshold'], toNumber(rel && rel['next_stage_threshold'], 0))}`)}</span>
                   <span>${htmlEscape(`最近互动：${toText(rel && rel['last_interact_action'], '无')} / ${toNumber(rel && rel['recent_favor_delta'], 0)}`)}</span>
-                  <span>${htmlEscape(`当前加成：${toText(rel && rel['current_relation_bonus'], toText(rel && rel['favor_buff'], '无'))}`)}</span>
-                  <span>${htmlEscape(`下一解锁：${toText(rel && rel['next_unlock_bonus'], '无')}`)}</span>
-                  <span>${htmlEscape(`关系状态：${toText(rel && rel['availability'], '未知')} / ${toText(rel && rel['route_lock_reason'], '无')}`)}</span>
+                  <span>${htmlEscape(`当前加成：${toText(rel && rel['_current_relation_bonus'], toText(rel && rel['current_relation_bonus'], toText(rel && rel['favor_buff'], '无')) )}`)}</span>
+                  <span>${htmlEscape(`下一解锁：${toText(rel && rel['_next_unlock_bonus'], toText(rel && rel['next_unlock_bonus'], '无'))}`)}</span>
+                  <span>${htmlEscape(`关系状态：${toText(rel && rel['_availability'], toText(rel && rel['availability'], '未知'))} / ${toText(rel && rel['_route_lock_reason'], toText(rel && rel['route_lock_reason'], '无'))}`)}</span>
                 </div>
                 <div class="energy-stack">
                   <div class="energy-row-block">
@@ -3063,7 +3063,7 @@
                 <div class="intel-card">
                   <b>${htmlEscape(`${targetName} / ${toText(item && item.relation, '陌生')}`)}</b>
                   <span>${htmlEscape(`${toText(item && item.reason, '暂无推进建议')} ｜ 建议：${toText(item && item.recommended_action, '继续观察')}`)}</span>
-                  <span>${htmlEscape(`下一阶段：${toText(detail && detail['next_stage'], '无')} / ${toNumber(detail && detail['next_stage_threshold'], 0)}`)}</span>
+                  <span>${htmlEscape(`下一阶段：${toText(detail && detail['_next_stage'], toText(detail && detail['next_stage'], '无'))} / ${toNumber(detail && detail['_next_stage_threshold'], toNumber(detail && detail['next_stage_threshold'], 0))}`)}</span>
                   <span>${htmlEscape(`最近互动：${toText(detail && detail['last_interact_action'], '无')} / ${toNumber(detail && detail['recent_favor_delta'], 0)}`)}</span>
                 </div>
               `;
@@ -3072,7 +3072,7 @@
               <div class="intel-card">
                 <b>${htmlEscape(`${name} / ${toText(rel && rel['关系'], '陌生')}`)}</b>
                 <span>${htmlEscape(`路线：${toText(rel && rel['relation_route'], '朋友线')} / 好感：${toText(rel && rel['好感度'], 0)}`)}</span>
-                <span>${htmlEscape(`下一阶段：${toText(rel && rel['next_stage'], '无')} / ${toNumber(rel && rel['next_stage_threshold'], 0)}`)}</span>
+                <span>${htmlEscape(`下一阶段：${toText(rel && rel['_next_stage'], toText(rel && rel['next_stage'], '无'))} / ${toNumber(rel && rel['_next_stage_threshold'], toNumber(rel && rel['next_stage_threshold'], 0))}`)}</span>
                 <span>${htmlEscape(`最近互动：${toText(rel && rel['last_interact_action'], '无')} / ${toNumber(rel && rel['recent_favor_delta'], 0)}`)}</span>
               </div>
             `).join('')) || '<div class="intel-card"><b>暂无关系线</b><span>关系线索仍在铺陈。</span></div>';
@@ -3083,11 +3083,11 @@
         const relationDetailHtml = relationDetail
           ? [
               { title: '焦点对象', value: relationDetailName },
-              { title: '推进提示', value: toText(relationDetail && relationDetail['progress_note'], '暂无') },
-              { title: '下一阶段', value: `${toText(relationDetail && relationDetail['next_stage'], '无')} / ${toNumber(relationDetail && relationDetail['next_stage_threshold'], 0)}` },
+              { title: '推进提示', value: toText(relationDetail && relationDetail['_progress_note'], toText(relationDetail && relationDetail['progress_note'], '暂无')) },
+              { title: '下一阶段', value: `${toText(relationDetail && relationDetail['_next_stage'], toText(relationDetail && relationDetail['next_stage'], '无'))} / ${toNumber(relationDetail && relationDetail['_next_stage_threshold'], toNumber(relationDetail && relationDetail['next_stage_threshold'], 0))}` },
               { title: '最近互动', value: `${toText(relationDetail && relationDetail['last_interact_action'], '无')} / ${toNumber(relationDetail && relationDetail['recent_favor_delta'], 0)}` },
-              { title: '当前加成', value: toText(relationDetail && relationDetail['current_relation_bonus'], '无') },
-              { title: '下一解锁', value: toText(relationDetail && relationDetail['next_unlock_bonus'], '无') }
+              { title: '当前加成', value: toText(relationDetail && relationDetail['_current_relation_bonus'], toText(relationDetail && relationDetail['current_relation_bonus'], '无')) },
+              { title: '下一解锁', value: toText(relationDetail && relationDetail['_next_unlock_bonus'], toText(relationDetail && relationDetail['next_unlock_bonus'], '无')) }
             ].map(item => `<div class="intel-card"><b>${htmlEscape(item.title)}</b><span>${htmlEscape(item.value)}</span></div>`).join('')
           : '<div class="intel-card"><b>关系细节</b><span>当前暂无可展开的关系焦点。</span></div>';
 
@@ -3225,8 +3225,8 @@
         const mechExists = toText(mech.lv, '无') !== '无' || !!toText(mech.name || mech['名称'] || mech.type, '');
         const armorEquipped = toText(armor.equip_status, '未装备') === '已装备';
         const mechEquipped = toText(mech.equip_status, '未装备') === '已装备';
-        const armorBonusItems = buildStatsBonusItems(deepGet(armor, 'stats_bonus', {}), { includeLvEquiv: true });
-        const mechBonusItems = buildStatsBonusItems(deepGet(mech, 'stats_bonus', {}));
+        const armorBonusItems = buildStatsBonusItems(deepGet(armor, '_stats_bonus', deepGet(armor, 'stats_bonus', {})), { includeLvEquiv: true });
+        const mechBonusItems = buildStatsBonusItems(deepGet(mech, '_stats_bonus', deepGet(mech, 'stats_bonus', {})));
         const weaponBonusItems = buildStatsBonusItems(deepGet(weapon, 'stats_bonus', {}));
         const armorSlotDefs = [
           { x: 50, y: 12, label: '头盔', preview: '斗铠部件：头盔' },
@@ -3537,7 +3537,13 @@
                     `标签 ${(Array.isArray(item && item['标签']) ? item['标签'].slice(0, 3).join(' / ') : '无') || '无'}`,
                     `耐久 ${toText(deepGet(item, ['耐久', '当前'], 0), 0)}/${toText(deepGet(item, ['耐久', '上限'], 0), 0)}`,
                     `交易 ${deepGet(item, '可交易', true) ? '可交易' : '绑定'}`,
-                    `市价 ${formatNumber(deepGet(item, ['market_value', 'price'], 0))} ${toText(deepGet(item, ['market_value', 'currency'], 'fed_coin'), 'fed_coin')}`
+                    `市价 ${formatNumber(deepGet(item, ['market_value', 'price'], 0))} ${({
+                      fed_coin: '联邦币',
+                      star_coin: '星罗币',
+                      tang_pt: '唐门积分',
+                      shrek_pt: '学院积分',
+                      blood_pt: '血神功勋'
+                    }[toText(deepGet(item, ['market_value', 'currency'], 'fed_coin'), 'fed_coin')] || '联邦币')}`
                   ].join(' ｜ ')
                 })))}
               </div>
@@ -3731,7 +3737,7 @@
                   { label: '评分', value: rankingEntry ? toText(rankingEntry[1] && rankingEntry[1]['评分'], 0) : '未知' },
                   { label: '等级', value: targetChar ? `Lv.${toText(targetStat.lv, 0)}` : '未收录' },
                   { label: '系别', value: targetChar ? toText(targetStat.type, '未知') : '未收录' },
-                  { label: '名望', value: targetChar ? `${toText(targetSocial.fame_level, '籍籍无名')} / ${formatNumber(targetSocial.reputation)}` : '未收录' },
+                  { label: '名望', value: targetChar ? `${toText(targetSocial._fame_level, toText(targetSocial.fame_level, '籍籍无名'))} / ${formatNumber(targetSocial.reputation)}` : '未收录' },
                   { label: '魂力', value: targetChar ? `${formatNumber(targetStat.sp)} / ${formatNumber(targetStat.sp_max)}` : '未收录' },
                   { label: '气血', value: targetChar ? `${formatNumber(targetStat.vit)} / ${formatNumber(targetStat.vit_max)}` : '未收录' },
                   { label: '精神力', value: targetChar ? `${formatNumber(targetStat.men)} / ${formatNumber(targetStat.men_max)}` : '未收录' },
@@ -3753,7 +3759,7 @@
       }
 
       if (previewKey === '少年天才榜') {
-        const lastBoardEntries = safeEntries(deepGet(snapshot, 'sd.world.rankings.youth_talent.last榜单', {})).sort((a, b) => toNumber(b[1], 0) - toNumber(a[1], 0));
+        const lastBoardEntries = safeEntries(deepGet(snapshot, 'sd.world.rankings.youth_talent._last榜单', deepGet(snapshot, 'sd.world.rankings.youth_talent.last榜单', {}))).sort((a, b) => toNumber(b[1], 0) - toNumber(a[1], 0));
         return {
           title: '少年天才榜',
           summary: '收录大陆30岁以下天资卓越者的榜单（TOP 30）。',
@@ -4628,16 +4634,16 @@
         { op: 'replace', path: '/sd/world/combat/round', value: 1 },
         { op: 'replace', path: '/sd/world/combat/phase', value: '宣告阶段' },
         { op: 'replace', path: '/sd/world/combat/environment', value: `${arenaName} / 切磋` },
-        { op: 'replace', path: '/sd/world/combat/summary', value: {
+        { op: 'replace', path: '/sd/world/combat/_summary', value: {
           player_action: { action_type: '无', element_count: 1, is_charged: false },
           settle_result: { target_npc: targetName, result: '未决', is_killed: false },
           round_count: 0,
           mode: 'single_round',
-          generated_by: 'UI.html.map-action-dispatch'
+          _generated_by: 'UI.html.map-action-dispatch'
         } },
         { op: 'replace', path: '/sd/world/combat/participants', value: {
-          [activeKey]: { faction: '己方', status: deepGet(activeChar, 'status.alive', true) === false ? '重伤' : '存活', action_declared: '无', is_summon: false, current_cast_time: 0 },
-          [targetKey]: { faction: '敌对', status: deepGet(targetChar, 'status.alive', true) === false ? '重伤' : '存活', action_declared: '无', is_summon: false, current_cast_time: 0 }
+          [activeKey]: { faction: '己方', status: deepGet(activeChar, 'status.alive', true) === false ? '重伤' : '存活', action_declared: '无', is_summon: false, _current_cast_time: 0 },
+          [targetKey]: { faction: '敌对', status: deepGet(targetChar, 'status.alive', true) === false ? '重伤' : '存活', action_declared: '无', is_summon: false, _current_cast_time: 0 }
         } },
         { op: 'replace', path: `/sd/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: '战斗中' },
         { op: 'replace', path: `/sd/char/${escapeJsonPointerValue(targetKey)}/status/action`, value: '应战' },

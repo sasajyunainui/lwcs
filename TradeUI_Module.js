@@ -475,6 +475,16 @@ class TradeUIComponent {
     return `/sd/char/${this.escapeJsonPointer(this.activeName)}`;
   }
 
+  getCurrencyLabel(currency) {
+    return {
+      fed_coin: '联邦币',
+      star_coin: '星罗币',
+      tang_pt: '唐门积分',
+      shrek_pt: '学院积分',
+      blood_pt: '血神功勋'
+    }[currency] || '联邦币';
+  }
+
   syncData() {
     const loc = this.charData?.status?.loc || "未知区域";
     const fedCoin = this.charData?.wealth?.fed_coin || 0;
@@ -675,10 +685,10 @@ class TradeUIComponent {
     const userFame = this.charData?.social?.reputation || 0;
     const userCoin = this.charData?.wealth?.[item.currency] || 0;
 
-    this.$('#shop-price').textContent = `${item.price.toLocaleString()} ${item.currency}`;
+    this.$('#shop-price').textContent = `${item.price.toLocaleString()} ${this.getCurrencyLabel(item.currency)}`;
     
     const totalEl = this.$('#shop-total');
-    totalEl.textContent = `${total.toLocaleString()} ${item.currency}`;
+    totalEl.textContent = `${total.toLocaleString()} ${this.getCurrencyLabel(item.currency)}`;
     totalEl.className = (userCoin >= total) ? "val-highlight" : "val-warn";
 
     const fameEl = this.$('#shop-fame');
@@ -771,8 +781,8 @@ class TradeUIComponent {
       this.$('#sell-total').textContent = "无法交易";
       btn.disabled = true;
     } else {
-      this.$('#sell-base-price').textContent = `${sellPrice.toLocaleString()} fed_coin`;
-      this.$('#sell-total').textContent = `${total.toLocaleString()} fed_coin`;
+      this.$('#sell-base-price').textContent = `${sellPrice.toLocaleString()} ${this.getCurrencyLabel('fed_coin')}`;
+      this.$('#sell-total').textContent = `${total.toLocaleString()} ${this.getCurrencyLabel('fed_coin')}`;
       btn.disabled = (item.数量 < qty);
     }
   }
@@ -814,8 +824,8 @@ class TradeUIComponent {
     
     const ctx = this.getPrivateTradeContext(action, targetNpc, itemName, qty, price);
 
-    this.$('#priv-base-price').textContent = ctx.basePrice > 0 ? `${ctx.basePrice.toLocaleString()} fed_coin` : '未知/禁售';
-    this.$('#priv-total').textContent = `${total.toLocaleString()} fed_coin`;
+    this.$('#priv-base-price').textContent = ctx.basePrice > 0 ? `${ctx.basePrice.toLocaleString()} ${this.getCurrencyLabel('fed_coin')}` : '未知/禁售';
+    this.$('#priv-total').textContent = `${total.toLocaleString()} ${this.getCurrencyLabel('fed_coin')}`;
 
     btn.disabled = false;
     attEl.className = "";
@@ -913,7 +923,7 @@ class TradeUIComponent {
     }
 
     const item = this.currentAuction.items[itemName];
-    this.$('#auc-current-price').textContent = `${item.price.toLocaleString()} ${item.currency}`;
+    this.$('#auc-current-price').textContent = `${item.price.toLocaleString()} ${this.getCurrencyLabel(item.currency)}`;
     this.$('#auc-desc').textContent = `[${item.tier}] ${item.lore}`;
 
     const userCoin = this.charData?.wealth?.[item.currency] || 0;
@@ -936,7 +946,7 @@ class TradeUIComponent {
     }
     patchOps.push({ op: "remove", path: `/sd/world/auction/items/${this.escapeJsonPointer(itemName)}` });
 
-    const log = `[竞拍成功] ${this.activeName}豪掷 ${bid} ${item.currency} 拍下了极品【${itemName}】！`;
+    const log = `[竞拍成功] ${this.activeName}豪掷 ${bid} ${this.getCurrencyLabel(item.currency)} 拍下了极品【${itemName}】！`;
     patchOps.push(...this.buildTradeSystemPatches(log));
 
     let sysPrompt = `${HIDDEN_ARBITRATION_NARRATION_RULES}\n\n${log}\n\n[MVU变量更新数据]\n以下为本次交易结算的完整 MVU 更新，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。\n<UpdateVariable>\n<Analysis>Auction won.</Analysis>\n<JSONPatch>\n${JSON.stringify(patchOps, null, 2)}\n</JSONPatch>\n</UpdateVariable>`;

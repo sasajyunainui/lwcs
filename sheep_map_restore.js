@@ -3112,7 +3112,7 @@
       ? rawSd.map
       : ((rawSd.display_map && typeof rawSd.display_map === 'object' && Object.keys(rawSd.display_map).length)
         ? rawSd.display_map
-        : (deepGet(rawSd, 'display_all.map', {}) || {}));
+        : (deepGet(rawSd, '_display_all.map', deepGet(rawSd, 'display_all.map', {})) || {}));
     return {
       sd: {
         sys: rawSd.sys || {},
@@ -3711,6 +3711,8 @@
     const availableChildMaps = {};
     const previewChildMaps = {};
     const validCoords = [];
+    const dynamicSource = deepGet((mapState.baseSnapshot && mapState.baseSnapshot.sd) || (mapState.snapshot && mapState.snapshot.sd) || {}, 'world.dynamic_locations', {});
+    const dynamicEntries = Object.entries(dynamicSource).filter(([, dynData]) => dynData && dynData['归属父节点'] === nodeName);
     childEntries.forEach(([childName, childValue]) => {
       const child = childValue && typeof childValue === 'object' ? childValue : {};
       const hasChildren = !!(child.children && typeof child.children === 'object' && Object.keys(child.children).length);
@@ -3736,9 +3738,47 @@
       }]);
       if (hasChildren) {
         const nestedPayload = buildPreviewPayloadFromRawLocation(childName, child, container, currentMapId);
-        if (nestedPayload) previewChildMaps[childName] = nestedPayload;
+        if (nestedPayload) {
+          previewChildMaps[childName] = nestedPayload;
+          availableChildMaps[childName] = nestedPayload.current_map_id;
+        }
       }
     });
+    if (dynamicEntries.length) {
+      dynamicEntries.forEach(([dynName, dynData]) => {
+        const dynamicPreviewMapId = `dynamic_preview_${nodeName}_${dynName}`;
+        availableChildMaps[dynName] = dynamicPreviewMapId;
+        previewChildMaps[dynName] = {
+          current_map_id: dynamicPreviewMapId,
+          current_zoom_hint: 0,
+          current_focus: {
+            loc: dynName,
+            x: toNumber(dynData && dynData.x, NaN),
+            y: toNumber(dynData && dynData.y, NaN),
+            settlement_id: '无',
+            map_id: dynamicPreviewMapId
+          },
+          map_meta: {
+            name: `${dynName}预览`,
+            map_level: 'facility',
+            parent_map_id: currentMapId,
+            anchor_loc: dynName,
+            child_maps: {}
+          },
+          visible_nodes: {},
+          visible_dynamic_locations: { [dynName]: dynData },
+          active_patches: {},
+          travel_candidates: [dynName],
+          available_child_maps: {},
+          preview_meta: {
+            anchor_name: dynName,
+            parent_name: nodeName,
+            parent_map_id: currentMapId
+          },
+          preview_child_maps: {}
+        };
+      });
+    }
     let focusCoord = { x: NaN, y: NaN };
     if (validCoords.length > 0) {
       focusCoord.x = Number((validCoords.reduce((sum, coord) => sum + coord.x, 0) / validCoords.length).toFixed(2));
