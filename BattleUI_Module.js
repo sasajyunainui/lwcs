@@ -126,7 +126,7 @@ class BattleUIComponent {
 
         const names = new Set((Array.isArray(extraNames) ? extraNames : [extraNames]).filter(Boolean));
         if (participant.name) names.add(participant.name);
-        const basePaths = Array.from(names).map(name => `/sd/char/${escapeJsonPointerSegment(name)}`);
+        const basePaths = Array.from(names).map(name => `/char/${escapeJsonPointerSegment(name)}`);
         if (!basePaths.length) return;
 
         const addToTargets = (suffix, value) => {
@@ -159,7 +159,7 @@ class BattleUIComponent {
 
       function buildCombatJsonPatch(combatData) {
         const safeCombatData = deepClonePlain(combatData);
-        const ops = [{ op: 'replace', path: '/sd/world/combat', value: safeCombatData }];
+        const ops = [{ op: 'replace', path: '/world/combat', value: safeCombatData }];
 
         const participants = safeCombatData?.participants;
         if (!participants) return ops;
@@ -188,7 +188,7 @@ class BattleUIComponent {
           combatData: safeCombatData,
           patchOps,
           updateVariableText,
-          rootPath: '/sd/world/combat'
+          rootPath: '/world/combat'
         };
 
         root.__lastBattleMvuUpdateRequest = detail;
@@ -577,11 +577,11 @@ class BattleUIComponent {
           return false;
         },
         initCombatContext() {
-          console.warn('BattleUIBridge.initCombatContext 已停用：战斗上下文应由 MVU 系统维护在 stat_data.sd.* 下。');
-          return getMvuValue('sd.world.combat');
+          console.warn('BattleUIBridge.initCombatContext 已停用：战斗上下文应由 MVU 系统维护在 stat_data.* 下。');
+          return getMvuValue('world.combat');
         },
         getBattleContext() {
-          return getMvuValue('sd.world.combat');
+          return getMvuValue('world.combat');
         },
         subscribeMvuUpdates(handler) {
           return subscribeMvuUpdates(handler);
@@ -599,8 +599,8 @@ class BattleUIComponent {
           return root.__lastBattleMvuUpdateRequest || null;
         },
         setCombatContext() {
-          console.warn('BattleUIBridge.setCombatContext 已停用：请通过 MVU 系统更新 stat_data.sd.*。');
-          return getMvuValue('sd.world.combat');
+          console.warn('BattleUIBridge.setCombatContext 已停用：请通过 MVU 系统更新 stat_data.*。');
+          return getMvuValue('world.combat');
         },
         findChatInput() {
           return findChatInput();
@@ -664,13 +664,7 @@ class BattleUIComponent {
 const COMBAT_STAT_KEYS = ["age", "lv", "type", "talent_tier", "is_evil", "sp", "sp_max", "men", "men_max", "str", "def", "agi", "vit", "vit_max", "conditions"];
 const COMBAT_STATUS_KEYS = ["alive", "wound", "action", "active_domain", "loc", "current_x", "current_y"];
 
-function createEmptyCombatLogic() {
-  return {
-    瞬间交锋模块: { 基础威力倍率: 0, 伤害类型: "无", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
-    状态挂载模块: { 状态名称: "无", 持续回合: 0, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "无", 持续真伤dot: 0 },
-    召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
-  };
-}
+
 
 function createEmptySkillSemantics() {
   return {
@@ -688,6 +682,21 @@ function createEmptySkillSemantics() {
   };
 }
 
+function createEmptyBattleSummary() {
+  return {
+    目标规模: "单体",
+    生效方式: "直接",
+    爆发级别: "中",
+    持续性: "无",
+    风险等级: "中",
+    控制强度: "无",
+    回复性质: "无",
+    防御性质: "无",
+    协同性: "低",
+    保留倾向: 0
+  };
+}
+
 function mapSemanticTargetToCombatTarget(target) {
   const mapping = {
     "敌方单体": "敌方/单体",
@@ -698,6 +707,189 @@ function mapSemanticTargetToCombatTarget(target) {
     "全场": "全场"
   };
   return mapping[target] || target || "敌方/单体";
+}
+
+function applyEffectArrayEntryToNormalized(effect, normalized, clash, state, field) {
+  if (!effect || typeof effect !== "object") return;
+  const mechanism = effect.机制 || effect.名称 || effect.类型 || "";
+  const target = effect.目标 || "";
+
+  if (!normalized.对象 || normalized.对象 === "无") {
+    normalized.对象 = mapSemanticTargetToCombatTarget(target || normalized.战斗语义?.作用目标);
+  }
+
+  if (mechanism === "直接伤害" || mechanism === "多段伤害" || mechanism === "持续伤害" || mechanism === "延迟爆发") {
+    clash.基础威力倍率 = Number(effect.威力倍率 ?? effect.威力 ?? clash.基础威力倍率 ?? 0);
+    clash.伤害类型 = effect.伤害类型 || clash.伤害类型 || "无";
+    clash.穿透修饰 = Number(effect.穿透修饰 ?? effect.穿透 ?? clash.穿透修饰 ?? 0);
+    clash.瞬间恢复比例 = Number(effect.吸血比例 ?? clash.瞬间恢复比例 ?? 0);
+    normalized.cast_time = Number(effect.前摇 ?? normalized.cast_time ?? 0);
+    if (mechanism === "持续伤害") {
+      state.状态名称 = state.状态名称 === "无" ? mechanism : state.状态名称;
+      state.持续回合 = Number(effect.持续回合 ?? state.持续回合 ?? 0);
+      state.持续真伤dot = Number(effect.dot_damage ?? effect.dot倍率 ?? effect.dot ?? state.持续真伤dot ?? 0);
+    }
+    if (!normalized.技能类型 || normalized.技能类型 === "无") normalized.技能类型 = "输出";
+    return;
+  }
+
+  if (mechanism === "护盾") {
+    clash.护盾绝对值 = Number(effect.护盾值 ?? clash.护盾绝对值 ?? 0);
+    state.状态名称 = state.状态名称 === "无" ? "护盾" : state.状态名称;
+    state.持续回合 = Number(effect.持续回合 ?? state.持续回合 ?? 0);
+    if (!normalized.技能类型 || normalized.技能类型 === "无") normalized.技能类型 = "防御";
+    return;
+  }
+
+  if (mechanism === "回血") {
+    const healPct = effect.瞬间恢复比例 !== undefined ? Number(effect.瞬间恢复比例) : (effect.回复比例 !== undefined ? Number(effect.回复比例) * (Number(effect.回复比例) <= 1 ? 100 : 1) : Number(clash.瞬间恢复比例 ?? 0));
+    clash.瞬间恢复比例 = healPct;
+    if (!normalized.技能类型 || normalized.技能类型 === "无") normalized.技能类型 = "辅助";
+    return;
+  }
+
+  if (mechanism === "标记锁定") {
+    state.状态名称 = state.状态名称 === "无" ? "标记锁定" : state.状态名称;
+    state.持续回合 = Number(effect.持续回合 ?? state.持续回合 ?? 0);
+    state.特殊机制标识 = mergeSpecialFlags(state.特殊机制标识, ["锁定"]);
+    if (!normalized.技能类型 || normalized.技能类型 === "无") normalized.技能类型 = "控制";
+    return;
+  }
+
+  if (mechanism === "幻境" || mechanism === "催眠") {
+    state.状态名称 = state.状态名称 === "无" ? mechanism : state.状态名称;
+    state.持续回合 = Number(effect.持续回合 ?? state.持续回合 ?? 0);
+    state.特殊机制标识 = mergeSpecialFlags(state.特殊机制标识, mechanism === "催眠" ? ["硬控"] : ["幻境"]);
+    if (!normalized.技能类型 || normalized.技能类型 === "无") normalized.技能类型 = "控制";
+    return;
+  }
+
+  if (mechanism === "共享视野") {
+    state.状态名称 = state.状态名称 === "无" ? "共享视野" : state.状态名称;
+    state.持续回合 = Number(effect.持续回合 ?? state.持续回合 ?? 0);
+    state.计算层效果.reaction_bonus = Number(effect.reaction_bonus ?? state.计算层效果?.reaction_bonus ?? 0);
+    state.计算层效果.hit_bonus = Number(effect.hit_bonus ?? state.计算层效果?.hit_bonus ?? 0);
+    state.计算层效果.lock_level = Number(effect.lock_level ?? state.计算层效果?.lock_level ?? 0);
+    state.特殊机制标识 = mergeSpecialFlags(state.特殊机制标识, ["共享视野"]);
+    if (!normalized.技能类型 || normalized.技能类型 === "无") normalized.技能类型 = "辅助";
+    return;
+  }
+
+  if (mechanism === "禁疗") {
+    state.状态名称 = state.状态名称 === "无" ? "禁疗" : state.状态名称;
+    state.持续回合 = Number(effect.持续回合 ?? state.持续回合 ?? 0);
+    state.计算层效果.heal_block_ratio = Number(effect.heal_block_ratio ?? state.计算层效果?.heal_block_ratio ?? 0);
+    state.特殊机制标识 = mergeSpecialFlags(state.特殊机制标识, ["禁疗"]);
+    if (!normalized.技能类型 || normalized.技能类型 === "无") normalized.技能类型 = "控制";
+    return;
+  }
+
+  if (mechanism === "回魂力") {
+    state.计算层效果.sp_gain_ratio = Number(effect.sp_gain_ratio ?? state.计算层效果?.sp_gain_ratio ?? 0);
+    state.特殊机制标识 = mergeSpecialFlags(state.特殊机制标识, ["回魂力"]);
+    if (!normalized.技能类型 || normalized.技能类型 === "无") normalized.技能类型 = "辅助";
+    return;
+  }
+
+  if (mechanism === "回精神力") {
+    state.计算层效果.men_gain_ratio = Number(effect.men_gain_ratio ?? state.计算层效果?.men_gain_ratio ?? 0);
+    state.特殊机制标识 = mergeSpecialFlags(state.特殊机制标识, ["回精神力"]);
+    if (!normalized.技能类型 || normalized.技能类型 === "无") normalized.技能类型 = "辅助";
+    return;
+  }
+
+  if (mechanism === "斩杀补伤") {
+    state.特殊机制标识 = mergeSpecialFlags(state.特殊机制标识, ["斩杀补伤"]);
+    if (!normalized.技能类型 || normalized.技能类型 === "无") normalized.技能类型 = "输出";
+    return;
+  }
+}
+
+function getMechanismJudgeValue(entity, finalEntity, judgeKey) {
+  const stats = finalEntity || entity || {};
+  switch (judgeKey) {
+    case "men_max":
+    case "sp_max":
+    case "agi":
+    case "str":
+    case "def":
+    case "vit":
+      return Number(stats[judgeKey] || 0);
+    case "vit_ratio":
+    case "hp_ratio":
+      return Math.max(0, Number(entity?.vit || stats?.vit || 0)) / Math.max(1, Number(entity?.vit_max || stats?.vit_max || 1));
+    case "sp_ratio":
+      return Math.max(0, Number(entity?.sp || stats?.sp || 0)) / Math.max(1, Number(entity?.sp_max || stats?.sp_max || 1));
+    case "men_ratio":
+      return Math.max(0, Number(entity?.men || stats?.men || 0)) / Math.max(1, Number(entity?.men_max || stats?.men_max || 1));
+    default:
+      return 0;
+  }
+}
+
+function mergeRuntimePayloadToState(payload, pState) {
+  if (!payload || typeof payload !== "object") return;
+  const calc = pState.计算层效果 || (pState.计算层效果 = createEmptyCombatEffectMap());
+  const statMods = payload.stat_mods || payload.面板修改 || {};
+  ["str", "def", "agi", "men_max", "sp_max"].forEach(k => {
+    if (statMods[k] !== undefined) pState.面板修改比例[k] = statMods[k];
+  });
+  [
+    "skip_turn", "cannot_react", "dot_damage", "silence", "disarm", "blind", "counter_attack_ratio",
+    "damage_reduction", "block_count", "super_armor", "death_save_count", "armor_pen", "reaction_bonus",
+    "reaction_penalty", "attacker_speed_bonus", "cast_speed_bonus", "cast_speed_penalty", "hit_bonus",
+    "hit_penalty", "dodge_bonus", "dodge_penalty", "lock_level", "control_success_bonus", 
+    "control_success_penalty", "control_resist_mult", "control_resist_bonus", "interrupt_bonus", 
+    "final_damage_mult", "final_damage_bonus", "final_heal_mult", "final_heal_bonus", 
+    "shield_gain_mult", "shield_gain_bonus", "sp_gain_ratio", "men_gain_ratio", 
+    "heal_block_ratio", "resource_block_ratio", "min_hp_floor"
+  ].forEach(k => {
+    if (payload[k] !== undefined) calc[k] = payload[k];
+  });
+}
+
+function applyRuntimeMechanismEffects(skill, attacker, attackerFinalStat, defender, defenderFinalStat, pState) {
+  const effects = Array.isArray(skill?._效果数组) ? skill._效果数组 : [];
+  effects.forEach(effect => {
+    const mechanism = effect?.机制 || effect?.名称 || effect?.类型 || "";
+    if (["标记锁定", "幻境", "催眠", "斩杀补伤"].includes(mechanism)) {
+      const judgeKey = effect.判定属性;
+      const threshold = Number(effect.判定阈值 ?? 1.0);
+      let success = true;
+      if (judgeKey) {
+        const attackerValue = getMechanismJudgeValue(attacker, attackerFinalStat, judgeKey);
+        const defenderValue = getMechanismJudgeValue(defender, defenderFinalStat, judgeKey);
+        if (["vit_ratio", "hp_ratio", "sp_ratio", "men_ratio"].includes(judgeKey)) {
+          success = defenderValue <= threshold;
+        } else {
+          success = (attackerValue / Math.max(1, defenderValue)) >= threshold;
+        }
+      }
+      const payload = success ? (effect.成功参数 || {}) : (effect.失败参数 || {});
+      mergeRuntimePayloadToState(payload, pState);
+    } else {
+      let directPayload = {};
+      if (mechanism === "打断") directPayload.interrupt_bonus = effect.中断概率 || 1.0;
+      if (mechanism === "沉默") directPayload.silence = true;
+      if (mechanism === "减速") directPayload.stat_mods = { agi: effect.agi_ratio || 0.8 };
+      if (mechanism === "受击反击") directPayload.counter_attack_ratio = effect.反击倍率 || 0.5;
+      if (mechanism === "减伤") directPayload.damage_reduction = effect.减伤比例 || 0.15;
+      if (mechanism === "格挡") directPayload.block_count = effect.抵消次数 || 1;
+      if (mechanism === "霸体") directPayload.super_armor = true;
+      if (mechanism === "免死") {
+        directPayload.super_armor = true;
+        directPayload.min_hp_floor = 1;
+        directPayload.death_save_count = effect.触发次数 || 1;
+      }
+      if (mechanism === "硬控") {
+        directPayload.skip_turn = true;
+        directPayload.cannot_react = true;
+      }
+      if (Object.keys(directPayload).length > 0) {
+        mergeRuntimePayloadToState(directPayload, pState);
+      }
+    }
+  });
 }
 
 function mapPrimaryRoleToSkillType(role) {
@@ -729,6 +921,211 @@ function formatCostObjectToString(costObj) {
 
 function deepClone(data) {
   return data == null ? data : JSON.parse(JSON.stringify(data));
+}
+
+function getSpiritNameList(char) {
+  return Object.values(char?.spirit || {})
+    .map(sp => sp?.表象名称 || "")
+    .filter(Boolean);
+}
+
+function isSpecialSupportMartialSoul(char) {
+  return getSpiritNameList(char).some(name => /^[七九]/.test(String(name || "")));
+}
+
+function getSupportEffectScale(caster, target) {
+  if (isSpecialSupportMartialSoul(caster)) return 1;
+  const casterSp = Math.max(1, caster?.sp_max || 1);
+  const targetSp = Math.max(1, target?.sp_max || 1);
+  return Math.min(casterSp / targetSp, 2.0);
+}
+
+function getSupportCostScale(caster, target) {
+  if (!isSpecialSupportMartialSoul(caster)) return 1;
+  const casterSp = Math.max(1, caster?.sp_max || 1);
+  const targetSp = Math.max(1, target?.sp_max || 1);
+  return Math.min(targetSp / casterSp, 2.0);
+}
+
+function getSoulDriveScale(attacker, defender) {
+  return Math.max(1, attacker?.sp_max || 1) / Math.max(1, defender?.sp_max || 1);
+}
+
+function isSupportLikeSkill(skill) {
+  const mainType = inferMainTypeFromEffects(skill) || "";
+  const skillType = normalizeSkillTypeLabel(skill?.技能类型 || inferSkillTypeFromEffects(skill));
+  return ["增益类", "回复类", "防御类"].includes(mainType) || ["辅助", "防御"].includes(skillType);
+}
+
+function createEmptyCombatEffectMap() {
+  return {
+    skip_turn: false,
+    cannot_react: false,
+    dot_damage: 0,
+    armor_pen: 0,
+    reaction_bonus: 0,
+    reaction_penalty: 0,
+    attacker_speed_bonus: 0,
+    cast_speed_bonus: 0,
+    cast_speed_penalty: 0,
+    hit_bonus: 0,
+    hit_penalty: 0,
+    dodge_bonus: 0,
+    dodge_penalty: 0,
+    lock_level: 0,
+    control_success_bonus: 0,
+    control_success_penalty: 0,
+    control_resist_mult: 1.0,
+    control_resist_bonus: 0,
+    interrupt_bonus: 0,
+    final_damage_mult: 1.0,
+    final_damage_bonus: 0,
+    final_heal_mult: 1.0,
+    final_heal_bonus: 0,
+    shield_gain_mult: 1.0,
+    shield_gain_bonus: 0,
+    sp_gain_ratio: 0,
+    men_gain_ratio: 0,
+    heal_block_ratio: 0,
+    resource_block_ratio: 0,
+    min_hp_floor: 0,
+    death_save_count: 0,
+    silence: false,
+    disarm: false,
+    blind: false,
+    counter_attack_ratio: 0,
+    damage_reduction: 0,
+    block_count: 0,
+    super_armor: false
+  };
+}
+
+function getSkillEffects(skill) {
+  return Array.isArray(skill?._效果数组) ? skill._效果数组 : [];
+}
+
+function getSystemBaseEffect(skill) {
+  return getSkillEffects(skill).find(effect => effect?.机制 === "系统基础") || {};
+}
+
+function getSkillType(skill) {
+  return normalizeSkillTypeLabel(skill?.技能类型 || inferSkillTypeFromEffects(skill));
+}
+
+function getSkillCastTime(skill) {
+  return Number(skill?.cast_time || getSystemBaseEffect(skill).cast_time || 0);
+}
+
+function getSkillCostText(skill) {
+  return skill?.消耗 || getSystemBaseEffect(skill).消耗 || "无";
+}
+
+function getSkillTarget(skill) {
+  return skill?.对象 || getSystemBaseEffect(skill).对象 || "敌方/单体";
+}
+
+function getPrimaryDamageEffect(skill) {
+  return getSkillEffects(skill).find(effect => ["直接伤害", "多段伤害", "持续伤害", "延迟爆发"].includes(effect?.机制)) || {};
+}
+
+function getPrimaryStateEffect(skill) {
+  return getSkillEffects(skill).find(effect => effect?.机制 === "状态挂载") || {};
+}
+
+function getPrimaryStateCalc(skill) {
+  return getPrimaryStateEffect(skill)?.计算层效果 || createEmptyCombatEffectMap();
+}
+
+function getPrimaryStateName(skill) {
+  const state = getPrimaryStateEffect(skill);
+  if (state?.状态名称 && state.状态名称 !== "无") return state.状态名称;
+  const fallback = getSkillEffects(skill).find(effect => ["标记锁定", "幻境", "催眠", "禁疗", "减速", "硬控", "霸体", "护盾"].includes(effect?.机制));
+  return fallback?.机制 || "";
+}
+
+function getPrimaryStateFlags(skill) {
+  return String(getPrimaryStateEffect(skill)?.特殊机制标识 || "无");
+}
+
+function hasSkillMechanism(skill, mechanismList = []) {
+  return getSkillEffects(skill).some(effect => mechanismList.includes(effect?.机制));
+}
+
+function normalizeSkillTypeLabel(raw) {
+  const text = String(raw || "无");
+  if (!text || text === "无") return "无";
+  if (/输出|伤害|爆发|破甲|斩杀/.test(text)) return "输出";
+  if (/控制|削弱|打断|沉默|禁疗|减速/.test(text)) return "控制";
+  if (/防御|护盾|格挡|霸体|免死/.test(text)) return "防御";
+  if (/辅助|增益|回复|治疗/.test(text)) return "辅助";
+  return text.split(/[\/|｜]/)[0] || text;
+}
+
+function inferSkillTypeFromEffects(skill) {
+  const systemBase = getSystemBaseEffect(skill);
+  const fromSystem = normalizeSkillTypeLabel(systemBase?.技能类型);
+  if (fromSystem !== "无") return fromSystem;
+  if (hasSkillMechanism(skill, ["硬控", "催眠", "幻境", "标记锁定", "禁疗", "打断", "沉默", "减速"])) return "控制";
+  if (hasSkillMechanism(skill, ["护盾", "减伤", "格挡", "霸体", "免死"])) return "防御";
+  if (hasSkillMechanism(skill, ["回血", "回魂力", "回精神力", "共享视野"])) return "辅助";
+  if (hasSkillMechanism(skill, ["直接伤害", "多段伤害", "持续伤害", "延迟爆发", "斩杀补伤"])) return "输出";
+  return "无";
+}
+
+function inferMainTypeFromEffects(skill) {
+  if (hasSkillMechanism(skill, ["硬控", "催眠", "幻境", "标记锁定", "禁疗", "打断", "沉默", "减速"])) return "控制类";
+  if (hasSkillMechanism(skill, ["护盾", "减伤", "格挡", "霸体", "免死"])) return "防御类";
+  if (hasSkillMechanism(skill, ["回血", "回魂力", "回精神力"])) return "回复类";
+  if (hasSkillMechanism(skill, ["共享视野"])) return "增益类";
+  if (hasSkillMechanism(skill, ["直接伤害", "多段伤害", "持续伤害", "延迟爆发", "斩杀补伤"])) return "伤害类";
+  return "无";
+}
+
+function deriveBattleSummaryFromEffects(skill, baseSummary = {}) {
+  const summary = { ...createEmptyBattleSummary(), ...(baseSummary || {}) };
+  const systemBase = getSystemBaseEffect(skill);
+  const damage = getPrimaryDamageEffect(skill);
+  const state = getPrimaryStateEffect(skill);
+  const stateCalc = state?.计算层效果 || {};
+  const targetText = String(systemBase?.对象 || "");
+  const power = Number(damage?.威力倍率 || 0);
+  const duration = Number(state?.持续回合 || 0);
+
+  if (!summary.防御性质 || summary.防御性质 === "无") {
+    if (hasSkillMechanism(skill, ["免死"])) summary.防御性质 = "免死";
+    else if (hasSkillMechanism(skill, ["霸体"])) summary.防御性质 = "霸体";
+    else if (hasSkillMechanism(skill, ["格挡"])) summary.防御性质 = "格挡";
+    else if (hasSkillMechanism(skill, ["减伤"])) summary.防御性质 = "减伤";
+    else if (hasSkillMechanism(skill, ["护盾"])) summary.防御性质 = "护盾";
+  }
+  if (!summary.回复性质 || summary.回复性质 === "无") {
+    if (hasSkillMechanism(skill, ["回血"])) summary.回复性质 = "回血";
+    else if (hasSkillMechanism(skill, ["回魂力", "回精神力"])) summary.回复性质 = "资源回复";
+  }
+  if (!summary.控制强度 || summary.控制强度 === "无") {
+    if (hasSkillMechanism(skill, ["硬控", "催眠"]) || stateCalc.skip_turn === true) summary.控制强度 = "硬控";
+    else if (hasSkillMechanism(skill, ["幻境", "标记锁定", "沉默", "禁疗", "减速", "打断"]) || Number(stateCalc.lock_level || 0) > 0) summary.控制强度 = "软控";
+  }
+  if (!summary.协同性 || summary.协同性 === "无") {
+    if (targetText.includes("群体") || targetText === "全场") summary.协同性 = "高";
+    else if (targetText.includes("己方")) summary.协同性 = "中";
+  }
+  if (!summary.生效方式 || summary.生效方式 === "无") {
+    if (hasSkillMechanism(skill, ["延迟爆发"])) summary.生效方式 = "延迟";
+    else if (duration > 1 || hasSkillMechanism(skill, ["持续伤害", "护盾", "减伤", "格挡", "霸体", "免死"])) summary.生效方式 = "持续";
+    else summary.生效方式 = "瞬发";
+  }
+  if (!summary.爆发级别 || summary.爆发级别 === "无") {
+    if (power >= 300) summary.爆发级别 = "高";
+    else if (power >= 160) summary.爆发级别 = "中";
+    else if (power > 0) summary.爆发级别 = "低";
+  }
+  if (!summary.持续性 || summary.持续性 === "无") {
+    if (duration >= 3) summary.持续性 = "长";
+    else if (duration >= 2) summary.持续性 = "中";
+    else if (duration > 0) summary.持续性 = "短";
+  }
+  return summary;
 }
 
 function bindCombatMirrorField(target, source, key) {
@@ -788,72 +1185,40 @@ function hydrateCombatData(combatData) {
 function normalizeSkillData(skill, fallbackName = "未知技能") {
   const normalized = deepClone(skill || {});
   normalized.name = normalized.name || normalized.技能名称 || fallbackName;
+  normalized.战斗摘要 = { ...createEmptyBattleSummary(), ...(normalized.战斗摘要 || {}) };
   normalized.主定位 = normalized.主定位 || normalized.战斗语义?.主定位 || normalized.技能类型 || "无";
   normalized.标签 = Array.isArray(normalized.标签) ? normalized.标签 : [];
   normalized.战斗语义 = { ...createEmptySkillSemantics(), ...(normalized.战斗语义 || {}) };
-  normalized.效果列表 = Array.isArray(normalized.效果列表) ? normalized.效果列表 : [];
-  normalized.对象 = (normalized.对象 && normalized.对象 !== "无") ? normalized.对象 : mapSemanticTargetToCombatTarget(normalized.战斗语义.作用目标);
-  normalized.技能类型 = (normalized.技能类型 && normalized.技能类型 !== "无") ? normalized.技能类型 : mapPrimaryRoleToSkillType(normalized.主定位);
+  const explicitSemanticTarget = skill?.战斗语义?.作用目标;
+  const explicitPrimaryRole = skill?.主定位 || skill?.战斗语义?.主定位;
+  const explicitSkillType = skill?.技能类型;
+  normalized.对象 = (normalized.对象 && normalized.对象 !== "无") ? normalized.对象 : (explicitSemanticTarget ? mapSemanticTargetToCombatTarget(explicitSemanticTarget) : "无");
+  normalized.技能类型 = (normalized.技能类型 && normalized.技能类型 !== "无") ? normalized.技能类型 : ((explicitSkillType && explicitSkillType !== "无") ? explicitSkillType : ((explicitPrimaryRole && explicitPrimaryRole !== "无") ? mapPrimaryRoleToSkillType(normalized.主定位) : "无"));
   normalized.element = normalized.element || normalized.元素 || "无";
   normalized.cast_time = Number(normalized.cast_time ?? 0) || 0;
   normalized.消耗 = typeof normalized.消耗 === "object" ? formatCostObjectToString(normalized.消耗) : (normalized.消耗 || "无");
+  normalized._效果数组 = Array.isArray(normalized._效果数组) ? normalized._效果数组 : [];
 
-  if (!normalized.仲裁逻辑) normalized.仲裁逻辑 = createEmptyCombatLogic();
-  if (!normalized.仲裁逻辑.瞬间交锋模块) normalized.仲裁逻辑.瞬间交锋模块 = createEmptyCombatLogic().瞬间交锋模块;
-  if (!normalized.仲裁逻辑.状态挂载模块) normalized.仲裁逻辑.状态挂载模块 = createEmptyCombatLogic().状态挂载模块;
-  if (!normalized.仲裁逻辑.召唤与场地模块) normalized.仲裁逻辑.召唤与场地模块 = createEmptyCombatLogic().召唤与场地模块;
-
-  const clash = normalized.仲裁逻辑.瞬间交锋模块;
-  const state = normalized.仲裁逻辑.状态挂载模块;
-  const field = normalized.仲裁逻辑.召唤与场地模块;
-
-  const damageEffect = normalized.效果列表.find(effect => effect?.类型 === "伤害");
-  if (damageEffect) {
-    const num = damageEffect.数值 || {};
-    clash.基础威力倍率 = clash.基础威力倍率 || Number(num.威力 || 0);
-    clash.伤害类型 = clash.伤害类型 && clash.伤害类型 !== "无" ? clash.伤害类型 : (num.伤害类型 || "无");
-    clash.穿透修饰 = clash.穿透修饰 || Number(num.穿透 || 0);
-    clash.瞬间恢复比例 = clash.瞬间恢复比例 || Number(num.吸血比例 || 0);
+  const systemBase = getSystemBaseEffect(normalized);
+  if (systemBase && Object.keys(systemBase).length > 0) {
+    if (!normalized.消耗 || normalized.消耗 === "无") {
+      normalized.消耗 = systemBase.消耗 || "无";
+    }
+    if (!normalized.对象 || normalized.对象 === "无") {
+      normalized.对象 = systemBase.对象 || normalized.对象 || "敌方/单体";
+    }
+    if (!normalized.技能类型 || normalized.技能类型 === "无") {
+      normalized.技能类型 = getSkillType(normalized);
+    }
+    if (!(normalized.cast_time > 0)) {
+      normalized.cast_time = Number(systemBase.cast_time ?? 0) || 0;
+    }
   }
 
-  const defenseEffect = normalized.效果列表.find(effect => effect?.类型 === "防御");
-  if (defenseEffect) {
-    const num = defenseEffect.数值 || {};
-    clash.护盾绝对值 = clash.护盾绝对值 || Number(num.护盾值 || 0);
-  }
-
-  const stateEffect = normalized.效果列表.find(effect => ["控制", "增益", "减益"].includes(effect?.类型));
-  if (stateEffect) {
-    const control = stateEffect.控制 || {};
-    const num = stateEffect.数值 || {};
-    const panelMods = stateEffect.面板修改 || {};
-    state.状态名称 = state.状态名称 && state.状态名称 !== "无" ? state.状态名称 : (stateEffect.状态名称 || "无");
-    state.持续回合 = state.持续回合 || Number(stateEffect.持续回合 || 0);
-    state.面板修改比例 = {
-      str: panelMods.str ?? state.面板修改比例?.str ?? 1.0,
-      def: panelMods.def ?? state.面板修改比例?.def ?? 1.0,
-      agi: panelMods.agi ?? state.面板修改比例?.agi ?? 1.0,
-      men_max: panelMods.men_max ?? state.面板修改比例?.men_max ?? 1.0,
-      sp_max: panelMods.sp_max ?? state.面板修改比例?.sp_max ?? 1.0
-    };
-    state.持续真伤dot = state.持续真伤dot || Number(num.dot || 0);
-    state.特殊机制标识 = mergeSpecialFlags(state.特殊机制标识, [
-      ...(stateEffect.标记 || []),
-      control.控制类型,
-      ...(control.效果 || []),
-      control.可打断 ? "打断" : "",
-      control.可被霸体免疫 === false ? "不可被霸体免疫" : ""
-    ]);
-  }
-
-  const fieldEffect = normalized.效果列表.find(effect => ["场地", "特殊"].includes(effect?.类型));
-  if (fieldEffect) {
-    const special = fieldEffect.特殊 || {};
-    field.实体名称 = field.实体名称 && field.实体名称 !== "无" ? field.实体名称 : (special.实体名称 || special.场地名称 || normalized.name || "无");
-    field.持续回合 = field.持续回合 || Number(fieldEffect.持续回合 || 0);
-    field.继承属性比例 = field.继承属性比例 || Number(special.继承属性比例 || 0);
-    field.核心机制描述 = field.核心机制描述 && field.核心机制描述 !== "无" ? field.核心机制描述 : (special.核心机制描述 || "无");
-    state.特殊机制标识 = mergeSpecialFlags(state.特殊机制标识, [special.特殊类型, ...(fieldEffect.标记 || [])]);
+  // 新版本中所有的机制均扁平化存放在 _效果数组 中
+  if (normalized._效果数组.length === 0) {
+    // 如果连 _效果数组 都没有，说明是极老的空白技能，默认塞入一个系统基础保证不报错
+    normalized._效果数组.push({ 机制: "系统基础", 消耗: "无", 对象: normalized.对象, 技能类型: normalized.技能类型, cast_time: normalized.cast_time });
   }
 
   return normalized;
@@ -861,14 +1226,20 @@ function normalizeSkillData(skill, fallbackName = "未知技能") {
 
 function parseSkillCostForChar(skill, char) {
   const stats = char?.stat || char || {};
-  const costStr = normalizeSkillData(skill).消耗 || "无";
+  const costStr = normalizeSkillData(skill).消耗 || getSkillCostText(skill);
+  const costScale = (skill && char && skill.__targetForSupportCost && isSupportLikeSkill(skill))
+    ? getSupportCostScale(char, skill.__targetForSupportCost)
+    : 1;
   const spMatch = costStr.match(/魂力:(\d+)(%?)/);
   const vitMatch = costStr.match(/体力:(\d+)(%?)/);
   const menMatch = costStr.match(/精神力:(\d+)(%?)/);
 
-  const reqSp = spMatch ? (spMatch[2] ? Math.floor((stats.sp_max || 0) * parseInt(spMatch[1]) / 100) : parseInt(spMatch[1])) : 0;
-  const reqVit = vitMatch ? (vitMatch[2] ? Math.floor((stats.vit_max || 0) * parseInt(vitMatch[1]) / 100) : parseInt(vitMatch[1])) : 0;
-  const reqMen = menMatch ? (menMatch[2] ? Math.floor((stats.men_max || 0) * parseInt(menMatch[1]) / 100) : parseInt(menMatch[1])) : 0;
+  const rawReqSp = spMatch ? (spMatch[2] ? Math.floor((stats.sp_max || 0) * parseInt(spMatch[1]) / 100) : parseInt(spMatch[1])) : 0;
+  const rawReqVit = vitMatch ? (vitMatch[2] ? Math.floor((stats.vit_max || 0) * parseInt(vitMatch[1]) / 100) : parseInt(vitMatch[1])) : 0;
+  const rawReqMen = menMatch ? (menMatch[2] ? Math.floor((stats.men_max || 0) * parseInt(menMatch[1]) / 100) : parseInt(menMatch[1])) : 0;
+  const reqSp = Math.floor(rawReqSp * costScale);
+  const reqVit = Math.floor(rawReqVit * costScale);
+  const reqMen = Math.floor(rawReqMen * costScale);
 
   return {
     reqSp,
@@ -917,7 +1288,7 @@ function getSpecialAbilitySkillData(charData, abilityName) {
   const ability = charData?.special_abilities?.[abilityName];
   if (!ability) return null;
   if (ability.skill_data) return ability.skill_data;
-  if (ability.仲裁逻辑 || ability.cast_time !== undefined || ability.技能类型) return ability;
+  if (ability.cast_time !== undefined || ability.技能类型) return ability;
   return null;
 }
 
@@ -926,7 +1297,18 @@ function applyStateToCharacter(targetChar, stateModule, sourceName, forceBuff) {
   if (!targetChar.conditions) targetChar.conditions = {};
 
   const specialFlag = stateModule.特殊机制标识 || "无";
-  const isBuff = forceBuff === true || specialFlag.includes("增益") || specialFlag.includes("霸体") || specialFlag.includes("免死") || specialFlag.includes("真身");
+  const calc = stateModule.计算层效果 || {};
+  const hasPositiveCalc =
+    Number(calc.hit_bonus || 0) > 0 ||
+    Number(calc.reaction_bonus || 0) > 0 ||
+    Number(calc.dodge_bonus || 0) > 0 ||
+    Number(calc.sp_gain_ratio || 0) > 0 ||
+    Number(calc.men_gain_ratio || 0) > 0 ||
+    Number(calc.final_heal_mult || 1.0) > 1.0 ||
+    Number(calc.shield_gain_mult || 1.0) > 1.0 ||
+    calc.super_armor === true ||
+    Number(calc.min_hp_floor || 0) > 0;
+  const isBuff = forceBuff === true || hasPositiveCalc || specialFlag.includes("增益") || specialFlag.includes("真身");
 
   targetChar.conditions[stateModule.状态名称] = {
     类型: isBuff ? "buff" : "debuff",
@@ -935,9 +1317,38 @@ function applyStateToCharacter(targetChar, stateModule, sourceName, forceBuff) {
     duration: stateModule.持续回合 || 0,
     stat_mods: stateModule.面板修改比例 || { str: 1.0, def: 1.0, agi: 1.0, sp_max: 1.0 },
     combat_effects: {
-      skip_turn: specialFlag.includes("硬控"),
-      dot_damage: stateModule.持续真伤dot || 0,
-      armor_pen: 0
+      ...createEmptyCombatEffectMap(),
+      skip_turn: stateModule.计算层效果?.skip_turn ?? false,
+      cannot_react: stateModule.计算层效果?.cannot_react ?? false,
+      dot_damage: (stateModule.计算层效果?.dot_damage ?? stateModule.持续真伤dot) || 0,
+      armor_pen: stateModule.计算层效果?.armor_pen ?? 0,
+      reaction_bonus: stateModule.计算层效果?.reaction_bonus ?? 0,
+      reaction_penalty: stateModule.计算层效果?.reaction_penalty ?? 0,
+      attacker_speed_bonus: stateModule.计算层效果?.attacker_speed_bonus ?? 0,
+      cast_speed_bonus: stateModule.计算层效果?.cast_speed_bonus ?? 0,
+      cast_speed_penalty: stateModule.计算层效果?.cast_speed_penalty ?? 0,
+      hit_bonus: stateModule.计算层效果?.hit_bonus ?? 0,
+      hit_penalty: stateModule.计算层效果?.hit_penalty ?? 0,
+      dodge_bonus: stateModule.计算层效果?.dodge_bonus ?? 0,
+      dodge_penalty: stateModule.计算层效果?.dodge_penalty ?? 0,
+      lock_level: stateModule.计算层效果?.lock_level ?? 0,
+      control_success_bonus: stateModule.计算层效果?.control_success_bonus ?? 0,
+      control_success_penalty: stateModule.计算层效果?.control_success_penalty ?? 0,
+      control_resist_mult: stateModule.计算层效果?.control_resist_mult ?? 1.0,
+      control_resist_bonus: stateModule.计算层效果?.control_resist_bonus ?? 0,
+      interrupt_bonus: stateModule.计算层效果?.interrupt_bonus ?? 0,
+      final_damage_mult: stateModule.计算层效果?.final_damage_mult ?? 1.0,
+      final_damage_bonus: stateModule.计算层效果?.final_damage_bonus ?? 0,
+      final_heal_mult: stateModule.计算层效果?.final_heal_mult ?? 1.0,
+      final_heal_bonus: stateModule.计算层效果?.final_heal_bonus ?? 0,
+      shield_gain_mult: stateModule.计算层效果?.shield_gain_mult ?? 1.0,
+      shield_gain_bonus: stateModule.计算层效果?.shield_gain_bonus ?? 0,
+      sp_gain_ratio: stateModule.计算层效果?.sp_gain_ratio ?? 0,
+      men_gain_ratio: stateModule.计算层效果?.men_gain_ratio ?? 0,
+      heal_block_ratio: stateModule.计算层效果?.heal_block_ratio ?? 0,
+      resource_block_ratio: stateModule.计算层效果?.resource_block_ratio ?? 0,
+      min_hp_floor: stateModule.计算层效果?.min_hp_floor ?? 0,
+      death_save_count: stateModule.计算层效果?.death_save_count ?? 0
     }
   };
   return true;
@@ -1014,8 +1425,8 @@ function registerSustainEffect(char, key, config) {
 
 function resolveActionSustainConfig(char, actionType, skill, stateName) {
   const skillName = skill?.name || actionType || stateName || "持续效果";
-  const costParts = splitSkillCostModes(skill?.消耗 || "无");
-  const trueStateName = stateName || skill?.仲裁逻辑?.状态挂载模块?.状态名称 || "";
+  const costParts = splitSkillCostModes(getSkillCostText(skill));
+  const trueStateName = stateName || getPrimaryStateName(skill) || "";
 
   if (costParts.hasSustain && costParts.sustain && costParts.sustain !== "无") {
     return {
@@ -1309,7 +1720,7 @@ function collectCombatSkills(charData, alliedTeam = []) {
 }
 
 function onPlayerAttack(playerInput, options = {}) {
-  let combatData = window.BattleUIBridge?.getMVU("sd.world.combat");
+  let combatData = window.BattleUIBridge?.getMVU("world.combat");
   hydrateCombatData(combatData);
   let defender = combatData.participants.enemy;
   let attacker = combatData.participants.player;
@@ -1329,16 +1740,31 @@ function onPlayerAttack(playerInput, options = {}) {
   // 2. 状态快照与控制拦截 (完全基于 Schema 属性驱动)
   defender.is_controlled = false;
   defender.temp_agi_mult = 1.0; 
+  defender.temp_reaction_bonus = 0;
+  defender.temp_reaction_penalty = 0;
+  defender.temp_dodge_bonus = 0;
+  defender.temp_dodge_penalty = 0;
+  defender.temp_lock_level = 0;
+  defender.temp_control_resist_mult = 1.0;
+  defender.temp_cannot_react = false;
 
   if (defender.conditions) {
     for (let key in defender.conditions) {
       let cond = defender.conditions[key];
-      if (cond.combat_effects && cond.combat_effects.skip_turn === true) {
+      const ce = cond.combat_effects || {};
+      if (ce.skip_turn === true || ce.cannot_react === true) {
         defender.is_controlled = true;
       }
       if (cond.stat_mods && cond.stat_mods.agi !== undefined) {
         defender.temp_agi_mult *= cond.stat_mods.agi; 
       }
+      defender.temp_reaction_bonus += Number(ce.reaction_bonus || 0);
+      defender.temp_reaction_penalty += Number(ce.reaction_penalty || 0);
+      defender.temp_dodge_bonus += Number(ce.dodge_bonus || 0);
+      defender.temp_dodge_penalty += Number(ce.dodge_penalty || 0);
+      defender.temp_lock_level += Number(ce.lock_level || 0);
+      defender.temp_control_resist_mult *= Number(ce.control_resist_mult || 1.0);
+      if (ce.cannot_react === true) defender.temp_cannot_react = true;
     }
   }
   defender.temp_agi_mult = Math.max(0.1, defender.temp_agi_mult);
@@ -1468,11 +1894,12 @@ function onPlayerAttack(playerInput, options = {}) {
       let hasSuperArmor = false;
       if (attacker.conditions) {
         for (let key in attacker.conditions) {
-          if (key.includes("霸体") ) hasSuperArmor = true;
+          if (attacker.conditions[key].combat_effects?.super_armor === true || key.includes("霸体") || key.includes("真身")) hasSuperArmor = true;
         }
       }
       
-      if (npcAction.type === "危机自保" && npcAction.skill.技能类型 === "控制" && npcAction.skill.cast_time < 10) {
+      const npcSkillType = getSkillType(npcAction.skill);
+      if (npcAction.type === "危机自保" && npcSkillType === "控制" && getSkillCastTime(npcAction.skill) < 10) {
         let pMult = getWoundMult(attacker);
         let dMult = getWoundMult(defender);
         if (defender.men_max > attacker.men_max || (defender.agi * dMult) > (attacker.agi * pMult)) {
@@ -1515,7 +1942,8 @@ function onPlayerAttack(playerInput, options = {}) {
     
     
     // 简单判断 NPC 是否被打断 (如果玩家伤害极高或带有硬控，视为打断)
-    let isNpcInterrupted = (settleResult.dmg / defender.vit_max >= 0.15) || (playerAction.skill?.仲裁逻辑?.状态挂载模块?.特殊机制标识?.includes("硬控"));
+    const playerStateCalc = ((playerAction.skill?._效果数组 || []).find(e => e.机制 === "状态挂载")?.计算层效果 || {}) || {};
+    let isNpcInterrupted = (settleResult.dmg / defender.vit_max >= 0.15) || playerStateCalc.skip_turn === true || (((playerAction.skill?._效果数组 || []).find(e => e.机制 === "状态挂载")?.特殊机制标识 || "无")?.includes("硬控"));
     
     if (npcAction.type === "穿戴装备") {
       if (!isNpcInterrupted) {
@@ -1675,7 +2103,7 @@ function applyActionCost(attackerChar, playerAction) {
       stats.vit -= parsedCost.reqVit;
       stats.men -= parsedCost.reqMen;
 
-      const sustainConfig = resolveActionSustainConfig(attackerChar, playerAction.action_type, playerAction.skill, playerAction.skill?.仲裁逻辑?.状态挂载模块?.状态名称);
+      const sustainConfig = resolveActionSustainConfig(attackerChar, playerAction.action_type, playerAction.skill, ((playerAction.skill?._效果数组 || []).find(e => e.机制 === "状态挂载")?.状态名称 || "无"));
       const shouldRegisterSustain = costParts.hasSustain || ["展开斗铠领域", "展开精神领域", "展开武魂领域", "点燃生命之火"].includes(playerAction.action_type) || ((sustainConfig?.related_condition || sustainConfig?.name || "").includes("真身"));
       if (shouldRegisterSustain && sustainConfig) {
         if (costParts.hasSustain && costParts.sustain) sustainConfig.sustain_cost = costParts.sustain;
@@ -1741,24 +2169,24 @@ function settleBattle(attackerChar, defenderChar, isWin, options = {}) {
   let defenderName = defenderChar.name || "敌人";
   
   // 读取战斗类型
-  let combatData = options.combatData || window.BattleUIBridge?.getMVU("sd.world.combat");
+  let combatData = options.combatData || window.BattleUIBridge?.getMVU("world.combat");
   let combatType = combatData.combat_type || "突发遭遇";
-  let inventory = window.BattleUIBridge?.getMVU("sd.char.主角.inventory") || {};
+  let inventory = window.BattleUIBridge?.getMVU("char.主角.inventory") || {};
   
   // --- 触发世界战斗图鉴录入 ---
-  let bestiary = window.BattleUIBridge?.getMVU("sd.world.bestiary") || {};
+  let bestiary = window.BattleUIBridge?.getMVU("world.bestiary") || {};
   if (defenderName && defenderName !== "敌人" && defenderName !== "未知") {
     let monsterEntry = bestiary[defenderName];
     if (!monsterEntry) {
       extraPatchOps.push({
         op: "add",
-        path: `/sd/world/bestiary/${defenderName}`,
+        path: `/world/bestiary/${defenderName}`,
         value: { 交手次数: 1, 首次记录: `由 ${attackerChar.name || "主角"} 在${combatType}中遭遇` }
       });
     } else {
       extraPatchOps.push({
         op: "replace",
-        path: `/sd/world/bestiary/${defenderName}/交手次数`,
+        path: `/world/bestiary/${defenderName}/交手次数`,
         value: (monsterEntry.交手次数 || 1) + 1
       });
     }
@@ -1779,7 +2207,7 @@ function settleBattle(attackerChar, defenderChar, isWin, options = {}) {
         log = `[升灵台结算] 击溃虚拟魂兽！化为纯净修为能量涌入体内(${partySize}人平分)，拥有 ${totalRings} 个魂环均获得大约 ${gain} 年修为提升！(请 AI 描写吸收能量的画面)`;
         rings.forEach(rIndex => {
           const oldAge = attackerChar.rings[rIndex].年限 || 10;
-          extraPatchOps.push({ op: "replace", path: `/sd/char/主角/rings/${rIndex}/年限`, value: oldAge + gain });
+          extraPatchOps.push({ op: "replace", path: `/char/主角/rings/${rIndex}/年限`, value: oldAge + gain });
         });
       } else {
         log = `[升灵台结算] 虚拟魂兽死亡！但玩家尚未拥有魂环，无法吸收升灵能量，能量缓缓消散...`;
@@ -1801,14 +2229,14 @@ function settleBattle(attackerChar, defenderChar, isWin, options = {}) {
       else if (floor >= 10) ageDesc = "百年";
 
       log = `🏆[冲塔成功] 镇守第 ${floor} 层的 ${defenderName} 被彻底击溃！玩家成功通关本层，获得了该层魂灵的【五折购买特权】，并获赠【${ageDesc}魂灵(冲塔自选)】！(请 AI 描写通关奖励降落的场景)`;
-      extraPatchOps.push({ op: "replace", path: `/sd/char/主角/tower_records/discount_available/${floor}`, value: true });
+      extraPatchOps.push({ op: "replace", path: `/char/主角/tower_records/discount_available/${floor}`, value: true });
 
       let itemName = `${ageDesc}魂灵(冲塔自选)`;
       let currentItem = inventory[itemName];
       if (currentItem) {
-        extraPatchOps.push({ op: "replace", path: `/sd/char/主角/inventory/${itemName}/数量`, value: (currentItem.数量 || 0) + 1 });
+        extraPatchOps.push({ op: "replace", path: `/char/主角/inventory/${itemName}/数量`, value: (currentItem.数量 || 0) + 1 });
       } else {
-        extraPatchOps.push({ op: "replace", path: `/sd/char/主角/inventory/${itemName}`, value: { 数量: 1, 类型: "魂灵", 品质: "普通", 描述: `魂灵塔第${floor}层战利品` } });
+        extraPatchOps.push({ op: "replace", path: `/char/主角/inventory/${itemName}`, value: { 数量: 1, 类型: "魂灵", 品质: "普通", 描述: `魂灵塔第${floor}层战利品` } });
       }
     } else {
       log = `💀[冲塔失败] 玩家遭到 ${defenderName} 重创，魂灵塔阵法排斥之力发动，将其强行传送出塔外！(请 AI 描写重伤弹出塔外的虚弱状态)`;
@@ -1958,11 +2386,18 @@ function calculateReactionRatio(attacker, defender, playerAction, combatData) {
   let pMult = getWoundMult(attacker);
   let dMult = getWoundMult(defender);
   
-  let castPenalty = Math.min(0.9, playerAction.cast_time / 100); 
-  let attackerSpeed = (attacker.agi * pMult) * (1 - castPenalty);
+  const atkCombat = attacker?.conditions ? Object.values(attacker.conditions).map(c => c?.combat_effects || {}) : [];
+  const totalAtkSpeedBonus = atkCombat.reduce((sum, ce) => sum + Number(ce.attacker_speed_bonus || 0), 0);
+  const totalCastSpeedBonus = atkCombat.reduce((sum, ce) => sum + Number(ce.cast_speed_bonus || 0), 0);
+  const totalCastSpeedPenalty = atkCombat.reduce((sum, ce) => sum + Number(ce.cast_speed_penalty || 0), 0);
+
+  let castPenalty = Math.min(0.9, Math.max(0, (playerAction.cast_time / 100) - totalCastSpeedBonus + totalCastSpeedPenalty)); 
+  let attackerSpeed = ((attacker.agi * pMult) * (1 - castPenalty)) + totalAtkSpeedBonus;
   
-  let defenderReaction = (defender.agi * dMult) + defender.men_max;
+  let defenderReaction = ((defender.agi * dMult * (defender.temp_agi_mult || 1.0)) + defender.men_max) + (defender.temp_reaction_bonus || 0) - (defender.temp_reaction_penalty || 0);
   let ratio = defenderReaction / Math.max(1, attackerSpeed);
+
+  if (defender.temp_cannot_react) ratio = 0;
 
   if (combatData && combatData.initiative !== "无" && combatData.initiative !== defender.name) {
     ratio *= 0.5; 
@@ -1982,19 +2417,23 @@ function executeClash(playerAction, npcAction, combatData) {
   playerAction.skill = normalizeSkillData(playerAction.skill || {
     name: "普通攻击",
     技能类型: "输出",
-    对象: "敌方/单体",
-    仲裁逻辑: createEmptyCombatLogic()
+    _效果数组: [
+      { 机制: "系统基础", 消耗: "无", 对象: "敌方/单体", 技能类型: "输出", cast_time: 10 },
+      { 机制: "直接伤害", 目标: "敌方单体", 威力倍率: 100, 伤害类型: "物理近战", 穿透修饰: 0 }
+    ]
   }, playerAction.skill?.name || "普通攻击");
   if (npcAction.skill) {
     npcAction.skill = normalizeSkillData(npcAction.skill, npcAction.skill.name || npcAction.skill.技能名称 || "未知技能");
   }
 
-  let pLogic = playerAction.skill.仲裁逻辑 || {};
-  let pClash = pLogic.瞬间交锋模块 || { 基础威力倍率: 0, 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 };
-  let pState = pLogic.状态挂载模块 || { 状态名称: "无", 持续回合: 0, 面板修改比例: {}, 特殊机制标识: "无", 持续真伤dot: 0 };
-  
-  let nLogic = npcAction.skill ? (npcAction.skill.仲裁逻辑 || {}) : {};
-  let nClash = nLogic.瞬间交锋模块 || { 基础威力倍率: 0, 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 };
+
+  const getEffect = (sk, types) => (sk?._效果数组 || []).find(e => types.includes(e.机制)) || {};
+
+  let pClash = getEffect(playerAction.skill, ["直接伤害", "多段伤害", "持续伤害", "延迟爆发"]);
+  let pState = getEffect(playerAction.skill, ["状态挂载"]);
+  let nClash = getEffect(npcAction.skill, ["直接伤害", "多段伤害", "持续伤害", "延迟爆发", "护盾", "减伤", "格挡"]);
+
+  applyRuntimeMechanismEffects(playerAction.skill, attacker, attackerFinalStat, defender, defenderFinalStat, pState);
 
   let pMult = getWoundMult(attacker);
   let dMult = getWoundMult(defender);
@@ -2007,11 +2446,12 @@ function executeClash(playerAction, npcAction, combatData) {
   let hasSuperArmor = false;
   if (attacker.conditions) {
     for (let key in attacker.conditions) {
-      if (key.includes("霸体") || key.includes("真身")) hasSuperArmor = true;
+      if (attacker.conditions[key].combat_effects?.super_armor === true || key.includes("霸体") || key.includes("真身")) hasSuperArmor = true;
     }
   }
 
-  if (npcAction.type === "危机自保" && npcAction.skill.技能类型 === "控制" && npcAction.skill.cast_time < 10) { 
+  const npcSkillType = getSkillType(npcAction.skill);
+  if (npcAction.type === "危机自保" && npcSkillType === "控制" && getSkillCastTime(npcAction.skill) < 10) { 
     if (defenderFinalStat.men_max > attackerFinalStat.men_max || dAgi > aAgi) {
       if (hasSuperArmor) {
         result.desc = `NPC释放[${npcAction.skill.name}]试图打断，但玩家处于霸体状态，强行免疫了控制！`;
@@ -2022,17 +2462,31 @@ function executeClash(playerAction, npcAction, combatData) {
     }
   }
 
-  let isAOE = playerAction.skill.技能类型 === "群攻" || pClash.伤害类型 === "纯精神冲击";
+  const playerTargetMode = String(getSkillTarget(playerAction.skill));
+  let isAOE = /群体|全场/.test(playerTargetMode) || pClash.伤害类型 === "纯精神冲击";
   let grazeMultiplier = 1.0; 
+  
+  const pCalc = pState.计算层效果 || {};
+  const currentSkillHitBonus = Number(pCalc.hit_bonus || 0);
+  const currentSkillHitPenalty = Number(pCalc.hit_penalty || 0);
+  const currentSkillDodgePenalty = Number(pCalc.dodge_penalty || 0);
+  const currentSkillLockLevel = Number(pCalc.lock_level || 0);
+  const attackerConditionEffects = attacker.conditions ? Object.values(attacker.conditions).map(c => c?.combat_effects || {}) : [];
+  const attackerHitBonus = attackerConditionEffects.reduce((sum, ce) => sum + Number(ce.hit_bonus || 0), 0);
+  const attackerHitPenalty = attackerConditionEffects.reduce((sum, ce) => sum + Number(ce.hit_penalty || 0), 0);
 
   if (!isAOE && npcAction.type === "伺机闪避") {
     let absoluteDodgeThreshold = (aAgi + attackerFinalStat.men_max) * 1.5;
-    if (dAgi > absoluteDodgeThreshold) {
+    const effectiveDAgi = dAgi * (defender.temp_agi_mult || 1.0);
+    if (effectiveDAgi + (defender.temp_dodge_bonus || 0) > absoluteDodgeThreshold) {
       result.desc = "NPC触发绝对闪避，残影规避了所有伤害！";
       return result;
     }
     
-    let dodgeRate = (dAgi / (aAgi + attackerFinalStat.men_max)) * 50;
+    let dodgeRate = (effectiveDAgi / (aAgi + attackerFinalStat.men_max)) * 50;
+    dodgeRate += ((defender.temp_dodge_bonus || 0) * 100) - (((defender.temp_dodge_penalty || 0) + currentSkillDodgePenalty) * 100);
+    dodgeRate -= (((currentSkillHitBonus + attackerHitBonus) - (currentSkillHitPenalty + attackerHitPenalty)) * 100);
+    dodgeRate -= ((defender.temp_lock_level || 0) + currentSkillLockLevel) * 8;
     let roll = Math.random() * 100;
 
     if (roll < dodgeRate) {
@@ -2045,18 +2499,18 @@ function executeClash(playerAction, npcAction, combatData) {
     }
   }
 
-  let remainPower = pClash.基础威力倍率;
-  let npcShield = nClash.护盾绝对值 || 0;
+  let remainPower = pClash.威力倍率 || 0;
+  let npcShield = nClash.护盾值 || 0;
 
   if (npcAction.type === "强势对轰") {
-    remainPower -= nClash.基础威力倍率;
+    remainPower -= (nClash.威力倍率 || 0);
     if (remainPower <= 0) {
       result.desc = `NPC的[${npcAction.skill.name}]威力更胜一筹，碾碎了玩家的攻击！`;
       return result; 
     }
     result.desc = `双方对轰！玩家威力占优，余威继续命中。`;
-  } else if (npcAction.type === "危机自保" && npcAction.skill.技能类型 === "防御") {
-    remainPower -= nClash.基础威力倍率; 
+  } else if (npcAction.type === "危机自保" && npcSkillType === "防御") {
+    remainPower -= (nClash.威力倍率 || 0); 
     if (remainPower <= 0) {
       result.desc = `NPC的防御技能完美挡下了这一击。`;
       return result;
@@ -2065,13 +2519,14 @@ function executeClash(playerAction, npcAction, combatData) {
   }
 
   let finalDmg = 0;
-  let dmgType = pClash.伤害类型;
+  let dmgType = pClash.伤害类型 || "物理近战";
   
-  let actualDef = dDef * (1 - (pClash.穿透修饰 / 100));
+  let actualDef = dDef * (1 - ((pClash.穿透修饰 || 0) / 100));
   actualDef = Math.max(1, actualDef); 
+  const soulDriveScale = getSoulDriveScale(attacker, defender);
 
-  if (dmgType === "物理近战") finalDmg = remainPower * (aStr / actualDef);
-  else if (dmgType === "能量AOE") finalDmg = remainPower * (attackerFinalStat.men_max / actualDef);
+  if (dmgType === "物理近战") finalDmg = remainPower * (aStr / actualDef) * soulDriveScale;
+  else if (dmgType === "能量AOE") finalDmg = remainPower * (attackerFinalStat.men_max / actualDef) * soulDriveScale;
   else if (dmgType === "纯精神冲击") finalDmg = remainPower * (attackerFinalStat.men_max / defenderFinalStat.men_max);
 
   if (npcAction.type === "肉体兜底") {
@@ -2090,6 +2545,10 @@ function executeClash(playerAction, npcAction, combatData) {
 
   let fluctuation = 0.9 + (Math.random() * 0.2); 
   finalDmg = finalDmg * fluctuation * grazeMultiplier;
+
+  const totalFinalDamageMult = attackerConditionEffects.reduce((mult, ce) => mult * Number(ce.final_damage_mult || 1.0), 1.0);
+  const totalFinalDamageBonus = attackerConditionEffects.reduce((sum, ce) => sum + Number(ce.final_damage_bonus || 0), 0);
+  finalDmg = (finalDmg * totalFinalDamageMult) + totalFinalDamageBonus;
   
   result.dmg = Math.floor(finalDmg);
   if (result.dmg > 0) {
@@ -2097,20 +2556,45 @@ function executeClash(playerAction, npcAction, combatData) {
   }
 
   if (pClash.瞬间恢复比例 > 0) {
-    let healAmount = Math.floor(attackerFinalStat.vit_max * (pClash.瞬间恢复比例 / 100));
+    const supportScale = getSupportEffectScale(attacker, attacker);
+    const totalFinalHealMult = attackerConditionEffects.reduce((mult, ce) => mult * Number(ce.final_heal_mult || 1.0), 1.0);
+    const totalFinalHealBonus = attackerConditionEffects.reduce((sum, ce) => sum + Number(ce.final_heal_bonus || 0), 0);
+    const totalHealBlockRatio = Math.min(1, attackerConditionEffects.reduce((maxVal, ce) => Math.max(maxVal, Number(ce.heal_block_ratio || 0)), 0));
+    let healAmount = Math.floor(attackerFinalStat.vit_max * (pClash.瞬间恢复比例 / 100) * supportScale * totalFinalHealMult * (1 - totalHealBlockRatio)) + totalFinalHealBonus;
     attacker.vit = Math.min(attackerFinalStat.vit_max, attacker.vit + healAmount);
     result.desc += ` [机制触发] 玩家瞬间恢复了 ${healAmount} 点体力！`;
   }
 
+  if ((pState.计算层效果?.sp_gain_ratio || 0) > 0) attacker.sp = Math.min(attackerFinalStat.sp_max || attacker.sp_max || 0, attacker.sp + Math.floor((attackerFinalStat.sp_max || attacker.sp_max || 0) * pState.计算层效果.sp_gain_ratio));
+  if ((pState.计算层效果?.men_gain_ratio || 0) > 0) attacker.men = Math.min(attackerFinalStat.men_max || attacker.men_max || 0, attacker.men + Math.floor((attackerFinalStat.men_max || attacker.men_max || 0) * pState.计算层效果.men_gain_ratio));
+
   if (pState.状态名称 !== "无" && (result.dmg > 0 || pClash.基础威力倍率 === 0)) {
     let targetObj = playerAction.skill.对象.includes("自身") || playerAction.skill.对象.includes("己方") ? attacker : defender;
-    let isBuff = pState.特殊机制标识.includes("增益") || pState.特殊机制标识.includes("霸体") || pState.特殊机制标识.includes("免死");
+    let isBuff =
+      targetObj === attacker ||
+      playerAction.skill.对象.includes("自身") ||
+      playerAction.skill.对象.includes("己方") ||
+      pState.特殊机制标识.includes("增益") || pState.计算层效果?.super_armor === true || Number(pState.计算层效果?.min_hp_floor || 0) > 0;
+    const supportScale = isBuff ? getSupportEffectScale(attacker, targetObj) : 1;
+    const scaledMods = { ...(pState.面板修改比例 || {}) };
+    ["str", "def", "agi", "men_max", "sp_max"].forEach(k => {
+      if (scaledMods[k] !== undefined && scaledMods[k] !== 1.0) {
+        scaledMods[k] = 1 + ((scaledMods[k] - 1) * supportScale);
+      }
+    });
+    const scaledShield = isBuff && pClash.护盾绝对值 > 0 ? Math.floor(pClash.护盾绝对值 * supportScale) : pClash.护盾绝对值;
     
     let isImmune = false;
-    if (!isBuff && pState.特殊机制标识.includes("硬控")) {
+    const isControlLike = !isBuff && (
+      (pState.计算层效果?.skip_turn === true) ||
+      (pState.计算层效果?.cannot_react === true) ||
+      (Number(pState.计算层效果?.control_success_bonus || 0) > 0)
+    );
+    if (isControlLike) {
       let atkStat = pClash.伤害类型 === "物理近战" ? aStr : attackerFinalStat.men_max;
       let defStat = pClash.伤害类型 === "物理近战" ? dStr : defenderFinalStat.men_max; 
-      if (defStat > atkStat * 1.5) isImmune = true;
+      const controlResistMult = Number((defender.temp_control_resist_mult || 1.0));
+      if (defStat > atkStat * (1.5 / Math.max(0.01, controlResistMult))) isImmune = true;
     }
 
     if (isImmune) {
@@ -2124,9 +2608,46 @@ function executeClash(playerAction, npcAction, combatData) {
         duration: pState.持续回合,
         stat_mods: pState.面板修改比例,
         combat_effects: {
-          skip_turn: pState.特殊机制标识.includes("硬控"),
-          dot_damage: pState.持续真伤dot,
-          armor_pen: 0
+          ...createEmptyCombatEffectMap(),
+          silence: pState.计算层效果?.silence ?? false,
+          disarm: pState.计算层效果?.disarm ?? false,
+          blind: pState.计算层效果?.blind ?? false,
+          counter_attack_ratio: pState.计算层效果?.counter_attack_ratio ?? 0,
+          damage_reduction: pState.计算层效果?.damage_reduction ?? 0,
+          block_count: pState.计算层效果?.block_count ?? 0,
+          super_armor: pState.计算层效果?.super_armor ?? false,
+          death_save_count: pState.计算层效果?.death_save_count ?? 0,
+          hit_bonus: isBuff ? (pState.计算层效果?.hit_bonus ?? 0) : 0,
+          dodge_penalty: isBuff ? 0 : (pState.计算层效果?.dodge_penalty ?? 0),
+          dodge_bonus: isBuff ? (pState.计算层效果?.dodge_bonus ?? 0) : 0,
+          lock_level: isBuff ? 0 : (pState.计算层效果?.lock_level ?? 0),
+          control_resist_mult: pState.计算层效果?.control_resist_mult ?? 1.0,
+          skip_turn: pState.计算层效果?.skip_turn ?? false,
+          cannot_react: pState.计算层效果?.cannot_react ?? false,
+          dot_damage: pState.计算层效果?.dot_damage ?? pState.持续真伤dot,
+          armor_pen: pState.计算层效果?.armor_pen ?? 0,
+          reaction_bonus: pState.计算层效果?.reaction_bonus ?? 0,
+          reaction_penalty: pState.计算层效果?.reaction_penalty ?? 0,
+          attacker_speed_bonus: pState.计算层效果?.attacker_speed_bonus ?? 0,
+          cast_speed_bonus: pState.计算层效果?.cast_speed_bonus ?? 0,
+          cast_speed_penalty: pState.计算层效果?.cast_speed_penalty ?? 0,
+          hit_penalty: pState.计算层效果?.hit_penalty ?? 0,
+          control_success_bonus: pState.计算层效果?.control_success_bonus ?? 0,
+          control_success_penalty: pState.计算层效果?.control_success_penalty ?? 0,
+          control_resist_bonus: pState.计算层效果?.control_resist_bonus ?? 0,
+          interrupt_bonus: pState.计算层效果?.interrupt_bonus ?? 0,
+          final_damage_mult: pState.计算层效果?.final_damage_mult ?? 1.0,
+          final_damage_bonus: pState.计算层效果?.final_damage_bonus ?? 0,
+          final_heal_mult: pState.计算层效果?.final_heal_mult ?? 1.0,
+          final_heal_bonus: pState.计算层效果?.final_heal_bonus ?? 0,
+          shield_gain_mult: pState.计算层效果?.shield_gain_mult ?? 1.0,
+          shield_gain_bonus: pState.计算层效果?.shield_gain_bonus ?? 0,
+          sp_gain_ratio: pState.计算层效果?.sp_gain_ratio ?? 0,
+          men_gain_ratio: pState.计算层效果?.men_gain_ratio ?? 0,
+          heal_block_ratio: pState.计算层效果?.heal_block_ratio ?? 0,
+          resource_block_ratio: pState.计算层效果?.resource_block_ratio ?? 0,
+          min_hp_floor: pState.计算层效果?.min_hp_floor ?? 0,
+          death_save_count: pState.计算层效果?.death_save_count ?? 0
         }
       };
       let targetNameStr = targetObj === attacker ? "自身" : "NPC";
@@ -2141,7 +2662,7 @@ function buildStrategicCandidates(defender, attacker, combatData, playerAction, 
   const combatType = combatData.combat_type || "突发遭遇";
   const isDeadlyFight = combatType === "死战" || combatType === "突发遭遇";
   const lvDiff = (attacker.lv || 1) - (defender.lv || 1);
-  const playerPower = playerAction.skill?.仲裁逻辑?.瞬间交锋模块?.基础威力倍率 || 0;
+  const playerPower = ((playerAction.skill?._效果数组 || []).find(e => ["直接伤害","多段伤害","持续伤害","延迟爆发"].includes(e.机制))?.威力倍率 || 0) || 0;
   const isChargingHighThreat = !!attacker.charging_skill || playerAction.action_type === "蓄力挨打" || ((playerAction.cast_time || 0) >= 20 && playerPower >= 120);
   const activeBuffs = Object.keys(defender.conditions || {});
   const behaviorState = buildBattleStateContext(defender, attacker, combatData, { combatType, isDeadlyFight, ratio, isChargingHighThreat, playerPower });
@@ -2175,11 +2696,11 @@ function buildStrategicCandidates(defender, attacker, combatData, playerAction, 
   }
 
   const trueBodySkill = availableSkills.find(skill => {
-    const stateName = skill.仲裁逻辑?.状态挂载模块?.状态名称 || "";
+    const stateName = ((skill?._效果数组 || []).find(e => e.机制 === "状态挂载")?.状态名称 || "无") || "";
     return /真身/.test(skill.name || "") || /真身/.test(stateName);
   });
   if (trueBodySkill) {
-    const trueBodyState = trueBodySkill.仲裁逻辑?.状态挂载模块?.状态名称 || "无";
+    const trueBodyState = ((trueBodySkill?._效果数组 || []).find(e => e.机制 === "状态挂载") || {})?.状态名称 || "无";
     if (!activeBuffs.includes(trueBodyState)) {
       let weight = 0;
       if (isDeadlyFight) {
@@ -2194,7 +2715,7 @@ function buildStrategicCandidates(defender, attacker, combatData, playerAction, 
         weight: adjustBehaviorWeight("开启真身", weight, defender, attacker, behaviorState),
         build() {
           const sustainConfig = resolveActionSustainConfig(defender, "开启真身", trueBodySkill, trueBodyState);
-          applyStateToCharacter(defender, trueBodySkill.仲裁逻辑?.状态挂载模块, trueBodySkill.name, true);
+          applyStateToCharacter(defender, ((trueBodySkill?._效果数组 || []).find(e => e.机制 === "状态挂载") || {}), trueBodySkill.name, true);
           if (sustainConfig) registerSustainEffect(defender, `truebody:${trueBodySkill.name}`, sustainConfig);
           return makeNpcAction("开启真身", `[质变底牌] NPC仰天长啸，第七魂环闪耀，直接释放了[${trueBodySkill.name}]！`, trueBodySkill);
         }
@@ -2355,7 +2876,7 @@ function buildNpcSkillCandidateContext(defender, attacker, playerAction, availab
   const dMult = getWoundMult(defender);
   const attackerSpeed = (attacker.agi * pMult) - ((playerAction.cast_time || 0) * 10);
   const validSkills = availableSkills.filter(skill => {
-    const castTime = skill.cast_time || 0;
+    const castTime = getSkillCastTime(skill);
     const npcSpeed = (defender.agi * dMult) - (castTime * 10);
     const cost = parseSkillCostForChar(skill, defender);
     return cost.canCast && npcSpeed > Math.max(1, attackerSpeed) * 0.8;
@@ -2363,32 +2884,40 @@ function buildNpcSkillCandidateContext(defender, attacker, playerAction, availab
 
   function pickSkillWithWeight(skills) {
     const weighted = (skills || []).map(skill => {
-      const stateName = skill.仲裁逻辑?.状态挂载模块?.状态名称 || "无";
-      if (stateName !== "无" && ["辅助", "防御"].includes(skill.技能类型) && activeBuffs.includes(stateName)) {
+      const stateName = ((skill?._效果数组 || []).find(e => e.机制 === "状态挂载")?.状态名称 || "无") || "无";
+      const skillType = getSkillType(skill);
+      if (stateName !== "无" && ["辅助", "防御"].includes(skillType) && activeBuffs.includes(stateName)) {
         return { skill, weight: 0, name: skill.name || "未命名技能", build() { return skill; } };
       }
 
       let weight = 10;
-      const skillPower = skill.仲裁逻辑?.瞬间交锋模块?.基础威力倍率 || 0;
+      const skillType2 = getSkillType(skill);
+      const skillCastTime = getSkillCastTime(skill);
+      const skillPower = ((skill?._效果数组 || []).find(e => ["直接伤害","多段伤害","持续伤害","延迟爆发"].includes(e.机制))?.威力倍率 || 0) || 0;
+      if (isSupportLikeSkill(skill)) {
+        const targetForCost = String(getSkillTarget(skill)).includes("敌方") ? attacker : defender;
+        skill.__targetForSupportCost = targetForCost;
+      }
       const cost = parseSkillCostForChar(skill, defender);
+      delete skill.__targetForSupportCost;
       const spRatio = cost.reqSp > 0 ? cost.reqSp / Math.max(1, defender.sp) : 0;
       const vitRatio = cost.reqVit > 0 ? cost.reqVit / Math.max(1, defender.vit) : 0;
 
       if (defender.type === "强攻系") {
-        if (skill.技能类型 === "输出") weight += 40 + Math.floor(skillPower / 10);
-        if (skill.技能类型 === "防御") weight += 20;
+        if (skillType2 === "输出") weight += 40 + Math.floor(skillPower / 10);
+        if (skillType2 === "防御") weight += 20;
       } else if (defender.type === "敏攻系") {
-        if (skill.技能类型 === "输出" && skill.cast_time <= 15) weight += 60;
-        if (skill.技能类型 === "输出" && skill.cast_time > 20) weight -= 30;
+        if (skillType2 === "输出" && skillCastTime <= 15) weight += 60;
+        if (skillType2 === "输出" && skillCastTime > 20) weight -= 30;
       } else if (defender.type === "防御系") {
-        if (skill.技能类型 === "防御") weight += 80;
-        if (skill.技能类型 === "输出") weight += 10;
+        if (skillType2 === "防御") weight += 80;
+        if (skillType2 === "输出") weight += 10;
       } else if (defender.type === "控制系") {
-        if (skill.技能类型 === "控制") weight += 80;
+        if (skillType2 === "控制") weight += 80;
       } else if (["辅助系", "治疗系", "食物系"].includes(defender.type)) {
-        if (skill.技能类型 === "辅助") weight += 80;
-        if (skill.技能类型 === "防御") weight += 50;
-        if (skill.技能类型 === "输出") weight -= 30;
+        if (skillType2 === "辅助") weight += 80;
+        if (skillType2 === "防御") weight += 50;
+        if (skillType2 === "输出") weight -= 30;
       }
 
       const isUltimate = skillPower >= 200 || /真身|第八魂技|第九魂技|武魂融合技|生命之火/.test(skill.name || "");
@@ -2403,13 +2932,53 @@ function buildNpcSkillCandidateContext(defender, attacker, playerAction, availab
         }
       }
 
-      weight -= Math.floor((skill.cast_time || 0) / 5);
+      weight -= Math.floor(skillCastTime / 5);
       if (!isLowHealth) {
         if (spRatio > 0.5 || vitRatio > 0.5) weight = Math.floor(weight * 0.3);
         else if (spRatio > 0.3 || vitRatio > 0.3) weight = Math.floor(weight * 0.7);
       } else if (vitRatio > 0.5) {
         weight = Math.floor(weight * 0.5);
       }
+
+      const summary = deriveBattleSummaryFromEffects(skill);
+      const mainType = inferMainTypeFromEffects(skill) || "无";
+      const enemyHpRatio = attacker.vit / Math.max(1, attacker.vit_max);
+      const selfHpRatio = defender.vit / Math.max(1, defender.vit_max);
+      const fieldActive = Object.keys(defender.conditions || {}).some(k => /领域|场地|结界|召唤/.test(k));
+      const hasBadCondition = Object.keys(defender.conditions || {}).some(k => !/霸体|真身|增益|护盾/.test(k));
+
+      if (["控制类", "削弱类"].includes(mainType)) weight += 15;
+      if (mainType === "增益类" && behaviorState.round <= 2) weight += 20;
+      if (mainType === "特殊规则类") weight -= 5;
+
+      if (summary.控制强度 === "硬控" && isChargingHighThreat) weight += 60;
+      else if (summary.控制强度 === "软控" && isChargingHighThreat) weight += 35;
+
+      if (mainType === "伤害类" && summary.目标规模 === "单体" && summary.爆发级别 === "高" && enemyHpRatio < 0.35) weight += 50;
+      if (mainType === "伤害类" && summary.目标规模 === "群体" && behaviorState.round <= 1) weight += 25;
+
+      if (summary.防御性质 !== "无" && selfHpRatio < 0.5) weight += 30;
+      if (summary.防御性质 === "免死" && selfHpRatio < 0.35) weight += 40;
+
+      if (summary.回复性质 !== "无" && (selfHpRatio < 0.6 || hasBadCondition)) weight += 35;
+      if (summary.回复性质 === "净化" && hasBadCondition) weight += 60;
+
+      if (summary.协同性 === "高" && (behaviorState.alliesCount || 1) > 1) weight += 20;
+      else if (summary.协同性 === "中" && (behaviorState.alliesCount || 1) > 1) weight += 10;
+
+      if (summary.生效方式 === "持续") weight += fieldActive ? -30 : 20;
+      if (summary.生效方式 === "延迟") {
+        if (behaviorState.round <= 1) weight += 15;
+        else if (enemyHpRatio < 0.3) weight -= 10;
+      }
+      if (summary.生效方式 === "触发") weight += 5;
+
+      if (summary.爆发级别 === "高" && enemyHpRatio < 0.4) weight += 20;
+      if (summary.持续性 === "长" && behaviorState.round <= 2) weight += 15;
+      if (summary.持续性 === "中" && behaviorState.combatType !== "擂台切磋") weight += 10;
+
+      if (summary.保留倾向 >= 70 && !(isChargingHighThreat || enemyHpRatio < 0.35 || selfHpRatio < 0.35)) weight -= 30;
+      else if (summary.保留倾向 >= 40 && !(isChargingHighThreat || enemyHpRatio < 0.45 || selfHpRatio < 0.45)) weight -= 15;
 
       return {
         skill,
@@ -2426,9 +2995,23 @@ function buildNpcSkillCandidateContext(defender, attacker, playerAction, availab
     return { skill: picked.option.build(), trace: picked.trace };
   }
 
-  const defSkills = validSkills.filter(skill => skill.技能类型 === "防御" || skill.技能类型 === "控制");
-  const atkSkills = validSkills.filter(skill => skill.技能类型 === "输出");
-  const controlSkills = validSkills.filter(skill => skill.技能类型 === "控制" || (skill.仲裁逻辑?.状态挂载模块?.特殊机制标识 || "").includes("硬控"));
+  const defSkills = validSkills.filter(skill => {
+    const skillType = getSkillType(skill);
+    const mainType = inferMainTypeFromEffects(skill);
+    return skillType === "防御" || mainType === "防御类" || hasSkillMechanism(skill, ["护盾", "减伤", "格挡", "霸体", "免死"]) || skillType === "控制";
+  });
+  const atkSkills = validSkills.filter(skill => {
+    const skillType = getSkillType(skill);
+    const mainType = inferMainTypeFromEffects(skill);
+    return skillType === "输出" || mainType === "伤害类" || hasSkillMechanism(skill, ["直接伤害", "多段伤害", "持续伤害", "延迟爆发", "斩杀补伤"]);
+  });
+  const controlSkills = validSkills.filter(skill => {
+    const mainType = inferMainTypeFromEffects(skill);
+    const calc = getPrimaryStateCalc(skill);
+    const flags = getPrimaryStateFlags(skill);
+    const summary = deriveBattleSummaryFromEffects(skill);
+    return mainType === "控制类" || mainType === "削弱类" || summary.控制强度 === "硬控" || summary.控制强度 === "软控" || hasSkillMechanism(skill, ["硬控", "催眠", "幻境", "标记锁定", "打断", "沉默", "禁疗", "减速"]) || Number(calc.lock_level || 0) > 0 || flags.includes("硬控");
+  });
 
   const defSkillPick = pickSkillWithWeight(defSkills);
   const atkSkillPick = pickSkillWithWeight(atkSkills);
@@ -2436,7 +3019,7 @@ function buildNpcSkillCandidateContext(defender, attacker, playerAction, availab
   const defSkill = defSkillPick.skill;
   const atkSkill = atkSkillPick.skill;
   const hardControlSkill = controlSkillPick.skill || controlSkills[0] || null;
-  const npcAtkPower = atkSkill?.仲裁逻辑?.瞬间交锋模块?.基础威力倍率 || 0;
+  const npcAtkPower = Number(getPrimaryDamageEffect(atkSkill)?.威力倍率 || 0);
   const skillTraceLog = [defSkillPick.trace, atkSkillPick.trace, controlSkillPick.trace].filter(Boolean).join(" | ");
 
   return { defSkill, atkSkill, hardControlSkill, npcAtkPower, skillTraceLog };
@@ -2449,8 +3032,11 @@ function buildTacticalCandidates(defender, attacker, playerAction, behaviorState
 
   let isLockedBySpirit = false;
   if ((playerAction.cast_time || 0) > 0) {
-    const pState = playerAction.skill?.仲裁逻辑?.状态挂载模块 || {};
-    if (pState.特殊机制标识 && (pState.特殊机制标识.includes("锁定") || pState.特殊机制标识.includes("威压"))) {
+    const pState = getPrimaryStateEffect(playerAction.skill) || {};
+    const pCalc = getPrimaryStateCalc(playerAction.skill);
+    const hasStructuredLock = Number(pCalc.lock_level || 0) > 0;
+    const hasLegacyLock = getPrimaryStateFlags(playerAction.skill).includes("锁定") || getPrimaryStateFlags(playerAction.skill).includes("威压");
+    if (hasStructuredLock || hasLegacyLock) {
       if (attacker.men_max > defender.men_max) isLockedBySpirit = true;
     }
   }
@@ -2580,7 +3166,7 @@ function determineNpcAction(combatData, playerAction, ratio) {
   const combatType = combatData.combat_type || "突发遭遇";
   const isDeadlyFight = combatType === "死战" || combatType === "突发遭遇";
   const lvDiff = (attacker.lv || 1) - (defender.lv || 1);
-  const playerPower = playerAction.skill?.仲裁逻辑?.瞬间交锋模块?.基础威力倍率 || 0;
+  const playerPower = ((playerAction.skill?._效果数组 || []).find(e => ["直接伤害","多段伤害","持续伤害","延迟爆发"].includes(e.机制))?.威力倍率 || 0) || 0;
   const isChargingHighThreat = !!attacker.charging_skill || playerAction.action_type === "蓄力挨打" || ((playerAction.cast_time || 0) >= 20 && playerPower >= 120);
   const isSupport = ["辅助系", "治疗系", "食物系"].includes(defender.type);
   const isLowHealth = defender.vit < defender.vit_max * 0.3;
@@ -2651,10 +3237,10 @@ function applyHighTierMechanics(attackerChar, defenderChar, playerAction, baseRe
 // 📍 6. 辅助区：意图解析与NPC决策 (真实读取版)
 // ==========================================
 function parsePlayerIntent(playerInput) {
-  let combatData = window.BattleUIBridge?.getMVU("sd.world.combat");
+  let combatData = window.BattleUIBridge?.getMVU("world.combat");
   hydrateCombatData(combatData);
   let attacker = combatData.participants.player;
-  let charData = window.BattleUIBridge?.getMVU("sd.char." + attacker.name) || window.BattleUIBridge?.getMVU("sd.char.主角"); 
+  let charData = window.BattleUIBridge?.getMVU("char." + attacker.name) || window.BattleUIBridge?.getMVU("char.主角"); 
   bindCombatParticipant(charData);
   
   let action = {
@@ -2663,13 +3249,10 @@ function parsePlayerIntent(playerInput) {
     is_charged: false,
     skill: normalizeSkillData({
       name: "普通攻击",
-      技能类型: "输出",
-      对象: "敌方/单体",
-      仲裁逻辑: {
-        瞬间交锋模块: { 基础威力倍率: 100, 伤害类型: "物理近战", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
-        状态挂载模块: { 状态名称: "无", 持续回合: 0, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, men_max: 1.0 }, 特殊机制标识: "无", 持续真伤dot: 0 },
-        召唤与场地模块: { 实体名称: "无", 持续回合: 0, 继承属性比例: 0, 核心机制描述: "无" }
-      }
+      _效果数组: [
+        { 机制: "系统基础", 消耗: "无", 对象: "敌方/单体", 技能类型: "输出", cast_time: 10 },
+        { 机制: "直接伤害", 目标: "敌方单体", 威力倍率: 100, 伤害类型: "物理近战", 穿透修饰: 0 }
+      ]
     }, "普通攻击")
   };
   if (!charData) return action;
@@ -2690,7 +3273,7 @@ function parsePlayerIntent(playerInput) {
 
   if (matchedSkill) {
     action.action_type = matchedSkillName.includes("武魂融合技") ? "武魂融合技" : "释放魂技";
-    action.cast_time = matchedSkill.cast_time || 10;
+    action.cast_time = getSkillCastTime(matchedSkill) || 10;
     action.skill = normalizeSkillData(matchedSkill, matchedSkillName);
   }
 
@@ -2760,7 +3343,7 @@ function parsePlayerIntent(playerInput) {
         action.action_type = "武魂融合技";
         action.skill = normalizeSkillData(fusionSkill.skill_data, `武魂融合技·${fusionName}`);
         action.skill.name = `武魂融合技·${action.skill.name}`;
-        action.cast_time = action.skill.cast_time || 30;
+        action.cast_time = getSkillCastTime(action.skill) || 30;
       }
     });
     if (!hasFusion) {
@@ -2926,10 +3509,10 @@ function buildAutoActionForActor(actorEntry, targets, battleState) {
     cast_time: 10,
     skill: normalizeSkillData({
       name: "普通攻击",
-      技能类型: "输出",
-      对象: "敌方/单体",
-      仲裁逻辑: createEmptyCombatLogic(),
-      消耗: "无"
+      _效果数组: [
+        { 机制: "系统基础", 消耗: "无", 对象: "敌方/单体", 技能类型: "输出", cast_time: 10 },
+        { 机制: "直接伤害", 目标: "敌方单体", 威力倍率: 100, 伤害类型: "物理近战", 穿透修饰: 0 }
+      ]
     }, "普通攻击")
   };
 
@@ -2951,10 +3534,9 @@ function buildAutoActionForActor(actorEntry, targets, battleState) {
     if (!decisionAction) return null;
     const neutralSkill = normalizeSkillData({
       name: decisionAction.type || "战术动作",
-      技能类型: "辅助",
-      对象: "自身",
-      仲裁逻辑: createEmptyCombatLogic(),
-      消耗: "无"
+      _效果数组: [
+        { 机制: "系统基础", 消耗: "无", 对象: "自身", 技能类型: "辅助", cast_time: 10 }
+      ]
     }, decisionAction.type || "战术动作");
 
     return {
@@ -2978,13 +3560,10 @@ function buildAutoActionForActor(actorEntry, targets, battleState) {
     cast_time: 10,
     skill: normalizeSkillData({
       name: "普通攻击",
-      技能类型: "输出",
-      对象: "敌方/单体",
-      仲裁逻辑: {
-        瞬间交锋模块: { 基础威力倍率: 100, 伤害类型: "物理近战", 穿透修饰: 0, 护盾绝对值: 0, 瞬间恢复比例: 0 },
-        状态挂载模块: { 状态名称: "无", 特殊机制标识: "无", 持续回合: 0, 面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, sp_max: 1.0 }, 持续真伤dot: 0 }
-      },
-      消耗: "无"
+      _效果数组: [
+        { 机制: "系统基础", 消耗: "无", 对象: "敌方/单体", 技能类型: "输出", cast_time: 10 },
+        { 机制: "直接伤害", 目标: "敌方单体", 威力倍率: 100, 伤害类型: "物理近战", 穿透修饰: 0 }
+      ]
     }, "普通攻击"),
     source: "auto_actor",
     decision_log: "[行为预演/主动战术阶段] 无更优动作，回落为普通攻击。"
@@ -3155,7 +3734,8 @@ function runActorTurn(actorEntry, battleState) {
   }
 
   if (reactionAction.type === "穿戴装备") {
-    const isTargetInterrupted = (settleResult.dmg / Math.max(1, finalTarget.vit_max) >= 0.15) || (action.skill?.仲裁逻辑?.状态挂载模块?.特殊机制标识?.includes("硬控"));
+    const actorStateCalc = getPrimaryStateCalc(action.skill);
+    const isTargetInterrupted = (settleResult.dmg / Math.max(1, finalTarget.vit_max) >= 0.15) || actorStateCalc.skip_turn === true || (((action.skill?._效果数组 || []).find(e => e.机制 === "状态挂载")?.特殊机制标识 || "无")?.includes("硬控"));
     if (!isTargetInterrupted) {
       finalTarget.equip[reactionAction.skill.equip_target].equip_status = "已装备";
       turnLog += ` [装备生效] ${finalTarget.name}成功完成装备穿戴。`;
@@ -3392,10 +3972,10 @@ function ui_getAvailableActions(charData, combatData) {
       type: "skill",
       name: skill.name,
       category: skill.source_tag || "魂技", // 核心修改：按来源分类
-      semantic_role: skill.主定位 || skill.技能类型 || "输出",
+      semantic_role: getSkillType(skill) || "输出",
       tags: skill.标签 || [],
-      cast_time: skill.cast_time || 0,
-      cost_text: skill.消耗 || "无",
+      cast_time: getSkillCastTime(skill),
+      cost_text: getSkillCostText(skill),
       enabled: costParsed.canCast,
       reason: costParsed.canCast ? "" : "状态不足",
       raw_skill: skill
@@ -3445,6 +4025,98 @@ function ui_getAvailableActions(charData, combatData) {
   });
 
   return actions;
+}
+
+function buildSerializedEntryFromAction(action) {
+  if (!action) return null;
+  const skill = action.raw_skill || action.skill || {};
+  const type = action.type || skill.技能类型 || '输出';
+  const name = action.name || skill.name || '';
+  const actionObj = {
+    type,
+    skill,
+    cast_time: Number(action.cast_time ?? skill.cast_time ?? 0) || 0,
+    target_name: window.BattleUIBridge?.getMVU("world.combat.participants.enemy.name") || null
+  };
+  if (type === '穿戴装备') actionObj.equip_target = /机甲/.test(name) ? 'mech' : 'armor';
+  if (type === '吸血反哺') actionObj.heal_ratio = action.heal_ratio || 0.3;
+  if (type === '多元素融合') actionObj.element_count = action.element_count || 2;
+  if (action.is_charged) actionObj.is_charged = true;
+  return actionObj;
+}
+
+function buildIntentText(actions) {
+  const queue = (actions || []).map(buildSerializedEntryFromAction).filter(Boolean);
+  const parts = [];
+  if (queue.length) parts.push(`[动作串]${JSON.stringify(queue)}[/动作串]`);
+  const target = window.BattleUIBridge?.getMVU("world.combat.participants.enemy.name");
+  if (target) parts.push(`[目标]${target}[/目标]`);
+  return parts.join('\n');
+}
+
+function submitBattleIntent() {
+  const state = window.BattleUI?.state || {};
+  const battleMode = state.currentMode === 'multi_round' ? 'multi_round' : 'single_round';
+  const queue = [...(state.selectedPreActions || []), state.selectedSkillActions?.[state.selectedSkillActions.length - 1]].filter(Boolean);
+  const intentText = buildIntentText(queue);
+  const output = document.getElementById('ui-intent-output');
+  if (output) output.value = intentText;
+  window.__battleLastIntentText = intentText;
+  
+  let result = { intentText, mode: 'intent_only', battleMode };
+  try {
+    window.dispatchEvent(new CustomEvent('battle-ui-intent-submit', { detail: { intentText, battleMode } }));
+  } catch (error) {
+    console.warn('battle-ui-intent-submit dispatch failed', error);
+  }
+  
+  if (typeof onPlayerAttack === 'function') {
+    try {
+      onPlayerAttack(intentText, { mode: battleMode });
+      if (typeof syncFromBattleEngine === 'function') syncFromBattleEngine();
+      result = { intentText, mode: 'engine_arbitrated', battleMode, aiRequest: window.__lastBattleAIRequest || null };
+    } catch (error) {
+      console.error('battle arbitration failed', error);
+      result = { intentText, mode: 'engine_error', battleMode, error };
+    }
+  } else if (window.BattleUIBridge?.pushUserInput) {
+    const pushResult = window.BattleUIBridge.pushUserInput(intentText, { autoSend: false });
+    result = { intentText, mode: 'intent_buffered', battleMode, delivery: pushResult };
+  }
+  
+  try {
+    window.dispatchEvent(new CustomEvent('battle-ui-submit-finished', { detail: result }));
+  } catch (error) {
+    console.warn('battle-ui-submit-finished dispatch failed', error);
+  }
+  return result;
+}
+
+function bindUIEvents() {
+  document.querySelectorAll('#ui-mode-group .mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#ui-mode-group .mode-btn').forEach(item => item.classList.remove('active'));
+      btn.classList.add('active');
+      if (window.BattleUI && window.BattleUI.state) {
+        window.BattleUI.state.currentMode = btn.dataset.mode;
+      }
+    });
+  });
+
+  const arbitrateBtn = document.getElementById('ui-arbitrate');
+  if (arbitrateBtn) arbitrateBtn.addEventListener('click', submitBattleIntent);
+}
+
+const originalInit = typeof initBattleUiFromMvu === 'function' ? initBattleUiFromMvu : null;
+if (originalInit) {
+  initBattleUiFromMvu = async function() {
+    await originalInit();
+    bindUIEvents();
+    window.BattleUI = Object.assign(window.BattleUI || {}, {
+      buildIntentText,
+      submitBattleIntent
+    });
+  };
 }
 
         initBattleUiFromMvu();

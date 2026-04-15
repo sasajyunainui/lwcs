@@ -543,11 +543,11 @@
     }
 
     function buildArmoryActionRequest(snapshot, actionType) {
-      if (!snapshot || !snapshot.sd) return null;
+      if (!snapshot || !snapshot.rootData) return null;
       if (!isSnapshotPlayerControlled(snapshot)) return null;
       const activeKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
       if (!activeKey) return null;
-      const chars = deepGet(snapshot, 'sd.char', {});
+      const chars = deepGet(snapshot, 'rootData.char', {});
       const activeChar = chars && typeof chars === 'object' ? (chars[activeKey] || {}) : {};
       const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, activeKey));
       const currentLoc = toText(deepGet(activeChar, 'status.loc', snapshot.currentLoc || '当前位置'), '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
@@ -1418,29 +1418,28 @@
       ];
       for (const item of candidates) {
         if (!item || typeof item !== 'object') continue;
-        if (item.sd && typeof item.sd === 'object') return item;
-        if (item.stat_data && item.stat_data.sd && typeof item.stat_data.sd === 'object') {
-          return { sd: item.stat_data.sd };
-        }
         if (item.stat_data && typeof item.stat_data === 'object' && (item.stat_data.char || item.stat_data.world || item.stat_data.sys)) {
-          return { sd: item.stat_data };
+          return item.stat_data;
+        }
+        if (item.char || item.world || item.sys || item.org || item.map) {
+          return item;
         }
       }
       return null;
     }
 
     function buildEffectiveSd(rawSd) {
-      if (!rawSd || typeof rawSd !== 'object') return { sd: null, rawSd: null };
+      if (!rawSd || typeof rawSd !== 'object') return { rootData: null, rawData: null };
 
       return {
-        sd: {
+        rootData: {
           sys: rawSd.sys || {},
           world: rawSd.world || {},
           org: rawSd.org || {},
           map: rawSd.map || {},
           char: rawSd.char || {}
         },
-        rawSd
+        rawData: rawSd
       };
     }
 
@@ -1546,7 +1545,7 @@
     }
 
     function isSnapshotPlayerControlled(snapshot) {
-      const playerName = toText(deepGet(snapshot, 'sd.sys.player_name', ''), '').trim();
+      const playerName = toText(deepGet(snapshot, 'rootData.sys.player_name', ''), '').trim();
       const activeName = toText(snapshot && snapshot.activeName, '').trim();
       return isPlayerCharacterEntry(activeName, deepGet(snapshot, 'activeChar', {}), playerName);
     }
@@ -2050,7 +2049,7 @@
       const chars = sd && sd.char ? sd.char : {};
       const charEntries = safeEntries(chars);
       return {
-        sd,
+        rootData: sd,
         activeName,
         appearanceText: formatAppearanceText(deepGet(activeChar, 'appearance', {})),
         personalityText: toText(deepGet(activeChar, 'personality', '未设定'), '未设定'),
@@ -2114,13 +2113,13 @@
 
     function applyActiveCharacterSelection(nextName, options = {}) {
       const targetName = toText(nextName, '').trim();
-      const sd = deepGet(liveSnapshot, 'sd', null);
-      const chars = deepGet(sd, 'char', {});
-      if (!targetName || !sd || !chars || !chars[targetName]) return false;
+      const rootData = deepGet(liveSnapshot, 'rootData', null);
+      const chars = deepGet(rootData, 'char', {});
+      if (!targetName || !rootData || !chars || !chars[targetName]) return false;
 
       window.__MVU_MANUAL_CHAR_SET = true; // 标记这是用户手动切换的角色，不再自动被后续的玩家顶掉
       setPreferredActiveCharacterName(targetName);
-      liveSnapshot = buildSnapshot(sd);
+      liveSnapshot = buildSnapshot(rootData);
       renderHeader(liveSnapshot);
       renderLiveCards(liveSnapshot);
 
@@ -2139,7 +2138,7 @@
     function renderHeader(snapshot) {
       const stat = deepGet(snapshot, 'activeChar.stat', {});
       const social = deepGet(snapshot, 'activeChar.social', {});
-      const worldTimeText = toText(deepGet(snapshot, 'sd.world.time._calendar', deepGet(snapshot, 'sd.world.time.calendar', '斗罗历未同步')), '斗罗历未同步');
+      const worldTimeText = toText(deepGet(snapshot, 'rootData.world.time._calendar', deepGet(snapshot, 'rootData.world.time.calendar', '斗罗历未同步')), '斗罗历未同步');
       const headerComboHtml = `<span style="opacity:1;font-size:12px;color:#fff;">${worldTimeText}</span><span style="opacity:0.65;font-size:11px;">${snapshot.currentLoc}</span>`;
       document.querySelectorAll('.header-loc span').forEach(el => { el.innerHTML = headerComboHtml; });
       document.querySelectorAll('.char-name').forEach(el => { el.textContent = snapshot.activeName; });
@@ -2425,8 +2424,8 @@
     }
 
     function buildWorldHeroCard(snapshot) {
-      const worldTime = toText(deepGet(snapshot, 'sd.world.time._calendar', deepGet(snapshot, 'sd.world.time.calendar', '斗罗历未同步')), '斗罗历未同步');
-      const deviation = toNumber(deepGet(snapshot, 'sd.world.deviation', 0), 0);
+      const worldTime = toText(deepGet(snapshot, 'rootData.world.time._calendar', deepGet(snapshot, 'rootData.world.time.calendar', '斗罗历未同步')), '斗罗历未同步');
+      const deviation = toNumber(deepGet(snapshot, 'rootData.world.deviation', 0), 0);
       const forestRatio = Math.max(0, Math.min(100, Number(((toNumber(snapshot.forestKilledAge, 0) / 1000000) * 100).toFixed(1))));
       const forestStage = forestRatio >= 100 ? '兽潮临界' : (forestRatio >= 70 ? '高度紧张' : (forestRatio >= 30 ? '持续升温' : '相对安全'));
       const latest = snapshot.latestTimeline;
@@ -2486,7 +2485,7 @@
     }
 
     function buildTerminalHeroCard(snapshot) {
-      const sys = deepGet(snapshot, 'sd.sys', {});
+      const sys = deepGet(snapshot, 'rootData.sys', {});
       const recentNews = buildRecentNewsSummary(snapshot, { seqLimit: 2, intelLimit: 1 });
       const recentPlans = buildRecentPlanSummary(snapshot, { worldLimit: 2, recordLimit: 1 });
       const latestBroadcast = toText(sys.rsn, '暂无播报');
@@ -2624,7 +2623,7 @@
         `; 
       });
       document.querySelectorAll('[data-preview="拍卖与警报"].mvu-simple-card').forEach(el => { el.innerHTML = buildSimpleCard('拍卖行与警报', null, [
-        { label: '拍卖行', value: `${toText(deepGet(snapshot, 'sd.world.auction.status', '休市'), '休市')} / ${toText(deepGet(snapshot, 'sd.world.auction.location', '无'), '无')}` },
+        { label: '拍卖行', value: `${toText(deepGet(snapshot, 'rootData.world.auction.status', '休市'), '休市')} / ${toText(deepGet(snapshot, 'rootData.world.auction.location', '无'), '无')}` },
         { label: '生态警报', value: snapshot.worldAlert }
       ]); });
 
@@ -2733,8 +2732,8 @@
       }
 
       if (previewKey === '角色切换器') {
-        const playerName = toText(deepGet(snapshot, 'sd.sys.player_name', ''), '');
-        const charEntries = sortCharacterEntries(safeEntries(deepGet(snapshot, 'sd.char', {})), { playerName, currentName: snapshot.activeName });
+        const playerName = toText(deepGet(snapshot, 'rootData.sys.player_name', ''), '');
+        const charEntries = sortCharacterEntries(safeEntries(deepGet(snapshot, 'rootData.char', {})), { playerName, currentName: snapshot.activeName });
         const switchCards = charEntries.length
           ? charEntries.map(([name, char]) => {
               const isCurrent = name === snapshot.activeName;
@@ -3759,7 +3758,7 @@
       }
 
       if (previewKey === '少年天才榜') {
-        const lastBoardEntries = safeEntries(deepGet(snapshot, 'sd.world.rankings.youth_talent._last榜单', deepGet(snapshot, 'sd.world.rankings.youth_talent.last榜单', {}))).sort((a, b) => toNumber(b[1], 0) - toNumber(a[1], 0));
+        const lastBoardEntries = safeEntries(deepGet(snapshot, 'rootData.world.rankings.youth_talent._last榜单', deepGet(snapshot, 'rootData.world.rankings.youth_talent.last榜单', {}))).sort((a, b) => toNumber(b[1], 0) - toNumber(a[1], 0));
         return {
           title: '少年天才榜',
           summary: '收录大陆30岁以下天资卓越者的榜单（TOP 30）。',
@@ -3792,7 +3791,7 @@
       }
 
       if (previewKey === '拍卖与警报') {
-        const auctionItems = safeEntries(deepGet(snapshot, 'sd.world.auction.items', {})).slice(0, 6);
+        const auctionItems = safeEntries(deepGet(snapshot, 'rootData.world.auction.items', {})).slice(0, 6);
         return {
           title: '拍卖行 / 世界警报弹窗',
           summary: '拍卖状态、拍品与当前世界警报。',
@@ -3801,9 +3800,9 @@
               <div class="archive-card">
                 <div class="archive-card-head"><div class="archive-card-title">拍卖状态</div></div>
                 ${makeTileGrid([
-                  { label: '状态', value: toText(deepGet(snapshot, 'sd.world.auction.status', '休市'), '休市') },
-                  { label: '地点', value: toText(deepGet(snapshot, 'sd.world.auction.location', '无'), '无') },
-                  { label: '下次刷新', value: toText(deepGet(snapshot, 'sd.world.auction.next_tick', 0), '0') },
+                  { label: '状态', value: toText(deepGet(snapshot, 'rootData.world.auction.status', '休市'), '休市') },
+                  { label: '地点', value: toText(deepGet(snapshot, 'rootData.world.auction.location', '无'), '无') },
+                  { label: '下次刷新', value: toText(deepGet(snapshot, 'rootData.world.auction.next_tick', 0), '0') },
                   { label: '当前拍品', value: `${auctionItems.length} 件` }
                 ], 'two')}
               </div>
@@ -3974,9 +3973,9 @@
       if (previewKey === '本地据点详情' || previewKey === '当前节点详情' || previewKey.startsWith('地图节点：')) {
         const nodeName = previewKey.startsWith('地图节点：') ? previewKey.replace('地图节点：', '') : snapshot.currentLoc;
         const mapNode = resolveDisplayMapNode(snapshot, nodeName);
-        const nodeInfo = resolveLocationData(snapshot.sd, nodeName);
+        const nodeInfo = resolveLocationData(snapshot.rootData, nodeName);
         const nodeStores = safeEntries(nodeInfo.data && nodeInfo.data.stores);
-        const localNpcEntries = safeEntries(deepGet(snapshot, 'sd.char', {}))
+        const localNpcEntries = safeEntries(deepGet(snapshot, 'rootData.char', {}))
           .filter(([name, char]) => name !== snapshot.activeName && toText(deepGet(char, 'status.loc', ''), '') === nodeName)
           .slice(0, 4);
         const primaryNpc = localNpcEntries[0] ? localNpcEntries[0][0] : '';
@@ -4087,7 +4086,7 @@
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">系统广播</div></div>
                 ${makeTimelineStack([
-                  { title: '最近播报', desc: toText(deepGet(snapshot, 'sd.sys.rsn', '暂无'), '暂无') },
+                  { title: '最近播报', desc: toText(deepGet(snapshot, 'rootData.sys.rsn', '暂无'), '暂无') },
                   { title: '最近事件', desc: snapshot.latestTimeline ? snapshot.latestTimeline[0] : '暂无事件' },
                   { title: '安排摘要', desc: snapshot.pendingRequests[0] || '暂无安排' },
                   { title: '情报摘要', desc: snapshot.pendingIntelCount ? `${snapshot.pendingIntelContent} / 新线索 ${snapshot.pendingIntelCount} 条` : '暂无新情报' }
@@ -4282,14 +4281,14 @@
       try {
         const vars = await getAllVariablesSafe();
         const root = resolveRootData(vars);
-        if (!root || !root.sd) return;
-        const effective = buildEffectiveSd(root.sd);
-        if (!effective.sd) return;
-        liveSnapshot = buildSnapshot(effective.sd);
+        if (!root) return;
+        const effective = buildEffectiveSd(root);
+        if (!effective.rootData) return;
+        liveSnapshot = buildSnapshot(effective.rootData);
         renderHeader(liveSnapshot);
         renderLiveCards(liveSnapshot);
         
-        const isCombatActive = !!deepGet(liveSnapshot, 'sd.world.combat.is_active');
+        const isCombatActive = !!deepGet(liveSnapshot, 'rootData.world.combat.is_active');
         if (isCombatActive && isSnapshotPlayerControlled(liveSnapshot)) {
           if (!activeBattleUI && typeof window.mountBattleUI === 'function') {
             activeBattleUI = window.mountBattleUI(document.getElementById('battle-overlay'), liveSnapshot, {
@@ -4563,7 +4562,7 @@
 
     function resolveSnapshotCharKey(snapshot, rawName) {
       const wanted = toText(rawName, '').trim();
-      const chars = deepGet(snapshot, 'sd.char', {});
+      const chars = deepGet(snapshot, 'rootData.char', {});
       if (!wanted || !chars || typeof chars !== 'object') return '';
       if (chars[wanted]) return wanted;
       for (const [charKey, charInfo] of Object.entries(chars)) {
@@ -4579,7 +4578,7 @@
       const action = toText(detail.action, '');
       const npcTarget = toText(detail.npcTarget, '');
       const currentLoc = toText(snapshot && snapshot.currentLoc, '');
-      const locations = deepGet(snapshot, 'sd.world.locations', {});
+      const locations = deepGet(snapshot, 'rootData.world.locations', {});
       const currentLocation = locations && typeof locations === 'object' ? (locations[currentLoc] || {}) : {};
       const storeMap = currentLocation && typeof currentLocation === 'object' ? (currentLocation.stores || {}) : {};
 
@@ -4613,13 +4612,13 @@
       let npcTarget = toText(detail.npcTarget, '');
       const npcTargets = Array.isArray(detail.npcTargets) ? detail.npcTargets.map(item => toText(item, '')).filter(Boolean) : [];
       if (!npcTarget && npcTargets.length === 1) npcTarget = npcTargets[0];
-      if (!snapshot || !snapshot.sd || !npcTarget) return null;
+      if (!snapshot || !snapshot.rootData || !npcTarget) return null;
 
       const activeKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
       const targetKey = resolveSnapshotCharKey(snapshot, npcTarget);
       if (!activeKey || !targetKey) return null;
 
-      const chars = deepGet(snapshot, 'sd.char', {});
+      const chars = deepGet(snapshot, 'rootData.char', {});
       const activeChar = chars && typeof chars === 'object' ? (chars[activeKey] || {}) : {};
       const targetChar = chars && typeof chars === 'object' ? (chars[targetKey] || {}) : {};
       const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), activeKey);
@@ -4627,27 +4626,27 @@
       const arenaName = toText(detail.target, toText(detail.currentLoc, toText(snapshot.currentLoc, '未知地点')));
 
       const patchOps = [
-        { op: 'replace', path: '/sd/world/combat/is_active', value: true },
-        { op: 'replace', path: '/sd/world/combat/combat_type', value: '切磋' },
-        { op: 'replace', path: '/sd/world/combat/initiative', value: '无' },
-        { op: 'replace', path: '/sd/world/combat/allow_flee', value: true },
-        { op: 'replace', path: '/sd/world/combat/round', value: 1 },
-        { op: 'replace', path: '/sd/world/combat/phase', value: '宣告阶段' },
-        { op: 'replace', path: '/sd/world/combat/environment', value: `${arenaName} / 切磋` },
-        { op: 'replace', path: '/sd/world/combat/_summary', value: {
+        { op: 'replace', path: '/world/combat/is_active', value: true },
+        { op: 'replace', path: '/world/combat/combat_type', value: '切磋' },
+        { op: 'replace', path: '/world/combat/initiative', value: '无' },
+        { op: 'replace', path: '/world/combat/allow_flee', value: true },
+        { op: 'replace', path: '/world/combat/round', value: 1 },
+        { op: 'replace', path: '/world/combat/phase', value: '宣告阶段' },
+        { op: 'replace', path: '/world/combat/environment', value: `${arenaName} / 切磋` },
+        { op: 'replace', path: '/world/combat/_summary', value: {
           player_action: { action_type: '无', element_count: 1, is_charged: false },
           settle_result: { target_npc: targetName, result: '未决', is_killed: false },
           round_count: 0,
           mode: 'single_round',
           _generated_by: 'UI.html.map-action-dispatch'
         } },
-        { op: 'replace', path: '/sd/world/combat/participants', value: {
+        { op: 'replace', path: '/world/combat/participants', value: {
           [activeKey]: { faction: '己方', status: deepGet(activeChar, 'status.alive', true) === false ? '重伤' : '存活', action_declared: '无', is_summon: false, _current_cast_time: 0 },
           [targetKey]: { faction: '敌对', status: deepGet(targetChar, 'status.alive', true) === false ? '重伤' : '存活', action_declared: '无', is_summon: false, _current_cast_time: 0 }
         } },
-        { op: 'replace', path: `/sd/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: '战斗中' },
-        { op: 'replace', path: `/sd/char/${escapeJsonPointerValue(targetKey)}/status/action`, value: '应战' },
-        { op: 'replace', path: '/sd/sys/rsn', value: `[切磋开始] ${activeName}在${arenaName}向${targetName}发起切磋。` }
+        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: '战斗中' },
+        { op: 'replace', path: `/char/${escapeJsonPointerValue(targetKey)}/status/action`, value: '应战' },
+        { op: 'replace', path: '/sys/rsn', value: `[切磋开始] ${activeName}在${arenaName}向${targetName}发起切磋。` }
       ];
 
       const systemPrompt = `以下内容属于前端已经完成的战斗初始化，不要在正文直接复述“JSONPatch / 系统分析 / 仲裁日志”等术语。
@@ -4685,16 +4684,16 @@ ${JSON.stringify(patchOps, null, 2)}
         intel: '请教'
       };
       const interactAction = toText(interactActionMap[action], '');
-      if (!snapshot || !snapshot.sd || !npcTarget || !interactAction) return null;
+      if (!snapshot || !snapshot.rootData || !npcTarget || !interactAction) return null;
 
       const activeKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
       if (!activeKey) return null;
 
-      const chars = deepGet(snapshot, 'sd.char', {});
+      const chars = deepGet(snapshot, 'rootData.char', {});
       const activeChar = chars && typeof chars === 'object' ? (chars[activeKey] || {}) : {};
       const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, activeKey));
       const arenaName = toText(detail.target, toText(detail.currentLoc, toText(snapshot.currentLoc, '未知地点')));
-      const currentTick = toNumber(deepGet(snapshot, 'sd.world.time.tick', 0), 0);
+      const currentTick = toNumber(deepGet(snapshot, 'rootData.world.time.tick', 0), 0);
       const actionPromptMap = {
         talk: `我想在【${arenaName}】和【${npcTarget}】对话。`,
         brief: `我想在【${arenaName}】向【${npcTarget}】汇报情况并请示安排。`,
@@ -4702,15 +4701,15 @@ ${JSON.stringify(patchOps, null, 2)}
       };
 
       const patchOps = [
-        { op: 'replace', path: `/sd/char/${escapeJsonPointerValue(activeKey)}/interact_request`, value: {
+        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/interact_request`, value: {
           target_npc: npcTarget,
           action: interactAction,
           item_used: '无',
           ai_score: 0
         } },
-        { op: 'replace', path: `/sd/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: '日常' },
-        { op: 'replace', path: '/sd/world/time/tick', value: currentTick + 2 },
-        { op: 'replace', path: '/sd/sys/rsn', value: `[社交互动] ${activeName} 在【${arenaName}】对【${npcTarget}】发起【${interactAction}】。` }
+        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: '日常' },
+        { op: 'replace', path: '/world/time/tick', value: currentTick + 2 },
+        { op: 'replace', path: '/sys/rsn', value: `[社交互动] ${activeName} 在【${arenaName}】对【${npcTarget}】发起【${interactAction}】。` }
       ];
 
       const systemPrompt = `以下内容属于前端已经完成的地图 NPC 互动结算，不要在正文直接复述“JSONPatch / 系统分析 / 仲裁日志”等术语。
@@ -5079,17 +5078,17 @@ window.MVU_Toast = {
 window.EquipmentManager = {
   async performEquip(charIndex, itemName) {
     const vars = typeof window.getAllVariables === 'function' ? await window.getAllVariables() : null;
-    if (!vars || !vars.sd || !vars.sd.char) {
+    if (!vars || !vars.char) {
       window.MVU_Toast.show('获取角色数据失败，无法换装', 'error');
       return;
     }
-    const charNames = Object.keys(vars.sd.char);
+    const charNames = Object.keys(vars.char);
     const activeName = charNames[charIndex];
     if (!activeName) {
       window.MVU_Toast.show('未找到目标角色信息', 'error');
       return;
     }
-    const activeChar = vars.sd.char[activeName];
+    const activeChar = vars.char[activeName];
     const inventory = activeChar.inventory || {};
     const equip = activeChar.equip || {};
     const soulBone = activeChar.soul_bone || {};
@@ -5133,7 +5132,7 @@ window.EquipmentManager = {
     }
 
     const patches = [];
-    const charPath = `/sd/char/${this.escapePtr(activeName)}`;
+    const charPath = `/char/${this.escapePtr(activeName)}`;
     
     // 1. 扣除背包新装备
     const currentQty = itemData.数量 || 1;

@@ -3097,31 +3097,32 @@
     const candidates = [vars, vars.data, vars.variables, vars.payload, vars.state, vars.mvu, vars.root];
     for (const item of candidates) {
       if (!item || typeof item !== 'object') continue;
-      if (item.sd && typeof item.sd === 'object') return item;
-      if (item.stat_data && item.stat_data.sd && typeof item.stat_data.sd === 'object') return { sd: item.stat_data.sd };
       if (item.stat_data && typeof item.stat_data === 'object' && (item.stat_data.char || item.stat_data.world || item.stat_data.sys)) {
-        return { sd: item.stat_data };
+        return item.stat_data;
+      }
+      if (item.char || item.world || item.sys || item.org || item.map) {
+        return item;
       }
     }
     return null;
   }
 
   function buildEffectiveSd(rawSd) {
-    if (!rawSd || typeof rawSd !== 'object') return { sd: null, rawSd: null };
+    if (!rawSd || typeof rawSd !== 'object') return { rootData: null, rawData: null };
     const liveMap = (rawSd.map && typeof rawSd.map === 'object' && Object.keys(rawSd.map).length)
       ? rawSd.map
       : ((rawSd.display_map && typeof rawSd.display_map === 'object' && Object.keys(rawSd.display_map).length)
         ? rawSd.display_map
         : (deepGet(rawSd, '_display_all.map', deepGet(rawSd, 'display_all.map', {})) || {}));
     return {
-      sd: {
+      rootData: {
         sys: rawSd.sys || {},
         world: rawSd.world || {},
         org: rawSd.org || {},
         map: liveMap,
         char: rawSd.char || {}
       },
-      rawSd
+      rawData: rawSd
     };
   }
 
@@ -3554,21 +3555,21 @@
       : DEFAULT_MAP_ZOOM;
   }
 
-  function buildMapSnapshot(sd) {
-    const [activeName, activeChar] = resolveActiveCharacter(sd || {});
-    return buildSnapshotFromMapPayload(sd, activeName, activeChar);
+  function buildMapSnapshot(rootData) {
+    const [activeName, activeChar] = resolveActiveCharacter(rootData || {});
+    return buildSnapshotFromMapPayload(rootData, rootData, activeName, activeChar);
   }
 
-  function buildSnapshotFromMapPayload(payload, activeName, activeChar) {
+  function buildSnapshotFromMapPayload(payload, sourceRootData, activeName, activeChar) {
     const isPreview = payload && payload.current_map_id && payload.current_map_id !== 'map_douluo_world';
-    const sd = isPreview ? (payload.sd || mapState.baseSnapshot?.sd) : payload;
+    const rootData = isPreview ? (payload.rootData || sourceRootData || mapState.baseSnapshot?.rootData || {}) : (sourceRootData || payload || {});
     const currentLocFull = toText(deepGet(activeChar, 'status.loc', '斗罗大陆-未知地点'), '斗罗大陆-未知地点');
     const pathSegments = currentLocFull.split('-').filter(Boolean);
     const currentLocName = pathSegments[pathSegments.length - 1] || '未知地点';
     const currentMapId = isPreview ? payload.current_map_id : 'map_douluo_world';
 
     const visibleDynamics = {};
-    const dynamicSource = deepGet(sd, 'world.dynamic_locations', {});
+    const dynamicSource = deepGet(rootData, 'world.dynamic_locations', {});
     for (const [dynName, dynData] of Object.entries(dynamicSource)) {
       if (dynData && (isPreview ? dynData['归属父节点'] === payload.preview_meta?.anchor_name : (dynData['归属父节点'] === '斗罗大陆' || !dynData['归属父节点']))) {
          visibleDynamics[dynName] = dynData;
@@ -3579,7 +3580,7 @@
     if (isPreview && payload.visible_nodes) {
       Object.assign(visibleNodes, payload.visible_nodes);
     } else {
-      const rootLocations = deepGet(sd, 'world.locations', {});
+      const rootLocations = deepGet(rootData, 'world.locations', {});
       Object.assign(visibleNodes, rootLocations);
     }
 
@@ -3591,7 +3592,7 @@
     const currentFocusName = currentLocName;
 
     const snapshot = {
-      sd,
+      rootData,
       activeName,
       activeChar,
       currentLoc: currentLocName,
@@ -3618,7 +3619,7 @@
 
   function buildFallbackSnapshot() {
     const fallback = {
-      sd: {
+      rootData: {
         world: {
           maps: {
             map_douluo_world: {
@@ -3674,10 +3675,10 @@
     const rootLocations = locations && typeof locations === 'object'
       ? { custom: locations }
       : {
-          locs: deepGet((mapState.baseSnapshot && mapState.baseSnapshot.sd) || (mapState.snapshot && mapState.snapshot.sd) || {}, 'world.locations', {}) || {},
-          wilds: deepGet((mapState.baseSnapshot && mapState.baseSnapshot.sd) || (mapState.snapshot && mapState.snapshot.sd) || {}, 'world.wild_zones', {}) || {},
-          realms: deepGet((mapState.baseSnapshot && mapState.baseSnapshot.sd) || (mapState.snapshot && mapState.snapshot.sd) || {}, 'world.secret_realms', {}) || {},
-          dungeons: deepGet((mapState.baseSnapshot && mapState.baseSnapshot.sd) || (mapState.snapshot && mapState.snapshot.sd) || {}, 'world.dungeons', {}) || {}
+          locs: deepGet((mapState.baseSnapshot && mapState.baseSnapshot.rootData) || (mapState.snapshot && mapState.snapshot.rootData) || {}, 'world.locations', {}) || {},
+          wilds: deepGet((mapState.baseSnapshot && mapState.baseSnapshot.rootData) || (mapState.snapshot && mapState.snapshot.rootData) || {}, 'world.wild_zones', {}) || {},
+          realms: deepGet((mapState.baseSnapshot && mapState.baseSnapshot.rootData) || (mapState.snapshot && mapState.snapshot.rootData) || {}, 'world.secret_realms', {}) || {},
+          dungeons: deepGet((mapState.baseSnapshot && mapState.baseSnapshot.rootData) || (mapState.snapshot && mapState.snapshot.rootData) || {}, 'world.dungeons', {}) || {}
         };
     
     const visit = currentLocations => {
@@ -3711,7 +3712,7 @@
     const availableChildMaps = {};
     const previewChildMaps = {};
     const validCoords = [];
-    const dynamicSource = deepGet((mapState.baseSnapshot && mapState.baseSnapshot.sd) || (mapState.snapshot && mapState.snapshot.sd) || {}, 'world.dynamic_locations', {});
+    const dynamicSource = deepGet((mapState.baseSnapshot && mapState.baseSnapshot.rootData) || (mapState.snapshot && mapState.snapshot.rootData) || {}, 'world.dynamic_locations', {});
     const dynamicEntries = Object.entries(dynamicSource).filter(([, dynData]) => dynData && dynData['归属父节点'] === nodeName);
     childEntries.forEach(([childName, childValue]) => {
       const child = childValue && typeof childValue === 'object' ? childValue : {};
@@ -3844,8 +3845,8 @@
     // 如果是大树里没有的静态节点，检查它是不是某个 dynamic 节点的父节点（即它下面有动态子节点）
     // 或者它本身就是一个可以往下钻的节点。
     // 移除对 actualLoc 的依赖，只要节点存在下级就可以预览！
-    if (snapshot && snapshot.sd && snapshot.sd.world && snapshot.sd.world.dynamic_locations) {
-      const dyns = snapshot.sd.world.dynamic_locations;
+    if (snapshot && snapshot.rootData && snapshot.rootData.world && snapshot.rootData.world.dynamic_locations) {
+      const dyns = snapshot.rootData.world.dynamic_locations;
       for (const key in dyns) {
         if (dyns[key] && dyns[key]['归属父节点'] === nodeName) {
           return true;
@@ -3917,7 +3918,7 @@
     mapState.previewTrail = Array.isArray(mapState.previewTrail) ? [...mapState.previewTrail, nodeName] : [nodeName];
     syncPreviewKeyFromTrail();
     mapState.pendingTravelRequest = null;
-    const previewSnapshot = buildSnapshotFromMapPayload(payload, sourceSnapshot.sd, sourceSnapshot.activeName, sourceSnapshot.activeChar);
+    const previewSnapshot = buildSnapshotFromMapPayload(payload, sourceSnapshot.rootData, sourceSnapshot.activeName, sourceSnapshot.activeChar);
     syncMapStateFromSnapshot(previewSnapshot, { preserveSelection: false, forceLayer: inferInitialLayer(previewSnapshot), initializeLayer: false });
     return true;
   }
@@ -3973,7 +3974,7 @@
       restorePreviewViewState(viewState || { exitedNodeName });
       return true;
     }
-    const parentSnapshot = buildSnapshotFromMapPayload(parentPayload, mapState.baseSnapshot.sd, mapState.baseSnapshot.activeName, mapState.baseSnapshot.activeChar);
+    const parentSnapshot = buildSnapshotFromMapPayload(parentPayload, mapState.baseSnapshot.rootData, mapState.baseSnapshot.activeName, mapState.baseSnapshot.activeChar);
     syncMapStateFromSnapshot(parentSnapshot, { preserveSelection: false, forceLayer: inferInitialLayer(parentSnapshot), initializeLayer: false });
     restorePreviewViewState(viewState || { exitedNodeName });
     return true;
@@ -4151,7 +4152,7 @@
   function getActualCurrentCoord() {
     const snapshot = getActualCurrentSnapshot();
     if (!snapshot) return null;
-    const sd = snapshot.sd || {};
+    const sd = snapshot.rootData || {};
     const charStatus = deepGet(snapshot, 'activeChar.status') || {};
     const actualLocName = getActualCurrentLoc();
 
@@ -6389,48 +6390,48 @@
         const activeChar = mapState.baseSnapshot.activeChar || {};
         const targetTerrainLine = targetTerrainBrief ? `目标地形：${targetTerrainBrief}` : '';
         const patchOps = [
-          { op: 'replace', path: `/sd/char/${activePath}/status/loc`, value: String(finalLocName) },
+          { op: 'replace', path: `/char/${activePath}/status/loc`, value: String(finalLocName) },
         ];
 
         // 严格执行【野外双轨坐标法】：去野外强写 x, y，进城强写 -1！
         if (isFreeTravel && targetCoord.x >= 0 && targetCoord.y >= 0) {
           patchOps.push(
-            { op: 'add', path: `/sd/char/${activePath}/status/current_x`, value: targetCoord.x },
-            { op: 'add', path: `/sd/char/${activePath}/status/current_y`, value: targetCoord.y }
+            { op: 'add', path: `/char/${activePath}/status/current_x`, value: targetCoord.x },
+            { op: 'add', path: `/char/${activePath}/status/current_y`, value: targetCoord.y }
           );
         } else {
           patchOps.push(
-            { op: 'add', path: `/sd/char/${activePath}/status/current_x`, value: -1 },
-            { op: 'add', path: `/sd/char/${activePath}/status/current_y`, value: -1 }
+            { op: 'add', path: `/char/${activePath}/status/current_x`, value: -1 },
+            { op: 'add', path: `/char/${activePath}/status/current_y`, value: -1 }
           );
         }
         
         patchOps.push(
-          { op: 'replace', path: `/sd/world/time/tick`, value: (Number(deepGet(mapState.baseSnapshot.sd, 'world.time.tick', 0)) + request.est_ticks) },
-          { op: 'replace', path: `/sd/sys/rsn`, value: `[地图移动完成] 玩家乘坐 ${request.method} 抵达 ${finalLocName.replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '')}${targetTerrainInfo ? `（${toText(targetTerrainInfo.name, '未知地形')}）` : ''}，历时 ${request.est_duration}。` }
+          { op: 'replace', path: `/world/time/tick`, value: (Number(deepGet(mapState.baseSnapshot.rootData, 'world.time.tick', 0)) + request.est_ticks) },
+          { op: 'replace', path: `/sys/rsn`, value: `[地图移动完成] 玩家乘坐 ${request.method} 抵达 ${finalLocName.replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '')}${targetTerrainInfo ? `（${toText(targetTerrainInfo.name, '未知地形')}）` : ''}，历时 ${request.est_duration}。` }
         );
 
         if (request.costs) {
           if (request.costs.fedCoin > 0) {
             const curCoin = Number(toNumber(deepGet(activeChar, 'wealth.fed_coin', 0), 0));
             const nextCoin = Math.max(0, curCoin - request.costs.fedCoin);
-            patchOps.push({ op: 'replace', path: `/sd/char/${activePath}/wealth/fed_coin`, value: nextCoin });
+            patchOps.push({ op: 'replace', path: `/char/${activePath}/wealth/fed_coin`, value: nextCoin });
             if (activeChar.wealth) activeChar.wealth.fed_coin = nextCoin;
           }
           if (request.costs.sp > 0) {
             const curSp = Number(toNumber(deepGet(activeChar, 'stat.sp', 0), 0));
             const nextSp = Math.max(0, curSp - request.costs.sp);
-            patchOps.push({ op: 'replace', path: `/sd/char/${activePath}/stat/sp`, value: nextSp });
+            patchOps.push({ op: 'replace', path: `/char/${activePath}/stat/sp`, value: nextSp });
             if (activeChar.stat) activeChar.stat.sp = nextSp;
           }
           if (request.costs.vit > 0) {
             const curVit = Number(toNumber(deepGet(activeChar, 'stat.vit', 0), 0));
             const nextVit = Math.max(0, curVit - request.costs.vit);
-            patchOps.push({ op: 'replace', path: `/sd/char/${activePath}/stat/vit`, value: nextVit });
+            patchOps.push({ op: 'replace', path: `/char/${activePath}/stat/vit`, value: nextVit });
             if (activeChar.stat) activeChar.stat.vit = nextVit;
             if (nextVit <= 1) {
               const fatigueState = { 类型: 'debuff', 层数: 1, 描述: '长途跋涉导致极度疲劳' };
-              patchOps.push({ op: 'insert', path: `/sd/char/${activePath}/stat/conditions/疲劳`, value: fatigueState });
+              patchOps.push({ op: 'insert', path: `/char/${activePath}/stat/conditions/疲劳`, value: fatigueState });
               if (activeChar.stat) {
                 if (!activeChar.stat.conditions || typeof activeChar.stat.conditions !== 'object') activeChar.stat.conditions = {};
                 activeChar.stat.conditions['疲劳'] = fatigueState;
@@ -6458,7 +6459,7 @@
     const serviceText = formatBehaviorLabels(item.services, getNodeServiceLabel);
     const eventText = toText(item.eventId, '无');
     const talkTargets = [];
-    const charData = deepGet(snapshot, 'sd.char', {});
+    const charData = deepGet(snapshot, 'rootData.char', {});
     const activeName = toText(snapshot.activeName, '');
     if (charData && typeof charData === 'object') {
       for (const [charId, charInfo] of Object.entries(charData)) {
@@ -6556,7 +6557,7 @@
         if (shouldRouteToInteractRequest) {
           patchOps.push({
             op: 'replace',
-            path: `/sd/char/${actorPath}/interact_request`,
+            path: `/char/${actorPath}/interact_request`,
             value: {
               target_npc: npcTarget,
               action: interactAction,
@@ -6570,14 +6571,14 @@
         if (actorPath && statusAction) {
           patchOps.push({
             op: 'replace',
-            path: `/sd/char/${actorPath}/status/action`,
+            path: `/char/${actorPath}/status/action`,
             value: statusAction
           });
         }
-        patchOps.push({ op: 'replace', path: '/sd/world/time/tick', value: (Number(deepGet(mapState.baseSnapshot.sd, 'world.time.tick', 0)) + baseTicks) });
+        patchOps.push({ op: 'replace', path: '/world/time/tick', value: (Number(deepGet(mapState.baseSnapshot.rootData, 'world.time.tick', 0)) + baseTicks) });
         patchOps.push({
           op: 'replace',
-          path: '/sd/sys/rsn',
+          path: '/sys/rsn',
           value: shouldRouteToInteractRequest
             ? `[社交互动] ${actorName || '玩家'} 在【${item.name}】对【${npcTarget}】发起【${interactAction}】。`
             : `[节点交互] ${item.name} · ${actionLabel} · ${Math.max(1, baseTicks) * 10}分钟`
@@ -6767,7 +6768,7 @@
     const inspectButtonLabel = inPreview && focusItem && !canPreviewEnter ? primaryInteractionLabel : '查看';
 
     const characterEntries = [];
-    const charData = deepGet(snapshot, 'sd.char', {});
+    const charData = deepGet(snapshot, 'rootData.char', {});
     const activeName = toText(snapshot.activeName, '');
     if (charData && typeof charData === 'object' && focusName !== '未知地点') {
       for (const [charId, charInfo] of Object.entries(charData)) {
@@ -7539,8 +7540,8 @@
       const firstLoad = !mapState.hasLoaded;
       const vars = await getAllVariablesSafe();
       const root = resolveRootData(vars);
-      const effective = root && root.sd ? buildEffectiveSd(root.sd) : { sd: null };
-      const baseSnapshot = effective && effective.sd ? buildMapSnapshot(effective.sd) : buildFallbackSnapshot();
+      const effective = root ? buildEffectiveSd(root) : { rootData: null };
+      const baseSnapshot = effective && effective.rootData ? buildMapSnapshot(effective.rootData) : buildFallbackSnapshot();
       const previousMapId = mapState.currentMapId;
       const previousCurrent = mapState.currentNode;
       const previousPreviewTrail = Array.isArray(mapState.previewTrail) ? mapState.previewTrail.join('>') : '';
@@ -7549,7 +7550,7 @@
       if (Array.isArray(mapState.previewTrail) && mapState.previewTrail.length) {
         const previewPayload = getPreviewPayloadByTrail(baseSnapshot, mapState.previewTrail);
         if (previewPayload) {
-          snapshot = buildSnapshotFromMapPayload(previewPayload, baseSnapshot.sd, baseSnapshot.activeName, baseSnapshot.activeChar);
+          snapshot = buildSnapshotFromMapPayload(previewPayload, baseSnapshot.rootData, baseSnapshot.activeName, baseSnapshot.activeChar);
         } else {
           mapState.previewTrail = [];
           mapState.previewViewStack = [];

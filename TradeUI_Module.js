@@ -472,7 +472,7 @@ class TradeUIComponent {
   }
 
   get activeCharBasePath() {
-    return `/sd/char/${this.escapeJsonPointer(this.activeName)}`;
+    return `/char/${this.escapeJsonPointer(this.activeName)}`;
   }
 
   getCurrencyLabel(currency) {
@@ -481,8 +481,34 @@ class TradeUIComponent {
       star_coin: '星罗币',
       tang_pt: '唐门积分',
       shrek_pt: '学院积分',
-      blood_pt: '血神功勋'
+      blood_pt: '战功'
     }[currency] || '联邦币';
+  }
+
+  getDefaultCurrencyByContext(storeName = '', loc = '', storeData = null) {
+    const storeText = String(storeName || '');
+    const locText = String(loc || this.charData?.status?.loc || '');
+    const storeFaction = String(storeData?.faction || storeData?.所属势力 || storeData?.owner_faction || '');
+    const merged = `${storeText}|${locText}|${storeFaction}`;
+    if (/血神|军团战备|战功商店|军需处/.test(merged)) return 'blood_pt';
+    if (/唐门/.test(merged)) return 'tang_pt';
+    if (/史莱克|海神阁|内院|外院/.test(merged)) return 'shrek_pt';
+    if (/星罗/.test(merged)) return 'star_coin';
+    return 'fed_coin';
+  }
+
+  resolveTradeCurrency(item = {}, storeName = '', loc = '', storeData = null) {
+    const explicit = String(item?.currency || '').trim();
+    return explicit || this.getDefaultCurrencyByContext(storeName, loc, storeData);
+  }
+
+  isCurrencySpendable(currency) {
+    return currency !== 'blood_pt';
+  }
+
+  getCurrencyBlockedMessage(currency) {
+    if (currency === 'blood_pt') return '战功不能直接用于购物，只能用于军方晋升、审批或资格申领。';
+    return '当前货币不可直接用于交易。';
   }
 
   syncData() {
@@ -600,13 +626,13 @@ class TradeUIComponent {
 
   buildTradeSystemPatches(logText, options = {}) {
     const patches = [
-      { op: "replace", path: `/sd/sys/rsn`, value: String(logText || '') }
+      { op: "replace", path: `/sys/rsn`, value: String(logText || '') }
     ];
     if (Number.isFinite(Number(options.roll))) {
-      patches.push({ op: "replace", path: `/sd/sys/last_roll`, value: Number(options.roll) });
+      patches.push({ op: "replace", path: `/sys/last_roll`, value: Number(options.roll) });
     }
     if (Number.isFinite(Number(options.successRate))) {
-      patches.push({ op: "replace", path: `/sd/sys/fsr`, value: Number(options.successRate) });
+      patches.push({ op: "replace", path: `/sys/fsr`, value: Number(options.successRate) });
     }
     return patches;
   }
@@ -683,12 +709,14 @@ class TradeUIComponent {
     const item = this.currentStores[storeName].inventory[itemName];
     const total = item.price * qty;
     const userFame = this.charData?.social?.reputation || 0;
-    const userCoin = this.charData?.wealth?.[item.currency] || 0;
+    const storeData = this.currentStores[storeName] || {};
+    const currency = this.resolveTradeCurrency(item, storeName, this.charData?.status?.loc || '', storeData);
+    const userCoin = this.charData?.wealth?.[currency] || 0;
 
-    this.$('#shop-price').textContent = `${item.price.toLocaleString()} ${this.getCurrencyLabel(item.currency)}`;
+    this.$('#shop-price').textContent = `${item.price.toLocaleString()} ${this.getCurrencyLabel(currency)}`;
     
     const totalEl = this.$('#shop-total');
-    totalEl.textContent = `${total.toLocaleString()} ${this.getCurrencyLabel(item.currency)}`;
+    totalEl.textContent = `${total.toLocaleString()} ${this.getCurrencyLabel(currency)}`;
     totalEl.className = (userCoin >= total) ? "val-highlight" : "val-warn";
 
     const fameEl = this.$('#shop-fame');
@@ -699,6 +727,13 @@ class TradeUIComponent {
     stockEl.textContent = item.stock;
     stockEl.className = (item.stock >= qty) ? "val-highlight" : "val-warn";
 
+    if (!this.isCurrencySpendable(currency)) {
+      totalEl.className = "val-warn";
+      totalEl.textContent = this.getCurrencyBlockedMessage(currency);
+      btn.disabled = true;
+      return;
+    }
+
     btn.disabled = (userCoin < total || userFame < (item.req_fame || 0) || item.stock < qty);
   }
 
@@ -708,6 +743,10 @@ class TradeUIComponent {
     const qty = parseInt(this.$('#shop-qty').value) || 1;
     const item = this.currentStores[storeName].inventory[itemName];
     const total = item.price * qty;
+    const storeData = this.currentStores[storeName] || {};
+    const currency = this.resolveTradeCurrency(item, storeName, this.charData?.status?.loc || '', storeData);
+
+    if (!this.isCurrencySpendable(currency)) return alert(this.getCurrencyBlockedMessage(currency));
 
     let loc = this.charData?.status?.loc || "";
     let isTier4_5 = /天锻|四字|红级|十万年|魂锻|三字|黑级|万年/.test(itemName);
@@ -721,9 +760,9 @@ class TradeUIComponent {
     if (isTier2_3 && !isTier2_3City) return alert("偏远地区物资匮乏，无法提供2~3阶资源。");
 
     let patchOps = [];
-    let newWealth = (this.charData.wealth[item.currency] || 0) - total;
-    patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/wealth/${item.currency}`, value: newWealth });
-    patchOps.push({ op: "replace", path: `/sd/world/locations/${this.escapeJsonPointer(loc)}/stores/${this.escapeJsonPointer(storeName)}/inventory/${this.escapeJsonPointer(itemName)}/stock`, value: item.stock - qty });
+    let newWealth = (this.charData.wealth[currency] || 0) - total;
+    patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/wealth/${currency}`, value: newWealth });
+    patchOps.push({ op: "replace", path: `/world/locations/${this.escapeJsonPointer(loc)}/stores/${this.escapeJsonPointer(storeName)}/inventory/${this.escapeJsonPointer(itemName)}/stock`, value: item.stock - qty });
     
     let invItem = this.charData.inventory?.[itemName];
     if (invItem) {
@@ -732,7 +771,7 @@ class TradeUIComponent {
       patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/inventory/${this.escapeJsonPointer(itemName)}`, value: { 数量: qty, 类型: item.type || "商品", 品质: "标准", 描述: `购自${storeName}` } });
     }
 
-    const log = `[交易成功] ${this.activeName}在 ${storeName} 花费 ${total} ${item.currency} 购买了 ${qty} 份【${itemName}】。`;
+    const log = `[交易成功] ${this.activeName}在 ${storeName} 花费 ${total} ${this.getCurrencyLabel(currency)} 购买了 ${qty} 份【${itemName}】。`;
     patchOps.push(...this.buildTradeSystemPatches(log));
 
     let sysPrompt = `${HIDDEN_ARBITRATION_NARRATION_RULES}\n\n${log}\n\n[MVU变量更新数据]\n以下为本次交易结算的完整 MVU 更新，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。\n<UpdateVariable>\n<Analysis>Shop trade successful.</Analysis>\n<JSONPatch>\n${JSON.stringify(patchOps, null, 2)}\n</JSONPatch>\n</UpdateVariable>`;
@@ -864,9 +903,9 @@ class TradeUIComponent {
         if (invItem) patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/inventory/${this.escapeJsonPointer(itemName)}/数量`, value: (invItem.数量 || 0) + qty });
         else patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/inventory/${this.escapeJsonPointer(itemName)}`, value: { 数量: qty, 类型: "物品", 品质: "标准", 描述: `从 ${targetNpc} 处私下购得` } });
         const npcNextQty = Number(ctx.npcItem?.数量 || 0) - qty;
-        if (npcNextQty <= 0) patchOps.push({ op: "remove", path: `/sd/char/${this.escapeJsonPointer(targetNpc)}/inventory/${this.escapeJsonPointer(itemName)}` });
-        else patchOps.push({ op: "replace", path: `/sd/char/${this.escapeJsonPointer(targetNpc)}/inventory/${this.escapeJsonPointer(itemName)}/数量`, value: npcNextQty });
-        patchOps.push({ op: "replace", path: `/sd/char/${this.escapeJsonPointer(targetNpc)}/wealth/fed_coin`, value: (ctx.targetChar?.wealth?.fed_coin || 0) + ctx.total });
+        if (npcNextQty <= 0) patchOps.push({ op: "remove", path: `/char/${this.escapeJsonPointer(targetNpc)}/inventory/${this.escapeJsonPointer(itemName)}` });
+        else patchOps.push({ op: "replace", path: `/char/${this.escapeJsonPointer(targetNpc)}/inventory/${this.escapeJsonPointer(itemName)}/数量`, value: npcNextQty });
+        patchOps.push({ op: "replace", path: `/char/${this.escapeJsonPointer(targetNpc)}/wealth/fed_coin`, value: (ctx.targetChar?.wealth?.fed_coin || 0) + ctx.total });
         log = `[私下交易成功] ${this.activeName}以总价 ${ctx.total} 联邦币从 ${targetNpc} 处买入 ${qty} 份【${itemName}】。好感 ${ctx.relationScore}，Roll ${roll} ≤ 成功率 ${ctx.successRate}。`;
       }
     } else {
@@ -878,9 +917,9 @@ class TradeUIComponent {
         else patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/inventory/${this.escapeJsonPointer(itemName)}/数量`, value: newQty });
         patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/wealth/fed_coin`, value: (this.charData.wealth.fed_coin || 0) + ctx.total });
         const npcInv = ctx.targetChar?.inventory?.[itemName];
-        if (npcInv) patchOps.push({ op: "replace", path: `/sd/char/${this.escapeJsonPointer(targetNpc)}/inventory/${this.escapeJsonPointer(itemName)}/数量`, value: (npcInv.数量 || 0) + qty });
-        else patchOps.push({ op: "replace", path: `/sd/char/${this.escapeJsonPointer(targetNpc)}/inventory/${this.escapeJsonPointer(itemName)}`, value: { 数量: qty, 类型: "物品", 品质: "标准", 描述: `从${this.activeName}处私下收购` } });
-        patchOps.push({ op: "replace", path: `/sd/char/${this.escapeJsonPointer(targetNpc)}/wealth/fed_coin`, value: (ctx.targetChar?.wealth?.fed_coin || 0) - ctx.total });
+        if (npcInv) patchOps.push({ op: "replace", path: `/char/${this.escapeJsonPointer(targetNpc)}/inventory/${this.escapeJsonPointer(itemName)}/数量`, value: (npcInv.数量 || 0) + qty });
+        else patchOps.push({ op: "replace", path: `/char/${this.escapeJsonPointer(targetNpc)}/inventory/${this.escapeJsonPointer(itemName)}`, value: { 数量: qty, 类型: "物品", 品质: "标准", 描述: `从${this.activeName}处私下收购` } });
+        patchOps.push({ op: "replace", path: `/char/${this.escapeJsonPointer(targetNpc)}/wealth/fed_coin`, value: (ctx.targetChar?.wealth?.fed_coin || 0) - ctx.total });
         log = `[私下交易成功] ${this.activeName}以单价 ${price} 向 ${targetNpc} 卖出 ${qty} 份【${itemName}】，获得 ${ctx.total} 联邦币。好感 ${ctx.relationScore}，Roll ${roll} ≤ 成功率 ${ctx.successRate}。`;
       }
     }
@@ -923,10 +962,15 @@ class TradeUIComponent {
     }
 
     const item = this.currentAuction.items[itemName];
-    this.$('#auc-current-price').textContent = `${item.price.toLocaleString()} ${this.getCurrencyLabel(item.currency)}`;
+    const currency = this.resolveTradeCurrency(item, '拍卖行', this.charData?.status?.loc || '', this.currentAuction || {});
+    this.$('#auc-current-price').textContent = `${item.price.toLocaleString()} ${this.getCurrencyLabel(currency)}`;
     this.$('#auc-desc').textContent = `[${item.tier}] ${item.lore}`;
 
-    const userCoin = this.charData?.wealth?.[item.currency] || 0;
+    const userCoin = this.charData?.wealth?.[currency] || 0;
+    if (!this.isCurrencySpendable(currency)) {
+      btn.disabled = true;
+      return;
+    }
     btn.disabled = (bid <= item.price || userCoin < bid);
   }
 
@@ -934,9 +978,12 @@ class TradeUIComponent {
     const itemName = this.$('#auc-item-sel').value;
     const bid = parseInt(this.$('#auc-bid').value) || 0;
     const item = this.currentAuction.items[itemName];
+    const currency = this.resolveTradeCurrency(item, '拍卖行', this.charData?.status?.loc || '', this.currentAuction || {});
+
+    if (!this.isCurrencySpendable(currency)) return alert(this.getCurrencyBlockedMessage(currency));
 
     let patchOps = [];
-    patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/wealth/${item.currency}`, value: (this.charData.wealth[item.currency] || 0) - bid });
+    patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/wealth/${currency}`, value: (this.charData.wealth[currency] || 0) - bid });
     
     let invItem = this.charData.inventory?.[itemName];
     if (invItem) {
@@ -944,9 +991,9 @@ class TradeUIComponent {
     } else {
       patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/inventory/${this.escapeJsonPointer(itemName)}`, value: { 数量: 1, 类型: "极品", 品质: item.tier, 描述: item.lore } });
     }
-    patchOps.push({ op: "remove", path: `/sd/world/auction/items/${this.escapeJsonPointer(itemName)}` });
+    patchOps.push({ op: "remove", path: `/world/auction/items/${this.escapeJsonPointer(itemName)}` });
 
-    const log = `[竞拍成功] ${this.activeName}豪掷 ${bid} ${this.getCurrencyLabel(item.currency)} 拍下了极品【${itemName}】！`;
+    const log = `[竞拍成功] ${this.activeName}豪掷 ${bid} ${this.getCurrencyLabel(currency)} 拍下了极品【${itemName}】！`;
     patchOps.push(...this.buildTradeSystemPatches(log));
 
     let sysPrompt = `${HIDDEN_ARBITRATION_NARRATION_RULES}\n\n${log}\n\n[MVU变量更新数据]\n以下为本次交易结算的完整 MVU 更新，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。\n<UpdateVariable>\n<Analysis>Auction won.</Analysis>\n<JSONPatch>\n${JSON.stringify(patchOps, null, 2)}\n</JSONPatch>\n</UpdateVariable>`;

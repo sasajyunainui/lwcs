@@ -506,7 +506,7 @@ class ProfessionUIComponent {
     const firstName = Object.keys(chars)[0];
     return firstName || '主角';
   }
-  get activeCharBasePath() { return `/sd/char/${this.escapeJsonPointer(this.activeName)}`; }
+  get activeCharBasePath() { return `/char/${this.escapeJsonPointer(this.activeName)}`; }
   get currentInventory() { return this.charData.inventory || {}; }
 
   syncData() {
@@ -521,7 +521,7 @@ class ProfessionUIComponent {
     const stat = this.charData.stat || {};
     this.$('#chip-vs').textContent = `${Number(stat.vit || 0).toLocaleString()} / ${Number(stat.sp || 0).toLocaleString()}`;
     this.$('#chip-men').textContent = Number(stat.men || 0).toLocaleString();
-    this.$('#chip-men-realm').textContent = stat.men_realm || '未知';
+    this.$('#chip-men-realm').textContent = stat._men_realm || stat.men_realm || '未知';
   }
 
   updateModeChrome() {
@@ -998,7 +998,7 @@ class ProfessionUIComponent {
   validateForgeRules(runtime, tier, materialNames, targetName, options = {}) {
     if (!targetName.trim()) return '请先填写目标产物名称。';
     if (materialNames.length === 0) return '锻造至少需要选择一种材料。';
-    if (tier === 5 && !options.isCommission && !['灵域境', '神元境'].includes(this.charData.stat?.men_realm || '')) return '天锻需要精神力达到【灵域境】。';
+    if (tier === 5 && !options.isCommission && !['灵域境', '神元境'].includes(this.charData.stat?._men_realm || this.charData.stat?.men_realm || '')) return '天锻需要精神力达到【灵域境】。';
     if (materialNames.length === 1) {
       if (runtime.lv < this.getForgeUnlockLevel(tier)) return `${this.getForgeTierLabel(tier)}单金属锻造尚未解锁，需要 Lv.${this.getForgeUnlockLevel(tier)} 锻造师。`;
       const mTier = this.getItemTier(materialNames[0]);
@@ -1169,9 +1169,9 @@ class ProfessionUIComponent {
   }
   buildSystemResultPatches(resultLog, roll, successRate) {
     return [
-      { op: 'replace', path: '/sd/sys/rsn', value: String(resultLog || '') },
-      { op: 'replace', path: '/sd/sys/last_roll', value: Number.isFinite(Number(roll)) ? Number(roll) : 0 },
-      { op: 'replace', path: '/sd/sys/fsr', value: Number.isFinite(Number(successRate)) ? Number(successRate) : 0 }
+      { op: 'replace', path: '/sys/rsn', value: String(resultLog || '') },
+      { op: 'replace', path: '/sys/last_roll', value: Number.isFinite(Number(roll)) ? Number(roll) : 0 },
+      { op: 'replace', path: '/sys/fsr', value: Number.isFinite(Number(successRate)) ? Number(successRate) : 0 }
     ];
   }
   getForgeSingleQuality(tier, runtime) {
