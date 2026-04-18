@@ -1848,8 +1848,10 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 5px;
+      gap: 0;
       cursor: pointer;
+      overflow: visible;
+      z-index: 1;
     }
 
     .map-dot {
@@ -1869,13 +1871,41 @@
     }
 
     .map-label {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
       padding: 4px 7px;
       border-radius: 999px;
       font-size: 9px;
       color: var(--white);
       white-space: nowrap;
+      max-width: clamp(72px, 22vw, 132px);
+      overflow: hidden;
+      text-overflow: ellipsis;
       background: rgba(7,16,30,0.82);
       border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .map-node.edge-left .map-label {
+      left: 0;
+      transform: none;
+    }
+
+    .map-node.edge-right .map-label {
+      left: auto;
+      right: 0;
+      transform: none;
+    }
+
+    .map-node.edge-top .map-label {
+      top: auto;
+      bottom: 18px;
+    }
+
+    .map-node:hover,
+    .map-node.current {
+      z-index: 3;
     }
 
     .footer-tabs {
@@ -2071,6 +2101,20 @@
       right: 10px;
       width: min(340px, calc(23vw + 8px));
       min-width: 280px;
+    }
+
+    .split-overlay.map-mode .split-shell-left {
+      width: min(540px, calc(40vw + 24px));
+      min-width: 340px;
+    }
+
+    .split-overlay.map-mode .split-shell-right {
+      width: min(360px, calc(24vw + 12px));
+      min-width: 300px;
+    }
+
+    .split-overlay.map-mode .map-hero-card {
+      overflow: visible;
     }
 
     .split-shell-right .split-shell-stage {

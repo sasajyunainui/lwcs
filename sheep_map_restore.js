@@ -2927,6 +2927,19 @@
   let pointerBound = false;
   let hoverSyncRaf = 0;
   let hoverSyncCanvas = null;
+  let hoverSyncTimeout = null;
+  const MAP_HOVER_INFO_DEBOUNCE_MS = 180;
+
+  function cancelScheduledHoverSync() {
+    if (hoverSyncRaf) {
+      cancelAnimationFrame(hoverSyncRaf);
+      hoverSyncRaf = 0;
+    }
+    if (hoverSyncTimeout) {
+      clearTimeout(hoverSyncTimeout);
+      hoverSyncTimeout = null;
+    }
+  }
 
   function resolveSnapshotCoordSystem() {
     return MAP_COORD_SYSTEM_IMAGE;
@@ -3403,6 +3416,7 @@
 
 
     snapshot.visibleNodes.forEach(([name, item]) => {
+      const hasChildPreview = !!(snapshot.availableChildMaps && snapshot.availableChildMaps[name]);
       pushUnique(createRenderItem(name, item || {}, {
         id: name,
         baseName: name,
@@ -3410,8 +3424,8 @@
         type: toText(item && item.type, '地图节点'),
         icon: toText(item && item.icon, ''),
         state: toText(item && item.state, item && item.level ? `Lv.${item.level}` : '可见'),
-        canEnter: !!(item && item.children && Object.keys(item.children).length > 0),
-        major: !!(item && item.children && Object.keys(item.children).length > 0) || toNumber(item && item.level, 0) <= 2,
+        canEnter: !!(item && item.children && Object.keys(item.children).length > 0) || hasChildPreview,
+        major: !!(item && item.children && Object.keys(item.children).length > 0) || hasChildPreview || toNumber(item && item.level, 0) <= 2,
         desc: toText(item && item.desc, '无'),
         faction: toText(item && item.faction, '未知'),
         importance: toNumber(item && item.importance, NaN),
@@ -3423,6 +3437,7 @@
     });
 
     snapshot.visibleDynamics.forEach(([name, item]) => {
+      const hasChildPreview = !!(snapshot.availableChildMaps && snapshot.availableChildMaps[name]);
       pushUnique(createRenderItem(name, item || {}, {
         id: name,
         baseName: name,
@@ -3430,8 +3445,8 @@
         type: toText(item && item.type, '动态地点'),
         state: toText(item && item.state, '动态'),
         pointKind: 'dynamic',
-        canEnter: !!(item && item.children && Object.keys(item.children).length > 0),
-        major: !!(item && item.children && Object.keys(item.children).length > 0),
+        canEnter: !!(item && item.children && Object.keys(item.children).length > 0) || hasChildPreview,
+        major: !!(item && item.children && Object.keys(item.children).length > 0) || hasChildPreview,
         desc: toText(item && item.desc, '无'),
         faction: toText(item && item.faction, '未知'),
         importance: toNumber(item && item.importance, NaN),
@@ -3528,6 +3543,9 @@
     const currentMapId = isPreview ? payload.current_map_id : 'map_douluo_world';
 
     const visibleDynamics = {};
+    if (isPreview && payload.visible_dynamic_locations && typeof payload.visible_dynamic_locations === 'object') {
+      Object.assign(visibleDynamics, payload.visible_dynamic_locations);
+    }
     const dynamicSource = deepGet(rootData, 'world.dynamic_locations', {});
     for (const [dynName, dynData] of Object.entries(dynamicSource)) {
       if (dynData && (isPreview ? dynData['归属父节点'] === payload.preview_meta?.anchor_name : (dynData['归属父节点'] === '斗罗大陆' || !dynData['归属父节点']))) {
@@ -3561,8 +3579,9 @@
       coordSystem: resolveSnapshotCoordSystem(currentMapId, 'world'),
       currentMapId,
       currentZoomHint: 0,
-      availableChildMaps: {},
-      travelCandidates: Object.keys(visibleNodes),
+      availableChildMaps: isPreview && payload.available_child_maps && typeof payload.available_child_maps === 'object' ? payload.available_child_maps : {},
+      previewChildMaps: isPreview && payload.preview_child_maps && typeof payload.preview_child_maps === 'object' ? payload.preview_child_maps : {},
+      travelCandidates: Array.from(new Set([...Object.keys(visibleNodes), ...Object.keys(visibleDynamics)])),
       visibleNodes: safeEntries(visibleNodes),
       visibleDynamics: safeEntries(visibleDynamics),
       activePatches: [],
@@ -3606,6 +3625,7 @@
       currentMapId: 'map_douluo_world',
       currentZoomHint: 0,
       availableChildMaps: {},
+      previewChildMaps: {},
       travelCandidates: [],
       visibleNodes: [],
       visibleDynamics: [],
@@ -3665,14 +3685,14 @@
   function buildPreviewPayloadFromRawLocation(nodeName, rawLocation, container = mapState.snapshot, parentMapId = '') {
     const children = rawLocation && rawLocation.children && typeof rawLocation.children === 'object' ? rawLocation.children : null;
     const childEntries = children ? Object.entries(children) : [];
-    if (!childEntries.length) return null;
+    const dynamicSource = deepGet((mapState.baseSnapshot && mapState.baseSnapshot.rootData) || (mapState.snapshot && mapState.snapshot.rootData) || {}, 'world.dynamic_locations', {});
+    const dynamicEntries = Object.entries(dynamicSource).filter(([, dynData]) => dynData && dynData['归属父节点'] === nodeName);
+    if (!childEntries.length && !dynamicEntries.length) return null;
     const currentMapId = `preview_${nodeName}`;
     const visibleNodeEntries = [];
     const availableChildMaps = {};
     const previewChildMaps = {};
     const validCoords = [];
-    const dynamicSource = deepGet((mapState.baseSnapshot && mapState.baseSnapshot.rootData) || (mapState.snapshot && mapState.snapshot.rootData) || {}, 'world.dynamic_locations', {});
-    const dynamicEntries = Object.entries(dynamicSource).filter(([, dynData]) => dynData && dynData['归属父节点'] === nodeName);
     childEntries.forEach(([childName, childValue]) => {
       const child = childValue && typeof childValue === 'object' ? childValue : {};
       const hasChildren = !!(child.children && typeof child.children === 'object' && Object.keys(child.children).length);
@@ -3706,6 +3726,9 @@
     });
     if (dynamicEntries.length) {
       dynamicEntries.forEach(([dynName, dynData]) => {
+        const dynX = toNumber(dynData && dynData.x, NaN);
+        const dynY = toNumber(dynData && dynData.y, NaN);
+        if (Number.isFinite(dynX) && Number.isFinite(dynY)) validCoords.push({ x: dynX, y: dynY });
         const dynamicPreviewMapId = `dynamic_preview_${nodeName}_${dynName}`;
         availableChildMaps[dynName] = dynamicPreviewMapId;
         previewChildMaps[dynName] = {
@@ -3761,9 +3784,9 @@
         child_maps: availableChildMaps
       },
       visible_nodes: Object.fromEntries(visibleNodeEntries),
-      visible_dynamic_locations: {},
+      visible_dynamic_locations: Object.fromEntries(dynamicEntries),
       active_patches: {},
-      travel_candidates: visibleNodeEntries.map(([childName]) => childName),
+      travel_candidates: Array.from(new Set([...visibleNodeEntries.map(([childName]) => childName), ...dynamicEntries.map(([dynName]) => dynName)])),
       available_child_maps: availableChildMaps,
       preview_meta: {
         anchor_name: nodeName,
@@ -3777,8 +3800,10 @@
   function getNestedPreviewChildMap(container, nodeName) {
     if (!container || !nodeName) return null;
     const targetKey = String(nodeName).split('-').pop();
+    const previewChildMaps = container && container.previewChildMaps && typeof container.previewChildMaps === 'object' ? container.previewChildMaps : {};
+    if (previewChildMaps[targetKey]) return previewChildMaps[targetKey];
     const rawLocationMatch = getRawLocationNodeByName(targetKey);
-    if (!rawLocationMatch || !rawLocationMatch.node || !rawLocationMatch.node.children) return null;
+    if (!rawLocationMatch || !rawLocationMatch.node) return null;
     return buildPreviewPayloadFromRawLocation(targetKey, rawLocationMatch.node, container);
   }
 
@@ -3799,20 +3824,7 @@
   }
 
   function canEnterPreviewNode(nodeName = mapState.selectedNode, snapshot = mapState.snapshot) {
-    // 前端自给自足判定法：能从大树里挖出包裹，或者身上有 dynamic 子节点，就能进！
-    if (getNestedPreviewChildMap(snapshot, nodeName)) return true;
-    // 如果是大树里没有的静态节点，检查它是不是某个 dynamic 节点的父节点（即它下面有动态子节点）
-    // 或者它本身就是一个可以往下钻的节点。
-    // 移除对 actualLoc 的依赖，只要节点存在下级就可以预览！
-    if (snapshot && snapshot.rootData && snapshot.rootData.world && snapshot.rootData.world.dynamic_locations) {
-      const dyns = snapshot.rootData.world.dynamic_locations;
-      for (const key in dyns) {
-        if (dyns[key] && dyns[key]['归属父节点'] === nodeName) {
-          return true;
-        }
-      }
-    }
-    return !!getRawLocationNodeByName(nodeName);
+    return !!getPreviewPayload(snapshot, nodeName);
   }
 
   function syncMapStateFromSnapshot(snapshot, options = {}) {
@@ -4101,9 +4113,13 @@
     return hasActivePreview() && mapState.baseSnapshot ? mapState.baseSnapshot : mapState.snapshot;
   }
 
-  function getActualCurrentLoc() {
+  function getRawActualCurrentLoc() {
     const snapshot = getActualCurrentSnapshot() || {};
-    let loc = toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc), toText(snapshot.currentLoc, '斗罗大陆-未知地点'));
+    return toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc), toText(snapshot.currentLoc, '斗罗大陆-未知地点'));
+  }
+
+  function getActualCurrentLoc() {
+    let loc = getRawActualCurrentLoc();
     // 前端显示时，默认剥离掉大模型强制写的最高级前缀，保持 UI 清爽
     return loc.replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
   }
@@ -4116,7 +4132,7 @@
     const actualLocName = getActualCurrentLoc();
 
     // 1. 如果你在大地图野外，优先采用身上的绝对坐标作为唯一真理（防止在野外地图消失）
-    if (mapState.currentMapId === 'map_douluo_world') {
+    if (mapState.currentMapId === 'map_douluo_world' || (hasActivePreview() && isPreviewCurrentBranch())) {
        if (Number.isFinite(charStatus.current_x) && charStatus.current_x >= 0 && 
            Number.isFinite(charStatus.current_y) && charStatus.current_y >= 0) {
            return { x: charStatus.current_x, y: charStatus.current_y };
@@ -4181,6 +4197,31 @@
     if (anchor && actualSegments.includes(anchor)) return true;
     if (actualLeaf && trailSegments.includes(actualLeaf)) return true;
     return trailSegments.every(seg => actualSegments.includes(seg));
+  }
+
+  function resolvePreviewTravelTargetLoc(targetLoc = '', options = {}) {
+    const { isFree = false } = options || {};
+    const rawActualLoc = getRawActualCurrentLoc();
+    const worldPrefix = rawActualLoc.startsWith('斗灵大陆-') ? '斗灵大陆' : '斗罗大陆';
+    const actualLoc = rawActualLoc.replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
+    const actualSegments = actualLoc.split('-').map(seg => toText(seg, '').trim()).filter(Boolean);
+    const trailSegments = [];
+    (Array.isArray(mapState.previewTrail) ? mapState.previewTrail : []).forEach(item => {
+      String(item || '').split('-').map(seg => toText(seg, '').trim()).filter(Boolean).forEach(seg => trailSegments.push(seg));
+    });
+    const normalizedTarget = toText(targetLoc, '').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
+    const targetSegments = normalizedTarget ? normalizedTarget.split('-').filter(Boolean) : [];
+    if (!trailSegments.length) {
+      if (normalizedTarget) return `${worldPrefix}-${normalizedTarget}`;
+      return rawActualLoc || `${worldPrefix}-未知地点`;
+    }
+    const anchorIndex = actualSegments.indexOf(trailSegments[0]);
+    const prefixSegments = anchorIndex >= 0 ? actualSegments.slice(0, anchorIndex) : [];
+    const baseSegments = [...prefixSegments, ...trailSegments];
+    if (isFree) return `${worldPrefix}-${(actualSegments.length ? actualSegments : baseSegments).join('-')}`;
+    while (targetSegments.length && baseSegments.includes(targetSegments[0])) targetSegments.shift();
+    const resolvedSegments = [...baseSegments, ...targetSegments];
+    return resolvedSegments.length ? `${worldPrefix}-${resolvedSegments.join('-')}` : (rawActualLoc || `${worldPrefix}-未知地点`);
   }
 
   function getCurrentCoord() {
@@ -5446,8 +5487,9 @@
     const sourceActions = Array.isArray(item.actionSlots) && item.actionSlots.length
       ? item.actionSlots
       : (Array.isArray(item.interactions) ? item.interactions : []);
-    if (npcCount > 0) candidates.add('talk');
-    if (npcCount > 0) candidates.add('battle');
+    if (npcCount > 0) {
+      ['talk', 'trade', 'craft', 'intel', 'battle'].forEach(action => candidates.add(action));
+    }
     sourceActions.forEach(action => {
       const normalized = toText(action, '');
       if (['talk', 'battle', 'trade', 'bid', 'craft', 'brief', 'intel'].includes(normalized)) candidates.add(normalized);
@@ -5466,6 +5508,14 @@
     if (toText(item.nodeKind, '') === 'administration') candidates.add('brief');
     if (npcCount > 0 && toText(item.nodeKind, '') === 'training') candidates.add('battle');
     return ['talk', 'trade', 'bid', 'craft', 'brief', 'intel', 'battle'].filter(action => candidates.has(action));
+  }
+
+  function resolveMapNpcCraftExecutorType(item, npcTarget = '') {
+    if (npcTarget) return 'private';
+    const nodeName = toText(item && item.name, '');
+    const officialCommissionLocations = ['锻造师协会', '制造师协会', '设计师协会', '修理师协会'];
+    if (officialCommissionLocations.some(name => nodeName && (nodeName.includes(name) || name.includes(nodeName)))) return 'official';
+    return 'self';
   }
 
   function renderMapTerrain() {
@@ -6042,7 +6092,7 @@
   }
 
   function getMapTravelPreview() {
-    if (hasActivePreview()) return null;
+    if (hasActivePreview() && !isPreviewCurrentBranch()) return null;
     const start = getCurrentCoord();
     const end = getSelectedCoord();
     if (!start || !end) return null;
@@ -6262,10 +6312,13 @@
     if (!request) return;
     const isFreeTravel = request.target_loc === '无';
     const resolvedNamedCoord = !isFreeTravel ? getMapNodeCoord(request.target_loc) : null;
+    const previewCurrentBranch = hasActivePreview() && isPreviewCurrentBranch();
     // 根据【绝对路径铁律】，补齐斗罗大陆前缀（如果AI没传的话）
-    const finalLocName = isFreeTravel 
-      ? `斗罗大陆-未知荒野` 
-      : (request.target_loc.startsWith('斗罗大陆-') || request.target_loc.startsWith('斗灵大陆-') ? request.target_loc : `斗罗大陆-${request.target_loc}`);
+    const finalLocName = previewCurrentBranch
+      ? resolvePreviewTravelTargetLoc(request.target_loc, { isFree: isFreeTravel })
+      : (isFreeTravel 
+        ? `斗罗大陆-未知荒野` 
+        : (request.target_loc.startsWith('斗罗大陆-') || request.target_loc.startsWith('斗灵大陆-') ? request.target_loc : `斗罗大陆-${request.target_loc}`));
       
     const targetCoord = {
       x: Number.isFinite(Number(request.target_x)) && Number(request.target_x) >= 0 ? Number(request.target_x) : (resolvedNamedCoord ? roundCoord(resolvedNamedCoord.x) : -1),
@@ -6380,7 +6433,8 @@
     const action = toText(explicitAction, '') || getPrimaryNodeInteraction(item);
     const actionLabel = getNodeInteractionLabel(action);
     const snapshot = mapState.snapshot || buildFallbackSnapshot();
-    const serviceText = formatBehaviorLabels(item.services, getNodeServiceLabel);
+    const itemServices = Array.isArray(item.services) ? item.services : [];
+    const serviceText = formatBehaviorLabels(itemServices, getNodeServiceLabel);
     const eventText = toText(item.eventId, '无');
     const talkTargets = [];
     const charData = deepGet(snapshot, 'rootData.char', {});
@@ -6398,6 +6452,7 @@
     }
     const selectedNpc = toText(mapState.selectedNpc, '');
     const npcTarget = selectedNpc && talkTargets.includes(selectedNpc) ? selectedNpc : (talkTargets.length === 1 ? talkTargets[0] : '');
+    const executorType = action === 'craft' ? resolveMapNpcCraftExecutorType(item, npcTarget) : '';
     const talkSuffix = action === 'talk'
       ? (npcTarget ? ` · 对象 ${npcTarget}` : (talkTargets.length ? ` · 对象 ${talkTargets.join('、')}` : ''))
       : (npcTarget ? ` · 对象 ${npcTarget}` : '');
@@ -6407,10 +6462,10 @@
 
     // ====== MVU 前端结果结算与指令注入 (轻量交互) ======
     // 对于需要走统一桥接的动作（交易、工坊、战斗与社交互动等），直接抛出事件交给 MVU 逻辑桥处理
-    if (['trade', 'bid', 'craft', 'black_market', 'auction', 'shop', 'battle', 'talk', 'brief', 'intel'].includes(action) || item.services.some(s => ['shop', 'auction', 'black_market', 'craft', 'battle', 'talk', 'brief', 'intel'].includes(s))) {
+    if (['trade', 'bid', 'craft', 'black_market', 'auction', 'shop', 'battle', 'talk', 'brief', 'intel'].includes(action) || itemServices.some(s => ['shop', 'auction', 'black_market', 'craft', 'battle', 'talk', 'brief', 'intel'].includes(s))) {
       try {
         window.dispatchEvent(new CustomEvent('map-action-dispatch', {
-          detail: { target: item.name, action, services: item.services, actionSlots: item.actionSlots || [], eventId: item.eventId, nodeKind: item.nodeKind, mapId: mapState.currentMapId, currentLoc: snapshot.currentLoc, npcTargets: talkTargets, npcTarget }
+          detail: { target: item.name, action, services: itemServices, actionSlots: item.actionSlots || [], eventId: item.eventId, nodeKind: item.nodeKind, mapId: mapState.currentMapId, currentLoc: snapshot.currentLoc, npcTargets: talkTargets, npcTarget, executorType }
         }));
       } catch (e) {}
       return mapState.lastNodeAction;
@@ -6947,7 +7002,7 @@
         selectedActionDetail.labels = ['切磋对象', '当前地点', '交互说明'];
         selectedActionDetail.values = [selectedNpc || selectedActionSlot.reason || focusCharactersText, focusName, selectedNpc ? `将在当前节点与【${selectedNpc}】切磋` : '将在当前节点触发切磋分发'];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
-      } else if (selectedNpc && ['trade', 'bid', 'craft', 'brief'].includes(selectedAction)) {
+      } else if (selectedNpc && ['trade', 'bid', 'craft', 'brief', 'intel'].includes(selectedAction)) {
         const npcActionInfo = [
           focusServiceText !== '无' ? `提供 ${focusServiceText}` : '',
           focusEventText !== '无' ? `事件 ${focusEventText}` : '',
@@ -7003,7 +7058,7 @@
     setMapText('[data-map-request-coord]', selectedActionDetail.values[1]);
     setMapText('[data-map-request-cost]', selectedActionDetail.values[2]);
     document.querySelectorAll('[data-map-travel-action]').forEach(card => {
-      card.classList.toggle('disabled', !travelPreview || inPreview);
+      card.classList.toggle('disabled', !travelPreview || (inPreview && !previewCurrentBranch));
     });
     document.querySelectorAll("[data-map-control='back']").forEach(btn => {
       btn.disabled = !inPreview;
@@ -7068,6 +7123,7 @@
 
   function handleMapPointerDown(event) {
     if (event.button !== 0) return;
+    cancelScheduledHoverSync();
     const point = resolveMapClientPoint(event.currentTarget, event.clientX, event.clientY);
     mapDragState.active = true;
     mapDragState.moved = false;
@@ -7095,6 +7151,7 @@
 
   function handleMiniMapPointerDown(event) {
     if (event.button !== 0) return;
+    cancelScheduledHoverSync();
     const miniWorldEl = event.currentTarget.closest('.map-mini-world') || event.currentTarget;
     miniMapDragState.active = true;
     miniMapDragState.sourceEl = miniWorldEl;
@@ -7136,6 +7193,7 @@
     miniMapDragState.pointerId = null;
     miniMapDragState.offsetX = 0;
     miniMapDragState.offsetY = 0;
+    scheduleHoverSync(getPrimaryMapCanvas());
   }
 
   function handleMapPointerUp(event) {
@@ -7148,6 +7206,7 @@
     }
     setMapHoverPoint(mapDragState.sourceCanvas || getPrimaryMapCanvas(), event.clientX, event.clientY);
     document.querySelectorAll('.map-canvas.interactive-map').forEach(canvasEl => canvasEl.classList.remove('dragging'));
+    scheduleHoverSync(mapState.hoverCanvas || getPrimaryMapCanvas());
   }
 
   function handleMapCanvasClick(event) {
@@ -7169,13 +7228,16 @@
     syncInteractiveMapUI({ center: false, updateInfo: true });
   }
 
-  let hoverSyncTimeout = null;
   function scheduleHoverSync(canvasEl = null) {
     if (mapDragState.active || miniMapDragState.active) return;
     hoverSyncCanvas = canvasEl || null;
-    if (hoverSyncCanvas) {
-      updateMapCoordinateReadout(hoverSyncCanvas);
-    }
+    if (hoverSyncRaf) cancelAnimationFrame(hoverSyncRaf);
+    hoverSyncRaf = requestAnimationFrame(() => {
+      hoverSyncRaf = 0;
+      if (!mapDragState.active && !miniMapDragState.active) {
+        updateMapCoordinateReadout(hoverSyncCanvas);
+      }
+    });
     if (hoverSyncTimeout) {
       clearTimeout(hoverSyncTimeout);
     }
@@ -7184,15 +7246,17 @@
         if (!mapDragState.active && !miniMapDragState.active) {
           renderMapInfoState();
         }
-    }, 120);
+    }, MAP_HOVER_INFO_DEBOUNCE_MS);
   }
 
   function handleMapCanvasHover(event) {
+    if (mapDragState.active || miniMapDragState.active) return;
     setMapHoverPoint(event.currentTarget, event.clientX, event.clientY);
     scheduleHoverSync(event.currentTarget);
   }
 
   function handleMapCanvasLeave() {
+    if (mapDragState.active || miniMapDragState.active) return;
     setMapHoverPoint(null, null, null);
     scheduleHoverSync(null);
   }
@@ -7271,7 +7335,7 @@
     setMapText('[data-map-request-cost]', actionCostText);
     
     document.querySelectorAll('[data-map-travel-action]').forEach(card => {
-      card.classList.toggle('disabled', !travelPreview || hasActivePreview());
+      card.classList.toggle('disabled', !travelPreview || (hasActivePreview() && !isPreviewCurrentBranch()));
     });
   }
 

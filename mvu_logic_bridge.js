@@ -1072,7 +1072,10 @@
       const years = Math.floor(days / 360);
       const months = Math.floor((days % 360) / 30) + 1;
       const currentDay = (days % 30) + 1;
-      return `斗罗历${20000 + years}年${months}月${currentDay}日`;
+      const remainderMinutes = totalMinutes % (24 * 60);
+      const hours = Math.floor(remainderMinutes / 60);
+      const mins = remainderMinutes % 60;
+      return `斗罗历${20000 + years}年${months}月${currentDay}日 ${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
     }
 
     function formatNumber(value) {
@@ -1551,10 +1554,10 @@
     }
 
     function resolveExpiryUiText(item, fallback = '') {
-      const explicitText = normalizeSkillUiText(item && item['有效期至'], '');
-      if (explicitText) return explicitText;
       const expiryTick = toNumber(item && item['有效期至tick'], 0);
       if (expiryTick > 0) return formatTickToCalendarDateText(expiryTick);
+      const explicitText = normalizeSkillUiText(item && item['有效期至'], '');
+      if (explicitText) return explicitText;
       return fallback;
     }
 
@@ -1994,8 +1997,8 @@
         extraSkills.push({
           category: '特长能力',
           name: abi.name,
-          level: toText(abi.类型, '被动'),
-          desc: toText(abi.描述, '暂无描述')
+          level: toText(abi.技能类型 || abi.主定位, '被动'),
+          desc: toText(abi.效果描述 || abi.战斗摘要?.一句话定位, '暂无描述')
         });
       });
 
@@ -2325,6 +2328,14 @@
         const safeName = toText(name, '').trim();
         if (!safeName || seen.has(safeName)) return;
         seen.add(safeName);
+        const x = mapCoordToPercent(item && item.x, bounds.minX, bounds.width, 50);
+        const y = mapCoordToPercent(item && item.y, bounds.minY, bounds.height, 50);
+        const edgeClasses = [
+          x <= 16 ? 'edge-left' : '',
+          x >= 84 ? 'edge-right' : '',
+          y <= 18 ? 'edge-top' : '',
+          y >= 82 ? 'edge-bottom' : ''
+        ].filter(Boolean).join(' ');
         items.push({
           name: safeName,
           source: extra.source || toText(item && item.source, 'static'),
@@ -2335,8 +2346,9 @@
           childMapId: toText(extra.childMapId || (item && item.child_map_id) || '无', '无'),
           major: !!extra.major,
           current: safeName === snapshot.currentLoc || safeName === toText(deepGet(snapshot, 'mapCurrentFocus.loc', ''), ''),
-          x: mapCoordToPercent(item && item.x, bounds.minX, bounds.width, 50),
-          y: mapCoordToPercent(item && item.y, bounds.minY, bounds.height, 50)
+          x,
+          y,
+          edgeClasses
         });
       };
 
@@ -2373,7 +2385,7 @@
         ? [...snapshot.mapNodeLabels]
         : [snapshot.normalizedLoc, snapshot.currentLoc].filter(label => toText(label, ''));
       while (fallbackLabels.length < 4) fallbackLabels.push(fallbackBaseLabel);
-      const nodesHtml = (items.length ? items.map(item => `<div class="map-node clickable ${item.current ? 'current' : ''} ${item.canEnter ? 'origin' : ''}" data-preview="地图节点：${htmlEscape(item.name)}" style="left:${item.x}%; top:${item.y}%;"><div class="map-dot ${item.major ? 'major' : ''}"></div><div class="map-label">${htmlEscape(item.name)}</div></div>`) : fallbackNodeSlots.map((slot, index) => {
+      const nodesHtml = (items.length ? items.map(item => `<div class="map-node clickable ${item.current ? 'current' : ''} ${item.canEnter ? 'origin' : ''} ${htmlEscape(item.edgeClasses || '')}" data-preview="地图节点：${htmlEscape(item.name)}" style="left:${item.x}%; top:${item.y}%;"><div class="map-dot ${item.major ? 'major' : ''}"></div><div class="map-label">${htmlEscape(item.name)}</div></div>`) : fallbackNodeSlots.map((slot, index) => {
         const label = fallbackLabels[index] || snapshot.currentLoc;
         return `<div class="map-node clickable ${slot.current ? 'current' : ''}" data-preview="地图节点：${htmlEscape(label)}" style="left:${slot.left}; top:${slot.top};"><div class="map-dot ${slot.major ? 'major' : ''}"></div><div class="map-label">${htmlEscape(label)}</div></div>`;
       })).join('');
@@ -4740,6 +4752,7 @@
       if (splitOverlay) {
         splitOverlay.classList.add('active');
         splitOverlay.classList.toggle('archive-mode', targetId === 'page-archive');
+        splitOverlay.classList.toggle('map-mode', targetId === 'page-map');
       }
       if (splitTopShell) splitTopShell.classList.remove('active');
 
@@ -5300,7 +5313,7 @@ ${JSON.stringify(patchOps, null, 2)}
       let initialTab = 'tab-shop';
       if (action === 'bid' || services.includes('auction')) {
         initialTab = 'tab-auction';
-      } else if (action === 'trade' && npcTarget && !services.some(service => ['shop', 'auction', 'black_market'].includes(service))) {
+      } else if (action === 'trade' && npcTarget) {
         initialTab = 'tab-private';
       } else if (action === 'trade' && !services.length) {
         initialTab = 'tab-private';
@@ -5326,7 +5339,7 @@ ${JSON.stringify(patchOps, null, 2)}
       const detail = dispatchDetail || {};
       let npcTarget = toText(detail.npcTarget, '');
       const npcTargets = Array.isArray(detail.npcTargets) ? detail.npcTargets.map(item => toText(item, '')).filter(Boolean) : [];
-      if (!npcTarget && npcTargets.length === 1) npcTarget = npcTargets[0];
+      if (!npcTarget && npcTargets.length) npcTarget = npcTargets[0];
       if (!snapshot || !snapshot.rootData || !npcTarget) return null;
 
       const activeKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
@@ -5376,7 +5389,7 @@ ${JSON.stringify(patchOps, null, 2)}
       const action = toText(detail.action, '');
       let npcTarget = toText(detail.npcTarget, '');
       const npcTargets = Array.isArray(detail.npcTargets) ? detail.npcTargets.map(item => toText(item, '')).filter(Boolean) : [];
-      if (!npcTarget && npcTargets.length === 1) npcTarget = npcTargets[0];
+      if (!npcTarget && npcTargets.length) npcTarget = npcTargets[0];
 
       const interactActionMap = {
         talk: '闲聊',
@@ -5407,6 +5420,20 @@ ${JSON.stringify(patchOps, null, 2)}
       const itemUsed = interactAction === '送礼'
         ? (toText(detail.itemUsed, toText(detail.item_used, '无')) || '无')
         : '无';
+      const targetChar = resolvedTarget && resolvedTarget.char && typeof resolvedTarget.char === 'object' ? resolvedTarget.char : {};
+      const activeIdentity = toText(deepGet(activeChar, 'social.main_identity', '无'), '无');
+      const targetIdentity = toText(deepGet(targetChar, 'social.main_identity', '无'), '无');
+      const activePersonality = toText(deepGet(activeChar, 'personality', '未设定'), '未设定');
+      const targetPersonality = toText(deepGet(targetChar, 'personality', '未设定'), '未设定');
+      const activeLoc = toText(deepGet(activeChar, 'status.loc', arenaName), arenaName || '未知地点');
+      const targetLoc = toText(deepGet(targetChar, 'status.loc', '未知地点'), '未知地点');
+      const activeFactions = Object.keys(deepGet(activeChar, 'social.factions', {})).filter(Boolean);
+      const targetFactions = Object.keys(deepGet(targetChar, 'social.factions', {})).filter(Boolean);
+      const recentInteractText = relationData && typeof relationData === 'object'
+        ? `${toText(relationData['last_interact_action'], '无')} / ${toNumber(relationData['recent_favor_delta'], 0)}`
+        : '无';
+      const progressNote = relationData && typeof relationData === 'object' ? toText(deepGet(relationData, '_progress_note', deepGet(relationData, 'progress_note', '暂无')),'暂无') : '暂无';
+      const routeSwitchable = !!deepGet(relationData, '_route_switchable', false);
       const sourceLabel = toText(detail.sourceLabel, '地图 NPC 互动');
       const sourceAnalysis = toText(detail.sourceAnalysis, 'Map NPC interaction initialized from map action.');
       const actionPromptMap = {
@@ -5443,7 +5470,16 @@ ${JSON.stringify(patchOps, null, 2)}
 
 [关系参考]
 当前关系：${relationSummary}
-互动提示：你必须根据剧情氛围为本次 interact_request.ai_score 回填一个 -50 到 50 的整数；若互动无法成立则保持 0，并在正文给出合理原因。${interactAction === '送礼' ? ` 送礼时必须保留 item_used = ${itemUsed}。` : ''}
+
+[角色补充]
+发起者：${activeName} / 身份 ${activeIdentity} / 性格 ${activePersonality} / 所属势力 ${activeFactions.join(' / ') || '无'} / 所在地 ${activeLoc}
+目标：${targetName} / 身份 ${targetIdentity} / 性格 ${targetPersonality} / 所属势力 ${targetFactions.join(' / ') || '无'} / 所在地 ${targetLoc}
+最近互动：${recentInteractText}
+推进提示：${progressNote}
+当前是否可切恋人线：${routeSwitchable ? '是' : '否'}
+
+[互动裁定原则]
+你必须根据剧情氛围为本次 interact_request.ai_score 回填一个 -50 到 50 的整数；若互动无法成立则保持 0，并在正文给出合理原因。请不要只按一句台词机械判分，必须综合考虑：基础好感、当前关系阶段与路线、双方性格、身份与现实压力、所属势力可能带来的立场影响、当前地点是否适合展开该互动、以及最近互动的延续性。${interactAction === '送礼' ? ` 送礼时必须保留 item_used = ${itemUsed}，并判断礼物是否对目标性格、身份、处境与当下气氛对口。` : ''}${interactAction === '表白' ? ' 表白时要区分“试着交往/进入暧昧推进”与“正式确认关系”两种结果；若剧情上已经正式确认关系，可以直接在返回的 JSONPatch 中把双方 social.relations 下对应目标的 relation_route 改为“恋人线”。' : ''}${interactAction === '双修' ? ' 双修属于高亲密度互动，若人物状态、性格、场景或关系阶段不匹配，应明显压低 ai_score 或判定无法成立。' : ''}${interactAction === '请教' ? ' 请教不仅看好感，也要看目标是否愿意传授、双方当前关系是否适合、以及当下场景是否便于认真交流。' : ''}
 
 [MVU变量更新数据]
 以下为本次人物互动的前端预填请求，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。
@@ -5467,7 +5503,7 @@ ${JSON.stringify(patchOps, null, 2)}
       const services = normalizeMapDispatchServices(detail);
       if (!action && !services.length) return;
       if (!isSnapshotPlayerControlled(liveSnapshot)) {
-        if (typeof window.alert === 'function') window.alert('当前为非玩家角色视角，仅允许浏览，不能发起交易/锻造/战斗等操作。');
+        console.warn('[DragonUI] 当前为非玩家角色视角，仅允许浏览，不能发起交易/锻造/战斗等操作。', detail);
         return;
       }
 
@@ -5479,29 +5515,45 @@ ${JSON.stringify(patchOps, null, 2)}
 
       if (['talk', 'brief', 'intel'].includes(action)) {
         const interactInit = buildMapInteractDispatchRequest(liveSnapshot, detail);
-        if (!interactInit) {
-          console.warn('[DragonUI] 地图 NPC 互动分发缺少有效 NPC 目标或实时快照', detail);
-          if (typeof window.alert === 'function') window.alert('请先在地图右侧 NPC 列表中选定互动对象。');
+        mapDispatchContext = { ...detail, action, services };
+        if (interactInit && typeof window.sendToAI === 'function') {
+          window.sendToAI(interactInit.playerInput, interactInit.systemPrompt, { requestKind: interactInit.requestKind });
           return;
         }
-        mapDispatchContext = { ...detail, action, services };
         if (typeof window.sendToAI === 'function') {
-          window.sendToAI(interactInit.playerInput, interactInit.systemPrompt, { requestKind: interactInit.requestKind });
+          const arenaName = toText(detail.target, toText(detail.currentLoc, toText(liveSnapshot && liveSnapshot.currentLoc, '未知地点')));
+          const npcTargets = Array.isArray(detail.npcTargets) ? detail.npcTargets.map(item => toText(item, '')).filter(Boolean) : [];
+          const targetLabel = npcTargets.length ? `在场人物（${npcTargets.join('、')}）` : '在场人员';
+          const playerInputMap = {
+            talk: `我想在【${arenaName}】与${targetLabel}交谈。`,
+            brief: `我想在【${arenaName}】向${targetLabel}汇报情况并请示安排。`,
+            intel: `我想在【${arenaName}】向${targetLabel}请教情报。`
+          };
+          const actionLabel = action === 'brief' ? '汇报' : (action === 'intel' ? '请教' : '对话');
+          const systemPrompt = `以下内容属于前端已经发起的地图${actionLabel}请求。当前没有锁定唯一 NPC 目标，不要报错，也不要要求玩家重新点击；请结合【${arenaName}】的场景功能与在场人物，自然选择最合适的回应对象承接本次互动。${npcTargets.length ? ` 当前可候选人物：${npcTargets.join('、')}。` : ' 当前未识别到明确人物名单，请按地点与事件功能自然承接。'}`;
+          window.sendToAI(playerInputMap[action] || `我想在【${arenaName}】与在场人物互动。`, systemPrompt, { requestKind: 'interact_request' });
+          return;
         }
+        console.warn('[DragonUI] 地图 NPC 互动分发未找到可用发送通道', detail);
         return;
       }
 
       if (action === 'battle' || services.includes('battle')) {
         const battleInit = buildMapBattleInitRequest(liveSnapshot, detail);
-        if (!battleInit) {
-          console.warn('[DragonUI] 地图战斗分发缺少有效 NPC 目标或实时快照', detail);
-          if (typeof window.alert === 'function') window.alert('请先在地图右侧 NPC 列表中选定切磋对象。');
+        mapDispatchContext = { ...detail, action, services };
+        if (battleInit && typeof window.sendToAI === 'function') {
+          window.sendToAI(battleInit.playerInput, battleInit.systemPrompt, { requestKind: battleInit.requestKind });
           return;
         }
-        mapDispatchContext = { ...detail, action, services };
         if (typeof window.sendToAI === 'function') {
-          window.sendToAI(battleInit.playerInput, battleInit.systemPrompt, { requestKind: battleInit.requestKind });
+          const arenaName = toText(detail.target, toText(detail.currentLoc, toText(liveSnapshot && liveSnapshot.currentLoc, '未知地点')));
+          const npcTargets = Array.isArray(detail.npcTargets) ? detail.npcTargets.map(item => toText(item, '')).filter(Boolean) : [];
+          const targetLabel = npcTargets.length ? `在场人物（${npcTargets.join('、')}）中的一人` : '合适的对手';
+          const systemPrompt = `以下内容属于前端已经发起的地图切磋请求。当前没有锁定唯一对手，不要报错，也不要要求玩家重新点击；请结合【${arenaName}】现场情况与在场人物，自然判断是否有人应战。${npcTargets.length ? ` 候选对手：${npcTargets.join('、')}。若有人应战，请自然承接为切磋剧情并继续后续战斗推进。` : ' 若当前没有明确对手，也请以前端请求已发出的事实为基础，自然描述无人应战、稍后再战或由他人出面回应。'}`;
+          window.sendToAI(`我想在【${arenaName}】与${targetLabel}切磋。`, systemPrompt, { requestKind: 'combat_action' });
+          return;
         }
+        console.warn('[DragonUI] 地图切磋分发未找到可用发送通道', detail);
         return;
       }
 
@@ -6173,8 +6225,8 @@ window.EquipmentManager = {
     if (/右肩/.test(tName)) return { mainSlot: 'armor', subSlot: '右肩' };
     if (/左臂/.test(tName)) return { mainSlot: 'armor', subSlot: '左臂' };
     if (/右臂/.test(tName)) return { mainSlot: 'armor', subSlot: '右臂' };
-    if (/左手|手骨/.test(tName)) return { mainSlot: 'armor', subSlot: '左臂' }; // 容错兼容
-    if (/右手/.test(tName)) return { mainSlot: 'armor', subSlot: '右臂' }; // 容错兼容
+    if (/左手|手骨/.test(tName)) return { mainSlot: 'armor', subSlot: '左臂' }; // 容错映射
+    if (/右手/.test(tName)) return { mainSlot: 'armor', subSlot: '右臂' }; // 容错映射
     if (/左腿|左腿骨/.test(tName)) return { mainSlot: 'armor', subSlot: '左腿' };
     if (/右腿|右腿骨/.test(tName)) return { mainSlot: 'armor', subSlot: '右腿' };
     if (/战裙/.test(tName)) return { mainSlot: 'armor', subSlot: '战裙' };

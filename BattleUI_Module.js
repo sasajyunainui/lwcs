@@ -773,7 +773,11 @@ function mergeRuntimePayloadToState(payload, pState) {
 }
 
 function applyRuntimeMechanismEffects(skill, attacker, attackerFinalStat, defender, defenderFinalStat, pState) {
-  const effects = Array.isArray(skill?._效果数组) ? skill._效果数组 : [];
+  const rawEffects = Array.isArray(skill?._效果数组) ? skill._效果数组 : [];
+  const hasCreationPayload = rawEffects.some(effect => ['生成造物', '造物生成'].includes(String(effect?.机制 || '')));
+  const effects = hasCreationPayload
+    ? rawEffects.filter(effect => effect?.机制 === '系统基础' || ['生成造物', '造物生成'].includes(String(effect?.机制 || '')))
+    : rawEffects;
   effects.forEach(effect => {
     const mechanism = effect?.机制 || effect?.名称 || effect?.类型 || "";
     if (["标记锁定", "幻境", "催眠", "斩杀补伤"].includes(mechanism)) {
@@ -914,6 +918,8 @@ function createEmptyCombatEffectMap() {
     resource_block_ratio: 0,
     min_hp_floor: 0,
     death_save_count: 0,
+    bonus_true_damage_ratio: 0,
+    life_steal_ratio: 0,
     silence: false,
     disarm: false,
     blind: false,
@@ -924,8 +930,47 @@ function createEmptyCombatEffectMap() {
   };
 }
 
+function mergeCombatEffectMaps(base = createEmptyCombatEffectMap(), incoming = {}) {
+  const seed = createEmptyCombatEffectMap();
+  const result = { ...seed, ...(base || {}) };
+  Object.entries(incoming || {}).forEach(([key, value]) => {
+    if (!(key in seed) || value === undefined) return;
+    if (["skip_turn", "cannot_react", "silence", "disarm", "blind", "super_armor"].includes(key)) {
+      result[key] = !!result[key] || !!value;
+      return;
+    }
+    if (["control_resist_mult", "final_damage_mult", "final_heal_mult", "shield_gain_mult"].includes(key)) {
+      result[key] = Number(result[key] ?? 1) * Number(value ?? 1);
+      return;
+    }
+    if (["lock_level", "death_save_count", "block_count", "min_hp_floor"].includes(key)) {
+      result[key] = Math.max(Number(result[key] ?? 0), Number(value ?? 0));
+      return;
+    }
+    result[key] = Number(result[key] ?? 0) + Number(value ?? 0);
+  });
+  return result;
+}
+
+function hasMeaningfulCombatEffect(effectMap = {}) {
+  const seed = createEmptyCombatEffectMap();
+  return Object.keys(seed).some(key => {
+    if (["skip_turn", "cannot_react", "silence", "disarm", "blind", "super_armor"].includes(key)) {
+      return !!effectMap[key];
+    }
+    const baseValue = Number(seed[key] ?? 0);
+    const nextValue = Number(effectMap[key] ?? seed[key] ?? 0);
+    return nextValue !== baseValue;
+  });
+}
+
 function getSkillEffects(skill) {
-  return Array.isArray(skill?._效果数组) ? skill._效果数组 : [];
+  const rawEffects = Array.isArray(skill?._效果数组) ? skill._效果数组 : [];
+  const creationEffects = rawEffects.filter(effect => ['生成造物', '造物生成'].includes(String(effect?.机制 || '')));
+  if (!creationEffects.length) return rawEffects;
+  const systemEffects = rawEffects.filter(effect => effect?.机制 === '系统基础');
+  const usageEffects = creationEffects.flatMap(effect => Array.isArray(effect?.使用效果) ? effect.使用效果 : []);
+  return [...systemEffects, ...usageEffects];
 }
 
 function getSystemBaseEffect(skill) {
@@ -1151,16 +1196,36 @@ function bindCombatParticipant(char) {
 
 function hydrateCombatData(combatData) {
   if (!combatData || !combatData.participants) return combatData;
-  bindCombatParticipant(combatData.participants.player);
-  bindCombatParticipant(combatData.participants.enemy);
-  (combatData.participants.team_player || []).forEach(bindCombatParticipant);
-  (combatData.participants.team_enemy || []).forEach(bindCombatParticipant);
+  const playerRoster = [combatData.participants.player, ...(combatData.participants.team_player || [])].filter(Boolean);
+  const enemyRoster = [combatData.participants.enemy, ...(combatData.participants.team_enemy || [])].filter(Boolean);
+
+  const processRoster = (roster, opposingRoster) => {
+    const seen = new Set();
+    roster.forEach(member => {
+      if (!member || seen.has(member)) return;
+      seen.add(member);
+      refreshParticipantProjectedState(
+        member,
+        roster.filter(unit => unit && unit !== member),
+        opposingRoster.filter(Boolean)
+      );
+    });
+  };
+
+  processRoster(playerRoster, enemyRoster);
+  processRoster(enemyRoster, playerRoster);
+
+  if (combatData.participants.player) combatData.participants.player.final = buildCombatFinalStats(combatData.participants.player);
+  if (combatData.participants.enemy) combatData.participants.enemy.final = buildCombatFinalStats(combatData.participants.enemy);
+  (combatData.participants.team_player || []).forEach(member => { if (member) member.final = buildCombatFinalStats(member); });
+  (combatData.participants.team_enemy || []).forEach(member => { if (member) member.final = buildCombatFinalStats(member); });
   return combatData;
 }
 
 function normalizeSkillData(skill, fallbackName = "未知技能") {
   const normalized = deepClone(skill || {});
   normalized.name = normalized.name || normalized.技能名称 || fallbackName;
+  normalized.魂技名 = normalized.魂技名 || normalized.name || normalized.技能名称 || fallbackName;
   normalized.战斗摘要 = { ...createEmptyBattleSummary(), ...(normalized.战斗摘要 || {}) };
   normalized.主定位 = normalized.主定位 || normalized.战斗语义?.主定位 || normalized.技能类型 || "无";
   normalized.标签 = Array.isArray(normalized.标签) ? normalized.标签 : [];
@@ -1200,19 +1265,62 @@ function normalizeSkillData(skill, fallbackName = "未知技能") {
   return normalized;
 }
 
+const FUSION_SELF_SPIRIT_SLOTS = ["第一武魂", "第二武魂"];
+
+function getFusionSkillMode(fusionSkill = {}) {
+  return fusionSkill?.fusion_mode === "self" ? "self" : "partner";
+}
+
+function getFusionSkillSourceSpirits(fusionSkill = {}) {
+  const rawSlots = Array.isArray(fusionSkill?.source_spirits) ? fusionSkill.source_spirits : [];
+  const slots = rawSlots.map(slot => String(slot || "").trim()).filter(slot => FUSION_SELF_SPIRIT_SLOTS.includes(slot));
+  if (slots.length) return Array.from(new Set(slots));
+  return getFusionSkillMode(fusionSkill) === "self" ? [...FUSION_SELF_SPIRIT_SLOTS] : ["第一武魂"];
+}
+
+function hasUsableSpiritSlot(charData, slot) {
+  return !!(charData?.spirit && charData.spirit[slot]);
+}
+
+function isFusionSkillAvailable(charData, fusionSkill, alliedTeam = []) {
+  if (!fusionSkill?.skill_data || fusionSkill?.skill_data?.状态 === "未生成") return false;
+  if (getFusionSkillMode(fusionSkill) === "self") {
+    const slots = getFusionSkillSourceSpirits(fusionSkill);
+    return slots.length >= 2 && slots.every(slot => hasUsableSpiritSlot(charData, slot));
+  }
+  const partnerName = String(fusionSkill?.partner || "").trim();
+  if (!partnerName || partnerName === "无") return false;
+  return (alliedTeam || []).some(unit => unit.name === partnerName && unit.vit > 0);
+}
+
+function buildFusionCastNarration(fusionSkill, actorName = "施术者") {
+  if (getFusionSkillMode(fusionSkill) === "self") {
+    const slots = getFusionSkillSourceSpirits(fusionSkill);
+    return `${actorName}将${slots.join("与")}同频共振，自体交融，悍然施展了武魂融合技！`;
+  }
+  return `${actorName}与${fusionSkill?.partner || "同伴"}气息交融，果断施展了武魂融合技！`;
+}
+
+function parseResourceCostValue(costStr, label, currentValue, maxValue) {
+  const text = String(costStr || "");
+  const currentMatch = text.match(new RegExp(`${label}:(?:当前(?:剩余)?|剩余)(\\d+)%`));
+  if (currentMatch) return Math.floor(Math.max(0, Number(currentValue || 0)) * parseInt(currentMatch[1], 10) / 100);
+  const baseMatch = text.match(new RegExp(`${label}:(\\d+)(%?)`));
+  if (!baseMatch) return 0;
+  return baseMatch[2]
+    ? Math.floor(Math.max(0, Number(maxValue || 0)) * parseInt(baseMatch[1], 10) / 100)
+    : parseInt(baseMatch[1], 10);
+}
+
 function parseSkillCostForChar(skill, char) {
   const stats = char?.stat || char || {};
   const costStr = normalizeSkillData(skill).消耗 || getSkillCostText(skill);
   const costScale = (skill && char && skill.__targetForSupportCost && isSupportLikeSkill(skill))
     ? getSupportCostScale(char, skill.__targetForSupportCost)
     : 1;
-  const spMatch = costStr.match(/魂力:(\d+)(%?)/);
-  const vitMatch = costStr.match(/体力:(\d+)(%?)/);
-  const menMatch = costStr.match(/精神力:(\d+)(%?)/);
-
-  const rawReqSp = spMatch ? (spMatch[2] ? Math.floor((stats.sp_max || 0) * parseInt(spMatch[1]) / 100) : parseInt(spMatch[1])) : 0;
-  const rawReqVit = vitMatch ? (vitMatch[2] ? Math.floor((stats.vit_max || 0) * parseInt(vitMatch[1]) / 100) : parseInt(vitMatch[1])) : 0;
-  const rawReqMen = menMatch ? (menMatch[2] ? Math.floor((stats.men_max || 0) * parseInt(menMatch[1]) / 100) : parseInt(menMatch[1])) : 0;
+  const rawReqSp = parseResourceCostValue(costStr, "魂力", stats.sp, stats.sp_max);
+  const rawReqVit = parseResourceCostValue(costStr, "体力", stats.vit, stats.vit_max);
+  const rawReqMen = parseResourceCostValue(costStr, "精神力", stats.men, stats.men_max);
   const reqSp = Math.floor(rawReqSp * costScale);
   const reqVit = Math.floor(rawReqVit * costScale);
   const reqMen = Math.floor(rawReqMen * costScale);
@@ -1260,12 +1368,281 @@ function rollBranchByPriority(branches, phaseLabel) {
   return { option: null, trace: traces.join(' | ') };
 }
 
-function getSpecialAbilitySkillData(charData, abilityName) {
-  const ability = charData?.special_abilities?.[abilityName];
-  if (!ability) return null;
-  if (ability.skill_data) return ability.skill_data;
-  if (ability.cast_time !== undefined || ability.技能类型) return ability;
-  return null;
+function isPassiveSkillData(skill) {
+  if (!skill || typeof skill !== "object") return false;
+  const systemBase = getSystemBaseEffect(skill) || {};
+  const rawType = systemBase?.技能类型 || skill?.技能类型 || "无";
+  return /被动/.test(String(rawType || ""));
+}
+
+function pushUnifiedSkillMapEntries(skills, skillMap, sourceTag, options = {}) {
+  const { includePassive = false, includeActive = true } = options;
+  Object.entries(skillMap || {}).forEach(([skillName, skillData]) => {
+    if (!skillData || skillData?.状态 === "未生成") return;
+    const nSkill = normalizeSkillData(skillData, skillName);
+    const isPassive = isPassiveSkillData(nSkill);
+    if (isPassive && !includePassive) return;
+    if (!isPassive && !includeActive) return;
+    nSkill.source_tag = sourceTag;
+    skills.push(nSkill);
+  });
+}
+
+function collectUnifiedSkillEntries(charData, alliedTeam = [], options = {}) {
+  const skills = [];
+  const collectOptions = {
+    includePassive: !!options.includePassive,
+    includeActive: options.includeActive !== false
+  };
+
+  if (charData?.spirit) {
+    Object.entries(charData.spirit).forEach(([spKey, sp]) => {
+      const spName = sp?.表象名称 || spKey || "武魂";
+      Object.values(sp?.soul_spirits || {}).forEach(ss => {
+        Object.values(ss?.rings || {}).forEach(ring => {
+          pushUnifiedSkillMapEntries(skills, ring?.魂技 || {}, spName, collectOptions);
+        });
+      });
+      pushUnifiedSkillMapEntries(skills, sp?.custom_skills || {}, `${spName}·自创`, collectOptions);
+    });
+  }
+
+  if (charData?.bloodline_power) {
+    pushUnifiedSkillMapEntries(skills, charData.bloodline_power.skills || {}, "血脉之力", collectOptions);
+    Object.values(charData.bloodline_power.blood_rings || {}).forEach(ring => {
+      pushUnifiedSkillMapEntries(skills, ring?.魂技 || {}, "气血魂技", collectOptions);
+    });
+  }
+
+  Object.values(charData?.soul_bone || {}).forEach(bone => {
+    pushUnifiedSkillMapEntries(skills, bone?.附带技能 || {}, "魂骨技能", collectOptions);
+  });
+
+  pushUnifiedSkillMapEntries(skills, charData?.secret_skills || {}, "秘技", collectOptions);
+  pushUnifiedSkillMapEntries(skills, charData?.special_abilities || {}, "特殊能力", collectOptions);
+
+  Object.entries(charData?.martial_fusion_skills || {}).forEach(([fusionName, fusionSkill]) => {
+    if (!isFusionSkillAvailable(charData, fusionSkill, alliedTeam)) return;
+    const nSkill = normalizeSkillData(fusionSkill.skill_data, `武魂融合技·${fusionName}`);
+    const isPassive = isPassiveSkillData(nSkill);
+    if (isPassive && !collectOptions.includePassive) return;
+    if (!isPassive && !collectOptions.includeActive) return;
+    nSkill.source_tag = "武魂融合技";
+    nSkill.__fusion_mode = getFusionSkillMode(fusionSkill);
+    skills.push(nSkill);
+  });
+
+  return skills;
+}
+
+function collectPassiveCombatSkills(charData, alliedTeam = []) {
+  return collectUnifiedSkillEntries(charData, alliedTeam, { includePassive: true, includeActive: false });
+}
+
+const AUTO_PROJECTED_CONDITION_PREFIX = "__auto__:";
+
+function clearAutoProjectedConditions(char) {
+  if (!char?.conditions) return;
+  Object.keys(char.conditions).forEach(key => {
+    if (String(key).startsWith(AUTO_PROJECTED_CONDITION_PREFIX)) delete char.conditions[key];
+  });
+}
+
+function createProjectedCondition(description, type = "buff", statMods = {}, combatEffects = {}, duration = 999) {
+  return {
+    类型: type,
+    层数: 1,
+    描述: description || "自动投影效果",
+    duration,
+    stat_mods: {
+      str: Number(statMods.str ?? 1),
+      def: Number(statMods.def ?? 1),
+      agi: Number(statMods.agi ?? 1),
+      sp_max: Number(statMods.sp_max ?? 1),
+      vit_max: Number(statMods.vit_max ?? 1),
+      men_max: Number(statMods.men_max ?? 1)
+    },
+    combat_effects: mergeCombatEffectMaps(createEmptyCombatEffectMap(), combatEffects || {})
+  };
+}
+
+function projectPassiveSkillToConditions(char, skill) {
+  if (!char?.conditions || !skill) return;
+  const sourceName = skill.name || skill.技能名称 || "被动技能";
+  (skill._效果数组 || []).forEach((effect, index) => {
+    const mechanism = effect?.机制 || effect?.名称 || effect?.类型 || "";
+    if (mechanism === "状态挂载" && effect?.状态名称 && effect.状态名称 !== "无") {
+      const specialFlag = effect.特殊机制标识 || "无";
+      const calc = effect.计算层效果 || {};
+      const isBuff = /增益|真身|被动/.test(specialFlag) || Number(calc.hit_bonus || 0) > 0 || Number(calc.reaction_bonus || 0) > 0 || Number(calc.dodge_bonus || 0) > 0 || Number(calc.final_heal_mult || 1) > 1 || Number(calc.final_damage_mult || 1) > 1 || calc.super_armor === true || Number(calc.min_hp_floor || 0) > 0;
+      char.conditions[`${AUTO_PROJECTED_CONDITION_PREFIX}${sourceName}:${effect.状态名称}`] = createProjectedCondition(`自动投影[${sourceName}]`, isBuff ? "buff" : "debuff", effect.面板修改比例 || {}, calc, 999);
+      return;
+    }
+    if (mechanism === "属性永久强化") {
+      const mult = 1 + Math.max(0, Number(effect.强化值 || 0));
+      char.conditions[`${AUTO_PROJECTED_CONDITION_PREFIX}${sourceName}:属性永久强化:${index}`] = createProjectedCondition(`自动投影[${sourceName}]·属性永久强化`, "buff", { str: mult, def: mult, agi: mult, sp_max: mult, vit_max: mult, men_max: mult }, {}, 999);
+    }
+  });
+  const runtimeEffect = createEmptyCombatEffectMap();
+  applyRuntimeMechanismEffects(skill, char, char, char, char, runtimeEffect);
+  if (hasMeaningfulCombatEffect(runtimeEffect)) {
+    char.conditions[`${AUTO_PROJECTED_CONDITION_PREFIX}${sourceName}:机制投影`] = createProjectedCondition(`自动投影[${sourceName}]·机制效果`, "buff", {}, runtimeEffect, 999);
+  }
+}
+
+function getActiveStructuredDomain(char) {
+  if (!char || typeof char !== "object") return null;
+  const domain = char.spiritual_domain || {};
+  const modifiers = domain.combat_modifiers || {};
+  const enabled = Object.values(modifiers).some(mod => mod?.enabled);
+  const isActive = !!domain.is_active || String(char.active_domain || char.status?.active_domain || "").includes("精神领域");
+  if (!enabled || !isActive) return null;
+  return { name: domain.name || "精神领域", modifiers };
+}
+
+function buildDomainSuppressionStatMods(targetStat = "all", reduceRatio = 0.3) {
+  const mult = Math.max(0.05, 1 - Math.max(0, Number(reduceRatio || 0)));
+  const mods = { str: 1, def: 1, agi: 1, sp_max: 1, vit_max: 1, men_max: 1 };
+  if (targetStat === "all") return { str: mult, def: mult, agi: mult, sp_max: mult, vit_max: mult, men_max: mult };
+  const keyMap = { str: "str", def: "def", agi: "agi", sp: "sp_max", sp_max: "sp_max", vit: "vit_max", vit_max: "vit_max", men: "men_max", men_max: "men_max" };
+  const mapped = keyMap[targetStat] || null;
+  if (mapped) mods[mapped] = mult;
+  return mods;
+}
+
+function resolveArmorDomainDescriptor(char) {
+  const activeDomainText = String(char?.active_domain || char?.status?.active_domain || "");
+  if (!activeDomainText.includes("斗铠领域")) return null;
+
+  const isFourWord = activeDomainText.includes("四字");
+  const ratio = isFourWord ? 1.2 : 1.1;
+  const requiredCount = isFourWord ? 2 : 1;
+  const attrPool = ["sp_max", "men_max", "str", "def", "agi", "vit_max"];
+  const bracketMatch = activeDomainText.match(/\[([^\]]+)\]/);
+  let selectedAttrs = bracketMatch
+    ? bracketMatch[1].split(/[，,]/).map(attr => String(attr || "").trim()).filter(attr => attrPool.includes(attr))
+    : [];
+
+  if (selectedAttrs.length > requiredCount) selectedAttrs = selectedAttrs.slice(0, requiredCount);
+
+  if (activeDomainText.includes("未定") || selectedAttrs.length < requiredCount) {
+    const remaining = [...attrPool];
+    selectedAttrs = [];
+    while (selectedAttrs.length < requiredCount && remaining.length > 0) {
+      const index = Math.floor(Math.random() * remaining.length);
+      selectedAttrs.push(remaining.splice(index, 1)[0]);
+    }
+    char.active_domain = isFourWord
+      ? `【四字斗铠领域】全开[${selectedAttrs.join(",")}]`
+      : `【三字斗铠领域】全开[${selectedAttrs.join(",")}]`;
+  }
+
+  return {
+    name: String(char.active_domain || char?.status?.active_domain || activeDomainText),
+    ratio,
+    selectedAttrs
+  };
+}
+
+function projectDomainConditionsForParticipant(char, opposingTeam = []) {
+  if (!char?.conditions) return;
+  const armorDomain = resolveArmorDomainDescriptor(char);
+  if (armorDomain) {
+    const statMods = { str: 1, def: 1, agi: 1, sp_max: 1, vit_max: 1, men_max: 1 };
+    armorDomain.selectedAttrs.forEach(attr => {
+      statMods[attr] = armorDomain.ratio;
+    });
+    char.conditions[`${AUTO_PROJECTED_CONDITION_PREFIX}斗铠领域:${armorDomain.name}`] = createProjectedCondition(`自动投影[${armorDomain.name}]·斗铠增幅`, "buff", statMods, {}, 999);
+  }
+
+  const ownDomain = getActiveStructuredDomain(char);
+  if (ownDomain) {
+    const selfEffects = createEmptyCombatEffectMap();
+    const ownMods = ownDomain.modifiers;
+    if (ownMods.conditional_evasion?.enabled) {
+      const compareStat = ownMods.conditional_evasion.compare_stat || "men";
+      const selfValue = getMechanismJudgeValue(char, char.final || char, compareStat);
+      const maxEnemy = Math.max(0, ...(opposingTeam || []).map(unit => getMechanismJudgeValue(unit, unit.final || unit, compareStat)));
+      const maxRatio = Math.max(1, Number(ownMods.conditional_evasion.max_ratio || 1.5));
+      if (maxEnemy <= selfValue * maxRatio) {
+        selfEffects.dodge_bonus += 0.25;
+        selfEffects.reaction_bonus += 0.10;
+      }
+    }
+    if (ownMods.absolute_hit_true_dmg?.enabled) {
+      const ratio = Math.max(0, Number(ownMods.absolute_hit_true_dmg.true_dmg_ratio || 0.1));
+      selfEffects.hit_bonus += 0.12;
+      selfEffects.lock_level = Math.max(Number(selfEffects.lock_level || 0), 1);
+      selfEffects.final_damage_mult *= 1 + Math.min(0.35, ratio);
+      selfEffects.bonus_true_damage_ratio += ratio;
+    }
+    if (ownMods.soul_leech?.enabled) {
+      selfEffects.life_steal_ratio += Math.max(0, Math.min(1, Number(ownMods.soul_leech.leech_ratio || 0.5)));
+    }
+    if (hasMeaningfulCombatEffect(selfEffects)) {
+      char.conditions[`${AUTO_PROJECTED_CONDITION_PREFIX}领域:${ownDomain.name}:自我法则`] = createProjectedCondition(`自动投影[${ownDomain.name}]·自我法则`, "buff", {}, selfEffects, 999);
+    }
+  }
+
+  (opposingTeam || []).forEach(enemy => {
+    const enemyDomain = getActiveStructuredDomain(enemy);
+    if (!enemyDomain) return;
+    const mods = enemyDomain.modifiers;
+    const effectMap = createEmptyCombatEffectMap();
+    let statMods = { str: 1, def: 1, agi: 1, sp_max: 1, vit_max: 1, men_max: 1 };
+    if (mods.stat_suppression?.enabled) statMods = buildDomainSuppressionStatMods(mods.stat_suppression.target_stat || "all", mods.stat_suppression.reduce_ratio || 0.3);
+    if (mods.time_dilation?.enabled) {
+      const mult = Math.max(1, Number(mods.time_dilation.cast_time_multiplier || 2));
+      effectMap.reaction_penalty += Math.min(0.45, (mult - 1) * 0.2);
+      effectMap.cast_speed_penalty += Math.min(2, mult - 1);
+      effectMap.dodge_penalty += Math.min(0.2, (mult - 1) * 0.08);
+    }
+    if (mods.illusion_misdirection?.enabled) {
+      const chance = Math.max(0, Math.min(0.9, Number(mods.illusion_misdirection.misdirection_chance || 0.4)));
+      effectMap.hit_penalty += Number((chance * 0.5).toFixed(2));
+      effectMap.control_success_penalty += Number((chance * 0.2).toFixed(2));
+      effectMap.reaction_penalty += Number((chance * 0.15).toFixed(2));
+    }
+    if (hasMeaningfulCombatEffect(effectMap) || Object.values(statMods).some(v => Number(v || 1) !== 1)) {
+      char.conditions[`${AUTO_PROJECTED_CONDITION_PREFIX}领域压制:${enemy.name || enemyDomain.name}:${char.name || '目标'}`] = createProjectedCondition(`自动投影[${enemyDomain.name}]·领域压制`, "debuff", statMods, effectMap, 999);
+    }
+  });
+}
+
+function buildCombatFinalStats(char) {
+  const final = deepClone(char || {});
+  final.conditions = deepClone(char?.conditions || {});
+  final.combat_effects = createEmptyCombatEffectMap();
+  Object.values(final.conditions || {}).forEach(cond => {
+    const mods = cond?.stat_mods || {};
+    final.str = Number(final.str || 0) * Number(mods.str ?? 1);
+    final.def = Number(final.def || 0) * Number(mods.def ?? 1);
+    final.agi = Number(final.agi || 0) * Number(mods.agi ?? 1);
+    if (final.sp_max !== undefined) final.sp_max = Number(final.sp_max || 0) * Number(mods.sp_max ?? 1);
+    if (final.vit_max !== undefined) final.vit_max = Number(final.vit_max || 0) * Number(mods.vit_max ?? 1);
+    if (final.men_max !== undefined) final.men_max = Number(final.men_max || 0) * Number(mods.men_max ?? 1);
+    final.combat_effects = mergeCombatEffectMaps(final.combat_effects, cond?.combat_effects || {});
+  });
+  if (final.sp_max !== undefined && final.sp !== undefined) final.sp = Math.min(final.sp, final.sp_max);
+  if (final.vit_max !== undefined && final.vit !== undefined) final.vit = Math.min(final.vit, final.vit_max);
+  if (final.men_max !== undefined && final.men !== undefined) final.men = Math.min(final.men, final.men_max);
+  final.str = Math.round(Number(final.str || 0));
+  final.def = Math.round(Number(final.def || 0));
+  final.agi = Math.round(Number(final.agi || 0));
+  if (final.sp_max !== undefined) final.sp_max = Math.round(Number(final.sp_max || 0));
+  if (final.vit_max !== undefined) final.vit_max = Math.round(Number(final.vit_max || 0));
+  if (final.men_max !== undefined) final.men_max = Math.round(Number(final.men_max || 0));
+  return final;
+}
+
+function refreshParticipantProjectedState(char, alliedTeam = [], opposingTeam = []) {
+  if (!char) return char;
+  bindCombatParticipant(char);
+  clearAutoProjectedConditions(char);
+  collectPassiveCombatSkills(char, alliedTeam).forEach(skill => projectPassiveSkillToConditions(char, skill));
+  projectDomainConditionsForParticipant(char, opposingTeam);
+  char.final = buildCombatFinalStats(char);
+  return char;
 }
 
 function applyStateToCharacter(targetChar, stateModule, sourceName, forceBuff) {
@@ -1324,7 +1701,9 @@ function applyStateToCharacter(targetChar, stateModule, sourceName, forceBuff) {
       heal_block_ratio: stateModule.计算层效果?.heal_block_ratio ?? 0,
       resource_block_ratio: stateModule.计算层效果?.resource_block_ratio ?? 0,
       min_hp_floor: stateModule.计算层效果?.min_hp_floor ?? 0,
-      death_save_count: stateModule.计算层效果?.death_save_count ?? 0
+      death_save_count: stateModule.计算层效果?.death_save_count ?? 0,
+      bonus_true_damage_ratio: stateModule.计算层效果?.bonus_true_damage_ratio ?? 0,
+      life_steal_ratio: stateModule.计算层效果?.life_steal_ratio ?? 0
     }
   };
   return true;
@@ -1734,79 +2113,7 @@ function chooseAndBuildActorAction(actor, target, battleState, candidates, phase
 }
 
 function collectCombatSkills(charData, alliedTeam = []) {
-  const skills = [];
-
-  if (charData?.spirit) {
-    Object.entries(charData.spirit).forEach(([spKey, sp]) => {
-      const spName = sp.表象名称 || spKey || "武魂";
-      Object.values(sp.soul_spirits || {}).forEach(ss => {
-        Object.values(ss.rings || {}).forEach(ring => {
-          Object.entries(ring.魂技 || {}).forEach(([skillName, skillData]) => {
-            if (skillData?.状态 !== "未生成") {
-              const nSkill = normalizeSkillData(skillData, skillName);
-              nSkill.source_tag = spName;
-              skills.push(nSkill);
-            }
-          });
-        });
-      });
-    });
-  }
-
-  if (charData?.bloodline_power) {
-    Object.entries(charData.bloodline_power.skills || {}).forEach(([skillName, skillData]) => {
-      if (skillData?.状态 !== "未生成") {
-        const nSkill = normalizeSkillData(skillData, skillName);
-        nSkill.source_tag = "血脉之力";
-        skills.push(nSkill);
-      }
-    });
-    Object.values(charData.bloodline_power.blood_rings || {}).forEach(ring => {
-      Object.entries(ring.魂技 || {}).forEach(([skillName, skillData]) => {
-        if (skillData?.状态 !== "未生成") {
-          const nSkill = normalizeSkillData(skillData, skillName);
-          nSkill.source_tag = "气血魂技";
-          skills.push(nSkill);
-        }
-      });
-    });
-  }
-
-  if (charData?.soul_bone) {
-    Object.values(charData.soul_bone).forEach(bone => {
-      Object.entries(bone.附带技能 || {}).forEach(([skillName, skillData]) => {
-        if (skillData?.状态 !== "未生成" && skillData?.技能类型 !== "被动/基础属性提升") {
-          const nSkill = normalizeSkillData(skillData, skillName);
-          nSkill.source_tag = "魂骨技能";
-          skills.push(nSkill);
-        }
-      });
-    });
-  }
-
-  if (charData?.martial_fusion_skills) {
-    Object.entries(charData.martial_fusion_skills).forEach(([fusionName, fusionSkill]) => {
-      const partnerAlive = alliedTeam.some(unit => unit.name === fusionSkill.partner && unit.vit > 0);
-      if (partnerAlive && fusionSkill.skill_data) {
-        const nSkill = normalizeSkillData(fusionSkill.skill_data, `武魂融合技·${fusionName}`);
-        nSkill.source_tag = "武魂融合技";
-        skills.push(nSkill);
-      }
-    });
-  }
-
-  if (charData?.special_abilities) {
-    Object.keys(charData.special_abilities).forEach(abilityName => {
-      const skillData = getSpecialAbilitySkillData(charData, abilityName);
-      if (skillData) {
-        const nSkill = normalizeSkillData(skillData, abilityName);
-        nSkill.source_tag = "特殊能力";
-        skills.push(nSkill);
-      }
-    });
-  }
-
-  return skills;
+  return collectUnifiedSkillEntries(charData, alliedTeam, { includePassive: false, includeActive: true });
 }
 
 function onPlayerAttack(playerInput, options = {}) {
@@ -2232,9 +2539,12 @@ function settleBattle(attackerChar, defenderChar, isWin, options = {}) {
   // 读取战斗类型
   let combatData = options.combatData || window.BattleUIBridge?.getMVU("world.combat");
   let combatType = combatData.combat_type || "突发遭遇";
-  const attackerName = String(attackerChar?.name || combatData?.participants?.player?.name || "主角");
+  const preferredPlayerName = String(window.BattleUIBridge?.getMVU("sys.player_name") || "").trim();
+  const attackerName = String(attackerChar?.name || combatData?.participants?.player?.name || preferredPlayerName || "主角");
   const attackerPath = `/char/${escapeJsonPointerSegment(attackerName)}`;
-  let inventory = window.BattleUIBridge?.getMVU(`char.${attackerName}.inventory`) || window.BattleUIBridge?.getMVU("char.主角.inventory") || {};
+  let inventory = window.BattleUIBridge?.getMVU(`char.${attackerName}.inventory`)
+    || (preferredPlayerName ? window.BattleUIBridge?.getMVU(`char.${preferredPlayerName}.inventory`) : null)
+    || window.BattleUIBridge?.getMVU("char.主角.inventory") || {};
   
   // --- 触发世界战斗图鉴录入 ---
   let bestiary = window.BattleUIBridge?.getMVU("world.bestiary") || {};
@@ -2356,7 +2666,7 @@ function settleBattle(attackerChar, defenderChar, isWin, options = {}) {
          let finalGain = Math.floor(baseGain * finalMult);
          
          if (finalGain > 0) {
-           if (!attackerStats.trained_bonus) attackerStats.trained_bonus = { str:0, def:0, agi:0, vit_max:0, men_max:0 };
+           if (!attackerStats.trained_bonus) attackerStats.trained_bonus = { str:0, def:0, agi:0, vit_max:0, men_max:0, sp_max:0 };
            attackerStats.trained_bonus.str += finalGain;
            attackerStats.trained_bonus.def += finalGain;
            attackerStats.trained_bonus.agi += finalGain;
@@ -2470,31 +2780,54 @@ function calculateReactionRatio(attacker, defender, playerAction, combatData) {
   return ratio;
 }
 
-function buildSkillCreationPatchBundle(skill, inventory = {}, ownerName = "主角") {
+function formatBattleTickToCalendarDateText(tickValue) {
+  const safeTick = Math.max(0, Number(tickValue || 0));
+  const totalMinutes = safeTick * 10;
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const years = Math.floor(days / 360);
+  const months = Math.floor((days % 360) / 30) + 1;
+  const currentDay = (days % 30) + 1;
+  const remainderMinutes = totalMinutes % (24 * 60);
+  const hours = Math.floor(remainderMinutes / 60);
+  const mins = remainderMinutes % 60;
+  return `斗罗历${20000 + years}年${months}月${currentDay}日 ${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+}
+
+function buildSkillCreationPatchBundle(skill, inventory = {}, ownerName = "") {
   const effects = Array.isArray(skill?._效果数组) ? skill._效果数组 : [];
   const creationEffects = effects.filter(effect => ["生成造物", "造物生成"].includes(String(effect?.机制 || "")));
   if (!creationEffects.length) return { patchOps: [], log: "" };
 
   const patchOps = [];
   const logs = [];
-  const ownerPath = `/char/${escapeJsonPointerSegment(ownerName || "主角")}/inventory`;
+  const preferredOwnerName = String(window.BattleUIBridge?.getMVU("sys.player_name") || "").trim();
+  const currentTick = Number(window.BattleUIBridge?.getMVU("world.time.tick") || 0);
+  const resolvedOwnerName = String(ownerName || preferredOwnerName || "主角");
+  const ownerPath = `/char/${escapeJsonPointerSegment(resolvedOwnerName)}/inventory`;
 
   creationEffects.forEach(effect => {
-    const itemName = String(effect?.产物名称 || "临时造物").trim() || "临时造物";
+    const itemName = String(skill?.魂技名 || effect?.魂技名 || skill?.name || "临时造物").trim() || "临时造物";
     const escapedItemName = escapeJsonPointerSegment(itemName);
     const addCount = Math.max(1, Number(effect?.数量 || 1));
     const template = deepClone(effect?.背包模板 || {});
     const itemType = String(effect?.产物类型 || template?.类型 || "魂技造物");
     const triggerMode = String(effect?.触发方式 || template?.触发方式 || (itemType === "食物" ? "食用" : "使用"));
+    const relativeExpiryTick = Math.max(0, Number(effect?.有效期tick || 0));
     const nextItem = {
       ...template,
       数量: addCount,
       类型: itemType,
       触发方式: triggerMode,
-      使用效果: deepClone(template?.使用效果 || effect?.使用效果 || [])
+      使用效果: deepClone(template?.使用效果 || effect?.使用效果 || []),
+      来源技能: String(template?.来源技能 || skill?.魂技名 || effect?.魂技名 || itemName)
     };
-    if (effect?.有效期至tick !== undefined) nextItem.有效期至tick = Number(effect.有效期至tick || 0);
-    if (template?.有效期至 !== undefined) nextItem.有效期至 = template.有效期至;
+    if (relativeExpiryTick > 0) {
+      nextItem.有效期至tick = currentTick + relativeExpiryTick;
+      nextItem.有效期至 = formatBattleTickToCalendarDateText(nextItem.有效期至tick);
+    } else {
+      nextItem.有效期至tick = 0;
+      nextItem.有效期至 = "无";
+    }
     if (!nextItem.描述 && template?.描述) nextItem.描述 = template.描述;
 
     const currentItem = inventory[itemName];
@@ -2577,11 +2910,13 @@ function executeClash(playerAction, npcAction, combatData) {
   }
 
   const actorCharData = attacker?.name ? window.BattleUIBridge?.getMVU(`char.${attacker.name}`) : null;
-  const canPersistCreation = !!actorCharData || String(attacker?.name || "") === "主角";
+  const preferredPlayerName = String(window.BattleUIBridge?.getMVU("sys.player_name") || "").trim();
+  const attackerName = String(attacker?.name || "").trim();
+  const canPersistCreation = !!actorCharData || (!!preferredPlayerName && attackerName === preferredPlayerName) || attackerName === "主角";
   const creationPatchBundle = buildSkillCreationPatchBundle(
     playerAction.skill,
     actorCharData?.inventory || attacker?.inventory || {},
-    actorCharData?.name || attacker?.name || "主角"
+    actorCharData?.name || attackerName || preferredPlayerName || "主角"
   );
   if (canPersistCreation && creationPatchBundle.patchOps.length > 0) {
     result.extraPatchOps = creationPatchBundle.patchOps;
@@ -2601,6 +2936,7 @@ function executeClash(playerAction, npcAction, combatData) {
   const currentSkillDodgePenalty = Number(pCalc.dodge_penalty || 0);
   const currentSkillLockLevel = Number(pCalc.lock_level || 0);
   const attackerConditionEffects = attacker.conditions ? Object.values(attacker.conditions).map(c => c?.combat_effects || {}) : [];
+  const defenderConditionEffects = defender.conditions ? Object.values(defender.conditions).map(c => c?.combat_effects || {}) : [];
   const attackerHitBonus = attackerConditionEffects.reduce((sum, ce) => sum + Number(ce.hit_bonus || 0), 0);
   const attackerHitPenalty = attackerConditionEffects.reduce((sum, ce) => sum + Number(ce.hit_penalty || 0), 0);
 
@@ -2649,8 +2985,12 @@ function executeClash(playerAction, npcAction, combatData) {
 
   let finalDmg = 0;
   let dmgType = pClash.伤害类型 || "物理近战";
-  
-  let actualDef = dDef * (1 - ((pClash.穿透修饰 || 0) / 100));
+
+  const conditionArmorPen = attackerConditionEffects.reduce((sum, ce) => {
+    const raw = Number(ce.armor_pen || 0);
+    return sum + (Math.abs(raw) <= 1 ? raw * 100 : raw);
+  }, 0);
+  let actualDef = dDef * (1 - (((pClash.穿透修饰 || 0) + conditionArmorPen) / 100));
   actualDef = Math.max(1, actualDef); 
   const soulDriveScale = getSoulDriveScale(attacker, defender);
 
@@ -2675,12 +3015,31 @@ function executeClash(playerAction, npcAction, combatData) {
   let fluctuation = 0.9 + (Math.random() * 0.2); 
   finalDmg = finalDmg * fluctuation * grazeMultiplier;
 
+  const totalDamageReduction = Math.min(0.9, defenderConditionEffects.reduce((maxVal, ce) => Math.max(maxVal, Number(ce.damage_reduction || 0)), 0));
   const totalFinalDamageMult = attackerConditionEffects.reduce((mult, ce) => mult * Number(ce.final_damage_mult || 1.0), 1.0);
   const totalFinalDamageBonus = attackerConditionEffects.reduce((sum, ce) => sum + Number(ce.final_damage_bonus || 0), 0);
-  finalDmg = (finalDmg * totalFinalDamageMult) + totalFinalDamageBonus;
+  const totalTrueDamageRatio = attackerConditionEffects.reduce((sum, ce) => sum + Number(ce.bonus_true_damage_ratio || 0), 0);
+  const totalLifeStealRatio = attackerConditionEffects.reduce((sum, ce) => sum + Number(ce.life_steal_ratio || 0), 0) + (Number(pClash.吸血比例 || 0) / 100);
+  finalDmg = ((finalDmg * (1 - totalDamageReduction)) * totalFinalDamageMult) + totalFinalDamageBonus;
+  if (totalTrueDamageRatio > 0) {
+    const extraTrueDamage = Math.floor((attackerFinalStat.men_max || attacker.men_max || 0) * totalTrueDamageRatio);
+    if (extraTrueDamage > 0) {
+      finalDmg += extraTrueDamage;
+      result.desc += ` [法则追伤] 额外附加 ${extraTrueDamage} 点真实伤害。`;
+    }
+  }
   
   result.dmg = Math.floor(finalDmg);
   result = applyHighTierMechanics(attacker, defender, playerAction, result);
+
+  if (result.dmg > 0 && totalLifeStealRatio > 0 && !Number(result.backlash_dmg || 0)) {
+    const lifeStealAmount = Math.floor(result.dmg * totalLifeStealRatio);
+    if (lifeStealAmount > 0) {
+      attacker.vit = Math.min(attackerFinalStat.vit_max || attacker.vit_max || attacker.vit, attacker.vit + lifeStealAmount);
+      result.desc += ` [吸取反哺] 玩家额外恢复了 ${lifeStealAmount} 点体力。`;
+    }
+  }
+
   if (Number(result.backlash_dmg || 0) > 0) {
     const backlashDamage = Math.max(0, Math.floor(Number(result.backlash_dmg || 0)));
     attacker.vit = Math.max(0, Number(attacker.vit || 0) - backlashDamage);
@@ -2806,8 +3165,7 @@ function buildStrategicCandidates(defender, attacker, combatData, playerAction, 
 
   if (defender.martial_fusion_skills) {
     Object.entries(defender.martial_fusion_skills).forEach(([fusionName, fusionSkill]) => {
-      const partnerAlive = allyTeam.some(unit => unit.name === fusionSkill.partner && unit.vit > 0);
-      if (!partnerAlive || !fusionSkill.skill_data) return;
+      if (!isFusionSkillAvailable(defender, fusionSkill, allyTeam)) return;
 
       let weight = 0;
       if (isDeadlyFight) {
@@ -2824,7 +3182,7 @@ function buildStrategicCandidates(defender, attacker, combatData, playerAction, 
         build() {
           const skill = normalizeSkillData(fusionSkill.skill_data, `武魂融合技·${fusionName}`);
           skill.name = `武魂融合技·${skill.name}`;
-          return makeNpcAction("武魂融合技", `[绝地反击] 面对${lvDiff >= 5 ? '不可战胜的强敌' : '巨大的压力'}，NPC与${fusionSkill.partner}气息交融，果断施展了武魂融合技！`, skill);
+          return makeNpcAction("武魂融合技", `[绝地反击] 面对${lvDiff >= 5 ? '不可战胜的强敌' : '巨大的压力'}，${buildFusionCastNarration(fusionSkill, defender.name || 'NPC')}`, skill);
         }
       });
     });
@@ -3633,7 +3991,7 @@ function parsePlayerIntent(playerInput) {
   let combatData = window.BattleUIBridge?.getMVU("world.combat");
   hydrateCombatData(combatData);
   let attacker = combatData.participants.player;
-  const preferredPlayerName = window.BattleUIBridge?.getMVU("sys.player_name") || "主角";
+  const preferredPlayerName = String(window.BattleUIBridge?.getMVU("sys.player_name") || attacker?.name || "主角").trim();
   let charData = window.BattleUIBridge?.getMVU("char." + attacker.name) || window.BattleUIBridge?.getMVU("char." + preferredPlayerName) || window.BattleUIBridge?.getMVU("char.主角"); 
   bindCombatParticipant(charData);
   
@@ -3653,7 +4011,7 @@ function parsePlayerIntent(playerInput) {
 
   let matchedSkill = null;
   let matchedSkillName = "";
-  // 为了支持多重施法，我们需要找出所有被提及的技能。但为了保守兼容单技能模式，我们先选出最主要的那个。
+  // 为了支持多重施法，我们需要找出所有被提及的技能。但为了保持单技能模式兜底，我们先选出最主要的那个。
   // TODO: 后续可以升级为返回技能数组，这里先保留主技能逻辑，把时间累计放进 pre_actions 处理中
   let directSkills = collectCombatSkills(charData, combatData.participants.team_player || []);
   directSkills.forEach(skill => {
@@ -3730,15 +4088,12 @@ function parsePlayerIntent(playerInput) {
   if (playerInput.includes("武魂融合技")) {
     let hasFusion = false;
     Object.entries(charData.martial_fusion_skills || {}).forEach(([fusionName, fusionSkill]) => {
-      let partnerName = fusionSkill.partner;
-      let partnerInBattle = (combatData.participants.team_player || []).find(p => p.name === partnerName && p.vit > 0);
-      if (partnerInBattle && fusionSkill.skill_data) {
-        hasFusion = true;
-        action.action_type = "武魂融合技";
-        action.skill = normalizeSkillData(fusionSkill.skill_data, `武魂融合技·${fusionName}`);
-        action.skill.name = `武魂融合技·${action.skill.name}`;
-        action.cast_time = getSkillCastTime(action.skill) || 30;
-      }
+      if (!isFusionSkillAvailable(charData, fusionSkill, combatData.participants.team_player || [])) return;
+      hasFusion = true;
+      action.action_type = "武魂融合技";
+      action.skill = normalizeSkillData(fusionSkill.skill_data, `武魂融合技·${fusionName}`);
+      action.skill.name = `武魂融合技·${action.skill.name}`;
+      action.cast_time = getSkillCastTime(action.skill) || 30;
     });
     if (!hasFusion) {
       action.action_type = "施法失败";
