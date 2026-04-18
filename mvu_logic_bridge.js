@@ -550,6 +550,8 @@
               data-hover-rarity="${attr(item.rarity || '--')}"
               data-hover-qty="${attr(`×${item.qty}`)}"
               data-hover-source="${attr(item.source || '--')}"
+              data-hover-trigger="${attr(item.trigger || '--')}"
+              data-hover-expiry="${attr(item.expiry || '--')}"
               data-hover-usage="${attr(item.usage || item.meta || '--')}"
               data-hover-equip="${attr(item.canEquip ? 'true' : '')}"
               data-hover-tags="${attr((item.tags || []).join('|'))}">
@@ -1063,6 +1065,16 @@
       return Number.isFinite(parsed) ? parsed : fallback;
     }
 
+    function formatTickToCalendarDateText(tickValue) {
+      const safeTick = Math.max(0, toNumber(tickValue, 0));
+      const totalMinutes = safeTick * 10;
+      const days = Math.floor(totalMinutes / (24 * 60));
+      const years = Math.floor(days / 360);
+      const months = Math.floor((days % 360) / 30) + 1;
+      const currentDay = (days % 30) + 1;
+      return `斗罗历${20000 + years}年${months}月${currentDay}日`;
+    }
+
     function formatNumber(value) {
       return new Intl.NumberFormat('zh-CN').format(toNumber(value, 0));
     }
@@ -1489,12 +1501,61 @@
       return text;
     }
 
-    function summarizeSkillEffectArray(effectArray) {
-      const effectNames = (Array.isArray(effectArray) ? effectArray : [])
+    function summarizeUsageLikeArray(effectArray) {
+      const entries = Array.isArray(effectArray) ? effectArray : [];
+      const packedNames = entries
         .map(effect => toText(effect && effect['机制'], '').trim())
         .filter(Boolean)
         .filter(name => name !== '系统基础');
+      if (packedNames.length) return packedNames.join(' / ');
+      const descNames = entries
+        .map(effect => toText(effect && effect['description'], '').trim())
+        .filter(Boolean);
+      return descNames.length ? descNames.slice(0, 3).join(' / ') : '未知';
+    }
+
+    function summarizeConstructEffectUi(effect) {
+      const itemName = normalizeSkillUiText(effect && effect['产物名称'], '临时造物');
+      const itemType = normalizeSkillUiText(effect && effect['产物类型'], '造物');
+      const triggerMode = normalizeSkillUiText(effect && effect['触发方式'], itemType === '食物' ? '食用' : '使用');
+      const expiry = resolveExpiryUiText(effect, '');
+      const usageSummary = summarizeUsageLikeArray(effect && effect['使用效果']);
+      const header = itemType === '食物' ? `生成食物【${itemName}】` : `生成造物【${itemName}】`;
+      return [
+        header,
+        triggerMode ? `触发:${triggerMode}` : '',
+        expiry ? `有效期:${expiry}` : '',
+        usageSummary !== '未知' ? `${triggerMode === '食用' ? '食用后' : '使用后'}:${usageSummary}` : ''
+      ].filter(Boolean).join(' / ');
+    }
+
+    function extractConstructEffectMeta(effectArray) {
+      const createEffect = (Array.isArray(effectArray) ? effectArray : []).find(effect => {
+        const mech = toText(effect && effect['机制'], '').trim();
+        return mech === '生成造物' || mech === '造物生成';
+      });
+      if (!createEffect) return null;
+      return { summary: summarizeConstructEffectUi(createEffect) };
+    }
+
+    function summarizeSkillEffectArray(effectArray) {
+      const effectNames = (Array.isArray(effectArray) ? effectArray : [])
+        .map(effect => {
+          const name = toText(effect && effect['机制'], '').trim();
+          if (!name || name === '系统基础') return '';
+          if (name === '生成造物' || name === '造物生成') return summarizeConstructEffectUi(effect);
+          return name;
+        })
+        .filter(Boolean);
       return effectNames.length ? effectNames.join(' / ') : '未知';
+    }
+
+    function resolveExpiryUiText(item, fallback = '') {
+      const explicitText = normalizeSkillUiText(item && item['有效期至'], '');
+      if (explicitText) return explicitText;
+      const expiryTick = toNumber(item && item['有效期至tick'], 0);
+      if (expiryTick > 0) return formatTickToCalendarDateText(expiryTick);
+      return fallback;
     }
 
     function buildSkillList(skillObj) {
@@ -1509,6 +1570,7 @@
         const visualDesc = normalizeSkillUiText(skill && skill['画面描述'], '未知');
         const effectDesc = normalizeSkillUiText(skill && skill['效果描述'], '未知');
         const effectSummaryCore = summarizeSkillEffectArray(effectArray);
+        const constructMeta = extractConstructEffectMeta(effectArray);
         const effectSummary = effectSummaryCore === '未知'
           ? '未知'
           : `${effectSummaryCore} (${effectCount}项)`;
@@ -1517,12 +1579,13 @@
         const bonus = normalizeSkillUiText(skill && skill['加成属性'], '未知');
         const cost = normalizeSkillUiText(systemBase['消耗'] || (skill && skill['消耗']), '未知');
         const mainRole = normalizeSkillUiText(skill && skill['主定位'], '未知');
-        const legacyDesc = normalizeSkillUiText(skill && skill['特效量化参数'], '');
+        const compatParamDesc = normalizeSkillUiText(skill && skill['特效量化参数'], '');
         let desc = [
+          constructMeta ? `造物：${constructMeta.summary}` : '',
           visualDesc !== '未知' ? `画面：${visualDesc}` : '',
           effectDesc !== '未知' ? `效果：${effectDesc}` : '',
           effectSummary !== '未知' ? `效果数组：${effectSummary}` : '',
-          legacyDesc
+          compatParamDesc
         ].filter(Boolean).join('<br/>');
         const clash = deepGet(skill, '仲裁逻辑.瞬间交锋模块');
         const state = deepGet(skill, '仲裁逻辑.状态挂载模块');
@@ -3599,15 +3662,23 @@
           .slice(0, 18)
           .map(([name, item]) => ({
             name,
+            trigger: toText(item && item['触发方式'], /食物/.test(toText(item && item['类型'], '')) ? '食用' : '使用'),
+            expiry: resolveExpiryUiText(item, Number(deepGet(item, '有效期至tick', 0)) > 0 ? '临时物品' : '无期限'),
             qty: toNumber(item && item['数量'], 1),
             meta: `${toText(item && item['类型'], '物品')} · ${toText(item && (item['品质'] || item['品阶']), '常规')}`,
             className: /十万|天锻|神|红/.test(name + toText(item && item['品质'], '')) ? 'gold' : (/万年|魂骨|魂灵|紫/.test(name + toText(item && item['品质'], '')) ? 'purple' : ''),
             type: `${toText(item && item['类型'], '物品')} / ${toText(item && item['品阶'], toText(item && item['品质'], '普通'))}`,
             rarity: toText(item && (item['品质'] || item['品阶']), '普通'),
-            source: toText(item && item['绑定者'], '背包持有'),
+            source: toText(item && item['来源技能'], toText(item && item['绑定者'], '背包持有')),
             usage: toText(item && item['描述'], '暂无属性说明'),
             canEquip: !!(window.EquipmentManager && window.EquipmentManager.parseEquipSlot(name, item)),
-            tags: [toText(item && item['类型'], ''), toText(item && item['品质'], ''), toText(item && item['品阶'], '')].filter(Boolean)
+            tags: [
+              toText(item && item['类型'], ''),
+              toText(item && item['品质'], ''),
+              toText(item && item['品阶'], ''),
+              toText(item && item['触发方式'], ''),
+              Number(deepGet(item, '有效期至tick', 0)) > 0 ? '临时道具' : ''
+            ].filter(Boolean)
           }));
         return {
           title: '储物仓库',
@@ -3630,6 +3701,9 @@
                   title: `${name} / ${toText(item && item['类型'], '物品')}`,
                   desc: [
                     `品质 ${toText(item && (item['品质'] || item['品阶']), '普通')}`,
+                    `触发 ${toText(item && item['触发方式'], /食物/.test(toText(item && item['类型'], '')) ? '食用' : '常规')}`,
+                    `期限 ${resolveExpiryUiText(item, Number(deepGet(item, '有效期至tick', 0)) > 0 ? '临时物品' : '无期限')}`,
+                    `来源 ${toText(item && item['来源技能'], toText(item && item['绑定者'], '背包持有'))}`,
                     `标签 ${(Array.isArray(item && item['标签']) ? item['标签'].slice(0, 3).join(' / ') : '无') || '无'}`,
                     `耐久 ${toText(deepGet(item, ['耐久', '当前'], 0), 0)}/${toText(deepGet(item, ['耐久', '上限'], 0), 0)}`,
                     `交易 ${deepGet(item, '可交易', true) ? '可交易' : '绑定'}`,
@@ -4779,9 +4853,12 @@
             <div class="meta-item"><b>类型</b><span>${cell.dataset.hoverType || '--'}</span></div>
             <div class="meta-item"><b>稀有度</b><span>${cell.dataset.hoverRarity || '--'}</span></div>
             <div class="meta-item"><b>数量</b><span>${cell.dataset.hoverQty || '--'}</span></div>
+            <div class="meta-item"><b>触发方式</b><span>${cell.dataset.hoverTrigger || '--'}</span></div>
+            <div class="meta-item"><b>有效期至</b><span>${cell.dataset.hoverExpiry || '--'}</span></div>
+            <div class="meta-item"><b>来源</b><span>${cell.dataset.hoverSource || '--'}</span></div>
             <div class="meta-item"><b>用途</b><span>${cell.dataset.hoverUsage || '--'}</span></div>
           </div>
-          <div class="inventory-hover-tags">${[cell.dataset.hoverSource || '', ...tags].filter(Boolean).map(tag => `<span class="tag-chip">${tag}</span>`).join('')}</div>
+          <div class="inventory-hover-tags">${tags.filter(Boolean).map(tag => `<span class="tag-chip">${tag}</span>`).join('')}</div>
           ${cell.dataset.hoverEquip === 'true' ? `
           <button type="button" class="inventory-hover-action-btn" 
             onclick="if(window.EquipmentManager) window.EquipmentManager.performEquip(0, '${(cell.dataset.hoverTitle || '').replace(/'/g, "\\'")}');">
@@ -5616,12 +5693,12 @@ ${JSON.stringify(patchOps, null, 2)}
       const clickable = eventTarget ? eventTarget.closest('.clickable') : null;
       const leftMount = document.getElementById('mvu-left-mount');
       const rightMount = document.getElementById('mvu-right-mount');
-      const inLegacyShell = (canvas && canvas.contains(clickable)) || (splitOverlay && splitOverlay.contains(clickable));
+      const inClassicShell = (canvas && canvas.contains(clickable)) || (splitOverlay && splitOverlay.contains(clickable));
       const inVueShell = (leftMount && leftMount.contains(clickable))
         || (rightMount && rightMount.contains(clickable))
         || !!(clickable && clickable.closest('.mvu-vue-wrapper'));
 
-      if (!clickable || !(inLegacyShell || inVueShell)) return;
+      if (!clickable || !(inClassicShell || inVueShell)) return;
       const previewKey = clickable.dataset.preview;
       if (!previewKey) return;
       openModal(previewKey);

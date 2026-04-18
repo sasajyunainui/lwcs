@@ -597,8 +597,8 @@ class BattleUIComponent {
         subscribeMvuUpdates(handler) {
           return subscribeMvuUpdates(handler);
         },
-        persistCombatData(combatData) {
-          return persistCombatData(combatData);
+        persistCombatData(combatData, options = {}) {
+          return persistCombatData(combatData, options);
         },
         executeBattleFlow(combatData, options = {}) {
           return ui_executeBattleFlow(combatData, options);
@@ -1861,6 +1861,7 @@ function onPlayerAttack(playerInput, options = {}) {
 
   let roundCount = 0;
   let battleLog = [];
+  let clashExtraPatchOps = [];
   let continueSimulation = true;
 
   while (roundCount < maxRounds && continueSimulation && defender.vit > 0) {
@@ -1960,6 +1961,7 @@ function onPlayerAttack(playerInput, options = {}) {
 
     let settleResult = executeClash(playerAction, npcAction, combatData);
     roundLog += npcAction.log + " " + settleResult.desc;
+    if (Array.isArray(settleResult.extraPatchOps) && settleResult.extraPatchOps.length) clashExtraPatchOps.push(...settleResult.extraPatchOps);
 
     if (attacker.charging_skill != null) {
       let damageRatio = settleResult.dmg / attacker.vit_max;
@@ -2127,8 +2129,9 @@ function onPlayerAttack(playerInput, options = {}) {
     unresolvedReason,
     combatData
   });
+  if (clashExtraPatchOps.length) extraPatchOps.push(...clashExtraPatchOps);
   if (settleResult.log) battleLog.push(settleResult.log);
-  if (settleResult.extraPatchOps) extraPatchOps = settleResult.extraPatchOps;
+  if (settleResult.extraPatchOps) extraPatchOps.push(...settleResult.extraPatchOps);
 
 
   const mvuUpdate = window.BattleUIBridge?.persistCombatData?.(combatData, {
@@ -2229,7 +2232,9 @@ function settleBattle(attackerChar, defenderChar, isWin, options = {}) {
   // 读取战斗类型
   let combatData = options.combatData || window.BattleUIBridge?.getMVU("world.combat");
   let combatType = combatData.combat_type || "突发遭遇";
-  let inventory = window.BattleUIBridge?.getMVU("char.主角.inventory") || {};
+  const attackerName = String(attackerChar?.name || combatData?.participants?.player?.name || "主角");
+  const attackerPath = `/char/${escapeJsonPointerSegment(attackerName)}`;
+  let inventory = window.BattleUIBridge?.getMVU(`char.${attackerName}.inventory`) || window.BattleUIBridge?.getMVU("char.主角.inventory") || {};
   
   // --- 触发世界战斗图鉴录入 ---
   let bestiary = window.BattleUIBridge?.getMVU("world.bestiary") || {};
@@ -2239,7 +2244,7 @@ function settleBattle(attackerChar, defenderChar, isWin, options = {}) {
       extraPatchOps.push({
         op: "add",
         path: `/world/bestiary/${defenderName}`,
-        value: { 交手次数: 1, 首次记录: `由 ${attackerChar.name || "主角"} 在${combatType}中遭遇` }
+        value: { 交手次数: 1, 首次记录: `由 ${attackerName} 在${combatType}中遭遇` }
       });
     } else {
       extraPatchOps.push({
@@ -2265,7 +2270,7 @@ function settleBattle(attackerChar, defenderChar, isWin, options = {}) {
         log = `[升灵台结算] 击溃虚拟魂兽！化为纯净修为能量涌入体内(${partySize}人平分)，拥有 ${totalRings} 个魂环均获得大约 ${gain} 年修为提升！(请 AI 描写吸收能量的画面)`;
         rings.forEach(rIndex => {
           const oldAge = attackerChar.rings[rIndex].年限 || 10;
-          extraPatchOps.push({ op: "replace", path: `/char/主角/rings/${rIndex}/年限`, value: oldAge + gain });
+          extraPatchOps.push({ op: "replace", path: `${attackerPath}/rings/${rIndex}/年限`, value: oldAge + gain });
         });
       } else {
         log = `[升灵台结算] 虚拟魂兽死亡！但玩家尚未拥有魂环，无法吸收升灵能量，能量缓缓消散...`;
@@ -2287,14 +2292,15 @@ function settleBattle(attackerChar, defenderChar, isWin, options = {}) {
       else if (floor >= 10) ageDesc = "百年";
 
       log = `🏆[冲塔成功] 镇守第 ${floor} 层的 ${defenderName} 被彻底击溃！玩家成功通关本层，获得了该层魂灵的【五折购买特权】，并获赠【${ageDesc}魂灵(冲塔自选)】！(请 AI 描写通关奖励降落的场景)`;
-      extraPatchOps.push({ op: "replace", path: `/char/主角/tower_records/discount_available/${floor}`, value: true });
+      extraPatchOps.push({ op: "replace", path: `${attackerPath}/tower_records/discount_available/${floor}`, value: true });
 
       let itemName = `${ageDesc}魂灵(冲塔自选)`;
+      const escapedItemName = escapeJsonPointerSegment(itemName);
       let currentItem = inventory[itemName];
       if (currentItem) {
-        extraPatchOps.push({ op: "replace", path: `/char/主角/inventory/${itemName}/数量`, value: (currentItem.数量 || 0) + 1 });
+        extraPatchOps.push({ op: "replace", path: `${attackerPath}/inventory/${escapedItemName}/数量`, value: (currentItem.数量 || 0) + 1 });
       } else {
-        extraPatchOps.push({ op: "replace", path: `/char/主角/inventory/${itemName}`, value: { 数量: 1, 类型: "魂灵", 品质: "普通", 描述: `魂灵塔第${floor}层战利品` } });
+        extraPatchOps.push({ op: "replace", path: `${attackerPath}/inventory/${escapedItemName}`, value: { 数量: 1, 类型: "魂灵", 品质: "普通", 描述: `魂灵塔第${floor}层战利品` } });
       }
     } else {
       log = `💀[冲塔失败] 玩家遭到 ${defenderName} 重创，魂灵塔阵法排斥之力发动，将其强行传送出塔外！(请 AI 描写重伤弹出塔外的虚弱状态)`;
@@ -2464,13 +2470,63 @@ function calculateReactionRatio(attacker, defender, playerAction, combatData) {
   return ratio;
 }
 
+function buildSkillCreationPatchBundle(skill, inventory = {}, ownerName = "主角") {
+  const effects = Array.isArray(skill?._效果数组) ? skill._效果数组 : [];
+  const creationEffects = effects.filter(effect => ["生成造物", "造物生成"].includes(String(effect?.机制 || "")));
+  if (!creationEffects.length) return { patchOps: [], log: "" };
+
+  const patchOps = [];
+  const logs = [];
+  const ownerPath = `/char/${escapeJsonPointerSegment(ownerName || "主角")}/inventory`;
+
+  creationEffects.forEach(effect => {
+    const itemName = String(effect?.产物名称 || "临时造物").trim() || "临时造物";
+    const escapedItemName = escapeJsonPointerSegment(itemName);
+    const addCount = Math.max(1, Number(effect?.数量 || 1));
+    const template = deepClone(effect?.背包模板 || {});
+    const itemType = String(effect?.产物类型 || template?.类型 || "魂技造物");
+    const triggerMode = String(effect?.触发方式 || template?.触发方式 || (itemType === "食物" ? "食用" : "使用"));
+    const nextItem = {
+      ...template,
+      数量: addCount,
+      类型: itemType,
+      触发方式: triggerMode,
+      使用效果: deepClone(template?.使用效果 || effect?.使用效果 || [])
+    };
+    if (effect?.有效期至tick !== undefined) nextItem.有效期至tick = Number(effect.有效期至tick || 0);
+    if (template?.有效期至 !== undefined) nextItem.有效期至 = template.有效期至;
+    if (!nextItem.描述 && template?.描述) nextItem.描述 = template.描述;
+
+    const currentItem = inventory[itemName];
+    const itemPath = `${ownerPath}/${escapedItemName}`;
+    if (currentItem && typeof currentItem === "object") {
+      patchOps.push({ op: "replace", path: `${itemPath}/数量`, value: Number(currentItem.数量 || 0) + addCount });
+      if (nextItem.触发方式 !== undefined) patchOps.push({ op: "replace", path: `${itemPath}/触发方式`, value: nextItem.触发方式 });
+      if (nextItem.使用效果 !== undefined) patchOps.push({ op: "replace", path: `${itemPath}/使用效果`, value: nextItem.使用效果 });
+      if (nextItem.描述 !== undefined) patchOps.push({ op: "replace", path: `${itemPath}/描述`, value: nextItem.描述 });
+      if (nextItem.有效期至 !== undefined) patchOps.push({ op: "replace", path: `${itemPath}/有效期至`, value: nextItem.有效期至 });
+      if (nextItem.有效期至tick !== undefined) patchOps.push({ op: "replace", path: `${itemPath}/有效期至tick`, value: nextItem.有效期至tick });
+    } else {
+      patchOps.push({ op: "replace", path: itemPath, value: nextItem });
+    }
+
+    if (itemType === "食物") logs.push(`生成了可食用造物【${itemName}】×${addCount}`);
+    else logs.push(`生成了临时造物【${itemName}】×${addCount}`);
+  });
+
+  return {
+    patchOps,
+    log: logs.length ? ` [造物生成] ${logs.join("，")}。` : ""
+  };
+}
+
 function executeClash(playerAction, npcAction, combatData) {
   hydrateCombatData(combatData);
   let attacker = combatData.participants.player; 
   let attackerFinalStat = attacker.final || attacker;
   let defender = combatData.participants.enemy;
   let defenderFinalStat = defender.final || defender;
-  let result = { dmg: 0, desc: "" };
+  let result = { dmg: 0, desc: "", extraPatchOps: [] };
 
   playerAction.skill = normalizeSkillData(playerAction.skill || {
     name: "普通攻击",
@@ -2518,6 +2574,21 @@ function executeClash(playerAction, npcAction, combatData) {
         return result; 
       }
     }
+  }
+
+  const actorCharData = attacker?.name ? window.BattleUIBridge?.getMVU(`char.${attacker.name}`) : null;
+  const canPersistCreation = !!actorCharData || String(attacker?.name || "") === "主角";
+  const creationPatchBundle = buildSkillCreationPatchBundle(
+    playerAction.skill,
+    actorCharData?.inventory || attacker?.inventory || {},
+    actorCharData?.name || attacker?.name || "主角"
+  );
+  if (canPersistCreation && creationPatchBundle.patchOps.length > 0) {
+    result.extraPatchOps = creationPatchBundle.patchOps;
+    result.desc += creationPatchBundle.log;
+    const hasDirectClash = Number(pClash.威力倍率 || 0) > 0;
+    const hasStateApply = String(pState?.状态名称 || "无") !== "无";
+    if (!hasDirectClash && !hasStateApply) return result;
   }
 
   const playerTargetMode = String(getSkillTarget(playerAction.skill));
@@ -3213,8 +3284,8 @@ function buildTacticalCandidates(defender, attacker, playerAction, behaviorState
     const pState = getPrimaryStateEffect(playerAction.skill) || {};
     const pCalc = getPrimaryStateCalc(playerAction.skill);
     const hasStructuredLock = Number(pCalc.lock_level || 0) > 0;
-    const hasLegacyLock = getPrimaryStateFlags(playerAction.skill).includes("锁定") || getPrimaryStateFlags(playerAction.skill).includes("威压");
-    if (hasStructuredLock || hasLegacyLock) {
+    const hasCompatFlagLock = getPrimaryStateFlags(playerAction.skill).includes("锁定") || getPrimaryStateFlags(playerAction.skill).includes("威压");
+    if (hasStructuredLock || hasCompatFlagLock) {
       if (attacker.men_max > defender.men_max) isLockedBySpirit = true;
     }
   }
@@ -3562,7 +3633,8 @@ function parsePlayerIntent(playerInput) {
   let combatData = window.BattleUIBridge?.getMVU("world.combat");
   hydrateCombatData(combatData);
   let attacker = combatData.participants.player;
-  let charData = window.BattleUIBridge?.getMVU("char." + attacker.name) || window.BattleUIBridge?.getMVU("char.主角"); 
+  const preferredPlayerName = window.BattleUIBridge?.getMVU("sys.player_name") || "主角";
+  let charData = window.BattleUIBridge?.getMVU("char." + attacker.name) || window.BattleUIBridge?.getMVU("char." + preferredPlayerName) || window.BattleUIBridge?.getMVU("char.主角"); 
   bindCombatParticipant(charData);
   
   let action = {
@@ -4221,6 +4293,7 @@ function runActorTurn(actorEntry, battleState) {
     reactionAction,
     settleResult,
     log: turnLog,
+    extraPatchOps: Array.isArray(settleResult?.extraPatchOps) ? settleResult.extraPatchOps : [],
     actorVit: actor.vit,
     targetVit: finalTarget.vit
   };
@@ -4253,6 +4326,7 @@ function settleTeamRoundEnd(combatData, logs) {
 function runTeamBattleSimulation(combatData, maxRounds = 3) {
   hydrateCombatData(combatData);
   let logs = [];
+  let extraPatchOps = [];
   let rounds = 0;
   const startingRound = Number(combatData.round || 0);
 
@@ -4270,6 +4344,7 @@ function runTeamBattleSimulation(combatData, maxRounds = 3) {
 
       const turnResult = runActorTurn(actorEntry, { combatData, round: currentRound, logs });
       if (turnResult?.log) logs.push(turnResult.log);
+      if (Array.isArray(turnResult?.extraPatchOps) && turnResult.extraPatchOps.length) extraPatchOps.push(...turnResult.extraPatchOps);
     }
 
     settleTeamRoundEnd(combatData, logs);
@@ -4308,7 +4383,8 @@ function runTeamBattleSimulation(combatData, maxRounds = 3) {
     winner,
     playerAlive: finalPlayerAlive,
     enemyAlive: finalEnemyAlive,
-    logs
+    logs,
+    extraPatchOps
   };
 }
 
@@ -4317,6 +4393,7 @@ function runTeamBattleRound(combatData) {
   const currentRound = Number(combatData.round || 0) + 1;
   combatData.round = currentRound;
   let logs = [`[团战第${currentRound}回合开始]`];
+  let extraPatchOps = [];
 
   const queue = generateActionQueue(combatData);
   for (const actorEntry of queue) {
@@ -4326,6 +4403,7 @@ function runTeamBattleRound(combatData) {
 
     const turnResult = runActorTurn(actorEntry, { combatData, round: currentRound, logs });
     if (turnResult?.log) logs.push(turnResult.log);
+    if (Array.isArray(turnResult?.extraPatchOps) && turnResult.extraPatchOps.length) extraPatchOps.push(...turnResult.extraPatchOps);
   }
 
   settleTeamRoundEnd(combatData, logs);
@@ -4342,7 +4420,8 @@ function runTeamBattleRound(combatData) {
     winner,
     playerAlive: teamPlayerAlive,
     enemyAlive: teamEnemyAlive,
-    logs
+    logs,
+    extraPatchOps
   };
 }
 
@@ -4356,6 +4435,11 @@ function ui_executeBattleFlow(combatData, options = {}) {
   const result = mode === "multi_round"
     ? runTeamBattleSimulation(combatData, rounds)
     : runTeamBattleRound(combatData);
+  const extraPatchOps = Array.isArray(result.extraPatchOps) ? result.extraPatchOps : [];
+  const mvuUpdate = window.BattleUIBridge?.persistCombatData?.(combatData, {
+    analysis: 'Frontend team battle arbitration already produced the exact combat result. Apply the following JSONPatch exactly as given.',
+    extraPatchOps
+  }) || null;
 
   return {
     mode,
@@ -4366,8 +4450,10 @@ function ui_executeBattleFlow(combatData, options = {}) {
     winner: result.winner || "unfinished",
     playerAlive: result.playerAlive,
     enemyAlive: result.enemyAlive,
+    extraPatchOps,
     logs: result.logs || [],
-    snapshot: ui_getBattleSnapshot(combatData)
+    snapshot: ui_getBattleSnapshot(combatData),
+    mvuUpdate
   };
 }
 
