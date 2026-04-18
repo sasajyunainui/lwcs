@@ -90,7 +90,7 @@
         summary: '由“关系摘要”芯片进入，承接重型 social.relations 结构。',
         fields: ['activeChar.social.relations'],
         duties: ['显示好感度与阶段', '显示关系路线与推进提示', '展示 npc_job、favor_buff 与分析结果'],
-        actions: ['查看关系路线', '查看关系推进重点']
+        actions: ['查看关系路线', '查看关系推进重点', '闲聊 / 送礼 / 请教 / 切磋 / 表白']
       },
       '情报库详细页': {
         title: '情报库弹窗',
@@ -350,19 +350,6 @@
       `;
     }
 
-    function makeEnergyRows(items) {
-      return `
-        <div class="energy-stack">
-          ${(items || []).map(item => `
-            <div class="energy-row-block">
-              <div class="energy-headline"><b>${item.label}</b><span>${item.value}</span></div>
-              <div class="energy-track"><div class="energy-fill ${item.color}" style="width:${item.percent}%"></div></div>
-            </div>
-          `).join('')}
-        </div>
-      `;
-    }
-
     function makeTileGrid(items, className = '') {
       return `
         <div class="archive-tile-grid ${className}">
@@ -455,32 +442,6 @@
       return String(value);
     }
 
-    function buildArmoryFieldItems(source, fieldDefs = [], limit = 10) {
-      const obj = source && typeof source === 'object' ? source : {};
-      const items = [];
-      const usedKeys = new Set();
-      (fieldDefs || []).forEach(def => {
-        const keyList = Array.isArray(def && def.keys) ? def.keys : [def && (def.key || def.keys)].filter(Boolean);
-        let picked;
-        for (const key of keyList) {
-          const value = deepGet(obj, key, undefined);
-          if (value !== undefined && value !== null && value !== '') {
-            picked = value;
-            const marker = Array.isArray(key) ? key[0] : String(key).split('.')[0];
-            if (marker) usedKeys.add(marker);
-            break;
-          }
-        }
-        if (picked !== undefined) items.push({ label: def.label, value: summarizeArmoryValue(picked) });
-      });
-
-      Object.entries(obj)
-        .filter(([key, value]) => !usedKeys.has(key) && value !== undefined && value !== null && value !== '' && typeof value !== 'object')
-        .slice(0, Math.max(0, limit - items.length))
-        .forEach(([key, value]) => items.push({ label: key, value: summarizeArmoryValue(value) }));
-
-      return items.length ? items.slice(0, limit) : [{ label: '状态', value: '暂无记录' }];
-    }
 
     function buildStatsBonusItems(statsBonus, options = {}) {
       const bonus = statsBonus && typeof statsBonus === 'object' ? statsBonus : {};
@@ -573,32 +534,6 @@
       };
     }
 
-    function makeShelfStack(items) {
-      return `
-        <div class="shelf-stack">
-          ${(items || []).map(item => `
-            <div class="shelf-card">
-              <b>${item.label}</b>
-              <span>${item.value}</span>
-            </div>
-          `).join('')}
-        </div>
-      `;
-    }
-
-    function makeRareShowcase(items) {
-      return `
-        <div class="rare-showcase">
-          ${(items || []).map(item => `
-            <div class="rare-item">
-              <b>${item.label}</b>
-              <span>${item.value}</span>
-            </div>
-          `).join('')}
-        </div>
-      `;
-    }
-
     function makeInventoryGrid(items) {
       const attr = (value) => String(value ?? '')
         .replace(/&/g, '&amp;')
@@ -629,31 +564,6 @@
       `;
     }
 
-    function makeSoulChain(items) {
-      return `
-        <div class="soul-chain">
-          ${(items || []).map(item => `
-            <div class="soul-card">
-              <h4 style="margin:0 0 4px;font-size:13px;color:var(--white);font-family:var(--font-title);">${item.name}</h4>
-                            <div class="soul-meta">
-                <div class="meta-item"><b>年限</b><span>${item.age}</span></div>
-                <div class="meta-item"><b>契合度</b><span>${item.comp}</span></div>
-                <div class="meta-item"><b>状态</b><span>${item.state}</span></div>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      `;
-    }
-
-    function makeRingLane(items) {
-      return `
-        <div class="ring-lane">
-          ${(items || []).map(item => `<span class="ring-chip ${item.className || ''}">${item.text}</span>`).join('')}
-        </div>
-      `;
-    }
-
     function makeSealColumn(items) {
       return `
         <div class="seal-column">
@@ -661,22 +571,6 @@
             <div class="seal-node ${item.className || ''}">
               <span>${item.label}</span>
               <b>${item.state}</b>
-            </div>
-          `).join('')}
-        </div>
-      `;
-    }
-
-    function makeSkillStrip(items) {
-      return `
-        <div class="skill-strip">
-          ${(items || []).map(item => `
-            <div class="skill-strip-card">
-              <b>${item.name}</b>
-              <span>${item.desc}</span>
-              <div class="skill-meta">
-                ${(item.tags || []).map(tag => `<span class="skill-mini-tag">${tag}</span>`).join('')}
-              </div>
             </div>
           `).join('')}
         </div>
@@ -697,6 +591,7 @@
     }
 
     const modalPaginationState = Object.create(null);
+    const modalFocusState = Object.create(null);
 
     function makeTimelineStack(items) {
       return `
@@ -744,11 +639,6 @@
       const pageData = paginateModalItems(items, previewKey, sectionKey, pageSize);
       const displayItems = pageData.items.length ? pageData.items : emptyItems;
       return `${makeTimelineStack(displayItems)}${makeModalPaginationControls(sectionKey, pageData.page, pageData.totalPages, pageData.total)}`;
-    }
-
-    function makePaginatedFactionLadder(items, previewKey, sectionKey, pageSize = 50) {
-      const pageData = paginateModalItems(items, previewKey, sectionKey, pageSize);
-      return `${makeFactionLadder(pageData.items)}${makeModalPaginationControls(sectionKey, pageData.page, pageData.totalPages, pageData.total)}`;
     }
 
     const archiveModalBuilders = Object.create(null);
@@ -1157,9 +1047,15 @@
         .replace(/'/g, '&#39;');
     }
 
+    function hasUiPlaceholderToken(value) {
+      const text = String(value === undefined || value === null ? '' : value).trim();
+      return !!text && (/待补全|待补充|TODO/i.test(text));
+    }
+
     function toText(value, fallback = '无') {
       if (value === undefined || value === null || value === '') return fallback;
-      return String(value);
+      const text = String(value);
+      return hasUiPlaceholderToken(text) ? fallback : text;
     }
 
     function toNumber(value, fallback = 0) {
@@ -1224,10 +1120,6 @@
       return obj && typeof obj === 'object' ? Object.entries(obj) : [];
     }
 
-    function safeValues(obj) {
-      return obj && typeof obj === 'object' ? Object.values(obj) : [];
-    }
-
     function formatAge(age) {
       const value = toNumber(age, 0);
       if (value >= 100000) return `${(value / 10000).toFixed(value % 10000 === 0 ? 0 : 1)}万年`;
@@ -1270,10 +1162,6 @@
 
     function mapRingClass(color, age, options = {}) {
       return `ring-${resolveRingTier(color, age, options)}`;
-    }
-
-    function mapRingChipClass(color, age, options = {}) {
-      return resolveRingTier(color, age, options);
     }
 
     function ringGlyph(color, index, age, options = {}) {
@@ -1558,7 +1446,9 @@
         toText(data['身高'], ''),
         toText(data['体型'], '')
       ].filter(Boolean);
-      const features = Array.isArray(data['特殊特征']) ? data['特殊特征'].filter(Boolean) : [];
+      const features = Array.isArray(data['特殊特征'])
+        ? data['特殊特征'].map(item => toText(item, '').trim()).filter(Boolean)
+        : [];
       const featureText = features.length ? `；特征：${features.join('、')}` : '';
       return parts.length ? `${parts.join(' / ')}${featureText}` : '未设定';
     }
@@ -1589,42 +1479,100 @@
       return { name: normalized, data: null };
     }
 
+    function isTodoPlaceholderText(value) {
+      return hasUiPlaceholderToken(value);
+    }
+
+    function normalizeSkillUiText(value, fallback = '未知') {
+      const text = toText(value, '').replace(/\[后台推演\]\s*/g, '').trim();
+      if (!text || text === '无' || text === '未生成' || isTodoPlaceholderText(text)) return fallback;
+      return text;
+    }
+
+    function summarizeSkillEffectArray(effectArray) {
+      const effectNames = (Array.isArray(effectArray) ? effectArray : [])
+        .map(effect => toText(effect && effect['机制'], '').trim())
+        .filter(Boolean)
+        .filter(name => name !== '系统基础');
+      return effectNames.length ? effectNames.join(' / ') : '未知';
+    }
+
     function buildSkillList(skillObj) {
-      const skills = safeEntries(skillObj).map(([rawName, skill]) => ({
-        name: rawName.replace(/\[后台推演\]\s*/g, ''),
-        type: toText(skill && skill['技能类型'], '未定义'),
-        target: toText(skill && skill['对象'], '--'),
-        bonus: toText(skill && skill['加成属性'], '无'),
-        cost: toText(skill && skill['消耗'], '无消耗'),
-        desc: (() => {
-          let rawDesc = toText(skill && skill['画面描述'], '').replace(/\[后台推演\]\s*/g, '');
-          // 拦截AI瞎填的占位符，把它当做没写
-          if (rawDesc === '未生成' || rawDesc === '无' || rawDesc.trim() === '') rawDesc = '';
-          let base = rawDesc || toText(skill && skill['特效量化参数'], '暂无描述');
-          let clash = deepGet(skill, '仲裁逻辑.瞬间交锋模块');
-          let state = deepGet(skill, '仲裁逻辑.状态挂载模块');
-          if (clash && clash['基础威力倍率'] > 0) base += `<br/><span style="color:var(--cyan);">[威力倍率: ${clash['基础威力倍率']}% | 伤害类型: ${clash['伤害类型'] || '无'} | 护盾: ${clash['护盾绝对值'] || 0}]</span>`;
-          if (state && state['状态名称'] !== '无') base += `<br/><span style="color:var(--gold);">[附加状态: ${state['状态名称']} | 机制: ${state['特殊机制标识'] || '无'} | 持续: ${state['持续回合']}回]</span>`;
-          return base;
-        })(),
-        status: toText(skill && skill['状态'], '已觉醒'),
-        mainRole: toText(skill && skill['主定位'], '无'),
-        tags: (Array.isArray(skill && skill['标签']) ? skill['标签'] : [])
-          .concat(deepGet(skill, '战斗语义.战术标签', []))
-          .concat(
-          toText(skill && skill['技能类型'], '')
-        ).filter(Boolean)
-      }));
+      const skills = safeEntries(skillObj).map(([rawName, skill]) => {
+        const effectArray = Array.isArray(skill && skill['_效果数组']) ? skill['_效果数组'] : [];
+        const tacticalTags = Array.isArray(deepGet(skill, '战斗语义.战术标签', [])) ? deepGet(skill, '战斗语义.战术标签', []) : [];
+        const systemBase = effectArray.find(effect => toText(effect && effect['机制'], '').trim() === '系统基础') || {};
+        const effectCount = effectArray.filter(effect => {
+          const name = toText(effect && effect['机制'], '').trim();
+          return name && name !== '系统基础';
+        }).length;
+        const visualDesc = normalizeSkillUiText(skill && skill['画面描述'], '未知');
+        const effectDesc = normalizeSkillUiText(skill && skill['效果描述'], '未知');
+        const effectSummaryCore = summarizeSkillEffectArray(effectArray);
+        const effectSummary = effectSummaryCore === '未知'
+          ? '未知'
+          : `${effectSummaryCore} (${effectCount}项)`;
+        const type = normalizeSkillUiText(systemBase['技能类型'] || (skill && skill['技能类型']), '未知');
+        const target = normalizeSkillUiText(systemBase['对象'] || (skill && skill['对象']), '未知');
+        const bonus = normalizeSkillUiText(skill && skill['加成属性'], '未知');
+        const cost = normalizeSkillUiText(systemBase['消耗'] || (skill && skill['消耗']), '未知');
+        const mainRole = normalizeSkillUiText(skill && skill['主定位'], '未知');
+        const legacyDesc = normalizeSkillUiText(skill && skill['特效量化参数'], '');
+        let desc = [
+          visualDesc !== '未知' ? `画面：${visualDesc}` : '',
+          effectDesc !== '未知' ? `效果：${effectDesc}` : '',
+          effectSummary !== '未知' ? `效果数组：${effectSummary}` : '',
+          legacyDesc
+        ].filter(Boolean).join('<br/>');
+        const clash = deepGet(skill, '仲裁逻辑.瞬间交锋模块');
+        const state = deepGet(skill, '仲裁逻辑.状态挂载模块');
+        if (clash && clash['基础威力倍率'] > 0) desc += `${desc ? '<br/>' : ''}<span style="color:var(--cyan);">[威力倍率: ${clash['基础威力倍率']}% | 伤害类型: ${clash['伤害类型'] || '无'} | 护盾: ${clash['护盾绝对值'] || 0}]</span>`;
+        if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<span style="color:var(--gold);">[附加状态: ${state['状态名称']} | 机制: ${state['特殊机制标识'] || '无'} | 持续: ${state['持续回合']}回]</span>`;
+        const tags = Array.from(new Set(
+          (Array.isArray(skill && skill['标签']) ? skill['标签'] : [])
+            .map(tag => normalizeSkillUiText(tag, ''))
+            .concat(tacticalTags.map(tag => normalizeSkillUiText(tag, '')))
+            .concat(
+              effectArray
+                .map(effect => normalizeSkillUiText(effect && effect['机制'], ''))
+                .filter(name => name && name !== '系统基础')
+            )
+            .concat(type && type !== '未知' ? [type] : [])
+            .concat(mainRole && mainRole !== '未知' ? [mainRole] : [])
+        )).filter(Boolean).slice(0, 8);
+
+        const cleanSkillName = normalizeSkillUiText(rawName.replace(/\[后台推演\]\s*/g, ''), '未命名魂技');
+
+        return {
+          name: cleanSkillName,
+          type,
+          target,
+          bonus,
+          cost,
+          desc: desc || '未知',
+          visualDesc,
+          effectDesc,
+          effectSummary,
+          status: normalizeSkillUiText(skill && skill['状态'], '已觉醒'),
+          mainRole,
+          tags
+        };
+      });
 
       if (skills.length) return skills;
 
       return [{
         name: '魂技未显现',
         type: '未觉醒',
-        target: '--',
-        bonus: '无',
-        cost: '无',
+        target: '未知',
+        bonus: '未知',
+        cost: '未知',
         desc: '魂技信息尚未明晰。',
+        visualDesc: '未知',
+        effectDesc: '未知',
+        effectSummary: '未知',
+        status: '未觉醒',
+        mainRole: '未知',
         tags: []
       }];
     }
@@ -1650,17 +1598,11 @@
 
         return {
           name: soulName,
-          desc: toText(soulData && soulData['表象名称'], '未展露'),
-          state: toText(soulData && soulData['状态'], '未知'),
+          desc: normalizeSkillUiText(soulData && soulData['表象名称'], '未知'),
+          state: normalizeSkillUiText(soulData && soulData['状态'], '未知'),
           age: formatAge(soulData && soulData['年限']),
           comp: `${toNumber(soulData && soulData['契合度'], 100)}%`,
-          rings: ringEntries.length ? ringEntries : [{
-            glyph: '空',
-            ringClass: mapRingClass('白'),
-            title: '魂环空位',
-            desc: '当前未装载魂环',
-            skills: buildSkillList(null)
-          }]
+          rings: ringEntries
         };
       });
 
@@ -1671,20 +1613,14 @@
           state: '未激活',
           age: '--',
           comp: '--',
-          rings: [{
-            glyph: '空',
-            ringClass: mapRingClass('白'),
-            title: '魂环空位',
-            desc: '当前未装载魂环',
-            skills: buildSkillList(null)
-          }]
+          rings: []
         });
       }
 
       const soulCount = soulEntries.length;
-      const displayName = toText(spiritData && spiritData['表象名称'], slotName);
-      const spiritType = toText(spiritData && spiritData['type'], '未知系');
-      const element = toText(spiritData && spiritData['element'], '无');
+      const displayName = normalizeSkillUiText(spiritData && spiritData['表象名称'], slotName);
+      const spiritType = normalizeSkillUiText(spiritData && spiritData['type'], '未知系');
+      const element = normalizeSkillUiText(spiritData && spiritData['element'], '未知');
 
       return {
         preview: previewKey,
@@ -1701,17 +1637,38 @@
       };
     }
 
-    function buildBloodlineConfig(activeChar) {
-      const bloodline = deepGet(activeChar, 'bloodline_power.bloodline', '无');
+    function shouldRenderBloodline(activeChar, activeName = '') {
+      const displayName = String(activeName || deepGet(activeChar, 'stat.name', '') || '').trim();
+      return displayName === '唐舞麟';
+    }
+
+    function buildBloodlineConfig(activeChar, activeName = '') {
+      if (!shouldRenderBloodline(activeChar, activeName)) {
+        return {
+          kind: 'bloodline',
+          valid: false,
+          preview: '血脉封印详细页',
+          badge: '血脉封印',
+          badgeClass: 'gold',
+          name: '',
+          desc: '',
+          rings: [],
+          bloodSkills: [],
+          sealLv: 0,
+          core: '未凝聚',
+          lifeFire: false,
+          bloodline: '无'
+        };
+      }
+      const bloodline = normalizeSkillUiText(deepGet(activeChar, 'bloodline_power.bloodline', '无'), '无');
       const sealLv = toNumber(deepGet(activeChar, 'bloodline_power.seal_lv', 0), 0);
-      const core = toText(deepGet(activeChar, 'bloodline_power.core', '未凝聚'), '未凝聚');
+      const core = normalizeSkillUiText(deepGet(activeChar, 'bloodline_power.core', '未凝聚'), '未凝聚');
       const rawSkills = deepGet(activeChar, 'bloodline_power.skills', {});
       const rawRings = deepGet(activeChar, 'bloodline_power.blood_rings', {});
       const hasBloodlineData = toText(bloodline, '无') !== '无'
         || sealLv > 0
         || safeEntries(rawRings).length > 0
         || safeEntries(rawSkills).length > 0;
-      const unlockedRingCount = Math.max(0, Math.floor(sealLv / 2));
       const ringEntries = safeEntries(deepGet(activeChar, 'bloodline_power.blood_rings', {}))
         .sort((a, b) => toNumber(a[0], 0) - toNumber(b[0], 0))
         .map(([index, ring]) => ({
@@ -1722,17 +1679,6 @@
           skills: buildSkillList(ring && ring['魂技'])
         }));
       const normalizedRingEntries = ringEntries.slice(0, 10);
-      if (normalizedRingEntries.length < unlockedRingCount) {
-        for (let index = normalizedRingEntries.length; index < unlockedRingCount && index < 10; index += 1) {
-          normalizedRingEntries.push({
-            glyph: 'Ⅱ',
-            ringClass: 'ring-gold',
-            title: `第${index + 1}枚金色魂环 · 待成形`,
-            desc: '气血魂环已解锁环位，等待完整成形',
-            skills: buildSkillList(index === 0 ? rawSkills : null)
-          });
-        }
-      }
 
       return {
         kind: 'bloodline',
@@ -1740,14 +1686,14 @@
         preview: '血脉封印详细页',
         badge: '血脉封印',
         badgeClass: 'gold',
-        name: `${toText(bloodline, '未觉醒血脉')}`,
+        name: `${bloodline === '无' ? '未觉醒血脉' : bloodline}`,
         desc: `解封层数：${sealLv} / 气血魂核：${core}`,
         rings: normalizedRingEntries,
         bloodSkills: buildSkillList(rawSkills),
         sealLv,
         core,
         lifeFire: !!deepGet(activeChar, 'bloodline_power.life_fire', false),
-        bloodline: toText(bloodline, '无')
+        bloodline: bloodline === '无' ? '未觉醒血脉' : bloodline
       };
     }
 
@@ -1854,18 +1800,6 @@
         push(`升灵台：${toText(ascension.ticket_type)}`);
       }
 
-      const combatSummary = deepGet(sd, 'world.combat._summary', deepGet(sd, 'world.combat.summary', {}));
-      const combatAction = deepGet(combatSummary, 'player_action', {});
-      if (combatAction && toText(combatAction.action_type, '无') !== '无') {
-        const elementCount = toNumber(combatAction.element_count, 1);
-        const chargedTag = deepGet(combatAction, 'is_charged', false) ? ' / 蓄力' : '';
-        push(`战斗：${toText(combatAction.action_type)}${elementCount > 1 ? ` / ${elementCount}元素` : ''}${chargedTag}`.trim());
-      }
-
-      const combatSettle = deepGet(combatSummary, 'settle_result', {});
-      if (combatSettle && (toText(combatSettle.target_npc, '无') !== '无' || toText(combatSettle.result, '无') !== '无')) {
-        push(`战果：${toText(combatSettle.target_npc, '未知目标')} / ${toText(combatSettle.result, '待定')}`);
-      }
 
       const hunt = activeChar && activeChar.hunt_request;
       if (hunt && toNumber(hunt.killed_age, 0) > 0) {
@@ -1957,7 +1891,7 @@
       const spiritEntries = safeEntries(activeChar && activeChar.spirit);
       const primarySpirit = spiritEntries[0] ? buildSpiritConfig(spiritEntries[0][0], spiritEntries[0][1], '第一武魂详细页', '第一武魂', 'cyan') : buildSpiritConfig('第一武魂', {}, '第一武魂详细页', '第一武魂', 'cyan');
       const secondarySpirit = spiritEntries[1] ? buildSpiritConfig(spiritEntries[1][0], spiritEntries[1][1], '第二武魂详细页', '第二武魂', 'gold') : null;
-      const bloodline = buildBloodlineConfig(activeChar || {});
+      const bloodline = buildBloodlineConfig(activeChar || {}, activeName);
 
       // --- 收集额外能力与功法，放到外层给生命图谱使用 ---
       const safeRecords = (obj) => {
@@ -1975,14 +1909,16 @@
           desc: toText(art.描述, '暂无描述')
         });
       });
-      safeRecords(deepGet(activeChar, 'bloodline_power.skills', {})).forEach(skill => {
-        extraSkills.push({
-          category: '血脉散技',
-          name: skill.name,
-          level: toText(skill.状态, '已掌握'),
-          desc: toText(skill.描述, '无说明')
+      if (bloodline.valid) {
+        safeRecords(deepGet(activeChar, 'bloodline_power.skills', {})).forEach(skill => {
+          extraSkills.push({
+            category: '血脉散技',
+            name: skill.name,
+            level: toText(skill.状态, '已掌握'),
+            desc: toText(skill.描述, '无说明')
+          });
         });
-      });
+      }
       safeRecords(deepGet(activeChar, 'martial_fusion_skills', {})).forEach(fusion => {
         extraSkills.push({
           category: '武魂融合技',
@@ -2150,7 +2086,12 @@
       const statusChips = document.querySelectorAll('.header-status-row .header-status-chip');
       if (statusChips[0]) statusChips[0].querySelector('span').textContent = `${toText(deepGet(snapshot, 'activeChar.status.action', '日常'), '日常')} / ${toText(deepGet(snapshot, 'activeChar.status.active_domain', '无'), '无')}`;
       if (statusChips[1]) statusChips[1].querySelector('span').textContent = `${toText(deepGet(snapshot, 'activeChar.status.wound', '无伤'), '无伤')} / ${deepGet(snapshot, 'activeChar.status.alive', true) ? '状态稳定' : '已陨落'}`;
-      if (statusChips[2]) statusChips[2].querySelector('span').textContent = `${toText(deepGet(snapshot, 'activeChar.bloodline_power.bloodline', '无'), '无')} / ${toNumber(deepGet(snapshot, 'activeChar.bloodline_power.seal_lv', 0), 0)}层`;
+      if (statusChips[2]) {
+        statusChips[2].style.display = snapshot.bloodline && snapshot.bloodline.valid ? '' : 'none';
+        if (snapshot.bloodline && snapshot.bloodline.valid) {
+          statusChips[2].querySelector('span').textContent = `${snapshot.bloodline.bloodline} / ${snapshot.bloodline.sealLv}层`;
+        }
+      }
       if (statusChips[3]) statusChips[3].querySelector('span').textContent = `斗铠${toText(deepGet(snapshot, 'activeChar.equip.armor.equip_status', '未装备'), '未装备')} / 机甲${toText(deepGet(snapshot, 'activeChar.equip.mech.lv', '无'), '无')}`;
       if (statusChips[4]) statusChips[4].querySelector('span').textContent = snapshot.worldAlert;
     }
@@ -2688,6 +2629,7 @@
     function buildLiveArchiveModal(previewKey) {
       if (!liveSnapshot) return null;
       const snapshot = liveSnapshot;
+      const tradeLaunchOptions = buildMapTradeModalOptions(snapshot, mapDispatchContext);
       const stat = deepGet(snapshot, 'activeChar.stat', {});
       const social = deepGet(snapshot, 'activeChar.social', {});
       const status = deepGet(snapshot, 'activeChar.status', {});
@@ -2733,10 +2675,13 @@
 
       if (previewKey === '角色切换器') {
         const playerName = toText(deepGet(snapshot, 'rootData.sys.player_name', ''), '');
+        const currentCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
         const charEntries = sortCharacterEntries(safeEntries(deepGet(snapshot, 'rootData.char', {})), { playerName, currentName: snapshot.activeName });
         const switchCards = charEntries.length
           ? charEntries.map(([name, char]) => {
-              const isCurrent = name === snapshot.activeName;
+              const displayName = toText(char && (char.name || deepGet(char, 'base.name', '')), name);
+              const activeDisplayName = toText(snapshot.activeName, '');
+              const isCurrent = (currentCharKey && name === currentCharKey) || (!currentCharKey && !!activeDisplayName && displayName === activeDisplayName);
               const isPlayer = isPlayerCharacterEntry(name, char, playerName);
               const lvText = `Lv.${toText(deepGet(char, 'stat.lv', 0), '0')}`;
               const identityText = toText(deepGet(char, 'social.main_identity', deepGet(char, 'base.identity', '无')), '无');
@@ -2876,7 +2821,7 @@
                       <div class="status-row"><b>伤势</b><span>${htmlEscape(toText(status.wound, '无伤'))}</span></div>
                       <div class="status-row"><b>当前领域</b><span>${htmlEscape(toText(status.active_domain, '无'))}</span></div>
                       <div class="status-row"><b>魂核状态</b><span>${htmlEscape(`${toText(deepGet(snapshot, 'activeChar.energy.core.数量', 0), '0')} 枚 / 进度 ${toText(deepGet(snapshot, 'activeChar.energy.core.progress', 0), '0')}%`)}</span></div>
-                      <div class="status-row"><b>血脉状态</b><span>${htmlEscape(`${toText(deepGet(snapshot, 'activeChar.bloodline_power.bloodline', '无'), '无')} / ${toText(deepGet(snapshot, 'activeChar.bloodline_power.seal_lv', 0), '0')}层`)}</span></div>
+                      ${snapshot.bloodline && snapshot.bloodline.valid ? `<div class="status-row"><b>血脉状态</b><span>${htmlEscape(`${snapshot.bloodline.bloodline} / ${snapshot.bloodline.sealLv}层`)}</span></div>` : ''}
                       <div class="status-row"><b>灵物吸收</b><span>${htmlEscape(toNumber(status.consuming_herb_age, 0) > 0 ? `${formatNumber(toNumber(status.consuming_herb_age, 0))} 年` : '当前无吸收') }</span></div>
                     </div>
                   </div>
@@ -2967,9 +2912,10 @@
       }
 
       if (previewKey === '所属势力详细页') {
+        const currentFactionName = snapshot.factions[0] ? snapshot.factions[0][0] : '';
         return {
           title: '阵营身份弹窗',
-          summary: '当前角色已加入势力与当前阵营位置摘要。',
+          summary: '当前角色已加入势力、阵营位置摘要与阵营事务操作台。',
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card full">
@@ -2998,6 +2944,12 @@
                   { text: snapshot.currentLoc || '位置未知' }
                 ])}
               </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">阵营事务操作台</div><span class="state-tag ${currentFactionName ? 'live' : 'warn'}">${htmlEscape(currentFactionName || '未加入')}</span></div>
+                <div class="intel-layout">
+                  ${buildFactionAffairConsoleHtml(snapshot, currentFactionName)}
+                </div>
+              </div>
             </div>
           `
         };
@@ -3012,6 +2964,7 @@
           { left: 25, top: 75, className: 'warn hover-up' },
           { left: 75, top: 75, className: 'hover-up' }
         ];
+        const currentLocFull = toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc || '未知地点'), snapshot.currentLoc || '未知地点');
         const relationNodes = snapshot.relations.slice(0, 5);
         const relationLinks = relationPositions.slice(0, relationNodes.length).map((pos, index) => {
           const lineClass = index === 1 ? 'gold' : index === 3 ? 'alert' : 'cyan';
@@ -3021,7 +2974,7 @@
           const pos = relationPositions[index];
           const favor = toNumber(rel && rel['好感度'], 0);
           return `
-            <div class="topology-node interactive-ring ${pos.className}" style="left:${pos.left}%;top:${pos.top}%">
+            <div class="topology-node interactive-ring ${pos.className}" data-relation-focus="${escapeHtmlAttr(name)}" style="left:${pos.left}%;top:${pos.top}%">
               <b>${htmlEscape(name)}</b><span>${htmlEscape(toText(rel && rel['关系'], '陌生'))}</span>
               <div class="relation-hover-card">
                 <span class="relation-hover-title">${htmlEscape(name)}</span>
@@ -3053,6 +3006,60 @@
         const relationFocusTargets = Array.isArray(deepGet(snapshot, 'relationAnalysis.top_targets', []))
           ? deepGet(snapshot, 'relationAnalysis.top_targets', [])
           : [];
+        const relationDirectoryPage = paginateModalItems(snapshot.relations, previewKey, 'relation-directory', 6);
+        const relationFocusStateKey = `${previewKey}::relation-focus`;
+        let relationDetailName = toText(modalFocusState[relationFocusStateKey], toText(deepGet(snapshot, 'relationAnalysis.focus_target', deepGet(relationFocusTargets, '0.target', relationNodes[0] ? relationNodes[0][0] : '')), ''));
+        if (!snapshot.relations.some(([entryName]) => entryName === relationDetailName)) relationDetailName = snapshot.relations[0] ? snapshot.relations[0][0] : '';
+        if (relationDetailName) modalFocusState[relationFocusStateKey] = relationDetailName;
+        else delete modalFocusState[relationFocusStateKey];
+
+        const relationDetailEntry = relationDetailName ? snapshot.relations.find(([entryName]) => entryName === relationDetailName) : null;
+        const relationDetail = relationDetailEntry && relationDetailEntry[1];
+        const resolvedTarget = relationDetailName ? resolveSnapshotCharacter(snapshot, relationDetailName) : { key: '', displayName: '', char: null };
+        const relationTargetChar = resolvedTarget.char || null;
+        const relationTargetLoc = toText(deepGet(relationTargetChar, 'status.loc', ''), '');
+        const relationTargetLocLabel = relationTargetLoc ? relationTargetLoc.replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '') : '未知地点';
+        const relationFavor = toNumber(relationDetail && relationDetail['好感度'], 0);
+        const relationRoute = toText(relationDetail && relationDetail['relation_route'], '朋友线');
+        const routeSwitchable = !!deepGet(relationDetail, '_route_switchable', false);
+        const isContactable = !!relationTargetChar && deepGet(relationTargetChar, 'status.alive', true) !== false;
+        const isSameLocation = !!relationTargetChar && isLocationCompatible(currentLocFull, relationTargetLoc);
+        const canTalk = isSameLocation && isContactable;
+        const canAsk = isSameLocation && isContactable && relationFavor >= 30;
+        const canBattle = isSameLocation && isContactable;
+        const canConfess = isSameLocation && isContactable && (relationRoute === '恋人线' || routeSwitchable || relationFavor >= 80);
+        const canDual = isSameLocation && isContactable && relationRoute === '恋人线' && relationFavor >= 80;
+        const giftableItems = (snapshot.inventoryEntries || []).filter(([, item]) => toNumber(item && item['数量'], 0) > 0).slice(0, 30);
+        const canGift = isSameLocation && isContactable && giftableItems.length > 0;
+        const giftOptionsHtml = giftableItems.length
+          ? giftableItems.map(([itemName, item]) => `<option value="${escapeHtmlAttr(itemName)}">${htmlEscape(`${itemName} ×${toNumber(item && item['数量'], 0)}`)}</option>`).join('')
+          : '<option value="">暂无可送物品</option>';
+
+        const relationDirectoryHtml = relationDirectoryPage.items.length
+          ? relationDirectoryPage.items.map(([name, rel]) => {
+              const resolved = resolveSnapshotCharacter(snapshot, name);
+              const targetChar = resolved.char || null;
+              const targetLoc = toText(deepGet(targetChar, 'status.loc', ''), '');
+              const alive = !!targetChar && deepGet(targetChar, 'status.alive', true) !== false;
+              const sameLocation = !!targetChar && isLocationCompatible(currentLocFull, targetLoc);
+              const favor = toNumber(rel && rel['好感度'], 0);
+              const stage = toText(rel && rel['关系'], '陌生');
+              const route = toText(rel && rel['relation_route'], '朋友线');
+              const availability = sameLocation ? '在场可接触' : (alive ? '远端存活' : '不可接触');
+              const availabilityClass = sameLocation ? 'live' : (alive ? 'warn' : '');
+              return `
+                <button type="button" class="role-switch-tile ${name === relationDetailName ? 'active' : ''}" data-relation-focus="${escapeHtmlAttr(name)}" style="text-align:left;">
+                  <div class="role-switch-head" style="margin-bottom:6px;font-size:15px;"><b>${htmlEscape(name)}</b><span class="state-tag ${availabilityClass}">${htmlEscape(availability)}</span></div>
+                  <div style="display:grid;gap:4px;">
+                    <span>${htmlEscape(`${stage} / ${route} / 好感 ${favor}`)}</span>
+                    <span>${htmlEscape(`身份：${toText(rel && rel['npc_job'], '未知身份')}`)}</span>
+                    <span>${htmlEscape(toText(rel && rel['_progress_note'], toText(rel && rel['progress_note'], '暂无推进提示')))}</span>
+                  </div>
+                </button>
+              `;
+            }).join('')
+          : '<div class="intel-card"><b>暂无关系对象</b><span>关系网络尚未展开。</span></div>';
+
         const relationFocusHtml = (relationFocusTargets.length
           ? relationFocusTargets.slice(0, 2).map(item => {
               const targetName = toText(item && item.target, '未知对象');
@@ -3076,9 +3083,6 @@
               </div>
             `).join('')) || '<div class="intel-card"><b>暂无关系线</b><span>关系线索仍在铺陈。</span></div>';
 
-        const relationDetailName = toText(deepGet(snapshot, 'relationAnalysis.focus_target', deepGet(relationFocusTargets, '0.target', '')), '');
-        const relationDetailEntry = relationDetailName ? snapshot.relations.find(([entryName]) => entryName === relationDetailName) : null;
-        const relationDetail = relationDetailEntry && relationDetailEntry[1];
         const relationDetailHtml = relationDetail
           ? [
               { title: '焦点对象', value: relationDetailName },
@@ -3086,9 +3090,50 @@
               { title: '下一阶段', value: `${toText(relationDetail && relationDetail['_next_stage'], toText(relationDetail && relationDetail['next_stage'], '无'))} / ${toNumber(relationDetail && relationDetail['_next_stage_threshold'], toNumber(relationDetail && relationDetail['next_stage_threshold'], 0))}` },
               { title: '最近互动', value: `${toText(relationDetail && relationDetail['last_interact_action'], '无')} / ${toNumber(relationDetail && relationDetail['recent_favor_delta'], 0)}` },
               { title: '当前加成', value: toText(relationDetail && relationDetail['_current_relation_bonus'], toText(relationDetail && relationDetail['current_relation_bonus'], '无')) },
-              { title: '下一解锁', value: toText(relationDetail && relationDetail['_next_unlock_bonus'], toText(relationDetail && relationDetail['next_unlock_bonus'], '无')) }
+              { title: '下一解锁', value: toText(relationDetail && relationDetail['_next_unlock_bonus'], toText(relationDetail && relationDetail['next_unlock_bonus'], '无')) },
+              { title: '位置状态', value: `${relationTargetLocLabel} / ${isSameLocation ? '同地可接触' : (isContactable ? '远端存活' : '当前不可接触')}` }
             ].map(item => `<div class="intel-card"><b>${htmlEscape(item.title)}</b><span>${htmlEscape(item.value)}</span></div>`).join('')
           : '<div class="intel-card"><b>关系细节</b><span>当前暂无可展开的关系焦点。</span></div>';
+
+        const relationActionHints = [
+          relationDetailName ? `当前目标：${relationDetailName}` : '请先从对象列表中选定互动目标。',
+          relationDetailName ? `位置：${relationTargetLocLabel}` : '',
+          !isContactable && relationDetailName ? '目标当前不可接触。' : '',
+          relationDetailName && isContactable && !isSameLocation ? '目标当前不在你身边，当面互动暂不可发起。' : '',
+          relationDetailName && isSameLocation && relationFavor < 30 ? '请教动作需要好感度达到 30。' : '',
+          relationDetailName && isSameLocation && !canConfess ? '表白动作需达到高好感阶段或可切入恋人线。' : '',
+          relationDetailName && isSameLocation && !canDual ? '双修仅在高好感恋人线开放。' : '',
+          relationDetailName && giftableItems.length === 0 ? '背包中暂无可送物品。' : ''
+        ].filter(Boolean);
+
+        const relationActionPanelHtml = relationDetail
+          ? `
+              <div class="intel-card relation-action-panel">
+                <b>${htmlEscape(`${relationDetailName} / ${toText(relationDetail && relationDetail['关系'], '陌生')}`)}</b>
+                <span>${htmlEscape(`路线：${relationRoute} / 好感：${relationFavor} / 位置：${relationTargetLocLabel}`)}</span>
+                <span>${htmlEscape(`推进建议：${toText(relationDetail && relationDetail['_progress_note'], toText(relationDetail && relationDetail['progress_note'], '暂无'))}`)}</span>
+                <div class="relation-action-status">
+                  <span class="state-tag ${isSameLocation ? 'live' : 'warn'}">${htmlEscape(isSameLocation ? '同地' : '未在身边')}</span>
+                  <span class="state-tag ${isContactable ? 'live' : 'warn'}">${htmlEscape(isContactable ? '可接触' : '不可接触')}</span>
+                  <span class="state-tag">${htmlEscape(routeSwitchable ? '可切恋人线' : relationRoute)}</span>
+                </div>
+                <div class="relation-action-toolbar">
+                  <button type="button" class="relation-action-btn" data-relation-action="talk" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canTalk ? 'disabled' : ''}>闲聊</button>
+                  <button type="button" class="relation-action-btn" data-relation-action="ask" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canAsk ? 'disabled' : ''}>请教</button>
+                  <button type="button" class="relation-action-btn" data-relation-action="battle" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canBattle ? 'disabled' : ''}>切磋</button>
+                  <button type="button" class="relation-action-btn" data-relation-action="confess" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canConfess ? 'disabled' : ''}>表白</button>
+                  <button type="button" class="relation-action-btn" data-relation-action="dual" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canDual ? 'disabled' : ''}>双修</button>
+                </div>
+                <div class="relation-gift-row">
+                  <select class="relation-gift-select" ${!canGift ? 'disabled' : ''}>
+                    ${giftOptionsHtml}
+                  </select>
+                  <button type="button" class="relation-action-btn" data-relation-action="gift" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canGift ? 'disabled' : ''}>送礼</button>
+                </div>
+                ${relationActionHints.map(text => `<span>${htmlEscape(text)}</span>`).join('')}
+              </div>
+            `
+          : '<div class="intel-card relation-action-panel"><b>关系互动台</b><span>请先从对象列表中选定互动目标。</span></div>';
 
         const relationContextHtml = [
           { title: '当前在场', value: ((Array.isArray(deepGet(snapshot, 'relationAnalysis.same_location_targets', [])) ? deepGet(snapshot, 'relationAnalysis.same_location_targets', []) : []).slice(0, 4).join(' / ')) || '暂无' },
@@ -3099,15 +3144,28 @@
 
         return {
           title: '人物关系弹窗',
-          summary: '当前角色关系网络、分析结论与核心推进线索。',
+          summary: '当前角色关系网络、分析结论、对象筛选与社交动作中枢。',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">羁绊星轨图</div></div>
+                <div class="archive-card-head"><div class="archive-card-title">羁绊星轨图</div><span class="state-tag live">点选对象</span></div>
                 <div class="topology-board" style="min-height: 280px;">
                   <svg class="topology-svg" viewBox="0 0 100 100" preserveAspectRatio="none">${relationLinks}</svg>
                   <div class="topology-node center" style="left:50%;top:50%"><b>${htmlEscape(snapshot.activeName)}</b><span>自我</span></div>
                   ${relationHtml || '<div class="topology-node" style="left:50%;top:18%"><b>暂无关系对象</b><span>关系网络尚未展开</span></div>'}
+                </div>
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">互动对象列表</div><span class="state-tag ${relationDirectoryPage.total ? 'live' : 'warn'}">${relationDirectoryPage.total ? `已收录 ${relationDirectoryPage.total} 名` : '暂无对象'}</span></div>
+                <div class="relation-directory-grid">
+                  ${relationDirectoryHtml}
+                </div>
+                ${makeModalPaginationControls('relation-directory', relationDirectoryPage.page, relationDirectoryPage.totalPages, relationDirectoryPage.total)}
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">关系互动台</div><span class="state-tag ${relationDetailName ? 'live' : 'warn'}">${htmlEscape(relationDetailName || '未选中')}</span></div>
+                <div class="intel-layout">
+                  ${relationActionPanelHtml}
                 </div>
               </div>
               <div class="archive-card full">
@@ -3149,6 +3207,9 @@
         const intelNodes = [toText(deepGet(snapshot, 'activeChar.knowledge_unlock_request.content', '无'), '无'), ...snapshot.unlockedKnowledges.slice(-4).reverse()].filter(item => item && item !== '无');
         const coreIntel = intelNodes[0] || '暂无核心情报';
         const sideIntels = intelNodes.slice(1, 5);
+        const unlockedIntelPage = paginateModalItems((snapshot.unlockedKnowledges || []).slice().reverse(), previewKey, 'intel-records', 6);
+        const pendingIntelDefault = snapshot.pendingIntelCount ? snapshot.pendingIntelContent : '';
+        const pendingIntelImpactDefault = snapshot.pendingIntelCount ? snapshot.pendingIntelImpact : 1;
         const positions = [
           { left: '20%', top: '30%' },
           { left: '80%', top: '30%' },
@@ -3159,9 +3220,17 @@
           title: info && info.empty ? name : `${name} / ${toText(info && info.count, 0)}次`,
           desc: info && info.empty ? '暂无战斗记录。' : `最近 Tick ${toText(info && info.last_tick, 0)}`
         }));
+        const unlockedIntelHtml = unlockedIntelPage.items.length
+          ? unlockedIntelPage.items.map(item => `
+              <div class="intel-card">
+                <b>${htmlEscape(item)}</b>
+                <span>已记录进情报库，可作为后续判断依据。</span>
+              </div>
+            `).join('')
+          : '<div class="intel-card"><b>暂无已解锁情报</b><span>当前还没有被正式记录的核心线索。</span></div>';
         return {
           title: '情报库弹窗',
-          summary: '当前已解锁情报、待整理线索与战斗记录摘要。',
+          summary: '当前已解锁情报、待整理线索、情报整理台与战斗记录摘要。',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
@@ -3184,6 +3253,31 @@
                   <div class="intel-slot"><div class="intel-slot-name">待整理情报</div><div class="intel-slot-bar-wrap"><div class="intel-slot-bar gold" style="width:${snapshot.pendingIntelCount ? 100 : 0}%;"></div></div><div class="intel-slot-value" style="color:var(--gold);">${snapshot.pendingIntelCount ? `${snapshot.pendingIntelCount} / +${snapshot.pendingIntelImpact}` : '0'}</div></div>
                   <div class="intel-slot"><div class="intel-slot-name">任务记录</div><div class="intel-slot-bar-wrap"><div class="intel-slot-bar" style="width:${Math.min(100, snapshot.questRecordCount * 20)}%; background:var(--red); box-shadow:0 0 8px var(--red);"></div></div><div class="intel-slot-value" style="color:var(--red);">${snapshot.questRecordCount}</div></div>
                 </div>
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">情报整理台</div><span class="state-tag ${snapshot.pendingIntelCount ? 'warn' : 'live'}">${htmlEscape(snapshot.pendingIntelCount ? `待整理 / +${snapshot.pendingIntelImpact}` : '可录入')}</span></div>
+                <div class="intel-layout">
+                  <div class="intel-card request-console-card">
+                    <b>整理并录入新线索</b>
+                    <span>${htmlEscape(snapshot.pendingIntelCount ? `当前待整理线索：${snapshot.pendingIntelContent}` : '你可以主动将新的关键信息写入 knowledge_unlock_request。')}</span>
+                    <div class="request-console-grid">
+                      <textarea class="request-console-textarea" data-intel-input="content" placeholder="输入一句话概括的关键情报">${htmlEscape(pendingIntelDefault)}</textarea>
+                      <div class="request-console-row">
+                        <select class="request-console-input" data-intel-input="impact">
+                          ${Array.from({ length: 11 }, (_, i) => `<option value="${i}" ${i === Number(pendingIntelImpactDefault) ? 'selected' : ''}>破坏度 ${i}</option>`).join('')}
+                        </select>
+                        <button type="button" class="relation-action-btn intel-action-btn" data-intel-action="unlock">整理并解锁</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">已解锁情报列表</div><span class="state-tag ${snapshot.unlockedKnowledges.length ? 'live' : 'warn'}">${snapshot.unlockedKnowledges.length ? `${snapshot.unlockedKnowledges.length} 条` : '空'}</span></div>
+                <div class="intel-layout">
+                  ${unlockedIntelHtml}
+                </div>
+                ${makeModalPaginationControls('intel-records', unlockedIntelPage.page, unlockedIntelPage.totalPages, unlockedIntelPage.total)}
               </div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">战斗记录摘要</div></div>
@@ -3430,12 +3524,15 @@
               <div class="ring-hover-skill" style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05); margin-top:8px; padding:8px; border-radius:8px;">
                 <b style="color:var(--gold);font-size:11px;display:block;margin-bottom:6px;">${skill.name}</b>
                 <div class="ring-hover-meta" style="margin-top:0;">
-                  <div class="ring-hover-meta-row"><em>主定位</em><strong>${skill.mainRole || '无'}</strong></div>
-                  <div class="ring-hover-meta-row"><em>作用对象</em><strong>${skill.target || '--'}</strong></div>
+                  <div class="ring-hover-meta-row"><em>技能类型</em><strong>${skill.type || '未知'}</strong></div>
+                  <div class="ring-hover-meta-row"><em>主定位</em><strong>${skill.mainRole || '未知'}</strong></div>
+                  <div class="ring-hover-meta-row"><em>作用对象</em><strong>${skill.target || '未知'}</strong></div>
+                  <div class="ring-hover-meta-row"><em>加成属性</em><strong>${skill.bonus || '未知'}</strong></div>
+                  <div class="ring-hover-meta-row"><em>消耗</em><strong>${skill.cost || '未知'}</strong></div>
                 </div>
-                <div class="ring-hover-meta-row" style="font-size:9px;color:#85afb8;margin-bottom:6px;line-height:1.3;"><em>消耗</em><br/><strong>${skill.cost || '无消耗'}</strong></div>
-                <div class="ring-hover-meta-row" style="font-size:9px;color:#85afb8;margin-bottom:6px;line-height:1.3;"><em>加成属性</em><br/><strong>${skill.bonus || '无'}</strong></div>
-                <div style="font-size:10px;color:var(--text);line-height:1.4;">${skill.desc || '暂无描述'}</div>
+                <div class="ring-hover-copy"><em>画面描述</em><span>${skill.visualDesc || '未知'}</span></div>
+                <div class="ring-hover-copy"><em>效果描述</em><span>${skill.effectDesc || '未知'}</span></div>
+                <div class="ring-hover-copy"><em>效果数组</em><span>${skill.effectSummary || '未知'}</span></div>
                 <div class="ring-hover-tags" style="margin-top:6px;">${(skill.tags || []).map(tag => `<span class="tag-chip">${tag}</span>`).join('')}</div>
               </div>
             `).join('');
@@ -3607,11 +3704,13 @@
                         <div class="meta-item"><b>年限</b><span>${htmlEscape(soul.age)}</span></div>
                         <div class="meta-item"><b>契合度</b><span>${htmlEscape(soul.comp)}</span></div>
                       </div>
-                      <div class="soul-ring-section">
-                        <div class="rings soul-ring-lane">
-                          ${soul.rings.map(ring => `<div class="ring ${ring.ringClass} interactive-ring">${htmlEscape(ring.glyph)}${buildRingHoverMarkup(ring)}</div>`).join('')}
+                      ${soul.rings.length ? `
+                        <div class="soul-ring-section">
+                          <div class="rings soul-ring-lane">
+                            ${soul.rings.map(ring => `<div class="ring ${ring.ringClass} interactive-ring">${htmlEscape(ring.glyph)}${buildRingHoverMarkup(ring)}</div>`).join('')}
+                          </div>
                         </div>
-                      </div>
+                      ` : ''}
                     </div>
                   `).join('')}
                 </div>
@@ -3655,22 +3754,27 @@
                 <div class="ability-detail-card">
                   <div class="ability-detail-title">${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].name : '暂无已固化能力')}</div>
                   <div class="ring-hover-meta">
-                    <div class="ring-hover-meta-row"><em>技能类型</em><strong>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].type : '未定义')}</strong></div>
-                    <div class="ring-hover-meta-row"><em>作用对象</em><strong>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].target : '--')}</strong></div>
-                    <div class="ring-hover-meta-row"><em>加成属性</em><strong>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].bonus : '无')}</strong></div>
-                    <div class="ring-hover-meta-row"><em>消耗</em><strong>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].cost : '无')}</strong></div>
+                    <div class="ring-hover-meta-row"><em>技能类型</em><strong>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].type : '未知')}</strong></div>
+                    <div class="ring-hover-meta-row"><em>主定位</em><strong>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].mainRole : '未知')}</strong></div>
+                    <div class="ring-hover-meta-row"><em>作用对象</em><strong>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].target : '未知')}</strong></div>
+                    <div class="ring-hover-meta-row"><em>加成属性</em><strong>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].bonus : '未知')}</strong></div>
+                    <div class="ring-hover-meta-row"><em>消耗</em><strong>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].cost : '未知')}</strong></div>
                     <div class="ring-hover-meta-row"><em>当前状态</em><strong>已固化</strong></div>
                   </div>
-                  <div class="ability-detail-desc">${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].desc : '血脉能力尚未明晰。')}</div>
+                  <div class="ring-hover-copy"><em>画面描述</em><span>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].visualDesc : '未知')}</span></div>
+                  <div class="ring-hover-copy"><em>效果描述</em><span>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].effectDesc : '未知')}</span></div>
+                  <div class="ring-hover-copy"><em>效果数组</em><span>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].effectSummary : '未知')}</span></div>
                   <div class="ring-hover-tags">${(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].tags : ['待觉醒']).map(tag => `<span class="ring-hover-chip">${htmlEscape(tag)}</span>`).join('')}</div>
                 </div>
               </div>
-              <div class="archive-card full spirit-flow-card">
-                <div class="archive-card-head"><div class="archive-card-title">气血魂环轨道</div></div>
-                <div class="orbit-track">
-                  ${snapshot.bloodline.rings.map(ring => `<div class="ring ${ring.ringClass || 'ring-gold'} interactive-ring">${htmlEscape(ring.glyph)}${buildRingHoverMarkup(ring)}</div>`).join('')}
+              ${snapshot.bloodline.rings.length ? `
+                <div class="archive-card full spirit-flow-card">
+                  <div class="archive-card-head"><div class="archive-card-title">气血魂环轨道</div></div>
+                  <div class="orbit-track">
+                    ${snapshot.bloodline.rings.map(ring => `<div class="ring ${ring.ringClass || 'ring-gold'} interactive-ring">${htmlEscape(ring.glyph)}${buildRingHoverMarkup(ring)}</div>`).join('')}
+                  </div>
                 </div>
-              </div>
+              ` : ''}
             </div>
           `
         };
@@ -3712,7 +3816,14 @@
 
       if (String(previewKey || '').startsWith('榜单角色：')) {
         const targetName = String(previewKey).replace('榜单角色：', '').trim();
-        const targetChar = deepGet(snapshot, ['sd', 'char', targetName], null);
+        const rootChars = deepGet(snapshot, 'rootData.char', {});
+        let targetChar = deepGet(snapshot, ['sd', 'char', targetName], null) || (rootChars && typeof rootChars === 'object' ? (rootChars[targetName] || null) : null);
+        if (!targetChar && rootChars && typeof rootChars === 'object') {
+          for (const [charKey, charInfo] of Object.entries(rootChars)) {
+            const displayName = toText(charInfo && (charInfo.name || deepGet(charInfo, 'base.name', '')), charKey);
+            if (displayName === targetName) { targetChar = charInfo; break; }
+          }
+        }
         const rankingEntry = snapshot.youthRankingEntries.find(([, item]) => toText(item && item['角色名'], '未知') === targetName)
           || snapshot.continentRankingEntries.find(([, item]) => toText(item && item['角色名'], '未知') === targetName)
           || null;
@@ -3960,6 +4071,9 @@
                       : '当前无任务请求'
                   }
                 ])}
+                <div class="intel-layout" style="margin-top:12px;">
+                  ${buildFactionAffairConsoleHtml(snapshot, currentFactionName)}
+                </div>
               </div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">所属势力名册</div></div>
@@ -3975,15 +4089,37 @@
         const mapNode = resolveDisplayMapNode(snapshot, nodeName);
         const nodeInfo = resolveLocationData(snapshot.rootData, nodeName);
         const nodeStores = safeEntries(nodeInfo.data && nodeInfo.data.stores);
+        const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
+        const activeDisplayName = toText(deepGet(snapshot, 'activeChar.name', deepGet(snapshot, 'activeChar.base.name', snapshot.activeName)), snapshot.activeName);
         const localNpcEntries = safeEntries(deepGet(snapshot, 'rootData.char', {}))
-          .filter(([name, char]) => name !== snapshot.activeName && toText(deepGet(char, 'status.loc', ''), '') === nodeName)
+          .filter(([name, char]) => {
+            const displayName = toText(deepGet(char, 'name', deepGet(char, 'base.name', name)), name);
+            if ((activeCharKey && name === activeCharKey) || (activeDisplayName && displayName === activeDisplayName)) return false;
+            const npcLoc = toText(deepGet(char, 'status.loc', ''), '');
+            return npcLoc ? isLocationCompatible(nodeName, npcLoc) : false;
+          })
           .slice(0, 4);
-        const primaryNpc = localNpcEntries[0] ? localNpcEntries[0][0] : '';
-        const actionButtons = [
+        const primaryNpc = localNpcEntries[0]
+          ? toText(deepGet(localNpcEntries[0][1], 'name', deepGet(localNpcEntries[0][1], 'base.name', localNpcEntries[0][0])), localNpcEntries[0][0])
+          : '';
+        const officialCommissionLocationName = ['锻造师协会', '制造师协会', '设计师协会', '修理师协会']
+          .find(locationName => isLocationCompatible(nodeName, locationName) || isLocationCompatible(locationName, nodeName)) || '';
+        const currentNodeLocFull = toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc), snapshot.currentLoc);
+        const canDispatchHere = !!toText(currentNodeLocFull, '') && isLocationCompatible(nodeName, currentNodeLocFull);
+
+        const localNpcCards = localNpcEntries.map(([name, char]) => ({
+          title: toText(deepGet(char, 'name', deepGet(char, 'base.name', name)), name),
+          desc: `${toText(deepGet(char, 'social.main_identity', '未知身份'), '未知身份')} / ${toText(deepGet(char, 'status.loc', '未知地点'), '未知地点')}`
+        }));
+        const actionButtons = canDispatchHere ? [
           ...(nodeStores.length ? [{ text: '前往商店', action: 'shop', target: nodeStores[0][0], className: 'live' }] : []),
+          ...(officialCommissionLocationName ? [{ text: `进入${officialCommissionLocationName}官方工坊`, action: 'craft', executorType: 'official', className: 'live' }] : []),
           ...(primaryNpc ? [{ text: `与${primaryNpc}交易`, action: 'trade', npcTarget: primaryNpc, className: 'warn' }, { text: `委托${primaryNpc}工坊`, action: 'craft', npcTarget: primaryNpc, executorType: 'private', className: 'warn' }, { text: `与${primaryNpc}对话`, action: 'talk', npcTarget: primaryNpc, className: 'live' }, { text: `向${primaryNpc}请教`, action: 'intel', npcTarget: primaryNpc, className: '' }, { text: `向${primaryNpc}切磋`, action: 'battle', npcTarget: primaryNpc, className: 'warn' }] : []),
           ...(!primaryNpc ? [{ text: '打开工坊', action: 'craft', executorType: 'self', className: 'live' }] : [])
-        ];
+        ] : [];
+        const actionButtonsHtml = actionButtons.length
+          ? `<div style="display:flex;flex-wrap:wrap;gap:8px;">${actionButtons.map(btn => `<button type="button" class="map-dispatch-action-btn ${htmlEscape(btn.className || '')}" data-action="${htmlEscape(btn.action || '')}" data-target="${htmlEscape(btn.target || nodeName)}" data-current-loc="${htmlEscape(nodeName)}" data-npc-target="${htmlEscape(btn.npcTarget || '')}" data-executor-type="${htmlEscape(btn.executorType || '')}" data-services="${htmlEscape(Array.isArray(btn.services) ? btn.services.join('|') : '')}" style="border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:#fff;padding:8px 12px;border-radius:10px;cursor:pointer;">${htmlEscape(btn.text || '执行操作')}</button>`).join('')}</div>`
+          : `<div class="relation-card"><b>${canDispatchHere ? '暂无可执行操作' : '当前仅可预览'}</b><span>${canDispatchHere ? '当前节点未生成可直接分发的交易或互动按钮。' : '当前节点不是你的实际所在位置，需先移动到该节点后再进行交易、工坊或社交互动。'}</span></div>`;
         const travelTags = (snapshot.mapTravelCandidates.length ? snapshot.mapTravelCandidates : snapshot.dynamicLocationNames).filter(name => name !== nodeName).slice(0, 6);
         return {
           title: `本地据点 / ${nodeName}`,
@@ -4009,6 +4145,14 @@
                   <div class="relation-card"><b>地图描述</b><span>${htmlEscape(mapNode ? mapNode.desc : '地图描述待补')}</span></div>
                   <div class="relation-card"><b>补给情况</b><span>${htmlEscape(nodeStores.length ? `可见商店：${nodeStores.map(([name]) => name).join(' / ')}` : '暂未发现商铺')}</span></div>
                 </div>
+              </div>
+              <div class="archive-card">
+                <div class="archive-card-head"><div class="archive-card-title">本地可接触人物</div></div>
+                ${makeTimelineStack(localNpcCards.length ? localNpcCards : [{ title: '暂无本地人物', desc: '当前节点未扫描到可直接互动的本地角色。' }])}
+              </div>
+              <div class="archive-card">
+                <div class="archive-card-head"><div class="archive-card-title">可执行操作</div></div>
+                ${actionButtonsHtml}
               </div>
             </div>
           `,
@@ -4051,7 +4195,7 @@
         };
       }
 
-      if (previewKey === '当前节点详情' || previewKey === '交易模块弹窗') {
+      if (previewKey === '当前节点详情' || previewKey === '交易模块弹窗' || previewKey === '交易网络') {
         return {
           title: '交易与驻地信息',
           summary: '当前节点商店与可见库存。',
@@ -4134,16 +4278,27 @@
 
       if (previewKey === '试炼与情报') {
         const towerDiscountEntries = safeEntries(deepGet(snapshot, 'activeChar.tower_records.discount_available', {})).filter(([, value]) => !!value);
+        const huntRequest = deepGet(snapshot, 'activeChar.hunt_request', {});
+        const abyssKillRequest = deepGet(snapshot, 'activeChar.abyss_kill_request', {});
+        const huntAgeDefault = Math.max(1, toNumber(deepGet(snapshot, 'activeChar.hunt_request.killed_age', 1000), 1000) || 1000);
+        const huntFerociousDefault = !!deepGet(snapshot, 'activeChar.hunt_request.is_ferocious', false);
+        const abyssTierRaw = toText(deepGet(snapshot, 'activeChar.abyss_kill_request.kill_tier', '低阶生物'), '低阶生物');
+        const abyssTierDefault = ['低阶生物', '中阶生物', '高阶生物', '深渊王者'].includes(abyssTierRaw) ? abyssTierRaw : '低阶生物';
+        const abyssQuantityDefault = Math.max(1, toNumber(deepGet(snapshot, 'activeChar.abyss_kill_request.quantity', 1), 1) || 1);
+        const trialTickets = (snapshot.inventoryEntries || []).filter(([name]) => /升灵台|魂灵塔/.test(name)).slice(0, 8);
+        const ticketCards = trialTickets.length
+          ? trialTickets.map(([name, item]) => ({ title: `${name} ×${toNumber(item && item['数量'], 0)}`, desc: toText(item && item['描述'], '可用于对应试炼场景。') }))
+          : [{ title: '暂无试炼门票', desc: '当前背包中没有升灵台/魂灵塔门票。' }];
         return {
           title: '试炼与情报',
-          summary: '当前可去试炼与已解锁情报摘要。',
+          summary: '当前可去试炼、现实狩猎与深渊战功上报入口。',
           body: `
-            <div class="intel-layout">
-              <div class="archive-card">
+            <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
+              <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">可前往试炼</div></div>
                 ${makeTileGrid([
                   { label: '升灵台门票', value: String(snapshot.inventoryEntries.filter(([name]) => /升灵台/.test(name)).length) },
-                  { label: '魂灵塔安排', value: `${toText(deepGet(snapshot, 'activeChar.tower_request.action', '无'), '无')} / 最高 ${toText(deepGet(snapshot, 'activeChar.tower_records.max_floor', 0), '0')} 层` },
+                  { label: '魂灵塔态势', value: `最高 ${toText(deepGet(snapshot, 'activeChar.tower_records.max_floor', 0), '0')} 层 / 暂无可提交 request` },
                   { label: '塔层折扣', value: towerDiscountEntries.length ? `${towerDiscountEntries.length} 层可用` : '暂无' },
                   { label: '狩猎安排', value: toText(deepGet(snapshot, 'activeChar.hunt_request.killed_age', 0), '0') === '0' ? '暂无' : '待结算' },
                   { label: '深渊击杀', value: toText(deepGet(snapshot, 'activeChar.abyss_kill_request.kill_tier', '无'), '无') !== '无' ? `${toText(deepGet(snapshot, 'activeChar.abyss_kill_request.kill_tier', '无'), '无')} × ${toNumber(deepGet(snapshot, 'activeChar.abyss_kill_request.quantity', 1), 1)}` : '暂无待结算' },
@@ -4151,13 +4306,60 @@
                   { label: '风险评估', value: snapshot.pendingIntelCount ? `${snapshot.worldAlert} / 线索 +${snapshot.pendingIntelImpact}` : snapshot.worldAlert }
                 ])}
               </div>
-              <div class="archive-card">
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">现实狩猎操作台</div><span class="state-tag ${toNumber(huntRequest && huntRequest.killed_age, 0) > 0 ? 'warn' : 'live'}">${htmlEscape(toNumber(huntRequest && huntRequest.killed_age, 0) > 0 ? `待结算 / ${toNumber(huntRequest && huntRequest.killed_age, 0)}年` : '可录入')}</span></div>
+                <div class="intel-layout">
+                  <div class="intel-card request-console-card">
+                    <b>录入现实魂兽狩猎结果</b>
+                    <span>${htmlEscape('该入口直接驱动 MVU.js 的 hunt_request 结算：魂环、魂骨、兽潮、世界偏差都会按原规则处理。')}</span>
+                    <div class="request-console-grid">
+                      <div class="request-console-row">
+                        <input type="number" min="1" class="request-console-input" data-trial-input="hunt-age" value="${escapeHtmlAttr(String(huntAgeDefault))}" placeholder="击杀年限" />
+                        <select class="request-console-input" data-trial-input="hunt-ferocious">
+                          <option value="false" ${!huntFerociousDefault ? 'selected' : ''}>常规魂兽</option>
+                          <option value="true" ${huntFerociousDefault ? 'selected' : ''}>十万年 / 凶兽级</option>
+                        </select>
+                        <button type="button" class="relation-action-btn trial-action-btn" data-trial-action="hunt">提交狩猎结算</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">深渊战功上报台</div><span class="state-tag ${toText(abyssKillRequest && abyssKillRequest.kill_tier, '无') !== '无' ? 'warn' : 'live'}">${htmlEscape(toText(abyssKillRequest && abyssKillRequest.kill_tier, '无') !== '无' ? `${toText(abyssKillRequest && abyssKillRequest.kill_tier, '无')} × ${toNumber(abyssKillRequest && abyssKillRequest.quantity, 1)}` : '可录入')}</span></div>
+                <div class="intel-layout">
+                  <div class="intel-card request-console-card">
+                    <b>录入深渊战果</b>
+                    <span>${htmlEscape('该入口直接驱动 MVU.js 的 abyss_kill_request 结算，按击杀级别发放战功。')}</span>
+                    <div class="request-console-grid">
+                      <div class="request-console-row">
+                        <select class="request-console-input" data-trial-input="abyss-tier">
+                          ${['低阶生物', '中阶生物', '高阶生物', '深渊王者'].map(tier => `<option value="${tier}" ${tier === abyssTierDefault ? 'selected' : ''}>${tier}</option>`).join('')}
+                        </select>
+                        <input type="number" min="1" class="request-console-input" data-trial-input="abyss-qty" value="${escapeHtmlAttr(String(abyssQuantityDefault))}" placeholder="击杀数量" />
+                        <button type="button" class="relation-action-btn trial-action-btn" data-trial-action="abyss">提交战功上报</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">魂灵塔 / 升灵台态势</div><span class="state-tag warn">只读</span></div>
+                <div class="intel-layout">
+                  <div class="intel-card">
+                    <b>当前状态</b>
+                    <span>${htmlEscape('MVU.js 当前仅提供 tower_records 展示能力，尚未实现 tower_request 的实际结算逻辑，因此此处先保留只读态势，不提供伪交互按钮。')}</span>
+                  </div>
+                </div>
+                ${makeTimelineStack(ticketCards)}
+              </div>
+              <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">已掌握情报</div></div>
                 <div class="intel-cabinet">
                   ${(snapshot.unlockedKnowledges.length ? snapshot.unlockedKnowledges.slice(-4).reverse() : ['情报仍待收集']).map(item => `<div class="intel-card"><b>${htmlEscape(item)}</b><span>${htmlEscape(item)}</span></div>`).join('')}
                 </div>
               </div>
-              <div class="archive-card">
+              <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">魂灵塔折扣资格</div></div>
                 ${makeTimelineStack(towerDiscountEntries.length ? towerDiscountEntries.slice(0, 10).map(([floor]) => ({ title: `${floor} 层`, desc: '五折资格未使用' })) : [{ title: '暂无折扣资格', desc: '当前未记录可用五折层。' }])}
               </div>
@@ -4168,26 +4370,87 @@
 
       if (previewKey === '任务界面') {
         const quest = deepGet(snapshot, 'activeChar.quest_request', {});
-        const hasQuest = toText(quest.action, '无') !== '无';
+        const questRecords = (snapshot.recordEntries || []).filter(([, item]) => item && typeof item === 'object' && (
+          Object.prototype.hasOwnProperty.call(item, '状态')
+          || Object.prototype.hasOwnProperty.call(item, '目标进度')
+          || Object.prototype.hasOwnProperty.call(item, '奖励币')
+          || Object.prototype.hasOwnProperty.call(item, '奖励声望')
+        ));
+        const questPage = paginateModalItems(questRecords, previewKey, 'quest-records', 6);
+        const questFocusStateKey = `${previewKey}::quest-focus`;
+        let focusQuestName = toText(modalFocusState[questFocusStateKey], toText((questRecords[0] && questRecords[0][0]) || '', ''));
+        if (focusQuestName && !questRecords.some(([name]) => name === focusQuestName)) focusQuestName = questRecords[0] ? questRecords[0][0] : '';
+        if (focusQuestName) modalFocusState[questFocusStateKey] = focusQuestName;
+        else delete modalFocusState[questFocusStateKey];
+        const focusQuestEntry = focusQuestName ? questRecords.find(([name]) => name === focusQuestName) : null;
+        const focusQuest = focusQuestEntry && focusQuestEntry[1];
+        const pendingRequest = toText(quest.action, '无') !== '无';
+        const questListHtml = questPage.items.length
+          ? questPage.items.map(([name, item]) => {
+              const status = toText(item && item['状态'], '进行中');
+              const progress = `${toNumber(item && item['当前进度'], 0)}/${toNumber(item && item['目标进度'], 1)}`;
+              const badgeClass = status === '已完成' ? 'live' : (status === '已放弃' ? 'warn' : '');
+              return `
+                <button type="button" class="role-switch-tile ${name === focusQuestName ? 'active' : ''}" data-quest-focus="${escapeHtmlAttr(name)}" style="text-align:left;">
+                  <div class="role-switch-head" style="margin-bottom:6px;font-size:15px;"><b>${htmlEscape(name)}</b><span class="state-tag ${badgeClass}">${htmlEscape(status)}</span></div>
+                  <div style="display:grid;gap:4px;">
+                    <span>${htmlEscape(`进度：${progress}`)}</span>
+                    <span>${htmlEscape(`奖励：${formatNumber(toNumber(item && item['奖励币'], 0))} 币 / ${formatNumber(toNumber(item && item['奖励声望'], 0))} 声望`)}</span>
+                    <span>${htmlEscape(toText(item && item['描述'], '无说明'))}</span>
+                  </div>
+                </button>
+              `;
+            }).join('')
+          : '<div class="intel-card"><b>暂无任务记录</b><span>当前没有可追踪的任务档案。</span></div>';
+        const questDetailHtml = focusQuest
+          ? makeTileGrid([
+              { label: '任务名称', value: focusQuestName },
+              { label: '状态', value: toText(focusQuest['状态'], '进行中') },
+              { label: '当前进度', value: `${toNumber(focusQuest['当前进度'], 0)}/${toNumber(focusQuest['目标进度'], 1)}` },
+              { label: '奖励金币', value: formatNumber(toNumber(focusQuest['奖励币'], 0)) },
+              { label: '奖励声望', value: formatNumber(toNumber(focusQuest['奖励声望'], 0)) },
+              { label: '任务类型', value: toText(focusQuest['类型'], '任务') }
+            ], 'two')
+          : makeTileGrid([{ label: '状态', value: '当前未选中任何任务' }], 'two');
         return {
           title: '任务界面',
-          summary: '当前正在追踪的任务目标与进度。',
+          summary: '任务记录、当前挂起 request 与任务操作台。',
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">当前任务</div></div>
-                ${makeTileGrid(hasQuest ? [
-                  { label: '任务名称', value: toText(quest.quest_name, '未知') },
-                  { label: '动作类型', value: toText(quest.action, '未知') },
-                  { label: '单次进度', value: `+${toNumber(quest.progress_add, 0)}` },
-                  { label: '目标需求', value: String(toNumber(quest.required_count, 1)) },
-                  { label: '奖励金币', value: formatNumber(quest.reward_coin) },
-                  { label: '奖励声望', value: formatNumber(quest.reward_rep) }
-                ] : [{ label: '状态', value: '当前未接取任务' }], 'two')}
+                <div class="archive-card-head"><div class="archive-card-title">任务记录列表</div><span class="state-tag ${questRecords.length ? 'live' : 'warn'}">${questRecords.length ? `共 ${questRecords.length} 条` : '空'}</span></div>
+                <div class="relation-directory-grid">${questListHtml}</div>
+                ${makeModalPaginationControls('quest-records', questPage.page, questPage.totalPages, questPage.total)}
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">任务说明</div></div>
-                <div class="intel-layout"><div class="intel-card"><b>任务详情</b><span>${htmlEscape(hasQuest ? toText(quest.quest_desc, '无附加说明') : '当前没有正在追踪的任务说明。')}</span></div></div>
+                <div class="archive-card-head"><div class="archive-card-title">焦点任务详情</div><span class="state-tag ${focusQuestName ? 'live' : 'warn'}">${htmlEscape(focusQuestName || '未选中')}</span></div>
+                ${questDetailHtml}
+                <div class="intel-layout" style="margin-top:12px;"><div class="intel-card"><b>任务说明</b><span>${htmlEscape(focusQuest ? toText(focusQuest['描述'], '无附加说明') : '当前没有选中的任务说明。')}</span></div></div>
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">任务操作台</div><span class="state-tag ${pendingRequest ? 'warn' : 'live'}">${htmlEscape(pendingRequest ? `${toText(quest.action, '无')} / ${toText(quest.quest_name, '无')}` : '无挂起 request')}</span></div>
+                <div class="intel-layout">
+                  <div class="intel-card request-console-card">
+                    <b>接取 / 推进 / 提交 / 放弃</b>
+                    <span>${htmlEscape(focusQuest ? `当前焦点任务：${focusQuestName}` : '可新建任务，也可先从上方列表选中已有任务。')}</span>
+                    <div class="request-console-grid">
+                      <input class="request-console-input" data-quest-input="name" value="${escapeHtmlAttr(focusQuestName || '')}" placeholder="任务名称（接取新任务时必填）" />
+                      <textarea class="request-console-textarea" data-quest-input="desc" placeholder="任务描述 / 目标说明">${htmlEscape(focusQuest ? toText(focusQuest['描述'], '') : '')}</textarea>
+                      <div class="request-console-row">
+                        <input type="number" min="1" class="request-console-input" data-quest-input="required" value="${escapeHtmlAttr(String(focusQuest ? toNumber(focusQuest['目标进度'], 1) : 1))}" placeholder="目标进度" />
+                        <input type="number" min="0" class="request-console-input" data-quest-input="rewardCoin" value="${escapeHtmlAttr(String(focusQuest ? toNumber(focusQuest['奖励币'], 0) : 0))}" placeholder="奖励金币" />
+                        <input type="number" min="0" class="request-console-input" data-quest-input="rewardRep" value="${escapeHtmlAttr(String(focusQuest ? toNumber(focusQuest['奖励声望'], 0) : 0))}" placeholder="奖励声望" />
+                        <input type="number" min="1" class="request-console-input" data-quest-input="progress" value="1" placeholder="进度增量" />
+                      </div>
+                    </div>
+                    <div class="relation-action-toolbar">
+                      <button type="button" class="relation-action-btn quest-action-btn" data-quest-action="接取">接取任务</button>
+                      <button type="button" class="relation-action-btn quest-action-btn" data-quest-action="更新进度" data-quest-target="${escapeHtmlAttr(focusQuestName || '')}" ${!focusQuestName ? 'disabled' : ''}>更新进度</button>
+                      <button type="button" class="relation-action-btn quest-action-btn" data-quest-action="提交" data-quest-target="${escapeHtmlAttr(focusQuestName || '')}" ${!focusQuestName ? 'disabled' : ''}>提交任务</button>
+                      <button type="button" class="relation-action-btn quest-action-btn" data-quest-action="放弃" data-quest-target="${escapeHtmlAttr(focusQuestName || '')}" ${!focusQuestName ? 'disabled' : ''}>放弃任务</button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           `
@@ -4337,12 +4600,15 @@
         <div class="ring-hover-skill">
           <b>${skill.name}</b>
           <div class="ring-hover-meta">
-            <div class="ring-hover-meta-row"><em>主定位</em><strong>${skill.mainRole || '无'}</strong></div>
-            <div class="ring-hover-meta-row"><em>作用对象</em><strong>${skill.target || '--'}</strong></div>
+            <div class="ring-hover-meta-row"><em>技能类型</em><strong>${skill.type || '未知'}</strong></div>
+            <div class="ring-hover-meta-row"><em>主定位</em><strong>${skill.mainRole || '未知'}</strong></div>
+            <div class="ring-hover-meta-row"><em>作用对象</em><strong>${skill.target || '未知'}</strong></div>
+            <div class="ring-hover-meta-row"><em>加成属性</em><strong>${skill.bonus || '未知'}</strong></div>
+            <div class="ring-hover-meta-row"><em>消耗</em><strong>${skill.cost || '未知'}</strong></div>
           </div>
-          <div class="ring-hover-meta-row" style="font-size:9px;color:#85afb8;margin-bottom:6px;line-height:1.3;"><em>消耗</em><br/><strong>${skill.cost || '无消耗'}</strong></div>
-          <div class="ring-hover-meta-row" style="font-size:9px;color:#85afb8;margin-bottom:6px;line-height:1.3;"><em>加成属性</em><br/><strong>${skill.bonus || '无'}</strong></div>
-          <span>${skill.desc || '暂无描述'}</span>
+          <div class="ring-hover-copy"><em>画面描述</em><span>${skill.visualDesc || '未知'}</span></div>
+          <div class="ring-hover-copy"><em>效果描述</em><span>${skill.effectDesc || '未知'}</span></div>
+          <div class="ring-hover-copy"><em>效果数组</em><span>${skill.effectSummary || '未知'}</span></div>
           <div class="ring-hover-tags">${(skill.tags || []).map(tag => `<span class="ring-hover-chip">${tag}</span>`).join('')}</div>
         </div>
       `).join('');
@@ -4351,10 +4617,9 @@
     }
 
     function buildSpiritRingGrid(rings, fallbackClass = 'ring-white') {
-      const normalized = [...(rings || [])];
-      while (normalized.length < 10) normalized.push({ empty: true, ringClass: fallbackClass });
+      const normalized = [...(rings || [])].filter(ring => ring && !ring.empty && ring.glyph && ring.glyph !== '空');
+      if (!normalized.length) return '';
       return normalized.slice(0, 10).map(ring => {
-        if (ring.empty) return `<div class="ring ${ring.ringClass || fallbackClass} empty"></div>`;
         return `<div class="ring ${ring.ringClass || fallbackClass} interactive-ring">${ring.glyph}${buildRingHoverMarkup(ring)}</div>`;
       }).join('');
     }
@@ -4377,7 +4642,6 @@
       `;
     }
 
-    function buildSplitShellPages() { /* 已移除克隆逻辑，交由 Vue 模板直出 */ }
     const pageMetaMap = {
       'page-archive': { title: '档案 / 个人主控', subtitle: '生命图谱、武魂轨道、社会摘要与储物入口', tag: '档案核心' },
       'page-map': { title: '星图 / 节点导航', subtitle: '当前位置、下钻路径、本地设施与动态地点', tag: '星图导航' },
@@ -4391,8 +4655,6 @@
       try {
         if (typeof window.__MVU_SET_TAB_STATE__ === 'function') window.__MVU_SET_TAB_STATE__(targetId);
       } catch (err) {}
-
-      buildSplitShellPages();
 
       tabs.forEach(t => t.classList.toggle('active', t.dataset.target === targetId));
       pages.forEach(p => {
@@ -4440,10 +4702,6 @@
 
     
     setMainTab('page-archive');
-
-    function renderList(target, items) {
-      target.innerHTML = (items || []).map(item => `<li>${item}</li>`).join('');
-    }
 
     function buildDynamicPreview(key) {
       if (key.startsWith('地图节点：')) {
@@ -4572,14 +4830,394 @@
       return '';
     }
 
+    function resolveSnapshotCharacter(snapshot, rawName) {
+      const key = resolveSnapshotCharKey(snapshot, rawName);
+      const chars = deepGet(snapshot, 'rootData.char', {});
+      const charInfo = key && chars && typeof chars === 'object' ? (chars[key] || null) : null;
+      const displayName = charInfo
+        ? toText(charInfo && (charInfo.name || deepGet(charInfo, 'base.name', '')), key)
+        : toText(rawName, '');
+      return { key, displayName, char: charInfo };
+    }
+
+    function normalizeLocForMatch(location) {
+      const raw = toText(location, '').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '').trim();
+      const segments = raw.split('-').filter(Boolean);
+      return {
+        raw,
+        leaf: segments[segments.length - 1] || raw,
+        segments
+      };
+    }
+
+    function isLocationCompatible(currentLoc, targetLoc) {
+      const current = normalizeLocForMatch(currentLoc);
+      const target = normalizeLocForMatch(targetLoc);
+      if (!current.raw || !target.raw) return current.raw === target.raw;
+      if (current.raw === target.raw || current.leaf === target.leaf) return true;
+      return current.segments.some(seg => target.segments.includes(seg));
+    }
+
+    function buildRelationInteractRequest(snapshot, actionType, rawTargetName, options = {}) {
+      const currentLoc = toText(snapshot && snapshot.currentLoc, '未知地点');
+      return buildMapInteractDispatchRequest(snapshot, {
+        action: actionType,
+        npcTarget: rawTargetName,
+        target: currentLoc,
+        currentLoc,
+        itemUsed: toText(options.itemUsed, '无'),
+        sourceLabel: '人物关系页社交互动',
+        sourceAnalysis: 'Relation interaction initialized from relation panel.'
+      });
+    }
+
+    function buildRelationBattleInitRequest(snapshot, rawTargetName) {
+      const currentLoc = toText(snapshot && snapshot.currentLoc, '未知地点');
+      return buildMapBattleInitRequest(snapshot, { npcTarget: rawTargetName, target: currentLoc, currentLoc });
+    }
+
+    function buildKnowledgeUnlockDispatchRequest(snapshot, options = {}) {
+      if (!snapshot || !snapshot.rootData) return null;
+      if (!isSnapshotPlayerControlled(snapshot)) return null;
+      const activeKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
+      if (!activeKey) return null;
+      const chars = deepGet(snapshot, 'rootData.char', {});
+      const activeChar = chars && typeof chars === 'object' ? (chars[activeKey] || {}) : {};
+      const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, activeKey));
+      const currentLoc = toText(deepGet(activeChar, 'status.loc', snapshot.currentLoc || '当前位置'), snapshot.currentLoc || '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
+      const content = toText(options.content, '').trim();
+      const impact = Math.max(0, Math.min(10, Math.floor(toNumber(options.impact, 0))));
+      if (!content || content === '无') return null;
+
+      const patchOps = [
+        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/knowledge_unlock_request`, value: { content, impact } },
+        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: '情报整理' },
+        { op: 'replace', path: '/sys/rsn', value: `[情报整理] ${activeName} 在【${currentLoc}】整理了线索：${content}。` }
+      ];
+
+      const systemPrompt = `以下内容属于前端已经完成的情报整理请求初始化，不要在正文直接复述“JSONPatch / 系统分析 / 仲裁日志”等术语。
+
+[情报整理] ${activeName} 在【${currentLoc}】准备整理一条新线索：${content}。
+
+[整理要求]
+你必须保留 knowledge_unlock_request.content = ${content} 与 impact = ${impact} 这两个字段；impact 需保持在 0 到 10 之间。请将这次整理过程转写为自然剧情，并在合适时完成情报解锁与世界线偏差结算。
+
+[MVU变量更新数据]
+<UpdateVariable>
+<Analysis>Knowledge unlock request initialized from intel panel.</Analysis>
+<JSONPatch>
+${JSON.stringify(patchOps, null, 2)}
+</JSONPatch>
+</UpdateVariable>`;
+
+      return {
+        playerInput: `我想在【${currentLoc}】整理关于【${content}】的情报线索。`,
+        systemPrompt,
+        requestKind: 'knowledge_unlock_request'
+      };
+    }
+
+    function buildQuestDispatchRequest(snapshot, actionType, options = {}) {
+      if (!snapshot || !snapshot.rootData) return null;
+      if (!isSnapshotPlayerControlled(snapshot)) return null;
+      const action = toText(actionType, '');
+      if (!['接取', '更新进度', '提交', '放弃'].includes(action)) return null;
+      const activeKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
+      if (!activeKey) return null;
+      const chars = deepGet(snapshot, 'rootData.char', {});
+      const activeChar = chars && typeof chars === 'object' ? (chars[activeKey] || {}) : {};
+      const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, activeKey));
+      const currentLoc = toText(deepGet(activeChar, 'status.loc', snapshot.currentLoc || '当前位置'), snapshot.currentLoc || '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
+      const questName = toText(options.questName, '').trim();
+      const questRecord = questName ? deepGet(activeChar, ['records', questName], null) : null;
+      if ((!questName || questName === '无') || (action !== '接取' && !questRecord)) return null;
+
+      const questDesc = action === '接取'
+        ? toText(options.questDesc, '').trim()
+        : toText(deepGet(questRecord, '描述', toText(options.questDesc, '无')), '无');
+      const requiredCount = action === '接取'
+        ? Math.max(1, toNumber(options.requiredCount, 1))
+        : Math.max(1, toNumber(deepGet(questRecord, '目标进度', 1), 1));
+      const rewardCoin = action === '接取'
+        ? Math.max(0, toNumber(options.rewardCoin, 0))
+        : Math.max(0, toNumber(deepGet(questRecord, '奖励币', 0), 0));
+      const rewardRep = action === '接取'
+        ? Math.max(0, toNumber(options.rewardRep, 0))
+        : Math.max(0, toNumber(deepGet(questRecord, '奖励声望', 0), 0));
+      const progressAdd = action === '更新进度' ? Math.max(0, toNumber(options.progressAdd, 1)) : 0;
+      if (action === '接取' && !questDesc) return null;
+
+      const patchOps = [
+        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/quest_request`, value: {
+          action,
+          quest_name: questName,
+          quest_desc: questDesc || '无',
+          progress_add: progressAdd,
+          required_count: requiredCount,
+          reward_coin: rewardCoin,
+          reward_rep: rewardRep
+        } },
+        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: action === '接取' ? '任务规划' : '任务处理' },
+        { op: 'replace', path: '/sys/rsn', value: `[任务请求] ${activeName} 在【${currentLoc}】发起【${action}】任务：【${questName}】。` }
+      ];
+
+      const recordSummary = questRecord
+        ? `${toText(deepGet(questRecord, '状态', '进行中'), '进行中')} / ${toNumber(deepGet(questRecord, '当前进度', 0), 0)}/${toNumber(deepGet(questRecord, '目标进度', requiredCount), requiredCount)}`
+        : '当前尚无既有任务记录';
+      const actionPromptMap = {
+        '接取': `我想接取任务【${questName}】。任务目标：${questDesc}。`,
+        '更新进度': `我想推进任务【${questName}】的进度，本次完成了 ${progressAdd} 点。`,
+        '提交': `我想提交任务【${questName}】。`,
+        '放弃': `我想放弃任务【${questName}】。`
+      };
+
+      const systemPrompt = `以下内容属于前端已经完成的任务请求初始化，不要在正文直接复述“JSONPatch / 系统分析 / 仲裁日志”等术语。
+
+[任务请求] ${activeName} 在【${currentLoc}】发起【${action}】任务：【${questName}】。
+
+[任务参考]
+当前任务记录：${recordSummary}
+你必须保留本次 quest_request 的 action / quest_name / quest_desc / progress_add / required_count / reward_coin / reward_rep 字段，使 MVU 后续能够正确完成任务结算。
+
+[MVU变量更新数据]
+<UpdateVariable>
+<Analysis>Quest request initialized from quest panel.</Analysis>
+<JSONPatch>
+${JSON.stringify(patchOps, null, 2)}
+</JSONPatch>
+</UpdateVariable>`;
+
+      return {
+        playerInput: actionPromptMap[action] || `我想处理任务【${questName}】。`,
+        systemPrompt,
+        requestKind: 'quest_request'
+      };
+    }
+
+    function buildHuntDispatchRequest(snapshot, options = {}) {
+      if (!snapshot || !snapshot.rootData) return null;
+      if (!isSnapshotPlayerControlled(snapshot)) return null;
+      const activeKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
+      if (!activeKey) return null;
+      const chars = deepGet(snapshot, 'rootData.char', {});
+      const activeChar = chars && typeof chars === 'object' ? (chars[activeKey] || {}) : {};
+      const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, activeKey));
+      const currentLoc = toText(deepGet(activeChar, 'status.loc', snapshot.currentLoc || '当前位置'), snapshot.currentLoc || '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
+      const killedAge = Math.max(1, Math.floor(toNumber(options.killedAge, 0)));
+      const isFerocious = !!options.isFerocious;
+      if (killedAge <= 0) return null;
+
+      const patchOps = [
+        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/hunt_request`, value: { killed_age: killedAge, is_ferocious: isFerocious } },
+        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: '狩猎中' },
+        { op: 'replace', path: '/sys/rsn', value: `[现实狩猎] ${activeName} 在【${currentLoc}】完成了一次${killedAge}年魂兽狩猎${isFerocious ? '（凶兽级）' : ''}。` }
+      ];
+
+      const systemPrompt = `以下内容属于前端已经完成的现实狩猎请求初始化，不要在正文直接复述“JSONPatch / 系统分析 / 仲裁日志”等术语。
+
+[现实狩猎] ${activeName} 在【${currentLoc}】击杀了一只约 ${killedAge} 年魂兽${isFerocious ? '，并判定为十万年/凶兽级目标' : ''}。
+
+[结算要求]
+你必须保留 hunt_request.killed_age = ${killedAge} 与 is_ferocious = ${isFerocious ? 'true' : 'false'} 这两个字段，使 MVU 后续能够正确生成魂环、魂骨、世界偏差与相关掉落。
+
+[MVU变量更新数据]
+<UpdateVariable>
+<Analysis>Hunt request initialized from trial panel.</Analysis>
+<JSONPatch>
+${JSON.stringify(patchOps, null, 2)}
+</JSONPatch>
+</UpdateVariable>`;
+
+      return {
+        playerInput: `我想结算一场在【${currentLoc}】进行的现实狩猎，目标年限约为【${killedAge}年】${isFerocious ? '，属于十万年/凶兽级目标。' : '。'}`,
+        systemPrompt,
+        requestKind: 'hunt_request'
+      };
+    }
+
+    function buildAbyssKillDispatchRequest(snapshot, options = {}) {
+      if (!snapshot || !snapshot.rootData) return null;
+      if (!isSnapshotPlayerControlled(snapshot)) return null;
+      const activeKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
+      if (!activeKey) return null;
+      const killTier = toText(options.killTier, '');
+      const quantity = Math.max(1, Math.floor(toNumber(options.quantity, 1)));
+      if (!['低阶生物', '中阶生物', '高阶生物', '深渊王者'].includes(killTier)) return null;
+      const chars = deepGet(snapshot, 'rootData.char', {});
+      const activeChar = chars && typeof chars === 'object' ? (chars[activeKey] || {}) : {};
+      const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, activeKey));
+      const currentLoc = toText(deepGet(activeChar, 'status.loc', snapshot.currentLoc || '当前位置'), snapshot.currentLoc || '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
+
+      const patchOps = [
+        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/abyss_kill_request`, value: { kill_tier: killTier, quantity } },
+        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: '深渊作战' },
+        { op: 'replace', path: '/sys/rsn', value: `[深渊战功上报] ${activeName} 在【${currentLoc}】上报击杀：${killTier} × ${quantity}。` }
+      ];
+
+      const systemPrompt = `以下内容属于前端已经完成的深渊战功上报请求初始化，不要在正文直接复述“JSONPatch / 系统分析 / 仲裁日志”等术语。
+
+[深渊战功上报] ${activeName} 在【${currentLoc}】上报击杀：${killTier} × ${quantity}。
+
+[结算要求]
+你必须保留 abyss_kill_request.kill_tier = ${killTier} 与 quantity = ${quantity}，使 MVU 后续能够正确发放战功。
+
+[MVU变量更新数据]
+<UpdateVariable>
+<Analysis>Abyss kill request initialized from trial panel.</Analysis>
+<JSONPatch>
+${JSON.stringify(patchOps, null, 2)}
+</JSONPatch>
+</UpdateVariable>`;
+
+      return {
+        playerInput: `我想上报在【${currentLoc}】击杀的深渊生物战果：${killTier} × ${quantity}。`,
+        systemPrompt,
+        requestKind: 'abyss_kill_request'
+      };
+    }
+
+    function getFactionContributionValue(snapshot, factionName) {
+      const fac = toText(factionName, '');
+      if (fac === '史莱克学院') return toNumber(deepGet(snapshot, 'activeChar.wealth.shrek_pt', 0), 0);
+      if (fac === '战神殿' || fac === '血神军团' || fac === '联邦军方') return toNumber(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0), 0);
+      return toNumber(deepGet(snapshot, 'activeChar.wealth.tang_pt', 0), 0);
+    }
+
+    function buildPromotionDispatchRequest(snapshot, options = {}) {
+      if (!snapshot || !snapshot.rootData) return null;
+      if (!isSnapshotPlayerControlled(snapshot)) return null;
+      const activeKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
+      if (!activeKey) return null;
+      const targetFaction = toText(options.targetFaction, '').trim();
+      const targetTitle = toText(options.targetTitle, '').trim();
+      if (!targetFaction || !targetTitle || targetFaction === '无' || targetTitle === '无') return null;
+      const chars = deepGet(snapshot, 'rootData.char', {});
+      const activeChar = chars && typeof chars === 'object' ? (chars[activeKey] || {}) : {};
+      const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, activeKey));
+      const currentLoc = toText(deepGet(activeChar, 'status.loc', snapshot.currentLoc || '当前位置'), snapshot.currentLoc || '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
+      const patchOps = [
+        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/promotion_request`, value: { target_faction: targetFaction, target_title: targetTitle } },
+        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: '阵营事务' },
+        { op: 'replace', path: '/sys/rsn', value: `[晋升申请] ${activeName} 在【${currentLoc}】申请【${targetFaction} - ${targetTitle}】。` }
+      ];
+      const contribution = getFactionContributionValue(snapshot, targetFaction);
+      const systemPrompt = `以下内容属于前端已经完成的势力晋升申请初始化，不要在正文直接复述“JSONPatch / 系统分析 / 仲裁日志”等术语。
+
+[晋升申请] ${activeName} 在【${currentLoc}】申请晋升为【${targetFaction} - ${targetTitle}】。
+
+[申请参考]
+当前等级：${toNumber(deepGet(activeChar, 'stat.lv', 0), 0)} / 斗铠：${toNumber(deepGet(activeChar, 'equip.armor.lv', 0), 0)} / 机甲：${toText(deepGet(activeChar, 'equip.mech.lv', '无'), '无')} / 当前贡献池：${contribution}
+你必须保留 promotion_request.target_faction = ${targetFaction} 与 target_title = ${targetTitle}，使 MVU 后续能够按既定门槛完成晋升审核。
+
+[MVU变量更新数据]
+<UpdateVariable>
+<Analysis>Promotion request initialized from faction panel.</Analysis>
+<JSONPatch>
+${JSON.stringify(patchOps, null, 2)}
+</JSONPatch>
+</UpdateVariable>`;
+      return {
+        playerInput: `我想向【${targetFaction}】申请晋升为【${targetTitle}】。`,
+        systemPrompt,
+        requestKind: 'promotion_request'
+      };
+    }
+
+    function buildDonateDispatchRequest(snapshot, options = {}) {
+      if (!snapshot || !snapshot.rootData) return null;
+      if (!isSnapshotPlayerControlled(snapshot)) return null;
+      const activeKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
+      if (!activeKey) return null;
+      const itemName = toText(options.itemName, '').trim();
+      const targetFaction = toText(options.targetFaction, '').trim();
+      const quantity = Math.max(1, Math.floor(toNumber(options.quantity, 1)));
+      if (!itemName || !targetFaction || itemName === '无' || targetFaction === '无') return null;
+      const ownedCount = toNumber(deepGet(snapshot, ['activeChar', 'inventory', itemName, '数量'], 0), 0);
+      if (ownedCount < quantity) return null;
+      const chars = deepGet(snapshot, 'rootData.char', {});
+      const activeChar = chars && typeof chars === 'object' ? (chars[activeKey] || {}) : {};
+      const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, activeKey));
+      const currentLoc = toText(deepGet(activeChar, 'status.loc', snapshot.currentLoc || '当前位置'), snapshot.currentLoc || '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
+      const patchOps = [
+        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/donate_request`, value: { item_name: itemName, target_faction: targetFaction, quantity } },
+        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: '捐献物资' },
+        { op: 'replace', path: '/sys/rsn', value: `[物资捐献申请] ${activeName} 在【${currentLoc}】准备向【${targetFaction}】提交【${itemName}】×${quantity}。` }
+      ];
+      const systemPrompt = `以下内容属于前端已经完成的物资捐献请求初始化，不要在正文直接复述“JSONPatch / 系统分析 / 仲裁日志”等术语。
+
+[物资捐献申请] ${activeName} 在【${currentLoc}】准备向【${targetFaction}】提交【${itemName}】×${quantity}。
+
+[申请参考]
+背包库存：${ownedCount} 件。
+你必须保留 donate_request.item_name = ${itemName}、target_faction = ${targetFaction}、quantity = ${quantity}，使 MVU 后续能够正确扣除物品并发放贡献点。
+
+[MVU变量更新数据]
+<UpdateVariable>
+<Analysis>Donate request initialized from faction panel.</Analysis>
+<JSONPatch>
+${JSON.stringify(patchOps, null, 2)}
+</JSONPatch>
+</UpdateVariable>`;
+      return {
+        playerInput: `我想向【${targetFaction}】捐献【${itemName}】×${quantity}。`,
+        systemPrompt,
+        requestKind: 'donate_request'
+      };
+    }
+
+    function buildFactionAffairConsoleHtml(snapshot, preferredFactionName = '') {
+      const pendingPromotionFaction = toText(deepGet(snapshot, 'activeChar.promotion_request.target_faction', '无'), '无');
+      const pendingPromotionTitle = toText(deepGet(snapshot, 'activeChar.promotion_request.target_title', '无'), '无');
+      const pendingDonateItem = toText(deepGet(snapshot, 'activeChar.donate_request.item_name', '无'), '无');
+      const pendingDonateFaction = toText(deepGet(snapshot, 'activeChar.donate_request.target_faction', '无'), '无');
+      const pendingDonateQty = Math.max(1, toNumber(deepGet(snapshot, 'activeChar.donate_request.quantity', 1), 1));
+      const factionNames = [];
+      [preferredFactionName, pendingPromotionFaction, pendingDonateFaction, ...(snapshot.factions || []).map(([name]) => name), '唐门', '史莱克学院', '战神殿', '传灵塔', '联邦军方', '血神军团', '圣灵教'].forEach(name => {
+        const text = toText(name, '').trim();
+        if (text && text !== '无' && !factionNames.includes(text)) factionNames.push(text);
+      });
+      const factionOptionsHtml = factionNames.map(name => `<option value="${escapeHtmlAttr(name)}">${htmlEscape(name)}</option>`).join('');
+      const donationEntries = (snapshot.inventoryEntries || []).filter(([, item]) => toNumber(item && item['数量'], 0) > 0).slice(0, 50);
+      const donationOptionsHtml = donationEntries.length
+        ? donationEntries.map(([name, item]) => `<option value="${escapeHtmlAttr(name)}" ${name === pendingDonateItem ? 'selected' : ''}>${htmlEscape(`${name} ×${toNumber(item && item['数量'], 0)}`)}</option>`).join('')
+        : '<option value="">暂无可捐献物品</option>';
+      const defaultPromotionFaction = pendingPromotionFaction !== '无' ? pendingPromotionFaction : (preferredFactionName || factionNames[0] || '');
+      const defaultDonateFaction = pendingDonateFaction !== '无' ? pendingDonateFaction : (preferredFactionName || factionNames[0] || '');
+      return `
+        <div class="intel-card request-console-card">
+          <b>阵营事务操作台</b>
+          <span>${htmlEscape(`挂起申请：晋升 ${pendingPromotionFaction !== '无' ? `${pendingPromotionFaction} / ${pendingPromotionTitle}` : '无'} ｜ 捐献 ${pendingDonateItem !== '无' ? `${pendingDonateItem} × ${pendingDonateQty} / ${pendingDonateFaction}` : '无'}`)}</span>
+          <div class="request-console-grid">
+            <div class="request-console-row">
+              <select class="request-console-input" data-faction-input="promoteFaction">${factionNames.map(name => `<option value="${escapeHtmlAttr(name)}" ${name === defaultPromotionFaction ? 'selected' : ''}>${htmlEscape(name)}</option>`).join('')}</select>
+              <input class="request-console-input" data-faction-input="targetTitle" value="${escapeHtmlAttr(pendingPromotionTitle !== '无' ? pendingPromotionTitle : '')}" placeholder="申请职位，如黄级 / 预备战神 / 少将" />
+              <button type="button" class="relation-action-btn faction-action-btn" data-faction-action="promote">提交晋升申请</button>
+            </div>
+            <div class="request-console-row">
+              <select class="request-console-input" data-faction-input="donateFaction">${factionNames.map(name => `<option value="${escapeHtmlAttr(name)}" ${name === defaultDonateFaction ? 'selected' : ''}>${htmlEscape(name)}</option>`).join('')}</select>
+              <select class="request-console-input" data-faction-input="donateItem" ${donationEntries.length ? '' : 'disabled'}>${donationOptionsHtml}</select>
+              <input type="number" min="1" class="request-console-input" data-faction-input="donateQty" value="${escapeHtmlAttr(String(pendingDonateQty))}" placeholder="数量" />
+              <button type="button" class="relation-action-btn faction-action-btn" data-faction-action="donate" ${donationEntries.length ? '' : 'disabled'}>提交捐献</button>
+            </div>
+          </div>
+          <span>${htmlEscape(`当前贡献池：唐门 ${formatNumber(deepGet(snapshot, 'activeChar.wealth.tang_pt', 0))} / 学院 ${formatNumber(deepGet(snapshot, 'activeChar.wealth.shrek_pt', 0))} / 军方 ${formatNumber(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0))}`)}</span>
+        </div>
+      `;
+    }
+
     function buildMapTradeModalOptions(snapshot, dispatchDetail) {
       const detail = dispatchDetail || {};
       const services = normalizeMapDispatchServices(detail);
       const action = toText(detail.action, '');
       const npcTarget = toText(detail.npcTarget, '');
       const currentLoc = toText(snapshot && snapshot.currentLoc, '');
+      const normalizedLoc = toText(snapshot && snapshot.normalizedLoc, currentLoc);
       const locations = deepGet(snapshot, 'rootData.world.locations', {});
-      const currentLocation = locations && typeof locations === 'object' ? (locations[currentLoc] || {}) : {};
+      const currentLocation = snapshot && snapshot.locationData && typeof snapshot.locationData === 'object'
+        ? snapshot.locationData
+        : (locations && typeof locations === 'object'
+          ? (locations[normalizedLoc] || locations[currentLoc] || {})
+          : {});
       const storeMap = currentLocation && typeof currentLocation === 'object' ? (currentLocation.stores || {}) : {};
 
       let initialTab = 'tab-shop';
@@ -4633,25 +5271,11 @@
         { op: 'replace', path: '/world/combat/round', value: 1 },
         { op: 'replace', path: '/world/combat/phase', value: '宣告阶段' },
         { op: 'replace', path: '/world/combat/environment', value: `${arenaName} / 切磋` },
-        { op: 'replace', path: '/world/combat/_summary', value: {
-          player_action: { action_type: '无', element_count: 1, is_charged: false },
-          settle_result: { target_npc: targetName, result: '未决', is_killed: false },
-          round_count: 0,
-          mode: 'single_round',
-          _generated_by: 'UI.html.map-action-dispatch'
-        } },
         { op: 'replace', path: '/world/combat/participants', value: {
-          [activeKey]: { faction: '己方', status: deepGet(activeChar, 'status.alive', true) === false ? '重伤' : '存活', action_declared: '无', is_summon: false, _current_cast_time: 0 },
-          [targetKey]: { faction: '敌对', status: deepGet(targetChar, 'status.alive', true) === false ? '重伤' : '存活', action_declared: '无', is_summon: false, _current_cast_time: 0 }
+          [activeKey]: { faction: '己方', status: deepGet(activeChar, 'status.alive', true) === false ? '重伤' : '存活', is_summon: false },
+          [targetKey]: { faction: '敌对', status: deepGet(targetChar, 'status.alive', true) === false ? '重伤' : '存活', is_summon: false }
         } },
         { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: '战斗中' },
-        { op: 'replace', path: `/char/${escapeJsonPointerValue(targetKey)}/status/action`, value: '应战' },
-        { op: 'replace', path: '/sys/rsn', value: `[切磋开始] ${activeName}在${arenaName}向${targetName}发起切磋。` }
-      ];
-
-      const systemPrompt = `以下内容属于前端已经完成的战斗初始化，不要在正文直接复述“JSONPatch / 系统分析 / 仲裁日志”等术语。
-
-[切磋开始] ${activeName}在【${arenaName}】向【${targetName}】发起切磋。
 
 [MVU变量更新数据]
 以下为本次战斗初始化的完整 MVU 更新，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。
@@ -4676,12 +5300,14 @@ ${JSON.stringify(patchOps, null, 2)}
       const npcTargets = Array.isArray(detail.npcTargets) ? detail.npcTargets.map(item => toText(item, '')).filter(Boolean) : [];
       if (!npcTarget && npcTargets.length === 1) npcTarget = npcTargets[0];
 
-      // MVU 的 interact_request.action 当前没有“汇报/情报”细分动作，
-      // 因此地图里的 brief / intel 暂按“请教”写入，区别保留在提示词与剧情文案里。
       const interactActionMap = {
         talk: '闲聊',
         brief: '请教',
-        intel: '请教'
+        intel: '请教',
+        ask: '请教',
+        gift: '送礼',
+        confess: '表白',
+        dual: '双修'
       };
       const interactAction = toText(interactActionMap[action], '');
       if (!snapshot || !snapshot.rootData || !npcTarget || !interactAction) return null;
@@ -4692,41 +5318,66 @@ ${JSON.stringify(patchOps, null, 2)}
       const chars = deepGet(snapshot, 'rootData.char', {});
       const activeChar = chars && typeof chars === 'object' ? (chars[activeKey] || {}) : {};
       const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, activeKey));
+      const resolvedTarget = resolveSnapshotCharacter(snapshot, npcTarget);
+      const targetName = toText(resolvedTarget.displayName, npcTarget);
+      const relationMap = deepGet(snapshot, 'activeChar.social.relations', {});
+      const relationData = relationMap && typeof relationMap === 'object'
+        ? (relationMap[targetName] || relationMap[resolvedTarget.key] || {})
+        : {};
       const arenaName = toText(detail.target, toText(detail.currentLoc, toText(snapshot.currentLoc, '未知地点')));
       const currentTick = toNumber(deepGet(snapshot, 'rootData.world.time.tick', 0), 0);
+      const itemUsed = interactAction === '送礼'
+        ? (toText(detail.itemUsed, toText(detail.item_used, '无')) || '无')
+        : '无';
+      const sourceLabel = toText(detail.sourceLabel, '地图 NPC 互动');
+      const sourceAnalysis = toText(detail.sourceAnalysis, 'Map NPC interaction initialized from map action.');
       const actionPromptMap = {
-        talk: `我想在【${arenaName}】和【${npcTarget}】对话。`,
-        brief: `我想在【${arenaName}】向【${npcTarget}】汇报情况并请示安排。`,
-        intel: `我想在【${arenaName}】向【${npcTarget}】请教情报。`
+        talk: `我想在【${arenaName}】和【${targetName}】闲聊。`,
+        brief: `我想在【${arenaName}】向【${targetName}】汇报情况并请示安排。`,
+        intel: `我想在【${arenaName}】向【${targetName}】请教情报。`,
+        ask: `我想在【${arenaName}】向【${targetName}】请教修炼心得。`,
+        gift: itemUsed !== '无'
+          ? `我想在【${arenaName}】向【${targetName}】赠送【${itemUsed}】。`
+          : `我想在【${arenaName}】向【${targetName}】送礼。`,
+        confess: `我想在【${arenaName}】向【${targetName}】表白，明确彼此心意。`,
+        dual: `我想在【${arenaName}】与【${targetName}】进行双修。`
       };
 
       const patchOps = [
         { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/interact_request`, value: {
-          target_npc: npcTarget,
+          target_npc: targetName,
           action: interactAction,
-          item_used: '无',
+          item_used: itemUsed,
           ai_score: 0
         } },
         { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: '日常' },
         { op: 'replace', path: '/world/time/tick', value: currentTick + 2 },
-        { op: 'replace', path: '/sys/rsn', value: `[社交互动] ${activeName} 在【${arenaName}】对【${npcTarget}】发起【${interactAction}】。` }
+        { op: 'replace', path: '/sys/rsn', value: `[社交互动] ${activeName} 在【${arenaName}】对【${targetName}】发起【${interactAction}】。` }
       ];
 
-      const systemPrompt = `以下内容属于前端已经完成的地图 NPC 互动结算，不要在正文直接复述“JSONPatch / 系统分析 / 仲裁日志”等术语。
+      const relationSummary = relationData && typeof relationData === 'object'
+        ? `${toText(relationData['关系'], '陌生')} / 路线 ${toText(relationData['relation_route'], '朋友线')} / 好感 ${toNumber(relationData['好感度'], 0)}`
+        : '暂无已知关系记录';
 
-[社交互动] ${activeName} 在【${arenaName}】对【${npcTarget}】发起【${interactAction}】。
+      const systemPrompt = `以下内容属于前端已经完成的${sourceLabel}请求初始化，不要在正文直接复述“JSONPatch / 系统分析 / 仲裁日志”等术语。
+
+[社交互动] ${activeName} 在【${arenaName}】对【${targetName}】发起【${interactAction}】。
+
+[关系参考]
+当前关系：${relationSummary}
+互动提示：你必须根据剧情氛围为本次 interact_request.ai_score 回填一个 -50 到 50 的整数；若互动无法成立则保持 0，并在正文给出合理原因。${interactAction === '送礼' ? ` 送礼时必须保留 item_used = ${itemUsed}。` : ''}
 
 [MVU变量更新数据]
-以下为本次地图 NPC 互动的完整 MVU 更新，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。
+以下为本次人物互动的前端预填请求，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。
 <UpdateVariable>
-<Analysis>Map NPC interaction initialized from map action.</Analysis>
+<Analysis>${sourceAnalysis}</Analysis>
 <JSONPatch>
 ${JSON.stringify(patchOps, null, 2)}
 </JSONPatch>
 </UpdateVariable>`;
 
       return {
-        playerInput: actionPromptMap[action] || `我想在【${arenaName}】与【${npcTarget}】互动。`,
+        playerInput: actionPromptMap[action] || `我想在【${arenaName}】与【${targetName}】互动。`,
         systemPrompt,
         requestKind: 'interact_request'
       };
@@ -4993,6 +5644,139 @@ ${JSON.stringify(patchOps, null, 2)}
         return;
       }
 
+      const relationFocusBtn = eventTarget ? eventTarget.closest('[data-relation-focus]') : null;
+      if (relationFocusBtn && modalBody.contains(relationFocusBtn)) {
+        event.preventDefault();
+        event.stopPropagation();
+        const targetName = relationFocusBtn.getAttribute('data-relation-focus') || '';
+        if (targetName && currentModalPreviewKey) {
+          modalFocusState[`${currentModalPreviewKey}::relation-focus`] = targetName;
+          renderModalContent(currentModalPreviewKey);
+        }
+        return;
+      }
+
+      const relationActionBtn = eventTarget ? eventTarget.closest('.relation-action-btn[data-relation-action][data-relation-target]') : null;
+      if (relationActionBtn && modalBody.contains(relationActionBtn)) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!isSnapshotPlayerControlled(liveSnapshot)) {
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('当前为非玩家角色视角，仅允许浏览，不能发起人物关系互动。', 'error');
+          else if (typeof window.alert === 'function') window.alert('当前为非玩家角色视角，仅允许浏览，不能发起人物关系互动。');
+          return;
+        }
+
+        const actionType = relationActionBtn.getAttribute('data-relation-action') || '';
+        const targetName = relationActionBtn.getAttribute('data-relation-target') || '';
+        const resolvedTarget = resolveSnapshotCharacter(liveSnapshot, targetName);
+        if (!resolvedTarget.char) {
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show(`找不到关系对象【${targetName}】。`, 'error');
+          else if (typeof window.alert === 'function') window.alert(`找不到关系对象【${targetName}】。`);
+          return;
+        }
+
+        const currentLocFull = toText(deepGet(liveSnapshot, 'activeChar.status.loc', liveSnapshot.currentLoc || ''), liveSnapshot.currentLoc || '');
+        const targetLoc = toText(deepGet(resolvedTarget.char, 'status.loc', ''), '');
+        const isSameLocation = isLocationCompatible(currentLocFull, targetLoc);
+        const isContactable = deepGet(resolvedTarget.char, 'status.alive', true) !== false;
+        const relationMap = deepGet(liveSnapshot, 'activeChar.social.relations', {});
+        const relationData = relationMap && typeof relationMap === 'object' ? (relationMap[targetName] || relationMap[resolvedTarget.key] || {}) : {};
+        const favor = toNumber(relationData && relationData['好感度'], 0);
+        const route = toText(relationData && relationData['relation_route'], '朋友线');
+        const routeSwitchable = !!deepGet(relationData, '_route_switchable', false);
+
+        if (!isContactable || !isSameLocation) {
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show(`【${targetName}】当前不在你身边，无法进行当面关系互动。`, 'error');
+          else if (typeof window.alert === 'function') window.alert(`【${targetName}】当前不在你身边，无法进行当面关系互动。`);
+          return;
+        }
+        if (actionType === 'ask' && favor < 30) {
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show(`向【${targetName}】请教需要好感度达到 30。`, 'error');
+          else if (typeof window.alert === 'function') window.alert(`向【${targetName}】请教需要好感度达到 30。`);
+          return;
+        }
+        if (actionType === 'confess' && !(route === '恋人线' || routeSwitchable || favor >= 80)) {
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show(`【${targetName}】当前尚未达到适合表白的关系阶段。`, 'error');
+          else if (typeof window.alert === 'function') window.alert(`【${targetName}】当前尚未达到适合表白的关系阶段。`);
+          return;
+        }
+        if (actionType === 'dual' && !(route === '恋人线' && favor >= 80)) {
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('双修仅在高好感恋人线关系下开放。', 'error');
+          else if (typeof window.alert === 'function') window.alert('双修仅在高好感恋人线关系下开放。');
+          return;
+        }
+
+        let actionData = null;
+        if (actionType === 'battle') {
+          actionData = buildRelationBattleInitRequest(liveSnapshot, targetName);
+        } else {
+          let itemUsed = '无';
+          if (actionType === 'gift') {
+            const actionPanel = relationActionBtn.closest('.relation-action-panel') || modalBody;
+            const giftSelect = actionPanel ? actionPanel.querySelector('.relation-gift-select') : null;
+            itemUsed = toText(giftSelect && giftSelect.value, '');
+            if (!itemUsed) {
+              if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('请先选择要赠送的物品。', 'error');
+              else if (typeof window.alert === 'function') window.alert('请先选择要赠送的物品。');
+              return;
+            }
+          }
+          actionData = buildRelationInteractRequest(liveSnapshot, actionType, targetName, { itemUsed });
+        }
+
+        if (actionData && typeof window.sendToAI === 'function') {
+          window.sendToAI(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
+        }
+        return;
+      }
+
+      const questFocusBtn = eventTarget ? eventTarget.closest('[data-quest-focus]') : null;
+      if (questFocusBtn && modalBody.contains(questFocusBtn)) {
+        event.preventDefault();
+        event.stopPropagation();
+        const questName = questFocusBtn.getAttribute('data-quest-focus') || '';
+        if (questName && currentModalPreviewKey) {
+          modalFocusState[`${currentModalPreviewKey}::quest-focus`] = questName;
+          renderModalContent(currentModalPreviewKey);
+        }
+        return;
+      }
+
+      const questActionBtn = eventTarget ? eventTarget.closest('.quest-action-btn[data-quest-action]') : null;
+      if (questActionBtn && modalBody.contains(questActionBtn)) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!isSnapshotPlayerControlled(liveSnapshot)) {
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('当前为非玩家角色视角，仅允许浏览，不能发起任务请求。', 'error');
+          else if (typeof window.alert === 'function') window.alert('当前为非玩家角色视角，仅允许浏览，不能发起任务请求。');
+          return;
+        }
+        const actionType = questActionBtn.getAttribute('data-quest-action') || '';
+        const requestPanel = questActionBtn.closest('.request-console-card') || modalBody;
+        const nameInput = requestPanel ? requestPanel.querySelector('[data-quest-input="name"]') : null;
+        const descInput = requestPanel ? requestPanel.querySelector('[data-quest-input="desc"]') : null;
+        const requiredInput = requestPanel ? requestPanel.querySelector('[data-quest-input="required"]') : null;
+        const rewardCoinInput = requestPanel ? requestPanel.querySelector('[data-quest-input="rewardCoin"]') : null;
+        const rewardRepInput = requestPanel ? requestPanel.querySelector('[data-quest-input="rewardRep"]') : null;
+        const progressInput = requestPanel ? requestPanel.querySelector('[data-quest-input="progress"]') : null;
+        const targetQuestName = toText(questActionBtn.getAttribute('data-quest-target'), '') || toText(nameInput && nameInput.value, '').trim();
+        const actionData = buildQuestDispatchRequest(liveSnapshot, actionType, {
+          questName: targetQuestName,
+          questDesc: toText(descInput && descInput.value, '').trim(),
+          requiredCount: toNumber(requiredInput && requiredInput.value, 1),
+          rewardCoin: toNumber(rewardCoinInput && rewardCoinInput.value, 0),
+          rewardRep: toNumber(rewardRepInput && rewardRepInput.value, 0),
+          progressAdd: toNumber(progressInput && progressInput.value, 1)
+        });
+        if (!actionData) {
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('任务请求参数不完整，请检查任务名称与说明。', 'error');
+          else if (typeof window.alert === 'function') window.alert('任务请求参数不完整，请检查任务名称与说明。');
+          return;
+        }
+        if (typeof window.sendToAI === 'function') window.sendToAI(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
+        return;
+      }
+
       const switchCharBtn = eventTarget ? eventTarget.closest('[data-mvu-switch-char]') : null;
       if (switchCharBtn && modalBody.contains(switchCharBtn)) {
         event.preventDefault();
@@ -5013,6 +5797,115 @@ ${JSON.stringify(patchOps, null, 2)}
         if (nav === 'prev') modalPaginationState[stateKey] = Math.max(1, currentPage - 1);
         if (nav === 'next') modalPaginationState[stateKey] = currentPage + 1;
         renderModalContent(currentModalPreviewKey);
+        return;
+      }
+
+      const intelActionBtn = eventTarget ? eventTarget.closest('.intel-action-btn[data-intel-action]') : null;
+      if (intelActionBtn && modalBody.contains(intelActionBtn)) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!isSnapshotPlayerControlled(liveSnapshot)) {
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('当前为非玩家角色视角，仅允许浏览，不能整理情报。', 'error');
+          else if (typeof window.alert === 'function') window.alert('当前为非玩家角色视角，仅允许浏览，不能整理情报。');
+          return;
+        }
+        const requestPanel = intelActionBtn.closest('.request-console-card') || modalBody;
+        const contentInput = requestPanel ? requestPanel.querySelector('[data-intel-input="content"]') : null;
+        const impactInput = requestPanel ? requestPanel.querySelector('[data-intel-input="impact"]') : null;
+        const actionData = buildKnowledgeUnlockDispatchRequest(liveSnapshot, {
+          content: toText(contentInput && contentInput.value, '').trim(),
+          impact: toNumber(impactInput && impactInput.value, 0)
+        });
+        if (!actionData) {
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('请输入要整理的情报内容。', 'error');
+          else if (typeof window.alert === 'function') window.alert('请输入要整理的情报内容。');
+          return;
+        }
+        if (typeof window.sendToAI === 'function') window.sendToAI(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
+        return;
+      }
+
+      const trialActionBtn = eventTarget ? eventTarget.closest('.trial-action-btn[data-trial-action]') : null;
+      if (trialActionBtn && modalBody.contains(trialActionBtn)) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!isSnapshotPlayerControlled(liveSnapshot)) {
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('当前为非玩家角色视角，仅允许浏览，不能提交试炼结算。', 'error');
+          else if (typeof window.alert === 'function') window.alert('当前为非玩家角色视角，仅允许浏览，不能提交试炼结算。');
+          return;
+        }
+        const trialAction = trialActionBtn.getAttribute('data-trial-action') || '';
+        const requestPanel = trialActionBtn.closest('.request-console-card') || modalBody;
+        let actionData = null;
+        if (trialAction === 'hunt') {
+          const ageInput = requestPanel ? requestPanel.querySelector('[data-trial-input="hunt-age"]') : null;
+          const ferociousInput = requestPanel ? requestPanel.querySelector('[data-trial-input="hunt-ferocious"]') : null;
+          actionData = buildHuntDispatchRequest(liveSnapshot, {
+            killedAge: toNumber(ageInput && ageInput.value, 0),
+            isFerocious: toText(ferociousInput && ferociousInput.value, 'false') === 'true'
+          });
+          if (!actionData) {
+            if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('请输入有效的狩猎年限。', 'error');
+            else if (typeof window.alert === 'function') window.alert('请输入有效的狩猎年限。');
+            return;
+          }
+        } else if (trialAction === 'abyss') {
+          const tierInput = requestPanel ? requestPanel.querySelector('[data-trial-input="abyss-tier"]') : null;
+          const qtyInput = requestPanel ? requestPanel.querySelector('[data-trial-input="abyss-qty"]') : null;
+          actionData = buildAbyssKillDispatchRequest(liveSnapshot, {
+            killTier: toText(tierInput && tierInput.value, ''),
+            quantity: toNumber(qtyInput && qtyInput.value, 1)
+          });
+          if (!actionData) {
+            if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('请输入有效的深渊击杀级别与数量。', 'error');
+            else if (typeof window.alert === 'function') window.alert('请输入有效的深渊击杀级别与数量。');
+            return;
+          }
+        }
+        if (actionData && typeof window.sendToAI === 'function') window.sendToAI(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
+        return;
+      }
+
+      const factionActionBtn = eventTarget ? eventTarget.closest('.faction-action-btn[data-faction-action]') : null;
+      if (factionActionBtn && modalBody.contains(factionActionBtn)) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!isSnapshotPlayerControlled(liveSnapshot)) {
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('当前为非玩家角色视角，仅允许浏览，不能提交阵营事务。', 'error');
+          else if (typeof window.alert === 'function') window.alert('当前为非玩家角色视角，仅允许浏览，不能提交阵营事务。');
+          return;
+        }
+        const factionAction = factionActionBtn.getAttribute('data-faction-action') || '';
+        const requestPanel = factionActionBtn.closest('.request-console-card') || modalBody;
+        let actionData = null;
+        if (factionAction === 'promote') {
+          const factionInput = requestPanel ? requestPanel.querySelector('[data-faction-input="promoteFaction"]') : null;
+          const titleInput = requestPanel ? requestPanel.querySelector('[data-faction-input="targetTitle"]') : null;
+          actionData = buildPromotionDispatchRequest(liveSnapshot, {
+            targetFaction: toText(factionInput && factionInput.value, ''),
+            targetTitle: toText(titleInput && titleInput.value, '').trim()
+          });
+          if (!actionData) {
+            if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('请输入有效的目标势力与申请职位。', 'error');
+            else if (typeof window.alert === 'function') window.alert('请输入有效的目标势力与申请职位。');
+            return;
+          }
+        } else if (factionAction === 'donate') {
+          const factionInput = requestPanel ? requestPanel.querySelector('[data-faction-input="donateFaction"]') : null;
+          const itemInput = requestPanel ? requestPanel.querySelector('[data-faction-input="donateItem"]') : null;
+          const qtyInput = requestPanel ? requestPanel.querySelector('[data-faction-input="donateQty"]') : null;
+          actionData = buildDonateDispatchRequest(liveSnapshot, {
+            targetFaction: toText(factionInput && factionInput.value, ''),
+            itemName: toText(itemInput && itemInput.value, ''),
+            quantity: toNumber(qtyInput && qtyInput.value, 1)
+          });
+          if (!actionData) {
+            if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('请确认捐献物品、目标势力与数量，并确保背包库存充足。', 'error');
+            else if (typeof window.alert === 'function') window.alert('请确认捐献物品、目标势力与数量，并确保背包库存充足。');
+            return;
+          }
+        }
+        if (actionData && typeof window.sendToAI === 'function') window.sendToAI(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
         return;
       }
 

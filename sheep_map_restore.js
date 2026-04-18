@@ -2928,12 +2928,6 @@
   let hoverSyncRaf = 0;
   let hoverSyncCanvas = null;
 
-  function isWorldCoordMap(mapId = mapState.currentMapId, mapLevel = mapState.mapLevel) {
-    const safeMapId = toText(mapId, 'map_douluo_world');
-    const safeLevel = toText(mapLevel, inferMapLevelFromId(safeMapId));
-    return safeMapId === 'map_douluo_world' || safeLevel === 'world' || safeLevel === 'continent';
-  }
-
   function resolveSnapshotCoordSystem() {
     return MAP_COORD_SYSTEM_IMAGE;
   }
@@ -3159,22 +3153,6 @@
     if (safeMapId === 'map_douluo_world') return '斗罗大陆总图';
     if (/^map_/i.test(safeMapId)) return '未命名子图';
     return '未命名地图';
-  }
-
-  function resolveSettlementDisplayName(baseName, item) {
-    const safeBase = toText(baseName, '未命名据点');
-    const state = toText(item && item.state, '');
-    const icon = toText(item && item.icon, '');
-    if (icon === 'ruins' || state === 'ruins') {
-      return safeBase.includes('史莱克') ? '史莱克城遗址' : `${safeBase}遗址`;
-    }
-    if (icon === 'construction' || state === 'rebuild') {
-      return safeBase.includes('史莱克') ? '史莱克新城' : `${safeBase}(重建中)`;
-    }
-    if (state === 'rebuilt' && safeBase.includes('史莱克')) {
-      return '史莱克新城';
-    }
-    return safeBase;
   }
 
   function isTerrainReferenceName(name = '') {
@@ -3511,25 +3489,6 @@
       width: clamp(width, 220, WORLD_IMAGE_WIDTH),
       height: clamp(height, 220, WORLD_IMAGE_HEIGHT)
     };
-  }
-
-  function deriveBoundsFromItems(items, focusCoord) {
-    const pts = [];
-    items.forEach(item => {
-      if (item && item.validCoord) pts.push({ x: item.x, y: item.y });
-    });
-    if (focusCoord && Number.isFinite(focusCoord.x) && Number.isFinite(focusCoord.y)) pts.push(focusCoord);
-    if (!pts.length) return { ...DEFAULT_IMAGE_BOUNDS };
-    const pad = pts.length <= 4 ? 180 : 140;
-    let minX = Math.min(...pts.map(p => p.x)) - pad;
-    let minY = Math.min(...pts.map(p => p.y)) - pad;
-    let maxX = Math.max(...pts.map(p => p.x)) + pad;
-    let maxY = Math.max(...pts.map(p => p.y)) + pad;
-    minX = clamp(minX, 0, WORLD_IMAGE_WIDTH - 220);
-    minY = clamp(minY, 0, WORLD_IMAGE_HEIGHT - 220);
-    maxX = clamp(maxX, minX + 220, WORLD_IMAGE_WIDTH);
-    maxY = clamp(maxY, minY + 220, WORLD_IMAGE_HEIGHT);
-    return sanitizeBounds({ minX, minY, width: maxX - minX, height: maxY - minY });
   }
 
 
@@ -4211,7 +4170,17 @@
     const trail = Array.isArray(mapState.previewTrail) ? mapState.previewTrail.filter(Boolean) : [];
     if (!trail.length) return false;
     const actualLoc = getActualCurrentLoc();
-    return trail[0] === actualLoc || trail.includes(actualLoc);
+    const actualSegments = String(actualLoc || '').split('-').map(item => toText(item, '').trim()).filter(Boolean);
+    const trailSegments = [];
+    trail.forEach(item => {
+      String(item || '').split('-').map(seg => toText(seg, '').trim()).filter(Boolean).forEach(seg => trailSegments.push(seg));
+    });
+    if (!actualSegments.length || !trailSegments.length) return false;
+    const anchor = trailSegments[0];
+    const actualLeaf = actualSegments[actualSegments.length - 1];
+    if (anchor && actualSegments.includes(anchor)) return true;
+    if (actualLeaf && trailSegments.includes(actualLeaf)) return true;
+    return trailSegments.every(seg => actualSegments.includes(seg));
   }
 
   function getCurrentCoord() {
@@ -5348,18 +5317,6 @@
     return convertMapRatioToImageCoord(ratio.left, ratio.top);
   }
 
-  function resolveMapDisplayGridFromRatio(left, top, mapId = mapState.currentMapId) {
-    const gridData = getMainMapTerrainGridData(mapId);
-    if (!gridData) return null;
-    const clampedLeft = clamp(toNumber(left, NaN), 0, 0.999999);
-    const clampedTop = clamp(toNumber(top, NaN), 0, 0.999999);
-    if (!Number.isFinite(clampedLeft) || !Number.isFinite(clampedTop)) return null;
-    return {
-      x: Math.min(gridData.gridWidth - 1, Math.max(0, Math.floor(clampedLeft * gridData.gridWidth))),
-      y: Math.min(gridData.gridHeight - 1, Math.max(0, Math.floor(clampedTop * gridData.gridHeight)))
-    };
-  }
-
   function formatMapImageCoord(point, prefix = '') {
     if (!point) return prefix ? `${prefix} --,--` : '--,--';
     const imageCoord = convertMapCoordToImageCoord(point);
@@ -5490,6 +5447,7 @@
       ? item.actionSlots
       : (Array.isArray(item.interactions) ? item.interactions : []);
     if (npcCount > 0) candidates.add('talk');
+    if (npcCount > 0) candidates.add('battle');
     sourceActions.forEach(action => {
       const normalized = toText(action, '');
       if (['talk', 'battle', 'trade', 'bid', 'craft', 'brief', 'intel'].includes(normalized)) candidates.add(normalized);
@@ -5555,40 +5513,6 @@
       const amount = clamp(toNumber(ratio, 0.5), 0, 1);
       const mix = channel => Math.round(source[channel] + (target[channel] - source[channel]) * amount);
       return `rgb(${mix('r')},${mix('g')},${mix('b')})`;
-    }
-
-    function buildBackdropNodeBlocks(items, mapId, palette) {
-      return (items || []).filter(item => item && item.validCoord).map((item, index) => {
-        const major = !!item.canEnter;
-        const width = major ? 104 : 68;
-        const height = major ? 58 : 40;
-        const rx = /academy|college|garrison|tangmen/.test(mapId) ? 10 : 14;
-        const jitterX = ((index % 3) - 1) * 8;
-        const jitterY = ((index % 4) - 1.5) * 6;
-        const x = item.x - width / 2 + jitterX;
-        const y = item.y - height / 2 + jitterY;
-        const baseFill = item.canEnter ? palette.major : palette.minor;
-        const bodyFill = mixHexColor(baseFill, '#ffffff', major ? 0.10 : 0.05);
-        const bandFill = mixHexColor(major ? palette.accent : baseFill, '#ffffff', major ? 0.14 : 0.08);
-        const outline = mixHexColor(palette.line, '#000000', 0.08);
-        const innerOutline = mixHexColor(palette.soft, '#ffffff', 0.12);
-        const bandHeight = major ? 14 : 10;
-        const innerX = x + 8;
-        const innerY = y + bandHeight + 9;
-        const innerW = Math.max(16, width - 16);
-        const innerH = Math.max(10, height - bandHeight - 17);
-        const markerCx = x + width - (major ? 13 : 10);
-        const markerCy = y + bandHeight * 0.5 + 3;
-        return `
-          <g>
-            <rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${width.toFixed(2)}" height="${height.toFixed(2)}" rx="${rx}" fill="${bodyFill}" fill-opacity="0.88" stroke="${outline}" stroke-opacity="0.42" stroke-width="4" vector-effect="non-scaling-stroke" />
-            <rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${width.toFixed(2)}" height="${bandHeight}" rx="${rx}" fill="${bandFill}" fill-opacity="0.76" />
-            <rect x="${innerX.toFixed(2)}" y="${innerY.toFixed(2)}" width="${innerW.toFixed(2)}" height="${innerH.toFixed(2)}" rx="${Math.max(6, rx - 4)}" fill="none" stroke="${innerOutline}" stroke-opacity="0.34" stroke-width="3" vector-effect="non-scaling-stroke" />
-            <path d="M ${(x + 10).toFixed(2)} ${(y + bandHeight + 4).toFixed(2)} L ${(x + width - 10).toFixed(2)} ${(y + bandHeight + 4).toFixed(2)}" stroke="${outline}" stroke-opacity="0.18" stroke-width="3" vector-effect="non-scaling-stroke" />
-            <circle cx="${markerCx.toFixed(2)}" cy="${markerCy.toFixed(2)}" r="${major ? 5 : 4}" fill="${major ? palette.accent : mixHexColor(baseFill, '#ffffff', 0.22)}" fill-opacity="0.82" />
-          </g>
-        `.trim();
-      }).join('');
     }
 
     function buildDebugMapBackdropSvg(mapId = mapState.currentMapId, snapshot = mapState.snapshot) {
@@ -6482,8 +6406,8 @@
     mapState.lastTravelNote = note;
 
     // ====== MVU 前端结果结算与指令注入 (轻量交互) ======
-    // 对于特定 UI（如交易、战斗等），直接抛出事件唤起专门面板，阻断系统聊天流
-    if (['trade', 'bid', 'craft', 'black_market', 'auction', 'shop', 'battle'].includes(action) || item.services.some(s => ['shop', 'auction', 'black_market', 'craft', 'battle'].includes(s))) {
+    // 对于需要走统一桥接的动作（交易、工坊、战斗与社交互动等），直接抛出事件交给 MVU 逻辑桥处理
+    if (['trade', 'bid', 'craft', 'black_market', 'auction', 'shop', 'battle', 'talk', 'brief', 'intel'].includes(action) || item.services.some(s => ['shop', 'auction', 'black_market', 'craft', 'battle', 'talk', 'brief', 'intel'].includes(s))) {
       try {
         window.dispatchEvent(new CustomEvent('map-action-dispatch', {
           detail: { target: item.name, action, services: item.services, actionSlots: item.actionSlots || [], eventId: item.eventId, nodeKind: item.nodeKind, mapId: mapState.currentMapId, currentLoc: snapshot.currentLoc, npcTargets: talkTargets, npcTarget }
@@ -6918,15 +6842,26 @@
         pushMappedActionSlot('rest');
         pushMappedActionSlot('meditate');
       }
-      if (charactersHere.length) {
-        const talkReason = selectedNpc || (charactersHere.length === 1
+      const npcDrivenActions = getNpcActionCandidates(focusItem, charactersHere.length);
+      npcDrivenActions.forEach(action => {
+        const actionLabel = getNodeInteractionLabel(action);
+        const crowdHint = selectedNpc || (charactersHere.length === 1
           ? charactersHere[0]
-          : `${charactersHere.slice(0, 2).join(' / ')}${charactersHere.length > 2 ? ` 等${charactersHere.length}人` : ''}`);
-        pushActionSlot('talk', selectedNpc ? `对话 · ${selectedNpc}` : (charactersHere.length === 1 ? `对话 · ${charactersHere[0]}` : '对话'), { reason: talkReason });
-      }
-      if (focusItem.nodeKind === 'training' && charactersHere.length) {
-        pushActionSlot('battle', selectedNpc ? `切磋 · ${selectedNpc}` : '切磋', { reason: selectedNpc || (charactersHere.length === 1 ? charactersHere[0] : `${charactersHere.length}名对手可选`) });
-      }
+          : (charactersHere.length > 1 ? `${charactersHere.slice(0, 2).join(' / ')}${charactersHere.length > 2 ? ` 等${charactersHere.length}人` : ''}` : '当前节点'));
+        const serviceHint = focusServiceText !== '无' ? focusServiceText : crowdHint;
+        if (action === 'talk') {
+          pushActionSlot('talk', selectedNpc ? `对话 · ${selectedNpc}` : (charactersHere.length === 1 ? `对话 · ${charactersHere[0]}` : '对话'), { reason: crowdHint });
+          return;
+        }
+        if (action === 'battle') {
+          pushActionSlot('battle', selectedNpc ? `切磋 · ${selectedNpc}` : '切磋', { reason: selectedNpc || (charactersHere.length === 1 ? charactersHere[0] : `${charactersHere.length}名对手可选`) });
+          return;
+        }
+        if (['trade', 'bid', 'craft', 'brief', 'intel'].includes(action)) {
+          const titleText = selectedNpc ? `${actionLabel} · ${selectedNpc}` : actionLabel;
+          pushActionSlot(action, titleText, { reason: selectedNpc || serviceHint });
+        }
+      });
     }
 
     let selectedAction = toText(mapState.selectedAction, '');
@@ -7448,6 +7383,10 @@
         const nextAction = toText(btn.dataset.mapNpcAction, '');
         if (nextAction) mapState.selectedAction = nextAction;
         syncInteractiveMapUI({ center: false });
+        if (nextAction) {
+          performMapAction(nextAction);
+          return;
+        }
       });
     });
 
@@ -7591,11 +7530,6 @@
   function init() {
     injectStyle();
     if (!ensurePageMapMarkup()) return;
-    if (typeof buildSplitShellPages === 'function') {
-      try {
-        buildSplitShellPages();
-      } catch (_) {}
-    }
     refreshSplitMapPages();
     bindTabResync();
     mapState.snapshot = buildFallbackSnapshot();

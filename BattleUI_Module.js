@@ -157,8 +157,19 @@ class BattleUIComponent {
         addToTargets('/bloodline_power', participant.bloodline_power);
       }
 
+      function sanitizeCombatPersistenceData(value) {
+        if (Array.isArray(value)) return value.map(item => sanitizeCombatPersistenceData(item));
+        if (!value || typeof value !== 'object') return value;
+        const cleaned = {};
+        Object.entries(value).forEach(([key, item]) => {
+          if (key === 'is_controlled' || key === 'action_declared' || key === '_current_cast_time' || /^temp_/.test(key)) return;
+          cleaned[key] = sanitizeCombatPersistenceData(item);
+        });
+        return cleaned;
+      }
+
       function buildCombatJsonPatch(combatData) {
-        const safeCombatData = deepClonePlain(combatData);
+        const safeCombatData = sanitizeCombatPersistenceData(deepClonePlain(combatData));
         const ops = [{ op: 'replace', path: '/world/combat', value: safeCombatData }];
 
         const participants = safeCombatData?.participants;
@@ -178,7 +189,7 @@ class BattleUIComponent {
       }
 
       function persistCombatData(combatData, options = {}) {
-        const safeCombatData = deepClonePlain(combatData);
+        const safeCombatData = sanitizeCombatPersistenceData(deepClonePlain(combatData));
         const patchOps = buildCombatJsonPatch(safeCombatData);
         if (Array.isArray(options.extraPatchOps)) {
           patchOps.push(...options.extraPatchOps);
@@ -589,6 +600,15 @@ class BattleUIComponent {
         persistCombatData(combatData) {
           return persistCombatData(combatData);
         },
+        executeBattleFlow(combatData, options = {}) {
+          return ui_executeBattleFlow(combatData, options);
+        },
+        getBattleSnapshot(combatData) {
+          return ui_getBattleSnapshot(combatData);
+        },
+        getAvailableActions(charData, combatData) {
+          return ui_getAvailableActions(charData, combatData);
+        },
         buildCombatJsonPatch(combatData) {
           return buildCombatJsonPatch(combatData);
         },
@@ -707,102 +727,6 @@ function mapSemanticTargetToCombatTarget(target) {
     "全场": "全场"
   };
   return mapping[target] || target || "敌方/单体";
-}
-
-function applyEffectArrayEntryToNormalized(effect, normalized, clash, state, field) {
-  if (!effect || typeof effect !== "object") return;
-  const mechanism = effect.机制 || effect.名称 || effect.类型 || "";
-  const target = effect.目标 || "";
-
-  if (!normalized.对象 || normalized.对象 === "无") {
-    normalized.对象 = mapSemanticTargetToCombatTarget(target || normalized.战斗语义?.作用目标);
-  }
-
-  if (mechanism === "直接伤害" || mechanism === "多段伤害" || mechanism === "持续伤害" || mechanism === "延迟爆发") {
-    clash.基础威力倍率 = Number(effect.威力倍率 ?? effect.威力 ?? clash.基础威力倍率 ?? 0);
-    clash.伤害类型 = effect.伤害类型 || clash.伤害类型 || "无";
-    clash.穿透修饰 = Number(effect.穿透修饰 ?? effect.穿透 ?? clash.穿透修饰 ?? 0);
-    clash.瞬间恢复比例 = Number(effect.吸血比例 ?? clash.瞬间恢复比例 ?? 0);
-    normalized.cast_time = Number(effect.前摇 ?? normalized.cast_time ?? 0);
-    if (mechanism === "持续伤害") {
-      state.状态名称 = state.状态名称 === "无" ? mechanism : state.状态名称;
-      state.持续回合 = Number(effect.持续回合 ?? state.持续回合 ?? 0);
-      state.持续真伤dot = Number(effect.dot_damage ?? effect.dot倍率 ?? effect.dot ?? state.持续真伤dot ?? 0);
-    }
-    if (!normalized.技能类型 || normalized.技能类型 === "无") normalized.技能类型 = "输出";
-    return;
-  }
-
-  if (mechanism === "护盾") {
-    clash.护盾绝对值 = Number(effect.护盾值 ?? clash.护盾绝对值 ?? 0);
-    state.状态名称 = state.状态名称 === "无" ? "护盾" : state.状态名称;
-    state.持续回合 = Number(effect.持续回合 ?? state.持续回合 ?? 0);
-    if (!normalized.技能类型 || normalized.技能类型 === "无") normalized.技能类型 = "防御";
-    return;
-  }
-
-  if (mechanism === "回血") {
-    const healPct = effect.瞬间恢复比例 !== undefined ? Number(effect.瞬间恢复比例) : (effect.回复比例 !== undefined ? Number(effect.回复比例) * (Number(effect.回复比例) <= 1 ? 100 : 1) : Number(clash.瞬间恢复比例 ?? 0));
-    clash.瞬间恢复比例 = healPct;
-    if (!normalized.技能类型 || normalized.技能类型 === "无") normalized.技能类型 = "辅助";
-    return;
-  }
-
-  if (mechanism === "标记锁定") {
-    state.状态名称 = state.状态名称 === "无" ? "标记锁定" : state.状态名称;
-    state.持续回合 = Number(effect.持续回合 ?? state.持续回合 ?? 0);
-    state.特殊机制标识 = mergeSpecialFlags(state.特殊机制标识, ["锁定"]);
-    if (!normalized.技能类型 || normalized.技能类型 === "无") normalized.技能类型 = "控制";
-    return;
-  }
-
-  if (mechanism === "幻境" || mechanism === "催眠") {
-    state.状态名称 = state.状态名称 === "无" ? mechanism : state.状态名称;
-    state.持续回合 = Number(effect.持续回合 ?? state.持续回合 ?? 0);
-    state.特殊机制标识 = mergeSpecialFlags(state.特殊机制标识, mechanism === "催眠" ? ["硬控"] : ["幻境"]);
-    if (!normalized.技能类型 || normalized.技能类型 === "无") normalized.技能类型 = "控制";
-    return;
-  }
-
-  if (mechanism === "共享视野") {
-    state.状态名称 = state.状态名称 === "无" ? "共享视野" : state.状态名称;
-    state.持续回合 = Number(effect.持续回合 ?? state.持续回合 ?? 0);
-    state.计算层效果.reaction_bonus = Number(effect.reaction_bonus ?? state.计算层效果?.reaction_bonus ?? 0);
-    state.计算层效果.hit_bonus = Number(effect.hit_bonus ?? state.计算层效果?.hit_bonus ?? 0);
-    state.计算层效果.lock_level = Number(effect.lock_level ?? state.计算层效果?.lock_level ?? 0);
-    state.特殊机制标识 = mergeSpecialFlags(state.特殊机制标识, ["共享视野"]);
-    if (!normalized.技能类型 || normalized.技能类型 === "无") normalized.技能类型 = "辅助";
-    return;
-  }
-
-  if (mechanism === "禁疗") {
-    state.状态名称 = state.状态名称 === "无" ? "禁疗" : state.状态名称;
-    state.持续回合 = Number(effect.持续回合 ?? state.持续回合 ?? 0);
-    state.计算层效果.heal_block_ratio = Number(effect.heal_block_ratio ?? state.计算层效果?.heal_block_ratio ?? 0);
-    state.特殊机制标识 = mergeSpecialFlags(state.特殊机制标识, ["禁疗"]);
-    if (!normalized.技能类型 || normalized.技能类型 === "无") normalized.技能类型 = "控制";
-    return;
-  }
-
-  if (mechanism === "回魂力") {
-    state.计算层效果.sp_gain_ratio = Number(effect.sp_gain_ratio ?? state.计算层效果?.sp_gain_ratio ?? 0);
-    state.特殊机制标识 = mergeSpecialFlags(state.特殊机制标识, ["回魂力"]);
-    if (!normalized.技能类型 || normalized.技能类型 === "无") normalized.技能类型 = "辅助";
-    return;
-  }
-
-  if (mechanism === "回精神力") {
-    state.计算层效果.men_gain_ratio = Number(effect.men_gain_ratio ?? state.计算层效果?.men_gain_ratio ?? 0);
-    state.特殊机制标识 = mergeSpecialFlags(state.特殊机制标识, ["回精神力"]);
-    if (!normalized.技能类型 || normalized.技能类型 === "无") normalized.技能类型 = "辅助";
-    return;
-  }
-
-  if (mechanism === "斩杀补伤") {
-    state.特殊机制标识 = mergeSpecialFlags(state.特殊机制标识, ["斩杀补伤"]);
-    if (!normalized.技能类型 || normalized.技能类型 === "无") normalized.技能类型 = "输出";
-    return;
-  }
 }
 
 function getMechanismJudgeValue(entity, finalEntity, judgeKey) {
@@ -1082,7 +1006,8 @@ function inferMainTypeFromEffects(skill) {
 }
 
 function deriveBattleSummaryFromEffects(skill, baseSummary = {}) {
-  const summary = { ...createEmptyBattleSummary(), ...(baseSummary || {}) };
+  const defaultSummary = createEmptyBattleSummary();
+  const summary = { ...defaultSummary, ...(baseSummary || {}) };
   const systemBase = getSystemBaseEffect(skill);
   const damage = getPrimaryDamageEffect(skill);
   const state = getPrimaryStateEffect(skill);
@@ -1090,6 +1015,14 @@ function deriveBattleSummaryFromEffects(skill, baseSummary = {}) {
   const targetText = String(systemBase?.对象 || "");
   const power = Number(damage?.威力倍率 || 0);
   const duration = Number(state?.持续回合 || 0);
+  const skillName = String(skill?.name || skill?.技能名称 || "");
+  const costText = String(getSkillCostText(skill) || "无");
+
+  if (!baseSummary?.目标规模 || baseSummary.目标规模 === defaultSummary.目标规模) {
+    if (targetText === "全场") summary.目标规模 = "全场";
+    else if (targetText.includes("群体")) summary.目标规模 = "群体";
+    else summary.目标规模 = "单体";
+  }
 
   if (!summary.防御性质 || summary.防御性质 === "无") {
     if (hasSkillMechanism(skill, ["免死"])) summary.防御性质 = "免死";
@@ -1106,26 +1039,69 @@ function deriveBattleSummaryFromEffects(skill, baseSummary = {}) {
     if (hasSkillMechanism(skill, ["硬控", "催眠"]) || stateCalc.skip_turn === true) summary.控制强度 = "硬控";
     else if (hasSkillMechanism(skill, ["幻境", "标记锁定", "沉默", "禁疗", "减速", "打断"]) || Number(stateCalc.lock_level || 0) > 0) summary.控制强度 = "软控";
   }
-  if (!summary.协同性 || summary.协同性 === "无") {
-    if (targetText.includes("群体") || targetText === "全场") summary.协同性 = "高";
-    else if (targetText.includes("己方")) summary.协同性 = "中";
+  if (!baseSummary?.协同性 || baseSummary.协同性 === defaultSummary.协同性 || baseSummary.协同性 === "无") {
+    if (targetText === "全场" || targetText.includes("群体") || hasSkillMechanism(skill, ["共享视野", "召唤与场地"])) summary.协同性 = "高";
+    else if (targetText.includes("己方") || hasSkillMechanism(skill, ["回血", "回魂力", "回精神力"])) summary.协同性 = "中";
+    else summary.协同性 = "低";
   }
-  if (!summary.生效方式 || summary.生效方式 === "无") {
-    if (hasSkillMechanism(skill, ["延迟爆发"])) summary.生效方式 = "延迟";
-    else if (duration > 1 || hasSkillMechanism(skill, ["持续伤害", "护盾", "减伤", "格挡", "霸体", "免死"])) summary.生效方式 = "持续";
+  if (!baseSummary?.生效方式 || baseSummary.生效方式 === defaultSummary.生效方式 || baseSummary.生效方式 === "无") {
+    if (hasSkillMechanism(skill, ["受击反击", "格挡"])) summary.生效方式 = "触发";
+    else if (hasSkillMechanism(skill, ["延迟爆发"])) summary.生效方式 = "延迟";
+    else if (duration > 1 || hasSkillMechanism(skill, ["持续伤害", "护盾", "减伤", "霸体", "免死", "共享视野", "召唤与场地"])) summary.生效方式 = "持续";
     else summary.生效方式 = "瞬发";
   }
-  if (!summary.爆发级别 || summary.爆发级别 === "无") {
+  if (!baseSummary?.爆发级别 || baseSummary.爆发级别 === defaultSummary.爆发级别 || baseSummary.爆发级别 === "无") {
     if (power >= 300) summary.爆发级别 = "高";
     else if (power >= 160) summary.爆发级别 = "中";
     else if (power > 0) summary.爆发级别 = "低";
+    else summary.爆发级别 = "无";
   }
-  if (!summary.持续性 || summary.持续性 === "无") {
+  if (!baseSummary?.持续性 || baseSummary.持续性 === defaultSummary.持续性 || baseSummary.持续性 === "无") {
     if (duration >= 3) summary.持续性 = "长";
     else if (duration >= 2) summary.持续性 = "中";
     else if (duration > 0) summary.持续性 = "短";
+    else if (hasSkillMechanism(skill, ["召唤与场地", "共享视野", "护盾", "减伤", "格挡", "霸体", "免死"])) summary.持续性 = "中";
+    else summary.持续性 = "无";
+  }
+  if (!baseSummary?.保留倾向 || Number(baseSummary.保留倾向 || 0) === Number(defaultSummary.保留倾向 || 0)) {
+    let reserve = 0;
+    if (/真身|武魂融合技|生命之火|第八魂技|第九魂技/.test(skillName)) reserve += 35;
+    if (power >= 280) reserve += 20;
+    if (Number(systemBase?.cast_time || 0) >= 25) reserve += 15;
+    if (hasSkillMechanism(skill, ["免死", "格挡", "受击反击", "效果反转", "高波动随机值"])) reserve += 10;
+    if (/维持|启动\)/.test(costText)) reserve += 10;
+    summary.保留倾向 = Math.min(90, reserve);
   }
   return summary;
+}
+
+function buildConditionTacticalSnapshot(entity) {
+  const entries = Object.entries(entity?.conditions || {});
+  const buffEntries = entries.filter(([, cond]) => cond?.类型 === "buff");
+  const debuffEntries = entries.filter(([, cond]) => cond?.类型 === "debuff");
+  const hasShielded = entries.some(([name, cond]) => /护盾|屏障|结界/.test(name) || Number(cond?.combat_effects?.shield_gain_mult || 1) > 1.05);
+  const hasDefenseBuffed = entries.some(([name, cond]) => Number(cond?.stat_mods?.def || 1) > 1.12 || /护体|罡气|霸体|真身|格挡|减伤/.test(name));
+  const isLockedOrControlled = entries.some(([name, cond]) => cond?.combat_effects?.skip_turn === true || cond?.combat_effects?.cannot_react === true || Number(cond?.combat_effects?.lock_level || 0) > 0 || /锁定|禁锢|眩晕|催眠|幻境|束缚|减速|迟缓/.test(name));
+  const hasHealingTrend = entries.some(([name, cond]) => Number(cond?.combat_effects?.final_heal_mult || 1) > 1.0 || Number(cond?.combat_effects?.final_heal_bonus || 0) > 0 || Number(cond?.combat_effects?.sp_gain_ratio || 0) > 0 || Number(cond?.combat_effects?.men_gain_ratio || 0) > 0 || /回血|治疗|再生|回复|回魂|回精神/.test(name));
+  const hasDotPressure = entries.some(([name, cond]) => Number(cond?.combat_effects?.dot_damage || 0) > 0 || /流血|灼烧|腐蚀|中毒|撕裂|持续伤害/.test(name));
+  const hasBadCondition = entries.some(([name, cond]) => cond?.类型 === "debuff" && !/霸体|真身|增益|护盾/.test(name));
+  const hasSharedVision = entries.some(([name]) => /共享视野/.test(name));
+  const hasReactiveDefense = entries.some(([name, cond]) => cond?.combat_effects?.super_armor === true || Number(cond?.combat_effects?.block_count || 0) > 0 || Number(cond?.combat_effects?.death_save_count || 0) > 0 || /护盾|格挡|霸体|免死|反击/.test(name));
+  const hasAntiHeal = entries.some(([name, cond]) => Number(cond?.combat_effects?.heal_block_ratio || 0) > 0 || /禁疗/.test(name));
+  return {
+    entries,
+    buffCount: buffEntries.length,
+    debuffCount: debuffEntries.length,
+    hasShielded,
+    hasDefenseBuffed,
+    isLockedOrControlled,
+    hasHealingTrend,
+    hasDotPressure,
+    hasBadCondition,
+    hasSharedVision,
+    hasReactiveDefense,
+    hasAntiHeal
+  };
 }
 
 function bindCombatMirrorField(target, source, key) {
@@ -1568,12 +1544,40 @@ function adjustBehaviorWeight(branchName, baseWeight, actor, target, battleState
 }
 
 function ensureActorDecisionMemory(actor) {
-  if (!actor) return { last_action: "", recent_actions: {} };
+  if (!actor) return { last_action: "", recent_actions: {}, focus_target: "", focus_reason: "", focus_ttl: 0, countered_skills: {} };
   if (!actor.decision_memory) {
-    actor.decision_memory = { last_action: "", recent_actions: {} };
+    actor.decision_memory = { last_action: "", recent_actions: {}, focus_target: "", focus_reason: "", focus_ttl: 0, countered_skills: {} };
   }
   if (!actor.decision_memory.recent_actions) actor.decision_memory.recent_actions = {};
+  if (!actor.decision_memory.countered_skills) actor.decision_memory.countered_skills = {};
+  if (actor.decision_memory.focus_target === undefined) actor.decision_memory.focus_target = "";
+  if (actor.decision_memory.focus_reason === undefined) actor.decision_memory.focus_reason = "";
+  if (actor.decision_memory.focus_ttl === undefined) actor.decision_memory.focus_ttl = 0;
   return actor.decision_memory;
+}
+
+function getActorFocusedTarget(actor, candidates = []) {
+  const memory = ensureActorDecisionMemory(actor);
+  if (!memory.focus_target || Number(memory.focus_ttl || 0) <= 0) return null;
+  const target = (candidates || []).find(unit => unit && unit.name === memory.focus_target && Number(unit.vit || 0) > 0);
+  if (target) return target;
+  memory.focus_target = "";
+  memory.focus_reason = "";
+  memory.focus_ttl = 0;
+  return null;
+}
+
+function setActorFocusTarget(actor, target, reason = "", ttl = 2) {
+  const memory = ensureActorDecisionMemory(actor);
+  if (!target || Number(target.vit || 0) <= 0) {
+    memory.focus_target = "";
+    memory.focus_reason = "";
+    memory.focus_ttl = 0;
+    return;
+  }
+  memory.focus_target = target.name || "";
+  memory.focus_reason = String(reason || "");
+  memory.focus_ttl = Math.max(0, Number(ttl || 0));
 }
 
 function scoreCandidateAction(actor, target, battleState, candidate) {
@@ -1587,6 +1591,11 @@ function scoreCandidateAction(actor, target, battleState, candidate) {
   if (memory.last_action === branchName) weight -= 8;
 
   const targetHpRatio = (target?.vit || 0) / Math.max(1, target?.vit_max || 1);
+  if (Number(memory.focus_ttl || 0) > 0) {
+    if (branchName === "乘胜追击" && ["control_window", "dot_pressure", "shared_vision_focus", "finisher"].includes(memory.focus_reason)) weight += 10;
+    if (branchName === "破防强攻" && memory.focus_reason === "armor_break_window") weight += 8;
+    if (branchName === "断疗压制" && memory.focus_reason === "anti_heal_window") weight += 8;
+  }
   if (branchName === "强势对轰" && targetHpRatio < 0.35) weight += 10;
   if (branchName === "亡命奔逃" && (actor?.vit || 0) / Math.max(1, actor?.vit_max || 1) > 0.35) weight -= 15;
   if (branchName === "危机自保" && battleState?.isChargingHighThreat) weight += 8;
@@ -1602,6 +1611,12 @@ function chooseActorActionByCandidates(actor, target, battleState, candidates, p
   return rollBranchByPriority(scoredCandidates, phaseLabel);
 }
 
+function getActorSkillCounterPenalty(actor, skillName) {
+  if (!actor || !skillName) return 0;
+  const memory = ensureActorDecisionMemory(actor);
+  return Math.min(45, Number(memory.countered_skills?.[skillName] || 0) * 18);
+}
+
 function recordActorActionMemory(actor, actionName) {
   if (!actor || !actionName) return;
   const memory = ensureActorDecisionMemory(actor);
@@ -1609,8 +1624,83 @@ function recordActorActionMemory(actor, actionName) {
     memory.recent_actions[key] = Math.max(0, (memory.recent_actions[key] || 0) - 1);
     if (memory.recent_actions[key] <= 0) delete memory.recent_actions[key];
   });
+  if (Number(memory.focus_ttl || 0) > 0) {
+    memory.focus_ttl = Math.max(0, Number(memory.focus_ttl || 0) - 1);
+    if (memory.focus_ttl <= 0) {
+      memory.focus_target = "";
+      memory.focus_reason = "";
+    }
+  }
+  Object.keys(memory.countered_skills || {}).forEach(key => {
+    memory.countered_skills[key] = Math.max(0, Number(memory.countered_skills[key] || 0) - 1);
+    if (memory.countered_skills[key] <= 0) delete memory.countered_skills[key];
+  });
   memory.recent_actions[actionName] = (memory.recent_actions[actionName] || 0) + 2;
   memory.last_action = actionName;
+}
+
+function recordActorSkillCountered(actor, skillName, reason = "") {
+  if (!actor || !skillName) return;
+  const memory = ensureActorDecisionMemory(actor);
+  memory.countered_skills[skillName] = Math.min(3, Number(memory.countered_skills[skillName] || 0) + 1);
+  if (reason) memory.last_counter_reason = String(reason);
+}
+
+function broadcastActorFocusToTeam(actorEntry, battleState, target, reason = "", ttl = 2) {
+  if (!actorEntry?.char || !battleState?.combatData || !target) return;
+  const team = actorEntry.side === "player"
+    ? (battleState.combatData.participants.team_player || [])
+    : (battleState.combatData.participants.team_enemy || []);
+  team.forEach(member => {
+    if (!member || member.name === actorEntry.char.name) return;
+    setActorFocusTarget(member, target, reason, Math.max(1, Number(ttl || 0) - 1));
+  });
+}
+
+function evaluateActionCountered(action, finalTarget, reactionAction, settleResult, skillTargetObj = "") {
+  if (!action?.skill || !finalTarget) return false;
+  if (String(skillTargetObj || "").includes("己方") || String(skillTargetObj || "").includes("友方") || String(skillTargetObj || "").includes("自身")) return false;
+  const skillType = getSkillType(action.skill);
+  const snapshot = buildConditionTacticalSnapshot(finalTarget);
+  const resultText = String(settleResult?.desc || "");
+  if (skillType === "输出") {
+    return Number(settleResult?.dmg || 0) <= 1 && (reactionAction?.type !== "无法反应" || /躲过|规避|挡下|碾碎|打断|未破防/.test(resultText));
+  }
+  if (skillType === "控制") {
+    const landed = snapshot.isLockedOrControlled || snapshot.hasBadCondition || snapshot.hasAntiHeal;
+    return !landed && (reactionAction?.type !== "无法反应" || /免疫|躲过|规避|挡下/.test(resultText));
+  }
+  return false;
+}
+
+function updateActorFocusFromAction(actor, action, finalTarget, fallbackEnemyTarget = null, settleResult = null) {
+  if (!actor || !action) return null;
+  const skill = action.skill || {};
+  const targetMode = getSkillTarget(skill);
+  let focusTarget = null;
+  let focusReason = "";
+  let ttl = 0;
+
+  if (targetMode.includes("己方") || targetMode.includes("友方")) {
+    if (hasSkillMechanism(skill, ["共享视野"]) && fallbackEnemyTarget && Number(fallbackEnemyTarget.vit || 0) > 0) {
+      focusTarget = fallbackEnemyTarget;
+      focusReason = "shared_vision_focus";
+      ttl = 3;
+    }
+  } else if (!targetMode.includes("自身") && finalTarget && finalTarget !== actor && Number(finalTarget.vit || 0) > 0) {
+    const snapshot = buildConditionTacticalSnapshot(finalTarget);
+    const hpRatio = Math.max(0, Number(finalTarget.vit || 0)) / Math.max(1, Number(finalTarget.vit_max || 1));
+    focusTarget = finalTarget;
+    if (snapshot.isLockedOrControlled && (hasSkillMechanism(skill, ["硬控", "催眠", "幻境", "标记锁定", "打断", "沉默", "减速"]) || Number(getPrimaryStateCalc(skill)?.lock_level || 0) > 0)) { focusReason = "control_window"; ttl = 3; }
+    else if (hasSkillMechanism(skill, ["禁疗"]) && (snapshot.hasAntiHeal || Number(getPrimaryStateCalc(skill)?.heal_block_ratio || 0) > 0)) { focusReason = "anti_heal_window"; ttl = 3; }
+    else if (Number(getPrimaryDamageEffect(skill)?.穿透修饰 || 0) >= 15 || /破甲|穿透|粉碎/.test(String(skill?.name || ""))) { focusReason = "armor_break_window"; ttl = 2; }
+    else if (snapshot.hasDotPressure || hasSkillMechanism(skill, ["持续伤害"]) || Number(settleResult?.dmg || 0) >= Math.max(1, Number(finalTarget.vit_max || 1)) * 0.22) { focusReason = "dot_pressure"; ttl = 2; }
+    else if (hasSkillMechanism(skill, ["斩杀补伤"]) || hpRatio < 0.45) { focusReason = "finisher"; ttl = hpRatio < 0.35 ? 3 : 2; }
+  }
+
+  if (!focusTarget || !focusReason) return null;
+  setActorFocusTarget(actor, focusTarget, focusReason, ttl);
+  return { target: focusTarget, reason: focusReason, ttl };
 }
 
 function buildBattleStateContext(actor, target, combatData, extra = {}) {
@@ -1772,11 +1862,6 @@ function onPlayerAttack(playerInput, options = {}) {
   let roundCount = 0;
   let battleLog = [];
   let continueSimulation = true;
-  let latestPlayerActionSummary = {
-    action_type: '无',
-    element_count: 1,
-    is_charged: false
-  };
 
   while (roundCount < maxRounds && continueSimulation && defender.vit > 0) {
     roundCount++;
@@ -1873,17 +1958,6 @@ function onPlayerAttack(playerInput, options = {}) {
       }
     }
 
-    latestPlayerActionSummary = {
-      action_type: String(playerAction?.skill?.name || attacker?.charging_skill?.skill?.name || playerAction?.action_type || attacker?.action_declared || '无'),
-      element_count: Math.max(1, Number(playerAction?.element_count || playerAction?.skill?.element_count || 1)),
-      is_charged: Boolean(playerAction?.is_charged || playerAction?.skill?.is_charged || attacker?.charging_skill)
-    };
-
-    let ratio = calculateReactionRatio(attacker, defender, playerAction, combatData);
-    let npcAction = defender.is_controlled ? 
-                    { type: "无法反应", log: "NPC处于被控状态，无法动作。" } : 
-                    determineNpcAction(combatData, playerAction, ratio);
-    
     let settleResult = executeClash(playerAction, npcAction, combatData);
     roundLog += npcAction.log + " " + settleResult.desc;
 
@@ -2056,22 +2130,6 @@ function onPlayerAttack(playerInput, options = {}) {
   if (settleResult.log) battleLog.push(settleResult.log);
   if (settleResult.extraPatchOps) extraPatchOps = settleResult.extraPatchOps;
 
-  const settleSummaryResult = isWin ? '胜利' : (attacker.vit <= 0 ? '失败' : (unresolvedReason ? '未决' : '平局'));
-  combatData.summary = Object.assign({}, combatData.summary || {}, {
-    player_action: {
-      action_type: latestPlayerActionSummary.action_type,
-      element_count: latestPlayerActionSummary.element_count,
-      is_charged: latestPlayerActionSummary.is_charged
-    },
-    settle_result: {
-      target_npc: String(defender?.name || defender?.char_name || defender?.名称 || '未知目标'),
-      result: settleSummaryResult,
-      is_killed: Boolean(isWin && defender.vit <= 0)
-    },
-    round_count: roundCount,
-    mode,
-    generated_by: 'Battle_UI'
-  });
 
   const mvuUpdate = window.BattleUIBridge?.persistCombatData?.(combatData, {
     analysis: 'Frontend battle arbitration already produced the exact combat result. Apply the following JSONPatch exactly as given.',
@@ -2551,11 +2609,17 @@ function executeClash(playerAction, npcAction, combatData) {
   finalDmg = (finalDmg * totalFinalDamageMult) + totalFinalDamageBonus;
   
   result.dmg = Math.floor(finalDmg);
+  result = applyHighTierMechanics(attacker, defender, playerAction, result);
+  if (Number(result.backlash_dmg || 0) > 0) {
+    const backlashDamage = Math.max(0, Math.floor(Number(result.backlash_dmg || 0)));
+    attacker.vit = Math.max(0, Number(attacker.vit || 0) - backlashDamage);
+    result.desc += ` [反噬结算] 玩家额外承受了 ${backlashDamage} 点反噬伤害。`;
+  }
   if (result.dmg > 0) {
     result.desc += ` 造成了 ${result.dmg} 点最终伤害。`;
   }
 
-  if (pClash.瞬间恢复比例 > 0) {
+  if (pClash.瞬间恢复比例 > 0 && !Number(result.backlash_dmg || 0)) {
     const supportScale = getSupportEffectScale(attacker, attacker);
     const totalFinalHealMult = attackerConditionEffects.reduce((mult, ce) => mult * Number(ce.final_heal_mult || 1.0), 1.0);
     const totalFinalHealBonus = attackerConditionEffects.reduce((sum, ce) => sum + Number(ce.final_heal_bonus || 0), 0);
@@ -2945,7 +3009,27 @@ function buildNpcSkillCandidateContext(defender, attacker, playerAction, availab
       const enemyHpRatio = attacker.vit / Math.max(1, attacker.vit_max);
       const selfHpRatio = defender.vit / Math.max(1, defender.vit_max);
       const fieldActive = Object.keys(defender.conditions || {}).some(k => /领域|场地|结界|召唤/.test(k));
-      const hasBadCondition = Object.keys(defender.conditions || {}).some(k => !/霸体|真身|增益|护盾/.test(k));
+      const enemySnapshot = buildConditionTacticalSnapshot(attacker);
+      const selfSnapshot = buildConditionTacticalSnapshot(defender);
+      const allyCount = behaviorState.alliesCount || 1;
+      const selfSpRatio = Math.max(0, Number(defender.sp || 0)) / Math.max(1, Number(defender.sp_max || 1));
+      const selfMenRatio = Math.max(0, Number(defender.men || 0)) / Math.max(1, Number(defender.men_max || 1));
+      const hasAntiHeal = hasSkillMechanism(skill, ["禁疗"]);
+      const hasSharedVision = hasSkillMechanism(skill, ["共享视野"]);
+      const hasCounter = hasSkillMechanism(skill, ["受击反击"]);
+      const hasBlock = hasSkillMechanism(skill, ["格挡"]);
+      const hasShield = hasSkillMechanism(skill, ["护盾"]);
+      const hasDeathSave = hasSkillMechanism(skill, ["免死"]);
+      const hasExecute = hasSkillMechanism(skill, ["斩杀补伤"]);
+      const hasResourceRecover = hasSkillMechanism(skill, ["回魂力", "回精神力"]);
+      const hasHeal = hasSkillMechanism(skill, ["回血"]);
+      const hasDotPressure = hasSkillMechanism(skill, ["持续伤害"]);
+      const hasDelayBurst = hasSkillMechanism(skill, ["延迟爆发"]);
+      const hasVolatile = hasSkillMechanism(skill, ["高波动随机值"]);
+      const hasReflectiveConvert = hasSkillMechanism(skill, ["伤害转回复", "回复转伤害", "效果反转"]);
+      const penetrationValue = Number(getPrimaryDamageEffect(skill)?.穿透修饰 || 0);
+      const actorMemory = ensureActorDecisionMemory(defender);
+      const counterPenalty = getActorSkillCounterPenalty(defender, skill.name || skill.技能名称 || "");
 
       if (["控制类", "削弱类"].includes(mainType)) weight += 15;
       if (mainType === "增益类" && behaviorState.round <= 2) weight += 20;
@@ -2960,8 +3044,8 @@ function buildNpcSkillCandidateContext(defender, attacker, playerAction, availab
       if (summary.防御性质 !== "无" && selfHpRatio < 0.5) weight += 30;
       if (summary.防御性质 === "免死" && selfHpRatio < 0.35) weight += 40;
 
-      if (summary.回复性质 !== "无" && (selfHpRatio < 0.6 || hasBadCondition)) weight += 35;
-      if (summary.回复性质 === "净化" && hasBadCondition) weight += 60;
+      if (summary.回复性质 !== "无" && (selfHpRatio < 0.6 || selfSnapshot.hasBadCondition)) weight += 35;
+      if (summary.回复性质 === "净化" && selfSnapshot.hasBadCondition) weight += 60;
 
       if (summary.协同性 === "高" && (behaviorState.alliesCount || 1) > 1) weight += 20;
       else if (summary.协同性 === "中" && (behaviorState.alliesCount || 1) > 1) weight += 10;
@@ -2976,6 +3060,52 @@ function buildNpcSkillCandidateContext(defender, attacker, playerAction, availab
       if (summary.爆发级别 === "高" && enemyHpRatio < 0.4) weight += 20;
       if (summary.持续性 === "长" && behaviorState.round <= 2) weight += 15;
       if (summary.持续性 === "中" && behaviorState.combatType !== "擂台切磋") weight += 10;
+
+      if (hasAntiHeal) {
+        if (enemySnapshot.hasAntiHeal) weight -= 35;
+        else if (["辅助系", "治疗系", "食物系"].includes(attacker.type) || enemySnapshot.hasHealingTrend) weight += 45;
+        else if (enemyHpRatio > 0.55) weight += 20;
+      }
+      if (hasSharedVision && allyCount > 1) {
+        if (selfSnapshot.hasSharedVision) weight -= 30;
+        else weight += 30;
+      }
+      if (hasCounter && (isChargingHighThreat || selfHpRatio < 0.55)) weight += selfSnapshot.hasReactiveDefense ? 8 : 22;
+      if (hasBlock && (isChargingHighThreat || selfHpRatio < 0.5)) weight += selfSnapshot.hasReactiveDefense ? 10 : 28;
+      if (hasShield && selfHpRatio < 0.55) weight += selfSnapshot.hasShielded ? 6 : 24;
+      if (hasDeathSave && selfHpRatio < 0.35) weight += 55;
+      if (hasExecute && enemyHpRatio < 0.35) weight += 40;
+      if (hasResourceRecover && (selfSpRatio < 0.4 || selfMenRatio < 0.4)) weight += selfSnapshot.hasHealingTrend ? 10 : 30;
+      if (hasHeal && selfHpRatio < 0.45) weight += selfSnapshot.hasHealingTrend ? 8 : 28;
+      if (enemySnapshot.hasShielded && (penetrationValue >= 20 || skillPower >= 180)) weight += 24;
+      if (enemySnapshot.hasDefenseBuffed && penetrationValue >= 15) weight += 18;
+      if (enemySnapshot.isLockedOrControlled) {
+        if (summary.爆发级别 === "高") weight += 18;
+        if (hasDelayBurst || skillCastTime >= 18) weight += 12;
+        if (hasExecute && enemyHpRatio < 0.45) weight += 15;
+        if (summary.控制强度 === "软控") weight -= 20;
+        else if (summary.控制强度 === "硬控" && !isChargingHighThreat) weight -= 8;
+      }
+      if (enemySnapshot.debuffCount > 0 && hasDotPressure) weight += 10;
+      if (selfSnapshot.hasReactiveDefense && (hasCounter || hasBlock || hasShield || hasDeathSave)) weight -= 12;
+      if (hasVolatile) {
+        if (behaviorState.isDesperateNoEscape || selfHpRatio < 0.35 || enemyHpRatio < 0.35) weight += 12;
+        else weight -= 10;
+      }
+      if (hasReflectiveConvert) {
+        if (enemySnapshot.buffCount > 0 || selfHpRatio < 0.5 || enemyHpRatio < 0.5) weight += 15;
+      }
+      if (Number(actorMemory.focus_ttl || 0) > 0) {
+        if (actorMemory.focus_reason === "control_window") {
+          if (summary.爆发级别 === "高" || hasExecute) weight += 16;
+          if (summary.控制强度 !== "无") weight -= 10;
+        } else if (actorMemory.focus_reason === "shared_vision_focus" && summary.目标规模 === "单体" && summary.爆发级别 !== "无") weight += 18;
+        else if (actorMemory.focus_reason === "dot_pressure" && (hasDotPressure || hasExecute || summary.爆发级别 === "高")) weight += 14;
+        else if (actorMemory.focus_reason === "anti_heal_window" && (hasDotPressure || hasExecute || summary.爆发级别 !== "无")) weight += 10;
+        else if (actorMemory.focus_reason === "armor_break_window" && (penetrationValue >= 15 || summary.爆发级别 === "高")) weight += 10;
+        else if (actorMemory.focus_reason === "finisher" && (hasExecute || summary.爆发级别 !== "无")) weight += 18;
+      }
+      if (counterPenalty > 0) weight -= counterPenalty;
 
       if (summary.保留倾向 >= 70 && !(isChargingHighThreat || enemyHpRatio < 0.35 || selfHpRatio < 0.35)) weight -= 30;
       else if (summary.保留倾向 >= 40 && !(isChargingHighThreat || enemyHpRatio < 0.45 || selfHpRatio < 0.45)) weight -= 15;
@@ -3016,19 +3146,67 @@ function buildNpcSkillCandidateContext(defender, attacker, playerAction, availab
   const defSkillPick = pickSkillWithWeight(defSkills);
   const atkSkillPick = pickSkillWithWeight(atkSkills);
   const controlSkillPick = pickSkillWithWeight(controlSkills);
+  const antiHealSkillPick = pickSkillWithWeight(validSkills.filter(skill => hasSkillMechanism(skill, ["禁疗"])));
+  const pierceSkillPick = pickSkillWithWeight(validSkills.filter(skill => {
+    const dmg = getPrimaryDamageEffect(skill);
+    return Number(dmg?.穿透修饰 || 0) >= 15 || /破甲|穿透|粉碎/.test(String(skill?.name || ""));
+  }));
+  const executeSkillPick = pickSkillWithWeight(validSkills.filter(skill => {
+    const dmg = getPrimaryDamageEffect(skill);
+    return hasSkillMechanism(skill, ["斩杀补伤"]) || (inferMainTypeFromEffects(skill) === "伤害类" && Number(dmg?.威力倍率 || 0) >= 220);
+  }));
+  const recoverSkillPick = pickSkillWithWeight(validSkills.filter(skill => hasSkillMechanism(skill, ["回血", "回魂力", "回精神力"])));
+  const teamSupportSkillPick = pickSkillWithWeight(validSkills.filter(skill => hasSkillMechanism(skill, ["共享视野"]) || (getSkillType(skill) === "辅助" && deriveBattleSummaryFromEffects(skill).协同性 === "高")));
+  const reactiveDefenseSkillPick = pickSkillWithWeight(validSkills.filter(skill => hasSkillMechanism(skill, ["受击反击", "格挡", "护盾", "免死", "霸体"])));
+
   const defSkill = defSkillPick.skill;
   const atkSkill = atkSkillPick.skill;
   const hardControlSkill = controlSkillPick.skill || controlSkills[0] || null;
+  const antiHealSkill = antiHealSkillPick.skill || null;
+  const pierceSkill = pierceSkillPick.skill || null;
+  const executeSkill = executeSkillPick.skill || null;
+  const recoverSkill = recoverSkillPick.skill || null;
+  const teamSupportSkill = teamSupportSkillPick.skill || null;
+  const reactiveDefenseSkill = reactiveDefenseSkillPick.skill || defSkill || null;
   const npcAtkPower = Number(getPrimaryDamageEffect(atkSkill)?.威力倍率 || 0);
-  const skillTraceLog = [defSkillPick.trace, atkSkillPick.trace, controlSkillPick.trace].filter(Boolean).join(" | ");
+  const skillTraceLog = [
+    defSkillPick.trace,
+    atkSkillPick.trace,
+    controlSkillPick.trace,
+    antiHealSkillPick.trace,
+    pierceSkillPick.trace,
+    executeSkillPick.trace,
+    recoverSkillPick.trace,
+    teamSupportSkillPick.trace,
+    reactiveDefenseSkillPick.trace
+  ].filter(Boolean).join(" | ");
 
-  return { defSkill, atkSkill, hardControlSkill, npcAtkPower, skillTraceLog };
+  return {
+    defSkill,
+    atkSkill,
+    hardControlSkill,
+    antiHealSkill,
+    pierceSkill,
+    executeSkill,
+    recoverSkill,
+    teamSupportSkill,
+    reactiveDefenseSkill,
+    npcAtkPower,
+    skillTraceLog
+  };
 }
 
 function buildTacticalCandidates(defender, attacker, playerAction, behaviorState, skillContext, makeNpcAction, isSupport, isLowHealth) {
-  const { defSkill, atkSkill, hardControlSkill, npcAtkPower } = skillContext;
+  const { defSkill, atkSkill, hardControlSkill, antiHealSkill, pierceSkill, executeSkill, recoverSkill, teamSupportSkill, reactiveDefenseSkill, npcAtkPower } = skillContext;
   const playerPower = behaviorState.playerPower || 0;
   const isChargingHighThreat = !!behaviorState.isChargingHighThreat;
+  const enemySnapshot = buildConditionTacticalSnapshot(attacker);
+  const selfSnapshot = buildConditionTacticalSnapshot(defender);
+  const enemyHpRatio = attacker.vit / Math.max(1, attacker.vit_max);
+  const selfHpRatio = defender.vit / Math.max(1, defender.vit_max);
+  const selfSpRatio = Math.max(0, Number(defender.sp || 0)) / Math.max(1, Number(defender.sp_max || 1));
+  const selfMenRatio = Math.max(0, Number(defender.men || 0)) / Math.max(1, Number(defender.men_max || 1));
+  const allyCount = behaviorState.alliesCount || 1;
 
   let isLockedBySpirit = false;
   if ((playerAction.cast_time || 0) > 0) {
@@ -3042,6 +3220,150 @@ function buildTacticalCandidates(defender, attacker, playerAction, behaviorState
   }
 
   const tacticalBranches = [];
+
+  const atkSummary = atkSkill ? deriveBattleSummaryFromEffects(atkSkill) : createEmptyBattleSummary();
+  const executeSummary = executeSkill ? deriveBattleSummaryFromEffects(executeSkill) : createEmptyBattleSummary();
+  const atkCastTime = getSkillCastTime(atkSkill);
+  const executeCastTime = getSkillCastTime(executeSkill);
+
+  if (enemySnapshot.hasHealingTrend && antiHealSkill && !enemySnapshot.hasAntiHeal) {
+    tacticalBranches.push({
+      name: "断疗压制",
+      weight: adjustBehaviorWeight("断疗压制", 95, defender, attacker, behaviorState),
+      build() {
+        return makeNpcAction("断疗压制", `[战术封锁] NPC敏锐察觉到对手恢复节奏已成，立刻以[${antiHealSkill.name}]强行断疗压制！`, antiHealSkill);
+      }
+    });
+  }
+  if ((enemySnapshot.hasShielded || enemySnapshot.hasDefenseBuffed) && pierceSkill) {
+    tacticalBranches.push({
+      name: "破防强攻",
+      weight: adjustBehaviorWeight("破防强攻", enemySnapshot.hasShielded ? 90 : 75, defender, attacker, behaviorState),
+      build() {
+        return makeNpcAction("破防强攻", `[破防识别] NPC判断常规打击难以奏效，改以[${pierceSkill.name}]强行撕开防御层！`, pierceSkill);
+      }
+    });
+  }
+  if ((enemySnapshot.isLockedOrControlled || enemyHpRatio < 0.4) && executeSkill) {
+    tacticalBranches.push({
+      name: "乘胜追击",
+      weight: adjustBehaviorWeight("乘胜追击", enemyHpRatio < 0.35 ? 105 : 80, defender, attacker, behaviorState),
+      build() {
+        return makeNpcAction("乘胜追击", `[收割窗口] NPC看准对手露出的破绽，立刻释放[${executeSkill.name}]试图完成收割！`, executeSkill);
+      }
+    });
+  }
+  if ((selfSpRatio < 0.35 || selfMenRatio < 0.35 || selfHpRatio < 0.45) && recoverSkill && !(selfSnapshot.hasHealingTrend && selfHpRatio > 0.55 && selfSpRatio > 0.45 && selfMenRatio > 0.45)) {
+    tacticalBranches.push({
+      name: "稳态回气",
+      weight: adjustBehaviorWeight("稳态回气", 72, defender, attacker, behaviorState),
+      build() {
+        return makeNpcAction("稳态回气", `[调整节奏] NPC判断硬拼将迅速透支，转而以[${recoverSkill.name}]修补状态链。`, recoverSkill);
+      }
+    });
+  }
+  if (allyCount > 1 && teamSupportSkill && !selfSnapshot.hasSharedVision) {
+    tacticalBranches.push({
+      name: "战术协同",
+      weight: adjustBehaviorWeight("战术协同", 68, defender, attacker, behaviorState),
+      build() {
+        return makeNpcAction("战术协同", `[协同铺垫] NPC选择用[${teamSupportSkill.name}]为己方建立更高效的集火与联动节奏。`, teamSupportSkill);
+      }
+    });
+  }
+  if ((isChargingHighThreat || playerPower >= 220 || selfHpRatio < 0.45) && reactiveDefenseSkill && !selfSnapshot.hasReactiveDefense) {
+    tacticalBranches.push({
+      name: "借力守势",
+      weight: adjustBehaviorWeight("借力守势", 88, defender, attacker, behaviorState),
+      build() {
+        return makeNpcAction("借力守势", `[借势防御] NPC放弃盲目硬拼，转而用[${reactiveDefenseSkill.name}]等待对手失衡反噬。`, reactiveDefenseSkill);
+      }
+    });
+  }
+
+  if (selfSnapshot.hasSharedVision && atkSkill && atkSummary.目标规模 === "单体" && atkSummary.爆发级别 !== "无") {
+    tacticalBranches.push({
+      name: "协同点杀",
+      weight: adjustBehaviorWeight("协同点杀", enemyHpRatio < 0.5 ? 86 : 70, defender, attacker, behaviorState),
+      build() {
+        return makeNpcAction("协同点杀", `[视野锁头] NPC借助共享视野完成目标校准，立刻以[${atkSkill.name}]集中打穿要害！`, atkSkill);
+      }
+    });
+  }
+
+  if (enemySnapshot.isLockedOrControlled && atkSkill && (atkSummary.爆发级别 === "高" || atkCastTime >= 18)) {
+    tacticalBranches.push({
+      name: "连段爆发",
+      weight: adjustBehaviorWeight("连段爆发", 82, defender, attacker, behaviorState),
+      build() {
+        return makeNpcAction("连段爆发", `[顺势爆发] NPC看准对手已被压制，果断接上[${atkSkill.name}]扩大伤害窗口！`, atkSkill);
+      }
+    });
+  }
+
+  if (enemySnapshot.hasDotPressure && executeSkill) {
+    tacticalBranches.push({
+      name: "压血收束",
+      weight: adjustBehaviorWeight("压血收束", enemyHpRatio < 0.45 ? 88 : 68, defender, attacker, behaviorState),
+      build() {
+        return makeNpcAction("压血收束", `[持续压杀] NPC判断对手已被持续伤害拖入危险区，立刻以[${executeSkill.name}]完成收束。`, executeSkill);
+      }
+    });
+  }
+
+  if (defender.type === "强攻系" && atkSkill && selfHpRatio > 0.4 && playerPower <= npcAtkPower * 1.7) {
+    tacticalBranches.push({
+      name: "强攻压制",
+      weight: adjustBehaviorWeight("强攻压制", enemyHpRatio < 0.5 ? 84 : 72, defender, attacker, behaviorState),
+      build() {
+        return makeNpcAction("强攻压制", `[正面压制] 身为强攻系，NPC更倾向以[${atkSkill.name}]持续压迫对手，不给其调整空间。`, atkSkill);
+      }
+    });
+  }
+
+  if (defender.type === "敏攻系" && (executeSkill || atkSkill)) {
+    const agileStrike = executeSkill && executeCastTime <= 18 ? executeSkill : atkSkill;
+    if (agileStrike) {
+      tacticalBranches.push({
+        name: "游击收割",
+        weight: adjustBehaviorWeight("游击收割", enemyHpRatio < 0.5 ? 90 : 70, defender, attacker, behaviorState),
+        build() {
+          return makeNpcAction("游击收割", `[游击切入] 敏攻系NPC抓住节奏缝隙，以[${agileStrike.name}]高速切入撕开战局。`, agileStrike);
+        }
+      });
+    }
+  }
+
+  if (defender.type === "防御系" && reactiveDefenseSkill && !selfSnapshot.hasReactiveDefense) {
+    tacticalBranches.push({
+      name: "坚壁反制",
+      weight: adjustBehaviorWeight("坚壁反制", isChargingHighThreat || playerPower >= 220 ? 92 : 74, defender, attacker, behaviorState),
+      build() {
+        return makeNpcAction("坚壁反制", `[以守待攻] 防御系NPC更擅长把战局拖入自己的节奏，先用[${reactiveDefenseSkill.name}]筑起反制层。`, reactiveDefenseSkill);
+      }
+    });
+  }
+
+  if (defender.type === "控制系" && hardControlSkill && !enemySnapshot.isLockedOrControlled) {
+    tacticalBranches.push({
+      name: "连锁控制",
+      weight: adjustBehaviorWeight("连锁控制", 88, defender, attacker, behaviorState),
+      build() {
+        return makeNpcAction("连锁控制", `[节奏封锁] 控制系NPC优先争夺节奏，试图用[${hardControlSkill.name}]建立状态链优势。`, hardControlSkill);
+      }
+    });
+  }
+
+  if (["辅助系", "治疗系", "食物系"].includes(defender.type) && allyCount > 1 && teamSupportSkill && !selfSnapshot.hasSharedVision) {
+    tacticalBranches.push({
+      name: "统筹增援",
+      weight: adjustBehaviorWeight("统筹增援", 82, defender, attacker, behaviorState),
+      build() {
+        return makeNpcAction("统筹增援", `[团队统筹] 辅助型NPC更重视整体节奏，优先用[${teamSupportSkill.name}]为己方建立协同优势。`, teamSupportSkill);
+      }
+    });
+  }
+
   if (isLockedBySpirit && defSkill) {
     tacticalBranches.push({
       name: "危机自保",
@@ -3470,6 +3792,115 @@ function findAllyTarget(actorChar, allyTeam) {
   return targetAlly;
 }
 
+function scoreEnemyTargetForSkill(attackerChar, target, skill) {
+  bindCombatParticipant(attackerChar);
+  bindCombatParticipant(target);
+  const snapshot = buildConditionTacticalSnapshot(target);
+  const summary = deriveBattleSummaryFromEffects(skill);
+  const dmg = getPrimaryDamageEffect(skill);
+  const hpRatio = Math.max(0, Number(target.vit || 0)) / Math.max(1, Number(target.vit_max || 1));
+  const power = Number(dmg?.威力倍率 || 0);
+  const penetration = Number(dmg?.穿透修饰 || 0);
+  const isSupport = ["辅助系", "治疗系", "食物系", "控制系"].includes(target.type);
+  const isTank = ["防御系", "强攻系"].includes(target.type);
+  let weight = 10;
+
+  if (attackerChar.type === "敏攻系") {
+    if (isSupport) weight += 45;
+    if (hpRatio < 0.4) weight += 30;
+  } else if (attackerChar.type === "强攻系") {
+    if (isTank) weight += 20;
+    if (hpRatio < 0.5) weight += 25;
+  } else if (attackerChar.type === "控制系") {
+    if (isSupport) weight += 35;
+    if (!snapshot.isLockedOrControlled) weight += 15;
+  } else {
+    if (hpRatio < 0.5) weight += 25;
+  }
+
+  if (hasSkillMechanism(skill, ["禁疗"])) {
+    if (snapshot.hasAntiHeal) weight -= 40;
+    if (snapshot.hasHealingTrend || isSupport) weight += 70;
+  }
+  if (hasSkillMechanism(skill, ["斩杀补伤"]) || (summary.爆发级别 === "高" && power >= 180)) {
+    if (hpRatio < 0.35) weight += 80;
+    else if (hpRatio < 0.55) weight += 25;
+    if (snapshot.isLockedOrControlled) weight += 20;
+    if (snapshot.hasDotPressure) weight += 15;
+  }
+  if (penetration >= 15 || /破甲|穿透|粉碎/.test(String(skill?.name || ""))) {
+    if (snapshot.hasShielded) weight += 60;
+    if (snapshot.hasDefenseBuffed || isTank) weight += 35;
+  }
+  if (summary.控制强度 !== "无") {
+    if (!snapshot.isLockedOrControlled) weight += 30;
+    else weight -= 25;
+    if (target.charging_skill) weight += 35;
+  }
+  if (hasSkillMechanism(skill, ["持续伤害"])) {
+    if (hpRatio > 0.55) weight += 20;
+    if (snapshot.debuffCount > 0) weight += 15;
+    if (hpRatio < 0.25) weight -= 15;
+  }
+  return Math.max(1, weight);
+}
+
+function chooseEnemyTargetForSkill(attackerChar, enemyTeam, skill, fallbackTarget = null) {
+  const validTargets = (enemyTeam || []).filter(target => target && Number(target.vit || 0) > 0);
+  if (validTargets.length === 0) return fallbackTarget || null;
+  const focusTarget = getActorFocusedTarget(attackerChar, validTargets);
+  if (!skill) return focusTarget || fallbackTarget || validTargets[0];
+  if (validTargets.length === 1) return validTargets[0];
+  const memory = ensureActorDecisionMemory(attackerChar);
+  const summary = deriveBattleSummaryFromEffects(skill);
+  const picked = chooseWeightedOption(validTargets.map(target => {
+    let weight = scoreEnemyTargetForSkill(attackerChar, target, skill);
+    if (focusTarget && target.name === focusTarget.name) {
+      weight += 18 + Number(memory.focus_ttl || 0) * 6;
+      if (memory.focus_reason === "control_window") {
+        if (summary.爆发级别 === "高" || hasSkillMechanism(skill, ["斩杀补伤"])) weight += 18;
+        if (summary.控制强度 !== "无") weight -= 12;
+      } else if (memory.focus_reason === "anti_heal_window") {
+        if (hasSkillMechanism(skill, ["持续伤害", "斩杀补伤"]) || summary.爆发级别 !== "无") weight += 12;
+      } else if (memory.focus_reason === "armor_break_window") {
+        if (Number(getPrimaryDamageEffect(skill)?.穿透修饰 || 0) >= 15 || summary.爆发级别 === "高") weight += 14;
+      } else if (memory.focus_reason === "shared_vision_focus") {
+        if (summary.目标规模 === "单体") weight += 18;
+      } else if (memory.focus_reason === "dot_pressure") {
+        if (hasSkillMechanism(skill, ["斩杀补伤", "持续伤害"]) || summary.爆发级别 === "高") weight += 16;
+      } else if (memory.focus_reason === "finisher") {
+        if (hasSkillMechanism(skill, ["斩杀补伤"]) || summary.爆发级别 !== "无") weight += 22;
+      }
+    }
+    return { target, weight: Math.max(1, weight) };
+  }));
+  return picked?.target || focusTarget || fallbackTarget || validTargets[0];
+}
+
+function scoreAllyTargetForSkill(actorChar, ally, skill) {
+  bindCombatParticipant(actorChar);
+  bindCombatParticipant(ally);
+  const snapshot = buildConditionTacticalSnapshot(ally);
+  const hpRatio = Math.max(0, Number(ally.vit || 0)) / Math.max(1, Number(ally.vit_max || 1));
+  const spRatio = Math.max(0, Number(ally.sp || 0)) / Math.max(1, Number(ally.sp_max || 1));
+  const menRatio = Math.max(0, Number(ally.men || 0)) / Math.max(1, Number(ally.men_max || 1));
+  const attackScore = Math.max(Number(ally.str || 0), Number(ally.men_max || 0));
+  let weight = ally.name === actorChar.name ? 12 : 10;
+  if (hasSkillMechanism(skill, ["回血", "护盾", "免死"])) weight += Math.floor((1 - hpRatio) * 120) + (snapshot.hasBadCondition ? 15 : 0);
+  if (hasSkillMechanism(skill, ["回魂力", "回精神力"])) weight += Math.floor((1 - spRatio) * 40) + Math.floor((1 - menRatio) * 40);
+  if (hasSkillMechanism(skill, ["共享视野"])) weight += Math.min(40, Math.floor(attackScore / 500));
+  if (["辅助系", "治疗系", "食物系", "控制系"].includes(ally.type)) weight += 10;
+  return Math.max(1, weight);
+}
+
+function chooseAllyTargetForSkill(actorChar, allyTeam, skill, fallbackTarget = null) {
+  const validAllies = (allyTeam || []).filter(target => target && Number(target.vit || 0) > 0);
+  if (validAllies.length === 0) return actorChar;
+  if (!skill) return fallbackTarget || validAllies[0] || actorChar;
+  const picked = chooseWeightedOption(validAllies.map(target => ({ target, weight: scoreAllyTargetForSkill(actorChar, target, skill) })));
+  return picked?.target || fallbackTarget || validAllies[0] || actorChar;
+}
+
 function chooseTargetForActor(actorEntry, battleState) {
   if (!actorEntry || !battleState?.combatData) return null;
   const enemyTeam = actorEntry.side === "player"
@@ -3478,8 +3909,9 @@ function chooseTargetForActor(actorEntry, battleState) {
   const allyTeam = actorEntry.side === "player"
     ? (battleState.combatData.participants.team_player || [])
     : (battleState.combatData.participants.team_enemy || []);
+  const focusEnemy = getActorFocusedTarget(actorEntry.char, enemyTeam);
   return {
-    enemyTarget: findTarget(actorEntry.char, enemyTeam),
+    enemyTarget: focusEnemy || findTarget(actorEntry.char, enemyTeam),
     allyTarget: findAllyTarget(actorEntry.char, allyTeam)
   };
 }
@@ -3693,12 +4125,22 @@ function runActorTurn(actorEntry, battleState) {
   }
 
   let finalTarget = targets.enemyTarget;
-  const skillTargetObj = action?.skill?.对象 || "敌方/单体";
+  const skillTargetObj = getSkillTarget(action?.skill);
+  const enemyTeam = actorEntry.side === "player"
+    ? (battleState.combatData.participants.team_enemy || [])
+    : (battleState.combatData.participants.team_player || []);
+  const allyTeam = actorEntry.side === "player"
+    ? [actor, ...((battleState.combatData.participants.team_player || []).filter(unit => unit.name !== actor.name))]
+    : [actor, ...((battleState.combatData.participants.team_enemy || []).filter(unit => unit.name !== actor.name))];
   if (skillTargetObj.includes("己方") || skillTargetObj.includes("友方")) {
-    finalTarget = targets.allyTarget;
+    finalTarget = chooseAllyTargetForSkill(actor, allyTeam, action?.skill, targets.allyTarget || actor);
   } else if (skillTargetObj.includes("自身")) {
     finalTarget = actor;
+  } else {
+    finalTarget = chooseEnemyTargetForSkill(actor, enemyTeam, action?.skill, targets.enemyTarget);
   }
+  if (!finalTarget) finalTarget = targets.enemyTarget || actor;
+  action.target_name = finalTarget?.name || action.target_name || null;
 
   const actorTurnCombatData = createActorTurnCombatData(actorEntry, finalTarget, battleState);
   const ratio = calculateReactionRatio(actor, finalTarget, action, actorTurnCombatData);
@@ -3751,6 +4193,24 @@ function runActorTurn(actorEntry, battleState) {
       finalTarget.vit = Math.floor(finalTarget.vit_max * 0.1);
       turnLog += ` [装备护主] ${finalTarget.name}触发装备护主，强制锁血至 10%。${applyArmorDamage(finalTarget)}`;
     }
+  }
+
+  const focusUpdate = updateActorFocusFromAction(actor, action, finalTarget, targets.enemyTarget, settleResult);
+  if (focusUpdate?.target) {
+    broadcastActorFocusToTeam(actorEntry, battleState, focusUpdate.target, focusUpdate.reason, focusUpdate.ttl);
+    const focusLabelMap = {
+      control_window: "控制追击",
+      anti_heal_window: "断疗压杀",
+      armor_break_window: "破防追击",
+      dot_pressure: "持续压血",
+      finisher: "收割",
+      shared_vision_focus: "集火"
+    };
+    turnLog += ` [战术焦点] ${actor.name}将${focusUpdate.target.name}锁为后续${focusLabelMap[focusUpdate.reason] || "追击"}目标。`;
+  }
+  if (evaluateActionCountered(action, finalTarget, reactionAction, settleResult, skillTargetObj)) {
+    recordActorSkillCountered(actor, action?.skill?.name || action?.action_type || "", reactionAction?.type || settleResult?.desc || "");
+    turnLog += ` [战术复盘] ${actor.name}意识到[${action?.skill?.name || action?.action_type || '该招式'}]再次被有效克制，短期内会降低其使用倾向。`;
   }
 
   return {

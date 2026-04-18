@@ -343,7 +343,7 @@ const PROFESSION_CONFIG = {
   forge: {
     mode: 'forge', jobName: '锻造师', title: '锻造工序', displayName: '锻造', actionLabel: '开始锻造',
     requiresMaterials: true, supportsFusion: true,
-    costs: { 1: [100, 100, 50], 2: [800, 800, 400], 3: [3500, 3500, 1500], 4: [15000, 15000, 5000], 5: [80000, 80000, 18000] },
+    costs: { 1: [100, 100, 0], 2: [200, 1500, 20], 3: [500, 5000, 50], 4: [15000, 15000, 5000], 5: [80000, 80000, 18000] },
     expGain: { 1: 50, 2: 400, 3: 2000, 4: 10000, 5: 50000 },
     targetHint: '锻造支持自动命名；多选同阶材料会触发融锻。',
     materialHint: '多选材料 = 融锻。千锻融锻要求所有材料达到 1.15 以上（一品）。'
@@ -816,8 +816,30 @@ class ProfessionUIComponent {
     return this.resolveDispatchNpcTarget() ? 'private' : 'self';
   }
 
+  resolveCharacterByName(name) {
+    const target = String(name || '').trim();
+    const chars = this.allChars && typeof this.allChars === 'object' ? this.allChars : {};
+    if (!target) return { key: '', displayName: '', char: null };
+    if (chars[target]) {
+      const charInfo = chars[target];
+      const displayName = String(charInfo?.name || charInfo?.base?.name || target).trim() || target;
+      return { key: target, displayName, char: charInfo };
+    }
+    for (const [charKey, charInfo] of Object.entries(chars)) {
+      const displayName = String(charInfo?.name || charInfo?.base?.name || charKey).trim() || charKey;
+      if (displayName === target) {
+        return { key: charKey, displayName, char: charInfo };
+      }
+    }
+    return { key: '', displayName: target, char: null };
+  }
+
   getTargetNpcName() { return this.resolveDispatchNpcTarget(); }
-  getRelationScore(name) { return Number(this.charData?.social?.relations?.[name]?.好感度 || 0); }
+  getRelationScore(name) {
+    const resolved = this.resolveCharacterByName(name);
+    const relationName = resolved.displayName || String(name || '').trim();
+    return Number(this.charData?.social?.relations?.[name]?.好感度 || this.charData?.social?.relations?.[relationName]?.好感度 || 0);
+  }
 
   getFusionContext(runtime, materialNames) {
     if (materialNames.length === 1) {
@@ -852,6 +874,32 @@ class ProfessionUIComponent {
     }
   }
 
+  getOfficialCommissionLocation(jobName) {
+    const name = String(jobName || '').trim();
+    if (name === '锻造师') return '锻造师协会';
+    if (name === '设计师') return '设计师协会';
+    if (name === '修理师') return '修理师协会';
+    return '制造师协会';
+  }
+
+  normalizeLocForMatch(location) {
+    const raw = String(location || '').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '').trim();
+    const segments = raw.split('-').filter(Boolean);
+    return {
+      raw,
+      leaf: segments[segments.length - 1] || raw,
+      segments
+    };
+  }
+
+  isLocationCompatible(currentLoc, targetLoc) {
+    const current = this.normalizeLocForMatch(currentLoc);
+    const target = this.normalizeLocForMatch(targetLoc);
+    if (!current.raw || !target.raw) return current.raw === target.raw;
+    if (current.raw === target.raw || current.leaf === target.leaf) return true;
+    return current.segments.some(seg => target.segments.includes(seg));
+  }
+
   getCommissionContext(cfg, runtime, tier, materialNames, targetName) {
     const type = this.getCommissionType();
     const targetNpcName = this.getTargetNpcName();
@@ -870,20 +918,24 @@ class ProfessionUIComponent {
     if (ctx.isOfficial) {
       ctx.executorName = `${cfg.jobName}协会`; ctx.executorRuntime = this.buildOfficialCommissionRuntime(cfg.jobName); ctx.validationRuntime = ctx.executorRuntime;
       ctx.successRate = 85; ctx.commissionFee = Number(OFFICIAL_COMMISSION_FEES[tier] || 0);
+      const officialLocationName = this.getOfficialCommissionLocation(cfg.jobName);
       ctx.note = `官方代工固定成功率 85%，最多承接 3 级复合工序。当前代工费 ${this.formatFedCoin(ctx.commissionFee)}。`;
-      if (!currentLoc.includes('制造师协会')) ctx.error = '必须前往【制造师协会】大厅才能办理官方代工委托。';
+      if (!currentLoc.includes(officialLocationName)) ctx.error = `必须前往【${officialLocationName}】大厅才能办理官方代工委托。`;
       else if (ctx.fusionCount > 3) ctx.error = `官方流水线拒收 ${ctx.fusionCount} 级复合工序，当前超出协会工艺上限。`;
     } else if (ctx.isPrivate) {
       if (!targetNpcName) ctx.error = '请选择或填写私人代工目标 NPC。';
       else {
-        const targetChar = this.allChars[targetNpcName]; ctx.targetChar = targetChar || null;
+        const resolvedTarget = this.resolveCharacterByName(targetNpcName);
+        const targetChar = resolvedTarget.char;
+        const relationName = resolvedTarget.displayName || targetNpcName;
+        ctx.targetChar = targetChar || null;
         if (!targetChar) ctx.error = `找不到代工目标【${targetNpcName}】。`;
-        else if (String(targetChar?.status?.loc || '') !== currentLoc) ctx.error = `【${targetNpcName}】当前不在你身边，无法进行当面代工交接。`;
+        else if (!this.isLocationCompatible(currentLoc, String(targetChar?.status?.loc || ''))) ctx.error = `【${targetNpcName}】当前不在你身边，无法进行当面代工交接。`;
         else if (!targetChar?.job?.[cfg.jobName]) ctx.error = `【${targetNpcName}】并未掌握【${cfg.jobName}】副职业。`;
         else {
           const npcRuntime = this.getJobRuntime(cfg.jobName, targetChar);
-          ctx.executorName = targetNpcName; ctx.executorRuntime = npcRuntime; ctx.validationRuntime = npcRuntime;
-          ctx.relScore = this.getRelationScore(targetNpcName);
+          ctx.executorName = relationName; ctx.executorRuntime = npcRuntime; ctx.validationRuntime = npcRuntime;
+          ctx.relScore = this.getRelationScore(relationName);
           if (ctx.fusionCount > npcRuntime.maxFusion) ctx.error = `目标 NPC【${targetNpcName}】的${cfg.jobName}等级不足，无法承接 ${ctx.fusionCount} 级复合工序。`;
           else {
             const baseFee = Number(PRIVATE_COMMISSION_FEES[tier] || 100000);
@@ -1266,7 +1318,8 @@ class ProfessionUIComponent {
     patchOps.push(...this.buildSystemResultPatches(resultLog, roll, successRate));
 
     const materialText = materialNames.map(name => `${qty}份${name}`).join('、');
-    const actionLead = commissionCtx.isOfficial ? `我要在制造师协会办理官方代工，委托完成【${targetName}】的${cfg.displayName}` : (commissionCtx.isPrivate ? `我要委托【${commissionCtx.executorName}】代工${cfg.displayName}，目标是【${targetName}】` : `我要进行${cfg.displayName}，目标是【${targetName}】`);
+    const officialLocationName = this.getOfficialCommissionLocation(cfg.jobName);
+    const actionLead = commissionCtx.isOfficial ? `我要在${officialLocationName}办理官方代工，委托完成【${targetName}】的${cfg.displayName}` : (commissionCtx.isPrivate ? `我要委托【${commissionCtx.executorName}】代工${cfg.displayName}，目标是【${targetName}】` : `我要进行${cfg.displayName}，目标是【${targetName}】`);
     const consumptionText = commissionCtx.isCommission ? `本次代工费：${this.formatFedCoin(commissionCtx.commissionFee)}。材料仍由委托人提供。` : `本次消耗：${this.formatResourceCost(costs)}。`;
     const sysPrompt = `${PROF_HIDDEN_ARBITRATION_NARRATION_RULES}\n\n[执行来源]\n本次执行者：${commissionCtx.executorName}。${commissionCtx.note}\n\n${resultLog}\n\n[副职业资源消耗]\n${consumptionText}\n[MVU变量更新数据]\n以下为本次副职业结算的完整 MVU 更新，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。\n<UpdateVariable>\n<Analysis>Forge executed.</Analysis>\n<JSONPatch>\n${JSON.stringify(patchOps, null, 2)}\n</JSONPatch>\n</UpdateVariable>`;
     this.submitAction(`${actionLead}，材料为：${materialText}。`, sysPrompt, 'prof_forge');
@@ -1342,7 +1395,8 @@ class ProfessionUIComponent {
     patchOps.push(...this.buildSystemResultPatches(resultLog, roll, successRate));
 
     const materialText = materialNames.length > 0 ? materialNames.map(name => `${qty}份${name}`).join('、') : '无显式材料';
-    const actionLead = commissionCtx.isOfficial ? `我要在制造师协会办理官方代工，委托执行${cfg.displayName}，目标是【${targetName}】` : (commissionCtx.isPrivate ? `我要委托【${commissionCtx.executorName}】代工${cfg.displayName}，目标是【${targetName}】` : `我要进行${cfg.displayName}，目标是【${targetName}】`);
+    const officialLocationName = this.getOfficialCommissionLocation(cfg.jobName);
+    const actionLead = commissionCtx.isOfficial ? `我要在${officialLocationName}办理官方代工，委托执行${cfg.displayName}，目标是【${targetName}】` : (commissionCtx.isPrivate ? `我要委托【${commissionCtx.executorName}】代工${cfg.displayName}，目标是【${targetName}】` : `我要进行${cfg.displayName}，目标是【${targetName}】`);
     const consumptionText = commissionCtx.isCommission ? `本次代工费：${this.formatFedCoin(commissionCtx.commissionFee)}。材料与目标物仍由委托人提供。` : `本次消耗：${this.formatResourceCost(costs)}。`;
     const sysPrompt = `${PROF_HIDDEN_ARBITRATION_NARRATION_RULES}\n\n[执行来源]\n本次执行者：${commissionCtx.executorName}。${commissionCtx.note}\n\n${resultLog}\n\n[副职业资源消耗]\n${consumptionText}\n[MVU变量更新数据]\n以下为本次副职业结算的完整 MVU 更新，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。\n<UpdateVariable>\n<Analysis>Generic profession executed.</Analysis>\n<JSONPatch>\n${JSON.stringify(patchOps, null, 2)}\n</JSONPatch>\n</UpdateVariable>`;
     this.submitAction(`${actionLead}，材料：${materialText}。`, sysPrompt, `prof_${cfg.mode}`);

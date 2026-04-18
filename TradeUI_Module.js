@@ -570,6 +570,42 @@ class TradeUIComponent {
     return Math.max(min, Math.min(max, Number(value || 0)));
   }
 
+  normalizeLocForMatch(location) {
+    const raw = String(location || '').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '').trim();
+    const segments = raw.split('-').filter(Boolean);
+    return {
+      raw,
+      leaf: segments[segments.length - 1] || raw,
+      segments
+    };
+  }
+
+  resolveCharacterByName(name) {
+    const target = String(name || '').trim();
+    const chars = this.allChars && typeof this.allChars === 'object' ? this.allChars : {};
+    if (!target) return { key: '', displayName: '', char: null };
+    if (chars[target]) {
+      const charInfo = chars[target];
+      const displayName = String(charInfo?.name || charInfo?.base?.name || target).trim() || target;
+      return { key: target, displayName, char: charInfo };
+    }
+    for (const [charKey, charInfo] of Object.entries(chars)) {
+      const displayName = String(charInfo?.name || charInfo?.base?.name || charKey).trim() || charKey;
+      if (displayName === target) {
+        return { key: charKey, displayName, char: charInfo };
+      }
+    }
+    return { key: '', displayName: target, char: null };
+  }
+
+  isLocationCompatible(currentLoc, targetLoc) {
+    const current = this.normalizeLocForMatch(currentLoc);
+    const target = this.normalizeLocForMatch(targetLoc);
+    if (!current.raw || !target.raw) return current.raw === target.raw;
+    if (current.raw === target.raw || current.leaf === target.leaf) return true;
+    return current.segments.some(seg => target.segments.includes(seg));
+  }
+
   getPrivateTradeContext(action, targetNpcName, itemName, qty, price) {
     const ctx = {
       action, targetNpcName, targetChar: null, relationScore: 0, successRate: 0,
@@ -580,20 +616,22 @@ class TradeUIComponent {
     if (!itemName) { ctx.error = '请输入交易物品名称。'; return ctx; }
     if (!targetNpcName) { ctx.error = '请输入交易对象 NPC。'; return ctx; }
 
-    const targetChar = this.allChars[targetNpcName];
+    const resolvedTarget = this.resolveCharacterByName(targetNpcName);
+    const targetChar = resolvedTarget.char;
+    const relationName = resolvedTarget.displayName || targetNpcName;
     ctx.targetChar = targetChar || null;
     if (!targetChar) { ctx.error = `找不到交易对象【${targetNpcName}】。`; return ctx; }
 
     const currentLoc = String(this.charData?.status?.loc || '');
     const targetLoc = String(targetChar?.status?.loc || '');
-    if (currentLoc && targetLoc && currentLoc !== targetLoc) {
+    if (currentLoc && targetLoc && !this.isLocationCompatible(currentLoc, targetLoc)) {
       ctx.error = `【${targetNpcName}】当前不在你身边，无法进行私下交易。`; return ctx;
     }
     if (ctx.basePrice <= 0) {
       ctx.error = `【${itemName}】当前无法进行可靠估值，私下交易无法发起。`; return ctx;
     }
     
-    ctx.relationScore = Number(this.charData?.social?.relations?.[targetNpcName]?.好感度 || 0);
+    ctx.relationScore = Number(this.charData?.social?.relations?.[targetNpcName]?.好感度 || this.charData?.social?.relations?.[relationName]?.好感度 || 0);
     const priceDeltaRatio = (Number(price || 0) - ctx.basePrice) / Math.max(1, ctx.basePrice);
 
     if (action === "私下买入") {
