@@ -5275,9 +5275,10 @@ ${JSON.stringify(patchOps, null, 2)}
           [activeKey]: { faction: '己方', status: deepGet(activeChar, 'status.alive', true) === false ? '重伤' : '存活', is_summon: false },
           [targetKey]: { faction: '敌对', status: deepGet(targetChar, 'status.alive', true) === false ? '重伤' : '存活', is_summon: false }
         } },
-        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: '战斗中' },
+        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: '战斗中' }
+      ];
 
-[MVU变量更新数据]
+      const mvuUpdate = `[MVU变量更新数据]
 以下为本次战斗初始化的完整 MVU 更新，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。
 <UpdateVariable>
 <Analysis>Battle initialized from map action.</Analysis>
@@ -5287,7 +5288,7 @@ ${JSON.stringify(patchOps, null, 2)}
 </UpdateVariable>`;
 
       return {
-        playerInput: `我想在【${arenaName}】与【${targetName}】切磋。`,
+        playerInput: `我想在【${arenaName}】与【${targetName}】切磋。\n\n${mvuUpdate}`,
         systemPrompt,
         requestKind: 'combat_action'
       };
