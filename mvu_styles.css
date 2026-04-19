@@ -2124,6 +2124,9 @@
       transform: none;
       overflow-y: auto;
       overflow-x: hidden;
+      overscroll-behavior-y: contain;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
       scrollbar-width: none;
       -ms-overflow-style: none;
     }
@@ -2142,9 +2145,10 @@
       display: flex;
       flex-direction: column;
       gap: 5px;
-      overflow: hidden;
+      overflow: visible;
       padding-right: 2px;
       min-height: 100%;
+      height: auto;
     }
 
     .split-shell-right .stack-3::-webkit-scrollbar {
@@ -2155,10 +2159,13 @@
     .split-shell-right .stack-3 .mvu-simple-card {
       min-height: min-content;
       flex: 0 0 auto;
-      overflow-y: auto;
-      overflow-x: visible;
+      overflow: visible;
       scrollbar-width: none;
       -ms-overflow-style: none;
+    }
+
+    .split-shell-right .stack-3 .mvu-module-card {
+      overflow: visible;
     }
 
     .split-shell-right .stack-3 .mvu-simple-card::-webkit-scrollbar,
@@ -3877,10 +3884,10 @@
     .meta-item,
     .status-row {
       border: none;
-      border-radius: 2px 8px 8px 2px;
-      padding: 6px 7px 6px 10px;
-      background: linear-gradient(90deg, rgba(223,246,255,0.12), rgba(223,246,255,0.02));
-      border-left: 2px solid rgba(143,233,255,0.32);
+      border-radius: 0;
+      padding: 6px 4px;
+      background: transparent;
+      border-bottom: 1px solid rgba(223,246,255,0.06);
     }
 
     .meta-item b,
@@ -3893,7 +3900,7 @@
     .faction-row b,
     .timeline-card b {
       display: block;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
       font-size: 9px;
       color: var(--text-dim);
       font-weight: 500;
@@ -3910,8 +3917,200 @@
     .timeline-card span {
       font-size: 11px;
       line-height: 1.35;
-      color: var(--white);
+      color: var(--cyan);
     }
+
+    .life-graph-grid {
+      grid-template-columns: 0.9fr 1.1fr;
+      align-items: start;
+      gap: 14px;
+    }
+
+    .life-profile-card {
+      grid-row: span 2;
+    }
+
+    .life-growth-card,
+    .life-radar-card {
+      display: grid;
+      align-content: start;
+    }
+
+    .life-profile-snapshot {
+      gap: 12px;
+    }
+
+    .life-profile-card .identity-card,
+    .life-profile-card .status-card {
+      border: none;
+      background: transparent;
+      box-shadow: none;
+      padding: 0;
+      border-radius: 0;
+    }
+
+    .life-profile-card .status-card {
+      padding-top: 10px;
+      border-top: 1px solid rgba(120, 220, 255, 0.12);
+    }
+
+    .life-growth-card .identity-growth-grid {
+      margin-top: 4px;
+      gap: 8px;
+    }
+
+    .life-growth-card .meta-item {
+      min-height: 0;
+      border-radius: 0;
+      padding: 4px 6px;
+      background: transparent;
+      border-left: none;
+      border-bottom: 1px solid rgba(223,246,255,0.06);
+    }
+
+    .life-growth-card .meta-item b {
+      font-size: 10px;
+      margin-bottom: 2px;
+    }
+
+    .life-growth-card .meta-item span {
+      font-size: 13px;
+      line-height: 1.2;
+      color: var(--cyan);
+    }
+
+    .life-profile-card .identity-card h3 {
+      margin-bottom: 2px;
+    }
+
+    .battle-card-stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .battle-radar-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .profile-snapshot {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 10px;
+    }
+
+    .identity-card {
+      display: grid;
+      gap: 10px;
+    }
+
+    .identity-overview-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+    }
+
+    .identity-panel {
+      display: grid;
+      gap: 6px;
+    }
+
+    .identity-panel-title {
+      font-size: 10px;
+      line-height: 1.35;
+      color: var(--text-dim);
+      letter-spacing: 0.04em;
+      font-weight: 600;
+    }
+
+    .identity-basic-grid,
+    .identity-growth-grid,
+    .identity-appearance-grid {
+      display: grid;
+      gap: 6px;
+    }
+
+    .identity-basic-grid,
+    .identity-growth-grid,
+    .identity-appearance-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .identity-growth-panel .meta-item {
+      background: linear-gradient(135deg, rgba(43, 121, 160, 0.26), rgba(18, 58, 82, 0.32));
+      border-left-color: rgba(111, 236, 255, 0.42);
+    }
+
+    .identity-appearance-panel {
+      margin-top: 2px;
+    }
+
+    .life-profile-card .identity-panel {
+      gap: 8px;
+    }
+
+    .life-profile-card .identity-panel-title {
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      color: var(--cyan);
+      border-bottom: 1px dashed rgba(223,246,255,0.12);
+      padding-bottom: 6px;
+      margin-bottom: 4px;
+    }
+
+    .life-profile-card .identity-basic-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .life-profile-card .identity-appearance-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .life-profile-card .meta-item,
+    .life-profile-card .status-row {
+      min-height: 0;
+      border-radius: 0;
+      padding: 6px 0;
+      background: transparent;
+      border-left: none;
+    }
+
+    .life-profile-card .meta-item b,
+    .life-profile-card .status-row b {
+      font-size: 9px;
+      margin-bottom: 4px;
+    }
+
+    .meta-item-wide {
+      grid-column: 1 / -1;
+    }
+
+    .identity-basic-grid .meta-item,
+    .identity-growth-grid .meta-item,
+    .identity-appearance-grid .meta-item {
+      min-height: 58px;
+    }
+
+    .identity-appearance-grid .meta-item-wide {
+      min-height: 70px;
+    }
+
+    .life-profile-card .status-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 4px 12px;
+    }
+
+    .life-profile-card .meta-item span,
+    .life-profile-card .status-row span {
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .life-profile-card .status-row:last-child {
+      grid-column: 1 / -1;
+    }
+
 
     .ability-detail-card {
       border-radius: 12px;
@@ -4749,10 +4948,11 @@
 
     .relation-card,
     .intel-card {
-      border-radius: 12px;
-      padding: 9px 10px;
-      border: 1px solid rgba(210,245,255,0.12);
-      background: rgba(223,246,255,0.08);
+      border-radius: 0;
+      padding: 6px 4px;
+      border: none;
+      background: transparent;
+      border-bottom: 1px solid rgba(223,246,255,0.06);
     }
 
     .relation-card b,
@@ -4760,16 +4960,16 @@
       display: block;
       margin-bottom: 4px;
       font-size: 10px;
-      color: var(--white);
-      font-weight: 700;
+      color: var(--text-dim);
+      font-weight: 500;
     }
 
     .relation-card span,
     .intel-card span {
       display: block;
-      font-size: 10px;
-      line-height: 1.4;
-      color: var(--text-sub);
+      font-size: 12px;
+      line-height: 1.35;
+      color: var(--cyan);
     }
 
     .archive-note.soft-gap {

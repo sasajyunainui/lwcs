@@ -2393,6 +2393,11 @@
       font-weight: 600;
     }
 
+    .map-status-chip.is-error {
+      border-color: rgba(248,113,113,0.30);
+      background: rgba(58,22,22,0.88);
+    }
+
     .map-status-chip span {
       font-size: 10px;
       line-height: 1.35;
@@ -2467,6 +2472,25 @@
       background: rgba(53,44,26,0.90);
       border-color: rgba(205,166,92,0.22);
       color: #f0dcab;
+    }
+
+    .map-panel-mode-strip {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin: 0 0 8px;
+    }
+
+    .map-panel-mode-btn {
+      appearance: none;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    .map-panel-mode-btn.current {
+      border-color: rgba(101,151,197,0.32);
+      background: rgba(18,41,60,0.92);
+      color: #eef8ff;
     }
 
     .map-travel-panel-row b {
@@ -2854,6 +2878,7 @@
           <div class='map-status-chip'><b>层级</b><span data-map-layer-label>大陆级</span></div>
           <div class='map-status-chip gold'><b>可视节点</b><span data-map-visible-nodes>0</span></div>
           <div class='map-status-chip'><b>状态</b><span data-map-request-chip>停留中</span></div>
+          <div class='map-status-chip' data-map-sync-chip><b>同步</b><span data-map-sync-status>待同步</span></div>
         </div>
       </div>
 
@@ -2861,10 +2886,14 @@
         <div class='mvu-simple-card map-side-card'>
           <div class='simple-head'>
             <div class='simple-title'>详细信息</div>
-            <span class='map-side-badge'>详情</span>
+            <span class='map-side-badge' data-map-panel-mode-badge>跟随</span>
+          </div>
+          <div class='map-panel-mode-strip'>
+            <button type='button' class='map-layer-pill map-panel-mode-btn current' data-map-panel-mode='follow'>跟随当前位置</button>
+            <button type='button' class='map-layer-pill map-panel-mode-btn' data-map-panel-mode='selection'>查看选中节点</button>
           </div>
           <div class='simple-list'>
-            <div class='simple-row'><b>当前位置</b><span data-map-current-name>载入中 · --,--</span></div>
+            <div class='simple-row'><b data-map-panel-primary-label>当前位置</b><span data-map-current-name>载入中 · --,--</span></div>
             <div class='simple-row'><b>类别</b><span data-map-focus-type>无</span></div>
             <div class='simple-row'><b>功能</b><span data-map-focus-faction>无</span></div>
             <div class='simple-row'><b>可用</b><span data-map-focus-childmap>无</span></div>
@@ -2919,16 +2948,29 @@
     previewKey: '',
     previewTrail: [],
     layerFollowsZoom: true,
-    hasLoaded: false
+    hasLoaded: false,
+    infoPanelMode: 'follow',
+    uiRefCache: new Map(),
+    lastRefreshSignature: '',
+    syncStatus: '待同步',
+    syncDetail: '',
+    lastSyncAt: 0
   };
 
-  const mapDragState = { active: false, startX: 0, startY: 0, originX: 0, originY: 0, sourceCanvas: null, moved: false, lastDragAt: 0 };
+  const mapDragState = { active: false, startX: 0, startY: 0, originX: 0, originY: 0, sourceCanvas: null, moved: false, lastDragAt: 0, raf: 0, lastMiniMapSyncAt: 0 };
   const miniMapDragState = { active: false, sourceEl: null, pointerId: null, offsetX: 0, offsetY: 0 };
+  const mapDerivedCache = { renderableItems: new Map(), terrainInfo: new Map(), nearestVisibleNode: new Map() };
   let pointerBound = false;
   let hoverSyncRaf = 0;
   let hoverSyncCanvas = null;
   let hoverSyncTimeout = null;
   const MAP_HOVER_INFO_DEBOUNCE_MS = 180;
+
+  function invalidateMapDerivedCache() {
+    mapDerivedCache.renderableItems.clear();
+    mapDerivedCache.terrainInfo.clear();
+    mapDerivedCache.nearestVisibleNode.clear();
+  }
 
   function cancelScheduledHoverSync() {
     if (hoverSyncRaf) {
@@ -3042,60 +3084,70 @@
   function bindMvuUpdates(handler) {
     const host = getMvuHost();
     const eventName = host && host.events ? host.events.VARIABLE_UPDATE_ENDED : '';
+    const POLL_KEY = '__sheepMapPollTimer';
+    const POLL_VIS_KEY = '__sheepMapPollVisibilityBound';
+    const POLL_FOCUS_KEY = '__sheepMapPollFocusBound';
     let bound = false;
 
-    if (host && eventName && typeof host.on === 'function') {
-      host.on(eventName, handler);
-      bound = true;
-    } else if (host && eventName && typeof host.addEventListener === 'function') {
-      host.addEventListener(eventName, handler);
-      bound = true;
-    }
-
-    if (!bound && eventName) {
+    let running = false;
+    const safeHandler = async (...args) => {
+      if (running) return;
+      running = true;
       try {
-        window.addEventListener(eventName, handler);
+        await Promise.resolve(handler(...args));
+      } catch (error) {
+        console.error('sheep_map_restore polling refresh failed', error);
+      } finally {
+        running = false;
+      }
+    };
+
+    if (host && eventName && typeof host.on === 'function') {
+      try {
+        host.on(eventName, safeHandler);
         bound = true;
       } catch (_) {}
     }
 
-    if (!bound) {
-      const POLL_KEY = '__sheepMapPollTimer';
-      const POLL_VIS_KEY = '__sheepMapPollVisibilityBound';
-      const POLL_FOCUS_KEY = '__sheepMapPollFocusBound';
-      let running = false;
-      const safeHandler = async () => {
-        if (running) return;
-        running = true;
-        try {
-          await Promise.resolve(handler());
-        } catch (error) {
-          console.error('sheep_map_restore polling refresh failed', error);
-        } finally {
-          running = false;
+    if (host && eventName && typeof host.addEventListener === 'function') {
+      try {
+        host.addEventListener(eventName, safeHandler);
+        bound = true;
+      } catch (_) {}
+    }
+
+    if (eventName) {
+      try {
+        window.addEventListener(eventName, safeHandler);
+        bound = true;
+      } catch (_) {}
+      try {
+        if (window.top && window.top !== window && typeof window.top.addEventListener === 'function') {
+          window.top.addEventListener(eventName, safeHandler);
+          bound = true;
         }
-      };
+      } catch (_) {}
+    }
 
-      if (!window[POLL_KEY]) {
-        window[POLL_KEY] = window.setInterval(safeHandler, 1500);
-      }
+    if (!window[POLL_KEY]) {
+      window[POLL_KEY] = window.setInterval(safeHandler, 1500);
+    }
 
-      if (!window[POLL_VIS_KEY]) {
-        document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'visible') safeHandler();
-        });
-        window[POLL_VIS_KEY] = true;
-      }
+    if (!window[POLL_VIS_KEY]) {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') safeHandler();
+      });
+      window[POLL_VIS_KEY] = true;
+    }
 
-      if (!window[POLL_FOCUS_KEY]) {
-        window.addEventListener('focus', safeHandler);
-        window[POLL_FOCUS_KEY] = true;
-      }
+    if (!window[POLL_FOCUS_KEY]) {
+      window.addEventListener('focus', safeHandler);
+      window[POLL_FOCUS_KEY] = true;
+    }
 
-      safeHandler();
-      if (window.__MVU_DEBUG__) {
-        console.info('sheep_map_restore: MVU update event not bound; polling fallback enabled.');
-      }
+    safeHandler();
+    if (!bound && window.__MVU_DEBUG__) {
+      console.info('sheep_map_restore: MVU update event not bound; polling fallback enabled.');
     }
   }
 
@@ -3131,6 +3183,35 @@
       },
       rawData: rawSd
     };
+  }
+
+  function buildCharactersByLocationIndex(rootData, activeName = '') {
+    const charactersByLoc = new Map();
+    const digestParts = [];
+    const charData = deepGet(rootData, 'char', {});
+    safeEntries(charData).forEach(([charId, charInfo]) => {
+      const npcName = toText(charInfo && (charInfo.name || deepGet(charInfo, 'base.name', '')), charId);
+      if (!npcName || npcName === activeName || charId === activeName) return;
+      const charLoc = toText(charInfo && charInfo.status && charInfo.status.loc, '');
+      const npcFaction = toText(charInfo && (charInfo.faction || deepGet(charInfo, 'org.name', '') || deepGet(charInfo, 'org.main', '')), '');
+      const npcState = toText(deepGet(charInfo, 'status.action', ''), '');
+      const npcMetaParts = [];
+      if (npcFaction) npcMetaParts.push(npcFaction);
+      if (npcState) npcMetaParts.push(`状态 ${npcState}`);
+      const entry = { id: charId, name: npcName, meta: npcMetaParts.join(' · '), raw: charInfo };
+      const locationKeys = new Set(String(charLoc || '').split('-').filter(Boolean));
+      if (charLoc) locationKeys.add(charLoc);
+      locationKeys.forEach(locationKey => {
+        const safeLocationKey = toText(locationKey, '');
+        if (!safeLocationKey) return;
+        if (!charactersByLoc.has(safeLocationKey)) charactersByLoc.set(safeLocationKey, []);
+        charactersByLoc.get(safeLocationKey).push(entry);
+      });
+      digestParts.push([charId, npcName, charLoc, npcFaction, npcState].join(':'));
+    });
+    charactersByLoc.forEach(entries => entries.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN')));
+    digestParts.sort();
+    return { charactersByLoc, characterDigest: digestParts.join('||') };
   }
 
   function resolveActiveCharacter(sd) {
@@ -3531,16 +3612,20 @@
 
   function buildMapSnapshot(rootData) {
     const [activeName, activeChar] = resolveActiveCharacter(rootData || {});
-    return buildSnapshotFromMapPayload(rootData, rootData, activeName, activeChar);
+    const characterIndexPayload = buildCharactersByLocationIndex(rootData, activeName);
+    return buildSnapshotFromMapPayload(rootData, rootData, activeName, activeChar, characterIndexPayload);
   }
 
-  function buildSnapshotFromMapPayload(payload, sourceRootData, activeName, activeChar) {
+  function buildSnapshotFromMapPayload(payload, sourceRootData, activeName, activeChar, cachedIndexes = null) {
     const isPreview = payload && payload.current_map_id && payload.current_map_id !== 'map_douluo_world';
     const rootData = isPreview ? (payload.rootData || sourceRootData || mapState.baseSnapshot?.rootData || {}) : (sourceRootData || payload || {});
     const currentLocFull = toText(deepGet(activeChar, 'status.loc', '斗罗大陆-未知地点'), '斗罗大陆-未知地点');
     const pathSegments = currentLocFull.split('-').filter(Boolean);
     const currentLocName = pathSegments[pathSegments.length - 1] || '未知地点';
     const currentMapId = isPreview ? payload.current_map_id : 'map_douluo_world';
+    const characterIndexPayload = cachedIndexes && cachedIndexes.charactersByLoc instanceof Map
+      ? cachedIndexes
+      : buildCharactersByLocationIndex(rootData, activeName);
 
     const visibleDynamics = {};
     if (isPreview && payload.visible_dynamic_locations && typeof payload.visible_dynamic_locations === 'object') {
@@ -3588,11 +3673,48 @@
       mapLevel: isPreview ? payload.map_meta?.map_level || 'city' : 'world',
       mapMeta: isPreview ? payload.map_meta : null,
       previewMeta: isPreview ? payload.preview_meta : null,
-      coord_system: resolveSnapshotCoordSystem()
+      coord_system: resolveSnapshotCoordSystem(),
+      charactersByLoc: characterIndexPayload.charactersByLoc,
+      characterDigest: characterIndexPayload.characterDigest
     };
     snapshot.items = buildRuntimeMapItems(snapshot);
     snapshot.bounds = { ...DEFAULT_IMAGE_BOUNDS };
     return snapshot;
+  }
+
+  function buildMapRefreshSignature(snapshot, previewTrailToken = '') {
+    if (!snapshot || typeof snapshot !== 'object') return '';
+    const focusCoord = snapshot.currentFocusCoord || {};
+    const itemDigest = Array.isArray(snapshot.items)
+      ? snapshot.items.map(item => [
+          toText(item && item.name, ''),
+          toText(item && item.type, ''),
+          toText(item && item.nodeKind, ''),
+          toText(item && item.state, ''),
+          item && item.canEnter ? '1' : '0',
+          toText(item && item.eventId, '')
+        ].join(':')).join('|')
+      : '';
+    return [
+      toText(snapshot.currentMapId, ''), toText(snapshot.mapLevel, ''), toText(snapshot.currentLoc, ''), toText(snapshot.currentFocusName, ''),
+      Number.isFinite(focusCoord.x) ? roundCoord(focusCoord.x) : 'NaN', Number.isFinite(focusCoord.y) ? roundCoord(focusCoord.y) : 'NaN',
+      previewTrailToken, snapshot.characterDigest || '', itemDigest
+    ].join('¦');
+  }
+
+  function getMapInfoPanelMode() {
+    return mapState.infoPanelMode === 'selection' ? 'selection' : 'follow';
+  }
+
+  function setMapSyncState(status = '待同步', detail = '') {
+    mapState.syncStatus = toText(status, '待同步');
+    mapState.syncDetail = toText(detail, '');
+    mapState.lastSyncAt = Date.now();
+  }
+
+  function formatMapSyncTime(timestamp = mapState.lastSyncAt) {
+    if (!timestamp) return '--:--:--';
+    try { return new Date(timestamp).toLocaleTimeString('zh-CN', { hour12: false }); } catch (_) { return '--:--:--'; }
   }
 
   function buildFallbackSnapshot() {
@@ -3831,9 +3953,11 @@
     const { preserveSelection = true, forceLayer = null, initializeLayer = true } = options;
     const previousCurrent = mapState.currentNode;
     const previousSelected = mapState.selectedNode;
+    const followCurrentSelection = !mapState.selectedFreePoint && (!previousSelected || previousSelected === previousCurrent);
     mapState.snapshot = snapshot;
     mapState.bounds = snapshot.bounds;
     mapState.items = snapshot.items;
+    invalidateMapDerivedCache();
     mapState.itemMap = new Map(snapshot.items.map(item => [item.name, item]));
     mapState.activePatches = snapshot.activePatches.map(([id, patch]) => ({ id, layer: toText(patch && patch.layer, 'overlay'), asset: toText(patch && patch.asset, id), bounds: patch && patch.bounds ? patch.bounds : { x: 0, y: 0, w: 0, h: 0 } }));
     mapState.coordSystem = MAP_COORD_SYSTEM_IMAGE;
@@ -3860,7 +3984,7 @@
       mapState.currentNode = snapshot.items[0] ? snapshot.items[0].name : previousCurrent;
       mapState.currentFreePoint = null;
     }
-    if (!preserveSelection || !mapState.itemMap.has(previousSelected)) {
+    if (followCurrentSelection || !preserveSelection || !mapState.itemMap.has(previousSelected)) {
       mapState.selectedNode = mapState.itemMap.has(mapState.currentNode) ? mapState.currentNode : (snapshot.items[0] ? snapshot.items[0].name : previousSelected);
     } else {
       mapState.selectedNode = previousSelected;
@@ -3964,6 +4088,7 @@
     if (!pageMap) return false;
     if (!pageMap.querySelector('.map-layout')) {
       pageMap.innerHTML = mapHtml;
+      invalidateMapUiRefCache();
     }
     return true;
   }
@@ -3971,6 +4096,7 @@
   function refreshSplitMapPages() {
     const leftSource = document.querySelector('#page-map .map-layout > .map-hero-card');
     const rightSource = document.querySelector('#page-map .map-layout > .map-side-stack');
+    let shellMutated = false;
 
     function resetMapBindingFlags(root) {
       if (!root || !(root instanceof Element)) return root;
@@ -4006,11 +4132,12 @@
     }
 
     document.querySelectorAll(`.split-left-page[data-target='page-map']`).forEach(page => {
-      hydrateMapShell(page, leftSource, hasHydratedLeftMap);
+      shellMutated = hydrateMapShell(page, leftSource, hasHydratedLeftMap) || shellMutated;
     });
     document.querySelectorAll(`.split-right-page[data-target='page-map']`).forEach(page => {
-      hydrateMapShell(page, rightSource, hasHydratedRightMap);
+      shellMutated = hydrateMapShell(page, rightSource, hasHydratedRightMap) || shellMutated;
     });
+    if (shellMutated) invalidateMapUiRefCache();
   }
 
   function bindTabResync() {
@@ -4086,15 +4213,20 @@
   }
 
   function getRenderableItems(layer = mapState.layer) {
+    const safeLayer = toText(layer, mapState.layer || 'continent');
+    const cached = mapDerivedCache.renderableItems.get(safeLayer);
+    if (Array.isArray(cached)) return cached;
     const items = mapState.items.filter(item => item && item.validCoord);
     if (!items.length) return [];
     let filtered = items;
-    if (layer === 'continent') {
+    if (safeLayer === 'continent') {
       filtered = items.filter(item => item.pointKind === 'settlement' || item.pointKind === 'terrain' || item.major || item.canEnter);
-    } else if (layer === 'city') {
+    } else if (safeLayer === 'city') {
       filtered = items.filter(item => item.source !== 'dynamic' || item.major || item.canEnter || item.pointKind === 'terrain');
     }
-    return filtered.length ? filtered : items;
+    const result = filtered.length ? filtered : items;
+    mapDerivedCache.renderableItems.set(safeLayer, result);
+    return result;
   }
 
   function getItemByName(name) {
@@ -5197,57 +5329,70 @@
     const y = toNumber(coord && coord.y, NaN);
     const safeMapId = toText(mapId, 'map_douluo_world');
     if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    const cacheKey = `${safeMapId}:${roundCoord(x)}:${roundCoord(y)}`;
+    if (mapDerivedCache.terrainInfo.has(cacheKey)) return mapDerivedCache.terrainInfo.get(cacheKey);
     const gridInfo = resolveMainMapTerrainGridInfo({ x, y }, safeMapId);
     const hardOverrideInfo = resolveWorldTerrainHardOverride({ x, y }, gridInfo, safeMapId);
-    if (hardOverrideInfo) return hardOverrideInfo;
-    const visualInfo = resolveWorldImageColorTerrainInfo({ x, y }, gridInfo, safeMapId);
-    if (visualInfo) return visualInfo;
-    if (safeMapId === 'map_douluo_world') {
-      const terrainHints = Array.isArray(gridInfo && gridInfo.terrainTypes)
-        ? gridInfo.terrainTypes.map(item => toText(item, '')).filter(Boolean)
-        : [];
-      if (terrainHints.some(item => /(海|洋|水域|海域|外海)/.test(item))) return buildWorldTerrainInfoFromVisualKind('water', gridInfo, safeMapId);
-      return buildWorldTerrainInfoFromVisualKind('plain', gridInfo, safeMapId);
-    }
-    const resolver = getGlobalTerrainResolver();
-    let regions = [];
-    if (resolver) {
-      try {
-        regions = resolver(x, y, safeMapId) || [];
-      } catch (_) {
-        regions = [];
+    let result = null;
+    if (hardOverrideInfo) {
+      result = hardOverrideInfo;
+    } else {
+      const visualInfo = resolveWorldImageColorTerrainInfo({ x, y }, gridInfo, safeMapId);
+      if (visualInfo) {
+        result = visualInfo;
+      } else if (safeMapId === 'map_douluo_world') {
+        const terrainHints = Array.isArray(gridInfo && gridInfo.terrainTypes)
+          ? gridInfo.terrainTypes.map(item => toText(item, '')).filter(Boolean)
+          : [];
+        result = terrainHints.some(item => /(海|洋|水域|海域|外海)/.test(item))
+          ? buildWorldTerrainInfoFromVisualKind('water', gridInfo, safeMapId)
+          : buildWorldTerrainInfoFromVisualKind('plain', gridInfo, safeMapId);
+      } else {
+        const resolver = getGlobalTerrainResolver();
+        let regions = [];
+        if (resolver) {
+          try {
+            regions = resolver(x, y, safeMapId) || [];
+          } catch (_) {
+            regions = [];
+          }
+        }
+        if ((!Array.isArray(regions) || !regions.length) && gridInfo) {
+          result = gridInfo;
+        } else if (Array.isArray(regions) && regions.length) {
+          const primary = regions[regions.length - 1] || regions[0] || {};
+          const overlapNames = regions.map(region => toText(region && region.name, '')).filter(Boolean);
+          const primaryTerrainTypes = Array.isArray(primary.terrain_types) ? primary.terrain_types.map(item => toText(item, '')).filter(Boolean) : [];
+          const terrainTypes = gridInfo
+            ? [...gridInfo.terrainTypes, ...primaryTerrainTypes.filter(item => item && !gridInfo.terrainTypes.includes(item))]
+            : primaryTerrainTypes;
+          const regionResources = Array.isArray(primary.resources) ? primary.resources.map(item => toText(item, '')).filter(Boolean) : [];
+          const resources = gridInfo
+            ? [...new Set([...(Array.isArray(gridInfo.resources) ? gridInfo.resources : []), ...regionResources])]
+            : regionResources;
+          const regionMovementDifficulty = toNumber(primary.movement_difficulty, NaN);
+          const movementDifficultyCandidates = [
+            Number.isFinite(regionMovementDifficulty) ? regionMovementDifficulty : NaN,
+            gridInfo && Number.isFinite(gridInfo.movementDifficulty) ? gridInfo.movementDifficulty : NaN
+          ].filter(Number.isFinite);
+          const movementDifficulty = movementDifficultyCandidates.length ? Math.max(...movementDifficultyCandidates) : NaN;
+          result = {
+            id: toText(primary.id, gridInfo ? `grid_${gridInfo.gridTerrain}` : ''),
+            name: toText(primary.name, gridInfo ? toText(gridInfo.name, terrainTypes.join('/')) : terrainTypes.join('/')),
+            terrainTypes,
+            climate: toText(primary.climate, gridInfo ? toText(gridInfo.climate, '') : ''),
+            movementDifficulty: Number.isFinite(movementDifficulty) ? movementDifficulty : NaN,
+            resources,
+            overlapNames,
+            mapId: safeMapId,
+            grid: gridInfo ? { x: gridInfo.gridX, y: gridInfo.gridY, code: gridInfo.gridCode, terrain: gridInfo.gridTerrain } : null,
+            source: gridInfo ? 'region+grid' : 'region'
+          };
+        }
       }
     }
-    if ((!Array.isArray(regions) || !regions.length) && gridInfo) return gridInfo;
-    if (!Array.isArray(regions) || !regions.length) return null;
-    const primary = regions[regions.length - 1] || regions[0] || {};
-    const overlapNames = regions.map(region => toText(region && region.name, '')).filter(Boolean);
-    const primaryTerrainTypes = Array.isArray(primary.terrain_types) ? primary.terrain_types.map(item => toText(item, '')).filter(Boolean) : [];
-    const terrainTypes = gridInfo
-      ? [...gridInfo.terrainTypes, ...primaryTerrainTypes.filter(item => item && !gridInfo.terrainTypes.includes(item))]
-      : primaryTerrainTypes;
-    const regionResources = Array.isArray(primary.resources) ? primary.resources.map(item => toText(item, '')).filter(Boolean) : [];
-    const resources = gridInfo
-      ? [...new Set([...(Array.isArray(gridInfo.resources) ? gridInfo.resources : []), ...regionResources])]
-      : regionResources;
-    const regionMovementDifficulty = toNumber(primary.movement_difficulty, NaN);
-    const movementDifficultyCandidates = [
-      Number.isFinite(regionMovementDifficulty) ? regionMovementDifficulty : NaN,
-      gridInfo && Number.isFinite(gridInfo.movementDifficulty) ? gridInfo.movementDifficulty : NaN
-    ].filter(Number.isFinite);
-    const movementDifficulty = movementDifficultyCandidates.length ? Math.max(...movementDifficultyCandidates) : NaN;
-    return {
-      id: toText(primary.id, gridInfo ? `grid_${gridInfo.gridTerrain}` : ''),
-      name: toText(primary.name, gridInfo ? toText(gridInfo.name, terrainTypes.join('/')) : terrainTypes.join('/')),
-      terrainTypes,
-      climate: toText(primary.climate, gridInfo ? toText(gridInfo.climate, '') : ''),
-      movementDifficulty: Number.isFinite(movementDifficulty) ? movementDifficulty : NaN,
-      resources,
-      overlapNames,
-      mapId: safeMapId,
-      grid: gridInfo ? { x: gridInfo.gridX, y: gridInfo.gridY, code: gridInfo.gridCode, terrain: gridInfo.gridTerrain } : null,
-      source: gridInfo ? 'region+grid' : 'region'
-    };
+    mapDerivedCache.terrainInfo.set(cacheKey, result);
+    return result;
   }
 
   function formatTerrainText(info, mapId = mapState.currentMapId) {
@@ -5286,7 +5431,15 @@
 
   function getNearestVisibleMapNode(coord, layer = mapState.layer, options = {}) {
     const { maxRatioDistance = Infinity, useRenderedRatio = false } = options || {};
-    const items = getRenderableItems(layer);
+    const safeLayer = toText(layer, mapState.layer || 'continent');
+    const coordX = toNumber(coord && coord.x, NaN);
+    const coordY = toNumber(coord && coord.y, NaN);
+    const coordKeyX = Number.isFinite(coordX) ? coordX.toFixed(useRenderedRatio ? 2 : 0) : 'NaN';
+    const coordKeyY = Number.isFinite(coordY) ? coordY.toFixed(useRenderedRatio ? 2 : 0) : 'NaN';
+    const distanceKey = Number.isFinite(maxRatioDistance) ? maxRatioDistance.toFixed(4) : 'inf';
+    const cacheKey = `${safeLayer}:${useRenderedRatio ? 'ratio' : 'world'}:${distanceKey}:${coordKeyX}:${coordKeyY}`;
+    if (mapDerivedCache.nearestVisibleNode.has(cacheKey)) return mapDerivedCache.nearestVisibleNode.get(cacheKey);
+    const items = getRenderableItems(safeLayer);
     if (!items.length) return mapState.currentNode || mapState.selectedNode || '';
     const targetRatio = useRenderedRatio && coord ? projectCoord(coord) : null;
     const best = items.reduce((acc, item) => {
@@ -5295,13 +5448,16 @@
         const ratio = projectCoord({ x: item.x, y: item.y });
         dist = Math.hypot(ratio.left - targetRatio.left, ratio.top - targetRatio.top);
       } else {
-        dist = Math.hypot(item.x - coord.x, item.y - coord.y);
+        dist = Math.hypot(item.x - coordX, item.y - coordY);
       }
       return !acc || dist < acc.dist ? { name: item.name, dist } : acc;
     }, null);
-    if (!best) return items[0].name;
-    if (Number.isFinite(maxRatioDistance) && best.dist > maxRatioDistance) return '';
-    return best.name;
+    let result = items[0].name;
+    if (best) {
+      result = Number.isFinite(maxRatioDistance) && best.dist > maxRatioDistance ? '' : best.name;
+    }
+    mapDerivedCache.nearestVisibleNode.set(cacheKey, result);
+    return result;
   }
 
   function getVisibleCurrentNode() {
@@ -5456,8 +5612,28 @@
     return mapDragState.sourceCanvas || mapState.hoverCanvas || getActiveMapCanvases()[0] || document.querySelector('.map-canvas.interactive-map');
   }
 
+  function invalidateMapUiRefCache() {
+    if (!(mapState.uiRefCache instanceof Map)) {
+      mapState.uiRefCache = new Map();
+      return;
+    }
+    mapState.uiRefCache.clear();
+  }
+
+  function getMapUiElements(selector) {
+    if (!(mapState.uiRefCache instanceof Map)) mapState.uiRefCache = new Map();
+    const cached = mapState.uiRefCache.get(selector);
+    if (Array.isArray(cached) && cached.length && cached.every(el => el && el.isConnected)) {
+      return cached;
+    }
+    const elements = [...document.querySelectorAll(selector)];
+    if (elements.length) mapState.uiRefCache.set(selector, elements);
+    else mapState.uiRefCache.delete(selector);
+    return elements;
+  }
+
   function setMapText(selector, value) {
-    document.querySelectorAll(selector).forEach(el => {
+    getMapUiElements(selector).forEach(el => {
       const nextValue = value == null ? '' : String(value);
       if (el.textContent === nextValue) return;
       el.textContent = nextValue;
@@ -5465,7 +5641,7 @@
   }
 
   function setMapHtml(selector, value) {
-    document.querySelectorAll(selector).forEach(el => {
+    getMapUiElements(selector).forEach(el => {
       const nextValue = value == null ? '' : String(value);
       if (el.innerHTML === nextValue) return;
       el.innerHTML = nextValue;
@@ -5777,7 +5953,7 @@
     const left = clamp((centerClientX - rect.left) / rect.width, 0, 1);
     const top = clamp((centerClientY - rect.top) / rect.height, 0, 1);
     centerMapOnRatio(left, top, getPrimaryMapCanvas());
-    applyMapWorldTransform();
+    applyMapWorldTransform({ updateReadout: !miniMapDragState.active, updateMiniMap: true });
   }
 
   function renderMapCrosshair(activeCanvas = null) {
@@ -6603,6 +6779,7 @@
   function renderMapInfoState() {
     const snapshot = mapState.snapshot || buildFallbackSnapshot();
     const isFreeSelection = !!mapState.selectedFreePoint;
+    const panelMode = getMapInfoPanelMode();
     const focusItem = isFreeSelection ? null : (getItemByName(mapState.selectedNode) || getItemByName(resolveSelectedNodeForLayer(mapState.layer)) || snapshot.items[0] || null);
     const inPreview = hasActivePreview();
     const previewMeta = snapshot.previewMeta || null;
@@ -6630,6 +6807,7 @@
       ? (canPreviewEnter ? '双击节点继续进入子图 · 仅预览，不改变实际位置' : (previewCurrentBranch ? '当前为你所在区域的子图，可在左侧执行动作' : '当前为远端区域预览，未实际抵达，不能直接执行动作'))
       : (isFreeSelection ? '已选中自由坐标，可规划前往该位置' : (canPreviewEnter ? '可移动；双击可下钻节点进入子图' : '可查看节点或规划移动'));
     const currentName = getActualCurrentLoc();
+    const rawCurrentName = getRawActualCurrentLoc();
     const currentCoord = getCurrentCoord();
     const focusCoord = getSelectedCoord();
     const hoverCoord = mapState.hoverCoord && Number.isFinite(mapState.hoverCoord.x) && Number.isFinite(mapState.hoverCoord.y)
@@ -6715,6 +6893,35 @@
     const currentSummaryBase = getActualCurrentLoc();
     // 取消在右侧面板的“当前位置”处硬拼坐标数字的逻辑
     const currentSummaryText = currentSummaryBase;
+    const resolveIndexedCharacterEntries = (locationName, rawLocationName = '') => {
+      if (!(snapshot.charactersByLoc instanceof Map)) return [];
+      const locationCandidates = [
+        toText(rawLocationName, ''),
+        toText(locationName, ''),
+        toText(rawLocationName, '').split('-').filter(Boolean).pop() || '',
+        toText(locationName, '').split('-').filter(Boolean).pop() || ''
+      ].filter(Boolean);
+      for (const candidate of locationCandidates) {
+        const entries = snapshot.charactersByLoc.get(candidate);
+        if (Array.isArray(entries) && entries.length) return entries.slice();
+      }
+      return [];
+    };
+    const followItemName = currentVisibleName || (toText(rawCurrentName, '').split('-').filter(Boolean).pop() || toText(currentName, '').split('-').filter(Boolean).pop() || '');
+    const followDetailItem = getItemByName(followItemName) || null;
+    const detailPanelItem = panelMode === 'selection' ? focusItem : followDetailItem;
+    const detailPrimaryLabel = panelMode === 'selection' ? '查看目标' : '当前位置';
+    const detailBadgeText = panelMode === 'selection' ? '选中' : '跟随';
+    const detailDisplayText = panelMode === 'selection' ? focusName : currentSummaryText;
+    const detailTypeText = panelMode === 'selection'
+      ? focusTypeDisplay
+      : (detailPanelItem ? toText(detailPanelItem.type, '节点') : (inPreview && !previewCurrentBranch ? '真实位置' : '当前位置'));
+    const detailActionText = panelMode === 'selection'
+      ? focusActionDisplay
+      : (detailPanelItem ? formatBehaviorLabels(detailPanelItem.interactions, getNodeInteractionLabel) : (inPreview && !previewCurrentBranch ? '预览中，真实位置未切换' : '跟随角色实时位置'));
+    const detailAvailableText = panelMode === 'selection'
+      ? focusAvailableText
+      : (detailPanelItem ? (canEnterPreviewNode(detailPanelItem.name, snapshot) ? '可进入子图' : (Array.isArray(detailPanelItem.services) && detailPanelItem.services.length ? formatBehaviorLabels(detailPanelItem.services, getNodeServiceLabel) : '无')) : (inPreview && !previewCurrentBranch ? '退出预览后查看' : '无'));
     const panelActionText = hoverCoord
       ? (panelItem ? formatBehaviorLabels(panelItem.interactions, getNodeInteractionLabel) : '查看地形 / 点击后规划移动')
       : focusActionDisplay;
@@ -6746,26 +6953,9 @@
       : pending ? `已安排前往 ${pendingTarget}${pendingTerrainShort}${pending.route_plan ? ` · ${pending.route_plan}` : ''}，预计 ${pending.est_duration}。` : previewRequest ? `准备前往 ${previewTarget}${previewTerrainShort}${previewRequest.route_plan ? ` · ${previewRequest.route_plan}` : ''}，推荐 ${previewRequest.method}，预计 ${previewRequest.est_duration}。` : `当前地图 ${getMapDisplayName(snapshot.currentMapId, null)}，可视节点 ${snapshot.visibleNodes.length} 个。`;
     const inspectButtonLabel = inPreview && focusItem && !canPreviewEnter ? primaryInteractionLabel : '查看';
 
-    const characterEntries = [];
-    const charData = deepGet(snapshot, 'rootData.char', {});
-    const activeName = toText(snapshot.activeName, '');
-    if (charData && typeof charData === 'object' && focusName !== '未知地点') {
-      for (const [charId, charInfo] of Object.entries(charData)) {
-        const npcName = toText(charInfo && (charInfo.name || deepGet(charInfo, 'base.name', '')), charId);
-        if (!npcName || npcName === activeName || charId === activeName) continue;
-        const charLoc = toText(charInfo && charInfo.status && charInfo.status.loc, '');
-        const charLocSegments = charLoc.split('-').filter(Boolean);
-        if (charLocSegments.includes(focusName) || charLoc === focusName) {
-          const npcMetaParts = [];
-          const npcFaction = toText(charInfo && (charInfo.faction || deepGet(charInfo, 'org.name', '') || deepGet(charInfo, 'org.main', '')), '');
-          const npcState = toText(deepGet(charInfo, 'status.action', ''), '');
-          if (npcFaction) npcMetaParts.push(npcFaction);
-          if (npcState) npcMetaParts.push(`状态 ${npcState}`);
-          characterEntries.push({ id: charId, name: npcName, meta: npcMetaParts.join(' · '), raw: charInfo });
-        }
-      }
-    }
-    characterEntries.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'));
+    const characterEntries = panelMode === 'selection'
+      ? (isFreeSelection ? [] : resolveIndexedCharacterEntries(focusName))
+      : resolveIndexedCharacterEntries(currentName, rawCurrentName);
     const charactersHere = characterEntries.map(entry => entry.name);
     let selectedNpc = toText(mapState.selectedNpc, '');
     if (selectedNpc && !charactersHere.includes(selectedNpc)) selectedNpc = '';
@@ -6773,10 +6963,12 @@
     mapState.selectedNpc = selectedNpc;
     const focusCharactersText = charactersHere.length ? charactersHere.join('、') : '无';
     const panelCharactersText = focusCharactersText;
-    const npcBrowserActions = getNpcActionCandidates(focusItem, charactersHere.length);
+    const npcBrowserActions = getNpcActionCandidates(panelMode === 'selection' ? focusItem : detailPanelItem, charactersHere.length);
     const currentSelectedAction = toText(mapState.selectedAction, '');
     const npcListHtml = isFreeSelection
       ? `<div class="map-npc-empty">自由坐标没有固定在场人物，选择节点后可浏览 NPC 与互动。</div>`
+      : (panelMode === 'follow' && inPreview && !previewCurrentBranch)
+        ? `<div class="map-npc-empty">当前处于远端子图预览，以下人物来自你的真实所在位置【${escapeMapHtml(currentName || '未知地点')}】。</div>`
       : (inPreview && !previewCurrentBranch)
         ? `<div class="map-npc-empty">当前为远端区域预览，需先移动到 ${escapeMapHtml(previewTrailNames[0] || previewAnchorName)} 后才能与此处人物互动。</div>`
         : (!focusItem || !characterEntries.length)
@@ -6800,23 +6992,36 @@
     setMapText('[data-map-recommend]', recommendText);
     setMapText('[data-map-recommend-side]', dynamicRecommendText);
     setMapText('[data-map-anchor]', focusName);
-    setMapText('[data-map-current-name]', currentSummaryText);
+    setMapText('[data-map-panel-primary-label]', detailPrimaryLabel);
+    setMapText('[data-map-panel-mode-badge]', detailBadgeText);
+    setMapText('[data-map-current-name]', detailDisplayText);
+    const syncStateText = toText(mapState.syncStatus, '待同步');
+    const syncDisplayText = mapState.lastSyncAt ? `${syncStateText} · ${formatMapSyncTime(mapState.lastSyncAt)}` : syncStateText;
+    setMapText('[data-map-sync-status]', syncDisplayText);
+    getMapUiElements('[data-map-panel-mode]').forEach(btn => {
+      btn.classList.toggle('current', toText(btn.dataset.mapPanelMode, 'follow') === panelMode);
+    });
+    getMapUiElements('[data-map-sync-chip]').forEach(chip => {
+      chip.classList.toggle('is-error', /失败|异常/.test(syncStateText));
+      chip.classList.toggle('gold', /无变化/.test(syncStateText));
+      chip.classList.toggle('live', !/失败|异常|无变化/.test(syncStateText));
+    });
     const hoverCoordDisplayText = hoverCoord && hoverImageCoord
       ? `图 ${hoverImageCoord.x},${hoverImageCoord.y}` : '--,--';
     setMapText('[data-map-current-coord]', hoverCoordDisplayText);
     setMapText('[data-map-current-terrain]', panelTerrainText);
     setMapText('[data-map-target-terrain]', panelTerrainText);
     setMapText('[data-map-target-name]', panelName);
-    setMapText('[data-map-focus-type]', panelTypeText);
-    setMapText('[data-map-focus-faction]', panelActionText);
+    setMapText('[data-map-focus-type]', detailTypeText);
+    setMapText('[data-map-focus-faction]', detailActionText);
     setMapText('[data-map-focus-state]', focusStateText);
     setMapText('[data-map-focus-importance]', focusImportanceText);
-    setMapText('[data-map-focus-childmap]', panelAvailableText);
+    setMapText('[data-map-focus-childmap]', detailAvailableText);
     setMapText('[data-map-preview-path]', previewPathLabel);
     setMapText('[data-map-enter-brief]', enterBriefText);
     setMapText('[data-map-layer-brief]', `${getMapLevelText(snapshot.mapLevel)} / ${currentMapDisplayName}`);
     setMapText('[data-map-focus-characters]', panelCharactersText);
-    setMapText('[data-map-npc-node]', isFreeSelection ? '自由坐标' : focusName);
+    setMapText('[data-map-npc-node]', panelMode === 'selection' ? (isFreeSelection ? '自由坐标' : focusName) : (currentName || '未知地点'));
     setMapText('[data-map-npc-count]', String(characterEntries.length));
     setMapHtml('[data-map-npc-list]', npcListHtml);
     setMapText('[data-map-request-mode]', actionModeText);
@@ -7067,7 +7272,8 @@
     updateMapCoordinateReadout();
   }
 
-  function applyMapWorldTransform() {
+  function applyMapWorldTransform(options = {}) {
+    const { updateReadout = true, updateMiniMap = true } = options || {};
     const renderZoom = getMapRenderZoom();
     const panX = Math.round(toNumber(mapState.panX, 0));
     const panY = Math.round(toNumber(mapState.panY, 0));
@@ -7076,8 +7282,19 @@
       world.style.transform = `translate3d(${panX}px, ${panY}px, 0) scale(${Number(renderZoom.toFixed(3))})`;
       world.style.setProperty('--node-ui-scale', String(nodeUiScale));
     });
-    updateMapCoordinateReadout();
-    renderMiniMapState();
+    if (updateReadout) updateMapCoordinateReadout();
+    if (updateMiniMap) renderMiniMapState();
+  }
+
+  function scheduleMapDragTransform() {
+    if (mapDragState.raf) return;
+    mapDragState.raf = requestAnimationFrame(() => {
+      const now = typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now();
+      const shouldUpdateMiniMap = !mapDragState.lastMiniMapSyncAt || (now - mapDragState.lastMiniMapSyncAt) >= 120;
+      if (shouldUpdateMiniMap) mapDragState.lastMiniMapSyncAt = now;
+      mapDragState.raf = 0;
+      applyMapWorldTransform({ updateReadout: false, updateMiniMap: shouldUpdateMiniMap });
+    });
   }
 
   function setMapHoverPoint(canvasEl, clientX, clientY) {
@@ -7124,6 +7341,11 @@
   function handleMapPointerDown(event) {
     if (event.button !== 0) return;
     cancelScheduledHoverSync();
+    if (mapDragState.raf) {
+      cancelAnimationFrame(mapDragState.raf);
+      mapDragState.raf = 0;
+    }
+    mapDragState.lastMiniMapSyncAt = 0;
     const point = resolveMapClientPoint(event.currentTarget, event.clientX, event.clientY);
     mapDragState.active = true;
     mapDragState.moved = false;
@@ -7146,7 +7368,7 @@
     mapState.panY = mapDragState.originY + (currentY - mapDragState.startY);
     if (Math.abs(currentX - mapDragState.startX) > 4 || Math.abs(currentY - mapDragState.startY) > 4) mapDragState.moved = true;
     clampMapPan();
-    applyMapWorldTransform();
+    scheduleMapDragTransform();
   }
 
   function handleMiniMapPointerDown(event) {
@@ -7198,15 +7420,22 @@
 
   function handleMapPointerUp(event) {
     if (!mapDragState.active) return;
+    const releaseCanvas = mapDragState.sourceCanvas || getPrimaryMapCanvas();
     mapDragState.active = false;
     if (mapDragState.moved) mapDragState.lastDragAt = Date.now();
+    if (mapDragState.raf) {
+      cancelAnimationFrame(mapDragState.raf);
+      mapDragState.raf = 0;
+    }
     mapDragState.sourceCanvas = null;
     if (event && event.currentTarget && typeof event.currentTarget.releasePointerCapture === 'function') {
       try { event.currentTarget.releasePointerCapture(event.pointerId); } catch(e) {}
     }
-    setMapHoverPoint(mapDragState.sourceCanvas || getPrimaryMapCanvas(), event.clientX, event.clientY);
+    setMapHoverPoint(releaseCanvas, event.clientX, event.clientY);
     document.querySelectorAll('.map-canvas.interactive-map').forEach(canvasEl => canvasEl.classList.remove('dragging'));
-    scheduleHoverSync(mapState.hoverCanvas || getPrimaryMapCanvas());
+    applyMapWorldTransform();
+    mapDragState.lastMiniMapSyncAt = 0;
+    scheduleHoverSync(mapState.hoverCanvas || releaseCanvas);
   }
 
   function handleMapCanvasClick(event) {
@@ -7224,6 +7453,7 @@
     const freePoint = { x: roundCoord(coord.x), y: roundCoord(coord.y) };
     mapState.selectedNode = '';
     mapState.selectedFreePoint = freePoint;
+    mapState.infoPanelMode = 'selection';
     if (!hasPendingTravelRequestForTarget()) mapState.pendingTravelRequest = null;
     syncInteractiveMapUI({ center: false, updateInfo: true });
   }
@@ -7270,6 +7500,7 @@
     mapState.selectedFreePoint = null;
     if (!hasPendingTravelRequestForTarget()) mapState.pendingTravelRequest = null;
     mapState.selectedNode = nextNode;
+    mapState.infoPanelMode = 'selection';
     mapState.travelMethodOverride = null;
 
     // 全局防抖的手工双击逻辑：解决 DOM 重绘吃掉原生 dblclick 的问题！
@@ -7402,6 +7633,7 @@
           return;
         }
         if (control === 'focus') {
+          mapState.infoPanelMode = 'follow';
           syncInteractiveMapUI({ center: true });
           return;
         }
@@ -7490,6 +7722,17 @@
         syncInteractiveMapUI({ center: true });
       });
     });
+
+    document.querySelectorAll('[data-map-panel-mode]').forEach(btn => {
+      if (btn.dataset.mapBound === '1') return;
+      btn.dataset.mapBound = '1';
+      btn.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        mapState.infoPanelMode = toText(btn.dataset.mapPanelMode, 'follow') === 'selection' ? 'selection' : 'follow';
+        syncInteractiveMapUI({ center: false, updateInfo: true });
+      });
+    });
   }
 
   function syncInteractiveMapUI(options = {}, fullDataSync = false) {
@@ -7553,30 +7796,45 @@
       if (Array.isArray(mapState.previewTrail) && mapState.previewTrail.length) {
         const previewPayload = getPreviewPayloadByTrail(baseSnapshot, mapState.previewTrail);
         if (previewPayload) {
-          snapshot = buildSnapshotFromMapPayload(previewPayload, baseSnapshot.rootData, baseSnapshot.activeName, baseSnapshot.activeChar);
+          snapshot = buildSnapshotFromMapPayload(previewPayload, baseSnapshot.rootData, baseSnapshot.activeName, baseSnapshot.activeChar, {
+            charactersByLoc: baseSnapshot.charactersByLoc,
+            characterDigest: baseSnapshot.characterDigest
+          });
         } else {
           mapState.previewTrail = [];
           mapState.previewViewStack = [];
           syncPreviewKeyFromTrail();
         }
       }
-      syncMapStateFromSnapshot(snapshot, { preserveSelection });
       const currentPreviewTrail = Array.isArray(mapState.previewTrail) ? mapState.previewTrail.join('>') : '';
+      const refreshSignature = buildMapRefreshSignature(snapshot, currentPreviewTrail);
+      const shellMissing = !document.querySelector('#page-map .map-layout')
+        || !document.querySelector(".split-left-page[data-target='page-map'] .map-hero-card")
+        || !document.querySelector(".split-right-page[data-target='page-map'] .map-side-stack");
+      window.__sheepMapSnapshot = snapshot;
+      if (preserveSelection && !firstLoad && !shellMissing && mapState.lastRefreshSignature === refreshSignature) {
+        mapState.snapshot = snapshot;
+        mapState.hasLoaded = true;
+        setMapSyncState('无变化', snapshot.currentMapId);
+        scheduleSync(false, true);
+        return;
+      }
+      mapState.lastRefreshSignature = refreshSignature;
+      syncMapStateFromSnapshot(snapshot, { preserveSelection });
       const shouldCenter = firstLoad
         || previousMapId !== snapshot.currentMapId
         || previousCurrent !== mapState.currentNode
         || previousPreviewTrail !== currentPreviewTrail;
-      const shellMissing = !document.querySelector('#page-map .map-layout')
-        || !document.querySelector(".split-left-page[data-target='page-map'] .map-hero-card")
-        || !document.querySelector(".split-right-page[data-target='page-map'] .map-side-stack");
       mapState.hasLoaded = true;
       window.__sheepMapSnapshot = snapshot;
       if (firstLoad || shellMissing) {
         resyncMapShell({ center: shouldCenter, syncVisual: false });
       }
+      setMapSyncState('已同步', snapshot.currentMapId);
       scheduleSync(shouldCenter, true);
     } catch (error) {
       console.error('sheep map live refresh failed', error);
+      setMapSyncState('同步失败', error && error.message ? error.message : '地图刷新异常');
       if (!mapState.hasLoaded) {
         const fallbackSnapshot = buildFallbackSnapshot();
         mapState.baseSnapshot = fallbackSnapshot;
@@ -7585,8 +7843,11 @@
         syncPreviewKeyFromTrail();
         syncMapStateFromSnapshot(fallbackSnapshot, { preserveSelection: false, forceLayer: inferInitialLayer(fallbackSnapshot), initializeLayer: false });
         mapState.hasLoaded = true;
+        setMapSyncState('异常回退', 'fallback');
         resyncMapShell({ center: true, syncVisual: false });
         scheduleSync(true, true);
+      } else {
+        scheduleSync(false, true);
       }
     }
   }
@@ -7601,6 +7862,7 @@
     mapState.items = mapState.snapshot.items;
     mapState.itemMap = new Map(mapState.snapshot.items.map(item => [item.name, item]));
     mapState.lastTravelNote = '已载入默认节点集';
+    setMapSyncState('初始化', 'init');
     mapState.currentNode = mapState.snapshot.currentLoc;
     mapState.selectedNode = mapState.snapshot.currentLoc;
     resyncMapShell({ center: true });

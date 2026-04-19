@@ -658,23 +658,38 @@
         return {
           title: '生命图谱',
           body: `
-            <div class="archive-modal-grid">
-              <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">战斗轮廓</div></div>
-                ${makeRadarSvg(['力量', '防御', '敏捷', '精神', '气血底盘'], [0, 0, 0, 0, 0])}
+            <div class="archive-modal-grid life-graph-grid">
+              <div class="archive-card life-growth-card">
+                <div class="archive-card-head"><div class="archive-card-title">成长信息</div></div>
+                <div class="identity-growth-grid">
+                  <div class="meta-item"><b>等级</b><span></span></div>
+                  <div class="meta-item"><b>精神境界</b><span></span></div>
+                  <div class="meta-item"><b>天赋梯队</b><span></span></div>
+                  <div class="meta-item"><b>系别</b><span></span></div>
+                </div>
               </div>
-              <div class="archive-card">
+              <div class="archive-card life-profile-card">
                 <div class="archive-card-head"><div class="archive-card-title">角色名片</div></div>
-                <div class="profile-snapshot">
+                <div class="profile-snapshot life-profile-snapshot">
                   <div class="identity-card">
                     <h3>当前角色</h3>
-                    <div class="identity-meta-grid">
-                      <div class="meta-item"><b>年龄 / 性别</b><span></span></div>
-                      <div class="meta-item"><b>等级</b><span></span></div>
-                      <div class="meta-item"><b>系别</b><span></span></div>
-                      <div class="meta-item"><b>天赋梯队</b><span></span></div>
-                      <div class="meta-item"><b>精神境界</b><span></span></div>
-                      <div class="meta-item"><b>名望</b><span></span></div>
+                    <div class="identity-panel">
+                      <div class="identity-panel-title">基础描述</div>
+                      <div class="identity-basic-grid">
+                        <div class="meta-item"><b>年龄 / 性别</b><span></span></div>
+                        <div class="meta-item"><b>性格</b><span></span></div>
+                        <div class="meta-item meta-item-wide"><b>名望</b><span></span></div>
+                      </div>
+                    </div>
+                    <div class="identity-panel identity-appearance-panel">
+                      <div class="identity-panel-title">外貌概览</div>
+                      <div class="identity-appearance-grid">
+                        <div class="meta-item"><b>发色</b><span></span></div>
+                        <div class="meta-item"><b>瞳色</b><span></span></div>
+                        <div class="meta-item"><b>身高</b><span></span></div>
+                        <div class="meta-item"><b>体型</b><span></span></div>
+                        <div class="meta-item meta-item-wide"><b>特征</b><span></span></div>
+                      </div>
                     </div>
                   </div>
                   <div class="status-card">
@@ -1453,18 +1468,29 @@
       return isPlayerCharacterEntry(activeName, deepGet(snapshot, 'activeChar', {}), playerName);
     }
 
-    function formatAppearanceText(appearance) {
+    function formatAppearanceMeta(appearance) {
       const data = appearance && typeof appearance === 'object' ? appearance : {};
-      const parts = [
-        toText(data['发色'], ''),
-        toText(data['瞳色'], ''),
-        toText(data['身高'], ''),
-        toText(data['体型'], '')
-      ].filter(Boolean);
       const features = Array.isArray(data['特殊特征'])
         ? data['特殊特征'].map(item => toText(item, '').trim()).filter(Boolean)
         : [];
-      const featureText = features.length ? `；特征：${features.join('、')}` : '';
+      return {
+        hair: toText(data['发色'], '未设定') || '未设定',
+        eyes: toText(data['瞳色'], '未设定') || '未设定',
+        height: toText(data['身高'], '未设定') || '未设定',
+        build: toText(data['体型'], '未设定') || '未设定',
+        features: features.length ? features.join('、') : '未设定'
+      };
+    }
+
+    function formatAppearanceText(appearance) {
+      const meta = formatAppearanceMeta(appearance);
+      const parts = [
+        meta.hair,
+        meta.eyes,
+        meta.height,
+        meta.build
+      ].filter(Boolean).filter(item => item !== '未设定');
+      const featureText = meta.features && meta.features !== '未设定' ? `；特征：${meta.features}` : '';
       return parts.length ? `${parts.join(' / ')}${featureText}` : '未设定';
     }
 
@@ -1731,10 +1757,12 @@
       const core = normalizeSkillUiText(deepGet(activeChar, 'bloodline_power.core', '未凝聚'), '未凝聚');
       const rawSkills = deepGet(activeChar, 'bloodline_power.skills', {});
       const rawRings = deepGet(activeChar, 'bloodline_power.blood_rings', {});
+      const rawPassives = deepGet(activeChar, 'bloodline_power.passives', {});
       const hasBloodlineData = toText(bloodline, '无') !== '无'
         || sealLv > 0
         || safeEntries(rawRings).length > 0
-        || safeEntries(rawSkills).length > 0;
+        || safeEntries(rawSkills).length > 0
+        || safeEntries(rawPassives).length > 0;
       const ringEntries = safeEntries(deepGet(activeChar, 'bloodline_power.blood_rings', {}))
         .sort((a, b) => toNumber(a[0], 0) - toNumber(b[0], 0))
         .map(([index, ring]) => ({
@@ -1756,6 +1784,7 @@
         desc: `解封层数：${sealLv} / 气血魂核：${core}`,
         rings: normalizedRingEntries,
         bloodSkills: buildSkillList(rawSkills),
+        bloodPassives: buildSkillList(rawPassives),
         sealLv,
         core,
         lifeFire: !!deepGet(activeChar, 'bloodline_power.life_fire', false),
@@ -1981,7 +2010,15 @@
             category: '血脉散技',
             name: skill.name,
             level: toText(skill.状态, '已掌握'),
-            desc: toText(skill.描述, '无说明')
+            desc: toText(skill.描述 || skill.效果描述 || skill.effectDesc, '无说明')
+          });
+        });
+        safeRecords(deepGet(activeChar, 'bloodline_power.passives', {})).forEach(skill => {
+          extraSkills.push({
+            category: '血脉特性',
+            name: skill.name,
+            level: toText(skill.状态, '已固化'),
+            desc: toText(skill.描述 || skill.效果描述 || skill.effectDesc, '无说明')
           });
         });
       }
@@ -2053,6 +2090,7 @@
       return {
         rootData: sd,
         activeName,
+        appearanceMeta: formatAppearanceMeta(deepGet(activeChar, 'appearance', {})),
         appearanceText: formatAppearanceText(deepGet(activeChar, 'appearance', {})),
         personalityText: toText(deepGet(activeChar, 'personality', '未设定'), '未设定'),
         activeChar: activeChar || {},
@@ -2853,40 +2891,38 @@
           title: '生命图谱',
           summary: '基于当前角色的实时生命体征与状态摘要。',
           body: `
-            <div class="archive-modal-grid">
-              <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">战斗轮廓</div></div>
-                ${(() => {
-                  const lv = toNumber(stat.lv, 1);
-                  const divisor = Math.max(1000, lv * lv * 100); // 动态基准线，确保雷达图撑满但不过爆
-                  const fStr = toNumber(deepGet(snapshot, 'activeChar.stat.final.str', stat.str), 0);
-                  const fDef = toNumber(deepGet(snapshot, 'activeChar.stat.final.def', stat.def), 0);
-                  const fAgi = toNumber(deepGet(snapshot, 'activeChar.stat.final.agi', stat.agi), 0);
-                  const fMen = toNumber(deepGet(snapshot, 'activeChar.stat.final.men_max', stat.men_max), 0);
-                  const fVit = toNumber(deepGet(snapshot, 'activeChar.stat.final.vit_max', stat.vit_max), 0);
-                  return makeRadarSvg(['力量', '防御', '敏捷', '精神', '气血底盘'], [
-                    Math.min(100, Math.round(fStr / divisor * 100)),
-                    Math.min(100, Math.round(fDef / divisor * 100)),
-                    Math.min(100, Math.round(fAgi / divisor * 100)),
-                    Math.min(100, Math.round(fMen / (divisor * 0.5) * 100)),
-                    Math.min(100, Math.round(fVit / divisor * 100))
-                  ], [formatNumber(fStr), formatNumber(fDef), formatNumber(fAgi), formatNumber(fMen), formatNumber(fVit)]);
-                })()}
+            <div class="archive-modal-grid life-graph-grid">
+              <div class="archive-card life-growth-card">
+                <div class="archive-card-head"><div class="archive-card-title">成长信息</div></div>
+                <div class="identity-growth-grid">
+                  <div class="meta-item"><b>等级</b><span>${htmlEscape(`Lv.${toText(stat.lv, '0')}`)}</span></div>
+                  <div class="meta-item"><b>精神境界</b><span>${htmlEscape(toText(stat._men_realm, toText(stat.men_realm, '灵元境')))}</span></div>
+                  <div class="meta-item"><b>天赋梯队</b><span>${htmlEscape(toText(stat.talent_tier, '未定'))}</span></div>
+                  <div class="meta-item"><b>系别</b><span>${htmlEscape(toText(stat.type, '未知'))}</span></div>
+                </div>
               </div>
-              <div class="archive-card">
+              <div class="archive-card life-profile-card">
                 <div class="archive-card-head"><div class="archive-card-title">角色名片</div></div>
-                <div class="profile-snapshot">
+                <div class="profile-snapshot life-profile-snapshot">
                   <div class="identity-card">
                     <h3>${htmlEscape(snapshot.activeName)}</h3>
-                    <div class="identity-meta-grid">
-                      <div class="meta-item"><b>年龄 / 性别</b><span>${htmlEscape(`${toText(stat.age, '0')}岁 / ${toText(stat.gender, '未知')}`)}</span></div>
-                      <div class="meta-item"><b>外貌</b><span>${htmlEscape(snapshot.appearanceText)}</span></div>
-                      <div class="meta-item"><b>等级</b><span>${htmlEscape(`Lv.${toText(stat.lv, '0')}`)}</span></div>
-                      <div class="meta-item"><b>性格</b><span>${htmlEscape(snapshot.personalityText)}</span></div>
-                      <div class="meta-item"><b>系别</b><span>${htmlEscape(toText(stat.type, '未知'))}</span></div>
-                      <div class="meta-item"><b>天赋梯队</b><span>${htmlEscape(toText(stat.talent_tier, '未定'))}</span></div>
-                      <div class="meta-item"><b>精神境界</b><span>${htmlEscape(toText(stat._men_realm, toText(stat.men_realm, '灵元境')))}</span></div>
-                      <div class="meta-item"><b>名望</b><span>${htmlEscape(`${toText(social._fame_level, toText(social.fame_level, '籍籍无名'))} / ${formatNumber(social.reputation)}`)}</span></div>
+                    <div class="identity-panel">
+                      <div class="identity-panel-title">基础描述</div>
+                      <div class="identity-basic-grid">
+                        <div class="meta-item"><b>年龄 / 性别</b><span>${htmlEscape(`${toText(stat.age, '0')}岁 / ${toText(stat.gender, '未知')}`)}</span></div>
+                        <div class="meta-item"><b>性格</b><span>${htmlEscape(snapshot.personalityText)}</span></div>
+                        <div class="meta-item meta-item-wide"><b>名望</b><span>${htmlEscape(`${toText(social._fame_level, toText(social.fame_level, '籍籍无名'))} / ${formatNumber(social.reputation)}`)}</span></div>
+                      </div>
+                    </div>
+                    <div class="identity-panel identity-appearance-panel">
+                      <div class="identity-panel-title">外貌概览</div>
+                      <div class="identity-appearance-grid">
+                        <div class="meta-item"><b>发色</b><span>${htmlEscape(snapshot.appearanceMeta.hair)}</span></div>
+                        <div class="meta-item"><b>瞳色</b><span>${htmlEscape(snapshot.appearanceMeta.eyes)}</span></div>
+                        <div class="meta-item"><b>身高</b><span>${htmlEscape(snapshot.appearanceMeta.height)}</span></div>
+                        <div class="meta-item"><b>体型</b><span>${htmlEscape(snapshot.appearanceMeta.build)}</span></div>
+                        <div class="meta-item meta-item-wide"><b>特征</b><span>${htmlEscape(snapshot.appearanceMeta.features)}</span></div>
+                      </div>
                     </div>
                   </div>
                   <div class="status-card">
@@ -2900,6 +2936,27 @@
                       <div class="status-row"><b>灵物吸收</b><span>${htmlEscape(toNumber(status.consuming_herb_age, 0) > 0 ? `${formatNumber(toNumber(status.consuming_herb_age, 0))} 年` : '当前无吸收') }</span></div>
                     </div>
                   </div>
+                </div>
+              </div>
+              <div class="archive-card life-radar-card">
+                <div class="archive-card-head"><div class="archive-card-title">战斗轮廓</div></div>
+                <div class="battle-radar-wrap">
+                  ${(() => {
+                    const lv = toNumber(stat.lv, 1);
+                    const divisor = Math.max(1000, lv * lv * 100); // 动态基准线，确保雷达图撑满但不过爆
+                    const fStr = toNumber(deepGet(snapshot, 'activeChar.stat.final.str', stat.str), 0);
+                    const fDef = toNumber(deepGet(snapshot, 'activeChar.stat.final.def', stat.def), 0);
+                    const fAgi = toNumber(deepGet(snapshot, 'activeChar.stat.final.agi', stat.agi), 0);
+                    const fMen = toNumber(deepGet(snapshot, 'activeChar.stat.final.men_max', stat.men_max), 0);
+                    const fVit = toNumber(deepGet(snapshot, 'activeChar.stat.final.vit_max', stat.vit_max), 0);
+                    return makeRadarSvg(['力量', '防御', '敏捷', '精神', '气血底盘'], [
+                      Math.min(100, Math.round(fStr / divisor * 100)),
+                      Math.min(100, Math.round(fDef / divisor * 100)),
+                      Math.min(100, Math.round(fAgi / divisor * 100)),
+                      Math.min(100, Math.round(fMen / (divisor * 0.5) * 100)),
+                      Math.min(100, Math.round(fVit / divisor * 100))
+                    ], [formatNumber(fStr), formatNumber(fDef), formatNumber(fAgi), formatNumber(fMen), formatNumber(fVit)]);
+                  })()}
                 </div>
               </div>
               <div class="archive-card full">
@@ -3827,13 +3884,21 @@
                 })))}
               </div>
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">当前封印能力</div></div>
+                <div class="archive-card-head"><div class="archive-card-title">当前主动能力</div></div>
                 <div class="ability-detail-card">
-                  <div class="ability-detail-title">${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].name : '暂无已固化能力')}</div>
+                  <div class="ability-detail-title">${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].name : '暂无主动能力')}</div>
                   <div class="ring-hover-copy"><em>画面描述</em><span>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].visualDesc : '未知')}</span></div>
                   <div class="ring-hover-copy"><em>效果描述</em><span>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].effectDesc : '未知')}</span></div>
                 </div>
               </div>
+              ${snapshot.bloodline.bloodPassives && snapshot.bloodline.bloodPassives.length ? `
+                <div class="archive-card">
+                  <div class="archive-card-head"><div class="archive-card-title">被动特性</div></div>
+                  <div class="ability-detail-card">
+                    ${snapshot.bloodline.bloodPassives.slice(0, 4).map(skill => `<div class="ring-hover-copy"><em>${htmlEscape(skill.name || '被动特性')}</em><span>${htmlEscape(skill.effectDesc || skill.visualDesc || '被动特性')}</span></div>`).join('')}
+                  </div>
+                </div>
+              ` : ''}
               ${snapshot.bloodline.rings.length ? `
                 <div class="archive-card full spirit-flow-card">
                   <div class="archive-card-head"><div class="archive-card-title">气血魂环轨道</div></div>
