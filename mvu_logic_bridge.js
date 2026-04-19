@@ -3107,14 +3107,13 @@
           summary: '当前角色已加入势力、阵营位置摘要与阵营事务操作台。',
           body: `
             <div class="archive-modal-grid">
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">所属阶梯</div></div>
-                ${makeFactionLadder((snapshot.factions.length ? snapshot.factions : [['未加入势力', { 身份: '无', 权限级: 0 }]]).map(([name, info]) => ({
-                  name,
-                  desc: `身份：${toText(info && info['身份'], '无')} / 权限级：${toText(info && info['权限级'], '0')}`,
-                  className: 'highlight'
-                })))}
-              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; grid-column: 1 / -1;">
+                <div class="archive-card">
+                  <div class="archive-card-head"><div class="archive-card-title">所属势力架构</div></div>
+                  <div class="relation-side-list">
+                    ${(snapshot.factions.length ? snapshot.factions : [['未加入势力', { 身份: '无', 权限级: 0 }]]).map(([name, info], idx) => `<div class="faction-row ${idx === 0 ? 'highlight' : ''}"><b>${htmlEscape(name)}</b><span>${htmlEscape(`身份：${toText(info && info['身份'], '无')} / 权限级：${toText(info && info['权限级'], '0')}`)}</span></div>`).join('')}
+                  </div>
+                </div>
                 <div class="archive-card">
                   <div class="archive-card-head"><div class="archive-card-title">当前阵营位置</div></div>
                   ${makeTileGrid([
@@ -3124,6 +3123,7 @@
                     { label: '主要绑定', value: snapshot.factions.map(([name]) => name).join(' / ') || '暂无'
                   }], 'two')}
                 </div>
+              </div>
                 <div class="archive-card">
                   <div class="archive-card-head"><div class="archive-card-title">阵营现实摘要</div></div>
                   ${makeTagCloud([
@@ -3208,6 +3208,7 @@
         const routeSwitchable = !!deepGet(relationDetail, '_route_switchable', false);
         const isContactable = !!relationTargetChar && deepGet(relationTargetChar, 'status.alive', true) !== false;
         const isSameLocation = !!relationTargetChar && isLocationCompatible(currentLocFull, relationTargetLoc);
+        const isPlayerControlled = isSnapshotPlayerControlled(snapshot);
         const canTalk = isSameLocation && isContactable;
         const canAsk = isSameLocation && isContactable && relationFavor >= 30;
         const canBattle = isSameLocation && isContactable;
@@ -3291,33 +3292,45 @@
         ].filter(Boolean);
 
         const relationActionPanelHtml = relationDetail
-          ? `
-              <div class="intel-card relation-action-panel">
-                <b>${htmlEscape(`${relationDetailName} / ${toText(relationDetail && relationDetail['关系'], '陌生')}`)}</b>
-                <span>${htmlEscape(`路线：${relationRoute} / 好感：${relationFavor} / 位置：${relationTargetLocLabel}`)}</span>
-                <span>${htmlEscape(`推进建议：${toText(relationDetail && relationDetail['_progress_note'], toText(relationDetail && relationDetail['progress_note'], '暂无'))}`)}</span>
-                <div class="relation-action-status">
-                  <span class="state-tag ${isSameLocation ? 'live' : 'warn'}">${htmlEscape(isSameLocation ? '同地' : '未在身边')}</span>
-                  <span class="state-tag ${isContactable ? 'live' : 'warn'}">${htmlEscape(isContactable ? '可接触' : '不可接触')}</span>
-                  <span class="state-tag">${htmlEscape(routeSwitchable ? '可切恋人线' : relationRoute)}</span>
+          ? (isPlayerControlled
+            ? `
+                <div class="intel-card relation-action-panel">
+                  <b>${htmlEscape(`${relationDetailName} / ${toText(relationDetail && relationDetail['关系'], '陌生')}`)}</b>
+                  <span>${htmlEscape(`路线：${relationRoute} / 好感：${relationFavor} / 位置：${relationTargetLocLabel}`)}</span>
+                  <span>${htmlEscape(`推进建议：${toText(relationDetail && relationDetail['_progress_note'], toText(relationDetail && relationDetail['progress_note'], '暂无'))}`)}</span>
+                  <div class="relation-action-status">
+                    <span class="state-tag ${isSameLocation ? 'live' : 'warn'}">${htmlEscape(isSameLocation ? '同地' : '未在身边')}</span>
+                    <span class="state-tag ${isContactable ? 'live' : 'warn'}">${htmlEscape(isContactable ? '可接触' : '不可接触')}</span>
+                    <span class="state-tag">${htmlEscape(routeSwitchable ? '可切恋人线' : relationRoute)}</span>
+                  </div>
+                  <div class="relation-action-toolbar">
+                    <button type="button" class="relation-action-btn" data-relation-action="talk" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canTalk ? 'disabled' : ''}>闲聊</button>
+                    <button type="button" class="relation-action-btn" data-relation-action="ask" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canAsk ? 'disabled' : ''}>请教</button>
+                    <button type="button" class="relation-action-btn" data-relation-action="battle" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canBattle ? 'disabled' : ''}>切磋</button>
+                    <button type="button" class="relation-action-btn" data-relation-action="confess" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canConfess ? 'disabled' : ''}>表白</button>
+                    <button type="button" class="relation-action-btn" data-relation-action="dual" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canDual ? 'disabled' : ''}>双修</button>
+                  </div>
+                  <div class="relation-gift-row">
+                    <select class="relation-gift-select" ${!canGift ? 'disabled' : ''}>
+                      ${giftOptionsHtml}
+                    </select>
+                    <button type="button" class="relation-action-btn" data-relation-action="gift" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canGift ? 'disabled' : ''}>送礼</button>
+                  </div>
+                  ${relationActionHints.map(text => `<span>${htmlEscape(text)}</span>`).join('')}
                 </div>
-                <div class="relation-action-toolbar">
-                  <button type="button" class="relation-action-btn" data-relation-action="talk" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canTalk ? 'disabled' : ''}>闲聊</button>
-                  <button type="button" class="relation-action-btn" data-relation-action="ask" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canAsk ? 'disabled' : ''}>请教</button>
-                  <button type="button" class="relation-action-btn" data-relation-action="battle" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canBattle ? 'disabled' : ''}>切磋</button>
-                  <button type="button" class="relation-action-btn" data-relation-action="confess" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canConfess ? 'disabled' : ''}>表白</button>
-                  <button type="button" class="relation-action-btn" data-relation-action="dual" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canDual ? 'disabled' : ''}>双修</button>
+              `
+            : `
+                <div class="intel-card relation-action-panel">
+                  <b>${htmlEscape(`${relationDetailName} / ${toText(relationDetail && relationDetail['关系'], '陌生')}`)}</b>
+                  <span>${htmlEscape(`路线：${relationRoute} / 好感：${relationFavor} / 位置：${relationTargetLocLabel}`)}</span>
+                  <span>${htmlEscape(`推进建议：${toText(relationDetail && relationDetail['_progress_note'], toText(relationDetail && relationDetail['progress_note'], '暂无'))}`)}</span>
+                  <span>${htmlEscape(`最近互动：${toText(relationDetail && relationDetail['last_interact_action'], '无')} / Tick ${toNumber(relationDetail && relationDetail['last_interact_tick'], 0)} / 变化 ${toNumber(relationDetail && relationDetail['recent_favor_delta'], 0)}`)}</span>
+                  <span>${htmlEscape(`当前加成：${toText(relationDetail && relationDetail['_current_relation_bonus'], toText(relationDetail && relationDetail['current_relation_bonus'], '无'))} / 下一解锁：${toText(relationDetail && relationDetail['_next_unlock_bonus'], toText(relationDetail && relationDetail['next_unlock_bonus'], '无'))}`)}</span>
+                  <span>${htmlEscape('当前为旁观视角，此处可查看关系近况；若想闲聊、请教或送礼，请切回自己的行动视角。')}</span>
+                  ${relationActionHints.map(text => `<span>${htmlEscape(text)}</span>`).join('')}
                 </div>
-                <div class="relation-gift-row">
-                  <select class="relation-gift-select" ${!canGift ? 'disabled' : ''}>
-                    ${giftOptionsHtml}
-                  </select>
-                  <button type="button" class="relation-action-btn" data-relation-action="gift" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canGift ? 'disabled' : ''}>送礼</button>
-                </div>
-                ${relationActionHints.map(text => `<span>${htmlEscape(text)}</span>`).join('')}
-              </div>
-            `
-          : '<div class="intel-card relation-action-panel"><b>关系互动台</b><span>请先从对象列表中选定互动目标。</span></div>';
+              `)
+          : `<div class="intel-card relation-action-panel"><b>${htmlEscape(isPlayerControlled ? '关系互动台' : '关系近况')}</b><span>${htmlEscape(isPlayerControlled ? '请先从对象列表中选定互动目标。' : '当前为旁观视角，可先查看这段关系的近况。')}</span></div>`;
 
         const riskTargets = Array.isArray(deepGet(snapshot, 'relationAnalysis.risk_targets', [])) ? deepGet(snapshot, 'relationAnalysis.risk_targets', []) : [];
         const blockedTargets = Array.isArray(deepGet(snapshot, 'relationAnalysis.blocked_targets', [])) ? deepGet(snapshot, 'relationAnalysis.blocked_targets', []) : [];
@@ -3372,7 +3385,7 @@
                 ${makeModalPaginationControls('relation-directory', relationDirectoryPage.page, relationDirectoryPage.totalPages, relationDirectoryPage.total)}
               </div>
               <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">关系互动台</div><span class="state-tag ${relationDetailName ? 'live' : 'warn'}">${htmlEscape(relationDetailName || '未选中')}</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">${htmlEscape(isPlayerControlled ? '关系互动台' : '关系观察台')}</div><span class="state-tag ${relationDetailName ? 'live' : 'warn'}">${htmlEscape(relationDetailName || '未选中')}</span></div>
                 ${relationActionPanelHtml}
                 ${relationDetailHtml !== '<div class="intel-card"><b>交互历史</b><span>暂无有效数据</span></div>' && relationDetailHtml !== '' ? `
                   <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed rgba(255,255,255,0.1);">
@@ -3424,7 +3437,7 @@
           : '<div class="intel-card"><b>暂无已解锁情报</b><span>当前还没有被正式记录的核心线索。</span></div>';
         return {
           title: '情报库弹窗',
-          summary: '当前已解锁情报、待整理线索、情报整理台与战斗记录摘要。',
+          summary: '当前已解锁情报、待追线索与战斗记录摘要。',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
@@ -3449,21 +3462,10 @@
                 </div>
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">情报整理台</div><span class="state-tag ${snapshot.pendingIntelCount ? 'warn' : 'live'}">${htmlEscape(snapshot.pendingIntelCount ? `待整理 / +${snapshot.pendingIntelImpact}` : '可录入')}</span></div>
-                <div class="intel-layout">
-                  <div class="intel-card request-console-card">
-                    <b>整理并录入新线索</b>
-                    <span>${htmlEscape(snapshot.pendingIntelCount ? `当前待整理线索：${snapshot.pendingIntelContent}` : '你可以主动将新的关键信息写入 knowledge_unlock_request。')}</span>
-                    <div class="request-console-grid">
-                      <textarea class="request-console-textarea" data-intel-input="content" placeholder="输入一句话概括的关键情报">${htmlEscape(pendingIntelDefault)}</textarea>
-                      <div class="request-console-row">
-                        <select class="request-console-input" data-intel-input="impact">
-                          ${Array.from({ length: 11 }, (_, i) => `<option value="${i}" ${i === Number(pendingIntelImpactDefault) ? 'selected' : ''}>破坏度 ${i}</option>`).join('')}
-                        </select>
-                        <button type="button" class="relation-action-btn intel-action-btn" data-intel-action="unlock">整理并解锁</button>
-                      </div>
-                    </div>
-                  </div>
+                <div class="archive-card-head"><div class="archive-card-title">待追线索</div><span class="state-tag ${snapshot.pendingIntelCount ? 'warn' : 'live'}">${htmlEscape(snapshot.pendingIntelCount ? `待追 / +${snapshot.pendingIntelImpact}` : '暂无新线索')}</span></div>
+                <div style="padding-top: 8px;">
+                  <div style="font-size: 12px; color: var(--color-text-secondary); margin-bottom: 12px;">${htmlEscape(snapshot.pendingIntelCount ? `最近浮出的线索：${snapshot.pendingIntelContent}` : '最近没有新的线索浮出水面。')}</div>
+                  <div class="intel-card"><b>线索提醒</b><span>新的情报会随着见闻、调查与遭遇逐渐浮现。这里会先记下尚未展开的线索，等剧情推进后再继续追查。</span></div>
                 </div>
               </div>
               <div class="archive-card full">
@@ -4238,24 +4240,22 @@
           summary: '当前角色在各势力中的身份、权限与操作台。',
           body: `
             <div class="archive-modal-grid">
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">当前所属势力</div></div>
-                <div class="relation-side-list">
-                  <div class="faction-row highlight">
-                    <b>${htmlEscape(currentFactionName || '未加入势力')}</b>
-                    <span>${htmlEscape(`身份：${currentFactionRole} / 权限级：${currentFactionPower}`)}</span>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; grid-column: 1 / -1;">
+                <div class="archive-card">
+                  <div class="archive-card-head"><div class="archive-card-title">所属势力架构</div></div>
+                  <div class="relation-side-list">
+                    ${(snapshot.factions.length ? snapshot.factions : [['未加入势力', { 身份: '无', 权限级: 0 }]]).map(([name, info], idx) => `<div class="faction-row ${idx === 0 ? 'highlight' : ''}"><b>${htmlEscape(name)}</b><span>${htmlEscape(`身份：${toText(info && info['身份'], '无')} / 权限级：${toText(info && info['权限级'], '0')}`)}</span></div>`).join('')}
                   </div>
-                  ${(snapshot.factions || []).slice(1).map(([name, info]) => `<div class="faction-row"><b>${htmlEscape(name)}</b><span>${htmlEscape(`身份：${toText(info && info['身份'], '无')} / 权限级：${toText(info && info['权限级'], '0')}`)}</span></div>`).join('')}
                 </div>
-              </div>
-              <div class="archive-card${hasFactionRelations || hasPendingRequests ? '' : ' full'}">
-                <div class="archive-card-head"><div class="archive-card-title">主身份摘要</div></div>
-                ${makeTileGrid([
-                  { label: '当前所属', value: snapshot.factions[0] ? snapshot.factions[0][0] : '无' },
-                  { label: '当前身份', value: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '未加入' },
-                  { label: '主公开身份', value: toText(deepGet(snapshot, 'activeChar.social.main_identity', '无'), '无') },
-                  { label: '当前称号', value: snapshot.recentTitles[0] || '暂无' }
-                ], 'two')}
+                <div class="archive-card">
+                  <div class="archive-card-head"><div class="archive-card-title">主身份摘要</div></div>
+                  ${makeTileGrid([
+                    { label: '当前所属', value: snapshot.factions[0] ? snapshot.factions[0][0] : '无' },
+                    { label: '当前身份', value: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '未加入' },
+                    { label: '主公开身份', value: toText(deepGet(snapshot, 'activeChar.social.main_identity', '无'), '无') },
+                    { label: '当前称号', value: snapshot.recentTitles[0] || '暂无' }
+                  ], 'two')}
+                </div>
               </div>
               ${hasFactionRelations || hasPendingRequests ? `
                 <div class="archive-card full">
@@ -4328,9 +4328,14 @@
           ...(primaryNpc ? [{ text: `与${primaryNpc}交易`, action: 'trade', npcTarget: primaryNpc, className: 'warn' }, { text: `委托${primaryNpc}工坊`, action: 'craft', npcTarget: primaryNpc, executorType: 'private', className: 'warn' }, { text: `与${primaryNpc}对话`, action: 'talk', npcTarget: primaryNpc, className: 'live' }, { text: `向${primaryNpc}请教`, action: 'intel', npcTarget: primaryNpc, className: '' }, { text: `向${primaryNpc}切磋`, action: 'battle', npcTarget: primaryNpc, className: 'warn' }] : []),
           ...(!primaryNpc ? [{ text: '打开工坊', action: 'craft', executorType: 'self', className: 'live' }] : [])
         ] : [];
-        const actionButtonsHtml = actionButtons.length
-          ? `<div style="display:flex;flex-wrap:wrap;gap:8px;">${actionButtons.map(btn => `<button type="button" class="map-dispatch-action-btn ${htmlEscape(btn.className || '')}" data-action="${htmlEscape(btn.action || '')}" data-target="${htmlEscape(btn.target || nodeName)}" data-current-loc="${htmlEscape(nodeName)}" data-npc-target="${htmlEscape(btn.npcTarget || '')}" data-executor-type="${htmlEscape(btn.executorType || '')}" data-services="${htmlEscape(Array.isArray(btn.services) ? btn.services.join('|') : '')}" style="border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:#fff;padding:8px 12px;border-radius:10px;cursor:pointer;">${htmlEscape(btn.text || '执行操作')}</button>`).join('')}</div>`
-          : `<div class="relation-card"><b>${canDispatchHere ? '暂无可执行操作' : '当前仅可预览'}</b><span>${canDispatchHere ? '当前节点未生成可直接分发的交易或互动按钮。' : '当前节点不是你的实际所在位置，需先移动到该节点后再进行交易、工坊或社交互动。'}</span></div>`;
+        const isPlayerControlled = isSnapshotPlayerControlled(snapshot);
+        const actionSummaryText = actionButtons.map(btn => btn.text).join(' / ');
+        const actionCardTitle = isPlayerControlled ? '可执行操作' : '驻地操作概览';
+        const actionButtonsHtml = isPlayerControlled
+          ? (actionButtons.length
+            ? `<div style="display:flex;flex-wrap:wrap;gap:8px;">${actionButtons.map(btn => `<button type="button" class="map-dispatch-action-btn ${htmlEscape(btn.className || '')}" data-action="${htmlEscape(btn.action || '')}" data-target="${htmlEscape(btn.target || nodeName)}" data-current-loc="${htmlEscape(nodeName)}" data-npc-target="${htmlEscape(btn.npcTarget || '')}" data-executor-type="${htmlEscape(btn.executorType || '')}" data-services="${htmlEscape(Array.isArray(btn.services) ? btn.services.join('|') : '')}" style="border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:#fff;padding:8px 12px;border-radius:10px;cursor:pointer;">${htmlEscape(btn.text || '执行操作')}</button>`).join('')}</div>`
+            : `<div class="relation-card"><b>${canDispatchHere ? '暂无可执行操作' : '尚未到达'}</b><span>${canDispatchHere ? '这里暂时没有能立刻发起的交易或互动。' : '你现在不在这里，先移动到该地点后，才能进行交易、工坊或社交互动。'}</span></div>`)
+          : `<div class="relation-card"><b>旁观视角</b><span>${htmlEscape(actionSummaryText ? `当前为旁观视角，可见入口：${actionSummaryText}。这里能先查看驻地情形；若想交易、开工坊或社交，需要切回自己的行动视角。` : '当前为旁观视角，这里可以先查看驻地情形；若想交易、开工坊或社交，需要切回自己的行动视角。')}</span></div>`;
         const travelTags = (snapshot.mapTravelCandidates.length ? snapshot.mapTravelCandidates : snapshot.dynamicLocationNames).filter(name => name !== nodeName).slice(0, 6);
         return {
           title: `本地据点 / ${nodeName}`,
@@ -4383,7 +4388,7 @@
                 </div>
               ${localNpcCards.length > 0 ? `
                 <div class="archive-card">
-                  <div class="archive-card-head"><div class="archive-card-title">可执行操作</div></div>
+                  <div class="archive-card-head"><div class="archive-card-title">${htmlEscape(actionCardTitle)}</div></div>
                   ${actionButtonsHtml}
                 </div>
                 <div class="archive-card">
@@ -4392,7 +4397,7 @@
                 </div>
               ` : `
                 <div class="archive-card full">
-                  <div class="archive-card-head"><div class="archive-card-title">可执行操作</div></div>
+                  <div class="archive-card-head"><div class="archive-card-title">${htmlEscape(actionCardTitle)}</div></div>
                   ${actionButtonsHtml}
                   <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed rgba(255,255,255,0.1); color: var(--color-text-secondary); font-size: 13px; text-align: center;">当前节点未扫描到可直接互动的本地角色。</div>
                 </div>
@@ -4445,7 +4450,7 @@
           body: '',
           onMount: (container) => {
             if (!isSnapshotPlayerControlled(snapshot)) {
-              container.innerHTML = '<div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">只读浏览</div></div><div class="intel-layout"><div class="intel-card"><b>当前角色不可操作</b><span>非玩家角色仅允许查看，不开放交易等请求界面。</span></div></div></div>';
+              container.innerHTML = '<div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">旁观视角</div></div><div class="intel-layout"><div class="intel-card"><b>先看看这里的店铺动静</b><span>你现在不是自己的行动视角，可以先看看这里卖些什么；若想交易，切回自己的行动视角后再来。</span></div></div></div>';
               return null;
             }
             if (typeof window.mountTradeUI === 'function') {
@@ -5355,6 +5360,22 @@ ${JSON.stringify(patchOps, null, 2)}
         : '<option value="">暂无可捐献物品</option>';
       const defaultPromotionFaction = pendingPromotionFaction !== '无' ? pendingPromotionFaction : (preferredFactionName || factionNames[0] || '');
       const defaultDonateFaction = pendingDonateFaction !== '无' ? pendingDonateFaction : (preferredFactionName || factionNames[0] || '');
+      const isPlayerControlled = isSnapshotPlayerControlled(snapshot);
+      if (!isPlayerControlled) {
+        return `
+          <div class="archive-card full">
+            <div class="archive-card-head"><div class="archive-card-title">阵营事务状态</div><span class="state-tag warn">旁观</span></div>
+            <div class="relation-side-list">
+              <div class="relation-card"><b>挂起事务</b><span>${htmlEscape(`晋升 ${pendingPromotionFaction !== '无' ? `${pendingPromotionFaction} / ${pendingPromotionTitle}` : '无'} ｜ 捐献 ${pendingDonateItem !== '无' ? `${pendingDonateItem} × ${pendingDonateQty} / ${pendingDonateFaction}` : '无'}`)}</span></div>
+              <div class="relation-card"><b>视角说明</b><span>${htmlEscape('当前为旁观视角，这里可以先查看阵营近况与贡献积累；若想递交申请或捐献，请切回自己的行动视角。')}</span></div>
+            </div>
+            <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.06);">
+              <div style="font-size: 11px; color: var(--color-text-secondary); margin-bottom: 8px; font-weight: 500;">当前主要贡献池</div>
+              <div style="font-size: 12px; color: #888;">${htmlEscape(`唐门 ${formatNumber(deepGet(snapshot, 'activeChar.wealth.tang_pt', 0))} / 学院 ${formatNumber(deepGet(snapshot, 'activeChar.wealth.shrek_pt', 0))} / 军方 ${formatNumber(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0))}`)}</div>
+            </div>
+          </div>
+        `;
+      }
       return `
         <div class="archive-card full request-console-card">
           <div class="archive-card-head"><div class="archive-card-title">阵营事务操作台</div><span class="state-tag ${preferredFactionName ? 'live' : 'warn'}">${htmlEscape(preferredFactionName || '未加入')}</span></div>
@@ -5607,7 +5628,7 @@ ${JSON.stringify(patchOps, null, 2)}
       const services = normalizeMapDispatchServices(detail);
       if (!action && !services.length) return;
       if (!isSnapshotPlayerControlled(liveSnapshot)) {
-        console.warn('[DragonUI] 当前为非玩家角色视角，仅允许浏览，不能发起交易/锻造/战斗等操作。', detail);
+        console.warn('[DragonUI] 当前是旁观视角，可先查看情况；如需发起交易、锻造或战斗，请切回自己的行动视角。', detail);
         return;
       }
 
@@ -5868,7 +5889,7 @@ ${JSON.stringify(patchOps, null, 2)}
         event.preventDefault();
         event.stopPropagation();
         if (!isSnapshotPlayerControlled(liveSnapshot)) {
-          if (typeof window.alert === 'function') window.alert('当前为非玩家角色视角，仅允许浏览，不能进行装备/锻造等操作。');
+          if (typeof window.alert === 'function') window.alert('现在是旁观视角，暂时不能进行装备或锻造操作。切回自己的行动视角后再试。');
           return;
         }
         const actionData = buildArmoryActionRequest(liveSnapshot, actionBtn.dataset.armoryAction || '');
@@ -5895,8 +5916,8 @@ ${JSON.stringify(patchOps, null, 2)}
         event.preventDefault();
         event.stopPropagation();
         if (!isSnapshotPlayerControlled(liveSnapshot)) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('当前为非玩家角色视角，仅允许浏览，不能发起人物关系互动。', 'error');
-          else if (typeof window.alert === 'function') window.alert('当前为非玩家角色视角，仅允许浏览，不能发起人物关系互动。');
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('现在是旁观视角，先看看关系近况吧。若想发起互动，请切回自己的行动视角。', 'error');
+          else if (typeof window.alert === 'function') window.alert('现在是旁观视角，先看看关系近况吧。若想发起互动，请切回自己的行动视角。');
           return;
         }
 
@@ -5929,8 +5950,8 @@ ${JSON.stringify(patchOps, null, 2)}
         event.preventDefault();
         event.stopPropagation();
         if (!isSnapshotPlayerControlled(liveSnapshot)) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('当前为非玩家角色视角，仅允许浏览，不能发起任务请求。', 'error');
-          else if (typeof window.alert === 'function') window.alert('当前为非玩家角色视角，仅允许浏览，不能发起任务请求。');
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('现在是旁观视角，暂时不能发起任务请求。切回自己的行动视角后再试。', 'error');
+          else if (typeof window.alert === 'function') window.alert('现在是旁观视角，暂时不能发起任务请求。切回自己的行动视角后再试。');
           return;
         }
         const actionType = questActionBtn.getAttribute('data-quest-action') || '';
@@ -6028,24 +6049,8 @@ ${JSON.stringify(patchOps, null, 2)}
       if (intelActionBtn && modalBody.contains(intelActionBtn)) {
         event.preventDefault();
         event.stopPropagation();
-        if (!isSnapshotPlayerControlled(liveSnapshot)) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('当前为非玩家角色视角，仅允许浏览，不能整理情报。', 'error');
-          else if (typeof window.alert === 'function') window.alert('当前为非玩家角色视角，仅允许浏览，不能整理情报。');
-          return;
-        }
-        const requestPanel = intelActionBtn.closest('.request-console-card') || modalBody;
-        const contentInput = requestPanel ? requestPanel.querySelector('[data-intel-input="content"]') : null;
-        const impactInput = requestPanel ? requestPanel.querySelector('[data-intel-input="impact"]') : null;
-        const actionData = buildKnowledgeUnlockDispatchRequest(liveSnapshot, {
-          content: toText(contentInput && contentInput.value, '').trim(),
-          impact: toNumber(impactInput && impactInput.value, 0)
-        });
-        if (!actionData) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('请输入要整理的情报内容。', 'error');
-          else if (typeof window.alert === 'function') window.alert('请输入要整理的情报内容。');
-          return;
-        }
-        if (typeof window.sendToAI === 'function') window.sendToAI(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
+        if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('这里先记线索，不直接写结论。去经历事件、调查或接触人物后，新的情报自然会浮现。', 'error');
+        else if (typeof window.alert === 'function') window.alert('这里先记线索，不直接写结论。去经历事件、调查或接触人物后，新的情报自然会浮现。');
         return;
       }
 
@@ -6054,8 +6059,8 @@ ${JSON.stringify(patchOps, null, 2)}
         event.preventDefault();
         event.stopPropagation();
         if (!isSnapshotPlayerControlled(liveSnapshot)) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('当前为非玩家角色视角，仅允许浏览，不能提交试炼结算。', 'error');
-          else if (typeof window.alert === 'function') window.alert('当前为非玩家角色视角，仅允许浏览，不能提交试炼结算。');
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('现在是旁观视角，暂时不能提交试炼结果。切回自己的行动视角后再试。', 'error');
+          else if (typeof window.alert === 'function') window.alert('现在是旁观视角，暂时不能提交试炼结果。切回自己的行动视角后再试。');
           return;
         }
         const trialAction = trialActionBtn.getAttribute('data-trial-action') || '';
@@ -6095,8 +6100,8 @@ ${JSON.stringify(patchOps, null, 2)}
         event.preventDefault();
         event.stopPropagation();
         if (!isSnapshotPlayerControlled(liveSnapshot)) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('当前为非玩家角色视角，仅允许浏览，不能提交阵营事务。', 'error');
-          else if (typeof window.alert === 'function') window.alert('当前为非玩家角色视角，仅允许浏览，不能提交阵营事务。');
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('现在是旁观视角，暂时不能处理阵营事务。切回自己的行动视角后再试。', 'error');
+          else if (typeof window.alert === 'function') window.alert('现在是旁观视角，暂时不能处理阵营事务。切回自己的行动视角后再试。');
           return;
         }
         const factionAction = factionActionBtn.getAttribute('data-faction-action') || '';

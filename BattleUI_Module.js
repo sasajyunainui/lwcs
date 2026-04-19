@@ -1101,15 +1101,17 @@ const BATTLE_SKILL_ATTRIBUTE_COEFF_MAP = Object.freeze({
   风: Object.freeze({ 掌控: 1.00, 威力: 1.02, 消耗: 0.96, 前摇: 0.94, 控制: 0.98, 速度: 1.12 }),
   光: Object.freeze({ 掌控: 1.05, 威力: 1.03, 消耗: 0.98, 前摇: 0.98, 控制: 1.02, 速度: 1.00 }),
   暗: Object.freeze({ 掌控: 1.03, 威力: 1.08, 消耗: 1.02, 前摇: 0.98, 控制: 1.04, 速度: 1.00 }),
-  空间: Object.freeze({ 掌控: 1.12, 威力: 1.00, 消耗: 1.08, 前摇: 0.96, 控制: 1.08, 速度: 1.02 })
+  空间: Object.freeze({ 掌控: 1.12, 威力: 1.00, 消耗: 1.08, 前摇: 0.96, 控制: 1.08, 速度: 1.02 }),
+  创造: Object.freeze({ 掌控: 1.18, 威力: 1.12, 消耗: 1.10, 前摇: 1.00, 控制: 1.12, 速度: 1.00 }),
+  毁灭: Object.freeze({ 掌控: 1.08, 威力: 1.22, 消耗: 1.14, 前摇: 1.04, 控制: 1.08, 速度: 0.98 })
 });
 
 function normalizeBattleSkillAttributeToken(value = '') {
   const raw = String(value || '').trim();
   if (!raw || raw === '无') return '';
   const aliasMap = {
-    金系: '金', 木系: '木', 水系: '水', 火系: '火', 土系: '土', 雷系: '雷', 冰系: '冰', 风系: '风', 光系: '光', 暗系: '暗', 空间系: '空间',
-    光明: '光', 黑暗: '暗'
+    金系: '金', 木系: '木', 水系: '水', 火系: '火', 土系: '土', 雷系: '雷', 冰系: '冰', 风系: '风', 光系: '光', 暗系: '暗', 空间系: '空间', 创造系: '创造', 毁灭系: '毁灭',
+    光明: '光', 黑暗: '暗', 创世: '创造', 灭世: '毁灭'
   };
   const normalized = aliasMap[raw] || raw;
   return BATTLE_SKILL_ATTRIBUTE_COEFF_MAP[normalized] ? normalized : '';
@@ -1118,6 +1120,94 @@ function normalizeBattleSkillAttributeToken(value = '') {
 function normalizeBattleSkillAttributeTokens(list = []) {
   const source = Array.isArray(list) ? list : [];
   return Array.from(new Set(source.map(normalizeBattleSkillAttributeToken).filter(Boolean)));
+}
+
+const BATTLE_FUSION_BASE_ELEMENTS = Object.freeze(['水', '火', '风', '土']);
+const BATTLE_FUSION_ADVANCED_ELEMENTS = Object.freeze(['光', '暗', '空间']);
+const BATTLE_FUSION_LAW_ELEMENTS = Object.freeze(['创造', '毁灭']);
+const BATTLE_FUSION_ALLOWED_ELEMENTS = Object.freeze([...BATTLE_FUSION_BASE_ELEMENTS, ...BATTLE_FUSION_ADVANCED_ELEMENTS, ...BATTLE_FUSION_LAW_ELEMENTS]);
+const BATTLE_FUSION_ELEMENT_ORDER = Object.freeze([...BATTLE_FUSION_ALLOWED_ELEMENTS]);
+const BATTLE_FUSION_SEMANTICS_MAP = Object.freeze({
+  '水/火': Object.freeze({ pattern: '水火蒸爆', multiplier: 1.18, failAdjust: 8, summary: '水火相激形成高压蒸爆，爆发显著提升。' }),
+  '水/风': Object.freeze({ pattern: '水风涡流', multiplier: 1.10, failAdjust: -4, summary: '水借风势形成涡流，融合稳定性更高。' }),
+  '水/土': Object.freeze({ pattern: '水土泽域', multiplier: 1.08, failAdjust: -2, summary: '水土交汇形成泥泽领域，控场更稳。' }),
+  '火/风': Object.freeze({ pattern: '火风炎岚', multiplier: 1.16, failAdjust: 6, summary: '烈焰借风成势，形成高速扩张的炎岚。' }),
+  '冰/风': Object.freeze({ pattern: '冰风霜灾', multiplier: 1.14, failAdjust: 2, summary: '寒流被风卷起，形成持续冻结的霜灾。' }),
+  '光/暗': Object.freeze({ pattern: '光暗蚀变', multiplier: 1.22, failAdjust: 12, summary: '光暗对冲本身就足够危险，容易形成湮灭蚀变。' }),
+  '水/火/风': Object.freeze({ pattern: '水火风暴', multiplier: 1.28, failAdjust: 10, summary: '蒸爆被风势卷起，形成持续爆裂风暴。' }),
+  '水/土/风': Object.freeze({ pattern: '水土风岚·泽域封场', multiplier: 1.18, failAdjust: 3, summary: '泥泽、气流与水势叠加，形成范围封场。' }),
+  '水/火/土': Object.freeze({ pattern: '水火土·蒸压熔壳', multiplier: 1.22, failAdjust: 8, summary: '蒸压与土壳并存，兼具压制与爆裂。' }),
+  '水/火/风/土': Object.freeze({ pattern: '四象归元·雷霆显化', multiplier: 1.24, failAdjust: 16, summary: '四基础元素归元后显化法则性雷霆，这不是普通雷属性，而是四象归一后的法则征兆。并且已可触发元素剥离。', derivedEffects: ['元素剥离'] }),
+  '光/暗/空间': Object.freeze({ pattern: '光暗空间·界域扭变', multiplier: 1.35, failAdjust: 14, summary: '光暗对冲叠加空间扭曲，形成界域级压制。' }),
+  '水/火/风/土/光/暗/空间': Object.freeze({ pattern: '七元素爆裂', multiplier: 1.38, failAdjust: 28, summary: '四基础元素与三进阶元素同时贯通，踏入真正的七元素爆裂台阶。' }),
+  '创造/毁灭': Object.freeze({ pattern: '创造毁灭·法则对冲', multiplier: 1.45, failAdjust: 18, summary: '法则互冲带来极高上限，也伴随极高失控风险。' }),
+  '光/暗/创造/毁灭': Object.freeze({ pattern: '光暗双法则·湮生对撞', multiplier: 1.60, failAdjust: 24, summary: '光暗对冲叠加双法则冲撞，接近失控边缘的极限融合。' })
+});
+
+function sortBattleFusionElements(elements = []) {
+  const normalized = normalizeBattleSkillAttributeTokens(elements).filter(token => BATTLE_FUSION_ALLOWED_ELEMENTS.includes(token));
+  const orderIndex = token => {
+    const index = BATTLE_FUSION_ELEMENT_ORDER.indexOf(token);
+    return index >= 0 ? index : BATTLE_FUSION_ELEMENT_ORDER.length + token.charCodeAt(0);
+  };
+  return [...normalized].sort((a, b) => orderIndex(a) - orderIndex(b));
+}
+
+function buildBattleFusionKey(elements = []) {
+  return sortBattleFusionElements(elements).join('/');
+}
+
+function resolveBattleFusionSemantics(elements = []) {
+  const normalized = sortBattleFusionElements(elements);
+  const key = normalized.join('/');
+  const preset = BATTLE_FUSION_SEMANTICS_MAP[key];
+  let multiplier = Number(preset?.multiplier || 1);
+  let failAdjust = Number(preset?.failAdjust || 0);
+  let pattern = String(preset?.pattern || (normalized.length ? normalized.join('/') : '未指定'));
+  let summary = String(preset?.summary || (normalized.length ? `${normalized.join('/')} 并行融合。` : '未指定元素融合。'));
+  const derivedEffects = normalizeBattleSkillStringArray(preset?.derivedEffects || []);
+  const hasLaw = normalized.some(token => token === '创造' || token === '毁灭');
+  const hasSpace = normalized.includes('空间');
+  const hasLightDark = normalized.includes('光') && normalized.includes('暗');
+  if (!preset && hasSpace) {
+    multiplier *= 1.08;
+    failAdjust += 4;
+    summary += ' 空间参与抬高融合上限。';
+  }
+  if (!preset && hasLightDark) {
+    multiplier *= 1.10;
+    failAdjust += 6;
+    summary += ' 光暗对冲令结构更危险。';
+  }
+  if (!preset && hasLaw) {
+    const lawCount = normalized.filter(token => token === '创造' || token === '毁灭').length;
+    multiplier *= (1 + lawCount * 0.12);
+    failAdjust += lawCount * 10;
+    summary += ' 法则元素参与显著抬高上限与风险。';
+  }
+  return { key, elements: normalized, pattern, multiplier, failAdjust, summary, derivedEffects };
+}
+
+function extractBattleFusionElementsFromText(raw = '') {
+  const text = String(raw || '').trim();
+  if (!text) return [];
+  if (/七元素/.test(text)) return [...BATTLE_FUSION_BASE_ELEMENTS, ...BATTLE_FUSION_ADVANCED_ELEMENTS];
+  if (/四元素/.test(text)) return [...BATTLE_FUSION_BASE_ELEMENTS];
+  const directMatches = [];
+  ['创造', '毁灭', '空间', '光明', '黑暗', '创世', '灭世', '水', '火', '土', '风', '光', '暗'].forEach(token => {
+    if (text.includes(token)) directMatches.push(normalizeBattleSkillAttributeToken(token));
+  });
+  const cleaned = text
+    .replace(/多元素融合|元素融合|融合技|融合|蓄力|极致|调用|使用|释放|施展/g, ' ')
+    .replace(/[、,，|｜/＋+]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const splitMatches = cleaned ? cleaned.split(' ').map(normalizeBattleSkillAttributeToken).filter(token => token && BATTLE_FUSION_ALLOWED_ELEMENTS.includes(token)) : [];
+  return Array.from(new Set([...directMatches, ...splitMatches].filter(Boolean)));
+}
+
+function buildBattleFusionPattern(elements = []) {
+  return resolveBattleFusionSemantics(elements).pattern;
 }
 
 function normalizeBattleSkillAttributeCoefficients(value = {}) {
@@ -1340,7 +1430,7 @@ function applyAttributeCoeffToCombatSkill(skill = {}) {
   const attached = normalizeBattleSkillAttributeTokens(skill?.附带属性);
   const hasV2Structure = hasBattleSkillAttributeStructure(skill);
   skill.附带属性 = attached;
-  ['属性系数', '属性来源', '魂技作用', '元素构型', '五行调用结构', '极性信息', '元素信息', '元素'].forEach(key => { if (key in skill) delete skill[key]; });
+  ['属性系数', '属性来源', '魂技作用', '元素构型', '五行调用结构', '极性信息', '元素'].forEach(key => { if (key in skill) delete skill[key]; });
   const coeff = resolveBattleSkillAttributeCoefficients(skill);
 
   if ((!attached.length && !hasV2Structure) || isNeutralBattleSkillAttributeCoefficients(coeff)) return skill;
@@ -4973,6 +5063,28 @@ function applyHighTierMechanics(attackerChar, defenderChar, playerAction, baseRe
   let result = { ...baseResult };
   let attackerStats = attackerChar.stat || attackerChar;
   let defenderStats = defenderChar.stat || defenderChar;
+  const battleMindMax = Number(attackerChar?.final?.men_max || attackerStats?.men_max || attackerChar?.men_max || 0);
+  const applyDerivedState = (targetObj, stateName, sourceName, duration, statMods = {}, combatEffects = {}, forceBuff = false) => {
+    if (!targetObj || !stateName) return false;
+    return applyStateToCharacter(targetObj, {
+      状态名称: stateName,
+      特殊机制标识: forceBuff ? '增益/高阶衍生' : '削弱/高阶衍生',
+      持续回合: duration,
+      面板修改比例: {
+        str: 1.0,
+        def: 1.0,
+        agi: 1.0,
+        sp_max: 1.0,
+        vit_max: 1.0,
+        men_max: 1.0,
+        ...(statMods || {})
+      },
+      计算层效果: {
+        ...createEmptyCombatEffectMap(),
+        ...(combatEffects || {})
+      }
+    }, sourceName || stateName, forceBuff);
+  };
 
   const skillElementLabel = getBattleSkillDisplayElement(playerAction.skill || {});
   let isHoly = skillElementLabel === "神圣" || skillElementLabel === "光明" || skillElementLabel === "生命";
@@ -4982,33 +5094,87 @@ function applyHighTierMechanics(attackerChar, defenderChar, playerAction, baseRe
   }
 
   if (playerAction.action_type === "多元素融合") {
-    let elementCount = playerAction.element_count || 2;
+    const fusionElements = sortBattleFusionElements(playerAction.fusionElements || playerAction.skill?.附带属性 || []);
+    const fusionSemantics = resolveBattleFusionSemantics(fusionElements);
+    const fusionPattern = String(playerAction.fusionPattern || fusionSemantics.pattern);
+    const fusionLabel = fusionElements.length ? fusionPattern : `${fusionElements.length || 2}种元素`;
+    let elementCount = fusionElements.length || 2;
+
     let isSilverDragon = attackerChar.bloodline_power?.bloodline?.includes("银龙王") || 
                          Object.values(attackerChar.spirit || {}).some(sp => sp.表象名称?.includes("元素使"));
 
     let failRate = 0;
     if (!isSilverDragon) {
-      let baseFailRate = (elementCount - 1) * 35; 
+      let baseFailRate = (elementCount - 1) * 35 + Number(fusionSemantics.failAdjust || 0);
       let menAdvantage = (attackerStats.men / defenderStats.men_max) * 15; 
       failRate = Math.max(5, baseFailRate - menAdvantage); 
     }
 
     let roll = Math.floor(Math.random() * 100) + 1; 
+    if (fusionElements.length) {
+      result.desc += ` [组合语义] ${fusionSemantics.pattern}：${fusionSemantics.summary}`;
+      if (Array.isArray(fusionSemantics.derivedEffects) && fusionSemantics.derivedEffects.length) {
+        result.desc += ` [衍生能力] ${fusionSemantics.derivedEffects.join(' / ')}`;
+      }
+    }
     
     if (roll <= failRate) {
       result.dmg = 0;
       result.backlash_dmg = Math.floor(attackerStats.vit_max * 0.3); 
-      result.desc += ` [元素炸膛] 精神力失控！${elementCount}种元素在手中轰然引爆，遭到极致反噬！(Roll: ${roll} <= 炸膛率: ${Math.floor(failRate)}%)`;
+      result.desc += ` [元素炸膛] 精神力失控！${fusionLabel}在手中轰然引爆，遭到极致反噬！(Roll: ${roll} <= 炸膛率: ${Math.floor(failRate)}%)`;
     } else {
-      let multiplier = Math.pow(1.5, elementCount - 1); 
+      let multiplier = Math.pow(1.5, elementCount - 1) * Number(fusionSemantics.multiplier || 1);
       if (isSilverDragon) result.desc += ` [血脉特权] 银龙王血脉无视元素排斥，炸膛率强制归零！`;
       if (playerAction.is_charged) {
         multiplier *= 1.5; 
         result.desc += ` [极致蓄力] 元素被压缩到极致！`;
       }
       result.dmg = Math.floor(result.dmg * multiplier);
-      result.desc += ` [元素共鸣] ${elementCount}种元素完美融合！威力呈指数级暴涨！(威力倍率: x${multiplier.toFixed(2)})`;
+      result.desc += ` [元素共鸣] ${fusionLabel}完美融合！威力呈指数级暴涨！(威力倍率: x${multiplier.toFixed(2)})`;
+      if (Array.isArray(fusionSemantics.derivedEffects) && fusionSemantics.derivedEffects.includes('元素剥离') && result.dmg > 0) {
+        const extraTrueDamage = Math.max(0, Math.floor(battleMindMax * 0.08));
+        if (extraTrueDamage > 0) {
+          result.dmg += extraTrueDamage;
+          result.desc += ` [元素剥离] 四象归元后的剥离力撕开目标属性护层，追加 ${extraTrueDamage} 点真实伤害。`;
+        }
+        applyDerivedState(defenderChar, '元素剥离', fusionSemantics.pattern, 2, {
+          def: 0.82,
+          agi: 0.96,
+          men_max: 0.97
+        }, {
+          reaction_penalty: 0.08,
+          control_resist_mult: 0.90
+        }, false);
+      }
     }
+  }
+
+  const wuxingInvocation = getBattleSkillWuxingInvocation(playerAction.skill || {});
+  if (String(wuxingInvocation?.结果 || '无') === '五行剥离' && Number(result.dmg || 0) > 0) {
+    const extraTrueDamage = Math.max(0, Math.floor(battleMindMax * 0.10));
+    result.dmg = Math.floor(result.dmg * 1.12) + extraTrueDamage;
+    result.desc += ` [五行剥离] 完整五行轮转剥离目标五行护持，破甲与真伤同步提升。`;
+    applyDerivedState(defenderChar, '五行剥离', wuxingInvocation.模式 || '五行轮转', 2, {
+      def: 0.75,
+      agi: 0.92,
+      men_max: 0.95
+    }, {
+      reaction_penalty: 0.12,
+      control_resist_mult: 0.82,
+      lock_level: 1
+    }, false);
+  }
+  if (String(wuxingInvocation?.终态 || '无') === '五行遁法') {
+    result.desc += ` [五行遁法] 身形借五行轮转遁走，机动、规避与反应显著提升。`;
+    applyDerivedState(attackerChar, '五行遁法', wuxingInvocation.模式 || '五行轮转', 2, {
+      agi: 1.12,
+      men_max: 1.05
+    }, {
+      dodge_bonus: 0.18,
+      reaction_bonus: 0.10,
+      attacker_speed_bonus: 0.08,
+      cast_speed_bonus: 0.08
+    }, true);
   }
 
   return result;
@@ -5133,11 +5299,12 @@ function parsePlayerIntent(playerInput) {
     // 如果没有任何武魂融合技、也没有匹配到具体魂技，但是匹配到了一些其它的特殊主动作
     if (playerInput.includes("多元素融合")) {
       action.action_type = "多元素融合";
-      action.element_count = 2;
+      action.fusionElements = extractBattleFusionElementsFromText(playerInput);
+      action.fusionPattern = buildBattleFusionPattern(action.fusionElements);
       if (playerInput.includes("蓄力")) action.is_charged = true;
       let isSilverDragon = charData.bloodline_power?.bloodline?.includes("银龙王") || Object.values(charData.spirit || {}).some(sp => sp.表象名称?.includes("元素使"));
       if (isSilverDragon) action.cast_time = 5;
-      action.skill = normalizeSkillData({ name: "多元素融合", 技能类型: "输出", 消耗: "无" });
+      action.skill = normalizeSkillData({ name: "多元素融合", 技能类型: "输出", 消耗: "无", 附带属性: action.fusionElements || [] });
     } else if (playerInput.includes("吸血反哺")) {
       action.action_type = "吸血反哺";
       action.heal_ratio = 0.3;
@@ -5981,7 +6148,10 @@ function buildSerializedEntryFromAction(action) {
   };
   if (type === '穿戴装备') actionObj.equip_target = /机甲/.test(name) ? 'mech' : 'armor';
   if (type === '吸血反哺') actionObj.heal_ratio = action.heal_ratio || 0.3;
-  if (type === '多元素融合') actionObj.element_count = action.element_count || 2;
+  if (type === '多元素融合') {
+    actionObj.fusionElements = normalizeBattleSkillAttributeTokens(action.fusionElements || []);
+    actionObj.fusionPattern = String(action.fusionPattern || buildBattleFusionPattern(actionObj.fusionElements));
+  }
   if (action.is_charged) actionObj.is_charged = true;
   return actionObj;
 }
