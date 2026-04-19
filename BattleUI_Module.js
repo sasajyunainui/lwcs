@@ -709,6 +709,8 @@ function createEmptyBattleSummary() {
     爆发级别: "中",
     持续性: "无",
     风险等级: "中",
+    属性建模: "无",
+    极性层级: "无",
     控制强度: "无",
     回复性质: "无",
     防御性质: "无",
@@ -1060,13 +1062,419 @@ function hasMeaningfulCombatEffect(effectMap = {}) {
   });
 }
 
-function getSkillEffects(skill) {
+const BATTLE_SKILL_SUMMARY_EFFECT_MECHANISMS = new Set(['属性摘要', '构型摘要', '术式摘要', '极性摘要', '属性系数摘要']);
+
+function isBattleSkillSummaryEffect(effect = {}) {
+  const mechanism = String(effect?.机制 || '').trim();
+  return !!mechanism && (BATTLE_SKILL_SUMMARY_EFFECT_MECHANISMS.has(mechanism) || effect?.summaryOnly === true);
+}
+
+function getBattleSkillSummaryEffects(skill = {}) {
   const rawEffects = Array.isArray(skill?._效果数组) ? skill._效果数组 : [];
+  return rawEffects.filter(effect => effect && typeof effect === 'object' && isBattleSkillSummaryEffect(effect));
+}
+
+function getBattleSkillSummaryEffectByMechanism(skill = {}, mechanism = '') {
+  const target = String(mechanism || '').trim();
+  if (!target) return null;
+  return getBattleSkillSummaryEffects(skill).find(effect => String(effect?.机制 || '').trim() === target) || null;
+}
+
+function getSkillEffects(skill) {
+  const rawEffects = (Array.isArray(skill?._效果数组) ? skill._效果数组 : []).filter(effect => !isBattleSkillSummaryEffect(effect));
   const creationEffects = rawEffects.filter(effect => ['生成造物', '造物生成'].includes(String(effect?.机制 || '')));
   if (!creationEffects.length) return rawEffects;
   const systemEffects = rawEffects.filter(effect => effect?.机制 === '系统基础');
   const usageEffects = creationEffects.flatMap(effect => Array.isArray(effect?.使用效果) ? effect.使用效果 : []);
   return [...systemEffects, ...usageEffects];
+}
+
+const BATTLE_SKILL_DEFAULT_ATTRIBUTE_COEFF = Object.freeze({ 掌控: 1, 威力: 1, 消耗: 1, 前摇: 1, 控制: 1, 速度: 1 });
+const BATTLE_SKILL_ATTRIBUTE_COEFF_MAP = Object.freeze({
+  金: Object.freeze({ 掌控: 1.02, 威力: 1.08, 消耗: 1.00, 前摇: 0.98, 控制: 0.98, 速度: 1.02 }),
+  木: Object.freeze({ 掌控: 1.08, 威力: 0.96, 消耗: 0.96, 前摇: 1.00, 控制: 1.05, 速度: 1.00 }),
+  水: Object.freeze({ 掌控: 1.06, 威力: 0.98, 消耗: 0.95, 前摇: 1.00, 控制: 1.04, 速度: 1.00 }),
+  火: Object.freeze({ 掌控: 0.96, 威力: 1.15, 消耗: 1.06, 前摇: 1.00, 控制: 0.95, 速度: 1.02 }),
+  土: Object.freeze({ 掌控: 1.00, 威力: 1.05, 消耗: 1.00, 前摇: 1.04, 控制: 1.02, 速度: 0.95 }),
+  雷: Object.freeze({ 掌控: 1.00, 威力: 1.10, 消耗: 1.03, 前摇: 0.92, 控制: 0.98, 速度: 1.12 }),
+  冰: Object.freeze({ 掌控: 1.04, 威力: 1.02, 消耗: 1.00, 前摇: 1.02, 控制: 1.12, 速度: 0.95 }),
+  风: Object.freeze({ 掌控: 1.00, 威力: 1.02, 消耗: 0.96, 前摇: 0.94, 控制: 0.98, 速度: 1.12 }),
+  光: Object.freeze({ 掌控: 1.05, 威力: 1.03, 消耗: 0.98, 前摇: 0.98, 控制: 1.02, 速度: 1.00 }),
+  暗: Object.freeze({ 掌控: 1.03, 威力: 1.08, 消耗: 1.02, 前摇: 0.98, 控制: 1.04, 速度: 1.00 }),
+  空间: Object.freeze({ 掌控: 1.12, 威力: 1.00, 消耗: 1.08, 前摇: 0.96, 控制: 1.08, 速度: 1.02 })
+});
+
+function normalizeBattleSkillAttributeToken(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw || raw === '无') return '';
+  const aliasMap = {
+    金系: '金', 木系: '木', 水系: '水', 火系: '火', 土系: '土', 雷系: '雷', 冰系: '冰', 风系: '风', 光系: '光', 暗系: '暗', 空间系: '空间',
+    光明: '光', 黑暗: '暗'
+  };
+  const normalized = aliasMap[raw] || raw;
+  return BATTLE_SKILL_ATTRIBUTE_COEFF_MAP[normalized] ? normalized : '';
+}
+
+function normalizeBattleSkillAttributeTokens(list = []) {
+  const source = Array.isArray(list) ? list : [];
+  return Array.from(new Set(source.map(normalizeBattleSkillAttributeToken).filter(Boolean)));
+}
+
+function normalizeBattleSkillAttributeCoefficients(value = {}) {
+  const normalized = { ...BATTLE_SKILL_DEFAULT_ATTRIBUTE_COEFF };
+  Object.keys(BATTLE_SKILL_DEFAULT_ATTRIBUTE_COEFF).forEach(key => {
+    const raw = Number(value?.[key] ?? BATTLE_SKILL_DEFAULT_ATTRIBUTE_COEFF[key]);
+    normalized[key] = Number.isFinite(raw) && raw > 0 ? raw : BATTLE_SKILL_DEFAULT_ATTRIBUTE_COEFF[key];
+  });
+  return normalized;
+}
+
+function normalizeBattleSkillStringArray(value = []) {
+  const source = Array.isArray(value) ? value : [];
+  return Array.from(new Set(source.map(item => String(item || '').trim()).filter(Boolean)));
+}
+
+function normalizeBattleSkillAttributeSource(value = '') {
+  const text = String(value || '').trim();
+  return ['自身操控', '魂技调用'].includes(text) ? text : '无';
+}
+
+function normalizeBattleSkillRole(value = '') {
+  const text = String(value || '').trim();
+  return ['增幅器', '结构术式'].includes(text) ? text : '无';
+}
+
+function normalizeBattleSkillElementStructure(value = {}) {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  return {
+    模式: String(source?.模式 || '无').trim() || '无',
+    核心元素: normalizeBattleSkillAttributeTokens(source?.核心元素),
+    驱动元素: normalizeBattleSkillAttributeTokens(source?.驱动元素),
+    约束元素: normalizeBattleSkillAttributeTokens(source?.约束元素),
+    触发元素: normalizeBattleSkillAttributeTokens(source?.触发元素),
+    关系: Array.isArray(source?.关系) ? deepClone(source.关系) : []
+  };
+}
+
+function normalizeBattleSkillWuxingInvocation(value = {}) {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  return {
+    模式: String(source?.模式 || '无').trim() || '无',
+    调用链: normalizeBattleSkillStringArray(source?.调用链),
+    回路闭合: !!source?.回路闭合,
+    层级回溯: normalizeBattleSkillStringArray(source?.层级回溯),
+    终态: String(source?.终态 || '无').trim() || '无',
+    结果: String(source?.结果 || '无').trim() || '无'
+  };
+}
+
+function normalizeBattleSkillPolarityInfo(value = {}) {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  return {
+    polarityUnlocked: !!source?.polarityUnlocked,
+    polarityMode: String(source?.polarityMode || source?.polarity || '无').trim() || '无'
+  };
+}
+
+function getBattleSkillAttributeSummary(skill = {}) {
+  return getBattleSkillSummaryEffectByMechanism(skill, '属性摘要') || {};
+}
+
+function getBattleSkillAttributeSource(skill = {}) {
+  return normalizeBattleSkillAttributeSource(getBattleSkillAttributeSummary(skill)?.属性来源 || '');
+}
+
+function getBattleSkillRole(skill = {}) {
+  return normalizeBattleSkillRole(getBattleSkillAttributeSummary(skill)?.魂技作用 || '');
+}
+
+function getBattleSkillElementStructure(skill = {}) {
+  return normalizeBattleSkillElementStructure(getBattleSkillSummaryEffectByMechanism(skill, '构型摘要') || {});
+}
+
+function getBattleSkillWuxingInvocation(skill = {}) {
+  return normalizeBattleSkillWuxingInvocation(getBattleSkillSummaryEffectByMechanism(skill, '术式摘要') || {});
+}
+
+function getBattleSkillPolaritySummary(skill = {}) {
+  return normalizeBattleSkillPolarityInfo(getBattleSkillSummaryEffectByMechanism(skill, '极性摘要') || {});
+}
+
+function getBattleSkillRuntimeAttributeCoefficients(skill = {}) {
+  const summary = getBattleSkillSummaryEffectByMechanism(skill, '属性系数摘要');
+  return normalizeBattleSkillAttributeCoefficients(summary?.系数 || summary?.属性系数 || {});
+}
+
+function getBattleSkillDisplayElement(skill = {}) {
+  const explicit = String(getBattleSkillAttributeSummary(skill)?.显示元素 || '').trim();
+  if (explicit) return explicit;
+  const attached = normalizeBattleSkillAttributeTokens(skill?.附带属性);
+  return attached.length ? attached.join('/') : '无';
+}
+
+function hasBattleSkillAttributeStructure(skill = {}) {
+  const elementStructure = getBattleSkillElementStructure(skill);
+  const wuxingInvocation = getBattleSkillWuxingInvocation(skill);
+  const polarityInfo = getBattleSkillPolaritySummary(skill);
+  return getBattleSkillAttributeSource(skill) !== '无'
+    || getBattleSkillRole(skill) !== '无'
+    || elementStructure.模式 !== '无' || elementStructure.核心元素.length > 0 || elementStructure.驱动元素.length > 0 || elementStructure.约束元素.length > 0 || elementStructure.触发元素.length > 0 || elementStructure.关系.length > 0
+    || wuxingInvocation.模式 !== '无' || wuxingInvocation.调用链.length > 0 || wuxingInvocation.回路闭合 || wuxingInvocation.层级回溯.length > 0 || wuxingInvocation.终态 !== '无' || wuxingInvocation.结果 !== '无'
+    || polarityInfo.polarityUnlocked || polarityInfo.polarityMode !== '无';
+}
+
+function mergeBattleSkillAttributeCoefficientProfiles(list = []) {
+  const profiles = (Array.isArray(list) ? list : []).map(profile => normalizeBattleSkillAttributeCoefficients(profile || {}));
+  if (!profiles.length) return normalizeBattleSkillAttributeCoefficients();
+  const merged = {};
+  Object.keys(BATTLE_SKILL_DEFAULT_ATTRIBUTE_COEFF).forEach(key => {
+    merged[key] = profiles.reduce((sum, profile) => sum + Number(profile?.[key] ?? 1), 0) / profiles.length;
+  });
+  return normalizeBattleSkillAttributeCoefficients(merged);
+}
+
+function buildBattleSkillAttributeCoefficientsFromAttachedAttributes(attachedAttributes = []) {
+  const attached = normalizeBattleSkillAttributeTokens(attachedAttributes);
+  if (!attached.length) return normalizeBattleSkillAttributeCoefficients();
+  return mergeBattleSkillAttributeCoefficientProfiles(attached.map(attr => BATTLE_SKILL_ATTRIBUTE_COEFF_MAP[attr] || BATTLE_SKILL_DEFAULT_ATTRIBUTE_COEFF));
+}
+
+function resolveBattleSkillAttributeCoefficients(skill = {}) {
+  const attached = normalizeBattleSkillAttributeTokens(skill?.附带属性);
+  const hasV2Structure = hasBattleSkillAttributeStructure(skill);
+  if (!attached.length) return hasV2Structure ? getBattleSkillRuntimeAttributeCoefficients(skill) : normalizeBattleSkillAttributeCoefficients();
+  if (hasV2Structure) return getBattleSkillRuntimeAttributeCoefficients(skill);
+  return buildBattleSkillAttributeCoefficientsFromAttachedAttributes(attached);
+}
+
+function isNeutralBattleSkillAttributeCoefficients(coeff = {}) {
+  const normalized = normalizeBattleSkillAttributeCoefficients(coeff);
+  return Object.keys(BATTLE_SKILL_DEFAULT_ATTRIBUTE_COEFF).every(key => Math.abs(Number(normalized[key] || 1) - 1) < 0.0001);
+}
+
+function roundBattleScaledNumber(value, digits = 2) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 0;
+  const scaled = Number(num.toFixed(digits));
+  return Number.isInteger(scaled) ? Math.trunc(scaled) : scaled;
+}
+
+function scaleBattleValue(value, ratio = 1, options = {}) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return value;
+  let next = num * Number(ratio || 1);
+  if (options.min !== undefined) next = Math.max(Number(options.min), next);
+  if (options.max !== undefined) next = Math.min(Number(options.max), next);
+  return roundBattleScaledNumber(next, options.digits ?? 2);
+}
+
+function scaleBattleFactor(value, ratio = 1, neutral = 1) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return value;
+  return roundBattleScaledNumber(Number(neutral) + ((num - Number(neutral)) * Number(ratio || 1)), 4);
+}
+
+function scaleBattleLockLevel(value, ratio = 1) {
+  const num = Number(value || 0);
+  if (!(num > 0)) return 0;
+  return Math.max(1, Math.round(num * Number(ratio || 1)));
+}
+
+function scaleBattleDebuffRatio(value, ratio = 1, neutral = 1) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return value;
+  return roundBattleScaledNumber(Number(neutral) - ((Number(neutral) - num) * Number(ratio || 1)), 4);
+}
+
+function scaleSkillCostText(costText, ratio = 1) {
+  const text = String(costText || '').trim();
+  if (!text || text === '无' || Math.abs(Number(ratio || 1) - 1) < 0.0001) return text || '无';
+  return text.replace(/(\d+(?:\.\d+)?)(%?)/g, (_, numText, suffix) => `${roundBattleScaledNumber(Number(numText) * Number(ratio || 1), suffix ? 2 : 0)}${suffix}`);
+}
+
+function ensureBattleSkillAttributeBase(skill = {}) {
+  if (skill?.__attributeCoeffBase && Array.isArray(skill.__attributeCoeffBase.effects)) return skill.__attributeCoeffBase;
+  const systemBase = getSystemBaseEffect(skill);
+  const rawCostText = typeof skill?.消耗 === 'object' ? formatCostObjectToString(skill.消耗) : String(skill?.消耗 || '').trim();
+  const systemCostText = typeof systemBase?.消耗 === 'object' ? formatCostObjectToString(systemBase.消耗) : String(systemBase?.消耗 || '').trim();
+  const base = {
+    effects: deepClone(skill?._效果数组 || []),
+    cast_time: Number(skill?.cast_time ?? systemBase?.cast_time ?? 0) || 0,
+    cost_text: ((rawCostText && rawCostText !== '无') ? rawCostText : (systemCostText || rawCostText || '无')) || '无'
+  };
+  skill.__attributeCoeffBase = deepClone(base);
+  return skill.__attributeCoeffBase;
+}
+
+function ensureBattleTransientStateEffect(skill = {}) {
+  if (!Array.isArray(skill._效果数组)) skill._效果数组 = [];
+  let stateEffect = skill._效果数组.find(effect => effect?.机制 === '状态挂载');
+  if (!stateEffect) {
+    const targetText = String(skill?.对象 || getSystemBaseEffect(skill)?.对象 || '敌方/单体') || '敌方/单体';
+    stateEffect = {
+      机制: '状态挂载',
+      状态名称: '无',
+      目标: targetText,
+      对象: targetText,
+      持续回合: 0,
+      面板修改比例: {},
+      计算层效果: createEmptyCombatEffectMap()
+    };
+    skill._效果数组.push(stateEffect);
+  }
+  if (!stateEffect.状态名称 || !String(stateEffect.状态名称).trim()) stateEffect.状态名称 = '无';
+  if (!stateEffect.目标) stateEffect.目标 = String(skill?.对象 || getSystemBaseEffect(skill)?.对象 || '敌方/单体') || '敌方/单体';
+  if (!stateEffect.对象) stateEffect.对象 = stateEffect.目标;
+  if (!stateEffect.面板修改比例 || typeof stateEffect.面板修改比例 !== 'object' || Array.isArray(stateEffect.面板修改比例)) stateEffect.面板修改比例 = {};
+  stateEffect.计算层效果 = mergeCombatEffectMaps(createEmptyCombatEffectMap(), stateEffect.计算层效果 || {});
+  return stateEffect;
+}
+
+function applyAttributeCoeffToCombatSkill(skill = {}) {
+  if (!skill || typeof skill !== 'object') return skill;
+  const base = ensureBattleSkillAttributeBase(skill);
+  skill._效果数组 = deepClone(base.effects || []);
+  skill.cast_time = Number(base.cast_time ?? 0) || 0;
+  skill.消耗 = String(base.cost_text || '无') || '无';
+
+  const attached = normalizeBattleSkillAttributeTokens(skill?.附带属性);
+  const hasV2Structure = hasBattleSkillAttributeStructure(skill);
+  skill.附带属性 = attached;
+  ['属性系数', '属性来源', '魂技作用', '元素构型', '五行调用结构', '极性信息', '元素信息', '元素'].forEach(key => { if (key in skill) delete skill[key]; });
+  const coeff = resolveBattleSkillAttributeCoefficients(skill);
+
+  if ((!attached.length && !hasV2Structure) || isNeutralBattleSkillAttributeCoefficients(coeff)) return skill;
+
+  const normalizedCoeff = normalizeBattleSkillAttributeCoefficients(coeff);
+  const effects = Array.isArray(skill._效果数组) ? skill._效果数组 : [];
+  const systemBase = effects.find(effect => effect?.机制 === '系统基础');
+  const directDamageMechanisms = new Set(['直接伤害', '多段伤害', '持续伤害', '延迟爆发']);
+
+  if (systemBase) {
+    const baseCostText = String(systemBase.消耗 || skill.消耗 || '无') || '无';
+    const scaledCostText = scaleSkillCostText(baseCostText, normalizedCoeff.消耗);
+    systemBase.消耗 = scaledCostText;
+    skill.消耗 = scaledCostText;
+    const baseCastTime = Number(systemBase.cast_time ?? skill.cast_time ?? 0) || 0;
+    const scaledCastTime = Math.max(baseCastTime > 0 ? 1 : 0, Math.round(baseCastTime * normalizedCoeff.前摇));
+    systemBase.cast_time = scaledCastTime;
+    skill.cast_time = scaledCastTime;
+  } else {
+    skill.消耗 = scaleSkillCostText(skill.消耗, normalizedCoeff.消耗);
+    skill.cast_time = Math.max(skill.cast_time > 0 ? 1 : 0, Math.round(Number(skill.cast_time || 0) * normalizedCoeff.前摇));
+  }
+
+  effects.forEach(effect => {
+    const mechanism = String(effect?.机制 || effect?.名称 || effect?.类型 || '');
+    if (!mechanism) return;
+
+    if (directDamageMechanisms.has(mechanism) && effect.威力倍率 !== undefined) {
+      effect.威力倍率 = scaleBattleValue(effect.威力倍率, coeff.威力, { min: 0, digits: 2 });
+    }
+    if (['流血DOT', '持续伤害DOT'].includes(mechanism)) {
+      if (effect.dot_damage !== undefined) effect.dot_damage = scaleBattleValue(effect.dot_damage, coeff.威力, { min: 0, digits: 2 });
+      if (effect.每回合伤害 !== undefined) effect.每回合伤害 = scaleBattleValue(effect.每回合伤害, coeff.威力, { min: 0, digits: 2 });
+    }
+    if (mechanism === '护盾' && effect.护盾值 !== undefined) {
+      effect.护盾值 = scaleBattleValue(effect.护盾值, coeff.威力, { min: 0, digits: 0 });
+    }
+    if (['回血', '持续恢复'].includes(mechanism) && effect.回复比例 !== undefined) {
+      effect.回复比例 = scaleBattleValue(effect.回复比例, coeff.威力, { min: 0, digits: 4 });
+    }
+    if (mechanism === '回魂力' && effect.sp_gain_ratio !== undefined) {
+      effect.sp_gain_ratio = scaleBattleValue(effect.sp_gain_ratio, coeff.威力, { min: 0, digits: 4 });
+    }
+    if (mechanism === '回精神力' && effect.men_gain_ratio !== undefined) {
+      effect.men_gain_ratio = scaleBattleValue(effect.men_gain_ratio, coeff.威力, { min: 0, digits: 4 });
+    }
+    if (mechanism === '打断' && effect.中断概率 !== undefined) {
+      effect.中断概率 = scaleBattleValue(effect.中断概率, coeff.控制, { min: 0, max: 1, digits: 4 });
+    }
+    if (mechanism === '减速' && effect.agi_ratio !== undefined) {
+      effect.agi_ratio = scaleBattleDebuffRatio(effect.agi_ratio, coeff.控制, 1);
+    }
+    if (mechanism === '软控') {
+      if (effect.reaction_penalty !== undefined) effect.reaction_penalty = scaleBattleValue(effect.reaction_penalty, coeff.控制, { digits: 4 });
+      if (effect.cast_speed_penalty !== undefined) effect.cast_speed_penalty = scaleBattleValue(effect.cast_speed_penalty, coeff.控制, { digits: 4 });
+      if (effect.dodge_penalty !== undefined) effect.dodge_penalty = scaleBattleValue(effect.dodge_penalty, coeff.控制, { digits: 4 });
+    }
+    if (mechanism === '位移限制') {
+      if (effect.reaction_penalty !== undefined) effect.reaction_penalty = scaleBattleValue(effect.reaction_penalty, coeff.控制, { digits: 4 });
+      if (effect.dodge_penalty !== undefined) effect.dodge_penalty = scaleBattleValue(effect.dodge_penalty, coeff.控制, { digits: 4 });
+      if (effect.lock_level !== undefined) effect.lock_level = scaleBattleLockLevel(effect.lock_level, coeff.控制);
+    }
+    if (mechanism === '资源限制') {
+      if (effect.resource_block_ratio !== undefined) effect.resource_block_ratio = scaleBattleValue(effect.resource_block_ratio, coeff.控制, { min: 0, max: 1, digits: 4 });
+      if (effect.cast_speed_penalty !== undefined) effect.cast_speed_penalty = scaleBattleValue(effect.cast_speed_penalty, coeff.控制, { digits: 4 });
+      if (effect.reaction_penalty !== undefined) effect.reaction_penalty = scaleBattleValue(effect.reaction_penalty, coeff.控制, { digits: 4 });
+    }
+    if (['强制位移', '位移交换', '强制绑定/锁定'].includes(mechanism)) {
+      if (effect.dodge_penalty !== undefined) effect.dodge_penalty = scaleBattleValue(effect.dodge_penalty, coeff.控制, { digits: 4 });
+      if (effect.reaction_penalty !== undefined) effect.reaction_penalty = scaleBattleValue(effect.reaction_penalty, coeff.控制, { digits: 4 });
+      if (effect.lock_level !== undefined) effect.lock_level = scaleBattleLockLevel(effect.lock_level, coeff.控制);
+    }
+    if (mechanism === '标记弱点') {
+      if (effect.final_damage_mult !== undefined) effect.final_damage_mult = scaleBattleFactor(effect.final_damage_mult, coeff.威力, 1);
+      if (effect.dodge_penalty !== undefined) effect.dodge_penalty = scaleBattleValue(effect.dodge_penalty, coeff.控制, { digits: 4 });
+      if (effect.lock_level !== undefined) effect.lock_level = scaleBattleLockLevel(effect.lock_level, coeff.控制);
+    }
+    if (mechanism === '禁疗' && effect.heal_block_ratio !== undefined) {
+      effect.heal_block_ratio = scaleBattleValue(effect.heal_block_ratio, coeff.控制, { min: 0, max: 1, digits: 4 });
+    }
+    if (mechanism === '共享视野') {
+      if (effect.reaction_bonus !== undefined) effect.reaction_bonus = scaleBattleValue(effect.reaction_bonus, coeff.速度, { digits: 4 });
+      if (effect.hit_bonus !== undefined) effect.hit_bonus = scaleBattleValue(effect.hit_bonus, coeff.掌控, { digits: 4 });
+      if (effect.lock_level !== undefined) effect.lock_level = scaleBattleLockLevel(effect.lock_level, coeff.掌控);
+    }
+    if (mechanism === '自身位移') {
+      if (effect.dodge_bonus !== undefined) effect.dodge_bonus = scaleBattleValue(effect.dodge_bonus, coeff.速度, { digits: 4 });
+      if (effect.attacker_speed_bonus !== undefined) effect.attacker_speed_bonus = scaleBattleValue(effect.attacker_speed_bonus, coeff.速度, { digits: 4 });
+      if (effect.reaction_bonus !== undefined) effect.reaction_bonus = scaleBattleValue(effect.reaction_bonus, coeff.速度, { digits: 4 });
+    }
+    if (mechanism === '追击位移') {
+      if (effect.attacker_speed_bonus !== undefined) effect.attacker_speed_bonus = scaleBattleValue(effect.attacker_speed_bonus, coeff.速度, { digits: 4 });
+      if (effect.hit_bonus !== undefined) effect.hit_bonus = scaleBattleValue(effect.hit_bonus, coeff.掌控, { digits: 4 });
+      if (effect.final_damage_mult !== undefined) effect.final_damage_mult = scaleBattleFactor(effect.final_damage_mult, coeff.威力, 1);
+    }
+    if (mechanism === '脱离位移') {
+      if (effect.dodge_bonus !== undefined) effect.dodge_bonus = scaleBattleValue(effect.dodge_bonus, coeff.速度, { digits: 4 });
+      if (effect.cast_speed_bonus !== undefined) effect.cast_speed_bonus = scaleBattleValue(effect.cast_speed_bonus, coeff.速度, { digits: 4 });
+      if (effect.reaction_bonus !== undefined) effect.reaction_bonus = scaleBattleValue(effect.reaction_bonus, coeff.速度, { digits: 4 });
+    }
+    if (mechanism === '状态挂载') {
+      effect.计算层效果 = mergeCombatEffectMaps(createEmptyCombatEffectMap(), effect.计算层效果 || {});
+      const calc = effect.计算层效果;
+      if (calc.hit_bonus !== undefined) calc.hit_bonus = scaleBattleValue(calc.hit_bonus, coeff.掌控, { digits: 4 });
+      if (calc.lock_level !== undefined) calc.lock_level = scaleBattleLockLevel(calc.lock_level, coeff.掌控);
+      if (calc.final_damage_mult !== undefined) calc.final_damage_mult = scaleBattleFactor(calc.final_damage_mult, coeff.威力, 1);
+      if (calc.final_damage_bonus !== undefined) calc.final_damage_bonus = scaleBattleValue(calc.final_damage_bonus, coeff.威力, { digits: 2 });
+      if (calc.final_heal_mult !== undefined) calc.final_heal_mult = scaleBattleFactor(calc.final_heal_mult, coeff.威力, 1);
+      if (calc.final_heal_bonus !== undefined) calc.final_heal_bonus = scaleBattleValue(calc.final_heal_bonus, coeff.威力, { digits: 2 });
+      if (calc.shield_gain_mult !== undefined) calc.shield_gain_mult = scaleBattleFactor(calc.shield_gain_mult, coeff.威力, 1);
+      if (calc.shield_gain_bonus !== undefined) calc.shield_gain_bonus = scaleBattleValue(calc.shield_gain_bonus, coeff.威力, { digits: 2 });
+      if (calc.sp_gain_ratio !== undefined) calc.sp_gain_ratio = scaleBattleValue(calc.sp_gain_ratio, coeff.威力, { digits: 4 });
+      if (calc.men_gain_ratio !== undefined) calc.men_gain_ratio = scaleBattleValue(calc.men_gain_ratio, coeff.威力, { digits: 4 });
+      if (calc.dot_damage !== undefined) calc.dot_damage = scaleBattleValue(calc.dot_damage, coeff.威力, { min: 0, digits: 2 });
+      if (calc.reaction_penalty !== undefined) calc.reaction_penalty = scaleBattleValue(calc.reaction_penalty, coeff.控制, { digits: 4 });
+      if (calc.cast_speed_penalty !== undefined) calc.cast_speed_penalty = scaleBattleValue(calc.cast_speed_penalty, coeff.控制, { digits: 4 });
+      if (calc.dodge_penalty !== undefined) calc.dodge_penalty = scaleBattleValue(calc.dodge_penalty, coeff.控制, { digits: 4 });
+      if (calc.resource_block_ratio !== undefined) calc.resource_block_ratio = scaleBattleValue(calc.resource_block_ratio, coeff.控制, { min: 0, max: 1, digits: 4 });
+      if (calc.control_success_bonus !== undefined) calc.control_success_bonus = scaleBattleValue(calc.control_success_bonus, coeff.控制, { digits: 4 });
+      if (calc.reaction_bonus !== undefined) calc.reaction_bonus = scaleBattleValue(calc.reaction_bonus, coeff.速度, { digits: 4 });
+      if (calc.attacker_speed_bonus !== undefined) calc.attacker_speed_bonus = scaleBattleValue(calc.attacker_speed_bonus, coeff.速度, { digits: 4 });
+      if (calc.cast_speed_bonus !== undefined) calc.cast_speed_bonus = scaleBattleValue(calc.cast_speed_bonus, coeff.速度, { digits: 4 });
+      if (calc.dodge_bonus !== undefined) calc.dodge_bonus = scaleBattleValue(calc.dodge_bonus, coeff.速度, { digits: 4 });
+    }
+  });
+
+  const precisionDelta = roundBattleScaledNumber(coeff.掌控 - 1, 4);
+  if (Math.abs(precisionDelta) > 0.0001) {
+    const precisionState = ensureBattleTransientStateEffect(skill);
+    const calc = precisionState.计算层效果 || (precisionState.计算层效果 = createEmptyCombatEffectMap());
+    calc.hit_bonus = roundBattleScaledNumber(Number(calc.hit_bonus || 0) + precisionDelta, 4);
+  }
+
+  return skill;
 }
 
 function getSystemBaseEffect(skill) {
@@ -1161,6 +1569,21 @@ function deriveBattleSummaryFromEffects(skill, baseSummary = {}) {
   const duration = Number(state?.持续回合 || 0);
   const skillName = String(skill?.name || skill?.技能名称 || "");
   const costText = String(getSkillCostText(skill) || "无");
+  const attributeSource = getBattleSkillAttributeSource(skill);
+  const skillRole = getBattleSkillRole(skill);
+  const elementMode = String(getBattleSkillElementStructure(skill)?.模式 || '').trim() || '无';
+  const wuxingMode = String(getBattleSkillWuxingInvocation(skill)?.模式 || '').trim() || '无';
+  const polarityMode = String(getBattleSkillPolaritySummary(skill)?.polarityMode || '无').trim() || '无';
+  const structureMode = elementMode !== '无' ? elementMode : wuxingMode;
+
+  if (!baseSummary?.属性建模 || baseSummary.属性建模 === defaultSummary.属性建模 || baseSummary.属性建模 === '无') {
+    const modelSegments = [attributeSource, skillRole, structureMode].filter(value => value && value !== '无');
+    summary.属性建模 = modelSegments.length ? modelSegments.join('/') : '无';
+  }
+  if (!baseSummary?.极性层级 || baseSummary.极性层级 === defaultSummary.极性层级 || baseSummary.极性层级 === '无') {
+    summary.极性层级 = polarityMode && polarityMode !== '无' ? polarityMode : '无';
+  }
+  if ((!baseSummary?.风险等级 || baseSummary.风险等级 === defaultSummary.风险等级 || baseSummary.风险等级 === '中') && (structureMode === '逆演归一' || structureMode === '阴阳合璧' || (structureMode === '元素硬控' && normalizeBattleSkillAttributeTokens(skill?.附带属性).length >= 3))) summary.风险等级 = '高';
 
   if (!baseSummary?.目标规模 || baseSummary.目标规模 === defaultSummary.目标规模) {
     if (targetText === "全场") summary.目标规模 = "全场";
@@ -1345,10 +1768,11 @@ function normalizeSkillData(skill, fallbackName = "未知技能") {
   const explicitSkillType = skill?.技能类型;
   normalized.对象 = (normalized.对象 && normalized.对象 !== "无") ? normalized.对象 : (explicitSemanticTarget ? mapSemanticTargetToCombatTarget(explicitSemanticTarget) : "无");
   normalized.技能类型 = (normalized.技能类型 && normalized.技能类型 !== "无") ? normalized.技能类型 : ((explicitSkillType && explicitSkillType !== "无") ? explicitSkillType : ((explicitPrimaryRole && explicitPrimaryRole !== "无") ? mapPrimaryRoleToSkillType(normalized.主定位) : "无"));
-  normalized.element = normalized.element || normalized.元素 || "无";
   normalized.cast_time = Number(normalized.cast_time ?? 0) || 0;
   normalized.消耗 = typeof normalized.消耗 === "object" ? formatCostObjectToString(normalized.消耗) : (normalized.消耗 || "无");
+  normalized.附带属性 = normalizeBattleSkillAttributeTokens(normalized.附带属性);
   normalized._效果数组 = Array.isArray(normalized._效果数组) ? normalized._效果数组 : [];
+  normalized.element = getBattleSkillDisplayElement(normalized);
 
   const systemBase = getSystemBaseEffect(normalized);
   if (systemBase && Object.keys(systemBase).length > 0) {
@@ -1371,6 +1795,8 @@ function normalizeSkillData(skill, fallbackName = "未知技能") {
     // 如果连 _效果数组 都没有，说明是极老的空白技能，默认塞入一个系统基础保证不报错
     normalized._效果数组.push({ 机制: "系统基础", 消耗: "无", 对象: normalized.对象, 技能类型: normalized.技能类型, cast_time: normalized.cast_time });
   }
+
+  applyAttributeCoeffToCombatSkill(normalized);
 
   return normalized;
 }
@@ -4548,7 +4974,8 @@ function applyHighTierMechanics(attackerChar, defenderChar, playerAction, baseRe
   let attackerStats = attackerChar.stat || attackerChar;
   let defenderStats = defenderChar.stat || defenderChar;
 
-  let isHoly = playerAction.skill.element === "神圣" || playerAction.skill.element === "光明" || playerAction.skill.element === "生命";
+  const skillElementLabel = getBattleSkillDisplayElement(playerAction.skill || {});
+  let isHoly = skillElementLabel === "神圣" || skillElementLabel === "光明" || skillElementLabel === "生命";
   if (isHoly && defenderStats.is_evil) {
     result.dmg = Math.floor(result.dmg * 2.0); 
     result.desc += " [神圣克制] 纯粹的光明之力如同沸水泼雪，无视等级压制，对邪魂师造成双倍真实伤害！";

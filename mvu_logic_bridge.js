@@ -2177,7 +2177,7 @@
         pendingIntelImpact,
         primaryFaction,
         topRelation,
-        relationAnalysis: deepGet(activeChar, 'social._relation_analysis', deepGet(activeChar, 'social.relation_analysis', {})),
+        relationAnalysis: deepGet(activeChar, 'social.relation_analysis', {}),
 
         questRecordCount,
         recentTitles,
@@ -2776,13 +2776,17 @@
         </div>
       `; });
       document.querySelectorAll('[data-preview="任务界面"].terminal-side-card, [data-preview="任务界面"].mvu-simple-card, [data-preview="任务界面"].simple-card').forEach(el => {
-        const quest = deepGet(snapshot, 'activeChar.quest_request', {});
+        const questRecords = (snapshot.recordEntries || []).filter(([, item]) => item && typeof item === 'object' && (Object.prototype.hasOwnProperty.call(item, '状态') || Object.prototype.hasOwnProperty.call(item, '目标进度') || Object.prototype.hasOwnProperty.call(item, '奖励币') || Object.prototype.hasOwnProperty.call(item, '奖励声望')));
+        const activeQuestEntry = questRecords.find(([, item]) => !['已完成', '已放弃', '失败', '已失败'].includes(toText(item && item['状态'], '进行中'))) || questRecords[0] || null;
+        const activeQuestName = activeQuestEntry ? activeQuestEntry[0] : '';
+        const questBoardEntries = safeEntries(deepGet(snapshot, 'rootData.world.quest_board', {})).filter(([, item]) => item && typeof item === 'object');
+        const openBoardCount = questBoardEntries.filter(([, item]) => toText(item && item['状态'], '待接取') === '待接取').length;
         el.innerHTML = `
           <div class="simple-head"><div class="simple-title">任务界面</div></div>
           <div class="simple-list">
-            <div class="simple-row"><b>当前任务</b><span>${htmlEscape(toText(quest.quest_name, '无') !== '无' ? toText(quest.quest_name, '未接取') : '未接取')}</span></div>
-            <div class="simple-row"><b>奖励摘要</b><span>${htmlEscape(toText(quest.action, '无') !== '无' ? `金币 ${formatNumber(quest.reward_coin)} / 声望 ${formatNumber(quest.reward_rep)}` : '暂无任务')}</span></div>
-            <div class="simple-row"><b>推进进度</b><span>${htmlEscape(toText(quest.action, '无') !== '无' ? `+${toNumber(quest.progress_add, 0)} / 需 ${toNumber(quest.required_count, 1)}` : '暂无进度')}</span></div>
+            <div class="simple-row"><b>我的任务</b><span>${htmlEscape(questRecords.length ? `${questRecords.length} 条 / 当前 ${activeQuestName || '已归档'}` : '暂无任务')}</span></div>
+            <div class="simple-row"><b>委托板</b><span>${htmlEscape(questBoardEntries.length ? `${questBoardEntries.length} 条 / 待接取 ${openBoardCount}` : '暂无委托')}</span></div>
+            <div class="simple-row"><b>维护方式</b><span>${htmlEscape('AI 维护任务内容，脚本负责进度与奖励结算')}</span></div>
           </div>
         `;
       });
@@ -3051,28 +3055,29 @@
                 ])}
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">公开情报状态</div></div>
-                ${makeTileGrid([
-                  { label: '当前公开度', value: snapshot.publicIntel ? '已公开' : '未公开' },
-                  { label: '公开判定', value: (social._public_intel ?? social.public_intel) ? '达到公开阈值' : '仍属私密档案' },
-                  { label: '声望阈值参考', value: '5000' },
-                  { label: '当前声望', value: formatNumber(social.reputation) }
-                ], 'two')}
+                <div class="archive-card-head"><div class="archive-card-title">特工社会摘要</div><span class="state-tag ${snapshot.publicIntel ? 'live' : 'warn'}">${htmlEscape(snapshot.publicIntel ? '档案已公开' : '私密级')}</span></div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                  <div style="padding-right: 16px; border-right: 1px dashed rgba(255,255,255,0.06);">
+                    ${makeTileGrid([
+                      { label: '主公开身份', value: toText(social.main_identity, '无') },
+                      { label: '名望等级', value: toText(social._fame_level, toText(social.fame_level, '籍籍无名')) },
+                      { label: '阵营关联', value: snapshot.factions.map(([name]) => name).join(' / ') || '无' },
+                      { label: '当前主称号', value: snapshot.recentTitles[0] || '暂无' }
+                    ], 'two')}
+                  </div>
+                  <div>
+                    <div style="font-size: 11px; color: var(--color-text-secondary); margin-bottom: 6px; font-weight: 500;">个人声望量级 <span style="float: right; color: var(--cyan);">${formatNumber(social.reputation)} / 5,000 阈值</span></div>
+                    <div style="height: 6px; background: rgba(0, 229, 255, 0.1); border-radius: 3px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5); margin-bottom: 12px;">
+                      <div style="height: 100%; background: linear-gradient(90deg, rgba(0,229,255,0.6), rgba(0,229,255,1)); width: ${ratioPercent(social.reputation, 5000)}%; border-radius: 3px; box-shadow: 0 0 8px rgba(0,229,255,0.8); transition: width 0.3s ease;"></div>
+                    </div>
+                    ${makeTileGrid([
+                      { label: '头衔总数', value: String(snapshot.titleEntries.length) },
+                      { label: '主阵营身份', value: snapshot.primaryFaction ? `${snapshot.primaryFaction[0]} / ${toText(deepGet(snapshot.primaryFaction[1], '身份', '无'), '无')}` : '无' }
+                    ], 'two')}
+                  </div>
+                </div>
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">当前社会位置</div></div>
-                ${makeTileGrid([
-                  { label: '主公开身份', value: toText(social.main_identity, '无') },
-                  { label: '名望等级', value: toText(social._fame_level, toText(social.fame_level, '籍籍无名')) },
-                  { label: '当前声望', value: formatNumber(social.reputation) },
-                  { label: '公开度', value: snapshot.publicIntel ? '公开' : '未公开' },
-                  { label: '阵营关联', value: snapshot.factions.map(([name]) => name).join(' / ') || '无' },
-                  { label: '当前称号', value: snapshot.recentTitles[0] || '暂无' },
-                  { label: '头衔数量', value: String(snapshot.titleEntries.length) },
-                  { label: '主阵营身份', value: snapshot.primaryFaction ? `${snapshot.primaryFaction[0]} / ${toText(deepGet(snapshot.primaryFaction[1], '身份', '无'), '无')}` : '无' }
-                ])}
-              </div>
-              <div class="archive-card">
                 <div class="archive-card-head"><div class="archive-card-title">当前着装</div></div>
                 ${makeTileGrid([
                   { label: '当前套装', value: toText(clothing.outfit, '无') },
@@ -3082,11 +3087,14 @@
                   { label: '鞋子', value: toText(deepGet(clothing, ['wardrobe', clothing.outfit, '鞋子'], '无'), '无') },
                   { label: '套装描述', value: toText(deepGet(clothing, ['wardrobe', clothing.outfit, '描述'], '暂无描述'), '暂无描述') }
                 ], 'two')}
+                ${!wardrobeEntries.length ? '<div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed rgba(255,255,255,0.1); color: var(--color-text-secondary); font-size: 13px; text-align: center;">当前角色尚未记录可切换套装。</div>' : ''}
               </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">衣柜收纳</div></div>
-                ${makeTimelineStack(wardrobeEntries.length ? wardrobeEntries.map(([name, item]) => ({ title: name, desc: `${toText(item && item['上装'], '无')} / ${toText(item && item['下装'], '无')} / ${toText(item && item['鞋子'], '无')} ｜ ${toText(item && item['描述'], '暂无描述')}` })) : [{ title: '暂无衣柜记录', desc: '当前角色尚未记录可切换套装。' }])}
-              </div>
+              ${wardrobeEntries.length ? `
+                <div class="archive-card full">
+                  <div class="archive-card-head"><div class="archive-card-title">衣柜收纳</div></div>
+                  ${makeTimelineStack(wardrobeEntries.map(([name, item]) => ({ title: name, desc: `${toText(item && item['上装'], '无')} / ${toText(item && item['下装'], '无')} / ${toText(item && item['鞋子'], '无')} ｜ ${toText(item && item['描述'], '暂无描述')}` })))}
+                </div>
+              ` : ''}
             </div>
           `
         };
@@ -3107,30 +3115,25 @@
                   className: 'highlight'
                 })))}
               </div>
-              <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">当前阵营位置</div></div>
-                ${makeTileGrid([
-                  { label: '当前所属', value: snapshot.factions[0] ? snapshot.factions[0][0] : '无' },
-                  { label: '身份', value: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '未加入' },
-                  { label: '权限级', value: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '权限级', 0), '0') : '0' },
-                  { label: '主要绑定', value: snapshot.factions.map(([name]) => name).join(' / ') || '暂无' }
-                ], 'two')}
-              </div>
-              <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">阵营现实摘要</div></div>
-                ${makeTagCloud([
-                  { text: snapshot.factions[0] ? snapshot.factions[0][0] : '未加入势力', className: 'warn' },
-                  { text: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '无身份' },
-                  { text: snapshot.orgEntries[0] ? snapshot.orgEntries[0][0] : '暂无主势力' },
-                  { text: snapshot.currentLoc || '位置未知' }
-                ])}
-              </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">阵营事务操作台</div><span class="state-tag ${currentFactionName ? 'live' : 'warn'}">${htmlEscape(currentFactionName || '未加入')}</span></div>
-                <div class="intel-layout">
-                  ${buildFactionAffairConsoleHtml(snapshot, currentFactionName)}
+                <div class="archive-card">
+                  <div class="archive-card-head"><div class="archive-card-title">当前阵营位置</div></div>
+                  ${makeTileGrid([
+                    { label: '当前所属', value: snapshot.factions[0] ? snapshot.factions[0][0] : '无' },
+                    { label: '身份', value: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '未加入' },
+                    { label: '权限级', value: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '权限级', 0), '0') : '0' },
+                    { label: '主要绑定', value: snapshot.factions.map(([name]) => name).join(' / ') || '暂无'
+                  }], 'two')}
                 </div>
-              </div>
+                <div class="archive-card">
+                  <div class="archive-card-head"><div class="archive-card-title">阵营现实摘要</div></div>
+                  ${makeTagCloud([
+                    { text: snapshot.factions[0] ? snapshot.factions[0][0] : '未加入势力', className: 'warn' },
+                    { text: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '无身份' },
+                    { text: snapshot.orgEntries[0] ? snapshot.orgEntries[0][0] : '暂无主势力' },
+                    { text: snapshot.currentLoc || '位置未知' }
+                  ])}
+                </div>
+              ${buildFactionAffairConsoleHtml(snapshot, currentFactionName)}
             </div>
           `
         };
@@ -3316,67 +3319,77 @@
             `
           : '<div class="intel-card relation-action-panel"><b>关系互动台</b><span>请先从对象列表中选定互动目标。</span></div>';
 
-        const relationContextHtml = [
-          { title: '当前在场', value: ((Array.isArray(deepGet(snapshot, 'relationAnalysis.same_location_targets', [])) ? deepGet(snapshot, 'relationAnalysis.same_location_targets', []) : []).slice(0, 4).join(' / ')) || '暂无' },
-          { title: '可接触对象', value: ((Array.isArray(deepGet(snapshot, 'relationAnalysis.contactable_targets', [])) ? deepGet(snapshot, 'relationAnalysis.contactable_targets', []) : []).slice(0, 4).join(' / ')) || '暂无' },
-          { title: '风险对象', value: ((Array.isArray(deepGet(snapshot, 'relationAnalysis.risk_targets', [])) ? deepGet(snapshot, 'relationAnalysis.risk_targets', []) : []).slice(0, 3).join(' / ')) || '暂无' },
-          { title: '阻塞对象', value: ((Array.isArray(deepGet(snapshot, 'relationAnalysis.blocked_targets', [])) ? deepGet(snapshot, 'relationAnalysis.blocked_targets', []) : []).slice(0, 2).map(item => `${toText(item && item.target, '未知')}:${toText(item && item.reason, '无')}`).join(' / ')) || '暂无' }
-        ].map(item => `<div class="intel-card"><b>${htmlEscape(item.title)}</b><span>${htmlEscape(item.value)}</span></div>`).join('');
+        const riskTargets = Array.isArray(deepGet(snapshot, 'relationAnalysis.risk_targets', [])) ? deepGet(snapshot, 'relationAnalysis.risk_targets', []) : [];
+        const blockedTargets = Array.isArray(deepGet(snapshot, 'relationAnalysis.blocked_targets', [])) ? deepGet(snapshot, 'relationAnalysis.blocked_targets', []) : [];
+        const sameLocationTargets = Array.isArray(deepGet(snapshot, 'relationAnalysis.same_location_targets', [])) ? deepGet(snapshot, 'relationAnalysis.same_location_targets', []) : [];
+        const trustTargets = Array.isArray(deepGet(snapshot, 'relationAnalysis.trust_targets', [])) ? deepGet(snapshot, 'relationAnalysis.trust_targets', []) : [];
+        const romanceCandidates = Array.isArray(deepGet(snapshot, 'relationAnalysis.romance_candidates', [])) ? deepGet(snapshot, 'relationAnalysis.romance_candidates', []) : [];
+        const recommendedActions = Array.isArray(deepGet(snapshot, 'relationAnalysis.recommended_actions', [])) ? deepGet(snapshot, 'relationAnalysis.recommended_actions', []) : [];
+        const relationSummaryText = relationFocusTargets.length
+          ? `当前重点关系对象：${relationFocusTargets.slice(0, 2).map(item => `${toText(item && item.target, '无')}(${toText(item && item.relation, '陌生')}/${toNumber(item && item.favor, 0)})`).join('、')}`
+          : sameLocationTargets.length
+            ? `当前可立即接触：${sameLocationTargets.slice(0, 3).join('、')}`
+            : recommendedActions.length
+              ? `当前建议：${recommendedActions.slice(0, 2).join('；')}`
+              : (trustTargets.length ? `高信任对象：${trustTargets.slice(0, 3).join('、')}` : (riskTargets.length ? `高风险对象：${riskTargets.slice(0, 3).join('、')}` : '当前雷达未扫描到足够的社会链接数据，暂无总体分析倾向。'));
 
         return {
           title: '人物关系弹窗',
-          summary: '当前角色关系网络、分析结论、对象筛选与社交动作中枢。',
+          summary: '全局社会链路扫描、当前重点对象监控与智能关系行动推荐。',
           body: `
-            <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
+            <div class="archive-modal-grid">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">羁绊星轨图</div><span class="state-tag live">点选对象</span></div>
-                <div class="topology-board" style="min-height: 280px;">
+                <div class="archive-card-head"><div class="archive-card-title">社会节点扫描雷达</div><span class="state-tag live">实时拓扑</span></div>
+                <div class="topology-board" style="min-height: 280px; background: radial-gradient(circle at center, rgba(0, 229, 255, 0.08) 0%, transparent 70%); border-bottom: 1px solid rgba(255,255,255,0.05);">
                   <svg class="topology-svg" viewBox="0 0 100 100" preserveAspectRatio="none">${relationLinks}</svg>
                   <div class="topology-node center" style="left:50%;top:50%"><b>${htmlEscape(snapshot.activeName)}</b><span>自我</span></div>
                   ${relationHtml || '<div class="topology-node" style="left:50%;top:18%"><b>暂无关系对象</b><span>关系网络尚未展开</span></div>'}
                 </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding-top: 16px;">
+                  <div style="border-right: 1px dashed rgba(255,255,255,0.1); padding-right: 16px;">
+                    <div style="font-size: 12px; color: var(--cyan); margin-bottom: 8px; font-weight: bold; letter-spacing: 1px;">关系态势摘要</div>
+                    <div style="font-size: 13px; line-height: 1.5; color: var(--color-text-primary); margin-bottom: 12px;">${htmlEscape(toText(relationSummaryText, '当前雷达未扫描到足够的社会链接数据，暂无总体分析倾向。'))}</div>
+                    ${makeTileGrid([
+                      { label: '焦点对象', value: toText(deepGet(snapshot, 'relationAnalysis.focus_target', '无'), '无') },
+                      { label: '系统建议', value: recommendedActions.slice(0, 3).join(' / ') || '无' }
+                    ], 'two')}
+                  </div>
+                  <div>
+                    <div style="font-size: 12px; color: var(--cyan); margin-bottom: 8px; font-weight: bold; letter-spacing: 1px;">分类目标追踪</div>
+                    ${makeTileGrid([
+                      { label: '在场交互目标', value: sameLocationTargets.slice(0, 4).join(' / ') || '无在场目标' },
+                      { label: '高优先级 (恋爱/信任)', value: [...romanceCandidates.slice(0,2), ...trustTargets.slice(0,2)].join(' / ') || '暂无高优先级' },
+                      { label: '阻碍风险 (受阻/敌对)', value: [...blockedTargets.slice(0,2).map(item => `${toText(item.target, '未知')}(受阻)`), ...riskTargets.slice(0,2)].join(' / ') || '无风险' }
+                    ], 'two')}
+                  </div>
+                </div>
               </div>
-              <div class="archive-card full">
+              <div class="archive-card">
                 <div class="archive-card-head"><div class="archive-card-title">互动对象列表</div><span class="state-tag ${relationDirectoryPage.total ? 'live' : 'warn'}">${relationDirectoryPage.total ? `已收录 ${relationDirectoryPage.total} 名` : '暂无对象'}</span></div>
                 <div class="relation-directory-grid">
                   ${relationDirectoryHtml}
                 </div>
                 ${makeModalPaginationControls('relation-directory', relationDirectoryPage.page, relationDirectoryPage.totalPages, relationDirectoryPage.total)}
               </div>
-              <div class="archive-card full">
+              <div class="archive-card">
                 <div class="archive-card-head"><div class="archive-card-title">关系互动台</div><span class="state-tag ${relationDetailName ? 'live' : 'warn'}">${htmlEscape(relationDetailName || '未选中')}</span></div>
-                <div class="intel-layout">
-                  ${relationActionPanelHtml}
-                </div>
-              </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">核心推进线索</div></div>
-                <div class="intel-layout">
-                  ${relationFocusHtml}
-                </div>
-              </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">关系态势</div></div>
-                <div class="intel-layout">
-                  <div class="intel-card"><b>分析摘要</b><span>${htmlEscape(toText(deepGet(snapshot, 'relationAnalysis.summary', '当前尚未积累足够的人物关系数据。'), '当前尚未积累足够的人物关系数据。'))}</span></div>
-                  <div class="intel-card"><b>分析焦点</b><span>${htmlEscape(toText(deepGet(snapshot, 'relationAnalysis.focus_target', '无'), '无'))}</span></div>
-                  <div class="intel-card"><b>推荐动作</b><span>${htmlEscape((Array.isArray(deepGet(snapshot, 'relationAnalysis.recommended_actions', [])) ? deepGet(snapshot, 'relationAnalysis.recommended_actions', []) : []).slice(0, 3).join(' / ') || '暂无')}</span></div>
-                  <div class="intel-card"><b>恋爱候选</b><span>${htmlEscape((Array.isArray(deepGet(snapshot, 'relationAnalysis.romance_candidates', [])) ? deepGet(snapshot, 'relationAnalysis.romance_candidates', []) : []).slice(0, 3).join(' / ') || '暂无')}</span></div>
-                  <div class="intel-card"><b>信任对象</b><span>${htmlEscape((Array.isArray(deepGet(snapshot, 'relationAnalysis.trust_targets', [])) ? deepGet(snapshot, 'relationAnalysis.trust_targets', []) : []).slice(0, 3).join(' / ') || '暂无')}</span></div>
-                  <div class="intel-card"><b>风险对象</b><span>${htmlEscape((Array.isArray(deepGet(snapshot, 'relationAnalysis.risk_targets', [])) ? deepGet(snapshot, 'relationAnalysis.risk_targets', []) : []).slice(0, 3).join(' / ') || '暂无')}</span></div>
-                </div>
-              </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">关系场景分析</div></div>
-                <div class="intel-layout">
-                  ${relationContextHtml}
-                </div>
-              </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">关系细节</div></div>
-                <div class="intel-layout">
-                  ${relationDetailHtml}
-                </div>
+                ${relationActionPanelHtml}
+                ${relationDetailHtml !== '<div class="intel-card"><b>交互历史</b><span>暂无有效数据</span></div>' && relationDetailHtml !== '' ? `
+                  <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed rgba(255,255,255,0.1);">
+                    <div style="font-size: 13px; color: var(--cyan); margin-bottom: 8px; font-weight: bold;">关系细节</div>
+                    <div class="intel-layout">
+                      ${relationDetailHtml}
+                    </div>
+                  </div>
+                ` : ''}
+                ${relationFocusHtml !== '<div class="intel-card"><b>核心焦点</b><span>无</span></div>' && relationFocusHtml !== '' ? `
+                  <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed rgba(255,255,255,0.1);">
+                    <div style="font-size: 13px; color: var(--color-text-secondary); margin-bottom: 4px; font-weight: bold;">核心推进线索</div>
+                    <div class="intel-layout">
+                      ${relationFocusHtml}
+                    </div>
+                  </div>
+                ` : ''}
               </div>
             </div>
           `
@@ -4204,6 +4217,8 @@
 
       if (previewKey === '我的阵营详情') {
         const currentFactionName = snapshot.factions[0] ? snapshot.factions[0][0] : '';
+        const currentFactionRole = snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '未加入';
+        const currentFactionPower = snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '权限级', 0), '0') : '0';
         const currentFactionEntry = currentFactionName
           ? (snapshot.orgEntries.find(([name]) => name === currentFactionName) || [currentFactionName, {}])
           : ['', {}];
@@ -4212,20 +4227,28 @@
           emptyTitle: '暂无阵营关系',
           emptyDesc: currentFactionName ? '当前所属势力未记录对外关系。' : '当前角色尚未加入可展示关系的势力。'
         });
+        const promotionReq = toText(deepGet(snapshot, 'activeChar.promotion_request.target_faction', '无'), '无');
+        const donateReq = toText(deepGet(snapshot, 'activeChar.donate_request.item_name', '无'), '无');
+        const questReq = toText(deepGet(snapshot, 'activeChar.quest_request.action', '无'), '无');
+        const hasFactionRelations = safeEntries(deepGet(currentFactionEntry[1], 'rel', {})).length > 0;
+        const hasPendingRequests = promotionReq !== '无' || donateReq !== '无' || questReq !== '无';
+
         return {
           title: '我的阵营弹窗',
-          summary: '当前角色在各势力中的身份、权限、申请与捐献动向。',
+          summary: '当前角色在各势力中的身份、权限与操作台。',
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">当前所属势力</div></div>
-                ${makeFactionLadder((snapshot.factions.length ? snapshot.factions : [['未加入势力', { 身份: '无', 权限级: 0 }]]).map(([name, info], index) => ({
-                  name,
-                  desc: `身份：${toText(info && info['身份'], '无')} / 权限级：${toText(info && info['权限级'], '0')}`,
-                  className: index === 0 ? 'highlight' : ''
-                })))}
+                <div class="relation-side-list">
+                  <div class="faction-row highlight">
+                    <b>${htmlEscape(currentFactionName || '未加入势力')}</b>
+                    <span>${htmlEscape(`身份：${currentFactionRole} / 权限级：${currentFactionPower}`)}</span>
+                  </div>
+                  ${(snapshot.factions || []).slice(1).map(([name, info]) => `<div class="faction-row"><b>${htmlEscape(name)}</b><span>${htmlEscape(`身份：${toText(info && info['身份'], '无')} / 权限级：${toText(info && info['权限级'], '0')}`)}</span></div>`).join('')}
+                </div>
               </div>
-              <div class="archive-card">
+              <div class="archive-card${hasFactionRelations || hasPendingRequests ? '' : ' full'}">
                 <div class="archive-card-head"><div class="archive-card-title">主身份摘要</div></div>
                 ${makeTileGrid([
                   { label: '当前所属', value: snapshot.factions[0] ? snapshot.factions[0][0] : '无' },
@@ -4234,40 +4257,39 @@
                   { label: '当前称号', value: snapshot.recentTitles[0] || '暂无' }
                 ], 'two')}
               </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">当前阵营关系</div></div>
-                ${makeTimelineStack(currentFactionRelationCards)}
-              </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">阵营事务请求</div></div>
-                ${makeTimelineStack([
-                  {
-                    title: '晋升申请',
-                    desc: toText(deepGet(snapshot, 'activeChar.promotion_request.target_faction', '无'), '无') !== '无'
-                      ? `${toText(deepGet(snapshot, 'activeChar.promotion_request.target_faction', '无'), '无')} / ${toText(deepGet(snapshot, 'activeChar.promotion_request.target_title', '无'), '无')}`
-                      : '当前无晋升申请'
-                  },
-                  {
-                    title: '捐献申请',
-                    desc: toText(deepGet(snapshot, 'activeChar.donate_request.item_name', '无'), '无') !== '无'
-                      ? `${toText(deepGet(snapshot, 'activeChar.donate_request.item_name', '无'), '无')} × ${toNumber(deepGet(snapshot, 'activeChar.donate_request.quantity', 1), 1)} / ${toText(deepGet(snapshot, 'activeChar.donate_request.target_faction', '无'), '无')}`
-                      : '当前无捐献申请'
-                  },
-                  {
-                    title: '任务请求',
-                    desc: toText(deepGet(snapshot, 'activeChar.quest_request.action', '无'), '无') !== '无'
-                      ? `${toText(deepGet(snapshot, 'activeChar.quest_request.action', '无'), '无')} / ${toText(deepGet(snapshot, 'activeChar.quest_request.quest_name', '无'), '无')}`
-                      : '当前无任务请求'
-                  }
-                ])}
-                <div class="intel-layout" style="margin-top:12px;">
-                  ${buildFactionAffairConsoleHtml(snapshot, currentFactionName)}
+              ${hasFactionRelations || hasPendingRequests ? `
+                <div class="archive-card full">
+                  <div class="archive-card-head"><div class="archive-card-title">阵营动态</div></div>
+                  <div class="two-col-grid" style="margin-top: 12px;">
+                    ${hasFactionRelations ? `<div class="relation-side-list"><div class="relation-card"><b>当前阵营关系</b><span>${htmlEscape(currentFactionRelationCards.map(item => `${item.title}：${item.desc}`).join(' / '))}</span></div>${makeTimelineStack(currentFactionRelationCards)}</div>` : ''}
+                    ${hasPendingRequests ? `<div class="relation-side-list"><div class="relation-card"><b>挂起事务</b><span>${htmlEscape([promotionReq !== '无' ? '晋升申请' : '', donateReq !== '无' ? '捐献申请' : '', questReq !== '无' ? '任务请求' : ''].filter(Boolean).join(' / ') || '无')}</span></div>${makeTimelineStack([
+                      {
+                        title: '晋升申请',
+                        desc: promotionReq !== '无'
+                          ? `${promotionReq} / ${toText(deepGet(snapshot, 'activeChar.promotion_request.target_title', '无'), '无')}`
+                          : '无'
+                      },
+                      {
+                        title: '捐献申请',
+                        desc: donateReq !== '无'
+                          ? `${donateReq} × ${toNumber(deepGet(snapshot, 'activeChar.donate_request.quantity', 1), 1)} / ${toText(deepGet(snapshot, 'activeChar.donate_request.target_faction', '无'), '无')}`
+                          : '无'
+                      },
+                      {
+                        title: '任务请求',
+                        desc: questReq !== '无'
+                          ? `${questReq} / ${toText(deepGet(snapshot, 'activeChar.quest_request.quest_name', '无'), '无')}`
+                          : '无'
+                      }
+                    ].filter(i => i.desc !== '无'))}</div>` : ''}
+                  </div>
                 </div>
-              </div>
+              ` : ''}
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">所属势力名册</div></div>
                 ${makePaginatedTimelineSection(safeEntries(currentFactionEntry[1] && currentFactionEntry[1].mem).map(([memberName, memberInfo]) => ({ title: memberName, desc: `职位：${toText(memberInfo && memberInfo['职位'], '外围')}` })), '我的阵营详情', 'faction-members', [{ title: '暂无成员记录', desc: currentFactionName ? '当前所属势力尚未记录成员档案。' : '当前未加入可展示成员名册的势力。' }], 50)}
               </div>
+              ${buildFactionAffairConsoleHtml(snapshot, currentFactionName)}
             </div>
           `
         };
@@ -4314,35 +4336,67 @@
           title: `本地据点 / ${nodeName}`,
           summary: '当前节点的地图属性、势力资料与可去方向。',
           body: `
-            <div class="intel-layout">
-              <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">据点概览</div></div>
-                ${makeTileGrid([
-                  { label: '所在地点', value: nodeName },
-                  { label: '掌控势力', value: toText(nodeInfo.data && nodeInfo.data['掌控势力'], '未知') },
-                  { label: '常住人口', value: formatNumber(nodeInfo.data && nodeInfo.data['人口']) },
-                  { label: '经济状况', value: toText(nodeInfo.data && nodeInfo.data['经济状况'], '未知') },
-                  { label: '守护军团', value: toText(nodeInfo.data && nodeInfo.data['守护军团'], '无') },
-                  { label: '商店数量', value: `${nodeStores.length} 处` },
-                ])}
-              </div>
-              <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">驻地氛围</div></div>
-                <div class="relation-side-list">
-                  <div class="relation-card"><b>地区状态</b><span>${htmlEscape(toText(nodeInfo.data && nodeInfo.data['经济状况'], '未知'))}</span></div>
-                  <div class="relation-card"><b>守备</b><span>${htmlEscape(toText(nodeInfo.data && nodeInfo.data['守护军团'], '无'))}</span></div>
-                  <div class="relation-card"><b>地图描述</b><span>${htmlEscape(mapNode ? mapNode.desc : '地图描述待补')}</span></div>
-                  <div class="relation-card"><b>补给情况</b><span>${htmlEscape(nodeStores.length ? `可见商店：${nodeStores.map(([name]) => name).join(' / ')}` : '暂未发现商铺')}</span></div>
+            <div class="archive-modal-grid">
+                <div class="archive-card">
+                  <div class="archive-card-head"><div class="archive-card-title">据点概览</div></div>
+                  ${makeTileGrid([
+                    { label: '所在地点', value: nodeName },
+                    { label: '掌控势力', value: toText(nodeInfo.data && nodeInfo.data['掌控势力'], '未知') },
+                    { label: '常住人口', value: formatNumber(nodeInfo.data && nodeInfo.data['人口']) },
+                    { label: '经济状况', value: toText(nodeInfo.data && nodeInfo.data['经济状况'], '未知') },
+                    { label: '守护军团', value: toText(nodeInfo.data && nodeInfo.data['守护军团'], '无') },
+                    { label: '商店数量', value: `${nodeStores.length} 处` },
+                  ], 'two')}
                 </div>
-              </div>
-              <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">本地可接触人物</div></div>
-                ${makeTimelineStack(localNpcCards.length ? localNpcCards : [{ title: '暂无本地人物', desc: '当前节点未扫描到可直接互动的本地角色。' }])}
-              </div>
-              <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">可执行操作</div></div>
-                ${actionButtonsHtml}
-              </div>
+                <div class="archive-card">
+                  <div class="archive-card-head"><div class="archive-card-title">驻地状态</div></div>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: center;">
+                    ${(() => {
+                      const getScore = (text) => {
+                        if (!text || text === '未知') return 50;
+                        if (/繁华|核心|极佳|充裕/.test(text)) return 95;
+                        if (/良好|稳定|发展/.test(text)) return 75;
+                        if (/一般|普通|常态/.test(text)) return 60;
+                        if (/萧条|混乱|匮乏|危险/.test(text)) return 30;
+                        if (/废弃|毁灭|荒芜|极危/.test(text)) return 10;
+                        return 50;
+                      };
+                      const ecoText = toText(nodeInfo.data && nodeInfo.data['经济状况'], '未知');
+                      const ecoScore = getScore(ecoText);
+                      const popScore = Math.min(100, Math.max(10, Math.round(Math.log10(Math.max(1, toNumber(nodeInfo.data && nodeInfo.data['人口'], 1000))) * 15)));
+                      const guardText = toText(nodeInfo.data && nodeInfo.data['守护军团'], '无');
+                      const guardScore = guardText !== '无' ? (guardText.includes('精锐') || guardText.includes('主力') ? 95 : 70) : 20;
+                      const tradeScore = nodeStores.length ? Math.min(100, 30 + nodeStores.length * 20) : 10;
+                      return `
+                        <div style="text-align: center; position: relative;">
+                          ${makeRadarSvg(['经济状况', '常住人口', '守备力量', '贸易补给', '战略价值'], [ecoScore, popScore, guardScore, tradeScore, Math.round((ecoScore+popScore+guardScore+tradeScore)/4)])}
+                        </div>
+                      `;
+                    })()}
+                    <div class="relation-side-list">
+                      <div class="relation-card" style="background:none;padding:0;border:none;"><b>综合评级</b><span style="color:var(--cyan); font-size: 16px; font-weight: bold;">${htmlEscape(toText(nodeInfo.data && nodeInfo.data['经济状况'], '未知'))}</span></div>
+                      <div class="relation-card" style="background:none;padding:0;border:none;"><b>守备评估</b><span style="color:var(--color-text-primary);">${htmlEscape(toText(nodeInfo.data && nodeInfo.data['守护军团'], '无军团驻扎'))}</span></div>
+                      <div class="relation-card" style="background:none;padding:0;border:none;"><b>补给节点</b><span style="color:var(--color-text-secondary);">${htmlEscape(nodeStores.length ? `${nodeStores.length} 处贸易站或设施` : '无可见商店')}</span></div>
+                      <div class="relation-card" style="background:none;padding:0;border:none;"><b>地图简报</b><span style="color:var(--color-text-secondary); font-size: 12px; line-height: 1.4;">${htmlEscape(mapNode ? mapNode.desc : '无扫描数据')}</span></div>
+                    </div>
+                  </div>
+                </div>
+              ${localNpcCards.length > 0 ? `
+                <div class="archive-card">
+                  <div class="archive-card-head"><div class="archive-card-title">可执行操作</div></div>
+                  ${actionButtonsHtml}
+                </div>
+                <div class="archive-card">
+                  <div class="archive-card-head"><div class="archive-card-title">本地可接触人物</div></div>
+                  ${makeTimelineStack(localNpcCards)}
+                </div>
+              ` : `
+                <div class="archive-card full">
+                  <div class="archive-card-head"><div class="archive-card-title">可执行操作</div></div>
+                  ${actionButtonsHtml}
+                  <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed rgba(255,255,255,0.1); color: var(--color-text-secondary); font-size: 13px; text-align: center;">当前节点未扫描到可直接互动的本地角色。</div>
+                </div>
+              `}
             </div>
           `,
           onMount: () => null
@@ -4480,14 +4534,14 @@
           : [{ title: '暂无试炼门票', desc: '当前背包中没有升灵台/魂灵塔门票。' }];
         return {
           title: '试炼与情报',
-          summary: '当前试炼资源、内部结算状态与近期风险情报统计。',
+          summary: '当前试炼资源、待处理事项与近期风险情报。',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">可前往试炼</div></div>
                 ${makeTileGrid([
                   { label: '升灵台门票', value: String(snapshot.inventoryEntries.filter(([name]) => /升灵台/.test(name)).length) },
-                  { label: '魂灵塔记录', value: `最高 ${toText(deepGet(snapshot, 'activeChar.tower_records.max_floor', 0), '0')} 层 / 仅统计展示` },
+                  { label: '魂灵塔记录', value: `最高 ${toText(deepGet(snapshot, 'activeChar.tower_records.max_floor', 0), '0')} 层` },
                   { label: '塔层折扣', value: towerDiscountEntries.length ? `${towerDiscountEntries.length} 层可用` : '暂无' },
                   { label: '现实狩猎待处理', value: huntPendingText },
                   { label: '深渊战果待处理', value: abyssPendingText },
@@ -4496,20 +4550,20 @@
                 ])}
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">内部结算状态</div><span class="state-tag ${huntPendingAge > 0 || abyssKillTier !== '无' ? 'warn' : 'live'}">${htmlEscape(huntPendingAge > 0 || abyssKillTier !== '无' ? '存在待处理 request' : '当前无待处理')}</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">试炼待处理事项</div><span class="state-tag ${huntPendingAge > 0 || abyssKillTier !== '无' ? 'warn' : 'live'}">${htmlEscape(huntPendingAge > 0 || abyssKillTier !== '无' ? '待处理' : '已整理')}</span></div>
                 ${makeTileGrid([
                   { label: '现实狩猎', value: huntPendingText },
                   { label: '深渊战果', value: abyssPendingText },
-                  { label: '处理方式', value: '系统内部 request 自动结算' },
-                  { label: '玩家操作', value: '无需在统计页手动提交' }
+                  { label: '处理方式', value: '系统自动整理' },
+                  { label: '玩家操作', value: '无需额外提交' }
                 ])}
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">魂灵塔 / 升灵台态势</div><span class="state-tag warn">只读</span></div>
+                <div class="archive-card-head"><div class="archive-card-title">魂灵塔 / 升灵台概览</div><span class="state-tag live">概览</span></div>
                 <div class="intel-layout">
                   <div class="intel-card">
-                    <b>当前状态</b>
-                    <span>${htmlEscape('MVU.js 当前仅提供 tower_records 展示能力，尚未实现完整 tower_request 试炼流程，因此此处仅展示历史记录、折扣资格与门票态势。')}</span>
+                    <b>试炼概况</b>
+                    <span>${htmlEscape('这里整理了你当前持有的门票、可用折扣层与已记录的试炼进度。')}</span>
                   </div>
                 </div>
                 ${makeTimelineStack(ticketCards)}
@@ -4530,22 +4584,29 @@
       }
 
       if (previewKey === '任务界面') {
-        const quest = deepGet(snapshot, 'activeChar.quest_request', {});
         const questRecords = (snapshot.recordEntries || []).filter(([, item]) => item && typeof item === 'object' && (
           Object.prototype.hasOwnProperty.call(item, '状态')
           || Object.prototype.hasOwnProperty.call(item, '目标进度')
           || Object.prototype.hasOwnProperty.call(item, '奖励币')
           || Object.prototype.hasOwnProperty.call(item, '奖励声望')
         ));
+        const questBoardEntries = safeEntries(deepGet(snapshot, 'rootData.world.quest_board', {})).filter(([, item]) => item && typeof item === 'object');
         const questPage = paginateModalItems(questRecords, previewKey, 'quest-records', 6);
+        const boardPage = paginateModalItems(questBoardEntries, previewKey, 'quest-board', 6);
         const questFocusStateKey = `${previewKey}::quest-focus`;
+        const boardFocusStateKey = `${previewKey}::quest-board-focus`;
         let focusQuestName = toText(modalFocusState[questFocusStateKey], toText((questRecords[0] && questRecords[0][0]) || '', ''));
         if (focusQuestName && !questRecords.some(([name]) => name === focusQuestName)) focusQuestName = questRecords[0] ? questRecords[0][0] : '';
         if (focusQuestName) modalFocusState[questFocusStateKey] = focusQuestName;
         else delete modalFocusState[questFocusStateKey];
+        let focusBoardId = toText(modalFocusState[boardFocusStateKey], toText((questBoardEntries[0] && questBoardEntries[0][0]) || '', ''));
+        if (focusBoardId && !questBoardEntries.some(([name]) => name === focusBoardId)) focusBoardId = questBoardEntries[0] ? questBoardEntries[0][0] : '';
+        if (focusBoardId) modalFocusState[boardFocusStateKey] = focusBoardId;
+        else delete modalFocusState[boardFocusStateKey];
         const focusQuestEntry = focusQuestName ? questRecords.find(([name]) => name === focusQuestName) : null;
+        const focusBoardEntry = focusBoardId ? questBoardEntries.find(([name]) => name === focusBoardId) : null;
         const focusQuest = focusQuestEntry && focusQuestEntry[1];
-        const pendingRequest = toText(quest.action, '无') !== '无';
+        const focusBoard = focusBoardEntry && focusBoardEntry[1];
         const questListHtml = questPage.items.length
           ? questPage.items.map(([name, item]) => {
               const status = toText(item && item['状态'], '进行中');
@@ -4562,57 +4623,85 @@
                 </button>
               `;
             }).join('')
-          : '<div class="intel-card"><b>暂无任务记录</b><span>当前没有可追踪的任务档案。</span></div>';
-        const questDetailHtml = focusQuest
-          ? makeTileGrid([
-              { label: '任务名称', value: focusQuestName },
-              { label: '状态', value: toText(focusQuest['状态'], '进行中') },
-              { label: '当前进度', value: `${toNumber(focusQuest['当前进度'], 0)}/${toNumber(focusQuest['目标进度'], 1)}` },
-              { label: '奖励金币', value: formatNumber(toNumber(focusQuest['奖励币'], 0)) },
-              { label: '奖励声望', value: formatNumber(toNumber(focusQuest['奖励声望'], 0)) },
-              { label: '任务类型', value: toText(focusQuest['类型'], '任务') }
-            ], 'two')
-          : makeTileGrid([{ label: '状态', value: '当前未选中任何任务' }], 'two');
-        return {
-          title: '任务界面',
-          summary: '任务记录、当前挂起 request 与任务操作台。',
-          body: `
-            <div class="archive-modal-grid">
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">任务记录列表</div><span class="state-tag ${questRecords.length ? 'live' : 'warn'}">${questRecords.length ? `共 ${questRecords.length} 条` : '空'}</span></div>
-                <div class="relation-directory-grid">${questListHtml}</div>
-                ${makeModalPaginationControls('quest-records', questPage.page, questPage.totalPages, questPage.total)}
-              </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">焦点任务详情</div><span class="state-tag ${focusQuestName ? 'live' : 'warn'}">${htmlEscape(focusQuestName || '未选中')}</span></div>
-                ${questDetailHtml}
-                <div class="intel-layout" style="margin-top:12px;"><div class="intel-card"><b>任务说明</b><span>${htmlEscape(focusQuest ? toText(focusQuest['描述'], '无附加说明') : '当前没有选中的任务说明。')}</span></div></div>
-              </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">任务操作台</div><span class="state-tag ${pendingRequest ? 'warn' : 'live'}">${htmlEscape(pendingRequest ? `${toText(quest.action, '无')} / ${toText(quest.quest_name, '无')}` : '无挂起 request')}</span></div>
-                <div class="intel-layout">
-                  <div class="intel-card request-console-card">
-                    <b>接取 / 推进 / 提交 / 放弃</b>
-                    <span>${htmlEscape(focusQuest ? `当前焦点任务：${focusQuestName}` : '可新建任务，也可先从上方列表选中已有任务。')}</span>
-                    <div class="request-console-grid">
-                      <input class="request-console-input" data-quest-input="name" value="${escapeHtmlAttr(focusQuestName || '')}" placeholder="任务名称（接取新任务时必填）" />
-                      <textarea class="request-console-textarea" data-quest-input="desc" placeholder="任务描述 / 目标说明">${htmlEscape(focusQuest ? toText(focusQuest['描述'], '') : '')}</textarea>
-                      <div class="request-console-row">
-                        <input type="number" min="1" class="request-console-input" data-quest-input="required" value="${escapeHtmlAttr(String(focusQuest ? toNumber(focusQuest['目标进度'], 1) : 1))}" placeholder="目标进度" />
-                        <input type="number" min="0" class="request-console-input" data-quest-input="rewardCoin" value="${escapeHtmlAttr(String(focusQuest ? toNumber(focusQuest['奖励币'], 0) : 0))}" placeholder="奖励金币" />
-                        <input type="number" min="0" class="request-console-input" data-quest-input="rewardRep" value="${escapeHtmlAttr(String(focusQuest ? toNumber(focusQuest['奖励声望'], 0) : 0))}" placeholder="奖励声望" />
-                        <input type="number" min="1" class="request-console-input" data-quest-input="progress" value="1" placeholder="进度增量" />
-                      </div>
-                    </div>
-                    <div class="relation-action-toolbar">
-                      <button type="button" class="relation-action-btn quest-action-btn" data-quest-action="接取">接取任务</button>
-                      <button type="button" class="relation-action-btn quest-action-btn" data-quest-action="更新进度" data-quest-target="${escapeHtmlAttr(focusQuestName || '')}" ${!focusQuestName ? 'disabled' : ''}>更新进度</button>
-                      <button type="button" class="relation-action-btn quest-action-btn" data-quest-action="提交" data-quest-target="${escapeHtmlAttr(focusQuestName || '')}" ${!focusQuestName ? 'disabled' : ''}>提交任务</button>
-                      <button type="button" class="relation-action-btn quest-action-btn" data-quest-action="放弃" data-quest-target="${escapeHtmlAttr(focusQuestName || '')}" ${!focusQuestName ? 'disabled' : ''}>放弃任务</button>
-                    </div>
+          : '<div style="padding: 12px 16px; color: var(--color-text-secondary); text-align: center; font-size: 13px;">暂无任务记录，当前没有可追踪的任务档案。</div>';
+        const boardListHtml = boardPage.items.length
+          ? boardPage.items.map(([id, item]) => {
+              const title = toText(item && item['标题'], id);
+              const status = toText(item && item['状态'], '待接取');
+              const publisher = toText(item && item['发布者'], '系统');
+              const badgeClass = status === '待接取' ? 'live' : (status === '进行中' || status === '可提交' ? 'warn' : '');
+              return `
+                <button type="button" class="role-switch-tile ${id === focusBoardId ? 'active' : ''}" data-quest-board-focus="${escapeHtmlAttr(id)}" style="text-align:left;">
+                  <div class="role-switch-head" style="margin-bottom:6px;font-size:15px;"><b>${htmlEscape(title)}</b><span class="state-tag ${badgeClass}">${htmlEscape(status)}</span></div>
+                  <div style="display:grid;gap:4px;">
+                    <span>${htmlEscape(`发布者：${publisher}`)}</span>
+                    <span>${htmlEscape(`难度：${toText(item && item['难度'], '中')} / 资源：${toText(item && item['资源级别'], '无')}`)}</span>
+                    <span>${htmlEscape(`奖励：${formatNumber(toNumber(item && item['奖励币'], 0))} 币 / ${formatNumber(toNumber(item && item['奖励声望'], 0))} 声望`)}</span>
                   </div>
+                </button>
+              `;
+            }).join('')
+          : '<div style="padding: 12px 16px; color: var(--color-text-secondary); text-align: center; font-size: 13px;">暂无委托，当前世界中没有可浏览的公开委托。</div>';
+        const questDetailHtml = focusQuest
+          ? `
+              ${makeTileGrid([
+                { label: '任务名称', value: focusQuestName },
+                { label: '状态', value: toText(focusQuest['状态'], '进行中') },
+                { label: '任务类型', value: toText(focusQuest['类型'], '任务') },
+                { label: '奖励金币', value: formatNumber(toNumber(focusQuest['奖励币'], 0)) },
+                { label: '奖励声望', value: formatNumber(toNumber(focusQuest['奖励声望'], 0)) }
+              ], 'two')}
+              <div style="margin-top: 16px;">
+                <div style="font-size: 11px; color: var(--color-text-secondary); margin-bottom: 6px; font-weight: 500;">当前进度 <span style="float: right; color: var(--cyan);">${toNumber(focusQuest['当前进度'], 0)} / ${toNumber(focusQuest['目标进度'], 1)}</span></div>
+                <div style="height: 6px; background: rgba(0, 229, 255, 0.1); border-radius: 3px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);">
+                  <div style="height: 100%; background: linear-gradient(90deg, rgba(0,229,255,0.6), rgba(0,229,255,1)); width: ${ratioPercent(toNumber(focusQuest['当前进度'], 0), toNumber(focusQuest['目标进度'], 1))}%; border-radius: 3px; box-shadow: 0 0 8px rgba(0,229,255,0.8); transition: width 0.3s ease;"></div>
                 </div>
               </div>
+            `
+          : makeTileGrid([{ label: '状态', value: '当前未选中任何任务' }], 'two');
+        const boardDetailHtml = focusBoard
+          ? makeTileGrid([
+              { label: '委托标题', value: toText(focusBoard['标题'], focusBoardId) },
+              { label: '状态', value: toText(focusBoard['状态'], '待接取') },
+              { label: '发布者', value: toText(focusBoard['发布者'], '系统') },
+              { label: '面向', value: toText(focusBoard['面向'], '公开') },
+              { label: '承接者', value: toText(focusBoard['承接者'], '无') },
+              { label: '难度 / 资源', value: `${toText(focusBoard['难度'], '中')} / ${toText(focusBoard['资源级别'], '无')}` },
+              { label: '奖励金币', value: formatNumber(toNumber(focusBoard['奖励币'], 0)) },
+              { label: '奖励声望', value: formatNumber(toNumber(focusBoard['奖励声望'], 0)) }
+            ], 'two')
+          : makeTileGrid([{ label: '状态', value: '当前未选中任何委托' }], 'two');
+        return {
+          title: '任务界面',
+          summary: '我的任务记录与世界委托板。',
+          body: `
+            <div class="archive-modal-grid">
+                <div class="archive-card">
+                  <div class="archive-card-head"><div class="archive-card-title">我的任务</div><span class="state-tag ${questRecords.length ? 'live' : 'warn'}">${questRecords.length ? `共 ${questRecords.length} 条` : '空'}</span></div>
+                  <div class="relation-directory-grid">${questListHtml}</div>
+                  ${makeModalPaginationControls('quest-records', questPage.page, questPage.totalPages, questPage.total)}
+                </div>
+                <div class="archive-card">
+                  <div class="archive-card-head"><div class="archive-card-title">焦点任务详情</div><span class="state-tag ${focusQuestName ? 'live' : 'warn'}">${htmlEscape(focusQuestName || '未选中')}</span></div>
+                  ${questDetailHtml}
+                  <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed rgba(255,255,255,0.1);">
+                    <div style="font-size: 13px; color: var(--color-text-secondary); margin-bottom: 4px;">任务说明</div>
+                    <div style="font-size: 14px; line-height: 1.5; color: var(--color-text-primary);">${htmlEscape(focusQuest ? toText(focusQuest['描述'], '无附加说明') : '当前没有选中的任务说明。')}</div>
+                  </div>
+                </div>
+                <div class="archive-card">
+                  <div class="archive-card-head"><div class="archive-card-title">委托板</div><span class="state-tag ${questBoardEntries.length ? 'live' : 'warn'}">${questBoardEntries.length ? `共 ${questBoardEntries.length} 条` : '空'}</span></div>
+                  <div class="relation-directory-grid">${boardListHtml}</div>
+                  ${makeModalPaginationControls('quest-board', boardPage.page, boardPage.totalPages, boardPage.total)}
+                </div>
+                <div class="archive-card">
+                  <div class="archive-card-head"><div class="archive-card-title">焦点委托详情</div><span class="state-tag ${focusBoardId ? 'live' : 'warn'}">${htmlEscape(focusBoardId || '未选中')}</span></div>
+                  ${boardDetailHtml}
+                  <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed rgba(255,255,255,0.1);">
+                    <div style="font-size: 13px; color: var(--color-text-secondary); margin-bottom: 4px;">委托说明</div>
+                    <div style="font-size: 14px; line-height: 1.5; color: var(--color-text-primary);">${htmlEscape(focusBoard ? toText(focusBoard['描述'], '无附加说明') : '当前没有选中的委托说明。')}</div>
+                  </div>
+                </div>
             </div>
           `
         };
@@ -5032,6 +5121,7 @@
       return buildMapBattleInitRequest(snapshot, { npcTarget: rawTargetName, target: currentLoc, currentLoc });
     }
 
+
     function buildKnowledgeUnlockDispatchRequest(snapshot, options = {}) {
       if (!snapshot || !snapshot.rootData) return null;
       if (!isSnapshotPlayerControlled(snapshot)) return null;
@@ -5073,82 +5163,8 @@ ${JSON.stringify(patchOps, null, 2)}
       };
     }
 
-    function buildQuestDispatchRequest(snapshot, actionType, options = {}) {
-      if (!snapshot || !snapshot.rootData) return null;
-      if (!isSnapshotPlayerControlled(snapshot)) return null;
-      const action = toText(actionType, '');
-      if (!['接取', '更新进度', '提交', '放弃'].includes(action)) return null;
-      const activeKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
-      if (!activeKey) return null;
-      const chars = deepGet(snapshot, 'rootData.char', {});
-      const activeChar = chars && typeof chars === 'object' ? (chars[activeKey] || {}) : {};
-      const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, activeKey));
-      const currentLoc = toText(deepGet(activeChar, 'status.loc', snapshot.currentLoc || '当前位置'), snapshot.currentLoc || '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
-      const questName = toText(options.questName, '').trim();
-      const questRecord = questName ? deepGet(activeChar, ['records', questName], null) : null;
-      if ((!questName || questName === '无') || (action !== '接取' && !questRecord)) return null;
 
-      const questDesc = action === '接取'
-        ? toText(options.questDesc, '').trim()
-        : toText(deepGet(questRecord, '描述', toText(options.questDesc, '无')), '无');
-      const requiredCount = action === '接取'
-        ? Math.max(1, toNumber(options.requiredCount, 1))
-        : Math.max(1, toNumber(deepGet(questRecord, '目标进度', 1), 1));
-      const rewardCoin = action === '接取'
-        ? Math.max(0, toNumber(options.rewardCoin, 0))
-        : Math.max(0, toNumber(deepGet(questRecord, '奖励币', 0), 0));
-      const rewardRep = action === '接取'
-        ? Math.max(0, toNumber(options.rewardRep, 0))
-        : Math.max(0, toNumber(deepGet(questRecord, '奖励声望', 0), 0));
-      const progressAdd = action === '更新进度' ? Math.max(0, toNumber(options.progressAdd, 1)) : 0;
-      if (action === '接取' && !questDesc) return null;
 
-      const patchOps = [
-        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/quest_request`, value: {
-          action,
-          quest_name: questName,
-          quest_desc: questDesc || '无',
-          progress_add: progressAdd,
-          required_count: requiredCount,
-          reward_coin: rewardCoin,
-          reward_rep: rewardRep
-        } },
-        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: action === '接取' ? '任务规划' : '任务处理' },
-        { op: 'replace', path: '/sys/rsn', value: `[任务请求] ${activeName} 在【${currentLoc}】发起【${action}】任务：【${questName}】。` }
-      ];
-
-      const recordSummary = questRecord
-        ? `${toText(deepGet(questRecord, '状态', '进行中'), '进行中')} / ${toNumber(deepGet(questRecord, '当前进度', 0), 0)}/${toNumber(deepGet(questRecord, '目标进度', requiredCount), requiredCount)}`
-        : '当前尚无既有任务记录';
-      const actionPromptMap = {
-        '接取': `我想接取任务【${questName}】。任务目标：${questDesc}。`,
-        '更新进度': `我想推进任务【${questName}】的进度，本次完成了 ${progressAdd} 点。`,
-        '提交': `我想提交任务【${questName}】。`,
-        '放弃': `我想放弃任务【${questName}】。`
-      };
-
-      const systemPrompt = `以下内容属于前端已经完成的任务请求初始化，不要在正文直接复述“JSONPatch / 系统分析 / 仲裁日志”等术语。
-
-[任务请求] ${activeName} 在【${currentLoc}】发起【${action}】任务：【${questName}】。
-
-[任务参考]
-当前任务记录：${recordSummary}
-你必须保留本次 quest_request 的 action / quest_name / quest_desc / progress_add / required_count / reward_coin / reward_rep 字段，使 MVU 后续能够正确完成任务结算。
-
-[MVU变量更新数据]
-<UpdateVariable>
-<Analysis>Quest request initialized from quest panel.</Analysis>
-<JSONPatch>
-${JSON.stringify(patchOps, null, 2)}
-</JSONPatch>
-</UpdateVariable>`;
-
-      return {
-        playerInput: actionPromptMap[action] || `我想处理任务【${questName}】。`,
-        systemPrompt,
-        requestKind: 'quest_request'
-      };
-    }
 
     function buildHuntDispatchRequest(snapshot, options = {}) {
       if (!snapshot || !snapshot.rootData) return null;
@@ -5340,23 +5356,45 @@ ${JSON.stringify(patchOps, null, 2)}
       const defaultPromotionFaction = pendingPromotionFaction !== '无' ? pendingPromotionFaction : (preferredFactionName || factionNames[0] || '');
       const defaultDonateFaction = pendingDonateFaction !== '无' ? pendingDonateFaction : (preferredFactionName || factionNames[0] || '');
       return `
-        <div class="intel-card request-console-card">
-          <b>阵营事务操作台</b>
-          <span>${htmlEscape(`挂起申请：晋升 ${pendingPromotionFaction !== '无' ? `${pendingPromotionFaction} / ${pendingPromotionTitle}` : '无'} ｜ 捐献 ${pendingDonateItem !== '无' ? `${pendingDonateItem} × ${pendingDonateQty} / ${pendingDonateFaction}` : '无'}`)}</span>
-          <div class="request-console-grid">
-            <div class="request-console-row">
-              <select class="request-console-input" data-faction-input="promoteFaction">${factionNames.map(name => `<option value="${escapeHtmlAttr(name)}" ${name === defaultPromotionFaction ? 'selected' : ''}>${htmlEscape(name)}</option>`).join('')}</select>
-              <input class="request-console-input" data-faction-input="targetTitle" value="${escapeHtmlAttr(pendingPromotionTitle !== '无' ? pendingPromotionTitle : '')}" placeholder="申请职位，如黄级 / 预备战神 / 少将" />
-              <button type="button" class="relation-action-btn faction-action-btn" data-faction-action="promote">提交晋升申请</button>
+        <div class="archive-card full request-console-card">
+          <div class="archive-card-head"><div class="archive-card-title">阵营事务操作台</div><span class="state-tag ${preferredFactionName ? 'live' : 'warn'}">${htmlEscape(preferredFactionName || '未加入')}</span></div>
+          <span>${htmlEscape(`挂起事务：晋升 ${pendingPromotionFaction !== '无' ? `${pendingPromotionFaction} / ${pendingPromotionTitle}` : '无'} ｜ 捐献 ${pendingDonateItem !== '无' ? `${pendingDonateItem} × ${pendingDonateQty} / ${pendingDonateFaction}` : '无'}`)}</span>
+          <div class="request-console-grid" style="gap: 16px;">
+            <div class="request-console-row" style="display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px; align-items: center;">
+              <select class="request-console-input" style="margin: 0;" data-faction-input="promoteFaction">${factionNames.map(name => `<option value="${escapeHtmlAttr(name)}" ${name === defaultPromotionFaction ? 'selected' : ''}>${htmlEscape(name)}</option>`).join('')}</select>
+              <input class="request-console-input" style="margin: 0;" data-faction-input="targetTitle" value="${escapeHtmlAttr(pendingPromotionTitle !== '无' ? pendingPromotionTitle : '')}" placeholder="申请职位，如黄级 / 预备战神 / 少将" />
+              <button type="button" class="relation-action-btn faction-action-btn" style="margin: 0; height: 32px;" data-faction-action="promote">提交晋升</button>
             </div>
-            <div class="request-console-row">
-              <select class="request-console-input" data-faction-input="donateFaction">${factionNames.map(name => `<option value="${escapeHtmlAttr(name)}" ${name === defaultDonateFaction ? 'selected' : ''}>${htmlEscape(name)}</option>`).join('')}</select>
-              <select class="request-console-input" data-faction-input="donateItem" ${donationEntries.length ? '' : 'disabled'}>${donationOptionsHtml}</select>
-              <input type="number" min="1" class="request-console-input" data-faction-input="donateQty" value="${escapeHtmlAttr(String(pendingDonateQty))}" placeholder="数量" />
-              <button type="button" class="relation-action-btn faction-action-btn" data-faction-action="donate" ${donationEntries.length ? '' : 'disabled'}>提交捐献</button>
+            <div class="request-console-row" style="display: grid; grid-template-columns: 1.5fr 2fr 1fr auto; gap: 8px; align-items: center;">
+              <select class="request-console-input" style="margin: 0;" data-faction-input="donateFaction">${factionNames.map(name => `<option value="${escapeHtmlAttr(name)}" ${name === defaultDonateFaction ? 'selected' : ''}>${htmlEscape(name)}</option>`).join('')}</select>
+              <select class="request-console-input" style="margin: 0;" data-faction-input="donateItem" ${donationEntries.length ? '' : 'disabled'}>${donationOptionsHtml}</select>
+              <input type="number" min="1" class="request-console-input" style="margin: 0;" data-faction-input="donateQty" value="${escapeHtmlAttr(String(pendingDonateQty))}" placeholder="数量" />
+              <button type="button" class="relation-action-btn faction-action-btn" style="margin: 0; height: 32px;" data-faction-action="donate" ${donationEntries.length ? '' : 'disabled'}>提交捐献</button>
             </div>
           </div>
-          <span>${htmlEscape(`当前贡献池：唐门 ${formatNumber(deepGet(snapshot, 'activeChar.wealth.tang_pt', 0))} / 学院 ${formatNumber(deepGet(snapshot, 'activeChar.wealth.shrek_pt', 0))} / 军方 ${formatNumber(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0))}`)}</span>
+          <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.06);">
+            <div style="font-size: 11px; color: var(--color-text-secondary); margin-bottom: 8px; font-weight: 500;">当前主要贡献池</div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+              <div>
+                <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;"><span style="color: #888;">唐门</span><span style="color: var(--cyan);">${formatNumber(deepGet(snapshot, 'activeChar.wealth.tang_pt', 0))}</span></div>
+                <div style="height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden;">
+                  <div style="height: 100%; background: var(--cyan); width: ${ratioPercent(deepGet(snapshot, 'activeChar.wealth.tang_pt', 0), 1000)}%;"></div>
+                </div>
+              </div>
+              <div>
+                <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;"><span style="color: #888;">史莱克学院</span><span style="color: #60c571;">${formatNumber(deepGet(snapshot, 'activeChar.wealth.shrek_pt', 0))}</span></div>
+                <div style="height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden;">
+                  <div style="height: 100%; background: #60c571; width: ${ratioPercent(deepGet(snapshot, 'activeChar.wealth.shrek_pt', 0), 1000)}%;"></div>
+                </div>
+              </div>
+              <div>
+                <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;"><span style="color: #888;">战神殿/军方</span><span style="color: var(--red);">${formatNumber(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0))}</span></div>
+                <div style="height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden;">
+                  <div style="height: 100%; background: var(--red); width: ${ratioPercent(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0), 1000)}%;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       `;
     }
@@ -5885,6 +5923,42 @@ ${JSON.stringify(patchOps, null, 2)}
           if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show(`【${targetName}】当前不在你身边，无法进行当面关系互动。`, 'error');
           else if (typeof window.alert === 'function') window.alert(`【${targetName}】当前不在你身边，无法进行当面关系互动。`);
           return;
+
+      const questActionBtn = eventTarget ? eventTarget.closest('.quest-action-btn[data-quest-action]') : null;
+      if (questActionBtn && modalBody.contains(questActionBtn)) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!isSnapshotPlayerControlled(liveSnapshot)) {
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('当前为非玩家角色视角，仅允许浏览，不能发起任务请求。', 'error');
+          else if (typeof window.alert === 'function') window.alert('当前为非玩家角色视角，仅允许浏览，不能发起任务请求。');
+          return;
+        }
+        const actionType = questActionBtn.getAttribute('data-quest-action') || '';
+        const requestPanel = questActionBtn.closest('.request-console-card') || modalBody;
+        const nameInput = requestPanel ? requestPanel.querySelector('[data-quest-input="name"]') : null;
+        const descInput = requestPanel ? requestPanel.querySelector('[data-quest-input="desc"]') : null;
+        const requiredInput = requestPanel ? requestPanel.querySelector('[data-quest-input="required"]') : null;
+        const rewardCoinInput = requestPanel ? requestPanel.querySelector('[data-quest-input="rewardCoin"]') : null;
+        const rewardRepInput = requestPanel ? requestPanel.querySelector('[data-quest-input="rewardRep"]') : null;
+        const progressInput = requestPanel ? requestPanel.querySelector('[data-quest-input="progress"]') : null;
+        const targetQuestName = toText(questActionBtn.getAttribute('data-quest-target'), '') || toText(nameInput && nameInput.value, '').trim();
+        const actionData = buildQuestDispatchRequest(liveSnapshot, actionType, {
+          questName: targetQuestName,
+          questDesc: toText(descInput && descInput.value, '').trim(),
+          requiredCount: toNumber(requiredInput && requiredInput.value, 1),
+          rewardCoin: toNumber(rewardCoinInput && rewardCoinInput.value, 0),
+          rewardRep: toNumber(rewardRepInput && rewardRepInput.value, 0),
+          progressAdd: toNumber(progressInput && progressInput.value, 1)
+        });
+        if (!actionData) {
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('任务请求参数不完整，请检查任务名称与说明。', 'error');
+          else if (typeof window.alert === 'function') window.alert('任务请求参数不完整，请检查任务名称与说明。');
+          return;
+        }
+        if (typeof window.sendToAI === 'function') window.sendToAI(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
+        return;
+      }
+
         }
         if (actionType === 'ask' && favor < 30) {
           if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show(`向【${targetName}】请教需要好感度达到 30。`, 'error');
@@ -5926,6 +6000,18 @@ ${JSON.stringify(patchOps, null, 2)}
         return;
       }
 
+      const questBoardFocusBtn = eventTarget ? eventTarget.closest('[data-quest-board-focus]') : null;
+      if (questBoardFocusBtn && modalBody.contains(questBoardFocusBtn)) {
+        event.preventDefault();
+        event.stopPropagation();
+        const boardId = questBoardFocusBtn.getAttribute('data-quest-board-focus') || '';
+        if (boardId && currentModalPreviewKey) {
+          modalFocusState[`${currentModalPreviewKey}::quest-board-focus`] = boardId;
+          renderModalContent(currentModalPreviewKey);
+        }
+        return;
+      }
+
       const questFocusBtn = eventTarget ? eventTarget.closest('[data-quest-focus]') : null;
       if (questFocusBtn && modalBody.contains(questFocusBtn)) {
         event.preventDefault();
@@ -5935,64 +6021,6 @@ ${JSON.stringify(patchOps, null, 2)}
           modalFocusState[`${currentModalPreviewKey}::quest-focus`] = questName;
           renderModalContent(currentModalPreviewKey);
         }
-        return;
-      }
-
-      const questActionBtn = eventTarget ? eventTarget.closest('.quest-action-btn[data-quest-action]') : null;
-      if (questActionBtn && modalBody.contains(questActionBtn)) {
-        event.preventDefault();
-        event.stopPropagation();
-        if (!isSnapshotPlayerControlled(liveSnapshot)) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('当前为非玩家角色视角，仅允许浏览，不能发起任务请求。', 'error');
-          else if (typeof window.alert === 'function') window.alert('当前为非玩家角色视角，仅允许浏览，不能发起任务请求。');
-          return;
-        }
-        const actionType = questActionBtn.getAttribute('data-quest-action') || '';
-        const requestPanel = questActionBtn.closest('.request-console-card') || modalBody;
-        const nameInput = requestPanel ? requestPanel.querySelector('[data-quest-input="name"]') : null;
-        const descInput = requestPanel ? requestPanel.querySelector('[data-quest-input="desc"]') : null;
-        const requiredInput = requestPanel ? requestPanel.querySelector('[data-quest-input="required"]') : null;
-        const rewardCoinInput = requestPanel ? requestPanel.querySelector('[data-quest-input="rewardCoin"]') : null;
-        const rewardRepInput = requestPanel ? requestPanel.querySelector('[data-quest-input="rewardRep"]') : null;
-        const progressInput = requestPanel ? requestPanel.querySelector('[data-quest-input="progress"]') : null;
-        const targetQuestName = toText(questActionBtn.getAttribute('data-quest-target'), '') || toText(nameInput && nameInput.value, '').trim();
-        const actionData = buildQuestDispatchRequest(liveSnapshot, actionType, {
-          questName: targetQuestName,
-          questDesc: toText(descInput && descInput.value, '').trim(),
-          requiredCount: toNumber(requiredInput && requiredInput.value, 1),
-          rewardCoin: toNumber(rewardCoinInput && rewardCoinInput.value, 0),
-          rewardRep: toNumber(rewardRepInput && rewardRepInput.value, 0),
-          progressAdd: toNumber(progressInput && progressInput.value, 1)
-        });
-        if (!actionData) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('任务请求参数不完整，请检查任务名称与说明。', 'error');
-          else if (typeof window.alert === 'function') window.alert('任务请求参数不完整，请检查任务名称与说明。');
-          return;
-        }
-        if (typeof window.sendToAI === 'function') window.sendToAI(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
-        return;
-      }
-
-      const switchCharBtn = eventTarget ? eventTarget.closest('[data-mvu-switch-char]') : null;
-      if (switchCharBtn && modalBody.contains(switchCharBtn)) {
-        event.preventDefault();
-        event.stopPropagation();
-        const targetName = switchCharBtn.getAttribute('data-mvu-switch-char') || '';
-        applyActiveCharacterSelection(targetName, { closeModal: true });
-        return;
-      }
-
-      const pageBtn = eventTarget ? eventTarget.closest('[data-page-nav][data-page-section]') : null;
-      if (pageBtn && modalBody.contains(pageBtn)) {
-        event.preventDefault();
-        event.stopPropagation();
-        const sectionKey = pageBtn.getAttribute('data-page-section') || 'section';
-        const nav = pageBtn.getAttribute('data-page-nav') || '';
-        const stateKey = `${currentModalPreviewKey}::${sectionKey}`;
-        const currentPage = Math.max(1, toNumber(modalPaginationState[stateKey], 1) || 1);
-        if (nav === 'prev') modalPaginationState[stateKey] = Math.max(1, currentPage - 1);
-        if (nav === 'next') modalPaginationState[stateKey] = currentPage + 1;
-        renderModalContent(currentModalPreviewKey);
         return;
       }
 
