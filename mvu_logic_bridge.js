@@ -1669,6 +1669,42 @@
       }];
     }
 
+    function formatPermanentBonusSummary(bonusMap) {
+      const labels = { str: '力量', def: '防御', agi: '敏捷', vit_max: '体力上限', men_max: '精神力上限', sp_max: '魂力上限' };
+      const segments = [];
+      safeEntries(bonusMap).forEach(([key, value]) => {
+        const amount = Math.floor(toNumber(value, 0));
+        if (amount > 0 && labels[key]) segments.push(`${labels[key]}+${amount}`);
+      });
+      return segments.join('，') || '无';
+    }
+
+    function buildPermanentBonusList(bonusObj) {
+      return safeEntries(bonusObj).map(([rawName, bonus]) => {
+        const safeBonus = bonus && typeof bonus === 'object' ? bonus : {};
+        const name = normalizeSkillUiText(safeBonus['名称'] || rawName, '永久成长');
+        const bonusSummary = formatPermanentBonusSummary(safeBonus['属性加成'] || {});
+        const effectDesc = normalizeSkillUiText(safeBonus['效果描述'] || safeBonus['描述'], bonusSummary !== '无' ? `固定加成：${bonusSummary}` : '未知');
+        return {
+          name,
+          type: '永久成长',
+          target: '自身',
+          bonus: bonusSummary === '无' ? '固定成长' : bonusSummary,
+          cost: '无',
+          desc: [
+            effectDesc !== '未知' ? `效果：${effectDesc}` : '',
+            bonusSummary !== '无' ? `固定加成：${bonusSummary}` : ''
+          ].filter(Boolean).join('<br/>') || effectDesc || '永久成长',
+          visualDesc: '气血封印解开后，成长已永久固化。',
+          effectDesc,
+          effectSummary: bonusSummary === '无' ? '未知' : `固定加成：${bonusSummary}`,
+          status: normalizeSkillUiText(safeBonus['状态'], '已固化'),
+          mainRole: '永久成长',
+          tags: ['永久成长', '固定增益']
+        };
+      });
+    }
+
     function buildSpiritConfig(slotName, spiritData, previewKey, badgeText, badgeClass) {
       const soulEntries = safeEntries(spiritData && spiritData.soul_spirits);
       const summaryRings = [];
@@ -1746,6 +1782,8 @@
           desc: '',
           rings: [],
           bloodSkills: [],
+          bloodPassives: [],
+          bloodPermanentBonuses: [],
           sealLv: 0,
           core: '未凝聚',
           lifeFire: false,
@@ -1758,11 +1796,13 @@
       const rawSkills = deepGet(activeChar, 'bloodline_power.skills', {});
       const rawRings = deepGet(activeChar, 'bloodline_power.blood_rings', {});
       const rawPassives = deepGet(activeChar, 'bloodline_power.passives', {});
+      const rawPermanentBonuses = deepGet(activeChar, 'bloodline_power.permanent_bonuses', {});
       const hasBloodlineData = toText(bloodline, '无') !== '无'
         || sealLv > 0
         || safeEntries(rawRings).length > 0
         || safeEntries(rawSkills).length > 0
-        || safeEntries(rawPassives).length > 0;
+        || safeEntries(rawPassives).length > 0
+        || safeEntries(rawPermanentBonuses).length > 0;
       const ringEntries = safeEntries(deepGet(activeChar, 'bloodline_power.blood_rings', {}))
         .sort((a, b) => toNumber(a[0], 0) - toNumber(b[0], 0))
         .map(([index, ring]) => ({
@@ -1785,6 +1825,7 @@
         rings: normalizedRingEntries,
         bloodSkills: buildSkillList(rawSkills),
         bloodPassives: buildSkillList(rawPassives),
+        bloodPermanentBonuses: buildPermanentBonusList(rawPermanentBonuses),
         sealLv,
         core,
         lifeFire: !!deepGet(activeChar, 'bloodline_power.life_fire', false),
@@ -2019,6 +2060,14 @@
             name: skill.name,
             level: toText(skill.状态, '已固化'),
             desc: toText(skill.描述 || skill.效果描述 || skill.effectDesc, '无说明')
+          });
+        });
+        safeEntries(deepGet(activeChar, 'bloodline_power.permanent_bonuses', {})).forEach(([name, bonus]) => {
+          extraSkills.push({
+            category: '血脉永久成长',
+            name: toText(bonus && bonus['名称'], name || '永久成长'),
+            level: toText(bonus && bonus['状态'], '已固化'),
+            desc: toText(bonus && bonus['效果描述'], toText(bonus && bonus['描述'], '无说明'))
           });
         });
       }
@@ -3891,6 +3940,14 @@
                   <div class="ring-hover-copy"><em>效果描述</em><span>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].effectDesc : '未知')}</span></div>
                 </div>
               </div>
+              ${snapshot.bloodline.bloodPermanentBonuses && snapshot.bloodline.bloodPermanentBonuses.length ? `
+                <div class="archive-card">
+                  <div class="archive-card-head"><div class="archive-card-title">永久成长</div></div>
+                  <div class="ability-detail-card">
+                    ${snapshot.bloodline.bloodPermanentBonuses.slice(0, 4).map(item => `<div class="ring-hover-copy"><em>${htmlEscape(item.name || '永久成长')}</em><span>${htmlEscape(item.effectDesc || item.effectSummary || '永久成长')}</span></div>`).join('')}
+                  </div>
+                </div>
+              ` : ''}
               ${snapshot.bloodline.bloodPassives && snapshot.bloodline.bloodPassives.length ? `
                 <div class="archive-card">
                   <div class="archive-card-head"><div class="archive-card-title">被动特性</div></div>
@@ -4412,75 +4469,47 @@
         const towerDiscountEntries = safeEntries(deepGet(snapshot, 'activeChar.tower_records.discount_available', {})).filter(([, value]) => !!value);
         const huntRequest = deepGet(snapshot, 'activeChar.hunt_request', {});
         const abyssKillRequest = deepGet(snapshot, 'activeChar.abyss_kill_request', {});
-        const huntAgeDefault = Math.max(1, toNumber(deepGet(snapshot, 'activeChar.hunt_request.killed_age', 1000), 1000) || 1000);
-        const huntFerociousDefault = !!deepGet(snapshot, 'activeChar.hunt_request.is_ferocious', false);
-        const abyssTierRaw = toText(deepGet(snapshot, 'activeChar.abyss_kill_request.kill_tier', '低阶生物'), '低阶生物');
-        const abyssTierDefault = ['低阶生物', '中阶生物', '高阶生物', '深渊王者'].includes(abyssTierRaw) ? abyssTierRaw : '低阶生物';
-        const abyssQuantityDefault = Math.max(1, toNumber(deepGet(snapshot, 'activeChar.abyss_kill_request.quantity', 1), 1) || 1);
+        const huntPendingAge = toNumber(huntRequest && huntRequest.killed_age, 0);
+        const huntPendingText = huntPendingAge > 0 ? `${huntPendingAge}年${deepGet(snapshot, 'activeChar.hunt_request.is_ferocious', false) ? ' / 凶兽级' : ' / 常规目标'}` : '无待处理';
+        const abyssKillTier = toText(abyssKillRequest && abyssKillRequest.kill_tier, '无');
+        const abyssKillQty = Math.max(1, toNumber(abyssKillRequest && abyssKillRequest.quantity, 1));
+        const abyssPendingText = abyssKillTier !== '无' ? `${abyssKillTier} × ${abyssKillQty}` : '无待处理';
         const trialTickets = (snapshot.inventoryEntries || []).filter(([name]) => /升灵台|魂灵塔/.test(name)).slice(0, 8);
         const ticketCards = trialTickets.length
           ? trialTickets.map(([name, item]) => ({ title: `${name} ×${toNumber(item && item['数量'], 0)}`, desc: toText(item && item['描述'], '可用于对应试炼场景。') }))
           : [{ title: '暂无试炼门票', desc: '当前背包中没有升灵台/魂灵塔门票。' }];
         return {
           title: '试炼与情报',
-          summary: '当前可去试炼、现实狩猎与深渊战功上报入口。',
+          summary: '当前试炼资源、内部结算状态与近期风险情报统计。',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">可前往试炼</div></div>
                 ${makeTileGrid([
                   { label: '升灵台门票', value: String(snapshot.inventoryEntries.filter(([name]) => /升灵台/.test(name)).length) },
-                  { label: '魂灵塔态势', value: `最高 ${toText(deepGet(snapshot, 'activeChar.tower_records.max_floor', 0), '0')} 层 / 暂无可提交 request` },
+                  { label: '魂灵塔记录', value: `最高 ${toText(deepGet(snapshot, 'activeChar.tower_records.max_floor', 0), '0')} 层 / 仅统计展示` },
                   { label: '塔层折扣', value: towerDiscountEntries.length ? `${towerDiscountEntries.length} 层可用` : '暂无' },
-                  { label: '狩猎安排', value: toText(deepGet(snapshot, 'activeChar.hunt_request.killed_age', 0), '0') === '0' ? '暂无' : '待结算' },
-                  { label: '深渊击杀', value: toText(deepGet(snapshot, 'activeChar.abyss_kill_request.kill_tier', '无'), '无') !== '无' ? `${toText(deepGet(snapshot, 'activeChar.abyss_kill_request.kill_tier', '无'), '无')} × ${toNumber(deepGet(snapshot, 'activeChar.abyss_kill_request.quantity', 1), 1)}` : '暂无待结算' },
+                  { label: '现实狩猎待处理', value: huntPendingText },
+                  { label: '深渊战果待处理', value: abyssPendingText },
                   { label: '当前战功', value: formatNumber(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0)) },
                   { label: '风险评估', value: snapshot.pendingIntelCount ? `${snapshot.worldAlert} / 线索 +${snapshot.pendingIntelImpact}` : snapshot.worldAlert }
                 ])}
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">现实狩猎操作台</div><span class="state-tag ${toNumber(huntRequest && huntRequest.killed_age, 0) > 0 ? 'warn' : 'live'}">${htmlEscape(toNumber(huntRequest && huntRequest.killed_age, 0) > 0 ? `待结算 / ${toNumber(huntRequest && huntRequest.killed_age, 0)}年` : '可录入')}</span></div>
-                <div class="intel-layout">
-                  <div class="intel-card request-console-card">
-                    <b>录入现实魂兽狩猎结果</b>
-                    <span>${htmlEscape('该入口直接驱动 MVU.js 的 hunt_request 结算：魂环、魂骨、兽潮、世界偏差都会按原规则处理。')}</span>
-                    <div class="request-console-grid">
-                      <div class="request-console-row">
-                        <input type="number" min="1" class="request-console-input" data-trial-input="hunt-age" value="${escapeHtmlAttr(String(huntAgeDefault))}" placeholder="击杀年限" />
-                        <select class="request-console-input" data-trial-input="hunt-ferocious">
-                          <option value="false" ${!huntFerociousDefault ? 'selected' : ''}>常规魂兽</option>
-                          <option value="true" ${huntFerociousDefault ? 'selected' : ''}>十万年 / 凶兽级</option>
-                        </select>
-                        <button type="button" class="relation-action-btn trial-action-btn" data-trial-action="hunt">提交狩猎结算</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">深渊战功上报台</div><span class="state-tag ${toText(abyssKillRequest && abyssKillRequest.kill_tier, '无') !== '无' ? 'warn' : 'live'}">${htmlEscape(toText(abyssKillRequest && abyssKillRequest.kill_tier, '无') !== '无' ? `${toText(abyssKillRequest && abyssKillRequest.kill_tier, '无')} × ${toNumber(abyssKillRequest && abyssKillRequest.quantity, 1)}` : '可录入')}</span></div>
-                <div class="intel-layout">
-                  <div class="intel-card request-console-card">
-                    <b>录入深渊战果</b>
-                    <span>${htmlEscape('该入口直接驱动 MVU.js 的 abyss_kill_request 结算，按击杀级别发放战功。')}</span>
-                    <div class="request-console-grid">
-                      <div class="request-console-row">
-                        <select class="request-console-input" data-trial-input="abyss-tier">
-                          ${['低阶生物', '中阶生物', '高阶生物', '深渊王者'].map(tier => `<option value="${tier}" ${tier === abyssTierDefault ? 'selected' : ''}>${tier}</option>`).join('')}
-                        </select>
-                        <input type="number" min="1" class="request-console-input" data-trial-input="abyss-qty" value="${escapeHtmlAttr(String(abyssQuantityDefault))}" placeholder="击杀数量" />
-                        <button type="button" class="relation-action-btn trial-action-btn" data-trial-action="abyss">提交战功上报</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <div class="archive-card-head"><div class="archive-card-title">内部结算状态</div><span class="state-tag ${huntPendingAge > 0 || abyssKillTier !== '无' ? 'warn' : 'live'}">${htmlEscape(huntPendingAge > 0 || abyssKillTier !== '无' ? '存在待处理 request' : '当前无待处理')}</span></div>
+                ${makeTileGrid([
+                  { label: '现实狩猎', value: huntPendingText },
+                  { label: '深渊战果', value: abyssPendingText },
+                  { label: '处理方式', value: '系统内部 request 自动结算' },
+                  { label: '玩家操作', value: '无需在统计页手动提交' }
+                ])}
               </div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">魂灵塔 / 升灵台态势</div><span class="state-tag warn">只读</span></div>
                 <div class="intel-layout">
                   <div class="intel-card">
                     <b>当前状态</b>
-                    <span>${htmlEscape('MVU.js 当前仅提供 tower_records 展示能力，尚未实现 tower_request 的实际结算逻辑，因此此处先保留只读态势，不提供伪交互按钮。')}</span>
+                    <span>${htmlEscape('MVU.js 当前仅提供 tower_records 展示能力，尚未实现完整 tower_request 试炼流程，因此此处仅展示历史记录、折扣资格与门票态势。')}</span>
                   </div>
                 </div>
                 ${makeTimelineStack(ticketCards)}
