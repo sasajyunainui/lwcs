@@ -1607,7 +1607,7 @@
             .concat(mainRole && mainRole !== '未知' ? [mainRole] : [])
         )).filter(Boolean).slice(0, 8);
 
-        const cleanSkillName = normalizeSkillUiText(rawName.replace(/\[后台推演\]\s*/g, ''), '未命名魂技');
+        const cleanSkillName = normalizeSkillUiText((skill && skill['魂技名']) || (skill && skill['name']) || rawName.replace(/\[后台推演\]\s*/g, ''), '未命名魂技');
 
         return {
           name: cleanSkillName,
@@ -3598,17 +3598,8 @@
             const skillsHtml = parsedSkills.map(skill => `
               <div class="ring-hover-skill" style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05); margin-top:8px; padding:8px; border-radius:8px;">
                 <b style="color:var(--gold);font-size:11px;display:block;margin-bottom:6px;">${skill.name}</b>
-                <div class="ring-hover-meta" style="margin-top:0;">
-                  <div class="ring-hover-meta-row"><em>技能类型</em><strong>${skill.type || '未知'}</strong></div>
-                  <div class="ring-hover-meta-row"><em>主定位</em><strong>${skill.mainRole || '未知'}</strong></div>
-                  <div class="ring-hover-meta-row"><em>作用对象</em><strong>${skill.target || '未知'}</strong></div>
-                  <div class="ring-hover-meta-row"><em>加成属性</em><strong>${skill.bonus || '未知'}</strong></div>
-                  <div class="ring-hover-meta-row"><em>消耗</em><strong>${skill.cost || '未知'}</strong></div>
-                </div>
                 <div class="ring-hover-copy"><em>画面描述</em><span>${skill.visualDesc || '未知'}</span></div>
                 <div class="ring-hover-copy"><em>效果描述</em><span>${skill.effectDesc || '未知'}</span></div>
-                <div class="ring-hover-copy"><em>效果数组</em><span>${skill.effectSummary || '未知'}</span></div>
-                <div class="ring-hover-tags" style="margin-top:6px;">${(skill.tags || []).map(tag => `<span class="tag-chip">${tag}</span>`).join('')}</div>
               </div>
             `).join('');
             descText += skillsHtml;
@@ -3682,7 +3673,7 @@
             type: `${toText(item && item['类型'], '物品')} / ${toText(item && item['品阶'], toText(item && item['品质'], '普通'))}`,
             rarity: toText(item && (item['品质'] || item['品阶']), '普通'),
             source: toText(item && item['来源技能'], toText(item && item['绑定者'], '背包持有')),
-            usage: toText(item && item['描述'], '暂无属性说明'),
+            usage: toText(item && item['描述'], '暂无说明'),
             canEquip: !!(window.EquipmentManager && window.EquipmentManager.parseEquipSlot(name, item)),
             tags: [
               toText(item && item['类型'], ''),
@@ -3714,7 +3705,7 @@
                   desc: [
                     `品质 ${toText(item && (item['品质'] || item['品阶']), '普通')}`,
                     `触发 ${toText(item && item['触发方式'], /食物/.test(toText(item && item['类型'], '')) ? '食用' : '常规')}`,
-                    `期限 ${resolveExpiryUiText(item, Number(deepGet(item, '有效期至tick', 0)) > 0 ? '临时物品' : '无期限')}`,
+                    `有效期 ${resolveExpiryUiText(item, Number(deepGet(item, '有效期至tick', 0)) > 0 ? '临时物品' : '无期限')}`,
                     `来源 ${toText(item && item['来源技能'], toText(item && item['绑定者'], '背包持有'))}`,
                     `标签 ${(Array.isArray(item && item['标签']) ? item['标签'].slice(0, 3).join(' / ') : '无') || '无'}`,
                     `耐久 ${toText(deepGet(item, ['耐久', '当前'], 0), 0)}/${toText(deepGet(item, ['耐久', '上限'], 0), 0)}`,
@@ -3839,18 +3830,8 @@
                 <div class="archive-card-head"><div class="archive-card-title">当前封印能力</div></div>
                 <div class="ability-detail-card">
                   <div class="ability-detail-title">${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].name : '暂无已固化能力')}</div>
-                  <div class="ring-hover-meta">
-                    <div class="ring-hover-meta-row"><em>技能类型</em><strong>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].type : '未知')}</strong></div>
-                    <div class="ring-hover-meta-row"><em>主定位</em><strong>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].mainRole : '未知')}</strong></div>
-                    <div class="ring-hover-meta-row"><em>作用对象</em><strong>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].target : '未知')}</strong></div>
-                    <div class="ring-hover-meta-row"><em>加成属性</em><strong>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].bonus : '未知')}</strong></div>
-                    <div class="ring-hover-meta-row"><em>消耗</em><strong>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].cost : '未知')}</strong></div>
-                    <div class="ring-hover-meta-row"><em>当前状态</em><strong>已固化</strong></div>
-                  </div>
                   <div class="ring-hover-copy"><em>画面描述</em><span>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].visualDesc : '未知')}</span></div>
                   <div class="ring-hover-copy"><em>效果描述</em><span>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].effectDesc : '未知')}</span></div>
-                  <div class="ring-hover-copy"><em>效果数组</em><span>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].effectSummary : '未知')}</span></div>
-                  <div class="ring-hover-tags">${(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].tags : ['待觉醒']).map(tag => `<span class="ring-hover-chip">${htmlEscape(tag)}</span>`).join('')}</div>
                 </div>
               </div>
               ${snapshot.bloodline.rings.length ? `
@@ -4685,17 +4666,8 @@
       const skills = (ring.skills || []).map(skill => `
         <div class="ring-hover-skill">
           <b>${skill.name}</b>
-          <div class="ring-hover-meta">
-            <div class="ring-hover-meta-row"><em>技能类型</em><strong>${skill.type || '未知'}</strong></div>
-            <div class="ring-hover-meta-row"><em>主定位</em><strong>${skill.mainRole || '未知'}</strong></div>
-            <div class="ring-hover-meta-row"><em>作用对象</em><strong>${skill.target || '未知'}</strong></div>
-            <div class="ring-hover-meta-row"><em>加成属性</em><strong>${skill.bonus || '未知'}</strong></div>
-            <div class="ring-hover-meta-row"><em>消耗</em><strong>${skill.cost || '未知'}</strong></div>
-          </div>
           <div class="ring-hover-copy"><em>画面描述</em><span>${skill.visualDesc || '未知'}</span></div>
           <div class="ring-hover-copy"><em>效果描述</em><span>${skill.effectDesc || '未知'}</span></div>
-          <div class="ring-hover-copy"><em>效果数组</em><span>${skill.effectSummary || '未知'}</span></div>
-          <div class="ring-hover-tags">${(skill.tags || []).map(tag => `<span class="ring-hover-chip">${tag}</span>`).join('')}</div>
         </div>
       `).join('');
 
@@ -4869,7 +4841,7 @@
             <div class="meta-item"><b>触发方式</b><span>${cell.dataset.hoverTrigger || '--'}</span></div>
             <div class="meta-item"><b>有效期至</b><span>${cell.dataset.hoverExpiry || '--'}</span></div>
             <div class="meta-item"><b>来源</b><span>${cell.dataset.hoverSource || '--'}</span></div>
-            <div class="meta-item"><b>用途</b><span>${cell.dataset.hoverUsage || '--'}</span></div>
+            <div class="meta-item"><b>说明</b><span>${cell.dataset.hoverUsage || '--'}</span></div>
           </div>
           <div class="inventory-hover-tags">${tags.filter(Boolean).map(tag => `<span class="tag-chip">${tag}</span>`).join('')}</div>
           ${cell.dataset.hoverEquip === 'true' ? `
