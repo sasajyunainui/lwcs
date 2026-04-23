@@ -1226,6 +1226,10 @@ class ProfessionUIComponent {
       { op: 'replace', path: '/sys/fsr', value: Number.isFinite(Number(successRate)) ? Number(successRate) : 0 }
     ];
   }
+  buildFrontEndStateBlock(analysis, patchOps) {
+    const safeAnalysis = String(analysis || 'Profession action prepared.').trim();
+    return `<UpdateVariable>\n<Analysis>${safeAnalysis}</Analysis>\n<JSONPatch>\n${JSON.stringify(patchOps || [], null, 2)}\n</JSONPatch>\n</UpdateVariable>`;
+  }
   getForgeSingleQuality(tier, runtime) {
     const unlockLv = this.getForgeUnlockLevel(tier);
     let q = 1.0;
@@ -1321,7 +1325,7 @@ class ProfessionUIComponent {
     const officialLocationName = this.getOfficialCommissionLocation(cfg.jobName);
     const actionLead = commissionCtx.isOfficial ? `我要在${officialLocationName}办理官方代工，委托完成【${targetName}】的${cfg.displayName}` : (commissionCtx.isPrivate ? `我要委托【${commissionCtx.executorName}】代工${cfg.displayName}，目标是【${targetName}】` : `我要进行${cfg.displayName}，目标是【${targetName}】`);
     const consumptionText = commissionCtx.isCommission ? `本次代工费：${this.formatFedCoin(commissionCtx.commissionFee)}。材料仍由委托人提供。` : `本次消耗：${this.formatResourceCost(costs)}。`;
-    const sysPrompt = `${PROF_HIDDEN_ARBITRATION_NARRATION_RULES}\n\n[执行来源]\n本次执行者：${commissionCtx.executorName}。${commissionCtx.note}\n\n${resultLog}\n\n[副职业资源消耗]\n${consumptionText}\n[MVU变量更新数据]\n以下为本次副职业结算的完整 MVU 更新，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。\n<UpdateVariable>\n<Analysis>Forge executed.</Analysis>\n<JSONPatch>\n${JSON.stringify(patchOps, null, 2)}\n</JSONPatch>\n</UpdateVariable>`;
+    const sysPrompt = `${PROF_HIDDEN_ARBITRATION_NARRATION_RULES}\n\n[执行来源]\n本次执行者：${commissionCtx.executorName}。${commissionCtx.note}\n\n${resultLog}\n\n[副职业资源消耗]\n${consumptionText}\n${this.buildFrontEndStateBlock('Forge executed.', patchOps)}`;
     this.submitAction(`${actionLead}，材料为：${materialText}。`, sysPrompt, 'prof_forge');
   }
 
@@ -1398,7 +1402,7 @@ class ProfessionUIComponent {
     const officialLocationName = this.getOfficialCommissionLocation(cfg.jobName);
     const actionLead = commissionCtx.isOfficial ? `我要在${officialLocationName}办理官方代工，委托执行${cfg.displayName}，目标是【${targetName}】` : (commissionCtx.isPrivate ? `我要委托【${commissionCtx.executorName}】代工${cfg.displayName}，目标是【${targetName}】` : `我要进行${cfg.displayName}，目标是【${targetName}】`);
     const consumptionText = commissionCtx.isCommission ? `本次代工费：${this.formatFedCoin(commissionCtx.commissionFee)}。材料与目标物仍由委托人提供。` : `本次消耗：${this.formatResourceCost(costs)}。`;
-    const sysPrompt = `${PROF_HIDDEN_ARBITRATION_NARRATION_RULES}\n\n[执行来源]\n本次执行者：${commissionCtx.executorName}。${commissionCtx.note}\n\n${resultLog}\n\n[副职业资源消耗]\n${consumptionText}\n[MVU变量更新数据]\n以下为本次副职业结算的完整 MVU 更新，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。\n<UpdateVariable>\n<Analysis>Generic profession executed.</Analysis>\n<JSONPatch>\n${JSON.stringify(patchOps, null, 2)}\n</JSONPatch>\n</UpdateVariable>`;
+    const sysPrompt = `${PROF_HIDDEN_ARBITRATION_NARRATION_RULES}\n\n[执行来源]\n本次执行者：${commissionCtx.executorName}。${commissionCtx.note}\n\n${resultLog}\n\n[副职业资源消耗]\n${consumptionText}\n${this.buildFrontEndStateBlock('Generic profession executed.', patchOps)}`;
     this.submitAction(`${actionLead}，材料：${materialText}。`, sysPrompt, `prof_${cfg.mode}`);
   }
 }

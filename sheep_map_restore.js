@@ -2821,6 +2821,7 @@
             <button type='button' class='map-tool-btn' data-map-control='zoom-in' title='放大'>+</button>
             <button type='button' class='map-tool-btn' data-map-control='zoom-out' title='缩小'>−</button>
             <button type='button' class='map-tool-btn' data-map-control='back' title='返回上级预览'>↶</button>
+            <button type='button' class='map-tool-btn' data-map-control='focus' title='Current location'>◎</button>
             <button type='button' class='map-tool-btn' data-map-control='reset' title='全图'>⌂</button>
           </div>
           <div class='map-mini-panel'>
@@ -2951,7 +2952,9 @@
     hasLoaded: false,
     infoPanelMode: 'follow',
     uiRefCache: new Map(),
+    scopedUiRefCache: new WeakMap(),
     lastRefreshSignature: '',
+    lastLayoutSignature: null,
     syncStatus: '待同步',
     syncDetail: '',
     lastSyncAt: 0
@@ -3081,74 +3084,164 @@
     return null;
   }
 
-  function bindMvuUpdates(handler) {
-    const host = getMvuHost();
-    const eventName = host && host.events ? host.events.VARIABLE_UPDATE_ENDED : '';
-    const POLL_KEY = '__sheepMapPollTimer';
-    const POLL_VIS_KEY = '__sheepMapPollVisibilityBound';
-    const POLL_FOCUS_KEY = '__sheepMapPollFocusBound';
-    let bound = false;
+  function getSharedMvuRefreshHub() {
+    const hubKey = '__dragonUiSharedMvuRefreshHub';
+    const existingHub = window[hubKey];
+    if (existingHub && typeof existingHub.subscribe === 'function' && typeof existingHub.trigger === 'function') {
+      return existingHub;
+    }
 
+    const subscribers = new Map();
+    const POLL_KEY = '__dragonUiSharedRefreshPollTimer';
+    const POLL_VIS_KEY = '__dragonUiSharedRefreshPollVisibilityBound';
+    const POLL_FOCUS_KEY = '__dragonUiSharedRefreshPollFocusBound';
+    let bindingsReady = false;
     let running = false;
-    const safeHandler = async (...args) => {
-      if (running) return;
-      running = true;
-      try {
-        await Promise.resolve(handler(...args));
-      } catch (error) {
-        console.error('sheep_map_restore polling refresh failed', error);
-      } finally {
-        running = false;
+    let pending = false;
+    let lastTriggerArgs = [];
+
+    const getAllVariablesDirect = async () => {
+      const host = getMvuHost();
+      if (host && typeof host.getAllVariables === 'function') {
+        return await Promise.resolve(host.getAllVariables());
+      }
+      if (window.getAllVariables && typeof window.getAllVariables === 'function') {
+        return await Promise.resolve(window.getAllVariables());
+      }
+      return null;
+    };
+
+    const schedulePendingDispatch = () => {
+      const runner = () => hub.dispatch(...lastTriggerArgs);
+      if (typeof queueMicrotask === 'function') {
+        queueMicrotask(runner);
+        return;
+      }
+      Promise.resolve().then(runner);
+    };
+
+    const hub = {
+      async getAllVariables() {
+        return await getAllVariablesDirect();
+      },
+
+      async dispatch(...args) {
+        lastTriggerArgs = args;
+        if (running) {
+          pending = true;
+          return;
+        }
+        running = true;
+        try {
+          const vars = await getAllVariablesDirect();
+          const entries = Array.from(subscribers.entries());
+          for (const [subscriberId, subscriber] of entries) {
+            try {
+              await Promise.resolve(subscriber.handler(vars, ...args));
+            } catch (error) {
+              console.warn(`[sheep_map_restore] shared refresh subscriber failed: ${subscriberId}`, error);
+            }
+          }
+        } finally {
+          running = false;
+          if (pending) {
+            pending = false;
+            schedulePendingDispatch();
+          }
+        }
+      },
+
+      trigger(...args) {
+        return hub.dispatch(...args);
+      },
+
+      ensureBindings() {
+        if (bindingsReady) return;
+        bindingsReady = true;
+
+        const host = getMvuHost();
+        const eventName = host && host.events ? host.events.VARIABLE_UPDATE_ENDED : '';
+        let bound = false;
+        const triggerFromEvent = (...args) => hub.trigger({ source: 'event', eventName }, ...args);
+
+        if (host && eventName && typeof host.on === 'function') {
+          try {
+            host.on(eventName, triggerFromEvent);
+            bound = true;
+          } catch (_) {}
+        }
+
+        if (host && eventName && typeof host.addEventListener === 'function') {
+          try {
+            host.addEventListener(eventName, triggerFromEvent);
+            bound = true;
+          } catch (_) {}
+        }
+
+        if (eventName) {
+          try {
+            window.addEventListener(eventName, triggerFromEvent);
+            bound = true;
+          } catch (_) {}
+          try {
+            if (window.top && window.top !== window && typeof window.top.addEventListener === 'function') {
+              window.top.addEventListener(eventName, triggerFromEvent);
+              bound = true;
+            }
+          } catch (_) {}
+        }
+
+        if (!window[POLL_KEY]) {
+          window[POLL_KEY] = window.setInterval(() => {
+            hub.trigger({ source: 'poll' });
+          }, 1500);
+        }
+
+        if (!window[POLL_VIS_KEY]) {
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') hub.trigger({ source: 'visibility' });
+          });
+          window[POLL_VIS_KEY] = true;
+        }
+
+        if (!window[POLL_FOCUS_KEY]) {
+          window.addEventListener('focus', () => {
+            hub.trigger({ source: 'focus' });
+          });
+          window[POLL_FOCUS_KEY] = true;
+        }
+
+        if (!bound && window.__MVU_DEBUG__) {
+          console.info('sheep_map_restore: shared polling fallback enabled.');
+        }
+      },
+
+      subscribe(subscriberId, handler, options = {}) {
+        if (!subscriberId || typeof handler !== 'function') return () => {};
+        subscribers.set(subscriberId, { handler });
+        hub.ensureBindings();
+        if (options.immediate !== false) {
+          hub.trigger({ source: 'subscribe', subscriberId });
+        }
+        return () => {
+          subscribers.delete(subscriberId);
+        };
       }
     };
 
-    if (host && eventName && typeof host.on === 'function') {
+    window[hubKey] = hub;
+    return hub;
+  }
+
+  function bindMvuUpdates(handler) {
+    const hub = getSharedMvuRefreshHub();
+    return hub.subscribe('dragon-ui-sheep-map', async (vars, ...args) => {
       try {
-        host.on(eventName, safeHandler);
-        bound = true;
-      } catch (_) {}
-    }
-
-    if (host && eventName && typeof host.addEventListener === 'function') {
-      try {
-        host.addEventListener(eventName, safeHandler);
-        bound = true;
-      } catch (_) {}
-    }
-
-    if (eventName) {
-      try {
-        window.addEventListener(eventName, safeHandler);
-        bound = true;
-      } catch (_) {}
-      try {
-        if (window.top && window.top !== window && typeof window.top.addEventListener === 'function') {
-          window.top.addEventListener(eventName, safeHandler);
-          bound = true;
-        }
-      } catch (_) {}
-    }
-
-    if (!window[POLL_KEY]) {
-      window[POLL_KEY] = window.setInterval(safeHandler, 1500);
-    }
-
-    if (!window[POLL_VIS_KEY]) {
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') safeHandler();
-      });
-      window[POLL_VIS_KEY] = true;
-    }
-
-    if (!window[POLL_FOCUS_KEY]) {
-      window.addEventListener('focus', safeHandler);
-      window[POLL_FOCUS_KEY] = true;
-    }
-
-    safeHandler();
-    if (!bound && window.__MVU_DEBUG__) {
-      console.info('sheep_map_restore: MVU update event not bound; polling fallback enabled.');
-    }
+        await Promise.resolve(handler(vars, ...args));
+      } catch (error) {
+        console.error('sheep_map_restore polling refresh failed', error);
+      }
+    });
   }
 
   function resolveRootData(vars) {
@@ -3340,6 +3433,122 @@
 
   function getNodeServiceLabel(service = '') {
     return NODE_SERVICE_LABELS[toText(service, '')] || toText(service, '服务');
+  }
+
+  function getCultivationTalentRate(tier = '') {
+    return {
+      绝世妖孽: 4.5,
+      顶级天才: 3.5,
+      天才: 2.5,
+      优秀: 1.5,
+      正常: 1.0,
+      劣等: 0.5,
+    }[toText(tier, '正常')] || 1.0;
+  }
+
+  function formatRoutineDeltaValue(value) {
+    const num = Number(value || 0);
+    if (!Number.isFinite(num)) return '0';
+    if (Math.abs(num - Math.round(num)) < 0.0001) return String(Math.round(num));
+    return num.toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+  }
+
+  function buildRoutineActionPreview(snapshot, action = '') {
+    const safeAction = toText(action, '');
+    const activeChar = deepGet(snapshot, 'activeChar', {}) || {};
+    const stat = deepGet(activeChar, 'stat', {}) || {};
+    const multiplier = Math.max(0, toNumber(deepGet(stat, 'multiplier.cultivation', 1), 1));
+    const currentMen = Math.max(0, toNumber(stat.men, 0));
+    const menMax = Math.max(0, toNumber(stat.men_max, 0));
+    const currentVit = Math.max(0, toNumber(stat.vit, 0));
+    const vitMax = Math.max(0, toNumber(stat.vit_max, 0));
+    const currentSp = Math.max(0, toNumber(stat.sp, 0));
+    const spMax = Math.max(0, toNumber(stat.sp_max, 0));
+    const age = Math.max(0, toNumber(stat.age, 0));
+    const coreCount = Math.max(0, toNumber(deepGet(activeChar, 'energy.core.数量', 0), 0));
+    const hasXuanTianGong = !!deepGet(activeChar, 'arts.玄天功');
+    const hasPurpleDemonEye = !!deepGet(activeChar, 'arts.紫极魔瞳');
+
+    if (safeAction === 'meditate') {
+      const spRate = coreCount === 0 ? 0.05 : coreCount === 1 ? 0.2 : coreCount === 2 ? 0.3 : 0.4;
+      const menGain = Math.max(0, Math.min(menMax, Math.floor(currentMen + menMax * 0.008 * 6)) - currentMen);
+      const vitGain = Math.max(0, Math.min(vitMax, Math.floor(currentVit + vitMax * 0.005 * 6)) - currentVit);
+      const spGain = Math.max(0, Math.min(spMax, Math.floor(currentSp + spMax * spRate * 6)) - currentSp);
+      let spMaxGain = (0.2 + coreCount * 0.2) * getCultivationTalentRate(stat.talent_tier) * multiplier;
+      if (hasXuanTianGong) spMaxGain = Math.floor(spMaxGain * 1.1);
+      if (toNumber(stat.lv, 0) >= 20 && toNumber(stat.lv, 0) < 30) {
+        spMaxGain = Math.floor(spMaxGain * 0.4);
+      } else if (toNumber(stat.lv, 0) >= 30 && toNumber(stat.lv, 0) < 40) {
+        spMaxGain = Math.floor(spMaxGain * 0.9);
+      } else if (toNumber(stat.lv, 0) >= 40 && toNumber(stat.lv, 0) < 60) {
+        spMaxGain = Math.floor(spMaxGain * 0.6);
+      } else {
+        spMaxGain = Math.floor(spMaxGain);
+      }
+      return {
+        slotReason: `单次 1小时（6 tick） · 精神+${formatRoutineDeltaValue(menGain)} / 体力+${formatRoutineDeltaValue(vitGain)} / 魂力+${formatRoutineDeltaValue(spGain)} / 魂力上限+${formatRoutineDeltaValue(spMaxGain)}`,
+        detailText: `本次预计恢复精神 ${formatRoutineDeltaValue(menGain)}、体力 ${formatRoutineDeltaValue(vitGain)}、魂力 ${formatRoutineDeltaValue(spGain)}，并推动魂力上限成长 ${formatRoutineDeltaValue(spMaxGain)}。`,
+        logText: `角色进行了约 1 小时的冥想，本次预计恢复精神 ${formatRoutineDeltaValue(menGain)}、体力 ${formatRoutineDeltaValue(vitGain)}、魂力 ${formatRoutineDeltaValue(spGain)}，并让魂力上限成长 ${formatRoutineDeltaValue(spMaxGain)}。`,
+      };
+    }
+
+    if (safeAction === 'train_body') {
+      const requiredVit = vitMax * 0.3;
+      const canTrain = currentVit >= requiredVit;
+      const gain = 0.05 * multiplier;
+      return {
+        slotReason: canTrain
+          ? `单次 1小时（6 tick） · 力/防/敏/体训练加成各 +${formatRoutineDeltaValue(gain)}`
+          : `单次 1小时（6 tick） · 需要体力 ${formatRoutineDeltaValue(requiredVit)} 以上`,
+        detailText: canTrain
+          ? `需要体力至少 ${formatRoutineDeltaValue(requiredVit)}。完成后力量、防御、敏捷、体魄训练加成各 +${formatRoutineDeltaValue(gain)}。`
+          : `当前体力 ${formatRoutineDeltaValue(currentVit)}，不足以完成一整轮肉体训练；至少需要 ${formatRoutineDeltaValue(requiredVit)}。`,
+        logText: canTrain
+          ? `角色进行了约 1 小时的肉体训练，消耗了高强度体能，并使力量、防御、敏捷、体魄训练加成各提升 ${formatRoutineDeltaValue(gain)}。`
+          : `角色尝试进行肉体训练，但当前体力只有 ${formatRoutineDeltaValue(currentVit)}，不足以完成一整轮训练。`,
+      };
+    }
+
+    if (safeAction === 'train_mind') {
+      const requiredMen = menMax * 0.1;
+      const canTrain = currentMen > requiredMen;
+      let gain = age <= 40 ? 0.02 * multiplier : 0;
+      if (hasPurpleDemonEye) gain = Math.floor(gain * 1.1);
+      return {
+        slotReason: canTrain
+          ? `单次 1小时（6 tick） · 精神上限训练加成 +${formatRoutineDeltaValue(gain)}`
+          : `单次 1小时（6 tick） · 需要精神高于 ${formatRoutineDeltaValue(requiredMen)}`,
+        detailText: canTrain
+          ? `需要精神保持高于 ${formatRoutineDeltaValue(requiredMen)}。完成后精神上限训练加成 +${formatRoutineDeltaValue(gain)}。`
+          : `当前精神 ${formatRoutineDeltaValue(currentMen)}，不足以完成本轮精神训练；需要高于 ${formatRoutineDeltaValue(requiredMen)}。`,
+        logText: canTrain
+          ? `角色进行了约 1 小时的精神训练，消耗了大量精神力，并使精神上限训练加成提升 ${formatRoutineDeltaValue(gain)}。`
+          : `角色尝试进行精神训练，但当前精神只有 ${formatRoutineDeltaValue(currentMen)}，不足以支撑完整训练。`,
+      };
+    }
+
+    if (safeAction === 'rest') {
+      const spGain = Math.max(0, Math.min(spMax, Math.floor(currentSp + spMax * 0.01 * 6)) - currentSp);
+      return {
+        slotReason: `单次 1小时（6 tick） · 魂力+${formatRoutineDeltaValue(spGain)}`,
+        detailText: `推进 1 小时时间。当前规则下主要恢复魂力 ${formatRoutineDeltaValue(spGain)}。`,
+        logText: `角色进行了约 1 小时的休整，本次主要恢复魂力 ${formatRoutineDeltaValue(spGain)}。`,
+      };
+    }
+
+    if (safeAction === 'study') {
+      return {
+        slotReason: '单次 1小时（6 tick） · 阅读/学习推进',
+        detailText: '推进 1 小时时间，适合图书馆与学术节点，不直接追加训练加成。',
+        logText: '角色进行了约 1 小时的研读与学习，主要推进阅读与知识积累类内容。',
+      };
+    }
+
+    return {
+      slotReason: '单次 1小时（6 tick）',
+      detailText: '按 1 小时推进时间。',
+      logText: `角色在当前节点完成了【${getNodeInteractionLabel(safeAction)}】动作。`,
+    };
   }
 
   function formatBehaviorLabels(values, formatter, fallback = '无') {
@@ -3610,6 +3819,71 @@
       : DEFAULT_MAP_ZOOM;
   }
 
+  function getLocationPathSegments(loc = '') {
+    return toText(loc, '')
+      .replace(/^斗罗大陆-/, '')
+      .replace(/^斗灵大陆-/, '')
+      .split('-')
+      .map(segment => toText(segment, '').trim())
+      .filter(Boolean);
+  }
+
+  function collectVisibleLocationNames(snapshotLike) {
+    const names = new Set();
+    const pushName = value => {
+      const name = toText(value, '').trim();
+      if (name) names.add(name);
+    };
+    const collect = value => {
+      if (!value) return;
+      if (Array.isArray(value)) {
+        value.forEach(entry => {
+          if (Array.isArray(entry)) {
+            pushName(entry[0]);
+            return;
+          }
+          if (entry && typeof entry === 'object') pushName(entry.name || entry.id);
+        });
+        return;
+      }
+      if (typeof value === 'object') Object.keys(value).forEach(pushName);
+    };
+    collect(snapshotLike && snapshotLike.visibleNodes);
+    collect(snapshotLike && snapshotLike.visibleDynamics);
+    collect(snapshotLike && snapshotLike.items);
+    return names;
+  }
+
+  function resolveVisibleLocationAnchor(snapshotLike, currentLocFull) {
+    const fullLoc = toText(currentLocFull, '斗罗大陆-未知地点');
+    const pathSegments = getLocationPathSegments(fullLoc);
+    const leafName = pathSegments[pathSegments.length - 1] || '未知地点';
+    const previewMeta = snapshotLike && snapshotLike.previewMeta
+      ? snapshotLike.previewMeta
+      : deepGet(snapshotLike, 'preview_meta', null);
+    const previewAnchorName = toText(previewMeta && previewMeta.anchor_name, '');
+    const currentWithinView = !previewAnchorName || pathSegments.includes(previewAnchorName);
+    const visibleNames = currentWithinView ? collectVisibleLocationNames(snapshotLike) : new Set();
+    let anchorName = '';
+    for (let index = pathSegments.length - 1; index >= 0; index -= 1) {
+      const segment = pathSegments[index];
+      if (segment && visibleNames.has(segment)) {
+        anchorName = segment;
+        break;
+      }
+    }
+    if (!anchorName && currentWithinView && previewAnchorName && visibleNames.has(previewAnchorName)) {
+      anchorName = previewAnchorName;
+    }
+    return {
+      fullLoc,
+      pathSegments,
+      leafName,
+      anchorName,
+      currentWithinView
+    };
+  }
+
   function buildMapSnapshot(rootData) {
     const [activeName, activeChar] = resolveActiveCharacter(rootData || {});
     const characterIndexPayload = buildCharactersByLocationIndex(rootData, activeName);
@@ -3620,8 +3894,6 @@
     const isPreview = payload && payload.current_map_id && payload.current_map_id !== 'map_douluo_world';
     const rootData = isPreview ? (payload.rootData || sourceRootData || mapState.baseSnapshot?.rootData || {}) : (sourceRootData || payload || {});
     const currentLocFull = toText(deepGet(activeChar, 'status.loc', '斗罗大陆-未知地点'), '斗罗大陆-未知地点');
-    const pathSegments = currentLocFull.split('-').filter(Boolean);
-    const currentLocName = pathSegments[pathSegments.length - 1] || '未知地点';
     const currentMapId = isPreview ? payload.current_map_id : 'map_douluo_world';
     const characterIndexPayload = cachedIndexes && cachedIndexes.charactersByLoc instanceof Map
       ? cachedIndexes
@@ -3650,17 +3922,29 @@
       x: toNumber(deepGet(activeChar, 'status.current_x', -1), NaN),
       y: toNumber(deepGet(activeChar, 'status.current_y', -1), NaN)
     };
-    const currentFocus = { loc: currentLocName };
-    const currentFocusName = currentLocName;
+    const currentAnchorMeta = resolveVisibleLocationAnchor({
+      currentMapId,
+      visibleNodes,
+      visibleDynamics,
+      previewMeta: payload && payload.preview_meta ? payload.preview_meta : null
+    }, currentLocFull);
+    const currentLocName = currentAnchorMeta.leafName;
+    const currentFocusName = currentAnchorMeta.anchorName;
+    const currentFocus = { loc: currentFocusName || (currentAnchorMeta.currentWithinView ? currentLocName : '') };
+    const normalizedCurrentFocusCoord = currentAnchorMeta.currentWithinView
+      ? currentFocusCoord
+      : { x: NaN, y: NaN };
 
     const snapshot = {
       rootData,
       activeName,
       activeChar,
       currentLoc: currentLocName,
+      currentLocFull,
       currentFocus,
       currentFocusName,
-      currentFocusCoord,
+      currentFocusCoord: normalizedCurrentFocusCoord,
+      currentWithinView: currentAnchorMeta.currentWithinView,
       coordSystem: resolveSnapshotCoordSystem(currentMapId, 'world'),
       currentMapId,
       currentZoomHint: 0,
@@ -3696,7 +3980,7 @@
         ].join(':')).join('|')
       : '';
     return [
-      toText(snapshot.currentMapId, ''), toText(snapshot.mapLevel, ''), toText(snapshot.currentLoc, ''), toText(snapshot.currentFocusName, ''),
+      toText(snapshot.currentMapId, ''), toText(snapshot.mapLevel, ''), toText(snapshot.currentLocFull, snapshot.currentLoc), toText(snapshot.currentFocusName, ''),
       Number.isFinite(focusCoord.x) ? roundCoord(focusCoord.x) : 'NaN', Number.isFinite(focusCoord.y) ? roundCoord(focusCoord.y) : 'NaN',
       previewTrailToken, snapshot.characterDigest || '', itemDigest
     ].join('¦');
@@ -3741,9 +4025,11 @@
         equip: { armor: {}, mech: {} }
       },
       currentLoc: '',
+      currentLocFull: '',
       currentFocus: { loc: '', x: NaN, y: NaN, coord_system: MAP_COORD_SYSTEM_IMAGE },
       currentFocusName: '',
       currentFocusCoord: { x: NaN, y: NaN },
+      currentWithinView: true,
       currentMapId: 'map_douluo_world',
       currentZoomHint: 0,
       availableChildMaps: {},
@@ -3804,30 +4090,46 @@
     return null;
   }
 
+  function getDynamicEntriesByParent(dynamicSource, parentName) {
+    const source = dynamicSource && typeof dynamicSource === 'object' ? dynamicSource : {};
+    const target = toText(parentName, '').trim();
+    if (!target) return [];
+    return Object.entries(source).filter(([, dynData]) => dynData && dynData['归属父节点'] === target);
+  }
+
   function buildPreviewPayloadFromRawLocation(nodeName, rawLocation, container = mapState.snapshot, parentMapId = '') {
     const children = rawLocation && rawLocation.children && typeof rawLocation.children === 'object' ? rawLocation.children : null;
     const childEntries = children ? Object.entries(children) : [];
-    const dynamicSource = deepGet((mapState.baseSnapshot && mapState.baseSnapshot.rootData) || (mapState.snapshot && mapState.snapshot.rootData) || {}, 'world.dynamic_locations', {});
-    const dynamicEntries = Object.entries(dynamicSource).filter(([, dynData]) => dynData && dynData['归属父节点'] === nodeName);
+    const dynamicSource = deepGet(
+      (mapState.baseSnapshot && mapState.baseSnapshot.rootData) || (mapState.snapshot && mapState.snapshot.rootData) || {},
+      'world.dynamic_locations',
+      {}
+    );
+    const dynamicEntries = getDynamicEntriesByParent(dynamicSource, nodeName);
     if (!childEntries.length && !dynamicEntries.length) return null;
+
     const currentMapId = `preview_${nodeName}`;
     const visibleNodeEntries = [];
     const availableChildMaps = {};
     const previewChildMaps = {};
     const validCoords = [];
+
     childEntries.forEach(([childName, childValue]) => {
       const child = childValue && typeof childValue === 'object' ? childValue : {};
       const hasChildren = !!(child.children && typeof child.children === 'object' && Object.keys(child.children).length);
+      const hasDynamicChildren = getDynamicEntriesByParent(dynamicSource, childName).length > 0;
       const x = toNumber(child.x, NaN);
       const y = toNumber(child.y, NaN);
+
       if (Number.isFinite(x) && Number.isFinite(y)) validCoords.push({ x, y });
+
       visibleNodeEntries.push([childName, {
         children: child.children || null,
         x: Number.isFinite(x) ? x : toNumber(rawLocation && rawLocation.x, NaN),
         y: Number.isFinite(y) ? y : toNumber(rawLocation && rawLocation.y, NaN),
-        type: toText(child.type, '地图节点'),
+        type: toText(child.type || child.node_type, '地图节点'),
         icon: toText(child.icon, ''),
-        desc: toText(child.desc, '无'),
+        desc: toText(child.desc || child.描述, '无'),
         level: toNumber(child.level, 3),
         source: 'static',
         faction: toText(child.default_faction || child.faction, '未知'),
@@ -3838,7 +4140,8 @@
         action_slots: Array.isArray(child.action_slots) ? child.action_slots : toTextList(child.action_slots || child.actionSlots),
         event_id: toText(child.event_id || child.eventId, '')
       }]);
-      if (hasChildren) {
+
+      if (hasChildren || hasDynamicChildren) {
         const nestedPayload = buildPreviewPayloadFromRawLocation(childName, child, container, currentMapId);
         if (nestedPayload) {
           previewChildMaps[childName] = nestedPayload;
@@ -3846,44 +4149,13 @@
         }
       }
     });
-    if (dynamicEntries.length) {
-      dynamicEntries.forEach(([dynName, dynData]) => {
-        const dynX = toNumber(dynData && dynData.x, NaN);
-        const dynY = toNumber(dynData && dynData.y, NaN);
-        if (Number.isFinite(dynX) && Number.isFinite(dynY)) validCoords.push({ x: dynX, y: dynY });
-        const dynamicPreviewMapId = `dynamic_preview_${nodeName}_${dynName}`;
-        availableChildMaps[dynName] = dynamicPreviewMapId;
-        previewChildMaps[dynName] = {
-          current_map_id: dynamicPreviewMapId,
-          current_zoom_hint: 0,
-          current_focus: {
-            loc: dynName,
-            x: toNumber(dynData && dynData.x, NaN),
-            y: toNumber(dynData && dynData.y, NaN),
-            settlement_id: '无',
-            map_id: dynamicPreviewMapId
-          },
-          map_meta: {
-            name: `${dynName}预览`,
-            map_level: 'facility',
-            parent_map_id: currentMapId,
-            anchor_loc: dynName,
-            child_maps: {}
-          },
-          visible_nodes: {},
-          visible_dynamic_locations: { [dynName]: dynData },
-          active_patches: {},
-          travel_candidates: [dynName],
-          available_child_maps: {},
-          preview_meta: {
-            anchor_name: dynName,
-            parent_name: nodeName,
-            parent_map_id: currentMapId
-          },
-          preview_child_maps: {}
-        };
-      });
-    }
+
+    dynamicEntries.forEach(([, dynData]) => {
+      const dynX = toNumber(dynData && dynData.x, NaN);
+      const dynY = toNumber(dynData && dynData.y, NaN);
+      if (Number.isFinite(dynX) && Number.isFinite(dynY)) validCoords.push({ x: dynX, y: dynY });
+    });
+
     let focusCoord = { x: NaN, y: NaN };
     if (validCoords.length > 0) {
       focusCoord.x = Number((validCoords.reduce((sum, coord) => sum + coord.x, 0) / validCoords.length).toFixed(2));
@@ -3908,7 +4180,10 @@
       visible_nodes: Object.fromEntries(visibleNodeEntries),
       visible_dynamic_locations: Object.fromEntries(dynamicEntries),
       active_patches: {},
-      travel_candidates: Array.from(new Set([...visibleNodeEntries.map(([childName]) => childName), ...dynamicEntries.map(([dynName]) => dynName)])),
+      travel_candidates: Array.from(new Set([
+        ...visibleNodeEntries.map(([childName]) => childName),
+        ...dynamicEntries.map(([dynName]) => dynName)
+      ])),
       available_child_maps: availableChildMaps,
       preview_meta: {
         anchor_name: nodeName,
@@ -3926,7 +4201,13 @@
     if (previewChildMaps[targetKey]) return previewChildMaps[targetKey];
     const rawLocationMatch = getRawLocationNodeByName(targetKey);
     if (!rawLocationMatch || !rawLocationMatch.node) return null;
-    return buildPreviewPayloadFromRawLocation(targetKey, rawLocationMatch.node, container);
+    const parentMapId = toText(container && container.currentMapId, '');
+    return buildPreviewPayloadFromRawLocation(
+      targetKey,
+      rawLocationMatch.node,
+      container,
+      parentMapId && parentMapId !== 'map_douluo_world' ? parentMapId : ''
+    );
   }
 
   function getPreviewPayloadByTrail(snapshot, trail = mapState.previewTrail) {
@@ -3974,12 +4255,16 @@
     }
     const focusName = toText(snapshot.currentFocusName, snapshot.currentLoc);
     const focusCoordValid = Number.isFinite(snapshot.currentFocusCoord.x) && Number.isFinite(snapshot.currentFocusCoord.y);
-    if (mapState.itemMap.has(focusName)) {
+    const currentWithinView = snapshot.currentWithinView !== false;
+    if (currentWithinView && mapState.itemMap.has(focusName)) {
       mapState.currentNode = focusName;
       mapState.currentFreePoint = null;
-    } else if (focusCoordValid) {
+    } else if (currentWithinView && focusCoordValid) {
       mapState.currentFreePoint = { x: snapshot.currentFocusCoord.x, y: snapshot.currentFocusCoord.y };
       mapState.currentNode = getNearestVisibleMapNode(mapState.currentFreePoint, mapState.layer);
+    } else if (!currentWithinView) {
+      mapState.currentNode = '';
+      mapState.currentFreePoint = null;
     } else {
       mapState.currentNode = snapshot.items[0] ? snapshot.items[0].name : previousCurrent;
       mapState.currentFreePoint = null;
@@ -4247,7 +4532,10 @@
 
   function getRawActualCurrentLoc() {
     const snapshot = getActualCurrentSnapshot() || {};
-    return toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc), toText(snapshot.currentLoc, '斗罗大陆-未知地点'));
+    return toText(
+      deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLocFull || snapshot.currentLoc),
+      toText(snapshot.currentLocFull || snapshot.currentLoc, '斗罗大陆-未知地点')
+    );
   }
 
   function getActualCurrentLoc() {
@@ -5468,6 +5756,24 @@
     return getNearestVisibleMapNode(getCurrentCoord(), mapState.layer);
   }
 
+  function resolveActionableCurrentNodeName(snapshot = null) {
+    const visibleCurrentName = getVisibleCurrentNode();
+    if (visibleCurrentName) return visibleCurrentName;
+    if (!(hasActivePreview() && isPreviewCurrentBranch())) return '';
+    const currentLoc = toText(getRawActualCurrentLoc() || getActualCurrentLoc() || deepGet(snapshot, 'currentLoc', ''), '');
+    const currentSegments = currentLoc
+      .replace(/^斗罗大陆-/, '')
+      .replace(/^斗灵大陆-/, '')
+      .split('-')
+      .map(seg => toText(seg, '').trim())
+      .filter(Boolean);
+    for (let index = currentSegments.length - 1; index >= 0; index -= 1) {
+      const segment = currentSegments[index];
+      if (segment && getItemByName(segment)) return segment;
+    }
+    return '';
+  }
+
   function resolveSelectedNodeForLayer(layer) {
     if (mapState.selectedFreePoint) return getNearestVisibleMapNode(mapState.selectedFreePoint, layer, { maxRatioDistance: MAP_NODE_SNAP_RATIO_THRESHOLD, useRenderedRatio: true }) || '';
     const items = getRenderableItems(layer);
@@ -5546,23 +5852,38 @@
     centerMapOnCoord(coord, canvasEl);
   }
 
-  function enforceMapCanvasAspect() {
-    const canvasRatio = WORLD_IMAGE_HEIGHT / WORLD_IMAGE_WIDTH;
-    document.querySelectorAll('.map-canvas.map-canvas-large').forEach(canvasEl => {
-      const width = Math.round(canvasEl.getBoundingClientRect().width || canvasEl.clientWidth || canvasEl.offsetWidth || 0);
-      if (!width) return;
-      const height = Math.max(160, Math.round(width * canvasRatio));
-      canvasEl.style.setProperty('height', `${height}px`, 'important');
-      canvasEl.style.setProperty('min-height', '0px', 'important');
-      canvasEl.style.setProperty('flex', '0 0 auto', 'important');
-      canvasEl.style.setProperty('aspect-ratio', `${WORLD_IMAGE_WIDTH} / ${WORLD_IMAGE_HEIGHT}`, 'important');
-    });
+  function getMapElementWidth(element) {
+    return Math.round(element?.getBoundingClientRect().width || element?.clientWidth || element?.offsetWidth || 0);
   }
 
-  function applyMapResponsiveMode() {
-    document.querySelectorAll('.map-hero-card').forEach(card => {
+  function syncMapLayoutShell(force = false) {
+    const canvasEls = getMapUiElements('.map-canvas.map-canvas-large');
+    const heroCards = getMapUiElements('.map-hero-card');
+    const canvasWidths = canvasEls.map(canvasEl => {
+      const width = getMapElementWidth(canvasEl);
+      canvasEl.__mapMeasuredWidth = width;
+      return width;
+    });
+    const layoutSignature = canvasWidths.join('|');
+    if (!force && mapState.lastLayoutSignature === layoutSignature) return;
+
+    mapState.lastLayoutSignature = layoutSignature;
+    const canvasRatio = WORLD_IMAGE_HEIGHT / WORLD_IMAGE_WIDTH;
+    canvasEls.forEach((canvasEl, index) => {
+      const width = canvasWidths[index] || 0;
+      if (!width) return;
+      const height = Math.max(160, Math.round(width * canvasRatio));
+      const nextHeight = `${height}px`;
+      const nextAspectRatio = `${WORLD_IMAGE_WIDTH} / ${WORLD_IMAGE_HEIGHT}`;
+      if (canvasEl.style.height !== nextHeight) canvasEl.style.setProperty('height', nextHeight, 'important');
+      if (canvasEl.style.minHeight !== '0px') canvasEl.style.setProperty('min-height', '0px', 'important');
+      if (canvasEl.style.flex !== '0 0 auto') canvasEl.style.setProperty('flex', '0 0 auto', 'important');
+      if (canvasEl.style.aspectRatio !== nextAspectRatio) canvasEl.style.setProperty('aspect-ratio', nextAspectRatio, 'important');
+    });
+
+    heroCards.forEach(card => {
       const canvasEl = card.querySelector('.map-canvas.map-canvas-large');
-      const width = Math.round(canvasEl?.getBoundingClientRect().width || canvasEl?.clientWidth || canvasEl?.offsetWidth || 0);
+      const width = canvasEl ? (Number.isFinite(canvasEl.__mapMeasuredWidth) ? canvasEl.__mapMeasuredWidth : getMapElementWidth(canvasEl)) : 0;
       const compact = width > 0 && width < 560;
       const ultraCompact = width > 0 && width < 430;
       card.classList.toggle('is-compact', compact);
@@ -5603,21 +5924,25 @@
   }
 
   function getActiveMapCanvases() {
-    const canvases = [...document.querySelectorAll('.map-canvas.interactive-map')];
+    const canvases = getMapUiElements('.map-canvas.interactive-map');
     const active = canvases.filter(canvasEl => canvasEl.getClientRects().length > 0 && canvasEl.offsetParent !== null);
     return active.length ? active : canvases;
   }
 
   function getPrimaryMapCanvas() {
-    return mapDragState.sourceCanvas || mapState.hoverCanvas || getActiveMapCanvases()[0] || document.querySelector('.map-canvas.interactive-map');
+    return mapDragState.sourceCanvas || mapState.hoverCanvas || getActiveMapCanvases()[0] || getMapUiElements('.map-canvas.interactive-map')[0] || null;
   }
 
   function invalidateMapUiRefCache() {
     if (!(mapState.uiRefCache instanceof Map)) {
       mapState.uiRefCache = new Map();
+      mapState.scopedUiRefCache = new WeakMap();
+      mapState.lastLayoutSignature = null;
       return;
     }
     mapState.uiRefCache.clear();
+    mapState.scopedUiRefCache = new WeakMap();
+    mapState.lastLayoutSignature = null;
   }
 
   function getMapUiElements(selector) {
@@ -5629,6 +5954,24 @@
     const elements = [...document.querySelectorAll(selector)];
     if (elements.length) mapState.uiRefCache.set(selector, elements);
     else mapState.uiRefCache.delete(selector);
+    return elements;
+  }
+
+  function getScopedMapUiElements(root, selector) {
+    if (!root || typeof root.querySelectorAll !== 'function') return [];
+    if (!(mapState.scopedUiRefCache instanceof WeakMap)) mapState.scopedUiRefCache = new WeakMap();
+    let rootCache = mapState.scopedUiRefCache.get(root);
+    if (!(rootCache instanceof Map)) {
+      rootCache = new Map();
+      mapState.scopedUiRefCache.set(root, rootCache);
+    }
+    const cached = rootCache.get(selector);
+    if (Array.isArray(cached) && cached.length && cached.every(el => el && el.isConnected && root.contains(el))) {
+      return cached;
+    }
+    const elements = Array.from(root.querySelectorAll(selector));
+    if (elements.length) rootCache.set(selector, elements);
+    else rootCache.delete(selector);
     return elements;
   }
 
@@ -5646,6 +5989,29 @@
       if (el.innerHTML === nextValue) return;
       el.innerHTML = nextValue;
     });
+  }
+
+  function setMapNodeText(node, value) {
+    if (!node) return;
+    const nextValue = value == null ? '' : String(value);
+    if (node.textContent === nextValue) return;
+    node.textContent = nextValue;
+  }
+
+  function setMapNodeClass(node, className, enabled) {
+    if (!node || !className) return;
+    const shouldHave = !!enabled;
+    const hasClass = node.classList.contains(className);
+    if (hasClass === shouldHave) return;
+    node.classList.toggle(className, shouldHave);
+  }
+
+  function setMapNodeStyle(node, prop, value, priority = '') {
+    if (!node || !node.style || !prop) return;
+    const nextValue = value == null ? '' : String(value);
+    const currentValue = node.style.getPropertyValue(prop);
+    if (currentValue === nextValue) return;
+    node.style.setProperty(prop, nextValue, priority);
   }
 
   function escapeMapHtml(value = '') {
@@ -5801,7 +6167,7 @@
       terrainCache.token = bgToken;
     }
     const bgImage = terrainCache.bgImage;
-    document.querySelectorAll('[data-map-terrain]').forEach(el => {
+    getMapUiElements('[data-map-terrain]').forEach(el => {
       const isSvgMode = bgImage.includes('data:image/svg+xml');
       const expectedToken = isSvgMode ? 'terrain:svg' : 'terrain:v2';
 
@@ -5816,7 +6182,7 @@
         art.dataset.bgToken = bgToken;
       }
     });
-    document.querySelectorAll('.map-mini-art').forEach(el => {
+    getMapUiElements('.map-mini-art').forEach(el => {
       if (el.dataset.bgToken !== bgToken) {
         el.style.backgroundImage = bgImage;
         el.dataset.bgToken = bgToken;
@@ -5847,7 +6213,7 @@
       const label = htmlEscape(toText(patch.asset, patch.id));
       return `<div class='${cls}' style='left:${left}%;top:${top}%;width:${width}%;height:${height}%;'><span class='map-patch-label'>${label}</span></div>`;
     }).join('');
-    document.querySelectorAll('[data-map-patch-layer]').forEach(el => {
+    getMapUiElements('[data-map-patch-layer]').forEach(el => {
       if (el.dataset.renderKey === patchKey) return;
       el.innerHTML = patchHtml;
       el.dataset.renderKey = patchKey;
@@ -5864,16 +6230,16 @@
 
   function updateNodeHtmlClasses(el, item, isCurrent, isOrigin) {
     const isEnterable = !!(item && item.canEnter);
-    if (isCurrent) el.classList.add('current'); else el.classList.remove('current');
-    if (isOrigin) el.classList.add('origin'); else el.classList.remove('origin');
-    if (isEnterable) el.classList.add('enterable'); else el.classList.remove('enterable');
+    setMapNodeClass(el, 'current', isCurrent);
+    setMapNodeClass(el, 'origin', isOrigin);
+    setMapNodeClass(el, 'enterable', isEnterable);
   }
 
   function renderMapNodeLayer() {
     const visibleItems = getRenderableItems();
     const visibleCurrentNode = getVisibleCurrentNode();
     const structureKey = `${mapState.currentMapId}|${mapState.layer}|${visibleItems.length}`;
-    document.querySelectorAll('[data-map-node-layer]').forEach(el => {
+    getMapUiElements('[data-map-node-layer]').forEach(el => {
       if (el.dataset.structureKey !== structureKey) {
         el.innerHTML = visibleItems.map(item => {
           const pos = projectCoord({ x: item.x, y: item.y });
@@ -5895,7 +6261,7 @@
       }
       
       // Efficiently update dynamic classes without touching innerHTML
-      const nodeEls = el.querySelectorAll('.map-node');
+      const nodeEls = getScopedMapUiElements(el, '.map-node');
       for (let i = 0; i < visibleItems.length; i++) {
         const item = visibleItems[i];
         const nodeEl = nodeEls[i];
@@ -5916,24 +6282,28 @@
     const viewportTop = clamp(Math.min(topLeft.top, bottomRight.top), 0, 1);
     const viewportRight = clamp(Math.max(topLeft.left, bottomRight.left), 0, 1);
     const viewportBottom = clamp(Math.max(topLeft.top, bottomRight.top), 0, 1);
+    const viewportLeftCss = `${viewportLeft * 100}%`;
+    const viewportTopCss = `${viewportTop * 100}%`;
+    const viewportWidthCss = `${Math.max(2, (viewportRight - viewportLeft) * 100)}%`;
+    const viewportHeightCss = `${Math.max(2, (viewportBottom - viewportTop) * 100)}%`;
 
-    document.querySelectorAll('[data-map-mini-viewport]').forEach(el => {
-      el.style.left = `${viewportLeft * 100}%`;
-      el.style.top = `${viewportTop * 100}%`;
-      el.style.width = `${Math.max(2, (viewportRight - viewportLeft) * 100)}%`;
-      el.style.height = `${Math.max(2, (viewportBottom - viewportTop) * 100)}%`;
+    getMapUiElements('[data-map-mini-viewport]').forEach(el => {
+      setMapNodeStyle(el, 'left', viewportLeftCss);
+      setMapNodeStyle(el, 'top', viewportTopCss);
+      setMapNodeStyle(el, 'width', viewportWidthCss);
+      setMapNodeStyle(el, 'height', viewportHeightCss);
     });
 
     const setMarker = (selector, coord) => {
       const ratio = coord ? projectCoord(coord) : null;
-      document.querySelectorAll(selector).forEach(marker => {
+      getMapUiElements(selector).forEach(marker => {
         if (!ratio || !Number.isFinite(ratio.left) || !Number.isFinite(ratio.top)) {
-          marker.classList.add('is-hidden');
+          setMapNodeClass(marker, 'is-hidden', true);
           return;
         }
-        marker.classList.remove('is-hidden');
-        marker.style.left = `${ratio.left * 100}%`;
-        marker.style.top = `${ratio.top * 100}%`;
+        setMapNodeClass(marker, 'is-hidden', false);
+        setMapNodeStyle(marker, 'left', `${ratio.left * 100}%`);
+        setMapNodeStyle(marker, 'top', `${ratio.top * 100}%`);
       });
     };
 
@@ -5959,21 +6329,32 @@
   function renderMapCrosshair(activeCanvas = null) {
     const currentCanvas = activeCanvas || mapDragState.sourceCanvas || mapState.hoverCanvas || null;
     getActiveMapCanvases().forEach(canvasEl => {
-      canvasEl.querySelectorAll('[data-map-crosshair]').forEach(crosshair => {
+      const crosshairEls = getScopedMapUiElements(canvasEl, '[data-map-crosshair]');
+      if (!crosshairEls.length) return;
+      const width = toNumber(canvasEl.clientWidth, 0);
+      const height = toNumber(canvasEl.clientHeight, 0);
+      crosshairEls.forEach(crosshair => {
         if (!currentCanvas || currentCanvas !== canvasEl || mapState.cursorClientX === null || mapState.cursorClientY === null) {
-          crosshair.classList.add('is-hidden');
+          setMapNodeClass(crosshair, 'is-hidden', true);
           return;
         }
-        const rect = canvasEl.getBoundingClientRect();
-        const localX = currentCanvas === mapState.hoverCanvas && mapState.hoverLocalX !== null ? mapState.hoverLocalX : mapState.cursorClientX - rect.left;
-        const localY = currentCanvas === mapState.hoverCanvas && mapState.hoverLocalY !== null ? mapState.hoverLocalY : mapState.cursorClientY - rect.top;
-        if (localX < 0 || localY < 0 || localX > rect.width || localY > rect.height) {
-          crosshair.classList.add('is-hidden');
+        let localX = null;
+        let localY = null;
+        if (currentCanvas === mapState.hoverCanvas && Number.isFinite(mapState.hoverLocalX) && Number.isFinite(mapState.hoverLocalY)) {
+          localX = mapState.hoverLocalX;
+          localY = mapState.hoverLocalY;
+        } else {
+          const rect = canvasEl.getBoundingClientRect();
+          localX = mapState.cursorClientX - rect.left;
+          localY = mapState.cursorClientY - rect.top;
+        }
+        if (localX < 0 || localY < 0 || localX > width || localY > height) {
+          setMapNodeClass(crosshair, 'is-hidden', true);
           return;
         }
-        crosshair.classList.remove('is-hidden');
-        crosshair.style.setProperty('--cross-x', `${(localX / rect.width) * 100}%`);
-        crosshair.style.setProperty('--cross-y', `${(localY / rect.height) * 100}%`);
+        setMapNodeClass(crosshair, 'is-hidden', false);
+        setMapNodeStyle(crosshair, '--cross-x', `${(localX / Math.max(width, 1)) * 100}%`);
+        setMapNodeStyle(crosshair, '--cross-y', `${(localY / Math.max(height, 1)) * 100}%`);
       });
     });
   }
@@ -5981,10 +6362,10 @@
   function updateMapCoordinateReadout(canvasEl = null) {
     const activeCanvas = canvasEl || mapDragState.sourceCanvas || mapState.hoverCanvas || getPrimaryMapCanvas();
     renderMapCrosshair(activeCanvas);
-    const tooltipEl = activeCanvas ? activeCanvas.querySelector('[data-map-hover-tooltip]') : null;
-    const tooltipCoordEl = tooltipEl ? tooltipEl.querySelector('[data-map-hover-coord]') : null;
-    const tooltipTerrainEl = tooltipEl ? tooltipEl.querySelector('[data-map-hover-terrain]') : null;
-    const hideTooltip = () => { if (tooltipEl) tooltipEl.classList.add('is-hidden'); };
+    const tooltipEl = activeCanvas ? getScopedMapUiElements(activeCanvas, '[data-map-hover-tooltip]')[0] : null;
+    const tooltipCoordEl = tooltipEl ? getScopedMapUiElements(tooltipEl, '[data-map-hover-coord]')[0] : null;
+    const tooltipTerrainEl = tooltipEl ? getScopedMapUiElements(tooltipEl, '[data-map-hover-terrain]')[0] : null;
+    const hideTooltip = () => { if (tooltipEl) setMapNodeClass(tooltipEl, 'is-hidden', true); };
     if (!activeCanvas || !activeCanvas.clientWidth || !activeCanvas.clientHeight) return;
     const focusCoord = getSelectedCoord();
     const focusImageCoord = convertMapCoordToImageCoord(focusCoord);
@@ -6007,12 +6388,12 @@
       const hoverTerrainText = formatTerrainText(hoverTerrainInfo, terrainMapId);
       setMapText('[data-map-cursor-coord]', `游标 图 ${hoverImageCoord.x},${hoverImageCoord.y}`);
       if (tooltipEl) {
-        tooltipEl.classList.remove('is-hidden');
-        tooltipEl.style.left = `${Math.max(8, Math.min(activeCanvas.clientWidth - 24, toNumber(mapState.hoverLocalX, 0)))}px`;
-        tooltipEl.style.top = `${Math.max(8, Math.min(activeCanvas.clientHeight - 24, toNumber(mapState.hoverLocalY, 0)))}px`;
+        setMapNodeClass(tooltipEl, 'is-hidden', false);
+        setMapNodeStyle(tooltipEl, 'left', `${Math.max(8, Math.min(activeCanvas.clientWidth - 24, toNumber(mapState.hoverLocalX, 0)))}px`);
+        setMapNodeStyle(tooltipEl, 'top', `${Math.max(8, Math.min(activeCanvas.clientHeight - 24, toNumber(mapState.hoverLocalY, 0)))}px`);
       }
-      if (tooltipCoordEl) tooltipCoordEl.textContent = `${hoverImageCoord.x},${hoverImageCoord.y}`;
-      if (tooltipTerrainEl) tooltipTerrainEl.textContent = `地形：${hoverTerrainText || '无'}`;
+      setMapNodeText(tooltipCoordEl, `${hoverImageCoord.x},${hoverImageCoord.y}`);
+      setMapNodeText(tooltipTerrainEl, `地形：${hoverTerrainText || '无'}`);
       return;
     }
     const point = resolveMapClientPoint(activeCanvas, mapState.cursorClientX, mapState.cursorClientY);
@@ -6023,28 +6404,26 @@
     }
     const cursorRatio = convertMapLocalPointToCanvasRatio(point.localX, point.localY, activeCanvas);
     const cursorImageCoord = convertMapRatioToImageCoord(cursorRatio.left, cursorRatio.top);
-    if (tooltipEl) {
-      tooltipEl.classList.add('is-hidden');
-    }
+    hideTooltip();
     setMapText('[data-map-cursor-coord]', `游标 图 ${cursorImageCoord.x},${cursorImageCoord.y}`);
   }
 
   function renderMapFreeMarkers() {
     getActiveMapCanvases().forEach(canvasEl => {
       const placeMarker = (selector, point) => {
-        canvasEl.querySelectorAll(selector).forEach(marker => {
+        getScopedMapUiElements(canvasEl, selector).forEach(marker => {
           if (!point) {
-            marker.classList.add('is-hidden');
+            setMapNodeClass(marker, 'is-hidden', true);
             return;
           }
           const pos = convertMapCoordToLocalPoint(point, canvasEl);
           if (!pos) {
-            marker.classList.add('is-hidden');
+            setMapNodeClass(marker, 'is-hidden', true);
             return;
           }
-          marker.classList.remove('is-hidden');
-          marker.style.left = `${pos.left * 100}%`;
-          marker.style.top = `${pos.top * 100}%`;
+          setMapNodeClass(marker, 'is-hidden', false);
+          setMapNodeStyle(marker, 'left', `${pos.left * 100}%`);
+          setMapNodeStyle(marker, 'top', `${pos.top * 100}%`);
         });
       };
       placeMarker('[data-map-free-current]', mapState.currentFreePoint);
@@ -6056,8 +6435,8 @@
     renderMapPatchLayer();
     renderMapNodeLayer();
     renderMapFreeMarkers();
-    document.querySelectorAll('[data-map-layer-pill]').forEach(pill => {
-      pill.classList.toggle('current', pill.dataset.mapLayerPill === mapState.layer);
+    getMapUiElements('[data-map-layer-pill]').forEach(pill => {
+      setMapNodeClass(pill, 'current', pill.dataset.mapLayerPill === mapState.layer);
     });
     setMapText('[data-map-layer-label]', mapLayerLabels[mapState.layer]);
     setMapText('[data-map-visible-nodes]', String(getVisibleMapNodeCount()));
@@ -6465,6 +6844,11 @@
     return { target_loc: mapState.selectedNode, target_x: targetCoord ? roundCoord(targetCoord.x) : -1, target_y: targetCoord ? roundCoord(targetCoord.y) : -1, coord_system: coordSystem, method: preview.method, est_ticks: preview.ticks, est_duration: preview.duration, coord_text: preview.coordText, costs: preview.costs, route_plan: toText(preview.routePlanText, '') };
   }
 
+  function buildMapUpdateVariableBlock(analysis, patchOps, leadText) {
+    const safeAnalysis = toText(analysis, 'Front-end action completed.');
+    return `<UpdateVariable>\n<Analysis>${safeAnalysis}</Analysis>\n<JSONPatch>\n${JSON.stringify(patchOps || [], null, 2)}\n</JSONPatch>\n</UpdateVariable>`;
+  }
+
   function hasPendingTravelRequestForTarget() {
     if (!mapState.pendingTravelRequest) return false;
     const currentRequest = buildMapTravelRequest();
@@ -6530,8 +6914,17 @@
       if (isWorldMove) {
         mapState.baseSnapshot.activeChar.status.coord_system = MAP_COORD_SYSTEM_IMAGE;
         mapState.baseSnapshot.currentFocusCoord = { x: targetCoord.x, y: targetCoord.y };
-        mapState.baseSnapshot.currentLoc = finalLocName;
-        mapState.baseSnapshot.currentFocusName = finalLocName;
+        const currentAnchorMeta = resolveVisibleLocationAnchor(mapState.baseSnapshot, finalLocName);
+        mapState.baseSnapshot.currentLoc = currentAnchorMeta.leafName;
+        mapState.baseSnapshot.currentLocFull = finalLocName;
+        mapState.baseSnapshot.currentFocus = {
+          loc: currentAnchorMeta.anchorName || currentAnchorMeta.leafName,
+          x: targetCoord.x,
+          y: targetCoord.y,
+          coord_system: MAP_COORD_SYSTEM_IMAGE
+        };
+        mapState.baseSnapshot.currentFocusName = currentAnchorMeta.anchorName;
+        mapState.baseSnapshot.currentWithinView = currentAnchorMeta.currentWithinView;
       }
     }
 
@@ -6594,7 +6987,7 @@
         }
 
         const logMsg = `[系统仲裁] 玩家乘坐 ${request.method}，经过 ${request.est_duration} 的跋涉，现已抵达新地点：【${finalLocName}】。${targetTerrainLine ? `\n${targetTerrainLine}` : ''}`;
-        const sysPrompt = `${HIDDEN_RULES}\n\n${logMsg}\n\n<UpdateVariable>\n<Analysis>Travel completed.</Analysis>\n<JSONPatch>\n${JSON.stringify(patchOps, null, 2)}\n</JSONPatch>\n</UpdateVariable>`;
+        const sysPrompt = `${HIDDEN_RULES}\n\n${logMsg}\n\n${buildMapUpdateVariableBlock('Travel completed.', patchOps, '以下为本次地图移动结算的完整 MVU 更新，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。')}`;
         window.sendToAI(`[启程前往] 我乘坐 ${request.method} 前往【${finalLocName}】${targetTerrainLine ? ` 目标地形：${targetTerrainBrief}` : ''}`, sysPrompt, { requestKind: 'map_travel_confirm' });
       } catch (e) {
         console.error('Send map travel to AI failed:', e);
@@ -6650,47 +7043,33 @@
     // 对于普通的轻量文字动作（查看、研读、训练等），前端直接做基础结算并扔给后端润色
     if (typeof window.sendToAI === 'function' && mapState.baseSnapshot) {
       try {
-        const HIDDEN_RULES = `[前端仲裁器说明]\n以下内容属于隐藏系统结算结果，后台已自动推演了时间流逝与状态变化。\n请仅将仲裁结论转写成自然剧情，描写角色在当前设施内的见闻与收获即可。`;
+        const HIDDEN_RULES = `[前端代发说明]\n以下内容属于地图页代发的节点动作请求，请直接承接剧情推进，不要输出 JSON 块或系统术语。`;
 
-        let patchOps = [];
         const actorName = toText((mapState.baseSnapshot && mapState.baseSnapshot.activeName) || snapshot.activeName, '');
-        const actorPath = actorName ? actorName.replace(/~/g, '~0').replace(/\//g, '~1') : '';
         let logMsg = `[系统仲裁] 玩家在【${item.name}】进行了【${actionLabel}】操作。${action === 'talk' ? (npcTarget ? ` 当前对话对象：${npcTarget}。` : (talkTargets.length ? ` 当前可对话对象：${talkTargets.join('、')}。` : '')) : (npcTarget ? ` 当前交互对象：${npcTarget}。` : '')}`;
         let baseTicks = 1;
         let playerInput = `[节点交互] 我在【${item.name}】准备进行【${actionLabel}】。`;
-        let statusAction = '日常';
-        // MVU 的 interact_request.action 当前只支持：闲聊/送礼/切磋/请教/双修/表白。
-        // 地图里的 brief / intel 暂统一映射到“请教”，具体差异由 playerInput / 日志文案表达。
-        const interactActionMap = {
-          talk: '闲聊',
-          brief: '请教',
-          intel: '请教'
-        };
-        const interactAction = npcTarget ? toText(interactActionMap[action], '') : '';
-        const shouldRouteToInteractRequest = !!(actorPath && npcTarget && interactAction);
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, action);
 
         if (action === 'study' || action === '研读') {
           baseTicks = 6;
-          logMsg += ` 角色进行了约 1 小时的研读与学习。`;
+          logMsg += ` ${actionPreview.logText}`;
           playerInput = `[节点交互] 我想在【${item.name}】研读 1 小时。`;
         } else if (action === 'meditate') {
           baseTicks = 6;
-          statusAction = '冥想';
-          logMsg += ` 角色进行了约 1 小时的冥想，按 MVU 的【冥想】状态结算。`;
+          logMsg += ` ${actionPreview.logText}`;
           playerInput = `[节点交互] 我想在【${item.name}】冥想 1 小时。`;
         } else if (action === 'train_body' || action === 'train' || action === '训练') {
           baseTicks = 6;
-          statusAction = '肉体训练';
-          logMsg += ` 角色进行了约 1 小时的肉体训练，按 MVU 的【肉体训练】状态结算。`;
+          logMsg += ` ${actionPreview.logText}`;
           playerInput = `[节点交互] 我想在【${item.name}】进行 1 小时肉体训练。`;
         } else if (action === 'train_mind') {
           baseTicks = 6;
-          statusAction = '精神训练';
-          logMsg += ` 角色进行了约 1 小时的精神训练，按 MVU 的【精神训练】状态结算。`;
+          logMsg += ` ${actionPreview.logText}`;
           playerInput = `[节点交互] 我想在【${item.name}】进行 1 小时精神训练。`;
         } else if (action === 'rest') {
           baseTicks = 6;
-          logMsg += ` 角色进行了约 1 小时的休整。`;
+          logMsg += ` ${actionPreview.logText}`;
           playerInput = `[节点交互] 我想在【${item.name}】休整 1 小时。`;
         } else if (action === 'talk') {
           baseTicks = 2;
@@ -6708,40 +7087,22 @@
             ? `我想在【${item.name}】向【${npcTarget}】请教情报。`
             : `我想在【${item.name}】向在场人员收集情报。`;
         }
+        const sysPrompt = `${HIDDEN_RULES}
 
-        if (shouldRouteToInteractRequest) {
-          patchOps.push({
-            op: 'replace',
-            path: `/char/${actorPath}/interact_request`,
-            value: {
-              target_npc: npcTarget,
-              action: interactAction,
-              item_used: '无',
-              ai_score: 0
-            }
-          });
-          logMsg += ` 本次动作已按 interact_request 接入，互动对象为【${npcTarget}】、互动类型为【${interactAction}】。`;
-        }
+[节点动作]
+角色：${actorName || '玩家'}
+地点：${item.name}
+动作：${actionLabel}
+预计耗时：约 ${Math.max(1, baseTicks) * 10} 分钟
+节点服务：${serviceText || '无'}
+关联事件：${eventText}
+当前对象：${npcTarget || '无'}
 
-        if (actorPath && statusAction) {
-          patchOps.push({
-            op: 'replace',
-            path: `/char/${actorPath}/status/action`,
-            value: statusAction
-          });
-        }
-        patchOps.push({ op: 'replace', path: '/world/time/tick', value: (Number(deepGet(mapState.baseSnapshot.rootData, 'world.time.tick', 0)) + baseTicks) });
-        patchOps.push({
-          op: 'replace',
-          path: '/sys/rsn',
-          value: shouldRouteToInteractRequest
-            ? `[社交互动] ${actorName || '玩家'} 在【${item.name}】对【${npcTarget}】发起【${interactAction}】。`
-            : `[节点交互] ${item.name} · ${actionLabel} · ${Math.max(1, baseTicks) * 10}分钟`
-        });
+${logMsg}
 
-        const sysPrompt = `${HIDDEN_RULES}\n\n${logMsg}\n\n<UpdateVariable>\n<Analysis>Node interaction completed.</Analysis>\n<JSONPatch>\n${JSON.stringify(patchOps, null, 2)}\n</JSONPatch>\n</UpdateVariable>`;
+请结合当前设施、在场角色与地点功能，自然写出这次行动的过程、收获与后续推进；若当前节点并不适合该动作，也请在剧情里明确说明阻碍原因。`;
 
-        window.sendToAI(playerInput, sysPrompt, { requestKind: shouldRouteToInteractRequest ? 'interact_request' : `map_action_${action}` });
+        window.sendToAI(playerInput, sysPrompt, { requestKind: `map_action_${action}` });
       } catch (e) {
         console.error('Send map action to AI failed:', e);
       }
@@ -6755,6 +7116,8 @@
     const focusItem = getItemByName(mapState.selectedNode) || getItemByName(resolveSelectedNodeForLayer(mapState.layer)) || snapshot.items[0] || null;
     const canPreviewEnter = !mapState.selectedFreePoint && !!(focusItem && canEnterPreviewNode(focusItem.name, snapshot));
     const previewCurrentBranch = isPreviewCurrentBranch();
+    const actionableCurrentNodeName = resolveActionableCurrentNodeName(snapshot);
+    const isFocusCurrentNode = !!(focusItem && focusItem.name === actionableCurrentNodeName);
     if (actionType === 'enter') {
       if (!focusItem || mapState.selectedFreePoint || !canPreviewEnter) return false;
       if (enterPreviewMode(focusItem.name)) syncInteractiveMapUI({ center: true });
@@ -6771,8 +7134,127 @@
       return true;
     }
     if (!focusItem || mapState.selectedFreePoint) return false;
+    if (actionType !== 'inspect' && !isFocusCurrentNode) return false;
     triggerPreviewNodeInteraction(focusItem, actionType);
     syncInteractiveMapUI({ center: false });
+    return true;
+  }
+
+  function withSelectedNodeSnapshot(nodeName, runner) {
+    const targetName = toText(nodeName, '');
+    if (!targetName || typeof runner !== 'function') return null;
+    const targetItem = getItemByName(targetName);
+    if (!targetItem) return null;
+    const previous = {
+      selectedNode: mapState.selectedNode,
+      selectedFreePoint: mapState.selectedFreePoint ? { ...mapState.selectedFreePoint } : null,
+      infoPanelMode: mapState.infoPanelMode,
+      travelMethodOverride: mapState.travelMethodOverride,
+      pendingTravelRequest: mapState.pendingTravelRequest ? cloneJsonValue(mapState.pendingTravelRequest) : null,
+    };
+    try {
+      mapState.selectedNode = targetName;
+      mapState.selectedFreePoint = null;
+      mapState.infoPanelMode = 'selection';
+      return runner(targetItem);
+    } finally {
+      mapState.selectedNode = previous.selectedNode;
+      mapState.selectedFreePoint = previous.selectedFreePoint;
+      mapState.infoPanelMode = previous.infoPanelMode;
+      mapState.travelMethodOverride = previous.travelMethodOverride;
+      mapState.pendingTravelRequest = previous.pendingTravelRequest;
+    }
+  }
+
+  function describeTravelToNode(nodeName) {
+    return withSelectedNodeSnapshot(nodeName, targetItem => {
+      const preview = getMapTravelPreview();
+      const request = preview ? buildMapTravelRequest() : null;
+      if (!preview || !request) {
+        return { ok: false, reason: `当前无法规划前往【${targetItem.name}】的移动。` };
+      }
+      return {
+        ok: true,
+        nodeName: targetItem.name,
+        method: request.method,
+        duration: request.est_duration,
+        coordText: request.coord_text,
+        routePlan: toText(request.route_plan, ''),
+        costText: deepGet(request, 'costs.text', '无消耗'),
+        canAfford: deepGet(request, 'costs.canAfford', true) !== false,
+        reason: toText(deepGet(request, 'costs.reason', ''), ''),
+      };
+    }) || { ok: false, reason: '目标节点当前不可达。' };
+  }
+
+  function travelToNode(nodeName, options = {}) {
+    const targetName = toText(nodeName, '');
+    if (!targetName) return { ok: false, reason: '缺少目标节点。' };
+    const targetItem = getItemByName(targetName);
+    if (!targetItem) return { ok: false, reason: `当前地图中找不到【${targetName}】。` };
+    mapState.selectedNode = targetName;
+    mapState.selectedFreePoint = null;
+    mapState.infoPanelMode = 'selection';
+    const preview = getMapTravelPreview();
+    if (!preview) return { ok: false, reason: `当前无法规划前往【${targetName}】的移动。` };
+    if (!hasPendingTravelRequestForTarget()) {
+      queueMapTravelRequest();
+    }
+    const request = mapState.pendingTravelRequest ? cloneJsonValue(mapState.pendingTravelRequest) : buildMapTravelRequest();
+    if (!request) return { ok: false, reason: `当前无法生成前往【${targetName}】的移动请求。` };
+    if (options && options.queueOnly) {
+      syncInteractiveMapUI({ center: false, updateInfo: true });
+      return { ok: true, queued: true, request };
+    }
+    if (request.costs && request.costs.canAfford === false) {
+      syncInteractiveMapUI({ center: false, updateInfo: true });
+      return { ok: false, reason: request.costs.reason || '资源不足，无法前往该节点。', request };
+    }
+    commitMapTravel();
+    return { ok: true, committed: true, request };
+  }
+
+  function focusCurrentLocation(options = {}) {
+    const { exitPreview = true } = options || {};
+    const baseSnapshot = mapState.baseSnapshot || mapState.snapshot || buildFallbackSnapshot();
+    if (!baseSnapshot) return false;
+    mapState.infoPanelMode = 'follow';
+    if (exitPreview && hasActivePreview() && mapState.baseSnapshot) {
+      mapState.previewViewStack = [];
+      mapState.previewTrail = [];
+      syncPreviewKeyFromTrail();
+      syncMapStateFromSnapshot(mapState.baseSnapshot, {
+        preserveSelection: false,
+        forceLayer: inferInitialLayer(mapState.baseSnapshot),
+        initializeLayer: false
+      });
+    } else if (baseSnapshot !== mapState.snapshot) {
+      syncMapStateFromSnapshot(baseSnapshot, {
+        preserveSelection: false,
+        forceLayer: inferInitialLayer(baseSnapshot),
+        initializeLayer: false
+      });
+    }
+    const activeSnapshot = mapState.snapshot || baseSnapshot;
+    const focusName = toText(activeSnapshot.currentFocusName, '');
+    const focusCoord = activeSnapshot.currentFocusCoord || {};
+    const focusCoordValid = activeSnapshot.currentWithinView !== false
+      && Number.isFinite(focusCoord.x)
+      && Number.isFinite(focusCoord.y);
+    if (focusName && mapState.itemMap.has(focusName)) {
+      mapState.selectedFreePoint = null;
+      mapState.selectedNode = focusName;
+    } else if (focusCoordValid) {
+      mapState.selectedFreePoint = { x: focusCoord.x, y: focusCoord.y };
+      mapState.selectedNode = getNearestVisibleMapNode(mapState.selectedFreePoint, mapState.layer);
+    } else if (mapState.currentNode && mapState.itemMap.has(mapState.currentNode)) {
+      mapState.selectedFreePoint = null;
+      mapState.selectedNode = mapState.currentNode;
+    } else if (activeSnapshot.items[0]) {
+      mapState.selectedFreePoint = null;
+      mapState.selectedNode = activeSnapshot.items[0].name;
+    }
+    syncInteractiveMapUI({ center: true, updateInfo: true });
     return true;
   }
 
@@ -6785,6 +7267,7 @@
     const previewMeta = snapshot.previewMeta || null;
     const previewCurrentBranch = isPreviewCurrentBranch();
     const currentVisibleName = getVisibleCurrentNode();
+    const currentActionNodeName = resolveActionableCurrentNodeName(snapshot);
     const currentItem = getItemByName(currentVisibleName) || getItemByName(mapState.currentNode) || focusItem;
     const travelPreview = getMapTravelPreview();
     const previewRequest = travelPreview ? buildMapTravelRequest() : null;
@@ -7063,25 +7546,31 @@
       const normalized = toText(action, '');
       if (!normalized || ['inspect', 'enter'].includes(normalized)) return;
       if (normalized === 'train') {
-        pushActionSlot('train_body', '肉体训练', { reason: timedHint('按 MVU【肉体训练】结算') });
-        pushActionSlot('train_mind', '精神训练', { reason: timedHint('按 MVU【精神训练】结算') });
+        const bodyPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'train_body');
+        const mindPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'train_mind');
+        pushActionSlot('train_body', '肉体训练', { reason: bodyPreview.slotReason || timedHint('肉体训练') });
+        pushActionSlot('train_mind', '精神训练', { reason: mindPreview.slotReason || timedHint('精神训练') });
         return;
       }
       if (normalized === 'meditate') {
-        pushActionSlot('meditate', '冥想', { reason: timedHint('按 MVU【冥想】结算') });
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, normalized);
+        pushActionSlot('meditate', '冥想', { reason: actionPreview.slotReason || timedHint('冥想') });
         return;
       }
       if (normalized === 'study') {
-        pushActionSlot('study', '研读', { reason: timedHint('阅读/学习类动作') });
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, normalized);
+        pushActionSlot('study', '研读', { reason: actionPreview.slotReason || timedHint('阅读/学习类动作') });
         return;
       }
       if (normalized === 'rest') {
-        pushActionSlot('rest', '休整', { reason: timedHint('休整/恢复类动作') });
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, normalized);
+        pushActionSlot('rest', '休整', { reason: actionPreview.slotReason || timedHint('休整/恢复类动作') });
         return;
       }
       pushActionSlot(normalized, getNodeInteractionLabel(normalized));
     };
-    const allowLocalActions = !!(!isFreeSelection && focusItem && (!inPreview || previewCurrentBranch));
+    const isFocusCurrentNode = !!(!isFreeSelection && focusItem && focusItem.name === currentActionNodeName);
+    const allowLocalActions = !!(isFocusCurrentNode && (!inPreview || previewCurrentBranch));
 
     if (travelPreview) {
       const travelDisabled = !!(previewRequest && previewRequest.costs && !previewRequest.costs.canAfford);
@@ -7160,9 +7649,19 @@
       mapState.selectedAction = '';
       selectedAction = '';
     } else if (!selectedActionSlot && focusItem && !canPreviewEnter) {
-      selectedActionDetail.title = '当前节点无可执行动作';
-      selectedActionDetail.labels = ['当前节点', '状态', '补充说明'];
-      selectedActionDetail.values = [focusName, '无动作', focusDescBaseText || '可先切换节点或返回上级'];
+      if (!isFocusCurrentNode) {
+        selectedActionDetail.title = '需先移动到该节点';
+        selectedActionDetail.labels = ['当前节点', '执行条件', '补充说明'];
+        selectedActionDetail.values = [
+          focusName,
+          currentActionNodeName ? `你当前位于【${currentActionNodeName}】` : '需要先移动到该节点',
+          '先在左侧选择“规划路线/确认前往”，抵达后再执行本地训练、交易或互动。'
+        ];
+      } else {
+        selectedActionDetail.title = '当前节点无可执行动作';
+        selectedActionDetail.labels = ['当前节点', '状态', '补充说明'];
+        selectedActionDetail.values = [focusName, '无动作', focusDescBaseText || '可先切换节点或返回上级'];
+      }
       selectedActionDetail.panelDisabled = true;
       mapState.selectedAction = '';
       selectedAction = '';
@@ -7173,29 +7672,34 @@
         selectedActionDetail.values = [actionTargetText, actionMoveText, actionCostText];
         selectedActionDetail.panelDisabled = !travelPreview || !!selectedActionSlot.disabled;
       } else if (selectedAction === 'meditate') {
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'meditate');
         selectedActionDetail.title = '点击此框进行 1 小时冥想';
         selectedActionDetail.labels = ['执行项目', '单次耗时', '结算说明'];
-        selectedActionDetail.values = ['冥想', '1小时（6 tick）', '按 MVU【冥想】状态结算，可恢复并推动修炼成长'];
+        selectedActionDetail.values = ['冥想', '1小时（6 tick）', actionPreview.detailText || '推进 1 小时并恢复状态。'];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedAction === 'train_body') {
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'train_body');
         selectedActionDetail.title = '点击此框进行 1 小时肉体训练';
         selectedActionDetail.labels = ['训练项目', '单次耗时', '结算说明'];
-        selectedActionDetail.values = ['肉体训练', '1小时（6 tick）', '按 MVU【肉体训练】结算，提升力量/防御/敏捷/体魄训练加成'];
+        selectedActionDetail.values = ['肉体训练', '1小时（6 tick）', actionPreview.detailText || '推进 1 小时并进行肉体训练。'];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedAction === 'train_mind') {
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'train_mind');
         selectedActionDetail.title = '点击此框进行 1 小时精神训练';
         selectedActionDetail.labels = ['训练项目', '单次耗时', '结算说明'];
-        selectedActionDetail.values = ['精神训练', '1小时（6 tick）', '按 MVU【精神训练】结算，提升精神上限训练加成'];
+        selectedActionDetail.values = ['精神训练', '1小时（6 tick）', actionPreview.detailText || '推进 1 小时并进行精神训练。'];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedAction === 'study') {
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'study');
         selectedActionDetail.title = '点击此框进行 1 小时研读';
         selectedActionDetail.labels = ['执行项目', '单次耗时', '结算说明'];
-        selectedActionDetail.values = ['研读', '1小时（6 tick）', '阅读/学习类动作，按小时结算'];
+        selectedActionDetail.values = ['研读', '1小时（6 tick）', actionPreview.detailText || '推进 1 小时时间并进行学习。'];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedAction === 'rest') {
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'rest');
         selectedActionDetail.title = '点击此框进行 1 小时休整';
         selectedActionDetail.labels = ['执行项目', '单次耗时', '结算说明'];
-        selectedActionDetail.values = ['休整', '1小时（6 tick）', '休整/恢复类动作，本次按小时推进时间'];
+        selectedActionDetail.values = ['休整', '1小时（6 tick）', actionPreview.detailText || '推进 1 小时时间并恢复状态。'];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedAction === 'talk') {
         selectedActionDetail.title = selectedNpc ? `点击此框与${selectedNpc}对话` : '点击此框发起对话';
@@ -7235,7 +7739,7 @@
       }
     }
 
-    document.querySelectorAll('[data-map-action-slot]').forEach(row => {
+    getMapUiElements('[data-map-action-slot]').forEach(row => {
       const slotIndex = Math.max(0, parseInt(row.dataset.mapActionSlot, 10) || 0);
       const slot = actionSlotCandidates[slotIndex] || null;
       row.classList.toggle('is-hidden', !slot);
@@ -7246,12 +7750,12 @@
       setMapText(`[data-map-action-slot-label='${slotIndex}']`, slot ? slot.text : '动作');
       setMapText(`[data-map-action-slot-value='${slotIndex}']`, slot ? toText(slot.reason, '') : '');
     });
-    document.querySelectorAll('[data-map-travel-cycle]').forEach(row => {
+    getMapUiElements('[data-map-travel-cycle]').forEach(row => {
       row.classList.toggle('is-hidden', !selectedActionDetail.showTravelMethod);
       row.classList.toggle('disabled', !selectedActionDetail.showTravelMethod || !travelPreview);
       row.title = selectedActionDetail.showTravelMethod ? '点击切换移动方式' : '';
     });
-    document.querySelectorAll('[data-map-travel-panel]').forEach(panel => {
+    getMapUiElements('[data-map-travel-panel]').forEach(panel => {
       panel.classList.toggle('disabled', !!selectedActionDetail.panelDisabled);
     });
     setMapText('[data-map-request-method]', travelMethodDisplay);
@@ -7262,10 +7766,10 @@
     setMapText('[data-map-request-targetloc]', selectedActionDetail.values[0]);
     setMapText('[data-map-request-coord]', selectedActionDetail.values[1]);
     setMapText('[data-map-request-cost]', selectedActionDetail.values[2]);
-    document.querySelectorAll('[data-map-travel-action]').forEach(card => {
+    getMapUiElements('[data-map-travel-action]').forEach(card => {
       card.classList.toggle('disabled', !travelPreview || (inPreview && !previewCurrentBranch));
     });
-    document.querySelectorAll("[data-map-control='back']").forEach(btn => {
+    getMapUiElements("[data-map-control='back']").forEach(btn => {
       btn.disabled = !inPreview;
       btn.classList.toggle('active', inPreview);
     });
@@ -7277,10 +7781,10 @@
     const renderZoom = getMapRenderZoom();
     const panX = Math.round(toNumber(mapState.panX, 0));
     const panY = Math.round(toNumber(mapState.panY, 0));
-    document.querySelectorAll('[data-map-world]').forEach(world => {
+    getMapUiElements('[data-map-world]').forEach(world => {
       const nodeUiScale = clamp(1 / Math.max(renderZoom, 1), 0.08, 1);
-      world.style.transform = `translate3d(${panX}px, ${panY}px, 0) scale(${Number(renderZoom.toFixed(3))})`;
-      world.style.setProperty('--node-ui-scale', String(nodeUiScale));
+      setMapNodeStyle(world, 'transform', `translate3d(${panX}px, ${panY}px, 0) scale(${Number(renderZoom.toFixed(3))})`);
+      setMapNodeStyle(world, '--node-ui-scale', String(nodeUiScale));
     });
     if (updateReadout) updateMapCoordinateReadout();
     if (updateMiniMap) renderMiniMapState();
@@ -7354,7 +7858,7 @@
     mapDragState.originX = mapState.panX;
     mapDragState.originY = mapState.panY;
     mapDragState.sourceCanvas = event.currentTarget;
-    document.querySelectorAll('.map-canvas.interactive-map').forEach(canvasEl => canvasEl.classList.add('dragging'));
+    getMapUiElements('.map-canvas.interactive-map').forEach(canvasEl => canvasEl.classList.add('dragging'));
     
   }
 
@@ -7432,7 +7936,7 @@
       try { event.currentTarget.releasePointerCapture(event.pointerId); } catch(e) {}
     }
     setMapHoverPoint(releaseCanvas, event.clientX, event.clientY);
-    document.querySelectorAll('.map-canvas.interactive-map').forEach(canvasEl => canvasEl.classList.remove('dragging'));
+    getMapUiElements('.map-canvas.interactive-map').forEach(canvasEl => canvasEl.classList.remove('dragging'));
     applyMapWorldTransform();
     mapDragState.lastMiniMapSyncAt = 0;
     scheduleHoverSync(mapState.hoverCanvas || releaseCanvas);
@@ -7565,7 +8069,7 @@
     setMapText('[data-map-request-coord]', actionMoveText);
     setMapText('[data-map-request-cost]', actionCostText);
     
-    document.querySelectorAll('[data-map-travel-action]').forEach(card => {
+    getMapUiElements('[data-map-travel-action]').forEach(card => {
       card.classList.toggle('disabled', !travelPreview || (hasActivePreview() && !isPreviewCurrentBranch()));
     });
   }
@@ -7592,13 +8096,13 @@
       window.addEventListener('pointercancel', handleMiniMapPointerUp);
     }
 
-    document.querySelectorAll('.map-mini-world').forEach(miniWorldEl => {
+    getMapUiElements('.map-mini-world').forEach(miniWorldEl => {
       if (miniWorldEl.dataset.mapMiniBound === '1') return;
       miniWorldEl.dataset.mapMiniBound = '1';
       miniWorldEl.addEventListener('pointerdown', handleMiniMapPointerDown);
     });
 
-    document.querySelectorAll('.map-canvas.interactive-map').forEach(canvasEl => {
+    getMapUiElements('.map-canvas.interactive-map').forEach(canvasEl => {
       if (canvasEl.dataset.mapBound === '1') return;
       canvasEl.dataset.mapBound = '1';
       canvasEl.addEventListener('wheel', handleMapWheel, { passive: false });
@@ -7608,14 +8112,14 @@
       canvasEl.addEventListener('click', handleMapCanvasClick);
     });
 
-    document.querySelectorAll('[data-map-node-layer]').forEach(layerEl => {
+    getMapUiElements('[data-map-node-layer]').forEach(layerEl => {
       if (layerEl.dataset.mapBound === '1') return;
       layerEl.dataset.mapBound = '1';
       layerEl.addEventListener('click', handleNodeLayerClick);
       layerEl.addEventListener('dblclick', handleNodeLayerDoubleClick);
     });
 
-    document.querySelectorAll('[data-map-control]').forEach(btn => {
+    getMapUiElements('[data-map-control]').forEach(btn => {
       if (btn.dataset.mapBound === '1') return;
       btn.dataset.mapBound = '1';
       btn.addEventListener('click', event => {
@@ -7633,8 +8137,7 @@
           return;
         }
         if (control === 'focus') {
-          mapState.infoPanelMode = 'follow';
-          syncInteractiveMapUI({ center: true });
+          focusCurrentLocation();
           return;
         }
         if (control === 'back') {
@@ -7655,7 +8158,7 @@
       });
     });
 
-    document.querySelectorAll('[data-map-action-slot]').forEach(row => {
+    getMapUiElements('[data-map-action-slot]').forEach(row => {
       if (row.dataset.mapBound === '1') return;
       row.dataset.mapBound = '1';
       row.addEventListener('click', event => {
@@ -7667,7 +8170,7 @@
       });
     });
 
-    document.querySelectorAll('[data-map-npc-select]').forEach(btn => {
+    getMapUiElements('[data-map-npc-select]').forEach(btn => {
       if (btn.dataset.mapBound === '1') return;
       btn.dataset.mapBound = '1';
       btn.addEventListener('click', event => {
@@ -7686,7 +8189,7 @@
       });
     });
 
-    document.querySelectorAll('[data-map-travel-cycle]').forEach(row => {
+    getMapUiElements('[data-map-travel-cycle]').forEach(row => {
       if (row.dataset.mapBound === '1') return;
       row.dataset.mapBound = '1';
       row.addEventListener('click', event => {
@@ -7697,7 +8200,7 @@
       });
     });
 
-    document.querySelectorAll('[data-map-travel-panel]').forEach(panel => {
+    getMapUiElements('[data-map-travel-panel]').forEach(panel => {
       if (panel.dataset.mapBound === '1') return;
       panel.dataset.mapBound = '1';
       panel.addEventListener('click', event => {
@@ -7708,7 +8211,7 @@
       });
     });
 
-    document.querySelectorAll('[data-map-layer-pill]').forEach(pill => {
+    getMapUiElements('[data-map-layer-pill]').forEach(pill => {
       if (pill.dataset.mapBound === '1') return;
       pill.dataset.mapBound = '1';
       pill.addEventListener('click', event => {
@@ -7723,7 +8226,7 @@
       });
     });
 
-    document.querySelectorAll('[data-map-panel-mode]').forEach(btn => {
+    getMapUiElements('[data-map-panel-mode]').forEach(btn => {
       if (btn.dataset.mapBound === '1') return;
       btn.dataset.mapBound = '1';
       btn.addEventListener('click', event => {
@@ -7739,8 +8242,7 @@
     const { center = false, updateInfo = fullDataSync, visualOnly = false, infoOnly = false } = options;
     const snapshot = mapState.snapshot || buildFallbackSnapshot();
     const terrainToken = `${mapState.currentMapId}|${toText(deepGet(snapshot, 'mapMeta.name', ''), '')}|${Array.isArray(snapshot.items) ? snapshot.items.length : 0}`;
-    enforceMapCanvasAspect();
-    applyMapResponsiveMode();
+    syncMapLayoutShell();
     if (!visualOnly) {
       normalizeMapSelection();
       if (syncInteractiveMapUI.__terrainToken !== terrainToken) {
@@ -7781,10 +8283,10 @@
     });
   }
 
-  async function refreshLiveMap(preserveSelection = true) {
+  async function refreshLiveMap(preserveSelection = true, sharedVars = undefined) {
     try {
       const firstLoad = !mapState.hasLoaded;
-      const vars = await getAllVariablesSafe();
+      const vars = sharedVars === undefined ? await getAllVariablesSafe() : sharedVars;
       const root = resolveRootData(vars);
       const effective = root ? buildEffectiveSd(root) : { rootData: null };
       const baseSnapshot = effective && effective.rootData ? buildMapSnapshot(effective.rootData) : buildFallbackSnapshot();
@@ -7869,13 +8371,20 @@
     setTimeout(() => scheduleSync(false), 80);
     setTimeout(() => scheduleSync(false), 240);
     setTimeout(() => scheduleSync(false), 640);
+    try {
+      window.__sheepMapBridge = {
+        describeTravelToNode,
+        travelToNode,
+        focusCurrentLocation
+      };
+    } catch (_) {}
     window.addEventListener('resize', () => scheduleSync(false));
 
     (async () => {
       await waitForMvuReady();
       await refreshLiveMap(false);
-      bindMvuUpdates(() => {
-        refreshLiveMap(true);
+      bindMvuUpdates(vars => {
+        refreshLiveMap(true, vars);
       });
     })();
   }

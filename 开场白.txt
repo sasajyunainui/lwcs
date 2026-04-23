@@ -1,0 +1,842 @@
+```<html>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+#character-creation-root { font-family: "Microsoft YaHei", sans-serif; color: #e0f8f5; }
+#character-creation-root .archive-panel { max-width: 680px; margin: 0 auto; background: rgba(8, 18, 24, 0.85); border: 1px solid #00ffcc; border-radius: 4px; padding: 30px; box-shadow: 0 0 20px rgba(0, 255, 204, 0.2), inset 0 0 30px rgba(0, 255, 204, 0.1); position: relative; overflow: hidden; }
+#character-creation-root .archive-panel::before { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 255, 204, 0.05) 2px, rgba(0, 255, 204, 0.05) 4px); pointer-events: none; z-index: 0; }
+#character-creation-root .corner { position: absolute; width: 20px; height: 20px; border: 2px solid #00ffcc; z-index: 1; }
+#character-creation-root .corner-tl { top: 10px; left: 10px; border-right: none; border-bottom: none; }
+#character-creation-root .corner-tr { top: 10px; right: 10px; border-left: none; border-bottom: none; }
+#character-creation-root .corner-bl { bottom: 10px; left: 10px; border-right: none; border-top: none; }
+#character-creation-root .corner-br { bottom: 10px; right: 10px; border-left: none; border-top: none; }
+#character-creation-root .panel-content { position: relative; z-index: 2; }
+#character-creation-root .panel-title { text-align: center; font-size: 24px; font-weight: bold; color: #00ffcc; text-shadow: 0 0 10px #00ffcc; margin-bottom: 25px; border-bottom: 1px dashed rgba(0, 255, 204, 0.5); padding-bottom: 15px; letter-spacing: 3px; }
+#character-creation-root .form-group { margin-bottom: 20px; }
+#character-creation-root .form-group label { display: block; font-size: 13px; margin-bottom: 8px; color: #88d8d0; font-weight: bold; letter-spacing: 1px; }
+#character-creation-root .form-control { width: 100%; padding: 10px 12px; background: rgba(0, 255, 204, 0.05); border: 1px solid rgba(0, 255, 204, 0.4); border-radius: 2px; color: #fff; font-size: 14px; outline: none; transition: all 0.3s; box-sizing: border-box; }
+#character-creation-root .form-control:focus { border-color: #00ffcc; box-shadow: 0 0 10px rgba(0, 255, 204, 0.4); background: rgba(0, 255, 204, 0.1); }
+#character-creation-root .form-control option { background: #081218; color: #00ffcc; }
+#character-creation-root .row { display: flex; gap: 20px; }
+#character-creation-root .col { flex: 1; }
+#character-creation-root .spirit-type-container { display: flex; gap: 15px; flex-wrap: wrap; }
+#character-creation-root .spirit-type-item { flex: 1; min-width: 200px; background: rgba(0, 255, 204, 0.05); padding: 12px; border-radius: 2px; border: 1px solid rgba(0, 255, 204, 0.2); }
+#character-creation-root .radio-group { display: flex; flex-direction: column; gap: 12px; }
+#character-creation-root .radio-card { background: rgba(0, 0, 0, 0.5); border: 1px solid #333; border-radius: 4px; padding: 15px; cursor: pointer; transition: all 0.3s; position: relative; overflow: hidden; }
+#character-creation-root .radio-card input { position: absolute; opacity: 0; }
+#character-creation-root .radio-title { font-weight: bold; margin-bottom: 6px; font-size: 15px; transition: color 0.3s; }
+#character-creation-root .radio-desc { font-size: 12px; color: #aaa; line-height: 1.5; }
+#character-creation-root .card-a:hover { border-color: #ffff00; background: rgba(255, 255, 0, 0.05); }
+#character-creation-root .card-a.selected { border-color: #ffff00; box-shadow: 0 0 15px rgba(255, 255, 0, 0.3); background: rgba(255, 255, 0, 0.1); }
+#character-creation-root .card-a.selected .radio-title { color: #ffff00; text-shadow: 0 0 8px #ffff00; }
+#character-creation-root .card-b:hover { border-color: #aa00ff; background: rgba(170, 0, 255, 0.05); }
+#character-creation-root .card-b.selected { border-color: #aa00ff; box-shadow: 0 0 15px rgba(170, 0, 255, 0.4); background: rgba(170, 0, 255, 0.15); }
+#character-creation-root .card-b.selected .radio-title { color: #e088ff; text-shadow: 0 0 8px #aa00ff; }
+#character-creation-root .card-c:hover { border-color: #ff0000; background: rgba(255, 0, 0, 0.05); }
+#character-creation-root .card-c.selected { border-color: #ff0000; box-shadow: 0 0 20px rgba(255, 0, 0, 0.5); background: rgba(255, 0, 0, 0.15); }
+#character-creation-root .card-c.selected .radio-title { color: #ff3333; text-shadow: 0 0 10px #ff0000; }
+#character-creation-root .submit-btn { width: 100%; padding: 15px; background: rgba(0, 255, 204, 0.1); border: 1px solid #00ffcc; color: #00ffcc; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 25px; transition: all 0.3s; letter-spacing: 2px; text-shadow: 0 0 5px #00ffcc; }
+#character-creation-root .submit-btn:hover { background: rgba(0, 255, 204, 0.3); box-shadow: 0 0 15px #00ffcc; }
+#character-creation-root .template-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+#character-creation-root .template-btn { flex: 1; min-width: 110px; padding: 8px 10px; background: rgba(0, 255, 204, 0.08); border: 1px solid rgba(0, 255, 204, 0.45); color: #c7fff6; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+#character-creation-root .template-btn:hover { background: rgba(0, 255, 204, 0.2); border-color: #00ffcc; }
+#character-creation-root .template-hint { min-height: 18px; margin-top: 8px; font-size: 12px; color: #8fffe6; }
+</style>
+</head>
+<body>
+<div id="character-creation-root">
+<div class="archive-panel" id="panel-container">
+<div class="corner corner-tl"></div><div class="corner corner-tr"></div>
+<div class="corner corner-bl"></div><div class="corner corner-br"></div>
+<div class="panel-content">
+<div class="panel-title">传灵塔·新晋魂师档案录入终端</div>
+
+<div class="form-group">
+<label>▶ 时间线节点选择</label>
+<select id="timeline-select" class="form-control" onchange="updateLocByTimeline()">
+<option value="6岁">6岁·红山学院开局</option>
+<option value="9岁">9岁·东海学院开局</option>
+<option value="13岁" selected>13岁·史莱克学院开局</option>
+</select>
+</div>
+
+<div class="form-group">
+<label>▶ 开场白模板记忆（本地）</label>
+<div class="row">
+<div class="col">
+<input type="text" id="template-name" class="form-control" placeholder="输入模板名后点保存，如：主线开局A">
+</div>
+<div class="col">
+<select id="template-select" class="form-control">
+<option value="">选择已保存模板</option>
+</select>
+</div>
+</div>
+<div class="template-actions">
+<button type="button" class="template-btn" onclick="saveCurrentTemplate()">保存模板</button>
+<button type="button" class="template-btn" onclick="loadSelectedTemplate()">加载模板</button>
+<button type="button" class="template-btn" onclick="deleteSelectedTemplate()">删除模板</button>
+<button type="button" class="template-btn" onclick="clearCreationForm()">清空表单</button>
+</div>
+<div id="template-hint" class="template-hint"></div>
+</div>
+
+<div class="row">
+<div class="col form-group">
+<label>▶ 姓名</label>
+<input type="text" id="char-name" class="form-control" placeholder="请输入姓名">
+</div>
+<div class="col form-group">
+<label>▶ 性别</label>
+<select id="char-gender" class="form-control">
+<option value="男">男</option>
+<option value="女">女</option>
+<option value="其他">其他</option>
+</select>
+</div>
+<div class="col form-group">
+<label>▶ 年龄</label>
+<input type="number" id="char-age" class="form-control" placeholder="如: 13" value="13" min="0">
+</div>
+</div>
+<div class="form-group">
+<label>▶ 初始所在地点 (可自由填写或下拉选择)</label>
+<input type="text" id="char-loc" class="form-control" list="loc-options" value="斗罗大陆-史莱克城-史莱克学院-外院" placeholder="如: 斗罗大陆-东海城-傲来城-红山学院 / 斗罗大陆-史莱克城">
+<datalist id="loc-options">
+<option value="斗罗大陆-东海城-傲来城-红山学院"></option>
+<option value="斗罗大陆-东海城-东海学院"></option>
+<option value="斗罗大陆-史莱克城-史莱克学院-外院"></option>
+<option value="斗罗大陆-明都-日月皇家魂师学院"></option>
+<option value="斗罗大陆-天斗城"></option>
+<option value="星罗大陆-星罗帝国-星罗城-怪物学院"></option>
+</datalist>
+</div>
+<div class="form-group">
+<label>▶ 武魂 (双生武魂可用空格、顿号或逗号分隔)</label>
+<input type="text" id="char-spirit" class="form-control" placeholder="如: 蓝银草 昊天锤" oninput="updateSpiritTypes()">
+</div>
+<div class="form-group">
+<label>▶ 武魂详细设定 (系统已根据武魂数量自动生成矩阵，留空则交由AI补完)</label>
+<div class="spirit-type-container" id="spirit-types-container"></div>
+</div>
+<div class="row">
+<div class="col form-group">
+<label>▶ 性格特征 (可自由填写或下拉选择)</label>
+<input type="text" id="char-personality" class="form-control" list="personality-options" placeholder="留空则AI自动生成：待生成（结合年龄、武魂与处境补完性格）">
+<datalist id="personality-options">
+<option value="冷静沉着，谋定而后动"></option>
+<option value="腹黑狡黠，极其护短"></option>
+<option value="热血冲动，重情重义"></option>
+<option value="孤僻冷傲，杀伐果断"></option>
+<option value="温和善良，平易近人"></option>
+<option value="表面慵懒，实则极度危险"></option>
+<option value="天真烂漫，活泼可爱，像个小太阳"></option>
+<option value="软萌乖巧，爱撒娇，但关键时刻很坚强"></option>
+<option value="傲娇嘴硬，明明很关心却总爱说反话"></option>
+</datalist>
+</div>
+<div class="col form-group">
+<label>▶ 外貌特征 (可自由填写或下拉选择)</label>
+<input type="text" id="char-appearance" class="form-control" list="appearance-options" placeholder="留空则AI自动生成：待生成（结合年龄、气质与武魂补完外貌）">
+<datalist id="appearance-options">
+<option value="蓝发蓝眸，面容俊秀，气质温和中带着坚韧"></option>
+<option value="冰蓝色长发，气质冷傲，宛如一柄出鞘的利剑"></option>
+<option value="黑发黑瞳，长相清秀，眼神坚毅"></option>
+<option value="银发紫眸，容颜绝世，气质清冷"></option>
+<option value="金发蓝眼，身材高大，阳光帅气"></option>
+<option value="红发红瞳，体格魁梧，充满野性"></option>
+<option value="白发红眸，肤色苍白，带着病态美"></option>
+<option value="相貌平平，属于丢在人堆里找不到的类型"></option>
+<option value="粉发双马尾，娇小玲珑，像个精致的瓷娃娃"></option>
+<option value="娃娃脸，大眼睛，带着一点可爱的婴儿肥"></option>
+<option value="头顶有一撮呆毛，笑起来有小酒窝，十分讨喜"></option>
+</datalist>
+</div>
+</div>
+<div class="row">
+<div class="col form-group">
+<label>▶ 天赋资质评估</label>
+<select id="char-talent" class="form-control">
+<option value="EX">绝世妖孽 (怪物中的怪物)</option>
+<option value="S">顶级天才 (史莱克门槛)</option>
+<option value="A">天才 (一流学院门槛)</option>
+<option value="B">优秀 (小城天才)</option>
+<option value="C">正常 (普通人水平)</option>
+<option value="D">劣等 (先天不足)</option>
+</select>
+</div>
+<div class="col form-group">
+<label>▶ 身份背景 (可自由填写或下拉选择)</label>
+<input type="text" id="char-bg" class="form-control" list="bg-options" placeholder="留空则AI自动生成：待生成（结合时间线、地点、天赋与武魂补完身份背景）">
+<datalist id="bg-options">
+<option value="平民"></option>
+<option value="普通势力"></option>
+<option value="一流势力"></option>
+<option value="顶级势力"></option>
+</datalist>
+</div>
+</div>
+
+<div class="row">
+<div class="col form-group">
+<label>▶ 副职业选择</label>
+<select id="char-job-type" class="form-control">
+<option value="无">无</option>
+<option value="锻造师" selected>锻造师</option>
+<option value="机甲设计师">机甲设计师</option>
+<option value="机甲制造师">机甲制造师</option>
+<option value="机甲修理师">机甲修理师</option>
+</select>
+</div>
+<div class="col form-group">
+<label>▶ 副职业等级</label>
+<select id="char-job-lv" class="form-control">
+<option value="1">1级</option>
+<option value="2">2级</option>
+<option value="3" selected>3级</option>
+<option value="4">4级</option>
+<option value="5">5级</option>
+<option value="6">6级</option>
+<option value="7">7级</option>
+<option value="8">8级</option>
+<option value="9">9级</option>
+</select>
+</div>
+</div>
+
+<div class="form-group">
+<label>▶ 【核心协议：命运干涉级别】</label>
+<div class="radio-group">
+<label class="radio-card card-a selected" onclick="selectRadio(this)">
+<input type="radio" name="destiny" value="A" checked>
+<div class="radio-title">[百年级] 命运观测者 (低干涉)</div>
+<div class="radio-desc">倾向于顺应原著发展，蝴蝶效应累计速度极慢。(偏差值倍率: 0.1)</div>
+</label>
+<label class="radio-card card-b" onclick="selectRadio(this)">
+<input type="radio" name="destiny" value="B">
+<div class="radio-title">[万年级] 时代参与者 (正常干涉)</div>
+<div class="radio-desc">将与主角团产生正常交集，行为会正常影响世界走向。(偏差值倍率: 0.5)</div>
+</label>
+<label class="radio-card card-c" onclick="selectRadio(this)">
+<input type="radio" name="destiny" value="C">
+<div class="radio-title">[十万年级] 混沌搅局者 (高危干涉)</div>
+<div class="radio-desc">你就是来搞事的！微小的改变都会引发剧烈蝴蝶效应！(偏差值倍率: 1.0)</div>
+</label>
+</div>
+</div>
+<button class="submit-btn" onclick="submitForm()">[ 确认同步至世界线 ]</button>
+</div>
+</div>
+</div>
+<script>
+
+var FORM_TEMPLATE_STORAGE_KEY = 'CHAR_FORM_TEMPLATES_V1';
+var FORM_LAST_SNAPSHOT_KEY = 'CHAR_FORM_LAST_SNAPSHOT_V1';
+
+var timelineData = {
+    "6岁": {
+        world: { time: { tick: 72} },
+        char: {
+            "唐舞麟": { stat: { age: 6, lv: 3, talent_tier: "绝世妖孽", innate_sp_lv: 3, type: "强攻系" }, spirit: { "第一武魂": { 表象名称: "蓝银草", type: "控制系", 描述: "表面带有金色纹路的变异蓝银草。特性：极为坚韧沉重，附带金龙王气血的粉碎与霸体特性，兼具强控与强攻能力", soul_spirits: {} } }, bloodline_power: { bloodline: "金龙王", seal_lv: 0, core: "未凝聚", life_fire: false }, equip: { armor: { lv: 0, name: "无", equip_status: "未装备" }, wpn: { name: "无", tier: "无" }, mech: { lv: "无", status: "完好" } }, energy: { core: { 数量: 0 } }, status: { loc: "斗罗大陆-东海城-傲来城-红山学院", action: "日常", alive: true }, wealth: { fed_coin: 1000 }, social: { reputation: 0, main_identity: "红山学院学生", factions: { "红山学院": { 身份: "学生", 权限级: 1 } } } },
+			"娜儿": { stat: { age: 5.5, lv: 0, talent_tier: "绝世妖孽", type: "强攻系" }, spirit: { "第一武魂": { 表象名称: "未展露", type: "强攻系" } }, bloodline_power: { bloodline: "银龙王", seal_lv: 0, core: "未凝聚" }, equip: { armor: { lv: 0, name: "无", equip_status: "未装备" }, wpn: { name: "无", tier: "无" }, mech: { lv: "无", status: "完好" } }, energy: { core: { 数量: 0 } }, status: { loc: "斗罗大陆-东海城-傲来城", action: "日常", alive: true }, wealth: { fed_coin: 0 }, social: { reputation: 0, main_identity: "唐舞麟的妹妹", relations: { "唐舞麟": { 关系: "亲密", 好感度: 80, relation_route: "恋人线" } } } }
+        }
+    },
+    "9岁": {
+        world: { time: { tick: 160080} },
+        char: {
+            "唐舞麟": { stat: { age: 9, lv: 11, talent_tier: "绝世妖孽", innate_sp_lv: 3, type: "强攻系" }, spirit: { "第一武魂": { 表象名称: "蓝银草", type: "控制系", 描述: "表面带有金色纹路的变异蓝银草。特性：极为坚韧沉重，附带金龙王气血的粉碎与霸体特性，兼具强控与强攻能力", soul_spirits: { "第一魂灵": { 表象名称: "金光", 年限: 10, 状态: "活跃", rings: { "1": { 年限: 10, 颜色: "白", 魂技: { "第1魂技": { 魂技名: "第1魂技", 画面描述: "未知", 效果描述: "未知", _效果数组: [] } } } } } } } }, bloodline_power: { bloodline: "金龙王", seal_lv: 0, core: "未凝聚", life_fire: false }, job: { "锻造师": { lv: 2, exp: 1500, title: "千锻大师" } }, equip: { armor: { lv: 0, name: "无", equip_status: "未装备" }, wpn: { name: "千锻沉银锤", tier: "魂导器" }, mech: { lv: "无", status: "完好" } }, energy: { core: { 数量: 0 } }, status: { loc: "斗罗大陆-东海城-东海学院", action: "日常", alive: true }, wealth: { fed_coin: 50000 }, social: { reputation: 10, main_identity: "东海学院新学生/千锻大师", factions: { "东海学院": { 身份: "新学生", 权限级: 2 }, "锻造师协会": { 身份: "注册锻造师", 权限级: 2 } } } },
+            "古月": { stat: { age: 9, lv: 15, talent_tier: "绝世妖孽", type: "元素系" }, spirit: { "第一武魂": { 表象名称: "元素使", type: "元素系", 描述: "能够随心所欲掌控六大元素的顶尖武魂。特性：元素亲和度极高，可进行多元素融合爆发出恐怖的毁灭伤害与复合控制", soul_spirits: { "第一魂灵": { 表象名称: "第一魂灵", 年限: 300, 状态: "活跃", rings: { "1": { 年限: 300, 颜色: "黄", 魂技: { "元素潮汐": { 状态: "已固化", 技能类型: "元素", 画面描述: "掌控基础元素发动潮汐般的攻击" } } } } } } } }, equip: { armor: { lv: 0, name: "无", equip_status: "未装备" }, wpn: { name: "无", tier: "无" }, mech: { lv: "无", status: "完好" } }, energy: { core: { 数量: 0 } }, status: { loc: "斗罗大陆-史莱克城-传灵塔总部", action: "日常", alive: true }, wealth: { fed_coin: 10000 }, social: { reputation: 300, main_identity: "东海学院新学生", factions: { "东海学院": { 身份: "新学生", 权限级: 2 }, "传灵塔": { 身份: "核心培养对象", 权限级: 3 } } } },
+            "谢邂": { stat: { age: 9, lv: 18, talent_tier: "顶级天才", type: "敏攻系" }, spirit: { "第一武魂": { 表象名称: "光龙匕", type: "敏攻系", 描述: "散发着耀眼光芒的龙形匕首。特性：极致的锋锐与光速斩击，附带光龙风暴绞杀能力", soul_spirits: { "第一魂灵": { 表象名称: "第一魂灵", 年限: 300, 状态: "活跃", rings: { "1": { 年限: 300, 颜色: "黄", 魂技: { "光龙刃": { 状态: "已固化", 技能类型: "输出", 画面描述: "匕首斩出耀眼的光刃" } } }, } } } }, "第二武魂": { 表象名称: "影龙匕", type: "敏攻系", 描述: "潜伏于暗影中的龙形匕首。特性：诡异莫测，无声无息，附带暗影分身与空间跳跃的刺杀能力", soul_spirits: { "第一魂灵": { 表象名称: "第一魂灵", 年限: 300, 状态: "活跃", rings: { "1": { 年限: 300, 颜色: "黄", 魂技: { "影龙刃": { 状态: "已固化", 技能类型: "输出", 画面描述: "挥出无声无息的暗影之刃" } } }, } } } } }, equip: { armor: { lv: 0, name: "无", equip_status: "未装备" }, wpn: { name: "无", tier: "无" }, mech: { lv: "无", status: "完好" } }, energy: { core: { 数量: 0 } }, status: { loc: "斗罗大陆-东海城-东海学院", action: "日常", alive: true }, wealth: { fed_coin: 200000 }, social: { reputation: 400, main_identity: "东海学院新学生/谢家少爷", factions: { "东海学院": { 身份: "新学生", 权限级: 2 } } } },
+			"许小言": { stat: { age: 9, lv: 13, talent_tier: "顶级天才", type: "控制系" }, spirit: { "第一武魂": { 表象名称: "星轮冰杖", type: "控制系", 描述: "顶端带有星轮的冰蓝色法杖。特性：夜晚星光下魂技会发生变异，具备无视等级差距的绝对强控能力", soul_spirits: { "第一魂灵": { 表象名称: "第一魂灵", 年限: 300, 状态: "活跃", rings: { "1": { 年限: 300, 颜色: "黄", 魂技: { "冰轮(白昼)": { 状态: "已固化", 技能类型: "控制", 画面描述: "释放冰轮切割并减速敌人" }, "星轮冰链(夜晚)": { 状态: "已固化", 技能类型: "控制", 画面描述: "星光闪耀，释放绝对成立的冰链束缚" } } } } } } } }, equip: { armor: { lv: 0, name: "无", equip_status: "未装备" }, wpn: { name: "无", tier: "无" }, mech: { lv: "无", status: "完好" } }, energy: { core: { 数量: 0 } }, status: { loc: "斗罗大陆-东海城-东海学院", action: "日常", alive: true }, wealth: { fed_coin: 50000 }, social: { reputation: 200, main_identity: "东海学院新学生", factions: { "东海学院": { 身份: "新学生", 权限级: 2 } } } },
+            "叶星澜": { stat: { age: 9, lv: 31, talent_tier: "顶级天才", type: "强攻系" }, spirit: { "第一武魂": { 表象名称: "星神剑", type: "强攻系", 描述: "璀璨如星光的顶级剑武魂。特性：剑意凌厉，星力凝聚，拥有极强的单体穿透与剑阵爆发力", soul_spirits: { "第一魂灵": { 表象名称: "第一魂灵", 年限: 500, 状态: "活跃", rings: { "1": { 年限: 500, 颜色: "黄", 魂技: { "剑神星": { 状态: "已固化", 技能类型: "输出", 画面描述: "剑尖亮起刺目星光，爆发极强穿透力" } } }, "2": { 年限: 500, 颜色: "黄", 魂技: { "星神剑阵": { 状态: "已固化", 技能类型: "输出", 画面描述: "幻化出多柄星力长剑形成剑阵" } } } } }, "第二魂灵": { 表象名称: "第二魂灵", 年限: 1000, 状态: "活跃", rings: { "3": { 年限: 1000, 颜色: "紫", 魂技: { "剑星落": { 状态: "已固化", 技能类型: "输出", 画面描述: "如流星坠落般发动致命一击" } } } } } } } }, equip: { armor: { lv: 0, name: "无", equip_status: "未装备" }, wpn: { name: "无", tier: "无" }, mech: { lv: "无", status: "完好" } }, energy: { core: { 数量: 0 } }, status: { loc: "斗罗大陆-史莱克城-史莱克学院-内院", action: "日常", alive: true }, wealth: { fed_coin: 10000, shrek_pt: 500 }, social: { reputation: 1500, main_identity: "史莱克内院学生", factions: { "史莱克学院": { 身份: "内院学生", 权限级: 3 } } } },
+            "徐笠智": { stat: { age: 9, lv: 21, talent_tier: "顶级天才", type: "食物系" }, spirit: { "第一武魂": { 表象名称: "包子", type: "食物系", 描述: "热气腾腾的食物系武魂。特性：能制造快速恢复体力、提升防御甚至让人狂化的特殊包子，战地续航与辅助能力极强", soul_spirits: { "第一魂灵": { 表象名称: "第一魂灵", 年限: 300, 状态: "活跃", rings: { "1": { 年限: 300, 颜色: "黄", 魂技: { "恢复大肉包": { 状态: "已固化", 技能类型: "辅助", 画面描述: "制造能快速恢复体力与伤势的肉包" } } }, "2": { 年限: 300, 颜色: "黄", 魂技: { "坚固大肉包": { 状态: "已固化", 技能类型: "辅助", 画面描述: "制造能短时间提升防御力的肉包" } } } } } } } }, equip: { armor: { lv: 0, name: "无", equip_status: "未装备" }, wpn: { name: "无", tier: "无" }, mech: { lv: "无", status: "完好" } }, energy: { core: { 数量: 0 } }, status: { loc: "斗罗大陆-史莱克城-史莱克学院-内院", action: "日常", alive: true }, wealth: { fed_coin: 5000, shrek_pt: 300 }, social: { reputation: 1000, main_identity: "史莱克内院学生", factions: { "史莱克学院": { 身份: "内院学生", 权限级: 3 } } } },
+			"舞长空": { stat: { age: 28, lv: 69, talent_tier: "顶级天才", type: "强攻系", _men_realm: "灵海境" }, spirit: { "第一武魂": { 表象名称: "天霜剑", type: "强攻系" } }, equip: { armor: { lv: 2, name: "天冰", equip_status: "已装备" }, wpn: { name: "无", tier: "无" }, mech: { lv: "无", status: "完好" } }, energy: { core: { 数量: 0 } }, status: { loc: "斗罗大陆-东海城-东海学院", action: "日常", alive: true }, wealth: { fed_coin: 500000, tang_pt: 10000 }, social: { reputation: 5000, main_identity: "东海学院高级教师/冷傲男神", factions: { "东海学院": { 身份: "高级教师", 权限级: 5 }, "唐门": { 身份: "执事", 权限级: 4 }, "史莱克学院": { 身份: "前内院学生", 权限级: 3 } } } },
+            "慕辰": { stat: { age: 45, lv: 89, talent_tier: "天才", type: "辅助系", _men_realm: "灵渊境" }, spirit: { "第一武魂": { 表象名称: "太阳", type: "辅助系" } }, job: { "锻造师": { lv: 8, exp: 1000000, title: "圣匠" } }, equip: { armor: { lv: 3, name: "圣之护", equip_status: "已装备" }, wpn: { name: "圣匠之锤", tier: "魂导器" }, mech: { lv: "无", status: "完好" } }, energy: { core: { 数量: 1 } }, status: { loc: "斗罗大陆-东海城-锻造师协会", action: "日常", alive: true }, wealth: { fed_coin: 50000000 }, social: { reputation: 50000, main_identity: "东海城锻造师协会会长/圣匠", factions: { "锻造师协会": { 身份: "分会长", 权限级: 7 } } } }
+        }
+    },
+    "13岁": {
+        world: { time: { tick: 349284} },
+        char: {
+            "唐舞麟": { stat: { age: 13, lv: 28, talent_tier: "绝世妖孽", innate_sp_lv: 3, type: "强攻系" }, spirit: { "第一武魂": { 表象名称: "蓝银草", type: "控制系", 描述: "表面带有金色纹路的变异蓝银草。特性：极为坚韧沉重，附带金龙王气血的粉碎与霸体特性，兼具强控与强攻能力", soul_spirits: { "第一魂灵": { 表象名称: "金语", 年限: 1000, 状态: "活跃", rings: { "1": { 年限: 1000, 颜色: "紫", 魂技: { "第1魂技": { 魂技名: "第1魂技", 画面描述: "未知", 效果描述: "未知", _效果数组: [] } } }, "2": { 年限: 1000, 颜色: "紫", 魂技: { "第2魂技": { 魂技名: "第2魂技", 画面描述: "未知", 效果描述: "未知", _效果数组: [] } } } } } } } }, bloodline_power: { bloodline: "金龙王", seal_lv: 3, core: "未凝聚", life_fire: false }, job: { "锻造师": { lv: 4, exp: 65000, title: "宗匠" } }, equip: { armor: { lv: 0, name: "无", equip_status: "未装备" }, wpn: { name: "灵锻沉银锤", tier: "魂导器" }, mech: { lv: "无", status: "完好" } }, energy: { core: { 数量: 0 } }, status: { loc: "斗罗大陆-史莱克城-史莱克学院-外院", action: "日常", alive: true }, wealth: { fed_coin: 500000, shrek_pt: 0 }, social: { reputation: 200, main_identity: "史莱克外院工读生/四级锻造师", factions: { "史莱克学院": { 身份: "外院工读生", 权限级: 2 }, "锻造师协会": { 身份: "宗匠", 权限级: 4 } } } },
+            "古月": { stat: { age: 13, lv: 29, talent_tier: "绝世妖孽", type: "元素系" }, spirit: { "第一武魂": { 表象名称: "元素使", type: "元素系", 描述: "能够随心所欲掌控六大元素的顶尖武魂。特性：元素亲和度极高，可进行多元素融合爆发出恐怖的毁灭伤害与复合控制", soul_spirits: { "第一魂灵": { 表象名称: "第一魂灵", 年限: 300, 状态: "活跃", rings: { "1": { 年限: 300, 颜色: "黄", 魂技: { "元素潮汐": { 状态: "已固化", 技能类型: "元素", 画面描述: "掌控基础元素发动潮汐般的攻击" } } }, "2": { 年限: 300, 颜色: "黄", 魂技: { "元素掌控": { 状态: "已固化", 技能类型: "辅助", 画面描述: "大幅提升对所有元素的亲和力与操控精度" } } } } } } } }, equip: { armor: { lv: 0, name: "无", equip_status: "未装备" }, wpn: { name: "无", tier: "无" }, mech: { lv: "无", status: "完好" } }, energy: { core: { 数量: 0 } }, status: { loc: "斗罗大陆-史莱克城-史莱克学院-外院", action: "日常", alive: true }, wealth: { fed_coin: 50000, shrek_pt: 0 }, social: { reputation: 1500, main_identity: "史莱克外院工读生", factions: { "史莱克学院": { 身份: "外院工读生", 权限级: 2 }, "传灵塔": { 身份: "核心培养对象", 权限级: 4 } } } },
+            "谢邂": { stat: { age: 13, lv: 32, talent_tier: "顶级天才", type: "敏攻系" }, spirit: { "第一武魂": { 表象名称: "光龙匕", type: "敏攻系", 描述: "散发着耀眼光芒的龙形匕首。特性：极致的锋锐与光速斩击，附带光龙风暴绞杀能力", soul_spirits: { "第一魂灵": { 表象名称: "第一魂灵", 年限: 500, 状态: "活跃", rings: { "1": { 年限: 500, 颜色: "黄", 魂技: { "光龙刃": { 状态: "已固化", 技能类型: "输出", 画面描述: "匕首斩出耀眼的光刃" } } }, "2": { 年限: 500, 颜色: "黄", 魂技: { "光龙风暴": { 状态: "已固化", 技能类型: "输出", 画面描述: "化身光之风暴绞杀敌人" } } } } }, "第二魂灵": { 表象名称: "第二魂灵", 年限: 1000, 状态: "活跃", rings: { "3": { 年限: 1000, 颜色: "紫", 魂技: { "光龙分身": { 状态: "已固化", 技能类型: "移动", 画面描述: "凝聚出具有攻击力的光之分身" } } } } } } }, "第二武魂": { 表象名称: "影龙匕", type: "敏攻系", 描述: "潜伏于暗影中的龙形匕首。特性：诡异莫测，无声无息，附带暗影分身与空间跳跃的刺杀能力", soul_spirits: { "第一魂灵": { 表象名称: "第一魂灵", 年限: 500, 状态: "活跃", rings: { "1": { 年限: 500, 颜色: "黄", 魂技: { "影龙刃": { 状态: "已固化", 技能类型: "输出", 画面描述: "挥出无声无息的暗影之刃" } } }, "2": { 年限: 500, 颜色: "黄", 魂技: { "影龙风暴": { 状态: "已固化", 技能类型: "输出", 画面描述: "化作暗影风暴吞噬目标" } } } } }, "第二魂灵": { 表象名称: "第二魂灵", 年限: 1000, 状态: "活跃", rings: { "3": { 年限: 1000, 颜色: "紫", 魂技: { "影龙分身": { 状态: "已固化", 技能类型: "移动", 画面描述: "在暗影中分裂出诡异的幻影" } } } } } } } }, equip: { armor: { lv: 0, name: "无", equip_status: "未装备" }, wpn: { name: "无", tier: "无" }, mech: { lv: "无", status: "完好" } }, energy: { core: { 数量: 0 } }, status: { loc: "斗罗大陆-史莱克城-史莱克学院-外院", action: "日常", alive: true }, wealth: { fed_coin: 500000, shrek_pt: 0 }, social: { reputation: 1200, main_identity: "史莱克外院工读生", factions: { "史莱克学院": { 身份: "外院工读生", 权限级: 2 } } } },
+            "许小言": { stat: { age: 13, lv: 28, talent_tier: "顶级天才", type: "控制系" }, spirit: { "第一武魂": { 表象名称: "星轮冰杖", type: "控制系", 描述: "顶端带有星轮的冰蓝色法杖。特性：夜晚星光下魂技会发生变异，具备无视等级差距的绝对强控能力", soul_spirits: { "第一魂灵": { 表象名称: "第一魂灵", 年限: 300, 状态: "活跃", rings: { "1": { 年限: 300, 颜色: "黄", 魂技: { "冰轮(白昼)": { 状态: "已固化", 技能类型: "控制", 画面描述: "释放冰轮切割并减速敌人" }, "星轮冰链(夜晚)": { 状态: "已固化", 技能类型: "控制", 画面描述: "星光闪耀，释放绝对成立的冰链束缚" } } }, "2": { 年限: 300, 颜色: "黄", 魂技: { "冰矛(白昼)": { 状态: "已固化", 技能类型: "输出", 画面描述: "凝聚尖锐的冰矛投掷" }, "星轮冰矛(夜晚)": { 状态: "已固化", 技能类型: "控制", 画面描述: "附带星光之力的冰矛，命中后强制僵直" } } } } } } } }, equip: { armor: { lv: 0, name: "无", equip_status: "未装备" }, wpn: { name: "无", tier: "无" }, mech: { lv: "无", status: "完好" } }, energy: { core: { 数量: 0 } }, status: { loc: "斗罗大陆-史莱克城-史莱克学院-外院", action: "日常", alive: true }, wealth: { fed_coin: 100000, shrek_pt: 0 }, social: { reputation: 1000, main_identity: "史莱克外院工读生", factions: { "史莱克学院": { 身份: "外院工读生", 权限级: 2 } } } },
+            "叶星澜": { stat: { age: 13, lv: 35, talent_tier: "顶级天才", type: "强攻系" }, spirit: { "第一武魂": { 表象名称: "星神剑", type: "强攻系", 描述: "璀璨如星光的顶级剑武魂。特性：剑意凌厉，星力凝聚，拥有极强的单体穿透与剑阵爆发力", soul_spirits: { "第一魂灵": { 表象名称: "第一魂灵", 年限: 500, 状态: "活跃", rings: { "1": { 年限: 500, 颜色: "黄", 魂技: { "剑神星": { 状态: "已固化", 技能类型: "输出", 画面描述: "剑尖亮起刺目星光，爆发极强穿透力" } } }, "2": { 年限: 500, 颜色: "黄", 魂技: { "星神剑阵": { 状态: "已固化", 技能类型: "输出", 画面描述: "幻化出多柄星力长剑形成剑阵" } } } } }, "第二魂灵": { 表象名称: "第二魂灵", 年限: 1000, 状态: "活跃", rings: { "3": { 年限: 1000, 颜色: "紫", 魂技: { "剑星落": { 状态: "已固化", 技能类型: "输出", 画面描述: "如流星坠落般发动致命一击" } } } } } } } }, equip: { armor: { lv: 0, name: "无", equip_status: "未装备" }, wpn: { name: "无", tier: "无" }, mech: { lv: "无", status: "完好" } }, energy: { core: { 数量: 0 } }, status: { loc: "斗罗大陆-史莱克城-史莱克学院-外院", action: "日常", alive: true }, wealth: { fed_coin: 50000, shrek_pt: 500 }, social: { reputation: 2500, main_identity: "史莱克外院学生", factions: { "史莱克学院": { 身份: "外院学生", 权限级: 2 } } } },
+            "徐笠智": { stat: { age: 13, lv: 34, talent_tier: "顶级天才", type: "食物系" }, spirit: { "第一武魂": { 表象名称: "包子", type: "食物系", 描述: "热气腾腾的食物系武魂。特性：能制造快速恢复体力、提升防御甚至让人狂化的特殊包子，战地续航与辅助能力极强", soul_spirits: { "第一魂灵": { 表象名称: "第一魂灵", 年限:800, 状态: "活跃", rings: { "1": { 年限: 500, 颜色: "黄", 魂技: { "恢复大肉包": { 状态: "已固化", 技能类型: "辅助", 画面描述: "制造能快速恢复体力与伤势的肉包" } } }, "2": { 年限: 800, 颜色: "黄", 魂技: { "轻灵小笼包": { 状态: "已固化", 技能类型: "辅助", 画面描述: "制造能短时间提升敏捷的肉包" } } } } }, "第二魂灵": { 表象名称: "第二魂灵", 年限: 1000, 状态: "活跃", rings: { "3": { 年限: 1000, 颜色: "紫", 魂技: { "嗜血大肉包": { 状态: "已固化", 技能类型: "辅助", 画面描述: "制造能让人陷入狂化状态的肉包" } } } } } } } }, equip: { armor: { lv: 0, name: "无", equip_status: "未装备" }, wpn: { name: "无", tier: "无" }, mech: { lv: "无", status: "完好" } }, energy: { core: { 数量: 0 } }, status: { loc: "斗罗大陆-史莱克城-史莱克学院-外院", action: "日常", alive: true }, wealth: { fed_coin: 20000, shrek_pt: 300 }, social: { reputation: 2000, main_identity: "史莱克外院学生", factions: { "史莱克学院": { 身份: "外院学生", 权限级: 2 } } } },
+            "原恩夜辉": { stat: { age: 15, lv: 39, talent_tier: "顶级天才", type: "强攻系" }, spirit: { "第一武魂": { 表象名称: "泰坦巨猿", type: "强攻系", 描述: "拥有极致力量与恐怖防御的顶级力量型武魂。特性：力大无穷，能施展重力控制与泰坦金刚障绝对防御", soul_spirits: { "第一魂灵": { 表象名称: "第一魂灵", 年限: 1000, 状态: "活跃", rings: { "1": { 年限: 1000, 颜色: "紫", 魂技: { "泰坦之握": { 状态: "已固化", 技能类型: "控制", 画面描述: "凝聚巨大的暗金光影手掌擒拿目标" } } }, "2": { 年限: 1000, 颜色: "紫", 魂技: { "泰坦巨力": { 状态: "已固化", 技能类型: "辅助", 画面描述: "浑身肌肉膨胀，力量与防御大幅提升" } } }, "3": { 年限: 1000, 颜色: "紫", 魂技: { "泰坦金刚障": { 状态: "已固化", 技能类型: "防御", 画面描述: "释放暗金色的半球形护罩抵御攻击" } } } } } } }, "第二武魂": { 表象名称: "堕落天使", type: "敏攻系", 描述: "掌控黑暗与邪恶之力的罕见武魂。特性：附带黑暗腐蚀与空间穿梭能力，可召唤地狱之门压制敌人", soul_spirits: { "第一魂灵": { 表象名称: "第一魂灵", 年限: 1000, 状态: "活跃", rings: { "1": { 年限: 1000, 颜色: "紫", 魂技: { "暗黑之门": { 状态: "已固化", 技能类型: "移动", 画面描述: "开启黑暗之门进行短距离空间穿梭" } } }, "2": { 年限: 1000, 颜色: "紫", 魂技: { "堕落降临": { 状态: "已固化", 技能类型: "辅助", 画面描述: "黑暗气息笼罩全身，全属性提升" } } }, "3": { 年限: 1000, 颜色: "紫", 魂技: { "暗黑魔剑": { 状态: "已固化", 技能类型: "输出", 画面描述: "凝聚黑暗之力化为魔剑斩击" } } } } } } } }, equip: { armor: { lv: 0, name: "无", equip_status: "未装备" }, wpn: { name: "无", tier: "无" }, mech: { lv: "无", status: "完好" } }, energy: { core: { 数量: 0 } }, status: { loc: "斗罗大陆-史莱克城-史莱克学院-外院", action: "日常", alive: true }, wealth: { fed_coin: 100000, shrek_pt: 1500 }, social: { reputation: 3500, main_identity: "史莱克外院二年级班长", factions: { "史莱克学院": { 身份: "外院工读生", 权限级: 2 }, "泰坦巨猿家族": { 身份: "直系血脉", 权限级: 5 } } } },
+            "乐正宇": { stat: { age: 15, lv: 38, talent_tier: "顶级天才", type: "强攻系" }, spirit: { "第一武魂": { 表象名称: "神圣天使", type: "强攻系", 描述: "拥有神圣与光明属性的顶级武魂。特性：一切邪恶与黑暗的绝对克星，附带神圣审判与净化光环", soul_spirits: { "第一魂灵": { 表象名称: "第一魂灵", 年限: 1000, 状态: "活跃", rings: { "1": { 年限: 1000, 颜色: "紫", 魂技: { "圣光普照": { 状态: "已固化", 技能类型: "输出", 画面描述: "释放强烈的神圣光芒灼烧敌人" } } }, "2": { 年限: 1000, 颜色: "紫", 魂技: { "神圣之剑": { 状态: "已固化", 技能类型: "输出", 画面描述: "凝聚神圣之力化为光剑进行斩击" } } }, "3": { 年限: 1000, 颜色: "紫", 魂技: { "神圣光环": { 状态: "已固化", 技能类型: "辅助", 画面描述: "脚下荡漾出金色光环，提升友军光明属性并压制邪恶" } } } } } } } }, equip: { armor: { lv: 0, name: "无", equip_status: "未装备" }, wpn: { name: "无", tier: "无" }, mech: { lv: "无", status: "完好" } }, energy: { core: { 数量: 0 } }, status: { loc: "斗罗大陆-史莱克城-史莱克学院-外院", action: "日常", alive: true }, wealth: { fed_coin: 5000000, shrek_pt: 1000 }, social: { reputation: 4000, main_identity: "神圣天使家族少主", factions: { "史莱克学院": { 身份: "外院学生", 权限级: 2 }, "南方军团": { 身份: "军团长之孙", 权限级: 6 } } } },
+			"舞长空": { stat: { age: 31, lv: 74, talent_tier: "顶级天才", type: "强攻系", _men_realm: "灵海境" }, spirit: { "第一武魂": { 表象名称: "天霜剑", type: "强攻系" } }, equip: { armor: { lv: 2, name: "天冰", equip_status: "已装备" }, wpn: { name: "无", tier: "无" }, mech: { lv: "无", status: "完好" } }, energy: { core: { 数量: 1 } }, status: { loc: "斗罗大陆-史莱克城-史莱克学院-外院", action: "日常", alive: true }, wealth: { fed_coin: 800000, tang_pt: 15000, shrek_pt: 5000 }, social: { reputation: 8000, main_identity: "史莱克外院教师", factions: { "史莱克学院": { 身份: "外院教师", 权限级: 5 }, "唐门": { 身份: "执事", 权限级: 4 } } } },
+            "慕辰": { stat: { age: 58, lv: 89, talent_tier: "天才", type: "辅助系", _men_realm: "灵渊境" }, spirit: { "第一武魂": { 表象名称: "太阳", type: "辅助系" } }, job: { "锻造师": { lv: 8, exp: 1000000, title: "圣匠" } }, equip: { armor: { lv: 3, name: "圣之护", equip_status: "已装备" }, wpn: { name: "圣匠之锤", tier: "魂导器" }, mech: { lv: "无", status: "完好" } }, energy: { core: { 数量: 1 } }, status: { loc: "斗罗大陆-史莱克城-锻造师协会", action: "日常", alive: true }, wealth: { fed_coin: 80000000 }, social: { reputation: 60000, main_identity: "史莱克城锻造师协会会长/圣匠", factions: { "锻造师协会": { 身份: "分会长", 权限级: 7 } } } }
+        }
+    }
+};
+
+function splitSpirits(text) {
+    var value = (text || '').trim();
+    var list = value ? value.split(/[、,，;；\s]+/) : [];
+    list = list.map(function(item) { return item.trim(); }).filter(function(item) { return item !== ''; });
+    return list.length ? list.slice(0, 2) : ['未觉醒'];
+}
+
+function getTalentConfig(talent) {
+    var configMap = {
+        EX: { baseSp: 10, growthRate: 10, cultMult: 4.5, label: '绝世妖孽' },
+        S:  { baseSp: 9,  growthRate: 8,  cultMult: 3.8, label: '顶级天才' },
+        A:  { baseSp: 8,  growthRate: 5,  cultMult: 2.5, label: '天才' },
+        B:  { baseSp: 6,  growthRate: 3,  cultMult: 1.8, label: '优秀' },
+        C:  { baseSp: 3,  growthRate: 1,  cultMult: 1.0, label: '正常' },
+        D:  { baseSp: 1,  growthRate: 0,  cultMult: 0.5, label: '劣等' }
+    };
+    return configMap[talent] || configMap.C;
+}
+
+function buildGuidedField(value, promptText) {
+    var text = (value || '').trim().replace(/[\r\n]+/g, " ");
+    return {
+        value: text || '待生成',
+        prompt: text || ('待生成（' + promptText + '）'),
+        auto: !text
+    };
+}
+
+function showTemplateMessage(message, isError) {
+    var hint = document.getElementById('template-hint');
+    if (!hint) return;
+    hint.textContent = message || '';
+    hint.style.color = isError ? '#ff7d7d' : '#8fffe6';
+}
+
+function readStorageJSON(key) {
+    try {
+        var raw = localStorage.getItem(key);
+        if (!raw) return {};
+        var parsed = JSON.parse(raw);
+        return (parsed && typeof parsed === 'object') ? parsed : {};
+    } catch (err) {
+        return {};
+    }
+}
+
+function writeStorageJSON(key, value) {
+    try {
+        localStorage.setItem(key, JSON.stringify(value || {}));
+        return true;
+    } catch (err) {
+        return false;
+    }
+}
+
+function loadTemplateStore() {
+    return readStorageJSON(FORM_TEMPLATE_STORAGE_KEY);
+}
+
+function saveTemplateStore(store) {
+    return writeStorageJSON(FORM_TEMPLATE_STORAGE_KEY, store || {});
+}
+
+function saveLastSnapshot(snapshot) {
+    return writeStorageJSON(FORM_LAST_SNAPSHOT_KEY, snapshot || {});
+}
+
+function loadLastSnapshot() {
+    return readStorageJSON(FORM_LAST_SNAPSHOT_KEY);
+}
+
+function collectFormSnapshot() {
+    var destiny = 'A';
+    document.querySelectorAll('input[name="destiny"]').forEach(function(radio) {
+        if (radio.checked) destiny = radio.value;
+    });
+
+    var spiritTypes = [];
+    var spiritDescs = [];
+    document.querySelectorAll('.spirit-type-select').forEach(function(select) {
+        spiritTypes.push(select.value || '');
+    });
+    document.querySelectorAll('.spirit-desc-input').forEach(function(input) {
+        spiritDescs.push(input.value || '');
+    });
+
+    return {
+        timeline: (document.getElementById('timeline-select') || {}).value || '13岁',
+        name: (document.getElementById('char-name') || {}).value || '',
+        gender: (document.getElementById('char-gender') || {}).value || '男',
+        age: (document.getElementById('char-age') || {}).value || '13',
+        loc: (document.getElementById('char-loc') || {}).value || '',
+        spirit: (document.getElementById('char-spirit') || {}).value || '',
+        personality: (document.getElementById('char-personality') || {}).value || '',
+        appearance: (document.getElementById('char-appearance') || {}).value || '',
+        talent: (document.getElementById('char-talent') || {}).value || 'EX',
+        bg: (document.getElementById('char-bg') || {}).value || '',
+        jobType: (document.getElementById('char-job-type') || {}).value || '无',
+        jobLv: (document.getElementById('char-job-lv') || {}).value || '1',
+        destiny: destiny,
+        spiritTypes: spiritTypes,
+        spiritDescs: spiritDescs
+    };
+}
+
+function applyFormSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') return;
+
+    function setValue(id, value) {
+        var el = document.getElementById(id);
+        if (!el || value === undefined || value === null) return;
+        el.value = value;
+    }
+
+    setValue('timeline-select', snapshot.timeline);
+    setValue('char-name', snapshot.name);
+    setValue('char-gender', snapshot.gender);
+    setValue('char-age', snapshot.age);
+    setValue('char-loc', snapshot.loc);
+    setValue('char-spirit', snapshot.spirit);
+    setValue('char-personality', snapshot.personality);
+    setValue('char-appearance', snapshot.appearance);
+    setValue('char-talent', snapshot.talent);
+    setValue('char-bg', snapshot.bg);
+    setValue('char-job-type', snapshot.jobType);
+    setValue('char-job-lv', snapshot.jobLv);
+
+    if (typeof window.updateSpiritTypes === 'function') {
+        window.updateSpiritTypes();
+    }
+
+    var spiritTypes = Array.isArray(snapshot.spiritTypes) ? snapshot.spiritTypes : [];
+    var spiritDescs = Array.isArray(snapshot.spiritDescs) ? snapshot.spiritDescs : [];
+
+    document.querySelectorAll('.spirit-type-select').forEach(function(select, index) {
+        if (spiritTypes[index] !== undefined) {
+            select.value = spiritTypes[index];
+        }
+    });
+    document.querySelectorAll('.spirit-desc-input').forEach(function(input, index) {
+        if (spiritDescs[index] !== undefined) {
+            input.value = spiritDescs[index];
+        }
+    });
+
+    var destiny = snapshot.destiny || 'A';
+    var selected = document.querySelector('input[name="destiny"][value="' + destiny + '"]');
+    if (selected) {
+        var card = selected.closest ? selected.closest('.radio-card') : null;
+        if (card && typeof window.selectRadio === 'function') {
+            window.selectRadio(card);
+        } else {
+            selected.checked = true;
+        }
+    }
+}
+
+function refreshTemplateSelect(selectedName) {
+    var select = document.getElementById('template-select');
+    if (!select) return;
+
+    var store = loadTemplateStore();
+    var names = Object.keys(store).sort(function(a, b) {
+        var at = (store[a] && store[a].updatedAt) || 0;
+        var bt = (store[b] && store[b].updatedAt) || 0;
+        if (bt !== at) return bt - at;
+        return a > b ? 1 : (a < b ? -1 : 0);
+    });
+
+    select.innerHTML = '';
+    var placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = '选择已保存模板';
+    select.appendChild(placeholder);
+
+    names.forEach(function(name) {
+        var option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        select.appendChild(option);
+    });
+
+    if (selectedName && store[selectedName]) {
+        select.value = selectedName;
+    }
+}
+
+function bindTemplateMemoryEvents() {
+    var select = document.getElementById('template-select');
+    if (select) {
+        select.addEventListener('change', function() {
+            var nameInput = document.getElementById('template-name');
+            if (nameInput && select.value) {
+                nameInput.value = select.value;
+            }
+        });
+    }
+
+    var root = document.getElementById('character-creation-root');
+    if (root) {
+        var persistLast = function() {
+            saveLastSnapshot(collectFormSnapshot());
+        };
+        root.addEventListener('input', persistLast);
+        root.addEventListener('change', persistLast);
+    }
+}
+
+window.saveCurrentTemplate = function() {
+    var nameInput = document.getElementById('template-name');
+    var name = (nameInput && nameInput.value ? nameInput.value : '').trim();
+    if (!name) {
+        showTemplateMessage('请先输入模板名，再点击保存。', true);
+        return;
+    }
+
+    var store = loadTemplateStore();
+    store[name] = {
+        updatedAt: Date.now(),
+        snapshot: collectFormSnapshot()
+    };
+
+    if (!saveTemplateStore(store)) {
+        showTemplateMessage('保存失败：本地存储不可用。', true);
+        return;
+    }
+
+    refreshTemplateSelect(name);
+    showTemplateMessage('已保存模板：' + name);
+};
+
+window.loadSelectedTemplate = function() {
+    var select = document.getElementById('template-select');
+    var name = (select && select.value) ? select.value : '';
+    if (!name) {
+        showTemplateMessage('请先从列表选择模板。', true);
+        return;
+    }
+
+    var store = loadTemplateStore();
+    var entry = store[name];
+    if (!entry || !entry.snapshot) {
+        showTemplateMessage('模板不存在，列表已刷新。', true);
+        refreshTemplateSelect();
+        return;
+    }
+
+    applyFormSnapshot(entry.snapshot);
+    saveLastSnapshot(entry.snapshot);
+
+    var nameInput = document.getElementById('template-name');
+    if (nameInput) nameInput.value = name;
+
+    showTemplateMessage('已加载模板：' + name);
+};
+
+window.deleteSelectedTemplate = function() {
+    var select = document.getElementById('template-select');
+    var name = (select && select.value) ? select.value : '';
+    if (!name) {
+        showTemplateMessage('请先选择要删除的模板。', true);
+        return;
+    }
+
+    var store = loadTemplateStore();
+    if (!store[name]) {
+        showTemplateMessage('模板不存在，列表已刷新。', true);
+        refreshTemplateSelect();
+        return;
+    }
+
+    delete store[name];
+    if (!saveTemplateStore(store)) {
+        showTemplateMessage('删除失败：本地存储不可用。', true);
+        return;
+    }
+
+    refreshTemplateSelect();
+    showTemplateMessage('已删除模板：' + name);
+};
+
+window.clearCreationForm = function() {
+    applyFormSnapshot({
+        timeline: '13岁',
+        name: '',
+        gender: '男',
+        age: '13',
+        loc: '斗罗大陆-史莱克城-史莱克学院-外院',
+        spirit: '',
+        personality: '',
+        appearance: '',
+        talent: 'EX',
+        bg: '',
+        jobType: '锻造师',
+        jobLv: '3',
+        destiny: 'A',
+        spiritTypes: [],
+        spiritDescs: []
+    });
+    saveLastSnapshot(collectFormSnapshot());
+    showTemplateMessage('已清空当前表单（不会删除模板）。');
+};
+
+// 👈 修改：增加副职业的联动逻辑
+window.updateLocByTimeline = function() {
+    var tl = document.getElementById('timeline-select').value;
+    var locInput = document.getElementById('char-loc');
+    var ageInput = document.getElementById('char-age');
+    var jobTypeInput = document.getElementById('char-job-type');
+    var jobLvInput = document.getElementById('char-job-lv');
+
+    if (tl === '6岁') {
+        locInput.value = '斗罗大陆-东海城-傲来城-红山学院';
+        ageInput.value = 6;
+        jobTypeInput.value = '无';
+    }
+    else if (tl === '9岁') {
+        locInput.value = '斗罗大陆-东海城-东海学院';
+        ageInput.value = 9;
+        if(jobTypeInput.value === '无') jobTypeInput.value = '锻造师';
+        jobLvInput.value = '2';
+    }
+    else if (tl === '13岁') {
+        locInput.value = '斗罗大陆-史莱克城-史莱克学院-外院';
+        ageInput.value = 13;
+        if(jobTypeInput.value === '无') jobTypeInput.value = '锻造师';
+        jobLvInput.value = '3';
+    }
+};
+
+window.updateSpiritTypes = function() {
+    var container = document.getElementById('spirit-types-container');
+    if (!container) return;
+
+    var oldTypes = [];
+    var oldDescs = [];
+    document.querySelectorAll('.spirit-type-select').forEach(function(s) { oldTypes.push(s.value); });
+    document.querySelectorAll('.spirit-desc-input').forEach(function(i) { oldDescs.push(i.value); });
+
+    var spiritInput = document.getElementById('char-spirit');
+    var spirits = splitSpirits(spiritInput ? spiritInput.value : '');
+    var options = ['强攻系', '敏攻系', '控制系', '防御系', '辅助系', '治疗系', '食物系', '精神系', '元素系'];
+    var html = '';
+
+    spirits.forEach(function(spiritName, index) {
+        var oldType = oldTypes[index] || '强攻系';
+        var oldDesc = oldDescs[index] || '';
+
+        html += '<div class="spirit-type-item">';
+        html += '<div style="font-size:13px; color:#00ffcc; margin-bottom:10px; font-weight:bold; border-bottom:1px solid rgba(0,255,204,0.2); padding-bottom:5px;">【' + spiritName + '】</div>';
+        html += '<label style="font-size:11px; color:#88d8d0; margin-bottom:4px; display:block;">系别</label>';
+        html += '<select class="form-control spirit-type-select" style="margin-bottom:10px;">';
+        options.forEach(function(opt) {
+            var selected = (opt === oldType) ? ' selected' : '';
+            html += '<option value="' + opt + '"' + selected + '>' + opt + '</option>';
+        });
+        html += '</select>';
+        html += '<label style="font-size:11px; color:#88d8d0; margin-bottom:4px; display:block;">武魂形态/描述</label>';
+        html += '<input type="text" class="form-control spirit-desc-input" placeholder="留空则AI自动生成：待生成（结合武魂名与系别补完形态和核心能力）" value="' + oldDesc + '">';
+        html += '</div>';
+    });
+
+    container.innerHTML = html;
+};
+
+window.selectRadio = function(element) {
+    document.querySelectorAll('#character-creation-root .radio-card').forEach(function(card) {
+        card.classList.remove('selected');
+    });
+    element.classList.add('selected');
+    var input = element.querySelector('input');
+    if (input) input.checked = true;
+};
+
+window.submitForm = function() {
+    var name = document.getElementById('char-name').value.trim().replace(/[\r\n]+/g, " ") || '无名氏';
+    var age = parseInt(document.getElementById('char-age').value) || 6;
+    var loc = document.getElementById('char-loc').value.trim().replace(/[\r\n]+/g, " ") || '去向不明';
+    var spirit = document.getElementById('char-spirit').value.trim().replace(/[\r\n]+/g, " ") || '未觉醒';
+    var talent = document.getElementById('char-talent').value;
+    var bgField = buildGuidedField(document.getElementById('char-bg').value, '请结合时间线、地点、天赋与武魂补完身份背景');
+    var gender = document.getElementById('char-gender').value;
+    var personalityField = buildGuidedField(document.getElementById('char-personality').value, '请结合年龄、武魂、成长环境与剧情气质补完性格特征');
+    var appearanceField = buildGuidedField(document.getElementById('char-appearance').value, '请结合性别、年龄、武魂气质与世界观风格补完外貌特征');
+    var selectedTimeline = document.getElementById('timeline-select').value;
+    saveLastSnapshot(collectFormSnapshot());
+
+    // 👈 新增：获取副职业数据
+    var jobType = document.getElementById('char-job-type').value;
+    var jobLv = parseInt(document.getElementById('char-job-lv').value) || 1;
+    var spiritDescGuide = '请结合武魂名称、系别与潜在能力补完形态与核心能力描述';
+
+    var types = [];
+    var descFields = [];
+    document.querySelectorAll('.spirit-type-select').forEach(function(select) { types.push(select.value); });
+    document.querySelectorAll('.spirit-desc-input').forEach(function(input) {
+        descFields.push(buildGuidedField(input.value, spiritDescGuide));
+    });
+
+    var spiritsArray = splitSpirits(spirit);
+    var spiritInfoList = [];
+    for(var i=0; i<spiritsArray.length; i++) {
+        var t = types[i] || '强攻系';
+        var descField = descFields[i] || buildGuidedField('', spiritDescGuide);
+        spiritInfoList.push("【" + spiritsArray[i] + "】(系别: " + t + ", 形态描述: " + descField.prompt + ")");
+    }
+
+    var talentConfig = getTalentConfig(talent);
+    var innateSp = talentConfig.baseSp;
+    var factor = talentConfig.cultMult;
+    var calculatedLv = Math.floor(innateSp + (Math.max(0, age - 6)) * factor);
+    calculatedLv = Math.max(1, calculatedLv);
+
+    var multiplier = 0.1;
+    document.querySelectorAll('input[name="destiny"]').forEach(function(radio) {
+        if (radio.checked) {
+            if (radio.value === 'B') multiplier = 0.5;
+            if (radio.value === 'C') multiplier = 1.0;
+        }
+    });
+
+    var spiritObj = {};
+    var slotNames = ["第一武魂", "第二武魂"];
+    for(var i=0; i<spiritsArray.length; i++) {
+        var t = types[i] || '强攻系';
+        var d = (descFields[i] ? descFields[i].value : '待生成');
+        var slot = slotNames[i] || ("第" + (i+1) + "武魂");
+
+        spiritObj[slot] = {
+            "表象名称": spiritsArray[i],
+            "描述": d,
+            "type": t,
+            "element": "无",
+            "soul_spirits": {}
+        };
+    }
+
+    var initialCharacterValue = {
+        "stat": {
+            "gender": gender,
+            "age": age,
+            "lv": calculatedLv,
+            "talent_tier": talentConfig.label,
+            "background": "已推演",
+            "type": types[0] || "强攻系"
+        },
+        "social": {
+            "main_identity": bgField.value
+        },
+        "status": {
+            "loc": loc
+        },
+        "spirit": spiritObj,
+        "appearance": {
+            "长相描述": appearanceField.value
+        },
+        "personality": personalityField.value
+    };
+
+    // 👈 新增：副职业直接并入主角初始化对象，避免后续再补子路径
+    if (jobType !== '无') {
+        var JobExpThresholds = [0, 1000, 5000, 12000, 60000, 80000, 400000, 500000, 3000000, 99999999];
+        var exp = JobExpThresholds[Math.max(0, jobLv - 1)] || 0;
+        var titleMap = {
+            "锻造师": ["无", "一级锻造师", "二级锻造师", "三级锻造师", "四级宗匠", "五级灵锻大师", "六级魂锻大师", "七级圣匠", "八级神匠", "九级神匠"],
+            "机甲设计师": ["无", "一级设计师", "二级设计师", "三级设计师", "四级设计师", "五级设计师", "六级设计师", "七级设计师", "八级设计师", "九级设计师"],
+            "机甲制造师": ["无", "一级制造师", "二级制造师", "三级制造师", "四级制造师", "五级制造师", "六级制造师", "七级制造师", "八级制造师", "九级制造师"],
+            "机甲修理师": ["无", "一级修理师", "二级修理师", "三级修理师", "四级修理师", "五级修理师", "六级修理师", "七级修理师", "八级修理师", "九级修理师"],
+            "机甲师": ["无", "一级机甲师", "二级机甲师", "三级机甲师", "四级机甲师", "五级机甲师", "六级机甲师", "七级机甲师", "八级机甲师", "九级机甲师"]
+        };
+        var title = (titleMap[jobType] && titleMap[jobType][jobLv]) ? titleMap[jobType][jobLv] : (jobLv + "级" + jobType);
+        initialCharacterValue["job"] = {};
+        initialCharacterValue["job"][jobType] = {
+            "lv": jobLv,
+            "exp": exp,
+            "title": title
+        };
+    }
+
+    var initPatch = [
+        {
+            "op": "insert",
+            "path": "/char/" + name,
+            "value": initialCharacterValue
+        },
+        {
+            "op": "replace",
+            "path": "/world/deviation_multiplier",
+            "value": multiplier
+        },
+        {
+            "op": "replace",
+            "path": "/sys/player_name",
+            "value": name
+        },
+        {
+            "op": "replace",
+            "path": "/sys/rsn",
+            "value": "初始化"
+        }
+    ];
+
+    var tlData = timelineData[selectedTimeline];
+    if (tlData) {
+        if (tlData.char) {
+            for (var npcName in tlData.char) {
+                initPatch.push({
+                    "op": "insert",
+                    "path": "/char/" + npcName,
+                    "value": tlData.char[npcName]
+                });
+            }
+        }
+        if (tlData.world && tlData.world.time) {
+            initPatch.push({
+                "op": "replace",
+                "path": "/world/time/tick",
+                "value": tlData.world.time.tick
+            });
+        }
+    }
+
+    var summary = "【后台设定数据载入完成】\n";
+    summary += "时间线节点：" + selectedTimeline + "\n";
+    summary += "角色：" + name + "（" + gender + "，" + age + "岁）\n";
+    summary += "当前位置：" + loc + "\n";
+    summary += "性格：" + personalityField.prompt + "\n";
+    summary += "外貌：" + appearanceField.prompt + "\n";
+    summary += "武魂：" + spiritInfoList.join(" ｜ ") + "\n";
+    summary += "身份背景：" + bgField.prompt + "\n";
+    summary += "当前等级：" + calculatedLv + "级\n";
+    if (jobType !== '无') {
+        summary += "副职业：" + jobLv + "级" + jobType + "\n";
+    }
+    summary += "\n";
+
+    summary += "【自动补完规则】：若某字段显示为“待生成（……）”，说明该项尚未由玩家手填，需要你结合现有设定先在心中补完，再在剧情中自然表现，绝不能把“待生成”或括号内提示词原样写进正文。\n";
+    summary += "*[系统指令：以上为该角色的底层设定数据，仅供你作为创作背景参考。\n";
+    summary += "【绝对红线】：禁止在正文中像念说明书一样列举上述设定（如“我叫xx，武魂是xx，性格xx”）！禁止出现“标签”、“设定”等元词汇！\n";
+    summary += "【创作要求】：请直接从主角（" + name + "）的第一视角切入具体的环境与事件，通过角色的行为、对话和周围人的反应，自然地展现出其性格与武魂特点。请立刻开始第一幕的剧情描写！]*";
+
+    var safeSummary = summary
+        .replace(/\r/g, "")
+        .replace(/\n/g, "<br>");
+
+    var sysMsg = "<Update" + "Variable><JSONPatch>" + JSON.stringify(initPatch) + "</JSONPatch></Update" + "Variable>";
+
+    var macro = '/sys name="初始化" ' + sysMsg + ' | /send ' + safeSummary + ' | /trigger';
+    document.getElementById('panel-container').innerHTML = '<div style="text-align:center; padding: 80px 20px; color: #00ffcc; font-size: 18px; font-weight:bold; text-shadow: 0 0 10px #00ffcc; letter-spacing: 2px;">[ 档案及时间线底包已提交，正在同步世界线... ]</div>';
+
+    if (typeof triggerSlash === 'function') triggerSlash(macro);
+};
+$(function() {
+    window.updateSpiritTypes();
+    refreshTemplateSelect();
+    bindTemplateMemoryEvents();
+
+    var lastSnapshot = loadLastSnapshot();
+    if (lastSnapshot && Object.keys(lastSnapshot).length > 0) {
+        applyFormSnapshot(lastSnapshot);
+        showTemplateMessage('已自动恢复上次填写内容。');
+    }
+});
+</script>
+</body>
+</html>
+```

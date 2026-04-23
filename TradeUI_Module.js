@@ -678,7 +678,10 @@ class TradeUIComponent {
     const years = Math.floor(days / 360);
     const months = Math.floor((days % 360) / 30) + 1;
     const currentDay = (days % 30) + 1;
-    return `斗罗历${20000 + years}年${months}月${currentDay}日`;
+    const remainderMinutes = totalMinutes % (24 * 60);
+    const hours = Math.floor(remainderMinutes / 60);
+    const mins = remainderMinutes % 60;
+    return `斗罗历${20000 + years}年${months}月${currentDay}日 ${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
   }
 
   resolveTradeItemInfo(itemName, item = {}, fallback = {}) {
@@ -686,7 +689,7 @@ class TradeUIComponent {
     const type = String(safeItem.类型 || safeItem.type || fallback.type || '物品');
     const rarity = String(safeItem.品质 || safeItem.品阶 || safeItem.tier || fallback.rarity || '标准');
     const expiryTick = Number(safeItem.有效期至tick ?? fallback.expiryTick ?? 0);
-    const expiry = String(safeItem.有效期至 || fallback.expiry || '').trim() || (expiryTick > 0 ? this.formatTickToCalendarDateText(expiryTick) : '无期限');
+    const expiry = expiryTick > 0 ? this.formatTickToCalendarDateText(expiryTick) : (String(safeItem.有效期至 || fallback.expiry || '').trim() || '无期限');
     const trigger = String(safeItem.触发方式 || fallback.trigger || (/食物/.test(type) ? '食用' : '常规'));
     const source = String(safeItem.来源技能 || safeItem.绑定者 || fallback.source || '常规流通');
     const desc = String(safeItem.描述 || safeItem.description || fallback.desc || '暂无说明');
@@ -731,7 +734,7 @@ class TradeUIComponent {
       描述: safeItem.描述 || safeItem.description || fallback.desc || `获得了【${itemName}】`
     };
     const resolvedExpiryTick = Number(safeItem.有效期至tick ?? fallback.expiryTick ?? 0);
-    const resolvedExpiry = String(safeItem.有效期至 || fallback.expiry || '').trim() || (resolvedExpiryTick > 0 ? this.formatTickToCalendarDateText(resolvedExpiryTick) : '');
+    const resolvedExpiry = resolvedExpiryTick > 0 ? this.formatTickToCalendarDateText(resolvedExpiryTick) : String(safeItem.有效期至 || fallback.expiry || '').trim();
     if (safeItem.品阶 !== undefined) nextItem.品阶 = safeItem.品阶;
     if (safeItem.触发方式 !== undefined || fallback.trigger !== undefined) nextItem.触发方式 = safeItem.触发方式 || fallback.trigger || (/食物/.test(String(nextItem.类型 || '')) ? '食用' : '常规');
     if (resolvedExpiry) nextItem.有效期至 = resolvedExpiry;
@@ -776,6 +779,11 @@ class TradeUIComponent {
       patches.push({ op: "replace", path: `/sys/fsr`, value: Number(options.successRate) });
     }
     return patches;
+  }
+
+  buildFrontEndStateBlock(analysis, patchOps) {
+    const safeAnalysis = String(analysis || 'Trade action prepared.').trim();
+    return `<UpdateVariable>\n<Analysis>${safeAnalysis}</Analysis>\n<JSONPatch>\n${JSON.stringify(patchOps || [], null, 2)}\n</JSONPatch>\n</UpdateVariable>`;
   }
 
   submitAction(playerInput, sysPrompt, requestKind) {
@@ -921,7 +929,7 @@ class TradeUIComponent {
     const log = `[交易成功] ${this.activeName}在 ${storeName} 花费 ${total} ${this.getCurrencyLabel(currency)} 购买了 ${qty} 份【${itemName}】。`;
     patchOps.push(...this.buildTradeSystemPatches(log));
 
-    let sysPrompt = `${HIDDEN_ARBITRATION_NARRATION_RULES}\n\n${log}\n\n[MVU变量更新数据]\n以下为本次交易结算的完整 MVU 更新，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。\n<UpdateVariable>\n<Analysis>Shop trade successful.</Analysis>\n<JSONPatch>\n${JSON.stringify(patchOps, null, 2)}\n</JSONPatch>\n</UpdateVariable>`;
+    let sysPrompt = `${HIDDEN_ARBITRATION_NARRATION_RULES}\n\n${log}\n\n${this.buildFrontEndStateBlock('Shop trade successful.', patchOps)}`;
 
     this.submitAction(`我要在【${storeName}】购买 ${qty} 份【${itemName}】。`, sysPrompt, 'trade_shop_buy');
   }
@@ -995,7 +1003,7 @@ class TradeUIComponent {
     const log = `[交易成功] ${this.activeName}向系统商店出售了 ${qty} 份【${itemName}】，获得 ${totalEarn} 联邦币。`;
     patchOps.push(...this.buildTradeSystemPatches(log));
 
-    let sysPrompt = `${HIDDEN_ARBITRATION_NARRATION_RULES}\n\n${log}\n\n[MVU变量更新数据]\n以下为本次交易结算的完整 MVU 更新，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。\n<UpdateVariable>\n<Analysis>Sell successful.</Analysis>\n<JSONPatch>\n${JSON.stringify(patchOps, null, 2)}\n</JSONPatch>\n</UpdateVariable>`;
+    let sysPrompt = `${HIDDEN_ARBITRATION_NARRATION_RULES}\n\n${log}\n\n${this.buildFrontEndStateBlock('Sell successful.', patchOps)}`;
 
     this.submitAction(`我要卖出 ${qty} 份【${itemName}】换钱。`, sysPrompt, 'trade_system_sell');
   }
@@ -1087,7 +1095,7 @@ class TradeUIComponent {
 
     patchOps.push(...this.buildTradeSystemPatches(log, { roll, successRate: ctx.successRate }));
 
-    let sysPrompt = `${HIDDEN_ARBITRATION_NARRATION_RULES}\n\n${log}\n\n[MVU变量更新数据]\n以下为本次交易结算的完整 MVU 更新，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。\n<UpdateVariable>\n<Analysis>Private trade executed.</Analysis>\n<JSONPatch>\n${JSON.stringify(patchOps, null, 2)}\n</JSONPatch>\n</UpdateVariable>`;
+    let sysPrompt = `${HIDDEN_ARBITRATION_NARRATION_RULES}\n\n${log}\n\n${this.buildFrontEndStateBlock('Private trade executed.', patchOps)}`;
 
     this.submitAction(`我要和【${targetNpc}】${action} ${qty} 份【${itemName}】，单价出 ${price} 联邦币。`, sysPrompt, 'trade_private');
   }
@@ -1157,7 +1165,7 @@ class TradeUIComponent {
     const log = `[竞拍成功] ${this.activeName}豪掷 ${bid} ${this.getCurrencyLabel(currency)} 拍下了极品【${itemName}】！`;
     patchOps.push(...this.buildTradeSystemPatches(log));
 
-    let sysPrompt = `${HIDDEN_ARBITRATION_NARRATION_RULES}\n\n${log}\n\n[MVU变量更新数据]\n以下为本次交易结算的完整 MVU 更新，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。\n<UpdateVariable>\n<Analysis>Auction won.</Analysis>\n<JSONPatch>\n${JSON.stringify(patchOps, null, 2)}\n</JSONPatch>\n</UpdateVariable>`;
+    let sysPrompt = `${HIDDEN_ARBITRATION_NARRATION_RULES}\n\n${log}\n\n${this.buildFrontEndStateBlock('Auction won.', patchOps)}`;
 
     this.submitAction(`【举牌竞拍】我出价 ${bid} 竞拍【${itemName}】！`, sysPrompt, 'trade_auction');
   }

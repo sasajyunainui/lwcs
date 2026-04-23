@@ -94,9 +94,9 @@
       },
       '情报库详细页': {
         title: '情报库弹窗',
-        summary: '由“已解锁情报”芯片进入，统一展开已知信息、待整理线索与战斗记录。',
+        summary: '由“已解锁情报”芯片进入，统一展开已知信息、待解锁线索与战斗记录。',
         fields: ['activeChar.unlocked_knowledges', 'activeChar.knowledge_unlock_request', 'activeChar.records', 'activeChar.combat_history'],
-        duties: ['展示已解锁情报', '显示待整理情报进度', '聚合近期记录与战斗摘要'],
+        duties: ['展示已解锁情报', '显示待解锁线索', '聚合近期记录与战斗摘要'],
         actions: ['按情报筛选', '跳转关联节点']
       },
       '武装工坊详细页': {
@@ -105,6 +105,13 @@
         fields: ['activeChar.equip.wpn', 'activeChar.equip.armor', 'activeChar.equip.mech', 'activeChar.equip.accessories', 'activeChar.job'],
         duties: ['展示武器/斗铠/机甲', '展示装备槽位状态', '显示副职业等级与融合信息'],
         actions: ['打开斗铠总览', '查看槽位覆盖', '浏览装备摘要']
+      },
+      '武魂融合技详细页': {
+        title: '武魂融合技档案',
+        summary: '集中查看当前角色已录入的武魂融合技、自体融合与搭档型融合信息。',
+        fields: ['activeChar.martial_fusion_skills.*.fusion_mode', 'activeChar.martial_fusion_skills.*.partner', 'activeChar.martial_fusion_skills.*.source_spirits', 'activeChar.martial_fusion_skills.*.skill_data'],
+        duties: ['展示融合技总览', '区分自体融合与双人融合', '直接下钻到融合技设计与效果详情'],
+        actions: ['查看融合模式', '查看来源武魂', '打开融合技详情']
       },
       '储物仓库详细页': {
         title: '储物仓库',
@@ -233,7 +240,7 @@
         .replace(/sd\.[^,，\s]+/g, '世界状态')
         .replace(/WORLD_MAP_TREE/g, '地图节点')
         .replace(/travel[\s_]?request/gi, '出行安排')
-        .replace(/knowledge_unlock_request/gi, '待整理情报')
+        .replace(/knowledge_unlock_request/gi, '待解锁线索')
         .replace(/unlocked_knowledges/gi, '已掌握情报')
         .replace(/player_action/gi, '玩家行动')
         .replace(/settle_result/gi, '结算结果')
@@ -241,7 +248,7 @@
         .replace(/promotion_request/gi, '晋升安排')
         .replace(/donate_request/gi, '捐赠安排')
         .replace(/hunt_request/gi, '狩猎安排')
-        .replace(/ascension_request/gi, '试炼安排')
+        .replace(/ascension_request/gi, '升灵台安排')
         .replace(/tower_request/gi, '魂灵塔安排')
         .replace(/request 变量/gi, '当前安排')
         .replace(/展示/g, '查看')
@@ -351,12 +358,19 @@
     }
 
     function makeTileGrid(items, className = '') {
+      const tileItems = Array.isArray(items) ? items : [];
+      const compactIntelGrid =
+        tileItems.length === 2
+        && tileItems.every(item => ['线索', '影响'].includes(toText(item && item.label, '')));
+      const gridStyle = compactIntelGrid ? ' style="grid-template-columns:minmax(0, 2.2fr) minmax(120px, 0.8fr); gap:12px;"' : '';
+      const tileStyle = compactIntelGrid ? ' style="min-height:0; padding:12px 14px;"' : '';
+      const valueStyle = compactIntelGrid ? ' style="line-height:1.7;"' : '';
       return `
-        <div class="archive-tile-grid ${className}">
-          ${(items || []).map(item => `
-            <div class="archive-tile">
+        <div class="archive-tile-grid ${className}"${gridStyle}>
+          ${tileItems.map(item => `
+            <div class="archive-tile"${tileStyle}>
               <b>${item.label}</b>
-              <span>${item.value}</span>
+              <span${valueStyle}>${item.value}</span>
             </div>
           `).join('')}
         </div>
@@ -445,17 +459,49 @@
 
     function buildStatsBonusItems(statsBonus, options = {}) {
       const bonus = statsBonus && typeof statsBonus === 'object' ? statsBonus : {};
+      const normalizeBonusValue = value => {
+        const numeric = toNumber(value, 0);
+        if (numeric > 0) return Math.floor(numeric);
+        if (numeric < 0) return Math.ceil(numeric);
+        return 0;
+      };
       const items = [];
       if (options.includeLvEquiv && toNumber(bonus.lv_equiv, 0) > 0) items.push({ label: '等效等级', value: String(toNumber(bonus.lv_equiv, 0)) });
       items.push(
-        { label: '气血加成', value: formatNumber(toNumber(bonus.vit_max, 0)) },
-        { label: '魂力加成', value: formatNumber(toNumber(bonus.sp_max, 0)) },
-        { label: '精神加成', value: formatNumber(toNumber(bonus.men_max, 0)) },
-        { label: '力量加成', value: formatNumber(toNumber(bonus.str, 0)) },
-        { label: '防御加成', value: formatNumber(toNumber(bonus.def, 0)) },
-        { label: '敏捷加成', value: formatNumber(toNumber(bonus.agi, 0)) }
+        { label: '体力加成', value: formatNumber(normalizeBonusValue(bonus.vit_max)) },
+        { label: '魂力加成', value: formatNumber(normalizeBonusValue(bonus.sp_max)) },
+        { label: '精神加成', value: formatNumber(normalizeBonusValue(bonus.men_max)) },
+        { label: '力量加成', value: formatNumber(normalizeBonusValue(bonus.str)) },
+        { label: '防御加成', value: formatNumber(normalizeBonusValue(bonus.def)) },
+        { label: '敏捷加成', value: formatNumber(normalizeBonusValue(bonus.agi)) }
       );
       return items;
+    }
+
+    function buildEditableStatBonusItems(basePath = [], statsBonus = {}, options = {}) {
+      const path = Array.isArray(basePath) ? basePath : [];
+      const bonus = statsBonus && typeof statsBonus === 'object' ? statsBonus : {};
+      const includeSoulPower = options.includeSoulPower !== false;
+      const makeBonusValue = field => {
+        const numeric = toNumber(bonus[field], 0);
+        const rawValue = numeric > 0 ? Math.floor(numeric) : numeric < 0 ? Math.ceil(numeric) : 0;
+        return path.length
+          ? makeInlineEditableValue(formatNumber(rawValue), {
+              path: [...path, field],
+              kind: 'number',
+              rawValue,
+              editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' }
+            })
+          : htmlEscape(formatNumber(rawValue));
+      };
+      return [
+        { label: '体力加成', value: makeBonusValue('vit_max') },
+        ...(includeSoulPower ? [{ label: '魂力加成', value: makeBonusValue('sp_max') }] : []),
+        { label: '精神加成', value: makeBonusValue('men_max') },
+        { label: '力量加成', value: makeBonusValue('str') },
+        { label: '防御加成', value: makeBonusValue('def') },
+        { label: '敏捷加成', value: makeBonusValue('agi') }
+      ];
     }
 
     function listAccessoryEntries(accessories) {
@@ -474,6 +520,36 @@
       if (!Array.isArray(entries) || !entries.length) return '无';
       const names = entries.slice(0, 2).map(item => item.name);
       return `${names.join(' / ')}${entries.length > 2 ? ` 等${entries.length}件` : ''}`;
+    }
+
+    const SPIRIT_ATTRIBUTE_SYSTEM_OPTIONS = Object.freeze(['无', '元素', '五行']);
+    const SPIRIT_ATTRIBUTE_TOKEN_OPTIONS = Object.freeze([
+      '金', '木', '水', '火', '土',
+      '风', '雷', '冰',
+      '光', '暗', '精神',
+      '空间', '时间',
+      '创造', '毁灭',
+    ]);
+    const WUXING_ATTRIBUTE_TOKEN_OPTIONS = Object.freeze(['金', '木', '水', '火', '土']);
+
+    function normalizeSpiritAttributeTokenList(value = []) {
+      return normalizeEditorStringList(value).filter(token => SPIRIT_ATTRIBUTE_TOKEN_OPTIONS.includes(token));
+    }
+
+    function resolveSpiritAttributeUiState(spiritData = {}) {
+      const rawSystem = normalizeSkillUiText((spiritData && spiritData['属性体系']) || (spiritData && spiritData['element']), '无');
+      const attributeSystem = SPIRIT_ATTRIBUTE_SYSTEM_OPTIONS.includes(rawSystem) ? rawSystem : '无';
+      const unlockedAttrs = normalizeSpiritAttributeTokenList(spiritData && spiritData['已解锁属性']);
+      let capacityAttrs = normalizeSpiritAttributeTokenList(spiritData && spiritData['可容纳属性']);
+      if (!capacityAttrs.length) {
+        if (attributeSystem === '五行') capacityAttrs = [...WUXING_ATTRIBUTE_TOKEN_OPTIONS];
+        else if (attributeSystem === '元素' && unlockedAttrs.length) capacityAttrs = [...unlockedAttrs];
+      }
+      return {
+        attributeSystem,
+        unlockedAttrs,
+        capacityAttrs,
+      };
     }
 
     function resolveArmorPartData(armor, slotLabel) {
@@ -546,9 +622,11 @@
           ${(items || []).map(item => `
             <div class="inventory-cell ${item.className || ''}"
               data-hover-title="${attr(item.name)}"
+              data-hover-char="${attr(item.charKey || '')}"
               data-hover-type="${attr(item.type || item.meta || '--')}"
               data-hover-rarity="${attr(item.rarity || '--')}"
               data-hover-qty="${attr(`×${item.qty}`)}"
+              data-hover-count="${attr(item.qty)}"
               data-hover-source="${attr(item.source || '--')}"
               data-hover-trigger="${attr(item.trigger || '--')}"
               data-hover-expiry="${attr(item.expiry || '--')}"
@@ -604,6 +682,91 @@
               <span>${item.desc}</span>
             </div>
           `).join('')}
+        </div>
+      `;
+    }
+
+    function makeDossierRows(items, className = '') {
+      const rowItems = Array.isArray(items) ? items.filter(Boolean) : [];
+      const columnCount = /\bdossier-row-grid--three\b/.test(className)
+        ? 3
+        : (/\bdossier-row-grid--two\b/.test(className) ? 2 : 1);
+      const paddedItems = [];
+      let usedSlots = 0;
+
+      rowItems.forEach(item => {
+        const itemClassName = item && item.className ? item.className : '';
+        const isWide = columnCount > 1 && /\bdossier-row--wide\b/.test(itemClassName);
+
+        if (isWide && usedSlots > 0) {
+          while (usedSlots < columnCount) {
+            paddedItems.push({ label: '\u00A0', value: '\u00A0', className: 'dossier-row--ghost' });
+            usedSlots += 1;
+          }
+          usedSlots = 0;
+        }
+
+        paddedItems.push(item);
+
+        if (columnCount === 1) return;
+        if (isWide) {
+          usedSlots = 0;
+          return;
+        }
+
+        usedSlots += 1;
+        if (usedSlots >= columnCount) usedSlots = 0;
+      });
+
+      if (columnCount > 1 && usedSlots > 0) {
+        while (usedSlots < columnCount) {
+          paddedItems.push({ label: '\u00A0', value: '\u00A0', className: 'dossier-row--ghost' });
+          usedSlots += 1;
+        }
+      }
+
+      return `
+        <div class="dossier-row-grid ${className}">
+          ${paddedItems.map(item => `
+            <div class="dossier-row ${item && item.className ? item.className : ''}">
+              <b>${htmlEscape(toText(item && item.label, ''))}</b>
+              <span>${item && item.value !== undefined && item.value !== null ? item.value : ''}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function makeDossierTags(items, className = '') {
+      return `
+        <div class="dossier-tag-row ${className}">
+          ${(Array.isArray(items) ? items : []).map(item => `<span class="dossier-pill ${item && item.className ? item.className : ''}">${htmlEscape(toText(item && item.text, ''))}</span>`).join('')}
+        </div>
+      `;
+    }
+
+    function makeDossierList(items, className = '') {
+      const listItems = Array.isArray(items) ? items : [];
+      return `
+        <div class="dossier-list ${className}">
+          ${listItems.map(item => `
+            <div class="dossier-list-row ${item && item.className ? item.className : ''} ${item && item.preview ? 'clickable' : ''}"${item && item.preview ? ` data-preview="${escapeHtmlAttr(item.preview)}"` : ''}>
+              <b>${htmlEscape(toText(item && item.title, ''))}</b>
+              <span>${item && item.desc !== undefined && item.desc !== null ? item.desc : ''}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function makeDossierMeter(label, value, percent, className = '') {
+      return `
+        <div class="dossier-meter ${className}">
+          <div class="dossier-meter-head">
+            <b>${htmlEscape(toText(label, ''))}</b>
+            <span>${value !== undefined && value !== null ? value : ''}</span>
+          </div>
+          <div class="dossier-meter-track"><div class="dossier-meter-fill" style="width:${Math.max(0, Math.min(100, toNumber(percent, 0)))}%;"></div></div>
         </div>
       `;
     }
@@ -685,9 +848,11 @@
                       <div class="identity-panel-title">外貌概览</div>
                       <div class="identity-appearance-grid">
                         <div class="meta-item"><b>发色</b><span></span></div>
+                        <div class="meta-item"><b>发型</b><span></span></div>
                         <div class="meta-item"><b>瞳色</b><span></span></div>
                         <div class="meta-item"><b>身高</b><span></span></div>
                         <div class="meta-item"><b>体型</b><span></span></div>
+                        <div class="meta-item meta-item-wide"><b>长相描述</b><span></span></div>
                         <div class="meta-item meta-item-wide"><b>特征</b><span></span></div>
                       </div>
                     </div>
@@ -697,7 +862,7 @@
                     <div class="status-list">
                       <div class="status-row"><b>行动状态</b><span></span></div>
                       <div class="status-row"><b>伤势</b><span></span></div>
-                      <div class="status-row"><b>当前领域</b><span></span></div>
+                      <div class="status-row"><b>灵物吸收</b><span></span></div>
                       <div class="status-row"><b>魂核状态</b><span></span></div>
                       <div class="status-row"><b>血脉状态</b><span></span></div>
                     </div>
@@ -813,11 +978,11 @@
                 <div class="intel-network-board"></div>
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">解密进度槽</div></div>
-                <div class="intel-progress-slots">
-                  <div class="intel-slot"><div class="intel-slot-name">已解锁情报</div><div class="intel-slot-bar-wrap"><div class="intel-slot-bar" style="width:0%;"></div></div><div class="intel-slot-value">0</div></div>
-                  <div class="intel-slot"><div class="intel-slot-name">待处理线索</div><div class="intel-slot-bar-wrap"><div class="intel-slot-bar gold" style="width:0%;"></div></div><div class="intel-slot-value" style="color:var(--gold);">0</div></div>
-                  <div class="intel-slot"><div class="intel-slot-name">任务记录</div><div class="intel-slot-bar-wrap"><div class="intel-slot-bar" style="width:0%; background:var(--red); box-shadow:0 0 8px var(--red);"></div></div><div class="intel-slot-value" style="color:var(--red);">0</div></div>
+                <div class="archive-card-head"><div class="archive-card-title">情报概览</div></div>
+                <div class="intel-progress-slots" style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px;">
+                  <div class="intel-slot" style="min-height:0; padding:12px 14px;"><div class="intel-slot-name">已解锁情报</div><div class="intel-slot-bar-wrap" style="height:6px; margin:8px 0 10px;"><div class="intel-slot-bar" style="width:0%;"></div></div><div class="intel-slot-value">0</div></div>
+                  <div class="intel-slot" style="min-height:0; padding:12px 14px;"><div class="intel-slot-name">待解锁线索</div><div class="intel-slot-bar-wrap" style="height:6px; margin:8px 0 10px;"><div class="intel-slot-bar gold" style="width:0%;"></div></div><div class="intel-slot-value" style="color:var(--gold);">0</div></div>
+                  <div class="intel-slot" style="min-height:0; padding:12px 14px;"><div class="intel-slot-name">任务记录</div><div class="intel-slot-bar-wrap" style="height:6px; margin:8px 0 10px;"><div class="intel-slot-bar" style="width:0%; background:var(--red); box-shadow:0 0 8px var(--red);"></div></div><div class="intel-slot-value" style="color:var(--red);">0</div></div>
                 </div>
               </div>
             </div>
@@ -900,6 +1065,35 @@
               <div class="archive-card full spirit-flow-card">
                 <div class="archive-card-head"><div class="archive-card-title">魂灵展开层级</div></div>
                 <div class="rings soul-ring-lane">${buildEmptyRingLane(key === '第一武魂详细页' ? 'ring-white' : 'ring-gold')}</div>
+              </div>
+            </div>
+          `
+        };
+      }
+
+      if (key === '武魂融合技详细页') {
+        return {
+          title: '武魂融合技档案',
+          body: `
+            <div class="archive-modal-grid dossier-shell">
+              <div class="archive-card dossier-card">
+                <div class="archive-card-head"><div class="archive-card-title">融合技概览</div></div>
+                <section class="dossier-section">
+                  <div class="dossier-section-title">基础统计</div>
+                  ${makeDossierRows([
+                    { label: '总收录', value: '' },
+                    { label: '双人融合', value: '' },
+                    { label: '自体融合', value: '' },
+                    { label: '当前角色', value: '' }
+                  ], 'dossier-row-grid--two')}
+                </section>
+              </div>
+              <div class="archive-card dossier-card">
+                <div class="archive-card-head"><div class="archive-card-title">融合技清单</div></div>
+                <section class="dossier-section">
+                  <div class="dossier-section-title">技能条目</div>
+                  <div class="dossier-empty-note">融合技内容正在整理中。</div>
+                </section>
               </div>
             </div>
           `
@@ -1055,8 +1249,14 @@
     let mapDispatchContext = null;
     let activeSubUI = null;
     let activeInlineEditState = null;
+    let inlineEditSessionToken = 0;
+    let inlineEditGuardUntil = 0;
     let pendingLiveRefresh = false;
     let skillDesignerDraftStateByPreviewKey = Object.create(null);
+    let lastHeaderRenderSignature = '';
+    let lastDashboardRenderSignature = '';
+    let lastDashboardSectionRenderSignatures = null;
+    let liveUiRefCache = new Map();
 
     function htmlEscape(value) {
       return String(value == null ? '' : value)
@@ -1069,7 +1269,7 @@
 
     function hasUiPlaceholderToken(value) {
       const text = String(value === undefined || value === null ? '' : value).trim();
-      return !!text && (/待补全|待补充|TODO/i.test(text));
+      return !!text && (/待补全|待补充|待生成|待展露|TODO/i.test(text));
     }
 
     function toText(value, fallback = '无') {
@@ -1081,6 +1281,20 @@
     function toNumber(value, fallback = 0) {
       const parsed = Number(value);
       return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function formatCultivationLevelValue(value, fallback = '0') {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        if (Math.abs(parsed - 99.5) < 0.001) return '准神';
+        return String(parsed);
+      }
+      const text = toText(value, fallback);
+      return text || fallback;
+    }
+
+    function formatCultivationLevelBadge(value, fallback = '0') {
+      return `Lv.${formatCultivationLevelValue(value, fallback)}`;
     }
 
     function isSkillDesignerPreviewKey(previewKey = '') {
@@ -1192,11 +1406,111 @@
       return fallback;
     }
 
+    const TRAINED_BONUS_PREVIEW_FIELDS = Object.freeze(['str', 'def', 'agi', 'vit_max', 'men_max', 'sp_max']);
+    const trainedBonusPreviewOverrides = new Map();
+
+    function createTrackedStatPreviewMap(source = {}) {
+      return {
+        str: Math.floor(toNumber(source && source.str, 0)),
+        def: Math.floor(toNumber(source && source.def, 0)),
+        agi: Math.floor(toNumber(source && source.agi, 0)),
+        vit_max: Math.floor(toNumber(source && source.vit_max, 0)),
+        men_max: Math.floor(toNumber(source && source.men_max, 0)),
+        sp_max: Math.floor(toNumber(source && source.sp_max, 0)),
+      };
+    }
+
+    function createTrackedStatDeltaMap(source = {}) {
+      return {
+        str: Math.floor(toNumber(source && source.str, 0)),
+        def: Math.floor(toNumber(source && source.def, 0)),
+        agi: Math.floor(toNumber(source && source.agi, 0)),
+        vit_max: Math.floor(toNumber(source && source.vit_max, 0)),
+        men_max: Math.floor(toNumber(source && source.men_max, 0)),
+        sp_max: Math.floor(toNumber(source && source.sp_max, 0)),
+      };
+    }
+
+    function isTrainedBonusPreviewPath(path = []) {
+      return Array.isArray(path)
+        && path.length >= 5
+        && path[0] === 'char'
+        && path[2] === 'stat'
+        && path[3] === 'trained_bonus'
+        && TRAINED_BONUS_PREVIEW_FIELDS.includes(String(path[4] || '').trim());
+    }
+
+    function queueTrainedBonusPreviewOverride(path = [], previousValue = 0, nextValue = 0) {
+      if (!isTrainedBonusPreviewPath(path)) return null;
+      const charKey = String(path[1] || '').trim();
+      const field = String(path[4] || '').trim();
+      if (!charKey || !field) return null;
+
+      const previousNumeric = Math.floor(toNumber(previousValue, 0));
+      const nextNumeric = Math.floor(toNumber(nextValue, 0));
+      const delta = nextNumeric - previousNumeric;
+      if (!delta) return null;
+
+      const hadPreviousEntry = trainedBonusPreviewOverrides.has(charKey);
+      const previousEntry = hadPreviousEntry ? cloneJsonValue(trainedBonusPreviewOverrides.get(charKey), null) : null;
+      const liveStat = liveSnapshot ? deepGet(liveSnapshot, ['rootData', 'char', charKey, 'stat'], {}) : {};
+      const nextEntry = previousEntry && typeof previousEntry === 'object'
+        ? previousEntry
+        : { baseStats: createTrackedStatPreviewMap(liveStat), deltas: createTrackedStatDeltaMap() };
+
+      if (!nextEntry.baseStats || typeof nextEntry.baseStats !== 'object') nextEntry.baseStats = createTrackedStatPreviewMap(liveStat);
+      if (!nextEntry.deltas || typeof nextEntry.deltas !== 'object') nextEntry.deltas = createTrackedStatDeltaMap();
+      nextEntry.deltas[field] = Math.floor(toNumber(nextEntry.deltas[field], 0) + delta);
+      trainedBonusPreviewOverrides.set(charKey, nextEntry);
+
+      return {
+        charKey,
+        existed: hadPreviousEntry,
+        previousEntry,
+      };
+    }
+
+    function restoreTrainedBonusPreviewOverride(rollbackToken) {
+      if (!rollbackToken || !rollbackToken.charKey) return;
+      if (rollbackToken.existed && rollbackToken.previousEntry && typeof rollbackToken.previousEntry === 'object') {
+        trainedBonusPreviewOverrides.set(rollbackToken.charKey, rollbackToken.previousEntry);
+        return;
+      }
+      trainedBonusPreviewOverrides.delete(rollbackToken.charKey);
+    }
+
+    function resolveTrackedStatPreview(charKey = '', stat = {}) {
+      const safeCharKey = String(charKey || '').trim();
+      const rawStats = createTrackedStatPreviewMap(stat);
+      if (!safeCharKey || !trainedBonusPreviewOverrides.has(safeCharKey)) return rawStats;
+
+      const entry = trainedBonusPreviewOverrides.get(safeCharKey) || {};
+      const baseStats = createTrackedStatPreviewMap(entry.baseStats || rawStats);
+      const deltas = createTrackedStatDeltaMap(entry.deltas || {});
+      const previewStats = {
+        str: baseStats.str + deltas.str,
+        def: baseStats.def + deltas.def,
+        agi: baseStats.agi + deltas.agi,
+        vit_max: baseStats.vit_max + deltas.vit_max,
+        men_max: baseStats.men_max + deltas.men_max,
+        sp_max: baseStats.sp_max + deltas.sp_max,
+      };
+
+      const allSettled = TRAINED_BONUS_PREVIEW_FIELDS.every(field => rawStats[field] === previewStats[field]);
+      const hasExternalDrift = TRAINED_BONUS_PREVIEW_FIELDS.some(field => rawStats[field] !== baseStats[field] && rawStats[field] !== previewStats[field]);
+      if (allSettled || hasExternalDrift) {
+        trainedBonusPreviewOverrides.delete(safeCharKey);
+        return rawStats;
+      }
+      return previewStats;
+    }
+
     function normalizeEditorPath(pathValue) {
       if (Array.isArray(pathValue)) {
-        return pathValue
+        const normalized = pathValue
           .map(token => (typeof token === 'number' ? token : String(token ?? '').trim()))
           .filter(token => token !== '' && token !== null && token !== undefined);
+        return stripWrapperPathPrefix(normalized);
       }
       const raw = String(pathValue ?? '')
         .trim()
@@ -1205,11 +1519,13 @@
         .replace(/\["([^"]+)"\]/g, '.$1')
         .replace(/\['([^']+)'\]/g, '.$1');
       if (!raw) return [];
-      return raw
+      const normalized = raw
         .split('.')
         .map(token => token.trim())
         .filter(Boolean)
-        .map(token => (/^\d+$/.test(token) ? Number(token) : token));
+        .map(token => (/^\d+$/.test(token) ? Number(token) : token))
+        .filter(token => token !== '' && token !== null && token !== undefined);
+      return stripWrapperPathPrefix(normalized);
     }
 
     function deepSetMutable(target, pathValue, nextValue) {
@@ -1221,17 +1537,79 @@
       for (let index = 0; index < path.length; index += 1) {
         const token = path[index];
         const isLast = index === path.length - 1;
+        if (Array.isArray(current) && token === '-') {
+          if (isLast) {
+            current.push(nextValue);
+            return target;
+          }
+          const nextToken = path[index + 1];
+          const created = typeof nextToken === 'number' || nextToken === '-' ? [] : {};
+          current.push(created);
+          current = created;
+          continue;
+        }
         if (isLast) {
           current[token] = nextValue;
           return target;
         }
         const nextToken = path[index + 1];
         if (!current[token] || typeof current[token] !== 'object') {
-          current[token] = typeof nextToken === 'number' ? [] : {};
+          current[token] = typeof nextToken === 'number' || nextToken === '-' ? [] : {};
         }
         current = current[token];
       }
       return target;
+    }
+
+    function deepDeleteMutable(target, pathValue) {
+      const path = normalizeEditorPath(pathValue);
+      if (!target || typeof target !== 'object' || !path.length) {
+        throw new Error('变量路径不能为空。');
+      }
+      let current = target;
+      for (let index = 0; index < path.length - 1; index += 1) {
+        const token = path[index];
+        if (!current || typeof current !== 'object' || !(token in current)) return target;
+        current = current[token];
+      }
+      const lastToken = path[path.length - 1];
+      if (Array.isArray(current) && typeof lastToken === 'number') {
+        if (lastToken >= 0 && lastToken < current.length) current.splice(lastToken, 1);
+        return target;
+      }
+      if (current && typeof current === 'object') {
+        delete current[lastToken];
+      }
+      return target;
+    }
+
+    function decodeJsonPointerPath(pointer) {
+      const raw = String(pointer ?? '').trim();
+      if (!raw || raw === '/') return [];
+      const normalized = raw
+        .split('/')
+        .slice(1)
+        .map(token => token.replace(/~1/g, '/').replace(/~0/g, '~'))
+        .map(token => (/^\d+$/.test(token) ? Number(token) : token));
+      return stripWrapperPathPrefix(normalized);
+    }
+
+    async function applyJsonPatchOpsByEditor(patches, options = {}) {
+      const safePatches = Array.isArray(patches) ? patches.filter(item => item && item.op && item.path) : [];
+      if (!safePatches.length) throw new Error('没有可应用的变量改动。');
+      return mutateStatDataByEditor(statData => {
+        safePatches.forEach(patch => {
+          const path = decodeJsonPointerPath(patch.path);
+          if (!path.length) return;
+          if (patch.op === 'remove') {
+            deepDeleteMutable(statData, path);
+            return;
+          }
+          if (patch.op === 'replace' || patch.op === 'add') {
+            deepSetMutable(statData, path, cloneJsonValue(patch.value, patch.value));
+          }
+        });
+      }, options);
     }
 
     function normalizeEditorStringList(rawValue) {
@@ -1244,7 +1622,7 @@
         .filter(Boolean);
     }
 
-    function parseEditorInputValue(rawValue, kind = 'string') {
+    function parseEditorInputValue(rawValue, kind = 'string', meta = {}) {
       const safeKind = String(kind || 'string').trim().toLowerCase();
       const text = String(rawValue ?? '');
       if (safeKind === 'number') {
@@ -1252,6 +1630,10 @@
         if (!normalized) throw new Error('数字字段不能为空。');
         const parsed = Number(normalized);
         if (!Number.isFinite(parsed)) throw new Error(`无法识别数字：${text}`);
+        const numericMeta = normalizeInlineNumericMeta(meta, parsed);
+        if (numericMeta.integer && !Number.isInteger(parsed)) throw new Error('该字段只接受整数。');
+        if (numericMeta.min !== null && parsed < numericMeta.min) throw new Error(`数值不能小于 ${formatNumber(numericMeta.min)}。`);
+        if (numericMeta.max !== null && parsed > numericMeta.max) throw new Error(`数值不能大于 ${formatNumber(numericMeta.max)}。`);
         return parsed;
       }
       if (safeKind === 'boolean') {
@@ -1265,16 +1647,17 @@
         if (!normalized) return null;
         return JSON.parse(normalized);
       }
-      if (safeKind === 'string_list') {
+      if (safeKind === 'string_list' || safeKind === 'token_multi') {
         return normalizeEditorStringList(text);
       }
+      if (safeKind === 'enum_select') return text.trim();
       if (safeKind === 'null') return null;
       return text;
     }
 
     function formatEditorValue(value, kind = 'string') {
       if (value === undefined || value === null) return '';
-      if (String(kind || 'string').trim().toLowerCase() === 'string_list') {
+      if (['string_list', 'token_multi'].includes(String(kind || 'string').trim().toLowerCase())) {
         return normalizeEditorStringList(value).join('、');
       }
       if (kind === 'json') {
@@ -1301,7 +1684,237 @@
       const rawValue = options.rawValue !== undefined ? options.rawValue : displayText;
       const className = toText(options.className, '').trim();
       const classAttr = className ? ` ${className}` : '';
-      return `<span class="mvu-inline-editable${classAttr}" tabindex="0" data-inline-editable="1" data-value-kind="${escapeHtmlAttr(kind)}" data-mvu-path="${escapeHtmlAttr(JSON.stringify(path))}" data-mvu-raw-value="${escapeHtmlAttr(formatEditorValue(rawValue, kind))}">${htmlEscape(displayText)}</span>`;
+      const multiline = options.multiline ? '1' : '0';
+      const editorMeta =
+        options.editorMeta && typeof options.editorMeta === 'object'
+          ? ` data-inline-editor-meta="${escapeHtmlAttr(JSON.stringify(options.editorMeta))}"`
+          : '';
+      return `<span class="mvu-inline-editable${classAttr}" tabindex="0" data-inline-editable="1" data-inline-multiline="${multiline}" data-value-kind="${escapeHtmlAttr(kind)}" data-mvu-path="${escapeHtmlAttr(JSON.stringify(path))}" data-mvu-raw-value="${escapeHtmlAttr(formatEditorValue(rawValue, kind))}"${editorMeta}>${htmlEscape(displayText)}</span>`;
+    }
+
+    function readInlineEditorMeta(target) {
+      if (!target || !(target instanceof HTMLElement)) return {};
+      try {
+        const raw = target.getAttribute('data-inline-editor-meta') || '{}';
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+      } catch (error) {
+        return {};
+      }
+    }
+
+    function normalizeInlineEditorOptions(meta = {}) {
+      return Array.from(
+        new Set(
+          (Array.isArray(meta && meta.options) ? meta.options : [])
+            .map(item => toText(item, '').trim())
+            .filter(Boolean),
+        ),
+      );
+    }
+
+    function normalizeInlineNumericMeta(meta = {}, rawValue = undefined) {
+      const normalized = meta && typeof meta === 'object' ? meta : {};
+      const min = Number(normalized.min);
+      const max = Number(normalized.max);
+      const step = Number(normalized.step);
+      return {
+        min: Number.isFinite(min) ? min : null,
+        max: Number.isFinite(max) ? max : null,
+        step: Number.isFinite(step) && step > 0 ? step : null,
+        integer: normalized.integer === true || (Number.isFinite(step) && step === 1),
+        hint: toText(normalized.hint, '').trim(),
+      };
+    }
+
+    function formatInlineNumericHint(meta = {}, rawValue = undefined) {
+      const normalized = normalizeInlineNumericMeta(meta, rawValue);
+      if (normalized.hint) return normalized.hint;
+      const parts = [];
+      if (normalized.min !== null && normalized.max !== null) parts.push(`范围 ${formatNumber(normalized.min)} - ${formatNumber(normalized.max)}`);
+      else if (normalized.min !== null) parts.push(`最小 ${formatNumber(normalized.min)}`);
+      else if (normalized.max !== null) parts.push(`最大 ${formatNumber(normalized.max)}`);
+      else parts.push('未设上下限');
+      parts.push(normalized.integer ? '整数' : '可输入小数');
+      if (normalized.step !== null) parts.push(`步长 ${formatNumber(normalized.step)}`);
+      return parts.join(' · ');
+    }
+
+    function buildInlineNumberEditor(target, rect, rawValue, meta = {}, state) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'mvu-inline-editor-shell';
+      wrapper.style.minWidth = `${Math.max(132, Math.ceil(rect.width) + 40)}px`;
+      wrapper.style.display = 'grid';
+      wrapper.style.gap = '5px';
+
+      const numericMeta = normalizeInlineNumericMeta(meta, rawValue);
+      const input = document.createElement('input');
+      input.className = 'mvu-inline-editor-input';
+      input.type = 'text';
+      input.inputMode = numericMeta.integer ? 'numeric' : 'decimal';
+      input.value = formatEditorValue(rawValue, 'number');
+      input.style.width = '100%';
+      input.style.minHeight = `${Math.max(36, Math.ceil(rect.height) + 10)}px`;
+      input.style.padding = '0 14px';
+      input.style.borderRadius = '999px';
+      input.style.border = '1px solid rgba(0, 229, 255, 0.28)';
+      input.style.background = 'rgba(4, 14, 24, 0.96)';
+      input.style.boxShadow = '0 10px 24px rgba(0, 0, 0, 0.25)';
+      input.style.color = 'var(--white)';
+      input.style.outline = 'none';
+      input.style.font = 'inherit';
+      input.style.boxSizing = 'border-box';
+
+      const hint = document.createElement('div');
+      hint.textContent = formatInlineNumericHint(meta, rawValue);
+      hint.style.fontSize = '11px';
+      hint.style.lineHeight = '1.35';
+      hint.style.color = 'rgba(191, 233, 242, 0.82)';
+      hint.style.padding = '0 4px';
+
+      wrapper.appendChild(input);
+      wrapper.appendChild(hint);
+      wrapper.addEventListener('click', event => {
+        event.stopPropagation();
+      });
+      input.addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          event.stopPropagation();
+          commitInlineEditState(state);
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          restoreInlineEditState(state);
+          flushPendingLiveRefresh();
+        }
+      });
+      input.addEventListener('blur', () => {
+        commitInlineEditState(state);
+      });
+      state.readValue = () => input.value;
+      return { root: wrapper, inputEl: wrapper, focusEl: input };
+    }
+
+    function buildInlineEnumSelectEditor(target, rect, rawValue, meta = {}, state) {
+      const select = document.createElement('select');
+      select.className = 'mvu-inline-editor-input';
+      select.style.width = `${Math.max(120, Math.ceil(rect.width) + 24)}px`;
+      const options = normalizeInlineEditorOptions(meta);
+      const normalizedValue = toText(rawValue, '').trim();
+      select.innerHTML = options
+        .map(option => `<option value="${escapeHtmlAttr(option)}"${option === normalizedValue ? ' selected' : ''}>${htmlEscape(option)}</option>`)
+        .join('');
+      select.addEventListener('change', () => {
+        commitInlineEditState(state);
+      });
+      select.addEventListener('keydown', event => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          restoreInlineEditState(state);
+          flushPendingLiveRefresh();
+        }
+      });
+      select.addEventListener('click', event => {
+        event.stopPropagation();
+      });
+      select.addEventListener('blur', () => {
+        commitInlineEditState(state);
+      });
+      return { root: select, inputEl: select };
+    }
+
+    function buildInlineTokenMultiEditor(target, rect, rawValue, meta = {}, state) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'mvu-inline-token-editor';
+      wrapper.style.minWidth = `${Math.max(240, Math.ceil(rect.width) + 36)}px`;
+      wrapper.style.padding = '10px 12px';
+      wrapper.style.borderRadius = '12px';
+      wrapper.style.border = '1px solid rgba(0, 229, 255, 0.28)';
+      wrapper.style.background = 'rgba(4, 14, 24, 0.96)';
+      wrapper.style.boxShadow = '0 14px 32px rgba(0, 0, 0, 0.35)';
+      wrapper.style.display = 'grid';
+      wrapper.style.gap = '10px';
+
+      const optionGrid = document.createElement('div');
+      optionGrid.style.display = 'flex';
+      optionGrid.style.flexWrap = 'wrap';
+      optionGrid.style.gap = '8px';
+
+      const selected = new Set(normalizeEditorStringList(rawValue));
+      normalizeInlineEditorOptions(meta).forEach(option => {
+        const label = document.createElement('label');
+        label.className = `skill-designer-check-chip${selected.has(option) ? ' active' : ''}`;
+        label.style.cursor = 'pointer';
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.value = option;
+        input.checked = selected.has(option);
+        input.style.display = 'none';
+        input.addEventListener('change', () => {
+          label.classList.toggle('active', input.checked);
+        });
+        label.appendChild(input);
+        label.appendChild(document.createTextNode(option));
+        optionGrid.appendChild(label);
+      });
+
+      const actions = document.createElement('div');
+      actions.style.display = 'flex';
+      actions.style.justifyContent = 'flex-end';
+      actions.style.gap = '8px';
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button';
+      cancelBtn.className = 'tag-chip';
+      cancelBtn.textContent = '取消';
+      cancelBtn.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        restoreInlineEditState(state);
+        flushPendingLiveRefresh();
+      });
+
+      const saveBtn = document.createElement('button');
+      saveBtn.type = 'button';
+      saveBtn.className = 'tag-chip live';
+      saveBtn.textContent = '确定';
+      saveBtn.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        commitInlineEditState(state);
+      });
+
+      actions.appendChild(cancelBtn);
+      actions.appendChild(saveBtn);
+      wrapper.appendChild(optionGrid);
+      wrapper.appendChild(actions);
+
+      wrapper.addEventListener('click', event => {
+        event.stopPropagation();
+      });
+      wrapper.addEventListener('keydown', event => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          restoreInlineEditState(state);
+          flushPendingLiveRefresh();
+        }
+        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+          event.preventDefault();
+          event.stopPropagation();
+          commitInlineEditState(state);
+        }
+      });
+
+      state.readValue = () =>
+        Array.from(wrapper.querySelectorAll('input[type="checkbox"]:checked'))
+          .map(input => toText(input.value, '').trim())
+          .filter(Boolean);
+      state.manualCommit = true;
+
+      return { root: wrapper, inputEl: wrapper, focusEl: saveBtn };
     }
 
     function showUiToast(message, type = 'info', duration = 3200) {
@@ -1319,7 +1932,57 @@
       }
     }
 
+    function buildUiRequestInjectionId(requestKind = 'ui_request') {
+      const normalizedKind = toText(requestKind, 'ui_request')
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'ui_request';
+      return `dragon-ui-${normalizedKind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    }
+
+    async function dispatchUiAiRequest(playerInput, systemPrompt, meta = {}) {
+      const helper = window.TavernHelper && typeof window.TavernHelper === 'object' ? window.TavernHelper : null;
+      const requestKind = toText(meta && meta.requestKind, 'ui_request') || 'ui_request';
+      const userText = toText(playerInput, '').trim();
+      const hiddenPrompt = toText(systemPrompt, '').trim();
+
+      if (!userText) {
+        showUiToast('请求内容为空，无法提交。', 'error', 4200);
+        return { ok: false, requestKind, reason: 'empty_input' };
+      }
+      if (!helper
+        || typeof helper.injectPrompts !== 'function'
+        || typeof helper.createChatMessages !== 'function'
+        || typeof helper.triggerSlash !== 'function') {
+        showUiToast('酒馆助手发送接口未就绪，当前无法提交请求。', 'error', 4200);
+        return { ok: false, requestKind, reason: 'helper_unavailable' };
+      }
+
+      try {
+        if (hiddenPrompt) {
+          helper.injectPrompts([{
+            id: buildUiRequestInjectionId(requestKind),
+            position: 'in_chat',
+            depth: 0,
+            role: 'system',
+            content: hiddenPrompt,
+            should_scan: true
+          }], { once: true });
+        }
+        await helper.createChatMessages([{ role: 'user', message: userText }], { refresh: 'affected' });
+        await helper.triggerSlash('/trigger');
+        return { ok: true, requestKind };
+      } catch (error) {
+        console.error('[DragonUI] UI request dispatch failed', error);
+        showUiToast(error && error.message ? error.message : '请求提交失败。', 'error', 4200);
+        return { ok: false, requestKind, reason: 'dispatch_failed', error };
+      }
+    }
+
     const MVU_EDITOR_STORE_COMMIT_DELAY = 140;
+    const MVU_EDITOR_ROOT_OBJECT_KEYS = ['sys', 'world', 'org', 'char', 'map'];
+    const MVU_WRAPPER_ROOT_KEYS = ['display_data', 'delta_data', 'initialized_lorebooks', 'schema', 'stat_data'];
+    const MVU_WRAPPER_PREFIX_KEYS = new Set(['stat_data', 'display_data', 'data', 'variables', 'payload', 'root', 'mvu', 'state']);
     const mvuEditorStore = {
       statData: null,
       signature: '',
@@ -1359,6 +2022,87 @@
       }
     }
 
+    function isPlainObjectValue(value) {
+      return !!value && typeof value === 'object' && !Array.isArray(value);
+    }
+
+    function countRootObjectFields(value) {
+      if (!isPlainObjectValue(value)) return 0;
+      return MVU_EDITOR_ROOT_OBJECT_KEYS.filter(key => isPlainObjectValue(value[key])).length;
+    }
+
+    function stripWrapperPathPrefix(pathTokens) {
+      const normalized = Array.isArray(pathTokens) ? pathTokens.slice() : [];
+      while (normalized.length > 0) {
+        const head = normalized[0];
+        if (typeof head === 'number') break;
+        const headText = String(head ?? '').trim();
+        if (!headText || !MVU_WRAPPER_PREFIX_KEYS.has(headText)) break;
+        normalized.shift();
+      }
+      return normalized;
+    }
+
+    function pickBestRootCandidate(candidates = []) {
+      let bestCandidate = null;
+      let bestScore = -1;
+      let bestSize = -1;
+      candidates.forEach(candidate => {
+        if (!isPlainObjectValue(candidate)) return;
+        const score = countRootObjectFields(candidate);
+        if (score <= 0) return;
+        const size = Object.keys(candidate).length;
+        if (score > bestScore || (score === bestScore && size > bestSize)) {
+          bestCandidate = candidate;
+          bestScore = score;
+          bestSize = size;
+        }
+      });
+      return bestCandidate;
+    }
+
+    function normalizeMvuDataEnvelopeForEditor(rawData) {
+      const safeData = isPlainObjectValue(rawData) ? cloneJsonValue(rawData, {}) : {};
+      const hasWrapperFields = MVU_WRAPPER_ROOT_KEYS.some(key => Object.prototype.hasOwnProperty.call(safeData, key));
+      const envelope = hasWrapperFields ? cloneJsonValue(safeData, {}) : {};
+
+      const bestRoot = pickBestRootCandidate([
+        safeData.stat_data,
+        safeData.display_data,
+        safeData?.data?.stat_data,
+        safeData?.variables?.stat_data,
+        safeData?.payload?.stat_data,
+        safeData?.root?.stat_data,
+        safeData,
+      ]);
+
+      if (bestRoot) {
+        envelope.stat_data = cloneJsonValue(bestRoot, {});
+      } else if (isPlainObjectValue(envelope.stat_data)) {
+        envelope.stat_data = cloneJsonValue(envelope.stat_data, {});
+      } else {
+        envelope.stat_data = {};
+      }
+      if (!isPlainObjectValue(envelope.initialized_lorebooks)) envelope.initialized_lorebooks = {};
+      return envelope;
+    }
+
+    function buildSafeStatDataForEditorWrite(nextStatData, baseStatData) {
+      const draft = isPlainObjectValue(nextStatData) ? cloneJsonValue(nextStatData, {}) : {};
+      const base = isPlainObjectValue(baseStatData) ? baseStatData : {};
+
+      MVU_EDITOR_ROOT_OBJECT_KEYS.forEach(key => {
+        if (isPlainObjectValue(draft[key])) return;
+        if (isPlainObjectValue(base[key])) {
+          draft[key] = cloneJsonValue(base[key], {});
+          return;
+        }
+        draft[key] = {};
+      });
+
+      return draft;
+    }
+
     function writeMvuEditorStoreSnapshot(statData, options = {}) {
       const safeStatData = statData && typeof statData === 'object' ? cloneJsonValue(statData, {}) : {};
       mvuEditorStore.statData = safeStatData;
@@ -1386,10 +2130,7 @@
       if (!currentMvuData || typeof currentMvuData !== 'object') {
         throw new Error('读取当前 MVU 数据失败。');
       }
-      const safeMvuData = cloneJsonValue(currentMvuData, {});
-      if (!safeMvuData.stat_data || typeof safeMvuData.stat_data !== 'object') {
-        safeMvuData.stat_data = {};
-      }
+      const safeMvuData = normalizeMvuDataEnvelopeForEditor(currentMvuData);
       return { host, mvuData: safeMvuData };
     }
 
@@ -1419,11 +2160,12 @@
         const flushStatData = cloneJsonValue(mvuEditorStore.statData, {});
         const { host, mvuData } = await readLatestMvuDataByEditor();
         const nextMvuData = cloneJsonValue(mvuData, {});
-        nextMvuData.stat_data = flushStatData;
+        const safeFlushStatData = buildSafeStatDataForEditorWrite(flushStatData, mvuData.stat_data);
+        nextMvuData.stat_data = safeFlushStatData;
         await Promise.resolve(host.replaceMvuData(nextMvuData, { type: 'message', message_id: 'latest' }));
         if (mvuEditorStore.version === flushVersion) {
           mvuEditorStore.dirty = false;
-          mvuEditorStore.signature = serializeMvuEditorStoreStatData(flushStatData);
+          mvuEditorStore.signature = serializeMvuEditorStoreStatData(safeFlushStatData);
         }
         if (options.refresh !== false) {
           await refreshLiveSnapshot();
@@ -1479,19 +2221,49 @@
       }, options);
     }
 
+    async function deleteStatDataPathByEditor(pathValue, options = {}) {
+      const path = normalizeEditorPath(pathValue);
+      if (!path.length) throw new Error('变量路径不能为空。');
+      return mutateStatDataByEditor(statData => {
+        deepDeleteMutable(statData, path);
+      }, options);
+    }
+
     function normalizeInlineComparableValue(value, kind = 'string') {
       const safeKind = String(kind || 'string').trim().toLowerCase();
       if (safeKind === 'number') {
         const parsed = Number(value);
         return Number.isFinite(parsed) ? String(parsed) : '';
       }
-      if (safeKind === 'string_list') {
+      if (safeKind === 'string_list' || safeKind === 'token_multi') {
         return normalizeEditorStringList(value).join('、');
       }
+      if (safeKind === 'enum_select') return String(value ?? '').trim();
       if (safeKind === 'boolean') {
         return String(['true', '1', 'yes', 'y', '是', '开'].includes(String(value ?? '').trim().toLowerCase()));
       }
       return String(value ?? '');
+    }
+
+    function bumpInlineEditSession(duration = 320) {
+      inlineEditSessionToken += 1;
+      const holdMs = Math.max(0, toNumber(duration, 320));
+      if (holdMs > 0) inlineEditGuardUntil = Math.max(inlineEditGuardUntil, Date.now() + holdMs);
+      return inlineEditSessionToken;
+    }
+
+    function isInlineEditGuardActive() {
+      return Date.now() < inlineEditGuardUntil;
+    }
+
+    function shouldBlockInlineEditRerender(options = {}) {
+      if (options && (options.force || options.allowWhileInlineEdit)) return false;
+      return hasActiveInlineEdit() || isInlineEditGuardActive();
+    }
+
+    function isInlineEditInteractionTarget(target) {
+      if (!target || !(target instanceof Element)) return false;
+      return !!target.closest('.mvu-inline-editor-input, .mvu-inline-token-editor, .mvu-inline-editor-shell');
     }
 
     function restoreInlineEditState(state = activeInlineEditState) {
@@ -1510,6 +2282,7 @@
       const activeEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       if (!activeEl) return false;
       if (activeEl.classList.contains('mvu-inline-editor-input')) return true;
+      if (activeEl.closest('.mvu-inline-token-editor')) return true;
       if (!activeEl.closest('.mvu-editor-form, .skill-designer-form')) return false;
       return activeEl.matches('input, textarea, select');
     }
@@ -1520,7 +2293,7 @@
 
     function shouldPauseLiveRefresh(options = {}) {
       if (options && options.force) return false;
-      return hasActiveInlineEdit() || hasFocusedEditorControl() || hasOpenSkillDesignerModal();
+      return shouldBlockInlineEditRerender(options) || hasFocusedEditorControl() || hasOpenSkillDesignerModal();
     }
 
     function flushPendingLiveRefresh(options = {}) {
@@ -1539,9 +2312,12 @@
     async function commitInlineEditState(state) {
       if (!state || state.committing) return;
       state.committing = true;
+      bumpInlineEditSession(1200);
       let nextValue;
       try {
-        nextValue = parseEditorInputValue(state.inputEl ? state.inputEl.value : '', state.kind);
+        nextValue = typeof state.readValue === 'function'
+          ? state.readValue(state)
+          : parseEditorInputValue(state.inputEl ? state.inputEl.value : '', state.kind, state.editorMeta || {});
       } catch (error) {
         restoreInlineEditState(state);
         showUiToast(error && error.message ? error.message : '变量格式不正确。', 'error', 4200);
@@ -1555,9 +2331,12 @@
         flushPendingLiveRefresh();
         return;
       }
+      let previewRollback = null;
       try {
+        previewRollback = queueTrainedBonusPreviewOverride(state.path, state.rawValue, nextValue);
         await replaceStatDataByEditor([{ path: state.path, value: nextValue }]);
       } catch (error) {
+        restoreTrainedBonusPreviewOverride(previewRollback);
         showUiToast(error && error.message ? error.message : '变量写回失败。', 'error', 4200);
       } finally {
         flushPendingLiveRefresh({ force: true });
@@ -1568,6 +2347,7 @@
       if (!target || !(target instanceof HTMLElement)) return;
       if (activeInlineEditState && activeInlineEditState.displayEl === target) return;
       cancelActiveInlineEdit();
+      bumpInlineEditSession(800);
 
       let path = [];
       try {
@@ -1577,46 +2357,87 @@
 
       const kind = target.getAttribute('data-value-kind') || 'string';
       const rawValue = target.getAttribute('data-mvu-raw-value') ?? target.textContent ?? '';
+      const editorMeta = readInlineEditorMeta(target);
       const rect = target.getBoundingClientRect();
-      const input = document.createElement('input');
-      input.className = 'mvu-inline-editor-input';
-      input.type = kind === 'number' ? 'number' : 'text';
-      if (kind === 'number') input.step = 'any';
-      input.value = formatEditorValue(rawValue, kind);
-      input.style.width = `${Math.max(56, Math.ceil(rect.width) + 18)}px`;
-
+      const isMultiline = target.getAttribute('data-inline-multiline') === '1';
       const state = {
         displayEl: target,
-        inputEl: input,
+        inputEl: null,
         path,
         kind,
         rawValue,
+        editorMeta,
+        multiline: isMultiline,
         committing: false,
       };
       activeInlineEditState = state;
+      let editorRoot = null;
+      let focusTarget = null;
 
-      input.addEventListener('keydown', event => {
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          event.stopPropagation();
-          commitInlineEditState(state);
-        } else if (event.key === 'Escape') {
-          event.preventDefault();
-          event.stopPropagation();
-          restoreInlineEditState(state);
-          flushPendingLiveRefresh();
+      if (String(kind).trim().toLowerCase() === 'enum_select') {
+        const editor = buildInlineEnumSelectEditor(target, rect, rawValue, editorMeta, state);
+        editorRoot = editor.root;
+        state.inputEl = editor.inputEl;
+        focusTarget = editor.focusEl || editor.inputEl;
+      } else if (String(kind).trim().toLowerCase() === 'token_multi') {
+        const editor = buildInlineTokenMultiEditor(target, rect, rawValue, editorMeta, state);
+        editorRoot = editor.root;
+        state.inputEl = editor.inputEl;
+        focusTarget = editor.focusEl || editor.inputEl;
+      } else if (String(kind).trim().toLowerCase() === 'number') {
+        const editor = buildInlineNumberEditor(target, rect, rawValue, editorMeta, state);
+        editorRoot = editor.root;
+        state.inputEl = editor.inputEl;
+        focusTarget = editor.focusEl || editor.inputEl;
+      } else {
+        const input = document.createElement(isMultiline ? 'textarea' : 'input');
+        input.className = 'mvu-inline-editor-input';
+        if (!isMultiline) {
+          input.type = 'text';
+        } else {
+          input.rows = Math.max(3, Math.min(8, String(formatEditorValue(rawValue, kind)).split(/\r?\n/).length + 1));
+          input.style.minHeight = `${Math.max(72, Math.ceil(rect.height) + 28)}px`;
+          input.style.resize = 'vertical';
+          input.style.whiteSpace = 'pre-wrap';
         }
-      });
-      input.addEventListener('click', event => {
-        event.stopPropagation();
-      });
-      input.addEventListener('blur', () => {
-        commitInlineEditState(state);
-      });
+        input.value = formatEditorValue(rawValue, kind);
+        input.style.width = `${Math.max(isMultiline ? 240 : 84, Math.ceil(rect.width) + 28)}px`;
+        input.style.minHeight = isMultiline ? input.style.minHeight : `${Math.max(36, Math.ceil(rect.height) + 10)}px`;
+        input.style.padding = isMultiline ? '10px 12px' : '0 14px';
+        input.style.borderRadius = isMultiline ? '14px' : '999px';
+        input.style.border = '1px solid rgba(0, 229, 255, 0.28)';
+        input.style.background = 'rgba(4, 14, 24, 0.96)';
+        input.style.boxShadow = '0 10px 24px rgba(0, 0, 0, 0.25)';
+        input.style.color = 'var(--white)';
+        input.style.outline = 'none';
+        input.style.font = 'inherit';
+        input.style.boxSizing = 'border-box';
+        input.addEventListener('keydown', event => {
+          if (event.key === 'Enter' && (!state.multiline || event.ctrlKey || event.metaKey)) {
+            event.preventDefault();
+            event.stopPropagation();
+            commitInlineEditState(state);
+          } else if (event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            restoreInlineEditState(state);
+            flushPendingLiveRefresh();
+          }
+        });
+        input.addEventListener('click', event => {
+          event.stopPropagation();
+        });
+        input.addEventListener('blur', () => {
+          commitInlineEditState(state);
+        });
+        editorRoot = input;
+        state.inputEl = input;
+        focusTarget = input;
+      }
 
-      target.replaceWith(input);
-      input.focus();
-      input.select();
+      target.replaceWith(editorRoot);
+      if (focusTarget && typeof focusTarget.focus === 'function') focusTarget.focus();
+      if (focusTarget && typeof focusTarget.select === 'function') focusTarget.select();
     }
 
     function bindInlineEditing() {
@@ -1624,11 +2445,15 @@
       window.__mvuInlineEditingBound = true;
 
       document.addEventListener('click', event => {
-        const eventTarget = event.target instanceof Element ? event.target : null;
+        const eventTarget = event.target instanceof Element ? event.target : (event.target && event.target.parentElement ? event.target.parentElement : null);
         if (!eventTarget) return;
-        if (eventTarget.closest('.mvu-inline-editor-input')) {
+        if (isInlineEditInteractionTarget(eventTarget)) {
           event.stopPropagation();
           return;
+        }
+        if (activeInlineEditState && activeInlineEditState.manualCommit) {
+          restoreInlineEditState(activeInlineEditState);
+          flushPendingLiveRefresh();
         }
         const inlineTarget = eventTarget.closest('[data-inline-editable="1"]');
         if (!inlineTarget) return;
@@ -1638,7 +2463,7 @@
       }, true);
 
       document.addEventListener('keydown', event => {
-        const eventTarget = event.target instanceof Element ? event.target : null;
+        const eventTarget = event.target instanceof Element ? event.target : (event.target && event.target.parentElement ? event.target.parentElement : null);
         if (!eventTarget) return;
         if (eventTarget.classList.contains('mvu-inline-editor-input')) return;
         const inlineTarget = eventTarget.closest('[data-inline-editable="1"]');
@@ -1751,77 +2576,164 @@
       return null;
     }
 
-    function bindMvuUpdates(handler) {
-      const host = getMvuHost();
-      const eventName = host && host.events ? host.events.VARIABLE_UPDATE_ENDED : '';
-      const POLL_KEY = '__mvuRefreshPollTimer';
-      const POLL_VIS_KEY = '__mvuRefreshPollVisibilityBound';
-      const POLL_FOCUS_KEY = '__mvuRefreshPollFocusBound';
-      let bound = false;
+    function getSharedMvuRefreshHub() {
+      const hubKey = '__dragonUiSharedMvuRefreshHub';
+      const existingHub = window[hubKey];
+      if (existingHub && typeof existingHub.subscribe === 'function' && typeof existingHub.trigger === 'function') {
+        return existingHub;
+      }
 
+      const subscribers = new Map();
+      const POLL_KEY = '__dragonUiSharedRefreshPollTimer';
+      const POLL_VIS_KEY = '__dragonUiSharedRefreshPollVisibilityBound';
+      const POLL_FOCUS_KEY = '__dragonUiSharedRefreshPollFocusBound';
+      let bindingsReady = false;
       let running = false;
-      const safeHandler = async (...args) => {
-        if (running) return;
-        running = true;
-        try {
-          await Promise.resolve(handler(...args));
-        } catch (error) {
-          console.warn('[DragonUI] MVU 实时刷新执行失败', error);
-        } finally {
-          running = false;
+      let pending = false;
+      let lastTriggerArgs = [];
+
+      const getAllVariablesDirect = async () => {
+        const host = getMvuHost();
+        if (host && typeof host.getAllVariables === 'function') {
+          return await Promise.resolve(host.getAllVariables());
+        }
+        if (window.getAllVariables && typeof window.getAllVariables === 'function') {
+          return await Promise.resolve(window.getAllVariables());
+        }
+        return null;
+      };
+
+      const schedulePendingDispatch = () => {
+        const runner = () => hub.dispatch(...lastTriggerArgs);
+        if (typeof queueMicrotask === 'function') {
+          queueMicrotask(runner);
+          return;
+        }
+        Promise.resolve().then(runner);
+      };
+
+      const hub = {
+        async getAllVariables() {
+          return await getAllVariablesDirect();
+        },
+
+        async dispatch(...args) {
+          lastTriggerArgs = args;
+          if (running) {
+            pending = true;
+            return;
+          }
+          running = true;
+          try {
+            const vars = await getAllVariablesDirect();
+            const entries = Array.from(subscribers.entries());
+            for (const [subscriberId, subscriber] of entries) {
+              try {
+                await Promise.resolve(subscriber.handler(vars, ...args));
+              } catch (error) {
+                console.warn(`[DragonUI] MVU shared refresh subscriber failed: ${subscriberId}`, error);
+              }
+            }
+          } finally {
+            running = false;
+            if (pending) {
+              pending = false;
+              schedulePendingDispatch();
+            }
+          }
+        },
+
+        trigger(...args) {
+          return hub.dispatch(...args);
+        },
+
+        ensureBindings() {
+          if (bindingsReady) return;
+          bindingsReady = true;
+
+          const host = getMvuHost();
+          const eventName = host && host.events ? host.events.VARIABLE_UPDATE_ENDED : '';
+          let bound = false;
+          const triggerFromEvent = (...args) => hub.trigger({ source: 'event', eventName }, ...args);
+
+          if (host && eventName && typeof host.on === 'function') {
+            try {
+              host.on(eventName, triggerFromEvent);
+              bound = true;
+            } catch (err) {}
+          }
+
+          if (host && eventName && typeof host.addEventListener === 'function') {
+            try {
+              host.addEventListener(eventName, triggerFromEvent);
+              bound = true;
+            } catch (err) {}
+          }
+
+          if (eventName) {
+            try {
+              window.addEventListener(eventName, triggerFromEvent);
+              bound = true;
+            } catch (err) {}
+            try {
+              if (window.top && window.top !== window && typeof window.top.addEventListener === 'function') {
+                window.top.addEventListener(eventName, triggerFromEvent);
+                bound = true;
+              }
+            } catch (err) {}
+          }
+
+          if (!window[POLL_KEY]) {
+            window[POLL_KEY] = window.setInterval(() => {
+              hub.trigger({ source: 'poll' });
+            }, 1500);
+          }
+
+          if (!window[POLL_VIS_KEY]) {
+            document.addEventListener('visibilitychange', () => {
+              if (document.visibilityState === 'visible') hub.trigger({ source: 'visibility' });
+            });
+            window[POLL_VIS_KEY] = true;
+          }
+
+          if (!window[POLL_FOCUS_KEY]) {
+            window.addEventListener('focus', () => {
+              hub.trigger({ source: 'focus' });
+            });
+            window[POLL_FOCUS_KEY] = true;
+          }
+
+          if (!bound && window.__MVU_DEBUG__) {
+            console.info('[DragonUI] MVU update event not bound, shared polling fallback enabled.');
+          }
+        },
+
+        subscribe(subscriberId, handler, options = {}) {
+          if (!subscriberId || typeof handler !== 'function') return () => {};
+          subscribers.set(subscriberId, { handler });
+          hub.ensureBindings();
+          if (options.immediate !== false) {
+            hub.trigger({ source: 'subscribe', subscriberId });
+          }
+          return () => {
+            subscribers.delete(subscriberId);
+          };
         }
       };
 
-      if (host && eventName && typeof host.on === 'function') {
+      window[hubKey] = hub;
+      return hub;
+    }
+
+    function bindMvuUpdates(handler) {
+      const hub = getSharedMvuRefreshHub();
+      return hub.subscribe('dragon-ui-main', async (vars, ...args) => {
         try {
-          host.on(eventName, safeHandler);
-          bound = true;
-        } catch (err) {}
-      }
-
-      if (host && eventName && typeof host.addEventListener === 'function') {
-        try {
-          host.addEventListener(eventName, safeHandler);
-          bound = true;
-        } catch (err) {}
-      }
-
-      if (eventName) {
-        try {
-          window.addEventListener(eventName, safeHandler);
-          bound = true;
-        } catch (err) {}
-        try {
-          if (window.top && window.top !== window && typeof window.top.addEventListener === 'function') {
-            window.top.addEventListener(eventName, safeHandler);
-            bound = true;
-          }
-        } catch (err) {}
-      }
-
-      if (!window[POLL_KEY]) {
-        window[POLL_KEY] = window.setInterval(safeHandler, 1500);
-      }
-
-      if (!window[POLL_VIS_KEY]) {
-        document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'visible') safeHandler();
-        });
-        window[POLL_VIS_KEY] = true;
-      }
-
-      if (!window[POLL_FOCUS_KEY]) {
-        window.addEventListener('focus', safeHandler);
-        window[POLL_FOCUS_KEY] = true;
-      }
-
-      safeHandler();
-
-      if (!bound) {
-        if (window.__MVU_DEBUG__) {
-          console.info('[DragonUI] MVU 更新事件未绑定成功，已启用 polling 兜底。');
+          await Promise.resolve(handler(vars, ...args));
+        } catch (error) {
+          console.warn('[DragonUI] MVU 实时刷新执行失败', error);
         }
-      }
+      });
     }
 
     function resolveRootData(vars) {
@@ -1972,13 +2884,18 @@
     function formatAppearanceMeta(appearance) {
       const data = appearance && typeof appearance === 'object' ? appearance : {};
       const features = Array.isArray(data['特殊特征'])
-        ? data['特殊特征'].map(item => toText(item, '').trim()).filter(Boolean)
+        ? data['特殊特征']
+          .map(item => toText(item, '').trim())
+          .filter(Boolean)
+          .filter(item => !/^待补全\(/.test(item))
         : [];
       return {
-        hair: toText(data['发色'], '未设定') || '未设定',
+        hairColor: toText(data['发色'], '未设定') || '未设定',
+        hairStyle: toText(data['发型'], '未设定') || '未设定',
         eyes: toText(data['瞳色'], '未设定') || '未设定',
         height: toText(data['身高'], '未设定') || '未设定',
         build: toText(data['体型'], '未设定') || '未设定',
+        looks: toText(data['长相描述'], '未设定') || '未设定',
         features: features.length ? features.join('、') : '未设定'
       };
     }
@@ -1986,13 +2903,17 @@
     function formatAppearanceText(appearance) {
       const meta = formatAppearanceMeta(appearance);
       const parts = [
-        meta.hair,
+        meta.hairColor,
+        meta.hairStyle,
         meta.eyes,
         meta.height,
         meta.build
       ].filter(Boolean).filter(item => item !== '未设定');
+      const looksText = meta.looks && meta.looks !== '未设定' ? `；长相：${meta.looks}` : '';
       const featureText = meta.features && meta.features !== '未设定' ? `；特征：${meta.features}` : '';
-      return parts.length ? `${parts.join(' / ')}${featureText}` : '未设定';
+      if (parts.length) return `${parts.join(' / ')}${looksText}${featureText}`;
+      if (looksText || featureText) return `${looksText}${featureText}`.replace(/^；/, '');
+      return '未设定';
     }
 
     function normalizeLocationName(sd, rawLoc) {
@@ -2059,6 +2980,21 @@
       ].filter(Boolean).join(' / ');
     }
 
+    function summarizeCloneEffectUi(effect) {
+      const cloneType = normalizeSkillUiText(effect && effect['分身类型'], '分身');
+      const cloneName = normalizeSkillUiText(effect && effect['分身名称'], '');
+      const cloneCount = Math.max(1, toNumber(effect && effect['分身数量'], 1));
+      const duration = Math.max(0, toNumber(effect && effect['持续回合'], effect && effect['持续']));
+      const stealth = Number(effect && effect['隐蔽度']);
+      const inheritRatio = Number(effect && effect['实力继承比例']);
+      return [
+        `${cloneName ? `分出【${cloneName}】` : '分出'}${cloneCount}体${cloneType}`,
+        Number.isFinite(stealth) ? `隐蔽:${Math.round(stealth * 100)}%` : '',
+        Number.isFinite(inheritRatio) ? `继承:${Math.round(inheritRatio * 100)}%` : '',
+        duration > 0 ? `持续:${duration}回合` : '',
+      ].filter(Boolean).join(' / ');
+    }
+
     function extractConstructEffectMeta(effectArray) {
       const createEffect = (Array.isArray(effectArray) ? effectArray : []).find(effect => {
         const mech = toText(effect && effect['机制'], '').trim();
@@ -2070,7 +3006,7 @@
 
     const SKILL_DESIGNER_PREVIEW_PREFIX = '技能设计台：';
     const SKILL_SUMMARY_EFFECT_MECHANISM_SET = new Set(['属性摘要', '构型摘要', '术式摘要', '极性摘要', '属性系数摘要', '机制参数摘要']);
-    const SKILL_DESIGNER_SKILL_TYPES = Object.freeze(['强攻系', '控制系', '食物系', '精神系', '防御系', '敏攻系', '元素系', '辅助系', '治疗系', '被动', '融合技', '功法', '特长']);
+    const SKILL_DESIGNER_SKILL_TYPES = Object.freeze(['强攻系', '控制系', '食物系', '精神系', '防御系', '敏攻系', '元素系', '辅助系', '治疗系', '被动', '融合技', '功法', '特殊能力']);
     const SKILL_DESIGNER_TARGET_OPTIONS = Object.freeze(['自身', '友方单体', '友方群体', '敌方单体', '敌方群体', '全场', '食用者', '使用者', '召唤物', '造物']);
     const SKILL_DESIGNER_MAIN_MECHANIC_POOL = Object.freeze({
       '伤害类': Object.freeze(['单体伤害', '群体伤害', '多段伤害', '延迟爆发', '持续伤害']),
@@ -2081,7 +3017,7 @@
       '回复类': Object.freeze(['体力恢复', '魂力恢复', '精神恢复', '持续恢复', '净化/解控']),
       '感知/认知类': Object.freeze(['感知干扰', '标记锁定', '共享视野', '幻境', '催眠', '认知扭曲']),
       '位移类': Object.freeze(['自身位移', '强制位移', '位移交换', '追击位移', '脱离位移']),
-      '特殊规则类': Object.freeze(['复制', '反制', '转化', '状态交换', '强制绑定/锁定', '条件触发', '规则改写']),
+      '特殊规则类': Object.freeze(['分身', '复制', '反制', '转化', '状态交换', '强制绑定/锁定', '条件触发', '规则改写']),
     });
     const SKILL_DESIGNER_DELIVERY_FORM_POOL = Object.freeze(['直接生效', '自身附体', '远程命中', '范围展开', '召唤承载', '造物承载', '标记触发', '延迟触发']);
     const SKILL_DESIGNER_DELIVERY_FORM_BY_TYPE = Object.freeze({
@@ -2094,6 +3030,9 @@
       '元素系': Object.freeze(['远程命中', '范围展开', '延迟触发', '直接生效']),
       '辅助系': Object.freeze(['直接生效', '范围展开', '标记触发']),
       '治疗系': Object.freeze(['直接生效', '范围展开', '标记触发']),
+      '被动': Object.freeze(['自身附体', '直接生效']),
+      '功法': Object.freeze(['自身附体', '直接生效', '范围展开', '延迟触发']),
+      '特殊能力': Object.freeze(['直接生效', '自身附体', '范围展开', '延迟触发', '标记触发']),
     });
     const SKILL_DESIGNER_ATTRIBUTE_HINTS_BY_TYPE = Object.freeze({
       '强攻系': Object.freeze(['力量', '魂力', '防御']),
@@ -2121,12 +3060,9 @@
       '金', '木', '水', '火', '土', '风', '雷', '冰',
       '光', '暗', '精神',
       '空间', '时间',
-      '创造', '毁灭',
-      '五行'
+      '创造', '毁灭'
     ]);
-    const SKILL_DESIGNER_BONUS_ATTRIBUTE_OPTIONS = Object.freeze(['无', '力量', '防御', '敏捷', '精神力', '魂力', '气血', '多属性']);
-    const SKILL_DESIGNER_MAIN_ROLE_OPTIONS = Object.freeze(['未知', '爆发输出', '持续压制', '控制起手', '保护承伤', '回复续航', '增益辅助', '特殊规则', '被动固化']);
-    const SKILL_DESIGNER_RESOURCE_TYPE_OPTIONS = Object.freeze(['无', '魂力', '精神力', '气血', '体力', '混合']);
+    const SKILL_DESIGNER_RESOURCE_TYPE_OPTIONS = Object.freeze(['无', '魂力', '精神力', '体力', '混合']);
     const SKILL_ATTRIBUTE_DIM_KEYS = Object.freeze(['掌控', '威力', '消耗', '前摇', '控制', '速度']);
     const SKILL_ATTRIBUTE_SOURCE_VALUES = Object.freeze(['无', '自身操控', '魂技调用']);
     const SKILL_ATTRIBUTE_ROLE_VALUES = Object.freeze(['无', '增幅器', '结构术式']);
@@ -2175,6 +3111,7 @@
       '位移交换': Object.freeze({ main: '位移类', sub: '位移交换' }),
       '追击位移': Object.freeze({ main: '位移类', sub: '追击位移' }),
       '脱离位移': Object.freeze({ main: '位移类', sub: '脱离位移' }),
+      '分身': Object.freeze({ main: '特殊规则类', sub: '分身' }),
       '复制': Object.freeze({ main: '特殊规则类', sub: '复制' }),
       '反制': Object.freeze({ main: '特殊规则类', sub: '反制' }),
       '状态交换': Object.freeze({ main: '特殊规则类', sub: '状态交换' }),
@@ -2218,6 +3155,54 @@
       控制: '控制',
       速度: '速度',
     });
+    const SKILL_DESIGNER_PARAM_ATTRIBUTE_OPTIONS = Object.freeze([
+      '力量', '防御', '敏捷',
+      '体力上限', '魂力上限', '精神力上限',
+      '体力', '魂力', '精神力',
+      '掌控', '威力', '消耗', '前摇', '控制', '速度',
+    ]);
+    const SKILL_DESIGNER_PARAM_ATTRIBUTE_GROUP_OPTIONS = Object.freeze([
+      '力量/防御',
+      '力量/敏捷',
+      '防御/敏捷',
+      '力量/防御/敏捷',
+      '体力上限/魂力上限',
+      '体力上限/精神力上限',
+      '魂力上限/精神力上限',
+      '体力上限/魂力上限/精神力上限',
+      '魂力/精神力',
+      '掌控/威力',
+      '掌控/控制',
+      '消耗/前摇',
+      '速度/敏捷',
+    ]);
+    const SKILL_DESIGNER_PARAM_PANEL_OPTIONS = Object.freeze(['攻击', '防御', '回复', '速度', '控制']);
+    const SKILL_DESIGNER_PARAM_SUPPORT_TARGET_OPTIONS = Object.freeze(['自身', '友方单体', '友方群体']);
+    const SKILL_DESIGNER_PARAM_SHIELD_CAP_OPTIONS = Object.freeze(['基于体力', '基于魂力', '基于精神力']);
+    const SKILL_DESIGNER_PARAM_IMMUNE_LEVEL_OPTIONS = Object.freeze(['硬控', '软控', '全部控制']);
+    const SKILL_DESIGNER_PARAM_CLEANSE_PRIORITY_OPTIONS = Object.freeze([
+      '控制 > 削弱 > 异常',
+      '削弱 > 控制 > 异常',
+      '异常 > 控制 > 削弱',
+    ]);
+    const SKILL_DESIGNER_PARAM_CLEANSE_GAIN_OPTIONS = Object.freeze(['回复', '护盾', '免疫']);
+    const SKILL_DESIGNER_PARAM_TRACKING_RULE_OPTIONS = Object.freeze(['不可脱锁', '共享坐标', '命中显形']);
+    const SKILL_DESIGNER_PARAM_INFO_DEPTH_OPTIONS = Object.freeze(['位置', '视野', '状态', '位置+视野', '完整共享']);
+    const SKILL_DESIGNER_PARAM_WAKE_RULE_OPTIONS = Object.freeze(['受伤', '净化', '时间结束']);
+    const SKILL_DESIGNER_PARAM_ESCAPE_GAIN_OPTIONS = Object.freeze(['隐匿', '护盾', '加速']);
+    const SKILL_DESIGNER_PARAM_COPY_TARGET_OPTIONS = Object.freeze(['招式', '状态', '属性']);
+    const SKILL_DESIGNER_PARAM_COUNTER_TARGET_OPTIONS = Object.freeze(['远程', '控制', '召唤', '近战']);
+    const SKILL_DESIGNER_PARAM_EXCHANGE_TARGET_OPTIONS = Object.freeze(['增益', '减益', '标记']);
+    const SKILL_DESIGNER_PARAM_TRIGGER_RESULT_OPTIONS = Object.freeze(['爆发', '刷新', '召唤']);
+    const SKILL_DESIGNER_PARAM_REWRITE_DEPTH_OPTIONS = Object.freeze(['部分改写', '完整覆盖']);
+    const SKILL_DESIGNER_PARAM_CLONE_TYPE_OPTIONS = Object.freeze(['物理分身', '精神力分身']);
+    const SKILL_DESIGNER_PARAM_PENETRATION_TARGET_OPTIONS = Object.freeze(['防御', '护盾', '抗性']);
+    const SKILL_DESIGNER_PARAM_LIFESTEAL_RESOURCE_OPTIONS = Object.freeze(['生命', '魂力', '精神力']);
+    const SKILL_DESIGNER_PARAM_INTERRUPT_WINDOW_OPTIONS = Object.freeze(['前摇', '吟唱中', '引导中']);
+    const SKILL_DESIGNER_PARAM_COUNTER_RULE_OPTIONS = Object.freeze(['受击后', '格挡后', '受控后']);
+    const SKILL_DESIGNER_PARAM_MUTE_SCOPE_OPTIONS = Object.freeze(['主动技', '咏唱技', '造物技', '全部技能']);
+    const SKILL_DESIGNER_PARAM_BLIND_EFFECT_OPTIONS = Object.freeze(['命中', '视野', '锁定']);
+    const SKILL_DESIGNER_PARAM_WEAK_POINT_TYPE_OPTIONS = Object.freeze(['破甲', '暴击', '属性克制']);
     const SKILL_DESIGNER_FULL_ATTRIBUTE_KEYS = Object.freeze(['str', 'def', 'agi', 'sp_max', 'men_max']);
 
     function isSkillSummaryEffect(effect) {
@@ -2277,6 +3262,144 @@
       return merged;
     }
 
+    function resolveSkillDesignerNestedEffectMechanism(entry = {}) {
+      const explicitMechanism = normalizeSkillUiText(entry && entry['机制'], '');
+      if (explicitMechanism) return explicitMechanism;
+      const description = normalizeSkillUiText(
+        entry && (entry['效果描述'] || entry['描述'] || entry.description || entry['文本']),
+        '',
+      );
+      if (!description) return '';
+      if (/分身/.test(description)) return '分身';
+      if (/霸体/.test(description)) return '霸体';
+      if (/护盾/.test(description)) return '护盾';
+      if (/减伤/.test(description)) return '减伤';
+      if (/免死|锁血/.test(description)) return '免死';
+      if (/解控/.test(description)) return '解控';
+      if (/净化/.test(description)) return '净化';
+      if (/(回复|恢复)/.test(description) && /魂力/.test(description)) return '魂力恢复';
+      if (/(回复|恢复)/.test(description) && /精神/.test(description)) return '精神恢复';
+      if (/(回复|恢复)/.test(description) && /(体力|生命)/.test(description)) return '体力恢复';
+      if (/共享视野/.test(description)) return '共享视野';
+      if (/标记/.test(description) && /锁定/.test(description)) return '标记锁定';
+      return '';
+    }
+
+    function buildSkillDesignerNestedEffectEntry(entry = {}, fallback = {}) {
+      const entryValue = entry && typeof entry === 'object' ? entry : {};
+      const valueConfig = entryValue && entryValue.value && typeof entryValue.value === 'object' ? entryValue.value : {};
+      const hasStructuredPayload =
+        Object.prototype.hasOwnProperty.call(entryValue, 'type')
+        || Object.prototype.hasOwnProperty.call(entryValue, 'target')
+        || Object.prototype.hasOwnProperty.call(entryValue, '目标')
+        || Object.prototype.hasOwnProperty.call(entryValue, '持续回合')
+        || Object.prototype.hasOwnProperty.call(entryValue, '持续')
+        || Object.prototype.hasOwnProperty.call(valueConfig, 'durationRounds')
+        || Object.prototype.hasOwnProperty.call(valueConfig, 'duration');
+      if (!hasStructuredPayload) return null;
+
+      const mechanism = resolveSkillDesignerNestedEffectMechanism(entryValue);
+      if (!mechanism) return null;
+      const target = normalizeSkillUiText(
+        entryValue['目标'] || entryValue.target || entryValue['对象'] || (fallback && fallback.target),
+        '',
+      );
+      const duration = Math.max(
+        0,
+        toNumber(
+          entryValue['持续回合']
+          ?? entryValue['持续']
+          ?? valueConfig.durationRounds
+          ?? valueConfig.duration
+          ?? valueConfig.rounds,
+          0,
+        ),
+      );
+      const normalizedEffect = { '机制': mechanism };
+      if (target) normalizedEffect['目标'] = target;
+      if (duration > 0) normalizedEffect['持续回合'] = duration;
+
+      const immuneLevel = normalizeSkillUiText(entryValue['免控级别'] || valueConfig.immuneLevel, '');
+      const reduceRatio = formatSkillDesignerNumericInput(entryValue['减伤比例'] ?? valueConfig.reduceRatio);
+      const shieldSource = normalizeSkillUiText(entryValue['护盾来源'] || valueConfig.shieldSource, '');
+      if (immuneLevel) normalizedEffect['免控级别'] = immuneLevel;
+      if (reduceRatio) normalizedEffect['减伤比例'] = reduceRatio;
+      if (shieldSource) normalizedEffect['护盾来源'] = shieldSource;
+      return normalizedEffect;
+    }
+
+    function getSkillDesignerEffectSignature(effect = {}) {
+      const mechanism = normalizeSkillUiText(effect && effect['机制'], '');
+      const target = normalizeSkillUiText(effect && (effect['目标'] || effect['对象']), '');
+      const property = normalizeSkillUiText(effect && effect['属性'], '');
+      const action = normalizeSkillUiText(effect && effect['动作'], '');
+      const duration = getSkillDesignerEffectDuration(effect);
+      const description = normalizeSkillUiText(
+        effect && (effect['效果描述'] || effect['描述'] || effect.description || effect['文本']),
+        '',
+      );
+      return [mechanism, target, property, action, String(duration), description].join('|');
+    }
+
+    function appendSkillDesignerEffectEntry(bucket = [], seen = new Set(), effect = null) {
+      if (!effect || typeof effect !== 'object') return;
+      const mechanism = normalizeSkillUiText(effect['机制'], '');
+      if (!mechanism || mechanism === '系统基础' || isSkillSummaryEffect(effect)) return;
+      const signature = getSkillDesignerEffectSignature(effect);
+      if (!signature || seen.has(signature)) return;
+      seen.add(signature);
+      bucket.push(effect);
+    }
+
+    function appendSkillDesignerEffectEntries(source, bucket = [], seen = new Set(), context = {}) {
+      if (Array.isArray(source)) {
+        source.forEach(entry => appendSkillDesignerEffectEntries(entry, bucket, seen, context));
+        return bucket;
+      }
+      if (!source || typeof source !== 'object') return bucket;
+
+      const fallbackTarget = normalizeSkillUiText(context && context.target, '');
+      const resolvedTarget = normalizeSkillUiText(
+        source['目标'] || source['对象'] || source.target || fallbackTarget,
+        fallbackTarget,
+      );
+      const explicitMechanism = normalizeSkillUiText(source['机制'], '');
+      if (explicitMechanism) {
+        const clonedEffect = cloneJsonValue(source);
+        if (!normalizeSkillUiText(clonedEffect['目标'] || clonedEffect['对象'], '') && resolvedTarget) {
+          clonedEffect['目标'] = resolvedTarget;
+        }
+        appendSkillDesignerEffectEntry(bucket, seen, clonedEffect);
+      } else {
+        appendSkillDesignerEffectEntry(
+          bucket,
+          seen,
+          buildSkillDesignerNestedEffectEntry(source, { target: resolvedTarget }),
+        );
+      }
+
+      if (Array.isArray(source['使用效果'])) {
+        appendSkillDesignerEffectEntries(source['使用效果'], bucket, seen, { target: resolvedTarget || fallbackTarget });
+      }
+      if (Array.isArray(source.effects)) {
+        appendSkillDesignerEffectEntries(source.effects, bucket, seen, { target: resolvedTarget || fallbackTarget });
+      }
+      if (source['背包模板'] && typeof source['背包模板'] === 'object') {
+        appendSkillDesignerEffectEntries(source['背包模板'], bucket, seen, { target: resolvedTarget || fallbackTarget });
+      }
+      return bucket;
+    }
+
+    function getSkillDesignerSystemBaseEffect(effectArray = []) {
+      return (Array.isArray(effectArray) ? effectArray : []).find(effect => {
+        return normalizeSkillUiText(effect && effect['机制'], '') === '系统基础';
+      }) || {};
+    }
+
+    function getSkillDesignerSystemBaseTags(effectArray = []) {
+      return normalizeSkillDesignerArray(getSkillDesignerSystemBaseEffect(effectArray)['标签']);
+    }
+
     function analyzeSkillDesignerPackedEffects(effectArray = []) {
       const effectEntries = getSkillDesignerEffectEntries(effectArray);
       const analysis = {
@@ -2310,6 +3433,44 @@
         normalizeSkillDesignerArray(SKILL_DESIGNER_SECONDARY_MECHANISM_HINTS[mechanism] || []).forEach(label => {
           analysis.secondaryHints.push(label);
         });
+
+        if (mechanism === '护盾') {
+          pushParamHint('护盾', {
+            duration: durationText,
+            shieldCap: normalizeSkillUiText(effect && effect['护盾来源'], ''),
+          });
+          return;
+        }
+
+        if (mechanism === '减伤') {
+          pushParamHint('减伤', {
+            duration: durationText,
+            reduceRatio: formatSkillDesignerNumericInput(effect && effect['减伤比例']),
+            damageType: normalizeSkillUiText(effect && effect['覆盖类型'], ''),
+          });
+          return;
+        }
+
+        if (mechanism === '霸体') {
+          pushParamHint('霸体', {
+            duration: durationText,
+            immuneLevel: normalizeSkillUiText(effect && effect['免控级别'], ''),
+            reduceRatio: formatSkillDesignerNumericInput(effect && effect['减伤比例']),
+          });
+          return;
+        }
+
+        if (mechanism === '分身') {
+          pushParamHint('分身', {
+            duration: durationText,
+            cloneType: normalizeSkillUiText(effect && effect['分身类型'], ''),
+            cloneCount: formatSkillDesignerNumericInput(effect && effect['分身数量'], 0),
+            stealthRatio: formatSkillDesignerNumericInput(effect && effect['隐蔽度']),
+            inheritRatio: formatSkillDesignerNumericInput(effect && effect['实力继承比例']),
+            cloneName: normalizeSkillUiText(effect && effect['分身名称'], ''),
+          });
+          return;
+        }
 
         if (mechanism === '属性变化') {
           if (action === '加值' && ['vit', 'sp', 'men'].includes(property)) {
@@ -2464,10 +3625,7 @@
     }
 
     function getSkillDesignerEffectEntries(effectArray = []) {
-      return (Array.isArray(effectArray) ? effectArray : []).filter(effect => {
-        const mechanism = toText(effect && effect['机制'], '').trim();
-        return !!mechanism && mechanism !== '系统基础' && !isSkillSummaryEffect(effect);
-      });
+      return appendSkillDesignerEffectEntries(Array.isArray(effectArray) ? effectArray : [], [], new Set());
     }
 
     function getSkillDesignerDefaultPrimarySub(primaryMain = '', target = '', type = '') {
@@ -2516,6 +3674,9 @@
       const effectAnalysis = analyzeSkillDesignerPackedEffects(effectArray);
       const effectHint = buildSkillDesignerEffectBasedPrimaryMechanic(effectAnalysis);
       const typeHint = inferSkillDesignerMainMechanicFromType(type, target, effectEntries);
+      const systemTagHints = getSkillDesignerSystemBaseTags(effectArray)
+        .map(tag => SKILL_DESIGNER_PRIMARY_MECHANISM_HINTS[normalizeSkillUiText(tag, '')])
+        .filter(Boolean);
       let primaryMain = normalizeSkillUiText(effectHint.main, '');
       let primarySub = normalizeSkillUiText(effectHint.sub, '');
       const secondaryCandidates = [...normalizeSkillDesignerArray(effectAnalysis.secondaryHints)];
@@ -2526,6 +3687,15 @@
         if (!primarySub && primaryHint.sub && (!primaryMain || normalizeSkillUiText(primaryHint.main, '') === primaryMain)) {
           primarySub = normalizeSkillUiText(primaryHint.sub, '');
         }
+      });
+
+      systemTagHints.forEach(primaryHint => {
+        if (!primaryHint || typeof primaryHint !== 'object') return;
+        if (!primaryMain && primaryHint.main) primaryMain = normalizeSkillUiText(primaryHint.main, '');
+        if (!primarySub && primaryHint.sub && (!primaryMain || normalizeSkillUiText(primaryHint.main, '') === primaryMain)) {
+          primarySub = normalizeSkillUiText(primaryHint.sub, '');
+        }
+        if (primaryHint.secondary) secondaryCandidates.push(primaryHint.secondary);
       });
 
       if (!primaryMain && typeHint.main) primaryMain = normalizeSkillUiText(typeHint.main, '');
@@ -2562,6 +3732,7 @@
       const normalizedType = normalizeSkillUiText(type, '');
       const normalizedTarget = normalizeSkillUiText(target, '');
       if (mechanisms.includes('造物生成') || /食物系/.test(normalizedType)) return '造物承载';
+      if (mechanisms.includes('分身')) return '召唤承载';
       if (mechanisms.includes('召唤与场地')) return '召唤承载';
       if (mechanisms.includes('条件触发') || mechanisms.includes('延迟爆发')) return '延迟触发';
       if (mechanisms.includes('标记锁定') || mechanisms.includes('标记弱点')) return '标记触发';
@@ -2600,6 +3771,8 @@
     function inferSkillDesignerTags(effectArray = [], skill = {}, draft = {}) {
       const explicitTags = normalizeSkillDesignerArray((skill && skill['标签']) || (draft && draft['标签']) || []);
       if (explicitTags.length) return explicitTags;
+      const systemTags = getSkillDesignerSystemBaseTags(effectArray);
+      if (systemTags.length) return systemTags.slice(0, 8);
       return normalizeSkillDesignerArray(
         getSkillDesignerEffectEntries(effectArray)
           .map(effect => normalizeSkillUiText(effect && effect['机制'], ''))
@@ -2692,7 +3865,7 @@
       }
       if (scope === 'fusion_skill') return `融合技 / ${label || '未命名技能'}`;
       if (scope === 'art') return `功法 / ${label || '未命名技能'}`;
-      if (scope === 'special_ability') return `特长 / ${label || '未命名技能'}`;
+      if (scope === 'special_ability') return `特殊能力 / ${label || '未命名技能'}`;
       if (scope === 'blood_passive') return `血脉能力 / ${label || '未命名技能'}`;
       return path.length ? path.slice(-4).join(' / ') : (label || '未识别路径');
     }
@@ -2718,11 +3891,101 @@
       }
       if (scope === 'fusion_skill') return { value: '融合技', display: '融合技' };
       if (scope === 'art') return { value: '功法', display: '功法' };
-      if (scope === 'special_ability') return { value: '特长', display: '特长' };
+      if (scope === 'special_ability') return { value: '特殊能力', display: '特殊能力' };
       if (scope === 'blood_passive') return { value: '被动', display: '被动' };
       return {
         value: normalizedFallback || '未设置',
         display: normalizedFallback || category || '未设置'
+      };
+    }
+
+    function getSkillDesignerScopeLabels(previewMeta = {}) {
+      const scope = toText(previewMeta && previewMeta.scope, 'skill');
+      if (scope === 'art') {
+        return {
+          studioTitle: '功法设计台',
+          anchorTitle: '功法锚点',
+          parameterTitle: '功法参数',
+          summaryTitle: '功法速览',
+          nameCardLabel: '功法名称',
+          typeCardLabel: '功法类别',
+          nameFieldLabel: '功法名',
+          targetLabel: '运转对象',
+          deliveryLabel: '运转方式',
+          roleLabel: '功法定位',
+          visualLabel: '运转表现',
+          effectLabel: '功法描述',
+        };
+      }
+      if (scope === 'special_ability') {
+        return {
+          studioTitle: '特殊能力设计台',
+          anchorTitle: '能力锚点',
+          parameterTitle: '能力参数',
+          summaryTitle: '能力速览',
+          nameCardLabel: '能力名称',
+          typeCardLabel: '能力类别',
+          nameFieldLabel: '能力名',
+          targetLabel: '作用对象',
+          deliveryLabel: '施展方式',
+          roleLabel: '能力定位',
+          visualLabel: '表现描述',
+          effectLabel: '能力描述',
+        };
+      }
+      if (scope === 'fusion_skill') {
+        return {
+          studioTitle: '融合技设计台',
+          anchorTitle: '融合锚点',
+          parameterTitle: '融合结构',
+          summaryTitle: '融合速览',
+          nameCardLabel: '融合技名称',
+          typeCardLabel: '技能归属',
+          nameFieldLabel: '融合技名',
+          targetLabel: '作用对象',
+          deliveryLabel: '施放形式',
+          roleLabel: '战斗定位',
+          visualLabel: '融合表现',
+          effectLabel: '融合效果',
+        };
+      }
+      return {
+        studioTitle: '技能设计台',
+        anchorTitle: '技能锚点',
+        parameterTitle: '设计参数',
+        summaryTitle: '设计速览',
+        nameCardLabel: '技能名称',
+        typeCardLabel: '技能归属',
+        nameFieldLabel: '技能名',
+        targetLabel: '作用对象',
+        deliveryLabel: '释放形式',
+        roleLabel: '战斗定位',
+        visualLabel: '画面描述',
+        effectLabel: '效果描述',
+      };
+    }
+
+    function getSkillDesignerDefaultTarget(previewMeta = {}, type = '') {
+      const scope = toText(previewMeta && previewMeta.scope, 'skill');
+      const normalizedType = normalizeSkillUiText(type, '');
+      if (scope === 'art' || scope === 'blood_passive' || /被动/.test(normalizedType)) return '自身';
+      return '敌方单体';
+    }
+
+    function resolveSkillDesignerImplicitAttributeConfig(state = {}, previewMeta = {}) {
+      const attachedAttributes = normalizeSkillDesignerArray(state && state.attachedAttributes);
+      const scope = toText(previewMeta && previewMeta.scope, 'skill');
+      const type = normalizeSkillUiText(state && state.type, '');
+      const allWuxing = attachedAttributes.length >= 2 && attachedAttributes.every(attr => WUXING_ATTRIBUTE_TOKEN_OPTIONS.includes(attr));
+      let source = '无';
+      if (attachedAttributes.length) {
+        if (allWuxing) source = '魂技调用';
+        else if (scope === 'art' || scope === 'special_ability' || /元素|精神|功法|特殊/.test(type)) source = '自身操控';
+      }
+      return {
+        source,
+        role: source === '魂技调用' ? '结构术式' : (source === '自身操控' ? '增幅器' : '无'),
+        coeff: normalizeSkillDesignerCoeffMap({}),
       };
     }
 
@@ -2778,8 +4041,8 @@
         cost: formatSkillDesignerCostText(costConfig.resourceType, costConfig.resourceValue),
         resourceType: costConfig.resourceType,
         resourceValue: costConfig.resourceValue,
-        bonus: normalizeSkillUiText(safeSkill['加成属性'] || designDraft['加成属性'], '未知'),
-        mainRole: normalizeSkillUiText(safeSkill['主定位'] || designDraft['主定位'] || inferredMainRole, '未知'),
+        bonus: '无',
+        mainRole: normalizeSkillUiText(inferredMainRole, '未知'),
         primaryMain: resolvedPrimaryMain,
         primarySub: resolvedPrimarySub,
         deliveryForm: normalizeSkillUiText(designDraft['释放形式'] || inferredDeliveryForm, ''),
@@ -2798,6 +4061,9 @@
           '无'
         ),
         coeff: normalizeSkillDesignerCoeffMap(designDraft['属性系数'] || coeffSummary['系数']),
+        artStage: normalizeSkillUiText(safeSkill['境界'] || designDraft['境界'], '未入门'),
+        artLevel: Math.max(0, toNumber(safeSkill['lv'] ?? designDraft['lv'], 0)),
+        artExp: Math.max(0, toNumber(safeSkill['exp'] ?? designDraft['exp'], 0)),
         mechanicParams: normalizeSkillDesignerMechanicParamMap(
           mergedMechanicParams,
           {
@@ -2842,24 +4108,23 @@
       const parts = [];
       const target = normalizeSkillUiText(draft.target, '');
       const cost = formatSkillDesignerCostText(draft.costType, draft.costValue);
-      const bonus = normalizeSkillUiText(draft.bonus, '');
       if (target) parts.push(`对象：${target}`);
       if (cost && cost !== '无') parts.push(`消耗：${cost}`);
-      if (bonus && bonus !== '无') parts.push(`加成：${bonus}`);
       return parts.join('；');
+    }
+
+    function buildSkillDesignerArtProgressSummary(draft = {}) {
+      const type = normalizeSkillUiText(draft.type, '');
+      if (type !== '功法') return '';
+      const stage = normalizeSkillUiText(draft.artStage, '未入门');
+      const level = Math.max(0, toNumber(draft.artLevel, 0));
+      const exp = Math.max(0, toNumber(draft.artExp, 0));
+      return `境界：${stage}；等级：${level}；熟练度：${exp}`;
     }
 
     function buildSkillDesignerAttributeSummary(draft = {}) {
       const attachedAttributes = normalizeSkillDesignerArray(draft.attachedAttributes);
-      const segments = [];
-      if (attachedAttributes.length) segments.push(`附带属性：${attachedAttributes.join('/')}`);
-      const modelParts = [draft.attributeSource, draft.attributeRole]
-        .map(value => normalizeSkillUiText(value, ''))
-        .filter(value => value && value !== '无');
-      if (modelParts.length) segments.push(`建模：${modelParts.join('/')}`);
-      const coeffText = formatSkillDesignerCoeffSummary(draft.coeff);
-      if (coeffText) segments.push(`系数：${coeffText}`);
-      return segments.join('；');
+      return attachedAttributes.length ? `附带属性：${attachedAttributes.join('/')}` : '';
     }
 
     function buildSkillDesignerCompactSummary(draft = {}) {
@@ -2867,6 +4132,7 @@
         buildSkillDesignerMechanicSummary(draft),
         buildSkillDesignerMechanicParamSummary(draft),
         buildSkillDesignerExecutionSummary(draft),
+        buildSkillDesignerArtProgressSummary(draft),
         buildSkillDesignerAttributeSummary(draft),
       ]
         .filter(Boolean)
@@ -2875,33 +4141,14 @@
 
     function buildSkillDesignerRuntimeSummaryEffects(draft = {}) {
       const attachedAttributes = normalizeSkillDesignerArray(draft.attachedAttributes);
-      const attributeSource = normalizeSkillUiText(draft.attributeSource, '无') || '无';
-      const attributeRole = normalizeSkillUiText(draft.attributeRole, '无') || '无';
       const summaryEffects = [];
-      const attributeSegments = [];
-      if (attachedAttributes.length) attributeSegments.push(`附带属性：${attachedAttributes.join('/')}`);
-      if (attributeSource !== '无' || attributeRole !== '无') {
-        attributeSegments.push(`建模：${[attributeSource, attributeRole].filter(value => value && value !== '无').join('/')}`);
-      }
-      if (attributeSegments.length) {
+      if (attachedAttributes.length) {
         summaryEffects.push({
           '机制': '属性摘要',
           summaryOnly: true,
-          '文本': attributeSegments.join('；'),
+          '文本': `附带属性：${attachedAttributes.join('/')}`,
           '属性列表': [...attachedAttributes],
           '显示元素': attachedAttributes.join('/') || '无',
-          '属性来源': attributeSource,
-          '魂技作用': attributeRole,
-        });
-      }
-      const coeff = normalizeSkillDesignerCoeffMap(draft.coeff);
-      const coeffText = formatSkillDesignerCoeffSummary(coeff);
-      if (coeffText) {
-        summaryEffects.push({
-          '机制': '属性系数摘要',
-          summaryOnly: true,
-          '文本': coeffText,
-          '系数': coeff,
         });
       }
       const mechanicParamSummary = buildSkillDesignerMechanicParamSummary(draft);
@@ -3037,13 +4284,13 @@
           return [
             createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
             createSkillDesignerNumberParam('weakenRatio', '削弱幅度', '0.2'),
-            createSkillDesignerTextParam('affectedPanel', '影响对象', '攻击 / 防御 / 回复'),
+            createSkillDesignerSelectParam('affectedPanel', '影响对象', SKILL_DESIGNER_PARAM_PANEL_OPTIONS),
           ];
         case '增益类':
           return [
             createSkillDesignerNumberParam('duration', '持续回合', '3', '1'),
             createSkillDesignerNumberParam('gainRatio', '增益幅度', '0.25'),
-            createSkillDesignerTextParam('gainTarget', '覆盖对象', '自身 / 友方群体'),
+            createSkillDesignerSelectParam('gainTarget', '覆盖对象', SKILL_DESIGNER_PARAM_SUPPORT_TARGET_OPTIONS),
           ];
         case '防御类':
           return [
@@ -3131,13 +4378,13 @@
           ];
         case '单属性削弱':
           return [
-            createSkillDesignerTextParam('debuffAttr', '压制对象', '力量 / 防御'),
+            createSkillDesignerSelectParam('debuffAttr', '压制对象', SKILL_DESIGNER_PARAM_ATTRIBUTE_OPTIONS),
             createSkillDesignerNumberParam('reduceRatio', '压制倍率', '0.8'),
             createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
           ];
         case '多属性削弱':
           return [
-            createSkillDesignerTextParam('debuffAttrGroup', '属性组', '力量/防御/敏捷'),
+            createSkillDesignerSelectParam('debuffAttrGroup', '属性组', SKILL_DESIGNER_PARAM_ATTRIBUTE_GROUP_OPTIONS),
             createSkillDesignerNumberParam('reduceRatio', '统一倍率', '0.85'),
             createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
           ];
@@ -3163,13 +4410,13 @@
           ];
         case '单属性增益':
           return [
-            createSkillDesignerTextParam('buffAttr', '增幅对象', '力量 / 防御'),
+            createSkillDesignerSelectParam('buffAttr', '增幅对象', SKILL_DESIGNER_PARAM_ATTRIBUTE_OPTIONS),
             createSkillDesignerNumberParam('gainRatio', '增幅倍率', '0.3'),
             createSkillDesignerNumberParam('duration', '持续回合', '3', '1'),
           ];
         case '多属性增益':
           return [
-            createSkillDesignerTextParam('buffAttrGroup', '属性组', '力量/敏捷/防御'),
+            createSkillDesignerSelectParam('buffAttrGroup', '属性组', SKILL_DESIGNER_PARAM_ATTRIBUTE_GROUP_OPTIONS),
             createSkillDesignerNumberParam('gainRatio', '增幅倍率', '0.2'),
             createSkillDesignerNumberParam('duration', '持续回合', '3', '1'),
           ];
@@ -3203,7 +4450,7 @@
           return [
             createSkillDesignerNumberParam('shieldRatio', '护盾倍率', '0.8'),
             createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
-            createSkillDesignerTextParam('shieldCap', '护盾上限', '基于魂力 / 基于生命'),
+            createSkillDesignerSelectParam('shieldCap', '护盾上限', SKILL_DESIGNER_PARAM_SHIELD_CAP_OPTIONS),
           ];
         case '减伤':
           return [
@@ -3220,7 +4467,7 @@
         case '霸体':
           return [
             createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
-            createSkillDesignerTextParam('immuneLevel', '免控级别', '硬控 / 软控'),
+            createSkillDesignerSelectParam('immuneLevel', '免控级别', SKILL_DESIGNER_PARAM_IMMUNE_LEVEL_OPTIONS),
             createSkillDesignerNumberParam('reduceRatio', '额外减伤', '0.2'),
           ];
         case '免死/锁血':
@@ -3247,8 +4494,8 @@
         case '解控':
           return [
             createSkillDesignerNumberParam('cleanseCount', '净化层数', '2', '1'),
-            createSkillDesignerTextParam('cleansePriority', '净化优先级', '控制 > 削弱 > 异常'),
-            createSkillDesignerTextParam('extraGain', '附带收益', '回复 / 护盾 / 免疫'),
+            createSkillDesignerSelectParam('cleansePriority', '净化优先级', SKILL_DESIGNER_PARAM_CLEANSE_PRIORITY_OPTIONS),
+            createSkillDesignerSelectParam('extraGain', '附带收益', SKILL_DESIGNER_PARAM_CLEANSE_GAIN_OPTIONS),
           ];
         case '感知干扰':
           return [
@@ -3259,13 +4506,13 @@
           return [
             createSkillDesignerNumberParam('markDuration', '标记时长', '2', '1'),
             createSkillDesignerNumberParam('targetCap', '锁定目标数', '1', '1'),
-            createSkillDesignerTextParam('trackingRule', '追踪规则', '不可脱锁 / 共享坐标'),
+            createSkillDesignerSelectParam('trackingRule', '追踪规则', SKILL_DESIGNER_PARAM_TRACKING_RULE_OPTIONS),
           ];
         case '共享视野':
           return [
             createSkillDesignerTextParam('shareRange', '共享范围', '队伍 / 半径30米'),
             createSkillDesignerNumberParam('duration', '持续回合', '3', '1'),
-            createSkillDesignerTextParam('infoDepth', '共享深度', '位置 / 视野 / 状态'),
+            createSkillDesignerSelectParam('infoDepth', '共享深度', SKILL_DESIGNER_PARAM_INFO_DEPTH_OPTIONS),
           ];
         case '幻境':
           return [
@@ -3276,7 +4523,7 @@
         case '催眠':
           return [
             createSkillDesignerNumberParam('duration', '睡眠回合', '2', '1'),
-            createSkillDesignerTextParam('wakeRule', '唤醒条件', '受伤 / 净化'),
+            createSkillDesignerSelectParam('wakeRule', '唤醒条件', SKILL_DESIGNER_PARAM_WAKE_RULE_OPTIONS),
             createSkillDesignerTextParam('hitRule', '命中条件', '视线锁定 / 声波接触'),
           ];
         case '认知扭曲':
@@ -3309,17 +4556,26 @@
           return [
             createSkillDesignerTextParam('moveDistance', '脱离距离', '7米'),
             createSkillDesignerTextParam('escapeRule', '脱离条件', '生命低于50%'),
-            createSkillDesignerTextParam('extraGain', '脱离收益', '隐匿 / 护盾 / 加速'),
+            createSkillDesignerSelectParam('extraGain', '脱离收益', SKILL_DESIGNER_PARAM_ESCAPE_GAIN_OPTIONS),
+          ];
+        case '分身':
+          return [
+            createSkillDesignerSelectParam('cloneType', '分身类型', SKILL_DESIGNER_PARAM_CLONE_TYPE_OPTIONS),
+            createSkillDesignerNumberParam('cloneCount', '分身数量', '2', '1'),
+            createSkillDesignerNumberParam('stealthRatio', '隐蔽度', '0.45'),
+            createSkillDesignerNumberParam('inheritRatio', '实力继承', '0.55'),
+            createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
+            createSkillDesignerTextParam('cloneName', '分身称谓', '影分身 / 心像'),
           ];
         case '复制':
           return [
-            createSkillDesignerTextParam('copyTarget', '复制对象', '招式 / 状态 / 属性'),
+            createSkillDesignerSelectParam('copyTarget', '复制对象', SKILL_DESIGNER_PARAM_COPY_TARGET_OPTIONS),
             createSkillDesignerNumberParam('fidelity', '保真度', '0.8'),
             createSkillDesignerTextParam('duration', '维持时长', '2回合'),
           ];
         case '反制':
           return [
-            createSkillDesignerTextParam('counterTarget', '反制对象', '远程 / 控制 / 召唤'),
+            createSkillDesignerSelectParam('counterTarget', '反制对象', SKILL_DESIGNER_PARAM_COUNTER_TARGET_OPTIONS),
             createSkillDesignerTextParam('triggerRule', '触发条件', '被锁定时 / 命中前'),
             createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
             createSkillDesignerNumberParam('counterRatio', '反制倍率', '1.0'),
@@ -3331,7 +4587,7 @@
           ];
         case '状态交换':
           return [
-            createSkillDesignerTextParam('exchangeTarget', '交换对象', '增益 / 减益 / 标记'),
+            createSkillDesignerSelectParam('exchangeTarget', '交换对象', SKILL_DESIGNER_PARAM_EXCHANGE_TARGET_OPTIONS),
             createSkillDesignerNumberParam('exchangeCount', '交换层数', '1', '1'),
             createSkillDesignerTextParam('triggerRule', '交换条件', '双方同时命中'),
           ];
@@ -3345,21 +4601,21 @@
           return [
             createSkillDesignerTextParam('triggerRule', '触发条件', '受击 / 低血 / 计时结束'),
             createSkillDesignerNumberParam('triggerCount', '触发次数', '1', '1'),
-            createSkillDesignerTextParam('triggerResult', '触发结果', '爆发 / 刷新 / 召唤'),
+            createSkillDesignerSelectParam('triggerResult', '触发结果', SKILL_DESIGNER_PARAM_TRIGGER_RESULT_OPTIONS),
           ];
         case '规则改写':
           return [
-            createSkillDesignerTextParam('rewriteDepth', '改写幅度', '部分改写 / 完整覆盖'),
+            createSkillDesignerSelectParam('rewriteDepth', '改写幅度', SKILL_DESIGNER_PARAM_REWRITE_DEPTH_OPTIONS),
           ];
         case '穿透':
           return [
             createSkillDesignerNumberParam('penetrationRatio', '穿透比例', '0.25'),
-            createSkillDesignerTextParam('penetrationTarget', '穿透对象', '防御 / 护盾 / 抗性'),
+            createSkillDesignerSelectParam('penetrationTarget', '穿透对象', SKILL_DESIGNER_PARAM_PENETRATION_TARGET_OPTIONS),
           ];
         case '吸血':
           return [
             createSkillDesignerNumberParam('lifestealRatio', '吸取比例', '0.2'),
-            createSkillDesignerTextParam('resourceType', '吸取资源', '生命 / 魂力'),
+            createSkillDesignerSelectParam('resourceType', '吸取资源', SKILL_DESIGNER_PARAM_LIFESTEAL_RESOURCE_OPTIONS),
           ];
         case '斩杀补伤':
           return [
@@ -3373,18 +4629,18 @@
           ];
         case '打断':
           return [
-            createSkillDesignerTextParam('interruptWindow', '打断时机', '前摇 / 引导'),
+            createSkillDesignerSelectParam('interruptWindow', '打断时机', SKILL_DESIGNER_PARAM_INTERRUPT_WINDOW_OPTIONS),
             createSkillDesignerNumberParam('extraDelay', '追加僵直', '0.5'),
           ];
         case '反击':
           return [
-            createSkillDesignerTextParam('counterRule', '反击条件', '受击后 / 格挡后'),
+            createSkillDesignerSelectParam('counterRule', '反击条件', SKILL_DESIGNER_PARAM_COUNTER_RULE_OPTIONS),
             createSkillDesignerNumberParam('counterRatio', '反击倍率', '0.8'),
           ];
         case '沉默':
           return [
             createSkillDesignerNumberParam('duration', '沉默回合', '2', '1'),
-            createSkillDesignerTextParam('muteScope', '限制范围', '主动技 / 咏唱技'),
+            createSkillDesignerSelectParam('muteScope', '限制范围', SKILL_DESIGNER_PARAM_MUTE_SCOPE_OPTIONS),
           ];
         case '减速':
         case '迟缓':
@@ -3395,7 +4651,7 @@
         case '致盲':
           return [
             createSkillDesignerNumberParam('duration', '致盲回合', '2', '1'),
-            createSkillDesignerTextParam('blindEffect', '影响内容', '命中 / 视野 / 锁定'),
+            createSkillDesignerSelectParam('blindEffect', '影响内容', SKILL_DESIGNER_PARAM_BLIND_EFFECT_OPTIONS),
           ];
         case '禁疗':
           return [
@@ -3404,7 +4660,7 @@
           ];
         case '标记弱点':
           return [
-            createSkillDesignerTextParam('weakPointType', '弱点类型', '破甲 / 暴击 / 属性克制'),
+            createSkillDesignerSelectParam('weakPointType', '弱点类型', SKILL_DESIGNER_PARAM_WEAK_POINT_TYPE_OPTIONS),
             createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
           ];
         default:
@@ -3532,10 +4788,16 @@
       const typeMeta = resolveSkillDesignerTypeMeta(previewMeta, baseDraft.type);
       const costConfig = parseSkillDesignerCostConfig(baseDraft.cost, baseDraft.resourceType, baseDraft.resourceValue);
       const resolvedPrimaryMain = normalizeSkillUiText(baseDraft.primaryMain, '');
-      const resolvedTarget = normalizeSkillUiText(baseDraft.target, '敌方单体');
+      const resolvedTarget = normalizeSkillUiText(baseDraft.target, getSkillDesignerDefaultTarget(previewMeta, typeMeta.value));
       const resolvedPrimarySub = normalizeSkillUiText(
         baseDraft.primarySub,
         getSkillDesignerDefaultPrimarySub(resolvedPrimaryMain, resolvedTarget, typeMeta.value),
+      );
+      const derivedMainRole = inferSkillDesignerMainRole(
+        typeMeta.value,
+        resolvedTarget,
+        resolvedPrimaryMain,
+        resolvedPrimarySub,
       );
       const coreState = {
         name: normalizeSkillUiText(baseDraft.name, toText(previewMeta && previewMeta.label, '未命名技能')),
@@ -3545,22 +4807,29 @@
         cost: formatSkillDesignerCostText(costConfig.resourceType, costConfig.resourceValue),
         costType: costConfig.resourceType,
         costValue: costConfig.resourceValue,
-        bonus: normalizeSkillUiText(baseDraft.bonus, '无'),
-        mainRole: normalizeSkillUiText(baseDraft.mainRole, '未知'),
+        bonus: '无',
+        mainRole: normalizeSkillUiText(derivedMainRole, '未知'),
         primaryMain: resolvedPrimaryMain,
         primarySub: resolvedPrimarySub,
         deliveryForm: normalizeSkillUiText(baseDraft.deliveryForm, ''),
         secondaryMechanics: normalizeSkillDesignerSecondarySelection(resolvedPrimaryMain, baseDraft.secondaryMechanics),
         attachedAttributes: normalizeSkillDesignerArray(baseDraft.attachedAttributes),
-        attributeSource: normalizeSkillUiText(baseDraft.attributeSource, '无') || '无',
-        attributeRole: normalizeSkillUiText(baseDraft.attributeRole, '无') || '无',
-        coeff: normalizeSkillDesignerCoeffMap(baseDraft.coeff),
+        attributeSource: '无',
+        attributeRole: '无',
+        coeff: normalizeSkillDesignerCoeffMap({}),
         tags: normalizeSkillDesignerArray(baseDraft.tags),
         visualDesc: normalizeSkillUiText(baseDraft.visualDesc, ''),
         effectDesc: normalizeSkillUiText(baseDraft.effectDesc, ''),
+        artStage: normalizeSkillUiText(baseDraft.artStage, '未入门'),
+        artLevel: Math.max(0, toNumber(baseDraft.artLevel, 0)),
+        artExp: Math.max(0, toNumber(baseDraft.artExp, 0)),
       };
+      const implicitAttributeConfig = resolveSkillDesignerImplicitAttributeConfig(coreState, previewMeta);
       return {
         ...coreState,
+        attributeSource: implicitAttributeConfig.source,
+        attributeRole: implicitAttributeConfig.role,
+        coeff: implicitAttributeConfig.coeff,
         mechanicParams: normalizeSkillDesignerMechanicParamMap(baseDraft.mechanicParams, coreState),
       };
     }
@@ -3571,36 +4840,46 @@
         return input ? toText(input.value, '').trim() : '';
       };
       const readCheckedValues = name => Array.from(mountEl ? mountEl.querySelectorAll(`input[name=\"${name}\"]:checked`) : []).map(node => toText(node.value, '').trim()).filter(Boolean);
-      const coeff = {};
-      SKILL_ATTRIBUTE_DIM_KEYS.forEach(key => {
-        const input = mountEl ? mountEl.querySelector(`[data-skill-designer-coeff=\"${key}\"]`) : null;
-        const parsed = Number(input && input.value);
-        coeff[key] = Number.isFinite(parsed) ? parsed : 1;
-      });
       const typeMeta = resolveSkillDesignerTypeMeta(previewMeta, readField('type'));
+      const resolvedPrimaryMain = readField('primaryMain');
+      const resolvedPrimarySub = readField('primarySub');
+      const resolvedTarget = readField('target') || getSkillDesignerDefaultTarget(previewMeta, typeMeta.value);
+      const derivedMainRole = inferSkillDesignerMainRole(
+        typeMeta.value,
+        resolvedTarget,
+        resolvedPrimaryMain,
+        resolvedPrimarySub,
+      );
       const baseState = {
         name: readField('name') || toText(previewMeta && previewMeta.label, '未命名技能'),
         type: typeMeta.value,
         typeDisplay: typeMeta.display,
-        target: readField('target') || '敌方单体',
+        target: resolvedTarget,
         costType: readField('costType') || '无',
         costValue: readField('costValue'),
-        bonus: readField('bonus') || '无',
-        mainRole: readField('mainRole') || '未知',
-        primaryMain: readField('primaryMain'),
-        primarySub: readField('primarySub'),
+        bonus: '无',
+        mainRole: normalizeSkillUiText(derivedMainRole, '未知'),
+        primaryMain: resolvedPrimaryMain,
+        primarySub: resolvedPrimarySub,
         deliveryForm: readField('deliveryForm'),
         secondaryMechanics: readCheckedValues('skill-secondary'),
         attachedAttributes: readCheckedValues('skill-attribute'),
-        attributeSource: readField('attributeSource') || '无',
-        attributeRole: readField('attributeRole') || '无',
-        coeff,
+        attributeSource: '无',
+        attributeRole: '无',
+        coeff: normalizeSkillDesignerCoeffMap({}),
         tags: normalizeSkillDesignerArray(readField('tags')),
         visualDesc: readField('visualDesc'),
         effectDesc: readField('effectDesc'),
+        artStage: readField('artStage') || '未入门',
+        artLevel: Math.max(0, toNumber(readField('artLevel'), 0)),
+        artExp: Math.max(0, toNumber(readField('artExp'), 0)),
       };
+      const implicitAttributeConfig = resolveSkillDesignerImplicitAttributeConfig(baseState, previewMeta);
       return {
         ...baseState,
+        attributeSource: implicitAttributeConfig.source,
+        attributeRole: implicitAttributeConfig.role,
+        coeff: implicitAttributeConfig.coeff,
         cost: formatSkillDesignerCostText(baseState.costType, baseState.costValue),
         mechanicParams: readSkillDesignerMechanicParamState(mountEl, baseState),
       };
@@ -3832,14 +5111,16 @@
     }
 
     function inferSkillDesignerRecoverProperty(draft = {}, fallback = 'vit') {
-      const bonus = normalizeSkillUiText(draft && draft.bonus, '');
-      if (/精神/.test(bonus)) return 'men';
-      if (/魂力/.test(bonus)) return 'sp';
-      if (/气血|生命|体力/.test(bonus)) return 'vit';
+      const primaryLabel = getSkillDesignerEffectivePrimaryLabel(draft);
+      if (primaryLabel === '精神恢复') return 'men';
+      if (primaryLabel === '魂力恢复') return 'sp';
+      if (primaryLabel === '体力恢复') return 'vit';
       const attached = normalizeSkillDesignerArray(draft && draft.attachedAttributes);
       if (attached.includes('精神')) return 'men';
       if (attached.includes('生命')) return 'vit';
-      if (attached.some(attr => ['光', '水', '木'].includes(attr))) return 'vit';
+      if (attached.includes('光')) return 'vit';
+      if (attached.includes('水')) return 'vit';
+      if (attached.includes('木')) return 'vit';
       return fallback;
     }
 
@@ -4449,6 +5730,52 @@
               '脱离收益': normalizeSkillUiText(params['extraGain'], ''),
             }),
           ].filter(effect => safeEntries(effect).length);
+        case '分身': {
+          const cloneType = normalizeSkillUiText(params['cloneType'], '物理分身') || '物理分身';
+          const cloneCount = parseSkillDesignerIntegerInputValue(params['cloneCount'], 2, 1);
+          const stealthRatio = parseSkillDesignerPercentRatio(params['stealthRatio'], 0.45);
+          const inheritRatio = parseSkillDesignerPercentRatio(params['inheritRatio'], 0.55);
+          const duration = parseSkillDesignerIntegerInputValue(params['duration'], 2, 1);
+          const cloneName = normalizeSkillUiText(params['cloneName'], '');
+          const safeTarget = /敌/.test(target) ? '自身' : target;
+          const statusName = cloneName ? `${cloneType}·${cloneName}` : cloneType;
+          if (cloneType === '精神力分身') {
+            return [
+              buildSkillDesignerRuntimeObject({
+                '机制': '分身',
+                '目标': safeTarget,
+                '状态名称': statusName,
+                '持续回合': duration,
+                '分身类型': cloneType,
+                '分身数量': cloneCount,
+                '隐蔽度': stealthRatio,
+                '实力继承比例': inheritRatio,
+                '分身名称': cloneName,
+                'reaction_bonus': Number(Math.min(0.28, 0.04 + stealthRatio * 0.16 + inheritRatio * 0.08).toFixed(2)),
+                'hit_bonus': Number(Math.min(0.3, 0.04 + inheritRatio * 0.15 + cloneCount * 0.03).toFixed(2)),
+                'lock_level': Math.min(3, Math.max(1, Math.round(1 + inheritRatio * 1.2 + stealthRatio * 0.8))),
+                'damage_reduction': Number(Math.min(0.18, 0.02 + stealthRatio * 0.05 + cloneCount * 0.01).toFixed(2)),
+              }),
+            ].filter(effect => safeEntries(effect).length);
+          }
+          return [
+            buildSkillDesignerRuntimeObject({
+              '机制': '分身',
+              '目标': safeTarget,
+              '状态名称': statusName,
+              '持续回合': duration,
+              '分身类型': cloneType,
+              '分身数量': cloneCount,
+              '隐蔽度': stealthRatio,
+              '实力继承比例': inheritRatio,
+              '分身名称': cloneName,
+              'dodge_bonus': Number(Math.min(0.35, 0.05 + stealthRatio * 0.18 + inheritRatio * 0.08 + cloneCount * 0.03).toFixed(2)),
+              'attacker_speed_bonus': Number(Math.min(0.24, 0.03 + inheritRatio * 0.12 + cloneCount * 0.02).toFixed(2)),
+              'damage_reduction': Number(Math.min(0.22, 0.02 + stealthRatio * 0.08 + cloneCount * 0.015).toFixed(2)),
+              'final_damage_mult': Number(Math.min(1.28, 1 + inheritRatio * 0.12 + Math.max(0, cloneCount - 1) * 0.04).toFixed(2)),
+            }),
+          ].filter(effect => safeEntries(effect).length);
+        }
         case '复制':
           return [
             buildSkillDesignerRuntimeObject({
@@ -4728,7 +6055,7 @@
           if (mechanism === '持续恢复') cloned['触发'] = '每回合';
           else if (!toText(cloned['触发'], '').trim() || cloned['触发'] === '立即生效') cloned['触发'] = '常驻';
         }
-        if (['护盾', '减伤', '格挡', '霸体', '免死', '共享视野', '受击反击', '反制'].includes(mechanism)) {
+        if (['护盾', '减伤', '格挡', '霸体', '免死', '共享视野', '受击反击', '反制', '分身'].includes(mechanism)) {
           cloned['目标'] = cloned['目标'] || '自身';
           if (cloned['持续回合'] === undefined || Number(cloned['持续回合'] || 0) <= 0) cloned['持续回合'] = 999;
         }
@@ -4800,12 +6127,17 @@
       safeSkill['技能类型'] = normalized.type;
       safeSkill['对象'] = normalized.target;
       safeSkill['消耗'] = normalized.cost;
-      safeSkill['加成属性'] = normalized.bonus;
+      delete safeSkill['加成属性'];
       safeSkill['主定位'] = normalized.mainRole;
       safeSkill['标签'] = [...normalized.tags];
       safeSkill['画面描述'] = normalized.visualDesc;
       safeSkill['效果描述'] = normalized.effectDesc;
       if ('描述' in safeSkill || (previewMeta && ['art', 'fusion_skill'].includes(previewMeta.scope))) safeSkill['描述'] = normalized.effectDesc;
+      if (previewMeta && previewMeta.scope === 'art') {
+        safeSkill['境界'] = normalizeSkillUiText(normalized.artStage, '未入门');
+        safeSkill['lv'] = Math.max(0, toNumber(normalized.artLevel, 0));
+        safeSkill['exp'] = Math.max(0, toNumber(normalized.artExp, 0));
+      }
       safeSkill['附带属性'] = [...normalized.attachedAttributes];
       safeSkill['特效量化参数'] = designSummary;
       safeSkill['设计稿'] = {
@@ -4815,17 +6147,16 @@
         '附加机制': [...normalized.secondaryMechanics],
         '机制参数': cloneJsonValue(normalizeSkillDesignerMechanicParamMap(normalized.mechanicParams, normalized)),
         '附带属性': [...normalized.attachedAttributes],
-        '属性来源': normalized.attributeSource,
-        '魂技作用': normalized.attributeRole,
-        '属性系数': normalizeSkillDesignerCoeffMap(normalized.coeff),
         '标签': [...normalized.tags],
         '技能类型': normalized.type,
         '对象': normalized.target,
         '消耗': normalized.cost,
         '消耗资源': normalized.costType,
         '消耗数值': normalized.costValue,
-        '加成属性': normalized.bonus,
         '主定位': normalized.mainRole,
+        '境界': normalizeSkillUiText(normalized.artStage, '未入门'),
+        'lv': Math.max(0, toNumber(normalized.artLevel, 0)),
+        'exp': Math.max(0, toNumber(normalized.artExp, 0)),
         '设计摘要': designSummary,
       };
       const systemBase = buildSkillDesignerSystemBaseEffect(skillSource, normalized, previewMeta);
@@ -4837,12 +6168,35 @@
       return safeSkill;
     }
 
+    function buildSkillDesignerWriteUpdates(previewMeta = {}, nextSkill = {}, rootData = {}) {
+      const path = Array.isArray(previewMeta && previewMeta.path) ? previewMeta.path : [];
+      if (!path.length) return [];
+      const updates = [{ path, value: nextSkill }];
+      if (toText(previewMeta && previewMeta.scope, '') === 'fusion_skill' && toText(path[path.length - 1], '') === 'skill_data') {
+        const fusionRecordPath = path.slice(0, -1);
+        const existingFusion = deepGet(rootData, fusionRecordPath, {});
+        const fusionName = normalizeSkillUiText(nextSkill && (nextSkill['魂技名'] || nextSkill.name), toText(previewMeta && previewMeta.label, '未命名融合技'));
+        updates.push({ path: [...fusionRecordPath, 'name'], value: fusionName });
+        if (!Object.prototype.hasOwnProperty.call(existingFusion, 'fusion_mode')) {
+          updates.push({ path: [...fusionRecordPath, 'fusion_mode'], value: 'partner' });
+        }
+        if (!Object.prototype.hasOwnProperty.call(existingFusion, 'partner')) {
+          updates.push({ path: [...fusionRecordPath, 'partner'], value: '未知搭档' });
+        }
+        if (!Object.prototype.hasOwnProperty.call(existingFusion, 'source_spirits')) {
+          updates.push({ path: [...fusionRecordPath, 'source_spirits'], value: [] });
+        }
+      }
+      return updates;
+    }
+
     function summarizeSkillEffectArray(effectArray, skill = null, cachedDraft = null) {
       const effectNames = (Array.isArray(effectArray) ? effectArray : [])
         .map(effect => {
           const name = toText(effect && effect['机制'], '').trim();
           if (!name || name === '系统基础' || isSkillSummaryEffect(effect)) return '';
           if (name === '生成造物' || name === '造物生成') return summarizeConstructEffectUi(effect);
+          if (name === '分身') return summarizeCloneEffectUi(effect);
           if (name === '状态挂载') return normalizeSkillUiText(effect && (effect['状态名称'] || effect['特殊机制标识']), '状态挂载');
           return name;
         })
@@ -4885,9 +6239,8 @@
           : (effectCount > 0 ? `${effectSummaryCore} (${effectCount}项)` : effectSummaryCore);
         const type = normalizeSkillUiText(systemBase['技能类型'] || (skill && skill['技能类型']), '未知');
         const target = normalizeSkillUiText(systemBase['对象'] || (skill && skill['对象']), '未知');
-        const bonus = normalizeSkillUiText(skill && skill['加成属性'], '未知');
         const cost = normalizeSkillUiText(systemBase['消耗'] || (skill && skill['消耗']), '未知');
-        const mainRole = normalizeSkillUiText(skill && skill['主定位'], '未知');
+        const mainRole = normalizeSkillUiText((draft && draft.mainRole) || (skill && skill['主定位']), '未知');
         const compatParamDesc = normalizeSkillUiText(skill && skill['特效量化参数'], '');
         const descSegments = [];
         const pushDesc = text => {
@@ -4937,7 +6290,6 @@
           name: cleanSkillName,
           type,
           target,
-          bonus,
           cost,
           desc: desc || '未知',
           visualDesc,
@@ -5003,7 +6355,7 @@
             effectDesc !== '未知' ? `效果：${effectDesc}` : '',
             bonusSummary !== '无' ? `固定加成：${bonusSummary}` : ''
           ].filter(Boolean).join('<br/>') || effectDesc || '永久成长',
-          visualDesc: '气血封印解开后，成长已永久固化。',
+          visualDesc: '体力封印解开后，成长已永久固化。',
           effectDesc,
           effectSummary: bonusSummary === '无' ? '未知' : `固定加成：${bonusSummary}`,
           status: normalizeSkillUiText(safeBonus['状态'], '已固化'),
@@ -5014,14 +6366,16 @@
     }
 
     function buildSpiritConfig(slotName, spiritData, previewKey, badgeText, badgeClass, spiritBasePath = []) {
+      const spiritPath = Array.isArray(spiritBasePath) ? spiritBasePath : [];
       const soulEntries = safeEntries(spiritData && spiritData.soul_spirits);
       const summaryRings = [];
       const souls = soulEntries.map(([soulName, soulData]) => {
+        const soulPath = [...spiritPath, 'soul_spirits', soulName];
         const ringEntries = safeEntries(soulData && soulData.rings)
           .sort((a, b) => toNumber(a[0], 0) - toNumber(b[0], 0))
           .map(([ringIndex, ring]) => {
             const skills = buildSkillList(ring && ring['魂技'], {
-              basePath: [...spiritBasePath, 'soul_spirits', soulName, 'rings', ringIndex, '魂技'],
+              basePath: [...soulPath, 'rings', ringIndex, '魂技'],
               category: '魂环魂技',
               scope: 'spirit_skill',
             });
@@ -5036,12 +6390,24 @@
             return ringInfo;
           });
 
+        const spiritName = normalizeSkillUiText(soulData && soulData['表象名称'], '未设置');
+        const description = normalizeSkillUiText(soulData && soulData['描述'], '未设置');
+        const quality = normalizeSkillUiText(soulData && soulData['品质'], '未设置');
+        const state = normalizeSkillUiText(soulData && soulData['状态'], '未知');
+        const ageValue = toNumber(soulData && soulData['年限'], 0);
+        const compValue = toNumber(soulData && soulData['契合度'], 100);
         return {
           name: soulName,
-          desc: normalizeSkillUiText(soulData && soulData['表象名称'], '未知'),
-          state: normalizeSkillUiText(soulData && soulData['状态'], '未知'),
-          age: formatAge(soulData && soulData['年限']),
-          comp: `${toNumber(soulData && soulData['契合度'], 100)}%`,
+          desc: spiritName,
+          spiritName,
+          description,
+          quality,
+          state,
+          age: formatAge(ageValue),
+          ageValue,
+          comp: `${compValue}%`,
+          compValue,
+          path: soulPath,
           rings: ringEntries
         };
       });
@@ -5050,9 +6416,15 @@
         souls.push({
           name: '魂灵槽位',
           desc: '尚未接入魂灵。',
+          spiritName: '未设置',
+          description: '尚未接入魂灵。',
+          quality: '未设置',
           state: '未激活',
           age: '--',
+          ageValue: 0,
           comp: '--',
+          compValue: 0,
+          path: [],
           rings: []
         });
       }
@@ -5060,20 +6432,26 @@
       const soulCount = soulEntries.length;
       const displayName = normalizeSkillUiText(spiritData && spiritData['表象名称'], slotName);
       const spiritType = normalizeSkillUiText(spiritData && spiritData['type'], '未知系');
-      const element = normalizeSkillUiText(spiritData && spiritData['element'], '未知');
+      const spiritDesc = normalizeSkillUiText(spiritData && spiritData['描述'], '未设置');
+      const attributeState = resolveSpiritAttributeUiState(spiritData);
 
       return {
         preview: previewKey,
         badge: badgeText,
         badgeClass,
         name: `${displayName}（${spiritType}）`,
-        desc: `元素：${element} / 魂灵：${soulCount}`,
+        desc: `属性体系：${attributeState.attributeSystem} / 魂灵：${soulCount}`,
         rings: (summaryRings.length ? summaryRings : souls[0].rings).slice(0, 10),
         souls,
+        soulCount,
         slotName,
+        spiritPath,
         spiritName: displayName,
+        spiritDesc,
         spiritType,
-        spiritElement: element
+        spiritElement: attributeState.attributeSystem,
+        spiritUnlockedAttrs: attributeState.unlockedAttrs,
+        spiritCapacityAttrs: attributeState.capacityAttrs
       };
     }
 
@@ -5137,7 +6515,7 @@
         badge: '血脉封印',
         badgeClass: 'gold',
         name: `${bloodline === '无' ? '未觉醒血脉' : bloodline}`,
-        desc: `解封层数：${sealLv} / 气血魂核：${core}`,
+        desc: `解封层数：${sealLv} / 体力魂核：${core}`,
         rings: normalizedRingEntries,
         bloodSkills: buildSkillList(rawSkills, {
           basePath: [...bloodlineBasePath, 'skills'],
@@ -5195,13 +6573,52 @@
       };
     }
 
-    function buildFactionRelationCards(orgData, options = {}) {
-      const { max = 6, emptyTitle = '暂无势力关系', emptyDesc = '当前未记录对外关系。' } = options || {};
-      const relationCards = safeEntries(deepGet(orgData, 'rel', {}))
-        .map(([name, relData]) => buildFactionRelationMeta(name, relData))
-        .slice(0, Math.max(1, max))
-        .map(item => ({ title: item.name, desc: item.desc, className: item.className }));
-      return relationCards.length ? relationCards : [{ title: emptyTitle, desc: emptyDesc }];
+    function buildFactionRelationEditorGrid(orgName, orgData, options = {}) {
+      const {
+        max = 6,
+        emptyTitle = '暂无势力关系',
+        emptyDesc = '当前未记录对外关系。'
+      } = options || {};
+      const safeOrgName = toText(orgName, '').trim();
+      const relationEntries = safeEntries(deepGet(orgData, 'rel', {})).slice(0, Math.max(1, max));
+      if (!relationEntries.length) {
+        return `<div class="relation-card"><b>${htmlEscape(emptyTitle)}</b><span>${htmlEscape(emptyDesc)}</span></div>`;
+      }
+      return `
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px;">
+          ${relationEntries.map(([relationName, relationData]) => {
+            const safeRelData = relationData && typeof relationData === 'object' ? relationData : {};
+            const relationMeta = buildFactionRelationMeta(relationName, safeRelData);
+            const relationField = Object.prototype.hasOwnProperty.call(safeRelData, '态度')
+              ? '态度'
+              : (Object.prototype.hasOwnProperty.call(safeRelData, '关系') ? '关系' : '态度');
+            const relationValue = toText(deepGet(safeRelData, relationField, relationMeta.attitude), relationMeta.attitude);
+            const detailText = safeEntries(safeRelData)
+              .filter(([key]) => !['态度', '关系'].includes(toText(key, '')))
+              .map(([key, value]) => {
+                if (value && typeof value === 'object') return `${toText(key, '关系项')} ${safeEntries(value).length}项`;
+                const textValue = toText(value, '');
+                return textValue ? `${toText(key, '关系项')} ${textValue}` : '';
+              })
+              .filter(Boolean)
+              .join(' / ');
+            const editableValue = safeOrgName
+              ? makeInlineEditableValue(relationValue, {
+                  path: ['org', safeOrgName, 'rel', relationName, relationField],
+                  kind: 'string',
+                  rawValue: relationValue,
+                })
+              : htmlEscape(relationValue);
+            return `
+              <div class="archive-tile" style="min-height:96px;justify-content:flex-start;">
+                <b>${htmlEscape(relationMeta.name)}</b>
+                <span style="color:var(--cyan);font-size:16px;font-weight:700;line-height:1.35;">${editableValue}</span>
+                ${detailText ? `<div style="margin-top:8px;font-size:12px;line-height:1.45;color:var(--color-text-secondary);">${htmlEscape(detailText)}</div>` : ''}
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
     }
 
     function buildFactionRelationSummary(orgData, max = 3) {
@@ -5239,12 +6656,6 @@
         if (text) result.push(text);
       };
 
-      const travel = activeChar && activeChar.travel_request;
-      if (travel && (toText(travel.target_loc, '无') !== '无' || toNumber(travel.target_x, -1) !== -1)) {
-        push(`出行：${toText(travel.target_loc, '未知目的地')}`);
-      }
-
-
       const quest = activeChar && activeChar.quest_request;
       if (quest && toText(quest.action, '无') !== '无') {
         push(`任务：${toText(quest.quest_name, '未命名任务')}`);
@@ -5252,12 +6663,16 @@
 
       const tower = activeChar && activeChar.tower_request;
       if (tower && toText(tower.action, '无') !== '无') {
-        push(`魂灵塔：${toText(tower.action, '处理中')}`);
+        const clearedFloor = toNumber(tower.cleared_floor, 0);
+        push(`魂灵塔：${toText(tower.action, '冲塔')}${clearedFloor > 0 ? ` / 第${clearedFloor}层` : ''}`);
       }
 
       const ascension = activeChar && activeChar.ascension_request;
       if (ascension && toText(ascension.ticket_type, '无') !== '无') {
-        push(`升灵台：${toText(ascension.ticket_type)}`);
+        const gainAge = toNumber(ascension.gain_age, 0);
+        const spiritKey = toText(ascension.spirit_key, '未指定');
+        const soulSpiritKey = toText(ascension.soul_spirit_key, '未指定');
+        push(`升灵台：${toText(ascension.ticket_type)} / ${spiritKey}-${soulSpiritKey}${gainAge > 0 ? ` / +${gainAge}年` : ''}`);
       }
 
 
@@ -5372,12 +6787,7 @@
           name: art.name,
           level: `Lv.${art.lv || 1} / ${toText(art.境界, '未入门')}`,
           desc: toText(art.描述, '暂无描述'),
-          preview: buildSkillDesignerPreviewKey({
-            path: ['char', activeName, 'arts', art.recordKey || art.name],
-            label: toText(art.name, art.recordKey || '功法绝学'),
-            category: '功法绝学',
-            scope: 'art',
-          })
+          preview: ''
         });
       });
       if (bloodline.valid) {
@@ -5434,14 +6844,14 @@
       });
       safeRecords(deepGet(activeChar, 'special_abilities', {})).forEach(abi => {
         extraSkills.push({
-          category: '特长能力',
+          category: '特殊能力',
           name: abi.name,
           level: toText(abi.技能类型 || abi.主定位, '被动'),
           desc: toText(abi.效果描述 || abi.战斗摘要?.一句话定位, '暂无描述'),
           preview: buildSkillDesignerPreviewKey({
             path: ['char', activeName, 'special_abilities', abi.recordKey || abi.name],
-            label: toText(abi.name, abi.recordKey || '特长能力'),
-            category: '特长能力',
+            label: toText(abi.name, abi.recordKey || '特殊能力'),
+            category: '特殊能力',
             scope: 'special_ability',
           })
         });
@@ -5473,12 +6883,73 @@
       const bestiaryEntries = safeEntries(deepGet(sd, 'world.bestiary', {}));
       const forestKilledAge = toNumber(deepGet(sd, 'world.forest_killed_age', 0), 0);
       const mapData = sd && sd.map && typeof sd.map === 'object' ? sd.map : {};
-      const mapVisibleNodeEntries = safeEntries(deepGet(mapData, 'visible_nodes', {}));
-      const mapVisibleDynamicEntries = safeEntries(deepGet(mapData, 'visible_dynamic_locations', {}));
-      const mapActivePatchEntries = safeEntries(deepGet(mapData, 'active_patches', {}));
-      const mapAvailableChildMaps = deepGet(mapData, 'available_child_maps', {}) || {};
-      const mapTravelCandidates = Array.isArray(deepGet(mapData, 'travel_candidates', [])) ? deepGet(mapData, 'travel_candidates', []) : [];
-      const mapCurrentFocus = deepGet(mapData, 'current_focus', {}) || {};
+      const sheepSnapshot = window.__sheepMapSnapshot && typeof window.__sheepMapSnapshot === 'object'
+        ? window.__sheepMapSnapshot
+        : null;
+      const normalizeMapEntries = source => {
+        if (Array.isArray(source)) {
+          return source
+            .map(item => {
+              if (Array.isArray(item) && item.length >= 2) {
+                const key = toText(item[0], '').trim();
+                const value = item[1] && typeof item[1] === 'object' ? item[1] : {};
+                return key ? [key, value] : null;
+              }
+              if (item && typeof item === 'object') {
+                const key = toText(item.name || item.loc || item.id, '').trim();
+                return key ? [key, item] : null;
+              }
+              return null;
+            })
+            .filter(entry => entry && entry[0]);
+        }
+        if (source && typeof source === 'object') {
+          return safeEntries(source);
+        }
+        return [];
+      };
+      const normalizeTravelCandidates = source => {
+        if (!Array.isArray(source)) return [];
+        return source
+          .map(item => {
+            if (typeof item === 'string') return item.trim();
+            if (Array.isArray(item)) return toText(item[0], '').trim();
+            if (item && typeof item === 'object') return toText(item.loc || item.name || item.target, '').trim();
+            return '';
+          })
+          .filter(Boolean);
+      };
+      const mapVisibleNodeEntriesCore = normalizeMapEntries(deepGet(mapData, 'visible_nodes', {}));
+      const mapVisibleNodeEntriesSheep = normalizeMapEntries(sheepSnapshot && sheepSnapshot.visibleNodes);
+      const mapVisibleNodeEntries = mapVisibleNodeEntriesCore.length ? mapVisibleNodeEntriesCore : mapVisibleNodeEntriesSheep;
+      const mapVisibleDynamicEntriesCore = normalizeMapEntries(deepGet(mapData, 'visible_dynamic_locations', {}));
+      const mapVisibleDynamicEntriesSheep = normalizeMapEntries(
+        sheepSnapshot && (sheepSnapshot.visibleDynamics || sheepSnapshot.visibleDynamicLocations)
+      );
+      const mapVisibleDynamicEntries = mapVisibleDynamicEntriesCore.length ? mapVisibleDynamicEntriesCore : mapVisibleDynamicEntriesSheep;
+      const mapActivePatchEntriesCore = normalizeMapEntries(deepGet(mapData, 'active_patches', {}));
+      const mapActivePatchEntriesSheep = normalizeMapEntries(sheepSnapshot && sheepSnapshot.activePatches);
+      const mapActivePatchEntries = mapActivePatchEntriesCore.length ? mapActivePatchEntriesCore : mapActivePatchEntriesSheep;
+      const mapAvailableChildMapsCore = deepGet(mapData, 'available_child_maps', {}) || {};
+      const mapAvailableChildMapsSheep = sheepSnapshot && sheepSnapshot.availableChildMaps && typeof sheepSnapshot.availableChildMaps === 'object'
+        ? sheepSnapshot.availableChildMaps
+        : {};
+      const mapAvailableChildMaps = safeEntries(mapAvailableChildMapsCore).length ? mapAvailableChildMapsCore : mapAvailableChildMapsSheep;
+      const mapTravelCandidatesCore = normalizeTravelCandidates(deepGet(mapData, 'travel_candidates', []));
+      const mapTravelCandidatesSheep = normalizeTravelCandidates(sheepSnapshot && sheepSnapshot.travelCandidates);
+      const mapTravelCandidates = mapTravelCandidatesCore.length ? mapTravelCandidatesCore : mapTravelCandidatesSheep;
+      const mapCurrentFocusCore = deepGet(mapData, 'current_focus', {});
+      const mapCurrentFocus = mapCurrentFocusCore && typeof mapCurrentFocusCore === 'object'
+        ? mapCurrentFocusCore
+        : ((sheepSnapshot && sheepSnapshot.currentFocus && typeof sheepSnapshot.currentFocus === 'object') ? sheepSnapshot.currentFocus : {});
+      const mapCurrentMapId = toText(
+        deepGet(mapData, 'current_map_id', sheepSnapshot && sheepSnapshot.currentMapId ? sheepSnapshot.currentMapId : 'map_douluo_world'),
+        'map_douluo_world'
+      );
+      const mapZoomHint = toNumber(
+        deepGet(mapData, 'current_zoom_hint', sheepSnapshot && Number.isFinite(Number(sheepSnapshot.currentZoomHint)) ? Number(sheepSnapshot.currentZoomHint) : 0),
+        0
+      );
       const pendingIntelContent = toText(deepGet(activeChar, 'knowledge_unlock_request.content', '无'), '无');
       const pendingIntelImpact = toNumber(deepGet(activeChar, 'knowledge_unlock_request.impact', 0), 0);
       const pendingIntel = pendingIntelContent !== '无';
@@ -5546,8 +7017,8 @@
         auctionStatus,
         auctionLocation,
         mapData,
-        mapCurrentMapId: toText(deepGet(mapData, 'current_map_id', 'map_douluo_world'), 'map_douluo_world'),
-        mapZoomHint: toNumber(deepGet(mapData, 'current_zoom_hint', 0), 0),
+        mapCurrentMapId,
+        mapZoomHint,
         mapCurrentFocus,
         mapVisibleNodeEntries,
         mapVisibleDynamicEntries,
@@ -5569,8 +7040,12 @@
       window.__MVU_MANUAL_CHAR_SET = true; // 标记这是用户手动切换的角色，不再自动被后续的玩家顶掉
       setPreferredActiveCharacterName(targetName);
       liveSnapshot = buildSnapshot(rootData);
+      lastHeaderRenderSignature = buildHeaderRenderSignature(liveSnapshot);
+      const nextDashboardSectionRenderSignatures = buildDashboardSectionRenderSignatures(liveSnapshot);
+      lastDashboardRenderSignature = buildDashboardRenderSignature(liveSnapshot, nextDashboardSectionRenderSignatures);
+      lastDashboardSectionRenderSignatures = null;
       renderHeader(liveSnapshot);
-      renderLiveCards(liveSnapshot);
+      renderLiveCards(liveSnapshot, nextDashboardSectionRenderSignatures);
 
       if (activeBattleUI && typeof activeBattleUI.updateData === 'function') {
         activeBattleUI.updateData(liveSnapshot);
@@ -5584,29 +7059,178 @@
       return true;
     }
 
+    function buildRenderSignature(value) {
+      try {
+        return JSON.stringify(value);
+      } catch (error) {
+        return `${Date.now()}|${Math.random()}`;
+      }
+    }
+
+    function buildHeaderRenderSignature(snapshot) {
+      const status = deepGet(snapshot, 'activeChar.status', {});
+      const bloodline = snapshot && snapshot.bloodline && snapshot.bloodline.valid
+        ? { bloodline: snapshot.bloodline.bloodline, sealLv: snapshot.bloodline.sealLv }
+        : null;
+      return buildRenderSignature({
+        activeName: toText(snapshot && snapshot.activeName, ''),
+        currentLoc: toText(snapshot && snapshot.currentLoc, ''),
+        worldTimeText: toText(deepGet(snapshot, 'rootData.world.time._calendar', deepGet(snapshot, 'rootData.world.time.calendar', '')), ''),
+        action: toText(status && status.action, ''),
+        activeDomain: toText(status && status.active_domain, ''),
+        wound: toText(status && status.wound, ''),
+        alive: deepGet(status, 'alive', true) !== false,
+        bloodline,
+        armorStatus: toText(deepGet(snapshot, 'activeChar.equip.armor.equip_status', ''), ''),
+        mechLv: toText(deepGet(snapshot, 'activeChar.equip.mech.lv', ''), ''),
+        worldAlert: toText(snapshot && snapshot.worldAlert, '')
+      });
+    }
+
+    function buildDashboardSectionRenderSignatures(snapshot) {
+      return {
+        archive: buildRenderSignature({
+          activeName: toText(snapshot && snapshot.activeName, ''),
+          activeChar: deepGet(snapshot, 'activeChar', {}),
+          bloodline: snapshot && snapshot.bloodline ? snapshot.bloodline : null,
+          primarySpirit: snapshot && snapshot.primarySpirit ? snapshot.primarySpirit : null,
+          secondaryTrack: snapshot && snapshot.secondaryTrack ? snapshot.secondaryTrack : null,
+          soulBoneEntries: Array.isArray(snapshot && snapshot.soulBoneEntries) ? snapshot.soulBoneEntries : [],
+          inventoryEntries: Array.isArray(snapshot && snapshot.inventoryEntries) ? snapshot.inventoryEntries : []
+        }),
+        map: buildRenderSignature({
+          currentLoc: toText(snapshot && snapshot.currentLoc, ''),
+          normalizedLoc: toText(snapshot && snapshot.normalizedLoc, ''),
+          locationData: snapshot && snapshot.locationData ? snapshot.locationData : null,
+          mapZoomHint: toNumber(snapshot && snapshot.mapZoomHint, 0),
+          mapNodeLabels: Array.isArray(snapshot && snapshot.mapNodeLabels) ? snapshot.mapNodeLabels : [],
+          mapVisibleNodeEntries: Array.isArray(snapshot && snapshot.mapVisibleNodeEntries) ? snapshot.mapVisibleNodeEntries : [],
+          mapVisibleDynamicEntries: Array.isArray(snapshot && snapshot.mapVisibleDynamicEntries) ? snapshot.mapVisibleDynamicEntries : [],
+          mapActivePatchEntries: Array.isArray(snapshot && snapshot.mapActivePatchEntries) ? snapshot.mapActivePatchEntries : [],
+          mapAvailableChildMaps: Array.isArray(snapshot && snapshot.mapAvailableChildMaps) ? snapshot.mapAvailableChildMaps : [],
+          latestTimeline: snapshot && snapshot.latestTimeline ? snapshot.latestTimeline : null,
+          timelineEntries: Array.isArray(snapshot && snapshot.timelineEntries) ? snapshot.timelineEntries : []
+        }),
+        social: buildRenderSignature({
+          social: deepGet(snapshot, 'activeChar.social', {}),
+          primaryFaction: snapshot && snapshot.primaryFaction ? snapshot.primaryFaction : null,
+          topRelation: snapshot && snapshot.topRelation ? snapshot.topRelation : null,
+          relations: Array.isArray(snapshot && snapshot.relations) ? snapshot.relations : [],
+          unlockedKnowledges: Array.isArray(snapshot && snapshot.unlockedKnowledges) ? snapshot.unlockedKnowledges : [],
+          pendingIntelCount: toNumber(snapshot && snapshot.pendingIntelCount, 0),
+          pendingIntelContent: toText(snapshot && snapshot.pendingIntelContent, ''),
+          pendingIntelImpact: toText(snapshot && snapshot.pendingIntelImpact, '')
+        }),
+        world: buildRenderSignature({
+          rootWorld: deepGet(snapshot, 'rootData.world', {}),
+          worldAlert: toText(snapshot && snapshot.worldAlert, ''),
+          factions: Array.isArray(snapshot && snapshot.factions) ? snapshot.factions : [],
+          locationData: snapshot && snapshot.locationData ? snapshot.locationData : null,
+          latestTimeline: snapshot && snapshot.latestTimeline ? snapshot.latestTimeline : null,
+          youthRankingEntries: Array.isArray(snapshot && snapshot.youthRankingEntries) ? snapshot.youthRankingEntries : [],
+          continentRankingEntries: Array.isArray(snapshot && snapshot.continentRankingEntries) ? snapshot.continentRankingEntries : []
+        }),
+        terminal: buildRenderSignature({
+          rootSys: deepGet(snapshot, 'rootData.sys', {}),
+          rootWorld: deepGet(snapshot, 'rootData.world', {}),
+          activeChar: deepGet(snapshot, 'activeChar', {}),
+          worldAlert: toText(snapshot && snapshot.worldAlert, ''),
+          pendingIntelCount: toNumber(snapshot && snapshot.pendingIntelCount, 0),
+          pendingIntelContent: toText(snapshot && snapshot.pendingIntelContent, ''),
+          pendingIntelImpact: toText(snapshot && snapshot.pendingIntelImpact, ''),
+          inventoryEntries: Array.isArray(snapshot && snapshot.inventoryEntries) ? snapshot.inventoryEntries : [],
+          bestiaryEntries: Array.isArray(snapshot && snapshot.bestiaryEntries) ? snapshot.bestiaryEntries : [],
+          recordEntries: Array.isArray(snapshot && snapshot.recordEntries) ? snapshot.recordEntries : [],
+          timelineEntries: Array.isArray(snapshot && snapshot.timelineEntries) ? snapshot.timelineEntries : [],
+          unlockedKnowledges: Array.isArray(snapshot && snapshot.unlockedKnowledges) ? snapshot.unlockedKnowledges : []
+        })
+      };
+    }
+
+    function buildDashboardRenderSignature(snapshot, sectionSignatures = null) {
+      const sections = sectionSignatures || buildDashboardSectionRenderSignatures(snapshot);
+      return [
+        sections.archive || '',
+        sections.map || '',
+        sections.social || '',
+        sections.world || '',
+        sections.terminal || ''
+      ].join('|');
+    }
+
+    function getLiveUiElements(selector) {
+      if (!(liveUiRefCache instanceof Map)) liveUiRefCache = new Map();
+      const cached = liveUiRefCache.get(selector);
+      if (Array.isArray(cached) && cached.length && cached.every(el => el && el.isConnected)) {
+        return cached;
+      }
+      const elements = Array.from(document.querySelectorAll(selector));
+      if (elements.length) liveUiRefCache.set(selector, elements);
+      else liveUiRefCache.delete(selector);
+      return elements;
+    }
+
+    function setLiveNodeText(node, value) {
+      if (!node) return;
+      const nextValue = value == null ? '' : String(value);
+      if (node.textContent === nextValue) return;
+      node.textContent = nextValue;
+    }
+
+    function setLiveNodeHtml(node, value) {
+      if (!node) return;
+      const nextValue = value == null ? '' : String(value);
+      if (node.innerHTML === nextValue) return;
+      node.innerHTML = nextValue;
+    }
+
+    function setLiveText(selector, value) {
+      getLiveUiElements(selector).forEach(node => setLiveNodeText(node, value));
+    }
+
+    function setLiveHtml(selector, value) {
+      getLiveUiElements(selector).forEach(node => setLiveNodeHtml(node, value));
+    }
+
     function renderHeader(snapshot) {
-      const stat = deepGet(snapshot, 'activeChar.stat', {});
-      const social = deepGet(snapshot, 'activeChar.social', {});
       const worldTimeText = toText(deepGet(snapshot, 'rootData.world.time._calendar', deepGet(snapshot, 'rootData.world.time.calendar', '斗罗历未同步')), '斗罗历未同步');
       const headerComboHtml = `<span style="opacity:1;font-size:12px;color:#fff;">${worldTimeText}</span><span style="opacity:0.65;font-size:11px;">${snapshot.currentLoc}</span>`;
-      document.querySelectorAll('.header-loc span').forEach(el => { el.innerHTML = headerComboHtml; });
-      document.querySelectorAll('.char-name').forEach(el => { el.textContent = snapshot.activeName; });
-      document.querySelectorAll('.archive-split-loc span').forEach(el => { el.innerHTML = headerComboHtml; });
-      document.querySelectorAll('.archive-split-name-text').forEach(el => { el.textContent = snapshot.activeName; });
+      setLiveHtml('.header-loc span', headerComboHtml);
+      setLiveText('.char-name', snapshot.activeName);
+      setLiveHtml('.archive-split-loc span', headerComboHtml);
+      setLiveText('.archive-split-name-text', snapshot.activeName);
       if (splitBottomTime) splitBottomTime.textContent = '';
       if (splitBottomLoc) splitBottomLoc.textContent = '';
 
-      const statusChips = document.querySelectorAll('.header-status-row .header-status-chip');
-      if (statusChips[0]) statusChips[0].querySelector('span').textContent = `${toText(deepGet(snapshot, 'activeChar.status.action', '日常'), '日常')} / ${toText(deepGet(snapshot, 'activeChar.status.active_domain', '无'), '无')}`;
-      if (statusChips[1]) statusChips[1].querySelector('span').textContent = `${toText(deepGet(snapshot, 'activeChar.status.wound', '无伤'), '无伤')} / ${deepGet(snapshot, 'activeChar.status.alive', true) ? '状态稳定' : '已陨落'}`;
+      const statusChips = getLiveUiElements('.header-status-row .header-status-chip');
+      if (statusChips[0]) setLiveNodeText(statusChips[0].querySelector('span'), `${toText(deepGet(snapshot, 'activeChar.status.action', '日常'), '日常')} / ${toText(deepGet(snapshot, 'activeChar.status.active_domain', '无'), '无')}`);
+      if (statusChips[1]) setLiveNodeText(statusChips[1].querySelector('span'), `${toText(deepGet(snapshot, 'activeChar.status.wound', '无伤'), '无伤')} / ${deepGet(snapshot, 'activeChar.status.alive', true) ? '状态稳定' : '已陨落'}`);
       if (statusChips[2]) {
-        statusChips[2].style.display = snapshot.bloodline && snapshot.bloodline.valid ? '' : 'none';
+        const shouldShowBloodline = !!(snapshot.bloodline && snapshot.bloodline.valid);
+        if (statusChips[2].style.display !== (shouldShowBloodline ? '' : 'none')) {
+          statusChips[2].style.display = shouldShowBloodline ? '' : 'none';
+        }
         if (snapshot.bloodline && snapshot.bloodline.valid) {
-          statusChips[2].querySelector('span').textContent = `${snapshot.bloodline.bloodline} / ${snapshot.bloodline.sealLv}层`;
+          setLiveNodeText(statusChips[2].querySelector('span'), `${snapshot.bloodline.bloodline} / ${snapshot.bloodline.sealLv}层`);
         }
       }
-      if (statusChips[3]) statusChips[3].querySelector('span').textContent = `斗铠${toText(deepGet(snapshot, 'activeChar.equip.armor.equip_status', '未装备'), '未装备')} / 机甲${toText(deepGet(snapshot, 'activeChar.equip.mech.lv', '无'), '无')}`;
-      if (statusChips[4]) statusChips[4].querySelector('span').textContent = snapshot.worldAlert;
+      if (statusChips[3]) setLiveNodeText(statusChips[3].querySelector('span'), `斗铠${toText(deepGet(snapshot, 'activeChar.equip.armor.equip_status', '未装备'), '未装备')} / 机甲${toText(deepGet(snapshot, 'activeChar.equip.mech.lv', '无'), '无')}`);
+      if (statusChips[4]) setLiveNodeText(statusChips[4].querySelector('span'), snapshot.worldAlert);
+    }
+
+    function isFemaleGenderText(value) {
+      const normalized = String(value == null ? '' : value).trim().toLowerCase();
+      if (!normalized) return false;
+      if (normalized.includes('女')) return true;
+      return normalized === 'female'
+        || normalized === 'woman'
+        || normalized === 'girl'
+        || normalized === 'f';
+    }
+
+    function canUseFemaleOnlyLongPress(snapshot) {
+      const genderText = toText(deepGet(snapshot, 'activeChar.stat.gender', ''), '');
+      return isFemaleGenderText(genderText);
     }
 
     function buildArchiveCoreCard(snapshot) {
@@ -5615,6 +7239,7 @@
       const status = deepGet(snapshot, 'activeChar.status', {});
       const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '当前角色');
       const nextLevelSoul = getNextLevelSoulRequirement(stat);
+      const allowNsfwLongPress = canUseFemaleOnlyLongPress(snapshot);
       const primaryFactionName = snapshot.primaryFaction ? snapshot.primaryFaction[0] : '无';
       const primaryFactionRole = snapshot.primaryFaction ? toText(deepGet(snapshot.primaryFaction[1], '身份', '无'), '无') : '未加入';
       const topRelationText = snapshot.topRelation
@@ -5625,7 +7250,7 @@
         : (snapshot.unlockedKnowledges.length ? shortenText(snapshot.unlockedKnowledges[snapshot.unlockedKnowledges.length - 1], 12) : '暂无');
       return `
         <div class="panel-head">
-          <div class="panel-title">核心生命体征</div>
+          <div class="panel-title${allowNsfwLongPress ? ' nsfw-trigger-title' : ''}"${allowNsfwLongPress ? ' data-longpress="私密档案详细页" data-longpress-delay="600"' : ''}>核心生命体征</div>
           <span class="meta-pill">${htmlEscape(nextLevelSoul.isMax ? '离下一级所需魂力：已满级' : `离下一级所需魂力：${formatNumber(nextLevelSoul.needed)}`)}</span>
         </div>
         <div class="stats-grid">
@@ -5635,7 +7260,7 @@
           </div>
           <div class="stat-item">
             <div class="stat-label">修为等级</div>
-            <div class="stat-value cyan">Lv.${htmlEscape(toText(stat.lv, '0'))}</div>
+            <div class="stat-value cyan">${htmlEscape(formatCultivationLevelBadge(stat.lv, '0'))}</div>
             <div class="line"><div class="fill" style="color: var(--cyan); width: ${ratioPercent(stat.sp, stat.sp_max)}%;"></div></div>
           </div>
           <div class="stat-item">
@@ -5648,7 +7273,7 @@
             <div class="stat-value">${htmlEscape(`${toText(status.action, '日常')} / ${toText(status.wound, '无伤')}`)}</div>
           </div>
           <div class="stat-item">
-            <div class="stat-label">气血 (VIT)</div>
+            <div class="stat-label">体力 (VIT)</div>
             <div class="stat-value red">${htmlEscape(formatNumber(stat.vit))} / ${htmlEscape(formatNumber(stat.vit_max))}</div>
             <div class="line"><div class="fill" style="color: var(--red); width: ${ratioPercent(stat.vit, stat.vit_max)}%;"></div></div>
           </div>
@@ -5700,52 +7325,105 @@
       `;
     }
 
+    function getFusionArchiveMeta(snapshot) {
+      const fusionEntries = safeEntries(deepGet(snapshot, 'activeChar.martial_fusion_skills', {}));
+      const partnerCount = fusionEntries.filter(([, fusion]) => toText(deepGet(fusion, 'fusion_mode', 'partner'), 'partner') !== 'self').length;
+      const selfCount = fusionEntries.length - partnerCount;
+      const headlineFusion = fusionEntries[0]
+        ? toText(deepGet(fusionEntries[0][1], 'skill_data.魂技名', deepGet(fusionEntries[0][1], 'skill_data.name', fusionEntries[0][0])), fusionEntries[0][0])
+        : '未录入';
+      const partnerLabel = fusionEntries[0]
+        ? (toText(deepGet(fusionEntries[0][1], 'fusion_mode', 'partner'), 'partner') === 'self'
+          ? '自体融合'
+          : `搭档 ${toText(deepGet(fusionEntries[0][1], 'partner', '未知'), '未知')}`)
+        : '等待收录';
+      return {
+        fusionEntries,
+        partnerCount,
+        selfCount,
+        headlineFusion,
+        partnerLabel,
+      };
+    }
+
+    function buildFusionArchiveListItem(fusionMeta) {
+      const meta = fusionMeta && typeof fusionMeta === 'object' ? fusionMeta : getFusionArchiveMeta({});
+      if (!meta.fusionEntries.length) {
+        return {
+          title: '武魂融合技',
+          desc: '<small>这块还是空白，想补的时候直接点开录入就行。</small>',
+          preview: '武魂融合技详细页'
+        };
+      }
+      return {
+        title: '武魂融合技',
+        desc: `<strong>${htmlEscape(meta.headlineFusion)}</strong><small>已收录 ${htmlEscape(String(meta.fusionEntries.length))} 项 ｜ 双人 ${htmlEscape(String(meta.partnerCount))} / 自体 ${htmlEscape(String(meta.selfCount))}</small><small>${htmlEscape(meta.partnerLabel)}</small>`,
+        preview: '武魂融合技详细页'
+      };
+    }
+
     function renderSpiritStrips(snapshot) {
       const primary = snapshot.primarySpirit;
       const secondary = snapshot.secondaryTrack;
-      document.querySelectorAll('.dual-spirit-strip').forEach(strip => {
+      getLiveUiElements('.dual-spirit-strip').forEach(strip => {
         const isSecondaryOnly = strip.classList.contains('secondary-track') || strip.classList.contains('split-secondary-left');
         const isSinglePrimary = strip.classList.contains('single-track') && !strip.classList.contains('split-secondary-left');
 
         if (isSecondaryOnly) {
           if (!secondary) {
-            strip.style.display = 'none';
+            if (strip.style.display !== 'none') strip.style.display = 'none';
             return;
           }
-          strip.style.display = '';
-          strip.innerHTML = `<div class="dual-spirit-body"><div class="spirit-side primary-side"></div><div class="spirit-side secondary-side clickable" data-preview="${htmlEscape(secondary.preview)}">${secondary.kind === 'bloodline' ? renderArchiveBloodlineEntry(secondary) : renderArchiveSpiritEntry(secondary, false)}</div></div>`;
+          if (strip.style.display !== '') strip.style.display = '';
+          setLiveNodeHtml(strip, `<div class="dual-spirit-body"><div class="spirit-side primary-side"></div><div class="spirit-side secondary-side clickable" data-preview="${htmlEscape(secondary.preview)}">${secondary.kind === 'bloodline' ? renderArchiveBloodlineEntry(secondary) : renderArchiveSpiritEntry(secondary, false)}</div></div>`);
           return;
         }
 
         if (isSinglePrimary) {
-          strip.style.display = '';
-          strip.innerHTML = `<div class="dual-spirit-body"><div class="spirit-side primary-side clickable" data-preview="${htmlEscape(primary.preview)}">${renderArchiveSpiritEntry(primary, true)}</div><div class="spirit-side secondary-side clickable"></div></div>`;
+          if (strip.style.display !== '') strip.style.display = '';
+          setLiveNodeHtml(strip, `<div class="dual-spirit-body"><div class="spirit-side primary-side clickable" data-preview="${htmlEscape(primary.preview)}">${renderArchiveSpiritEntry(primary, true)}</div><div class="spirit-side secondary-side clickable"></div></div>`);
           return;
         }
 
         if (!secondary) {
-          strip.style.display = 'none';
+          if (strip.style.display !== 'none') strip.style.display = 'none';
           return;
         }
 
-        strip.style.display = '';
-        strip.innerHTML = `
+        if (strip.style.display !== '') strip.style.display = '';
+        setLiveNodeHtml(strip, `
           <div class="dual-spirit-body">
             <div class="spirit-side primary-side clickable" data-preview="${htmlEscape(primary.preview)}">${renderArchiveSpiritEntry(primary, true)}</div>
             <div class="spirit-side secondary-side clickable" data-preview="${htmlEscape(secondary.preview)}">${secondary.kind === 'bloodline' ? renderArchiveBloodlineEntry(secondary) : renderArchiveSpiritEntry(secondary, false)}</div>
           </div>
-        `;
+        `);
       });
     }
 
 
-    function getMapMeta(snapshot) {
-      // maps 被彻底移除，底层不再提供任何写死的 map_meta。直接返回空壳。
-      return {};
+    function getSheepMapSnapshot(snapshot, mapId = null) {
+      const sheepSnapshot = window.__sheepMapSnapshot;
+      if (!sheepSnapshot || typeof sheepSnapshot !== 'object') return null;
+      const expectedMapId = toText(mapId || (snapshot && snapshot.mapCurrentMapId), '');
+      const sheepMapId = toText(sheepSnapshot.currentMapId, '');
+      if (expectedMapId && sheepMapId && expectedMapId !== sheepMapId) return null;
+      return sheepSnapshot;
+    }
+
+    function getMapMeta(snapshot, mapId = null) {
+      // Map metadata is sourced from sheep_map_restore.js snapshots.
+      const sheepSnapshot = getSheepMapSnapshot(snapshot, mapId);
+      const mapMeta = sheepSnapshot && sheepSnapshot.mapMeta && typeof sheepSnapshot.mapMeta === 'object'
+        ? sheepSnapshot.mapMeta
+        : null;
+      return mapMeta || {};
     }
 
     function getMapDisplayName(snapshot, mapId = null) {
       const safeMapId = toText(mapId || (snapshot && snapshot.mapCurrentMapId), 'map_douluo_world');
+      const mapMeta = getMapMeta(snapshot, safeMapId);
+      const sheepMapName = toText(mapMeta.name, '').trim();
+      if (sheepMapName) return sheepMapName;
       if (safeMapId === 'map_douluo_world') return '斗罗大陆总图';
       if (/^map_debug_/i.test(safeMapId)) return '区域子图';
       if (/^map_/i.test(safeMapId)) return '未命名子图';
@@ -5753,12 +7431,21 @@
     }
 
     function getMapBounds(snapshot) {
+      const sheepSnapshot = getSheepMapSnapshot(snapshot);
+      if (sheepSnapshot && sheepSnapshot.bounds && typeof sheepSnapshot.bounds === 'object') {
+        return {
+          minX: toNumber(deepGet(sheepSnapshot, 'bounds.minX', 0), 0),
+          minY: toNumber(deepGet(sheepSnapshot, 'bounds.minY', 0), 0),
+          width: Math.max(1, toNumber(deepGet(sheepSnapshot, 'bounds.width', 3174), 3174) || 3174),
+          height: Math.max(1, toNumber(deepGet(sheepSnapshot, 'bounds.height', 2246), 2246) || 2246)
+        };
+      }
       const mapMeta = getMapMeta(snapshot);
       return {
         minX: toNumber(deepGet(mapMeta, 'bounds.min_x', 0), 0),
         minY: toNumber(deepGet(mapMeta, 'bounds.min_y', 0), 0),
-        width: Math.max(1, toNumber(deepGet(mapMeta, 'bounds.width', 2000), 2000) || 2000),
-        height: Math.max(1, toNumber(deepGet(mapMeta, 'bounds.height', 2000), 2000) || 2000)
+        width: Math.max(1, toNumber(deepGet(mapMeta, 'bounds.width', 3174), 3174) || 3174),
+        height: Math.max(1, toNumber(deepGet(mapMeta, 'bounds.height', 2246), 2246) || 2246)
       };
     }
 
@@ -5839,7 +7526,6 @@
         return `<div class="map-node clickable ${slot.current ? 'current' : ''}" data-preview="地图节点：${htmlEscape(label)}" style="left:${slot.left}; top:${slot.top};"><div class="map-dot ${slot.major ? 'major' : ''}"></div><div class="map-label">${htmlEscape(label)}</div></div>`;
       })).join('');
       const patchMarkers = snapshot.mapActivePatchEntries.slice(0, 3).map(([patchId, patch]) => {
-        const mapMeta = getMapMeta(snapshot);
         const bounds = getMapBounds(snapshot);
         const centerX = toNumber(deepGet(patch, 'bounds.x', 0), 0) + toNumber(deepGet(patch, 'bounds.w', 0), 0) / 2;
         const centerY = toNumber(deepGet(patch, 'bounds.y', 0), 0) + toNumber(deepGet(patch, 'bounds.h', 0), 0) / 2;
@@ -5874,6 +7560,13 @@
           <span class="enter-chip">节点下钻</span>
         </div>
       `;
+    }
+
+    function isMapOverviewPreviewKey(previewKey) {
+      const key = toText(previewKey, '');
+      if (!key) return false;
+      if (key === '\u5168\u606f\u661f\u56fe\u4e3b\u753b\u5e03') return true;
+      return key.includes('\u661f\u56fe') && key.includes('\u4e3b\u753b\u5e03');
     }
 
     function buildSimpleCard(title, badge, rows) {
@@ -5987,9 +7680,8 @@
       `;
     }
 
-    function renderLiveCards(snapshot) {
+    function renderLiveCards(snapshot, precomputedSectionSignatures = null) {
       const social = deepGet(snapshot, 'activeChar.social', {});
-      const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '当前角色');
       const primaryFactionName = snapshot.primaryFaction ? snapshot.primaryFaction[0] : '无';
       const primaryFactionRole = snapshot.primaryFaction ? toText(deepGet(snapshot.primaryFaction[1], '身份', '无'), '无') : '未加入';
       const topRelationText = snapshot.topRelation
@@ -5998,115 +7690,122 @@
       const latestIntelText = snapshot.pendingIntelCount
         ? `${shortenText(snapshot.pendingIntelContent, 10)} / +${snapshot.pendingIntelImpact}`
         : (snapshot.unlockedKnowledges.length ? shortenText(snapshot.unlockedKnowledges[snapshot.unlockedKnowledges.length - 1], 12) : '暂无');
+      const sectionSignatures = precomputedSectionSignatures || buildDashboardSectionRenderSignatures(snapshot);
+      const previousSectionSignatures = lastDashboardSectionRenderSignatures || Object.create(null);
+      lastDashboardSectionRenderSignatures = sectionSignatures;
 
-      document.querySelectorAll('[data-preview="生命图谱详细页"].mvu-panel.core-card').forEach(el => { el.innerHTML = buildArchiveCoreCard(snapshot); });
-      document.querySelectorAll('[data-preview="武装工坊详细页"].mvu-module-card').forEach(el => { el.innerHTML = buildArmoryCard(snapshot); });
-      document.querySelectorAll('[data-preview="储物仓库详细页"].mvu-module-card').forEach(el => { el.innerHTML = buildVaultCard(snapshot); });
-      renderSpiritStrips(snapshot);
+      if (sectionSignatures.archive !== previousSectionSignatures.archive) {
+        setLiveHtml('[data-preview="生命图谱详细页"].mvu-panel.core-card', buildArchiveCoreCard(snapshot));
+        setLiveHtml('[data-preview="武装工坊详细页"].mvu-module-card', buildArmoryCard(snapshot));
+        setLiveHtml('[data-preview="储物仓库详细页"].mvu-module-card', buildVaultCard(snapshot));
+        renderSpiritStrips(snapshot);
+      }
 
-      if (typeof window.__sheepMapResync === 'function') {
-        try {
-          window.__sheepMapResync({ center: false, syncVisual: false });
-        } catch (err) {}
-      } else {
-        const fallbackMapDisplayName = getMapDisplayName(snapshot);
-        document.querySelectorAll('[data-preview="全息星图主画布"].map-hero-card').forEach(el => { el.innerHTML = buildMapHeroCard(snapshot); });
-        document.querySelectorAll('[data-preview="当前节点详情"].map-side-card').forEach(el => {
+      if (sectionSignatures.map !== previousSectionSignatures.map) {
+        if (typeof window.__sheepMapResync === 'function') {
+          try {
+            window.__sheepMapResync({ center: false, syncVisual: false });
+          } catch (err) {}
+        } else {
+          const fallbackMapDisplayName = getMapDisplayName(snapshot);
           const focusNode = resolveDisplayMapNode(snapshot, snapshot.currentLoc);
-          el.innerHTML = buildSimpleCard('当前位置', { text: '当前' }, [
+          setLiveHtml('[data-preview="全息星图主画布"].map-hero-card', buildMapHeroCard(snapshot));
+          setLiveHtml('[data-preview="当前节点详情"].map-side-card', buildSimpleCard('当前位置', { text: '当前' }, [
             { label: '地点', value: snapshot.normalizedLoc !== snapshot.currentLoc ? `${snapshot.normalizedLoc} · ${snapshot.currentLoc}` : snapshot.currentLoc },
             { label: '地图', value: fallbackMapDisplayName },
             { label: '节点类型', value: focusNode ? focusNode.type : toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知') },
             { label: '入口', value: focusNode && focusNode.childMapId !== '无' ? '可进入子图' : '当前无子图入口' }
-          ]);
-        });
-        document.querySelectorAll('[data-preview="图层控制与跑图"].map-side-card').forEach(el => { el.innerHTML = `
-          <div class="simple-head"><div class="simple-title">图层控制</div><span class="map-side-badge gold">导航</span></div>
-          <div class="map-layer-pills">
-            <span class="map-layer-pill">${htmlEscape(fallbackMapDisplayName)}</span>
-            <span class="map-layer-pill current">${htmlEscape(snapshot.currentLoc)}</span>
-            <span class="map-layer-pill">${htmlEscape(`缩放 ${snapshot.mapZoomHint}`)}</span>
-          </div>
-          <div class="simple-list">
-            <div class="simple-row"><b>层级</b><span>${htmlEscape(`${fallbackMapDisplayName} / 当前焦点`)}</span></div>
-            <div class="simple-row"><b>移动方式</b><span>${htmlEscape(toText(deepGet(snapshot, 'activeChar.travel_request.method', '步行'), '步行'))}</span></div>
-            <div class="simple-row"><b>可进子图</b><span>${htmlEscape(`${safeEntries(snapshot.mapAvailableChildMaps).length} 个`)}</span></div>
-            <div class="simple-row"><b>激活补丁</b><span>${htmlEscape(`${snapshot.mapActivePatchEntries.length} 项`)}</span></div>
-          </div>
-        `; });
-        document.querySelectorAll('[data-preview="动态地点与扩展节点"].map-side-card').forEach(el => { el.innerHTML = `
-          <div class="simple-head"><div class="simple-title">动态地点</div><span class="map-side-badge">动态</span></div>
-          <div class="map-event-strip">
-            <span class="map-event-chip live">时间线 ${htmlEscape(String(snapshot.timelineEntries.length))}</span>
-            <span class="map-event-chip warn">动态点 ${htmlEscape(String(snapshot.mapVisibleDynamicEntries.length))}</span>
-            <span class="map-event-chip warn">补丁 ${htmlEscape(String(snapshot.mapActivePatchEntries.length))}</span>
-          </div>
-          <div class="simple-list">
-            <div class="simple-row"><b>扩展节点</b><span>${htmlEscape(snapshot.mapVisibleDynamicEntries[0] ? snapshot.mapVisibleDynamicEntries[0][0] : '暂无')}</span></div>
-            <div class="simple-row"><b>最近变化</b><span>${htmlEscape(snapshot.latestTimeline ? snapshot.latestTimeline[0] : '无')}</span></div>
-          </div>
-        `; });
+          ]));
+          setLiveHtml('[data-preview="图层控制与跑图"].map-side-card', `
+            <div class="simple-head"><div class="simple-title">图层控制</div><span class="map-side-badge gold">导航</span></div>
+            <div class="map-layer-pills">
+              <span class="map-layer-pill">${htmlEscape(fallbackMapDisplayName)}</span>
+              <span class="map-layer-pill current">${htmlEscape(snapshot.currentLoc)}</span>
+              <span class="map-layer-pill">${htmlEscape(`缩放 ${snapshot.mapZoomHint}`)}</span>
+            </div>
+            <div class="simple-list">
+              <div class="simple-row"><b>层级</b><span>${htmlEscape(`${fallbackMapDisplayName} / 当前焦点`)}</span></div>
+              <div class="simple-row"><b>移动结算</b><span>地图仲裁器直结</span></div>
+              <div class="simple-row"><b>可进子图</b><span>${htmlEscape(`${safeEntries(snapshot.mapAvailableChildMaps).length} 个`)}</span></div>
+              <div class="simple-row"><b>激活补丁</b><span>${htmlEscape(`${snapshot.mapActivePatchEntries.length} 项`)}</span></div>
+            </div>
+          `);
+          setLiveHtml('[data-preview="动态地点与扩展节点"].map-side-card', `
+            <div class="simple-head"><div class="simple-title">动态地点</div><span class="map-side-badge">动态</span></div>
+            <div class="map-event-strip">
+              <span class="map-event-chip live">时间线 ${htmlEscape(String(snapshot.timelineEntries.length))}</span>
+              <span class="map-event-chip warn">动态点 ${htmlEscape(String(snapshot.mapVisibleDynamicEntries.length))}</span>
+              <span class="map-event-chip warn">补丁 ${htmlEscape(String(snapshot.mapActivePatchEntries.length))}</span>
+            </div>
+            <div class="simple-list">
+              <div class="simple-row"><b>扩展节点</b><span>${htmlEscape(snapshot.mapVisibleDynamicEntries[0] ? snapshot.mapVisibleDynamicEntries[0][0] : '暂无')}</span></div>
+              <div class="simple-row"><b>最近变化</b><span>${htmlEscape(snapshot.latestTimeline ? snapshot.latestTimeline[0] : '无')}</span></div>
+            </div>
+          `);
+        }
       }
 
-      document.querySelectorAll('.archive-social-card .social-chip[data-preview="社会档案详细页"] span').forEach(el => {
-        el.innerHTML = `${htmlEscape(toText(social._fame_level, toText(social.fame_level, '籍籍无名')))} / ${htmlEscape(formatNumber(social.reputation))}`;
-      });
-      document.querySelectorAll('.archive-social-card .social-chip[data-preview="所属势力详细页"] span').forEach(el => { el.textContent = `${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}`; });
-      document.querySelectorAll('.archive-social-card .social-chip[data-preview="人物关系详细页"] span').forEach(el => { el.textContent = topRelationText; });
-      document.querySelectorAll('.archive-social-card .social-chip[data-preview="情报库详细页"] span').forEach(el => { el.textContent = `${snapshot.unlockedKnowledges.length} / ${latestIntelText}`; });
+      if (sectionSignatures.social !== previousSectionSignatures.social) {
+        setLiveText('.archive-social-card .social-chip[data-preview="社会档案详细页"] span', `${toText(social._fame_level, toText(social.fame_level, '籍籍无名'))} / ${formatNumber(social.reputation)}`);
+        setLiveText('.archive-social-card .social-chip[data-preview="所属势力详细页"] span', `${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}`);
+        setLiveText('.archive-social-card .social-chip[data-preview="人物关系详细页"] span', topRelationText);
+        setLiveText('.archive-social-card .social-chip[data-preview="情报库详细页"] span', `${snapshot.unlockedKnowledges.length} / ${latestIntelText}`);
+      }
 
-      document.querySelectorAll('[data-preview="世界状态总览"].hero-card').forEach(el => {
-        el.classList.remove('clickable');
-        el.removeAttribute('data-preview');
-        el.innerHTML = buildWorldHeroCard(snapshot);
-      });
-      document.querySelectorAll('[data-preview="编年史档案"].mvu-simple-card').forEach(el => {
-        el.style.overflow = 'hidden';
-        el.style.flex = '1.2 1 0';
-        el.innerHTML = buildSimpleCard('编年史', null, [
-        { label: '最近事件', value: snapshot.latestTimeline ? toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]) : '暂无' },
-        { label: '推进状态', value: snapshot.latestTimeline ? `${toText(deepGet(snapshot.latestTimeline[1], 'status', 'pending'), 'pending')} / Tick ${toText(deepGet(snapshot.latestTimeline[1], 'trigger_tick', 0), '0')}` : '暂无时间线' }
-      ]);
-        const simpleList = el.querySelector('.simple-list');
-        if (simpleList) {
-          simpleList.style.overflow = 'hidden';
-          simpleList.style.maxHeight = 'none';
-        }
-      });
-      document.querySelectorAll('[data-rank-card="天道金榜"].mvu-simple-card').forEach(el => { 
-        el.style.overflow = 'hidden';
-        el.style.flex = '0.8 1 0';
-        el.innerHTML = `
-          <div class="simple-head"><div class="simple-title">天道金榜</div></div>
-          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: stretch; height: 100%; min-height: 40px; overflow: hidden;">
-            <div class="mvu-panel clickable" data-preview="少年天才榜" style="padding: 4px 10px; margin: 0; display: flex; flex-direction: column; justify-content: center; min-height: 0; overflow: hidden;">
-              <div style="font-size: 10px; color: #85afb8; margin-bottom: 4px;">少年天才榜</div>
-              <div style="font-size: 12px; color: #fff; font-weight: bold;">${snapshot.youthRankingEntries.length} 人上榜</div>
+      if (sectionSignatures.world !== previousSectionSignatures.world) {
+        getLiveUiElements('[data-preview="世界状态总览"].hero-card').forEach(el => {
+          el.classList.remove('clickable');
+          el.removeAttribute('data-preview');
+          setLiveNodeHtml(el, buildWorldHeroCard(snapshot));
+        });
+        getLiveUiElements('[data-preview="编年史档案"].mvu-simple-card').forEach(el => {
+          el.style.overflow = 'hidden';
+          el.style.flex = '1.2 1 0';
+          setLiveNodeHtml(el, buildSimpleCard('编年史', null, [
+            { label: '最近事件', value: snapshot.latestTimeline ? toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]) : '暂无' },
+            { label: '推进状态', value: snapshot.latestTimeline ? `${toText(deepGet(snapshot.latestTimeline[1], 'status', 'pending'), 'pending')} / Tick ${toText(deepGet(snapshot.latestTimeline[1], 'trigger_tick', 0), '0')}` : '暂无时间线' }
+          ]));
+          const simpleList = el.querySelector('.simple-list');
+          if (simpleList) {
+            simpleList.style.overflow = 'hidden';
+            simpleList.style.maxHeight = 'none';
+          }
+        });
+        getLiveUiElements('[data-rank-card="天道金榜"].mvu-simple-card').forEach(el => {
+          el.style.overflow = 'hidden';
+          el.style.flex = '0.8 1 0';
+          setLiveNodeHtml(el, `
+            <div class="simple-head"><div class="simple-title">天道金榜</div></div>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: stretch; height: 100%; min-height: 40px; overflow: hidden;">
+              <div class="mvu-panel clickable" data-preview="少年天才榜" style="padding: 4px 10px; margin: 0; display: flex; flex-direction: column; justify-content: center; min-height: 0; overflow: hidden;">
+                <div style="font-size: 10px; color: #85afb8; margin-bottom: 4px;">少年天才榜</div>
+                <div style="font-size: 12px; color: #fff; font-weight: bold;">${snapshot.youthRankingEntries.length} 人上榜</div>
+              </div>
+              <div class="mvu-panel clickable" data-preview="大陆风云榜" style="padding: 4px 10px; margin: 0; display: flex; flex-direction: column; justify-content: center; min-height: 0; overflow: hidden;">
+                <div style="font-size: 10px; color: #85afb8; margin-bottom: 4px;">大陆风云榜</div>
+                <div style="font-size: 12px; color: #fff; font-weight: bold;">${snapshot.continentRankingEntries.length} 人上榜</div>
+              </div>
             </div>
-            <div class="mvu-panel clickable" data-preview="大陆风云榜" style="padding: 4px 10px; margin: 0; display: flex; flex-direction: column; justify-content: center; min-height: 0; overflow: hidden;">
-              <div style="font-size: 10px; color: #85afb8; margin-bottom: 4px;">大陆风云榜</div>
-              <div style="font-size: 12px; color: #fff; font-weight: bold;">${snapshot.continentRankingEntries.length} 人上榜</div>
-            </div>
-          </div>
-        `; 
-      });
-      document.querySelectorAll('[data-preview="拍卖与警报"].mvu-simple-card').forEach(el => { el.innerHTML = buildSimpleCard('拍卖行与警报', null, [
-        { label: '拍卖行', value: `${toText(deepGet(snapshot, 'rootData.world.auction.status', '休市'), '休市')} / ${toText(deepGet(snapshot, 'rootData.world.auction.location', '无'), '无')}` },
-        { label: '生态警报', value: snapshot.worldAlert }
-      ]); });
+          `);
+        });
+        setLiveHtml('[data-preview="拍卖与警报"].mvu-simple-card', buildSimpleCard('拍卖行与警报', null, [
+          { label: '拍卖行', value: `${toText(deepGet(snapshot, 'rootData.world.auction.status', '休市'), '休市')} / ${toText(deepGet(snapshot, 'rootData.world.auction.location', '无'), '无')}` },
+          { label: '生态警报', value: snapshot.worldAlert }
+        ]));
+        setLiveHtml('[data-preview="势力矩阵总览"].hero-card', buildOrgHeroCard(snapshot));
+        setLiveHtml('[data-preview="我的阵营详情"].mvu-simple-card', buildSimpleCard('我的阵营', null, [
+          { label: '当前所属', value: snapshot.factions[0] ? snapshot.factions[0][0] : '无' },
+          { label: '身份', value: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '未加入' }
+        ]));
+        setLiveHtml('[data-preview="本地据点详情"].mvu-simple-card', buildSimpleCard('本地据点', null, [
+          { label: '掌控势力', value: toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知') },
+          { label: '经济状况', value: `${toText(deepGet(snapshot, 'locationData.经济状况', '未知'), '未知')} / ${toText(deepGet(snapshot, 'locationData.守护军团', '守护军团未知'), '守护军团未知')}` }
+        ]));
+      }
 
-      document.querySelectorAll('[data-preview="势力矩阵总览"].hero-card').forEach(el => { el.innerHTML = buildOrgHeroCard(snapshot); });
-      document.querySelectorAll('[data-preview="我的阵营详情"].mvu-simple-card').forEach(el => { el.innerHTML = buildSimpleCard('我的阵营', null, [
-        { label: '当前所属', value: snapshot.factions[0] ? snapshot.factions[0][0] : '无' },
-        { label: '身份', value: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '未加入' }
-      ]); });
-      document.querySelectorAll('[data-preview="本地据点详情"].mvu-simple-card').forEach(el => { el.innerHTML = buildSimpleCard('本地据点', null, [
-        { label: '掌控势力', value: toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知') },
-        { label: '经济状况', value: `${toText(deepGet(snapshot, 'locationData.经济状况', '未知'), '未知')} / ${toText(deepGet(snapshot, 'locationData.守护军团', '守护军团未知'), '守护军团未知')}` }
-      ]); });
-
-      document.querySelectorAll('[data-preview="系统播报与日志"].terminal-hero-card').forEach(el => { el.innerHTML = buildTerminalHeroCard(snapshot); });
-      document.querySelectorAll('[data-preview="操作总线"].terminal-side-card, [data-preview="操作总线"].mvu-simple-card, [data-preview="操作总线"].simple-card').forEach(el => { el.innerHTML = `
+      if (sectionSignatures.terminal !== previousSectionSignatures.terminal) {
+        setLiveHtml('[data-preview="系统播报与日志"].terminal-hero-card', buildTerminalHeroCard(snapshot));
+        setLiveHtml('[data-preview="操作总线"].terminal-side-card, [data-preview="操作总线"].mvu-simple-card, [data-preview="操作总线"].simple-card', `
         <div class="simple-head"><div class="simple-title">近期安排</div></div>
         <div class="simple-list">
           ${(() => { const planSummary = buildRecentPlanSummary(snapshot, { worldLimit: 1, recordLimit: 1 }); return `
@@ -6114,16 +7813,16 @@
           <div class="simple-row"><b>个人待办</b><span>${htmlEscape(planSummary.personalPlans[0] ? planSummary.personalPlans[0].desc : '暂无')}</span></div>
           `; })()}
         </div>
-      `; });
-      document.querySelectorAll('[data-preview="试炼与情报"].terminal-side-card, [data-preview="试炼与情报"].mvu-simple-card, [data-preview="试炼与情报"].simple-card').forEach(el => { el.innerHTML = `
+      `);
+        setLiveHtml('[data-preview="试炼与情报"].terminal-side-card, [data-preview="试炼与情报"].mvu-simple-card, [data-preview="试炼与情报"].simple-card', `
         <div class="simple-head"><div class="simple-title">试炼与情报</div></div>
         <div class="simple-list">
           <div class="simple-row"><b>试炼入口</b><span>${htmlEscape(snapshot.inventoryEntries.some(([name]) => /门票|魂灵塔/.test(name)) ? '升灵台 / 魂灵塔 / 狩猎' : '当前无门票，仅常规狩猎')}</span></div>
           <div class="simple-row"><b>情报状态</b><span>${htmlEscape(`已掌握 ${snapshot.unlockedKnowledges.length} 条 / 新线索 ${snapshot.pendingIntelCount} 条`)}</span></div>
           <div class="simple-row"><b>深渊击杀</b><span>${htmlEscape(toText(deepGet(snapshot, 'activeChar.abyss_kill_request.kill_tier', '无'), '无') !== '无' ? `${toText(deepGet(snapshot, 'activeChar.abyss_kill_request.kill_tier', '无'), '无')} × ${toNumber(deepGet(snapshot, 'activeChar.abyss_kill_request.quantity', 1), 1)}` : '暂无待结算')}</span></div>
         </div>
-      `; });
-      document.querySelectorAll('[data-preview="近期见闻"].terminal-side-card, [data-preview="近期见闻"].mvu-simple-card, [data-preview="近期见闻"].simple-card').forEach(el => { el.innerHTML = `
+      `);
+        setLiveHtml('[data-preview="近期见闻"].terminal-side-card, [data-preview="近期见闻"].mvu-simple-card, [data-preview="近期见闻"].simple-card', `
         <div class="simple-head"><div class="simple-title">近期见闻</div></div>
         <div class="simple-list">
           ${(() => { const newsSummary = buildRecentNewsSummary(snapshot, { seqLimit: 1, intelLimit: 1 }); return `
@@ -6131,30 +7830,29 @@
           <div class="simple-row"><b>个人见闻</b><span>${htmlEscape(newsSummary.personalNews[0] ? newsSummary.personalNews[0].desc : '暂无')}</span></div>
           `; })()}
         </div>
-      `; });
-      document.querySelectorAll('[data-preview="怪物图鉴"].terminal-side-card, [data-preview="怪物图鉴"].mvu-simple-card, [data-preview="怪物图鉴"].simple-card').forEach(el => { el.innerHTML = `
+      `);
+        setLiveHtml('[data-preview="怪物图鉴"].terminal-side-card, [data-preview="怪物图鉴"].mvu-simple-card, [data-preview="怪物图鉴"].simple-card', `
         <div class="simple-head"><div class="simple-title">怪物图鉴</div></div>
         <div class="simple-list">
           <div class="simple-row"><b>已记录</b><span>${htmlEscape(`${snapshot.bestiaryEntries.length} 种`)}</span></div>
           <div class="simple-row"><b>最近条目</b><span>${htmlEscape(snapshot.bestiaryEntries.slice(0, 2).map(([name]) => name).join(' / ') || '暂无')}</span></div>
           <div class="simple-row"><b>图鉴状态</b><span>${htmlEscape(snapshot.bestiaryEntries.length ? '探索推进中' : '等待首次遭遇')}</span></div>
         </div>
-      `; });
-      document.querySelectorAll('[data-preview="任务界面"].terminal-side-card, [data-preview="任务界面"].mvu-simple-card, [data-preview="任务界面"].simple-card').forEach(el => {
+      `);
         const questRecords = (snapshot.recordEntries || []).filter(([, item]) => item && typeof item === 'object' && (Object.prototype.hasOwnProperty.call(item, '状态') || Object.prototype.hasOwnProperty.call(item, '目标进度') || Object.prototype.hasOwnProperty.call(item, '奖励币') || Object.prototype.hasOwnProperty.call(item, '奖励声望')));
         const activeQuestEntry = questRecords.find(([, item]) => !['已完成', '已放弃', '失败', '已失败'].includes(toText(item && item['状态'], '进行中'))) || questRecords[0] || null;
         const activeQuestName = activeQuestEntry ? activeQuestEntry[0] : '';
         const questBoardEntries = safeEntries(deepGet(snapshot, 'rootData.world.quest_board', {})).filter(([, item]) => item && typeof item === 'object');
         const openBoardCount = questBoardEntries.filter(([, item]) => toText(item && item['状态'], '待接取') === '待接取').length;
-        el.innerHTML = `
+        setLiveHtml('[data-preview="任务界面"].terminal-side-card, [data-preview="任务界面"].mvu-simple-card, [data-preview="任务界面"].simple-card', `
           <div class="simple-head"><div class="simple-title">任务界面</div></div>
           <div class="simple-list">
             <div class="simple-row"><b>我的任务</b><span>${htmlEscape(questRecords.length ? `${questRecords.length} 条 / 当前 ${activeQuestName || '已归档'}` : '暂无任务')}</span></div>
             <div class="simple-row"><b>委托板</b><span>${htmlEscape(questBoardEntries.length ? `${questBoardEntries.length} 条 / 待接取 ${openBoardCount}` : '暂无委托')}</span></div>
             <div class="simple-row"><b>维护方式</b><span>${htmlEscape('AI 维护任务内容，脚本负责进度与奖励结算')}</span></div>
           </div>
-        `;
-      });
+        `);
+      }
     }
 
     function buildLiveArchiveModal(previewKey) {
@@ -6170,40 +7868,48 @@
       const armor = deepGet(snapshot, 'activeChar.equip.armor', {});
       const mech = deepGet(snapshot, 'activeChar.equip.mech', {});
       const jobs = safeEntries(deepGet(snapshot, 'activeChar.job', {}));
-
-      if (previewKey === '全息星图主画布') {
+      if (isMapOverviewPreviewKey(previewKey)) {
+        if (typeof window.__sheepMapResync === 'function') {
+          try { window.__sheepMapResync({ center: false, syncVisual: false }); } catch (err) {}
+        }
         const mapItems = buildDisplayMapItems(snapshot);
-        const patchCards = (snapshot.mapActivePatchEntries.length ? snapshot.mapActivePatchEntries : [['暂无激活补丁', { empty: true }]]).map(([name, patch]) => ({
+        const patchCards = (snapshot.mapActivePatchEntries.length ? snapshot.mapActivePatchEntries : [['\u6682\u65e0\u6fc0\u6d3b\u8865\u4e01', { empty: true }]]).map(([name, patch]) => ({
           title: patch && patch.empty ? name : name,
-          desc: patch && patch.empty ? '当前地图无激活补丁。' : `当前存在激活补丁 ｜ 区域 ${toText(deepGet(patch, 'bounds.x', 0), 0)},${toText(deepGet(patch, 'bounds.y', 0), 0)}`
+          desc: patch && patch.empty
+            ? '\u5f53\u524d\u5730\u56fe\u65e0\u6fc0\u6d3b\u8865\u4e01\u3002'
+            : `\u5750\u6807 ${toText(deepGet(patch, 'bounds.x', 0), 0)},${toText(deepGet(patch, 'bounds.y', 0), 0)}`
         }));
-        const childMapCards = (safeEntries(snapshot.mapAvailableChildMaps).length ? safeEntries(snapshot.mapAvailableChildMaps) : [['暂无子图入口', '无']]).map(([name, mapId]) => ({
+        const childMapCards = (safeEntries(snapshot.mapAvailableChildMaps).length ? safeEntries(snapshot.mapAvailableChildMaps) : [['\u6682\u65e0\u5b50\u56fe\u5165\u53e3', '\u65e0']]).map(([name, mapId]) => ({
           title: name,
-          desc: mapId === '无' ? '当前地图暂无可进入子图。' : '可进入对应子图'
+          desc: mapId === '\u65e0' ? '\u5f53\u524d\u5730\u56fe\u6682\u65e0\u53ef\u8fdb\u5165\u5b50\u56fe\u3002' : '\u53ef\u8fdb\u5165\u5bf9\u5e94\u5b50\u56fe'
         }));
         return {
-          title: `全息星图 / ${getMapDisplayName(snapshot)}`,
-          summary: '读取地图数据后的当前地图总览、节点分布与补丁状态。',
+          title: `${'\u5168\u606f\u661f\u56fe'} / ${getMapDisplayName(snapshot)}`,
+          summary: '',
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">地图总览</div></div>
-                ${makeTileGrid([
-                  { label: '当前地图', value: getMapDisplayName(snapshot) },
-                  { label: '焦点位置', value: toText(deepGet(snapshot, 'mapCurrentFocus.loc', snapshot.currentLoc), snapshot.currentLoc) },
-                  { label: '可见节点', value: `${mapItems.length} 个` },
-                  { label: '动态地点', value: `${snapshot.mapVisibleDynamicEntries.length} 个` },
-                  { label: '激活补丁', value: `${snapshot.mapActivePatchEntries.length} 项` }
-                ], 'three')}
+                ${buildMapHeroCard(snapshot)}
               </div>
-              <div class="archive-card"><div class="archive-card-head"><div class="archive-card-title">当前节点云图</div></div>${makeTagCloud(mapItems.slice(0, 10).map(item => ({ text: `${item.name}${item.canEnter ? ' ↘' : ''}`, className: item.current ? 'live' : (item.canEnter ? 'warn' : '') })))}</div>
-              <div class="archive-card"><div class="archive-card-head"><div class="archive-card-title">可进入子图</div></div>${makeTimelineStack(childMapCards)}</div>
-              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">激活补丁</div></div>${makeTimelineStack(patchCards)}</div>
+              <div class="archive-card">
+                <div class="archive-card-head"><div class="archive-card-title">\u53ef\u8fdb\u5165\u5b50\u56fe</div></div>
+                ${makeTimelineStack(childMapCards)}
+              </div>
+              <div class="archive-card">
+                <div class="archive-card-head"><div class="archive-card-title">\u6fc0\u6d3b\u8865\u4e01</div></div>
+                ${makeTimelineStack(patchCards)}
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">\u5730\u56fe\u8282\u70b9</div></div>
+                ${makeTagCloud(mapItems.slice(0, 12).map(item => ({
+                  text: `${item.name}${item.canEnter ? ' \u2198' : ''}`,
+                  className: item.current ? 'live' : (item.canEnter ? 'warn' : '')
+                })))}
+              </div>
             </div>
           `
         };
       }
-
       if (String(previewKey || '').startsWith(SKILL_DESIGNER_PREVIEW_PREFIX)) {
         const previewMeta = parseSkillDesignerPreviewKey(previewKey) || { path: [], label: '技能', category: '技能', scope: 'skill' };
         const skillSource = previewMeta.path.length ? (deepGet(snapshot.rootData, previewMeta.path, {}) || {}) : {};
@@ -6213,9 +7919,10 @@
           previewMeta
         );
         const pathTail = formatSkillDesignerWritebackLabel(previewMeta);
+        const scopeLabels = getSkillDesignerScopeLabels(previewMeta);
         const recommendedAttrs = new Set(normalizeSkillDesignerArray(SKILL_DESIGNER_ATTRIBUTE_HINTS_BY_TYPE[designerDraft.type] || []));
         return {
-          title: `技能设计台 / ${designerDraft.name}`,
+          title: `${scopeLabels.studioTitle} / ${designerDraft.name}`,
           summary: '',
           onMount: mountEl => {
             const form = mountEl.querySelector('[data-skill-designer-form]');
@@ -6264,6 +7971,7 @@
                 mechanic: buildSkillDesignerMechanicSummary(formState) || '未设置',
                 mechanicParams: buildSkillDesignerMechanicParamSummary(formState) || '未设置',
                 execution: buildSkillDesignerExecutionSummary(formState) || '未设置',
+                progress: buildSkillDesignerArtProgressSummary(formState) || '未设置',
                 attribute: buildSkillDesignerAttributeSummary(formState) || '未设置',
                 summary: buildSkillDesignerCompactSummary(formState) || '未设置',
                 tags: normalizeSkillDesignerArray(formState.tags).join(' / ') || '无',
@@ -6357,7 +8065,7 @@
                 if (!Array.isArray(previewMeta.path) || !previewMeta.path.length) throw new Error('当前技能缺少可写回路径。');
                 const formState = readSkillDesignerFormState(mountEl, previewMeta);
                 const nextSkill = buildSkillDesignerUpdatedSkill(skillSource, formState, previewMeta);
-                await replaceStatDataByEditor([{ path: previewMeta.path, value: nextSkill }]);
+                await replaceStatDataByEditor(buildSkillDesignerWriteUpdates(previewMeta, nextSkill, snapshot.rootData));
                 clearCachedSkillDesignerDraft(previewKey);
                 await refreshLiveSnapshot({ force: true });
                 if (!destroyed && currentModalPreviewKey) renderModalContent(currentModalPreviewKey, getModalRefs());
@@ -6410,23 +8118,23 @@
             };
           },
           body: `
-            <div class=\"archive-modal-grid skill-designer-layout\" style=\"grid-template-columns:1fr;\">
-              <div class=\"archive-card full\">
+            <div class=\"archive-modal-grid skill-designer-layout skill-designer-shell\">
+              <div class=\"archive-card full skill-designer-anchor-card\">
                 <div class=\"archive-card-head\">
-                  <div class=\"archive-card-title\">技能锚点</div>
-                  <span class=\"state-tag live\">${htmlEscape(previewMeta.category || '技能')}</span>
+                  <div class=\"archive-card-title\">${htmlEscape(scopeLabels.anchorTitle)}</div>
+                  <span class=\"state-tag live\">${htmlEscape(designerDraft.typeDisplay || designerDraft.type || previewMeta.category || '技能')}</span>
                 </div>
                 ${makeTileGrid([
-                  { label: '技能名称', value: designerDraft.name },
-                  { label: '技能归属', value: designerDraft.typeDisplay || designerDraft.type },
-                  { label: '作用对象', value: designerDraft.target },
+                  { label: scopeLabels.nameCardLabel, value: designerDraft.name },
+                  { label: scopeLabels.typeCardLabel, value: designerDraft.typeDisplay || designerDraft.type },
+                  { label: scopeLabels.targetLabel, value: designerDraft.target },
                   { label: '写回位置', value: pathTail }
                 ], 'two')}
               </div>
 
-              <form class=\"archive-card full mvu-editor-form skill-designer-form\" data-skill-designer-form>
+              <form class=\"archive-card full mvu-editor-form skill-designer-form skill-designer-form-card\" data-skill-designer-form>
                 <div class=\"archive-card-head\">
-                  <div class=\"archive-card-title\">设计参数</div>
+                  <div class=\"archive-card-title\">${htmlEscape(scopeLabels.parameterTitle)}</div>
                   <div class=\"mvu-editor-actions\">
                     <button type=\"button\" class=\"tag-chip\" data-skill-designer-refresh data-skill-designer-disableable>重新读取</button>
                     <button type=\"submit\" class=\"tag-chip live\" data-skill-designer-disableable>保存设计</button>
@@ -6438,11 +8146,11 @@
                     <div class=\"mvu-editor-field-grid\">
                       <input type=\"hidden\" value=\"${escapeHtmlAttr(designerDraft.type || '未设置')}\" data-skill-designer-field=\"type\" data-skill-designer-disableable />
                       <label class=\"mvu-editor-field\">
-                        <span class=\"mvu-editor-label\">技能名</span>
+                        <span class=\"mvu-editor-label\">${htmlEscape(scopeLabels.nameFieldLabel)}</span>
                         <input class=\"mvu-editor-input\" type=\"text\" value=\"${escapeHtmlAttr(designerDraft.name)}\" data-skill-designer-field=\"name\" data-skill-designer-disableable />
                       </label>
                       <label class=\"mvu-editor-field\">
-                        <span class=\"mvu-editor-label\">作用对象</span>
+                        <span class=\"mvu-editor-label\">${htmlEscape(scopeLabels.targetLabel)}</span>
                         <select class=\"mvu-editor-select\" data-skill-designer-field=\"target\" data-skill-designer-disableable>
                           ${buildSkillDesignerSelectOptions(SKILL_DESIGNER_TARGET_OPTIONS, designerDraft.target, '未设置')}
                         </select>
@@ -6453,6 +8161,26 @@
                       </label>
                     </div>
                   </section>
+
+                  ${previewMeta.scope === 'art' ? `
+                    <section class=\"mvu-editor-section\">
+                      <div class=\"mvu-editor-section-title\">功法进度</div>
+                      <div class=\"mvu-editor-field-grid\">
+                        <label class=\"mvu-editor-field\">
+                          <span class=\"mvu-editor-label\">境界</span>
+                          <input class=\"mvu-editor-input\" type=\"text\" value=\"${escapeHtmlAttr(designerDraft.artStage || '未入门')}\" data-skill-designer-field=\"artStage\" data-skill-designer-disableable />
+                        </label>
+                        <label class=\"mvu-editor-field\">
+                          <span class=\"mvu-editor-label\">等级</span>
+                          <input class=\"mvu-editor-input\" type=\"number\" min=\"0\" step=\"1\" value=\"${escapeHtmlAttr(String(Math.max(0, toNumber(designerDraft.artLevel, 0))))}\" data-skill-designer-field=\"artLevel\" data-skill-designer-disableable />
+                        </label>
+                        <label class=\"mvu-editor-field\">
+                          <span class=\"mvu-editor-label\">熟练度</span>
+                          <input class=\"mvu-editor-input\" type=\"number\" min=\"0\" step=\"1\" value=\"${escapeHtmlAttr(String(Math.max(0, toNumber(designerDraft.artExp, 0))))}\" data-skill-designer-field=\"artExp\" data-skill-designer-disableable />
+                        </label>
+                      </div>
+                    </section>
+                  ` : ''}
 
                   <section class=\"mvu-editor-section\">
                     <div class=\"mvu-editor-section-title\">机制设计</div>
@@ -6470,15 +8198,9 @@
                         </select>
                       </label>
                       <label class=\"mvu-editor-field\">
-                        <span class=\"mvu-editor-label\">释放形式</span>
+                        <span class=\"mvu-editor-label\">${htmlEscape(scopeLabels.deliveryLabel)}</span>
                         <select class=\"mvu-editor-select\" data-skill-designer-field=\"deliveryForm\" data-skill-designer-disableable>
                           ${buildSkillDesignerSelectOptions(getSkillDesignerDeliveryOptions(designerDraft.type), designerDraft.deliveryForm, '未设置')}
-                        </select>
-                      </label>
-                      <label class=\"mvu-editor-field\">
-                        <span class=\"mvu-editor-label\">战斗定位</span>
-                        <select class=\"mvu-editor-select\" data-skill-designer-field=\"mainRole\" data-skill-designer-disableable>
-                          ${buildSkillDesignerSelectOptions(SKILL_DESIGNER_MAIN_ROLE_OPTIONS, designerDraft.mainRole, '未设置')}
                         </select>
                       </label>
                     </div>
@@ -6510,44 +8232,16 @@
                         <span class=\"mvu-editor-label\">消耗数值</span>
                         <input class=\"mvu-editor-input\" type=\"text\" value=\"${escapeHtmlAttr(designerDraft.costValue || '')}\" placeholder=\"20 / 15% / 魂力30+精神力10\" data-skill-designer-field=\"costValue\" data-skill-designer-disableable />
                       </label>
-                      <label class=\"mvu-editor-field\">
-                        <span class=\"mvu-editor-label\">加成属性</span>
-                        <select class=\"mvu-editor-select\" data-skill-designer-field=\"bonus\" data-skill-designer-disableable>
-                          ${buildSkillDesignerSelectOptions(SKILL_DESIGNER_BONUS_ATTRIBUTE_OPTIONS, designerDraft.bonus, '未设置')}
-                        </select>
-                      </label>
                     </div>
                   </section>
 
                   <section class=\"mvu-editor-section\">
                     <div class=\"mvu-editor-section-title\">属性设计</div>
-                    <div class=\"mvu-editor-field-grid\">
-                      <label class=\"mvu-editor-field\">
-                        <span class=\"mvu-editor-label\">属性来源</span>
-                        <select class=\"mvu-editor-select\" data-skill-designer-field=\"attributeSource\" data-skill-designer-disableable>
-                          ${buildSkillDesignerSelectOptions(SKILL_ATTRIBUTE_SOURCE_VALUES, designerDraft.attributeSource, '未设置')}
-                        </select>
-                      </label>
-                      <label class=\"mvu-editor-field\">
-                        <span class=\"mvu-editor-label\">魂技作用</span>
-                        <select class=\"mvu-editor-select\" data-skill-designer-field=\"attributeRole\" data-skill-designer-disableable>
-                          ${buildSkillDesignerSelectOptions(SKILL_ATTRIBUTE_ROLE_VALUES, designerDraft.attributeRole, '未设置')}
-                        </select>
-                      </label>
-                    </div>
                     <div class=\"skill-designer-subsection\">
                       <div class=\"mvu-editor-label\">附带属性</div>
                       <div class=\"skill-designer-chip-grid\" data-skill-designer-attribute-grid>
                         ${buildSkillDesignerCheckChipList(SKILL_DESIGNER_ATTRIBUTE_OPTIONS, designerDraft.attachedAttributes, 'skill-attribute', option => recommendedAttrs.has(option) ? 'recommended' : '')}
                       </div>
-                    </div>
-                    <div class=\"skill-designer-coeff-grid\">
-                      ${SKILL_ATTRIBUTE_DIM_KEYS.map(key => `
-                        <label class=\"mvu-editor-field\">
-                          <span class=\"mvu-editor-label\">${htmlEscape(key)}</span>
-                          <input class=\"mvu-editor-input\" type=\"number\" step=\"0.01\" value=\"${escapeHtmlAttr(String(designerDraft.coeff[key] ?? 1))}\" data-skill-designer-coeff=\"${escapeHtmlAttr(key)}\" data-skill-designer-disableable />
-                        </label>
-                      `).join('')}
                     </div>
                   </section>
 
@@ -6555,11 +8249,11 @@
                     <div class=\"mvu-editor-section-title\">文本描述</div>
                     <div class=\"mvu-editor-field-grid\">
                       <label class=\"mvu-editor-field mvu-editor-field-wide\">
-                        <span class=\"mvu-editor-label\">画面描述</span>
+                        <span class=\"mvu-editor-label\">${htmlEscape(scopeLabels.visualLabel)}</span>
                         <textarea class=\"mvu-editor-textarea\" data-skill-designer-field=\"visualDesc\" data-skill-designer-disableable>${htmlEscape(designerDraft.visualDesc)}</textarea>
                       </label>
                       <label class=\"mvu-editor-field mvu-editor-field-wide\">
-                        <span class=\"mvu-editor-label\">效果描述</span>
+                        <span class=\"mvu-editor-label\">${htmlEscape(scopeLabels.effectLabel)}</span>
                         <textarea class=\"mvu-editor-textarea\" data-skill-designer-field=\"effectDesc\" data-skill-designer-disableable>${htmlEscape(designerDraft.effectDesc)}</textarea>
                       </label>
                     </div>
@@ -6567,15 +8261,18 @@
                 </div>
               </form>
 
-              <div class=\"archive-card full\">
-                <div class=\"archive-card-head\"><div class=\"archive-card-title\">设计速览</div></div>
-                <div class=\"skill-designer-preview-stack\">
-                  <div class=\"ring-hover-copy\"><em>机制组合</em><span data-skill-designer-preview=\"mechanic\">${htmlEscape(buildSkillDesignerMechanicSummary(designerDraft) || '未设置')}</span></div>
-                  <div class=\"ring-hover-copy\"><em>机制参数</em><span data-skill-designer-preview=\"mechanicParams\">${htmlEscape(buildSkillDesignerMechanicParamSummary(designerDraft) || '未设置')}</span></div>
-                  <div class=\"ring-hover-copy\"><em>执行摘要</em><span data-skill-designer-preview=\"execution\">${htmlEscape(buildSkillDesignerExecutionSummary(designerDraft) || '未设置')}</span></div>
-                  <div class=\"ring-hover-copy\"><em>属性组合</em><span data-skill-designer-preview=\"attribute\">${htmlEscape(buildSkillDesignerAttributeSummary(designerDraft) || '未设置')}</span></div>
-                  <div class=\"ring-hover-copy\"><em>最终摘要</em><span data-skill-designer-preview=\"summary\">${htmlEscape(buildSkillDesignerCompactSummary(designerDraft) || '未设置')}</span></div>
-                  <div class=\"ring-hover-copy\"><em>标签</em><span data-skill-designer-preview=\"tags\">${htmlEscape((designerDraft.tags || []).join(' / ') || '无')}</span></div>
+              <div class=\"archive-card full skill-designer-summary-card\">
+                <div class=\"archive-card-head\"><div class=\"archive-card-title\">${htmlEscape(scopeLabels.summaryTitle)}</div></div>
+                <div class=\"skill-designer-preview-stack skill-designer-summary-list\">
+                  <div class=\"skill-designer-summary-row\"><em>机制组合</em><span data-skill-designer-preview=\"mechanic\">${htmlEscape(buildSkillDesignerMechanicSummary(designerDraft) || '未设置')}</span></div>
+                  <div class=\"skill-designer-summary-row\"><em>机制参数</em><span data-skill-designer-preview=\"mechanicParams\">${htmlEscape(buildSkillDesignerMechanicParamSummary(designerDraft) || '未设置')}</span></div>
+                  <div class=\"skill-designer-summary-row\"><em>执行摘要</em><span data-skill-designer-preview=\"execution\">${htmlEscape(buildSkillDesignerExecutionSummary(designerDraft) || '未设置')}</span></div>
+                  ${previewMeta.scope === 'art'
+                    ? `<div class=\"skill-designer-summary-row\"><em>功法进度</em><span data-skill-designer-preview=\"progress\">${htmlEscape(buildSkillDesignerArtProgressSummary(designerDraft) || '未设置')}</span></div>`
+                    : ''}
+                  <div class=\"skill-designer-summary-row\"><em>附带属性</em><span data-skill-designer-preview=\"attribute\">${htmlEscape(buildSkillDesignerAttributeSummary(designerDraft) || '未设置')}</span></div>
+                  <div class=\"skill-designer-summary-row\"><em>最终摘要</em><span data-skill-designer-preview=\"summary\">${htmlEscape(buildSkillDesignerCompactSummary(designerDraft) || '未设置')}</span></div>
+                  <div class=\"skill-designer-summary-row\"><em>标签</em><span data-skill-designer-preview=\"tags\">${htmlEscape((designerDraft.tags || []).join(' / ') || '无')}</span></div>
                 </div>
               </div>
             </div>
@@ -6593,7 +8290,7 @@
               const activeDisplayName = toText(snapshot.activeName, '');
               const isCurrent = (currentCharKey && name === currentCharKey) || (!currentCharKey && !!activeDisplayName && displayName === activeDisplayName);
               const isPlayer = isPlayerCharacterEntry(name, char, playerName);
-              const lvText = `Lv.${toText(deepGet(char, 'stat.lv', 0), '0')}`;
+              const lvText = formatCultivationLevelBadge(deepGet(char, 'stat.lv', 0), '0');
               const identityText = toText(deepGet(char, 'social.main_identity', deepGet(char, 'base.identity', '无')), '无');
               const locText = toText(deepGet(char, 'status.loc', '未知地点'), '未知地点').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
               const actionText = toText(deepGet(char, 'status.action', '日常'), '日常');
@@ -6682,88 +8379,393 @@
         };
       }
 
+      if (previewKey === '私密档案详细页') {
+        const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
+        const nsfwPath = activeCharKey ? ['char', activeCharKey, 'nsfw'] : [];
+        const nsfw = deepGet(snapshot, activeCharKey ? `char.${activeCharKey}.nsfw` : 'activeChar.nsfw', {});
+        const bodyPartEntries = safeEntries(deepGet(nsfw, 'body_parts', {}));
+
+        return {
+          title: '私密档案',
+          onMount: (modalBody) => {
+            const panel = modalBody.closest('.mvu-modal-panel');
+            if (panel) {
+              panel.classList.add('nsfw-theme-active');
+              const observer = new MutationObserver(() => {
+                if (!modalBody.querySelector('.nsfw-modal-grid')) {
+                  panel.classList.remove('nsfw-theme-active');
+                  observer.disconnect();
+                }
+              });
+              observer.observe(modalBody, { childList: true });
+            }
+          },
+          body: `
+            <div class="nsfw-modal-grid">
+              
+              <!-- 1. 核心欲念 -->
+              <div class="nsfw-theme-card">
+                <div class="nsfw-theme-head">
+                  <div class="nsfw-theme-title">💕 核心欲念</div>
+                </div>
+                <div class="nsfw-theme-body">
+                  <div class="nsfw-progress-container">
+                    <div class="nsfw-progress-label">
+                      <span>发情度</span>
+                      <span>${makeInlineEditableValue(toText(nsfw.arousal, '0'), { path: [...nsfwPath, 'arousal'], kind: 'number' })} / 100</span>
+                    </div>
+                    <div class="nsfw-progress-track arousal">
+                      <div class="nsfw-fill-arousal" style="width: ${Math.min(100, Math.max(0, toNumber(nsfw.arousal, 0)))}%;"></div>
+                    </div>
+                  </div>
+                  <div class="nsfw-progress-container">
+                    <div class="nsfw-progress-label">
+                      <span>开发度</span>
+                      <span>${makeInlineEditableValue(toText(nsfw.development_level, '0'), { path: [...nsfwPath, 'development_level'], kind: 'number' })} / 100</span>
+                    </div>
+                    <div class="nsfw-progress-track dev">
+                      <div class="nsfw-fill-dev" style="width: ${Math.min(100, Math.max(0, toNumber(nsfw.development_level, 0)))}%;"></div>
+                    </div>
+                  </div>
+                  <div class="identity-growth-grid" style="grid-template-columns: 1fr;">
+                    <div class="nsfw-meta-item">
+                      <b>敏感度基础值</b>
+                      <span>${makeInlineEditableValue(toText(nsfw.sensitivity, '10'), { path: [...nsfwPath, 'sensitivity'], kind: 'number' })}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 2. 肉体密码 & 着装 -->
+              <div class="nsfw-theme-card">
+                <div class="nsfw-theme-head">
+                  <div class="nsfw-theme-title">👙 肉体密码与私密着装</div>
+                </div>
+                <div class="nsfw-theme-body">
+                  <div class="identity-growth-grid" style="grid-template-columns: 1fr 1fr;">
+                    <div class="nsfw-meta-item">
+                      <b>罩杯</b>
+                      <span>${makeInlineEditableValue(toText(deepGet(nsfw, 'measurements.罩杯'), '未知'), { path: [...nsfwPath, 'measurements', '罩杯'], kind: 'string' })}</span>
+                    </div>
+                    <div class="nsfw-meta-item">
+                      <b>三围 (胸/腰/臀)</b>
+                      <span>
+                        ${makeInlineEditableValue(toText(deepGet(nsfw, 'measurements.胸围'), '0'), { path: [...nsfwPath, 'measurements', '胸围'], kind: 'number' })} /
+                        ${makeInlineEditableValue(toText(deepGet(nsfw, 'measurements.腰围'), '0'), { path: [...nsfwPath, 'measurements', '腰围'], kind: 'number' })} /
+                        ${makeInlineEditableValue(toText(deepGet(nsfw, 'measurements.臀围'), '0'), { path: [...nsfwPath, 'measurements', '臀围'], kind: 'number' })}
+                      </span>
+                    </div>
+                    <div class="nsfw-meta-item">
+                      <b>内衣</b>
+                      <span>${makeInlineEditableValue(toText(deepGet(nsfw, 'intimate_wear.内衣'), '未知'), { path: [...nsfwPath, 'intimate_wear', '内衣'], kind: 'string' })}</span>
+                    </div>
+                    <div class="nsfw-meta-item">
+                      <b>内裤</b>
+                      <span>${makeInlineEditableValue(toText(deepGet(nsfw, 'intimate_wear.内裤'), '未知'), { path: [...nsfwPath, 'intimate_wear', '内裤'], kind: 'string' })}</span>
+                    </div>
+                  </div>
+                  <div class="nsfw-meta-item" style="margin-top:8px;">
+                    <b>身材描述</b>
+                    <span class="nsfw-text-wrap">${makeInlineEditableValue(toText(deepGet(nsfw, 'measurements.身材描述'), '无'), { path: [...nsfwPath, 'measurements', '身材描述'], kind: 'string' })}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 3. 生理节律 -->
+              <div class="nsfw-theme-card">
+                <div class="nsfw-theme-head">
+                  <div class="nsfw-theme-title">🩸 生理节律</div>
+                </div>
+                <div class="nsfw-theme-body">
+                  <div class="identity-growth-grid" style="grid-template-columns: 1fr 1fr;">
+                    <div class="nsfw-meta-item">
+                      <b>当前生理阶段</b>
+                      <span class="nsfw-highlight-red">${makeInlineEditableValue(toText(nsfw._menstrual_stage, '安全期'), { path: [...nsfwPath, '_menstrual_stage'], kind: 'string' })}</span>
+                    </div>
+                    <div class="nsfw-meta-item">
+                      <b>是否初潮</b>
+                      <span>${makeInlineEditableValue(nsfw._has_menarche ? '已初潮' : '未初潮', { path: [...nsfwPath, '_has_menarche'], kind: 'boolean' })}</span>
+                    </div>
+                    <div class="nsfw-meta-item">
+                      <b>受孕节点</b>
+                      <span>${makeInlineEditableValue(String(toNumber(nsfw.conception_tick, -1)), { path: [...nsfwPath, 'conception_tick'], kind: 'number' })}</span>
+                    </div>
+                    <div class="nsfw-meta-item">
+                      <b>当前怀孕天数</b>
+                      <span>${makeInlineEditableValue(String(toNumber(nsfw._pregnancy_days, 0)), { path: [...nsfwPath, '_pregnancy_days'], kind: 'number' })}</span>
+                    </div>
+                    <div class="nsfw-meta-item" style="grid-column: span 2;">
+                      <b>孕父</b>
+                      <span>${makeInlineEditableValue(toText(nsfw.pregnancy_father, '无'), { path: [...nsfwPath, 'pregnancy_father'], kind: 'string' })}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 4. 堕落履历 -->
+              <div class="nsfw-theme-card">
+                <div class="nsfw-theme-head">
+                  <div class="nsfw-theme-title">📈 开发履历</div>
+                </div>
+                <div class="nsfw-theme-body">
+                  <div class="identity-growth-grid" style="grid-template-columns: repeat(3, 1fr);">
+                    ${['高潮', '颜射', '内射', '吞精', '宠物扮演', '自慰', '性交', '手交', '足交', '口交', '素股', '发交', 'SM', 'COSPLAY'].map(exp => `
+                      <div class="nsfw-meta-item">
+                        <b>${exp}</b>
+                        <span>${makeInlineEditableValue(String(toNumber(deepGet(nsfw, ['experience_counts', exp]), 0)), { path: [...nsfwPath, 'experience_counts', exp], kind: 'number' })}</span>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              </div>
+
+              <!-- 5. 深层性癖 -->
+              <div class="nsfw-theme-card">
+                <div class="nsfw-theme-head">
+                  <div class="nsfw-theme-title">😈 深层性癖</div>
+                </div>
+                <div class="nsfw-theme-body">
+                  <div style="margin-bottom: 8px;">
+                    <b style="font-size: 11px; color: #ffb3c1; display: block; margin-bottom: 6px;">癖好</b>
+                    <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                      ${(Array.isArray(nsfw.fetishes) ? nsfw.fetishes : []).map((f, i) => `
+                        <span class="nsfw-tag">${makeInlineEditableValue(toText(f), { path: [...nsfwPath, 'fetishes', i], kind: 'string' })}</span>
+                      `).join('')}
+                    </div>
+                  </div>
+                  <div>
+                    <b style="font-size: 11px; color: #ffb3c1; display: block; margin-bottom: 6px;">幻想</b>
+                    <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                      ${(Array.isArray(nsfw.fantasies) ? nsfw.fantasies : []).map((f, i) => `
+                        <span class="nsfw-tag">${makeInlineEditableValue(toText(f), { path: [...nsfwPath, 'fantasies', i], kind: 'string' })}</span>
+                      `).join('')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 6. 身体部位 -->
+              <div class="nsfw-theme-card">
+                <div class="nsfw-theme-head">
+                  <div class="nsfw-theme-title">💠 敏感部位档案</div>
+                </div>
+                <div class="nsfw-theme-body">
+                  ${bodyPartEntries.length ? `
+                    <div class="nsfw-bodypart-grid">
+                      ${bodyPartEntries.map(([partName, partData]) => `
+                        <div class="nsfw-bodypart-card">
+                          <div class="nsfw-bodypart-head">
+                            <div class="nsfw-bodypart-name">${htmlEscape(partName)}</div>
+                            <span class="nsfw-bodypart-badge">开发 ${makeInlineEditableValue(String(toNumber(deepGet(partData, '开发度', 0), 0)), { path: [...nsfwPath, 'body_parts', partName, '开发度'], kind: 'number' })}</span>
+                          </div>
+                          <div class="nsfw-bodypart-meta">
+                            <div class="nsfw-meta-item">
+                              <b>外观特征</b>
+                              <span class="nsfw-text-wrap">${makeInlineEditableValue(toText(deepGet(partData, '外观特征', '无'), '无'), { path: [...nsfwPath, 'body_parts', partName, '外观特征'], kind: 'string' })}</span>
+                            </div>
+                            <div class="identity-growth-grid" style="grid-template-columns: 1fr 1fr;">
+                              <div class="nsfw-meta-item">
+                                <b>敏感度加成</b>
+                                <span>${makeInlineEditableValue(String(toNumber(deepGet(partData, '敏感度加成', 0), 0)), { path: [...nsfwPath, 'body_parts', partName, '敏感度加成'], kind: 'number' })}</span>
+                              </div>
+                              <div class="nsfw-meta-item">
+                                <b>状态描述</b>
+                                <span>${makeInlineEditableValue(toText(deepGet(partData, '状态描述', '正常'), '正常'), { path: [...nsfwPath, 'body_parts', partName, '状态描述'], kind: 'string' })}</span>
+                              </div>
+                            </div>
+                            <div class="nsfw-meta-item">
+                              <b>体液残留</b>
+                              <span>${makeInlineEditableValue(toText(deepGet(partData, '体液残留', '无'), '无'), { path: [...nsfwPath, 'body_parts', partName, '体液残留'], kind: 'string' })}</span>
+                            </div>
+                          </div>
+                        </div>
+                      `).join('')}
+                    </div>
+                  ` : '<div class="dossier-empty-note">当前角色尚未录入 body_parts 结构。</div>'}
+                </div>
+              </div>
+
+            </div>
+          `
+        };
+      }
+
+
 
       if (previewKey === '生命图谱详细页') {
         const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
+        const trainedBonusPath = activeCharKey ? ['char', activeCharKey, 'stat', 'trained_bonus'] : [];
+        const trainedBonusItems = buildEditableStatBonusItems(trainedBonusPath, deepGet(snapshot, 'activeChar.stat.trained_bonus', {}), { includeSoulPower: false });
+        const lifePreviewStats = activeCharKey ? resolveTrackedStatPreview(activeCharKey, stat) : createTrackedStatPreviewMap(stat);
+        const activeWardrobeKey = toText(clothing.outfit, '').trim();
+        const activeWardrobePath = activeWardrobeKey && activeWardrobeKey !== '无'
+          ? ['char', activeCharKey, 'clothing', 'wardrobe', activeWardrobeKey]
+          : null;
+        const createAbilityPreview = activeCharKey
+          ? buildSkillDesignerPreviewKey({
+            path: ['char', activeCharKey, 'special_abilities', `自建特殊能力_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`],
+            label: '新建特殊能力',
+            category: '特殊能力',
+            scope: 'special_ability',
+          })
+          : '';
+        const fusionArchiveMeta = getFusionArchiveMeta(snapshot);
+        const fusionArchiveEntry = buildFusionArchiveListItem(fusionArchiveMeta);
+        const archiveSkillEntries = (Array.isArray(snapshot.extraSkills) ? snapshot.extraSkills : [])
+          .filter(skill => toText(skill && skill.category, '') !== '武魂融合技')
+          .map(skill => ({
+            title: `${skill.category} - ${skill.name}`,
+            desc: `${skill.level} ｜ ${skill.desc}`,
+            preview: /功法/.test(toText(skill.category, '')) ? '' : (skill.preview || '')
+          }));
         return {
           title: '生命图谱',
           summary: '基于当前角色的实时生命体征与状态摘要。',
           body: `
-            <div class="archive-modal-grid life-graph-grid">
-              <div class="archive-card life-growth-card">
-                <div class="archive-card-head"><div class="archive-card-title">成长信息</div></div>
-                <div class="identity-growth-grid">
-                  <div class="meta-item"><b>等级</b><span>${htmlEscape(`Lv.${toText(stat.lv, '0')}`)}</span></div>
-                  <div class="meta-item"><b>精神境界</b><span>${htmlEscape(toText(stat._men_realm, toText(stat.men_realm, '灵元境')))}</span></div>
-                  <div class="meta-item"><b>天赋梯队</b><span>${htmlEscape(toText(stat.talent_tier, '未定'))}</span></div>
-                  <div class="meta-item"><b>系别</b><span>${htmlEscape(toText(stat.type, '未知'))}</span></div>
+            <div class="archive-modal-grid dossier-shell dossier-shell--life">
+              <div class="archive-card dossier-card dossier-card--life-core">
+                <div class="archive-card-head">
+                  <div class="archive-card-title">核心成长</div>
+                  <span class="dossier-pill live">实时体征</span>
                 </div>
+                <div class="dossier-columns dossier-columns--life-core">
+                  <section class="dossier-section">
+                    <div class="dossier-section-title">成长信息</div>
+                    ${makeDossierRows([
+                      { label: '等级', value: htmlEscape(formatCultivationLevelBadge(stat.lv, '0')) },
+                      { label: '精神境界', value: htmlEscape(toText(stat._men_realm, toText(stat.men_realm, '灵元境'))) },
+                      { label: '天赋梯队', value: htmlEscape(toText(stat.talent_tier, '未定')) },
+                      { label: '系别', value: activeCharKey
+                        ? makeInlineEditableValue(toText(stat.type, '未知'), {
+                            path: ['char', activeCharKey, 'stat', 'type'],
+                            kind: 'string',
+                            rawValue: toText(stat.type, '未知'),
+                          })
+                        : htmlEscape(toText(stat.type, '未知')) },
+                      { label: '名望', value: htmlEscape(`${toText(social._fame_level, toText(social.fame_level, '籍籍无名'))} / ${formatNumber(social.reputation)}`) },
+                    ], 'dossier-row-grid--two')}
+                  </section>
+                  <section class="dossier-section dossier-section--radar">
+                    <div class="dossier-section-title">战斗轮廓</div>
+                    <div class="battle-radar-wrap dossier-radar-wrap">
+                      ${(() => {
+                        const fStr = Math.max(0, toNumber(lifePreviewStats.str, stat.str));
+                        const fDef = Math.max(0, toNumber(lifePreviewStats.def, stat.def));
+                        const fAgi = Math.max(0, toNumber(lifePreviewStats.agi, stat.agi));
+                        const fMen = Math.max(0, toNumber(lifePreviewStats.men_max, stat.men_max));
+                        const fVit = Math.max(0, toNumber(lifePreviewStats.vit_max, stat.vit_max));
+                        const maxAxis = Math.max(1, fStr, fDef, fAgi, fMen, fVit);
+                        return makeRadarSvg(['力量', '防御', '敏捷', '精神', '体力'], [
+                          Math.max(12, Math.min(100, Math.round(fStr / maxAxis * 100))),
+                          Math.max(12, Math.min(100, Math.round(fDef / maxAxis * 100))),
+                          Math.max(12, Math.min(100, Math.round(fAgi / maxAxis * 100))),
+                          Math.max(12, Math.min(100, Math.round(fMen / maxAxis * 100))),
+                          Math.max(12, Math.min(100, Math.round(fVit / maxAxis * 100)))
+                        ], [formatNumber(fStr), formatNumber(fDef), formatNumber(fAgi), formatNumber(fMen), formatNumber(fVit)]);
+                      })()}
+                    </div>
+                  </section>
+                </div>
+                <section class="dossier-section">
+                  <div class="dossier-section-title">当前状态</div>
+                  ${makeDossierRows([
+                    { label: '行动状态', value: activeCharKey
+                      ? makeInlineEditableValue(toText(status.action, '日常'), {
+                          path: ['char', activeCharKey, 'status', 'action'],
+                          kind: 'string',
+                          rawValue: toText(status.action, '日常'),
+                        })
+                      : htmlEscape(toText(status.action, '日常')) },
+                    { label: '伤势', value: activeCharKey
+                      ? makeInlineEditableValue(toText(status.wound, '无伤'), {
+                          path: ['char', activeCharKey, 'status', 'wound'],
+                          kind: 'string',
+                          rawValue: toText(status.wound, '无伤'),
+                        })
+                      : htmlEscape(toText(status.wound, '无伤')) },
+                    { label: '魂核状态', value: activeCharKey
+                      ? `${makeInlineEditableValue(String(toNumber(deepGet(snapshot, 'activeChar.energy.core.数量', 0), 0)), {
+                          path: ['char', activeCharKey, 'energy', 'core', '数量'],
+                          kind: 'number',
+                          rawValue: toNumber(deepGet(snapshot, 'activeChar.energy.core.数量', 0), 0),
+                          editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                        })} 枚 / 进度 ${makeInlineEditableValue(String(toNumber(deepGet(snapshot, 'activeChar.energy.core.progress', 0), 0)), {
+                          path: ['char', activeCharKey, 'energy', 'core', 'progress'],
+                          kind: 'number',
+                          rawValue: toNumber(deepGet(snapshot, 'activeChar.energy.core.progress', 0), 0),
+                          editorMeta: { min: 0, max: 100, integer: true, hint: '范围 0 - 100 · 整数' },
+                        })}%`
+                      : htmlEscape(`${toText(deepGet(snapshot, 'activeChar.energy.core.数量', 0), '0')} 枚 / 进度 ${toText(deepGet(snapshot, 'activeChar.energy.core.progress', 0), '0')}%`) },
+                    ...(snapshot.bloodline && snapshot.bloodline.valid ? [{ label: '血脉状态', value: htmlEscape(`${snapshot.bloodline.bloodline} / ${snapshot.bloodline.sealLv}层`) }] : []),
+                    { label: '灵物吸收', value: activeCharKey
+                      ? `${makeInlineEditableValue(String(toNumber(status.consuming_herb_age, 0), 0), {
+                          path: ['char', activeCharKey, 'status', 'consuming_herb_age'],
+                          kind: 'number',
+                          rawValue: toNumber(status.consuming_herb_age, 0),
+                          editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                        })} 年`
+                      : htmlEscape(toNumber(status.consuming_herb_age, 0) > 0 ? `${formatNumber(toNumber(status.consuming_herb_age, 0))} 年` : '当前无吸收') },
+                  ], 'dossier-row-grid--two')}
+                </section>
               </div>
-              <div class="archive-card life-profile-card">
-                <div class="archive-card-head"><div class="archive-card-title">角色名片</div></div>
-                <div class="profile-snapshot life-profile-snapshot">
-                  <div class="identity-card">
-                    <h3>${htmlEscape(snapshot.activeName)}</h3>
-                    <div class="identity-panel">
-                      <div class="identity-panel-title">基础描述</div>
-                      <div class="identity-basic-grid">
-                        <div class="meta-item"><b>年龄 / 性别</b><span>${makeInlineEditableValue(`${toText(stat.age, '0')}岁`, { path: ['char', activeCharKey, 'stat', 'age'], kind: 'number', rawValue: stat.age })} / ${makeInlineEditableValue(toText(stat.gender, '未知'), { path: ['char', activeCharKey, 'stat', 'gender'], kind: 'string', rawValue: stat.gender })}</span></div>
-                        <div class="meta-item"><b>性格</b><span>${makeInlineEditableValue(snapshot.personalityText, { path: ['char', activeCharKey, 'personality'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.personality', snapshot.personalityText) })}</span></div>
-                        <div class="meta-item meta-item-wide"><b>名望</b><span>${htmlEscape(`${toText(social._fame_level, toText(social.fame_level, '籍籍无名'))} / ${formatNumber(social.reputation)}`)}</span></div>
-                      </div>
-                    </div>
-                    <div class="identity-panel identity-appearance-panel">
-                      <div class="identity-panel-title">外貌概览</div>
-                      <div class="identity-appearance-grid">
-                        <div class="meta-item"><b>发色</b><span>${makeInlineEditableValue(snapshot.appearanceMeta.hair, { path: ['char', activeCharKey, 'appearance', '发色'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.appearance.发色', snapshot.appearanceMeta.hair) })}</span></div>
-                        <div class="meta-item"><b>瞳色</b><span>${makeInlineEditableValue(snapshot.appearanceMeta.eyes, { path: ['char', activeCharKey, 'appearance', '瞳色'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.appearance.瞳色', snapshot.appearanceMeta.eyes) })}</span></div>
-                        <div class="meta-item"><b>身高</b><span>${makeInlineEditableValue(snapshot.appearanceMeta.height, { path: ['char', activeCharKey, 'appearance', '身高'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.appearance.身高', snapshot.appearanceMeta.height) })}</span></div>
-                        <div class="meta-item"><b>体型</b><span>${makeInlineEditableValue(snapshot.appearanceMeta.build, { path: ['char', activeCharKey, 'appearance', '体型'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.appearance.体型', snapshot.appearanceMeta.build) })}</span></div>
-                        <div class="meta-item meta-item-wide"><b>特征</b><span>${makeInlineEditableValue(snapshot.appearanceMeta.features, { path: ['char', activeCharKey, 'appearance', '特殊特征'], kind: 'string_list', rawValue: deepGet(snapshot, 'activeChar.appearance.特殊特征', []) })}</span></div>
-                      </div>
-                    </div>
+              <div class="archive-card dossier-card dossier-card--life-profile">
+                <div class="archive-card-head">
+                  <div class="archive-card-title">角色档案</div>
+                  <div class="dossier-head-name">${htmlEscape(snapshot.activeName)}</div>
+                </div>
+                <section class="dossier-section">
+                  <div class="dossier-section-title">基础描述</div>
+                  ${makeDossierRows([
+                    { label: '年龄 / 性别', value: `${makeInlineEditableValue(`${toText(stat.age, '0')}岁`, { path: ['char', activeCharKey, 'stat', 'age'], kind: 'number', rawValue: stat.age, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } })} / ${makeInlineEditableValue(toText(stat.gender, '未知'), { path: ['char', activeCharKey, 'stat', 'gender'], kind: 'string', rawValue: stat.gender })}` },
+                    { label: '性格', value: makeInlineEditableValue(snapshot.personalityText, { path: ['char', activeCharKey, 'personality'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.personality', snapshot.personalityText) }) },
+                  ], 'dossier-row-grid--two')}
+                </section>
+                <section class="dossier-section">
+                  <div class="dossier-section-title">外貌与着装</div>
+                  ${makeDossierRows([
+                    { label: '发色', value: makeInlineEditableValue(snapshot.appearanceMeta.hairColor, { path: ['char', activeCharKey, 'appearance', '发色'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.appearance.发色', snapshot.appearanceMeta.hairColor) }) },
+                    { label: '发型', value: makeInlineEditableValue(snapshot.appearanceMeta.hairStyle, { path: ['char', activeCharKey, 'appearance', '发型'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.appearance.发型', snapshot.appearanceMeta.hairStyle) }) },
+                    { label: '瞳色', value: makeInlineEditableValue(snapshot.appearanceMeta.eyes, { path: ['char', activeCharKey, 'appearance', '瞳色'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.appearance.瞳色', snapshot.appearanceMeta.eyes) }) },
+                    { label: '身高', value: makeInlineEditableValue(snapshot.appearanceMeta.height, { path: ['char', activeCharKey, 'appearance', '身高'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.appearance.身高', snapshot.appearanceMeta.height) }) },
+                    { label: '体型', value: makeInlineEditableValue(snapshot.appearanceMeta.build, { path: ['char', activeCharKey, 'appearance', '体型'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.appearance.体型', snapshot.appearanceMeta.build) }) },
+                    { label: '长相描述', value: makeInlineEditableValue(snapshot.appearanceMeta.looks, { path: ['char', activeCharKey, 'appearance', '长相描述'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.appearance.长相描述', snapshot.appearanceMeta.looks) }), className: 'dossier-row--wide' },
+                    { label: '特征', value: makeInlineEditableValue(snapshot.appearanceMeta.features, { path: ['char', activeCharKey, 'appearance', '特殊特征'], kind: 'string_list', rawValue: deepGet(snapshot, 'activeChar.appearance.特殊特征', []) }), className: 'dossier-row--wide' },
+                    { label: '当前套装', value: makeInlineEditableValue(toText(clothing.outfit, '无'), { path: ['char', activeCharKey, 'clothing', 'outfit'], kind: 'string', rawValue: clothing.outfit }) },
+                    { label: '衣柜套数', value: String(wardrobeEntries.length) },
+                    { label: '上装', value: activeWardrobePath ? makeInlineEditableValue(toText(deepGet(clothing, ['wardrobe', activeWardrobeKey, '上装'], '无'), '无'), { path: [...activeWardrobePath, '上装'], kind: 'string', rawValue: deepGet(clothing, ['wardrobe', activeWardrobeKey, '上装'], '') }) : '无' },
+                    { label: '下装', value: activeWardrobePath ? makeInlineEditableValue(toText(deepGet(clothing, ['wardrobe', activeWardrobeKey, '下装'], '无'), '无'), { path: [...activeWardrobePath, '下装'], kind: 'string', rawValue: deepGet(clothing, ['wardrobe', activeWardrobeKey, '下装'], '') }) : '无' },
+                    { label: '鞋子', value: activeWardrobePath ? makeInlineEditableValue(toText(deepGet(clothing, ['wardrobe', activeWardrobeKey, '鞋子'], '无'), '无'), { path: [...activeWardrobePath, '鞋子'], kind: 'string', rawValue: deepGet(clothing, ['wardrobe', activeWardrobeKey, '鞋子'], '') }) : '无' },
+                    { label: '套装描述', value: activeWardrobePath ? makeInlineEditableValue(toText(deepGet(clothing, ['wardrobe', activeWardrobeKey, '描述'], '暂无描述'), '暂无描述'), { path: [...activeWardrobePath, '描述'], kind: 'string', rawValue: deepGet(clothing, ['wardrobe', activeWardrobeKey, '描述'], '') }) : '暂无描述', className: 'dossier-row--wide' },
+                  ], 'dossier-row-grid--two')}
+                </section>
+                <section class="dossier-section">
+                  <div class="dossier-section-title">衣柜记录</div>
+                  ${wardrobeEntries.length
+                    ? makeDossierList(wardrobeEntries.map(([name, item]) => ({
+                        title: name,
+                        desc: `${toText(item && item['上装'], '无')} / ${toText(item && item['下装'], '无')} / ${toText(item && item['鞋子'], '无')} ｜ ${toText(item && item['描述'], '暂无描述')}`
+                      })), 'dossier-list--compact')
+                    : '<div class="dossier-empty-note">当前角色尚未记录可切换套装。</div>'}
+                </section>
+              </div>
+              <div class="archive-card dossier-card dossier-card--life-record full">
+                <div class="archive-card-head">
+                  <div class="archive-card-title">能力与成长记录</div>
+                  <div class="dossier-tag-row dossier-head-actions">
+                    <button type="button" class="dossier-pill ${fusionArchiveMeta.fusionEntries.length ? 'live' : 'warn'} clickable" data-preview="武魂融合技详细页">武魂融合技</button>
+                    ${createAbilityPreview ? `<button type="button" class="dossier-pill live clickable" data-preview="${escapeHtmlAttr(createAbilityPreview)}">自建特殊能力</button>` : ''}
                   </div>
-                  <div class="status-card">
-                    <h4 style="margin:0 0 6px;font-size:13px;font-family:var(--font-title);color:var(--white);">当前状态</h4>
-                    <div class="status-list">
-                      <div class="status-row"><b>行动状态</b><span>${htmlEscape(toText(status.action, '日常'))}</span></div>
-                      <div class="status-row"><b>伤势</b><span>${htmlEscape(toText(status.wound, '无伤'))}</span></div>
-                      <div class="status-row"><b>当前领域</b><span>${htmlEscape(toText(status.active_domain, '无'))}</span></div>
-                      <div class="status-row"><b>魂核状态</b><span>${htmlEscape(`${toText(deepGet(snapshot, 'activeChar.energy.core.数量', 0), '0')} 枚 / 进度 ${toText(deepGet(snapshot, 'activeChar.energy.core.progress', 0), '0')}%`)}</span></div>
-                      ${snapshot.bloodline && snapshot.bloodline.valid ? `<div class="status-row"><b>血脉状态</b><span>${htmlEscape(`${snapshot.bloodline.bloodline} / ${snapshot.bloodline.sealLv}层`)}</span></div>` : ''}
-                      <div class="status-row"><b>灵物吸收</b><span>${htmlEscape(toNumber(status.consuming_herb_age, 0) > 0 ? `${formatNumber(toNumber(status.consuming_herb_age, 0))} 年` : '当前无吸收') }</span></div>
-                    </div>
-                  </div>
                 </div>
-              </div>
-              <div class="archive-card life-radar-card">
-                <div class="archive-card-head"><div class="archive-card-title">战斗轮廓</div></div>
-                <div class="battle-radar-wrap">
-                  ${(() => {
-                    const lv = toNumber(stat.lv, 1);
-                    const divisor = Math.max(1000, lv * lv * 100); // 动态基准线，确保雷达图撑满但不过爆
-                    const fStr = toNumber(deepGet(snapshot, 'activeChar.stat.final.str', stat.str), 0);
-                    const fDef = toNumber(deepGet(snapshot, 'activeChar.stat.final.def', stat.def), 0);
-                    const fAgi = toNumber(deepGet(snapshot, 'activeChar.stat.final.agi', stat.agi), 0);
-                    const fMen = toNumber(deepGet(snapshot, 'activeChar.stat.final.men_max', stat.men_max), 0);
-                    const fVit = toNumber(deepGet(snapshot, 'activeChar.stat.final.vit_max', stat.vit_max), 0);
-                    return makeRadarSvg(['力量', '防御', '敏捷', '精神', '气血底盘'], [
-                      Math.min(100, Math.round(fStr / divisor * 100)),
-                      Math.min(100, Math.round(fDef / divisor * 100)),
-                      Math.min(100, Math.round(fAgi / divisor * 100)),
-                      Math.min(100, Math.round(fMen / (divisor * 0.5) * 100)),
-                      Math.min(100, Math.round(fVit / divisor * 100))
-                    ], [formatNumber(fStr), formatNumber(fDef), formatNumber(fAgi), formatNumber(fMen), formatNumber(fVit)]);
-                  })()}
+                <div class="dossier-columns dossier-columns--life-record">
+                  <section class="dossier-section">
+                    <div class="dossier-section-title">额外成长加成</div>
+                    ${makeDossierRows(trainedBonusItems, 'dossier-row-grid--three')}
+                  </section>
+                  <section class="dossier-section">
+                    <div class="dossier-section-title">功法与特殊能力</div>
+                    ${makeDossierList([fusionArchiveEntry, ...archiveSkillEntries], 'dossier-list--compact')}
+                  </section>
                 </div>
-              </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">功法与额外特长</div></div>
-                ${makeTimelineStack(snapshot.extraSkills && snapshot.extraSkills.length ? snapshot.extraSkills.map(skill => ({
-                  title: `${skill.category} - ${skill.name}`,
-                  desc: `${skill.level} | ${skill.desc}`,
-                  preview: skill.preview || ''
-                })) : [{ title: '暂无额外能力', desc: '该角色当前未习得特殊功法或掌握额外特长。' }])}
               </div>
             </div>
           `
@@ -6772,132 +8774,92 @@
 
       if (previewKey === '社会档案详细页') {
         const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
-        const activeWardrobeKey = toText(clothing.outfit, '').trim();
-        const activeWardrobePath = activeWardrobeKey && activeWardrobeKey !== '无'
-          ? ['char', activeCharKey, 'clothing', 'wardrobe', activeWardrobeKey]
-          : null;
         return {
           title: '社会档案弹窗',
           summary: '当前角色的公开身份、名望、头衔与社会可见度摘要。',
           body: `
-            <div class="archive-modal-grid">
-              <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">身份名片</div></div>
-                <div class="profile-snapshot">
-                  <div class="identity-card">
-                    <h3>${htmlEscape(snapshot.activeName)}</h3>
-                    <div class="identity-meta-grid">
-                      <div class="meta-item"><b>当前身份</b><span>${makeInlineEditableValue(toText(social.main_identity, '无'), { path: ['char', activeCharKey, 'social', 'main_identity'], kind: 'string', rawValue: social.main_identity })}</span></div>
-                      <div class="meta-item"><b>名望层级</b><span>${htmlEscape(toText(social._fame_level, toText(social.fame_level, '籍籍无名')))}</span></div>
-                      <div class="meta-item"><b>公开情报</b><span>${htmlEscape(snapshot.publicIntel ? '已公开' : '未公开')}</span></div>
-                      <div class="meta-item"><b>主要圈层</b><span>${htmlEscape(snapshot.factions.map(([name]) => name).join(' / ') || '暂无')}</span></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">社会标签</div></div>
-                ${makeTagCloud([
-                  { text: snapshot.activeName, className: 'live' },
-                  { text: toText(social._fame_level, toText(social.fame_level, '籍籍无名')), className: 'warn' },
-                  { text: toText(social.main_identity, '无') },
-                  { text: (social._public_intel ?? social.public_intel) ? '公开情报' : '私密档案' },
-                  { text: `称号 ${snapshot.recentTitles.length}` }
-                ])}
-              </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">特工社会摘要</div><span class="state-tag ${snapshot.publicIntel ? 'live' : 'warn'}">${htmlEscape(snapshot.publicIntel ? '档案已公开' : '私密级')}</span></div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                  <div style="padding-right: 16px; border-right: 1px dashed rgba(255,255,255,0.06);">
-                    ${makeTileGrid([
-                      { label: '主公开身份', value: makeInlineEditableValue(toText(social.main_identity, '无'), { path: ['char', activeCharKey, 'social', 'main_identity'], kind: 'string', rawValue: social.main_identity }) },
-                      { label: '名望等级', value: toText(social._fame_level, toText(social.fame_level, '籍籍无名')) },
-                      { label: '阵营关联', value: snapshot.factions.map(([name]) => name).join(' / ') || '无' },
-                      { label: '当前主称号', value: snapshot.recentTitles[0] || '暂无' }
-                    ], 'two')}
-                  </div>
+            <div class="archive-modal-grid dossier-shell dossier-shell--social">
+              <div class="archive-card dossier-card dossier-card--social-main">
+                <div class="archive-card-head">
                   <div>
-                    <div style="font-size: 11px; color: var(--color-text-secondary); margin-bottom: 6px; font-weight: 500;">个人声望量级 <span style="float: right; color: var(--cyan);">${makeInlineEditableValue(formatNumber(social.reputation), { path: ['char', activeCharKey, 'social', 'reputation'], kind: 'number', rawValue: social.reputation })} / 5,000 阈值</span></div>
-                    <div style="height: 6px; background: rgba(0, 229, 255, 0.1); border-radius: 3px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5); margin-bottom: 12px;">
-                      <div style="height: 100%; background: linear-gradient(90deg, rgba(0,229,255,0.6), rgba(0,229,255,1)); width: ${ratioPercent(social.reputation, 5000)}%; border-radius: 3px; box-shadow: 0 0 8px rgba(0,229,255,0.8); transition: width 0.3s ease;"></div>
-                    </div>
-                    ${makeTileGrid([
-                      { label: '头衔总数', value: String(snapshot.titleEntries.length) },
-                      { label: '主阵营身份', value: snapshot.primaryFaction ? `${snapshot.primaryFaction[0]} / ${toText(deepGet(snapshot.primaryFaction[1], '身份', '无'), '无')}` : '无' }
-                    ], 'two')}
+                    <div class="archive-card-title">身份卷宗</div>
+                    <div class="dossier-head-name">${htmlEscape(snapshot.activeName)}</div>
                   </div>
+                  ${makeDossierTags([
+                    { text: toText(social._fame_level, toText(social.fame_level, '籍籍无名')), className: 'warn' },
+                    { text: (social._public_intel ?? social.public_intel) ? '公开情报' : '私密档案' },
+                    { text: `称号 ${snapshot.recentTitles.length}` },
+                  ])}
                 </div>
+                <section class="dossier-section">
+                  <div class="dossier-section-title">公开身份</div>
+                  ${makeDossierRows([
+                    { label: '当前身份', value: makeInlineEditableValue(toText(social.main_identity, '无'), { path: ['char', activeCharKey, 'social', 'main_identity'], kind: 'string', rawValue: social.main_identity }) },
+                    { label: '名望层级', value: htmlEscape(toText(social._fame_level, toText(social.fame_level, '籍籍无名'))) },
+                    { label: '公开情报', value: htmlEscape(snapshot.publicIntel ? '已公开' : '未公开') },
+                    { label: '主要圈层', value: htmlEscape(snapshot.factions.map(([name]) => name).join(' / ') || '暂无') },
+                    { label: '当前主称号', value: htmlEscape(snapshot.recentTitles[0] || '暂无') },
+                    { label: '主阵营身份', value: htmlEscape(snapshot.primaryFaction ? `${snapshot.primaryFaction[0]} / ${toText(deepGet(snapshot.primaryFaction[1], '身份', '无'), '无')}` : '无') },
+                  ], 'dossier-row-grid--two')}
+                </section>
+                <section class="dossier-section">
+                  <div class="dossier-section-title">社会标签</div>
+                  ${makeDossierTags([
+                    { text: snapshot.activeName, className: 'live' },
+                    { text: toText(social.main_identity, '无') },
+                    { text: snapshot.factions.map(([name]) => name).join(' / ') || '无圈层' },
+                    { text: snapshot.recentTitles[0] || '暂无主称号' },
+                  ], 'dossier-tag-row--wrap')}
+                </section>
               </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">当前着装</div></div>
-                ${makeTileGrid([
-                  { label: '当前套装', value: makeInlineEditableValue(toText(clothing.outfit, '无'), { path: ['char', activeCharKey, 'clothing', 'outfit'], kind: 'string', rawValue: clothing.outfit }) },
-                  { label: '衣柜套数', value: String(wardrobeEntries.length) },
-                  { label: '上装', value: activeWardrobePath ? makeInlineEditableValue(toText(deepGet(clothing, ['wardrobe', activeWardrobeKey, '上装'], '无'), '无'), { path: [...activeWardrobePath, '上装'], kind: 'string', rawValue: deepGet(clothing, ['wardrobe', activeWardrobeKey, '上装'], '') }) : '无' },
-                  { label: '下装', value: activeWardrobePath ? makeInlineEditableValue(toText(deepGet(clothing, ['wardrobe', activeWardrobeKey, '下装'], '无'), '无'), { path: [...activeWardrobePath, '下装'], kind: 'string', rawValue: deepGet(clothing, ['wardrobe', activeWardrobeKey, '下装'], '') }) : '无' },
-                  { label: '鞋子', value: activeWardrobePath ? makeInlineEditableValue(toText(deepGet(clothing, ['wardrobe', activeWardrobeKey, '鞋子'], '无'), '无'), { path: [...activeWardrobePath, '鞋子'], kind: 'string', rawValue: deepGet(clothing, ['wardrobe', activeWardrobeKey, '鞋子'], '') }) : '无' },
-                  { label: '套装描述', value: activeWardrobePath ? makeInlineEditableValue(toText(deepGet(clothing, ['wardrobe', activeWardrobeKey, '描述'], '暂无描述'), '暂无描述'), { path: [...activeWardrobePath, '描述'], kind: 'string', rawValue: deepGet(clothing, ['wardrobe', activeWardrobeKey, '描述'], '') }) : '暂无描述' }
-                ], 'two')}
-                ${!wardrobeEntries.length ? '<div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed rgba(255,255,255,0.1); color: var(--color-text-secondary); font-size: 13px; text-align: center;">当前角色尚未记录可切换套装。</div>' : ''}
-              </div>
-              ${wardrobeEntries.length ? `
-                <div class="archive-card full">
-                  <div class="archive-card-head"><div class="archive-card-title">衣柜收纳</div></div>
-                  ${makeTimelineStack(wardrobeEntries.map(([name, item]) => ({ title: name, desc: `${toText(item && item['上装'], '无')} / ${toText(item && item['下装'], '无')} / ${toText(item && item['鞋子'], '无')} ｜ ${toText(item && item['描述'], '暂无描述')}` })))}
+              <div class="archive-card dossier-card dossier-card--social-side">
+                <div class="archive-card-head">
+                  <div class="archive-card-title">名望摘要</div>
+                  <span class="dossier-pill ${snapshot.publicIntel ? 'live' : 'warn'}">${htmlEscape(snapshot.publicIntel ? '档案已公开' : '私密级')}</span>
                 </div>
-              ` : ''}
+                <section class="dossier-section">
+                  <div class="dossier-section-title">个人声望量级</div>
+                  ${makeDossierMeter(
+                    '当前声望',
+                    makeInlineEditableValue(`${formatNumber(social.reputation)} / 5,000 阈值`, {
+                      path: ['char', activeCharKey, 'social', 'reputation'],
+                      kind: 'number',
+                      rawValue: social.reputation,
+                      editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数 · 5,000 为当前量级阈值参考，不是硬上限' }
+                    }),
+                    ratioPercent(social.reputation, 5000),
+                    'dossier-meter--accent'
+                  )}
+                </section>
+                <section class="dossier-section">
+                  <div class="dossier-section-title">社会位置</div>
+                  ${makeDossierRows([
+                    { label: '头衔总数', value: String(snapshot.titleEntries.length) },
+                    { label: '主阵营身份', value: htmlEscape(snapshot.primaryFaction ? `${snapshot.primaryFaction[0]} / ${toText(deepGet(snapshot.primaryFaction[1], '身份', '无'), '无')}` : '无') },
+                    { label: '档案状态', value: htmlEscape(snapshot.publicIntel ? '公开可见' : '仅内部可见') },
+                    { label: '当前摘要', value: htmlEscape(toText(social.main_identity, '无')) },
+                  ], 'dossier-row-grid--single')}
+                </section>
+                <div class="dossier-note">这一页只保留公开身份与社会可见度信息，着装信息已归回角色档案。</div>
+              </div>
             </div>
           `
         };
       }
 
       if (previewKey === '所属势力详细页') {
-        const currentFactionName = snapshot.factions[0] ? snapshot.factions[0][0] : '';
-        return {
-          title: '阵营身份弹窗',
-          summary: '当前角色已加入势力、阵营位置摘要与阵营事务操作台。',
-          body: `
-            <div class="archive-modal-grid">
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; grid-column: 1 / -1;">
-                <div class="archive-card">
-                  <div class="archive-card-head"><div class="archive-card-title">所属势力架构</div></div>
-                  <div class="relation-side-list">
-                    ${(snapshot.factions.length ? snapshot.factions : [['未加入势力', { 身份: '无', 权限级: 0 }]]).map(([name, info], idx) => `<div class="faction-row ${idx === 0 ? 'highlight' : ''}"><b>${htmlEscape(name)}</b><span>${htmlEscape(`身份：${toText(info && info['身份'], '无')} / 权限级：${toText(info && info['权限级'], '0')}`)}</span></div>`).join('')}
-                  </div>
-                </div>
-                <div class="archive-card">
-                  <div class="archive-card-head"><div class="archive-card-title">当前阵营位置</div></div>
-                  ${makeTileGrid([
-                    { label: '当前所属', value: snapshot.factions[0] ? snapshot.factions[0][0] : '无' },
-                    { label: '身份', value: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '未加入' },
-                    { label: '权限级', value: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '权限级', 0), '0') : '0' },
-                    { label: '主要绑定', value: snapshot.factions.map(([name]) => name).join(' / ') || '暂无'
-                  }], 'two')}
-                </div>
-              </div>
-                <div class="archive-card">
-                  <div class="archive-card-head"><div class="archive-card-title">阵营现实摘要</div></div>
-                  ${makeTagCloud([
-                    { text: snapshot.factions[0] ? snapshot.factions[0][0] : '未加入势力', className: 'warn' },
-                    { text: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '无身份' },
-                    { text: snapshot.orgEntries[0] ? snapshot.orgEntries[0][0] : '暂无主势力' },
-                    { text: snapshot.currentLoc || '位置未知' }
-                  ])}
-                </div>
-              ${buildFactionAffairConsoleHtml(snapshot, currentFactionName)}
-            </div>
-          `
-        };
+        return buildFactionDossierModal(snapshot, previewKey);
       }
 
 
       if (previewKey === '人物关系详细页') {
+        const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
         const relationPositions = [
-          { left: 20, top: 25, className: '' },
+          { left: 20, top: 25, className: 'hover-right' },
           { left: 50, top: 18, className: 'gold' },
-          { left: 82, top: 25, className: '' },
-          { left: 25, top: 75, className: 'warn hover-up' },
-          { left: 75, top: 75, className: 'hover-up' }
+          { left: 82, top: 25, className: 'hover-left' },
+          { left: 25, top: 75, className: 'warn hover-up hover-right' },
+          { left: 75, top: 75, className: 'hover-up hover-left' }
         ];
         const currentLocFull = toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc || '未知地点'), snapshot.currentLoc || '未知地点');
         const relationNodes = snapshot.relations.slice(0, 5);
@@ -6950,6 +8912,7 @@
 
         const relationDetailEntry = relationDetailName ? snapshot.relations.find(([entryName]) => entryName === relationDetailName) : null;
         const relationDetail = relationDetailEntry && relationDetailEntry[1];
+        const relationDetailPath = relationDetailName && activeCharKey ? ['char', activeCharKey, 'social', 'relations', relationDetailName] : [];
         const resolvedTarget = relationDetailName ? resolveSnapshotCharacter(snapshot, relationDetailName) : { key: '', displayName: '', char: null };
         const relationTargetChar = resolvedTarget.char || null;
         const relationTargetLoc = toText(deepGet(relationTargetChar, 'status.loc', ''), '');
@@ -6983,111 +8946,37 @@
               const route = toText(rel && rel['relation_route'], '朋友线');
               const availability = sameLocation ? '在场可接触' : (alive ? '远端存活' : '不可接触');
               const availabilityClass = sameLocation ? 'live' : (alive ? 'warn' : '');
+              const progressNote = toText(rel && rel['_progress_note'], toText(rel && rel['progress_note'], '暂无推进提示'));
               return `
-                <button type="button" class="role-switch-tile ${name === relationDetailName ? 'active' : ''}" data-relation-focus="${escapeHtmlAttr(name)}" style="text-align:left;">
-                  <div class="role-switch-head" style="margin-bottom:6px;font-size:15px;"><b>${htmlEscape(name)}</b><span class="state-tag ${availabilityClass}">${htmlEscape(availability)}</span></div>
-                  <div style="display:grid;gap:4px;">
-                    <span>${htmlEscape(`${stage} / ${route} / 好感 ${favor}`)}</span>
-                    <span>${htmlEscape(`身份：${toText(rel && rel['npc_job'], '未知身份')}`)}</span>
-                    <span>${htmlEscape(toText(rel && rel['_progress_note'], toText(rel && rel['progress_note'], '暂无推进提示')))}</span>
-                  </div>
+                <button type="button" class="dossier-list-row dossier-list-row--button relation-directory-item ${name === relationDetailName ? 'active' : ''}" data-relation-focus="${escapeHtmlAttr(name)}">
+                  <b>${htmlEscape(name)}</b>
+                  <span>
+                    <strong>${htmlEscape(toText(rel && rel['npc_job'], '未知身份'))}</strong>
+                    <em>${htmlEscape(`${stage} / ${route} / 好感 ${favor}`)}</em>
+                    <small class="${availabilityClass}">${htmlEscape(`${availability} ｜ ${progressNote}`)}</small>
+                  </span>
                 </button>
               `;
             }).join('')
-          : '<div class="intel-card"><b>暂无关系对象</b><span>关系网络尚未展开。</span></div>';
+          : '<div class="dossier-empty-note">关系网络尚未展开。</div>';
 
         const relationFocusHtml = (relationFocusTargets.length
-          ? relationFocusTargets.slice(0, 2).map(item => {
+          ? makeDossierList(relationFocusTargets.slice(0, 2).map(item => {
               const targetName = toText(item && item.target, '未知对象');
               const detailEntry = snapshot.relations.find(([entryName]) => entryName === targetName);
               const detail = detailEntry && detailEntry[1];
-              return `
-                <div class="intel-card">
-                  <b>${htmlEscape(`${targetName} / ${toText(item && item.relation, '陌生')}`)}</b>
-                  <span>${htmlEscape(`${toText(item && item.reason, '暂无推进建议')} ｜ 建议：${toText(item && item.recommended_action, '继续观察')}`)}</span>
-                  <span>${htmlEscape(`下一阶段：${toText(detail && detail['_next_stage'], toText(detail && detail['next_stage'], '无'))} / ${toNumber(detail && detail['_next_stage_threshold'], toNumber(detail && detail['next_stage_threshold'], 0))}`)}</span>
-                  <span>${htmlEscape(`最近互动：${toText(detail && detail['last_interact_action'], '无')} / ${toNumber(detail && detail['recent_favor_delta'], 0)}`)}</span>
-                </div>
-              `;
-            }).join('')
-          : snapshot.relations.slice(0, 2).map(([name, rel]) => `
-              <div class="intel-card">
-                <b>${htmlEscape(`${name} / ${toText(rel && rel['关系'], '陌生')}`)}</b>
-                <span>${htmlEscape(`路线：${toText(rel && rel['relation_route'], '朋友线')} / 好感：${toText(rel && rel['好感度'], 0)}`)}</span>
-                <span>${htmlEscape(`下一阶段：${toText(rel && rel['_next_stage'], toText(rel && rel['next_stage'], '无'))} / ${toNumber(rel && rel['_next_stage_threshold'], toNumber(rel && rel['next_stage_threshold'], 0))}`)}</span>
-                <span>${htmlEscape(`最近互动：${toText(rel && rel['last_interact_action'], '无')} / ${toNumber(rel && rel['recent_favor_delta'], 0)}`)}</span>
-              </div>
-            `).join('')) || '<div class="intel-card"><b>暂无关系线</b><span>关系线索仍在铺陈。</span></div>';
+              return {
+                title: `${targetName} / ${toText(item && item.relation, '陌生')}`,
+                desc: `${toText(item && item.reason, '暂无推进建议')} ｜ 建议：${toText(item && item.recommended_action, '继续观察')} ｜ 下一阶段：${toText(detail && detail['_next_stage'], toText(detail && detail['next_stage'], '无'))} / ${toNumber(detail && detail['_next_stage_threshold'], toNumber(detail && detail['next_stage_threshold'], 0))}`,
+              };
+            }), 'dossier-list--compact')
+          : makeDossierList(snapshot.relations.slice(0, 2).map(([name, rel]) => ({
+              title: `${name} / ${toText(rel && rel['关系'], '陌生')}`,
+              desc: `路线：${toText(rel && rel['relation_route'], '朋友线')} / 好感：${toText(rel && rel['好感度'], 0)} ｜ 下一阶段：${toText(rel && rel['_next_stage'], toText(rel && rel['next_stage'], '无'))} / ${toNumber(rel && rel['_next_stage_threshold'], toNumber(rel && rel['next_stage_threshold'], 0))}`,
+            })), 'dossier-list--compact')) || '<div class="dossier-empty-note">关系线索仍在铺陈。</div>';
 
-        const relationDetailHtml = relationDetail
-          ? [
-              { title: '焦点对象', value: relationDetailName },
-              { title: '推进提示', value: toText(relationDetail && relationDetail['_progress_note'], toText(relationDetail && relationDetail['progress_note'], '暂无')) },
-              { title: '下一阶段', value: `${toText(relationDetail && relationDetail['_next_stage'], toText(relationDetail && relationDetail['next_stage'], '无'))} / ${toNumber(relationDetail && relationDetail['_next_stage_threshold'], toNumber(relationDetail && relationDetail['next_stage_threshold'], 0))}` },
-              { title: '最近互动', value: `${toText(relationDetail && relationDetail['last_interact_action'], '无')} / ${toNumber(relationDetail && relationDetail['recent_favor_delta'], 0)}` },
-              { title: '当前加成', value: toText(relationDetail && relationDetail['_current_relation_bonus'], toText(relationDetail && relationDetail['current_relation_bonus'], '无')) },
-              { title: '下一解锁', value: toText(relationDetail && relationDetail['_next_unlock_bonus'], toText(relationDetail && relationDetail['next_unlock_bonus'], '无')) },
-              { title: '位置状态', value: `${relationTargetLocLabel} / ${isSameLocation ? '同地可接触' : (isContactable ? '远端存活' : '当前不可接触')}` }
-            ].map(item => `<div class="intel-card"><b>${htmlEscape(item.title)}</b><span>${htmlEscape(item.value)}</span></div>`).join('')
-          : '<div class="intel-card"><b>关系细节</b><span>当前暂无可展开的关系焦点。</span></div>';
-
-        const relationActionHints = [
-          relationDetailName ? `当前目标：${relationDetailName}` : '请先从对象列表中选定互动目标。',
-          relationDetailName ? `位置：${relationTargetLocLabel}` : '',
-          !isContactable && relationDetailName ? '目标当前不可接触。' : '',
-          relationDetailName && isContactable && !isSameLocation ? '目标当前不在你身边，当面互动暂不可发起。' : '',
-          relationDetailName && isSameLocation && relationFavor < 30 ? '请教动作需要好感度达到 30。' : '',
-          relationDetailName && isSameLocation && !canConfess ? '表白动作需达到高好感阶段或可切入恋人线。' : '',
-          relationDetailName && isSameLocation && !canDual ? '双修仅在高好感恋人线开放。' : '',
-          relationDetailName && giftableItems.length === 0 ? '背包中暂无可送物品。' : ''
-        ].filter(Boolean);
-
-        const relationActionPanelHtml = relationDetail
-          ? (isPlayerControlled
-            ? `
-                <div class="intel-card relation-action-panel">
-                  <b>${htmlEscape(`${relationDetailName} / ${toText(relationDetail && relationDetail['关系'], '陌生')}`)}</b>
-                  <span>${htmlEscape(`路线：${relationRoute} / 好感：${relationFavor} / 位置：${relationTargetLocLabel}`)}</span>
-                  <span>${htmlEscape(`推进建议：${toText(relationDetail && relationDetail['_progress_note'], toText(relationDetail && relationDetail['progress_note'], '暂无'))}`)}</span>
-                  <div class="relation-action-status">
-                    <span class="state-tag ${isSameLocation ? 'live' : 'warn'}">${htmlEscape(isSameLocation ? '同地' : '未在身边')}</span>
-                    <span class="state-tag ${isContactable ? 'live' : 'warn'}">${htmlEscape(isContactable ? '可接触' : '不可接触')}</span>
-                    <span class="state-tag">${htmlEscape(routeSwitchable ? '可切恋人线' : relationRoute)}</span>
-                  </div>
-                  <div class="relation-action-toolbar">
-                    <button type="button" class="relation-action-btn" data-relation-action="talk" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canTalk ? 'disabled' : ''}>闲聊</button>
-                    <button type="button" class="relation-action-btn" data-relation-action="ask" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canAsk ? 'disabled' : ''}>请教</button>
-                    <button type="button" class="relation-action-btn" data-relation-action="battle" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canBattle ? 'disabled' : ''}>切磋</button>
-                    <button type="button" class="relation-action-btn" data-relation-action="confess" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canConfess ? 'disabled' : ''}>表白</button>
-                    <button type="button" class="relation-action-btn" data-relation-action="dual" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canDual ? 'disabled' : ''}>双修</button>
-                  </div>
-                  <div class="relation-gift-row">
-                    <select class="relation-gift-select" ${!canGift ? 'disabled' : ''}>
-                      ${giftOptionsHtml}
-                    </select>
-                    <button type="button" class="relation-action-btn" data-relation-action="gift" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canGift ? 'disabled' : ''}>送礼</button>
-                  </div>
-                  ${relationActionHints.map(text => `<span>${htmlEscape(text)}</span>`).join('')}
-                </div>
-              `
-            : `
-                <div class="intel-card relation-action-panel">
-                  <b>${htmlEscape(`${relationDetailName} / ${toText(relationDetail && relationDetail['关系'], '陌生')}`)}</b>
-                  <span>${htmlEscape(`路线：${relationRoute} / 好感：${relationFavor} / 位置：${relationTargetLocLabel}`)}</span>
-                  <span>${htmlEscape(`推进建议：${toText(relationDetail && relationDetail['_progress_note'], toText(relationDetail && relationDetail['progress_note'], '暂无'))}`)}</span>
-                  <span>${htmlEscape(`最近互动：${toText(relationDetail && relationDetail['last_interact_action'], '无')} / Tick ${toNumber(relationDetail && relationDetail['last_interact_tick'], 0)} / 变化 ${toNumber(relationDetail && relationDetail['recent_favor_delta'], 0)}`)}</span>
-                  <span>${htmlEscape(`当前加成：${toText(relationDetail && relationDetail['_current_relation_bonus'], toText(relationDetail && relationDetail['current_relation_bonus'], '无'))} / 下一解锁：${toText(relationDetail && relationDetail['_next_unlock_bonus'], toText(relationDetail && relationDetail['next_unlock_bonus'], '无'))}`)}</span>
-                  <span>${htmlEscape('当前为旁观视角，此处可查看关系近况；若想闲聊、请教或送礼，请切回自己的行动视角。')}</span>
-                  ${relationActionHints.map(text => `<span>${htmlEscape(text)}</span>`).join('')}
-                </div>
-              `)
-          : `<div class="intel-card relation-action-panel"><b>${htmlEscape(isPlayerControlled ? '关系互动台' : '关系近况')}</b><span>${htmlEscape(isPlayerControlled ? '请先从对象列表中选定互动目标。' : '当前为旁观视角，可先查看这段关系的近况。')}</span></div>`;
-
-        const riskTargets = Array.isArray(deepGet(snapshot, 'relationAnalysis.risk_targets', [])) ? deepGet(snapshot, 'relationAnalysis.risk_targets', []) : [];
-        const blockedTargets = Array.isArray(deepGet(snapshot, 'relationAnalysis.blocked_targets', [])) ? deepGet(snapshot, 'relationAnalysis.blocked_targets', []) : [];
         const sameLocationTargets = Array.isArray(deepGet(snapshot, 'relationAnalysis.same_location_targets', [])) ? deepGet(snapshot, 'relationAnalysis.same_location_targets', []) : [];
         const trustTargets = Array.isArray(deepGet(snapshot, 'relationAnalysis.trust_targets', [])) ? deepGet(snapshot, 'relationAnalysis.trust_targets', []) : [];
-        const romanceCandidates = Array.isArray(deepGet(snapshot, 'relationAnalysis.romance_candidates', [])) ? deepGet(snapshot, 'relationAnalysis.romance_candidates', []) : [];
         const recommendedActions = Array.isArray(deepGet(snapshot, 'relationAnalysis.recommended_actions', [])) ? deepGet(snapshot, 'relationAnalysis.recommended_actions', []) : [];
         const relationSummaryText = relationFocusTargets.length
           ? `当前重点关系对象：${relationFocusTargets.slice(0, 2).map(item => `${toText(item && item.target, '无')}(${toText(item && item.relation, '陌生')}/${toNumber(item && item.favor, 0)})`).join('、')}`
@@ -7095,65 +8984,166 @@
             ? `当前可立即接触：${sameLocationTargets.slice(0, 3).join('、')}`
             : recommendedActions.length
               ? `当前建议：${recommendedActions.slice(0, 2).join('；')}`
-              : (trustTargets.length ? `高信任对象：${trustTargets.slice(0, 3).join('、')}` : (riskTargets.length ? `高风险对象：${riskTargets.slice(0, 3).join('、')}` : '当前雷达未扫描到足够的社会链接数据，暂无总体分析倾向。'));
+              : (trustTargets.length ? `高信任对象：${trustTargets.slice(0, 3).join('、')}` : '当前雷达未扫描到足够的社会链接数据，暂无总体分析倾向。');
+        const relationOverviewRowsHtml = makeDossierRows([
+          { label: '焦点对象', value: htmlEscape(toText(deepGet(snapshot, 'relationAnalysis.focus_target', relationDetailName || '无'), relationDetailName || '无')) },
+          { label: '系统建议', value: htmlEscape(recommendedActions.slice(0, 3).join(' / ') || '无') },
+          { label: '在场目标', value: htmlEscape(sameLocationTargets.slice(0, 4).join(' / ') || '无') },
+        ], 'dossier-row-grid--two');
+        const relationTargetSummaryHtml = relationDetail
+          ? makeDossierRows([
+              { label: '目标对象', value: htmlEscape(relationDetailName) },
+              { label: '关系', value: relationDetailPath.length
+                ? makeInlineEditableValue(toText(relationDetail && relationDetail['关系'], '陌生'), {
+                    path: [...relationDetailPath, '关系'],
+                    kind: 'string',
+                    rawValue: toText(relationDetail && relationDetail['关系'], '陌生'),
+                  })
+                : htmlEscape(toText(relationDetail && relationDetail['关系'], '陌生')) },
+              { label: '路线', value: relationDetailPath.length
+                ? makeInlineEditableValue(relationRoute, {
+                    path: [...relationDetailPath, 'relation_route'],
+                    kind: 'enum_select',
+                    rawValue: relationRoute,
+                    editorMeta: { options: ['朋友线', '恋人线'] },
+                  })
+                : htmlEscape(relationRoute) },
+              { label: '好感度', value: relationDetailPath.length
+                ? makeInlineEditableValue(String(relationFavor), {
+                    path: [...relationDetailPath, '好感度'],
+                    kind: 'number',
+                    rawValue: relationFavor,
+                    editorMeta: { integer: true, hint: '整数 · 可正可负 · 不设硬上下限' },
+                  })
+                : htmlEscape(String(relationFavor)) },
+              { label: '对方身份', value: relationDetailPath.length
+                ? makeInlineEditableValue(toText(relationDetail && relationDetail['npc_job'], '无'), {
+                    path: [...relationDetailPath, 'npc_job'],
+                    kind: 'string',
+                    rawValue: toText(relationDetail && relationDetail['npc_job'], '无'),
+                  })
+                : htmlEscape(toText(relationDetail && relationDetail['npc_job'], '无')) },
+              { label: '位置状态', value: htmlEscape(`${relationTargetLocLabel} / ${isSameLocation ? '同地可接触' : (isContactable ? '远端可联系' : '当前不可接触')}`) },
+              { label: '推进提示', value: htmlEscape(toText(relationDetail && relationDetail['_progress_note'], toText(relationDetail && relationDetail['progress_note'], '暂无'))) },
+              { label: '关系状态', value: htmlEscape(`${toText(relationDetail && relationDetail['_availability'], '未知')} / ${toText(relationDetail && relationDetail['_route_lock_reason'], '无')}`) },
+            ], 'dossier-row-grid--two')
+          : '<div class="dossier-empty-note">先从对象列表里选择一个目标。</div>';
+        const relationRecordRowsHtml = relationDetail
+          ? makeDossierRows([
+              { label: '关系加成', value: relationDetailPath.length
+                ? makeInlineEditableValue(toText(relationDetail && relationDetail['favor_buff'], '无'), {
+                    path: [...relationDetailPath, 'favor_buff'],
+                    kind: 'string',
+                    rawValue: toText(relationDetail && relationDetail['favor_buff'], '无'),
+                  })
+                : htmlEscape(toText(relationDetail && relationDetail['favor_buff'], '无')) },
+              { label: '当前加成', value: htmlEscape(toText(relationDetail && relationDetail['_current_relation_bonus'], '无')) },
+              { label: '下一解锁', value: htmlEscape(toText(relationDetail && relationDetail['_next_unlock_bonus'], '无')) },
+              { label: '下一阶段', value: htmlEscape(`${toText(relationDetail && relationDetail['_next_stage'], '无')} / ${toNumber(relationDetail && relationDetail['_next_stage_threshold'], 0)}`) },
+              { label: '最近互动', value: relationDetailPath.length
+                ? makeInlineEditableValue(toText(relationDetail && relationDetail['last_interact_action'], '无'), {
+                    path: [...relationDetailPath, 'last_interact_action'],
+                    kind: 'string',
+                    rawValue: toText(relationDetail && relationDetail['last_interact_action'], '无'),
+                  })
+                : htmlEscape(toText(relationDetail && relationDetail['last_interact_action'], '无')) },
+              { label: '最近变动', value: relationDetailPath.length
+                ? makeInlineEditableValue(String(toNumber(relationDetail && relationDetail['recent_favor_delta'], 0)), {
+                    path: [...relationDetailPath, 'recent_favor_delta'],
+                    kind: 'number',
+                    rawValue: toNumber(relationDetail && relationDetail['recent_favor_delta'], 0),
+                    editorMeta: { integer: true, hint: '整数 · 可正可负 · 不设硬上下限' },
+                  })
+                : htmlEscape(String(toNumber(relationDetail && relationDetail['recent_favor_delta'], 0))) },
+              { label: '上次互动Tick', value: relationDetailPath.length
+                ? makeInlineEditableValue(String(toNumber(relationDetail && relationDetail['last_interact_tick'], 0)), {
+                    path: [...relationDetailPath, 'last_interact_tick'],
+                    kind: 'number',
+                    rawValue: toNumber(relationDetail && relationDetail['last_interact_tick'], 0),
+                    editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                  })
+                : htmlEscape(String(toNumber(relationDetail && relationDetail['last_interact_tick'], 0))) },
+              { label: '推进路线', value: htmlEscape(routeSwitchable ? '可切恋人线' : relationRoute) },
+            ], 'dossier-row-grid--two')
+          : '';
+        const relationActionSummaryHtml = relationDetail
+          ? (isPlayerControlled
+            ? `
+                ${makeDossierTags([
+                  { text: isSameLocation ? '同地' : '未在身边', className: isSameLocation ? 'live' : 'warn' },
+                  { text: isContactable ? '可接触' : '不可接触', className: isContactable ? 'live' : 'warn' },
+                  { text: routeSwitchable ? '可切恋人线' : relationRoute },
+                ], 'dossier-tag-row--wrap')}
+                <div class="dossier-action-toolbar">
+                  <button type="button" class="relation-action-btn action-primary" data-relation-action="talk" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canTalk ? 'disabled' : ''}>闲聊</button>
+                  <button type="button" class="relation-action-btn action-primary" data-relation-action="ask" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canAsk ? 'disabled' : ''}>请教</button>
+                  <button type="button" class="relation-action-btn action-warn" data-relation-action="battle" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canBattle ? 'disabled' : ''}>切磋</button>
+                  <button type="button" class="relation-action-btn action-accent" data-relation-action="confess" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canConfess ? 'disabled' : ''}>表白</button>
+                  <button type="button" class="relation-action-btn action-accent" data-relation-action="dual" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canDual ? 'disabled' : ''}>双修</button>
+                </div>
+                <div class="relation-gift-row dossier-form-row">
+                  <select class="relation-gift-select" ${!canGift ? 'disabled' : ''}>
+                    ${giftOptionsHtml}
+                  </select>
+                  <button type="button" class="relation-action-btn action-primary" data-relation-action="gift" data-relation-target="${escapeHtmlAttr(relationDetailName)}" ${!canGift ? 'disabled' : ''}>送礼</button>
+                </div>
+              `
+            : `
+                ${makeDossierTags([
+                  { text: relationRoute },
+                  { text: isSameLocation ? '同地可见' : '远端观察', className: isSameLocation ? 'live' : 'warn' },
+                ], 'dossier-tag-row--wrap')}
+                <div class="dossier-note">当前为旁观视角，暂不发起互动。可继续观察这段关系的推进记录。</div>
+              `)
+          : '<div class="dossier-empty-note">当前没有可操作的关系目标。</div>';
 
         return {
           title: '人物关系弹窗',
           summary: '全局社会链路扫描、当前重点对象监控与智能关系行动推荐。',
           body: `
-            <div class="archive-modal-grid">
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">社会节点扫描雷达</div><span class="state-tag live">实时拓扑</span></div>
-                <div class="topology-board" style="min-height: 280px; background: radial-gradient(circle at center, rgba(0, 229, 255, 0.08) 0%, transparent 70%); border-bottom: 1px solid rgba(255,255,255,0.05);">
-                  <svg class="topology-svg" viewBox="0 0 100 100" preserveAspectRatio="none">${relationLinks}</svg>
-                  <div class="topology-node center" style="left:50%;top:50%"><b>${htmlEscape(snapshot.activeName)}</b><span>自我</span></div>
-                  ${relationHtml || '<div class="topology-node" style="left:50%;top:18%"><b>暂无关系对象</b><span>关系网络尚未展开</span></div>'}
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding-top: 16px;">
-                  <div style="border-right: 1px dashed rgba(255,255,255,0.1); padding-right: 16px;">
-                    <div style="font-size: 12px; color: var(--cyan); margin-bottom: 8px; font-weight: bold; letter-spacing: 1px;">关系态势摘要</div>
-                    <div style="font-size: 13px; line-height: 1.5; color: var(--color-text-primary); margin-bottom: 12px;">${htmlEscape(toText(relationSummaryText, '当前雷达未扫描到足够的社会链接数据，暂无总体分析倾向。'))}</div>
-                    ${makeTileGrid([
-                      { label: '焦点对象', value: toText(deepGet(snapshot, 'relationAnalysis.focus_target', '无'), '无') },
-                      { label: '系统建议', value: recommendedActions.slice(0, 3).join(' / ') || '无' }
-                    ], 'two')}
+            <div class="archive-modal-grid dossier-shell dossier-shell--relation">
+              <div class="archive-card dossier-card dossier-card--relation-overview full">
+                <div class="archive-card-head"><div class="archive-card-title">关系概览</div><span class="dossier-pill live">实时拓扑</span></div>
+                <div class="dossier-columns dossier-columns--relation-overview">
+                  <div class="topology-board relation-topology-board dossier-topology-board">
+                    <svg class="topology-svg" viewBox="0 0 100 100" preserveAspectRatio="none">${relationLinks}</svg>
+                    <div class="topology-node center" style="left:50%;top:50%"><b>${htmlEscape(snapshot.activeName)}</b><span>自我</span></div>
+                    ${relationHtml || '<div class="topology-node" style="left:50%;top:18%"><b>暂无关系对象</b><span>关系网络尚未展开</span></div>'}
                   </div>
-                  <div>
-                    <div style="font-size: 12px; color: var(--cyan); margin-bottom: 8px; font-weight: bold; letter-spacing: 1px;">分类目标追踪</div>
-                    ${makeTileGrid([
-                      { label: '在场交互目标', value: sameLocationTargets.slice(0, 4).join(' / ') || '无在场目标' },
-                      { label: '高优先级 (恋爱/信任)', value: [...romanceCandidates.slice(0,2), ...trustTargets.slice(0,2)].join(' / ') || '暂无高优先级' },
-                      { label: '阻碍风险 (受阻/敌对)', value: [...blockedTargets.slice(0,2).map(item => `${toText(item.target, '未知')}(受阻)`), ...riskTargets.slice(0,2)].join(' / ') || '无风险' }
-                    ], 'two')}
+                  <div class="dossier-section-stack">
+                    <section class="dossier-section">
+                      <div class="dossier-section-title">关系态势</div>
+                      <div class="dossier-note dossier-note--dense">${htmlEscape(toText(relationSummaryText, '当前雷达未扫描到足够的社会链接数据，暂无总体分析倾向。'))}</div>
+                      ${relationOverviewRowsHtml}
+                    </section>
+                    <section class="dossier-section">
+                      <div class="dossier-section-title">推进线索</div>
+                      ${relationFocusHtml}
+                    </section>
                   </div>
                 </div>
               </div>
-              <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">互动对象列表</div><span class="state-tag ${relationDirectoryPage.total ? 'live' : 'warn'}">${relationDirectoryPage.total ? `已收录 ${relationDirectoryPage.total} 名` : '暂无对象'}</span></div>
-                <div class="relation-directory-grid">
+              <div class="archive-card dossier-card dossier-card--relation-directory">
+                <div class="archive-card-head"><div class="archive-card-title">对象列表</div><span class="dossier-pill ${relationDirectoryPage.total ? 'live' : 'warn'}">${relationDirectoryPage.total ? `已收录 ${relationDirectoryPage.total} 名` : '暂无对象'}</span></div>
+                <div class="dossier-section">
                   ${relationDirectoryHtml}
                 </div>
                 ${makeModalPaginationControls('relation-directory', relationDirectoryPage.page, relationDirectoryPage.totalPages, relationDirectoryPage.total)}
               </div>
-              <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">${htmlEscape(isPlayerControlled ? '关系互动台' : '关系观察台')}</div><span class="state-tag ${relationDetailName ? 'live' : 'warn'}">${htmlEscape(relationDetailName || '未选中')}</span></div>
-                ${relationActionPanelHtml}
-                ${relationDetailHtml !== '<div class="intel-card"><b>交互历史</b><span>暂无有效数据</span></div>' && relationDetailHtml !== '' ? `
-                  <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed rgba(255,255,255,0.1);">
-                    <div style="font-size: 13px; color: var(--cyan); margin-bottom: 8px; font-weight: bold;">关系细节</div>
-                    <div class="intel-layout">
-                      ${relationDetailHtml}
-                    </div>
-                  </div>
-                ` : ''}
-                ${relationFocusHtml !== '<div class="intel-card"><b>核心焦点</b><span>无</span></div>' && relationFocusHtml !== '' ? `
-                  <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed rgba(255,255,255,0.1);">
-                    <div style="font-size: 13px; color: var(--color-text-secondary); margin-bottom: 4px; font-weight: bold;">核心推进线索</div>
-                    <div class="intel-layout">
-                      ${relationFocusHtml}
-                    </div>
-                  </div>
-                ` : ''}
+              <div class="archive-card dossier-card dossier-card--relation-focus">
+                <div class="archive-card-head"><div class="archive-card-title">目标卷宗</div><span class="dossier-pill ${relationDetailName ? 'live' : 'warn'}">${htmlEscape(relationDetailName || '未选中')}</span></div>
+                <section class="dossier-section">
+                  <div class="dossier-section-title">关系摘要</div>
+                  ${relationTargetSummaryHtml}
+                </section>
+                <section class="dossier-section">
+                  <div class="dossier-section-title">${htmlEscape(isPlayerControlled ? '互动操作' : '观察备注')}</div>
+                  ${relationActionSummaryHtml}
+                </section>
+                <section class="dossier-section">
+                  <div class="dossier-section-title">关系记录</div>
+                  ${relationRecordRowsHtml || '<div class="dossier-empty-note">当前没有可展示的推进记录。</div>'}
+                </section>
               </div>
             </div>
           `
@@ -7162,78 +9152,180 @@
 
 
       if (previewKey === '情报库详细页') {
+        const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
+        const knowledgeRequestPath = activeCharKey ? ['char', activeCharKey, 'knowledge_unlock_request'] : [];
         const intelNodes = [toText(deepGet(snapshot, 'activeChar.knowledge_unlock_request.content', '无'), '无'), ...snapshot.unlockedKnowledges.slice(-4).reverse()].filter(item => item && item !== '无');
         const coreIntel = intelNodes[0] || '暂无核心情报';
         const sideIntels = intelNodes.slice(1, 5);
-        const unlockedIntelPage = paginateModalItems((snapshot.unlockedKnowledges || []).slice().reverse(), previewKey, 'intel-records', 6);
+        const unlockedIntelEntries = (snapshot.unlockedKnowledges || []).map((text, index) => ({ text, index })).slice().reverse();
+        const unlockedIntelPageSize = 6;
+        const unlockedIntelPage = paginateModalItems(unlockedIntelEntries, previewKey, 'intel-records', unlockedIntelPageSize);
         const pendingIntelDefault = snapshot.pendingIntelCount ? snapshot.pendingIntelContent : '';
-        const pendingIntelImpactDefault = snapshot.pendingIntelCount ? snapshot.pendingIntelImpact : 1;
-        const positions = [
-          { left: '20%', top: '30%' },
-          { left: '80%', top: '30%' },
-          { left: '30%', top: '80%' },
-          { left: '70%', top: '80%' }
-        ];
-        const combatHistoryCards = (snapshot.combatHistoryEntries.length ? snapshot.combatHistoryEntries.slice(0, 6) : [['暂无战斗记录', { empty: true }]]).map(([name, info]) => ({
-          title: info && info.empty ? name : `${name} / ${toText(info && info.count, 0)}次`,
-          desc: info && info.empty ? '暂无战斗记录。' : `最近 Tick ${toText(info && info.last_tick, 0)}`
-        }));
+        const pendingIntelImpactDefault = snapshot.pendingIntelCount ? snapshot.pendingIntelImpact : 0;
+        const pendingIntelContentValue = toText(deepGet(snapshot, 'activeChar.knowledge_unlock_request.content', pendingIntelDefault || '未知'), pendingIntelDefault || '未知');
+        const pendingIntelImpactValue = toNumber(deepGet(snapshot, 'activeChar.knowledge_unlock_request.impact', pendingIntelImpactDefault), pendingIntelImpactDefault);
+        const hasPendingIntel = snapshot.pendingIntelCount > 0;
+        const latestUnlockedIntel = snapshot.unlockedKnowledges.length
+          ? toText(snapshot.unlockedKnowledges[snapshot.unlockedKnowledges.length - 1], '鏆傛棤')
+          : '鏆傛棤';
+        const intelOverviewText = snapshot.pendingIntelCount ? pendingIntelContentValue : latestUnlockedIntel;
+        const combatHistoryTotalCount = snapshot.combatHistoryEntries.reduce((total, [, info]) => total + Math.max(0, toNumber(info && info.count, 0)), 0);
+        const latestCombatEntry = snapshot.combatHistoryEntries.length ? snapshot.combatHistoryEntries[0] : null;
+        const latestCombatTarget = latestCombatEntry ? toText(latestCombatEntry[0], '暂无') : '暂无';
+        const latestCombatResult = latestCombatEntry ? toText(latestCombatEntry[1] && latestCombatEntry[1].last_result, '未记录') : '未记录';
+        const combatHistoryCards = (snapshot.combatHistoryEntries.length ? snapshot.combatHistoryEntries.slice(0, 8) : [['暂无交战档案', { empty: true }]]).map(([name, info]) => {
+          if (info && info.empty) {
+            return {
+              title: name,
+              desc: '当前角色还没有任何交战档案。'
+            };
+          }
+          const countValue = Math.max(0, toNumber(info && info.count, 0));
+          const tickValue = toText(info && info.last_tick, '未记录');
+          const lastResult = toText(info && info.last_result, '');
+          return {
+            title: `${name}`,
+            desc: [
+              `累计交战 ${countValue} 次`,
+              `最近记录轮次 ${tickValue}`,
+              lastResult ? `最近结果：${lastResult}` : ''
+            ].filter(Boolean).join(' · ')
+          };
+        });
         const unlockedIntelHtml = unlockedIntelPage.items.length
           ? unlockedIntelPage.items.map(item => `
-              <div class="intel-card">
-                <b>${htmlEscape(item)}</b>
-                <span>已记录进情报库，可作为后续判断依据。</span>
+              <div class="intel-card" style="min-height:132px; display:flex; flex-direction:column; justify-content:space-between;">
+                <div style="display:flex; gap:8px; align-items:flex-start; justify-content:space-between;">
+                  <b style="flex:1 1 auto;">${activeCharKey
+                    ? makeInlineEditableValue(toText(item && item.text, '未知'), {
+                        path: ['char', activeCharKey, 'unlocked_knowledges', toNumber(item && item.index, 0)],
+                        kind: 'string',
+                        rawValue: toText(item && item.text, '未知'),
+                        multiline: true,
+                      })
+                    : htmlEscape(toText(item && item.text, '未知'))}</b>
+                  ${activeCharKey
+                    ? `<button type="button" class="tag-chip" data-collection-action="delete-intel" data-collection-char="${escapeHtmlAttr(activeCharKey)}" data-collection-index="${escapeHtmlAttr(String(toNumber(item && item.index, 0)))}">删除</button>`
+                    : ''}
+                </div>
+                <span style="margin-top:10px; color:var(--color-text-secondary); font-size:12px; line-height:1.55;">情报序号 #${toNumber(item && item.index, 0) + 1}</span>
               </div>
             `).join('')
-          : '<div class="intel-card"><b>暂无已解锁情报</b><span>当前还没有被正式记录的核心线索。</span></div>';
+          : '<div class="intel-card" style="min-height:132px;"><b>暂无情报</b></div>';
         return {
           title: '情报库弹窗',
-          summary: '当前已解锁情报、待追线索与战斗记录摘要。',
+          summary: '当前已解锁情报、待处理线索与交战档案概览。',
           body: `
-            <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">核心情报网络</div></div>
-                <div class="intel-network-board">
-                  <svg class="topology-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-                    ${positions.slice(0, sideIntels.length).map(pos => `<line class="topology-link cyan" x1="50" y1="50" x2="${pos.left.replace('%', '')}" y2="${pos.top.replace('%', '')}"></line>`).join('')}
-                  </svg>
-                  <div class="intel-node core" style="left:50%; top:50%;">
-                    <div class="intel-node-icon">情</div>
-                    <div class="intel-node-label">${htmlEscape(coreIntel)}</div>
+            <div class="intel-layout-dashboard ${hasPendingIntel ? 'has-pending' : 'is-empty'}">
+              <div class="archive-card intel-pending-card ${hasPendingIntel ? 'intel-pending-card--active' : 'intel-pending-card--empty'}">
+                <div class="archive-card-head">
+                  <div class="archive-card-title">待解锁线索</div>
+                  ${hasPendingIntel
+                    ? `<span class="state-tag warn">待解析 / +${snapshot.pendingIntelImpact}</span>`
+                    : `<span class="state-tag" style="opacity: 0.5;">暂无</span>`}
+                  ${knowledgeRequestPath.length && hasPendingIntel
+                    ? `<button type="button" class="tag-chip" data-collection-action="clear-intel-pending" data-collection-char="${escapeHtmlAttr(activeCharKey)}">清空</button>`
+                    : ''}
+                </div>
+
+                <div class="intel-pending-shell ${hasPendingIntel ? 'has-pending' : 'is-empty'}">
+                  ${hasPendingIntel ? `
+                    <div class="intel-pending-editor">
+                      ${makeInlineEditableValue(pendingIntelContentValue, {
+                          path: [...knowledgeRequestPath, 'content'],
+                          kind: 'string',
+                          rawValue: pendingIntelContentValue,
+                          multiline: true,
+                      })}
+                    </div>
+                    <div class="intel-pending-impact">
+                      <b>影响权重</b>
+                      <span>
+                        ${knowledgeRequestPath.length
+                          ? makeInlineEditableValue(String(pendingIntelImpactValue), {
+                              path: [...knowledgeRequestPath, 'impact'],
+                              kind: 'number',
+                              rawValue: pendingIntelImpactValue,
+                              editorMeta: { min: 0, max: 10, integer: true, hint: '范围 0 - 10 · 整数' },
+                            })
+                          : htmlEscape(String(snapshot.pendingIntelImpact))}
+                      </span>
+                    </div>
+                  ` : `
+                    <div class="intel-empty-state">
+                      <div class="intel-empty-state-mark">◈</div>
+                      <div class="intel-empty-state-copy">当前没有等待解锁的线索</div>
+                    </div>
+                  `}
+                </div>
+              </div>
+
+              <div class="archive-card intel-overview-card">
+                <div class="archive-card-head"><div class="archive-card-title">情报概览</div></div>
+                ${makeTileGrid([
+                  { label: '已解锁', value: String(snapshot.unlockedKnowledges.length) },
+                  { label: '待解锁', value: hasPendingIntel ? `1 / +${snapshot.pendingIntelImpact}` : '0' },
+                  { label: '任务记录', value: String(snapshot.questRecordCount) },
+                  { label: '交战目标', value: String(snapshot.combatHistoryEntries.length) }
+                ], 'two')}
+                <div class="intel-combat-summary" style="margin-top: 10px;">
+                  <div class="simple-sub" style="margin: 0 0 6px;">概览说明</div>
+                  <div class="intel-combat-summary-hint">这里汇总当前角色已解锁的情报、待处理线索和交战档案数量，方便快速判断信息密度。</div>
+                </div>
+              </div>
+
+              <div class="archive-card intel-combat-card">
+                <div class="archive-card-head"><div class="archive-card-title">交战档案</div></div>
+                ${makeTileGrid([
+                  { label: '记录目标', value: String(snapshot.combatHistoryEntries.length) },
+                  { label: '累计交战', value: String(combatHistoryTotalCount) },
+                  { label: '最近目标', value: latestCombatTarget },
+                  { label: '最近结果', value: latestCombatResult }
+                ], 'two')}
+                <div class="intel-combat-summary">
+                  <div class="simple-sub" style="margin: 0 0 6px;">按目标聚合</div>
+                  <div class="intel-combat-summary-hint">这里展示每个交战目标的累计交手次数，以及最近一次写入的记录结果。</div>
+                  <div class="intel-combat-list">
+                    ${combatHistoryCards.map(c => `
+                      <div class="intel-combat-row">
+                        <b>${htmlEscape(c.title)}</b>
+                        <span>${htmlEscape(c.desc)}</span>
+                      </div>
+                    `).join('')}
                   </div>
-                  ${sideIntels.map((item, index) => `<div class="intel-node ${index >= snapshot.unlockedKnowledges.length ? 'locked' : ''}" style="left:${positions[index].left}; top:${positions[index].top};"><div class="intel-node-icon">${index < 2 ? '线' : '?'}</div><div class="intel-node-label">${htmlEscape(item)}</div></div>`).join('')}
                 </div>
               </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">情报进度槽</div></div>
-                <div class="intel-progress-slots">
-                  <div class="intel-slot"><div class="intel-slot-name">已解锁情报</div><div class="intel-slot-bar-wrap"><div class="intel-slot-bar" style="width:${Math.min(100, snapshot.unlockedKnowledges.length * 12)}%;"></div></div><div class="intel-slot-value">${snapshot.unlockedKnowledges.length}</div></div>
-                  <div class="intel-slot"><div class="intel-slot-name">待整理情报</div><div class="intel-slot-bar-wrap"><div class="intel-slot-bar gold" style="width:${snapshot.pendingIntelCount ? 100 : 0}%;"></div></div><div class="intel-slot-value" style="color:var(--gold);">${snapshot.pendingIntelCount ? `${snapshot.pendingIntelCount} / +${snapshot.pendingIntelImpact}` : '0'}</div></div>
-                  <div class="intel-slot"><div class="intel-slot-name">任务记录</div><div class="intel-slot-bar-wrap"><div class="intel-slot-bar" style="width:${Math.min(100, snapshot.questRecordCount * 20)}%; background:var(--red); box-shadow:0 0 8px var(--red);"></div></div><div class="intel-slot-value" style="color:var(--red);">${snapshot.questRecordCount}</div></div>
-                </div>
+            </div>
+
+            <div class="archive-card intel-unlocked-card" style="margin-top: 12px;">
+              <div class="archive-card-head">
+                <div class="archive-card-title">已解锁情报列表</div>
+                <span class="state-tag live">${unlockedIntelPage.items.length} 条</span>
               </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">待追线索</div><span class="state-tag ${snapshot.pendingIntelCount ? 'warn' : 'live'}">${htmlEscape(snapshot.pendingIntelCount ? `待追 / +${snapshot.pendingIntelImpact}` : '暂无新线索')}</span></div>
-                <div style="padding-top: 8px;">
-                  <div style="font-size: 12px; color: var(--color-text-secondary); margin-bottom: 12px;">${htmlEscape(snapshot.pendingIntelCount ? `最近浮出的线索：${snapshot.pendingIntelContent}` : '最近没有新的线索浮出水面。')}</div>
-                  <div class="intel-card"><b>线索提醒</b><span>新的情报会随着见闻、调查与遭遇逐渐浮现。这里会先记下尚未展开的线索，等剧情推进后再继续追查。</span></div>
-                </div>
-              </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">已解锁情报列表</div><span class="state-tag ${snapshot.unlockedKnowledges.length ? 'live' : 'warn'}">${snapshot.unlockedKnowledges.length ? `${snapshot.unlockedKnowledges.length} 条` : '空'}</span></div>
-                <div class="intel-layout">
-                  ${unlockedIntelHtml}
-                </div>
-                ${makeModalPaginationControls('intel-records', unlockedIntelPage.page, unlockedIntelPage.totalPages, unlockedIntelPage.total)}
-              </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">战斗记录摘要</div></div>
-                ${makeTimelineStack(combatHistoryCards)}
+              <div class="intel-list-grid" style="padding: 10px; display: grid; gap: 10px;">
+                ${activeCharKey ? `
+                  <div class="intel-card intel-card-add">
+                    <div class="request-console-row intel-add-row" data-collection-panel="intel-create">
+                      <input type="text" class="request-console-input intel-add-input" data-collection-input="intel-text" placeholder="新增情报内容（支持长文本）" />
+                      <button type="button" class="tag-chip live intel-add-btn" data-collection-action="add-intel" data-collection-char="${escapeHtmlAttr(activeCharKey)}">新增</button>
+                    </div>
+                  </div>
+                ` : ''}
+                ${unlockedIntelHtml}
+                
+                ${unlockedIntelPage.totalPages > 1 ? `
+                  <div class="tag-cloud" style="margin-top: 8px; justify-content: flex-end;">
+                    <button type="button" class="tag-chip" data-pagination="intel-records" data-page="${unlockedIntelPage.currentPage - 1}" ${unlockedIntelPage.currentPage <= 1 ? 'disabled style="opacity:0.3;"' : ''}>上一页</button>
+                    <span class="tag-chip">第 ${unlockedIntelPage.currentPage} / ${unlockedIntelPage.totalPages} 页</span>
+                    <button type="button" class="tag-chip" data-pagination="intel-records" data-page="${unlockedIntelPage.currentPage + 1}" ${unlockedIntelPage.currentPage >= unlockedIntelPage.totalPages ? 'disabled style="opacity:0.3;"' : ''}>下一页</button>
+                  </div>
+                ` : ''}
               </div>
             </div>
           `
         };
-      }
+	  }
+
 
 
 
@@ -7246,11 +9338,16 @@
         || previewKey === '武装详情：附件'
         || String(previewKey || '').startsWith('斗铠部件：')
       ) {
+        const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
         const armor = deepGet(snapshot, 'activeChar.equip.armor', {});
         const mech = deepGet(snapshot, 'activeChar.equip.mech', {});
         const weapon = deepGet(snapshot, 'activeChar.equip.wpn', {});
         const accessories = deepGet(snapshot, 'activeChar.equip.accessories', {});
         const accessoryEntries = listAccessoryEntries(accessories);
+        const armorPath = activeCharKey ? ['char', activeCharKey, 'equip', 'armor'] : [];
+        const mechPath = activeCharKey ? ['char', activeCharKey, 'equip', 'mech'] : [];
+        const weaponPath = activeCharKey ? ['char', activeCharKey, 'equip', 'wpn'] : [];
+        const accessoriesPath = activeCharKey ? ['char', activeCharKey, 'equip', 'accessories'] : [];
         const jobs = safeEntries(deepGet(snapshot, 'activeChar.job', {}));
         const isPlayerControlled = isSnapshotPlayerControlled(snapshot);
         const armorSummary = toNumber(armor.lv, 0) > 0 ? `${toText(armor.name, `${armor.lv}字斗铠`)} / ${toText(armor.equip_status, '未装备')}` : '未装备';
@@ -7303,9 +9400,36 @@
                 <div class="archive-card full">
                   <div class="archive-card-head"><div class="archive-card-title">斗铠详情</div></div>
                   ${makeTileGrid([
-                    { label: '名称', value: toText(armor.name, '无') },
-                    { label: '字级', value: toNumber(armor.lv, 0) > 0 ? `${toNumber(armor.lv, 0)}字斗铠` : '无' },
-                    { label: '领域', value: toText(armor.domain, '无') }
+                    { label: '名称', value: armorPath.length
+                      ? makeInlineEditableValue(toText(armor.name, '无'), {
+                          path: [...armorPath, 'name'],
+                          kind: 'string',
+                          rawValue: toText(armor.name, '无'),
+                        })
+                      : htmlEscape(toText(armor.name, '无')) },
+                    { label: '字级', value: armorPath.length
+                      ? makeInlineEditableValue(toNumber(armor.lv, 0) > 0 ? `${toNumber(armor.lv, 0)}字斗铠` : '无', {
+                          path: [...armorPath, 'lv'],
+                          kind: 'number',
+                          rawValue: toNumber(armor.lv, 0),
+                          editorMeta: { min: 0, max: 4, integer: true, hint: '范围 0 - 4 · 整数' },
+                        })
+                      : htmlEscape(toNumber(armor.lv, 0) > 0 ? `${toNumber(armor.lv, 0)}字斗铠` : '无') },
+                    { label: '领域', value: armorPath.length
+                      ? makeInlineEditableValue(toText(armor.domain, '无'), {
+                          path: [...armorPath, 'domain'],
+                          kind: 'string',
+                          rawValue: toText(armor.domain, '无'),
+                        })
+                      : htmlEscape(toText(armor.domain, '无')) },
+                    { label: '装备状态', value: armorPath.length
+                      ? makeInlineEditableValue(toText(armor.equip_status, '未装备'), {
+                          path: [...armorPath, 'equip_status'],
+                          kind: 'enum_select',
+                          rawValue: toText(armor.equip_status, '未装备'),
+                          editorMeta: { options: ['未装备', '已装备'] },
+                        })
+                      : htmlEscape(toText(armor.equip_status, '未装备')) }
                   ])}
                 </div>
                 <div class="archive-card full">
@@ -7316,6 +9440,13 @@
                   <div class="archive-card-head"><div class="archive-card-title">斗铠部件</div></div>
                   ${makeInteractiveFigureBoard(toText(armor.name, '斗铠'), armorSlots, { preview: '武装详情：斗铠' })}
                 </div>
+                ${isPlayerControlled && armorExists ? `
+                  <div class="archive-card full">
+                    <div class="tag-cloud armory-quick-actions" style="justify-content:flex-end;">
+                      <button type="button" class="relation-action-btn equipment-action-btn" data-equipment-action="unequip" data-equipment-char="${escapeHtmlAttr(activeCharKey)}" data-equipment-kind="armor">卸下斗铠</button>
+                    </div>
+                  </div>
+                ` : ''}
               </div>
             `
           };
@@ -7330,19 +9461,63 @@
                 <div class="archive-card full">
                   <div class="archive-card-head"><div class="archive-card-title">机甲详情</div></div>
                   ${makeTileGrid([
-                    { label: '级别', value: toText(mech.lv, '无') },
-                    { label: '类型', value: toText(mech.type, '无') },
-                    { label: '材质', value: toText(mech.material, '无') },
-                    { label: '机体状态', value: toText(mech.status, '完好') },
-                    { label: '装备状态', value: toText(mech.equip_status, '未装备') },
-                    { label: '机载武器', value: toText(mech.weapon, '无') },
-                    { label: '品质系数', value: String(deepGet(mech, '品质系数', 1)) }
+                    { label: '级别', value: mechPath.length
+                      ? makeInlineEditableValue(toText(mech.lv, '无'), {
+                          path: [...mechPath, 'lv'],
+                          kind: 'string',
+                          rawValue: toText(mech.lv, '无'),
+                        })
+                      : htmlEscape(toText(mech.lv, '无')) },
+                    { label: '类型', value: mechPath.length
+                      ? makeInlineEditableValue(toText(mech.type, '无'), {
+                          path: [...mechPath, 'type'],
+                          kind: 'string',
+                          rawValue: toText(mech.type, '无'),
+                        })
+                      : htmlEscape(toText(mech.type, '无')) },
+                    { label: '机体状态', value: mechPath.length
+                      ? makeInlineEditableValue(toText(mech.status, '完好'), {
+                          path: [...mechPath, 'status'],
+                          kind: 'string',
+                          rawValue: toText(mech.status, '完好'),
+                        })
+                      : htmlEscape(toText(mech.status, '完好')) },
+                    { label: '装备状态', value: mechPath.length
+                      ? makeInlineEditableValue(toText(mech.equip_status, '未装备'), {
+                          path: [...mechPath, 'equip_status'],
+                          kind: 'enum_select',
+                          rawValue: toText(mech.equip_status, '未装备'),
+                          editorMeta: { options: ['未装备', '已装备'] },
+                        })
+                      : htmlEscape(toText(mech.equip_status, '未装备')) },
+                    { label: '机载武器', value: mechPath.length
+                      ? makeInlineEditableValue(toText(mech.weapon, '无'), {
+                          path: [...mechPath, 'weapon'],
+                          kind: 'string',
+                          rawValue: toText(mech.weapon, '无'),
+                        })
+                      : htmlEscape(toText(mech.weapon, '无')) },
+                    { label: '品质系数', value: mechPath.length
+                      ? makeInlineEditableValue(String(toNumber(deepGet(mech, '品质系数', 1), 1)), {
+                          path: [...mechPath, '品质系数'],
+                          kind: 'number',
+                          rawValue: toNumber(deepGet(mech, '品质系数', 1), 1),
+                          editorMeta: { min: 0.8, max: 2, step: 0.1, hint: '范围 0.8 - 2.0 · 可输入小数 · 步长 0.1' },
+                        })
+                      : htmlEscape(String(toNumber(deepGet(mech, '品质系数', 1), 1))) }
                   ])}
                 </div>
                 <div class="archive-card full">
                   <div class="archive-card-head"><div class="archive-card-title">机甲加成</div></div>
                   ${makeTileGrid(mechBonusItems)}
                 </div>
+                ${isPlayerControlled && mechExists ? `
+                  <div class="archive-card full">
+                    <div class="tag-cloud armory-quick-actions" style="justify-content:flex-end;">
+                      <button type="button" class="relation-action-btn equipment-action-btn" data-equipment-action="unequip" data-equipment-char="${escapeHtmlAttr(activeCharKey)}" data-equipment-kind="mech">卸下机甲</button>
+                    </div>
+                  </div>
+                ` : ''}
               </div>
             `
           };
@@ -7357,20 +9532,49 @@
                 <div class="archive-card full">
                   <div class="archive-card-head"><div class="archive-card-title">主武器详情</div></div>
                   ${makeTileGrid([
-                    { label: '名称', value: toText(weapon.name, '无') },
-                    { label: '品阶', value: toText(weapon.tier, '无') },
+                    { label: '名称', value: weaponPath.length
+                      ? makeInlineEditableValue(toText(weapon.name, '无'), {
+                          path: [...weaponPath, 'name'],
+                          kind: 'string',
+                          rawValue: toText(weapon.name, '无'),
+                        })
+                      : htmlEscape(toText(weapon.name, '无')) },
+                    { label: '品阶', value: weaponPath.length
+                      ? makeInlineEditableValue(toText(weapon.tier, '无'), {
+                          path: [...weaponPath, 'tier'],
+                          kind: 'string',
+                          rawValue: toText(weapon.tier, '无'),
+                        })
+                      : htmlEscape(toText(weapon.tier, '无')) },
                     { label: '特性数', value: String(Object.keys(deepGet(weapon, 'traits', {})).length) },
                     { label: '主要特性', value: Object.keys(deepGet(weapon, 'traits', {})).slice(0, 2).join(' / ') || '无' }
                   ])}
                 </div>
                 <div class="archive-card full">
                   <div class="archive-card-head"><div class="archive-card-title">武器加成</div></div>
-                  ${makeTileGrid(weaponBonusItems)}
+                  ${makeTileGrid(weaponPath.length ? buildEditableStatBonusItems([...weaponPath, 'stats_bonus'], deepGet(weapon, 'stats_bonus', {})) : weaponBonusItems)}
                 </div>
                 <div class="archive-card full">
                   <div class="archive-card-head"><div class="archive-card-title">武器特性</div></div>
-                  ${makeTimelineStack(safeEntries(deepGet(weapon, 'traits', {})).length ? safeEntries(deepGet(weapon, 'traits', {})).map(([name, item]) => ({ title: name, desc: toText(deepGet(item, '描述', '无'), '无') })) : [{ title: '暂无武器特性', desc: '当前主武器未记录额外特性。' }])}
+                  ${makeTimelineStack(safeEntries(deepGet(weapon, 'traits', {})).length ? safeEntries(deepGet(weapon, 'traits', {})).map(([name, item]) => ({
+                    title: htmlEscape(name),
+                    desc: weaponPath.length
+                      ? makeInlineEditableValue(toText(deepGet(item, '描述', '无'), '无'), {
+                          path: [...weaponPath, 'traits', name, '描述'],
+                          kind: 'string',
+                          rawValue: toText(deepGet(item, '描述', '无'), '无'),
+                          multiline: true,
+                        })
+                      : htmlEscape(toText(deepGet(item, '描述', '无'), '无'))
+                  })) : [{ title: '暂无武器特性', desc: '当前主武器未记录额外特性。' }])}
                 </div>
+                ${isPlayerControlled && (weapon && (weapon.name || weapon['名称'])) ? `
+                  <div class="archive-card full">
+                    <div class="tag-cloud armory-quick-actions" style="justify-content:flex-end;">
+                      <button type="button" class="relation-action-btn equipment-action-btn" data-equipment-action="unequip" data-equipment-char="${escapeHtmlAttr(activeCharKey)}" data-equipment-kind="wpn">卸下主武器</button>
+                    </div>
+                  </div>
+                ` : ''}
               </div>
             `
           };
@@ -7386,7 +9590,17 @@
                   <div class="archive-card-head"><div class="archive-card-title">附件详情</div></div>
                   ${makeTimelineStack(
                     accessoryEntries.length
-                      ? accessoryEntries.map(item => ({ title: item.name, desc: item.desc }))
+                      ? safeEntries(accessories).map(([name, item]) => ({
+                          title: htmlEscape(name),
+                          desc: accessoriesPath.length
+                            ? makeInlineEditableValue(toText(deepGet(item, '描述', '无'), '无'), {
+                                path: [...accessoriesPath, name, '描述'],
+                                kind: 'string',
+                                rawValue: toText(deepGet(item, '描述', '无'), '无'),
+                                multiline: true,
+                              })
+                            : htmlEscape(toText(deepGet(item, '描述', '无'), '无'))
+                        }))
                       : [{ title: '暂无附件', desc: '当前未装配附件。' }]
                   )}
                 </div>
@@ -7399,6 +9613,13 @@
                     { label: '附加说明', value: accessoryEntries[0] ? accessoryEntries[0].desc : '当前未装配附件' }
                   ])}
                 </div>
+                ${isPlayerControlled && accessoryEntries.length ? `
+                  <div class="archive-card full">
+                    <div class="tag-cloud armory-quick-actions" style="justify-content:flex-end;">
+                      ${accessoryEntries.map(item => `<button type="button" class="relation-action-btn equipment-action-btn" data-equipment-action="unequip" data-equipment-char="${escapeHtmlAttr(activeCharKey)}" data-equipment-kind="accessory" data-equipment-name="${escapeHtmlAttr(item.name)}">拆卸 ${htmlEscape(item.name)}</button>`).join('')}
+                    </div>
+                  </div>
+                ` : ''}
               </div>
             `
           };
@@ -7407,6 +9628,7 @@
         if (String(previewKey || '').startsWith('斗铠部件：')) {
           const slotName = String(previewKey).replace('斗铠部件：', '');
           const partData = resolveArmorPartData(armor, slotName);
+          const partPath = armorPath.length ? [...armorPath, 'parts', slotName] : [];
           const fallbackPartItems = [
             { label: '部位', value: slotName },
             { label: '记录', value: '当前未记录独立部件属性' },
@@ -7421,10 +9643,30 @@
                 <div class="archive-card full">
                   <div class="archive-card-head"><div class="archive-card-title">${slotName}</div></div>
                   ${makeTileGrid(partData ? [
-                    { label: '状态', value: toText(partData['状态'], '未打造') },
-                    { label: '品质系数', value: String(toNumber(partData['品质系数'], 1)) },
+                    { label: '状态', value: partPath.length
+                      ? makeInlineEditableValue(toText(partData['状态'], '未打造'), {
+                          path: [...partPath, '状态'],
+                          kind: 'string',
+                          rawValue: toText(partData['状态'], '未打造'),
+                        })
+                      : htmlEscape(toText(partData['状态'], '未打造')) },
+                    { label: '品质系数', value: partPath.length
+                      ? makeInlineEditableValue(String(toNumber(partData['品质系数'], 1)), {
+                          path: [...partPath, '品质系数'],
+                          kind: 'number',
+                          rawValue: toNumber(partData['品质系数'], 1),
+                          editorMeta: { min: 0.8, max: 2, step: 0.1, hint: '范围 0.8 - 2.0 · 可输入小数 · 步长 0.1' },
+                        })
+                      : htmlEscape(String(toNumber(partData['品质系数'], 1))) },
                     { label: '所属斗铠', value: toText(armor.name, '无') },
-                    { label: '装配状态', value: toText(armor.equip_status, '未装备') }
+                    { label: '装配状态', value: armorPath.length
+                      ? makeInlineEditableValue(toText(armor.equip_status, '未装备'), {
+                          path: [...armorPath, 'equip_status'],
+                          kind: 'enum_select',
+                          rawValue: toText(armor.equip_status, '未装备'),
+                          editorMeta: { options: ['未装备', '已装备'] },
+                        })
+                      : htmlEscape(toText(armor.equip_status, '未装备')) }
                   ] : fallbackPartItems)}
                 </div>
               </div>
@@ -7528,9 +9770,7 @@
               return window.mountProfessionUI(professionMount, snapshot, {
                 dispatchContext: mapDispatchContext,
                 onAction: (actionData) => {
-                  if (typeof window.sendToAI === 'function') {
-                    window.sendToAI(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
-                  }
+                  dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
                 }
               });
             }
@@ -7545,6 +9785,7 @@
           .sort((a, b) => toNumber(deepGet(b[1], 'market_value.price', b[1] && b[1]['数量']), 0) - toNumber(deepGet(a[1], 'market_value.price', a[1] && a[1]['数量']), 0))
           .slice(0, 18)
           .map(([name, item]) => ({
+            charKey: activeCharKey,
             name,
             trigger: toText(item && item['触发方式'], /食物/.test(toText(item && item['类型'], '')) ? '食用' : '使用'),
             expiry: resolveExpiryUiText(item, Number(deepGet(item, '有效期至tick', 0)) > 0 ? '临时物品' : '无期限'),
@@ -7564,6 +9805,83 @@
               Number(deepGet(item, '有效期至tick', 0)) > 0 ? '临时道具' : ''
             ].filter(Boolean)
           }));
+        const inventoryOverviewPage = paginateModalItems(snapshot.inventoryEntries, previewKey, 'inventory-overview', 8);
+        const inventoryOverviewCards = (inventoryOverviewPage.items.length ? inventoryOverviewPage.items : [['暂无物品', null]]).map(([name, item]) => {
+          if (!item || typeof item !== 'object') {
+            return {
+              title: '暂无物品',
+              desc: '未知'
+            };
+          }
+          const itemPath = activeCharKey ? ['char', activeCharKey, 'inventory', name] : [];
+          const typeValue = toText(item && item['类型'], '物品');
+          const qtyValue = toNumber(item && item['数量'], 1);
+          const qualityValue = toText(item && item['品质'], '无');
+          const tierValue = toText(item && item['品阶'], '无');
+          const triggerValue = toText(item && item['触发方式'], /食物/.test(typeValue) ? '食用' : '常规');
+          const slotValue = toText(item && item['装备槽位'], '无');
+          const sourceValue = toText(item && item['来源技能'], '无');
+          const binderValue = toText(item && item['绑定者'], '无');
+          const tagsValue = Array.isArray(item && item['标签']) ? item['标签'] : [];
+          const descValue = toText(item && item['描述'], '暂无说明');
+          const priceValue = toNumber(deepGet(item, ['market_value', 'price'], 0), 0);
+          const currencyValue = toText(deepGet(item, ['market_value', 'currency'], 'fed_coin'), 'fed_coin');
+          const durabilityCurrent = toNumber(deepGet(item, ['耐久', '当前'], 0), 0);
+          const durabilityMax = toNumber(deepGet(item, ['耐久', '上限'], 0), 0);
+          const canEquipItem = !!(window.EquipmentManager && window.EquipmentManager.parseEquipSlot(name, item));
+          const lineOne = [
+            `数量 ${itemPath.length ? makeInlineEditableValue(String(qtyValue), { path: [...itemPath, '数量'], kind: 'number', rawValue: qtyValue, editorMeta: { min: 1, integer: true, hint: '最小 1 · 整数' } }) : htmlEscape(String(qtyValue))}`,
+            `类型 ${itemPath.length ? makeInlineEditableValue(typeValue, { path: [...itemPath, '类型'], kind: 'string', rawValue: typeValue }) : htmlEscape(typeValue)}`,
+            `槽位 ${itemPath.length ? makeInlineEditableValue(slotValue, { path: [...itemPath, '装备槽位'], kind: 'string', rawValue: slotValue }) : htmlEscape(slotValue)}`,
+            `触发 ${itemPath.length ? makeInlineEditableValue(triggerValue, { path: [...itemPath, '触发方式'], kind: 'string', rawValue: triggerValue }) : htmlEscape(triggerValue)}`
+          ].join(' ｜ ');
+          const lineTwo = [
+            `品质 ${itemPath.length ? makeInlineEditableValue(qualityValue, { path: [...itemPath, '品质'], kind: 'string', rawValue: qualityValue }) : htmlEscape(qualityValue)}`,
+            `品阶 ${itemPath.length ? makeInlineEditableValue(tierValue, { path: [...itemPath, '品阶'], kind: 'string', rawValue: tierValue }) : htmlEscape(tierValue)}`,
+            `来源技能 ${itemPath.length ? makeInlineEditableValue(sourceValue, { path: [...itemPath, '来源技能'], kind: 'string', rawValue: sourceValue }) : htmlEscape(sourceValue)}`,
+            `绑定者 ${itemPath.length ? makeInlineEditableValue(binderValue, { path: [...itemPath, '绑定者'], kind: 'string', rawValue: binderValue }) : htmlEscape(binderValue)}`
+          ].join(' ｜ ');
+          const lineThree = [
+            `标签 ${itemPath.length ? makeInlineEditableValue(tagsValue.join('、') || '无', { path: [...itemPath, '标签'], kind: 'string_list', rawValue: tagsValue }) : htmlEscape(tagsValue.join('、') || '无')}`,
+            `市价 ${itemPath.length ? makeInlineEditableValue(String(priceValue), { path: [...itemPath, 'market_value', 'price'], kind: 'number', rawValue: priceValue, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } }) : htmlEscape(String(priceValue))}`,
+            `货币 ${htmlEscape(({
+              fed_coin: '联邦币',
+              star_coin: '星罗币',
+              tang_pt: '唐门积分',
+              shrek_pt: '学院积分',
+              blood_pt: '血神功勋'
+            }[currencyValue] || currencyValue))}`
+          ].join(' ｜ ');
+          const lineFour = (durabilityCurrent > 0 || durabilityMax > 0)
+            ? [
+                `耐久当前 ${itemPath.length ? makeInlineEditableValue(String(durabilityCurrent), { path: [...itemPath, '耐久', '当前'], kind: 'number', rawValue: durabilityCurrent, editorMeta: { min: 0, max: durabilityMax > 0 ? durabilityMax : null, integer: true, hint: durabilityMax > 0 ? `范围 0 - ${formatNumber(durabilityMax)} · 整数` : '最小 0 · 整数' } }) : htmlEscape(String(durabilityCurrent))}`,
+                `耐久上限 ${itemPath.length ? makeInlineEditableValue(String(durabilityMax), { path: [...itemPath, '耐久', '上限'], kind: 'number', rawValue: durabilityMax, editorMeta: { min: Math.max(0, durabilityCurrent), integer: true, hint: `最小 ${formatNumber(Math.max(0, durabilityCurrent))} · 整数` } }) : htmlEscape(String(durabilityMax))}`
+              ].join(' ｜ ')
+            : '';
+          const descLine = `描述 ${itemPath.length
+            ? makeInlineEditableValue(descValue, {
+                path: [...itemPath, '描述'],
+                kind: 'string',
+                rawValue: descValue,
+                multiline: true,
+              })
+            : htmlEscape(descValue)}`;
+          const actionLine = itemPath.length
+            ? `
+              <div class="request-console-row" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+                ${canEquipItem
+                  ? `<button type="button" class="tag-chip live inventory-hover-action-btn" data-inventory-action="equip" data-inventory-char="${escapeHtmlAttr(activeCharKey)}" data-inventory-item="${escapeHtmlAttr(name)}">装备</button>`
+                  : ''}
+                <button type="button" class="tag-chip inventory-hover-action-btn" data-inventory-action="discard" data-inventory-mode="one" data-inventory-char="${escapeHtmlAttr(activeCharKey)}" data-inventory-item="${escapeHtmlAttr(name)}">丢弃1件</button>
+                <button type="button" class="tag-chip inventory-hover-action-btn" data-inventory-action="discard" data-inventory-mode="all" data-inventory-char="${escapeHtmlAttr(activeCharKey)}" data-inventory-item="${escapeHtmlAttr(name)}">${qtyValue > 1 ? '全部丢弃' : '丢弃'}</button>
+              </div>
+            `
+            : '';
+          return {
+            title: `${htmlEscape(name)} / ${htmlEscape(typeValue)}`,
+            desc: [lineOne, lineTwo, lineThree, lineFour, descLine, actionLine].filter(Boolean).join('<br>')
+          };
+        });
         return {
           title: '储物仓库',
           summary: '当前背包、货币与核心物资。',
@@ -7572,34 +9890,26 @@
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">钱包条</div></div>
                 ${makeWalletStrip([
-                  { label: '联邦币', value: makeInlineEditableValue(formatNumber(wealth.fed_coin), { path: ['char', activeCharKey, 'wealth', 'fed_coin'], kind: 'number', rawValue: wealth.fed_coin }), className: 'gold' },
-                  { label: '星罗币', value: makeInlineEditableValue(formatNumber(wealth.star_coin), { path: ['char', activeCharKey, 'wealth', 'star_coin'], kind: 'number', rawValue: wealth.star_coin }), className: 'cyan' },
-                  { label: '唐门积分', value: makeInlineEditableValue(formatNumber(wealth.tang_pt), { path: ['char', activeCharKey, 'wealth', 'tang_pt'], kind: 'number', rawValue: wealth.tang_pt }), className: 'cyan' },
-                  { label: '学院积分', value: makeInlineEditableValue(formatNumber(wealth.shrek_pt), { path: ['char', activeCharKey, 'wealth', 'shrek_pt'], kind: 'number', rawValue: wealth.shrek_pt }), className: 'cyan' },
-                  { label: '战功', value: makeInlineEditableValue(formatNumber(wealth.blood_pt), { path: ['char', activeCharKey, 'wealth', 'blood_pt'], kind: 'number', rawValue: wealth.blood_pt }), className: 'red' }
+                  { label: '联邦币', value: makeInlineEditableValue(formatNumber(wealth.fed_coin), { path: ['char', activeCharKey, 'wealth', 'fed_coin'], kind: 'number', rawValue: wealth.fed_coin, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } }), className: 'gold' },
+                  { label: '星罗币', value: makeInlineEditableValue(formatNumber(wealth.star_coin), { path: ['char', activeCharKey, 'wealth', 'star_coin'], kind: 'number', rawValue: wealth.star_coin, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } }), className: 'cyan' },
+                  { label: '唐门积分', value: makeInlineEditableValue(formatNumber(wealth.tang_pt), { path: ['char', activeCharKey, 'wealth', 'tang_pt'], kind: 'number', rawValue: wealth.tang_pt, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } }), className: 'cyan' },
+                  { label: '学院积分', value: makeInlineEditableValue(formatNumber(wealth.shrek_pt), { path: ['char', activeCharKey, 'wealth', 'shrek_pt'], kind: 'number', rawValue: wealth.shrek_pt, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } }), className: 'cyan' },
+                  { label: '战功', value: makeInlineEditableValue(formatNumber(wealth.blood_pt), { path: ['char', activeCharKey, 'wealth', 'blood_pt'], kind: 'number', rawValue: wealth.blood_pt, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } }), className: 'red' }
                 ])}
               </div>
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">物资细项总览</div></div>
-                ${makeTimelineStack(snapshot.inventoryEntries.slice(0, 8).map(([name, item]) => ({
-                  title: `${name} / ${toText(item && item['类型'], '物品')}`,
-                  desc: [
-                    `品质 ${toText(item && (item['品质'] || item['品阶']), '普通')}`,
-                    `触发 ${toText(item && item['触发方式'], /食物/.test(toText(item && item['类型'], '')) ? '食用' : '常规')}`,
-                    `有效期 ${resolveExpiryUiText(item, Number(deepGet(item, '有效期至tick', 0)) > 0 ? '临时物品' : '无期限')}`,
-                    `来源 ${toText(item && item['来源技能'], toText(item && item['绑定者'], '背包持有'))}`,
-                    `标签 ${(Array.isArray(item && item['标签']) ? item['标签'].slice(0, 3).join(' / ') : '无') || '无'}`,
-                    `耐久 ${toText(deepGet(item, ['耐久', '当前'], 0), 0)}/${toText(deepGet(item, ['耐久', '上限'], 0), 0)}`,
-                    `交易 ${deepGet(item, '可交易', true) ? '可交易' : '绑定'}`,
-                    `市价 ${formatNumber(deepGet(item, ['market_value', 'price'], 0))} ${({
-                      fed_coin: '联邦币',
-                      star_coin: '星罗币',
-                      tang_pt: '唐门积分',
-                      shrek_pt: '学院积分',
-                      blood_pt: '血神功勋'
-                    }[toText(deepGet(item, ['market_value', 'currency'], 'fed_coin'), 'fed_coin')] || '联邦币')}`
-                  ].join(' ｜ ')
-                })))}
+                <div class="archive-card-head"><div class="archive-card-title">物资细项总览</div><span class="state-tag ${snapshot.inventoryEntries.length ? 'live' : 'warn'}">${snapshot.inventoryEntries.length ? `${snapshot.inventoryEntries.length} 件` : '空'}</span></div>
+                ${activeCharKey ? `
+                  <div class="request-console-row" data-collection-panel="inventory-create" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+                    <input class="request-console-input" style="margin:0; flex:1 1 180px;" data-collection-input="item-name" value="" placeholder="物品名" />
+                    <input type="number" min="1" class="request-console-input" style="margin:0; width:90px; flex:0 0 90px;" data-collection-input="item-qty" value="1" placeholder="数量" />
+                    <input class="request-console-input" style="margin:0; flex:0 1 140px;" data-collection-input="item-type" value="物品" placeholder="类型" />
+                    <input class="request-console-input" style="margin:0; flex:1 1 220px;" data-collection-input="item-desc" value="" placeholder="描述" />
+                    <button type="button" class="tag-chip live" data-collection-action="add-item" data-collection-char="${escapeHtmlAttr(activeCharKey)}">新增</button>
+                  </div>
+                ` : ''}
+                ${makeTimelineStack(inventoryOverviewCards)}
+                ${makeModalPaginationControls('inventory-overview', inventoryOverviewPage.page, inventoryOverviewPage.totalPages, inventoryOverviewPage.total)}
               </div>
               <div class="archive-card full vault-main-card">
                 <div class="archive-card-head"><div class="archive-card-title">背包格阵列</div></div>
@@ -7639,12 +9949,47 @@
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">武魂本体</div></div>
                 <div class="spirit-main-card">
-                  <h4>${htmlEscape(config.spiritName)}</h4>
+                  <h4>${config.spiritPath && config.spiritPath.length
+                    ? makeInlineEditableValue(config.spiritName, { path: [...config.spiritPath, '表象名称'], kind: 'string', rawValue: config.spiritName })
+                    : htmlEscape(config.spiritName)}</h4>
                   <div class="spirit-head-tags">
                     <span class="tag-chip ${config.badgeClass === 'gold' ? 'warn' : 'live'}">${htmlEscape(config.badge)}</span>
-                    <span class="tag-chip">${htmlEscape(config.spiritType)}</span>
-                    <span class="tag-chip">${htmlEscape(`元素：${config.spiritElement}`)}</span>
-                    <span class="tag-chip">${htmlEscape(`魂灵：${config.souls.length}`)}</span>
+                    <span class="tag-chip">${config.spiritPath && config.spiritPath.length
+                      ? makeInlineEditableValue(config.spiritType, { path: [...config.spiritPath, 'type'], kind: 'string', rawValue: config.spiritType })
+                      : htmlEscape(config.spiritType)}</span>
+                    <span class="tag-chip">${config.spiritPath && config.spiritPath.length
+                      ? makeInlineEditableValue(`属性：${config.spiritElement}`, {
+                        path: [...config.spiritPath, '属性体系'],
+                        kind: 'enum_select',
+                        rawValue: config.spiritElement,
+                        editorMeta: { options: SPIRIT_ATTRIBUTE_SYSTEM_OPTIONS }
+                      })
+                      : htmlEscape(`属性：${config.spiritElement}`)}</span>
+                    <span class="tag-chip">${htmlEscape(`魂灵：${toNumber(config.soulCount, 0)}`)}</span>
+                  </div>
+                  <div style="margin-top:12px;font-size:12px;line-height:1.8;color:var(--color-text-secondary);">
+                    <b style="display:block;margin-bottom:6px;color:var(--white);font-size:12px;">武魂描述</b>
+                    ${config.spiritPath && config.spiritPath.length
+                      ? makeInlineEditableValue(config.spiritDesc, { path: [...config.spiritPath, '描述'], kind: 'string', rawValue: config.spiritDesc, multiline: true })
+                      : htmlEscape(config.spiritDesc)}
+                  </div>
+                  <div class="soul-meta" style="margin-top:12px;">
+                    <div class="meta-item"><b>已解锁属性</b><span>${config.spiritPath && config.spiritPath.length
+                      ? makeInlineEditableValue(config.spiritUnlockedAttrs.join('、') || '未设置', {
+                        path: [...config.spiritPath, '已解锁属性'],
+                        kind: 'token_multi',
+                        rawValue: config.spiritUnlockedAttrs,
+                        editorMeta: { options: config.spiritElement === '五行' ? WUXING_ATTRIBUTE_TOKEN_OPTIONS : SPIRIT_ATTRIBUTE_TOKEN_OPTIONS }
+                      })
+                      : htmlEscape(config.spiritUnlockedAttrs.join('、') || '未设置')}</span></div>
+                    <div class="meta-item"><b>可容纳属性</b><span>${config.spiritPath && config.spiritPath.length
+                      ? makeInlineEditableValue(config.spiritCapacityAttrs.join('、') || '未设置', {
+                        path: [...config.spiritPath, '可容纳属性'],
+                        kind: 'token_multi',
+                        rawValue: config.spiritCapacityAttrs,
+                        editorMeta: { options: config.spiritElement === '五行' ? WUXING_ATTRIBUTE_TOKEN_OPTIONS : SPIRIT_ATTRIBUTE_TOKEN_OPTIONS }
+                      })
+                      : htmlEscape(config.spiritCapacityAttrs.join('、') || '未设置')}</span></div>
                   </div>
                 </div>
               </div>
@@ -7659,8 +10004,27 @@
                         </div>
                       </div>
                       <div class="soul-meta">
-                        <div class="meta-item"><b>年限</b><span>${htmlEscape(soul.age)}</span></div>
-                        <div class="meta-item"><b>契合度</b><span>${htmlEscape(soul.comp)}</span></div>
+                        <div class="meta-item"><b>魂灵名</b><span>${soul.path && soul.path.length
+                          ? makeInlineEditableValue(soul.spiritName, { path: [...soul.path, '表象名称'], kind: 'string', rawValue: soul.spiritName })
+                          : htmlEscape(soul.spiritName)}</span></div>
+                        <div class="meta-item"><b>品质</b><span>${soul.path && soul.path.length
+                          ? makeInlineEditableValue(soul.quality, { path: [...soul.path, '品质'], kind: 'string', rawValue: soul.quality })
+                          : htmlEscape(soul.quality)}</span></div>
+                        <div class="meta-item"><b>状态</b><span>${soul.path && soul.path.length
+                          ? makeInlineEditableValue(soul.state, { path: [...soul.path, '状态'], kind: 'string', rawValue: soul.state })
+                          : htmlEscape(soul.state)}</span></div>
+                        <div class="meta-item"><b>年限</b><span>${soul.path && soul.path.length
+                          ? makeInlineEditableValue(soul.age, { path: [...soul.path, '年限'], kind: 'number', rawValue: soul.ageValue, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } })
+                          : htmlEscape(soul.age)}</span></div>
+                        <div class="meta-item"><b>契合度</b><span>${soul.path && soul.path.length
+                          ? makeInlineEditableValue(soul.comp, { path: [...soul.path, '契合度'], kind: 'number', rawValue: soul.compValue, editorMeta: { min: 0, max: 100, integer: true, hint: '范围 0 - 100 · 整数' } })
+                          : htmlEscape(soul.comp)}</span></div>
+                      </div>
+                      <div style="margin-top:12px;font-size:12px;line-height:1.8;color:var(--color-text-secondary);">
+                        <b style="display:block;margin-bottom:6px;color:var(--white);font-size:12px;">魂灵描述</b>
+                        ${soul.path && soul.path.length
+                          ? makeInlineEditableValue(soul.description, { path: [...soul.path, '描述'], kind: 'string', rawValue: soul.description, multiline: true })
+                          : htmlEscape(soul.description)}
                       </div>
                       ${soul.rings.length ? `
                         <div class="soul-ring-section">
@@ -7678,23 +10042,191 @@
         };
       }
 
+      if (previewKey === '武魂融合技详细页') {
+        const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
+        const fusionArchiveMeta = getFusionArchiveMeta(snapshot);
+        const { fusionEntries, partnerCount, selfCount } = fusionArchiveMeta;
+        const createFusionPreview = activeCharKey
+          ? buildSkillDesignerPreviewKey({
+              path: ['char', activeCharKey, 'martial_fusion_skills', `武魂融合技_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`, 'skill_data'],
+              label: '新建武魂融合技',
+              category: '武魂融合技',
+              scope: 'fusion_skill',
+            })
+          : '';
+        const leadFusionEntry = fusionEntries[0] || null;
+        const leadRecordKey = leadFusionEntry ? leadFusionEntry[0] : '';
+        const leadFusion = leadFusionEntry && leadFusionEntry[1] && typeof leadFusionEntry[1] === 'object' ? leadFusionEntry[1] : {};
+        const leadSkillData = leadFusion.skill_data && typeof leadFusion.skill_data === 'object' ? leadFusion.skill_data : {};
+        const leadFusionName = leadFusionEntry
+          ? toText(leadSkillData['魂技名'] || leadSkillData.name || leadFusion.name || leadRecordKey, leadRecordKey || '未命名融合技')
+          : '';
+        const leadModeValue = toText(leadFusion.fusion_mode, 'partner');
+        const leadModeText = leadModeValue === 'self' ? '自体融合' : '双人融合';
+        const leadPartnerRaw = leadModeValue === 'self' ? toText(leadFusion.partner, '无') : toText(leadFusion.partner, '未知搭档');
+        const leadSourceSpirits = Array.isArray(leadFusion.source_spirits) ? leadFusion.source_spirits : [];
+        const leadSourceSpiritText = leadSourceSpirits.filter(Boolean).join(' / ') || '未记录';
+        const leadEffectDesc = toText(leadSkillData['效果描述'] || leadSkillData['描述'] || '', '');
+        const leadVisualDesc = toText(leadSkillData['画面描述'] || '', '');
+        const leadPreview = activeCharKey && leadRecordKey
+          ? buildSkillDesignerPreviewKey({
+              path: ['char', activeCharKey, 'martial_fusion_skills', leadRecordKey, 'skill_data'],
+              label: leadFusionName,
+              category: '武魂融合技',
+              scope: 'fusion_skill',
+            })
+          : '';
+        const fusionList = fusionEntries.map(([recordKey, fusion]) => {
+          const safeFusion = fusion && typeof fusion === 'object' ? fusion : {};
+          const skillData = safeFusion.skill_data && typeof safeFusion.skill_data === 'object' ? safeFusion.skill_data : {};
+          const fusionName = toText(skillData['魂技名'] || skillData.name || safeFusion.name || recordKey, recordKey || '未命名融合技');
+          const modeText = toText(safeFusion.fusion_mode, 'partner') === 'self' ? '自体融合' : '双人融合';
+          const partnerText = modeText === '自体融合' ? '自身双武魂' : toText(safeFusion.partner, '未知搭档');
+          const sourceSpiritText = (Array.isArray(safeFusion.source_spirits) ? safeFusion.source_spirits : []).filter(Boolean).join(' / ') || '未记录';
+          const effectDesc = toText(skillData['效果描述'] || skillData['描述'] || '未知', '未知');
+          const visualDesc = toText(skillData['画面描述'] || '', '');
+          const tags = (Array.isArray(skillData['标签']) ? skillData['标签'] : []).filter(Boolean);
+          const preview = activeCharKey
+            ? buildSkillDesignerPreviewKey({
+                path: ['char', activeCharKey, 'martial_fusion_skills', recordKey, 'skill_data'],
+                label: fusionName,
+                category: '武魂融合技',
+                scope: 'fusion_skill',
+              })
+            : '';
+          const descParts = [
+            `<strong>${htmlEscape(modeText)} · ${htmlEscape(partnerText)}</strong>`,
+            `<small>来源武魂：${htmlEscape(sourceSpiritText)}</small>`,
+            effectDesc !== '未知' ? `<small>${htmlEscape(effectDesc)}</small>` : '',
+            visualDesc ? `<small>${htmlEscape(visualDesc)}</small>` : '',
+            tags.length ? `<small>${htmlEscape(tags.slice(0, 4).join(' / '))}</small>` : ''
+          ].filter(Boolean);
+          return {
+            title: fusionName,
+            desc: descParts.join(''),
+            preview,
+          };
+        });
+        return {
+          title: '武魂融合技档案',
+          summary: '集中查看当前角色的自体融合与搭档型融合技。',
+          body: `
+            <div class="archive-modal-grid dossier-shell">
+              <div class="archive-card dossier-card">
+                <div class="archive-card-head">
+                  <div class="archive-card-title">融合技概览</div>
+                  <span class="dossier-pill ${fusionEntries.length ? 'live' : 'warn'}">${fusionEntries.length ? `${fusionEntries.length} 项` : '未收录'}</span>
+                </div>
+                <section class="dossier-section">
+                  <div class="dossier-section-title">基础统计</div>
+                  ${makeDossierRows([
+                    { label: '当前角色', value: htmlEscape(snapshot.activeName) },
+                    { label: '融合技总数', value: htmlEscape(String(fusionEntries.length)) },
+                    { label: '双人融合', value: htmlEscape(String(partnerCount)) },
+                    { label: '自体融合', value: htmlEscape(String(selfCount)) }
+                  ], 'dossier-row-grid--two')}
+                </section>
+                <section class="dossier-section">
+                  <div class="dossier-section-title">${fusionEntries.length ? '当前主档' : '当前状态'}</div>
+                  ${fusionEntries.length
+                    ? `
+                      ${makeDossierRows([
+                        { label: '当前招牌', value: leadPreview ? `<button type="button" class="dossier-pill live clickable" data-preview="${escapeHtmlAttr(leadPreview)}">${htmlEscape(leadFusionName)}</button>` : htmlEscape(leadFusionName) },
+                        { label: '融合模式', value: activeCharKey && leadRecordKey
+                          ? makeInlineEditableValue(leadModeText, {
+                              path: ['char', activeCharKey, 'martial_fusion_skills', leadRecordKey, 'fusion_mode'],
+                              kind: 'string',
+                              rawValue: leadModeValue,
+                              editorMeta: { hint: '可填 self 或 partner' },
+                            })
+                          : htmlEscape(leadModeText) },
+                        { label: '搭档', value: activeCharKey && leadRecordKey
+                          ? makeInlineEditableValue(leadPartnerRaw, {
+                              path: ['char', activeCharKey, 'martial_fusion_skills', leadRecordKey, 'partner'],
+                              kind: 'string',
+                              rawValue: toText(leadFusion.partner, ''),
+                            })
+                          : htmlEscape(leadPartnerRaw) },
+                        { label: '来源武魂', value: activeCharKey && leadRecordKey
+                          ? makeInlineEditableValue(leadSourceSpiritText, {
+                              path: ['char', activeCharKey, 'martial_fusion_skills', leadRecordKey, 'source_spirits'],
+                              kind: 'string_list',
+                              rawValue: leadSourceSpirits,
+                            })
+                          : htmlEscape(leadSourceSpiritText), className: 'dossier-row--wide' },
+                        { label: '当前印象', value: htmlEscape(leadEffectDesc || leadVisualDesc || '这条融合技还没写下完整描述。'), className: 'dossier-row--wide' }
+                      ])}
+                      <div class="dossier-note">右侧条目点开后，可以继续补完这条融合技的完整设计。</div>
+                    `
+                    : `
+                      ${makeDossierRows([
+                        { label: '档案状态', value: '这页还是空白，当前还没有录入任何融合技。' },
+                        { label: '现在就写', value: createFusionPreview ? `<button type="button" class="dossier-pill live clickable" data-preview="${escapeHtmlAttr(createFusionPreview)}">录入第一条融合技</button>` : '暂无可编辑对象' },
+                        { label: '可以先想', value: '搭档是谁、由哪几个武魂融合、以及想呈现成什么样的爆发感。', className: 'dossier-row--wide' }
+                      ])}
+                    `}
+                </section>
+              </div>
+              <div class="archive-card dossier-card">
+                <div class="archive-card-head">
+                  <div class="archive-card-title">融合技清单</div>
+                  <div class="dossier-tag-row dossier-head-actions">
+                    ${createFusionPreview ? `<button type="button" class="dossier-pill live clickable" data-preview="${escapeHtmlAttr(createFusionPreview)}">新建融合技</button>` : ''}
+                    ${fusionEntries.length ? '<span class="dossier-pill">点开可编辑</span>' : ''}
+                  </div>
+                </div>
+                <section class="dossier-section">
+                  <div class="dossier-section-title">${fusionEntries.length ? '已收录条目' : '等待落笔'}</div>
+                  ${fusionList.length
+                    ? makeDossierList(fusionList, 'dossier-list--fusion')
+                    : '<div class="dossier-empty-note">这页还没写入任何融合技。等你想好了搭档和表现，再新建第一条就行。</div>'}
+                </section>
+              </div>
+            </div>
+          `
+        };
+      }
+
 
 
 
       if (previewKey === '血脉封印详细页') {
+        const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
+        const bloodlinePath = activeCharKey ? ['char', activeCharKey, 'bloodline_power'] : [];
+        const bloodMainSkill = snapshot.bloodline.bloodSkills[0] || null;
+        const bloodlineRawName = toText(deepGet(snapshot, 'activeChar.bloodline_power.bloodline', '无'), '无');
         return {
           title: '血脉封印弹窗',
-          summary: '血脉层级、气血魂环与当前已固化能力。',
+          summary: '血脉层级、体力魂环与当前已固化能力。',
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">血脉本体</div></div>
                 <div class="spirit-main-card">
-                  <h4>${htmlEscape(snapshot.bloodline.bloodline)}</h4>
+                  <h4>${bloodlinePath.length
+                    ? makeInlineEditableValue(snapshot.bloodline.bloodline, {
+                        path: [...bloodlinePath, 'bloodline'],
+                        kind: 'string',
+                        rawValue: bloodlineRawName,
+                      })
+                    : htmlEscape(snapshot.bloodline.bloodline)}</h4>
                   <div class="spirit-head-tags">
                     <span class="tag-chip warn">血脉封印</span>
-                    <span class="tag-chip">${htmlEscape(`第${snapshot.bloodline.sealLv}层`)}</span>
-                    <span class="tag-chip">${htmlEscape(snapshot.bloodline.core)}</span>
+                    <span class="tag-chip">${bloodlinePath.length
+                      ? makeInlineEditableValue(`第${snapshot.bloodline.sealLv}层`, {
+                          path: [...bloodlinePath, 'seal_lv'],
+                          kind: 'number',
+                          rawValue: snapshot.bloodline.sealLv,
+                          editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                        })
+                      : htmlEscape(`第${snapshot.bloodline.sealLv}层`)}</span>
+                    <span class="tag-chip">${bloodlinePath.length
+                      ? makeInlineEditableValue(snapshot.bloodline.core, {
+                          path: [...bloodlinePath, 'core'],
+                          kind: 'string',
+                          rawValue: snapshot.bloodline.core,
+                        })
+                      : htmlEscape(snapshot.bloodline.core)}</span>
                     <span class="tag-chip">${htmlEscape(snapshot.bloodline.lifeFire ? '生命之火' : '未点燃') }</span>
                   </div>
                 </div>
@@ -7709,10 +10241,10 @@
               </div>
               <div class="archive-card">
                 <div class="archive-card-head"><div class="archive-card-title">当前主动能力</div></div>
-                <div class="ability-detail-card">
-                  <div class="ability-detail-title">${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].name : '暂无主动能力')}</div>
-                  <div class="ring-hover-copy"><em>画面描述</em><span>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].visualDesc : '未知')}</span></div>
-                  <div class="ring-hover-copy"><em>效果描述</em><span>${htmlEscape(snapshot.bloodline.bloodSkills[0] ? snapshot.bloodline.bloodSkills[0].effectDesc : '未知')}</span></div>
+                <div class="ability-detail-card${bloodMainSkill && bloodMainSkill.preview ? ' clickable' : ''}"${bloodMainSkill && bloodMainSkill.preview ? ` data-preview="${escapeHtmlAttr(bloodMainSkill.preview)}"` : ''}>
+                  <div class="ability-detail-title">${htmlEscape(bloodMainSkill ? bloodMainSkill.name : '暂无主动能力')}</div>
+                  <div class="ring-hover-copy"><em>画面描述</em><span>${htmlEscape(bloodMainSkill ? bloodMainSkill.visualDesc : '未知')}</span></div>
+                  <div class="ring-hover-copy"><em>效果描述</em><span>${htmlEscape(bloodMainSkill ? bloodMainSkill.effectDesc : '未知')}</span></div>
                 </div>
               </div>
               ${snapshot.bloodline.bloodPermanentBonuses && snapshot.bloodline.bloodPermanentBonuses.length ? `
@@ -7733,7 +10265,7 @@
               ` : ''}
               ${snapshot.bloodline.rings.length ? `
                 <div class="archive-card full spirit-flow-card">
-                  <div class="archive-card-head"><div class="archive-card-title">气血魂环轨道</div></div>
+                  <div class="archive-card-head"><div class="archive-card-title">体力魂环轨道</div></div>
                   <div class="orbit-track">
                     ${snapshot.bloodline.rings.map(ring => `<div class="ring ${ring.ringClass || 'ring-gold'} interactive-ring">${htmlEscape(ring.glyph)}${buildRingHoverMarkup(ring)}</div>`).join('')}
                   </div>
@@ -7781,16 +10313,18 @@
       if (String(previewKey || '').startsWith('榜单角色：')) {
         const targetName = String(previewKey).replace('榜单角色：', '').trim();
         const rootChars = deepGet(snapshot, 'rootData.char', {});
+        let targetCharKey = targetName;
         let targetChar = deepGet(snapshot, ['sd', 'char', targetName], null) || (rootChars && typeof rootChars === 'object' ? (rootChars[targetName] || null) : null);
         if (!targetChar && rootChars && typeof rootChars === 'object') {
           for (const [charKey, charInfo] of Object.entries(rootChars)) {
             const displayName = toText(charInfo && (charInfo.name || deepGet(charInfo, 'base.name', '')), charKey);
-            if (displayName === targetName) { targetChar = charInfo; break; }
+            if (displayName === targetName) { targetCharKey = charKey; targetChar = charInfo; break; }
           }
         }
         const rankingEntry = snapshot.youthRankingEntries.find(([, item]) => toText(item && item['角色名'], '未知') === targetName)
           || snapshot.continentRankingEntries.find(([, item]) => toText(item && item['角色名'], '未知') === targetName)
           || null;
+        const targetCharPath = targetChar ? ['char', targetCharKey] : [];
         const targetStat = deepGet(targetChar, 'stat', {});
         const targetSocial = deepGet(targetChar, 'social', {});
         const targetArmor = deepGet(targetChar, 'equip.armor', {});
@@ -7809,22 +10343,98 @@
                   { label: '角色名', value: targetName || '未知' },
                   { label: '榜单名次', value: rankingEntry ? `第${rankingEntry[0]}名` : '未定位' },
                   { label: '评分', value: rankingEntry ? toText(rankingEntry[1] && rankingEntry[1]['评分'], 0) : '未知' },
-                  { label: '等级', value: targetChar ? `Lv.${toText(targetStat.lv, 0)}` : '未收录' },
-                  { label: '系别', value: targetChar ? toText(targetStat.type, '未知') : '未收录' },
-                  { label: '名望', value: targetChar ? `${toText(targetSocial._fame_level, toText(targetSocial.fame_level, '籍籍无名'))} / ${formatNumber(targetSocial.reputation)}` : '未收录' },
+                  { label: '等级', value: targetChar ? formatCultivationLevelBadge(targetStat.lv, '0') : '未收录' },
+                  { label: '系别', value: targetCharPath.length
+                    ? makeInlineEditableValue(toText(targetStat.type, '未知'), {
+                        path: [...targetCharPath, 'stat', 'type'],
+                        kind: 'string',
+                        rawValue: toText(targetStat.type, '未知'),
+                      })
+                    : (targetChar ? toText(targetStat.type, '未知') : '未收录') },
+                  { label: '公开身份', value: targetCharPath.length
+                    ? makeInlineEditableValue(toText(targetSocial.main_identity, '无'), {
+                        path: [...targetCharPath, 'social', 'main_identity'],
+                        kind: 'string',
+                        rawValue: toText(targetSocial.main_identity, '无'),
+                      })
+                    : (targetChar ? toText(targetSocial.main_identity, '无') : '未收录') },
+                  { label: '名望', value: targetCharPath.length
+                    ? makeInlineEditableValue(formatNumber(targetSocial.reputation), {
+                        path: [...targetCharPath, 'social', 'reputation'],
+                        kind: 'number',
+                        rawValue: toNumber(targetSocial.reputation, 0),
+                        editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                      })
+                    : (targetChar ? formatNumber(targetSocial.reputation) : '未收录') },
                   { label: '魂力', value: targetChar ? `${formatNumber(targetStat.sp)} / ${formatNumber(targetStat.sp_max)}` : '未收录' },
-                  { label: '气血', value: targetChar ? `${formatNumber(targetStat.vit)} / ${formatNumber(targetStat.vit_max)}` : '未收录' },
+                  { label: '体力', value: targetChar ? `${formatNumber(targetStat.vit)} / ${formatNumber(targetStat.vit_max)}` : '未收录' },
                   { label: '精神力', value: targetChar ? `${formatNumber(targetStat.men)} / ${formatNumber(targetStat.men_max)}` : '未收录' },
                   { label: '力量', value: targetChar ? formatNumber(targetStat.str) : '未收录' },
                   { label: '防御', value: targetChar ? formatNumber(targetStat.def) : '未收录' },
                   { label: '敏捷', value: targetChar ? formatNumber(targetStat.agi) : '未收录' }
                 ], 'three')}
               </div>
-              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">武魂概览</div></div>${makeTimelineStack(targetSpiritEntries.length ? targetSpiritEntries.map(([spiritName, spirit]) => ({ title: spiritName, desc: `类型 ${toText(spirit && spirit.type, '未知')} / 元素 ${toText(spirit && spirit.element, '无')} / 魂灵 ${safeEntries(deepGet(spirit, 'souls', {})).length}` })) : [{ title: '暂无武魂记录', desc: targetChar ? '当前角色未记录武魂数据。' : '该榜单角色暂无角色档案。' }])}</div>
+              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">武魂概览</div></div>${makeTimelineStack(targetSpiritEntries.length ? targetSpiritEntries.map(([spiritName, spirit]) => {
+                const spiritPath = targetCharPath.length ? [...targetCharPath, 'spirit', spiritName] : [];
+                return {
+                  title: spiritName,
+                  desc: [
+                    `类型 ${spiritPath.length
+                      ? makeInlineEditableValue(toText(spirit && spirit.type, '未知'), {
+                          path: [...spiritPath, 'type'],
+                          kind: 'string',
+                          rawValue: toText(spirit && spirit.type, '未知'),
+                        })
+                      : htmlEscape(toText(spirit && spirit.type, '未知'))}`,
+                    `元素 ${spiritPath.length
+                      ? makeInlineEditableValue(toText(spirit && spirit.element, '无'), {
+                          path: [...spiritPath, 'element'],
+                          kind: 'string',
+                          rawValue: toText(spirit && spirit.element, '无'),
+                        })
+                      : htmlEscape(toText(spirit && spirit.element, '无'))}`,
+                    `魂灵 ${safeEntries(deepGet(spirit, 'souls', {})).length}`,
+                  ].join(' / ')
+                };
+              }) : [{ title: '暂无武魂记录', desc: targetChar ? '当前角色未记录武魂数据。' : '该榜单角色暂无角色档案。' }])}</div>
               <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">装备概览</div></div>${makeTileGrid([
-                { label: '斗铠', value: targetChar ? (toText(targetArmor.name, '无') !== '无' ? `${toText(targetArmor.name, '无')} / ${toText(targetArmor.equip_status, '未装备')}` : '无') : '未收录' },
-                { label: '机甲', value: targetChar ? (toText(targetMech.lv, '无') !== '无' ? `${toText(targetMech.lv, '无')}·${toText(targetMech.type, '未定型')} / ${toText(targetMech.equip_status || targetMech.status, '未装备')}` : '无') : '未收录' },
-                { label: '主武器', value: targetChar ? (targetWeapon && (targetWeapon.name || targetWeapon['名称']) ? `${toText(targetWeapon.name || targetWeapon['名称'], '无')} / ${toText(targetWeapon.tier || targetWeapon['品阶'], '无品阶')}` : '无') : '未收录' },
+                { label: '斗铠', value: targetCharPath.length
+                  ? `${makeInlineEditableValue(toText(targetArmor.name, '无'), {
+                      path: [...targetCharPath, 'equip', 'armor', 'name'],
+                      kind: 'string',
+                      rawValue: toText(targetArmor.name, '无'),
+                    })} / ${makeInlineEditableValue(toText(targetArmor.equip_status, '未装备'), {
+                      path: [...targetCharPath, 'equip', 'armor', 'equip_status'],
+                      kind: 'string',
+                      rawValue: toText(targetArmor.equip_status, '未装备'),
+                    })}`
+                  : (targetChar ? (toText(targetArmor.name, '无') !== '无' ? `${toText(targetArmor.name, '无')} / ${toText(targetArmor.equip_status, '未装备')}` : '无') : '未收录') },
+                { label: '机甲', value: targetCharPath.length
+                  ? `${makeInlineEditableValue(toText(targetMech.lv, '无'), {
+                      path: [...targetCharPath, 'equip', 'mech', 'lv'],
+                      kind: 'string',
+                      rawValue: toText(targetMech.lv, '无'),
+                    })}·${makeInlineEditableValue(toText(targetMech.type, '未定型'), {
+                      path: [...targetCharPath, 'equip', 'mech', 'type'],
+                      kind: 'string',
+                      rawValue: toText(targetMech.type, '未定型'),
+                    })} / ${makeInlineEditableValue(toText(targetMech.equip_status || targetMech.status, '未装备'), {
+                      path: [...targetCharPath, 'equip', 'mech', targetMech.equip_status !== undefined ? 'equip_status' : 'status'],
+                      kind: 'string',
+                      rawValue: toText(targetMech.equip_status || targetMech.status, '未装备'),
+                    })}`
+                  : (targetChar ? (toText(targetMech.lv, '无') !== '无' ? `${toText(targetMech.lv, '无')}·${toText(targetMech.type, '未定型')} / ${toText(targetMech.equip_status || targetMech.status, '未装备')}` : '无') : '未收录') },
+                { label: '主武器', value: targetCharPath.length
+                  ? `${makeInlineEditableValue(toText(targetWeapon.name || targetWeapon['名称'], '无'), {
+                      path: [...targetCharPath, 'equip', 'wpn', targetWeapon.name !== undefined ? 'name' : '名称'],
+                      kind: 'string',
+                      rawValue: toText(targetWeapon.name || targetWeapon['名称'], '无'),
+                    })} / ${makeInlineEditableValue(toText(targetWeapon.tier || targetWeapon['品阶'], '无品阶'), {
+                      path: [...targetCharPath, 'equip', 'wpn', targetWeapon.tier !== undefined ? 'tier' : '品阶'],
+                      kind: 'string',
+                      rawValue: toText(targetWeapon.tier || targetWeapon['品阶'], '无品阶'),
+                    })}`
+                  : (targetChar ? (targetWeapon && (targetWeapon.name || targetWeapon['名称']) ? `${toText(targetWeapon.name || targetWeapon['名称'], '无')} / ${toText(targetWeapon.tier || targetWeapon['品阶'], '无品阶')}` : '无') : '未收录') },
                 { label: '附件', value: targetChar ? summarizeAccessoryEntries(targetAccessories) : '未收录' }
               ], 'two')}</div>
             </div>
@@ -7867,6 +10477,7 @@
 
       if (previewKey === '拍卖与警报') {
         const auctionItems = safeEntries(deepGet(snapshot, 'rootData.world.auction.items', {})).slice(0, 6);
+        const auctionPath = ['world', 'auction'];
         return {
           title: '拍卖行 / 世界警报弹窗',
           summary: '拍卖状态、拍品与当前世界警报。',
@@ -7875,15 +10486,52 @@
               <div class="archive-card">
                 <div class="archive-card-head"><div class="archive-card-title">拍卖状态</div></div>
                 ${makeTileGrid([
-                  { label: '状态', value: toText(deepGet(snapshot, 'rootData.world.auction.status', '休市'), '休市') },
-                  { label: '地点', value: toText(deepGet(snapshot, 'rootData.world.auction.location', '无'), '无') },
-                  { label: '下次刷新', value: toText(deepGet(snapshot, 'rootData.world.auction.next_tick', 0), '0') },
+                  { label: '状态', value: makeInlineEditableValue(toText(deepGet(snapshot, 'rootData.world.auction.status', '休市'), '休市'), {
+                      path: [...auctionPath, 'status'],
+                      kind: 'string',
+                      rawValue: toText(deepGet(snapshot, 'rootData.world.auction.status', '休市'), '休市'),
+                    }) },
+                  { label: '地点', value: makeInlineEditableValue(toText(deepGet(snapshot, 'rootData.world.auction.location', '无'), '无'), {
+                      path: [...auctionPath, 'location'],
+                      kind: 'string',
+                      rawValue: toText(deepGet(snapshot, 'rootData.world.auction.location', '无'), '无'),
+                    }) },
+                  { label: '下次刷新', value: makeInlineEditableValue(String(toNumber(deepGet(snapshot, 'rootData.world.auction.next_tick', 0), 0)), {
+                      path: [...auctionPath, 'next_tick'],
+                      kind: 'number',
+                      rawValue: toNumber(deepGet(snapshot, 'rootData.world.auction.next_tick', 0), 0),
+                      editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                    }) },
                   { label: '当前拍品', value: `${auctionItems.length} 件` }
                 ], 'two')}
               </div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">拍品列表</div></div>
-                ${makeTimelineStack(auctionItems.map(([name, item]) => ({ title: name, desc: `${toText(item && item.tier, '低阶')} ｜ ${formatNumber(item && item.price)} ｜ ${toText(item && item.lore, '暂无说明')}` })))}
+                ${makeTimelineStack(auctionItems.map(([name, item]) => {
+                  const itemPath = [...auctionPath, 'items', name];
+                  return {
+                    title: name,
+                    desc: [
+                      `品阶 ${makeInlineEditableValue(toText(item && item.tier, '低阶'), {
+                        path: [...itemPath, 'tier'],
+                        kind: 'string',
+                        rawValue: toText(item && item.tier, '低阶'),
+                      })}`,
+                      `价格 ${makeInlineEditableValue(String(toNumber(item && item.price, 0)), {
+                        path: [...itemPath, 'price'],
+                        kind: 'number',
+                        rawValue: toNumber(item && item.price, 0),
+                        editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                      })}`,
+                      `说明 ${makeInlineEditableValue(toText(item && item.lore, '暂无说明'), {
+                        path: [...itemPath, 'lore'],
+                        kind: 'string',
+                        rawValue: toText(item && item.lore, '暂无说明'),
+                        multiline: true,
+                      })}`,
+                    ].join(' / ')
+                  };
+                }))}
               </div>
             </div>
           `
@@ -7919,8 +10567,9 @@
         const targetOrgName = String(previewKey).replace('org_detail_', '').trim();
         const targetOrgEntry = snapshot.orgEntries.find(([name]) => name === targetOrgName) || [targetOrgName, {}];
         const targetOrgData = targetOrgEntry[1] || {};
-        
-        const factionRelationCards = buildFactionRelationCards(targetOrgData, {
+        const targetOrgPath = targetOrgName ? ['org', targetOrgName] : [];
+
+        const factionRelationCards = buildFactionRelationEditorGrid(targetOrgName, targetOrgData, {
           max: 8,
           emptyTitle: '暂无对外关系',
           emptyDesc: '当前势力未记录对外关系。'
@@ -7947,17 +10596,73 @@
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">势力概况</div></div>
                 ${makeTileGrid([
-                  { label: '影响力', value: formatNumber(targetOrgData.inf || 0) },
-                  { label: '势力规模', value: formatNumber(targetOrgData.size || 0) },
-                  { label: '当前状态', value: toText(targetOrgData.status, '正常') },
-                  { label: '极限斗罗', value: deepGet(targetOrgData, 'power_stats.limit_douluo', 0) },
-                  { label: '超级斗罗', value: deepGet(targetOrgData, 'power_stats.super_douluo', 0) },
-                  { label: '封号斗罗', value: deepGet(targetOrgData, 'power_stats.title_douluo', 0) }
-                ])}
+                  { label: '影响力', value: targetOrgPath.length
+                    ? makeInlineEditableValue(formatNumber(targetOrgData.inf || 0), {
+                        path: [...targetOrgPath, 'inf'],
+                        kind: 'number',
+                        rawValue: toNumber(targetOrgData.inf, 0),
+                        editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                      })
+                    : formatNumber(targetOrgData.inf || 0) },
+                  { label: '势力规模', value: targetOrgPath.length
+                    ? makeInlineEditableValue(formatNumber(targetOrgData.size || 0), {
+                        path: [...targetOrgPath, 'size'],
+                        kind: 'number',
+                        rawValue: toNumber(targetOrgData.size, 0),
+                        editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                      })
+                    : formatNumber(targetOrgData.size || 0) },
+                  { label: '当前状态', value: targetOrgPath.length
+                    ? makeInlineEditableValue(toText(targetOrgData.status, '正常'), {
+                        path: [...targetOrgPath, 'status'],
+                        kind: 'string',
+                        rawValue: toText(targetOrgData.status, '正常'),
+                      })
+                    : toText(targetOrgData.status, '正常') },
+                  { label: '上级势力', value: targetOrgPath.length
+                    ? makeInlineEditableValue(toText(targetOrgData.parent_faction, '无'), {
+                        path: [...targetOrgPath, 'parent_faction'],
+                        kind: 'string',
+                        rawValue: toText(targetOrgData.parent_faction, '无'),
+                      })
+                    : toText(targetOrgData.parent_faction, '无') },
+                  { label: '下次刷新', value: targetOrgPath.length
+                    ? makeInlineEditableValue(String(toNumber(targetOrgData.next_refresh_tick, 0)), {
+                        path: [...targetOrgPath, 'next_refresh_tick'],
+                        kind: 'number',
+                        rawValue: toNumber(targetOrgData.next_refresh_tick, 0),
+                        editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                      })
+                    : String(toNumber(targetOrgData.next_refresh_tick, 0)) },
+                  { label: '极限斗罗', value: targetOrgPath.length
+                    ? makeInlineEditableValue(String(toNumber(deepGet(targetOrgData, 'power_stats.limit_douluo', 0), 0)), {
+                        path: [...targetOrgPath, 'power_stats', 'limit_douluo'],
+                        kind: 'number',
+                        rawValue: toNumber(deepGet(targetOrgData, 'power_stats.limit_douluo', 0), 0),
+                        editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                      })
+                    : deepGet(targetOrgData, 'power_stats.limit_douluo', 0) },
+                  { label: '超级斗罗', value: targetOrgPath.length
+                    ? makeInlineEditableValue(String(toNumber(deepGet(targetOrgData, 'power_stats.super_douluo', 0), 0)), {
+                        path: [...targetOrgPath, 'power_stats', 'super_douluo'],
+                        kind: 'number',
+                        rawValue: toNumber(deepGet(targetOrgData, 'power_stats.super_douluo', 0), 0),
+                        editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                      })
+                    : deepGet(targetOrgData, 'power_stats.super_douluo', 0) },
+                  { label: '封号斗罗', value: targetOrgPath.length
+                    ? makeInlineEditableValue(String(toNumber(deepGet(targetOrgData, 'power_stats.title_douluo', 0), 0)), {
+                        path: [...targetOrgPath, 'power_stats', 'title_douluo'],
+                        kind: 'number',
+                        rawValue: toNumber(deepGet(targetOrgData, 'power_stats.title_douluo', 0), 0),
+                        editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                      })
+                    : deepGet(targetOrgData, 'power_stats.title_douluo', 0) }
+                ], 'two')}
               </div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">对外关系</div></div>
-                ${makeTimelineStack(factionRelationCards)}
+                ${factionRelationCards}
               </div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">角色名册</div></div>
@@ -7978,87 +10683,14 @@
       }
 
       if (previewKey === '我的阵营详情') {
-        const currentFactionName = snapshot.factions[0] ? snapshot.factions[0][0] : '';
-        const currentFactionRole = snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '未加入';
-        const currentFactionPower = snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '权限级', 0), '0') : '0';
-        const currentFactionEntry = currentFactionName
-          ? (snapshot.orgEntries.find(([name]) => name === currentFactionName) || [currentFactionName, {}])
-          : ['', {}];
-        const currentFactionRelationCards = buildFactionRelationCards(currentFactionEntry[1] || {}, {
-          max: 8,
-          emptyTitle: '暂无阵营关系',
-          emptyDesc: currentFactionName ? '当前所属势力未记录对外关系。' : '当前角色尚未加入可展示关系的势力。'
-        });
-        const promotionReq = toText(deepGet(snapshot, 'activeChar.promotion_request.target_faction', '无'), '无');
-        const donateReq = toText(deepGet(snapshot, 'activeChar.donate_request.item_name', '无'), '无');
-        const questReq = toText(deepGet(snapshot, 'activeChar.quest_request.action', '无'), '无');
-        const hasFactionRelations = safeEntries(deepGet(currentFactionEntry[1], 'rel', {})).length > 0;
-        const hasPendingRequests = promotionReq !== '无' || donateReq !== '无' || questReq !== '无';
-
-        return {
-          title: '我的阵营弹窗',
-          summary: '当前角色在各势力中的身份、权限与操作台。',
-          body: `
-            <div class="archive-modal-grid">
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; grid-column: 1 / -1;">
-                <div class="archive-card">
-                  <div class="archive-card-head"><div class="archive-card-title">所属势力架构</div></div>
-                  <div class="relation-side-list">
-                    ${(snapshot.factions.length ? snapshot.factions : [['未加入势力', { 身份: '无', 权限级: 0 }]]).map(([name, info], idx) => `<div class="faction-row ${idx === 0 ? 'highlight' : ''}"><b>${htmlEscape(name)}</b><span>${htmlEscape(`身份：${toText(info && info['身份'], '无')} / 权限级：${toText(info && info['权限级'], '0')}`)}</span></div>`).join('')}
-                  </div>
-                </div>
-                <div class="archive-card">
-                  <div class="archive-card-head"><div class="archive-card-title">主身份摘要</div></div>
-                  ${makeTileGrid([
-                    { label: '当前所属', value: snapshot.factions[0] ? snapshot.factions[0][0] : '无' },
-                    { label: '当前身份', value: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '未加入' },
-                    { label: '主公开身份', value: toText(deepGet(snapshot, 'activeChar.social.main_identity', '无'), '无') },
-                    { label: '当前称号', value: snapshot.recentTitles[0] || '暂无' }
-                  ], 'two')}
-                </div>
-              </div>
-              ${hasFactionRelations || hasPendingRequests ? `
-                <div class="archive-card full">
-                  <div class="archive-card-head"><div class="archive-card-title">阵营动态</div></div>
-                  <div class="two-col-grid" style="margin-top: 12px;">
-                    ${hasFactionRelations ? `<div class="relation-side-list"><div class="relation-card"><b>当前阵营关系</b><span>${htmlEscape(currentFactionRelationCards.map(item => `${item.title}：${item.desc}`).join(' / '))}</span></div>${makeTimelineStack(currentFactionRelationCards)}</div>` : ''}
-                    ${hasPendingRequests ? `<div class="relation-side-list"><div class="relation-card"><b>挂起事务</b><span>${htmlEscape([promotionReq !== '无' ? '晋升申请' : '', donateReq !== '无' ? '捐献申请' : '', questReq !== '无' ? '任务请求' : ''].filter(Boolean).join(' / ') || '无')}</span></div>${makeTimelineStack([
-                      {
-                        title: '晋升申请',
-                        desc: promotionReq !== '无'
-                          ? `${promotionReq} / ${toText(deepGet(snapshot, 'activeChar.promotion_request.target_title', '无'), '无')}`
-                          : '无'
-                      },
-                      {
-                        title: '捐献申请',
-                        desc: donateReq !== '无'
-                          ? `${donateReq} × ${toNumber(deepGet(snapshot, 'activeChar.donate_request.quantity', 1), 1)} / ${toText(deepGet(snapshot, 'activeChar.donate_request.target_faction', '无'), '无')}`
-                          : '无'
-                      },
-                      {
-                        title: '任务请求',
-                        desc: questReq !== '无'
-                          ? `${questReq} / ${toText(deepGet(snapshot, 'activeChar.quest_request.quest_name', '无'), '无')}`
-                          : '无'
-                      }
-                    ].filter(i => i.desc !== '无'))}</div>` : ''}
-                  </div>
-                </div>
-              ` : ''}
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">所属势力名册</div></div>
-                ${makePaginatedTimelineSection(safeEntries(currentFactionEntry[1] && currentFactionEntry[1].mem).map(([memberName, memberInfo]) => ({ title: memberName, desc: `职位：${toText(memberInfo && memberInfo['职位'], '外围')}` })), '我的阵营详情', 'faction-members', [{ title: '暂无成员记录', desc: currentFactionName ? '当前所属势力尚未记录成员档案。' : '当前未加入可展示成员名册的势力。' }], 50)}
-              </div>
-              ${buildFactionAffairConsoleHtml(snapshot, currentFactionName)}
-            </div>
-          `
-        };
+        return buildFactionDossierModal(snapshot, previewKey);
       }
 
       if (previewKey === '本地据点详情' || previewKey === '当前节点详情' || previewKey.startsWith('地图节点：')) {
         const nodeName = previewKey.startsWith('地图节点：') ? previewKey.replace('地图节点：', '') : snapshot.currentLoc;
         const mapNode = resolveDisplayMapNode(snapshot, nodeName);
         const nodeInfo = resolveLocationData(snapshot.rootData, nodeName);
+        const locationBasePath = nodeInfo && nodeInfo.data ? ['world', 'locations', nodeInfo.name] : [];
         const nodeStores = safeEntries(nodeInfo.data && nodeInfo.data.stores);
         const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
         const activeDisplayName = toText(deepGet(snapshot, 'activeChar.name', deepGet(snapshot, 'activeChar.base.name', snapshot.activeName)), snapshot.activeName);
@@ -8077,24 +10709,68 @@
           .find(locationName => isLocationCompatible(nodeName, locationName) || isLocationCompatible(locationName, nodeName)) || '';
         const currentNodeLocFull = toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc), snapshot.currentLoc);
         const canDispatchHere = !!toText(currentNodeLocFull, '') && isLocationCompatible(nodeName, currentNodeLocFull);
+        const isTransmissionTowerNode =
+          /传灵塔|升灵台|魂灵塔/.test(nodeName)
+          || nodeStores.some(([name]) => /传灵塔|升灵台|魂灵塔/.test(toText(name, '')));
 
         const localNpcCards = localNpcEntries.map(([name, char]) => ({
           title: toText(deepGet(char, 'name', deepGet(char, 'base.name', name)), name),
           desc: `${toText(deepGet(char, 'social.main_identity', '未知身份'), '未知身份')} / ${toText(deepGet(char, 'status.loc', '未知地点'), '未知地点')}`
         }));
-        const actionButtons = canDispatchHere ? [
+        const availableActionButtons = [
           ...(nodeStores.length ? [{ text: '前往商店', action: 'shop', target: nodeStores[0][0], className: 'live' }] : []),
           ...(officialCommissionLocationName ? [{ text: `进入${officialCommissionLocationName}官方工坊`, action: 'craft', executorType: 'official', className: 'live' }] : []),
           ...(primaryNpc ? [{ text: `与${primaryNpc}交易`, action: 'trade', npcTarget: primaryNpc, className: 'warn' }, { text: `委托${primaryNpc}工坊`, action: 'craft', npcTarget: primaryNpc, executorType: 'private', className: 'warn' }, { text: `与${primaryNpc}对话`, action: 'talk', npcTarget: primaryNpc, className: 'live' }, { text: `向${primaryNpc}请教`, action: 'intel', npcTarget: primaryNpc, className: '' }, { text: `向${primaryNpc}切磋`, action: 'battle', npcTarget: primaryNpc, className: 'warn' }] : []),
           ...(!primaryNpc ? [{ text: '打开工坊', action: 'craft', executorType: 'self', className: 'live' }] : [])
-        ] : [];
+        ];
+        const actionButtons = canDispatchHere ? availableActionButtons : [];
         const isPlayerControlled = isSnapshotPlayerControlled(snapshot);
-        const actionSummaryText = actionButtons.map(btn => btn.text).join(' / ');
+        const actionSummaryText = availableActionButtons.map(btn => btn.text).join(' / ');
         const actionCardTitle = isPlayerControlled ? '可执行操作' : '驻地操作概览';
+        const travelPlan = !canDispatchHere && isPlayerControlled && window.__sheepMapBridge && typeof window.__sheepMapBridge.describeTravelToNode === 'function'
+          ? window.__sheepMapBridge.describeTravelToNode(nodeName)
+          : null;
+        const arrivalActionItems = availableActionButtons.map(btn => {
+          const metaParts = [];
+          if (btn.npcTarget) metaParts.push(`对象 ${btn.npcTarget}`);
+          if (btn.target && btn.target !== nodeName && !btn.npcTarget) metaParts.push(`目标 ${btn.target}`);
+          if (btn.executorType === 'official') metaParts.push('官方工坊');
+          if (btn.executorType === 'private') metaParts.push('私人委托');
+          if (btn.executorType === 'self') metaParts.push('自营工坊');
+          return {
+            title: btn.text,
+            desc: metaParts.length ? metaParts.join(' / ') : '抵达后可直接发起'
+          };
+        });
         const actionButtonsHtml = isPlayerControlled
-          ? (actionButtons.length
-            ? `<div style="display:flex;flex-wrap:wrap;gap:8px;">${actionButtons.map(btn => `<button type="button" class="map-dispatch-action-btn ${htmlEscape(btn.className || '')}" data-action="${htmlEscape(btn.action || '')}" data-target="${htmlEscape(btn.target || nodeName)}" data-current-loc="${htmlEscape(nodeName)}" data-npc-target="${htmlEscape(btn.npcTarget || '')}" data-executor-type="${htmlEscape(btn.executorType || '')}" data-services="${htmlEscape(Array.isArray(btn.services) ? btn.services.join('|') : '')}" style="border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:#fff;padding:8px 12px;border-radius:10px;cursor:pointer;">${htmlEscape(btn.text || '执行操作')}</button>`).join('')}</div>`
-            : `<div class="relation-card"><b>${canDispatchHere ? '暂无可执行操作' : '尚未到达'}</b><span>${canDispatchHere ? '这里暂时没有能立刻发起的交易或互动。' : '你现在不在这里，先移动到该地点后，才能进行交易、工坊或社交互动。'}</span></div>`)
+          ? (canDispatchHere
+            ? (actionButtons.length
+              ? `<div class="map-action-grid">${actionButtons.map(btn => `<button type="button" class="map-dispatch-action-btn ${htmlEscape(btn.className || '')}" data-action="${htmlEscape(btn.action || '')}" data-target="${htmlEscape(btn.target || nodeName)}" data-current-loc="${htmlEscape(nodeName)}" data-npc-target="${htmlEscape(btn.npcTarget || '')}" data-executor-type="${htmlEscape(btn.executorType || '')}" data-services="${htmlEscape(Array.isArray(btn.services) ? btn.services.join('|') : '')}">${htmlEscape(btn.text || '执行操作')}</button>`).join('')}</div>`
+              : `<div class="relation-card"><b>暂无可执行操作</b><span>这里暂时没有能立刻发起的交易或互动。</span></div>`)
+            : `
+              <section class="dossier-section">
+                <div class="dossier-section-title">移动到此处</div>
+                ${travelPlan && travelPlan.ok
+                  ? `${makeDossierRows([
+                      { label: '移动方式', value: htmlEscape(toText(travelPlan.method, '未定')) },
+                      { label: '预计耗时', value: htmlEscape(toText(travelPlan.duration, '未定')) },
+                      { label: '资源消耗', value: htmlEscape(toText(travelPlan.costText, '无')) },
+                      { label: '坐标', value: htmlEscape(toText(travelPlan.coordText, '未定')) },
+                      ...(travelPlan.routePlan ? [{ label: '路径说明', value: htmlEscape(toText(travelPlan.routePlan, '')), className: 'dossier-row--wide' }] : []),
+                      ...(!travelPlan.canAfford && travelPlan.reason ? [{ label: '当前限制', value: htmlEscape(toText(travelPlan.reason, '资源不足')), className: 'dossier-row--wide' }] : [])
+                    ], 'dossier-row-grid--two')}
+                    <div class="tag-cloud armory-quick-actions" style="margin-top:12px;justify-content:flex-start;">
+                      <button type="button" class="relation-action-btn action-primary" data-map-travel-node="${escapeHtmlAttr(nodeName)}" ${travelPlan.canAfford ? '' : 'disabled'}>${htmlEscape(travelPlan.canAfford ? `移动到 ${nodeName}` : '资源不足，暂不能移动')}</button>
+                    </div>`
+                  : `<div class="dossier-empty-note">${htmlEscape(toText(travelPlan && travelPlan.reason, '当前无法规划前往该节点的移动。'))}</div>`}
+              </section>
+              <section class="dossier-section">
+                <div class="dossier-section-title">到达后可执行</div>
+                ${arrivalActionItems.length
+                  ? makeDossierList(arrivalActionItems, 'dossier-list--compact')
+                  : '<div class="dossier-empty-note">抵达后暂未识别到立即可执行的交易、工坊或社交入口。</div>'}
+              </section>
+            `)
           : `<div class="relation-card"><b>旁观视角</b><span>${htmlEscape(actionSummaryText ? `当前为旁观视角，可见入口：${actionSummaryText}。这里能先查看驻地情形；若想交易、开工坊或社交，需要切回自己的行动视角。` : '当前为旁观视角，这里可以先查看驻地情形；若想交易、开工坊或社交，需要切回自己的行动视角。')}</span></div>`;
         const travelTags = (snapshot.mapTravelCandidates.length ? snapshot.mapTravelCandidates : snapshot.dynamicLocationNames).filter(name => name !== nodeName).slice(0, 6);
         return {
@@ -8106,16 +10782,42 @@
                   <div class="archive-card-head"><div class="archive-card-title">据点概览</div></div>
                   ${makeTileGrid([
                     { label: '所在地点', value: nodeName },
-                    { label: '掌控势力', value: toText(nodeInfo.data && nodeInfo.data['掌控势力'], '未知') },
-                    { label: '常住人口', value: formatNumber(nodeInfo.data && nodeInfo.data['人口']) },
-                    { label: '经济状况', value: toText(nodeInfo.data && nodeInfo.data['经济状况'], '未知') },
-                    { label: '守护军团', value: toText(nodeInfo.data && nodeInfo.data['守护军团'], '无') },
+                    { label: '掌控势力', value: locationBasePath.length
+                      ? makeInlineEditableValue(toText(nodeInfo.data && nodeInfo.data['掌控势力'], '未知'), {
+                          path: [...locationBasePath, '掌控势力'],
+                          kind: 'string',
+                          rawValue: toText(nodeInfo.data && nodeInfo.data['掌控势力'], '未知'),
+                        })
+                      : htmlEscape(toText(nodeInfo.data && nodeInfo.data['掌控势力'], '未知')) },
+                    { label: '常住人口', value: locationBasePath.length
+                      ? makeInlineEditableValue(formatNumber(nodeInfo.data && nodeInfo.data['人口']), {
+                          path: [...locationBasePath, '人口'],
+                          kind: 'number',
+                          rawValue: toNumber(nodeInfo.data && nodeInfo.data['人口'], 0),
+                          editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                        })
+                      : htmlEscape(formatNumber(nodeInfo.data && nodeInfo.data['人口'])) },
+                    { label: '经济状况', value: locationBasePath.length
+                      ? makeInlineEditableValue(toText(nodeInfo.data && nodeInfo.data['经济状况'], '未知'), {
+                          path: [...locationBasePath, '经济状况'],
+                          kind: 'enum_select',
+                          rawValue: toText(nodeInfo.data && nodeInfo.data['经济状况'], '未知'),
+                          editorMeta: { options: ['繁荣', '普通', '萧条', '未知'] },
+                        })
+                      : htmlEscape(toText(nodeInfo.data && nodeInfo.data['经济状况'], '未知')) },
+                    { label: '守护军团', value: locationBasePath.length
+                      ? makeInlineEditableValue(toText(nodeInfo.data && nodeInfo.data['守护军团'], '无'), {
+                          path: [...locationBasePath, '守护军团'],
+                          kind: 'string',
+                          rawValue: toText(nodeInfo.data && nodeInfo.data['守护军团'], '无'),
+                        })
+                      : htmlEscape(toText(nodeInfo.data && nodeInfo.data['守护军团'], '无')) },
                     { label: '商店数量', value: `${nodeStores.length} 处` },
                   ], 'two')}
                 </div>
                 <div class="archive-card">
                   <div class="archive-card-head"><div class="archive-card-title">驻地状态</div></div>
-                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: center;">
+                  <div class="location-status-layout">
                     ${(() => {
                       const getScore = (text) => {
                         if (!text || text === '未知') return 50;
@@ -8133,16 +10835,23 @@
                       const guardScore = guardText !== '无' ? (guardText.includes('精锐') || guardText.includes('主力') ? 95 : 70) : 20;
                       const tradeScore = nodeStores.length ? Math.min(100, 30 + nodeStores.length * 20) : 10;
                       return `
-                        <div style="text-align: center; position: relative;">
+                        <div class="location-radar-panel">
                           ${makeRadarSvg(['经济状况', '常住人口', '守备力量', '贸易补给', '战略价值'], [ecoScore, popScore, guardScore, tradeScore, Math.round((ecoScore+popScore+guardScore+tradeScore)/4)])}
                         </div>
                       `;
                     })()}
-                    <div class="relation-side-list">
-                      <div class="relation-card" style="background:none;padding:0;border:none;"><b>综合评级</b><span style="color:var(--cyan); font-size: 16px; font-weight: bold;">${htmlEscape(toText(nodeInfo.data && nodeInfo.data['经济状况'], '未知'))}</span></div>
-                      <div class="relation-card" style="background:none;padding:0;border:none;"><b>守备评估</b><span style="color:var(--color-text-primary);">${htmlEscape(toText(nodeInfo.data && nodeInfo.data['守护军团'], '无军团驻扎'))}</span></div>
-                      <div class="relation-card" style="background:none;padding:0;border:none;"><b>补给节点</b><span style="color:var(--color-text-secondary);">${htmlEscape(nodeStores.length ? `${nodeStores.length} 处贸易站或设施` : '无可见商店')}</span></div>
-                      <div class="relation-card" style="background:none;padding:0;border:none;"><b>地图简报</b><span style="color:var(--color-text-secondary); font-size: 12px; line-height: 1.4;">${htmlEscape(mapNode ? mapNode.desc : '无扫描数据')}</span></div>
+                    <div class="location-status-summary">
+                      <div class="location-summary-card location-summary-card--highlight"><b>综合评级</b><span>${htmlEscape(toText(nodeInfo.data && nodeInfo.data['经济状况'], '未知'))}</span></div>
+                      <div class="location-summary-card"><b>守备评估</b><span>${htmlEscape(toText(nodeInfo.data && nodeInfo.data['守护军团'], '无军团驻扎'))}</span></div>
+                      <div class="location-summary-card"><b>补给节点</b><span>${htmlEscape(nodeStores.length ? `${nodeStores.length} 处贸易站或设施` : '无可见商店')}</span></div>
+                      <div class="location-summary-card location-summary-card--note"><b>地图简报</b><span>${locationBasePath.length
+                        ? makeInlineEditableValue(toText(deepGet(nodeInfo.data, 'desc', mapNode ? mapNode.desc : '无扫描数据'), mapNode ? mapNode.desc : '无扫描数据'), {
+                            path: [...locationBasePath, 'desc'],
+                            kind: 'string',
+                            rawValue: toText(deepGet(nodeInfo.data, 'desc', mapNode ? mapNode.desc : '无扫描数据'), mapNode ? mapNode.desc : '无扫描数据'),
+                            multiline: true,
+                          })
+                        : htmlEscape(mapNode ? mapNode.desc : '无扫描数据')}</span></div>
                     </div>
                   </div>
                 </div>
@@ -8159,7 +10868,7 @@
                 <div class="archive-card full">
                   <div class="archive-card-head"><div class="archive-card-title">${htmlEscape(actionCardTitle)}</div></div>
                   ${actionButtonsHtml}
-                  <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed rgba(255,255,255,0.1); color: var(--color-text-secondary); font-size: 13px; text-align: center;">当前节点未扫描到可直接互动的本地角色。</div>
+                  <div class="location-empty-note">当前节点未扫描到可直接互动的本地角色。</div>
                 </div>
               `}
             </div>
@@ -8169,9 +10878,11 @@
       }
 
       if (previewKey === '图层控制与跑图') {
+        const statusLoc = toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc), snapshot.currentLoc);
+        const statusCoordSystem = toText(deepGet(snapshot, 'activeChar.status.coord_system', 'image'), 'image');
         return {
           title: '图层控制 / 跑图弹窗',
-          summary: '当前位置、可见层级与当前出行安排。',
+          summary: '当前位置、可见层级与跑图仲裁状态。',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
@@ -8179,7 +10890,9 @@
                 ${makeTileGrid([
                   { label: '当前锚点', value: snapshot.currentLoc },
                   { label: '主视图', value: snapshot.normalizedLoc },
-                  { label: '当前交通方式', value: toText(deepGet(snapshot, 'activeChar.travel_request.method', '步行'), '步行') },
+                  { label: '角色定位', value: statusLoc },
+                  { label: '坐标系', value: statusCoordSystem },
+                  { label: '移动结算', value: '地图仲裁器直结' },
                   { label: '动态节点', value: `${snapshot.dynamicLocationNames.length} 个` }
                 ], 'two')}
               </div>
@@ -8189,6 +10902,7 @@
       }
 
       if (previewKey === '动态地点与扩展节点') {
+        const dynamicLocationEntries = snapshot.dynamicLocationNames.map(name => [name, deepGet(snapshot, ['rootData', 'world', 'dynamic_locations', name], {})]);
         return {
           title: '动态地点弹窗',
           summary: '剧情推进生成的扩展节点。',
@@ -8196,7 +10910,46 @@
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">动态节点列表</div></div>
-                ${makeTimelineStack(snapshot.dynamicLocationNames.map(name => ({ title: name, desc: `归属：${toText(deepGet(snapshot, ['sd', 'world', 'dynamic_locations', name, '归属父节点'], '未知'), '未知')}` })))}
+                ${makeTimelineStack(dynamicLocationEntries.length ? dynamicLocationEntries.map(([name, item]) => {
+                  const basePath = ['world', 'dynamic_locations', name];
+                  return {
+                    title: name,
+                    desc: [
+                      `归属 ${makeInlineEditableValue(toText(item && item['归属父节点'], '未知'), {
+                        path: [...basePath, '归属父节点'],
+                        kind: 'string',
+                        rawValue: toText(item && item['归属父节点'], '未知'),
+                      })}`,
+                      `势力 ${makeInlineEditableValue(toText(item && item.faction, '未知'), {
+                        path: [...basePath, 'faction'],
+                        kind: 'string',
+                        rawValue: toText(item && item.faction, '未知'),
+                      })}`,
+                      `类型 ${makeInlineEditableValue(toText(item && item.node_type, '未知'), {
+                        path: [...basePath, 'node_type'],
+                        kind: 'string',
+                        rawValue: toText(item && item.node_type, '未知'),
+                      })}`,
+                      `重要度 ${makeInlineEditableValue(String(toNumber(item && item.importance, 0)), {
+                        path: [...basePath, 'importance'],
+                        kind: 'number',
+                        rawValue: toNumber(item && item.importance, 0),
+                        editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                      })}`,
+                      `状态 ${makeInlineEditableValue(toText(item && item.state, 'intact'), {
+                        path: [...basePath, 'state'],
+                        kind: 'string',
+                        rawValue: toText(item && item.state, 'intact'),
+                      })}`,
+                      `描述 ${makeInlineEditableValue(toText(item && item['描述'], '无'), {
+                        path: [...basePath, '描述'],
+                        kind: 'string',
+                        rawValue: toText(item && item['描述'], '无'),
+                        multiline: true,
+                      })}`,
+                    ].join(' / ')
+                  };
+                }) : [{ title: '暂无动态节点', desc: '当前剧情尚未扩展出新的动态地点。' }])}
               </div>
             </div>
           `
@@ -8219,9 +10972,7 @@
                 prefillNpc: tradeLaunchOptions.prefillNpc,
                 preferredStore: tradeLaunchOptions.preferredStore,
                 onTradeAction: (actionData) => {
-                  if (typeof window.sendToAI === 'function') {
-                    window.sendToAI(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
-                  }
+                  dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
                 }
               });
             }
@@ -8285,7 +11036,11 @@
       }
 
       if (previewKey === '试炼与情报') {
+        const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
+        const towerPath = activeCharKey ? ['char', activeCharKey, 'tower_records'] : [];
         const towerDiscountEntries = safeEntries(deepGet(snapshot, 'activeChar.tower_records.discount_available', {})).filter(([, value]) => !!value);
+        const ascensionRequest = deepGet(snapshot, 'activeChar.ascension_request', {});
+        const towerRequest = deepGet(snapshot, 'activeChar.tower_request', {});
         const huntRequest = deepGet(snapshot, 'activeChar.hunt_request', {});
         const abyssKillRequest = deepGet(snapshot, 'activeChar.abyss_kill_request', {});
         const huntPendingAge = toNumber(huntRequest && huntRequest.killed_age, 0);
@@ -8293,55 +11048,73 @@
         const abyssKillTier = toText(abyssKillRequest && abyssKillRequest.kill_tier, '无');
         const abyssKillQty = Math.max(1, toNumber(abyssKillRequest && abyssKillRequest.quantity, 1));
         const abyssPendingText = abyssKillTier !== '无' ? `${abyssKillTier} × ${abyssKillQty}` : '无待处理';
+        const ascensionTicketCount = (snapshot.inventoryEntries || [])
+          .filter(([name]) => /升灵台/.test(toText(name, '')))
+          .reduce((sum, [, item]) => sum + Math.max(0, toNumber(item && item['数量'], 0)), 0);
+        const ascensionTickets = listAscensionTicketNames(snapshot);
+        const soulSpiritTargets = listSoulSpiritTargets(snapshot);
         const trialTickets = (snapshot.inventoryEntries || []).filter(([name]) => /升灵台|魂灵塔/.test(name)).slice(0, 8);
         const ticketCards = trialTickets.length
           ? trialTickets.map(([name, item]) => ({ title: `${name} ×${toNumber(item && item['数量'], 0)}`, desc: toText(item && item['描述'], '可用于对应试炼场景。') }))
-          : [{ title: '暂无试炼门票', desc: '当前背包中没有升灵台/魂灵塔门票。' }];
+          : [{ title: '暂无试炼门票', desc: '当前背包中没有升灵台或魂灵塔相关门票。' }];
+        const towerPending = toText(towerRequest && towerRequest.action, '无') !== '无';
+        const ascensionPending = toText(ascensionRequest && ascensionRequest.ticket_type, '无') !== '无';
+        const towerPendingText = towerPending ? `${toText(towerRequest && towerRequest.action, '冲塔')} / 第${Math.max(0, toNumber(towerRequest && towerRequest.cleared_floor, 0))}层` : '无待处理';
+        const ascensionPendingText = ascensionPending
+          ? `${toText(ascensionRequest && ascensionRequest.ticket_type, '未知门票')} / ${toText(ascensionRequest && ascensionRequest.spirit_key, '未指定')}-${toText(ascensionRequest && ascensionRequest.soul_spirit_key, '未指定')} / +${Math.max(0, toNumber(ascensionRequest && ascensionRequest.gain_age, 0))}年`
+          : '无待处理';
+        const ascensionTicketOptionsHtml = ascensionTickets.length
+          ? ascensionTickets.map(name => `<option value="${escapeHtmlAttr(name)}"${name === toText(ascensionRequest && ascensionRequest.ticket_type, '') ? ' selected' : ''}>${htmlEscape(name)}</option>`).join('')
+          : '<option value="">暂无门票</option>';
+        const soulSpiritTargetOptionsHtml = soulSpiritTargets.length
+          ? soulSpiritTargets.map(item => {
+              const rawValue = `${item.spiritKey}::${item.soulSpiritKey}`;
+              const selected = rawValue === `${toText(ascensionRequest && ascensionRequest.spirit_key, '')}::${toText(ascensionRequest && ascensionRequest.soul_spirit_key, '')}`;
+              return `<option value="${escapeHtmlAttr(rawValue)}"${selected ? ' selected' : ''}>${htmlEscape(item.label)}</option>`;
+            }).join('')
+          : '<option value="">暂无魂灵</option>';
+        delete modalFocusState[`${previewKey}::trial-focus`];
         return {
           title: '试炼与情报',
-          summary: '当前试炼资源、待处理事项与近期风险情报。',
+          summary: '当前试炼资源、票据储备与近期风险情报。',
           body: `
-            <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
+            <div class="archive-modal-grid" style="grid-template-columns: repeat(2, minmax(0, 1fr)); align-items:start;">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">可前往试炼</div></div>
+                <div class="archive-card-head"><div class="archive-card-title">试炼总览</div></div>
                 ${makeTileGrid([
-                  { label: '升灵台门票', value: String(snapshot.inventoryEntries.filter(([name]) => /升灵台/.test(name)).length) },
-                  { label: '魂灵塔记录', value: `最高 ${toText(deepGet(snapshot, 'activeChar.tower_records.max_floor', 0), '0')} 层` },
-                  { label: '塔层折扣', value: towerDiscountEntries.length ? `${towerDiscountEntries.length} 层可用` : '暂无' },
+                  { label: '升灵台门票', value: String(ascensionTicketCount) },
+                  { label: '魂灵塔最高', value: towerPath.length
+                    ? makeInlineEditableValue(String(toNumber(deepGet(snapshot, 'activeChar.tower_records.max_floor', 0), 0)), {
+                        path: [...towerPath, 'max_floor'],
+                        kind: 'number',
+                        rawValue: toNumber(deepGet(snapshot, 'activeChar.tower_records.max_floor', 0), 0),
+                        editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                      })
+                    : htmlEscape(String(toNumber(deepGet(snapshot, 'activeChar.tower_records.max_floor', 0), 0))) },
+                  { label: '可用折扣层', value: towerDiscountEntries.length ? `${towerDiscountEntries.length}` : '0' },
+                  { label: '升灵台待处理', value: ascensionPendingText },
+                  { label: '魂灵塔待处理', value: towerPendingText },
                   { label: '现实狩猎待处理', value: huntPendingText },
                   { label: '深渊战果待处理', value: abyssPendingText },
-                  { label: '当前战功', value: formatNumber(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0)) },
-                  { label: '风险评估', value: snapshot.pendingIntelCount ? `${snapshot.worldAlert} / 线索 +${snapshot.pendingIntelImpact}` : snapshot.worldAlert }
-                ])}
+                  { label: '当前战功', value: formatNumber(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0)) }
+                ], 'two')}
               </div>
+
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">试炼待处理事项</div><span class="state-tag ${huntPendingAge > 0 || abyssKillTier !== '无' ? 'warn' : 'live'}">${htmlEscape(huntPendingAge > 0 || abyssKillTier !== '无' ? '待处理' : '已整理')}</span></div>
-                ${makeTileGrid([
-                  { label: '现实狩猎', value: huntPendingText },
-                  { label: '深渊战果', value: abyssPendingText },
-                  { label: '处理方式', value: '系统自动整理' },
-                  { label: '玩家操作', value: '无需额外提交' }
-                ])}
-              </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">魂灵塔 / 升灵台概览</div><span class="state-tag live">概览</span></div>
-                <div class="intel-layout">
-                  <div class="intel-card">
-                    <b>试炼概况</b>
-                    <span>${htmlEscape('这里整理了你当前持有的门票、可用折扣层与已记录的试炼进度。')}</span>
-                  </div>
+                <div class="archive-card-head"><div class="archive-card-title">试炼票据与折扣</div></div>
+                <div class="intel-layout" style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px;">
+                  ${ticketCards.map(item => `<div class="intel-card" style="min-height:116px;"><b>${htmlEscape(item.title)}</b><span>${htmlEscape(item.desc)}</span></div>`).join('')}
                 </div>
-                ${makeTimelineStack(ticketCards)}
-              </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">已掌握情报</div></div>
-                <div class="intel-cabinet">
-                  ${(snapshot.unlockedKnowledges.length ? snapshot.unlockedKnowledges.slice(-4).reverse() : ['情报仍待收集']).map(item => `<div class="intel-card"><b>${htmlEscape(item)}</b><span>${htmlEscape(item)}</span></div>`).join('')}
+                <div style="margin-top:12px;">
+                  ${makeTimelineStack(towerDiscountEntries.length ? towerDiscountEntries.slice(0, 10).map(([floor]) => ({ title: `${floor} 层`, desc: '五折资格未使用' })) : [{ title: '暂无折扣资格', desc: '当前未记录可用五折层。' }])}
                 </div>
               </div>
+
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">魂灵塔折扣资格</div></div>
-                ${makeTimelineStack(towerDiscountEntries.length ? towerDiscountEntries.slice(0, 10).map(([floor]) => ({ title: `${floor} 层`, desc: '五折资格未使用' })) : [{ title: '暂无折扣资格', desc: '当前未记录可用五折层。' }])}
+                <div class="archive-card-head"><div class="archive-card-title">近期情报</div></div>
+                <div class="intel-layout" style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px;">
+                  ${(snapshot.unlockedKnowledges.length ? snapshot.unlockedKnowledges.slice(-4).reverse() : ['情报仍待收集']).map(item => `<div class="intel-card" style="min-height:116px;"><b>${htmlEscape(item)}</b><span>${htmlEscape(item)}</span></div>`).join('')}
+                </div>
               </div>
             </div>
           `
@@ -8371,13 +11144,35 @@
         const focusQuestEntry = focusQuestName ? questRecords.find(([name]) => name === focusQuestName) : null;
         const focusBoardEntry = focusBoardId ? questBoardEntries.find(([name]) => name === focusBoardId) : null;
         const isPlayerControlled = isSnapshotPlayerControlled(snapshot);
+        const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
         const focusQuest = focusQuestEntry && focusQuestEntry[1];
         const focusBoard = focusBoardEntry && focusBoardEntry[1];
         const focusQuestStatus = toText(focusQuest && focusQuest['状态'], '进行中');
         const focusBoardStatus = toText(focusBoard && focusBoard['状态'], '待接取');
+        const focusQuestPath = focusQuestName && activeCharKey ? ['char', activeCharKey, 'records', focusQuestName] : [];
+        const focusBoardPath = focusBoardId ? ['world', 'quest_board', focusBoardId] : [];
+        const focusBoardDescPath = focusBoardPath.length ? [...focusBoardPath, focusBoardStatus === '待接取' ? '框架描述' : '描述'] : [];
         const focusBoardDesc = focusBoard
-          ? (focusBoardStatus === '待接取' ? toText(focusBoard['框架描述'], '该委托当前只公开任务框架，接取后才会披露详细目标。') : toText(focusBoard['描述'], toText(focusBoard['框架描述'], '无附加说明')))
-          : '当前没有选中的委托说明。';
+          ? (focusBoardStatus === '待接取' ? toText(focusBoard['框架描述'], toText(focusBoard['描述'], '未知')) : toText(focusBoard['描述'], toText(focusBoard['框架描述'], '未知')))
+          : '未知';
+        const questCreateFormHtml = activeCharKey ? `
+          <div class="request-console-row" data-collection-panel="quest-record-create" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+            <input class="request-console-input" style="margin:0; flex:1 1 160px;" data-collection-input="record-name" value="" placeholder="任务名" />
+            <input class="request-console-input" style="margin:0; flex:0 1 140px;" data-collection-input="record-type" value="任务" placeholder="类型" />
+            <input type="number" min="1" class="request-console-input" style="margin:0; width:90px; flex:0 0 90px;" data-collection-input="record-target" value="1" placeholder="目标" />
+            <input class="request-console-input" style="margin:0; flex:1 1 220px;" data-collection-input="record-desc" value="" placeholder="说明" />
+            <button type="button" class="tag-chip live" data-collection-action="add-record" data-collection-char="${escapeHtmlAttr(activeCharKey)}">新增</button>
+          </div>
+        ` : '';
+        const boardCreateFormHtml = `
+          <div class="request-console-row" data-collection-panel="quest-board-create" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+            <input class="request-console-input" style="margin:0; flex:1 1 180px;" data-collection-input="board-name" value="" placeholder="委托名" />
+            <input class="request-console-input" style="margin:0; flex:0 1 140px;" data-collection-input="board-type" value="委托" placeholder="类型" />
+            <input class="request-console-input" style="margin:0; flex:0 1 140px;" data-collection-input="board-publisher" value="系统" placeholder="发布者" />
+            <input class="request-console-input" style="margin:0; flex:1 1 220px;" data-collection-input="board-desc" value="" placeholder="说明" />
+            <button type="button" class="tag-chip live" data-collection-action="add-board">新增</button>
+          </div>
+        `;
         const questListHtml = questPage.items.length
           ? questPage.items.map(([name, item]) => {
               const status = toText(item && item['状态'], '进行中');
@@ -8394,7 +11189,7 @@
                 </button>
               `;
             }).join('')
-          : '<div style="padding: 12px 16px; color: var(--color-text-secondary); text-align: center; font-size: 13px;">暂无任务记录，当前没有可追踪的任务档案。</div>';
+          : '<div style="padding: 12px 16px; color: var(--color-text-secondary); text-align: center; font-size: 13px;">暂无任务</div>';
         const boardListHtml = boardPage.items.length
           ? boardPage.items.map(([id, item]) => {
               const title = toText(item && item['标题'], id);
@@ -8412,15 +11207,57 @@
                 </button>
               `;
             }).join('')
-          : '<div style="padding: 12px 16px; color: var(--color-text-secondary); text-align: center; font-size: 13px;">暂无委托，当前世界中没有可浏览的公开委托。</div>';
+          : '<div style="padding: 12px 16px; color: var(--color-text-secondary); text-align: center; font-size: 13px;">暂无委托</div>';
         const questDetailHtml = focusQuest
           ? `
               ${makeTileGrid([
                 { label: '任务名称', value: focusQuestName },
-                { label: '状态', value: focusQuestStatus },
-                { label: '任务类型', value: toText(focusQuest['类型'], '任务') },
-                { label: '奖励金币', value: formatNumber(toNumber(focusQuest['奖励币'], 0)) },
-                { label: '奖励声望', value: formatNumber(toNumber(focusQuest['奖励声望'], 0)) }
+                { label: '状态', value: focusQuestPath.length
+                  ? makeInlineEditableValue(focusQuestStatus, {
+                      path: [...focusQuestPath, '状态'],
+                      kind: 'string',
+                      rawValue: focusQuestStatus,
+                    })
+                  : htmlEscape(focusQuestStatus) },
+                { label: '任务类型', value: focusQuestPath.length
+                  ? makeInlineEditableValue(toText(focusQuest['类型'], '任务'), {
+                      path: [...focusQuestPath, '类型'],
+                      kind: 'string',
+                      rawValue: toText(focusQuest['类型'], '任务'),
+                    })
+                  : htmlEscape(toText(focusQuest['类型'], '任务')) },
+                { label: '当前进度', value: focusQuestPath.length
+                  ? makeInlineEditableValue(String(toNumber(focusQuest['当前进度'], 0)), {
+                      path: [...focusQuestPath, '当前进度'],
+                      kind: 'number',
+                      rawValue: toNumber(focusQuest['当前进度'], 0),
+                      editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                    })
+                  : htmlEscape(String(toNumber(focusQuest['当前进度'], 0))) },
+                { label: '目标进度', value: focusQuestPath.length
+                  ? makeInlineEditableValue(String(toNumber(focusQuest['目标进度'], 1)), {
+                      path: [...focusQuestPath, '目标进度'],
+                      kind: 'number',
+                      rawValue: toNumber(focusQuest['目标进度'], 1),
+                      editorMeta: { min: 1, integer: true, hint: '最小 1 · 整数' },
+                    })
+                  : htmlEscape(String(toNumber(focusQuest['目标进度'], 1))) },
+                { label: '奖励金币', value: focusQuestPath.length
+                  ? makeInlineEditableValue(formatNumber(toNumber(focusQuest['奖励币'], 0)), {
+                      path: [...focusQuestPath, '奖励币'],
+                      kind: 'number',
+                      rawValue: toNumber(focusQuest['奖励币'], 0),
+                      editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                    })
+                  : htmlEscape(formatNumber(toNumber(focusQuest['奖励币'], 0))) },
+                { label: '奖励声望', value: focusQuestPath.length
+                  ? makeInlineEditableValue(formatNumber(toNumber(focusQuest['奖励声望'], 0)), {
+                      path: [...focusQuestPath, '奖励声望'],
+                      kind: 'number',
+                      rawValue: toNumber(focusQuest['奖励声望'], 0),
+                      editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                    })
+                  : htmlEscape(formatNumber(toNumber(focusQuest['奖励声望'], 0))) }
               ], 'two')}
               <div style="margin-top: 16px;">
                 <div style="font-size: 11px; color: var(--color-text-secondary); margin-bottom: 6px; font-weight: 500;">当前进度 <span style="float: right; color: var(--cyan);">${toNumber(focusQuest['当前进度'], 0)} / ${toNumber(focusQuest['目标进度'], 1)}</span></div>
@@ -8429,36 +11266,111 @@
                 </div>
               </div>
             `
-          : makeTileGrid([{ label: '状态', value: '当前未选中任何任务' }], 'two');
-        const questActionHtml = focusQuest && isPlayerControlled && !['已完成', '已放弃', '失败', '已失败'].includes(focusQuestStatus)
+          : makeTileGrid([{ label: '状态', value: '未选择' }], 'two');
+        const questActionHtml = focusQuestPath.length
           ? `
               <div class="request-console-row" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:16px;">
-                ${focusQuestStatus === '可提交' ? `<button type="button" class="relation-action-btn quest-action-btn" data-quest-action="submit" data-quest-target="${escapeHtmlAttr(focusQuestName)}">提交任务</button>` : ''}
-                <button type="button" class="relation-action-btn quest-action-btn" data-quest-action="abandon" data-quest-target="${escapeHtmlAttr(focusQuestName)}">放弃任务</button>
+                <button type="button" class="tag-chip" data-collection-action="delete-record" data-collection-char="${escapeHtmlAttr(activeCharKey)}" data-collection-key="${escapeHtmlAttr(focusQuestName)}">删除任务</button>
+                ${focusQuest && isPlayerControlled && !['已完成', '已放弃', '失败', '已失败'].includes(focusQuestStatus)
+                  ? `${focusQuestStatus === '可提交' ? `<button type="button" class="relation-action-btn quest-action-btn" data-quest-action="submit" data-quest-target="${escapeHtmlAttr(focusQuestName)}">提交任务</button>` : ''}<button type="button" class="relation-action-btn quest-action-btn" data-quest-action="abandon" data-quest-target="${escapeHtmlAttr(focusQuestName)}">放弃任务</button>`
+                  : ''}
               </div>
             `
-          : (focusQuest ? `<div style="margin-top:16px; font-size:12px; color: var(--color-text-secondary);">${htmlEscape(isPlayerControlled ? '当前任务已归档，暂无可执行操作。' : '当前为旁观视角，仅可查看任务状态。')}</div>` : '');
+          : '';
         const boardDetailHtml = focusBoard
           ? makeTileGrid([
-              { label: '委托标题', value: toText(focusBoard['标题'], focusBoardId) },
-              { label: '状态', value: focusBoardStatus },
-              { label: '发布者', value: toText(focusBoard['发布者'], '系统') },
-              { label: '面向', value: toText(focusBoard['面向'], '公开') },
-              { label: '承接者', value: toText(focusBoard['承接者'], '无') },
-              { label: '预计阶段', value: formatNumber(toNumber(focusBoard['目标进度'], 1)) },
-              { label: '难度 / 资源', value: `${toText(focusBoard['难度'], '中')} / ${toText(focusBoard['资源级别'], '无')}` },
-              { label: '奖励金币', value: formatNumber(toNumber(focusBoard['奖励币'], 0)) },
-              { label: '奖励声望', value: formatNumber(toNumber(focusBoard['奖励声望'], 0)) }
+              { label: '委托标题', value: focusBoardPath.length
+                ? makeInlineEditableValue(toText(focusBoard['标题'], focusBoardId), {
+                    path: [...focusBoardPath, '标题'],
+                    kind: 'string',
+                    rawValue: toText(focusBoard['标题'], focusBoardId),
+                  })
+                : htmlEscape(toText(focusBoard['标题'], focusBoardId)) },
+              { label: '状态', value: focusBoardPath.length
+                ? makeInlineEditableValue(focusBoardStatus, {
+                    path: [...focusBoardPath, '状态'],
+                    kind: 'string',
+                    rawValue: focusBoardStatus,
+                  })
+                : htmlEscape(focusBoardStatus) },
+              { label: '类型', value: focusBoardPath.length
+                ? makeInlineEditableValue(toText(focusBoard['类型'], '委托'), {
+                    path: [...focusBoardPath, '类型'],
+                    kind: 'string',
+                    rawValue: toText(focusBoard['类型'], '委托'),
+                  })
+                : htmlEscape(toText(focusBoard['类型'], '委托')) },
+              { label: '发布者', value: focusBoardPath.length
+                ? makeInlineEditableValue(toText(focusBoard['发布者'], '系统'), {
+                    path: [...focusBoardPath, '发布者'],
+                    kind: 'string',
+                    rawValue: toText(focusBoard['发布者'], '系统'),
+                  })
+                : htmlEscape(toText(focusBoard['发布者'], '系统')) },
+              { label: '面向', value: focusBoardPath.length
+                ? makeInlineEditableValue(toText(focusBoard['面向'], '公开'), {
+                    path: [...focusBoardPath, '面向'],
+                    kind: 'string',
+                    rawValue: toText(focusBoard['面向'], '公开'),
+                  })
+                : htmlEscape(toText(focusBoard['面向'], '公开')) },
+              { label: '承接者', value: focusBoardPath.length
+                ? makeInlineEditableValue(toText(focusBoard['承接者'], '无'), {
+                    path: [...focusBoardPath, '承接者'],
+                    kind: 'string',
+                    rawValue: toText(focusBoard['承接者'], '无'),
+                  })
+                : htmlEscape(toText(focusBoard['承接者'], '无')) },
+              { label: '预计阶段', value: focusBoardPath.length
+                ? makeInlineEditableValue(formatNumber(toNumber(focusBoard['目标进度'], 1)), {
+                    path: [...focusBoardPath, '目标进度'],
+                    kind: 'number',
+                    rawValue: toNumber(focusBoard['目标进度'], 1),
+                    editorMeta: { min: 1, integer: true, hint: '最小 1 · 整数' },
+                  })
+                : htmlEscape(formatNumber(toNumber(focusBoard['目标进度'], 1))) },
+              { label: '难度', value: focusBoardPath.length
+                ? makeInlineEditableValue(toText(focusBoard['难度'], '中'), {
+                    path: [...focusBoardPath, '难度'],
+                    kind: 'string',
+                    rawValue: toText(focusBoard['难度'], '中'),
+                  })
+                : htmlEscape(toText(focusBoard['难度'], '中')) },
+              { label: '资源级别', value: focusBoardPath.length
+                ? makeInlineEditableValue(toText(focusBoard['资源级别'], '无'), {
+                    path: [...focusBoardPath, '资源级别'],
+                    kind: 'string',
+                    rawValue: toText(focusBoard['资源级别'], '无'),
+                  })
+                : htmlEscape(toText(focusBoard['资源级别'], '无')) },
+              { label: '奖励金币', value: focusBoardPath.length
+                ? makeInlineEditableValue(formatNumber(toNumber(focusBoard['奖励币'], 0)), {
+                    path: [...focusBoardPath, '奖励币'],
+                    kind: 'number',
+                    rawValue: toNumber(focusBoard['奖励币'], 0),
+                    editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                  })
+                : htmlEscape(formatNumber(toNumber(focusBoard['奖励币'], 0))) },
+              { label: '奖励声望', value: focusBoardPath.length
+                ? makeInlineEditableValue(formatNumber(toNumber(focusBoard['奖励声望'], 0)), {
+                    path: [...focusBoardPath, '奖励声望'],
+                    kind: 'number',
+                    rawValue: toNumber(focusBoard['奖励声望'], 0),
+                    editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                  })
+                : htmlEscape(formatNumber(toNumber(focusBoard['奖励声望'], 0))) }
             ], 'two')
-          : makeTileGrid([{ label: '状态', value: '当前未选中任何委托' }], 'two');
-        const boardActionHtml = focusBoard && isPlayerControlled && focusBoardStatus === '待接取'
+          : makeTileGrid([{ label: '状态', value: '未选择' }], 'two');
+        const boardActionHtml = focusBoardPath.length
           ? `
-              <div style="margin-top:16px; padding:12px 14px; border:1px dashed rgba(255,255,255,0.12); border-radius:12px; background:rgba(255,255,255,0.02);">
-                <div style="font-size:12px; color:var(--color-text-secondary); margin-bottom:10px;">接取前仅公开任务框架，接取后才会由 AI 展开具体目标与执行细节。</div>
-                <button type="button" class="relation-action-btn quest-action-btn" data-quest-action="accept" data-quest-target="${escapeHtmlAttr(focusBoardId)}">接取委托</button>
+              <div class="request-console-row" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:16px;">
+                <button type="button" class="tag-chip" data-collection-action="delete-board" data-collection-key="${escapeHtmlAttr(focusBoardId)}">删除委托</button>
+                ${focusBoard && isPlayerControlled && focusBoardStatus === '待接取'
+                  ? `<button type="button" class="relation-action-btn quest-action-btn" data-quest-action="accept" data-quest-target="${escapeHtmlAttr(focusBoardId)}">接取委托</button>`
+                  : ''}
               </div>
             `
-          : (focusBoard ? `<div style="margin-top:16px; font-size:12px; color: var(--color-text-secondary);">${htmlEscape(isPlayerControlled ? '该委托当前不可接取，详情以任务记录为准。' : '当前为旁观视角，仅可查看委托框架。')}</div>` : '');
+          : '';
         return {
           title: '任务界面',
           summary: '我的任务记录与世界委托板。',
@@ -8466,6 +11378,7 @@
             <div class="archive-modal-grid">
                 <div class="archive-card">
                   <div class="archive-card-head"><div class="archive-card-title">我的任务</div><span class="state-tag ${questRecords.length ? 'live' : 'warn'}">${questRecords.length ? `共 ${questRecords.length} 条` : '空'}</span></div>
+                  ${questCreateFormHtml}
                   <div class="relation-directory-grid">${questListHtml}</div>
                   ${makeModalPaginationControls('quest-records', questPage.page, questPage.totalPages, questPage.total)}
                 </div>
@@ -8475,11 +11388,19 @@
                   ${questActionHtml}
                   <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed rgba(255,255,255,0.1);">
                     <div style="font-size: 13px; color: var(--color-text-secondary); margin-bottom: 4px;">任务说明</div>
-                    <div style="font-size: 14px; line-height: 1.5; color: var(--color-text-primary);">${htmlEscape(focusQuest ? toText(focusQuest['描述'], '无附加说明') : '当前没有选中的任务说明。')}</div>
+                    <div style="font-size: 14px; line-height: 1.5; color: var(--color-text-primary);">${focusQuest && focusQuestPath.length
+                      ? makeInlineEditableValue(toText(focusQuest['描述'], '未知'), {
+                          path: [...focusQuestPath, '描述'],
+                          kind: 'string',
+                          rawValue: toText(focusQuest['描述'], '未知'),
+                          multiline: true,
+                        })
+                      : htmlEscape(focusQuest ? toText(focusQuest['描述'], '未知') : '未知')}</div>
                   </div>
                 </div>
                 <div class="archive-card">
                   <div class="archive-card-head"><div class="archive-card-title">委托板</div><span class="state-tag ${questBoardEntries.length ? 'live' : 'warn'}">${questBoardEntries.length ? `共 ${questBoardEntries.length} 条` : '空'}</span></div>
+                  ${boardCreateFormHtml}
                   <div class="relation-directory-grid">${boardListHtml}</div>
                   ${makeModalPaginationControls('quest-board', boardPage.page, boardPage.totalPages, boardPage.total)}
                 </div>
@@ -8489,7 +11410,14 @@
                   ${boardActionHtml}
                   <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed rgba(255,255,255,0.1);">
                     <div style="font-size: 13px; color: var(--color-text-secondary); margin-bottom: 4px;">${htmlEscape(focusBoardStatus === '待接取' ? '委托框架' : '委托说明')}</div>
-                    <div style="font-size: 14px; line-height: 1.5; color: var(--color-text-primary);">${htmlEscape(focusBoardDesc)}</div>
+                    <div style="font-size: 14px; line-height: 1.5; color: var(--color-text-primary);">${focusBoard && focusBoardDescPath.length
+                      ? makeInlineEditableValue(focusBoardDesc, {
+                          path: focusBoardDescPath,
+                          kind: 'string',
+                          rawValue: focusBoardDesc,
+                          multiline: true,
+                        })
+                      : htmlEscape(focusBoard ? focusBoardDesc : '未知')}</div>
                   </div>
                 </div>
             </div>
@@ -8518,14 +11446,33 @@
       }
 
       if (previewKey === '怪物图鉴') {
-        const bestiaryCards = (snapshot.bestiaryEntries.length ? snapshot.bestiaryEntries.slice(0, 24) : [['暂无图鉴记录', { empty: true }]]).map(([name, item]) => ({
-          title: item && item.empty ? name : name,
-          desc: item && item.empty
-            ? '暂未记录任何深渊生物或魂兽。'
-            : (safeEntries(item).length
-              ? safeEntries(item).slice(0, 6).map(([key, value]) => `${toText(key, '字段')}：${value && typeof value === 'object' ? `${safeEntries(value).length}项` : toText(value, '无')}`).join(' / ')
-              : '已记录基础数据，可供后续复用。')
-        }));
+        const bestiaryRecordToCard = ([name, item]) => {
+          if (item && item.empty) {
+            return { title: name, desc: '暂未记录任何深渊生物或魂兽。' };
+          }
+          const scalarParts = safeEntries(item)
+            .filter(([, value]) => value === null || typeof value !== 'object')
+            .slice(0, 6)
+            .map(([key, value]) => {
+              const displayValue = value === undefined || value === null || value === '' ? '无' : String(value);
+              const kind = typeof value === 'number' ? 'number' : (typeof value === 'boolean' ? 'boolean' : 'string');
+              return `${htmlEscape(toText(key, '字段'))}：${makeInlineEditableValue(displayValue, {
+                path: ['world', 'bestiary', name, key],
+                kind,
+                rawValue: value === undefined ? displayValue : value,
+              })}`;
+            });
+          const objectParts = safeEntries(item)
+            .filter(([, value]) => value && typeof value === 'object')
+            .slice(0, 3)
+            .map(([key, value]) => `${htmlEscape(toText(key, '字段'))}：${htmlEscape(`${safeEntries(value).length}项`)}`);
+          return {
+            title: htmlEscape(name),
+            desc: scalarParts.concat(objectParts).join(' / ') || '当前仅建立了空白图鉴壳。'
+          };
+        };
+        const bestiaryCards = (snapshot.bestiaryEntries.length ? snapshot.bestiaryEntries.slice(0, 24) : [['暂无图鉴记录', { empty: true }]]).map(bestiaryRecordToCard);
+        const latestBestiaryCard = snapshot.bestiaryEntries[0] ? bestiaryRecordToCard(snapshot.bestiaryEntries[0]) : null;
         return {
           title: '怪物图鉴',
           summary: '已遭遇深渊生物与魂兽的标准化记录。',
@@ -8542,7 +11489,7 @@
               </div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">最近收录详情</div></div>
-                ${makeTimelineStack(snapshot.bestiaryEntries[0] ? [{ title: snapshot.bestiaryEntries[0][0], desc: safeEntries(snapshot.bestiaryEntries[0][1]).length ? safeEntries(snapshot.bestiaryEntries[0][1]).map(([key, value]) => `${toText(key, '字段')}：${value && typeof value === 'object' ? `${safeEntries(value).length}项` : toText(value, '无')}`).join(' / ') : '当前仅建立了空白图鉴壳。' }] : [{ title: '暂无最近收录', desc: '当前图鉴仍为空。' }])}
+                ${makeTimelineStack(latestBestiaryCard ? [latestBestiaryCard] : [{ title: '暂无最近收录', desc: '当前图鉴仍为空。' }])}
               </div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">已记录物种</div></div>
@@ -8562,7 +11509,7 @@
           summary: '星斗大森林累计击杀年限与兽潮阈值监控。',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
-              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">仇恨累计</div></div>${makeTileGrid([{ label: '累计击杀年限', value: formatNumber(snapshot.forestKilledAge) }, { label: '兽潮阈值', value: '1000000' }, { label: '剩余安全空间', value: remaining > 0 ? formatNumber(remaining) : '0' }, { label: '当前阶段', value: stage }], 'two')}<div style="margin-top:12px;"><div style="display:flex;justify-content:space-between;font-size:12px;color:#bfdde4;margin-bottom:6px;"><span>阈值进度</span><span>${progress}%</span></div><div style="height:10px;border-radius:999px;background:rgba(255,255,255,0.08);overflow:hidden;border:1px solid rgba(150,217,228,0.12);"><div style="height:100%;width:${progress}%;background:${progress >= 100 ? 'linear-gradient(90deg,#ff6b6b,#ffb36b)' : (progress >= 70 ? 'linear-gradient(90deg,#ffd36b,#ff8a5b)' : 'linear-gradient(90deg,#72e6ff,#7dffb2)')};box-shadow:0 0 12px rgba(255,180,107,0.35);"></div></div></div></div>
+              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">仇恨累计</div></div>${makeTileGrid([{ label: '累计击杀年限', value: makeInlineEditableValue(formatNumber(snapshot.forestKilledAge), { path: ['world', 'forest_killed_age'], kind: 'number', rawValue: snapshot.forestKilledAge, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数 · 1000000 为兽潮阈值参考，不是硬上限' } }) }, { label: '兽潮阈值', value: '1000000' }, { label: '剩余安全空间', value: remaining > 0 ? formatNumber(remaining) : '0' }, { label: '当前阶段', value: stage }], 'two')}<div style="margin-top:12px;"><div style="display:flex;justify-content:space-between;font-size:12px;color:#bfdde4;margin-bottom:6px;"><span>阈值进度</span><span>${progress}%</span></div><div style="height:10px;border-radius:999px;background:rgba(255,255,255,0.08);overflow:hidden;border:1px solid rgba(150,217,228,0.12);"><div style="height:100%;width:${progress}%;background:${progress >= 100 ? 'linear-gradient(90deg,#ff6b6b,#ffb36b)' : (progress >= 70 ? 'linear-gradient(90deg,#ffd36b,#ff8a5b)' : 'linear-gradient(90deg,#72e6ff,#7dffb2)')};box-shadow:0 0 12px rgba(255,180,107,0.35);"></div></div></div></div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">阶段说明</div></div>
                 ${makeTimelineStack([
@@ -8582,28 +11529,47 @@
 
     async function refreshLiveSnapshot(options = {}) {
       try {
+        const refreshInlineEditToken = inlineEditSessionToken;
         if (shouldPauseLiveRefresh(options)) {
           pendingLiveRefresh = true;
           return;
         }
-        const vars = await getAllVariablesSafe();
+        const vars = options.sharedVars === undefined ? await getAllVariablesSafe() : options.sharedVars;
+        if (!options.force && (refreshInlineEditToken !== inlineEditSessionToken || shouldPauseLiveRefresh(options))) {
+          pendingLiveRefresh = true;
+          return;
+        }
         const root = resolveRootData(vars);
         if (!root) return;
         const effective = buildEffectiveSd(root);
         if (!effective.rootData) return;
+        if (!options.force && (refreshInlineEditToken !== inlineEditSessionToken || shouldPauseLiveRefresh(options))) {
+          pendingLiveRefresh = true;
+          return;
+        }
         syncMvuEditorStoreFromRoot(effective.rootData);
         liveSnapshot = buildSnapshot(effective.rootData);
-        renderHeader(liveSnapshot);
-        renderLiveCards(liveSnapshot);
+        const nextHeaderRenderSignature = buildHeaderRenderSignature(liveSnapshot);
+        const nextDashboardSectionRenderSignatures = buildDashboardSectionRenderSignatures(liveSnapshot);
+        const nextDashboardRenderSignature = buildDashboardRenderSignature(liveSnapshot, nextDashboardSectionRenderSignatures);
+        const shouldRenderHeader = !!options.force || nextHeaderRenderSignature !== lastHeaderRenderSignature;
+        const shouldRenderDashboard = !!options.force || nextDashboardRenderSignature !== lastDashboardRenderSignature;
+
+        if (shouldRenderHeader) {
+          renderHeader(liveSnapshot);
+          lastHeaderRenderSignature = nextHeaderRenderSignature;
+        }
+        if (shouldRenderDashboard) {
+          renderLiveCards(liveSnapshot, nextDashboardSectionRenderSignatures);
+          lastDashboardRenderSignature = nextDashboardRenderSignature;
+        }
         
         const isCombatActive = !!deepGet(liveSnapshot, 'rootData.world.combat.is_active');
         if (isCombatActive && isSnapshotPlayerControlled(liveSnapshot)) {
           if (!activeBattleUI && typeof window.mountBattleUI === 'function') {
             activeBattleUI = window.mountBattleUI(document.getElementById('battle-overlay'), liveSnapshot, {
               onAction: (actionData) => {
-                if (typeof window.sendToAI === 'function') {
-                  window.sendToAI(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
-                }
+                dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
               }
             });
           } else if (activeBattleUI && typeof activeBattleUI.updateData === 'function') {
@@ -8614,7 +11580,7 @@
           activeBattleUI = null;
         }
 
-        if (detailModal.classList.contains('show') && currentModalPreviewKey) {
+        if ((shouldRenderDashboard || !!options.force) && detailModal.classList.contains('show') && currentModalPreviewKey) {
           if (currentModalPreviewKey === '角色切换器') {
             return;
           }
@@ -8626,7 +11592,7 @@
           ) {
             activeSubUI.updateData(liveSnapshot);
           } else {
-            renderModalContent(currentModalPreviewKey);
+            renderModalContent(currentModalPreviewKey, getModalRefs(), { force: !!options.force });
           }
         }
       } catch (error) {
@@ -8638,7 +11604,7 @@
       bindInlineEditing();
       await waitForMvuReady();
       await refreshLiveSnapshot();
-      bindMvuUpdates(refreshLiveSnapshot);
+      bindMvuUpdates(vars => refreshLiveSnapshot({ sharedVars: vars }));
     }
 
     function buildRingHoverMarkup(ring) {
@@ -8836,10 +11802,15 @@
           </div>
           <div class="inventory-hover-tags">${tags.filter(Boolean).map(tag => `<span class="tag-chip">${tag}</span>`).join('')}</div>
           ${cell.dataset.hoverEquip === 'true' ? `
-          <button type="button" class="inventory-hover-action-btn" 
-            onclick="if(window.EquipmentManager) window.EquipmentManager.performEquip(0, '${(cell.dataset.hoverTitle || '').replace(/'/g, "\\'")}');">
+          <button type="button" class="inventory-hover-action-btn" data-inventory-action="equip" data-inventory-char="${escapeHtmlAttr(cell.dataset.hoverChar || '')}" data-inventory-item="${escapeHtmlAttr(cell.dataset.hoverTitle || '')}">
             穿戴装备 / 装载
           </button>
+          ` : ''}
+          ${cell.dataset.hoverTitle ? `
+          <div class="tag-cloud armory-quick-actions" style="margin-top:10px;justify-content:flex-end;">
+            <button type="button" class="inventory-hover-action-btn" data-inventory-action="discard" data-inventory-mode="one" data-inventory-char="${escapeHtmlAttr(cell.dataset.hoverChar || '')}" data-inventory-item="${escapeHtmlAttr(cell.dataset.hoverTitle || '')}">丢弃1件</button>
+            ${toNumber(cell.dataset.hoverCount, 1) > 1 ? `<button type="button" class="inventory-hover-action-btn" data-inventory-action="discard" data-inventory-mode="all" data-inventory-char="${escapeHtmlAttr(cell.dataset.hoverChar || '')}" data-inventory-item="${escapeHtmlAttr(cell.dataset.hoverTitle || '')}">全部丢弃</button>` : ''}
+          </div>
           ` : ''}
         `;
         activeInventoryHoverCell = cell;
@@ -8920,187 +11891,83 @@
         currentLoc,
         itemUsed: toText(options.itemUsed, '无'),
         sourceLabel: '人物关系页社交互动',
-        sourceAnalysis: 'Relation interaction initialized from relation panel.'
+        requestKind: 'relation_interaction'
       });
     }
 
     function buildRelationBattleInitRequest(snapshot, rawTargetName) {
       const currentLoc = toText(snapshot && snapshot.currentLoc, '未知地点');
-      return buildMapBattleInitRequest(snapshot, { npcTarget: rawTargetName, target: currentLoc, currentLoc });
+      return buildMapBattleInitRequest(snapshot, { npcTarget: rawTargetName, target: currentLoc, currentLoc, requestKind: 'relation_sparring' });
     }
 
+    function listAscensionTicketNames(snapshot) {
+      return (snapshot && Array.isArray(snapshot.inventoryEntries) ? snapshot.inventoryEntries : [])
+        .filter(([name, item]) => /升灵台/.test(toText(name, '')) && toNumber(item && item['数量'], 0) > 0)
+        .map(([name]) => toText(name, ''))
+        .filter(Boolean);
+    }
 
-    function buildKnowledgeUnlockDispatchRequest(snapshot, options = {}) {
-      if (!snapshot || !snapshot.rootData) return null;
-      if (!isSnapshotPlayerControlled(snapshot)) return null;
-      const activeKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
-      if (!activeKey) return null;
-      const chars = deepGet(snapshot, 'rootData.char', {});
-      const activeChar = chars && typeof chars === 'object' ? (chars[activeKey] || {}) : {};
-      const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, activeKey));
-      const currentLoc = toText(deepGet(activeChar, 'status.loc', snapshot.currentLoc || '当前位置'), snapshot.currentLoc || '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
-      const content = toText(options.content, '').trim();
-      const impact = Math.max(0, Math.min(10, Math.floor(toNumber(options.impact, 0))));
-      if (!content || content === '无') return null;
+    function listSoulSpiritTargets(snapshot) {
+      const activeChar = deepGet(snapshot, 'activeChar', {});
+      const result = [];
+      safeEntries(deepGet(activeChar, 'spirit', {})).forEach(([spiritKey, spiritData]) => {
+        safeEntries(deepGet(spiritData, 'soul_spirits', {})).forEach(([soulSpiritKey, soulSpirit]) => {
+          const spiritName = toText(deepGet(spiritData, '表象名称', spiritKey), spiritKey);
+          const soulSpiritName = toText(deepGet(soulSpirit, '表象名称', soulSpiritKey), soulSpiritKey);
+          const age = toNumber(deepGet(soulSpirit, '年限', 0), 0);
+          result.push({
+            spiritKey,
+            soulSpiritKey,
+            spiritName,
+            soulSpiritName,
+            age,
+            value: `${spiritKey}::${soulSpiritKey}`,
+            label: `${spiritName} / ${soulSpiritName}${age > 0 ? ` / ${formatNumber(age)}年` : ''}`,
+          });
+        });
+      });
+      return result;
+    }
 
-      const patchOps = [
-        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/knowledge_unlock_request`, value: { content, impact } },
-        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: '情报整理' },
-        { op: 'replace', path: '/sys/rsn', value: `[情报整理] ${activeName} 在【${currentLoc}】整理了线索：${content}。` }
-      ];
-
-      const systemPrompt = `以下内容属于前端已经完成的情报整理请求初始化，不要在正文直接复述“JSONPatch / 系统分析 / 仲裁日志”等术语。
-
-[情报整理] ${activeName} 在【${currentLoc}】准备整理一条新线索：${content}。
-
-[整理要求]
-你必须保留 knowledge_unlock_request.content = ${content} 与 impact = ${impact} 这两个字段；impact 需保持在 0 到 10 之间。请将这次整理过程转写为自然剧情，并在合适时完成情报解锁与世界线偏差结算。
-
-[MVU变量更新数据]
-<UpdateVariable>
-<Analysis>Knowledge unlock request initialized from intel panel.</Analysis>
-<JSONPatch>
-${JSON.stringify(patchOps, null, 2)}
-</JSONPatch>
-</UpdateVariable>`;
-
+    function splitSoulSpiritTargetValue(value) {
+      const raw = toText(value, '').trim();
+      if (!raw || !raw.includes('::')) return { spiritKey: '', soulSpiritKey: '' };
+      const [spiritKey, soulSpiritKey] = raw.split('::');
       return {
-        playerInput: `我想在【${currentLoc}】整理关于【${content}】的情报线索。`,
-        systemPrompt,
-        requestKind: 'knowledge_unlock_request'
+        spiritKey: toText(spiritKey, '').trim(),
+        soulSpiritKey: toText(soulSpiritKey, '').trim(),
       };
     }
 
-
-
-
-    function buildHuntDispatchRequest(snapshot, options = {}) {
-      if (!snapshot || !snapshot.rootData) return null;
-      if (!isSnapshotPlayerControlled(snapshot)) return null;
-      const activeKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
-      if (!activeKey) return null;
-      const chars = deepGet(snapshot, 'rootData.char', {});
-      const activeChar = chars && typeof chars === 'object' ? (chars[activeKey] || {}) : {};
-      const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, activeKey));
-      const currentLoc = toText(deepGet(activeChar, 'status.loc', snapshot.currentLoc || '当前位置'), snapshot.currentLoc || '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
-      const killedAge = Math.max(1, Math.floor(toNumber(options.killedAge, 0)));
-      const isFerocious = !!options.isFerocious;
-      if (killedAge <= 0) return null;
-
-      const patchOps = [
-        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/hunt_request`, value: { killed_age: killedAge, is_ferocious: isFerocious } },
-        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: '狩猎中' },
-        { op: 'replace', path: '/sys/rsn', value: `[现实狩猎] ${activeName} 在【${currentLoc}】完成了一次${killedAge}年魂兽狩猎${isFerocious ? '（凶兽级）' : ''}。` }
-      ];
-
-      const systemPrompt = `以下内容属于前端已经完成的现实狩猎请求初始化，不要在正文直接复述“JSONPatch / 系统分析 / 仲裁日志”等术语。
-
-[现实狩猎] ${activeName} 在【${currentLoc}】击杀了一只约 ${killedAge} 年魂兽${isFerocious ? '，并判定为十万年/凶兽级目标' : ''}。
-
-[结算要求]
-你必须保留 hunt_request.killed_age = ${killedAge} 与 is_ferocious = ${isFerocious ? 'true' : 'false'} 这两个字段，使 MVU 后续能够正确生成魂环、魂骨、世界偏差与相关掉落。
-
-[MVU变量更新数据]
-<UpdateVariable>
-<Analysis>Hunt request initialized from trial panel.</Analysis>
-<JSONPatch>
-${JSON.stringify(patchOps, null, 2)}
-</JSONPatch>
-</UpdateVariable>`;
-
-      return {
-        playerInput: `我想结算一场在【${currentLoc}】进行的现实狩猎，目标年限约为【${killedAge}年】${isFerocious ? '，属于十万年/凶兽级目标。' : '。'}`,
-        systemPrompt,
-        requestKind: 'hunt_request'
-      };
+    function buildMvuUpdateBlock(analysis, patchOps, leadText = '') {
+      const safeAnalysis = toText(analysis, 'Front-end request initialized.');
+      return `<UpdateVariable>\n<Analysis>${safeAnalysis}</Analysis>\n<JSONPatch>\n${JSON.stringify(Array.isArray(patchOps) ? patchOps : [], null, 2)}\n</JSONPatch>\n</UpdateVariable>`;
     }
 
-    function buildAbyssKillDispatchRequest(snapshot, options = {}) {
-      if (!snapshot || !snapshot.rootData) return null;
-      if (!isSnapshotPlayerControlled(snapshot)) return null;
-      const activeKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
-      if (!activeKey) return null;
-      const killTier = toText(options.killTier, '');
-      const quantity = Math.max(1, Math.floor(toNumber(options.quantity, 1)));
-      if (!['低阶生物', '中阶生物', '高阶生物', '深渊王者'].includes(killTier)) return null;
-      const chars = deepGet(snapshot, 'rootData.char', {});
-      const activeChar = chars && typeof chars === 'object' ? (chars[activeKey] || {}) : {};
-      const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, activeKey));
-      const currentLoc = toText(deepGet(activeChar, 'status.loc', snapshot.currentLoc || '当前位置'), snapshot.currentLoc || '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
-
-      const patchOps = [
-        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/abyss_kill_request`, value: { kill_tier: killTier, quantity } },
-        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: '深渊作战' },
-        { op: 'replace', path: '/sys/rsn', value: `[深渊战功上报] ${activeName} 在【${currentLoc}】上报击杀：${killTier} × ${quantity}。` }
-      ];
-
-      const systemPrompt = `以下内容属于前端已经完成的深渊战功上报请求初始化，不要在正文直接复述“JSONPatch / 系统分析 / 仲裁日志”等术语。
-
-[深渊战功上报] ${activeName} 在【${currentLoc}】上报击杀：${killTier} × ${quantity}。
-
-[结算要求]
-你必须保留 abyss_kill_request.kill_tier = ${killTier} 与 quantity = ${quantity}，使 MVU 后续能够正确发放战功。
-
-[MVU变量更新数据]
-<UpdateVariable>
-<Analysis>Abyss kill request initialized from trial panel.</Analysis>
-<JSONPatch>
-${JSON.stringify(patchOps, null, 2)}
-</JSONPatch>
-</UpdateVariable>`;
-
-      return {
-        playerInput: `我想上报在【${currentLoc}】击杀的深渊生物战果：${killTier} × ${quantity}。`,
-        systemPrompt,
-        requestKind: 'abyss_kill_request'
-      };
+    function getDonateBasePrice(itemName) {
+      const safeName = toText(itemName, '');
+      if (/天锻|四字|红级|十万年/.test(safeName)) return 100000000;
+      if (/魂锻|三字|黑级|万年/.test(safeName)) return 10000000;
+      if (/灵锻|二字|紫级|千年/.test(safeName)) return 1000000;
+      if (/千锻|一字|黄级|百年/.test(safeName)) return 100000;
+      return 10000;
     }
 
-    function getFactionContributionValue(snapshot, factionName) {
-      const fac = toText(factionName, '');
-      if (fac === '史莱克学院') return toNumber(deepGet(snapshot, 'activeChar.wealth.shrek_pt', 0), 0);
-      if (fac === '战神殿' || fac === '血神军团' || fac === '联邦军方') return toNumber(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0), 0);
-      return toNumber(deepGet(snapshot, 'activeChar.wealth.tang_pt', 0), 0);
+    function getDonateTalentMultiplier(talentTier) {
+      return {
+        '绝世妖孽': 2.0,
+        '顶级天才': 1.8,
+        '天才': 1.5,
+        '优秀': 1.2,
+        '正常': 1.0,
+        '劣等': 0.5,
+      }[toText(talentTier, '')] || 1.0;
     }
 
-    function buildPromotionDispatchRequest(snapshot, options = {}) {
-      if (!snapshot || !snapshot.rootData) return null;
-      if (!isSnapshotPlayerControlled(snapshot)) return null;
-      const activeKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
-      if (!activeKey) return null;
-      const targetFaction = toText(options.targetFaction, '').trim();
-      const targetTitle = toText(options.targetTitle, '').trim();
-      if (!targetFaction || !targetTitle || targetFaction === '无' || targetTitle === '无') return null;
-      const chars = deepGet(snapshot, 'rootData.char', {});
-      const activeChar = chars && typeof chars === 'object' ? (chars[activeKey] || {}) : {};
-      const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, activeKey));
-      const currentLoc = toText(deepGet(activeChar, 'status.loc', snapshot.currentLoc || '当前位置'), snapshot.currentLoc || '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
-      const patchOps = [
-        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/promotion_request`, value: { target_faction: targetFaction, target_title: targetTitle } },
-        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: '阵营事务' },
-        { op: 'replace', path: '/sys/rsn', value: `[晋升申请] ${activeName} 在【${currentLoc}】申请【${targetFaction} - ${targetTitle}】。` }
-      ];
-      const contribution = getFactionContributionValue(snapshot, targetFaction);
-      const systemPrompt = `以下内容属于前端已经完成的势力晋升申请初始化，不要在正文直接复述“JSONPatch / 系统分析 / 仲裁日志”等术语。
-
-[晋升申请] ${activeName} 在【${currentLoc}】申请晋升为【${targetFaction} - ${targetTitle}】。
-
-[申请参考]
-当前等级：${toNumber(deepGet(activeChar, 'stat.lv', 0), 0)} / 斗铠：${toNumber(deepGet(activeChar, 'equip.armor.lv', 0), 0)} / 机甲：${toText(deepGet(activeChar, 'equip.mech.lv', '无'), '无')} / 当前贡献池：${contribution}
-你必须保留 promotion_request.target_faction = ${targetFaction} 与 target_title = ${targetTitle}，使 MVU 后续能够按既定门槛完成晋升审核。
-
-[MVU变量更新数据]
-<UpdateVariable>
-<Analysis>Promotion request initialized from faction panel.</Analysis>
-<JSONPatch>
-${JSON.stringify(patchOps, null, 2)}
-</JSONPatch>
-</UpdateVariable>`;
-      return {
-        playerInput: `我想向【${targetFaction}】申请晋升为【${targetTitle}】。`,
-        systemPrompt,
-        requestKind: 'promotion_request'
-      };
+    function getDonateRewardLabel(targetFaction) {
+      if (targetFaction === '史莱克学院') return '学院积分';
+      if (targetFaction === '战神殿' || targetFaction === '血神军团') return '战功';
+      return '唐门积分';
     }
 
     function buildDonateDispatchRequest(snapshot, options = {}) {
@@ -9118,30 +11985,33 @@ ${JSON.stringify(patchOps, null, 2)}
       const activeChar = chars && typeof chars === 'object' ? (chars[activeKey] || {}) : {};
       const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, activeKey));
       const currentLoc = toText(deepGet(activeChar, 'status.loc', snapshot.currentLoc || '当前位置'), snapshot.currentLoc || '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
-      const patchOps = [
-        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/donate_request`, value: { item_name: itemName, target_faction: targetFaction, quantity } },
-        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: '捐献物资' },
-        { op: 'replace', path: '/sys/rsn', value: `[物资捐献申请] ${activeName} 在【${currentLoc}】准备向【${targetFaction}】提交【${itemName}】×${quantity}。` }
-      ];
-      const systemPrompt = `以下内容属于前端已经完成的物资捐献请求初始化，不要在正文直接复述“JSONPatch / 系统分析 / 仲裁日志”等术语。
+      const talentTier = toText(deepGet(activeChar, 'stat.talent_tier', '正常'), '正常');
+      const basePrice = getDonateBasePrice(itemName);
+      const talentMultiplier = getDonateTalentMultiplier(talentTier);
+      const totalValue = basePrice * quantity;
+      const pointsEarned = Math.floor((totalValue / 1000) * talentMultiplier);
+      const rewardLabel = getDonateRewardLabel(targetFaction);
+      const systemPrompt = `以下内容属于前端代发的阵营捐献请求，请直接承接剧情与后续处理，不要输出 JSON 块或变量维护指令。
 
-[物资捐献申请] ${activeName} 在【${currentLoc}】准备向【${targetFaction}】提交【${itemName}】×${quantity}。
+[捐献摘要]
+角色：${activeName}
+地点：${currentLoc}
+目标势力：${targetFaction}
+物品：${itemName}
+数量：${quantity}
+当前库存：${ownedCount}
+基准估值：${formatNumber(basePrice)} / 件
+总估值：${formatNumber(totalValue)}
+天赋档位：${talentTier}
+天赋系数：${talentMultiplier}
+预计获得：${formatNumber(pointsEarned)} ${rewardLabel}
 
-[申请参考]
-背包库存：${ownedCount} 件。
-你必须保留 donate_request.item_name = ${itemName}、target_faction = ${targetFaction}、quantity = ${quantity}，使 MVU 后续能够正确扣除物品并发放贡献点。
-
-[MVU变量更新数据]
-<UpdateVariable>
-<Analysis>Donate request initialized from faction panel.</Analysis>
-<JSONPatch>
-${JSON.stringify(patchOps, null, 2)}
-</JSONPatch>
-</UpdateVariable>`;
+请结合当前地点、角色所属势力关系、物资价值与阵营流程，自然写出捐献受理、核验和反馈；若当场无法受理，也请明确给出阻碍原因。
+若捐献成立，请按以上估值结果发放 ${formatNumber(pointsEarned)} ${rewardLabel}。`;
       return {
         playerInput: `我想向【${targetFaction}】捐献【${itemName}】×${quantity}。`,
         systemPrompt,
-        requestKind: 'donate_request'
+        requestKind: 'faction_donate'
       };
     }
 
@@ -9236,6 +12106,11 @@ ${JSON.stringify(patchOps, null, 2)}
         { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: statusAction },
         { op: 'replace', path: '/sys/rsn', value: requestLabel }
       ];
+      const mvuUpdate = buildMvuUpdateBlock(
+        analysisLabel,
+        patchOps,
+        '以下为本次任务请求的完整 MVU 更新，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。'
+      );
 
       const systemPrompt = `以下内容属于前端已经完成的任务请求初始化，不要在正文直接复述“JSONPatch / 系统分析 / 仲裁日志”等术语。
 
@@ -9244,13 +12119,7 @@ ${requestLabel}
 [任务要求]
 ${extraRequirement}
 
-[MVU变量更新数据]
-<UpdateVariable>
-<Analysis>${analysisLabel}</Analysis>
-<JSONPatch>
-${JSON.stringify(patchOps, null, 2)}
-</JSONPatch>
-</UpdateVariable>`;
+${mvuUpdate}`;
 
       return {
         playerInput,
@@ -9261,81 +12130,214 @@ ${JSON.stringify(patchOps, null, 2)}
 
 
     function buildFactionAffairConsoleHtml(snapshot, preferredFactionName = '') {
-      const pendingPromotionFaction = toText(deepGet(snapshot, 'activeChar.promotion_request.target_faction', '无'), '无');
-      const pendingPromotionTitle = toText(deepGet(snapshot, 'activeChar.promotion_request.target_title', '无'), '无');
       const pendingDonateItem = toText(deepGet(snapshot, 'activeChar.donate_request.item_name', '无'), '无');
       const pendingDonateFaction = toText(deepGet(snapshot, 'activeChar.donate_request.target_faction', '无'), '无');
       const pendingDonateQty = Math.max(1, toNumber(deepGet(snapshot, 'activeChar.donate_request.quantity', 1), 1));
       const factionNames = [];
-      [preferredFactionName, pendingPromotionFaction, pendingDonateFaction, ...(snapshot.factions || []).map(([name]) => name), '唐门', '史莱克学院', '战神殿', '传灵塔', '联邦军方', '血神军团', '圣灵教'].forEach(name => {
+      [preferredFactionName, pendingDonateFaction, ...(snapshot.factions || []).map(([name]) => name), '唐门', '史莱克学院', '战神殿', '传灵塔', '联邦军方', '血神军团', '圣灵教'].forEach(name => {
         const text = toText(name, '').trim();
         if (text && text !== '无' && !factionNames.includes(text)) factionNames.push(text);
       });
-      const factionOptionsHtml = factionNames.map(name => `<option value="${escapeHtmlAttr(name)}">${htmlEscape(name)}</option>`).join('');
       const donationEntries = (snapshot.inventoryEntries || []).filter(([, item]) => toNumber(item && item['数量'], 0) > 0).slice(0, 50);
       const donationOptionsHtml = donationEntries.length
         ? donationEntries.map(([name, item]) => `<option value="${escapeHtmlAttr(name)}" ${name === pendingDonateItem ? 'selected' : ''}>${htmlEscape(`${name} ×${toNumber(item && item['数量'], 0)}`)}</option>`).join('')
         : '<option value="">暂无可捐献物品</option>';
-      const defaultPromotionFaction = pendingPromotionFaction !== '无' ? pendingPromotionFaction : (preferredFactionName || factionNames[0] || '');
       const defaultDonateFaction = pendingDonateFaction !== '无' ? pendingDonateFaction : (preferredFactionName || factionNames[0] || '');
+      const pendingSummary = pendingDonateItem !== '无' ? `${pendingDonateItem} × ${pendingDonateQty} / ${pendingDonateFaction}` : '无';
       const isPlayerControlled = isSnapshotPlayerControlled(snapshot);
       if (!isPlayerControlled) {
         return `
-          <div class="archive-card full">
-            <div class="archive-card-head"><div class="archive-card-title">阵营事务状态</div><span class="state-tag warn">旁观</span></div>
-            <div class="relation-side-list">
-              <div class="relation-card"><b>挂起事务</b><span>${htmlEscape(`晋升 ${pendingPromotionFaction !== '无' ? `${pendingPromotionFaction} / ${pendingPromotionTitle}` : '无'} ｜ 捐献 ${pendingDonateItem !== '无' ? `${pendingDonateItem} × ${pendingDonateQty} / ${pendingDonateFaction}` : '无'}`)}</span></div>
-              <div class="relation-card"><b>视角说明</b><span>${htmlEscape('当前为旁观视角，这里可以先查看阵营近况与贡献积累；若想递交申请或捐献，请切回自己的行动视角。')}</span></div>
-            </div>
-            <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.06);">
-              <div style="font-size: 11px; color: var(--color-text-secondary); margin-bottom: 8px; font-weight: 500;">当前主要贡献池</div>
-              <div style="font-size: 12px; color: #888;">${htmlEscape(`唐门 ${formatNumber(deepGet(snapshot, 'activeChar.wealth.tang_pt', 0))} / 学院 ${formatNumber(deepGet(snapshot, 'activeChar.wealth.shrek_pt', 0))} / 军方 ${formatNumber(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0))}`)}</div>
-            </div>
+          <div class="archive-card dossier-card dossier-console-card request-console-card">
+            <div class="archive-card-head"><div class="archive-card-title">阵营事务台</div><span class="dossier-pill warn">旁观</span></div>
+            <section class="dossier-section">
+              <div class="dossier-section-title">当前状态</div>
+              ${makeDossierRows([
+                { label: '挂起事务', value: htmlEscape(pendingSummary) },
+                { label: '视角说明', value: htmlEscape('当前为旁观视角，这里可以先查看阵营近况与贡献积累；若想发起捐献，请切回自己的行动视角。') },
+              ], 'dossier-row-grid--single')}
+            </section>
+            <section class="dossier-section">
+              <div class="dossier-section-title">主要贡献池</div>
+              <div class="dossier-contrib-grid">
+                ${makeDossierMeter('唐门', htmlEscape(formatNumber(deepGet(snapshot, 'activeChar.wealth.tang_pt', 0))), ratioPercent(deepGet(snapshot, 'activeChar.wealth.tang_pt', 0), 1000), 'dossier-meter--cyan')}
+                ${makeDossierMeter('史莱克学院', htmlEscape(formatNumber(deepGet(snapshot, 'activeChar.wealth.shrek_pt', 0))), ratioPercent(deepGet(snapshot, 'activeChar.wealth.shrek_pt', 0), 1000), 'dossier-meter--green')}
+                ${makeDossierMeter('战神殿/军方', htmlEscape(formatNumber(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0))), ratioPercent(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0), 1000), 'dossier-meter--red')}
+              </div>
+            </section>
           </div>
         `;
       }
       return `
-        <div class="archive-card full request-console-card">
-          <div class="archive-card-head"><div class="archive-card-title">阵营事务操作台</div><span class="state-tag ${preferredFactionName ? 'live' : 'warn'}">${htmlEscape(preferredFactionName || '未加入')}</span></div>
-          <span>${htmlEscape(`挂起事务：晋升 ${pendingPromotionFaction !== '无' ? `${pendingPromotionFaction} / ${pendingPromotionTitle}` : '无'} ｜ 捐献 ${pendingDonateItem !== '无' ? `${pendingDonateItem} × ${pendingDonateQty} / ${pendingDonateFaction}` : '无'}`)}</span>
-          <div class="request-console-grid" style="gap: 16px;">
-            <div class="request-console-row" style="display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px; align-items: center;">
-              <select class="request-console-input" style="margin: 0;" data-faction-input="promoteFaction">${factionNames.map(name => `<option value="${escapeHtmlAttr(name)}" ${name === defaultPromotionFaction ? 'selected' : ''}>${htmlEscape(name)}</option>`).join('')}</select>
-              <input class="request-console-input" style="margin: 0;" data-faction-input="targetTitle" value="${escapeHtmlAttr(pendingPromotionTitle !== '无' ? pendingPromotionTitle : '')}" placeholder="申请职位，如黄级 / 预备战神 / 少将" />
-              <button type="button" class="relation-action-btn faction-action-btn" style="margin: 0; height: 32px;" data-faction-action="promote">提交晋升</button>
-            </div>
-            <div class="request-console-row" style="display: grid; grid-template-columns: 1.5fr 2fr 1fr auto; gap: 8px; align-items: center;">
-              <select class="request-console-input" style="margin: 0;" data-faction-input="donateFaction">${factionNames.map(name => `<option value="${escapeHtmlAttr(name)}" ${name === defaultDonateFaction ? 'selected' : ''}>${htmlEscape(name)}</option>`).join('')}</select>
-              <select class="request-console-input" style="margin: 0;" data-faction-input="donateItem" ${donationEntries.length ? '' : 'disabled'}>${donationOptionsHtml}</select>
-              <input type="number" min="1" class="request-console-input" style="margin: 0;" data-faction-input="donateQty" value="${escapeHtmlAttr(String(pendingDonateQty))}" placeholder="数量" />
-              <button type="button" class="relation-action-btn faction-action-btn" style="margin: 0; height: 32px;" data-faction-action="donate" ${donationEntries.length ? '' : 'disabled'}>提交捐献</button>
-            </div>
-          </div>
-          <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.06);">
-            <div style="font-size: 11px; color: var(--color-text-secondary); margin-bottom: 8px; font-weight: 500;">当前主要贡献池</div>
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
-              <div>
-                <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;"><span style="color: #888;">唐门</span><span style="color: var(--cyan);">${formatNumber(deepGet(snapshot, 'activeChar.wealth.tang_pt', 0))}</span></div>
-                <div style="height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden;">
-                  <div style="height: 100%; background: var(--cyan); width: ${ratioPercent(deepGet(snapshot, 'activeChar.wealth.tang_pt', 0), 1000)}%;"></div>
-                </div>
-              </div>
-              <div>
-                <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;"><span style="color: #888;">史莱克学院</span><span style="color: #60c571;">${formatNumber(deepGet(snapshot, 'activeChar.wealth.shrek_pt', 0))}</span></div>
-                <div style="height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden;">
-                  <div style="height: 100%; background: #60c571; width: ${ratioPercent(deepGet(snapshot, 'activeChar.wealth.shrek_pt', 0), 1000)}%;"></div>
-                </div>
-              </div>
-              <div>
-                <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;"><span style="color: #888;">战神殿/军方</span><span style="color: var(--red);">${formatNumber(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0))}</span></div>
-                <div style="height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden;">
-                  <div style="height: 100%; background: var(--red); width: ${ratioPercent(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0), 1000)}%;"></div>
-                </div>
+        <div class="archive-card dossier-card dossier-console-card request-console-card">
+          <div class="archive-card-head"><div class="archive-card-title">阵营事务台</div><span class="dossier-pill ${preferredFactionName ? 'live' : 'warn'}">${htmlEscape(preferredFactionName || '未加入')}</span></div>
+          <section class="dossier-section">
+            <div class="dossier-section-title">挂起事务</div>
+            ${makeDossierRows([{ label: '当前排队', value: htmlEscape(pendingSummary) }], 'dossier-row-grid--single')}
+          </section>
+          <section class="dossier-section">
+            <div class="dossier-section-title">物资捐献</div>
+            <div class="dossier-form-grid">
+              <div class="dossier-form-row request-console-row request-console-row--donate dossier-form-row--donate">
+                <select class="request-console-input" data-faction-input="donateFaction">${factionNames.map(name => `<option value="${escapeHtmlAttr(name)}" ${name === defaultDonateFaction ? 'selected' : ''}>${htmlEscape(name)}</option>`).join('')}</select>
+                <select class="request-console-input" data-faction-input="donateItem" ${donationEntries.length ? '' : 'disabled'}>${donationOptionsHtml}</select>
+                <input type="number" min="1" class="request-console-input" data-faction-input="donateQty" value="${escapeHtmlAttr(String(pendingDonateQty))}" placeholder="数量" />
+                <button type="button" class="relation-action-btn faction-action-btn" data-faction-action="donate" ${donationEntries.length ? '' : 'disabled'}>提交捐献</button>
               </div>
             </div>
-          </div>
+          </section>
+          <section class="dossier-section">
+            <div class="dossier-section-title">主要贡献池</div>
+            <div class="dossier-contrib-grid">
+              ${makeDossierMeter('唐门', htmlEscape(formatNumber(deepGet(snapshot, 'activeChar.wealth.tang_pt', 0))), ratioPercent(deepGet(snapshot, 'activeChar.wealth.tang_pt', 0), 1000), 'dossier-meter--cyan')}
+              ${makeDossierMeter('史莱克学院', htmlEscape(formatNumber(deepGet(snapshot, 'activeChar.wealth.shrek_pt', 0))), ratioPercent(deepGet(snapshot, 'activeChar.wealth.shrek_pt', 0), 1000), 'dossier-meter--green')}
+              ${makeDossierMeter('战神殿/军方', htmlEscape(formatNumber(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0))), ratioPercent(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0), 1000), 'dossier-meter--red')}
+            </div>
+          </section>
         </div>
       `;
+    }
+
+    function buildFactionRelationDossierList(orgName, orgData, options = {}) {
+      const { max = 6, emptyTitle = '暂无阵营关系', emptyDesc = '当前未记录对外关系。' } = options || {};
+      const safeOrgName = toText(orgName, '').trim();
+      const relationEntries = safeEntries(deepGet(orgData, 'rel', {})).slice(0, Math.max(1, max));
+      if (!relationEntries.length) {
+        return `<div class="dossier-empty-note">${htmlEscape(emptyTitle)}：${htmlEscape(emptyDesc)}</div>`;
+      }
+      return makeDossierList(relationEntries.map(([relationName, relationData]) => {
+        const safeRelData = relationData && typeof relationData === 'object' ? relationData : {};
+        const relationMeta = buildFactionRelationMeta(relationName, safeRelData);
+        const relationField = Object.prototype.hasOwnProperty.call(safeRelData, '态度')
+          ? '态度'
+          : (Object.prototype.hasOwnProperty.call(safeRelData, '关系') ? '关系' : '态度');
+        const relationValue = toText(deepGet(safeRelData, relationField, relationMeta.attitude), relationMeta.attitude);
+        const detailText = safeEntries(safeRelData)
+          .filter(([key]) => !['态度', '关系'].includes(toText(key, '')))
+          .map(([key, value]) => {
+            if (value && typeof value === 'object') return `${toText(key, '关系项')} ${safeEntries(value).length}项`;
+            const textValue = toText(value, '');
+            return textValue ? `${toText(key, '关系项')} ${textValue}` : '';
+          })
+          .filter(Boolean)
+          .join(' / ');
+        const editableValue = safeOrgName
+          ? makeInlineEditableValue(relationValue, {
+              path: ['org', safeOrgName, 'rel', relationName, relationField],
+              kind: 'string',
+              rawValue: relationValue,
+            })
+          : htmlEscape(relationValue);
+        return {
+          title: relationMeta.name,
+          desc: `<strong>${editableValue}</strong>${detailText ? `<small>${htmlEscape(detailText)}</small>` : ''}`,
+          className: relationMeta.className || '',
+        };
+      }), 'dossier-list--compact dossier-list--relations');
+    }
+
+    function buildFactionDossierModal(snapshot, previewKey = '所属势力详细页') {
+      const currentFactionName = snapshot.factions[0] ? snapshot.factions[0][0] : '';
+      const currentFactionRole = snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '未加入';
+      const currentFactionPower = snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '权限级', 0), '0') : '0';
+      const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
+      const currentFactionPath = currentFactionName && activeCharKey ? ['char', activeCharKey, 'social', 'factions', currentFactionName] : [];
+      const currentFactionEntry = currentFactionName
+        ? (snapshot.orgEntries.find(([name]) => name === currentFactionName) || [currentFactionName, {}])
+        : ['', {}];
+      const factionRows = snapshot.factions.length ? snapshot.factions : [['未加入势力', { 身份: '无', 权限级: 0 }]];
+      const title = previewKey === '我的阵营详情' ? '我的阵营弹窗' : '阵营身份弹窗';
+
+      return {
+        title,
+        summary: '当前角色在各势力中的身份、权限与阵营事务。',
+        body: `
+          <div class="archive-modal-grid dossier-shell dossier-shell--faction">
+            <div class="archive-card dossier-card dossier-card--faction-list">
+              <div class="archive-card-head">
+                <div class="archive-card-title">所属势力列表</div>
+                <span class="dossier-pill ${snapshot.factions.length ? 'live' : 'warn'}">${snapshot.factions.length ? `已加入 ${snapshot.factions.length}` : '未加入'}</span>
+              </div>
+              <div class="dossier-list dossier-list--factions">
+                ${factionRows.map(([name, info], idx) => {
+                  const factionPath = activeCharKey && name !== '未加入势力' ? ['char', activeCharKey, 'social', 'factions', name] : [];
+                  const identityValue = toText(info && info['身份'], '无');
+                  const powerValue = toNumber(info && info['权限级'], 0);
+                  return `
+                    <div class="dossier-list-row faction-row ${idx === 0 ? 'highlight' : ''}">
+                      <b>${htmlEscape(name)}</b>
+                      <span>
+                        身份：${factionPath.length
+                          ? makeInlineEditableValue(identityValue, {
+                              path: [...factionPath, '身份'],
+                              kind: 'string',
+                              rawValue: identityValue,
+                            })
+                          : htmlEscape(identityValue)}
+                        / 权限级：${factionPath.length
+                          ? makeInlineEditableValue(String(powerValue), {
+                              path: [...factionPath, '权限级'],
+                              kind: 'number',
+                              rawValue: powerValue,
+                              editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                            })
+                          : htmlEscape(String(powerValue))}
+                      </span>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+            <div class="archive-card dossier-card dossier-card--faction-profile">
+              <div class="archive-card-head">
+                <div>
+                  <div class="archive-card-title">当前阵营档案</div>
+                  <div class="dossier-head-name">${htmlEscape(currentFactionName || '未加入势力')}</div>
+                </div>
+                <span class="dossier-pill ${currentFactionName ? 'live' : 'warn'}">${htmlEscape(currentFactionRole)}</span>
+              </div>
+              <section class="dossier-section">
+                <div class="dossier-section-title">身份定位</div>
+                ${makeDossierRows([
+                  { label: '当前所属', value: htmlEscape(currentFactionName || '无') },
+                  { label: '身份', value: currentFactionPath.length
+                    ? makeInlineEditableValue(currentFactionRole, {
+                        path: [...currentFactionPath, '身份'],
+                        kind: 'string',
+                        rawValue: currentFactionRole,
+                      })
+                    : htmlEscape(currentFactionRole) },
+                  { label: '权限级', value: currentFactionPath.length
+                    ? makeInlineEditableValue(currentFactionPower, {
+                        path: [...currentFactionPath, '权限级'],
+                        kind: 'number',
+                        rawValue: toNumber(currentFactionPower, 0),
+                        editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                      })
+                    : htmlEscape(currentFactionPower) },
+                  { label: '主公开身份', value: activeCharKey
+                    ? makeInlineEditableValue(toText(deepGet(snapshot, 'activeChar.social.main_identity', '无'), '无'), {
+                        path: ['char', activeCharKey, 'social', 'main_identity'],
+                        kind: 'string',
+                        rawValue: toText(deepGet(snapshot, 'activeChar.social.main_identity', '无'), '无'),
+                      })
+                    : htmlEscape(toText(deepGet(snapshot, 'activeChar.social.main_identity', '无'), '无')) },
+                  { label: '当前称号', value: htmlEscape(snapshot.recentTitles[0] || '暂无') },
+                  { label: '当前位置', value: htmlEscape(snapshot.currentLoc || '未知') },
+                ], 'dossier-row-grid--two')}
+              </section>
+              <section class="dossier-section">
+                <div class="dossier-section-title">阵营关系</div>
+                ${buildFactionRelationDossierList(currentFactionName, currentFactionEntry[1] || {}, {
+                  max: 6,
+                  emptyTitle: '暂无阵营关系',
+                  emptyDesc: currentFactionName ? '当前所属势力未记录对外关系。' : '当前角色尚未加入可展示关系的势力。'
+                })}
+              </section>
+            </div>
+            ${buildFactionAffairConsoleHtml(snapshot, currentFactionName)}
+          </div>
+        `
+      };
     }
 
     function buildMapTradeModalOptions(snapshot, dispatchDetail) {
@@ -9395,35 +12397,30 @@ ${JSON.stringify(patchOps, null, 2)}
       const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), activeKey);
       const targetName = toText(targetChar && (targetChar.name || deepGet(targetChar, 'base.name', '')), npcTarget || targetKey);
       const arenaName = toText(detail.target, toText(detail.currentLoc, toText(snapshot.currentLoc, '未知地点')));
-
-      const patchOps = [
-        { op: 'replace', path: '/world/combat/is_active', value: true },
-        { op: 'replace', path: '/world/combat/combat_type', value: '切磋' },
-        { op: 'replace', path: '/world/combat/initiative', value: '无' },
-        { op: 'replace', path: '/world/combat/allow_flee', value: true },
-        { op: 'replace', path: '/world/combat/round', value: 1 },
-        { op: 'replace', path: '/world/combat/phase', value: '宣告阶段' },
-        { op: 'replace', path: '/world/combat/environment', value: `${arenaName} / 切磋` },
-        { op: 'replace', path: '/world/combat/participants', value: {
-          [activeKey]: { faction: '己方', status: deepGet(activeChar, 'status.alive', true) === false ? '重伤' : '存活', is_summon: false },
-          [targetKey]: { faction: '敌对', status: deepGet(targetChar, 'status.alive', true) === false ? '重伤' : '存活', is_summon: false }
-        } },
-        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: '战斗中' }
-      ];
-
-      const mvuUpdate = `[MVU变量更新数据]
-以下为本次战斗初始化的完整 MVU 更新，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。
-<UpdateVariable>
-<Analysis>Battle initialized from map action.</Analysis>
-<JSONPatch>
-${JSON.stringify(patchOps, null, 2)}
-</JSONPatch>
-</UpdateVariable>`;
+      const relationMap = deepGet(activeChar, 'social.relations', {});
+      const relationData = relationMap && typeof relationMap === 'object'
+        ? (relationMap[targetName] || relationMap[targetKey] || {})
+        : {};
+      const relationSummary = relationData && typeof relationData === 'object'
+        ? `${toText(relationData['关系'], '陌生')} / ${toText(relationData['relation_route'], '朋友线')} / 好感 ${toNumber(relationData['好感度'], 0)}`
+        : '暂无明确关系记录';
+      const activeLoc = toText(deepGet(activeChar, 'status.loc', arenaName), arenaName || '未知地点');
+      const targetLoc = toText(deepGet(targetChar, 'status.loc', arenaName), arenaName || '未知地点');
+      const systemPrompt = `以下内容属于前端代发的地图切磋请求，请直接承接剧情推进，不要输出 JSON 块或变量维护指令。
+[切磋请求] ${activeName} 在【${arenaName}】向【${targetName}】发起切磋。
+[切磋原则]
+这是一场默认以切磋、试探、较量为目的的交手，不以击杀为目标；请自然承接为点到为止、可被围观或被制止的战斗场景，而不是无端升级成死战。
+[角色参考]
+发起者：${activeName} / 当前地点 ${activeLoc}
+目标：${targetName} / 当前地点 ${targetLoc}
+双方关系：${relationSummary}
+[裁定要求]
+你需要承接这次切磋请求，自然写出双方是否应战、开场姿态与后续战斗推进；若剧情上不适合立刻开打，也要以“切磋请求已经提出”为前提给出自然回应，而不是忽略这次请求。`;
 
       return {
-        playerInput: `我想在【${arenaName}】与【${targetName}】切磋。\n\n${mvuUpdate}`,
+        playerInput: `我想在【${arenaName}】与【${targetName}】切磋。`,
         systemPrompt,
-        requestKind: 'combat_action'
+        requestKind: toText(detail.requestKind, 'map_sparring')
       };
     }
 
@@ -9478,7 +12475,6 @@ ${JSON.stringify(patchOps, null, 2)}
       const progressNote = relationData && typeof relationData === 'object' ? toText(deepGet(relationData, '_progress_note', deepGet(relationData, 'progress_note', '暂无')),'暂无') : '暂无';
       const routeSwitchable = !!deepGet(relationData, '_route_switchable', false);
       const sourceLabel = toText(detail.sourceLabel, '地图 NPC 互动');
-      const sourceAnalysis = toText(detail.sourceAnalysis, 'Map NPC interaction initialized from map action.');
       const actionPromptMap = {
         talk: `我想在【${arenaName}】和【${targetName}】闲聊。`,
         brief: `我想在【${arenaName}】向【${targetName}】汇报情况并请示安排。`,
@@ -9491,23 +12487,11 @@ ${JSON.stringify(patchOps, null, 2)}
         dual: `我想在【${arenaName}】与【${targetName}】进行双修。`
       };
 
-      const patchOps = [
-        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/interact_request`, value: {
-          target_npc: targetName,
-          action: interactAction,
-          item_used: itemUsed,
-          ai_score: 0
-        } },
-        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: '日常' },
-        { op: 'replace', path: '/world/time/tick', value: currentTick + 2 },
-        { op: 'replace', path: '/sys/rsn', value: `[社交互动] ${activeName} 在【${arenaName}】对【${targetName}】发起【${interactAction}】。` }
-      ];
-
       const relationSummary = relationData && typeof relationData === 'object'
         ? `${toText(relationData['关系'], '陌生')} / 路线 ${toText(relationData['relation_route'], '朋友线')} / 好感 ${toNumber(relationData['好感度'], 0)}`
         : '暂无已知关系记录';
 
-      const systemPrompt = `以下内容属于前端已经完成的${sourceLabel}请求初始化，不要在正文直接复述“JSONPatch / 系统分析 / 仲裁日志”等术语。
+      const systemPrompt = `以下内容属于前端代发的${sourceLabel}请求，请直接承接剧情推进，不要输出 JSON 块或变量维护指令。
 
 [社交互动] ${activeName} 在【${arenaName}】对【${targetName}】发起【${interactAction}】。
 
@@ -9520,23 +12504,15 @@ ${JSON.stringify(patchOps, null, 2)}
 最近互动：${recentInteractText}
 推进提示：${progressNote}
 当前是否可切恋人线：${routeSwitchable ? '是' : '否'}
+预计耗时：${currentTick >= 0 ? '约 2 tick' : '短时互动'}
 
 [互动裁定原则]
-你必须根据剧情氛围为本次 interact_request.ai_score 回填一个 -50 到 50 的整数；若互动无法成立则保持 0，并在正文给出合理原因。请不要只按一句台词机械判分，必须综合考虑：基础好感、当前关系阶段与路线、双方性格、身份与现实压力、所属势力可能带来的立场影响、当前地点是否适合展开该互动、以及最近互动的延续性。${interactAction === '送礼' ? ` 送礼时必须保留 item_used = ${itemUsed}，并判断礼物是否对目标性格、身份、处境与当下气氛对口。` : ''}${interactAction === '表白' ? ' 表白时要区分“试着交往/进入暧昧推进”与“正式确认关系”两种结果；若剧情上已经正式确认关系，可以直接在返回的 JSONPatch 中把双方 social.relations 下对应目标的 relation_route 改为“恋人线”。' : ''}${interactAction === '双修' ? ' 双修属于高亲密度互动，若人物状态、性格、场景或关系阶段不匹配，应明显压低 ai_score 或判定无法成立。' : ''}${interactAction === '请教' ? ' 请教不仅看好感，也要看目标是否愿意传授、双方当前关系是否适合、以及当下场景是否便于认真交流。' : ''}
-
-[MVU变量更新数据]
-以下为本次人物互动的前端预填请求，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。
-<UpdateVariable>
-<Analysis>${sourceAnalysis}</Analysis>
-<JSONPatch>
-${JSON.stringify(patchOps, null, 2)}
-</JSONPatch>
-</UpdateVariable>`;
+请综合考虑基础好感、当前关系阶段与路线、双方性格、身份与现实压力、所属势力带来的立场影响、当前地点是否适合展开该互动，以及最近互动的延续性。若互动无法成立，请在剧情里自然给出原因。${interactAction === '送礼' ? ` 送礼物品为【${itemUsed}】；请判断这份礼物是否对目标性格、身份、处境与当下气氛对口。` : ''}${interactAction === '表白' ? ' 表白时请区分“试着交往/进入暧昧推进”与“正式确认关系”两种结果。' : ''}${interactAction === '双修' ? ' 双修属于高亲密度互动，若人物状态、性格、场景或关系阶段不匹配，应明确写出无法成立的理由。' : ''}${interactAction === '请教' ? ' 请教不仅看好感，也要看目标是否愿意传授、双方当前关系是否适合，以及当下场景是否便于认真交流。' : ''}`;
 
       return {
         playerInput: actionPromptMap[action] || `我想在【${arenaName}】与【${targetName}】互动。`,
         systemPrompt,
-        requestKind: 'interact_request'
+        requestKind: toText(detail.requestKind, 'map_interaction')
       };
     }
 
@@ -9556,47 +12532,44 @@ ${JSON.stringify(patchOps, null, 2)}
         return;
       }
 
+      if (action === 'ascension' || action === 'tower') {
+        console.warn('[DragonUI] 当前版本已移除前端试炼发起入口。', detail);
+        return;
+      }
+
       if (['talk', 'brief', 'intel'].includes(action)) {
         const interactInit = buildMapInteractDispatchRequest(liveSnapshot, detail);
         mapDispatchContext = { ...detail, action, services };
-        if (interactInit && typeof window.sendToAI === 'function') {
-          window.sendToAI(interactInit.playerInput, interactInit.systemPrompt, { requestKind: interactInit.requestKind });
+        if (interactInit) {
+          dispatchUiAiRequest(interactInit.playerInput, interactInit.systemPrompt, { requestKind: interactInit.requestKind });
           return;
         }
-        if (typeof window.sendToAI === 'function') {
-          const arenaName = toText(detail.target, toText(detail.currentLoc, toText(liveSnapshot && liveSnapshot.currentLoc, '未知地点')));
-          const npcTargets = Array.isArray(detail.npcTargets) ? detail.npcTargets.map(item => toText(item, '')).filter(Boolean) : [];
-          const targetLabel = npcTargets.length ? `在场人物（${npcTargets.join('、')}）` : '在场人员';
-          const playerInputMap = {
-            talk: `我想在【${arenaName}】与${targetLabel}交谈。`,
-            brief: `我想在【${arenaName}】向${targetLabel}汇报情况并请示安排。`,
-            intel: `我想在【${arenaName}】向${targetLabel}请教情报。`
-          };
-          const actionLabel = action === 'brief' ? '汇报' : (action === 'intel' ? '请教' : '对话');
-          const systemPrompt = `以下内容属于前端已经发起的地图${actionLabel}请求。当前没有锁定唯一 NPC 目标，不要报错，也不要要求玩家重新点击；请结合【${arenaName}】的场景功能与在场人物，自然选择最合适的回应对象承接本次互动。${npcTargets.length ? ` 当前可候选人物：${npcTargets.join('、')}。` : ' 当前未识别到明确人物名单，请按地点与事件功能自然承接。'}`;
-          window.sendToAI(playerInputMap[action] || `我想在【${arenaName}】与在场人物互动。`, systemPrompt, { requestKind: 'interact_request' });
-          return;
-        }
-        console.warn('[DragonUI] 地图 NPC 互动分发未找到可用发送通道', detail);
+        const arenaName = toText(detail.target, toText(detail.currentLoc, toText(liveSnapshot && liveSnapshot.currentLoc, '未知地点')));
+        const npcTargets = Array.isArray(detail.npcTargets) ? detail.npcTargets.map(item => toText(item, '')).filter(Boolean) : [];
+        const targetLabel = npcTargets.length ? `在场人物（${npcTargets.join('、')}）` : '在场人员';
+        const playerInputMap = {
+          talk: `我想在【${arenaName}】与${targetLabel}交谈。`,
+          brief: `我想在【${arenaName}】向${targetLabel}汇报情况并请示安排。`,
+          intel: `我想在【${arenaName}】向${targetLabel}请教情报。`
+        };
+        const actionLabel = action === 'brief' ? '汇报' : (action === 'intel' ? '请教' : '对话');
+        const systemPrompt = `以下内容属于前端已经发起的地图${actionLabel}请求。当前没有锁定唯一 NPC 目标，不要报错，也不要要求玩家重新点击；请结合【${arenaName}】的场景功能与在场人物，自然选择最合适的回应对象承接本次互动。${npcTargets.length ? ` 当前可候选人物：${npcTargets.join('、')}。` : ' 当前未识别到明确人物名单，请按地点与事件功能自然承接。'}`;
+        dispatchUiAiRequest(playerInputMap[action] || `我想在【${arenaName}】与在场人物互动。`, systemPrompt, { requestKind: 'map_interaction' });
         return;
       }
 
       if (action === 'battle' || services.includes('battle')) {
         const battleInit = buildMapBattleInitRequest(liveSnapshot, detail);
         mapDispatchContext = { ...detail, action, services };
-        if (battleInit && typeof window.sendToAI === 'function') {
-          window.sendToAI(battleInit.playerInput, battleInit.systemPrompt, { requestKind: battleInit.requestKind });
+        if (battleInit) {
+          dispatchUiAiRequest(battleInit.playerInput, battleInit.systemPrompt, { requestKind: battleInit.requestKind });
           return;
         }
-        if (typeof window.sendToAI === 'function') {
-          const arenaName = toText(detail.target, toText(detail.currentLoc, toText(liveSnapshot && liveSnapshot.currentLoc, '未知地点')));
-          const npcTargets = Array.isArray(detail.npcTargets) ? detail.npcTargets.map(item => toText(item, '')).filter(Boolean) : [];
-          const targetLabel = npcTargets.length ? `在场人物（${npcTargets.join('、')}）中的一人` : '合适的对手';
-          const systemPrompt = `以下内容属于前端已经发起的地图切磋请求。当前没有锁定唯一对手，不要报错，也不要要求玩家重新点击；请结合【${arenaName}】现场情况与在场人物，自然判断是否有人应战。${npcTargets.length ? ` 候选对手：${npcTargets.join('、')}。若有人应战，请自然承接为切磋剧情并继续后续战斗推进。` : ' 若当前没有明确对手，也请以前端请求已发出的事实为基础，自然描述无人应战、稍后再战或由他人出面回应。'}`;
-          window.sendToAI(`我想在【${arenaName}】与${targetLabel}切磋。`, systemPrompt, { requestKind: 'combat_action' });
-          return;
-        }
-        console.warn('[DragonUI] 地图切磋分发未找到可用发送通道', detail);
+        const arenaName = toText(detail.target, toText(detail.currentLoc, toText(liveSnapshot && liveSnapshot.currentLoc, '未知地点')));
+        const npcTargets = Array.isArray(detail.npcTargets) ? detail.npcTargets.map(item => toText(item, '')).filter(Boolean) : [];
+        const targetLabel = npcTargets.length ? `在场人物（${npcTargets.join('、')}）中的一人` : '合适的对手';
+        const systemPrompt = `以下内容属于前端已经发起的地图切磋请求。当前没有锁定唯一对手，不要报错，也不要要求玩家重新点击；请结合【${arenaName}】现场情况与在场人物，自然判断是否有人应战。${npcTargets.length ? ` 候选对手：${npcTargets.join('、')}。若有人应战，请自然承接为切磋剧情并继续后续战斗推进。` : ' 若当前没有明确对手，也请以前端请求已发出的事实为基础，自然描述无人应战、稍后再战或由他人出面回应。'}`;
+        dispatchUiAiRequest(`我想在【${arenaName}】与${targetLabel}切磋。`, systemPrompt, { requestKind: 'map_sparring' });
         return;
       }
 
@@ -9608,7 +12581,128 @@ ${JSON.stringify(patchOps, null, 2)}
 
     window.addEventListener('map-action-dispatch', handleMapActionDispatch);
 
+    var currentModalDisplayMode = 'auto';
+    var lastRenderedModalPreviewKey = '';
+    function computeUnifiedFloatBottomReserve() {
+      const viewportHeight = Math.max(0, Number(window.innerHeight) || 0);
+      const viewportWidth = Math.max(0, Number(window.innerWidth) || 0);
+      if (!viewportHeight || !viewportWidth) return 128;
+      let reserve = 128;
+      const seen = new Set();
+      const minGenericWidth = Math.min(Math.max(140, viewportWidth * 0.18), Math.max(160, viewportWidth - 32));
+
+      const measureCandidate = (el, options = {}) => {
+        if (!(el instanceof Element)) return;
+        if (seen.has(el)) return;
+        seen.add(el);
+        if (!el.isConnected) return;
+        if (el.id === 'detailModal' || el.closest('#detailModal')) return;
+        const style = window.getComputedStyle(el);
+        if (!style || style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return;
+        if (style.pointerEvents === 'none') return;
+        const rect = el.getBoundingClientRect();
+        if (!rect || rect.height <= 0 || rect.width <= 0) return;
+        const visible = Math.max(0, Math.min(viewportHeight, rect.bottom) - Math.max(0, rect.top));
+        if (visible <= 0) return;
+        if (rect.bottom < viewportHeight - 260) return;
+        if ((options.minHeight || 0) > 0 && rect.height < options.minHeight) return;
+        if (!options.allowAnyWidth && rect.width < minGenericWidth) return;
+        const nextReserve = Math.max(0, viewportHeight - Math.max(0, rect.top)) + 16;
+        reserve = Math.max(reserve, nextReserve);
+      };
+
+      const primaryCandidates = [
+        document.getElementById('mvu-unified-mount'),
+        document.getElementById('acu-nav-bar'),
+        document.querySelector('.acu-wrapper')
+      ];
+      for (const el of primaryCandidates) {
+        measureCandidate(el, { allowAnyWidth: true, minHeight: 20 });
+      }
+
+      const scanRoot = document.body || document.documentElement;
+      if (scanRoot) {
+        const nodes = scanRoot.querySelectorAll('*');
+        for (const el of nodes) {
+          const style = window.getComputedStyle(el);
+          if (!style) continue;
+          const position = style.position;
+          if (position !== 'fixed' && position !== 'sticky') continue;
+          measureCandidate(el, { allowAnyWidth: false, minHeight: 24 });
+        }
+      }
+
+      return Math.max(96, Math.min(reserve, Math.max(220, viewportHeight - 84)));
+    }
+    function applyUnifiedFloatMetrics(detailModalEl, unifiedMode) {
+      if (!detailModalEl) return;
+      if (!unifiedMode) {
+        detailModalEl.style.removeProperty('--mvu-float-bottom-reserve');
+        detailModalEl.style.removeProperty('--mvu-float-max-height');
+        detailModalEl.style.removeProperty('--mvu-float-min-height');
+        return;
+      }
+      const viewportHeight = Math.max(0, Number(window.innerHeight) || 0);
+      const reserve = computeUnifiedFloatBottomReserve();
+      const maxHeight = Math.max(260, viewportHeight - reserve - 54);
+      const minHeight = Math.max(220, Math.min(360, viewportHeight - reserve - 122));
+      detailModalEl.style.setProperty('--mvu-float-bottom-reserve', `${reserve}px`);
+      detailModalEl.style.setProperty('--mvu-float-max-height', `${maxHeight}px`);
+      detailModalEl.style.setProperty('--mvu-float-min-height', `${minHeight}px`);
+    }
+
+    function isUnifiedLayoutActive() {
+      const body = document.body;
+      if (!body) return false;
+      if (body.classList.contains('mvu-layout-unified')) return true;
+      try {
+        return !!(window.__MVU_LAYOUT_STATE__ && window.__MVU_LAYOUT_STATE__.effectiveMode === 'unified');
+      } catch (err) {
+        return false;
+      }
+    }
+
+    function shouldUseUnifiedFloatMode(options = {}) {
+      const explicitMode = String(options.displayMode || '').trim();
+      if (explicitMode === 'floating' || explicitMode === 'unified') return true;
+      if (explicitMode === 'split') return false;
+      if (isUnifiedLayoutActive()) return true;
+      // Only follow the currently effective layout, not persisted preference.
+      // Otherwise split fallback can accidentally render unified float modal.
+      try {
+        const layoutState = window.__MVU_LAYOUT_STATE__;
+        if (layoutState && layoutState.effectiveMode === 'unified') return true;
+      } catch (err) {}
+      const triggerEl = options.triggerEl instanceof Element ? options.triggerEl : null;
+      if (triggerEl && (triggerEl.closest('#mvu-unified-mount') || triggerEl.closest('.mvu-unified-dock'))) {
+        return true;
+      }
+      return false;
+    }
+
+    function applyModalDisplayMode(refs = getModalRefs(), options = {}) {
+      const currentDetailModal = refs && refs.detailModal ? refs.detailModal : null;
+      const currentModalPanel = refs && refs.modalPanel ? refs.modalPanel : null;
+      if (!currentDetailModal || !currentModalPanel) return;
+      const unifiedMode = shouldUseUnifiedFloatMode(options);
+      currentDetailModal.classList.remove('drawer-left');
+      currentModalPanel.classList.remove('drawer-left');
+      currentDetailModal.classList.toggle('unified-float-mode', unifiedMode);
+      currentModalPanel.classList.toggle('unified-float-panel', unifiedMode);
+      currentDetailModal.classList.toggle('mvu-modal-display-unified', unifiedMode);
+      currentDetailModal.classList.toggle('mvu-modal-display-split', !unifiedMode);
+      currentModalPanel.classList.toggle('mvu-modal-display-unified', unifiedMode);
+      currentModalPanel.classList.toggle('mvu-modal-display-split', !unifiedMode);
+      currentDetailModal.dataset.modalDisplayMode = unifiedMode ? 'unified' : 'split';
+      currentModalPanel.dataset.modalDisplayMode = unifiedMode ? 'unified' : 'split';
+      applyUnifiedFloatMetrics(currentDetailModal, unifiedMode);
+    }
+
     function openModal(previewKey, options = {}) {
+      if (shouldBlockInlineEditRerender(options)) {
+        pendingLiveRefresh = true;
+        return;
+      }
       const refs = getModalRefs();
       if (!options.preserveMapDispatchContext) {
         mapDispatchContext = null;
@@ -9627,11 +12721,65 @@ ${JSON.stringify(patchOps, null, 2)}
       }
 
       if (!refs.detailModal) return;
+      currentModalDisplayMode = shouldUseUnifiedFloatMode(options) ? 'floating' : 'split';
+      applyModalDisplayMode(refs, options);
       refs.detailModal.classList.add('show');
       refs.detailModal.setAttribute('aria-hidden', 'false');
     }
 
-    function renderModalContent(previewKey, refs = getModalRefs()) {
+    function toggleModal(previewKey, options = {}) {
+      const targetKey = previewKey || '';
+      if (!targetKey) return;
+      const refs = getModalRefs();
+      if (refs.detailModal && refs.detailModal.classList.contains('show') && currentModalPreviewKey === targetKey) {
+        closeModal();
+        return;
+      }
+      openModal(targetKey, options);
+    }
+
+    function setArchiveRedesignState(refs = getModalRefs(), enabled = false) {
+      const currentDetailModal = refs && refs.detailModal ? refs.detailModal : null;
+      const currentModalPanel = refs && refs.modalPanel ? refs.modalPanel : null;
+      const currentModalBody = refs && refs.modalBody ? refs.modalBody : null;
+      if (currentDetailModal) currentDetailModal.classList.toggle('archive-redesign-mode', !!enabled);
+      if (currentModalPanel) currentModalPanel.classList.toggle('archive-redesign-panel', !!enabled);
+      if (currentModalBody) currentModalBody.classList.toggle('archive-redesign-body', !!enabled);
+      syncArchiveRedesignPanelDecor(refs, enabled);
+    }
+
+    function syncArchiveRedesignPanelDecor(refs = getModalRefs(), enabled = false) {
+      const currentModalPanel = refs && refs.modalPanel ? refs.modalPanel : null;
+      if (!currentModalPanel) return;
+      const existingDecor = currentModalPanel.querySelector('.archive-redesign-decor');
+      if (!enabled) {
+        if (existingDecor) existingDecor.remove();
+        return;
+      }
+      if (existingDecor) return;
+      currentModalPanel.insertAdjacentHTML('afterbegin', `
+        <div class="archive-redesign-decor" aria-hidden="true">
+          <div class="ring-group top-left-rings">
+            <div class="astro-circle ring-cyan-1"></div>
+            <div class="astro-circle ring-cyan-2"></div>
+            <div class="astro-circle ring-cyan-3"></div>
+          </div>
+          <div class="ring-group bottom-right-rings">
+            <div class="astro-circle ring-gold-1"></div>
+            <div class="astro-circle ring-gold-2"></div>
+            <div class="astro-circle ring-gold-3"></div>
+          </div>
+        </div>
+      `);
+    }
+
+    function wrapArchiveRedesignBody(html) {
+      return `<div class="archive-redesign-root">
+        ${html || ''}
+      </div>`;
+    }
+
+    function renderModalContent(previewKey, refs = getModalRefs(), options = {}) {
       const {
         detailModal,
         modalPanel,
@@ -9643,6 +12791,16 @@ ${JSON.stringify(patchOps, null, 2)}
         modalBody
       } = refs;
       if (!detailModal || !modalPanel || !modalTitle || !modalBody) {
+        return;
+      }
+      const shouldResetModalScroll = lastRenderedModalPreviewKey !== previewKey || !detailModal.classList.contains('show');
+      const isRelationPreview = previewKey === '人物关系详细页';
+      lastRenderedModalPreviewKey = previewKey || '';
+      detailModal.classList.toggle('relation-preview-mode', isRelationPreview);
+      modalPanel.classList.toggle('relation-preview-mode', isRelationPreview);
+      applyModalDisplayMode(refs);
+      if (shouldBlockInlineEditRerender(options)) {
+        pendingLiveRefresh = true;
         return;
       }
       if (activeSubUI && typeof activeSubUI.destroy === 'function') {
@@ -9660,7 +12818,9 @@ ${JSON.stringify(patchOps, null, 2)}
         modalTitle.textContent = liveArchive.title;
         if (modalSubtitle) modalSubtitle.textContent = '';
         if (modalSummary) modalSummary.textContent = '';
-        modalBody.innerHTML = liveArchive.body;
+        setArchiveRedesignState(refs, true);
+        modalBody.innerHTML = wrapArchiveRedesignBody(liveArchive.body);
+        if (shouldResetModalScroll) modalBody.scrollTop = 0;
         if (typeof liveArchive.onMount === 'function') {
           activeSubUI = liveArchive.onMount(modalBody);
         }
@@ -9668,11 +12828,13 @@ ${JSON.stringify(patchOps, null, 2)}
       }
       const liveRequiredKeys = new Set([
         '生命图谱详细页',
+		'私密档案详细页',
         '社会档案详细页',
         '所属势力详细页',
         '人物关系详细页',
         '情报库详细页',
         '武装工坊详细页',
+        '武魂融合技详细页',
         '储物仓库详细页',
         '第一武魂详细页',
         '第二武魂详细页',
@@ -9701,7 +12863,9 @@ ${JSON.stringify(patchOps, null, 2)}
           modalTitle.textContent = skeletonArchive.title;
           if (modalSubtitle) modalSubtitle.textContent = '';
           if (modalSummary) modalSummary.textContent = '';
-          modalBody.innerHTML = skeletonArchive.body;
+          setArchiveRedesignState(refs, true);
+          modalBody.innerHTML = wrapArchiveRedesignBody(skeletonArchive.body);
+          if (shouldResetModalScroll) modalBody.scrollTop = 0;
           return;
         }
         modalPanel.classList.add('archive-mode');
@@ -9712,7 +12876,9 @@ ${JSON.stringify(patchOps, null, 2)}
         modalTitle.textContent = previewKey || '详细信息';
         if (modalSubtitle) modalSubtitle.textContent = '';
         if (modalSummary) modalSummary.textContent = '';
-        modalBody.innerHTML = '';
+        setArchiveRedesignState(refs, true);
+        modalBody.innerHTML = wrapArchiveRedesignBody('');
+        if (shouldResetModalScroll) modalBody.scrollTop = 0;
         return;
       }
       const archiveBuilder = archiveModalBuilders[previewKey];
@@ -9727,7 +12893,9 @@ ${JSON.stringify(patchOps, null, 2)}
         modalTitle.textContent = view.title;
         if (modalSubtitle) modalSubtitle.textContent = '';
         if (modalSummary) modalSummary.textContent = '';
-        modalBody.innerHTML = view.body;
+        setArchiveRedesignState(refs, true);
+        modalBody.innerHTML = wrapArchiveRedesignBody(view.body);
+        if (shouldResetModalScroll) modalBody.scrollTop = 0;
         return;
       }
       if (String(previewKey || '').startsWith(SKILL_DESIGNER_PREVIEW_PREFIX)) {
@@ -9740,12 +12908,14 @@ ${JSON.stringify(patchOps, null, 2)}
       const config = previewMap[previewKey] || buildDynamicPreview(previewKey || '详细弹窗');
       modalPanel.classList.remove('archive-mode', 'vault-mode');
       modalBody.className = 'modal-body';
+      setArchiveRedesignState(refs, false);
       if (modalLevel) modalLevel.textContent = '';
       if (modalPath) modalPath.textContent = '';
       modalTitle.textContent = config.title;
       if (modalSubtitle) modalSubtitle.textContent = '';
       if (modalSummary) modalSummary.textContent = '';
       modalBody.innerHTML = renderGenericModalBody(config);
+      if (shouldResetModalScroll) modalBody.scrollTop = 0;
     }
 
     function popModalOrClose() {
@@ -9771,10 +12941,18 @@ ${JSON.stringify(patchOps, null, 2)}
 
       hideInventoryHoverPanel();
       currentModalPreviewKey = '';
+      lastRenderedModalPreviewKey = '';
       modalStack = [];
-      if (detailModal) detailModal.classList.remove('show', 'drawer-left');
-      if (modalPanel) modalPanel.classList.remove('drawer-left', 'vault-mode');
-      if (modalBody) modalBody.classList.remove('vault-body');
+      currentModalDisplayMode = 'auto';
+      if (detailModal) {
+        detailModal.classList.remove('show', 'drawer-left', 'unified-float-mode', 'relation-preview-mode', 'archive-redesign-mode', 'mvu-modal-display-unified', 'mvu-modal-display-split');
+        delete detailModal.dataset.modalDisplayMode;
+      }
+      if (modalPanel) {
+        modalPanel.classList.remove('drawer-left', 'vault-mode', 'unified-float-panel', 'relation-preview-mode', 'archive-redesign-panel', 'mvu-modal-display-unified', 'mvu-modal-display-split');
+        delete modalPanel.dataset.modalDisplayMode;
+      }
+      if (modalBody) modalBody.classList.remove('vault-body', 'archive-redesign-body');
       if (detailModal) detailModal.setAttribute('aria-hidden', 'true');
       flushPendingLiveRefresh();
     }
@@ -9783,35 +12961,66 @@ ${JSON.stringify(patchOps, null, 2)}
       if (!mountEl || mountEl.__mvuModalDelegationBound) return;
       mountEl.addEventListener('click', (event) => {
         const eventTarget = event.target instanceof Element ? event.target : (event.target && event.target.parentElement ? event.target.parentElement : null);
+        if (isInlineEditInteractionTarget(eventTarget)) return;
         const clickable = eventTarget ? eventTarget.closest('.clickable') : null;
         if (!clickable || !mountEl.contains(clickable)) return;
 
         const previewKey = clickable.dataset.preview;
         if (!previewKey) return;
-        openModal(previewKey);
+        event.preventDefault();
+        event.stopPropagation();
+        const displayMode = mountEl.id === 'mvu-unified-mount' ? 'floating' : 'auto';
+        toggleModal(previewKey, { triggerEl: clickable, displayMode });
       });
       mountEl.__mvuModalDelegationBound = true;
     }
 
+    function bindAllVueModalDelegations() {
+      bindVueModalDelegation(document.getElementById('mvu-left-mount'));
+      bindVueModalDelegation(document.getElementById('mvu-right-mount'));
+      bindVueModalDelegation(document.getElementById('mvu-unified-mount'));
+    }
+
+    function installVueModalDelegationObserver() {
+      if (window.__MVU_MODAL_DELEGATION_OBSERVER__ && typeof window.__MVU_MODAL_DELEGATION_OBSERVER__.disconnect === 'function') {
+        try { window.__MVU_MODAL_DELEGATION_OBSERVER__.disconnect(); } catch (err) {}
+      }
+      const root = document.body || document.documentElement;
+      if (!root) return;
+      const observer = new MutationObserver(() => {
+        bindAllVueModalDelegations();
+      });
+      observer.observe(root, { childList: true, subtree: true });
+      window.__MVU_MODAL_DELEGATION_OBSERVER__ = observer;
+    }
+
     document.addEventListener('click', (event) => {
       const eventTarget = event.target instanceof Element ? event.target : (event.target && event.target.parentElement ? event.target.parentElement : null);
+      if (isInlineEditInteractionTarget(eventTarget)) return;
       const clickable = eventTarget ? eventTarget.closest('.clickable') : null;
       const leftMount = document.getElementById('mvu-left-mount');
       const rightMount = document.getElementById('mvu-right-mount');
+      const unifiedMount = document.getElementById('mvu-unified-mount');
       const inClassicShell = (canvas && canvas.contains(clickable)) || (splitOverlay && splitOverlay.contains(clickable));
       const inVueShell = (leftMount && leftMount.contains(clickable))
         || (rightMount && rightMount.contains(clickable))
+        || (unifiedMount && unifiedMount.contains(clickable))
         || !!(clickable && clickable.closest('.mvu-vue-wrapper'));
 
       if (!clickable || !(inClassicShell || inVueShell)) return;
       const previewKey = clickable.dataset.preview;
       if (!previewKey) return;
-      openModal(previewKey);
+      const displayMode = unifiedMount && unifiedMount.contains(clickable) ? 'floating' : 'auto';
+      toggleModal(previewKey, { triggerEl: clickable, displayMode });
     });
 
     if (modalClose) modalClose.addEventListener('click', popModalOrClose);
-    if (detailModal) detailModal.addEventListener('click', (event) => {
+    if (detailModal) detailModal.addEventListener('click', async (event) => {
       const eventTarget = event.target instanceof Element ? event.target : (event.target && event.target.parentElement ? event.target.parentElement : null);
+      if (isInlineEditInteractionTarget(eventTarget)) {
+        event.stopPropagation();
+        return;
+      }
       const actionBtn = eventTarget ? eventTarget.closest('.armory-action-btn') : null;
       if (actionBtn && modalBody.contains(actionBtn)) {
         event.preventDefault();
@@ -9821,9 +13030,7 @@ ${JSON.stringify(patchOps, null, 2)}
           return;
         }
         const actionData = buildArmoryActionRequest(liveSnapshot, actionBtn.dataset.armoryAction || '');
-        if (actionData && typeof window.sendToAI === 'function') {
-          window.sendToAI(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
-        }
+        if (actionData) dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
         return;
       }
 
@@ -9840,6 +13047,26 @@ ${JSON.stringify(patchOps, null, 2)}
         return;
       }
 
+      const mapTravelBtn = eventTarget ? eventTarget.closest('[data-map-travel-node]') : null;
+      if (mapTravelBtn && modalBody.contains(mapTravelBtn)) {
+        event.preventDefault();
+        event.stopPropagation();
+        const nodeName = mapTravelBtn.getAttribute('data-map-travel-node') || '';
+        const sheepMapBridge = window.__sheepMapBridge;
+        if (!sheepMapBridge || typeof sheepMapBridge.travelToNode !== 'function') {
+          showUiToast('地图移动桥未就绪，暂时无法直接前往该节点。', 'error', 4200);
+          return;
+        }
+        const travelResult = sheepMapBridge.travelToNode(nodeName);
+        if (!travelResult || travelResult.ok === false) {
+          showUiToast(toText(travelResult && travelResult.reason, `当前无法前往【${nodeName}】。`), 'error', 4200);
+          return;
+        }
+        showUiToast(travelResult.committed ? `已提交前往【${nodeName}】的移动。` : `已规划前往【${nodeName}】。`, 'info', 3200);
+        closeModal();
+        return;
+      }
+
       const relationFocusBtn = eventTarget ? eventTarget.closest('[data-relation-focus]') : null;
       if (relationFocusBtn && modalBody.contains(relationFocusBtn)) {
         event.preventDefault();
@@ -9849,6 +13076,260 @@ ${JSON.stringify(patchOps, null, 2)}
           modalFocusState[`${currentModalPreviewKey}::relation-focus`] = targetName;
           renderModalContent(currentModalPreviewKey);
         }
+        return;
+      }
+
+      const inventoryActionBtn = eventTarget ? eventTarget.closest('.inventory-hover-action-btn[data-inventory-action]') : null;
+      if (inventoryActionBtn) {
+        event.preventDefault();
+        event.stopPropagation();
+        const action = inventoryActionBtn.getAttribute('data-inventory-action') || '';
+        const charKey = inventoryActionBtn.getAttribute('data-inventory-char') || '';
+        const itemName = inventoryActionBtn.getAttribute('data-inventory-item') || '';
+        const mode = inventoryActionBtn.getAttribute('data-inventory-mode') || 'one';
+        if (!window.EquipmentManager || !charKey || !itemName) {
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('当前物品动作缺少必要信息，无法执行。', 'error');
+          else if (typeof window.alert === 'function') window.alert('当前物品动作缺少必要信息，无法执行。');
+          return;
+        }
+        hideInventoryHoverPanel();
+        if (action === 'equip') {
+          window.EquipmentManager.performEquip(charKey, itemName);
+          return;
+        }
+        if (action === 'discard') {
+          window.EquipmentManager.performDiscard(charKey, itemName, mode);
+          return;
+        }
+      }
+
+      const equipmentActionBtn = eventTarget ? eventTarget.closest('.equipment-action-btn[data-equipment-action]') : null;
+      if (equipmentActionBtn && modalBody.contains(equipmentActionBtn)) {
+        event.preventDefault();
+        event.stopPropagation();
+        const action = equipmentActionBtn.getAttribute('data-equipment-action') || '';
+        const charKey = equipmentActionBtn.getAttribute('data-equipment-char') || '';
+        const kind = equipmentActionBtn.getAttribute('data-equipment-kind') || '';
+        const targetName = equipmentActionBtn.getAttribute('data-equipment-name') || '';
+        if (!window.EquipmentManager || !charKey || !kind) {
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('当前装备动作缺少必要信息，无法执行。', 'error');
+          else if (typeof window.alert === 'function') window.alert('当前装备动作缺少必要信息，无法执行。');
+          return;
+        }
+        if (action === 'unequip') {
+          window.EquipmentManager.performUnequip(charKey, kind, targetName);
+          return;
+        }
+      }
+
+      const collectionActionBtn = eventTarget ? eventTarget.closest('[data-collection-action]') : null;
+      if (collectionActionBtn && modalBody.contains(collectionActionBtn)) {
+        event.preventDefault();
+        event.stopPropagation();
+        const actionType = collectionActionBtn.getAttribute('data-collection-action') || '';
+        const panel = collectionActionBtn.closest('[data-collection-panel]') || modalBody;
+        const readCollectionInput = (key) => {
+          const input = panel ? panel.querySelector(`[data-collection-input="${key}"]`) : null;
+          return toText(input && 'value' in input ? input.value : '', '').trim();
+        };
+        const readCollectionNumber = (key, fallback = 0) => {
+          const raw = readCollectionInput(key);
+          return raw === '' ? fallback : toNumber(raw, fallback);
+        };
+        try {
+          if (actionType === 'add-intel') {
+            const charKey = collectionActionBtn.getAttribute('data-collection-char') || '';
+            const intelText = readCollectionInput('intel-text');
+            if (!charKey) throw new Error('缺少角色信息。');
+            if (!intelText) throw new Error('请输入情报内容。');
+            await mutateStatDataByEditor(statData => {
+              const intelPath = ['char', charKey, 'unlocked_knowledges'];
+              let knowledges = deepGet(statData, intelPath, null);
+              if (!Array.isArray(knowledges)) {
+                deepSetMutable(statData, intelPath, []);
+                knowledges = deepGet(statData, intelPath, null);
+              }
+              if (knowledges.some(item => toText(item, '').trim() === intelText)) {
+                throw new Error('这条情报已经存在。');
+              }
+              knowledges.push(intelText);
+            });
+            showUiToast('已新增情报。');
+            if (currentModalPreviewKey) renderModalContent(currentModalPreviewKey);
+            return;
+          }
+          if (actionType === 'delete-intel') {
+            const charKey = collectionActionBtn.getAttribute('data-collection-char') || '';
+            const index = toNumber(collectionActionBtn.getAttribute('data-collection-index'), -1);
+            if (!charKey || index < 0) throw new Error('当前情报缺少定位信息。');
+            await deleteStatDataPathByEditor(['char', charKey, 'unlocked_knowledges', index]);
+            showUiToast('已删除情报。');
+            if (currentModalPreviewKey) renderModalContent(currentModalPreviewKey);
+            return;
+          }
+          if (actionType === 'clear-intel-pending') {
+            const charKey = collectionActionBtn.getAttribute('data-collection-char') || '';
+            if (!charKey) throw new Error('缺少角色信息。');
+            await deleteStatDataPathByEditor(['char', charKey, 'knowledge_unlock_request']);
+            showUiToast('已清空待解锁线索。');
+            if (currentModalPreviewKey) renderModalContent(currentModalPreviewKey);
+            return;
+          }
+          if (actionType === 'add-item') {
+            const charKey = collectionActionBtn.getAttribute('data-collection-char') || '';
+            const itemName = readCollectionInput('item-name');
+            const quantity = Math.max(1, readCollectionNumber('item-qty', 1));
+            const itemType = readCollectionInput('item-type') || '物品';
+            const itemDesc = readCollectionInput('item-desc') || '未知';
+            if (!charKey) throw new Error('缺少角色信息。');
+            if (!itemName) throw new Error('请输入物品名。');
+            await mutateStatDataByEditor(statData => {
+              const inventoryPath = ['char', charKey, 'inventory'];
+              let inventory = deepGet(statData, inventoryPath, null);
+              if (!inventory || typeof inventory !== 'object' || Array.isArray(inventory)) {
+                deepSetMutable(statData, inventoryPath, {});
+                inventory = deepGet(statData, inventoryPath, null);
+              }
+              const currentItem = inventory[itemName] && typeof inventory[itemName] === 'object'
+                ? cloneJsonValue(inventory[itemName], {})
+                : {};
+              inventory[itemName] = {
+                ...currentItem,
+                数量: Math.max(1, toNumber(currentItem['数量'], 0) + quantity),
+                类型: itemType || toText(currentItem['类型'], '物品'),
+                描述: itemDesc || toText(currentItem['描述'], '未知'),
+                品质: toText(currentItem['品质'], '普通') || '普通',
+                品阶: toText(currentItem['品阶'], '无') || '无',
+                触发方式: toText(currentItem['触发方式'], /食物/.test(itemType) ? '食用' : '使用') || (/食物/.test(itemType) ? '食用' : '使用')
+              };
+            });
+            showUiToast('已新增物品。');
+            if (currentModalPreviewKey) renderModalContent(currentModalPreviewKey);
+            return;
+          }
+          if (actionType === 'add-record') {
+            const charKey = collectionActionBtn.getAttribute('data-collection-char') || '';
+            const recordName = readCollectionInput('record-name');
+            const recordType = readCollectionInput('record-type') || '任务';
+            const targetProgress = Math.max(1, readCollectionNumber('record-target', 1));
+            const recordDesc = readCollectionInput('record-desc') || '未知';
+            if (!charKey) throw new Error('缺少角色信息。');
+            if (!recordName) throw new Error('请输入任务名。');
+            await mutateStatDataByEditor(statData => {
+              const recordPath = ['char', charKey, 'records'];
+              let records = deepGet(statData, recordPath, null);
+              if (!records || typeof records !== 'object' || Array.isArray(records)) {
+                deepSetMutable(statData, recordPath, {});
+                records = deepGet(statData, recordPath, null);
+              }
+              if (records[recordName] !== undefined) throw new Error('同名任务已存在。');
+              records[recordName] = {
+                状态: '进行中',
+                类型: recordType,
+                当前进度: 0,
+                目标进度: targetProgress,
+                奖励币: 0,
+                奖励声望: 0,
+                描述: recordDesc
+              };
+            });
+            modalFocusState['任务界面::quest-focus'] = recordName;
+            showUiToast('已新增任务。');
+            if (currentModalPreviewKey) renderModalContent(currentModalPreviewKey);
+            return;
+          }
+          if (actionType === 'delete-record') {
+            const charKey = collectionActionBtn.getAttribute('data-collection-char') || '';
+            const recordName = collectionActionBtn.getAttribute('data-collection-key') || '';
+            if (!charKey || !recordName) throw new Error('当前任务缺少定位信息。');
+            await deleteStatDataPathByEditor(['char', charKey, 'records', recordName]);
+            if (modalFocusState['任务界面::quest-focus'] === recordName) delete modalFocusState['任务界面::quest-focus'];
+            showUiToast('已删除任务。');
+            if (currentModalPreviewKey) renderModalContent(currentModalPreviewKey);
+            return;
+          }
+          if (actionType === 'add-board') {
+            const boardName = readCollectionInput('board-name');
+            const boardType = readCollectionInput('board-type') || '委托';
+            const boardPublisher = readCollectionInput('board-publisher') || '系统';
+            const boardDesc = readCollectionInput('board-desc') || '未知';
+            if (!boardName) throw new Error('请输入委托名。');
+            await mutateStatDataByEditor(statData => {
+              const boardPath = ['world', 'quest_board'];
+              let boardMap = deepGet(statData, boardPath, null);
+              if (!boardMap || typeof boardMap !== 'object' || Array.isArray(boardMap)) {
+                deepSetMutable(statData, boardPath, {});
+                boardMap = deepGet(statData, boardPath, null);
+              }
+              if (boardMap[boardName] !== undefined) throw new Error('同名委托已存在。');
+              boardMap[boardName] = {
+                标题: boardName,
+                状态: '待接取',
+                类型: boardType,
+                发布者: boardPublisher,
+                面向: '公开',
+                承接者: '无',
+                目标进度: 1,
+                难度: '中',
+                资源级别: '无',
+                奖励币: 0,
+                奖励声望: 0,
+                框架描述: boardDesc,
+                描述: boardDesc
+              };
+            });
+            modalFocusState['任务界面::quest-board-focus'] = boardName;
+            showUiToast('已新增委托。');
+            if (currentModalPreviewKey) renderModalContent(currentModalPreviewKey);
+            return;
+          }
+          if (actionType === 'delete-board') {
+            const boardName = collectionActionBtn.getAttribute('data-collection-key') || '';
+            if (!boardName) throw new Error('当前委托缺少定位信息。');
+            await deleteStatDataPathByEditor(['world', 'quest_board', boardName]);
+            if (modalFocusState['任务界面::quest-board-focus'] === boardName) delete modalFocusState['任务界面::quest-board-focus'];
+            showUiToast('已删除委托。');
+            if (currentModalPreviewKey) renderModalContent(currentModalPreviewKey);
+            return;
+          }
+        } catch (error) {
+          showUiToast(error && error.message ? error.message : '操作失败。', 'error');
+          return;
+        }
+      }
+
+      const questActionBtn = eventTarget ? eventTarget.closest('.quest-action-btn[data-quest-action]') : null;
+      if (questActionBtn && modalBody.contains(questActionBtn)) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!isSnapshotPlayerControlled(liveSnapshot)) {
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('现在是旁观视角，暂时不能发起任务请求。切回自己的行动视角后再试。', 'error');
+          else if (typeof window.alert === 'function') window.alert('现在是旁观视角，暂时不能发起任务请求。切回自己的行动视角后再试。');
+          return;
+        }
+        const actionType = questActionBtn.getAttribute('data-quest-action') || '';
+        const requestPanel = questActionBtn.closest('.request-console-card') || modalBody;
+        const nameInput = requestPanel ? requestPanel.querySelector('[data-quest-input="name"]') : null;
+        const descInput = requestPanel ? requestPanel.querySelector('[data-quest-input="desc"]') : null;
+        const requiredInput = requestPanel ? requestPanel.querySelector('[data-quest-input="required"]') : null;
+        const rewardCoinInput = requestPanel ? requestPanel.querySelector('[data-quest-input="rewardCoin"]') : null;
+        const rewardRepInput = requestPanel ? requestPanel.querySelector('[data-quest-input="rewardRep"]') : null;
+        const progressInput = requestPanel ? requestPanel.querySelector('[data-quest-input="progress"]') : null;
+        const targetQuestName = toText(questActionBtn.getAttribute('data-quest-target'), '') || toText(nameInput && nameInput.value, '').trim();
+        const actionData = buildQuestDispatchRequest(liveSnapshot, actionType, {
+          questName: targetQuestName,
+          questDesc: toText(descInput && descInput.value, '').trim(),
+          requiredCount: toNumber(requiredInput && requiredInput.value, 1),
+          rewardCoin: toNumber(rewardCoinInput && rewardCoinInput.value, 0),
+          rewardRep: toNumber(rewardRepInput && rewardRepInput.value, 0),
+          progressAdd: toNumber(progressInput && progressInput.value, 1)
+        });
+        if (!actionData) {
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('任务请求参数不完整，请检查任务名称与说明。', 'error');
+          else if (typeof window.alert === 'function') window.alert('任务请求参数不完整，请检查任务名称与说明。');
+          return;
+        }
+        dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
         return;
       }
 
@@ -9885,42 +13366,6 @@ ${JSON.stringify(patchOps, null, 2)}
           if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show(`【${targetName}】当前不在你身边，无法进行当面关系互动。`, 'error');
           else if (typeof window.alert === 'function') window.alert(`【${targetName}】当前不在你身边，无法进行当面关系互动。`);
           return;
-
-      const questActionBtn = eventTarget ? eventTarget.closest('.quest-action-btn[data-quest-action]') : null;
-      if (questActionBtn && modalBody.contains(questActionBtn)) {
-        event.preventDefault();
-        event.stopPropagation();
-        if (!isSnapshotPlayerControlled(liveSnapshot)) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('现在是旁观视角，暂时不能发起任务请求。切回自己的行动视角后再试。', 'error');
-          else if (typeof window.alert === 'function') window.alert('现在是旁观视角，暂时不能发起任务请求。切回自己的行动视角后再试。');
-          return;
-        }
-        const actionType = questActionBtn.getAttribute('data-quest-action') || '';
-        const requestPanel = questActionBtn.closest('.request-console-card') || modalBody;
-        const nameInput = requestPanel ? requestPanel.querySelector('[data-quest-input="name"]') : null;
-        const descInput = requestPanel ? requestPanel.querySelector('[data-quest-input="desc"]') : null;
-        const requiredInput = requestPanel ? requestPanel.querySelector('[data-quest-input="required"]') : null;
-        const rewardCoinInput = requestPanel ? requestPanel.querySelector('[data-quest-input="rewardCoin"]') : null;
-        const rewardRepInput = requestPanel ? requestPanel.querySelector('[data-quest-input="rewardRep"]') : null;
-        const progressInput = requestPanel ? requestPanel.querySelector('[data-quest-input="progress"]') : null;
-        const targetQuestName = toText(questActionBtn.getAttribute('data-quest-target'), '') || toText(nameInput && nameInput.value, '').trim();
-        const actionData = buildQuestDispatchRequest(liveSnapshot, actionType, {
-          questName: targetQuestName,
-          questDesc: toText(descInput && descInput.value, '').trim(),
-          requiredCount: toNumber(requiredInput && requiredInput.value, 1),
-          rewardCoin: toNumber(rewardCoinInput && rewardCoinInput.value, 0),
-          rewardRep: toNumber(rewardRepInput && rewardRepInput.value, 0),
-          progressAdd: toNumber(progressInput && progressInput.value, 1)
-        });
-        if (!actionData) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('任务请求参数不完整，请检查任务名称与说明。', 'error');
-          else if (typeof window.alert === 'function') window.alert('任务请求参数不完整，请检查任务名称与说明。');
-          return;
-        }
-        if (typeof window.sendToAI === 'function') window.sendToAI(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
-        return;
-      }
-
         }
         if (actionType === 'ask' && favor < 30) {
           if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show(`向【${targetName}】请教需要好感度达到 30。`, 'error');
@@ -9956,9 +13401,7 @@ ${JSON.stringify(patchOps, null, 2)}
           actionData = buildRelationInteractRequest(liveSnapshot, actionType, targetName, { itemUsed });
         }
 
-        if (actionData && typeof window.sendToAI === 'function') {
-          window.sendToAI(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
-        }
+        if (actionData) dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
         return;
       }
 
@@ -9986,56 +13429,6 @@ ${JSON.stringify(patchOps, null, 2)}
         return;
       }
 
-      const intelActionBtn = eventTarget ? eventTarget.closest('.intel-action-btn[data-intel-action]') : null;
-      if (intelActionBtn && modalBody.contains(intelActionBtn)) {
-        event.preventDefault();
-        event.stopPropagation();
-        if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('这里先记线索，不直接写结论。去经历事件、调查或接触人物后，新的情报自然会浮现。', 'error');
-        else if (typeof window.alert === 'function') window.alert('这里先记线索，不直接写结论。去经历事件、调查或接触人物后，新的情报自然会浮现。');
-        return;
-      }
-
-      const trialActionBtn = eventTarget ? eventTarget.closest('.trial-action-btn[data-trial-action]') : null;
-      if (trialActionBtn && modalBody.contains(trialActionBtn)) {
-        event.preventDefault();
-        event.stopPropagation();
-        if (!isSnapshotPlayerControlled(liveSnapshot)) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('现在是旁观视角，暂时不能提交试炼结果。切回自己的行动视角后再试。', 'error');
-          else if (typeof window.alert === 'function') window.alert('现在是旁观视角，暂时不能提交试炼结果。切回自己的行动视角后再试。');
-          return;
-        }
-        const trialAction = trialActionBtn.getAttribute('data-trial-action') || '';
-        const requestPanel = trialActionBtn.closest('.request-console-card') || modalBody;
-        let actionData = null;
-        if (trialAction === 'hunt') {
-          const ageInput = requestPanel ? requestPanel.querySelector('[data-trial-input="hunt-age"]') : null;
-          const ferociousInput = requestPanel ? requestPanel.querySelector('[data-trial-input="hunt-ferocious"]') : null;
-          actionData = buildHuntDispatchRequest(liveSnapshot, {
-            killedAge: toNumber(ageInput && ageInput.value, 0),
-            isFerocious: toText(ferociousInput && ferociousInput.value, 'false') === 'true'
-          });
-          if (!actionData) {
-            if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('请输入有效的狩猎年限。', 'error');
-            else if (typeof window.alert === 'function') window.alert('请输入有效的狩猎年限。');
-            return;
-          }
-        } else if (trialAction === 'abyss') {
-          const tierInput = requestPanel ? requestPanel.querySelector('[data-trial-input="abyss-tier"]') : null;
-          const qtyInput = requestPanel ? requestPanel.querySelector('[data-trial-input="abyss-qty"]') : null;
-          actionData = buildAbyssKillDispatchRequest(liveSnapshot, {
-            killTier: toText(tierInput && tierInput.value, ''),
-            quantity: toNumber(qtyInput && qtyInput.value, 1)
-          });
-          if (!actionData) {
-            if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('请输入有效的深渊击杀级别与数量。', 'error');
-            else if (typeof window.alert === 'function') window.alert('请输入有效的深渊击杀级别与数量。');
-            return;
-          }
-        }
-        if (actionData && typeof window.sendToAI === 'function') window.sendToAI(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
-        return;
-      }
-
       const factionActionBtn = eventTarget ? eventTarget.closest('.faction-action-btn[data-faction-action]') : null;
       if (factionActionBtn && modalBody.contains(factionActionBtn)) {
         event.preventDefault();
@@ -10048,19 +13441,7 @@ ${JSON.stringify(patchOps, null, 2)}
         const factionAction = factionActionBtn.getAttribute('data-faction-action') || '';
         const requestPanel = factionActionBtn.closest('.request-console-card') || modalBody;
         let actionData = null;
-        if (factionAction === 'promote') {
-          const factionInput = requestPanel ? requestPanel.querySelector('[data-faction-input="promoteFaction"]') : null;
-          const titleInput = requestPanel ? requestPanel.querySelector('[data-faction-input="targetTitle"]') : null;
-          actionData = buildPromotionDispatchRequest(liveSnapshot, {
-            targetFaction: toText(factionInput && factionInput.value, ''),
-            targetTitle: toText(titleInput && titleInput.value, '').trim()
-          });
-          if (!actionData) {
-            if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('请输入有效的目标势力与申请职位。', 'error');
-            else if (typeof window.alert === 'function') window.alert('请输入有效的目标势力与申请职位。');
-            return;
-          }
-        } else if (factionAction === 'donate') {
+        if (factionAction === 'donate') {
           const factionInput = requestPanel ? requestPanel.querySelector('[data-faction-input="donateFaction"]') : null;
           const itemInput = requestPanel ? requestPanel.querySelector('[data-faction-input="donateItem"]') : null;
           const qtyInput = requestPanel ? requestPanel.querySelector('[data-faction-input="donateQty"]') : null;
@@ -10075,7 +13456,7 @@ ${JSON.stringify(patchOps, null, 2)}
             return;
           }
         }
-        if (actionData && typeof window.sendToAI === 'function') window.sendToAI(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
+        if (actionData) dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
         return;
       }
 
@@ -10088,8 +13469,112 @@ ${JSON.stringify(patchOps, null, 2)}
         return;
       }
 
-      if (event.target === detailModal) popModalOrClose();
+      const clickedInsideModalPanel = !!(eventTarget && modalPanel && modalPanel.contains(eventTarget));
+      if (!clickedInsideModalPanel) popModalOrClose();
     });
+let activeLongPressState = null;
+    let suppressedLongPressClickState = null;
+
+    function clearActiveLongPressState() {
+      if (!activeLongPressState) return;
+      if (activeLongPressState.timer) clearTimeout(activeLongPressState.timer);
+      if (activeLongPressState.target && activeLongPressState.target.classList) {
+        activeLongPressState.target.classList.remove('active-press');
+      }
+      activeLongPressState = null;
+    }
+
+    function getLongPressTarget(eventTarget) {
+      return eventTarget && eventTarget.closest ? eventTarget.closest('[data-longpress]') : null;
+    }
+
+    function getLongPressDelay(target) {
+      const rawDelay = target ? Number(target.getAttribute('data-longpress-delay')) : NaN;
+      return Number.isFinite(rawDelay) && rawDelay >= 250 ? rawDelay : 800;
+    }
+
+    function canTriggerLongPressPreview(previewKey) {
+      if (!previewKey) return false;
+      return canUseFemaleOnlyLongPress(liveSnapshot);
+    }
+
+    function markSuppressedLongPressClick(target) {
+      suppressedLongPressClickState = {
+        target,
+        until: Date.now() + 450
+      };
+    }
+
+    function shouldSuppressLongPressClick(eventTarget) {
+      if (!suppressedLongPressClickState) return false;
+      if (Date.now() > suppressedLongPressClickState.until) {
+        suppressedLongPressClickState = null;
+        return false;
+      }
+      return !!(eventTarget && suppressedLongPressClickState.target && (eventTarget === suppressedLongPressClickState.target || suppressedLongPressClickState.target.contains(eventTarget)));
+    }
+
+    const handleLongPressStart = (event) => {
+      const target = getLongPressTarget(event.target);
+      if (!target) return;
+      if (typeof event.button === 'number' && event.button !== 0) return;
+      const previewKey = target.getAttribute('data-longpress');
+      if (!canTriggerLongPressPreview(previewKey)) return;
+      clearActiveLongPressState();
+      target.classList.add('active-press');
+      const delay = getLongPressDelay(target);
+      activeLongPressState = {
+        pointerId: event.pointerId,
+        target,
+        timer: setTimeout(() => {
+          target.classList.remove('active-press');
+          activeLongPressState = null;
+          if (!previewKey) return;
+          if (!canTriggerLongPressPreview(previewKey)) return;
+          markSuppressedLongPressClick(target);
+          if (navigator.vibrate) navigator.vibrate(50);
+          openModal(previewKey);
+        }, delay)
+      };
+    };
+
+    const handleLongPressEnd = (event) => {
+      if (!activeLongPressState) return;
+      if (typeof event.pointerId === 'number' && typeof activeLongPressState.pointerId === 'number' && event.pointerId !== activeLongPressState.pointerId) {
+        return;
+      }
+      clearActiveLongPressState();
+    };
+
+    const handleLongPressMove = (event) => {
+      if (!activeLongPressState) return;
+      if (typeof event.pointerId === 'number' && typeof activeLongPressState.pointerId === 'number' && event.pointerId !== activeLongPressState.pointerId) {
+        return;
+      }
+      const hoverEl = document.elementFromPoint(event.clientX, event.clientY);
+      if (!hoverEl || !activeLongPressState.target.contains(hoverEl)) {
+        clearActiveLongPressState();
+      }
+    };
+
+    document.addEventListener('pointerdown', handleLongPressStart);
+    document.addEventListener('pointerup', handleLongPressEnd);
+    document.addEventListener('pointercancel', handleLongPressEnd);
+    document.addEventListener('pointermove', handleLongPressMove, { passive: true });
+    document.addEventListener('mouseleave', clearActiveLongPressState);
+    document.addEventListener('contextmenu', (event) => {
+      const target = getLongPressTarget(event.target);
+      if (target) event.preventDefault();
+    });
+    document.addEventListener('click', (event) => {
+      const eventTarget = event.target instanceof Element ? event.target : (event.target && event.target.parentElement ? event.target.parentElement : null);
+      if (!shouldSuppressLongPressClick(eventTarget)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      suppressedLongPressClickState = null;
+    }, true);
+
 
     document.addEventListener('click', (event) => {
 // =========================================================================
@@ -10139,121 +13624,231 @@ window.MVU_Toast = {
 // 负责在前端直接处理物品栏与装备栏的对调、混穿约束验证，以及生成 JSON Patch
 // =========================================================================
 window.EquipmentManager = {
-  async performEquip(charIndex, itemName) {
-    const vars = typeof window.getAllVariables === 'function' ? await window.getAllVariables() : null;
-    if (!vars || !vars.char) {
-      window.MVU_Toast.show('获取角色数据失败，无法换装', 'error');
-      return;
+  async resolveCharContext(charRef) {
+    const vars = cloneJsonValue(await ensureMvuEditorStoreReady(), {});
+    if (!vars || !vars.char || typeof vars.char !== 'object') {
+      throw new Error('获取角色数据失败。');
     }
-    const charNames = Object.keys(vars.char);
-    const activeName = charNames[charIndex];
-    if (!activeName) {
-      window.MVU_Toast.show('未找到目标角色信息', 'error');
-      return;
+    const charEntries = Object.entries(vars.char);
+    let charKey = '';
+    if (typeof charRef === 'string' && vars.char[charRef]) {
+      charKey = charRef;
+    } else if (typeof charRef === 'number' && charEntries[charRef]) {
+      charKey = charEntries[charRef][0];
+    } else if (typeof charRef === 'string') {
+      const matched = charEntries.find(([key, value]) => {
+        const displayName = toText(value && (value.name || deepGet(value, 'base.name', '')), key);
+        return displayName === charRef;
+      });
+      charKey = matched ? matched[0] : '';
     }
-    const activeChar = vars.char[activeName];
-    const inventory = activeChar.inventory || {};
-    const equip = activeChar.equip || {};
-    const soulBone = activeChar.soul_bone || {};
-    const itemData = inventory[itemName];
+    if (!charKey) {
+      charKey = charEntries[0] ? charEntries[0][0] : '';
+    }
+    if (!charKey || !vars.char[charKey]) {
+      throw new Error('未找到目标角色信息。');
+    }
+    return { vars, charKey, activeChar: vars.char[charKey] || {} };
+  },
 
-    if (!itemData || (itemData.数量 || 0) <= 0) {
-      window.MVU_Toast.show(`背包中未找到物品: ${itemName}`, 'error');
+  buildInventoryItemValue(itemName, itemData = {}, options = {}) {
+    const safeItem = cloneJsonValue(itemData, {});
+    delete safeItem.equip_status;
+    if (safeItem.name === itemName) delete safeItem.name;
+    if (safeItem['名称'] === itemName) delete safeItem['名称'];
+    safeItem.数量 = Math.max(1, toNumber(options.quantity, 1));
+    if (!safeItem['类型'] && options.type) safeItem['类型'] = options.type;
+    if (!safeItem['品质'] && options.quality) safeItem['品质'] = options.quality;
+    return safeItem;
+  },
+
+  queueInventoryAdd(patches, charPath, inventoryBuffer, itemName, itemValue) {
+    if (!itemName) return;
+    const nextValue = this.buildInventoryItemValue(itemName, itemValue, { quantity: 1 });
+    const existing = inventoryBuffer[itemName];
+    if (existing) {
+      const nextQty = Math.max(1, toNumber(existing.数量, 1) + toNumber(nextValue.数量, 1));
+      inventoryBuffer[itemName] = { ...existing, ...nextValue, 数量: nextQty };
+      patches.push({ op: 'replace', path: `${charPath}/inventory/${this.escapePtr(itemName)}`, value: cloneJsonValue(inventoryBuffer[itemName], {}) });
       return;
     }
+    inventoryBuffer[itemName] = cloneJsonValue(nextValue, {});
+    patches.push({ op: 'add', path: `${charPath}/inventory/${this.escapePtr(itemName)}`, value: cloneJsonValue(inventoryBuffer[itemName], {}) });
+  },
 
-    const slotInfo = this.parseEquipSlot(itemName, itemData);
-    if (!slotInfo) {
-      window.MVU_Toast.show(`【${itemName}】不可装备！`, 'error');
-      return;
+  queueInventoryConsume(patches, charPath, inventoryBuffer, itemName, quantity = 1) {
+    const existing = inventoryBuffer[itemName];
+    if (!existing) return false;
+    const nextQty = Math.max(0, toNumber(existing.数量, 1) - Math.max(1, toNumber(quantity, 1)));
+    if (nextQty <= 0) {
+      delete inventoryBuffer[itemName];
+      patches.push({ op: 'remove', path: `${charPath}/inventory/${this.escapePtr(itemName)}` });
+      return true;
     }
+    inventoryBuffer[itemName] = { ...existing, 数量: nextQty };
+    patches.push({ op: 'replace', path: `${charPath}/inventory/${this.escapePtr(itemName)}`, value: cloneJsonValue(inventoryBuffer[itemName], {}) });
+    return true;
+  },
 
-    // --- 约束：不允许不同级别的斗铠混穿 ---
-    if (slotInfo.mainSlot === 'armor') {
-      const newTier = this.getArmorTier(itemName);
-      if (newTier) {
-        const armorParts = (equip.armor && equip.armor.parts) ? equip.armor.parts : {};
-        for (const [key, piece] of Object.entries(armorParts)) {
-          if (piece && typeof piece === 'object' && piece.name && piece.name !== '无' && key !== slotInfo.subSlot) {
-            const pieceTier = this.getArmorTier(piece.name);
-            if (pieceTier && pieceTier !== newTier) {
-              window.MVU_Toast.show(`【换装失败】\n背包中的【${newTier}】不可与身上的【${pieceTier}】混穿！\n必须成套更换相同级别的斗铠。`, 'error');
-              return;
+  async performEquip(charRef, itemName) {
+    try {
+      const { charKey, activeChar } = await this.resolveCharContext(charRef);
+      const inventory = activeChar.inventory || {};
+      const equip = activeChar.equip || {};
+      const soulBone = activeChar.soul_bone || {};
+      const itemData = inventory[itemName];
+      if (!itemData || (itemData.数量 || 0) <= 0) {
+        throw new Error(`背包中未找到物品: ${itemName}`);
+      }
+
+      const slotInfo = this.parseEquipSlot(itemName, itemData);
+      if (!slotInfo) {
+        throw new Error(`【${itemName}】不可装备！`);
+      }
+
+      if (slotInfo.mainSlot === 'armor') {
+        const newTier = this.getArmorTier(itemName);
+        if (newTier) {
+          const armorParts = (equip.armor && equip.armor.parts) ? equip.armor.parts : {};
+          for (const [key, piece] of Object.entries(armorParts)) {
+            if (piece && typeof piece === 'object' && piece.name && piece.name !== '无' && key !== slotInfo.subSlot) {
+              const pieceTier = this.getArmorTier(piece.name);
+              if (pieceTier && pieceTier !== newTier) {
+                throw new Error(`【换装失败】\n背包中的【${newTier}】不可与身上的【${pieceTier}】混穿！\n必须成套更换相同级别的斗铠。`);
+              }
             }
           }
         }
       }
-    }
-    
-    // --- 约束：魂骨一经融合无法直接替换 ---
-    if (slotInfo.mainSlot === 'soul_bone') {
-      const existingBone = soulBone[slotInfo.subSlot];
-      if (existingBone && typeof existingBone === 'object' && existingBone['名称'] && !existingBone['名称'].includes('未鉴定之')) {
-        window.MVU_Toast.show(`【装载失败】\n${slotInfo.subSlot} 已融合了【${existingBone['名称']}】！\n魂骨一经融合无法直接替换，除非强行剥离！`, 'error');
-        return;
-      }
-    }
 
-    const patches = [];
-    const charPath = `/char/${this.escapePtr(activeName)}`;
-    
-    // 1. 扣除背包新装备
-    const currentQty = itemData.数量 || 1;
-    if (currentQty <= 1) {
-      patches.push({ op: 'remove', path: `${charPath}/inventory/${this.escapePtr(itemName)}` });
-    } else {
-      patches.push({ op: 'replace', path: `${charPath}/inventory/${this.escapePtr(itemName)}/数量`, value: currentQty - 1 });
-    }
-
-    if (slotInfo.mainSlot === 'soul_bone') {
-      // 魂骨装载路线：直接写入 soul_bone 下级节点
-      const newBoneData = {
-        名称: itemName,
-        年限: itemData['年限'] || (itemData['品质'] && itemData['品质'].includes('万') ? 10000 : 1000),
-        品质: itemData['品质'] || '常规',
-        状态: '已装载'
-      };
-      patches.push({ op: 'add', path: `${charPath}/soul_bone/${slotInfo.subSlot}`, value: newBoneData });
-    } else {
-      // 常规装备更换路线
-      let oldItem = null;
-      let equipPath = `${charPath}/equip/${slotInfo.mainSlot}`;
-      if (slotInfo.subSlot) {
-        equipPath += `/parts/${slotInfo.subSlot}`;
-        oldItem = equip[slotInfo.mainSlot]?.parts?.[slotInfo.subSlot];
-      } else {
-        oldItem = equip[slotInfo.mainSlot];
-      }
-
-      // 2. 取下旧装备（如果有）放入背包
-      if (oldItem && typeof oldItem === 'object' && oldItem.name && oldItem.name !== '无') {
-        const oldName = oldItem.name;
-        const oldToInv = Object.assign({}, oldItem, { 数量: 1 });
-        delete oldToInv.equip_status;
-        
-        if (inventory[oldName]) {
-          patches.push({ op: 'replace', path: `${charPath}/inventory/${this.escapePtr(oldName)}/数量`, value: (inventory[oldName].数量 || 1) + 1 });
-        } else {
-          patches.push({ op: 'add', path: `${charPath}/inventory/${this.escapePtr(oldName)}`, value: oldToInv });
+      if (slotInfo.mainSlot === 'soul_bone') {
+        const existingBone = soulBone[slotInfo.subSlot];
+        if (existingBone && typeof existingBone === 'object' && existingBone['名称'] && !existingBone['名称'].includes('未鉴定之')) {
+          throw new Error(`【装载失败】\n${slotInfo.subSlot} 已融合了【${existingBone['名称']}】！\n魂骨一经融合无法直接替换，除非强行剥离！`);
         }
       }
 
-      // 3. 穿上新装备
-      const newEquipData = Object.assign({}, itemData, { name: itemName });
-      delete newEquipData.数量;
-      if (slotInfo.subSlot && (!equip[slotInfo.mainSlot] || !equip[slotInfo.mainSlot].parts)) {
-          patches.push({ op: 'add', path: `${charPath}/equip/${slotInfo.mainSlot}/parts`, value: {} });
-      }
+      const patches = [];
+      const charPath = `/char/${this.escapePtr(charKey)}`;
+      const inventoryBuffer = cloneJsonValue(inventory, {});
+      this.queueInventoryConsume(patches, charPath, inventoryBuffer, itemName, 1);
 
-      if (oldItem !== undefined) {
-        patches.push({ op: 'replace', path: equipPath, value: newEquipData });
+      if (slotInfo.mainSlot === 'soul_bone') {
+        const newBoneData = {
+          名称: itemName,
+          年限: itemData['年限'] || (itemData['品质'] && itemData['品质'].includes('万') ? 10000 : 1000),
+          品质: itemData['品质'] || '常规',
+          状态: '已装载'
+        };
+        patches.push({ op: 'add', path: `${charPath}/soul_bone/${slotInfo.subSlot}`, value: newBoneData });
       } else {
-        patches.push({ op: 'add', path: equipPath, value: newEquipData });
-      }
-    }
+        let oldItem = null;
+        let equipPath = `${charPath}/equip/${slotInfo.mainSlot}`;
+        if (slotInfo.subSlot) {
+          equipPath += `/parts/${slotInfo.subSlot}`;
+          oldItem = equip[slotInfo.mainSlot]?.parts?.[slotInfo.subSlot];
+        } else {
+          oldItem = equip[slotInfo.mainSlot];
+        }
 
-    // 4. 提交到底层 MVU
-    this.submitPatch(patches, itemName);
+        if (oldItem && typeof oldItem === 'object' && (oldItem.name || oldItem['名称']) && toText(oldItem.name || oldItem['名称'], '无') !== '无') {
+          const oldName = toText(oldItem.name || oldItem['名称'], '');
+          this.queueInventoryAdd(patches, charPath, inventoryBuffer, oldName, oldItem);
+        }
+
+        const newEquipData = Object.assign({}, itemData, { name: itemName });
+        delete newEquipData.数量;
+        if (slotInfo.subSlot && (!equip[slotInfo.mainSlot] || !equip[slotInfo.mainSlot].parts)) {
+          patches.push({ op: 'add', path: `${charPath}/equip/${slotInfo.mainSlot}/parts`, value: {} });
+        }
+        patches.push({ op: oldItem !== undefined ? 'replace' : 'add', path: equipPath, value: newEquipData });
+      }
+
+      await this.submitPatch(patches, `已穿戴 ${itemName}`);
+    } catch (error) {
+      window.MVU_Toast.show(error && error.message ? error.message : '换装失败。', 'error');
+    }
+  },
+
+  async performUnequip(charRef, targetType, targetName = '') {
+    try {
+      const { charKey, activeChar } = await this.resolveCharContext(charRef);
+      const equip = activeChar.equip || {};
+      const charPath = `/char/${this.escapePtr(charKey)}`;
+      const inventoryBuffer = cloneJsonValue(activeChar.inventory || {}, {});
+      const patches = [];
+
+      if (targetType === 'armor') {
+        const armor = equip.armor || {};
+        const armorParts = armor.parts && typeof armor.parts === 'object' ? armor.parts : {};
+        const returnParts = Object.values(armorParts).filter(part => part && typeof part === 'object' && toText(part.name || part['名称'], '') && toText(part.name || part['名称'], '无') !== '无');
+        if (!returnParts.length && toText(armor.equip_status, '未装备') === '未装备') {
+          throw new Error('当前没有可卸下的斗铠部件。');
+        }
+        returnParts.forEach(part => {
+          const itemName = toText(part.name || part['名称'], '');
+          this.queueInventoryAdd(patches, charPath, inventoryBuffer, itemName, part);
+        });
+        patches.push({ op: 'replace', path: `${charPath}/equip/armor/parts`, value: {} });
+        patches.push({ op: 'replace', path: `${charPath}/equip/armor/equip_status`, value: '未装备' });
+        patches.push({ op: 'replace', path: `${charPath}/equip/armor/_stats_bonus`, value: {} });
+        await this.submitPatch(patches, '已卸下斗铠');
+        return;
+      }
+
+      if (targetType === 'mech') {
+        const mech = equip.mech || {};
+        const mechName = toText(mech.name || mech['名称'], '');
+        if (!mechName) throw new Error('当前没有已装载的机甲。');
+        this.queueInventoryAdd(patches, charPath, inventoryBuffer, mechName, mech);
+        patches.push({ op: 'replace', path: `${charPath}/equip/mech`, value: {} });
+        await this.submitPatch(patches, `已卸下机甲 ${mechName}`);
+        return;
+      }
+
+      if (targetType === 'wpn') {
+        const weapon = equip.wpn || {};
+        const weaponName = toText(weapon.name || weapon['名称'], '');
+        if (!weaponName) throw new Error('当前没有已装备的主武器。');
+        this.queueInventoryAdd(patches, charPath, inventoryBuffer, weaponName, weapon);
+        patches.push({ op: 'replace', path: `${charPath}/equip/wpn`, value: {} });
+        await this.submitPatch(patches, `已卸下主武器 ${weaponName}`);
+        return;
+      }
+
+      if (targetType === 'accessory') {
+        const accessories = equip.accessories && typeof equip.accessories === 'object' ? equip.accessories : {};
+        const targetAccessoryName = toText(targetName, '');
+        const accessoryData = targetAccessoryName ? accessories[targetAccessoryName] : null;
+        if (!targetAccessoryName || !accessoryData) throw new Error('未找到要拆卸的附件。');
+        this.queueInventoryAdd(patches, charPath, inventoryBuffer, targetAccessoryName, accessoryData);
+        patches.push({ op: 'remove', path: `${charPath}/equip/accessories/${this.escapePtr(targetAccessoryName)}` });
+        await this.submitPatch(patches, `已拆卸附件 ${targetAccessoryName}`);
+        return;
+      }
+
+      throw new Error('暂不支持该装备类型的拆卸。');
+    } catch (error) {
+      window.MVU_Toast.show(error && error.message ? error.message : '拆卸失败。', 'error');
+    }
+  },
+
+  async performDiscard(charRef, itemName, mode = 'one') {
+    try {
+      const { charKey, activeChar } = await this.resolveCharContext(charRef);
+      const inventory = activeChar.inventory || {};
+      const itemData = inventory[itemName];
+      if (!itemData) throw new Error(`背包中未找到物品: ${itemName}`);
+      const currentQty = Math.max(1, toNumber(itemData.数量, 1));
+      const discardQty = mode === 'all' ? currentQty : 1;
+      const charPath = `/char/${this.escapePtr(charKey)}`;
+      const inventoryBuffer = cloneJsonValue(inventory, {});
+      const patches = [];
+      this.queueInventoryConsume(patches, charPath, inventoryBuffer, itemName, discardQty);
+      await this.submitPatch(patches, mode === 'all' ? `已丢弃 ${itemName} 全部库存` : `已丢弃 ${itemName} ×1`);
+    } catch (error) {
+      window.MVU_Toast.show(error && error.message ? error.message : '丢弃失败。', 'error');
+    }
   },
 
   parseEquipSlot(name, data) {
@@ -10300,14 +13895,9 @@ window.EquipmentManager = {
     return String(str).replace(/~/g, '~0').replace(/\//g, '~1');
   },
 
-  submitPatch(patches, itemName) {
-    if (typeof window.sendToAI === 'function') {
-      const prompt = `[前端换装请求]\n动作: 角色穿戴了 ${itemName}\n请将以下 JSON Patch 静默应用到底层变量中，这完成了备用装备与当前装备的互相替换。\n<UpdateVariable>\n${JSON.stringify(patches, null, 2)}\n</UpdateVariable>\n此操作已通过前端换装规则约束校验。`;
-      window.sendToAI(`我要换装：穿戴 ${itemName}`, prompt, { requestKind: 'equip_swap' });
-    } else {
-      console.log("【模拟换装Patch】", patches);
-      window.MVU_Toast.show('已生成换装 JSON Patch (见控制台)，但未连接到酒馆通信接口。', 'info');
-    }
+  async submitPatch(patches, successMessage = '装备操作已完成') {
+    await applyJsonPatchOpsByEditor(patches);
+    window.MVU_Toast.show(successMessage, 'info');
   }
 };
 
@@ -10334,8 +13924,28 @@ window.EquipmentManager = {
       if (event.key === 'Escape') closeModal();
     });
 
-    bindVueModalDelegation(document.getElementById('mvu-left-mount'));
-    bindVueModalDelegation(document.getElementById('mvu-right-mount'));
+    window.addEventListener('resize', () => {
+      const refs = getModalRefs();
+      if (!refs.detailModal || !refs.detailModal.classList.contains('show')) return;
+      applyModalDisplayMode(refs, { displayMode: currentModalDisplayMode });
+    });
+
+    if (document.body) {
+      const layoutClassObserver = new MutationObserver(() => {
+        const refs = getModalRefs();
+        if (!refs.detailModal || !refs.detailModal.classList.contains('show')) return;
+        applyModalDisplayMode(refs);
+      });
+      layoutClassObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    }
+
+    const initialModalRefs = getModalRefs();
+    if (initialModalRefs.detailModal && initialModalRefs.detailModal.classList.contains('show')) {
+      applyModalDisplayMode(initialModalRefs);
+    }
+
+    bindAllVueModalDelegations();
+    installVueModalDelegationObserver();
 
     initLiveBindings();
   
