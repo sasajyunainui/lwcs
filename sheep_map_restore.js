@@ -6660,8 +6660,7 @@
     const method = resolveTravelMethodVariant(mapState.travelMethodOverride || defaultMethod, snapshot);
     const availableMethods = getAvailableTravelMethods(distance, mapState.currentMapId, snapshot, travelContext);
     const actualMethod = availableMethods.includes(method) ? method : availableMethods[0];
-    const costs = calculateTravelCost(actualMethod, distance, snapshot);
-    // 原著比例尺纠正 (1 Tick = 10分钟)：东海到天海(178px)大巴4h=24ticks；明斗到明都(1100px)飞行2h=12ticks
+    // 原著比例尺纠正 (1 Tick = 10分钟)：东海到天海(178px)大巴4h=24ticks；明斗到明都(1100px)飞行2h=12 ticks
     let coefficient = {
       '步行': 1.5,             // 跨城约两天(44小时)
       '校园短驳车': 0.25,      
@@ -6686,17 +6685,20 @@
     if (depth === 1) localScale = 0.08;      // 城市级街道移动，耗时缩减到原比例的 8%
     else if (depth >= 2) localScale = 0.01;  // 设施/学院内部走动，耗时缩减到原比例的 1%
 
+    const costs = calculateTravelCost(actualMethod, distance, snapshot, { distanceScale: localScale });
     const ticks = Math.max(1, Math.floor(distance * coefficient * localScale));
     const coordText = formatMapImageCoord(end, '');
     return { method: actualMethod, ticks, distance, duration: formatMapTravelDuration(ticks), coordText, costs, routePlanText: toText(travelContext && travelContext.routePlanText, ''), routeProfile: travelContext && travelContext.routeProfile ? travelContext.routeProfile : null };
   }
 
-  function calculateTravelCost(method, distance, snapshot) {
+  function calculateTravelCost(method, distance, snapshot, options = {}) {
     const activeChar = snapshot && snapshot.activeChar && typeof snapshot.activeChar === 'object' ? snapshot.activeChar : {};
     const stat = activeChar.stat || {};
     const wealth = activeChar.wealth || {};
     const { lv, hasDoukai, hasMecha } = getTravelMethodVariantInfo(snapshot);
     const resolvedMethod = resolveTravelMethodVariant(method, snapshot);
+    const distanceScale = Math.max(0.01, Number(toNumber(options && options.distanceScale, 1), 1));
+    const scaledDistance = Math.max(0, Number(distance || 0) * distanceScale);
 
     let fedCoin = 0;
     let sp = 0;
@@ -6706,19 +6708,19 @@
     let note = '';
 
     if (resolvedMethod === '步行') {
-      vit = Math.floor(distance * 5);
+      vit = Math.max(1, Math.round(scaledDistance * 3.75));
     } else if (resolvedMethod === '校园短驳车') {
-      fedCoin = Math.max(1, Math.floor(distance * 2));
+      fedCoin = Math.max(1, Math.floor(scaledDistance * 2));
       note = '校内通勤';
     } else if (['魂导列车', '魂导汽车', '远洋巨轮'].includes(resolvedMethod)) {
-      fedCoin = Math.floor(distance * 10);
+      fedCoin = Math.floor(scaledDistance * 10);
     } else if (resolvedMethod === '斗铠飞行') {
       if (!hasDoukai) {
         canAfford = false;
         reason = '需拥有可用斗铠';
       } else {
-        sp = Math.floor(distance * 12);
-        vit = Math.max(1, Math.floor(distance * 2));
+        sp = Math.floor(scaledDistance * 12);
+        vit = Math.max(1, Math.floor(scaledDistance * 2));
         note = '斗铠飞行';
       }
     } else if (resolvedMethod === '机甲飞行') {
@@ -6726,9 +6728,9 @@
         canAfford = false;
         reason = '需拥有可用机甲';
       } else {
-        sp = Math.floor(distance * 10);
-        vit = Math.max(1, Math.floor(distance));
-        fedCoin = Math.max(1, Math.floor(distance * 3));
+        sp = Math.floor(scaledDistance * 10);
+        vit = Math.max(1, Math.floor(scaledDistance));
+        fedCoin = Math.max(1, Math.floor(scaledDistance * 3));
         note = '机甲飞行';
       }
     } else if (resolvedMethod === '肉身飞行') {
@@ -6736,8 +6738,8 @@
         canAfford = false;
         reason = '需70级以上';
       } else {
-        sp = Math.floor(distance * 20);
-        vit = Math.max(1, Math.floor(distance * 5));
+        sp = Math.floor(scaledDistance * 20);
+        vit = Math.max(1, Math.floor(scaledDistance * 5));
         note = '肉身飞行';
       }
     } else if (resolvedMethod === '空间传送(极限斗罗)') {

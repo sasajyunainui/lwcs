@@ -13,7 +13,7 @@
   if (hostWin[LOADER_ID]) return;
   hostWin[LOADER_ID] = true;
 
-  const CDN_BASE = 'http://localhost:5501/status_ui/';
+  const CDN_BASE = 'http://localhost:5501/lwcs/';
   const VUE_URL = 'https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js';
 
   const cssList = [

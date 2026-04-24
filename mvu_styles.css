@@ -2998,7 +2998,7 @@
       max-width: min(460px, calc(100vw - 20px));
       max-height: calc(100vh - 20px);
       height: calc(100vh - 20px);
-      overflow: hidden;
+      overflow: visible;
     }
 
     .mvu-modal-panel.archive-mode .modal-summary {
@@ -3018,7 +3018,7 @@
     .mvu-modal-panel {
       display: flex;
       flex-direction: column;
-      overflow: hidden;
+      overflow: visible;
       max-height: calc(100vh - 28px);
     }
 
@@ -3048,40 +3048,6 @@
     #detailModal.show {
       display: flex !important;
       pointer-events: auto;
-    }
-
-    #detailModal.unified-float-mode {
-      --mvu-unified-modal-padding: 8px 12px calc(var(--mvu-float-bottom-reserve, 132px) + env(safe-area-inset-bottom, 0px));
-      --mvu-unified-panel-width: min(920px, calc(100vw - 28px));
-      --mvu-unified-panel-min-height: min(300px, var(--mvu-float-min-height, calc(100vh - 340px)));
-      --mvu-unified-panel-max-height: min(58vh, var(--mvu-float-max-height, calc(100vh - 260px)));
-      --mvu-unified-panel-radius: 14px;
-      align-items: flex-end;
-      justify-content: center;
-      padding: var(--mvu-unified-modal-padding);
-      background: transparent;
-      backdrop-filter: none;
-      -webkit-backdrop-filter: none;
-      pointer-events: auto;
-    }
-
-    #detailModal.unified-float-mode .mvu-modal-panel,
-    #detailModal.unified-float-mode .mvu-modal-panel.archive-mode {
-      width: var(--mvu-unified-panel-width) !important;
-      max-width: var(--mvu-unified-panel-width) !important;
-      max-height: var(--mvu-unified-panel-max-height) !important;
-      min-height: var(--mvu-unified-panel-min-height) !important;
-      border-radius: var(--mvu-unified-panel-radius);
-      box-shadow: inset 0 0 24px rgba(185,236,255,0.08), 0 24px 58px rgba(0,0,0,0.42);
-      pointer-events: auto;
-    }
-
-    #detailModal.unified-float-mode .modal-body {
-      background: linear-gradient(180deg, rgba(8, 21, 30, 0.78), rgba(10, 27, 37, 0.86));
-    }
-
-    #detailModal.show.unified-float-mode .mvu-modal-panel {
-      animation: modalPanelBoot .2s cubic-bezier(0.22, 1, 0.36, 1) both;
     }
 
     #detailModal.drawer-left {
@@ -3314,6 +3280,17 @@
       min-height: 0;
       padding: 16px;
       box-shadow: inset 0 0 14px rgba(223,246,255,0.05), 0 10px 24px rgba(0,0,0,0.12);
+    }
+
+    .archive-card:has(.interactive-ring),
+    .archive-card:has(.ring-hover-card),
+    .archive-card:has(.relation-hover-card) {
+      overflow: visible;
+    }
+
+    .archive-card:has(.interactive-ring:hover),
+    .archive-card:has(.topology-node.interactive-ring:hover) {
+      z-index: 12;
     }
 
     .archive-card::before {
@@ -6952,32 +6929,721 @@
   --mvu-unified-pill-border: rgba(110, 220, 238, 0.24);
 }
 
-body.mvu-layout-unified #mvu-left-mount,
-body.mvu-layout-unified #mvu-right-mount {
+body.mvu-surface-panel.mvu-layout-unified #mvu-left-mount,
+body.mvu-surface-panel.mvu-layout-unified #mvu-right-mount,
+body.mvu-surface-shell #mvu-left-mount,
+body.mvu-surface-shell #mvu-right-mount {
   display: none !important;
   pointer-events: none !important;
 }
 
-body.mvu-layout-split #mvu-unified-mount {
-  display: none !important;
-}
-
-body.mvu-layout-unified #mvu-unified-mount {
+body.mvu-surface-panel.mvu-layout-split #mvu-unified-mount,
+body.mvu-surface-panel.mvu-layout-unified #mvu-unified-mount,
+body.mvu-surface-shell #mvu-unified-mount {
   display: block !important;
 }
 
-body.mvu-layout-unified #chat {
+body.mvu-surface-panel.mvu-layout-unified #chat,
+body.mvu-surface-shell #chat {
   overflow-x: hidden;
+}
+
+#chat {
+  transition: filter 160ms ease, opacity 160ms ease;
 }
 
 #mvu-unified-mount {
   position: relative;
-  width: min(1040px, 100%);
+  width: min(1120px, 100%);
   max-width: 100%;
   align-self: stretch;
-  margin: 10px 0 14px;
+  margin: 12px 0 16px;
   pointer-events: none;
   z-index: 24;
+}
+
+/* =========================================================================
+   Unified Layout Root: dedicated shell
+   ========================================================================= */
+body.mvu-surface-panel.mvu-layout-unified #mvu-unified-mount {
+  width: min(1120px, 100%);
+  margin: 8px 0 12px;
+  z-index: 32;
+}
+
+body.mvu-surface-shell #mvu-unified-mount {
+  width: 100vw !important;
+  max-width: none !important;
+  margin: 0 !important;
+  z-index: 10040 !important;
+}
+
+body.mvu-desktop-shell-surface #mvu-unified-mount {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  margin: 0 !important;
+  display: block !important;
+  background: transparent !important;
+}
+
+body.mvu-surface-shell #mvu-unified-mount .mvu-unified-panel-host {
+  display: none !important;
+}
+
+body.mvu-layout-split #mvu-unified-mount .mvu-unified-panel-host {
+  display: none !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-shell {
+  position: relative;
+  width: 100%;
+  color: var(--white);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-frame {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.018)),
+    rgba(9, 16, 22, 0.68);
+  box-shadow: 0 22px 44px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255,255,255,0.06);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-toolbar {
+  display: grid;
+  gap: 10px;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-toolbar-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-toolbar-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(223, 236, 240, 0.68);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-headline {
+  display: block;
+  font-family: var(--font-title);
+  font-size: 20px;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  color: var(--white);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-subline {
+  display: block;
+  max-width: 52ch;
+  font-size: 13px;
+  line-height: 1.55;
+  color: rgba(201, 222, 228, 0.82);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-toolbar-side {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-mode-badge,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-lock-note {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 226, 89, 0.18);
+  background: rgba(255, 226, 89, 0.08);
+  color: rgba(255, 241, 195, 0.92);
+  font-size: 12px;
+  line-height: 30px;
+  white-space: nowrap;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-layout-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-layout-btn,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-chip,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-subcard,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-tab-btn {
+  min-height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.04);
+  color: var(--white);
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-layout-btn {
+  padding: 0 14px;
+  font-family: var(--font-title);
+  font-size: 12px;
+  letter-spacing: 0.05em;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-layout-btn.active,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-tab-btn.active {
+  border-color: rgba(77, 240, 255, 0.32);
+  background: rgba(77, 240, 255, 0.12);
+  color: #ecfdff;
+  box-shadow: inset 0 0 0 1px rgba(77, 240, 255, 0.08);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-tab-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-tab-btn {
+  width: 100%;
+  padding: 0 10px;
+  font-size: 12px;
+  font-family: var(--font-title);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-page-stack {
+  min-width: 0;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-page {
+  display: none;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-page.active {
+  display: block;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-section-stack {
+  display: grid;
+  gap: 12px;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-section {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.065);
+  background: rgba(8, 14, 20, 0.42);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-section-headline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-section-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-section-title {
+  font-family: var(--font-title);
+  font-size: 14px;
+  letter-spacing: 0.05em;
+  color: var(--white);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-section-note {
+  font-size: 12px;
+  color: rgba(181, 206, 214, 0.72);
+  line-height: 1.4;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-chip-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-chip {
+  padding: 0 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-grid {
+  display: grid;
+  gap: 10px;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-grid--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-grid--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card {
+  min-width: 0;
+  min-height: 0;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015)),
+    rgba(16, 24, 31, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+  overflow: hidden;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card--featured {
+  padding: 14px;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card-title {
+  font-family: var(--font-title);
+  font-size: 13px;
+  color: var(--white);
+  letter-spacing: 0.04em;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card-pill {
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(77, 240, 255, 0.18);
+  background: rgba(77, 240, 255, 0.08);
+  color: #dffeff;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-row-list {
+  display: grid;
+  gap: 8px;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-row {
+  display: grid;
+  grid-template-columns: minmax(72px, 96px) minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-row > b {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: rgba(179, 201, 208, 0.72);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-row > span {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--white);
+  word-break: break-word;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-subcard {
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-subcard b {
+  font-family: var(--font-title);
+  font-size: 13px;
+  color: var(--white);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-subcard span {
+  font-size: 12px;
+  color: var(--text-sub);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-empty-note {
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(181, 206, 214, 0.72);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-spirit-card {
+  display: grid;
+  gap: 8px;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .panel-head,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .simple-head,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .module-name,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .archive-card-head {
+  margin-bottom: 10px;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .module-name,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .panel-title,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .simple-title {
+  font-family: var(--font-title);
+  font-size: 13px;
+  color: var(--white);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .module-grid,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .stats-grid,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .hero-list,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .simple-list,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .matrix-board {
+  min-width: 0;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .stats-grid,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .module-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .simple-row,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .hero-row {
+  grid-template-columns: minmax(68px, 92px) minmax(0, 1fr);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .simple-row b,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .hero-row b,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .stat-label {
+  color: rgba(179, 201, 208, 0.72);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .simple-row span,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .hero-row span,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .stat-value,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .mini-box span {
+  color: var(--white);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .mini-box,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .stat-item,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .terminal-metric,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .matrix-node {
+  min-height: 0;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .strip-name {
+  font-family: var(--font-title);
+  font-size: 14px;
+  color: var(--white);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .rings {
+  gap: 4px;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .line {
+  margin-top: 6px;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-layout-btn:hover,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-chip:hover,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-subcard:hover,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card.clickable:hover,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-tab-btn:hover {
+  border-color: rgba(77, 240, 255, 0.26);
+  background: rgba(77, 240, 255, 0.08);
+}
+
+/* =========================================================================
+   Unified Modal Shell: compact desktop + mobile drawer
+   ========================================================================= */
+#detailModal.mvu-modal-display-unified {
+  inset: 0;
+  width: 100vw;
+  min-height: 100vh;
+  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 24px calc(18px + env(safe-area-inset-bottom, 0px));
+  background: rgba(3, 6, 9, 0.18);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+#detailModal.mvu-modal-display-unified .mvu-modal-panel,
+#detailModal.mvu-modal-display-unified .mvu-modal-panel.archive-mode {
+  width: min(960px, calc(100vw - 48px)) !important;
+  max-width: min(960px, calc(100vw - 48px)) !important;
+  min-height: 0 !important;
+  max-height: min(72svh, 820px) !important;
+  border-radius: 20px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.015)),
+    rgba(9, 16, 22, 0.82);
+  box-shadow: 0 28px 58px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+#detailModal.mvu-modal-display-unified .modal-head {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  min-height: 56px;
+  padding: 14px 18px 10px;
+  background: linear-gradient(180deg, rgba(7, 14, 20, 0.96), rgba(7, 14, 20, 0.76));
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+#detailModal.mvu-modal-display-unified .modal-title {
+  font-size: 15px !important;
+  line-height: 1.25 !important;
+}
+
+#detailModal.mvu-modal-display-unified .modal-body,
+#detailModal.mvu-modal-display-unified .modal-body.archive-body {
+  padding: 12px 14px 16px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  background: transparent !important;
+}
+
+#detailModal.mvu-modal-display-unified .mvu-unified-modal-root,
+#detailModal.mvu-modal-display-unified .mvu-unified-sheet,
+#detailModal.mvu-modal-display-unified .mvu-unified-sheet-scroll {
+  display: grid;
+  gap: 12px;
+}
+
+#detailModal.mvu-modal-display-unified .archive-modal-grid,
+#detailModal.mvu-modal-display-unified .dossier-shell,
+#detailModal.mvu-modal-display-unified .relation-layout,
+#detailModal.mvu-modal-display-unified .equipment-layout,
+#detailModal.mvu-modal-display-unified .vault-layout,
+#detailModal.mvu-modal-display-unified .profile-snapshot,
+#detailModal.mvu-modal-display-unified .nsfw-modal-grid,
+#detailModal.mvu-modal-display-unified .skill-designer-layout,
+#detailModal.mvu-modal-display-unified .spirit-entry-grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 12px !important;
+}
+
+#detailModal.mvu-modal-display-unified .archive-card,
+#detailModal.mvu-modal-display-unified .timeline-card,
+#detailModal.mvu-modal-display-unified .relation-card,
+#detailModal.mvu-modal-display-unified .intel-card,
+#detailModal.mvu-modal-display-unified .location-summary-card,
+#detailModal.mvu-modal-display-unified .nsfw-theme-card {
+  min-height: 0 !important;
+  padding: 14px !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015)),
+    rgba(15, 23, 30, 0.76) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+#detailModal.mvu-modal-display-unified .archive-card.full {
+  grid-column: auto !important;
+}
+
+#detailModal.mvu-modal-display-unified .archive-card-head,
+#detailModal.mvu-modal-display-unified .simple-head {
+  margin-bottom: 10px !important;
+  gap: 8px !important;
+  align-items: flex-start !important;
+  flex-wrap: wrap !important;
+}
+
+#detailModal.mvu-modal-display-unified .archive-card-title,
+#detailModal.mvu-modal-display-unified .simple-title {
+  font-size: 14px !important;
+  line-height: 1.3 !important;
+  color: var(--white) !important;
+}
+
+#detailModal.mvu-modal-display-unified .dossier-columns,
+#detailModal.mvu-modal-display-unified .dossier-columns--life-core,
+#detailModal.mvu-modal-display-unified .dossier-columns--life-record,
+#detailModal.mvu-modal-display-unified .dossier-columns--relation-overview,
+#detailModal.mvu-modal-display-unified .dossier-section-stack,
+#detailModal.mvu-modal-display-unified .dossier-contrib-grid,
+#detailModal.mvu-modal-display-unified .dossier-action-toolbar,
+#detailModal.mvu-modal-display-unified .dossier-form-row,
+#detailModal.mvu-modal-display-unified .dossier-form-row--donate,
+#detailModal.mvu-modal-display-unified .relation-gift-row.dossier-form-row,
+#detailModal.mvu-modal-display-unified .relation-gift-row,
+#detailModal.mvu-modal-display-unified .identity-growth-grid,
+#detailModal.mvu-modal-display-unified .profile-snapshot,
+#detailModal.mvu-modal-display-unified .wallet-strip {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 10px !important;
+}
+
+#detailModal.mvu-modal-display-unified .dossier-row-grid--two,
+#detailModal.mvu-modal-display-unified .dossier-row-grid--three,
+#detailModal.mvu-modal-display-unified .stats-grid,
+#detailModal.mvu-modal-display-unified .module-grid,
+#detailModal.mvu-modal-display-unified .hero-metrics,
+#detailModal.mvu-modal-display-unified .archive-tile-grid,
+#detailModal.mvu-modal-display-unified .inventory-hover-grid,
+#detailModal.mvu-modal-display-unified .nsfw-bodypart-grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 8px !important;
+}
+
+#detailModal.mvu-modal-display-unified .dossier-row,
+#detailModal.mvu-modal-display-unified .dossier-list-row,
+#detailModal.mvu-modal-display-unified .simple-row,
+#detailModal.mvu-modal-display-unified .hero-row,
+#detailModal.mvu-modal-display-unified .status-row {
+  grid-template-columns: minmax(84px, 108px) minmax(0, 1fr) !important;
+  gap: 10px !important;
+  align-items: start !important;
+}
+
+#detailModal.mvu-modal-display-unified .dossier-row > span,
+#detailModal.mvu-modal-display-unified .dossier-list-row > span,
+#detailModal.mvu-modal-display-unified .simple-row span,
+#detailModal.mvu-modal-display-unified .hero-row span,
+#detailModal.mvu-modal-display-unified .status-row span {
+  min-width: 0;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+  word-break: break-word;
+}
+
+#detailModal.mvu-modal-display-unified .request-console-input,
+#detailModal.mvu-modal-display-unified .request-console-textarea,
+#detailModal.mvu-modal-display-unified .relation-gift-select,
+#detailModal.mvu-modal-display-unified .relation-action-btn,
+#detailModal.mvu-modal-display-unified .intel-add-row .intel-add-btn {
+  min-height: 44px !important;
+}
+
+#detailModal.mvu-modal-display-unified .dossier-topology-board {
+  min-height: 220px !important;
+}
+
+#detailModal.mvu-modal-display-unified .modal-close {
+  z-index: 5;
+}
+
+@media (max-width: 1100px) {
+  body.mvu-layout-unified #mvu-unified-mount .mvu-unified-grid--three {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  body.mvu-layout-unified #mvu-unified-mount {
+    margin: 6px 0 10px;
+  }
+
+  body.mvu-layout-unified #mvu-unified-mount .mvu-unified-frame {
+    padding: 10px;
+    border-radius: 16px;
+  }
+
+  body.mvu-layout-unified #mvu-unified-mount .mvu-unified-toolbar-main,
+  body.mvu-layout-unified #mvu-unified-mount .mvu-unified-section-headline {
+    flex-direction: column;
+  }
+
+  body.mvu-layout-unified #mvu-unified-mount .mvu-unified-toolbar-side,
+  body.mvu-layout-unified #mvu-unified-mount .mvu-unified-chip-row {
+    width: 100%;
+    justify-items: stretch;
+    justify-content: flex-start;
+  }
+
+  body.mvu-layout-unified #mvu-unified-mount .mvu-unified-tab-row,
+  body.mvu-layout-unified #mvu-unified-mount .mvu-unified-grid--two,
+  body.mvu-layout-unified #mvu-unified-mount .mvu-unified-grid--three {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  body.mvu-layout-unified #mvu-unified-mount .mvu-unified-row,
+  body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .simple-row,
+  body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card .hero-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card,
+  body.mvu-layout-unified #mvu-unified-mount .mvu-unified-section {
+    padding: 10px;
+    border-radius: 14px;
+  }
+
+  #detailModal.mvu-modal-display-unified {
+    align-items: flex-end;
+    padding: 0 4px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: rgba(3, 6, 9, 0.1);
+  }
+
+  #detailModal.mvu-modal-display-unified .mvu-modal-panel,
+  #detailModal.mvu-modal-display-unified .mvu-modal-panel.archive-mode {
+    width: calc(100vw - 8px) !important;
+    max-width: calc(100vw - 8px) !important;
+    max-height: 78svh !important;
+    border-radius: 18px 18px 0 0;
+  }
+
+  #detailModal.mvu-modal-display-unified .modal-head {
+    min-height: 52px;
+    padding: 12px 14px 10px;
+  }
+
+  #detailModal.mvu-modal-display-unified .modal-body,
+  #detailModal.mvu-modal-display-unified .modal-body.archive-body {
+    padding: 10px 10px calc(14px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  #detailModal.mvu-modal-display-unified .dossier-row,
+  #detailModal.mvu-modal-display-unified .dossier-list-row,
+  #detailModal.mvu-modal-display-unified .simple-row,
+  #detailModal.mvu-modal-display-unified .hero-row,
+  #detailModal.mvu-modal-display-unified .status-row {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 4px !important;
+  }
 }
 
 #mvu-unified-mount .mvu-unified-wrapper {
@@ -6988,11 +7654,13 @@ body.mvu-layout-unified #chat {
 #mvu-unified-mount .mvu-unified-dock {
   pointer-events: auto;
   display: grid;
-  gap: 8px;
-  padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
-  border-radius: 14px;
+  gap: 12px;
+  padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  border-radius: 18px;
   border: 1px solid var(--mvu-unified-border);
-  background: var(--mvu-unified-surface);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02)),
+    var(--mvu-unified-surface);
   box-shadow: var(--mvu-unified-shadow);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
@@ -7004,14 +7672,17 @@ body.mvu-layout-unified #chat {
 }
 
 .mvu-unified-layout-toggle {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .mvu-unified-layout-btn {
-  height: 32px;
-  border-radius: 9px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 12px;
   border: 1px solid var(--mvu-unified-pill-border);
   background: rgba(255, 255, 255, 0.03);
   color: #e8fcff;
@@ -7033,52 +7704,206 @@ body.mvu-layout-unified #chat {
   box-shadow: 0 0 14px rgba(84, 240, 255, 0.18);
 }
 
-.mvu-unified-tab-row,
-.mvu-unified-action-row {
+.mvu-unified-hero {
+  display: grid;
+  gap: 10px;
+  padding: 2px 0 4px;
+}
+
+.mvu-unified-hero-top {
   display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.mvu-unified-status {
+  display: grid;
   gap: 6px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
-  white-space: nowrap;
-  padding-bottom: 2px;
+  min-width: 0;
 }
 
-.mvu-unified-tab-row::-webkit-scrollbar,
-.mvu-unified-action-row::-webkit-scrollbar {
-  height: 5px;
+.mvu-unified-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-family: var(--font-ui);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(210, 243, 248, 0.72);
 }
 
-.mvu-unified-tab-row::-webkit-scrollbar-thumb,
-.mvu-unified-action-row::-webkit-scrollbar-thumb {
-  background: rgba(140, 225, 240, 0.35);
+.mvu-unified-mode-badge,
+.mvu-unified-lock-note {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
   border-radius: 999px;
+  border: 1px solid rgba(223, 197, 123, 0.26);
+  background: rgba(255, 246, 214, 0.08);
+  color: rgba(255, 236, 179, 0.94);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.mvu-unified-headline {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mvu-unified-headline strong {
+  display: block;
+  color: #f2fdff;
+  font-family: var(--font-title);
+  font-size: 18px;
+  line-height: 1.2;
+  letter-spacing: 0.05em;
+}
+
+.mvu-unified-headline span {
+  display: block;
+  max-width: 68ch;
+  color: rgba(222, 243, 247, 0.82);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.mvu-unified-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.mvu-unified-section-head b {
+  color: #f4fcff;
+  font-family: var(--font-title);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.mvu-unified-section-head span {
+  color: rgba(202, 234, 240, 0.74);
+  font-size: 12px;
+}
+
+.mvu-unified-tab-grid,
+.mvu-unified-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mvu-unified-grid-btn {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+}
+
+.mvu-unified-tab-btn,
+.mvu-unified-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border-radius: 14px;
+  border: 1px solid rgba(168, 232, 242, 0.16);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02));
+  color: #ecfdff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .mvu-unified-tab-btn {
-  flex: 0 0 auto;
-  min-width: 58px;
+  padding: 0 12px;
 }
 
 .mvu-unified-action-btn {
-  flex: 0 0 auto;
-  min-height: 30px;
-  padding: 0 11px;
-  border-radius: 999px;
-  border: 1px solid var(--mvu-unified-pill-border);
-  background: rgba(255, 255, 255, 0.035);
-  color: #dbf4f8;
-  cursor: pointer;
-  font-size: 12px;
-  line-height: 1;
-  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  padding: 0 14px;
+  justify-content: flex-start;
+  text-align: left;
+  font-size: 13px;
 }
 
+.mvu-unified-tab-btn:hover,
 .mvu-unified-action-btn:hover {
   border-color: rgba(132, 236, 255, 0.46);
   background: rgba(110, 220, 238, 0.15);
   color: #ffffff;
   transform: translateY(-1px);
+}
+
+#mvu-layout-rescue-mount {
+  position: fixed;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  z-index: 10060;
+  pointer-events: none;
+}
+
+.mvu-layout-rescue {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+
+.mvu-layout-rescue.active {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.mvu-layout-rescue-btn {
+  display: grid;
+  gap: 4px;
+  min-width: min(280px, calc(100vw - 24px));
+  min-height: 52px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(223, 197, 123, 0.38);
+  background: linear-gradient(180deg, rgba(35, 17, 6, 0.94), rgba(18, 8, 3, 0.96));
+  color: #fff5d0;
+  text-align: left;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.34), inset 0 0 0 1px rgba(255, 226, 154, 0.08);
+  cursor: pointer;
+}
+
+.mvu-layout-rescue-title {
+  font-family: var(--font-title);
+  font-size: 13px;
+  letter-spacing: 0.05em;
+}
+
+.mvu-layout-rescue-desc {
+  color: rgba(255, 239, 196, 0.78);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.mvu-window-settings-note {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(223, 197, 123, 0.22);
+  background: rgba(255, 246, 214, 0.06);
+  color: rgba(255, 236, 179, 0.88);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+@media (min-width: 861px) {
+  .mvu-unified-tab-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .mvu-unified-action-grid {
+    grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  }
 }
 
 @media (max-width: 860px) {
@@ -7087,30 +7912,63 @@ body.mvu-layout-unified #chat {
   }
 
   #mvu-unified-mount .mvu-unified-dock {
-    border-radius: 12px;
-    gap: 7px;
-    padding: 9px 10px calc(10px + env(safe-area-inset-bottom, 0px));
+    border-radius: 16px;
+    gap: 10px;
+    padding: 12px 12px calc(14px + env(safe-area-inset-bottom, 0px));
   }
 
-  .mvu-unified-layout-btn {
-    min-height: 36px;
-    font-size: 13px;
+  .mvu-unified-headline strong {
+    font-size: 17px;
   }
 
-  .mvu-unified-tab-btn {
-    min-height: 36px;
-    min-width: 62px;
+  .mvu-unified-headline span {
+    font-size: 12px;
+  }
+
+  .mvu-unified-layout-toggle {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .mvu-unified-layout-toggle.locked .mvu-unified-lock-note {
+    width: 100%;
+    justify-content: center;
+    min-height: 40px;
+  }
+
+  .mvu-unified-layout-btn,
+  .mvu-unified-tab-btn,
+  .mvu-unified-action-btn {
+    min-height: 44px;
+  }
+
+  .mvu-unified-section-head {
+    gap: 6px;
+  }
+
+  .mvu-unified-section-head span {
+    font-size: 11px;
   }
 
   .mvu-unified-action-btn {
-    min-height: 34px;
-    padding: 0 12px;
     font-size: 12px;
   }
 
   .mvu-layout-mode-btn {
-    min-height: 34px;
+    min-height: 44px;
     min-width: 54px;
+  }
+}
+
+@media (max-width: 640px) {
+  #mvu-layout-rescue-mount {
+    right: 10px;
+    left: 10px;
+  }
+
+  .mvu-layout-rescue-btn {
+    width: 100%;
+    min-width: 0;
   }
 }
 
@@ -7245,284 +8103,6 @@ body.mvu-layout-unified #chat {
 
 .intel-add-row .intel-add-btn {
   flex: 0 0 auto;
-}
-
-/* =========================================================================
-   Unified Float Modal: Mobile-first responsive reflow (single source)
-   ========================================================================= */
-@media (max-width: 860px) {
-  #detailModal.unified-float-mode {
-    --mvu-unified-modal-padding: 6px 8px calc(var(--mvu-float-bottom-reserve, 112px) + env(safe-area-inset-bottom, 0px));
-    --mvu-unified-panel-width: calc(100vw - 14px);
-    --mvu-unified-panel-min-height: min(320px, var(--mvu-float-min-height, calc(100vh - 164px)));
-    --mvu-unified-panel-max-height: min(74vh, var(--mvu-float-max-height, calc(100vh - 112px)));
-    --mvu-unified-panel-radius: 12px;
-  }
-
-  #detailModal.unified-float-mode .modal-head {
-    min-height: 54px;
-    padding: 10px 10px 8px;
-    gap: 8px;
-  }
-
-  #detailModal.unified-float-mode .modal-title {
-    font-size: 14px !important;
-    line-height: 1.25 !important;
-  }
-
-  #detailModal.unified-float-mode .modal-body,
-  #detailModal.unified-float-mode .modal-body.archive-body {
-    overflow-x: hidden !important;
-    padding-bottom: 14px;
-  }
-
-  #detailModal.unified-float-mode .archive-modal-grid,
-  #detailModal.unified-float-mode .equipment-layout,
-  #detailModal.unified-float-mode .vault-layout,
-  #detailModal.unified-float-mode .lineage-layout,
-  #detailModal.unified-float-mode .relation-layout,
-  #detailModal.unified-float-mode .intel-layout,
-  #detailModal.unified-float-mode .profile-snapshot,
-  #detailModal.unified-float-mode .spirit-entry-grid {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-
-  #detailModal.unified-float-mode .archive-card {
-    padding: 12px;
-    border-radius: 12px;
-  }
-
-  #detailModal.unified-float-mode .archive-card.full {
-    grid-column: auto;
-  }
-
-  #detailModal.unified-float-mode .archive-card-head {
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 7px;
-    margin-bottom: 8px;
-  }
-
-  #detailModal.unified-float-mode .archive-card-head::after {
-    min-width: 100%;
-    order: 3;
-  }
-
-  #detailModal.unified-float-mode .archive-card-title {
-    font-size: 13px !important;
-    line-height: 1.3 !important;
-  }
-
-  #detailModal.unified-float-mode .stats-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-  }
-
-  #detailModal.unified-float-mode .module-grid,
-  #detailModal.unified-float-mode .hero-metrics,
-  #detailModal.unified-float-mode .archive-tile-grid,
-  #detailModal.unified-float-mode .inventory-hover-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 7px;
-  }
-
-  #detailModal.unified-float-mode .simple-list,
-  #detailModal.unified-float-mode .skill-mini-stack,
-  #detailModal.unified-float-mode .hero-list {
-    gap: 7px;
-  }
-
-  #detailModal.unified-float-mode .wallet-strip {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 7px;
-  }
-
-  #detailModal.unified-float-mode .inventory-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 7px;
-  }
-
-  #detailModal.unified-float-mode .inventory-scroll-shell {
-    min-height: 0;
-    max-height: min(46vh, 360px);
-    padding-right: 2px;
-  }
-
-  #detailModal.unified-float-mode .map-canvas.map-canvas-large {
-    min-height: 172px;
-    margin-bottom: 10px;
-    border-radius: 12px;
-  }
-
-  #detailModal.unified-float-mode .map-legend-strip {
-    left: 8px;
-    right: 8px;
-    top: 8px;
-    max-width: none;
-    flex-wrap: nowrap;
-    gap: 5px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding-bottom: 2px;
-  }
-
-  #detailModal.unified-float-mode .map-legend-chip {
-    flex: 0 0 auto;
-    padding: 4px 7px;
-    font-size: 9px;
-  }
-
-  #detailModal.unified-float-mode .map-focus-pill {
-    right: 8px;
-    top: 8px;
-    padding: 5px 8px;
-    font-size: 9px;
-  }
-
-  #detailModal.unified-float-mode .map-canvas-hud {
-    left: 8px;
-    right: 8px;
-    bottom: 8px;
-    grid-template-columns: 1fr;
-    gap: 6px;
-  }
-
-  #detailModal.unified-float-mode .map-hud-card {
-    padding: 7px 8px;
-  }
-
-  #detailModal.unified-float-mode .map-dot {
-    width: 10px;
-    height: 10px;
-    border-width: 1.5px;
-  }
-
-  #detailModal.unified-float-mode .map-dot.major {
-    width: 13px;
-    height: 13px;
-  }
-
-  #detailModal.unified-float-mode .map-label {
-    top: 15px;
-    font-size: 8px;
-    max-width: clamp(64px, 42vw, 128px);
-    padding: 3px 6px;
-  }
-
-  #detailModal.unified-float-mode .state-tag,
-  #detailModal.unified-float-mode .spirit-mini-ring {
-    min-height: 28px;
-    padding-top: 5px;
-    padding-bottom: 5px;
-  }
-
-  #detailModal.unified-float-mode .armory-quick-actions .tag-chip {
-    flex: 1 1 calc(50% - 6px);
-    min-height: 36px;
-  }
-
-  #detailModal.unified-float-mode .request-console-row {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
-  #detailModal.unified-float-mode .request-console-input,
-  #detailModal.unified-float-mode .request-console-textarea {
-    min-height: 36px;
-    font-size: 13px;
-    color: #effbff;
-    background: rgba(4, 14, 28, 0.94);
-  }
-
-  #detailModal.unified-float-mode .request-console-textarea {
-    min-height: 108px;
-  }
-
-  #detailModal.unified-float-mode .intel-combat-list {
-    max-height: min(42vh, 320px);
-    gap: 7px;
-  }
-
-  #detailModal.unified-float-mode .intel-add-row {
-    flex-wrap: wrap;
-    align-items: stretch;
-  }
-
-  #detailModal.unified-float-mode .intel-add-row .intel-add-btn {
-    width: 100%;
-    min-height: 36px;
-  }
-
-  #mvu-unified-mount .mvu-unified-dock {
-    gap: 8px;
-  }
-
-  .mvu-unified-tab-row,
-  .mvu-unified-action-row {
-    gap: 8px;
-    padding-bottom: 3px;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-x: contain;
-    scroll-snap-type: x proximity;
-  }
-
-  .mvu-unified-tab-row > *,
-  .mvu-unified-action-row > * {
-    scroll-snap-align: start;
-  }
-
-  .mvu-unified-tab-btn {
-    min-height: 38px;
-    min-width: 66px;
-    padding: 9px 10px;
-    letter-spacing: 0.4px;
-  }
-
-  .mvu-unified-action-btn,
-  .mvu-layout-mode-btn,
-  .mvu-unified-layout-btn {
-    min-height: 38px;
-  }
-}
-
-@media (max-width: 640px) {
-  #detailModal.unified-float-mode {
-    --mvu-unified-modal-padding: 4px 6px calc(var(--mvu-float-bottom-reserve, 104px) + env(safe-area-inset-bottom, 0px));
-    --mvu-unified-panel-width: calc(100vw - 10px);
-    --mvu-unified-panel-radius: 10px;
-  }
-
-  #detailModal.unified-float-mode .archive-card {
-    padding: 10px;
-  }
-
-  #detailModal.unified-float-mode .stats-grid,
-  #detailModal.unified-float-mode .module-grid,
-  #detailModal.unified-float-mode .hero-metrics,
-  #detailModal.unified-float-mode .archive-tile-grid,
-  #detailModal.unified-float-mode .wallet-strip,
-  #detailModal.unified-float-mode .inventory-hover-grid {
-    grid-template-columns: 1fr;
-  }
-
-  #detailModal.unified-float-mode .inventory-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  #detailModal.unified-float-mode .armory-quick-actions .tag-chip {
-    flex: 1 1 100%;
-  }
-
-  #detailModal.unified-float-mode .map-legend-strip {
-    flex-wrap: wrap;
-    overflow-x: visible;
-    padding-right: 58px;
-  }
-
-  #detailModal.unified-float-mode .map-canvas.map-canvas-large {
-    min-height: 160px;
-  }
 }
 
 @media (max-width: 760px) {
@@ -8680,35 +9260,6 @@ body.mvu-layout-unified #chat {
   transform: none;
 }
 
-#detailModal.archive-redesign-mode.mvu-modal-display-unified {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  min-height: 100vh;
-  min-height: 100dvh;
-  height: 100vh;
-  height: 100dvh;
-  box-sizing: border-box;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 8px 12px calc(var(--mvu-float-bottom-reserve, 132px) + env(safe-area-inset-bottom, 0px));
-  background: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-#detailModal.archive-redesign-mode.mvu-modal-display-unified .mvu-modal-panel.archive-redesign-panel {
-  width: min(960px, calc(100vw - 28px)) !important;
-  max-width: min(960px, calc(100vw - 28px)) !important;
-  min-height: min(360px, var(--mvu-float-min-height, calc(100vh - 340px))) !important;
-  max-height: min(72vh, var(--mvu-float-max-height, calc(100vh - 260px))) !important;
-  margin-top: auto;
-  border-radius: 16px;
-  box-shadow:
-    0 22px 48px rgba(0, 0, 0, 0.26),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
 #detailModal.archive-redesign-mode.mvu-modal-display-unified .modal-body.archive-redesign-body {
   overflow-x: hidden !important;
   overscroll-behavior: contain;
@@ -8716,7 +9267,7 @@ body.mvu-layout-unified #chat {
 }
 
 #detailModal.archive-redesign-mode.mvu-modal-display-unified .archive-redesign-root {
-  padding: 12px;
+  padding: 0;
   gap: 12px;
 }
 
@@ -8862,20 +9413,7 @@ body.mvu-layout-unified #chat {
 }
 
 @media (max-width: 860px) {
-  #detailModal.archive-redesign-mode.mvu-modal-display-unified {
-    padding: 6px 8px calc(var(--mvu-float-bottom-reserve, 112px) + env(safe-area-inset-bottom, 0px));
-  }
-
-  #detailModal.archive-redesign-mode.mvu-modal-display-unified .mvu-modal-panel.archive-redesign-panel {
-    width: calc(100vw - 14px) !important;
-    max-width: calc(100vw - 14px) !important;
-    min-height: min(300px, var(--mvu-float-min-height, calc(100vh - 180px))) !important;
-    max-height: min(74vh, var(--mvu-float-max-height, calc(100vh - 124px))) !important;
-    border-radius: 14px;
-  }
-
   #detailModal.archive-redesign-mode.mvu-modal-display-unified .archive-redesign-root {
-    padding: 12px;
     gap: 10px;
   }
 
@@ -8888,29 +9426,6 @@ body.mvu-layout-unified #chat {
 }
 
 @media (max-width: 640px) {
-  #detailModal.archive-redesign-mode.mvu-modal-display-unified {
-    padding: 4px 6px calc(var(--mvu-float-bottom-reserve, 104px) + env(safe-area-inset-bottom, 0px));
-  }
-
-  #detailModal.archive-redesign-mode.mvu-modal-display-unified .mvu-modal-panel.archive-redesign-panel {
-    width: calc(100vw - 10px) !important;
-    max-width: calc(100vw - 10px) !important;
-    border-radius: 12px;
-  }
-
-  #detailModal.archive-redesign-mode.mvu-modal-display-unified .archive-redesign-root {
-    padding: 10px;
-  }
-
-  #detailModal.archive-redesign-mode.mvu-modal-display-unified .modal-head {
-    padding: 12px 12px 10px;
-    min-height: 56px;
-  }
-
-  #detailModal.archive-redesign-mode.mvu-modal-display-unified .modal-title {
-    font-size: 16px;
-  }
-
   #detailModal.archive-redesign-mode.mvu-modal-display-unified .archive-redesign-root .relation-topology-board {
     min-height: 190px;
   }
@@ -9913,5 +10428,1270 @@ body.mvu-layout-unified #chat {
   #detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .dossier-row > span,
   #detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .dossier-list-row > span {
     font-size: 12px !important;
+  }
+}
+
+/* =========================================================================
+   MVU Mobile Shell: floating launcher + mini phone frame
+   ========================================================================= */
+:root {
+  --mvu-mobile-shell-width: min(356px, calc(100vw - 24px));
+  --mvu-mobile-shell-height: min(680px, calc(100dvh - 96px));
+  --mvu-mobile-shell-radius: 30px;
+  --mvu-mobile-shell-border: rgba(140, 167, 184, 0.16);
+  --mvu-mobile-shell-line: rgba(255, 255, 255, 0.08);
+  --mvu-mobile-shell-surface:
+    radial-gradient(circle at top, rgba(97, 186, 208, 0.1), transparent 42%),
+    linear-gradient(180deg, rgba(20, 26, 34, 0.985), rgba(12, 16, 22, 0.99));
+  --mvu-mobile-shell-panel:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.016)),
+    rgba(23, 29, 37, 0.92);
+  --mvu-mobile-shell-card:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.048), rgba(255, 255, 255, 0.016)),
+    rgba(25, 31, 39, 0.96);
+  --mvu-mobile-shell-accent: #79d1e4;
+  --mvu-mobile-shell-accent-strong: #f6fbff;
+  --mvu-mobile-shell-muted: rgba(210, 223, 230, 0.66);
+  --mvu-mobile-shell-shadow:
+    0 28px 72px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+body.mvu-mobile-viewport #mvu-unified-mount {
+  margin: 0 !important;
+  width: 100vw !important;
+  max-width: none !important;
+}
+
+body.mvu-mobile-viewport #mvu-unified-mount .mvu-unified-layout-host,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-host {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-host {
+  color: var(--white);
+  font-family: var(--font-title);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-host,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-host * {
+  box-sizing: border-box;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-host button {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: none;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+body #mvu-unified-mount .mvu-unified-toolbar-side,
+body #mvu-right-mount .mvu-window-settings-btn,
+body #mvu-right-mount .mvu-window-settings-panel {
+  display: none !important;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 10045;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: opacity 150ms ease;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-main,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-trigger,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-item {
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 18px;
+  border: 1px solid rgba(120, 145, 162, 0.22);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+    rgba(10, 16, 22, 0.94);
+  color: var(--mvu-mobile-shell-accent-strong);
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: background 150ms ease, border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-main,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-trigger {
+  padding: 0;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-main {
+  width: 66px;
+  min-width: 66px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  overflow: hidden;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher.has-menu .mvu-surface-launcher-main {
+  width: 110px;
+  min-width: 110px;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-trigger {
+  width: 44px;
+  display: grid;
+  place-items: center;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-mark {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background:
+    radial-gradient(circle at top, rgba(103, 215, 247, 0.22), transparent 62%),
+    rgba(16, 26, 35, 0.96);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 0.14em;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  text-align: left;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-copy strong {
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: 0.08em;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-copy span {
+  font-size: 10px;
+  line-height: 1;
+  color: rgba(214, 226, 232, 0.72);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 1;
+  min-width: 120px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(120, 145, 162, 0.18);
+  background:
+    linear-gradient(180deg, rgba(20, 27, 35, 0.98), rgba(12, 16, 22, 0.98)),
+    rgba(10, 15, 21, 0.98);
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.32);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px) scale(0.98);
+  transform-origin: top left;
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu.align-end {
+  left: auto;
+  right: 0;
+  transform-origin: top right;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu.open-up {
+  top: auto;
+  bottom: calc(100% + 10px);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu.active {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-item {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  font-size: 13px;
+  font-family: var(--font-title);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-trigger.active,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-item.active {
+  border-color: rgba(103, 215, 247, 0.38);
+  background:
+    linear-gradient(180deg, rgba(103, 215, 247, 0.16), rgba(103, 215, 247, 0.08)),
+    rgba(12, 18, 24, 0.98);
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(103, 215, 247, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-main:hover,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-main:active,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-trigger:hover,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-trigger:active,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-item:hover,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-item:active {
+  border-color: rgba(103, 215, 247, 0.34);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03)),
+    rgba(12, 21, 29, 0.98);
+  transform: translateY(1px);
+}
+
+body.mvu-mobile-shell-dragging #mvu-unified-mount .mvu-surface-launcher-main,
+body.mvu-mobile-shell-dragging #mvu-unified-mount .mvu-surface-launcher-menu-trigger {
+  transition: none;
+}
+
+body.mvu-mobile-shell-open.mvu-mobile-viewport #mvu-unified-mount .mvu-surface-launcher {
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.mvu-desktop-shell-surface.mvu-mobile-shell-open #mvu-unified-mount .mvu-surface-launcher {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+body.mvu-desktop-shell-surface.mvu-mobile-shell-open #mvu-unified-mount .mvu-surface-launcher-main {
+  width: 66px;
+  min-width: 66px;
+  padding: 0 12px;
+}
+
+body.mvu-desktop-shell-surface.mvu-mobile-shell-open #mvu-unified-mount .mvu-surface-launcher-copy span {
+  display: none;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-backdrop,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell {
+  position: fixed;
+  inset: 0;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-backdrop {
+  z-index: 10041;
+  opacity: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at center, rgba(66, 139, 154, 0.16), transparent 58%),
+    rgba(3, 8, 12, 0.42);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: opacity 160ms ease;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-backdrop.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell {
+  z-index: 10042;
+  display: grid;
+  place-items: center;
+  padding: 48px 12px calc(76px + env(safe-area-inset-bottom, 0px));
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+body.mvu-desktop-shell-surface #mvu-unified-mount .mvu-mobile-shell {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+
+body.mvu-desktop-shell-surface #mvu-unified-mount .mvu-mobile-shell-host {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+
+body.mvu-desktop-shell-surface #mvu-unified-mount .mvu-mobile-shell.active {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+body.mvu-desktop-shell-surface #mvu-unified-mount .mvu-mobile-shell-frame,
+body.mvu-desktop-shell-surface #mvu-unified-mount .mvu-mobile-shell.active .mvu-mobile-shell-frame {
+  transform: none;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-frame {
+  position: relative;
+  z-index: 1;
+  width: var(--mvu-mobile-shell-width);
+  height: var(--mvu-mobile-shell-height);
+  max-height: var(--mvu-mobile-shell-height);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  border-radius: var(--mvu-mobile-shell-radius);
+  border: 1px solid var(--mvu-mobile-shell-border);
+  background: var(--mvu-mobile-shell-surface);
+  box-shadow: var(--mvu-mobile-shell-shadow);
+  overflow: hidden;
+  pointer-events: none;
+  transform: translateY(14px) scale(0.975);
+  transform-origin: center bottom;
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 160ms ease;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell.active .mvu-mobile-shell-frame {
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-frame::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  width: 88px;
+  height: 4px;
+  margin-left: -44px;
+  border-radius: 999px;
+  background: rgba(235, 246, 251, 0.18);
+  box-shadow: 0 0 12px rgba(103, 215, 247, 0.08);
+  pointer-events: none;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 64px;
+  padding: 18px 16px 12px;
+  border-bottom: 1px solid var(--mvu-mobile-shell-line);
+  background:
+    linear-gradient(180deg, rgba(16, 21, 28, 0.98), rgba(16, 21, 28, 0.78)),
+    rgba(12, 18, 24, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-head-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-head-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-title {
+  min-width: 0;
+  font-size: 16px;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  color: var(--mvu-mobile-shell-accent-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-back,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-mode-exit,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-close {
+  flex: 0 0 auto;
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--white);
+  font-size: 18px;
+  line-height: 1;
+  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-back {
+  color: rgba(244, 250, 252, 0.92);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-back svg,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-mode-exit svg {
+  display: block;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-back:hover,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-back:active,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-mode-exit:hover,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-mode-exit:active,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-close:hover,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-close:active {
+  border-color: rgba(103, 215, 247, 0.28);
+  background: rgba(103, 215, 247, 0.08);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-mode-exit span {
+  display: grid;
+  place-items: center;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-body {
+  position: relative;
+  min-height: 0;
+  background:
+    linear-gradient(180deg, rgba(20, 26, 34, 0.4), rgba(10, 14, 20, 0.94));
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-scroll {
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  padding: 14px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  align-content: start;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-home,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-library,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-library-page {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  align-content: start;
+  animation: mvuMobilePageIn 140ms ease;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-scroll.is-home {
+  align-content: start;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card-grid {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card-grid--two,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card-grid--three {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card-grid--three > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card-grid > *,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-grid > *,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-nav > * {
+  min-width: 0;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-tile,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-tab {
+  min-height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--mvu-mobile-shell-panel);
+  color: var(--white);
+  transition: transform 140ms ease, background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card {
+  min-width: 0;
+  min-height: 118px;
+  padding: 16px;
+  border-radius: 18px;
+  background: var(--mvu-mobile-shell-card);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card--hero {
+  min-height: 192px;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card--spotlight {
+  min-height: 176px;
+  padding: 18px;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+  align-items: stretch;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-tile:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-tile {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 152px;
+  padding: 14px;
+  border-radius: 20px;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 12px;
+  align-content: start;
+  text-align: left;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--mvu-mobile-shell-accent-strong);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-icon svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-copy {
+  display: grid;
+  gap: 4px;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-copy strong {
+  font-size: 16px;
+  line-height: 1.15;
+  font-weight: 600;
+  color: var(--mvu-mobile-shell-accent-strong);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-copy span {
+  font-size: 11px;
+  line-height: 1.25;
+  color: var(--mvu-mobile-shell-muted);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-live {
+  min-width: 0;
+  margin-top: auto;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-tile:hover,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-tile:active,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card.clickable:hover,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card.clickable:active,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-tab:hover,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-tab:active {
+  border-color: rgba(125, 217, 234, 0.26);
+  background:
+    linear-gradient(180deg, rgba(125, 217, 234, 0.1), rgba(125, 217, 234, 0.02)),
+    rgba(22, 30, 39, 0.94);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-tile:active,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card.clickable:active,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-tab:active {
+  transform: translateY(1px);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-nav {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 10px calc(14px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--mvu-mobile-shell-line);
+  background:
+    linear-gradient(180deg, rgba(14, 20, 26, 0.82), rgba(14, 20, 26, 0.98)),
+    rgba(14, 20, 26, 0.96);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-tab {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border-radius: 16px;
+  font-size: 11px;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  text-align: center;
+  overflow: hidden;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-tab.active {
+  border-color: rgba(125, 217, 234, 0.34);
+  background:
+    linear-gradient(180deg, rgba(125, 217, 234, 0.14), rgba(125, 217, 234, 0.04)),
+    rgba(18, 28, 36, 0.98);
+  box-shadow: inset 0 0 0 1px rgba(125, 217, 234, 0.08);
+  color: var(--mvu-mobile-shell-accent-strong);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-tab-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-tab-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-tab-label {
+  font-size: 11px;
+  line-height: 1.1;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-action-rail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 1px 2px 0;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-action-rail::-webkit-scrollbar {
+  display: none;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-action-pill {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 15px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(239, 249, 252, 0.92);
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-action-pill:hover,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-action-pill:active {
+  border-color: rgba(125, 217, 234, 0.26);
+  background: rgba(125, 217, 234, 0.08);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-action-pill:active {
+  transform: translateY(1px);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-summary {
+  display: grid;
+  gap: 12px;
+  min-height: 100%;
+  align-content: start;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-summary--hero {
+  gap: 14px;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-summary--compact {
+  gap: 9px;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-card-copy {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-kicker {
+  font-size: 11px;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+  color: var(--mvu-mobile-shell-muted);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-title {
+  min-width: 0;
+  font-size: 16px;
+  line-height: 1.28;
+  color: var(--mvu-mobile-shell-accent-strong);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-value {
+  flex: 0 0 auto;
+  font-size: 20px;
+  line-height: 1.15;
+  font-weight: 700;
+  color: var(--mvu-mobile-shell-accent-strong);
+  letter-spacing: -0.02em;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-meta,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-card-note,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-line-value {
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-meta {
+  -webkit-line-clamp: 2;
+  font-size: 13px;
+  line-height: 1.4;
+  color: rgba(224, 237, 242, 0.78);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-summary--compact .mvu-shell-meta {
+  -webkit-line-clamp: 1;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-chip {
+  min-height: 26px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(237, 247, 251, 0.86);
+  font-size: 11px;
+  line-height: 1;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-chip.is-live,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-metric.is-live {
+  border-color: rgba(125, 217, 234, 0.22);
+  background: rgba(125, 217, 234, 0.08);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-chip.is-gold,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-metric.is-gold {
+  border-color: rgba(241, 198, 103, 0.24);
+  background: rgba(241, 198, 103, 0.08);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-chip.is-warn,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-metric.is-warn {
+  border-color: rgba(255, 138, 126, 0.24);
+  background: rgba(255, 138, 126, 0.09);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-metric {
+  min-height: 72px;
+  padding: 12px;
+  border-radius: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+  display: grid;
+  align-content: space-between;
+  gap: 8px;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-metric-label {
+  font-size: 11px;
+  line-height: 1.1;
+  color: var(--mvu-mobile-shell-muted);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-metric-value {
+  font-size: 16px;
+  line-height: 1.1;
+  color: var(--mvu-mobile-shell-accent-strong);
+  letter-spacing: -0.01em;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-line-list {
+  display: grid;
+  gap: 10px;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-line {
+  display: grid;
+  gap: 4px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-line:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-line-label {
+  font-size: 11px;
+  line-height: 1.1;
+  color: var(--mvu-mobile-shell-muted);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-line-value {
+  -webkit-line-clamp: 2;
+  font-size: 16px;
+  line-height: 1.3;
+  color: rgba(244, 250, 252, 0.94);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-card-note {
+  -webkit-line-clamp: 2;
+  font-size: 13px;
+  line-height: 1.42;
+  color: rgba(220, 234, 239, 0.72);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-summary--hero .mvu-shell-value {
+  color: #f5fcff;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-summary--hero .mvu-shell-title {
+  font-size: 18px;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-app-peek {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-app-peek-value,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-app-peek-meta,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-app-peek-note {
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-app-peek-value {
+  -webkit-line-clamp: 1;
+  font-size: 14px;
+  line-height: 1.25;
+  font-weight: 600;
+  color: var(--mvu-mobile-shell-accent-strong);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-app-peek-meta,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-app-peek-note {
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-app-peek-meta {
+  -webkit-line-clamp: 2;
+  color: rgba(232, 242, 246, 0.78);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-app-peek-note {
+  -webkit-line-clamp: 1;
+  color: var(--mvu-mobile-shell-muted);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-app-peek.is-live .mvu-shell-app-peek-value {
+  color: #9fe5f2;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-app-peek.is-gold .mvu-shell-app-peek-value {
+  color: #f0cd82;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-app-peek.is-warn .mvu-shell-app-peek-value {
+  color: #ffb0a4;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+#detailModal.mvu-modal-display-shell {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 1;
+  width: auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 8px !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  background:
+    linear-gradient(180deg, rgba(4, 11, 16, 0.12), rgba(4, 11, 16, 0.42)),
+    rgba(4, 11, 16, 0.34) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+#detailModal.mvu-modal-display-shell.show {
+  display: flex !important;
+  pointer-events: auto;
+}
+
+#detailModal.mvu-modal-display-shell .mvu-modal-panel,
+#detailModal.mvu-modal-display-shell .mvu-modal-panel.archive-mode,
+#detailModal.archive-redesign-mode.mvu-modal-display-shell .mvu-modal-panel.archive-redesign-panel {
+  width: 100% !important;
+  max-width: none !important;
+  height: 100% !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  border-radius: 20px !important;
+  border: 1px solid rgba(112, 214, 240, 0.22) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)),
+    rgba(9, 18, 27, 0.96) !important;
+  box-shadow:
+    0 22px 40px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+}
+
+#detailModal.mvu-modal-display-shell.show .mvu-modal-panel {
+  animation: mvuMobileSheetIn 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+#detailModal.mvu-modal-display-shell .modal-head {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  min-height: 58px;
+  padding: 16px 16px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background:
+    linear-gradient(180deg, rgba(8, 18, 27, 0.98), rgba(8, 18, 27, 0.8)),
+    rgba(8, 18, 27, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+#detailModal.mvu-modal-display-shell .modal-title {
+  font-size: 14px !important;
+  line-height: 1.3 !important;
+}
+
+#detailModal.mvu-modal-display-shell .modal-close {
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 14px;
+}
+
+#detailModal.mvu-modal-display-shell .modal-body,
+#detailModal.mvu-modal-display-shell .modal-body.archive-body,
+#detailModal.archive-redesign-mode.mvu-modal-display-shell .modal-body.archive-redesign-body {
+  min-height: 0;
+  padding: 12px 12px calc(14px + env(safe-area-inset-bottom, 0px)) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  background: transparent !important;
+}
+
+#detailModal.mvu-modal-display-shell .mvu-unified-modal-root,
+#detailModal.mvu-modal-display-shell .mvu-unified-sheet,
+#detailModal.mvu-modal-display-shell .mvu-unified-sheet-scroll,
+#detailModal.archive-redesign-mode.mvu-modal-display-shell .archive-redesign-root {
+  display: grid;
+  gap: 10px;
+  min-height: 100%;
+}
+
+#detailModal.mvu-modal-display-shell .archive-modal-grid,
+#detailModal.mvu-modal-display-shell .dossier-shell,
+#detailModal.mvu-modal-display-shell .relation-layout,
+#detailModal.mvu-modal-display-shell .equipment-layout,
+#detailModal.mvu-modal-display-shell .vault-layout,
+#detailModal.mvu-modal-display-shell .profile-snapshot,
+#detailModal.mvu-modal-display-shell .nsfw-modal-grid,
+#detailModal.mvu-modal-display-shell .skill-designer-layout,
+#detailModal.mvu-modal-display-shell .spirit-entry-grid,
+#detailModal.mvu-modal-display-shell .dossier-columns,
+#detailModal.mvu-modal-display-shell .dossier-columns--life-core,
+#detailModal.mvu-modal-display-shell .dossier-columns--life-record,
+#detailModal.mvu-modal-display-shell .dossier-columns--relation-overview,
+#detailModal.mvu-modal-display-shell .dossier-section-stack,
+#detailModal.mvu-modal-display-shell .dossier-contrib-grid,
+#detailModal.mvu-modal-display-shell .dossier-action-toolbar,
+#detailModal.mvu-modal-display-shell .dossier-form-row,
+#detailModal.mvu-modal-display-shell .dossier-form-row--donate,
+#detailModal.mvu-modal-display-shell .relation-gift-row.dossier-form-row,
+#detailModal.mvu-modal-display-shell .relation-gift-row,
+#detailModal.mvu-modal-display-shell .identity-growth-grid,
+#detailModal.mvu-modal-display-shell .wallet-strip,
+#detailModal.mvu-modal-display-shell .location-status-layout,
+#detailModal.mvu-modal-display-shell .faction-layout-shell,
+#detailModal.mvu-modal-display-shell .intel-layout-dashboard,
+#detailModal.mvu-modal-display-shell .intel-pending-editor,
+#detailModal.mvu-modal-display-shell .map-action-grid,
+#detailModal.mvu-modal-display-shell .request-console-row {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 10px !important;
+}
+
+#detailModal.mvu-modal-display-shell .dossier-row-grid--two,
+#detailModal.mvu-modal-display-shell .dossier-row-grid--three,
+#detailModal.mvu-modal-display-shell .stats-grid,
+#detailModal.mvu-modal-display-shell .module-grid,
+#detailModal.mvu-modal-display-shell .hero-metrics,
+#detailModal.mvu-modal-display-shell .archive-tile-grid,
+#detailModal.mvu-modal-display-shell .inventory-hover-grid,
+#detailModal.mvu-modal-display-shell .nsfw-bodypart-grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 8px !important;
+}
+
+#detailModal.mvu-modal-display-shell .archive-card,
+#detailModal.mvu-modal-display-shell .timeline-card,
+#detailModal.mvu-modal-display-shell .relation-card,
+#detailModal.mvu-modal-display-shell .intel-card,
+#detailModal.mvu-modal-display-shell .location-summary-card,
+#detailModal.mvu-modal-display-shell .nsfw-theme-card {
+  min-height: 0 !important;
+  padding: 12px !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015)),
+    rgba(13, 24, 34, 0.92) !important;
+}
+
+#detailModal.mvu-modal-display-shell .archive-card-head,
+#detailModal.mvu-modal-display-shell .simple-head {
+  margin-bottom: 8px !important;
+  gap: 8px !important;
+  align-items: flex-start !important;
+  flex-wrap: wrap !important;
+}
+
+#detailModal.mvu-modal-display-shell .archive-card-title,
+#detailModal.mvu-modal-display-shell .simple-title {
+  font-size: 13px !important;
+  line-height: 1.3 !important;
+}
+
+#detailModal.mvu-modal-display-shell .dossier-row,
+#detailModal.mvu-modal-display-shell .dossier-list-row,
+#detailModal.mvu-modal-display-shell .simple-row,
+#detailModal.mvu-modal-display-shell .hero-row,
+#detailModal.mvu-modal-display-shell .status-row {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 4px !important;
+}
+
+#detailModal.mvu-modal-display-shell .dossier-row > span,
+#detailModal.mvu-modal-display-shell .dossier-list-row > span,
+#detailModal.mvu-modal-display-shell .simple-row span,
+#detailModal.mvu-modal-display-shell .hero-row span,
+#detailModal.mvu-modal-display-shell .status-row span {
+  min-width: 0;
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+  word-break: break-word;
+}
+
+#detailModal.mvu-modal-display-shell .request-console-input,
+#detailModal.mvu-modal-display-shell .request-console-textarea,
+#detailModal.mvu-modal-display-shell .relation-gift-select,
+#detailModal.mvu-modal-display-shell .relation-action-btn,
+#detailModal.mvu-modal-display-shell .intel-add-row .intel-add-btn,
+#detailModal.mvu-modal-display-shell .map-dispatch-action-btn {
+  min-height: 44px !important;
+}
+
+#detailModal.mvu-modal-display-shell .dossier-topology-board {
+  min-height: 180px !important;
+}
+
+#detailModal.archive-redesign-mode.mvu-modal-display-shell .archive-redesign-root .dossier-head-name {
+  font-size: 18px;
+}
+
+#detailModal.archive-redesign-mode.mvu-modal-display-shell .archive-redesign-root .dossier-section {
+  gap: 8px;
+}
+
+#detailModal.archive-redesign-mode.mvu-modal-display-shell .mvu-modal-panel.archive-redesign-panel > .archive-redesign-decor .top-left-rings {
+  top: -28px;
+  left: 2px;
+  width: 108px;
+  height: 108px;
+}
+
+#detailModal.archive-redesign-mode.mvu-modal-display-shell .mvu-modal-panel.archive-redesign-panel > .archive-redesign-decor .bottom-right-rings {
+  right: 2px;
+  bottom: -28px;
+  width: 118px;
+  height: 118px;
+}
+
+@keyframes mvuMobilePageIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes mvuMobileSheetIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 420px) {
+  body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-frame {
+    width: min(100vw - 16px, 356px);
+    height: min(100dvh - 80px, 680px);
+  }
+
+  body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-inline-card-row,
+  body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-metric-grid,
+  body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card .stats-grid,
+  body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card .module-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-card-top {
+    display: grid;
+    gap: 10px;
+  }
+
+  body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card .simple-row,
+  body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card .hero-row,
+  body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card .status-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-main,
+  body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-trigger,
+  body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu,
+  body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell,
+  body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-frame,
+  body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-action-pill,
+  body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shortcut,
+  body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card,
+  body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-tab,
+  #detailModal.mvu-modal-display-shell .mvu-modal-panel {
+    transition: none !important;
+    animation: none !important;
   }
 }

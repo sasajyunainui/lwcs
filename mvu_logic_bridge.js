@@ -43,6 +43,40 @@
         modalClose: document.getElementById('modalClose') || modalClose
       };
     }
+    function getMobileShellBridge() {
+      try {
+        const bridge = window.__MVU_MOBILE_SHELL__;
+        return bridge && typeof bridge.getModalHost === 'function' ? bridge : null;
+      } catch (err) {
+        return null;
+      }
+    }
+    function resolveDetailModalDefaultParent() {
+      return document.body || document.documentElement || null;
+    }
+    function isMobileShellModalActive(options = {}) {
+      const bridge = getMobileShellBridge();
+      if (!bridge || typeof bridge.isOpen !== 'function' || !bridge.isOpen()) return false;
+      if (options && options.unifiedMode === false) return false;
+      const modalHost = bridge.getModalHost();
+      return !!(modalHost && modalHost.isConnected);
+    }
+    function syncDetailModalHost(refs = getModalRefs(), options = {}) {
+      const currentDetailModal = refs && refs.detailModal ? refs.detailModal : null;
+      const currentModalPanel = refs && refs.modalPanel ? refs.modalPanel : null;
+      if (!currentDetailModal) return false;
+      const bridge = getMobileShellBridge();
+      const useShellHost = isMobileShellModalActive(options);
+      const shellHost = bridge && typeof bridge.getModalHost === 'function' ? bridge.getModalHost() : null;
+      const targetParent = useShellHost && shellHost ? shellHost : resolveDetailModalDefaultParent();
+      if (targetParent && currentDetailModal.parentElement !== targetParent) {
+        targetParent.appendChild(currentDetailModal);
+      }
+      currentDetailModal.classList.toggle('mvu-modal-display-shell', !!useShellHost);
+      if (currentModalPanel) currentModalPanel.classList.toggle('mvu-modal-display-shell', !!useShellHost);
+      currentDetailModal.dataset.modalHost = useShellHost ? 'shell' : 'body';
+      return !!useShellHost;
+    }
     const BASE_CANVAS_WIDTH = 636;
     const BASE_CANVAS_HEIGHT = 462;
     const CANVAS_WIDTH = 1060;
@@ -2031,6 +2065,46 @@
       return MVU_EDITOR_ROOT_OBJECT_KEYS.filter(key => isPlainObjectValue(value[key])).length;
     }
 
+    function buildCanonicalSpiritSkillSlotKey(ringIndex = 1) {
+      const safeIndex = Math.max(1, Math.floor(Number(ringIndex) || 0));
+      return `第${safeIndex}魂技`;
+    }
+
+    function normalizeSingleSpiritSkillSlotMapForEditor(skillMap = {}, ringIndex = 1) {
+      if (!isPlainObjectValue(skillMap)) return skillMap;
+      const entries = Object.entries(skillMap).filter(([, skill]) => isPlainObjectValue(skill));
+      if (!entries.length) return skillMap;
+      const canonicalKey = buildCanonicalSpiritSkillSlotKey(ringIndex);
+      const hasMultipleEntries = entries.length > 1;
+      const hasOrdinalKey = entries.some(([rawKey]) => /^第(?:\d+|[一二三四五六七八九十百]+)魂技/u.test(String(rawKey || '').trim()));
+      if (hasMultipleEntries || (hasOrdinalKey && skillMap[canonicalKey])) return skillMap;
+      const [rawKey, rawSkill] = entries[0];
+      const normalizedSkill = isPlainObjectValue(rawSkill) ? rawSkill : {};
+      if (!normalizedSkill.魂技名 || !String(normalizedSkill.魂技名).trim()) {
+        normalizedSkill.魂技名 = String(rawKey || canonicalKey);
+      }
+      if (rawKey !== canonicalKey) delete skillMap[rawKey];
+      skillMap[canonicalKey] = normalizedSkill;
+      return skillMap;
+    }
+
+    function normalizeSpiritSkillSlotsInStatDataForEditor(statData = {}) {
+      const chars = isPlainObjectValue(statData && statData.char) ? statData.char : {};
+      Object.values(chars).forEach(charData => {
+        const spirits = isPlainObjectValue(charData && charData.spirit) ? charData.spirit : {};
+        Object.values(spirits).forEach(spiritData => {
+          const soulSpirits = isPlainObjectValue(spiritData && spiritData.soul_spirits) ? spiritData.soul_spirits : {};
+          Object.values(soulSpirits).forEach(soulSpirit => {
+            const rings = isPlainObjectValue(soulSpirit && soulSpirit.rings) ? soulSpirit.rings : {};
+            Object.entries(rings).forEach(([ringIndex, ringData]) => {
+              normalizeSingleSpiritSkillSlotMapForEditor(ringData && ringData['魂技'], ringIndex);
+            });
+          });
+        });
+      });
+      return statData;
+    }
+
     function stripWrapperPathPrefix(pathTokens) {
       const normalized = Array.isArray(pathTokens) ? pathTokens.slice() : [];
       while (normalized.length > 0) {
@@ -2100,6 +2174,7 @@
         draft[key] = {};
       });
 
+      normalizeSpiritSkillSlotsInStatDataForEditor(draft);
       return draft;
     }
 
@@ -7325,6 +7400,999 @@
       `;
     }
 
+    function buildUnifiedSocialCard(snapshot) {
+      const social = deepGet(snapshot, 'activeChar.social', {});
+      const primaryFactionName = snapshot.primaryFaction ? snapshot.primaryFaction[0] : '无';
+      const primaryFactionRole = snapshot.primaryFaction ? toText(deepGet(snapshot.primaryFaction[1], '身份', '无'), '无') : '未加入';
+      const topRelationText = snapshot.topRelation
+        ? `${shortenText(snapshot.topRelation[0], 8)} / ${toText(deepGet(snapshot.topRelation[1], '关系', '陌生'), '陌生')} / ${toNumber(deepGet(snapshot.topRelation[1], '好感度', 0), 0)}`
+        : `${snapshot.relations.length} 条`;
+      const latestIntelText = snapshot.pendingIntelCount
+        ? `${shortenText(snapshot.pendingIntelContent, 10)} / +${snapshot.pendingIntelImpact}`
+        : (snapshot.unlockedKnowledges.length ? shortenText(snapshot.unlockedKnowledges[snapshot.unlockedKnowledges.length - 1], 12) : '暂无');
+      return `
+        <div class="mvu-unified-card-head">
+          <div class="mvu-unified-card-title">社交摘要</div>
+          <span class="mvu-unified-card-pill">${htmlEscape(toText(social._fame_level, toText(social.fame_level, '籍籍无名')))}</span>
+        </div>
+        <div class="mvu-unified-row-list">
+          <div class="mvu-unified-row"><b>名望</b><span>${htmlEscape(`${toText(social._fame_level, toText(social.fame_level, '籍籍无名'))} / ${formatNumber(social.reputation)}`)}</span></div>
+          <div class="mvu-unified-row"><b>所属势力</b><span>${htmlEscape(`${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}`)}</span></div>
+          <div class="mvu-unified-row"><b>关系摘要</b><span>${htmlEscape(topRelationText)}</span></div>
+          <div class="mvu-unified-row"><b>已解锁情报</b><span>${htmlEscape(`${snapshot.unlockedKnowledges.length} / ${latestIntelText}`)}</span></div>
+        </div>
+      `;
+    }
+
+    function buildUnifiedSpiritCard(config, options = {}) {
+      const primary = !!(options && options.primary);
+      if (!config) {
+        return `
+          <div class="mvu-unified-card-head">
+            <div class="mvu-unified-card-title">${primary ? '主武魂' : '副轨'}</div>
+          </div>
+          <div class="mvu-unified-empty-note">${primary ? '当前未加载武魂信息。' : '当前未启用副武魂或血脉副轨。'}</div>
+        `;
+      }
+      const content = config.kind === 'bloodline'
+        ? renderArchiveBloodlineEntry(config)
+        : renderArchiveSpiritEntry(config, primary);
+      return `<div class="mvu-unified-spirit-card">${content}</div>`;
+    }
+
+    function buildUnifiedRankCard(snapshot) {
+      return `
+        <div class="mvu-unified-card-head">
+          <div class="mvu-unified-card-title">大陆榜单</div>
+        </div>
+        <div class="mvu-unified-grid mvu-unified-grid--two">
+          <button type="button" class="mvu-unified-subcard clickable" data-preview="少年天才榜">
+            <b>少年天才榜</b>
+            <span>${htmlEscape(`${snapshot.youthRankingEntries.length} 人上榜`)}</span>
+          </button>
+          <button type="button" class="mvu-unified-subcard clickable" data-preview="大陆风云榜">
+            <b>大陆风云榜</b>
+            <span>${htmlEscape(`${snapshot.continentRankingEntries.length} 人上榜`)}</span>
+          </button>
+        </div>
+      `;
+    }
+
+    function normalizeUnifiedSurfaceKey(surface) {
+      const value = toText(surface, '').trim().toLowerCase();
+      if (value === 'shell') return 'shell';
+      if (value === 'panel') return 'panel';
+      return '';
+    }
+
+    function collectShellBadgeItems(items = [], max = 4) {
+      const result = [];
+      (Array.isArray(items) ? items : []).forEach(item => {
+        if (result.length >= max) return;
+        const entry = item && typeof item === 'object'
+          ? { text: toText(item.text, '').trim(), tone: toText(item.tone, '').trim() }
+          : { text: toText(item, '').trim(), tone: '' };
+        if (!entry.text) return;
+        if (result.some(candidate => candidate.text === entry.text)) return;
+        result.push(entry);
+      });
+      return result;
+    }
+
+    function collectShellMetricItems(items = [], max = 4) {
+      return (Array.isArray(items) ? items : [])
+        .map(item => ({
+          label: toText(item && item.label, '').trim(),
+          value: toText(item && item.value, '').trim(),
+          tone: toText(item && item.tone, '').trim(),
+        }))
+        .filter(item => item.label && item.value)
+        .slice(0, max);
+    }
+
+    function collectShellLineItems(items = [], max = 3) {
+      return (Array.isArray(items) ? items : [])
+        .map(item => ({
+          label: toText(item && item.label, '').trim(),
+          value: toText(item && item.value, '').trim(),
+        }))
+        .filter(item => item.label && item.value)
+        .slice(0, max);
+    }
+
+    function buildShellSummaryCard(options = {}) {
+      const kicker = toText(options.kicker, '').trim();
+      const title = toText(options.title, '暂无信息').trim() || '暂无信息';
+      const value = toText(options.value, '').trim();
+      const meta = toText(options.meta, '').trim();
+      const rawNote = toText(options.note, '').trim();
+      const tone = toText(options.tone, '').trim();
+      const requestedSize = toText(options.size, '').trim();
+      const size = requestedSize || 'compact';
+      const badgeLimit = size === 'hero' ? 4 : 2;
+      const metricLimit = size === 'hero' ? 4 : 2;
+      const rowLimit = size === 'hero' ? 3 : ((Array.isArray(options.metrics) && options.metrics.length) ? 1 : 2);
+      const badges = collectShellBadgeItems(options.badges || [], badgeLimit);
+      const metrics = collectShellMetricItems(options.metrics || [], metricLimit);
+      const rows = collectShellLineItems(options.rows || [], rowLimit);
+      const note = size === 'hero' || !rows.length ? rawNote : '';
+      const className = [
+        'mvu-shell-summary',
+        tone ? `mvu-shell-summary--${tone}` : '',
+        size ? `mvu-shell-summary--${size}` : '',
+      ].filter(Boolean).join(' ');
+
+      return `
+        <div class="${className}">
+          <div class="mvu-shell-card-top">
+            <div class="mvu-shell-card-copy">
+              ${kicker ? `<div class="mvu-shell-kicker">${htmlEscape(kicker)}</div>` : ''}
+              <div class="mvu-shell-title">${htmlEscape(title)}</div>
+              ${meta ? `<div class="mvu-shell-meta">${htmlEscape(meta)}</div>` : ''}
+            </div>
+            ${value ? `<div class="mvu-shell-value">${htmlEscape(value)}</div>` : ''}
+          </div>
+          ${badges.length ? `
+            <div class="mvu-shell-chip-row">
+              ${badges.map(item => `<span class="mvu-shell-chip${item.tone ? ` is-${htmlEscape(item.tone)}` : ''}">${htmlEscape(item.text)}</span>`).join('')}
+            </div>
+          ` : ''}
+          ${metrics.length ? `
+            <div class="mvu-shell-metric-grid">
+              ${metrics.map(item => `
+                <div class="mvu-shell-metric${item.tone ? ` is-${htmlEscape(item.tone)}` : ''}">
+                  <span class="mvu-shell-metric-label">${htmlEscape(item.label)}</span>
+                  <strong class="mvu-shell-metric-value">${htmlEscape(item.value)}</strong>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+          ${rows.length ? `
+            <div class="mvu-shell-line-list">
+              ${rows.map(item => `
+                <div class="mvu-shell-line">
+                  <span class="mvu-shell-line-label">${htmlEscape(item.label)}</span>
+                  <span class="mvu-shell-line-value">${htmlEscape(item.value)}</span>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+          ${note ? `<div class="mvu-shell-card-note">${htmlEscape(note)}</div>` : ''}
+        </div>
+      `;
+    }
+
+    function buildShellEmptyCard(title, note, options = {}) {
+      return buildShellSummaryCard({
+        kicker: options.kicker || '',
+        title,
+        note: note || '暂无信息',
+        tone: options.tone || 'muted',
+      });
+    }
+
+    function buildShellAppPeek(options = {}) {
+      const value = toText(options.value, '暂无信息').trim() || '暂无信息';
+      const meta = toText(options.meta, '').trim();
+      const note = toText(options.note, '').trim();
+      const tone = toText(options.tone, '').trim();
+      return `
+        <div class="mvu-shell-app-peek${tone ? ` is-${htmlEscape(tone)}` : ''}">
+          <div class="mvu-shell-app-peek-value">${htmlEscape(value)}</div>
+          ${meta ? `<div class="mvu-shell-app-peek-meta">${htmlEscape(meta)}</div>` : ''}
+          ${note ? `<div class="mvu-shell-app-peek-note">${htmlEscape(note)}</div>` : ''}
+        </div>
+      `;
+    }
+
+    function buildShellSpiritSummaryCard(config, options = {}) {
+      const primary = !!(options && options.primary);
+      if (!config) {
+        return buildShellEmptyCard(primary ? '主武魂' : '副轨', primary ? '尚未接入武魂' : '尚未启用副轨');
+      }
+
+      if (config.kind === 'bloodline') {
+        return buildShellSummaryCard({
+          kicker: '血脉副轨',
+          title: shortenText(toText(config.bloodline, '未觉醒'), 14),
+          value: `封印 ${toText(config.sealLv, '0')} 层`,
+          meta: `核心 ${shortenText(toText(config.core, '未凝核'), 10)}`,
+          badges: [
+            config.lifeFire ? { text: '命火已燃', tone: 'gold' } : { text: '命火未燃' },
+            ...((config.rings || []).slice(0, 2).map(item => shortenText(toText(item && item.title, ''), 10))),
+          ],
+          metrics: [
+            { label: '血环', value: String((config.rings || []).length || 0), tone: 'gold' },
+            { label: '技能', value: String((config.bloodSkills || []).length || 0) },
+            { label: '特性', value: String((config.bloodPassives || []).length || 0) },
+            { label: '成长', value: String((config.bloodPermanentBonuses || []).length || 0) },
+          ],
+          rows: [
+            { label: '状态', value: config.lifeFire ? '已点燃' : '等待命火' },
+            { label: '概览', value: shortenText(toText(config.desc, '打开详情查看血脉'), 16) },
+          ],
+          tone: 'gold',
+        });
+      }
+
+      const primarySoul = Array.isArray(config.souls) && config.souls.length ? config.souls[0] : null;
+      const unlockedAttrs = Array.isArray(config.spiritUnlockedAttrs) ? config.spiritUnlockedAttrs : [];
+      return buildShellSummaryCard({
+        kicker: primary ? '主武魂' : toText(config.badge, '副轨'),
+        title: shortenText(toText(config.spiritName || config.name, primary ? '主武魂' : '副轨'), 14),
+        value: `${toText(config.soulCount, '0')} 枚魂灵`,
+        meta: `${shortenText(toText(config.spiritType, '未定'), 8)} · ${shortenText(toText(config.spiritElement, '未定'), 8)}`,
+        badges: [
+          primarySoul ? shortenText(toText(primarySoul.spiritName || primarySoul.desc, ''), 10) : '',
+          ...((config.rings || []).slice(0, 2).map(item => shortenText(toText(item && item.title, ''), 10))),
+          ...unlockedAttrs.slice(0, 1).map(item => shortenText(toText(item, ''), 8)),
+        ],
+        metrics: [
+          { label: '契合', value: primarySoul ? toText(primarySoul.comp, '--') : '--', tone: 'live' },
+          { label: '年限', value: primarySoul ? shortenText(toText(primarySoul.age, '--'), 8) : '--' },
+          { label: '魂环', value: String((config.rings || []).length || 0) },
+          { label: '上限', value: String((Array.isArray(config.spiritCapacityAttrs) ? config.spiritCapacityAttrs.length : 0) || 0) },
+        ],
+        rows: [
+          { label: '主魂灵', value: primarySoul ? shortenText(toText(primarySoul.spiritName || primarySoul.desc, '未接入'), 14) : '未接入' },
+          { label: '状态', value: primarySoul ? toText(primarySoul.state, '未知') : '等待唤醒' },
+        ],
+        tone: primary ? 'live' : 'cyan',
+      });
+    }
+
+    function buildShellHomeArchiveCard(snapshot) {
+      const stat = deepGet(snapshot, 'activeChar.stat', {});
+      const status = deepGet(snapshot, 'activeChar.status', {});
+      const placeText = snapshot.normalizedLoc && snapshot.normalizedLoc !== snapshot.currentLoc
+        ? `${shortenText(snapshot.normalizedLoc, 8)} · ${shortenText(snapshot.currentLoc, 8)}`
+        : shortenText(toText(snapshot.currentLoc, '未知地点'), 18);
+      return buildShellAppPeek({
+        value: toText(snapshot.activeName, '当前角色'),
+        meta: `${formatCultivationLevelBadge(stat.lv, '0')} · ${placeText}`,
+        note: toText(status.action, '日常'),
+        tone: 'live',
+      });
+    }
+
+    function buildShellHomeMapCard(snapshot) {
+      const routeCount = snapshot.mapTravelCandidates.length || snapshot.mapNodeLabels.length || 0;
+      return buildShellAppPeek({
+        value: shortenText(toText(snapshot.normalizedLoc || snapshot.currentLoc, '未命名节点'), 14),
+        meta: `${routeCount} 个入口 · ${snapshot.mapVisibleDynamicEntries.length || 0} 处动态`,
+        note: shortenText(getMapDisplayName(snapshot), 18),
+        tone: 'live',
+      });
+    }
+
+    function buildShellHomeWorldCard(snapshot) {
+      const worldTime = toText(deepGet(snapshot, 'rootData.world.time._calendar', deepGet(snapshot, 'rootData.world.time.calendar', '时间未同步')), '时间未同步');
+      const deviation = toNumber(deepGet(snapshot, 'rootData.world.deviation', 0), 0);
+      const deviationState = deviation >= 40 ? '高危' : (deviation >= 10 ? '波动' : '平稳');
+      return buildShellAppPeek({
+        value: shortenText(toText(snapshot.worldAlert || (snapshot.latestTimeline ? snapshot.latestTimeline[0] : '世界平稳'), '世界平稳'), 14),
+        meta: shortenText(worldTime, 18),
+        note: `偏差 ${deviationState}`,
+        tone: deviation >= 40 ? 'warn' : (deviation >= 10 ? 'gold' : 'live'),
+      });
+    }
+
+    function buildShellHomeOrgCard(snapshot) {
+      const primaryFactionEntry = getPrimaryFactionEntry(snapshot);
+      const primaryFaction = snapshot.factions[0] || null;
+      const factionName = primaryFaction ? primaryFaction[0] : primaryFactionEntry.name || toText(deepGet(snapshot, 'locationData.掌控势力', '未加入'), '未加入');
+      const roleText = primaryFaction
+        ? toText(deepGet(primaryFaction[1], '身份', '未加入'), '未加入')
+        : toText(deepGet(primaryFactionEntry.data, '身份', '未加入'), '未加入');
+      return buildShellAppPeek({
+        value: shortenText(toText(factionName, '未加入'), 14),
+        meta: `身份 ${shortenText(roleText, 10)}`,
+        note: `${(snapshot.orgEntries || []).length || 0} 个势力焦点`,
+        tone: 'gold',
+      });
+    }
+
+    function buildShellHomeTerminalCard(snapshot) {
+      const latestRequest = shortenText((snapshot.pendingRequests || [])[0] || toText(deepGet(snapshot, 'rootData.sys.rsn', '暂无待办'), '暂无待办'), 18);
+      return buildShellAppPeek({
+        value: snapshot.pendingIntelCount ? `${snapshot.pendingIntelCount} 条新情报` : '系统在线',
+        meta: `${snapshot.questRecordCount || 0} 项任务 · ${(snapshot.bestiaryEntries || []).length || 0} 条图鉴`,
+        note: latestRequest,
+        tone: snapshot.pendingIntelCount ? 'warn' : 'live',
+      });
+    }
+
+    function buildShellArchiveCoreCard(snapshot) {
+      const stat = deepGet(snapshot, 'activeChar.stat', {});
+      const social = deepGet(snapshot, 'activeChar.social', {});
+      const status = deepGet(snapshot, 'activeChar.status', {});
+      const primaryFactionName = snapshot.primaryFaction ? snapshot.primaryFaction[0] : '未加入';
+      const primaryFactionRole = snapshot.primaryFaction ? toText(deepGet(snapshot.primaryFaction[1], '身份', '未加入'), '未加入') : '未加入';
+      const titleText = Array.isArray(snapshot.recentTitles) && snapshot.recentTitles.length ? snapshot.recentTitles[0] : '';
+      const nextLevelSoul = getNextLevelSoulRequirement(stat);
+      const placeText = snapshot.normalizedLoc && snapshot.normalizedLoc !== snapshot.currentLoc
+        ? `${shortenText(snapshot.normalizedLoc, 8)} · ${shortenText(snapshot.currentLoc, 8)}`
+        : shortenText(snapshot.currentLoc, 18);
+      return buildShellSummaryCard({
+        kicker: '角色首页',
+        title: toText(snapshot.activeName, '当前角色'),
+        value: formatCultivationLevelBadge(stat.lv, '0'),
+        meta: `${placeText} · ${toText(status.action, '日常')}`,
+        badges: [
+          titleText ? { text: shortenText(titleText, 10), tone: 'gold' } : '',
+          { text: shortenText(primaryFactionName, 10), tone: 'live' },
+          snapshot.bloodline && snapshot.bloodline.valid ? { text: shortenText(snapshot.bloodline.bloodline, 10), tone: 'gold' } : '',
+          nextLevelSoul.isMax ? '已满级' : `下级 ${formatNumber(nextLevelSoul.needed)}`,
+        ],
+        metrics: [
+          { label: '魂力', value: `${ratioPercent(stat.sp, stat.sp_max)}%`, tone: 'live' },
+          { label: '体力', value: `${ratioPercent(stat.vit, stat.vit_max)}%`, tone: 'warn' },
+          { label: '精神', value: `${ratioPercent(stat.men, stat.men_max)}%` },
+          { label: '关系', value: String((snapshot.relations || []).length || 0) },
+        ],
+        rows: [
+          { label: '状态', value: `${toText(status.action, '日常')} / ${toText(status.wound, '无伤')}` },
+          { label: '阵营', value: `${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}` },
+          { label: '名望', value: `${shortenText(toText(social._fame_level, toText(social.fame_level, '籍籍无名')), 8)} / ${formatNumber(social.reputation)}` },
+        ],
+        tone: 'hero',
+        size: 'hero',
+      });
+    }
+
+    function buildShellArmoryCard(snapshot) {
+      const armor = deepGet(snapshot, 'activeChar.equip.armor', {});
+      const mech = deepGet(snapshot, 'activeChar.equip.mech', {});
+      const weapon = deepGet(snapshot, 'activeChar.equip.wpn', {});
+      const accessoryEntries = listAccessoryEntries(deepGet(snapshot, 'activeChar.equip.accessories', {}));
+      const jobs = safeEntries(deepGet(snapshot, 'activeChar.job', {}));
+      const jobSummary = jobs.length ? `${jobs[0][0]} Lv.${toText(deepGet(jobs[0][1], 'lv', 0), '0')}` : '未开启';
+      const armorSummary = toNumber(armor.lv, 0) > 0
+        ? `${toText(armor.name, `${armor.lv}字斗铠`)} / ${toText(armor.equip_status, '已装配')}`
+        : '未装配';
+      const mechSummary = toText(mech.lv, '') ? `${toText(mech.lv, '')} · ${toText(mech.type, '未定型')}` : '未挂载';
+      return buildShellSummaryCard({
+        kicker: '武装',
+        title: '装配摘要',
+        value: toNumber(armor.lv, 0) > 0 ? shortenText(toText(armor.name, `${armor.lv}字斗铠`), 12) : '未装配',
+        meta: shortenText(armorSummary, 24),
+        metrics: [
+          { label: '机甲', value: toText(mech.lv, '--') || '--' },
+          { label: '魂骨', value: String((snapshot.soulBoneEntries || []).length || 0), tone: 'gold' },
+          { label: '挂载', value: String(accessoryEntries.length || 0) },
+          { label: '职业', value: jobs.length ? `Lv.${toText(deepGet(jobs[0][1], 'lv', 0), '0')}` : '--' },
+        ],
+        rows: [
+          { label: '主武器', value: shortenText(toText(weapon.name, '未记录'), 14) },
+          { label: '工坊', value: shortenText(jobSummary, 14) },
+          { label: '机甲', value: shortenText(mechSummary, 14) },
+        ],
+      });
+    }
+
+    function buildShellVaultCard(snapshot) {
+      const wealth = deepGet(snapshot, 'activeChar.wealth', {});
+      return buildShellSummaryCard({
+        kicker: '仓库',
+        title: '资源概览',
+        value: `${formatNumber((snapshot.inventoryEntries || []).length || 0)} 项物资`,
+        meta: `流动资金 ${formatNumber(wealth.fed_coin)} / 星罗 ${formatNumber(wealth.star_coin)}`,
+        metrics: [
+          { label: '联邦', value: formatNumber(wealth.fed_coin), tone: 'live' },
+          { label: '星罗', value: formatNumber(wealth.star_coin) },
+          { label: '积分', value: formatNumber(wealth.tang_pt), tone: 'gold' },
+          { label: '战功', value: formatNumber(wealth.shrek_pt) },
+        ],
+        rows: [
+          { label: '血神', value: formatNumber(wealth.blood_pt) },
+          { label: '物资', value: `${formatNumber((snapshot.inventoryEntries || []).length || 0)} 种` },
+        ],
+      });
+    }
+
+    function buildShellSocialCard(snapshot) {
+      const social = deepGet(snapshot, 'activeChar.social', {});
+      const primaryFactionName = snapshot.primaryFaction ? snapshot.primaryFaction[0] : '未加入';
+      const primaryFactionRole = snapshot.primaryFaction ? toText(deepGet(snapshot.primaryFaction[1], '身份', '未加入'), '未加入') : '未加入';
+      const topRelationText = snapshot.topRelation
+        ? `${shortenText(snapshot.topRelation[0], 8)} / ${toText(deepGet(snapshot.topRelation[1], '关系', '陌生'), '陌生')}`
+        : '暂无高亮关系';
+      const latestIntelText = snapshot.pendingIntelCount
+        ? `${shortenText(snapshot.pendingIntelContent, 10)} / +${snapshot.pendingIntelImpact}`
+        : ((snapshot.unlockedKnowledges || []).length ? shortenText(snapshot.unlockedKnowledges[(snapshot.unlockedKnowledges || []).length - 1], 12) : '暂无');
+      const currentTitle = Array.isArray(snapshot.recentTitles) && snapshot.recentTitles.length ? snapshot.recentTitles[0] : '';
+      return buildShellSummaryCard({
+        kicker: '社交',
+        title: shortenText(toText(social._fame_level, toText(social.fame_level, '籍籍无名')), 12),
+        value: formatNumber(social.reputation),
+        meta: '名望 / 势力 / 情报',
+        badges: [
+          currentTitle ? { text: shortenText(currentTitle, 10), tone: 'gold' } : '',
+          snapshot.publicIntel ? { text: '公开情报', tone: 'live' } : '隐私情报',
+          snapshot.pendingIntelCount ? `新线索 ${snapshot.pendingIntelCount}` : '',
+        ],
+        metrics: [
+          { label: '势力', value: String((snapshot.factions || []).length || 0) },
+          { label: '关系', value: String((snapshot.relations || []).length || 0), tone: 'live' },
+          { label: '情报', value: String((snapshot.unlockedKnowledges || []).length || 0) },
+          { label: '头衔', value: String((snapshot.recentTitles || []).length || 0), tone: 'gold' },
+        ],
+        rows: [
+          { label: '所属', value: `${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}` },
+          { label: '焦点', value: topRelationText },
+          { label: '最新', value: latestIntelText },
+        ],
+      });
+    }
+
+    function buildShellMapHeroCard(snapshot) {
+      const childMapCount = safeEntries(snapshot.mapAvailableChildMaps).length;
+      const currentMapDisplayName = getMapDisplayName(snapshot);
+      const focusText = toText(deepGet(snapshot, 'mapCurrentFocus.loc', snapshot.currentLoc), snapshot.currentLoc);
+      return buildShellSummaryCard({
+        kicker: '星图',
+        title: shortenText(toText(snapshot.currentLoc, '未命名节点'), 14),
+        value: shortenText(currentMapDisplayName, 12),
+        meta: `焦点 ${shortenText(focusText, 12)}`,
+        badges: [
+          `${snapshot.mapTravelCandidates.length || snapshot.mapNodeLabels.length || 0} 个入口`,
+          childMapCount ? { text: `${childMapCount} 个子图`, tone: 'gold' } : '',
+          snapshot.mapVisibleDynamicEntries.length ? { text: `${snapshot.mapVisibleDynamicEntries.length} 处动态`, tone: 'live' } : '',
+        ],
+        metrics: [
+          { label: '可见', value: String(snapshot.mapVisibleNodeEntries.length || snapshot.mapNodeLabels.length || 0), tone: 'live' },
+          { label: '动态', value: String(snapshot.mapVisibleDynamicEntries.length || 0) },
+          { label: '补丁', value: String(snapshot.mapActivePatchEntries.length || 0) },
+          { label: '子图', value: String(childMapCount || 0), tone: 'gold' },
+        ],
+        note: snapshot.latestTimeline
+          ? shortenText(toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]), 32)
+          : '打开星图查看节点',
+        tone: 'hero',
+        size: 'hero',
+      });
+    }
+
+    function buildShellMapCurrentCard(snapshot) {
+      const currentMapDisplayName = getMapDisplayName(snapshot);
+      const localFaction = toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知');
+      return buildShellSummaryCard({
+        kicker: '当前节点',
+        title: shortenText(toText(snapshot.normalizedLoc, snapshot.currentLoc), 14),
+        value: shortenText(currentMapDisplayName, 12),
+        meta: snapshot.normalizedLoc !== snapshot.currentLoc ? shortenText(snapshot.currentLoc, 12) : '当前锚点',
+        rows: [
+          { label: '掌控', value: shortenText(localFaction, 14) },
+          { label: '入口', value: safeEntries(snapshot.mapAvailableChildMaps).length ? `${safeEntries(snapshot.mapAvailableChildMaps).length} 个可进` : '暂无子图' },
+          { label: '焦点', value: shortenText(toText(deepGet(snapshot, 'mapCurrentFocus.loc', snapshot.currentLoc), snapshot.currentLoc), 14) },
+        ],
+      });
+    }
+
+    function buildShellMapRouteCard(snapshot) {
+      const routeCount = snapshot.mapTravelCandidates.length || snapshot.mapNodeLabels.length || 0;
+      return buildShellSummaryCard({
+        kicker: '跑图',
+        title: '图层与路线',
+        value: `${routeCount} 条`,
+        meta: `${shortenText(getMapDisplayName(snapshot), 12)} · ${safeEntries(snapshot.mapAvailableChildMaps).length} 个子图`,
+        rows: [
+          { label: '当前地图', value: shortenText(getMapDisplayName(snapshot), 14) },
+          { label: '子图', value: safeEntries(snapshot.mapAvailableChildMaps).length ? `${safeEntries(snapshot.mapAvailableChildMaps).length} 个入口` : '暂无子图' },
+          { label: '操作', value: '打开跑图面板' },
+        ],
+      });
+    }
+
+    function buildShellMapDynamicCard(snapshot) {
+      const latestPatch = snapshot.mapActivePatchEntries[0] ? snapshot.mapActivePatchEntries[0][0].replace(/^patch_/, '') : '暂无';
+      return buildShellSummaryCard({
+        kicker: '动态',
+        title: '动态节点',
+        value: `${snapshot.mapVisibleDynamicEntries.length || 0} 处`,
+        meta: snapshot.latestTimeline ? shortenText(snapshot.latestTimeline[0], 14) : '等待新变化',
+        rows: [
+          { label: '激活补丁', value: String(snapshot.mapActivePatchEntries.length || 0) },
+          { label: '最新补丁', value: shortenText(latestPatch, 12) },
+          { label: '地图信息', value: snapshot.latestTimeline ? shortenText(toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]), 16) : '暂无新变化' },
+        ],
+      });
+    }
+
+    function buildShellWorldHeroCard(snapshot) {
+      const worldTime = toText(deepGet(snapshot, 'rootData.world.time._calendar', deepGet(snapshot, 'rootData.world.time.calendar', '时间未同步')), '时间未同步');
+      const deviation = toNumber(deepGet(snapshot, 'rootData.world.deviation', 0), 0);
+      const deviationState = deviation >= 40 ? '高危' : (deviation >= 10 ? '波动' : '平稳');
+      const forestRatio = Math.max(0, Math.min(100, Number(((toNumber(snapshot.forestKilledAge, 0) / 1000000) * 100).toFixed(1))));
+      const recentPlans = buildRecentPlanSummary(snapshot, { worldLimit: 2, recordLimit: 2 });
+      const recentNews = buildRecentNewsSummary(snapshot, { seqLimit: 2, intelLimit: 2 });
+      return buildShellSummaryCard({
+        kicker: '世界',
+        title: '时空中枢',
+        value: deviationState,
+        meta: shortenText(worldTime, 24),
+        badges: [
+          snapshot.latestTimeline ? shortenText(snapshot.latestTimeline[0], 10) : '',
+          snapshot.worldAlert ? { text: shortenText(snapshot.worldAlert, 10), tone: deviation >= 40 ? 'warn' : 'live' } : '',
+        ],
+        metrics: [
+          { label: '偏差', value: String(deviation), tone: deviation >= 40 ? 'warn' : (deviation >= 10 ? 'gold' : 'live') },
+          { label: '安排', value: String((recentPlans.cards || []).length || 0) },
+          { label: '见闻', value: String((recentNews.cards || []).length || 0) },
+          { label: '森怨', value: `${forestRatio}%`, tone: forestRatio >= 70 ? 'warn' : (forestRatio >= 30 ? 'gold' : 'live') },
+        ],
+        note: snapshot.latestTimeline
+          ? shortenText(toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]), 34)
+          : '暂无世界变化',
+        tone: 'hero',
+        size: 'hero',
+      });
+    }
+
+    function buildShellWorldTimelineCard(snapshot) {
+      const latestTimeline = snapshot.latestTimeline;
+      const timelineStatus = latestTimeline
+        ? `${toText(deepGet(latestTimeline[1], 'status', 'pending'), 'pending')} / Tick ${toText(deepGet(latestTimeline[1], 'trigger_tick', 0), '0')}`
+        : '暂无时间线';
+      return buildShellSummaryCard({
+        kicker: '编年',
+        title: latestTimeline ? shortenText(latestTimeline[0], 14) : '暂无事件',
+        value: latestTimeline ? `Tick ${toText(deepGet(latestTimeline[1], 'trigger_tick', 0), '0')}` : '--',
+        meta: timelineStatus,
+        note: latestTimeline
+          ? shortenText(toText(deepGet(latestTimeline[1], 'event', latestTimeline[0]), latestTimeline[0]), 34)
+          : '新事件会在这里更新',
+      });
+    }
+
+    function buildShellWorldRankCard(snapshot) {
+      return buildShellSummaryCard({
+        kicker: '榜单',
+        title: '大陆排名',
+        value: `${(snapshot.youthRankingEntries || []).length + (snapshot.continentRankingEntries || []).length}`,
+        meta: '少年天才 / 大陆风云',
+        metrics: [
+          { label: '天才', value: String((snapshot.youthRankingEntries || []).length || 0), tone: 'live' },
+          { label: '风云', value: String((snapshot.continentRankingEntries || []).length || 0), tone: 'gold' },
+        ],
+        note: '详情暂未接入快捷入口',
+      });
+    }
+
+    function buildShellWorldAlertCard(snapshot) {
+      return buildShellSummaryCard({
+        kicker: '警报',
+        title: shortenText(toText(snapshot.auctionStatus, '拍卖行休市'), 14),
+        value: shortenText(toText(snapshot.auctionLocation, '无'), 12),
+        meta: '拍卖 / 生态警报',
+        rows: [
+          { label: '拍卖', value: `${toText(snapshot.auctionStatus, '休市')} / ${shortenText(toText(snapshot.auctionLocation, '无'), 10)}` },
+          { label: '生态', value: shortenText(toText(snapshot.worldAlert, '暂无警报'), 16) },
+        ],
+        tone: snapshot.worldAlert && /高危|警报/i.test(snapshot.worldAlert) ? 'warn' : '',
+      });
+    }
+
+    function buildShellOrgHeroCard(snapshot) {
+      const primaryFactionEntry = getPrimaryFactionEntry(snapshot);
+      const factionStats = getPrimaryFactionPowerStats(snapshot);
+      const localFaction = toText(deepGet(snapshot, 'locationData.掌控势力', primaryFactionEntry.name || '未知'), primaryFactionEntry.name || '未知');
+      return buildShellSummaryCard({
+        kicker: '势力',
+        title: shortenText(primaryFactionEntry.name || '势力矩阵', 14),
+        value: `${(snapshot.orgEntries || []).length || 0} 个焦点`,
+        meta: `本地 ${shortenText(localFaction, 12)}`,
+        badges: [
+          snapshot.factions[0] ? { text: shortenText(snapshot.factions[0][0], 10), tone: 'gold' } : '',
+          buildFactionRelationSummary(primaryFactionEntry.data || {}, 2),
+        ],
+        metrics: [
+          { label: '极限', value: String(factionStats.limit || 0), tone: 'gold' },
+          { label: '超级', value: String(factionStats.super || 0) },
+          { label: '封号', value: String(factionStats.title || 0), tone: 'live' },
+          { label: '焦点', value: String((snapshot.orgEntries || []).length || 0) },
+        ],
+        note: shortenText(buildFactionRelationSummary(primaryFactionEntry.data || {}, 3) || '暂无势力关系', 34),
+        tone: 'hero',
+        size: 'hero',
+      });
+    }
+
+    function buildShellOrgFactionCard(snapshot) {
+      const primaryFaction = snapshot.factions[0] || null;
+      const primaryFactionEntry = getPrimaryFactionEntry(snapshot);
+      const factionName = primaryFaction ? primaryFaction[0] : primaryFactionEntry.name;
+      const factionData = primaryFaction ? primaryFaction[1] : primaryFactionEntry.data;
+      return buildShellSummaryCard({
+        kicker: '我的阵营',
+        title: shortenText(toText(factionName, '未加入'), 14),
+        value: shortenText(toText(deepGet(factionData, '身份', '未加入'), '未加入'), 10),
+        meta: shortenText(toText(deepGet(factionData, 'status', '正常'), '正常'), 18),
+        rows: [
+          { label: '影响力', value: formatNumber(deepGet(factionData, 'inf', 0)) },
+          { label: '关系', value: shortenText(buildFactionRelationSummary(primaryFactionEntry.data || {}, 2) || '暂无', 16) },
+        ],
+      });
+    }
+
+    function buildShellOrgNodeCard(snapshot) {
+      return buildShellSummaryCard({
+        kicker: '本地据点',
+        title: shortenText(toText(snapshot.normalizedLoc || snapshot.currentLoc, '当前地图'), 14),
+        value: shortenText(toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知'), 12),
+        meta: `${shortenText(toText(deepGet(snapshot, 'locationData.经济状况', '未知'), '未知'), 8)} · ${shortenText(toText(deepGet(snapshot, 'locationData.守护军团', '未知'), '未知'), 8)}`,
+        rows: [
+          { label: '店铺', value: String((snapshot.storeNames || []).length || 0) },
+          { label: '动态点', value: String((snapshot.dynamicLocationNames || []).length || 0) },
+        ],
+      });
+    }
+
+    function buildShellTerminalHeroCard(snapshot) {
+      const sys = deepGet(snapshot, 'rootData.sys', {});
+      const recentNews = buildRecentNewsSummary(snapshot, { seqLimit: 2, intelLimit: 2 });
+      const pendingRequestText = (snapshot.pendingRequests || [])[0] || '暂无待办';
+      return buildShellSummaryCard({
+        kicker: '终端',
+        title: '系统播报',
+        value: snapshot.pendingIntelCount ? `${snapshot.pendingIntelCount} 条新情报` : '系统在线',
+        meta: shortenText(toText(sys.rsn, '暂无播报'), 26),
+        badges: [
+          snapshot.worldAlert ? { text: shortenText(snapshot.worldAlert, 10), tone: 'warn' } : '',
+          snapshot.pendingIntelCount ? { text: `新线索 ${snapshot.pendingIntelCount}`, tone: 'gold' } : '暂无新线索',
+        ],
+        metrics: [
+          { label: '情报', value: String(snapshot.pendingIntelCount || 0), tone: 'gold' },
+          { label: '见闻', value: String((recentNews.cards || []).length || 0) },
+          { label: '任务', value: String(snapshot.questRecordCount || 0), tone: 'live' },
+          { label: '图鉴', value: String((snapshot.bestiaryEntries || []).length || 0) },
+        ],
+        note: shortenText(pendingRequestText, 34),
+        tone: 'hero',
+        size: 'hero',
+      });
+    }
+
+    function buildShellTerminalIntelCard(snapshot) {
+      const latestIntelText = snapshot.pendingIntelCount
+        ? `${shortenText(snapshot.pendingIntelContent, 12)} / +${snapshot.pendingIntelImpact}`
+        : '暂无新线索';
+      return buildShellSummaryCard({
+        kicker: '情报',
+        title: '试炼与情报',
+        value: snapshot.pendingIntelCount ? `${snapshot.pendingIntelCount} 条待读` : '暂无待读',
+        meta: latestIntelText,
+        rows: [
+          { label: '已掌握', value: String((snapshot.unlockedKnowledges || []).length || 0) },
+          { label: '待办', value: shortenText((snapshot.pendingRequests || [])[0] || '暂无', 16) },
+        ],
+      });
+    }
+
+    function buildShellTerminalNewsCard(snapshot) {
+      const newsSummary = buildRecentNewsSummary(snapshot, { seqLimit: 1, intelLimit: 1 });
+      return buildShellSummaryCard({
+        kicker: '见闻',
+        title: '近期见闻',
+        value: `${(newsSummary.cards || []).length || 0} 条更新`,
+        meta: '全局 / 个人',
+        rows: [
+          { label: '全局', value: shortenText((newsSummary.globalNews[0] || {}).desc || '暂无', 16) },
+          { label: '个人', value: shortenText((newsSummary.personalNews[0] || {}).desc || '暂无', 16) },
+        ],
+      });
+    }
+
+    function buildShellTerminalBestiaryCard(snapshot) {
+      return buildShellSummaryCard({
+        kicker: '图鉴',
+        title: '怪物图鉴',
+        value: `${(snapshot.bestiaryEntries || []).length || 0} 种`,
+        meta: shortenText((snapshot.bestiaryEntries || []).slice(0, 2).map(([name]) => name).join(' / ') || '暂无收录', 20),
+        rows: [
+          { label: '近期收录', value: shortenText((snapshot.bestiaryEntries || []).slice(0, 1).map(([name]) => name).join('') || '暂无', 16) },
+        ],
+      });
+    }
+
+    function buildShellTerminalQuestCard(snapshot) {
+      const questBoardEntries = safeEntries(deepGet(snapshot, 'rootData.world.quest_board', {})).filter(([, item]) => item && typeof item === 'object');
+      return buildShellSummaryCard({
+        kicker: '任务',
+        title: '任务界面',
+        value: `${snapshot.questRecordCount || 0} 项待处理`,
+        meta: `${questBoardEntries.length || 0} 条委托 · ${(snapshot.pendingRequests || []).length || 0} 项待办`,
+        rows: [
+          { label: '当前待办', value: shortenText((snapshot.pendingRequests || [])[0] || '暂无', 16) },
+          { label: '委托板', value: questBoardEntries.length ? `${questBoardEntries.length} 条可查看` : '暂无委托' },
+        ],
+      });
+    }
+
+    function renderUnifiedSpiritCardsBySurface(snapshot, surface) {
+      const normalizedSurface = normalizeUnifiedSurfaceKey(surface) || 'panel';
+      const primary = snapshot.primarySpirit || null;
+      const secondary = snapshot.secondaryTrack || null;
+      const spiritBuilder = normalizedSurface === 'shell' ? buildShellSpiritSummaryCard : buildUnifiedSpiritCard;
+      setUnifiedCardMarkup('primary-spirit', spiritBuilder(primary, { primary: true }), {
+        preview: primary ? toText(primary.preview, '') : '',
+        enabled: !!primary,
+        surface: normalizedSurface,
+      });
+      setUnifiedCardMarkup('secondary-spirit', spiritBuilder(secondary, { primary: false }), {
+        preview: secondary ? toText(secondary.preview, '') : '',
+        enabled: !!secondary,
+        surface: normalizedSurface,
+      });
+    }
+
+    function renderUnifiedCardsBySurface(snapshot, sectionSignatures, previousSectionSignatures, surface) {
+      const normalizedSurface = normalizeUnifiedSurfaceKey(surface) || 'panel';
+      const isShellSurface = normalizedSurface === 'shell';
+
+      if (sectionSignatures.archive !== previousSectionSignatures.archive) {
+        setUnifiedCardMarkup('archive-core', isShellSurface ? buildShellArchiveCoreCard(snapshot) : buildArchiveCoreCard(snapshot), {
+          preview: '生命图谱详细页',
+          surface: normalizedSurface,
+        });
+        setUnifiedCardMarkup('armory', isShellSurface ? buildShellArmoryCard(snapshot) : buildArmoryCard(snapshot), {
+          preview: '武装工坊详细页',
+          surface: normalizedSurface,
+        });
+        setUnifiedCardMarkup('vault', isShellSurface ? buildShellVaultCard(snapshot) : buildVaultCard(snapshot), {
+          preview: '储物仓库详细页',
+          surface: normalizedSurface,
+        });
+        setUnifiedCardMarkup('social', isShellSurface ? buildShellSocialCard(snapshot) : buildUnifiedSocialCard(snapshot), {
+          preview: '社会档案详细页',
+          surface: normalizedSurface,
+        });
+        if (isShellSurface) {
+          setUnifiedCardMarkup('home-archive', buildShellHomeArchiveCard(snapshot), { surface: normalizedSurface });
+        }
+        renderUnifiedSpiritCardsBySurface(snapshot, normalizedSurface);
+      }
+
+      if (sectionSignatures.map !== previousSectionSignatures.map) {
+        if (isShellSurface) {
+          setUnifiedCardMarkup('home-map', buildShellHomeMapCard(snapshot), { surface: normalizedSurface });
+          setUnifiedCardMarkup('map-hero', buildShellMapHeroCard(snapshot), { preview: '全息星图主画布', surface: normalizedSurface });
+          setUnifiedCardMarkup('map-current', buildShellMapCurrentCard(snapshot), { preview: '当前节点详情', surface: normalizedSurface });
+          setUnifiedCardMarkup('map-route', buildShellMapRouteCard(snapshot), { preview: '图层控制与跑图', surface: normalizedSurface });
+          setUnifiedCardMarkup('map-dynamic', buildShellMapDynamicCard(snapshot), { preview: '动态地点与扩展节点', surface: normalizedSurface });
+        } else {
+          setUnifiedCardMarkup('map-hero', buildMapHeroCard(snapshot), { preview: '全息星图主画布', surface: normalizedSurface });
+          setUnifiedCardMarkup('map-current', buildSimpleCard('当前位置', { text: '当前' }, [
+            { label: '地点', value: snapshot.normalizedLoc !== snapshot.currentLoc ? `${snapshot.normalizedLoc} / ${snapshot.currentLoc}` : snapshot.currentLoc },
+            { label: '地图', value: getMapDisplayName(snapshot) },
+            { label: '入口', value: '展开节点详情' },
+          ]), { preview: '当前节点详情', surface: normalizedSurface });
+          setUnifiedCardMarkup('map-route', `
+            <div class="simple-head"><div class="simple-title">移动与导航</div></div>
+            <div class="simple-list">
+              <div class="simple-row"><b>当前地图</b><span>${htmlEscape(getMapDisplayName(snapshot))}</span></div>
+              <div class="simple-row"><b>子图入口</b><span>${htmlEscape(`${safeEntries(snapshot.mapAvailableChildMaps).length} 个`)}</span></div>
+              <div class="simple-row"><b>移动方式</b><span>打开跑图面板</span></div>
+            </div>
+          `, { preview: '图层控制与跑图', surface: normalizedSurface });
+          setUnifiedCardMarkup('map-dynamic', `
+            <div class="simple-head"><div class="simple-title">动态节点</div></div>
+            <div class="simple-list">
+              <div class="simple-row"><b>可见动态点</b><span>${htmlEscape(String(snapshot.mapVisibleDynamicEntries.length || 0))}</span></div>
+              <div class="simple-row"><b>活跃补丁</b><span>${htmlEscape(String(snapshot.mapActivePatchEntries.length || 0))}</span></div>
+              <div class="simple-row"><b>最近变化</b><span>${htmlEscape(snapshot.latestTimeline ? snapshot.latestTimeline[0] : '暂无')}</span></div>
+            </div>
+          `, { preview: '动态地点与扩展节点', surface: normalizedSurface });
+        }
+      }
+
+      if (sectionSignatures.world !== previousSectionSignatures.world) {
+        if (isShellSurface) {
+          setUnifiedCardMarkup('home-world', buildShellHomeWorldCard(snapshot), { surface: normalizedSurface });
+          setUnifiedCardMarkup('home-org', buildShellHomeOrgCard(snapshot), { surface: normalizedSurface });
+          setUnifiedCardMarkup('world-hero', buildShellWorldHeroCard(snapshot), { preview: '世界状态总览', surface: normalizedSurface });
+          setUnifiedCardMarkup('world-timeline', buildShellWorldTimelineCard(snapshot), { preview: '编年史档案', surface: normalizedSurface });
+          setUnifiedCardMarkup('world-ranks', buildShellWorldRankCard(snapshot), { enabled: false, surface: normalizedSurface });
+          setUnifiedCardMarkup('world-alerts', buildShellWorldAlertCard(snapshot), { preview: '拍卖与警报', surface: normalizedSurface });
+          setUnifiedCardMarkup('org-hero', buildShellOrgHeroCard(snapshot), { preview: '势力矩阵总览', surface: normalizedSurface });
+          setUnifiedCardMarkup('org-faction', buildShellOrgFactionCard(snapshot), { preview: '我的阵营详情', surface: normalizedSurface });
+          setUnifiedCardMarkup('org-node', buildShellOrgNodeCard(snapshot), { preview: '本地据点详情', surface: normalizedSurface });
+        } else {
+          setUnifiedCardMarkup('world-hero', buildWorldHeroCard(snapshot), { preview: '世界状态总览', surface: normalizedSurface });
+          setUnifiedCardMarkup('world-timeline', buildSimpleCard('编年史档案', null, [
+            { label: '最近事件', value: snapshot.latestTimeline ? toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]) : '暂无' },
+            { label: '状态', value: snapshot.latestTimeline ? `${toText(deepGet(snapshot.latestTimeline[1], 'status', 'pending'), 'pending')} / Tick ${toText(deepGet(snapshot.latestTimeline[1], 'trigger_tick', 0), '0')}` : '暂无时间线' },
+          ]), { preview: '编年史档案', surface: normalizedSurface });
+          setUnifiedCardMarkup('world-ranks', buildUnifiedRankCard(snapshot), { enabled: false, surface: normalizedSurface });
+          setUnifiedCardMarkup('world-alerts', buildSimpleCard('拍卖与警报', null, [
+            { label: '拍卖行', value: `${toText(deepGet(snapshot, 'rootData.world.auction.status', '休市'), '休市')} / ${toText(deepGet(snapshot, 'rootData.world.auction.location', '无'), '无')}` },
+            { label: '生态警报', value: snapshot.worldAlert },
+          ]), { preview: '拍卖与警报', surface: normalizedSurface });
+          setUnifiedCardMarkup('org-hero', buildOrgHeroCard(snapshot), { preview: '势力矩阵总览', surface: normalizedSurface });
+          setUnifiedCardMarkup('org-faction', buildSimpleCard('我的阵营', null, [
+            { label: '当前所属', value: snapshot.factions[0] ? snapshot.factions[0][0] : '无' },
+            { label: '身份', value: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '未加入' },
+          ]), { preview: '我的阵营详情', surface: normalizedSurface });
+          setUnifiedCardMarkup('org-node', buildSimpleCard('本地据点', null, [
+            { label: '掌控势力', value: toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知') },
+            { label: '据点状态', value: `${toText(deepGet(snapshot, 'locationData.经济状况', '未知'), '未知')} / ${toText(deepGet(snapshot, 'locationData.守护军团', '未知'), '未知')}` },
+          ]), { preview: '本地据点详情', surface: normalizedSurface });
+        }
+      }
+
+      if (sectionSignatures.terminal !== previousSectionSignatures.terminal) {
+        if (isShellSurface) {
+          setUnifiedCardMarkup('home-terminal', buildShellHomeTerminalCard(snapshot), { surface: normalizedSurface });
+          setUnifiedCardMarkup('terminal-hero', buildShellTerminalHeroCard(snapshot), { preview: '系统播报与日志', surface: normalizedSurface });
+          setUnifiedCardMarkup('terminal-intel', buildShellTerminalIntelCard(snapshot), { preview: '试炼与情报', surface: normalizedSurface });
+          setUnifiedCardMarkup('terminal-news', buildShellTerminalNewsCard(snapshot), { preview: '近期见闻', surface: normalizedSurface });
+          setUnifiedCardMarkup('terminal-bestiary', buildShellTerminalBestiaryCard(snapshot), { preview: '怪物图鉴', surface: normalizedSurface });
+          setUnifiedCardMarkup('terminal-quest', buildShellTerminalQuestCard(snapshot), { preview: '任务界面', surface: normalizedSurface });
+        } else {
+          setUnifiedCardMarkup('terminal-hero', buildTerminalHeroCard(snapshot), { preview: '系统播报与日志', surface: normalizedSurface });
+          setUnifiedCardMarkup('terminal-intel', `
+            <div class="simple-head"><div class="simple-title">试炼与情报</div></div>
+            <div class="simple-list">
+              <div class="simple-row"><b>线索</b><span>${htmlEscape(`${snapshot.pendingIntelCount} 条`)}</span></div>
+              <div class="simple-row"><b>已掌握</b><span>${htmlEscape(`${snapshot.unlockedKnowledges.length} 条`)}</span></div>
+              <div class="simple-row"><b>入口</b><span>打开情报与试炼</span></div>
+            </div>
+          `, { preview: '试炼与情报', surface: normalizedSurface });
+          const newsSummary = buildRecentNewsSummary(snapshot, { seqLimit: 1, intelLimit: 1 });
+          setUnifiedCardMarkup('terminal-news', `
+            <div class="simple-head"><div class="simple-title">近期见闻</div></div>
+            <div class="simple-list">
+              <div class="simple-row"><b>全局</b><span>${htmlEscape((newsSummary.globalNews[0] || {}).desc || '暂无')}</span></div>
+              <div class="simple-row"><b>个人</b><span>${htmlEscape((newsSummary.personalNews[0] || {}).desc || '暂无')}</span></div>
+            </div>
+          `, { preview: '近期见闻', surface: normalizedSurface });
+          setUnifiedCardMarkup('terminal-bestiary', `
+            <div class="simple-head"><div class="simple-title">怪物图鉴</div></div>
+            <div class="simple-list">
+              <div class="simple-row"><b>已记录</b><span>${htmlEscape(`${snapshot.bestiaryEntries.length} 种`)}</span></div>
+              <div class="simple-row"><b>最近条目</b><span>${htmlEscape(snapshot.bestiaryEntries.slice(0, 2).map(([name]) => name).join(' / ') || '暂无')}</span></div>
+            </div>
+          `, { preview: '怪物图鉴', surface: normalizedSurface });
+          setUnifiedCardMarkup('terminal-quest', `
+            <div class="simple-head"><div class="simple-title">任务界面</div></div>
+            <div class="simple-list">
+              <div class="simple-row"><b>我的任务</b><span>${htmlEscape(`${(snapshot.recordEntries || []).length} 条记录`)}</span></div>
+              <div class="simple-row"><b>委托板</b><span>${htmlEscape(`${safeEntries(deepGet(snapshot, 'rootData.world.quest_board', {})).length} 条委托`)}</span></div>
+            </div>
+          `, { preview: '任务界面', surface: normalizedSurface });
+        }
+      }
+    }
+
+    function setUnifiedCardMarkup(slot, html, options = {}) {
+      const surface = normalizeUnifiedSurfaceKey(options.surface);
+      const selector = surface
+        ? `#mvu-unified-mount [data-unified-card="${slot}"][data-unified-surface="${surface}"]`
+        : `#mvu-unified-mount [data-unified-card="${slot}"]`;
+      const preview = toText(options.preview, '');
+      const enabled = options.enabled !== false;
+      getLiveUiElements(selector).forEach(node => {
+        setLiveNodeHtml(node, html);
+        if (preview) node.setAttribute('data-preview', preview);
+        else node.removeAttribute('data-preview');
+        node.classList.toggle('clickable', !!(preview && enabled));
+        node.classList.toggle('is-empty', !enabled);
+      });
+    }
+
+    function renderUnifiedSpiritCards(snapshot) {
+      renderUnifiedSpiritCardsBySurface(snapshot, 'panel');
+      renderUnifiedSpiritCardsBySurface(snapshot, 'shell');
+      return;
+      const primary = snapshot.primarySpirit || null;
+      const secondary = snapshot.secondaryTrack || null;
+      setUnifiedCardMarkup('primary-spirit', buildUnifiedSpiritCard(primary, { primary: true }), {
+        preview: primary ? toText(primary.preview, '') : '',
+        enabled: !!primary
+      });
+      setUnifiedCardMarkup('secondary-spirit', buildUnifiedSpiritCard(secondary, { primary: false }), {
+        preview: secondary ? toText(secondary.preview, '') : '',
+        enabled: !!secondary
+      });
+    }
+
+    function renderUnifiedCards(snapshot, precomputedSectionSignatures = null, previousSectionSignaturesOverride = null) {
+      const sectionSignatures = precomputedSectionSignatures || buildDashboardSectionRenderSignatures(snapshot);
+      const previousSectionSignatures = previousSectionSignaturesOverride || lastDashboardSectionRenderSignatures || Object.create(null);
+      renderUnifiedCardsBySurface(snapshot, sectionSignatures, previousSectionSignatures, 'panel');
+      renderUnifiedCardsBySurface(snapshot, sectionSignatures, previousSectionSignatures, 'shell');
+      return;
+
+      if (sectionSignatures.archive !== previousSectionSignatures.archive) {
+        setUnifiedCardMarkup('archive-core', buildArchiveCoreCard(snapshot), { preview: '生命图谱详细页' });
+        setUnifiedCardMarkup('armory', buildArmoryCard(snapshot), { preview: '武装工坊详细页' });
+        setUnifiedCardMarkup('vault', buildVaultCard(snapshot), { preview: '储物仓库详细页' });
+        setUnifiedCardMarkup('social', buildUnifiedSocialCard(snapshot), { preview: '社会档案详细页' });
+        renderUnifiedSpiritCards(snapshot);
+      }
+
+      if (sectionSignatures.map !== previousSectionSignatures.map) {
+        setUnifiedCardMarkup('map-hero', buildMapHeroCard(snapshot), { preview: '全息星图主画布' });
+        setUnifiedCardMarkup('map-current', buildSimpleCard('当前位置', { text: '当前' }, [
+          { label: '地点', value: snapshot.normalizedLoc !== snapshot.currentLoc ? `${snapshot.normalizedLoc} / ${snapshot.currentLoc}` : snapshot.currentLoc },
+          { label: '地图', value: getMapDisplayName(snapshot) },
+          { label: '入口', value: '展开节点详情' }
+        ]), { preview: '当前节点详情' });
+        setUnifiedCardMarkup('map-route', `
+          <div class="simple-head"><div class="simple-title">移动与导航</div></div>
+          <div class="simple-list">
+            <div class="simple-row"><b>当前地图</b><span>${htmlEscape(getMapDisplayName(snapshot))}</span></div>
+            <div class="simple-row"><b>子图入口</b><span>${htmlEscape(`${safeEntries(snapshot.mapAvailableChildMaps).length} 个`)}</span></div>
+            <div class="simple-row"><b>移动方式</b><span>打开跑图面板</span></div>
+          </div>
+        `, { preview: '图层控制与跑图' });
+        setUnifiedCardMarkup('map-dynamic', `
+          <div class="simple-head"><div class="simple-title">动态节点</div></div>
+          <div class="simple-list">
+            <div class="simple-row"><b>可见动态点</b><span>${htmlEscape(String(snapshot.mapVisibleDynamicEntries.length || 0))}</span></div>
+            <div class="simple-row"><b>活跃补丁</b><span>${htmlEscape(String(snapshot.mapActivePatchEntries.length || 0))}</span></div>
+            <div class="simple-row"><b>最近变化</b><span>${htmlEscape(snapshot.latestTimeline ? snapshot.latestTimeline[0] : '暂无')}</span></div>
+          </div>
+        `, { preview: '动态地点与扩展节点' });
+      }
+
+      if (sectionSignatures.world !== previousSectionSignatures.world) {
+        setUnifiedCardMarkup('world-hero', buildWorldHeroCard(snapshot), { preview: '世界状态总览' });
+        setUnifiedCardMarkup('world-timeline', buildSimpleCard('编年史档案', null, [
+          { label: '最近事件', value: snapshot.latestTimeline ? toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]) : '暂无' },
+          { label: '状态', value: snapshot.latestTimeline ? `${toText(deepGet(snapshot.latestTimeline[1], 'status', 'pending'), 'pending')} / Tick ${toText(deepGet(snapshot.latestTimeline[1], 'trigger_tick', 0), '0')}` : '暂无时间线' }
+        ]), { preview: '编年史档案' });
+        setUnifiedCardMarkup('world-ranks', buildUnifiedRankCard(snapshot), { enabled: false });
+        setUnifiedCardMarkup('world-alerts', buildSimpleCard('拍卖与警报', null, [
+          { label: '拍卖行', value: `${toText(deepGet(snapshot, 'rootData.world.auction.status', '休市'), '休市')} / ${toText(deepGet(snapshot, 'rootData.world.auction.location', '无'), '无')}` },
+          { label: '生态警报', value: snapshot.worldAlert }
+        ]), { preview: '拍卖与警报' });
+        setUnifiedCardMarkup('org-hero', buildOrgHeroCard(snapshot), { preview: '势力矩阵总览' });
+        setUnifiedCardMarkup('org-faction', buildSimpleCard('我的阵营', null, [
+          { label: '当前所属', value: snapshot.factions[0] ? snapshot.factions[0][0] : '无' },
+          { label: '身份', value: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '未加入' }
+        ]), { preview: '我的阵营详情' });
+        setUnifiedCardMarkup('org-node', buildSimpleCard('本地据点', null, [
+          { label: '掌控势力', value: toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知') },
+          { label: '据点状态', value: `${toText(deepGet(snapshot, 'locationData.经济状况', '未知'), '未知')} / ${toText(deepGet(snapshot, 'locationData.守护军团', '未知'), '未知')}` }
+        ]), { preview: '本地据点详情' });
+      }
+
+      if (sectionSignatures.terminal !== previousSectionSignatures.terminal) {
+        setUnifiedCardMarkup('terminal-hero', buildTerminalHeroCard(snapshot), { preview: '系统播报与日志' });
+        setUnifiedCardMarkup('terminal-intel', `
+          <div class="simple-head"><div class="simple-title">试炼与情报</div></div>
+          <div class="simple-list">
+            <div class="simple-row"><b>线索</b><span>${htmlEscape(`${snapshot.pendingIntelCount} 条`)}</span></div>
+            <div class="simple-row"><b>已掌握</b><span>${htmlEscape(`${snapshot.unlockedKnowledges.length} 条`)}</span></div>
+            <div class="simple-row"><b>入口</b><span>打开情报与试炼</span></div>
+          </div>
+        `, { preview: '试炼与情报' });
+        const newsSummary = buildRecentNewsSummary(snapshot, { seqLimit: 1, intelLimit: 1 });
+        setUnifiedCardMarkup('terminal-news', `
+          <div class="simple-head"><div class="simple-title">近期见闻</div></div>
+          <div class="simple-list">
+            <div class="simple-row"><b>全局</b><span>${htmlEscape((newsSummary.globalNews[0] || {}).desc || '暂无')}</span></div>
+            <div class="simple-row"><b>个人</b><span>${htmlEscape((newsSummary.personalNews[0] || {}).desc || '暂无')}</span></div>
+          </div>
+        `, { preview: '近期见闻' });
+        setUnifiedCardMarkup('terminal-bestiary', `
+          <div class="simple-head"><div class="simple-title">怪物图鉴</div></div>
+          <div class="simple-list">
+            <div class="simple-row"><b>已记录</b><span>${htmlEscape(`${snapshot.bestiaryEntries.length} 种`)}</span></div>
+            <div class="simple-row"><b>最近条目</b><span>${htmlEscape(snapshot.bestiaryEntries.slice(0, 2).map(([name]) => name).join(' / ') || '暂无')}</span></div>
+          </div>
+        `, { preview: '怪物图鉴' });
+        setUnifiedCardMarkup('terminal-quest', `
+          <div class="simple-head"><div class="simple-title">任务界面</div></div>
+          <div class="simple-list">
+            <div class="simple-row"><b>我的任务</b><span>${htmlEscape(`${(snapshot.recordEntries || []).length} 条记录`)}</span></div>
+            <div class="simple-row"><b>委托板</b><span>${htmlEscape(`${safeEntries(deepGet(snapshot, 'rootData.world.quest_board', {})).length} 条委托`)}</span></div>
+          </div>
+        `, { preview: '任务界面' });
+      }
+    }
+
     function getFusionArchiveMeta(snapshot) {
       const fusionEntries = safeEntries(deepGet(snapshot, 'activeChar.martial_fusion_skills', {}));
       const partnerCount = fusionEntries.filter(([, fusion]) => toText(deepGet(fusion, 'fusion_mode', 'partner'), 'partner') !== 'self').length;
@@ -7351,7 +8419,7 @@
       if (!meta.fusionEntries.length) {
         return {
           title: '武魂融合技',
-          desc: '<small>这块还是空白，想补的时候直接点开录入就行。</small>',
+          desc: '<small>未收录</small>',
           preview: '武魂融合技详细页'
         };
       }
@@ -7853,6 +8921,7 @@
           </div>
         `);
       }
+      renderUnifiedCards(snapshot, sectionSignatures, previousSectionSignatures);
     }
 
     function buildLiveArchiveModal(previewKey) {
@@ -10127,7 +11196,7 @@
                   ], 'dossier-row-grid--two')}
                 </section>
                 <section class="dossier-section">
-                  <div class="dossier-section-title">${fusionEntries.length ? '当前主档' : '当前状态'}</div>
+                  <div class="dossier-section-title">当前主档</div>
                   ${fusionEntries.length
                     ? `
                       ${makeDossierRows([
@@ -10154,15 +11223,13 @@
                               rawValue: leadSourceSpirits,
                             })
                           : htmlEscape(leadSourceSpiritText), className: 'dossier-row--wide' },
-                        { label: '当前印象', value: htmlEscape(leadEffectDesc || leadVisualDesc || '这条融合技还没写下完整描述。'), className: 'dossier-row--wide' }
+                        { label: '效果摘要', value: htmlEscape(leadEffectDesc || leadVisualDesc || '未记录'), className: 'dossier-row--wide' }
                       ])}
-                      <div class="dossier-note">右侧条目点开后，可以继续补完这条融合技的完整设计。</div>
                     `
                     : `
                       ${makeDossierRows([
-                        { label: '档案状态', value: '这页还是空白，当前还没有录入任何融合技。' },
-                        { label: '现在就写', value: createFusionPreview ? `<button type="button" class="dossier-pill live clickable" data-preview="${escapeHtmlAttr(createFusionPreview)}">录入第一条融合技</button>` : '暂无可编辑对象' },
-                        { label: '可以先想', value: '搭档是谁、由哪几个武魂融合、以及想呈现成什么样的爆发感。', className: 'dossier-row--wide' }
+                        { label: '主档记录', value: '未收录' },
+                        { label: '编辑入口', value: createFusionPreview ? `<button type="button" class="dossier-pill live clickable" data-preview="${escapeHtmlAttr(createFusionPreview)}">新建融合技</button>` : '暂无可编辑对象' }
                       ])}
                     `}
                 </section>
@@ -10172,14 +11239,13 @@
                   <div class="archive-card-title">融合技清单</div>
                   <div class="dossier-tag-row dossier-head-actions">
                     ${createFusionPreview ? `<button type="button" class="dossier-pill live clickable" data-preview="${escapeHtmlAttr(createFusionPreview)}">新建融合技</button>` : ''}
-                    ${fusionEntries.length ? '<span class="dossier-pill">点开可编辑</span>' : ''}
                   </div>
                 </div>
                 <section class="dossier-section">
-                  <div class="dossier-section-title">${fusionEntries.length ? '已收录条目' : '等待落笔'}</div>
+                  <div class="dossier-section-title">已收录条目</div>
                   ${fusionList.length
                     ? makeDossierList(fusionList, 'dossier-list--fusion')
-                    : '<div class="dossier-empty-note">这页还没写入任何融合技。等你想好了搭档和表现，再新建第一条就行。</div>'}
+                    : '<div class="dossier-empty-note">未收录融合技。</div>'}
                 </section>
               </div>
             </div>
@@ -11717,7 +12783,17 @@
     }
 
     
-    setMainTab('page-archive');
+    const initialMainTab = (() => {
+      try {
+        const currentTab = window.__MVU_TAB_STATE__ && typeof window.__MVU_TAB_STATE__.current === 'string'
+          ? window.__MVU_TAB_STATE__.current
+          : '';
+        return pageMetaMap[currentTab] ? currentTab : 'page-archive';
+      } catch (err) {
+        return 'page-archive';
+      }
+    })();
+    setMainTab(initialMainTab);
 
     function buildDynamicPreview(key) {
       if (key.startsWith('地图节点：')) {
@@ -12674,7 +13750,7 @@ ${mvuUpdate}`;
         if (layoutState && layoutState.effectiveMode === 'unified') return true;
       } catch (err) {}
       const triggerEl = options.triggerEl instanceof Element ? options.triggerEl : null;
-      if (triggerEl && (triggerEl.closest('#mvu-unified-mount') || triggerEl.closest('.mvu-unified-dock'))) {
+      if (triggerEl && triggerEl.closest('#mvu-unified-mount')) {
         return true;
       }
       return false;
@@ -12685,17 +13761,18 @@ ${mvuUpdate}`;
       const currentModalPanel = refs && refs.modalPanel ? refs.modalPanel : null;
       if (!currentDetailModal || !currentModalPanel) return;
       const unifiedMode = shouldUseUnifiedFloatMode(options);
+      const shellMode = syncDetailModalHost(refs, { ...options, unifiedMode });
       currentDetailModal.classList.remove('drawer-left');
       currentModalPanel.classList.remove('drawer-left');
-      currentDetailModal.classList.toggle('unified-float-mode', unifiedMode);
-      currentModalPanel.classList.toggle('unified-float-panel', unifiedMode);
-      currentDetailModal.classList.toggle('mvu-modal-display-unified', unifiedMode);
+      currentDetailModal.classList.toggle('mvu-modal-display-unified', unifiedMode && !shellMode);
       currentDetailModal.classList.toggle('mvu-modal-display-split', !unifiedMode);
-      currentModalPanel.classList.toggle('mvu-modal-display-unified', unifiedMode);
+      currentModalPanel.classList.toggle('mvu-modal-display-unified', unifiedMode && !shellMode);
       currentModalPanel.classList.toggle('mvu-modal-display-split', !unifiedMode);
-      currentDetailModal.dataset.modalDisplayMode = unifiedMode ? 'unified' : 'split';
-      currentModalPanel.dataset.modalDisplayMode = unifiedMode ? 'unified' : 'split';
-      applyUnifiedFloatMetrics(currentDetailModal, unifiedMode);
+      currentDetailModal.classList.toggle('mvu-modal-display-shell', shellMode);
+      currentModalPanel.classList.toggle('mvu-modal-display-shell', shellMode);
+      currentDetailModal.dataset.modalDisplayMode = shellMode ? 'shell' : (unifiedMode ? 'unified' : 'split');
+      currentModalPanel.dataset.modalDisplayMode = shellMode ? 'shell' : (unifiedMode ? 'unified' : 'split');
+      applyUnifiedFloatMetrics(currentDetailModal, unifiedMode && !shellMode);
     }
 
     function openModal(previewKey, options = {}) {
@@ -12715,13 +13792,13 @@ ${mvuUpdate}`;
         }
       }
       currentModalPreviewKey = modalStack[modalStack.length - 1] || '';
+      currentModalDisplayMode = shouldUseUnifiedFloatMode(options) ? 'floating' : 'split';
       
       if (currentModalPreviewKey) {
-        renderModalContent(currentModalPreviewKey, refs);
+        renderModalContent(currentModalPreviewKey, refs, { ...options, displayMode: currentModalDisplayMode });
       }
 
       if (!refs.detailModal) return;
-      currentModalDisplayMode = shouldUseUnifiedFloatMode(options) ? 'floating' : 'split';
       applyModalDisplayMode(refs, options);
       refs.detailModal.classList.add('show');
       refs.detailModal.setAttribute('aria-hidden', 'false');
@@ -12773,7 +13850,52 @@ ${mvuUpdate}`;
       `);
     }
 
-    function wrapArchiveRedesignBody(html) {
+    function isUnifiedModalDisplayRequested(options = {}) {
+      if (options && (options.displayMode === 'floating' || options.displayMode === 'unified')) return true;
+      if (currentModalDisplayMode === 'floating') return true;
+      try {
+        const layoutState = window.__MVU_LAYOUT_STATE__;
+        if (layoutState && layoutState.effectiveMode === 'unified') return true;
+      } catch (err) {}
+      return false;
+    }
+
+    /*
+    function syncModalTitleLongPress(previewKey, unifiedMode) {
+      if (!modalTitle) return;
+      modalTitle.classList.remove('nsfw-trigger-title');
+      modalTitle.removeAttribute('data-longpress');
+      modalTitle.removeAttribute('data-longpress-delay');
+      if (unifiedMode && previewKey === '生命图谱详细页') {
+        modalTitle.classList.add('nsfw-trigger-title');
+        modalTitle.setAttribute('data-longpress', '私密档案详细页');
+        modalTitle.setAttribute('data-longpress-delay', '600');
+      }
+    }
+
+    */
+    function syncModalTitleLongPress(previewKey, unifiedMode) {
+      if (!modalTitle) return;
+      modalTitle.classList.remove('nsfw-trigger-title');
+      modalTitle.removeAttribute('data-longpress');
+      modalTitle.removeAttribute('data-longpress-delay');
+      if (unifiedMode && previewKey === '生命图谱详细页') {
+        modalTitle.classList.add('nsfw-trigger-title');
+        modalTitle.setAttribute('data-longpress', '私密档案详细页');
+        modalTitle.setAttribute('data-longpress-delay', '600');
+      }
+    }
+
+    function wrapArchiveRedesignBody(html, options = {}) {
+      if (options.unifiedMode) {
+        return `<div class="archive-redesign-root mvu-unified-modal-root" data-unified-preview="${escapeHtmlAttr(toText(options.previewKey, ''))}">
+          <div class="mvu-unified-sheet">
+            <div class="mvu-unified-sheet-scroll">
+              ${html || ''}
+            </div>
+          </div>
+        </div>`;
+      }
       return `<div class="archive-redesign-root">
         ${html || ''}
       </div>`;
@@ -12795,10 +13917,12 @@ ${mvuUpdate}`;
       }
       const shouldResetModalScroll = lastRenderedModalPreviewKey !== previewKey || !detailModal.classList.contains('show');
       const isRelationPreview = previewKey === '人物关系详细页';
+      const unifiedMode = isUnifiedModalDisplayRequested(options);
       lastRenderedModalPreviewKey = previewKey || '';
       detailModal.classList.toggle('relation-preview-mode', isRelationPreview);
       modalPanel.classList.toggle('relation-preview-mode', isRelationPreview);
-      applyModalDisplayMode(refs);
+      applyModalDisplayMode(refs, { ...options, displayMode: unifiedMode ? 'floating' : 'split' });
+      syncModalTitleLongPress(previewKey, unifiedMode);
       if (shouldBlockInlineEditRerender(options)) {
         pendingLiveRefresh = true;
         return;
@@ -12813,13 +13937,19 @@ ${mvuUpdate}`;
         modalPanel.classList.add('archive-mode');
         modalPanel.classList.toggle('vault-mode', previewKey === '储物仓库详细页');
         modalBody.className = previewKey === '储物仓库详细页' ? 'modal-body archive-body vault-body' : 'modal-body archive-body';
+        if (unifiedMode) modalBody.classList.add('mvu-unified-sheet-body');
         if (modalLevel) modalLevel.textContent = '';
         if (modalPath) modalPath.textContent = '';
         modalTitle.textContent = liveArchive.title;
+        if (unifiedMode && typeof previewKey === 'string' && previewKey.includes('生命图谱')) {
+          modalTitle.classList.add('nsfw-trigger-title');
+          modalTitle.setAttribute('data-longpress', '私密档案详细页');
+          modalTitle.setAttribute('data-longpress-delay', '600');
+        }
         if (modalSubtitle) modalSubtitle.textContent = '';
         if (modalSummary) modalSummary.textContent = '';
         setArchiveRedesignState(refs, true);
-        modalBody.innerHTML = wrapArchiveRedesignBody(liveArchive.body);
+        modalBody.innerHTML = wrapArchiveRedesignBody(liveArchive.body, { unifiedMode, previewKey });
         if (shouldResetModalScroll) modalBody.scrollTop = 0;
         if (typeof liveArchive.onMount === 'function') {
           activeSubUI = liveArchive.onMount(modalBody);
@@ -12858,26 +13988,28 @@ ${mvuUpdate}`;
           modalPanel.classList.add('archive-mode');
           modalPanel.classList.toggle('vault-mode', isVaultSkeleton);
           modalBody.className = isVaultSkeleton ? 'modal-body archive-body vault-body' : 'modal-body archive-body';
+          if (unifiedMode) modalBody.classList.add('mvu-unified-sheet-body');
           if (modalLevel) modalLevel.textContent = '';
           if (modalPath) modalPath.textContent = '';
           modalTitle.textContent = skeletonArchive.title;
           if (modalSubtitle) modalSubtitle.textContent = '';
           if (modalSummary) modalSummary.textContent = '';
           setArchiveRedesignState(refs, true);
-          modalBody.innerHTML = wrapArchiveRedesignBody(skeletonArchive.body);
+          modalBody.innerHTML = wrapArchiveRedesignBody(skeletonArchive.body, { unifiedMode, previewKey });
           if (shouldResetModalScroll) modalBody.scrollTop = 0;
           return;
         }
         modalPanel.classList.add('archive-mode');
         modalPanel.classList.remove('vault-mode');
         modalBody.className = 'modal-body archive-body';
+        if (unifiedMode) modalBody.classList.add('mvu-unified-sheet-body');
         if (modalLevel) modalLevel.textContent = '';
         if (modalPath) modalPath.textContent = '';
         modalTitle.textContent = previewKey || '详细信息';
         if (modalSubtitle) modalSubtitle.textContent = '';
         if (modalSummary) modalSummary.textContent = '';
         setArchiveRedesignState(refs, true);
-        modalBody.innerHTML = wrapArchiveRedesignBody('');
+        modalBody.innerHTML = wrapArchiveRedesignBody('', { unifiedMode, previewKey });
         if (shouldResetModalScroll) modalBody.scrollTop = 0;
         return;
       }
@@ -12888,13 +14020,14 @@ ${mvuUpdate}`;
         modalPanel.classList.add('archive-mode');
         modalPanel.classList.toggle('vault-mode', isVaultModal);
         modalBody.className = isVaultModal ? 'modal-body archive-body vault-body' : 'modal-body archive-body';
+        if (unifiedMode) modalBody.classList.add('mvu-unified-sheet-body');
         if (modalLevel) modalLevel.textContent = '';
         if (modalPath) modalPath.textContent = '';
         modalTitle.textContent = view.title;
         if (modalSubtitle) modalSubtitle.textContent = '';
         if (modalSummary) modalSummary.textContent = '';
         setArchiveRedesignState(refs, true);
-        modalBody.innerHTML = wrapArchiveRedesignBody(view.body);
+        modalBody.innerHTML = wrapArchiveRedesignBody(view.body, { unifiedMode, previewKey });
         if (shouldResetModalScroll) modalBody.scrollTop = 0;
         return;
       }
@@ -12908,6 +14041,7 @@ ${mvuUpdate}`;
       const config = previewMap[previewKey] || buildDynamicPreview(previewKey || '详细弹窗');
       modalPanel.classList.remove('archive-mode', 'vault-mode');
       modalBody.className = 'modal-body';
+      if (unifiedMode) modalBody.classList.add('mvu-unified-sheet-body');
       setArchiveRedesignState(refs, false);
       if (modalLevel) modalLevel.textContent = '';
       if (modalPath) modalPath.textContent = '';
@@ -12945,23 +14079,45 @@ ${mvuUpdate}`;
       modalStack = [];
       currentModalDisplayMode = 'auto';
       if (detailModal) {
-        detailModal.classList.remove('show', 'drawer-left', 'unified-float-mode', 'relation-preview-mode', 'archive-redesign-mode', 'mvu-modal-display-unified', 'mvu-modal-display-split');
+        detailModal.classList.remove('show', 'drawer-left', 'relation-preview-mode', 'archive-redesign-mode', 'mvu-modal-display-unified', 'mvu-modal-display-split');
         delete detailModal.dataset.modalDisplayMode;
       }
       if (modalPanel) {
-        modalPanel.classList.remove('drawer-left', 'vault-mode', 'unified-float-panel', 'relation-preview-mode', 'archive-redesign-panel', 'mvu-modal-display-unified', 'mvu-modal-display-split');
+        modalPanel.classList.remove('drawer-left', 'vault-mode', 'relation-preview-mode', 'archive-redesign-panel', 'mvu-modal-display-unified', 'mvu-modal-display-split');
         delete modalPanel.dataset.modalDisplayMode;
       }
-      if (modalBody) modalBody.classList.remove('vault-body', 'archive-redesign-body');
+      if (detailModal) detailModal.classList.remove('mvu-modal-display-shell');
+      if (modalPanel) modalPanel.classList.remove('mvu-modal-display-shell');
+      if (modalBody) modalBody.classList.remove('vault-body', 'archive-redesign-body', 'mvu-unified-sheet-body');
+      syncModalTitleLongPress('', false);
       if (detailModal) detailModal.setAttribute('aria-hidden', 'true');
+      syncDetailModalHost(getModalRefs(), { unifiedMode: false });
       flushPendingLiveRefresh();
     }
+    window.__MVU_CLOSE_DETAIL_MODAL__ = closeModal;
+    window.__MVU_SYNC_DETAIL_MODAL_HOST__ = () => {
+      const refs = getModalRefs();
+      applyModalDisplayMode(refs, { displayMode: currentModalDisplayMode });
+    };
 
     function bindVueModalDelegation(mountEl) {
       if (!mountEl || mountEl.__mvuModalDelegationBound) return;
       mountEl.addEventListener('click', (event) => {
         const eventTarget = event.target instanceof Element ? event.target : (event.target && event.target.parentElement ? event.target.parentElement : null);
         if (isInlineEditInteractionTarget(eventTarget)) return;
+        const mapFocusBtn = eventTarget ? eventTarget.closest('[data-map-focus-action]') : null;
+        if (mapFocusBtn && mountEl.contains(mapFocusBtn)) {
+          const action = mapFocusBtn.getAttribute('data-map-focus-action') || '';
+          if (action === 'current') {
+            event.preventDefault();
+            event.stopPropagation();
+            if (typeof window.__sheepMapResync === 'function') {
+              try { window.__sheepMapResync({ center: true, syncVisual: true }); } catch (err) {}
+            }
+            toggleModal('全息星图主画布', { triggerEl: mapFocusBtn, displayMode: 'floating', preserveMapDispatchContext: true });
+          }
+          return;
+        }
         const clickable = eventTarget ? eventTarget.closest('.clickable') : null;
         if (!clickable || !mountEl.contains(clickable)) return;
 
@@ -13514,6 +14670,21 @@ let activeLongPressState = null;
       return !!(eventTarget && suppressedLongPressClickState.target && (eventTarget === suppressedLongPressClickState.target || suppressedLongPressClickState.target.contains(eventTarget)));
     }
 
+    function getLongPressScrollContainer(target) {
+      let current = target instanceof Element ? target : null;
+      while (current && current !== document.body) {
+        try {
+          const style = window.getComputedStyle(current);
+          const overflowY = style ? style.overflowY : '';
+          if ((overflowY === 'auto' || overflowY === 'scroll') && current.scrollHeight > current.clientHeight + 2) {
+            return current;
+          }
+        } catch (err) {}
+        current = current.parentElement;
+      }
+      return document.scrollingElement || document.documentElement || document.body;
+    }
+
     const handleLongPressStart = (event) => {
       const target = getLongPressTarget(event.target);
       if (!target) return;
@@ -13523,9 +14694,15 @@ let activeLongPressState = null;
       clearActiveLongPressState();
       target.classList.add('active-press');
       const delay = getLongPressDelay(target);
+      const scrollContainer = getLongPressScrollContainer(target);
       activeLongPressState = {
         pointerId: event.pointerId,
         target,
+        startX: Number.isFinite(event.clientX) ? event.clientX : 0,
+        startY: Number.isFinite(event.clientY) ? event.clientY : 0,
+        scrollContainer,
+        scrollTop: scrollContainer && typeof scrollContainer.scrollTop === 'number' ? scrollContainer.scrollTop : 0,
+        scrollLeft: scrollContainer && typeof scrollContainer.scrollLeft === 'number' ? scrollContainer.scrollLeft : 0,
         timer: setTimeout(() => {
           target.classList.remove('active-press');
           activeLongPressState = null;
@@ -13551,6 +14728,20 @@ let activeLongPressState = null;
       if (typeof event.pointerId === 'number' && typeof activeLongPressState.pointerId === 'number' && event.pointerId !== activeLongPressState.pointerId) {
         return;
       }
+      const moveX = Math.abs((Number.isFinite(event.clientX) ? event.clientX : 0) - activeLongPressState.startX);
+      const moveY = Math.abs((Number.isFinite(event.clientY) ? event.clientY : 0) - activeLongPressState.startY);
+      if (moveX > 10 || moveY > 10) {
+        clearActiveLongPressState();
+        return;
+      }
+      if (activeLongPressState.scrollContainer) {
+        const currentTop = typeof activeLongPressState.scrollContainer.scrollTop === 'number' ? activeLongPressState.scrollContainer.scrollTop : 0;
+        const currentLeft = typeof activeLongPressState.scrollContainer.scrollLeft === 'number' ? activeLongPressState.scrollContainer.scrollLeft : 0;
+        if (Math.abs(currentTop - activeLongPressState.scrollTop) > 2 || Math.abs(currentLeft - activeLongPressState.scrollLeft) > 2) {
+          clearActiveLongPressState();
+          return;
+        }
+      }
       const hoverEl = document.elementFromPoint(event.clientX, event.clientY);
       if (!hoverEl || !activeLongPressState.target.contains(hoverEl)) {
         clearActiveLongPressState();
@@ -13561,6 +14752,7 @@ let activeLongPressState = null;
     document.addEventListener('pointerup', handleLongPressEnd);
     document.addEventListener('pointercancel', handleLongPressEnd);
     document.addEventListener('pointermove', handleLongPressMove, { passive: true });
+    document.addEventListener('scroll', clearActiveLongPressState, true);
     document.addEventListener('mouseleave', clearActiveLongPressState);
     document.addEventListener('contextmenu', (event) => {
       const target = getLongPressTarget(event.target);

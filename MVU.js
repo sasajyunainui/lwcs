@@ -209,7 +209,7 @@ function calculateTravelResourceCost(method, distance, char = {}) {
   let note = '';
 
   if (method === '步行') {
-    vit = Math.floor(distance * 5);
+    vit = Math.max(1, Math.floor(distance * 4));
   } else if (method === '校园短驳车') {
     fedCoin = Math.max(1, Math.floor(distance * 2));
     note = '校内通勤';
@@ -293,27 +293,35 @@ function findMapNodeEntry(targetName, sd) {
       .map(seg => String(seg || '').trim())
       .filter(Boolean);
     const pathSegments = rawSegments.filter(seg => seg !== '斗罗大陆' && seg !== '斗灵大陆');
-    if (pathSegments.length > 1) {
+    if (pathSegments.length >= 1) {
       let currentNode = sd.world.locations[pathSegments[0]];
       const currentPath = [];
       if (currentNode && !(typeof currentNode.condition === 'function' && !currentNode.condition(sd))) {
         currentPath.push(pathSegments[0]);
-        let valid = true;
-        for (let i = 1; i < pathSegments.length; i++) {
-          const seg = pathSegments[i];
-          currentNode = currentNode?.children?.[seg];
-          if (!currentNode || (typeof currentNode.condition === 'function' && !currentNode.condition(sd))) {
-            valid = false;
-            break;
-          }
-          currentPath.push(seg);
-        }
-        if (valid && currentNode) {
+        if (pathSegments.length === 1) {
           found = {
-            name: currentPath[currentPath.length - 1],
+            name: currentPath[0],
             node: currentNode,
             path: currentPath,
           };
+        } else {
+          let valid = true;
+          for (let i = 1; i < pathSegments.length; i++) {
+            const seg = pathSegments[i];
+            currentNode = currentNode?.children?.[seg];
+            if (!currentNode || (typeof currentNode.condition === 'function' && !currentNode.condition(sd))) {
+              valid = false;
+              break;
+            }
+            currentPath.push(seg);
+          }
+          if (valid && currentNode) {
+            found = {
+              name: currentPath[currentPath.length - 1],
+              node: currentNode,
+              path: currentPath,
+            };
+          }
         }
       }
     }
@@ -3320,12 +3328,40 @@ function stripLegacySkillFieldsFromSkillMap(skillMap = {}) {
   return skillMap;
 }
 
+function buildCanonicalRingSkillKey(ringIndex = 1) {
+  const safeIndex = Math.max(1, Math.floor(Number(ringIndex) || 0));
+  return `第${safeIndex}魂技`;
+}
+
+function normalizeSingleRingSkillSlotMap(skillMap = {}, ringIndex = 1) {
+  if (!skillMap || typeof skillMap !== 'object' || Array.isArray(skillMap)) return skillMap;
+  const entries = Object.entries(skillMap).filter(([, skill]) => !!skill && typeof skill === 'object' && !Array.isArray(skill));
+  if (!entries.length) return skillMap;
+  const canonicalKey = buildCanonicalRingSkillKey(ringIndex);
+  const hasMultipleEntries = entries.length > 1;
+  const hasOrdinalKey = entries.some(([rawKey]) => /^第(?:\d+|[一二三四五六七八九十百]+)魂技/u.test(String(rawKey || '').trim()));
+  if (hasMultipleEntries || (hasOrdinalKey && skillMap[canonicalKey])) {
+    entries.forEach(([, skill]) => stripLegacySkillFieldsFromSkill(skill));
+    return skillMap;
+  }
+  const [rawKey, rawSkill] = entries[0];
+  const normalizedSkill = rawSkill && typeof rawSkill === 'object' ? rawSkill : {};
+  if (!normalizedSkill.魂技名 || !String(normalizedSkill.魂技名).trim()) {
+    normalizedSkill.魂技名 = String(rawKey || canonicalKey);
+  }
+  if (rawKey !== canonicalKey) delete skillMap[rawKey];
+  skillMap[canonicalKey] = normalizedSkill;
+  stripLegacySkillFieldsFromSkill(skillMap[canonicalKey]);
+  return skillMap;
+}
+
 function stripLegacySkillFieldsFromCharacter(char = {}) {
   if (!char || typeof char !== 'object') return char;
   _(char.spirit || {}).forEach(spiritData => {
     stripLegacySkillFieldsFromSkillMap(spiritData?.custom_skills || {});
     _(spiritData?.soul_spirits || {}).forEach(soulSpirit => {
-      _(soulSpirit?.rings || {}).forEach(ringData => {
+      _(soulSpirit?.rings || {}).forEach((ringData, ringIndex) => {
+        normalizeSingleRingSkillSlotMap(ringData?.魂技 || {}, ringIndex);
         stripLegacySkillFieldsFromSkillMap(ringData?.魂技 || {});
       });
     });
@@ -3337,7 +3373,8 @@ function stripLegacySkillFieldsFromCharacter(char = {}) {
   );
   stripLegacySkillFieldsFromSkillMap(char?.bloodline_power?.skills || {});
   stripLegacySkillFieldsFromSkillMap(char?.bloodline_power?.passives || {});
-  _(char?.bloodline_power?.blood_rings || {}).forEach(ringData => {
+  _(char?.bloodline_power?.blood_rings || {}).forEach((ringData, ringIndex) => {
+    normalizeSingleRingSkillSlotMap(ringData?.魂技 || {}, ringIndex);
     stripLegacySkillFieldsFromSkillMap(ringData?.魂技 || {});
   });
   _(char?.soul_bone || {}).forEach(boneData => stripLegacySkillFieldsFromSkillMap(boneData?.附带技能 || {}));
@@ -10367,10 +10404,19 @@ export const Schema = z
               data.org[event.faction_name].inf += 500;
             }
 
-        let msg = `[编年史推进] ${event.description || event.trigger_background}`;
+            const eventDesc =
+              event.描述 ||
+              description ||
+              event.trigger_background ||
+              event.触发背景 ||
+              event.event_name ||
+              event.事件名 ||
+              eventKey ||
+              '未知事件';
+            let msg = `[编年史推进] ${eventDesc}`;
 
-        if (dev >= 40) {
-          msg += ` 🚨[世界线暴走] 当前偏差值高达 ${dev}！该历史节点已受混沌干扰，请 AI 强制魔改该事件的细节或结果！`;
+            if (dev >= 40) {
+              msg += ` 🚨[世界线暴走] 当前偏差值高达 ${dev}！该历史节点已受混沌干扰，请 AI 强制魔改该事件的细节或结果！`;
             }
             data.sys.rsn = msg;
             data.world.flags[eventKey] = true;
@@ -10432,13 +10478,16 @@ export const Schema = z
     }
 
     if (!data.world.flags) data.world.flags = {};
-    if (!data.world.flags['initial_setup_complete']) {
+    const hasContinentRankingData = Object.keys(data.world?.rankings?.continent_wind?._top100 || data.world?.rankings?.continent_wind?.top100 || {}).length > 0;
+    const hasYouthRankingData = Object.keys(data.world?.rankings?.youth_talent?._top30 || data.world?.rankings?.youth_talent?.top30 || {}).length > 0;
+    if (!data.world.flags['initial_setup_complete'] || !hasContinentRankingData || !hasYouthRankingData) {
       refreshContinentRanking(data);
       refreshYouthTalentRanking(data);
-      data.world.flags['initial_setup_complete'] = true;
-
-      if (data.sys.rsn === '初始化' || !data.sys.rsn) data.sys.rsn = '';
-      data.sys.rsn += ' [系统提示] 世界初始化完成！大陆风云榜与少年天才榜已完成首次排位！';
+      if (!data.world.flags['initial_setup_complete']) {
+        data.world.flags['initial_setup_complete'] = true;
+        if (data.sys.rsn === '初始化' || !data.sys.rsn) data.sys.rsn = '';
+        data.sys.rsn += ' [系统提示] 世界初始化完成！大陆风云榜与少年天才榜已完成首次排位！';
+      }
     }
 
     if (delta > 0) {
@@ -10446,6 +10495,7 @@ export const Schema = z
 
       checkDestinyAnchors(data, currentTick);
       refreshYouthTalentRanking(data);
+      refreshContinentRanking(data);
 
       _(data.char).forEach((c, charName) => {
         const trainedBonus = ensureNumericStatBonusMap(c.stat, 'trained_bonus');

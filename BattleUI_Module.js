@@ -1473,7 +1473,7 @@ class BattleUIComponent {
       const normalized = normalizeBattleSkillAttributeTokens(elements).filter(token =>
         BATTLE_FUSION_ALLOWED_ELEMENTS.includes(token),
       );
-      consnst orderIndex = token => {
+      const orderIndex = token => {
         const index = BATTLE_FUSION_ELEMENT_ORDER.indexOf(token);
         return index >= 0 ? index : BATTLE_FUSION_ELEMENT_ORDER.length + token.charCodeAt(0);
       };
