@@ -56,61 +56,61 @@ const UNIFIED_ACTION_ITEMS = {
 
 const UNIFIED_TAB_META = {
   'page-archive': {
-    eyebrow: '角色主栏',
-    title: '档案总览',
-    desc: '把生命、武魂、武装与社交入口收进一条纵向操作线。'
+    eyebrow: '',
+    title: '档案',
+    desc: ''
   },
   'page-map': {
-    eyebrow: '地图主栏',
-    title: '星图调度',
-    desc: '优先保留当前位置、节点详情与跑图动作，移动端也能顺手点。'
+    eyebrow: '',
+    title: '星图',
+    desc: ''
   },
   'page-world': {
-    eyebrow: '世界主栏',
-    title: '世界追踪',
-    desc: '把编年、警报和榜单入口压进一屏，少翻找、少横跳。'
+    eyebrow: '',
+    title: '世界',
+    desc: ''
   },
   'page-org': {
-    eyebrow: '势力主栏',
-    title: '阵营工作台',
-    desc: '矩阵总览与自身阵营信息集中放在同一组入口里。'
+    eyebrow: '',
+    title: '势力',
+    desc: ''
   },
   'page-terminal': {
-    eyebrow: '终端主栏',
-    title: '终端摘要',
-    desc: '系统播报、情报与任务维持单栏顺序，适合桌面和手机快速切换。'
+    eyebrow: '',
+    title: '终端',
+    desc: ''
   }
 };
 
 const SHELL_APP_ITEMS = [
   {
     id: 'page-archive',
-    title: '档案库',
-    hint: '角色 · 武魂 · 武装',
+    title: '档案',
+    hint: '',
     homeSlot: 'home-archive'
   },
   {
     id: 'page-map',
-    title: '星图台',
-    hint: '节点 · 跑图 · 动态',
+    title: '星图',
+    hint: '',
     homeSlot: 'home-map'
   },
   {
     id: 'page-world',
-    title: '世界簿',
-    hint: '编年 · 警报 · 追踪',
+    title: '世界',
+    hint: '',
     homeSlot: 'home-world'
   },
   {
     id: 'page-org',
-    title: '势力站',
-    hint: '阵营 · 据点 · 关系',
+    title: '势力',
+    hint: '',
     homeSlot: 'home-org'
   },
   {
     id: 'page-terminal',
-    title: '终端台',
-    hint: '情报 · 任务 · 图鉴',
+    title: '终端',
+    hint: '',
     homeSlot: 'home-terminal'
   }
 ];
@@ -532,10 +532,22 @@ function syncUnifiedMountPlacement() {
 
 function requestUnifiedShellCardRefresh(options = {}) {
   const force = options.force !== false;
-  const run = () => {
+  const runRender = () => {
     if (typeof window.__MVU_RERENDER_UNIFIED_CARDS__ === 'function') {
       try { window.__MVU_RERENDER_UNIFIED_CARDS__({ force }); } catch (err) {}
     }
+  };
+  const run = () => {
+    if (typeof window.__MVU_REFRESH_LIVE_SNAPSHOT__ === 'function') {
+      try {
+        const refreshResult = window.__MVU_REFRESH_LIVE_SNAPSHOT__({ force });
+        if (refreshResult && typeof refreshResult.then === 'function') {
+          refreshResult.finally(runRender);
+          return;
+        }
+      } catch (err) {}
+    }
+    runRender();
   };
   if (typeof window.requestAnimationFrame === 'function') {
     window.requestAnimationFrame(() => window.requestAnimationFrame(run));
@@ -1304,369 +1316,6 @@ const UnifiedDock = {
   }
 };
 
-const MobileUnifiedLayout = {
-  template: `
-    <div class="mvu-mobile-shell-host mvu-root" :class="{ 'is-open': layoutState.mobileShellOpen, 'is-dragging': layoutState.mobileLauncherDragging }">
-      <button
-        v-if="showMobileLauncher"
-        type="button"
-        class="mvu-mobile-launcher"
-        :class="{ active: shellVisible }"
-        :style="launcherStyle"
-        aria-label="打开酒馆助手"
-        @pointerdown="onLauncherPointerDown"
-      >
-        <span class="mvu-mobile-launcher-glyph" aria-hidden="true">LW</span>
-        <span class="mvu-mobile-launcher-label">{{ launcherLabel }}</span>
-      </button>
-
-      <div v-else-if="showDesktopDock" class="mvu-desktop-shell-dock" role="group" aria-label="LWCS shell dock">
-        <button
-          type="button"
-          class="mvu-desktop-shell-dock-main"
-          aria-label="Open shell"
-          @click="openShell"
-        >
-          <span class="mvu-desktop-shell-dock-glyph" aria-hidden="true">LW</span>
-          <span class="mvu-desktop-shell-dock-copy">
-            <strong class="mvu-desktop-shell-dock-title">{{ launcherLabel }}</strong>
-            <span class="mvu-desktop-shell-dock-meta">LWCS</span>
-          </span>
-        </button>
-        <button
-          type="button"
-          class="mvu-desktop-shell-dock-exit"
-          aria-label="Back to panel"
-          title="Back to panel"
-          @click="exitShellMode"
-        >
-          <span class="mvu-desktop-shell-dock-exit-icon" aria-hidden="true">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <rect x="3.5" y="4.5" width="17" height="11" rx="2.5" stroke="currentColor" stroke-width="1.7"></rect>
-              <path d="M8 19.5h8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
-              <path d="M12 15.5v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
-            </svg>
-          </span>
-        </button>
-      </div>
-
-      <div class="mvu-mobile-shell-backdrop" :class="{ active: shellVisible }" @click="handleBackdropClick"></div>
-
-      <section class="mvu-mobile-shell" :class="{ active: shellVisible }" aria-label="酒馆助手手机框架">
-        <div ref="shellFrameRef" class="mvu-mobile-shell-frame" :style="shellFrameStyle" :data-screen="shellScreen">
-          <header class="mvu-mobile-shell-head" @pointerdown="onShellHeaderPointerDown">
-            <div class="mvu-mobile-shell-head-main">
-              <button
-                v-if="showHomeBack"
-                type="button"
-                class="mvu-mobile-shell-back"
-                aria-label="返回首页"
-                @click="handleBack"
-              >
-                <span aria-hidden="true">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <path d="M15 18 9 12l6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
-                  </svg>
-                </span>
-              </button>
-              <div class="mvu-mobile-shell-head-copy">
-                <strong class="mvu-mobile-shell-title">{{ resolvedActiveTitle }}</strong>
-              </div>
-            </div>
-            <div class="mvu-mobile-shell-head-actions">
-              <button
-                v-if="desktopShellMode"
-                type="button"
-                class="mvu-mobile-shell-mode-exit"
-                aria-label="Back to panel"
-                title="Back to panel"
-                @click="exitShellMode"
-              >
-                <span aria-hidden="true">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <rect x="3.5" y="4.5" width="17" height="11" rx="2.5" stroke="currentColor" stroke-width="1.7"></rect>
-                    <path d="M8 19.5h8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
-                    <path d="M12 15.5v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
-                  </svg>
-                </span>
-              </button>
-              <button type="button" class="mvu-mobile-shell-close" aria-label="关闭" @click="closeShell">&times;</button>
-            </div>
-          </header>
-
-          <div class="mvu-mobile-shell-body">
-            <div class="mvu-mobile-shell-scroll" :class="{ 'is-detail': shellScreen === 'detail' }">
-              <section v-if="shellScreen === 'home'" class="mvu-mobile-home" data-target="home">
-                <div class="mvu-mobile-card mvu-mobile-card--spotlight clickable" data-preview="生命图谱详细页" data-unified-card="archive-core" data-unified-surface="shell"></div>
-                <div class="mvu-mobile-app-grid" role="navigation" aria-label="壳内应用入口">
-                  <button
-                    v-for="app in shellApps"
-                    :key="'shell-app-' + app.id"
-                    type="button"
-                    class="mvu-mobile-app-tile"
-                    :data-app="app.id"
-                    @click="enterSection(app.id)"
-                  >
-                    <span class="mvu-mobile-app-icon" aria-hidden="true" v-html="app.icon"></span>
-                    <span class="mvu-mobile-app-copy">
-                      <strong>{{ app.title }}</strong>
-                      <span>{{ app.hint }}</span>
-                    </span>
-                    <div class="mvu-mobile-app-live" :data-unified-card="app.homeSlot" data-unified-surface="shell"></div>
-                  </button>
-                </div>
-              </section>
-
-              <section v-else-if="shellScreen === 'detail'" class="mvu-mobile-library mvu-mobile-library--detail" :data-target="shellDetailPreviewKey || tabState.current">
-                <div ref="modalHostRef" class="mvu-mobile-shell-modal-host"></div>
-              </section>
-
-              <section v-else class="mvu-mobile-library" :data-target="tabState.current">
-                <div class="mvu-mobile-action-rail" role="toolbar" :aria-label="activeTitle + '快捷操作'">
-                  <button
-                    v-for="item in currentActions"
-                    :key="'shell-action-' + item.preview"
-                    type="button"
-                    class="mvu-mobile-action-pill clickable"
-                    :data-preview="item.preview"
-                  >{{ item.label }}</button>
-                </div>
-
-                <section v-if="tabState.current === 'page-archive'" class="mvu-mobile-library-page" data-target="page-archive">
-                  <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="生命图谱详细页" data-unified-card="archive-core" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card-grid mvu-mobile-card-grid--two">
-                    <div class="mvu-mobile-card clickable" data-unified-card="primary-spirit" data-unified-surface="shell"></div>
-                    <div class="mvu-mobile-card clickable" data-unified-card="secondary-spirit" data-unified-surface="shell"></div>
-                  </div>
-                  <div class="mvu-mobile-card clickable" data-preview="武装工坊详细页" data-unified-card="armory" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="储物仓库详细页" data-unified-card="vault" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="社会档案详细页" data-unified-card="social" data-unified-surface="shell"></div>
-                </section>
-
-                <section v-if="tabState.current === 'page-map'" class="mvu-mobile-library-page" data-target="page-map">
-                  <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="全息星图主画布" data-unified-card="map-hero" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="当前节点详情" data-unified-card="map-current" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="图层控制与跑图" data-unified-card="map-route" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="动态地点与扩展节点" data-unified-card="map-dynamic" data-unified-surface="shell"></div>
-                </section>
-
-                <section v-if="tabState.current === 'page-world'" class="mvu-mobile-library-page" data-target="page-world">
-                  <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="世界状态总览" data-unified-card="world-hero" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="编年史档案" data-unified-card="world-timeline" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="拍卖与警报" data-unified-card="world-alerts" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card" data-unified-card="world-ranks" data-unified-surface="shell"></div>
-                </section>
-
-                <section v-if="tabState.current === 'page-org'" class="mvu-mobile-library-page" data-target="page-org">
-                  <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="势力矩阵总览" data-unified-card="org-hero" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="我的阵营详情" data-unified-card="org-faction" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="本地据点详情" data-unified-card="org-node" data-unified-surface="shell"></div>
-                </section>
-
-                <section v-if="tabState.current === 'page-terminal'" class="mvu-mobile-library-page" data-target="page-terminal">
-                  <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="系统播报与日志" data-unified-card="terminal-hero" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="试炼与情报" data-unified-card="terminal-intel" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="近期见闻" data-unified-card="terminal-news" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="怪物图鉴" data-unified-card="terminal-bestiary" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="任务界面" data-unified-card="terminal-quest" data-unified-surface="shell"></div>
-                </section>
-              </section>
-            </div>
-          </div>
-
-          <nav class="mvu-mobile-shell-nav" aria-label="页面切换">
-            <button
-              v-for="tab in tabs"
-              :key="'mobile-tab-' + tab.id"
-              type="button"
-              class="mvu-mobile-shell-tab"
-              :class="{ active: tabState.current === tab.id }"
-              :data-target="tab.id"
-              @click="enterSection(tab.id)"
-            >
-              <span class="mvu-mobile-shell-tab-icon" aria-hidden="true" v-html="tab.icon"></span>
-              <span class="mvu-mobile-shell-tab-label">{{ tab.label }}</span>
-            </button>
-          </nav>
-
-          <div ref="modalHostRef" class="mvu-mobile-shell-modal-host"></div>
-        </div>
-      </section>
-    </div>
-  `,
-  setup() {
-    const shellFrameRef = ref(null);
-    const modalHostRef = ref(null);
-    const shellScreen = ref('section');
-    const dragState = {
-      pointerId: null,
-      startX: 0,
-      startY: 0,
-      originX: 0,
-      originY: 0,
-      moved: false
-    };
-
-    const launcherStyle = computed(() => {
-      const position = mvuLayoutState.mobileLauncherPosition || getDefaultMobileLauncherPosition();
-      return {
-        transform: `translate3d(${Math.round(position.x)}px, ${Math.round(position.y)}px, 0)`
-      };
-    });
-    const shellVisible = computed(() => !!mvuLayoutState.mobileShellOpen);
-    const desktopShellMode = computed(() => isDesktopShellMode());
-    const showMobileLauncher = computed(() => !!mvuLayoutState.isMobileViewport);
-    const showDesktopDock = computed(() => desktopShellMode.value && !shellVisible.value);
-    const activeApp = computed(() => resolveShellAppMeta(mvuTabState.current));
-    const currentActions = computed(() => resolveUnifiedActions(mvuTabState.current));
-    const launcherLabel = computed(() => {
-      return activeApp.value ? activeApp.value.title : '助手';
-    });
-    const activeTitle = computed(() => (shellScreen.value === 'home' ? '首页' : activeApp.value.title));
-    const showHomeBack = computed(() => shellScreen.value === 'detail');
-    const resolvedActiveTitle = computed(() => {
-      if (shellScreen.value === 'home') return '\u9996\u9875';
-      if (shellScreen.value === 'detail') return resolveShellPreviewTitle(shellDetailPreviewKey.value, activeApp.value.title);
-      return activeApp.value.title;
-    });
-
-    const detachPointerListeners = () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerEnd);
-      window.removeEventListener('pointercancel', handlePointerEnd);
-    };
-
-    const finishDrag = togglesShell => {
-      detachPointerListeners();
-      dragState.pointerId = null;
-      const moved = dragState.moved;
-      dragState.moved = false;
-      mvuLayoutState.mobileLauncherDragging = false;
-      if (moved) {
-        syncMobileLauncherPosition({ persist: true });
-        return;
-      }
-      if (togglesShell) {
-        toggleShellSurface();
-      }
-    };
-
-    function handlePointerMove(event) {
-      if (event.pointerId !== dragState.pointerId) return;
-      const deltaX = event.clientX - dragState.startX;
-      const deltaY = event.clientY - dragState.startY;
-      if (!dragState.moved && Math.hypot(deltaX, deltaY) >= MOBILE_LAUNCHER_DRAG_THRESHOLD) {
-        dragState.moved = true;
-        mvuLayoutState.mobileLauncherDragging = true;
-      }
-      if (!dragState.moved) return;
-      mvuLayoutState.mobileLauncherPosition = clampMobileLauncherPosition({
-        x: dragState.originX + deltaX,
-        y: dragState.originY + deltaY
-      });
-    }
-
-    function handlePointerEnd(event) {
-      if (event.pointerId !== dragState.pointerId) return;
-      finishDrag(true);
-    }
-
-    const onLauncherPointerDown = event => {
-      event.preventDefault();
-      const position = syncMobileLauncherPosition({ persist: false });
-      dragState.pointerId = event.pointerId;
-      dragState.startX = event.clientX;
-      dragState.startY = event.clientY;
-      dragState.originX = position.x;
-      dragState.originY = position.y;
-      dragState.moved = false;
-      mvuLayoutState.mobileLauncherDragging = false;
-      if (event.currentTarget && typeof event.currentTarget.setPointerCapture === 'function') {
-        try { event.currentTarget.setPointerCapture(event.pointerId); } catch (err) {}
-      }
-      window.addEventListener('pointermove', handlePointerMove);
-      window.addEventListener('pointerup', handlePointerEnd);
-      window.addEventListener('pointercancel', handlePointerEnd);
-    };
-
-    const closeShell = () => closeShellSurface();
-    const openShell = () => openShellSurface();
-    const exitShellMode = () => exitShellSurface();
-    const handleBackdropClick = () => {
-      if (!mvuLayoutState.isMobileViewport) return;
-      closeShellSurface();
-    };
-    const enterSection = tabId => {
-      requestTabChange(tabId);
-      shellScreen.value = 'section';
-    };
-    const goHome = () => {
-      shellScreen.value = 'home';
-    };
-
-    watch(() => mvuLayoutState.mobileShellOpen, nextOpen => {
-      if (nextOpen) {
-        shellScreen.value = 'home';
-      }
-    });
-
-    const bridge = {
-      isAvailable: () => true,
-      isOpen: () => !!mvuLayoutState.mobileShellOpen,
-      getModalHost: () => modalHostRef.value,
-      getShellFrame: () => shellFrameRef.value,
-      open: () => openShellSurface(),
-      close: () => closeShellSurface(),
-      toggle: () => toggleShellSurface(),
-      syncLauncherPosition: options => syncMobileLauncherPosition(options)
-    };
-
-    onMounted(() => {
-      window.__MVU_MOBILE_SHELL__ = bridge;
-      if (mvuLayoutState.isMobileViewport) {
-        syncMobileLauncherPosition({ persist: true });
-      }
-      if (typeof window.__MVU_SYNC_DETAIL_MODAL_HOST__ === 'function') {
-        try { window.__MVU_SYNC_DETAIL_MODAL_HOST__(); } catch (err) {}
-      }
-    });
-
-    onUnmounted(() => {
-      detachPointerListeners();
-      if (window.__MVU_MOBILE_SHELL__ === bridge) {
-        delete window.__MVU_MOBILE_SHELL__;
-      }
-    });
-
-    return {
-      actionItems: UNIFIED_ACTION_ITEMS,
-      tabs: TAB_ITEMS,
-      activeTitle,
-      currentActions,
-      desktopShellMode,
-      enterSection,
-      exitShellMode,
-      goHome,
-      launcherLabel,
-      launcherStyle,
-      openShell,
-      shellVisible,
-      shellApps,
-      shellScreen,
-      showDesktopDock,
-      showHomeBack,
-      showMobileLauncher,
-      tabState: mvuTabState,
-      layoutState: mvuLayoutState,
-      shellFrameRef,
-      modalHostRef,
-      closeShell,
-      handleBackdropClick,
-      onLauncherPointerDown
-    };
-  }
-};
-
 const SurfaceLauncherShellLayout = {
   template: `
     <div class="mvu-mobile-shell-host mvu-root" :class="{ 'is-open': layoutState.mobileShellOpen, 'is-dragging': layoutState.surfaceLauncherDragging }">
@@ -1694,10 +1343,11 @@ const SurfaceLauncherShellLayout = {
           @keydown.space.prevent="onLauncherKeyboardAction"
         >
           <span class="mvu-surface-launcher-icon" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <rect x="7" y="3.5" width="10" height="17" rx="3.2"></rect>
-              <path d="M10 6.75h4"></path>
-              <path d="M10.5 17.25h3"></path>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <rect x="4.5" y="4.5" width="6.25" height="6.25" rx="1.8" fill="currentColor"></rect>
+              <rect x="13.25" y="4.5" width="6.25" height="6.25" rx="1.8" fill="currentColor"></rect>
+              <rect x="4.5" y="13.25" width="6.25" height="6.25" rx="1.8" fill="currentColor"></rect>
+              <rect x="13.25" y="13.25" width="6.25" height="6.25" rx="1.8" fill="currentColor"></rect>
             </svg>
           </span>
           <span class="mvu-surface-launcher-dot" aria-hidden="true"></span>
@@ -1727,7 +1377,7 @@ const SurfaceLauncherShellLayout = {
         </div>
       </div>
 
-      <div class="mvu-mobile-shell-backdrop" :class="{ active: shellVisible }" @click="handleBackdropClick"></div>
+      <div class="mvu-mobile-shell-backdrop" :class="{ active: shellVisible }"></div>
 
       <section class="mvu-mobile-shell" :class="{ active: shellVisible }" aria-label="酒馆助手小手机框架">
         <div ref="shellFrameRef" class="mvu-mobile-shell-frame" :style="shellFrameStyle" :data-screen="shellScreen">
@@ -1768,39 +1418,49 @@ const SurfaceLauncherShellLayout = {
                     <div class="mvu-mobile-card clickable" data-unified-card="primary-spirit" data-unified-surface="shell"></div>
                     <div class="mvu-mobile-card clickable" data-unified-card="secondary-spirit" data-unified-surface="shell"></div>
                   </div>
-                  <div class="mvu-mobile-card clickable" data-preview="武装工坊详情页" data-unified-card="armory" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="储物仓库详情页" data-unified-card="vault" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="社会档案详情页" data-unified-card="social" data-unified-surface="shell"></div>
+                  <div class="mvu-mobile-card-grid mvu-mobile-card-grid--two">
+                    <div class="mvu-mobile-card clickable" data-preview="武装工坊详细页" data-unified-card="armory" data-unified-surface="shell"></div>
+                    <div class="mvu-mobile-card clickable" data-preview="储物仓库详细页" data-unified-card="vault" data-unified-surface="shell"></div>
+                  </div>
+                  <div class="mvu-mobile-card clickable" data-preview="社会档案详细页" data-unified-card="social" data-unified-surface="shell"></div>
                 </section>
 
                 <section v-if="tabState.current === 'page-map'" class="mvu-mobile-library-page" data-target="page-map">
-                  <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="全息星图主画布" data-unified-card="map-hero" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card-grid mvu-mobile-card-grid--two">
-                    <div class="mvu-mobile-card clickable" data-preview="当前节点详情" data-unified-card="map-current" data-unified-surface="shell"></div>
-                    <div class="mvu-mobile-card clickable" data-preview="图层控制与跑图" data-unified-card="map-route" data-unified-surface="shell"></div>
+                  <div class="mvu-mobile-map-stage" data-mvu-map-stage="shell"></div>
+                  <div class="mvu-mobile-card mvu-mobile-map-linked-card">
+                    <div class="mvu-mobile-map-linked-main clickable" data-preview="当前节点详情" data-unified-card="map-current" data-unified-surface="shell"></div>
+                    <div class="mvu-mobile-map-linked-grid">
+                      <div class="mvu-mobile-map-linked-item clickable" data-preview="图层控制与跑图" data-unified-card="map-route" data-unified-surface="shell"></div>
+                      <div class="mvu-mobile-map-linked-item clickable" data-preview="动态地点与扩展节点" data-unified-card="map-dynamic" data-unified-surface="shell"></div>
+                    </div>
                   </div>
-                  <div class="mvu-mobile-card clickable" data-preview="动态地点与扩展节点" data-unified-card="map-dynamic" data-unified-surface="shell"></div>
                 </section>
 
                 <section v-if="tabState.current === 'page-world'" class="mvu-mobile-library-page" data-target="page-world">
                   <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="世界状态总览" data-unified-card="world-hero" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="编年史档案" data-unified-card="world-timeline" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="拍卖与警报" data-unified-card="world-alerts" data-unified-surface="shell"></div>
+                  <div class="mvu-mobile-card-grid mvu-mobile-card-grid--two">
+                    <div class="mvu-mobile-card clickable" data-preview="编年史档案" data-unified-card="world-timeline" data-unified-surface="shell"></div>
+                    <div class="mvu-mobile-card clickable" data-preview="拍卖与警报" data-unified-card="world-alerts" data-unified-surface="shell"></div>
+                  </div>
                   <div class="mvu-mobile-card" data-unified-card="world-ranks" data-unified-surface="shell"></div>
                 </section>
 
                 <section v-if="tabState.current === 'page-org'" class="mvu-mobile-library-page" data-target="page-org">
                   <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="势力矩阵总览" data-unified-card="org-hero" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="我的阵营详情" data-unified-card="org-faction" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="本地据点详情" data-unified-card="org-node" data-unified-surface="shell"></div>
+                  <div class="mvu-mobile-card-grid mvu-mobile-card-grid--two">
+                    <div class="mvu-mobile-card clickable" data-preview="我的阵营详情" data-unified-card="org-faction" data-unified-surface="shell"></div>
+                    <div class="mvu-mobile-card clickable" data-preview="本地据点详情" data-unified-card="org-node" data-unified-surface="shell"></div>
+                  </div>
                 </section>
 
                 <section v-if="tabState.current === 'page-terminal'" class="mvu-mobile-library-page" data-target="page-terminal">
                   <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="系统播报与日志" data-unified-card="terminal-hero" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="试炼与情报" data-unified-card="terminal-intel" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="近期见闻" data-unified-card="terminal-news" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="怪物图鉴" data-unified-card="terminal-bestiary" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="任务界面" data-unified-card="terminal-quest" data-unified-surface="shell"></div>
+                  <div class="mvu-mobile-card-grid mvu-mobile-card-grid--two">
+                    <div class="mvu-mobile-card clickable" data-preview="试炼与情报" data-unified-card="terminal-intel" data-unified-surface="shell"></div>
+                    <div class="mvu-mobile-card clickable" data-preview="近期见闻" data-unified-card="terminal-news" data-unified-surface="shell"></div>
+                    <div class="mvu-mobile-card clickable" data-preview="怪物图鉴" data-unified-card="terminal-bestiary" data-unified-surface="shell"></div>
+                    <div class="mvu-mobile-card clickable" data-preview="任务界面" data-unified-card="terminal-quest" data-unified-surface="shell"></div>
+                  </div>
                 </section>
               </section>
             </div>
@@ -2333,7 +1993,7 @@ const DesktopUnifiedLayout = {
                 <div class="mvu-unified-section-headline">
                   <div class="mvu-unified-section-copy">
                     <b class="mvu-unified-section-title">武魂与能力</b>
-                    <span class="mvu-unified-section-note">主武魂、副轨与特殊能力入口</span>
+                    <span class="mvu-unified-section-note">主武魂 / 第二武魂</span>
                   </div>
                   <div class="mvu-unified-chip-row">
                     <button type="button" class="mvu-unified-chip clickable" data-preview="武魂融合技详细页">融合技</button>

@@ -1343,6 +1343,7 @@
 
     let activeBattleUI = null;
     let liveSnapshot = null;
+    let lastRenderableSnapshot = null;
     let preferredActiveCharacterName = '';
     let currentModalPreviewKey = '';
     let mapDispatchContext = null;
@@ -7594,9 +7595,9 @@
       if (!config) {
         return `
           <div class="mvu-unified-card-head">
-            <div class="mvu-unified-card-title">${primary ? '主武魂' : '副轨'}</div>
+            <div class="mvu-unified-card-title">${primary ? '主武魂' : '第二武魂'}</div>
           </div>
-          <div class="mvu-unified-empty-note">${primary ? '当前未加载武魂信息。' : '当前未启用副武魂或血脉副轨。'}</div>
+          <div class="mvu-unified-empty-note">${primary ? '当前未加载武魂信息。' : '当前未启用第二武魂或血脉。'}</div>
         `;
       }
       const content = config.kind === 'bloodline'
@@ -7667,16 +7668,16 @@
 
     function buildShellSummaryCard(options = {}) {
       const kicker = toText(options.kicker, '').trim();
-      const title = toText(options.title, '暂无信息').trim() || '暂无信息';
+      const title = toText(options.title, '空').trim() || '空';
       const value = toText(options.value, '').trim();
       const meta = toText(options.meta, '').trim();
       const rawNote = toText(options.note, '').trim();
       const tone = toText(options.tone, '').trim();
       const requestedSize = toText(options.size, '').trim();
       const size = requestedSize || 'compact';
-      const badgeLimit = size === 'hero' ? 4 : 2;
+      const badgeLimit = size === 'hero' ? 3 : 2;
       const metricLimit = size === 'hero' ? 4 : 2;
-      const rowLimit = size === 'hero' ? 3 : ((Array.isArray(options.metrics) && options.metrics.length) ? 1 : 2);
+      const rowLimit = size === 'hero' ? 2 : ((Array.isArray(options.metrics) && options.metrics.length) ? 1 : 2);
       const badges = collectShellBadgeItems(options.badges || [], badgeLimit);
       const metrics = collectShellMetricItems(options.metrics || [], metricLimit);
       const rows = collectShellLineItems(options.rows || [], rowLimit);
@@ -7685,6 +7686,7 @@
         'mvu-shell-summary',
         tone ? `mvu-shell-summary--${tone}` : '',
         size ? `mvu-shell-summary--${size}` : '',
+        value ? 'has-value' : '',
       ].filter(Boolean).join(' ');
 
       return `
@@ -7730,7 +7732,7 @@
       return buildShellSummaryCard({
         kicker: options.kicker || '',
         title,
-        note: note || '暂无信息',
+        value: note || '空',
         tone: options.tone || 'muted',
       });
     }
@@ -7763,21 +7765,70 @@
       return isShellPlaceholderText(fallbackText) ? '' : fallbackText;
     }
 
+    function normalizeUserFacingTrackLabel(value, fallback = '') {
+      const text = toText(value, fallback).trim() || toText(fallback, '').trim();
+      if (!text) return '';
+      return text
+        .replace(/血脉副轨/g, '血脉')
+        .replace(/武魂副轨/g, '第二武魂')
+        .replace(/副轨/g, '第二武魂');
+    }
+
+    function summarizeShellIdentityText(value, options = {}) {
+      const limit = Math.max(4, toNumber(options.limit, 12));
+      const preferFirst = options.preferFirst !== false;
+      const rawText = resolveShellText(value, '').trim();
+      if (!rawText) return '';
+      const cleaned = rawText
+        .replace(/（[^）]*）/g, '')
+        .replace(/\([^)]*\)/g, '')
+        .replace(/[；;，,。].*$/, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!cleaned) return '';
+      const pieces = cleaned
+        .split(/[｜|/／、]/)
+        .map(item => toText(item, '').trim())
+        .filter(Boolean);
+      const resolved = preferFirst && pieces.length ? pieces[0] : cleaned;
+      return shortenText(resolved || cleaned, limit);
+    }
+
+    function isRenderableShellRing(ring) {
+      if (!ring || typeof ring !== 'object') return false;
+      const title = resolveShellText(ring.title, '');
+      const desc = resolveShellText(ring.desc, '');
+      const skills = Array.isArray(ring.skills) ? ring.skills.filter(skill => resolveShellText(skill && skill.name, '')).length : 0;
+      return !!title || !!desc || skills > 0;
+    }
+
+    function isRenderableShellSoul(soul) {
+      if (!soul || typeof soul !== 'object') return false;
+      const spiritName = resolveShellText(soul.spiritName || soul.desc || soul.name, '');
+      const description = resolveShellText(soul.description, '');
+      const state = toText(soul.state, '').trim();
+      const ringCount = Array.isArray(soul.rings) ? soul.rings.filter(isRenderableShellRing).length : 0;
+      if (ringCount > 0) return true;
+      if (spiritName && !/^(未设置|魂灵槽位)$/.test(spiritName)) return true;
+      if (description && !/^(尚未接入魂灵。|未设置)$/.test(description)) return true;
+      return !!state && !/^(未知|未激活|未设置)$/.test(state);
+    }
+
     function buildShellSpiritSummaryCard(config, options = {}) {
       const primary = !!(options && options.primary);
       if (!config) {
-        return buildShellEmptyCard(primary ? '主武魂' : '副轨', primary ? '尚未接入武魂' : '尚未启用副轨');
+        return buildShellEmptyCard(primary ? '主武魂' : normalizeUserFacingTrackLabel('', '第二武魂'), primary ? '未接入' : '未启用');
       }
 
       if (config.kind === 'bloodline') {
         return buildShellSummaryCard({
-          kicker: '血脉副轨',
-          title: shortenText(toText(config.bloodline, '未觉醒'), 14),
+          kicker: '血脉',
+          title: shortenText(toText(config.bloodline, '未觉醒'), 20),
           value: `封印 ${toText(config.sealLv, '0')} 层`,
-          meta: `核心 ${shortenText(toText(config.core, '未凝核'), 10)}`,
+          meta: `核心 ${shortenText(toText(config.core, '未凝核'), 16)}`,
           badges: [
             config.lifeFire ? { text: '命火已燃', tone: 'gold' } : { text: '命火未燃' },
-            ...((config.rings || []).slice(0, 2).map(item => shortenText(toText(item && item.title, ''), 10))),
+            ...((config.rings || []).slice(0, 2).map(item => shortenText(toText(item && item.title, ''), 16))),
           ],
           metrics: [
             { label: '血环', value: String((config.rings || []).length || 0), tone: 'gold' },
@@ -7787,32 +7838,49 @@
           ],
           rows: [
             { label: '状态', value: config.lifeFire ? '已点燃' : '等待命火' },
-            { label: '概览', value: shortenText(toText(config.desc, '打开详情查看血脉'), 16) },
+            { label: '概览', value: shortenText(toText(config.desc, '打开详情查看血脉'), 28) },
           ],
           tone: 'gold',
         });
       }
 
-      const primarySoul = Array.isArray(config.souls) && config.souls.length ? config.souls[0] : null;
+      const renderableSouls = Array.isArray(config.souls) ? config.souls.filter(isRenderableShellSoul) : [];
+      const primarySoul = renderableSouls[0] || null;
       const unlockedAttrs = Array.isArray(config.spiritUnlockedAttrs) ? config.spiritUnlockedAttrs : [];
+      const soulCount = renderableSouls.length || Math.max(0, toNumber(config.soulCount, 0));
+      const ringCount = Array.isArray(config.rings) ? config.rings.filter(isRenderableShellRing).length : 0;
+      const hasSpiritProgress = !!primarySoul || soulCount > 0 || ringCount > 0;
+      if (!hasSpiritProgress) {
+        return buildShellSummaryCard({
+          kicker: primary ? '主武魂' : normalizeUserFacingTrackLabel(config.badge, '第二武魂'),
+          title: shortenText(toText(config.spiritName || config.name, primary ? '主武魂' : '第二武魂'), 20),
+          value: '待接魂环',
+          meta: shortenText(toText(config.spiritType, '未定'), 18),
+          rows: [
+            { label: '状态', value: '未接魂环' },
+          ],
+          tone: primary ? 'live' : 'cyan',
+        });
+      }
+      const renderableRings = (config.rings || []).filter(isRenderableShellRing);
       return buildShellSummaryCard({
-        kicker: primary ? '主武魂' : toText(config.badge, '副轨'),
-        title: shortenText(toText(config.spiritName || config.name, primary ? '主武魂' : '副轨'), 14),
-        value: `${toText(config.soulCount, '0')} 枚魂灵`,
-        meta: `${shortenText(toText(config.spiritType, '未定'), 8)} · ${shortenText(toText(config.spiritElement, '未定'), 8)}`,
+        kicker: primary ? '主武魂' : normalizeUserFacingTrackLabel(config.badge, '第二武魂'),
+        title: shortenText(toText(config.spiritName || config.name, primary ? '主武魂' : normalizeUserFacingTrackLabel(config.badge, '第二武魂')), 20),
+        value: `${soulCount} 枚魂灵`,
+        meta: `${shortenText(toText(config.spiritType, '未定'), 12)} · ${shortenText(toText(config.spiritElement, '未定'), 12)}`,
         badges: [
-          primarySoul ? shortenText(toText(primarySoul.spiritName || primarySoul.desc, ''), 10) : '',
-          ...((config.rings || []).slice(0, 2).map(item => shortenText(toText(item && item.title, ''), 10))),
-          ...unlockedAttrs.slice(0, 1).map(item => shortenText(toText(item, ''), 8)),
+          primarySoul ? shortenText(toText(primarySoul.spiritName || primarySoul.desc, ''), 16) : '',
+          ...renderableRings.slice(0, 2).map(item => shortenText(toText(item && item.title, ''), 16)),
+          ...unlockedAttrs.slice(0, 1).map(item => shortenText(toText(item, ''), 14)),
         ],
         metrics: [
           { label: '契合', value: primarySoul ? toText(primarySoul.comp, '--') : '--', tone: 'live' },
-          { label: '年限', value: primarySoul ? shortenText(toText(primarySoul.age, '--'), 8) : '--' },
-          { label: '魂环', value: String((config.rings || []).length || 0) },
+          { label: '年限', value: primarySoul ? shortenText(toText(primarySoul.age, '--'), 12) : '--' },
+          { label: '魂环', value: String(ringCount || 0) },
           { label: '上限', value: String((Array.isArray(config.spiritCapacityAttrs) ? config.spiritCapacityAttrs.length : 0) || 0) },
         ],
         rows: [
-          { label: '主魂灵', value: primarySoul ? shortenText(toText(primarySoul.spiritName || primarySoul.desc, '未接入'), 14) : '未接入' },
+          { label: '主魂灵', value: primarySoul ? shortenText(toText(primarySoul.spiritName || primarySoul.desc, '未接入'), 24) : '未接入' },
           { label: '状态', value: primarySoul ? toText(primarySoul.state, '未知') : '等待唤醒' },
         ],
         tone: primary ? 'live' : 'cyan',
@@ -7830,15 +7898,30 @@
       }
       const stat = deepGet(snapshot, 'activeChar.stat', {});
       const status = deepGet(snapshot, 'activeChar.status', {});
-      const placeText = snapshot.normalizedLoc && snapshot.normalizedLoc !== snapshot.currentLoc
-        ? `${shortenText(snapshot.normalizedLoc, 8)} · ${shortenText(snapshot.currentLoc, 8)}`
-        : shortenText(toText(snapshot.currentLoc, '未知地点'), 18);
+      const placeText = buildShellLocationLabel(snapshot, { fullLimit: 18, trailLimit: 8 });
       return buildShellAppPeek({
         value: toText(snapshot.activeName, '当前角色'),
         meta: `${formatCultivationLevelBadge(stat.lv, '0')} · ${placeText}`,
         note: toText(status.action, '日常'),
         tone: 'live',
       });
+    }
+
+    function buildShellLocationLabel(snapshot, options = {}) {
+      const normalizedLoc = toText(snapshot && snapshot.normalizedLoc, '').trim();
+      const currentLoc = toText(snapshot && snapshot.currentLoc, '').trim();
+      const fullLimit = Math.max(8, toNumber(options.fullLimit, 18));
+      const trailLimit = Math.max(6, toNumber(options.trailLimit, 8));
+      if (!normalizedLoc && !currentLoc) return '未知地点';
+      if (
+        !normalizedLoc
+        || normalizedLoc === currentLoc
+        || currentLoc.startsWith(`${normalizedLoc}-`)
+        || currentLoc.startsWith(`${normalizedLoc}·`)
+      ) {
+        return shortenText(currentLoc || normalizedLoc, fullLimit);
+      }
+      return `${shortenText(normalizedLoc, trailLimit)} · ${shortenText(currentLoc || normalizedLoc, trailLimit)}`;
     }
 
     function buildShellHomeMapCard(snapshot) {
@@ -7954,36 +8037,43 @@
       const primaryFactionRole = snapshot.primaryFaction ? toText(deepGet(snapshot.primaryFaction[1], '身份', '未加入'), '未加入') : '未加入';
       const titleText = Array.isArray(snapshot.recentTitles) && snapshot.recentTitles.length ? snapshot.recentTitles[0] : '';
       const nextLevelSoul = getNextLevelSoulRequirement(stat);
-      const placeText = snapshot.normalizedLoc && snapshot.normalizedLoc !== snapshot.currentLoc
-        ? `${shortenText(snapshot.normalizedLoc, 8)} · ${shortenText(snapshot.currentLoc, 8)}`
-        : shortenText(snapshot.currentLoc, 18);
+      const placeText = buildShellLocationLabel(snapshot, { fullLimit: 18, trailLimit: 8 });
       const hasSoulPowerMeter = toNumber(stat.sp_max, 0) > 0;
       const hasVitalityMeter = toNumber(stat.vit_max, 0) > 0;
       const hasMentalMeter = toNumber(stat.men_max, 0) > 0;
       const ageMetric = toNumber(stat.age, 0);
       const talentMetric = shortenText(toText(stat.talent_tier, '未定'), 8);
       const typeMetric = shortenText(toText(stat.type, '未定'), 8);
+      const factionJoined = primaryFactionName !== '未加入';
+      const nextLevelNeeded = Math.max(0, toNumber(nextLevelSoul && nextLevelSoul.needed, 0));
+      const woundText = toText(status.wound, '').trim();
+      const statusSummary = !woundText || /^(无|无伤)$/i.test(woundText)
+        ? toText(status.action, '日常')
+        : `${toText(status.action, '日常')} / ${woundText}`;
+      const identitySummary = summarizeShellIdentityText(social.main_identity, { limit: 12 }) || shortenText(toText(social.main_identity, ''), 14);
+      const factionSummary = factionJoined
+        ? `${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}`
+        : (identitySummary || '独行');
+      const fameLevelText = shortenText(toText(social._fame_level, toText(social.fame_level, '籍籍无名')), 8);
       return buildShellSummaryCard({
         kicker: '角色首页',
         title: toText(snapshot.activeName, '当前角色'),
         value: formatCultivationLevelBadge(stat.lv, '0'),
-        meta: `${placeText} · ${toText(status.action, '日常')}`,
+        meta: placeText,
         badges: [
           titleText ? { text: shortenText(titleText, 10), tone: 'gold' } : '',
-          { text: shortenText(primaryFactionName, 10), tone: 'live' },
-          snapshot.bloodline && snapshot.bloodline.valid ? { text: shortenText(snapshot.bloodline.bloodline, 10), tone: 'gold' } : '',
-          nextLevelSoul.isMax ? '已满级' : `下级 ${formatNumber(nextLevelSoul.needed)}`,
+          factionJoined ? { text: shortenText(primaryFactionName, 10), tone: 'live' } : '',
+          fameLevelText && fameLevelText !== '籍籍无名' ? { text: fameLevelText, tone: 'gold' } : '',
         ],
         metrics: [
           hasSoulPowerMeter ? { label: '魂力', value: `${ratioPercent(stat.sp, stat.sp_max)}%`, tone: 'live' } : { label: '年龄', value: ageMetric > 0 ? String(ageMetric) : '--' },
           hasVitalityMeter ? { label: '体力', value: `${ratioPercent(stat.vit, stat.vit_max)}%`, tone: 'warn' } : { label: '天赋', value: talentMetric || '--', tone: 'gold' },
           hasMentalMeter ? { label: '精神', value: `${ratioPercent(stat.men, stat.men_max)}%` } : { label: '系别', value: typeMetric || '--' },
-          { label: '关系', value: String((snapshot.relations || []).length || 0) },
+          { label: '状态', value: shortenText(statusSummary, 10) || '--' },
         ],
         rows: [
-          { label: '状态', value: `${toText(status.action, '日常')} / ${toText(status.wound, '无伤')}` },
-          { label: '阵营', value: `${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}` },
-          { label: '名望', value: `${shortenText(toText(social._fame_level, toText(social.fame_level, '籍籍无名')), 8)} / ${formatNumber(social.reputation)}` },
+          { label: factionJoined ? '阵营' : '身份', value: factionSummary },
+          { label: '名望', value: social.reputation ? `${fameLevelText} · ${formatNumber(social.reputation)}` : fameLevelText },
         ],
         tone: 'hero',
         size: 'hero',
@@ -8010,10 +8100,25 @@
       const accessoryEntries = listAccessoryEntries(deepGet(snapshot, 'activeChar.equip.accessories', {}));
       const jobs = safeEntries(deepGet(snapshot, 'activeChar.job', {}));
       const jobSummary = jobs.length ? `${jobs[0][0]} Lv.${toText(deepGet(jobs[0][1], 'lv', 0), '0')}` : '未开启';
+      const weaponName = toText(weapon.name, '').trim();
+      const hasArmor = toNumber(armor.lv, 0) > 0;
+      const hasWeapon = !!weaponName && !/^(无|未记录)$/.test(weaponName);
+      const hasMech = !!toText(mech.lv, '').trim();
+      const hasLoadout = hasArmor || hasWeapon || hasMech || accessoryEntries.length || (snapshot.soulBoneEntries || []).length;
       const armorSummary = toNumber(armor.lv, 0) > 0
         ? `${toText(armor.name, `${armor.lv}字斗铠`)} / ${toText(armor.equip_status, '已装配')}`
         : '未装配';
       const mechSummary = toText(mech.lv, '') ? `${toText(mech.lv, '')} · ${toText(mech.type, '未定型')}` : '未挂载';
+      if (!hasLoadout) {
+        return buildShellSummaryCard({
+          title: jobs.length ? '工坊' : '武装',
+          value: jobs.length ? shortenText(jobSummary, 16) : '0',
+          meta: jobs.length ? '副职已记录' : '无装备',
+          rows: [
+            { label: jobs.length ? '副职' : '斗铠', value: jobs.length ? shortenText(jobSummary, 16) : '无' },
+          ],
+        });
+      }
       return buildShellSummaryCard({
         kicker: '武装',
         title: '武装',
@@ -8023,7 +8128,6 @@
           { label: '机甲', value: toText(mech.lv, '--') || '--' },
           { label: '魂骨', value: String((snapshot.soulBoneEntries || []).length || 0), tone: 'gold' },
           { label: '挂载', value: String(accessoryEntries.length || 0) },
-          { label: '职业', value: jobs.length ? `Lv.${toText(deepGet(jobs[0][1], 'lv', 0), '0')}` : '--' },
         ],
         rows: [
           { label: '主武器', value: shortenText(toText(weapon.name, '未记录'), 14) },
@@ -8047,20 +8151,35 @@
         });
       }
       const wealth = deepGet(snapshot, 'activeChar.wealth', {});
+      const inventoryCount = (snapshot.inventoryEntries || []).length || 0;
+      const fedCoin = toNumber(wealth.fed_coin, 0);
+      const starCoin = toNumber(wealth.star_coin, 0);
+      const tangPt = toNumber(wealth.tang_pt, 0);
+      const bloodPt = toNumber(wealth.blood_pt, 0);
+      const hasStoredResources = inventoryCount > 0 || fedCoin > 0 || starCoin > 0 || tangPt > 0 || bloodPt > 0;
+      if (!hasStoredResources) {
+        return buildShellSummaryCard({
+          title: '仓库',
+          value: '0',
+          meta: '无物资',
+          rows: [
+            { label: '货币', value: '0' },
+          ],
+        });
+      }
       return buildShellSummaryCard({
         kicker: '仓库',
         title: '仓库',
-        value: `${formatNumber((snapshot.inventoryEntries || []).length || 0)} 项物资`,
-        meta: `流动资金 ${formatNumber(wealth.fed_coin)} / 星罗 ${formatNumber(wealth.star_coin)}`,
+        value: `${formatNumber(inventoryCount)} 物资`,
+        meta: `流动资金 ${formatNumber(fedCoin)} / 星罗 ${formatNumber(starCoin)}`,
         metrics: [
-          { label: '联邦', value: formatNumber(wealth.fed_coin), tone: 'live' },
-          { label: '星罗', value: formatNumber(wealth.star_coin) },
-          { label: '积分', value: formatNumber(wealth.tang_pt), tone: 'gold' },
-          { label: '战功', value: formatNumber(wealth.shrek_pt) },
+          { label: '联邦', value: formatNumber(fedCoin), tone: 'live' },
+          { label: '星罗', value: formatNumber(starCoin) },
+          { label: '积分', value: formatNumber(tangPt), tone: 'gold' },
         ],
         rows: [
-          { label: '血神', value: formatNumber(wealth.blood_pt) },
-          { label: '物资', value: `${formatNumber((snapshot.inventoryEntries || []).length || 0)} 种` },
+          { label: '血神', value: formatNumber(bloodPt) },
+          { label: '物资', value: `${formatNumber(inventoryCount)} 种` },
         ],
       });
     }
@@ -8069,7 +8188,7 @@
       if (!snapshot) {
         return buildShellSummaryCard({
           kicker: '社交',
-          title: '社交档案',
+          title: '社交',
           value: '待同步',
           meta: '当前聊天',
           rows: [
@@ -8089,26 +8208,29 @@
         ? `${shortenText(snapshot.pendingIntelContent, 10)} / +${snapshot.pendingIntelImpact}`
         : ((snapshot.unlockedKnowledges || []).length ? shortenText(snapshot.unlockedKnowledges[(snapshot.unlockedKnowledges || []).length - 1], 12) : '暂无');
       const currentTitle = Array.isArray(snapshot.recentTitles) && snapshot.recentTitles.length ? snapshot.recentTitles[0] : '';
+      const fameLevel = shortenText(toText(social._fame_level, toText(social.fame_level, '籍籍无名')), 12);
+      const reputationText = formatNumber(social.reputation);
+      const mainIdentity = summarizeShellIdentityText(social.main_identity, { limit: 12 }) || shortenText(toText(social.main_identity, ''), 14);
+      const factionSummary = primaryFactionName === '未加入'
+        ? (mainIdentity || '未结盟')
+        : `${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}`;
       return buildShellSummaryCard({
         kicker: '社交',
-        title: shortenText(toText(social._fame_level, toText(social.fame_level, '籍籍无名')), 12),
-        value: formatNumber(social.reputation),
-        meta: '名望 · 势力 · 情报',
+        title: '社交',
+        value: fameLevel,
+        meta: mainIdentity || `名望 ${reputationText}`,
         badges: [
           currentTitle ? { text: shortenText(currentTitle, 10), tone: 'gold' } : '',
-          snapshot.publicIntel ? { text: '公开情报', tone: 'live' } : '隐私情报',
+          snapshot.publicIntel ? { text: '公开情报', tone: 'live' } : '',
           snapshot.pendingIntelCount ? `新线索 ${snapshot.pendingIntelCount}` : '',
         ],
         metrics: [
-          { label: '势力', value: String((snapshot.factions || []).length || 0) },
           { label: '关系', value: String((snapshot.relations || []).length || 0), tone: 'live' },
-          { label: '情报', value: String((snapshot.unlockedKnowledges || []).length || 0) },
-          { label: '头衔', value: String((snapshot.recentTitles || []).length || 0), tone: 'gold' },
+          { label: '势力', value: String((snapshot.factions || []).length || 0) },
         ],
         rows: [
-          { label: '所属', value: `${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}` },
-          { label: '焦点', value: topRelationText },
-          { label: '最新', value: latestIntelText },
+          { label: primaryFactionName === '未加入' ? '身份' : '所属', value: factionSummary },
+          { label: snapshot.topRelation ? '关系' : '动态', value: snapshot.topRelation ? topRelationText : latestIntelText },
         ],
       });
     }
@@ -8131,9 +8253,9 @@
       const focusText = toText(deepGet(snapshot, 'mapCurrentFocus.loc', snapshot.currentLoc), snapshot.currentLoc);
       return buildShellSummaryCard({
         kicker: '星图',
-        title: shortenText(toText(snapshot.currentLoc, '未命名节点'), 14),
-        value: shortenText(currentMapDisplayName, 12),
-        meta: `焦点 ${shortenText(focusText, 12)}`,
+        title: shortenText(toText(snapshot.currentLoc, '未命名节点'), 24),
+        value: shortenText(currentMapDisplayName, 16),
+        meta: `焦点 ${shortenText(focusText, 24)}`,
         badges: [
           `${snapshot.mapTravelCandidates.length || snapshot.mapNodeLabels.length || 0} 个入口`,
           childMapCount ? { text: `${childMapCount} 个子图`, tone: 'gold' } : '',
@@ -8146,11 +8268,15 @@
           { label: '子图', value: String(childMapCount || 0), tone: 'gold' },
         ],
         note: snapshot.latestTimeline
-          ? shortenText(toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]), 32)
-          : '打开星图查看节点',
+          ? shortenText(toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]), 36)
+          : '查看节点摘要',
         tone: 'hero',
         size: 'hero',
       });
+    }
+
+    function buildShellMapStageCard() {
+      return '';
     }
 
     function buildShellMapCurrentCard(snapshot) {
@@ -8158,13 +8284,13 @@
       const localFaction = toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知');
       return buildShellSummaryCard({
         kicker: '当前节点',
-        title: shortenText(toText(snapshot.normalizedLoc, snapshot.currentLoc), 14),
-        value: shortenText(currentMapDisplayName, 12),
-        meta: snapshot.normalizedLoc !== snapshot.currentLoc ? shortenText(snapshot.currentLoc, 12) : '当前锚点',
+        title: shortenText(toText(snapshot.normalizedLoc, snapshot.currentLoc), 22),
+        value: shortenText(currentMapDisplayName, 16),
+        meta: snapshot.normalizedLoc !== snapshot.currentLoc ? shortenText(snapshot.currentLoc, 22) : '当前锚点',
         rows: [
-          { label: '掌控', value: shortenText(localFaction, 14) },
+          { label: '掌控', value: shortenText(localFaction, 22) },
           { label: '入口', value: safeEntries(snapshot.mapAvailableChildMaps).length ? `${safeEntries(snapshot.mapAvailableChildMaps).length} 个可进` : '暂无子图' },
-          { label: '焦点', value: shortenText(toText(deepGet(snapshot, 'mapCurrentFocus.loc', snapshot.currentLoc), snapshot.currentLoc), 14) },
+          { label: '焦点', value: shortenText(toText(deepGet(snapshot, 'mapCurrentFocus.loc', snapshot.currentLoc), snapshot.currentLoc), 24) },
         ],
       });
     }
@@ -8175,26 +8301,36 @@
         kicker: '跑图',
         title: '路线',
         value: `${routeCount} 条`,
-        meta: `${shortenText(getMapDisplayName(snapshot), 12)} · ${safeEntries(snapshot.mapAvailableChildMaps).length} 个子图`,
+        meta: `${shortenText(getMapDisplayName(snapshot), 18)} · ${safeEntries(snapshot.mapAvailableChildMaps).length} 个子图`,
         rows: [
-          { label: '当前地图', value: shortenText(getMapDisplayName(snapshot), 14) },
+          { label: '当前地图', value: shortenText(getMapDisplayName(snapshot), 22) },
           { label: '子图', value: safeEntries(snapshot.mapAvailableChildMaps).length ? `${safeEntries(snapshot.mapAvailableChildMaps).length} 个入口` : '暂无子图' },
-          { label: '操作', value: '打开跑图面板' },
+          { label: '入口', value: routeCount ? `${routeCount} 条可用路线` : '暂无路线' },
         ],
       });
     }
 
     function buildShellMapDynamicCard(snapshot) {
+      if (!snapshot || (!snapshot.mapVisibleDynamicEntries.length && !snapshot.mapActivePatchEntries.length && !snapshot.latestTimeline)) {
+        return buildShellSummaryCard({
+          title: '动态',
+          value: '0',
+          meta: '无地图动态',
+          rows: [
+            { label: '补丁', value: '0' },
+          ],
+        });
+      }
       const latestPatch = snapshot.mapActivePatchEntries[0] ? snapshot.mapActivePatchEntries[0][0].replace(/^patch_/, '') : '暂无';
       return buildShellSummaryCard({
         kicker: '动态',
         title: '动态',
         value: `${snapshot.mapVisibleDynamicEntries.length || 0} 处`,
-        meta: snapshot.latestTimeline ? shortenText(snapshot.latestTimeline[0], 14) : '等待新变化',
+        meta: snapshot.latestTimeline ? shortenText(snapshot.latestTimeline[0], 20) : '等待新变化',
         rows: [
           { label: '激活补丁', value: String(snapshot.mapActivePatchEntries.length || 0) },
-          { label: '最新补丁', value: shortenText(latestPatch, 12) },
-          { label: '地图信息', value: snapshot.latestTimeline ? shortenText(toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]), 16) : '暂无新变化' },
+          { label: '最新补丁', value: shortenText(latestPatch, 18) },
+          { label: '地图信息', value: snapshot.latestTimeline ? shortenText(toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]), 28) : '暂无新变化' },
         ],
       });
     }
@@ -8251,17 +8387,27 @@
 
     function buildShellWorldTimelineCard(snapshot) {
       const latestTimeline = snapshot.latestTimeline;
+      if (!latestTimeline) {
+        return buildShellSummaryCard({
+          title: '时间线',
+          value: '0',
+          meta: '无编年记录',
+        });
+      }
       const timelineStatus = latestTimeline
         ? `${toText(deepGet(latestTimeline[1], 'status', 'pending'), 'pending')} / Tick ${toText(deepGet(latestTimeline[1], 'trigger_tick', 0), '0')}`
         : '等待下一条时间线';
+      const latestTimelineText = latestTimeline
+        ? toText(deepGet(latestTimeline[1], 'event', latestTimeline[0]), latestTimeline[0])
+        : '';
       return buildShellSummaryCard({
         kicker: '编年',
-        title: latestTimeline ? shortenText(latestTimeline[0], 14) : '暂无事件',
-        value: latestTimeline ? `Tick ${toText(deepGet(latestTimeline[1], 'trigger_tick', 0), '0')}` : '待更新',
-        meta: timelineStatus,
-        note: latestTimeline
-          ? shortenText(toText(deepGet(latestTimeline[1], 'event', latestTimeline[0]), latestTimeline[0]), 34)
-          : '新事件会在这里更新',
+        title: '时间线',
+        value: latestTimeline ? shortenText(latestTimeline[0], 12) : '待更新',
+        meta: shortenText(latestTimelineText || '等待下一条时间线', 22),
+        rows: [
+          { label: '状态', value: shortenText(timelineStatus, 18) },
+        ],
       });
     }
 
@@ -8270,13 +8416,12 @@
       return buildShellSummaryCard({
         kicker: '榜单',
         title: '榜单',
-        value: totalRanks ? String(totalRanks) : '待同步',
-        meta: '少年天才 · 大陆风云',
+        value: totalRanks ? `${totalRanks} 条` : '待同步',
+        meta: '少年天才 / 大陆风云',
         metrics: [
           { label: '天才', value: String((snapshot.youthRankingEntries || []).length || 0), tone: 'live' },
           { label: '风云', value: String((snapshot.continentRankingEntries || []).length || 0), tone: 'gold' },
         ],
-        note: totalRanks ? '打开面板查看完整榜单' : '等待榜单同步',
       });
     }
 
@@ -8285,16 +8430,22 @@
       const auctionStatus = resolveShellText(snapshot.auctionStatus, '休市');
       const auctionLocation = resolveShellText(snapshot.auctionLocation, '');
       const hasAuctionActivity = auctionStatus !== '休市' || !!auctionLocation;
+      if (!worldAlertText && !hasAuctionActivity) {
+        return buildShellSummaryCard({
+          title: '警报',
+          value: '0',
+          meta: '无警报',
+        });
+      }
       return buildShellSummaryCard({
         kicker: '警报',
-        title: worldAlertText ? shortenText(worldAlertText, 14) : (hasAuctionActivity ? '拍卖动态' : '当前平静'),
-        value: auctionLocation ? shortenText(auctionLocation, 12) : (hasAuctionActivity ? shortenText(auctionStatus, 12) : '待观察'),
-        meta: '拍卖 / 生态警报',
+        title: '警报',
+        value: worldAlertText ? shortenText(worldAlertText, 12) : (hasAuctionActivity ? shortenText(auctionStatus, 12) : '待观察'),
+        meta: auctionLocation ? shortenText(auctionLocation, 18) : '拍卖 / 生态',
         rows: [
           hasAuctionActivity ? { label: '拍卖', value: auctionLocation ? `${auctionStatus} / ${shortenText(auctionLocation, 10)}` : auctionStatus } : null,
           worldAlertText ? { label: '生态', value: shortenText(worldAlertText, 16) } : null,
         ],
-        note: hasAuctionActivity || worldAlertText ? '' : '暂无生态警报',
         tone: worldAlertText && /高危|警报/i.test(worldAlertText) ? 'warn' : '',
       });
     }
@@ -8356,7 +8507,7 @@
     function buildShellOrgNodeCard(snapshot) {
       return buildShellSummaryCard({
         kicker: '本地据点',
-        title: shortenText(toText(snapshot.normalizedLoc || snapshot.currentLoc, '当前地图'), 14),
+        title: buildShellLocationLabel(snapshot, { fullLimit: 14, trailLimit: 7 }),
         value: shortenText(toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知'), 12),
         meta: `${shortenText(toText(deepGet(snapshot, 'locationData.经济状况', '未知'), '未知'), 8)} · ${shortenText(toText(deepGet(snapshot, 'locationData.守护军团', '未知'), '未知'), 8)}`,
         rows: [
@@ -8376,7 +8527,7 @@
           rows: [
             { label: '情报', value: '--' },
             { label: '任务', value: '--' },
-            { label: '图鉴', value: '--' },
+            { label: '收录', value: '--' },
           ],
         });
       }
@@ -8386,8 +8537,8 @@
       const worldAlertText = resolveShellText(snapshot.worldAlert, '');
       return buildShellSummaryCard({
         kicker: '终端',
-        title: '系统播报',
-        value: snapshot.pendingIntelCount ? `${snapshot.pendingIntelCount} 条新情报` : (snapshot.questRecordCount ? `${snapshot.questRecordCount} 项待跟进` : '系统在线'),
+        title: '终端',
+        value: snapshot.pendingIntelCount ? `${snapshot.pendingIntelCount} 情报` : (snapshot.questRecordCount ? `${snapshot.questRecordCount} 任务` : '在线'),
         meta: shortenText(resolveShellText(sys.rsn, '待命中') || '待命中', 26),
         badges: [
           worldAlertText ? { text: shortenText(worldAlertText, 10), tone: 'warn' } : '',
@@ -8395,9 +8546,8 @@
         ],
         metrics: [
           { label: '情报', value: String(snapshot.pendingIntelCount || 0), tone: 'gold' },
-          { label: '见闻', value: String((recentNews.cards || []).length || 0) },
           { label: '任务', value: String(snapshot.questRecordCount || 0), tone: 'live' },
-          { label: '图鉴', value: String((snapshot.bestiaryEntries || []).length || 0) },
+          { label: '收录', value: String((snapshot.bestiaryEntries || []).length || 0) },
         ],
         note: shortenText(pendingRequestText || '待命中', 34),
         tone: 'hero',
@@ -8406,67 +8556,81 @@
     }
 
     function buildShellTerminalIntelCard(snapshot) {
+      if (!snapshot.pendingIntelCount && !(snapshot.unlockedKnowledges || []).length && !(snapshot.pendingRequests || []).length) {
+        return buildShellSummaryCard({
+          title: '情报',
+          value: '0',
+          meta: '无线索',
+        });
+      }
       const latestIntelText = snapshot.pendingIntelCount
         ? `${shortenText(snapshot.pendingIntelContent, 12)} / +${snapshot.pendingIntelImpact}`
         : resolveShellText((snapshot.unlockedKnowledges || []).slice(-1)[0], '等待新线索');
       const pendingRequestText = resolveShellText((snapshot.pendingRequests || [])[0], '');
       return buildShellSummaryCard({
         kicker: '情报',
-        title: '试炼与情报',
-        value: snapshot.pendingIntelCount ? `${snapshot.pendingIntelCount} 条待读` : ((snapshot.unlockedKnowledges || []).length ? `${(snapshot.unlockedKnowledges || []).length} 条已掌握` : '待命中'),
+        title: '情报',
+        value: snapshot.pendingIntelCount ? `${snapshot.pendingIntelCount} 待读` : ((snapshot.unlockedKnowledges || []).length ? `${(snapshot.unlockedKnowledges || []).length} 已录` : '待命中'),
         meta: shortenText(latestIntelText || '等待新线索', 20),
-        rows: [
-          { label: '已掌握', value: String((snapshot.unlockedKnowledges || []).length || 0) },
-          pendingRequestText ? { label: '待办', value: shortenText(pendingRequestText, 16) } : null,
-        ],
-        note: pendingRequestText ? '' : '等待新情报',
+        note: shortenText(pendingRequestText || '', 24),
       });
     }
 
     function buildShellTerminalNewsCard(snapshot) {
       const newsSummary = buildRecentNewsSummary(snapshot, { seqLimit: 1, intelLimit: 1 });
+      if (!(newsSummary.cards || []).length) {
+        return buildShellSummaryCard({
+          title: '见闻',
+          value: '0',
+          meta: '无见闻',
+        });
+      }
       const globalNews = resolveShellText((newsSummary.globalNews[0] || {}).desc, '');
       const personalNews = resolveShellText((newsSummary.personalNews[0] || {}).desc, '');
       const summaryText = resolveShellText(newsSummary.summary, '等待新见闻');
       return buildShellSummaryCard({
-        kicker: '见闻',
-        title: '近期见闻',
-        value: `${(newsSummary.cards || []).length || 0} 条更新`,
-        meta: '',
-        rows: [
-          globalNews ? { label: '全局', value: shortenText(globalNews, 16) } : null,
-          personalNews ? { label: '个人', value: shortenText(personalNews, 16) } : null,
-        ],
-        note: globalNews || personalNews ? shortenText(summaryText || '等待新见闻', 28) : '等待新见闻',
+        kicker: '播报',
+        title: '播报',
+        value: `${(newsSummary.cards || []).length || 0} 条`,
+        meta: shortenText(globalNews || personalNews || summaryText || '等待新见闻', 20),
+        note: globalNews && personalNews ? shortenText(personalNews, 24) : '',
       });
     }
 
     function buildShellTerminalBestiaryCard(snapshot) {
       const bestiaryNames = (snapshot.bestiaryEntries || []).map(([name]) => name).filter(Boolean);
+      if (!bestiaryNames.length) {
+        return buildShellSummaryCard({
+          title: '图鉴',
+          value: '0',
+          meta: '无收录',
+        });
+      }
       return buildShellSummaryCard({
-        kicker: '图鉴',
-        title: '图鉴',
+        kicker: '收录',
+        title: '收录',
         value: bestiaryNames.length ? `${bestiaryNames.length} 种` : '待收录',
         meta: shortenText(bestiaryNames.slice(0, 2).join(' / ') || '等待首条图鉴', 20),
-        rows: [
-          { label: '近期收录', value: shortenText(bestiaryNames[0] || '等待首条记录', 16) },
-        ],
+        note: bestiaryNames[0] ? shortenText(bestiaryNames[0], 24) : '',
       });
     }
 
     function buildShellTerminalQuestCard(snapshot) {
       const questBoardEntries = safeEntries(deepGet(snapshot, 'rootData.world.quest_board', {})).filter(([, item]) => item && typeof item === 'object');
       const pendingRequestText = resolveShellText((snapshot.pendingRequests || [])[0], '');
+      if (!snapshot.questRecordCount && !questBoardEntries.length && !pendingRequestText) {
+        return buildShellSummaryCard({
+          title: '任务',
+          value: '0',
+          meta: '无任务',
+        });
+      }
       return buildShellSummaryCard({
         kicker: '任务',
-        title: '任务',
-        value: snapshot.questRecordCount ? `${snapshot.questRecordCount} 项待处理` : '待命中',
-        meta: `${questBoardEntries.length || 0} 条委托 · ${(snapshot.pendingRequests || []).length || 0} 项待办`,
-        rows: [
-          pendingRequestText ? { label: '当前待办', value: shortenText(pendingRequestText, 16) } : null,
-          { label: '委托板', value: questBoardEntries.length ? `${questBoardEntries.length} 条可查看` : '等待新委托' },
-        ],
-        note: pendingRequestText || questBoardEntries.length ? '' : '等待新任务',
+        title: '委托',
+        value: snapshot.questRecordCount ? `${snapshot.questRecordCount} 项` : '待命中',
+        meta: `${questBoardEntries.length || 0} 条委托 / ${(snapshot.pendingRequests || []).length || 0} 待办`,
+        note: shortenText(pendingRequestText || (questBoardEntries.length ? `${questBoardEntries.length} 条可查看` : ''), 24),
       });
     }
 
@@ -8480,11 +8644,18 @@
         enabled: !!primary,
         surface: normalizedSurface,
       });
-      setUnifiedCardMarkup('secondary-spirit', spiritBuilder(secondary, { primary: false }), {
-        preview: secondary ? toText(secondary.preview, '') : '',
-        enabled: !!secondary,
-        surface: normalizedSurface,
-      });
+      if (secondary) {
+        setUnifiedCardMarkup('secondary-spirit', spiritBuilder(secondary, { primary: false }), {
+          preview: toText(secondary.preview, ''),
+          enabled: true,
+          surface: normalizedSurface,
+        });
+      } else {
+        setUnifiedCardMarkup('secondary-spirit', '', {
+          enabled: false,
+          surface: normalizedSurface,
+        });
+      }
     }
 
     function renderUnifiedCardsBySurface(snapshot, sectionSignatures, previousSectionSignatures, surface) {
@@ -8515,9 +8686,12 @@
       }
 
       if (sectionSignatures.map !== previousSectionSignatures.map) {
+        const mapStageHtml = buildMapHeroCard(snapshot);
+        setUnifiedMapStageMarkup('panel', mapStageHtml);
         if (isShellSurface) {
+          setUnifiedMapStageMarkup('shell', mapStageHtml);
           setUnifiedCardMarkup('home-map', buildShellHomeMapCard(snapshot), { surface: normalizedSurface });
-          setUnifiedCardMarkup('map-hero', buildShellMapHeroCard(snapshot), { preview: '全息星图主画布', surface: normalizedSurface });
+          setUnifiedCardMarkup('map-hero', mapStageHtml, { surface: normalizedSurface });
           setUnifiedCardMarkup('map-current', buildShellMapCurrentCard(snapshot), { preview: '当前节点详情', surface: normalizedSurface });
           setUnifiedCardMarkup('map-route', buildShellMapRouteCard(snapshot), { preview: '图层控制与跑图', surface: normalizedSurface });
           setUnifiedCardMarkup('map-dynamic', buildShellMapDynamicCard(snapshot), { preview: '动态地点与扩展节点', surface: normalizedSurface });
@@ -8631,14 +8805,22 @@
         ? `#mvu-unified-mount [data-unified-card="${slot}"][data-unified-surface="${surface}"]`
         : `#mvu-unified-mount [data-unified-card="${slot}"]`;
       const preview = toText(options.preview, '');
-      const enabled = options.enabled !== false;
+      const hasMarkup = !!toText(html, '').trim();
+      const enabled = options.enabled !== false && hasMarkup;
       getLiveUiElements(selector).forEach(node => {
         setLiveNodeHtml(node, html);
-        if (preview) node.setAttribute('data-preview', preview);
+        if (preview && enabled) node.setAttribute('data-preview', preview);
         else node.removeAttribute('data-preview');
         node.classList.toggle('clickable', !!(preview && enabled));
         node.classList.toggle('is-empty', !enabled);
       });
+    }
+
+    function setUnifiedMapStageMarkup(stage, html) {
+      const stageKey = toText(stage, '').trim();
+      if (!stageKey) return;
+      const selector = `#mvu-unified-mount [data-mvu-map-stage="${stageKey}"]`;
+      getLiveUiElements(selector).forEach(node => setLiveNodeHtml(node, html));
     }
 
     function renderUnifiedSpiritCards(snapshot) {
@@ -9109,12 +9291,46 @@
       `;
     }
 
+    function renderEmptyUnifiedShellCards() {
+      const emptyShellCards = {
+        'archive-core': ['角色', '无数据'],
+        'primary-spirit': ['主武魂', '无数据'],
+        'armory': ['武装', '0'],
+        'vault': ['仓库', '0'],
+        'social': ['社交', '0'],
+        'map-current': ['当前位置', '无数据'],
+        'map-route': ['路线', '0'],
+        'map-dynamic': ['动态', '0'],
+        'world-hero': ['世界', '无数据'],
+        'world-timeline': ['时间线', '0'],
+        'world-ranks': ['榜单', '0'],
+        'world-alerts': ['警报', '0'],
+        'org-hero': ['势力', '0'],
+        'org-faction': ['阵营', '无'],
+        'org-node': ['据点', '无数据'],
+        'terminal-hero': ['终端', '无数据'],
+        'terminal-intel': ['情报', '0'],
+        'terminal-news': ['见闻', '0'],
+        'terminal-bestiary': ['图鉴', '0'],
+        'terminal-quest': ['任务', '0'],
+      };
+      Object.entries(emptyShellCards).forEach(([slot, [title, value]]) => {
+        setUnifiedCardMarkup(slot, buildShellEmptyCard(title, value), { surface: 'shell', enabled: true });
+      });
+      setUnifiedCardMarkup('secondary-spirit', '', { surface: 'shell', enabled: false });
+      setUnifiedMapStageMarkup('shell', '');
+    }
+
     function rerenderUnifiedCardsFromLive(options = {}) {
-      if (!liveSnapshot) return false;
+      const snapshot = liveSnapshot || lastRenderableSnapshot;
+      if (!snapshot) {
+        renderEmptyUnifiedShellCards();
+        return false;
+      }
       const force = !!(options && options.force);
-      const sectionSignatures = buildDashboardSectionRenderSignatures(liveSnapshot);
+      const sectionSignatures = buildDashboardSectionRenderSignatures(snapshot);
       renderUnifiedCards(
-        liveSnapshot,
+        snapshot,
         sectionSignatures,
         force ? Object.create(null) : (lastDashboardSectionRenderSignatures || Object.create(null)),
       );
@@ -12397,6 +12613,76 @@
         };
       }
 
+      if (previewKey === '世界状态总览') {
+        const worldTime = resolveShellText(deepGet(snapshot, 'rootData.world.time._calendar', deepGet(snapshot, 'rootData.world.time.calendar', '')), '');
+        const deviation = toNumber(deepGet(snapshot, 'rootData.world.deviation', 0), 0);
+        const forestRatio = Math.max(0, Math.min(100, Number(((toNumber(snapshot.forestKilledAge, 0) / 1000000) * 100).toFixed(1))));
+        const worldAlertText = resolveShellText(snapshot.worldAlert, '');
+        const recentNews = buildRecentNewsSummary(snapshot, { seqLimit: 4, intelLimit: 4 });
+        const recentPlans = buildRecentPlanSummary(snapshot, { worldLimit: 4, recordLimit: 4 });
+        const timelineCards = (snapshot.timelineEntries || [])
+          .slice(0, 5)
+          .map(([name, item]) => ({
+            title: name,
+            desc: toText(item && (item.event || item['事件'] || item.desc || item['描述']), '')
+          }))
+          .filter(item => item.title && resolveShellText(item.desc, ''));
+        const newsCards = (recentNews.cards || [])
+          .slice(0, 5)
+          .map(item => ({
+            title: toText(item && item.title, ''),
+            desc: toText(item && item.desc, '')
+          }))
+          .filter(item => item.title && resolveShellText(item.desc, ''));
+        const planCards = (recentPlans.cards || [])
+          .slice(0, 5)
+          .map(item => ({
+            title: toText(item && item.title, ''),
+            desc: toText(item && item.desc, '')
+          }))
+          .filter(item => item.title && resolveShellText(item.desc, ''));
+        const auctionStatus = resolveShellText(deepGet(snapshot, 'rootData.world.auction.status', ''), '');
+        const auctionLocation = resolveShellText(deepGet(snapshot, 'rootData.world.auction.location', ''), '');
+        const hasAuction = auctionStatus && auctionStatus !== '休市';
+        return {
+          title: '世界',
+          summary: '',
+          body: `
+            <div class="archive-modal-grid mvu-shell-compact-detail">
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">世界状态</div></div>
+                ${makeTileGrid([
+                  ...(worldTime ? [{ label: '时间', value: htmlEscape(worldTime) }] : []),
+                  { label: '偏差', value: htmlEscape(String(deviation)) },
+                  { label: '森怨', value: htmlEscape(`${forestRatio}%`) },
+                  { label: '榜单', value: htmlEscape(`${(snapshot.youthRankingEntries || []).length + (snapshot.continentRankingEntries || []).length} 条`) },
+                  ...(worldAlertText ? [{ label: '警报', value: htmlEscape(worldAlertText) }] : []),
+                  ...(hasAuction ? [{ label: '拍卖', value: htmlEscape(auctionLocation ? `${auctionStatus} / ${auctionLocation}` : auctionStatus) }] : []),
+                ], 'two')}
+              </div>
+              ${timelineCards.length ? `
+                <div class="archive-card full">
+                  <div class="archive-card-head"><div class="archive-card-title">编年</div></div>
+                  ${makeTimelineStack(timelineCards)}
+                </div>
+              ` : ''}
+              ${newsCards.length ? `
+                <div class="archive-card full">
+                  <div class="archive-card-head"><div class="archive-card-title">见闻</div></div>
+                  ${makeTimelineStack(newsCards)}
+                </div>
+              ` : ''}
+              ${planCards.length ? `
+                <div class="archive-card full">
+                  <div class="archive-card-head"><div class="archive-card-title">安排</div></div>
+                  ${makeTimelineStack(planCards)}
+                </div>
+              ` : ''}
+            </div>
+          `
+        };
+      }
+
       if (previewKey === '当前节点详情' || previewKey === '交易模块弹窗' || previewKey === '交易网络') {
         return {
           title: '交易与驻地信息',
@@ -12422,19 +12708,24 @@
       }
 
       if (previewKey === '系统播报与日志') {
+        const terminalItems = [
+          { title: '最近播报', desc: resolveShellText(deepGet(snapshot, 'rootData.sys.rsn', ''), '') },
+          { title: '最近事件', desc: snapshot.latestTimeline ? snapshot.latestTimeline[0] : '' },
+          { title: '安排摘要', desc: resolveShellText(snapshot.pendingRequests[0], '') },
+          { title: '情报摘要', desc: snapshot.pendingIntelCount ? `${snapshot.pendingIntelContent} / 新线索 ${snapshot.pendingIntelCount} 条` : '' },
+          ...snapshot.timelineEntries.slice(0, 4).map(([name, item]) => ({
+            title: name,
+            desc: toText(item && (item['event'] || item['事件']), '')
+          }))
+        ].filter(item => item.title && resolveShellText(item.desc, ''));
         return {
-          title: '系统播报 / 日志弹窗',
-          summary: '系统播报、近期事件与情报摘要。',
+          title: '终端',
+          summary: '',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">系统广播</div></div>
-                ${makeTimelineStack([
-                  { title: '最近播报', desc: toText(deepGet(snapshot, 'rootData.sys.rsn', '暂无'), '暂无') },
-                  { title: '最近事件', desc: snapshot.latestTimeline ? snapshot.latestTimeline[0] : '暂无事件' },
-                  { title: '安排摘要', desc: snapshot.pendingRequests[0] || '暂无安排' },
-                  { title: '情报摘要', desc: snapshot.pendingIntelCount ? `${snapshot.pendingIntelContent} / 新线索 ${snapshot.pendingIntelCount} 条` : '暂无新情报' }
-                ].concat(snapshot.timelineEntries.slice(0, 4).map(([name, item]) => ({ title: name, desc: toText(item && (item['event'] || item['事件']), '暂无描述') }))))}
+                ${makeTimelineStack(terminalItems)}
               </div>
             </div>
           `
@@ -12992,6 +13283,7 @@
           syncMvuEditorStoreFromRoot(effective.rootData);
         }
         liveSnapshot = buildSnapshot(effective.rootData);
+        lastRenderableSnapshot = liveSnapshot;
         const nextHeaderRenderSignature = buildHeaderRenderSignature(liveSnapshot);
         const nextDashboardSectionRenderSignatures = buildDashboardSectionRenderSignatures(liveSnapshot);
         const nextDashboardRenderSignature = buildDashboardRenderSignature(liveSnapshot, nextDashboardSectionRenderSignatures);
@@ -13049,6 +13341,8 @@
       await refreshLiveSnapshot();
       bindMvuUpdates(vars => refreshLiveSnapshot({ sharedVars: vars }));
     }
+
+    window.__MVU_REFRESH_LIVE_SNAPSHOT__ = options => refreshLiveSnapshot(options);
 
     function buildRingHoverMarkup(ring) {
       const skills = (ring.skills || []).map(skill => `
