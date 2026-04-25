@@ -1756,22 +1756,12 @@ const SurfaceLauncherShellLayout = {
           </header>
 
           <div class="mvu-mobile-shell-body">
-            <div class="mvu-mobile-shell-scroll" :class="{ 'is-home': shellScreen === 'home', 'is-detail': shellScreen === 'detail' }">
+            <div class="mvu-mobile-shell-scroll" :class="{ 'is-detail': shellScreen === 'detail' }">
               <section v-if="shellScreen === 'detail'" class="mvu-mobile-library mvu-mobile-library--detail" :data-target="shellDetailPreviewKey || tabState.current">
                 <div ref="modalHostRef" class="mvu-mobile-shell-modal-host"></div>
               </section>
 
               <section v-else class="mvu-mobile-library" :data-target="tabState.current">
-                <div class="mvu-mobile-action-rail" role="toolbar" :aria-label="activeTitle + '快捷操作'">
-                  <button
-                    v-for="item in currentActions"
-                    :key="'shell-action-' + item.preview"
-                    type="button"
-                    class="mvu-mobile-action-pill clickable"
-                    :data-preview="item.preview"
-                  >{{ item.label }}</button>
-                </div>
-
                 <section v-if="tabState.current === 'page-archive'" class="mvu-mobile-library-page" data-target="page-archive">
                   <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="生命图谱详情页" data-unified-card="archive-core" data-unified-surface="shell"></div>
                   <div class="mvu-mobile-card-grid mvu-mobile-card-grid--two">
@@ -1822,7 +1812,7 @@ const SurfaceLauncherShellLayout = {
               :key="'mobile-tab-' + tab.id"
               type="button"
               class="mvu-mobile-shell-tab"
-              :class="{ active: shellScreen !== 'home' && tabState.current === tab.id }"
+              :class="{ active: tabState.current === tab.id }"
               :data-target="tab.id"
               @click="enterSection(tab.id)"
             >
@@ -2152,7 +2142,7 @@ const SurfaceLauncherShellLayout = {
 
     watch(() => mvuLayoutState.mobileShellOpen, nextOpen => {
       if (nextOpen) {
-        resetShellDetailState('home');
+        resetShellDetailState('section');
         closeLauncherMenu();
         if (typeof window.requestAnimationFrame === 'function') {
           window.requestAnimationFrame(() => syncShellOffset());
@@ -2172,14 +2162,14 @@ const SurfaceLauncherShellLayout = {
     });
 
     watch(() => mvuTabState.current, nextTab => {
-      if (nextTab === 'page-map' && shellScreen.value !== 'home') {
+      if (nextTab === 'page-map' && shellScreen.value === 'section') {
         requestMapSurfaceSync();
       }
       requestUnifiedShellCardRefresh({ force: true });
     });
 
     watch(shellScreen, nextScreen => {
-      if (nextScreen !== 'home' && mvuTabState.current === 'page-map') {
+      if (nextScreen === 'section' && mvuTabState.current === 'page-map') {
         requestMapSurfaceSync();
       }
       requestUnifiedShellCardRefresh({ force: true });
@@ -2199,9 +2189,7 @@ const SurfaceLauncherShellLayout = {
           ? payload
           : String(payload && payload.previewKey || '').trim();
         if (!previewKey) return;
-        if (shellScreen.value !== 'detail') {
-          shellDetailReturnScreen.value = shellScreen.value === 'home' ? 'home' : 'section';
-        }
+        if (shellScreen.value !== 'detail') shellDetailReturnScreen.value = 'section';
         shellDetailPreviewKey.value = previewKey;
         shellScreen.value = 'detail';
       },
@@ -2241,12 +2229,9 @@ const SurfaceLauncherShellLayout = {
 
     return {
       tabs: TAB_ITEMS,
-      activeTitle,
       resolvedActiveTitle,
-      currentActions,
       enterSection,
       handleBack,
-      goHome,
       launcherMainAriaLabel,
       launcherMenuAlign,
       launcherModeItems,
@@ -2259,7 +2244,6 @@ const SurfaceLauncherShellLayout = {
       onLauncherPointerDown,
       selectLauncherMode,
       shellVisible,
-      shellApps,
       shellDetailPreviewKey,
       shellScreen,
       showHomeBack,

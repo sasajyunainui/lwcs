@@ -304,14 +304,14 @@
         actions: ['调整今日路线', '按优先级处理待办']
       },
       '试炼与情报': {
-        title: '试炼与情报',
+        title: '情报',
         summary: '把试炼入口、近期线索和下一步调查重点放在同一页里直接看。',
         highlights: ['当前可去的试炼', '已经掌握的情报', '下一步最值得跟进的线索'],
         duties: ['查看试炼开放情况', '查看近期重点情报', '查看下一步行动建议'],
         actions: ['选择先做试炼还是先查线索', '根据消息调整远行顺序']
       },
       '近期见闻': {
-        title: '近期见闻',
+        title: '见闻',
         summary: '将近期广播、地点动态与可跟进线索集中收纳于此。',
         highlights: ['最近广播与动态', '地点与行程相关消息', '值得跟进的线索'],
         duties: ['查看当前最重要的近期消息', '查看地点与人物的最新变化', '判断哪些动静值得优先跟进'],
@@ -7691,7 +7691,6 @@
         <div class="${className}">
           <div class="mvu-shell-card-top">
             <div class="mvu-shell-card-copy">
-              ${kicker ? `<div class="mvu-shell-kicker">${htmlEscape(kicker)}</div>` : ''}
               <div class="mvu-shell-title">${htmlEscape(title)}</div>
               ${meta ? `<div class="mvu-shell-meta">${htmlEscape(meta)}</div>` : ''}
             </div>
@@ -8017,7 +8016,7 @@
       const mechSummary = toText(mech.lv, '') ? `${toText(mech.lv, '')} · ${toText(mech.type, '未定型')}` : '未挂载';
       return buildShellSummaryCard({
         kicker: '武装',
-        title: '装配摘要',
+        title: '武装',
         value: toNumber(armor.lv, 0) > 0 ? shortenText(toText(armor.name, `${armor.lv}字斗铠`), 12) : '未装配',
         meta: shortenText(armorSummary, 24),
         metrics: [
@@ -8050,7 +8049,7 @@
       const wealth = deepGet(snapshot, 'activeChar.wealth', {});
       return buildShellSummaryCard({
         kicker: '仓库',
-        title: '资源概览',
+        title: '仓库',
         value: `${formatNumber((snapshot.inventoryEntries || []).length || 0)} 项物资`,
         meta: `流动资金 ${formatNumber(wealth.fed_coin)} / 星罗 ${formatNumber(wealth.star_coin)}`,
         metrics: [
@@ -8094,7 +8093,7 @@
         kicker: '社交',
         title: shortenText(toText(social._fame_level, toText(social.fame_level, '籍籍无名')), 12),
         value: formatNumber(social.reputation),
-        meta: '名望 / 势力 / 情报',
+        meta: '名望 · 势力 · 情报',
         badges: [
           currentTitle ? { text: shortenText(currentTitle, 10), tone: 'gold' } : '',
           snapshot.publicIntel ? { text: '公开情报', tone: 'live' } : '隐私情报',
@@ -8174,7 +8173,7 @@
       const routeCount = snapshot.mapTravelCandidates.length || snapshot.mapNodeLabels.length || 0;
       return buildShellSummaryCard({
         kicker: '跑图',
-        title: '图层与路线',
+        title: '路线',
         value: `${routeCount} 条`,
         meta: `${shortenText(getMapDisplayName(snapshot), 12)} · ${safeEntries(snapshot.mapAvailableChildMaps).length} 个子图`,
         rows: [
@@ -8189,7 +8188,7 @@
       const latestPatch = snapshot.mapActivePatchEntries[0] ? snapshot.mapActivePatchEntries[0][0].replace(/^patch_/, '') : '暂无';
       return buildShellSummaryCard({
         kicker: '动态',
-        title: '动态节点',
+        title: '动态',
         value: `${snapshot.mapVisibleDynamicEntries.length || 0} 处`,
         meta: snapshot.latestTimeline ? shortenText(snapshot.latestTimeline[0], 14) : '等待新变化',
         rows: [
@@ -8231,7 +8230,7 @@
         : '';
       return buildShellSummaryCard({
         kicker: '世界',
-        title: '时空中枢',
+        title: '世界',
         value: deviationState,
         meta: shortenText(worldTime || '等待同步', 24),
         badges: [
@@ -8270,9 +8269,9 @@
       const totalRanks = (snapshot.youthRankingEntries || []).length + (snapshot.continentRankingEntries || []).length;
       return buildShellSummaryCard({
         kicker: '榜单',
-        title: '大陆排名',
+        title: '榜单',
         value: totalRanks ? String(totalRanks) : '待同步',
-        meta: '少年天才 / 大陆风云',
+        meta: '少年天才 · 大陆风云',
         metrics: [
           { label: '天才', value: String((snapshot.youthRankingEntries || []).length || 0), tone: 'live' },
           { label: '风云', value: String((snapshot.continentRankingEntries || []).length || 0), tone: 'gold' },
@@ -8433,7 +8432,7 @@
         kicker: '见闻',
         title: '近期见闻',
         value: `${(newsSummary.cards || []).length || 0} 条更新`,
-        meta: '全局 / 个人',
+        meta: '',
         rows: [
           globalNews ? { label: '全局', value: shortenText(globalNews, 16) } : null,
           personalNews ? { label: '个人', value: shortenText(personalNews, 16) } : null,
@@ -8446,7 +8445,7 @@
       const bestiaryNames = (snapshot.bestiaryEntries || []).map(([name]) => name).filter(Boolean);
       return buildShellSummaryCard({
         kicker: '图鉴',
-        title: '怪物图鉴',
+        title: '图鉴',
         value: bestiaryNames.length ? `${bestiaryNames.length} 种` : '待收录',
         meta: shortenText(bestiaryNames.slice(0, 2).join(' / ') || '等待首条图鉴', 20),
         rows: [
@@ -8460,7 +8459,7 @@
       const pendingRequestText = resolveShellText((snapshot.pendingRequests || [])[0], '');
       return buildShellSummaryCard({
         kicker: '任务',
-        title: '任务界面',
+        title: '任务',
         value: snapshot.questRecordCount ? `${snapshot.questRecordCount} 项待处理` : '待命中',
         meta: `${questBoardEntries.length || 0} 条委托 · ${(snapshot.pendingRequests || []).length || 0} 项待办`,
         rows: [
