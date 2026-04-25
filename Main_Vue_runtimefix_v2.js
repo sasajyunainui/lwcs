@@ -1774,7 +1774,7 @@ const SurfaceLauncherShellLayout = {
                 </section>
 
                 <section v-if="tabState.current === 'page-map'" class="mvu-mobile-library-page" data-target="page-map">
-                  <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="鍏ㄦ伅鏄熷浘涓荤敾甯?" data-unified-card="map-hero" data-unified-surface="shell"></div>
+                  <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="全息星图主画布" data-unified-card="map-hero" data-unified-surface="shell"></div>
                   <div class="mvu-mobile-card-grid mvu-mobile-card-grid--two">
                     <div class="mvu-mobile-card clickable" data-preview="当前节点详情" data-unified-card="map-current" data-unified-surface="shell"></div>
                     <div class="mvu-mobile-card clickable" data-preview="图层控制与跑图" data-unified-card="map-route" data-unified-surface="shell"></div>
