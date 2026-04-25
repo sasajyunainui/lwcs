@@ -51,6 +51,58 @@
         return null;
       }
     }
+    function resolveShellPreviewTitle(previewKey) {
+      const key = String(previewKey || '').trim();
+      const previewTitleMap = {
+        '\u89d2\u8272\u5207\u6362\u5668': '\u89d2\u8272',
+        '\u751f\u547d\u56fe\u8c31\u8be6\u60c5\u9875': '\u751f\u547d',
+        '\u751f\u547d\u56fe\u8c31\u8be6\u7ec6\u9875': '\u751f\u547d',
+        '\u6b66\u88c5\u5de5\u574a\u8be6\u60c5\u9875': '\u6b66\u88c5',
+        '\u6b66\u88c5\u5de5\u574a\u8be6\u7ec6\u9875': '\u6b66\u88c5',
+        '\u50a8\u7269\u4ed3\u5e93\u8be6\u60c5\u9875': '\u4ed3\u5e93',
+        '\u50a8\u7269\u4ed3\u5e93\u8be6\u7ec6\u9875': '\u4ed3\u5e93',
+        '\u793e\u4f1a\u6863\u6848\u8be6\u60c5\u9875': '\u793e\u4f1a',
+        '\u793e\u4f1a\u6863\u6848\u8be6\u7ec6\u9875': '\u793e\u4f1a',
+        '\u6240\u5c5e\u52bf\u529b\u8be6\u60c5\u9875': '\u52bf\u529b',
+        '\u4eba\u7269\u5173\u7cfb\u8be6\u60c5\u9875': '\u5173\u7cfb',
+        '\u60c5\u62a5\u5e93\u8be6\u60c5\u9875': '\u60c5\u62a5\u5e93',
+        '\u7b2c\u4e00\u6b66\u9b42\u8be6\u60c5\u9875': '\u7b2c\u4e00\u6b66\u9b42',
+        '\u7b2c\u4e00\u6b66\u9b42\u8be6\u7ec6\u9875': '\u7b2c\u4e00\u6b66\u9b42',
+        '\u7b2c\u4e8c\u6b66\u9b42\u8be6\u60c5\u9875': '\u7b2c\u4e8c\u6b66\u9b42',
+        '\u7b2c\u4e8c\u6b66\u9b42\u8be6\u7ec6\u9875': '\u7b2c\u4e8c\u6b66\u9b42',
+        '\u8840\u8109\u5c01\u5370\u8be6\u60c5\u9875': '\u8840\u8109',
+        '\u5168\u606f\u661f\u56fe\u4e3b\u753b\u5e03': '\u661f\u56fe',
+        '\u5f53\u524d\u8282\u70b9\u8be6\u60c5': '\u5f53\u524d\u8282\u70b9',
+        '\u56fe\u5c42\u63a7\u5236\u4e0e\u8dd1\u56fe': '\u8dd1\u56fe',
+        '\u52a8\u6001\u5730\u70b9\u4e0e\u6269\u5c55\u8282\u70b9': '\u52a8\u6001\u5730\u70b9',
+        '\u4e16\u754c\u72b6\u6001\u603b\u89c8': '\u4e16\u754c',
+        '\u7f16\u5e74\u53f2\u6863\u6848': '\u7f16\u5e74',
+        '\u62cd\u5356\u4e0e\u8b66\u62a5': '\u8b66\u62a5',
+        '\u52bf\u529b\u77e9\u9635\u603b\u89c8': '\u52bf\u529b',
+        '\u6211\u7684\u9635\u8425\u8be6\u60c5': '\u6211\u7684\u9635\u8425',
+        '\u672c\u5730\u636e\u70b9\u8be6\u60c5': '\u672c\u5730\u636e\u70b9',
+        '\u7cfb\u7edf\u64ad\u62a5\u4e0e\u65e5\u5fd7': '\u64ad\u62a5',
+        '\u8bd5\u70bc\u4e0e\u60c5\u62a5': '\u60c5\u62a5',
+        '\u8fd1\u671f\u89c1\u95fb': '\u89c1\u95fb',
+        '\u602a\u7269\u56fe\u9274': '\u56fe\u9274',
+        '\u4efb\u52a1\u754c\u9762': '\u4efb\u52a1'
+      };
+      return previewTitleMap[key] || key || '\u8be6\u60c5';
+    }
+    function notifyShellPreviewChange(previewKey) {
+      const bridge = getMobileShellBridge();
+      if (!bridge || typeof bridge.onPreviewChange !== 'function') return;
+      const key = String(previewKey || '').trim();
+      if (!key) return;
+      try {
+        bridge.onPreviewChange({ previewKey: key, title: resolveShellPreviewTitle(key) });
+      } catch (err) {}
+    }
+    function notifyShellPreviewClosed() {
+      const bridge = getMobileShellBridge();
+      if (!bridge || typeof bridge.onPreviewClosed !== 'function') return;
+      try { bridge.onPreviewClosed(); } catch (err) {}
+    }
     function resolveDetailModalDefaultParent() {
       return document.body || document.documentElement || null;
     }
@@ -58,6 +110,7 @@
       const bridge = getMobileShellBridge();
       if (!bridge || typeof bridge.isOpen !== 'function' || !bridge.isOpen()) return false;
       if (options && options.unifiedMode === false) return false;
+      if (typeof bridge.isDetailActive === 'function' && !bridge.isDetailActive()) return false;
       const modalHost = bridge.getModalHost();
       return !!(modalHost && modalHost.isConnected);
     }
@@ -74,6 +127,18 @@
       }
       currentDetailModal.classList.toggle('mvu-modal-display-shell', !!useShellHost);
       if (currentModalPanel) currentModalPanel.classList.toggle('mvu-modal-display-shell', !!useShellHost);
+      if (currentModalPanel) {
+        if (useShellHost) {
+          currentModalPanel.removeAttribute('role');
+          currentModalPanel.removeAttribute('aria-modal');
+          currentModalPanel.removeAttribute('aria-labelledby');
+          currentModalPanel.removeAttribute('aria-describedby');
+        } else {
+          currentModalPanel.setAttribute('role', 'dialog');
+          currentModalPanel.setAttribute('aria-modal', 'true');
+          currentModalPanel.setAttribute('aria-labelledby', 'modalTitle');
+        }
+      }
       currentDetailModal.dataset.modalHost = useShellHost ? 'shell' : 'body';
       return !!useShellHost;
     }
@@ -1282,6 +1347,7 @@
     let currentModalPreviewKey = '';
     let mapDispatchContext = null;
     let activeSubUI = null;
+    let lastRenderedShellPreviewKey = '';
     let activeInlineEditState = null;
     let inlineEditSessionToken = 0;
     let inlineEditGuardUntil = 0;
@@ -2640,15 +2706,44 @@
       } catch (err) {}
     }
 
+    function getLatestMessageVariablesFallback() {
+      try {
+        if (window.TavernHelper && typeof window.TavernHelper.getVariables === 'function') {
+          return window.TavernHelper.getVariables({ type: 'message', message_id: 'latest' }) || null;
+        }
+      } catch (err) {}
+      return null;
+    }
+
     async function getAllVariablesSafe() {
       const host = getMvuHost();
+      const readers = [];
       if (host && typeof host.getAllVariables === 'function') {
-        return await Promise.resolve(host.getAllVariables());
+        readers.push(() => Promise.resolve(host.getAllVariables()));
       }
       if (window.getAllVariables && typeof window.getAllVariables === 'function') {
-        return await Promise.resolve(window.getAllVariables());
+        readers.push(() => Promise.resolve(window.getAllVariables()));
       }
-      return null;
+      readers.push(() => Promise.resolve(getLatestMessageVariablesFallback()));
+
+      let fallbackVars = null;
+      let bestVars = null;
+      let bestScore = -Infinity;
+      for (const read of readers) {
+        try {
+          const vars = await read();
+          if (!vars || typeof vars !== 'object') continue;
+          if (!fallbackVars) fallbackVars = vars;
+          const rootData = resolveRootData(vars);
+          const nextScore = scoreRootDataCandidate(rootData);
+          if (nextScore > bestScore) {
+            bestScore = nextScore;
+            bestVars = vars;
+          }
+        } catch (err) {}
+      }
+
+      return bestVars || fallbackVars;
     }
 
     function getSharedMvuRefreshHub() {
@@ -2668,14 +2763,7 @@
       let lastTriggerArgs = [];
 
       const getAllVariablesDirect = async () => {
-        const host = getMvuHost();
-        if (host && typeof host.getAllVariables === 'function') {
-          return await Promise.resolve(host.getAllVariables());
-        }
-        if (window.getAllVariables && typeof window.getAllVariables === 'function') {
-          return await Promise.resolve(window.getAllVariables());
-        }
-        return null;
+        return await getAllVariablesSafe();
       };
 
       const schedulePendingDispatch = () => {
@@ -2849,6 +2937,70 @@
       };
     }
 
+    function getCurrentChatContextMeta() {
+      try {
+        const ctx = window.SillyTavern && typeof window.SillyTavern.getContext === 'function'
+          ? window.SillyTavern.getContext()
+          : null;
+        if (!ctx || typeof ctx !== 'object') {
+          return { name1: '', name2: '', chatId: '', characterId: '', groupId: '' };
+        }
+        return {
+          name1: toText(ctx.name1, '').trim(),
+          name2: toText(ctx.name2, '').trim(),
+          chatId: toText(ctx.chatId, '').trim(),
+          characterId: toText(ctx.characterId, '').trim(),
+          groupId: toText(ctx.groupId, '').trim(),
+        };
+      } catch (err) {
+        return { name1: '', name2: '', chatId: '', characterId: '', groupId: '' };
+      }
+    }
+
+    function hasRootRuntimeSignals(rootData) {
+      if (!rootData || typeof rootData !== 'object') return false;
+      if (toText(deepGet(rootData, 'sys.player_name', ''), '').trim()) return true;
+      if (safeEntries(deepGet(rootData, 'sys.seq', {})).length) return true;
+      if (safeEntries(deepGet(rootData, 'world.timeline', {})).length) return true;
+      if (deepGet(rootData, 'world.deviation', undefined) !== undefined) return true;
+      if (toText(deepGet(rootData, 'world.time._calendar', deepGet(rootData, 'world.time.calendar', '')), '').trim()) return true;
+      if (safeEntries(deepGet(rootData, 'map.visible_nodes', {})).length) return true;
+      if (safeEntries(deepGet(rootData, 'map.visible_dynamic_locations', {})).length) return true;
+      return false;
+    }
+
+    function isRootDataRelevantToCurrentChat(rootData) {
+      if (!rootData || typeof rootData !== 'object') return false;
+      const chars = rootData.char && typeof rootData.char === 'object' ? rootData.char : {};
+      const preferredName = getPreferredActiveCharacterName();
+      const sysPlayerName = toText(deepGet(rootData, 'sys.player_name', ''), '').trim();
+      const contextMeta = getCurrentChatContextMeta();
+      if (preferredName && chars[preferredName]) return true;
+      if (sysPlayerName && chars[sysPlayerName]) return true;
+      if (contextMeta.name1 && chars[contextMeta.name1]) return true;
+      if (contextMeta.name2 && chars[contextMeta.name2]) return true;
+      if (contextMeta.name1 || contextMeta.name2) return false;
+      return hasRootRuntimeSignals(rootData);
+    }
+
+    function scoreRootDataCandidate(rootData) {
+      if (!rootData || typeof rootData !== 'object') return -1;
+      const chars = rootData.char && typeof rootData.char === 'object' ? rootData.char : {};
+      const contextMeta = getCurrentChatContextMeta();
+      let score = 0;
+      if (rootData.sys && typeof rootData.sys === 'object') score += 6;
+      if (toText(deepGet(rootData, 'sys.player_name', ''), '').trim()) score += 12;
+      if (safeEntries(deepGet(rootData, 'sys.seq', {})).length) score += 6;
+      if (safeEntries(deepGet(rootData, 'world.timeline', {})).length) score += 5;
+      if (deepGet(rootData, 'world.deviation', undefined) !== undefined) score += 3;
+      if (rootData.map && typeof rootData.map === 'object' && Object.keys(rootData.map).length) score += 3;
+      if (safeEntries(chars).length) score += 1;
+      if (contextMeta.name1 && chars[contextMeta.name1]) score += 10;
+      if (contextMeta.name2 && chars[contextMeta.name2]) score += 4;
+      if (isRootDataRelevantToCurrentChat(rootData)) score += 8;
+      return score;
+    }
+
     function getPreferredActiveCharacterName() {
       return toText(preferredActiveCharacterName, '').trim();
     }
@@ -2917,6 +3069,7 @@
       const charEntries = safeEntries(chars);
       const preferredName = getPreferredActiveCharacterName();
       const sysPlayerName = toText(deepGet(sd, 'sys.player_name', ''), '').trim();
+      const contextMeta = getCurrentChatContextMeta();
       const sortedEntries = sortCharacterEntries(charEntries, { playerName: sysPlayerName, currentName: preferredName });
       const realPlayerEntry = findRealPlayerEntry(charEntries, sysPlayerName);
       
@@ -2931,7 +3084,9 @@
       }
 
       const namedCandidates = [
-        deepGet(sd, 'sys.player_name', '')
+        deepGet(sd, 'sys.player_name', ''),
+        contextMeta.name1,
+        contextMeta.name2
       ].filter(Boolean);
 
       for (const name of namedCandidates) {
@@ -2942,12 +3097,16 @@
         return realPlayerEntry;
       }
 
-      const pinnedEntry = sortedEntries.find(([name]) => getPinnedCharacterOrder(name) >= 0);
-      if (pinnedEntry) {
-        return pinnedEntry;
+      if (!sortedEntries.length) {
+        return ['Unknown', {}];
       }
 
-      return sortedEntries[0] || ['未知角色', {}];
+      const pinnedCandidate = sortedEntries.find(([name]) => getPinnedCharacterOrder(name) >= 0);
+      if (pinnedCandidate) {
+        return pinnedCandidate;
+      }
+
+      return sortedEntries[0];
     }
 
     function isSnapshotPlayerControlled(snapshot) {
@@ -6816,6 +6975,10 @@
     }
 
     function buildSnapshot(sd) {
+      const rawRootData = sd && typeof sd === 'object' ? sd : {};
+      const contextMeta = getCurrentChatContextMeta();
+      const runtimeReady = true;
+      sd = rawRootData;
       const [activeName, activeChar] = resolveActiveCharacter(sd || {});
       const currentLoc = toText(deepGet(activeChar, 'status.loc', '未知'), '未知').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
       const locationInfo = resolveLocationData(sd, currentLoc);
@@ -7042,8 +7205,10 @@
       const chars = sd && sd.char ? sd.char : {};
       const charEntries = safeEntries(chars);
       return {
+        runtimeReady,
+        rawRootData,
         rootData: sd,
-        activeName,
+        activeName: toText(activeName, contextMeta.name1 || contextMeta.name2 || '当前角色'),
         appearanceMeta: formatAppearanceMeta(deepGet(activeChar, 'appearance', {})),
         appearanceText: formatAppearanceText(deepGet(activeChar, 'appearance', {})),
         personalityText: toText(deepGet(activeChar, 'personality', '未设定'), '未设定'),
@@ -7126,7 +7291,7 @@
         activeBattleUI.updateData(liveSnapshot);
       }
 
-      if (detailModal.classList.contains('show') && currentModalPreviewKey) {
+      if ((detailModal.classList.contains('show') || isShellInlinePreviewActive()) && currentModalPreviewKey) {
         if (options.closeModal !== false) closeModal();
         else renderModalContent(currentModalPreviewKey);
       }
@@ -7585,6 +7750,20 @@
       `;
     }
 
+    function isShellPlaceholderText(value) {
+      const text = toText(value, '').trim();
+      if (!text) return true;
+      const normalized = text.replace(/\s+/g, '');
+      return /^(无|暂无|暂无记录|暂无收录|暂无待办|暂无委托|暂无待读|暂无时间线|暂无事件|暂无播报|暂无新线索|暂无警报|暂无变化|暂无见闻|待命中|未同步|时间未同步|未设置|未记录|未收录|--)$/.test(normalized);
+    }
+
+    function resolveShellText(value, fallback = '') {
+      const text = toText(value, '').trim();
+      if (!isShellPlaceholderText(text)) return text;
+      const fallbackText = toText(fallback, '').trim();
+      return isShellPlaceholderText(fallbackText) ? '' : fallbackText;
+    }
+
     function buildShellSpiritSummaryCard(config, options = {}) {
       const primary = !!(options && options.primary);
       if (!config) {
@@ -7642,6 +7821,14 @@
     }
 
     function buildShellHomeArchiveCard(snapshot) {
+      if (!snapshot) {
+        return buildShellAppPeek({
+          value: toText(snapshot && snapshot.activeName, '当前聊天'),
+          meta: '待同步',
+          note: '当前聊天',
+          tone: 'gold',
+        });
+      }
       const stat = deepGet(snapshot, 'activeChar.stat', {});
       const status = deepGet(snapshot, 'activeChar.status', {});
       const placeText = snapshot.normalizedLoc && snapshot.normalizedLoc !== snapshot.currentLoc
@@ -7656,6 +7843,13 @@
     }
 
     function buildShellHomeMapCard(snapshot) {
+      if (!snapshot) {
+        return buildShellAppPeek({
+          value: '地图待同步',
+          meta: '待同步',
+          note: '当前聊天',
+        });
+      }
       const routeCount = snapshot.mapTravelCandidates.length || snapshot.mapNodeLabels.length || 0;
       return buildShellAppPeek({
         value: shortenText(toText(snapshot.normalizedLoc || snapshot.currentLoc, '未命名节点'), 14),
@@ -7666,18 +7860,42 @@
     }
 
     function buildShellHomeWorldCard(snapshot) {
-      const worldTime = toText(deepGet(snapshot, 'rootData.world.time._calendar', deepGet(snapshot, 'rootData.world.time.calendar', '时间未同步')), '时间未同步');
+      if (!snapshot) {
+        return buildShellAppPeek({
+          value: '世界待同步',
+          meta: '待同步',
+          note: '当前聊天',
+        });
+      }
+      const rawWorldTime = toText(deepGet(snapshot, 'rootData.world.time._calendar', deepGet(snapshot, 'rootData.world.time.calendar', '时间未同步')), '时间未同步');
+      const worldTime = resolveShellText(rawWorldTime, '等待同步');
       const deviation = toNumber(deepGet(snapshot, 'rootData.world.deviation', 0), 0);
       const deviationState = deviation >= 40 ? '高危' : (deviation >= 10 ? '波动' : '平稳');
+      const worldAlertText = resolveShellText(snapshot.worldAlert, '');
+      const timelineHeadline = snapshot.latestTimeline ? snapshot.latestTimeline[0] : '';
+      const timelineNote = snapshot.latestTimeline
+        ? toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0])
+        : '';
+      const headline = worldAlertText
+        || timelineHeadline
+        || (rawWorldTime !== '时间未同步' ? '世界时钟' : '世界平稳');
       return buildShellAppPeek({
-        value: shortenText(toText(snapshot.worldAlert || (snapshot.latestTimeline ? snapshot.latestTimeline[0] : '世界平稳'), '世界平稳'), 14),
-        meta: shortenText(worldTime, 18),
-        note: `偏差 ${deviationState}`,
-        tone: deviation >= 40 ? 'warn' : (deviation >= 10 ? 'gold' : 'live'),
+        value: shortenText(toText(headline, '世界平稳'), 14),
+        meta: shortenText(worldTime || '等待同步', 18),
+        note: shortenText(worldAlertText || timelineNote || `偏差 ${deviationState}`, 18),
+        tone: worldAlertText ? (deviation >= 40 ? 'warn' : 'gold') : (deviation >= 10 ? 'gold' : 'live'),
       });
     }
 
     function buildShellHomeOrgCard(snapshot) {
+      if (!snapshot) {
+        return buildShellAppPeek({
+          value: '势力待同步',
+          meta: '待同步',
+          note: '当前聊天',
+          tone: 'gold',
+        });
+      }
       const primaryFactionEntry = getPrimaryFactionEntry(snapshot);
       const primaryFaction = snapshot.factions[0] || null;
       const factionName = primaryFaction ? primaryFaction[0] : primaryFactionEntry.name || toText(deepGet(snapshot, 'locationData.掌控势力', '未加入'), '未加入');
@@ -7693,16 +7911,43 @@
     }
 
     function buildShellHomeTerminalCard(snapshot) {
-      const latestRequest = shortenText((snapshot.pendingRequests || [])[0] || toText(deepGet(snapshot, 'rootData.sys.rsn', '暂无待办'), '暂无待办'), 18);
+      if (!snapshot) {
+        return buildShellAppPeek({
+          value: '终端待同步',
+          meta: '待同步',
+          note: '当前聊天',
+        });
+      }
+      const latestRequest = resolveShellText((snapshot.pendingRequests || [])[0], resolveShellText(deepGet(snapshot, 'rootData.sys.rsn', ''), '待命中'));
       return buildShellAppPeek({
-        value: snapshot.pendingIntelCount ? `${snapshot.pendingIntelCount} 条新情报` : '系统在线',
+        value: snapshot.pendingIntelCount ? `${snapshot.pendingIntelCount} 条情报` : (snapshot.questRecordCount ? `${snapshot.questRecordCount} 项任务` : '系统在线'),
         meta: `${snapshot.questRecordCount || 0} 项任务 · ${(snapshot.bestiaryEntries || []).length || 0} 条图鉴`,
-        note: latestRequest,
-        tone: snapshot.pendingIntelCount ? 'warn' : 'live',
+        note: shortenText(latestRequest || '待命中', 18),
+        tone: snapshot.pendingIntelCount ? 'warn' : (snapshot.questRecordCount ? 'gold' : 'live'),
       });
     }
 
     function buildShellArchiveCoreCard(snapshot) {
+      if (!snapshot) {
+        return buildShellSummaryCard({
+          kicker: '角色首页',
+          title: toText(snapshot && snapshot.activeName, '当前聊天'),
+          value: '待同步',
+          meta: '当前聊天',
+          metrics: [
+            { label: '状态', value: '待同步' },
+            { label: '地点', value: '--' },
+            { label: '阵营', value: '--' },
+            { label: '关系', value: '--' },
+          ],
+          rows: [
+            { label: '页面', value: '档案' },
+            { label: '数据', value: '未接入' },
+          ],
+          tone: 'hero',
+          size: 'hero',
+        });
+      }
       const stat = deepGet(snapshot, 'activeChar.stat', {});
       const social = deepGet(snapshot, 'activeChar.social', {});
       const status = deepGet(snapshot, 'activeChar.status', {});
@@ -7713,6 +7958,12 @@
       const placeText = snapshot.normalizedLoc && snapshot.normalizedLoc !== snapshot.currentLoc
         ? `${shortenText(snapshot.normalizedLoc, 8)} · ${shortenText(snapshot.currentLoc, 8)}`
         : shortenText(snapshot.currentLoc, 18);
+      const hasSoulPowerMeter = toNumber(stat.sp_max, 0) > 0;
+      const hasVitalityMeter = toNumber(stat.vit_max, 0) > 0;
+      const hasMentalMeter = toNumber(stat.men_max, 0) > 0;
+      const ageMetric = toNumber(stat.age, 0);
+      const talentMetric = shortenText(toText(stat.talent_tier, '未定'), 8);
+      const typeMetric = shortenText(toText(stat.type, '未定'), 8);
       return buildShellSummaryCard({
         kicker: '角色首页',
         title: toText(snapshot.activeName, '当前角色'),
@@ -7725,9 +7976,9 @@
           nextLevelSoul.isMax ? '已满级' : `下级 ${formatNumber(nextLevelSoul.needed)}`,
         ],
         metrics: [
-          { label: '魂力', value: `${ratioPercent(stat.sp, stat.sp_max)}%`, tone: 'live' },
-          { label: '体力', value: `${ratioPercent(stat.vit, stat.vit_max)}%`, tone: 'warn' },
-          { label: '精神', value: `${ratioPercent(stat.men, stat.men_max)}%` },
+          hasSoulPowerMeter ? { label: '魂力', value: `${ratioPercent(stat.sp, stat.sp_max)}%`, tone: 'live' } : { label: '年龄', value: ageMetric > 0 ? String(ageMetric) : '--' },
+          hasVitalityMeter ? { label: '体力', value: `${ratioPercent(stat.vit, stat.vit_max)}%`, tone: 'warn' } : { label: '天赋', value: talentMetric || '--', tone: 'gold' },
+          hasMentalMeter ? { label: '精神', value: `${ratioPercent(stat.men, stat.men_max)}%` } : { label: '系别', value: typeMetric || '--' },
           { label: '关系', value: String((snapshot.relations || []).length || 0) },
         ],
         rows: [
@@ -7741,6 +7992,19 @@
     }
 
     function buildShellArmoryCard(snapshot) {
+      if (!snapshot) {
+        return buildShellSummaryCard({
+          kicker: '武装',
+          title: '装配摘要',
+          value: '待同步',
+          meta: '当前聊天',
+          rows: [
+            { label: '斗铠', value: '--' },
+            { label: '机甲', value: '--' },
+            { label: '主武器', value: '--' },
+          ],
+        });
+      }
       const armor = deepGet(snapshot, 'activeChar.equip.armor', {});
       const mech = deepGet(snapshot, 'activeChar.equip.mech', {});
       const weapon = deepGet(snapshot, 'activeChar.equip.wpn', {});
@@ -7771,6 +8035,18 @@
     }
 
     function buildShellVaultCard(snapshot) {
+      if (!snapshot) {
+        return buildShellSummaryCard({
+          kicker: '仓库',
+          title: '资源概览',
+          value: '待同步',
+          meta: '当前聊天',
+          rows: [
+            { label: '联邦', value: '--' },
+            { label: '星罗', value: '--' },
+          ],
+        });
+      }
       const wealth = deepGet(snapshot, 'activeChar.wealth', {});
       return buildShellSummaryCard({
         kicker: '仓库',
@@ -7791,6 +8067,19 @@
     }
 
     function buildShellSocialCard(snapshot) {
+      if (!snapshot) {
+        return buildShellSummaryCard({
+          kicker: '社交',
+          title: '社交档案',
+          value: '待同步',
+          meta: '当前聊天',
+          rows: [
+            { label: '关系', value: '--' },
+            { label: '名望', value: '--' },
+            { label: '阵营', value: '--' },
+          ],
+        });
+      }
       const social = deepGet(snapshot, 'activeChar.social', {});
       const primaryFactionName = snapshot.primaryFaction ? snapshot.primaryFaction[0] : '未加入';
       const primaryFactionRole = snapshot.primaryFaction ? toText(deepGet(snapshot.primaryFaction[1], '身份', '未加入'), '未加入') : '未加入';
@@ -7826,6 +8115,18 @@
     }
 
     function buildShellMapHeroCard(snapshot) {
+      if (!snapshot) {
+        return buildShellSummaryCard({
+          kicker: '星图',
+          title: '地图待同步',
+          value: '待同步',
+          meta: '当前聊天',
+          rows: [
+            { label: '节点', value: '--' },
+            { label: '动态', value: '--' },
+          ],
+        });
+      }
       const childMapCount = safeEntries(snapshot.mapAvailableChildMaps).length;
       const currentMapDisplayName = getMapDisplayName(snapshot);
       const focusText = toText(deepGet(snapshot, 'mapCurrentFocus.loc', snapshot.currentLoc), snapshot.currentLoc);
@@ -7900,20 +8201,42 @@
     }
 
     function buildShellWorldHeroCard(snapshot) {
-      const worldTime = toText(deepGet(snapshot, 'rootData.world.time._calendar', deepGet(snapshot, 'rootData.world.time.calendar', '时间未同步')), '时间未同步');
+      if (!snapshot) {
+        return buildShellSummaryCard({
+          kicker: '世界',
+          title: '时空中枢',
+          value: '待同步',
+          meta: '当前聊天',
+          metrics: [
+            { label: '偏差', value: '--' },
+            { label: '安排', value: '--' },
+            { label: '见闻', value: '--' },
+            { label: '森怨', value: '--' },
+          ],
+          note: '等待同步',
+          tone: 'hero',
+          size: 'hero',
+        });
+      }
+      const rawWorldTime = toText(deepGet(snapshot, 'rootData.world.time._calendar', deepGet(snapshot, 'rootData.world.time.calendar', '时间未同步')), '时间未同步');
+      const worldTime = resolveShellText(rawWorldTime, '等待同步');
       const deviation = toNumber(deepGet(snapshot, 'rootData.world.deviation', 0), 0);
       const deviationState = deviation >= 40 ? '高危' : (deviation >= 10 ? '波动' : '平稳');
       const forestRatio = Math.max(0, Math.min(100, Number(((toNumber(snapshot.forestKilledAge, 0) / 1000000) * 100).toFixed(1))));
       const recentPlans = buildRecentPlanSummary(snapshot, { worldLimit: 2, recordLimit: 2 });
       const recentNews = buildRecentNewsSummary(snapshot, { seqLimit: 2, intelLimit: 2 });
+      const worldAlertText = resolveShellText(snapshot.worldAlert, '');
+      const timelineEventText = snapshot.latestTimeline
+        ? toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0])
+        : '';
       return buildShellSummaryCard({
         kicker: '世界',
         title: '时空中枢',
         value: deviationState,
-        meta: shortenText(worldTime, 24),
+        meta: shortenText(worldTime || '等待同步', 24),
         badges: [
           snapshot.latestTimeline ? shortenText(snapshot.latestTimeline[0], 10) : '',
-          snapshot.worldAlert ? { text: shortenText(snapshot.worldAlert, 10), tone: deviation >= 40 ? 'warn' : 'live' } : '',
+          worldAlertText ? { text: shortenText(worldAlertText, 10), tone: deviation >= 40 ? 'warn' : 'live' } : '',
         ],
         metrics: [
           { label: '偏差', value: String(deviation), tone: deviation >= 40 ? 'warn' : (deviation >= 10 ? 'gold' : 'live') },
@@ -7921,9 +8244,7 @@
           { label: '见闻', value: String((recentNews.cards || []).length || 0) },
           { label: '森怨', value: `${forestRatio}%`, tone: forestRatio >= 70 ? 'warn' : (forestRatio >= 30 ? 'gold' : 'live') },
         ],
-        note: snapshot.latestTimeline
-          ? shortenText(toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]), 34)
-          : '暂无世界变化',
+        note: shortenText(worldAlertText || timelineEventText || '等待新世界事件', 34),
         tone: 'hero',
         size: 'hero',
       });
@@ -7933,11 +8254,11 @@
       const latestTimeline = snapshot.latestTimeline;
       const timelineStatus = latestTimeline
         ? `${toText(deepGet(latestTimeline[1], 'status', 'pending'), 'pending')} / Tick ${toText(deepGet(latestTimeline[1], 'trigger_tick', 0), '0')}`
-        : '暂无时间线';
+        : '等待下一条时间线';
       return buildShellSummaryCard({
         kicker: '编年',
         title: latestTimeline ? shortenText(latestTimeline[0], 14) : '暂无事件',
-        value: latestTimeline ? `Tick ${toText(deepGet(latestTimeline[1], 'trigger_tick', 0), '0')}` : '--',
+        value: latestTimeline ? `Tick ${toText(deepGet(latestTimeline[1], 'trigger_tick', 0), '0')}` : '待更新',
         meta: timelineStatus,
         note: latestTimeline
           ? shortenText(toText(deepGet(latestTimeline[1], 'event', latestTimeline[0]), latestTimeline[0]), 34)
@@ -7946,34 +8267,52 @@
     }
 
     function buildShellWorldRankCard(snapshot) {
+      const totalRanks = (snapshot.youthRankingEntries || []).length + (snapshot.continentRankingEntries || []).length;
       return buildShellSummaryCard({
         kicker: '榜单',
         title: '大陆排名',
-        value: `${(snapshot.youthRankingEntries || []).length + (snapshot.continentRankingEntries || []).length}`,
+        value: totalRanks ? String(totalRanks) : '待同步',
         meta: '少年天才 / 大陆风云',
         metrics: [
           { label: '天才', value: String((snapshot.youthRankingEntries || []).length || 0), tone: 'live' },
           { label: '风云', value: String((snapshot.continentRankingEntries || []).length || 0), tone: 'gold' },
         ],
-        note: '详情暂未接入快捷入口',
+        note: totalRanks ? '打开面板查看完整榜单' : '等待榜单同步',
       });
     }
 
     function buildShellWorldAlertCard(snapshot) {
+      const worldAlertText = resolveShellText(snapshot.worldAlert, '');
+      const auctionStatus = resolveShellText(snapshot.auctionStatus, '休市');
+      const auctionLocation = resolveShellText(snapshot.auctionLocation, '');
+      const hasAuctionActivity = auctionStatus !== '休市' || !!auctionLocation;
       return buildShellSummaryCard({
         kicker: '警报',
-        title: shortenText(toText(snapshot.auctionStatus, '拍卖行休市'), 14),
-        value: shortenText(toText(snapshot.auctionLocation, '无'), 12),
+        title: worldAlertText ? shortenText(worldAlertText, 14) : (hasAuctionActivity ? '拍卖动态' : '当前平静'),
+        value: auctionLocation ? shortenText(auctionLocation, 12) : (hasAuctionActivity ? shortenText(auctionStatus, 12) : '待观察'),
         meta: '拍卖 / 生态警报',
         rows: [
-          { label: '拍卖', value: `${toText(snapshot.auctionStatus, '休市')} / ${shortenText(toText(snapshot.auctionLocation, '无'), 10)}` },
-          { label: '生态', value: shortenText(toText(snapshot.worldAlert, '暂无警报'), 16) },
+          hasAuctionActivity ? { label: '拍卖', value: auctionLocation ? `${auctionStatus} / ${shortenText(auctionLocation, 10)}` : auctionStatus } : null,
+          worldAlertText ? { label: '生态', value: shortenText(worldAlertText, 16) } : null,
         ],
-        tone: snapshot.worldAlert && /高危|警报/i.test(snapshot.worldAlert) ? 'warn' : '',
+        note: hasAuctionActivity || worldAlertText ? '' : '暂无生态警报',
+        tone: worldAlertText && /高危|警报/i.test(worldAlertText) ? 'warn' : '',
       });
     }
 
     function buildShellOrgHeroCard(snapshot) {
+      if (!snapshot) {
+        return buildShellSummaryCard({
+          kicker: '势力',
+          title: '阵营待同步',
+          value: '待同步',
+          meta: '当前聊天',
+          rows: [
+            { label: '阵营', value: '--' },
+            { label: '身份', value: '--' },
+          ],
+        });
+      }
       const primaryFactionEntry = getPrimaryFactionEntry(snapshot);
       const factionStats = getPrimaryFactionPowerStats(snapshot);
       const localFaction = toText(deepGet(snapshot, 'locationData.掌控势力', primaryFactionEntry.name || '未知'), primaryFactionEntry.name || '未知');
@@ -8029,17 +8368,31 @@
     }
 
     function buildShellTerminalHeroCard(snapshot) {
+      if (!snapshot) {
+        return buildShellSummaryCard({
+          kicker: '终端',
+          title: '系统待同步',
+          value: '待同步',
+          meta: '当前聊天',
+          rows: [
+            { label: '情报', value: '--' },
+            { label: '任务', value: '--' },
+            { label: '图鉴', value: '--' },
+          ],
+        });
+      }
       const sys = deepGet(snapshot, 'rootData.sys', {});
       const recentNews = buildRecentNewsSummary(snapshot, { seqLimit: 2, intelLimit: 2 });
-      const pendingRequestText = (snapshot.pendingRequests || [])[0] || '暂无待办';
+      const pendingRequestText = resolveShellText((snapshot.pendingRequests || [])[0], resolveShellText(recentNews.summary, '待命中'));
+      const worldAlertText = resolveShellText(snapshot.worldAlert, '');
       return buildShellSummaryCard({
         kicker: '终端',
         title: '系统播报',
-        value: snapshot.pendingIntelCount ? `${snapshot.pendingIntelCount} 条新情报` : '系统在线',
-        meta: shortenText(toText(sys.rsn, '暂无播报'), 26),
+        value: snapshot.pendingIntelCount ? `${snapshot.pendingIntelCount} 条新情报` : (snapshot.questRecordCount ? `${snapshot.questRecordCount} 项待跟进` : '系统在线'),
+        meta: shortenText(resolveShellText(sys.rsn, '待命中') || '待命中', 26),
         badges: [
-          snapshot.worldAlert ? { text: shortenText(snapshot.worldAlert, 10), tone: 'warn' } : '',
-          snapshot.pendingIntelCount ? { text: `新线索 ${snapshot.pendingIntelCount}`, tone: 'gold' } : '暂无新线索',
+          worldAlertText ? { text: shortenText(worldAlertText, 10), tone: 'warn' } : '',
+          snapshot.pendingIntelCount ? { text: `新线索 ${snapshot.pendingIntelCount}`, tone: 'gold' } : (snapshot.questRecordCount ? '任务待跟进' : '待命中'),
         ],
         metrics: [
           { label: '情报', value: String(snapshot.pendingIntelCount || 0), tone: 'gold' },
@@ -8047,7 +8400,7 @@
           { label: '任务', value: String(snapshot.questRecordCount || 0), tone: 'live' },
           { label: '图鉴', value: String((snapshot.bestiaryEntries || []).length || 0) },
         ],
-        note: shortenText(pendingRequestText, 34),
+        note: shortenText(pendingRequestText || '待命中', 34),
         tone: 'hero',
         size: 'hero',
       });
@@ -8056,56 +8409,65 @@
     function buildShellTerminalIntelCard(snapshot) {
       const latestIntelText = snapshot.pendingIntelCount
         ? `${shortenText(snapshot.pendingIntelContent, 12)} / +${snapshot.pendingIntelImpact}`
-        : '暂无新线索';
+        : resolveShellText((snapshot.unlockedKnowledges || []).slice(-1)[0], '等待新线索');
+      const pendingRequestText = resolveShellText((snapshot.pendingRequests || [])[0], '');
       return buildShellSummaryCard({
         kicker: '情报',
         title: '试炼与情报',
-        value: snapshot.pendingIntelCount ? `${snapshot.pendingIntelCount} 条待读` : '暂无待读',
-        meta: latestIntelText,
+        value: snapshot.pendingIntelCount ? `${snapshot.pendingIntelCount} 条待读` : ((snapshot.unlockedKnowledges || []).length ? `${(snapshot.unlockedKnowledges || []).length} 条已掌握` : '待命中'),
+        meta: shortenText(latestIntelText || '等待新线索', 20),
         rows: [
           { label: '已掌握', value: String((snapshot.unlockedKnowledges || []).length || 0) },
-          { label: '待办', value: shortenText((snapshot.pendingRequests || [])[0] || '暂无', 16) },
+          pendingRequestText ? { label: '待办', value: shortenText(pendingRequestText, 16) } : null,
         ],
+        note: pendingRequestText ? '' : '等待新情报',
       });
     }
 
     function buildShellTerminalNewsCard(snapshot) {
       const newsSummary = buildRecentNewsSummary(snapshot, { seqLimit: 1, intelLimit: 1 });
+      const globalNews = resolveShellText((newsSummary.globalNews[0] || {}).desc, '');
+      const personalNews = resolveShellText((newsSummary.personalNews[0] || {}).desc, '');
+      const summaryText = resolveShellText(newsSummary.summary, '等待新见闻');
       return buildShellSummaryCard({
         kicker: '见闻',
         title: '近期见闻',
         value: `${(newsSummary.cards || []).length || 0} 条更新`,
         meta: '全局 / 个人',
         rows: [
-          { label: '全局', value: shortenText((newsSummary.globalNews[0] || {}).desc || '暂无', 16) },
-          { label: '个人', value: shortenText((newsSummary.personalNews[0] || {}).desc || '暂无', 16) },
+          globalNews ? { label: '全局', value: shortenText(globalNews, 16) } : null,
+          personalNews ? { label: '个人', value: shortenText(personalNews, 16) } : null,
         ],
+        note: globalNews || personalNews ? shortenText(summaryText || '等待新见闻', 28) : '等待新见闻',
       });
     }
 
     function buildShellTerminalBestiaryCard(snapshot) {
+      const bestiaryNames = (snapshot.bestiaryEntries || []).map(([name]) => name).filter(Boolean);
       return buildShellSummaryCard({
         kicker: '图鉴',
         title: '怪物图鉴',
-        value: `${(snapshot.bestiaryEntries || []).length || 0} 种`,
-        meta: shortenText((snapshot.bestiaryEntries || []).slice(0, 2).map(([name]) => name).join(' / ') || '暂无收录', 20),
+        value: bestiaryNames.length ? `${bestiaryNames.length} 种` : '待收录',
+        meta: shortenText(bestiaryNames.slice(0, 2).join(' / ') || '等待首条图鉴', 20),
         rows: [
-          { label: '近期收录', value: shortenText((snapshot.bestiaryEntries || []).slice(0, 1).map(([name]) => name).join('') || '暂无', 16) },
+          { label: '近期收录', value: shortenText(bestiaryNames[0] || '等待首条记录', 16) },
         ],
       });
     }
 
     function buildShellTerminalQuestCard(snapshot) {
       const questBoardEntries = safeEntries(deepGet(snapshot, 'rootData.world.quest_board', {})).filter(([, item]) => item && typeof item === 'object');
+      const pendingRequestText = resolveShellText((snapshot.pendingRequests || [])[0], '');
       return buildShellSummaryCard({
         kicker: '任务',
         title: '任务界面',
-        value: `${snapshot.questRecordCount || 0} 项待处理`,
+        value: snapshot.questRecordCount ? `${snapshot.questRecordCount} 项待处理` : '待命中',
         meta: `${questBoardEntries.length || 0} 条委托 · ${(snapshot.pendingRequests || []).length || 0} 项待办`,
         rows: [
-          { label: '当前待办', value: shortenText((snapshot.pendingRequests || [])[0] || '暂无', 16) },
-          { label: '委托板', value: questBoardEntries.length ? `${questBoardEntries.length} 条可查看` : '暂无委托' },
+          pendingRequestText ? { label: '当前待办', value: shortenText(pendingRequestText, 16) } : null,
+          { label: '委托板', value: questBoardEntries.length ? `${questBoardEntries.length} 条可查看` : '等待新委托' },
         ],
+        note: pendingRequestText || questBoardEntries.length ? '' : '等待新任务',
       });
     }
 
@@ -8747,6 +9109,20 @@
         </div>
       `;
     }
+
+    function rerenderUnifiedCardsFromLive(options = {}) {
+      if (!liveSnapshot) return false;
+      const force = !!(options && options.force);
+      const sectionSignatures = buildDashboardSectionRenderSignatures(liveSnapshot);
+      renderUnifiedCards(
+        liveSnapshot,
+        sectionSignatures,
+        force ? Object.create(null) : (lastDashboardSectionRenderSignatures || Object.create(null)),
+      );
+      return true;
+    }
+
+    window.__MVU_RERENDER_UNIFIED_CARDS__ = rerenderUnifiedCardsFromLive;
 
     function renderLiveCards(snapshot, precomputedSectionSignatures = null) {
       const social = deepGet(snapshot, 'activeChar.social', {});
@@ -12613,7 +12989,9 @@
           pendingLiveRefresh = true;
           return;
         }
-        syncMvuEditorStoreFromRoot(effective.rootData);
+        if (isRootDataRelevantToCurrentChat(effective.rootData)) {
+          syncMvuEditorStoreFromRoot(effective.rootData);
+        }
         liveSnapshot = buildSnapshot(effective.rootData);
         const nextHeaderRenderSignature = buildHeaderRenderSignature(liveSnapshot);
         const nextDashboardSectionRenderSignatures = buildDashboardSectionRenderSignatures(liveSnapshot);
@@ -12646,7 +13024,7 @@
           activeBattleUI = null;
         }
 
-        if ((shouldRenderDashboard || !!options.force) && detailModal.classList.contains('show') && currentModalPreviewKey) {
+        if ((shouldRenderDashboard || !!options.force) && (detailModal.classList.contains('show') || isShellInlinePreviewActive()) && currentModalPreviewKey) {
           if (currentModalPreviewKey === '角色切换器') {
             return;
           }
@@ -12898,7 +13276,9 @@
     document.addEventListener('mousemove', (event) => {
       const eventTarget = event.target instanceof Element ? event.target : (event.target && event.target.parentElement ? event.target.parentElement : null);
       const cell = eventTarget ? eventTarget.closest('.inventory-cell[data-hover-title]') : null;
-      if (!cell || !detailModal.classList.contains('show') || !detailModal.contains(cell)) {
+      const shellInlineHost = getShellInlineHost();
+      const isShellInlineCell = !!(cell && isShellInlinePreviewActive() && shellInlineHost && shellInlineHost.contains(cell));
+      if (!cell || (!(detailModal.classList.contains('show') && detailModal.contains(cell)) && !isShellInlineCell)) {
         hideInventoryHoverPanel();
         return;
       }
@@ -13793,22 +14173,33 @@ ${mvuUpdate}`;
       }
       currentModalPreviewKey = modalStack[modalStack.length - 1] || '';
       currentModalDisplayMode = shouldUseUnifiedFloatMode(options) ? 'floating' : 'split';
+      const shellMode = currentModalPreviewKey && isMobileShellModalActive({ ...options, unifiedMode: currentModalDisplayMode !== 'split' });
+      if (shellMode) {
+        notifyShellPreviewChange(currentModalPreviewKey);
+      }
       
       if (currentModalPreviewKey) {
         renderModalContent(currentModalPreviewKey, refs, { ...options, displayMode: currentModalDisplayMode });
       }
 
+      if (shellMode) {
+        hideDetailModalElement(refs);
+        return;
+      }
       if (!refs.detailModal) return;
       applyModalDisplayMode(refs, options);
       refs.detailModal.classList.add('show');
       refs.detailModal.setAttribute('aria-hidden', 'false');
     }
+    window.__MVU_OPEN_SHELL_PREVIEW__ = (previewKey, options = {}) => {
+      openModal(previewKey, { ...options, displayMode: 'floating' });
+    };
 
     function toggleModal(previewKey, options = {}) {
       const targetKey = previewKey || '';
       if (!targetKey) return;
       const refs = getModalRefs();
-      if (refs.detailModal && refs.detailModal.classList.contains('show') && currentModalPreviewKey === targetKey) {
+      if (((refs.detailModal && refs.detailModal.classList.contains('show')) || isShellInlinePreviewActive()) && currentModalPreviewKey === targetKey) {
         closeModal();
         return;
       }
@@ -13887,6 +14278,13 @@ ${mvuUpdate}`;
     }
 
     function wrapArchiveRedesignBody(html, options = {}) {
+      if (options.shellMode) {
+        return `<div class="mvu-shell-detail-root mvu-unified-modal-root" data-unified-preview="${escapeHtmlAttr(toText(options.previewKey, ''))}">
+          <div class="mvu-shell-detail-scroll">
+            ${html || ''}
+          </div>
+        </div>`;
+      }
       if (options.unifiedMode) {
         return `<div class="archive-redesign-root mvu-unified-modal-root" data-unified-preview="${escapeHtmlAttr(toText(options.previewKey, ''))}">
           <div class="mvu-unified-sheet">
@@ -13899,6 +14297,120 @@ ${mvuUpdate}`;
       return `<div class="archive-redesign-root">
         ${html || ''}
       </div>`;
+    }
+
+    function getShellInlineHost() {
+      const bridge = getMobileShellBridge();
+      if (!bridge || typeof bridge.getModalHost !== 'function') return null;
+      const host = bridge.getModalHost();
+      return host && host.isConnected ? host : null;
+    }
+
+    function isShellInlinePreviewActive() {
+      const bridge = getMobileShellBridge();
+      if (!bridge || typeof bridge.isOpen !== 'function' || !bridge.isOpen()) return false;
+      if (typeof bridge.isDetailActive === 'function' && !bridge.isDetailActive()) return false;
+      return !!getShellInlineHost();
+    }
+
+    function clearShellInlinePreview() {
+      const host = getShellInlineHost();
+      lastRenderedShellPreviewKey = '';
+      if (!host) return;
+      host.innerHTML = '';
+      delete host.dataset.shellPreview;
+    }
+
+    function hideDetailModalElement(refs = getModalRefs()) {
+      const currentDetailModal = refs && refs.detailModal ? refs.detailModal : null;
+      const currentModalPanel = refs && refs.modalPanel ? refs.modalPanel : null;
+      const currentModalBody = refs && refs.modalBody ? refs.modalBody : null;
+      if (currentDetailModal) {
+        currentDetailModal.classList.remove(
+          'show',
+          'drawer-left',
+          'relation-preview-mode',
+          'archive-redesign-mode',
+          'mvu-modal-display-unified',
+          'mvu-modal-display-split',
+          'mvu-modal-display-shell'
+        );
+        currentDetailModal.setAttribute('aria-hidden', 'true');
+        delete currentDetailModal.dataset.modalDisplayMode;
+      }
+      if (currentModalPanel) {
+        currentModalPanel.classList.remove(
+          'drawer-left',
+          'vault-mode',
+          'relation-preview-mode',
+          'archive-redesign-panel',
+          'mvu-modal-display-unified',
+          'mvu-modal-display-split',
+          'mvu-modal-display-shell'
+        );
+        delete currentModalPanel.dataset.modalDisplayMode;
+      }
+      if (currentModalBody) {
+        currentModalBody.classList.remove('vault-body', 'archive-redesign-body', 'mvu-unified-sheet-body');
+      }
+      if (currentDetailModal) {
+        syncDetailModalHost(refs, { unifiedMode: false });
+      }
+    }
+
+    function renderShellInlinePreview(previewKey, options = {}) {
+      const host = getShellInlineHost();
+      if (!host) return false;
+      const scrollTarget = host.closest('.mvu-mobile-shell-scroll') || host;
+      const shouldResetScroll = lastRenderedShellPreviewKey !== previewKey || toText(host.dataset.shellPreview, '') !== toText(previewKey, '');
+      lastRenderedShellPreviewKey = previewKey || '';
+      host.dataset.shellPreview = previewKey || '';
+      if (shouldBlockInlineEditRerender(options)) {
+        pendingLiveRefresh = true;
+        return true;
+      }
+      if (activeSubUI && typeof activeSubUI.destroy === 'function') {
+        activeSubUI.destroy();
+        activeSubUI = null;
+      }
+
+      const setHostMarkup = html => {
+        host.innerHTML = wrapArchiveRedesignBody(html, { shellMode: true, previewKey });
+        if (shouldResetScroll) scrollTarget.scrollTop = 0;
+      };
+
+      const liveArchive = buildLiveArchiveModal(previewKey);
+      const skeletonArchive = !liveArchive && !liveSnapshot ? buildArchiveSkeletonModal(previewKey) : null;
+      if (liveArchive) {
+        setHostMarkup(liveArchive.body);
+        if (typeof liveArchive.onMount === 'function') {
+          activeSubUI = liveArchive.onMount(host);
+        }
+        return true;
+      }
+      if (skeletonArchive) {
+        setHostMarkup(skeletonArchive.body);
+        return true;
+      }
+
+      const archiveBuilder = archiveModalBuilders[previewKey];
+      if (archiveBuilder) {
+        const view = archiveBuilder();
+        setHostMarkup(view.body);
+        return true;
+      }
+
+      if (String(previewKey || '').startsWith(SKILL_DESIGNER_PREVIEW_PREFIX)) {
+        closeModal();
+        if (typeof showUiToast === 'function') {
+          showUiToast('鎶€鑳借璁″彴鏆傛湭灏辩华锛岃閲嶈瘯銆?', 'error', 4200);
+        }
+        return true;
+      }
+
+      const config = previewMap[previewKey] || buildDynamicPreview(previewKey || '璇︾粏寮圭獥');
+      setHostMarkup(renderGenericModalBody(config));
+      return true;
     }
 
     function renderModalContent(previewKey, refs = getModalRefs(), options = {}) {
@@ -13918,6 +14430,14 @@ ${mvuUpdate}`;
       const shouldResetModalScroll = lastRenderedModalPreviewKey !== previewKey || !detailModal.classList.contains('show');
       const isRelationPreview = previewKey === '人物关系详细页';
       const unifiedMode = isUnifiedModalDisplayRequested(options);
+      const shellMode = isMobileShellModalActive({ ...options, unifiedMode });
+      if (shellMode) {
+        hideDetailModalElement(refs);
+        lastRenderedModalPreviewKey = '';
+        renderShellInlinePreview(previewKey, options);
+        return;
+      }
+      clearShellInlinePreview();
       lastRenderedModalPreviewKey = previewKey || '';
       detailModal.classList.toggle('relation-preview-mode', isRelationPreview);
       modalPanel.classList.toggle('relation-preview-mode', isRelationPreview);
@@ -13948,8 +14468,8 @@ ${mvuUpdate}`;
         }
         if (modalSubtitle) modalSubtitle.textContent = '';
         if (modalSummary) modalSummary.textContent = '';
-        setArchiveRedesignState(refs, true);
-        modalBody.innerHTML = wrapArchiveRedesignBody(liveArchive.body, { unifiedMode, previewKey });
+        setArchiveRedesignState(refs, !shellMode);
+        modalBody.innerHTML = wrapArchiveRedesignBody(liveArchive.body, { unifiedMode, previewKey, shellMode });
         if (shouldResetModalScroll) modalBody.scrollTop = 0;
         if (typeof liveArchive.onMount === 'function') {
           activeSubUI = liveArchive.onMount(modalBody);
@@ -13994,8 +14514,8 @@ ${mvuUpdate}`;
           modalTitle.textContent = skeletonArchive.title;
           if (modalSubtitle) modalSubtitle.textContent = '';
           if (modalSummary) modalSummary.textContent = '';
-          setArchiveRedesignState(refs, true);
-          modalBody.innerHTML = wrapArchiveRedesignBody(skeletonArchive.body, { unifiedMode, previewKey });
+          setArchiveRedesignState(refs, !shellMode);
+          modalBody.innerHTML = wrapArchiveRedesignBody(skeletonArchive.body, { unifiedMode, previewKey, shellMode });
           if (shouldResetModalScroll) modalBody.scrollTop = 0;
           return;
         }
@@ -14008,8 +14528,8 @@ ${mvuUpdate}`;
         modalTitle.textContent = previewKey || '详细信息';
         if (modalSubtitle) modalSubtitle.textContent = '';
         if (modalSummary) modalSummary.textContent = '';
-        setArchiveRedesignState(refs, true);
-        modalBody.innerHTML = wrapArchiveRedesignBody('', { unifiedMode, previewKey });
+        setArchiveRedesignState(refs, !shellMode);
+        modalBody.innerHTML = wrapArchiveRedesignBody('', { unifiedMode, previewKey, shellMode });
         if (shouldResetModalScroll) modalBody.scrollTop = 0;
         return;
       }
@@ -14026,8 +14546,8 @@ ${mvuUpdate}`;
         modalTitle.textContent = view.title;
         if (modalSubtitle) modalSubtitle.textContent = '';
         if (modalSummary) modalSummary.textContent = '';
-        setArchiveRedesignState(refs, true);
-        modalBody.innerHTML = wrapArchiveRedesignBody(view.body, { unifiedMode, previewKey });
+        setArchiveRedesignState(refs, !shellMode);
+        modalBody.innerHTML = wrapArchiveRedesignBody(view.body, { unifiedMode, previewKey, shellMode });
         if (shouldResetModalScroll) modalBody.scrollTop = 0;
         return;
       }
@@ -14076,22 +14596,13 @@ ${mvuUpdate}`;
       hideInventoryHoverPanel();
       currentModalPreviewKey = '';
       lastRenderedModalPreviewKey = '';
+      lastRenderedShellPreviewKey = '';
       modalStack = [];
       currentModalDisplayMode = 'auto';
-      if (detailModal) {
-        detailModal.classList.remove('show', 'drawer-left', 'relation-preview-mode', 'archive-redesign-mode', 'mvu-modal-display-unified', 'mvu-modal-display-split');
-        delete detailModal.dataset.modalDisplayMode;
-      }
-      if (modalPanel) {
-        modalPanel.classList.remove('drawer-left', 'vault-mode', 'relation-preview-mode', 'archive-redesign-panel', 'mvu-modal-display-unified', 'mvu-modal-display-split');
-        delete modalPanel.dataset.modalDisplayMode;
-      }
-      if (detailModal) detailModal.classList.remove('mvu-modal-display-shell');
-      if (modalPanel) modalPanel.classList.remove('mvu-modal-display-shell');
-      if (modalBody) modalBody.classList.remove('vault-body', 'archive-redesign-body', 'mvu-unified-sheet-body');
+      clearShellInlinePreview();
+      hideDetailModalElement(getModalRefs());
       syncModalTitleLongPress('', false);
-      if (detailModal) detailModal.setAttribute('aria-hidden', 'true');
-      syncDetailModalHost(getModalRefs(), { unifiedMode: false });
+      notifyShellPreviewClosed();
       flushPendingLiveRefresh();
     }
     window.__MVU_CLOSE_DETAIL_MODAL__ = closeModal;

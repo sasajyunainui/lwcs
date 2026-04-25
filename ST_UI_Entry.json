@@ -133,13 +133,22 @@
     hostWin.getAllVariables = async function () {
       try {
         const mvu = hostWin.Mvu || window.Mvu;
-        if (!mvu || typeof mvu.getMvuData !== 'function') return null;
-        const data = await Promise.resolve(mvu.getMvuData({ type: 'message', message_id: 'latest' }));
-        if (data && data.stat_data) return data.stat_data;
-        return data || null;
-      } catch (err) {
-        return null;
-      }
+        if (mvu && typeof mvu.getMvuData === 'function') {
+          const data = await Promise.resolve(mvu.getMvuData({ type: 'message', message_id: 'latest' }));
+          if (data && data.stat_data) return data;
+          if (data) return data;
+        }
+      } catch (err) {}
+
+      try {
+        if (hostWin.TavernHelper && typeof hostWin.TavernHelper.getVariables === 'function') {
+          const latest = await Promise.resolve(hostWin.TavernHelper.getVariables({ type: 'message', message_id: 'latest' }));
+          if (latest && latest.stat_data) return latest;
+          return latest || null;
+        }
+      } catch (err) {}
+
+      return null;
     };
 
     try {

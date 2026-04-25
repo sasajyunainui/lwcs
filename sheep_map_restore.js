@@ -4379,6 +4379,7 @@
   }
 
   function refreshSplitMapPages() {
+    const layoutSource = document.querySelector('#page-map .map-layout');
     const leftSource = document.querySelector('#page-map .map-layout > .map-hero-card');
     const rightSource = document.querySelector('#page-map .map-layout > .map-side-stack');
     let shellMutated = false;
@@ -4416,11 +4417,27 @@
       return true;
     }
 
+    function hasHydratedMapStage(stage) {
+      if (!stage) return false;
+      return !!stage.querySelector('.map-layout .map-canvas.interactive-map [data-map-node-layer]');
+    }
+
+    function hydrateMapStage(stage, source) {
+      if (!stage || !source) return false;
+      if (hasHydratedMapStage(stage)) return false;
+      stage.innerHTML = '';
+      stage.appendChild(resetMapBindingFlags(source.cloneNode(true)));
+      return true;
+    }
+
     document.querySelectorAll(`.split-left-page[data-target='page-map']`).forEach(page => {
       shellMutated = hydrateMapShell(page, leftSource, hasHydratedLeftMap) || shellMutated;
     });
     document.querySelectorAll(`.split-right-page[data-target='page-map']`).forEach(page => {
       shellMutated = hydrateMapShell(page, rightSource, hasHydratedRightMap) || shellMutated;
+    });
+    document.querySelectorAll('[data-mvu-map-stage]').forEach(stage => {
+      shellMutated = hydrateMapStage(stage, layoutSource) || shellMutated;
     });
     if (shellMutated) invalidateMapUiRefCache();
   }

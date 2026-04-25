@@ -10437,24 +10437,25 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-tab-btn:hover {
 :root {
   --mvu-mobile-shell-width: min(356px, calc(100vw - 24px));
   --mvu-mobile-shell-height: min(680px, calc(100dvh - 96px));
-  --mvu-mobile-shell-radius: 30px;
-  --mvu-mobile-shell-border: rgba(140, 167, 184, 0.16);
-  --mvu-mobile-shell-line: rgba(255, 255, 255, 0.08);
+  --mvu-mobile-shell-radius: 28px;
+  --mvu-mobile-shell-border: rgba(21, 35, 48, 0.84);
+  --mvu-mobile-shell-line: rgba(46, 72, 96, 0.12);
   --mvu-mobile-shell-surface:
-    radial-gradient(circle at top, rgba(97, 186, 208, 0.1), transparent 42%),
-    linear-gradient(180deg, rgba(20, 26, 34, 0.985), rgba(12, 16, 22, 0.99));
+    radial-gradient(circle at top, rgba(43, 184, 208, 0.14), transparent 40%),
+    linear-gradient(180deg, rgba(242, 247, 251, 0.99), rgba(228, 236, 242, 0.99));
   --mvu-mobile-shell-panel:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.016)),
-    rgba(23, 29, 37, 0.92);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(243, 247, 250, 0.94)),
+    rgba(247, 250, 252, 0.94);
   --mvu-mobile-shell-card:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.048), rgba(255, 255, 255, 0.016)),
-    rgba(25, 31, 39, 0.96);
-  --mvu-mobile-shell-accent: #79d1e4;
-  --mvu-mobile-shell-accent-strong: #f6fbff;
-  --mvu-mobile-shell-muted: rgba(210, 223, 230, 0.66);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.995), rgba(243, 247, 250, 0.96)),
+    rgba(247, 250, 252, 0.96);
+  --mvu-mobile-shell-accent: #1488a3;
+  --mvu-mobile-shell-accent-strong: #102334;
+  --mvu-mobile-shell-muted: rgba(72, 92, 112, 0.74);
   --mvu-mobile-shell-shadow:
-    0 28px 72px rgba(0, 0, 0, 0.38),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    0 34px 84px rgba(3, 13, 22, 0.42),
+    0 0 0 8px rgba(10, 18, 28, 0.84),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 body.mvu-mobile-viewport #mvu-unified-mount {
@@ -10472,8 +10473,8 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-host {
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-host {
-  color: var(--white);
-  font-family: var(--font-title);
+  color: var(--mvu-mobile-shell-accent-strong);
+  font-family: "Microsoft YaHei", sans-serif;
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-host,
@@ -10509,7 +10510,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher {
   z-index: 10045;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0;
   pointer-events: auto;
   touch-action: none;
   user-select: none;
@@ -10523,13 +10524,13 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-ite
   min-width: 44px;
   min-height: 44px;
   border-radius: 18px;
-  border: 1px solid rgba(120, 145, 162, 0.22);
+  border: 1px solid rgba(116, 148, 171, 0.24);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
-    rgba(10, 16, 22, 0.94);
-  color: var(--mvu-mobile-shell-accent-strong);
+    radial-gradient(circle at 30% 22%, rgba(68, 212, 233, 0.18), transparent 54%),
+    linear-gradient(180deg, rgba(17, 24, 35, 0.96), rgba(8, 13, 20, 0.98));
+  color: rgba(226, 246, 255, 0.96);
   box-shadow:
-    0 18px 42px rgba(0, 0, 0, 0.28),
+    0 18px 34px rgba(2, 9, 14, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transition: background 150ms ease, border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
 }
@@ -10540,59 +10541,87 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-tri
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-main {
-  width: 66px;
-  min-width: 66px;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 14px;
-  overflow: hidden;
+  position: relative;
+  width: 52px;
+  min-width: 52px;
+  height: 52px;
+  min-height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  overflow: visible;
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher.has-menu .mvu-surface-launcher-main {
-  width: 110px;
-  min-width: 110px;
+  width: 52px;
+  min-width: 52px;
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-trigger {
-  width: 44px;
-  display: grid;
-  place-items: center;
+  display: none;
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-mark {
-  width: 34px;
-  min-width: 34px;
-  height: 34px;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
   display: grid;
   place-items: center;
-  border-radius: 13px;
+  border-radius: 999px;
   background:
-    radial-gradient(circle at top, rgba(103, 215, 247, 0.22), transparent 62%),
-    rgba(16, 26, 35, 0.96);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  font-size: 12px;
-  line-height: 1;
-  letter-spacing: 0.14em;
-}
-
-body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-copy {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-  text-align: left;
-}
-
-body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-copy strong {
-  font-size: 13px;
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.34), transparent 62%),
+    linear-gradient(180deg, rgba(18, 140, 167, 0.95), rgba(10, 108, 133, 0.95));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 10px;
   line-height: 1;
   letter-spacing: 0.08em;
 }
 
-body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-copy span {
-  font-size: 10px;
-  line-height: 1;
-  color: rgba(214, 226, 232, 0.72);
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-copy {
+  display: none;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-icon {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-icon svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.85;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-dot {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  border: 2px solid rgba(8, 13, 20, 0.92);
+  background: rgba(72, 215, 236, 0.96);
+  box-shadow: 0 0 0 4px rgba(72, 215, 236, 0.12);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher[data-mode="split"] .mvu-surface-launcher-dot {
+  background: rgba(15, 138, 165, 0.92);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher[data-mode="unified"] .mvu-surface-launcher-dot {
+  background: rgba(241, 198, 103, 0.96);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher[data-mode="shell"] .mvu-surface-launcher-dot {
+  background: rgba(255, 168, 130, 0.96);
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu {
@@ -10605,11 +10634,11 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu {
   gap: 8px;
   padding: 10px;
   border-radius: 20px;
-  border: 1px solid rgba(120, 145, 162, 0.18);
+  border: 1px solid rgba(116, 148, 171, 0.22);
   background:
-    linear-gradient(180deg, rgba(20, 27, 35, 0.98), rgba(12, 16, 22, 0.98)),
-    rgba(10, 15, 21, 0.98);
-  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.32);
+    radial-gradient(circle at top, rgba(72, 215, 236, 0.12), transparent 58%),
+    linear-gradient(180deg, rgba(17, 24, 35, 0.98), rgba(9, 14, 22, 0.99));
+  box-shadow: 0 24px 48px rgba(2, 9, 14, 0.42);
   opacity: 0;
   pointer-events: none;
   transform: translateY(6px) scale(0.98);
@@ -10641,19 +10670,20 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-ite
   justify-content: center;
   padding: 0 14px;
   font-size: 13px;
-  font-family: var(--font-title);
+  font-family: "Microsoft YaHei", sans-serif;
+  color: rgba(226, 246, 255, 0.96);
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-trigger.active,
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-item.active {
-  border-color: rgba(103, 215, 247, 0.38);
+  border-color: rgba(72, 215, 236, 0.28);
   background:
-    linear-gradient(180deg, rgba(103, 215, 247, 0.16), rgba(103, 215, 247, 0.08)),
-    rgba(12, 18, 24, 0.98);
+    linear-gradient(180deg, rgba(20, 136, 163, 0.18), rgba(20, 136, 163, 0.08)),
+    rgba(18, 42, 57, 0.92);
   box-shadow:
-    0 18px 44px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(103, 215, 247, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    0 12px 24px rgba(2, 9, 14, 0.24),
+    0 0 0 1px rgba(20, 136, 163, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-main:hover,
@@ -10662,10 +10692,10 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-tri
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-trigger:active,
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-item:hover,
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-surface-launcher-menu-item:active {
-  border-color: rgba(103, 215, 247, 0.34);
+  border-color: rgba(72, 215, 236, 0.24);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03)),
-    rgba(12, 21, 29, 0.98);
+    radial-gradient(circle at 30% 22%, rgba(72, 215, 236, 0.2), transparent 54%),
+    linear-gradient(180deg, rgba(18, 27, 39, 0.98), rgba(10, 16, 24, 0.99));
   transform: translateY(1px);
 }
 
@@ -10685,9 +10715,10 @@ body.mvu-desktop-shell-surface.mvu-mobile-shell-open #mvu-unified-mount .mvu-sur
 }
 
 body.mvu-desktop-shell-surface.mvu-mobile-shell-open #mvu-unified-mount .mvu-surface-launcher-main {
-  width: 66px;
-  min-width: 66px;
-  padding: 0 12px;
+  width: 50px;
+  min-width: 50px;
+  height: 50px;
+  min-height: 50px;
 }
 
 body.mvu-desktop-shell-surface.mvu-mobile-shell-open #mvu-unified-mount .mvu-surface-launcher-copy span {
@@ -10705,11 +10736,17 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-backdrop {
   opacity: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at center, rgba(66, 139, 154, 0.16), transparent 58%),
-    rgba(3, 8, 12, 0.42);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+    radial-gradient(circle at center, rgba(15, 138, 165, 0.04), transparent 58%),
+    rgba(8, 16, 24, 0.06);
+  backdrop-filter: blur(1px) saturate(1.01);
+  -webkit-backdrop-filter: blur(1px) saturate(1.01);
   transition: opacity 160ms ease;
+}
+
+body.mvu-desktop-shell-surface #mvu-unified-mount .mvu-mobile-shell-backdrop {
+  background:
+    radial-gradient(circle at center, rgba(15, 138, 165, 0.03), transparent 56%),
+    rgba(8, 16, 24, 0.03);
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-backdrop.active {
@@ -10721,7 +10758,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell {
   z-index: 10042;
   display: grid;
   place-items: center;
-  padding: 48px 12px calc(76px + env(safe-area-inset-bottom, 0px));
+  padding: 28px 16px calc(68px + env(safe-area-inset-bottom, 0px));
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -10755,7 +10792,7 @@ body.mvu-desktop-shell-surface #mvu-unified-mount .mvu-mobile-shell.active {
 
 body.mvu-desktop-shell-surface #mvu-unified-mount .mvu-mobile-shell-frame,
 body.mvu-desktop-shell-surface #mvu-unified-mount .mvu-mobile-shell.active .mvu-mobile-shell-frame {
-  transform: none;
+  transform: translate3d(var(--mvu-shell-offset-x, 0px), var(--mvu-shell-offset-y, 0px), 0);
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell.active {
@@ -10766,6 +10803,8 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell.active {
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-frame {
   position: relative;
   z-index: 1;
+  --mvu-shell-offset-x: 0px;
+  --mvu-shell-offset-y: 0px;
   width: var(--mvu-mobile-shell-width);
   height: var(--mvu-mobile-shell-height);
   max-height: var(--mvu-mobile-shell-height);
@@ -10777,14 +10816,24 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-frame {
   box-shadow: var(--mvu-mobile-shell-shadow);
   overflow: hidden;
   pointer-events: none;
-  transform: translateY(14px) scale(0.975);
+  transform: translate3d(var(--mvu-shell-offset-x, 0px), calc(var(--mvu-shell-offset-y, 0px) + 10px), 0) scale(0.985);
   transform-origin: center bottom;
   transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 160ms ease;
 }
 
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-frame::after {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border-radius: calc(var(--mvu-mobile-shell-radius) - 7px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+  opacity: 0.58;
+}
+
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell.active .mvu-mobile-shell-frame {
   pointer-events: auto;
-  transform: translateY(0) scale(1);
+  transform: translate3d(var(--mvu-shell-offset-x, 0px), var(--mvu-shell-offset-y, 0px), 0) scale(1);
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-frame::before {
@@ -10796,8 +10845,8 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-frame::befor
   height: 4px;
   margin-left: -44px;
   border-radius: 999px;
-  background: rgba(235, 246, 251, 0.18);
-  box-shadow: 0 0 12px rgba(103, 215, 247, 0.08);
+  background: rgba(17, 24, 35, 0.34);
+  box-shadow: none;
   pointer-events: none;
 }
 
@@ -10812,10 +10861,20 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-head {
   padding: 18px 16px 12px;
   border-bottom: 1px solid var(--mvu-mobile-shell-line);
   background:
-    linear-gradient(180deg, rgba(16, 21, 28, 0.98), rgba(16, 21, 28, 0.78)),
-    rgba(12, 18, 24, 0.92);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+    linear-gradient(180deg, rgba(252, 254, 255, 0.96), rgba(242, 247, 250, 0.9)),
+    rgba(246, 249, 252, 0.94);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  touch-action: none;
+  cursor: grab;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-head:active {
+  cursor: grabbing;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-head button {
+  touch-action: manipulation;
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-head-copy {
@@ -10859,16 +10918,16 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-close {
   place-items: center;
   padding: 0;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--white);
+  border: 1px solid rgba(125, 150, 168, 0.18);
+  background: rgba(240, 245, 248, 0.96);
+  color: var(--mvu-mobile-shell-accent-strong);
   font-size: 18px;
   line-height: 1;
   transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-back {
-  color: rgba(244, 250, 252, 0.92);
+  color: var(--mvu-mobile-shell-accent-strong);
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-back svg,
@@ -10882,8 +10941,8 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-mode-exit:ho
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-mode-exit:active,
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-close:hover,
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-close:active {
-  border-color: rgba(103, 215, 247, 0.28);
-  background: rgba(103, 215, 247, 0.08);
+  border-color: rgba(15, 138, 165, 0.22);
+  background: rgba(15, 138, 165, 0.08);
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-mode-exit span {
@@ -10895,7 +10954,8 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-body {
   position: relative;
   min-height: 0;
   background:
-    linear-gradient(180deg, rgba(20, 26, 34, 0.4), rgba(10, 14, 20, 0.94));
+    radial-gradient(circle at top, rgba(20, 136, 163, 0.06), transparent 38%),
+    linear-gradient(180deg, rgba(252, 254, 255, 0.8), rgba(238, 244, 248, 0.98));
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-scroll {
@@ -10949,29 +11009,136 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card,
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-tile,
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-tab {
   min-height: 44px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(32, 66, 94, 0.08);
   background: var(--mvu-mobile-shell-panel);
-  color: var(--white);
+  color: var(--mvu-mobile-shell-accent-strong);
   transition: transform 140ms ease, background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card {
   min-width: 0;
-  min-height: 118px;
-  padding: 16px;
-  border-radius: 18px;
+  min-height: 104px;
+  padding: 15px;
+  border-radius: 20px;
   background: var(--mvu-mobile-shell-card);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow:
+    0 12px 28px rgba(10, 27, 41, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
   overflow: hidden;
 }
 
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card:empty,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-live:empty {
+  display: none;
+}
+
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card--hero {
-  min-height: 192px;
+  min-height: 160px;
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card--spotlight {
-  min-height: 176px;
-  padding: 18px;
+  min-height: 132px;
+  padding: 16px;
+  background:
+    radial-gradient(circle at top left, rgba(72, 215, 236, 0.18), transparent 44%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.995), rgba(241, 246, 249, 0.97)),
+    rgba(247, 250, 252, 0.96);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-map-stage,
+body #mvu-unified-mount .mvu-unified-map-stage {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid rgba(32, 66, 94, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 246, 250, 0.94)),
+    rgba(245, 249, 252, 0.96);
+  box-shadow:
+    0 12px 28px rgba(12, 34, 51, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-map-stage:empty,
+body #mvu-unified-mount .mvu-unified-map-stage:empty {
+  display: none;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-map-stage > .map-layout,
+body #mvu-unified-mount .mvu-unified-map-stage > .map-layout {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  min-width: 0;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-map-stage .map-hero-card,
+body #mvu-unified-mount .mvu-unified-map-stage .map-hero-card {
+  min-width: 0;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-map-stage .map-stage-head,
+body #mvu-unified-mount .mvu-unified-map-stage .map-stage-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-map-stage .map-control-strip,
+body #mvu-unified-mount .mvu-unified-map-stage .map-control-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-map-stage .map-tool-btn,
+body #mvu-unified-mount .mvu-unified-map-stage .map-tool-btn {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  border: 1px solid rgba(16, 132, 158, 0.18) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(239, 245, 249, 0.92)) !important;
+  color: rgba(17, 41, 61, 0.92) !important;
+  box-shadow:
+    0 8px 18px rgba(12, 34, 51, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82) !important;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-map-stage .map-canvas.map-canvas-large,
+body #mvu-unified-mount .mvu-unified-map-stage .map-canvas.map-canvas-large {
+  margin: 0 0 10px !important;
+  min-height: 220px !important;
+  border-radius: 20px !important;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-map-stage .map-side-stack,
+body #mvu-unified-mount .mvu-unified-map-stage .map-side-stack {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px !important;
+  min-width: 0;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-map-stage .map-side-stack > :last-child:nth-child(odd),
+body #mvu-unified-mount .mvu-unified-map-stage .map-side-stack > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-map-stage .map-side-card,
+body #mvu-unified-mount .mvu-unified-map-stage .map-side-card {
+  min-width: 0;
+  margin: 0 !important;
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-grid {
@@ -10990,32 +11157,42 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-tile {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  min-height: 152px;
-  padding: 14px;
-  border-radius: 20px;
+  min-height: 136px;
+  padding: 15px;
+  border-radius: 22px;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
   gap: 12px;
   align-content: start;
   text-align: left;
   overflow: hidden;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow:
+    0 12px 26px rgba(10, 27, 41, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-icon {
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   display: grid;
   place-items: center;
-  border-radius: 15px;
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--mvu-mobile-shell-accent-strong);
+  border-radius: 17px;
+  border: 1px solid rgba(19, 52, 72, 0.08);
+  background:
+    radial-gradient(circle at top, rgba(72, 215, 236, 0.22), transparent 60%),
+    linear-gradient(180deg, rgba(18, 31, 44, 0.96), rgba(10, 18, 28, 0.98));
+  color: rgba(223, 247, 255, 0.96);
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-icon svg {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.85;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-copy {
@@ -11024,9 +11201,9 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-copy {
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-copy strong {
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.15;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--mvu-mobile-shell-accent-strong);
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -11047,6 +11224,8 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-copy span {
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-live {
   min-width: 0;
   margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid rgba(32, 66, 94, 0.08);
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-tile:hover,
@@ -11055,10 +11234,11 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card.clickable:hov
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card.clickable:active,
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-tab:hover,
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-tab:active {
-  border-color: rgba(125, 217, 234, 0.26);
+  border-color: rgba(15, 138, 165, 0.2);
   background:
-    linear-gradient(180deg, rgba(125, 217, 234, 0.1), rgba(125, 217, 234, 0.02)),
-    rgba(22, 30, 39, 0.94);
+    linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(242, 247, 250, 0.95)),
+    rgba(245, 249, 252, 0.96);
+  box-shadow: 0 12px 26px rgba(10, 34, 52, 0.08);
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-tile:active,
@@ -11077,10 +11257,10 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-nav {
   padding: 10px 10px calc(14px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--mvu-mobile-shell-line);
   background:
-    linear-gradient(180deg, rgba(14, 20, 26, 0.82), rgba(14, 20, 26, 0.98)),
-    rgba(14, 20, 26, 0.96);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+    linear-gradient(180deg, rgba(250, 252, 254, 0.96), rgba(241, 246, 249, 0.99)),
+    rgba(244, 248, 251, 0.98);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-tab {
@@ -11101,12 +11281,12 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-tab {
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-tab.active {
-  border-color: rgba(125, 217, 234, 0.34);
+  border-color: rgba(15, 138, 165, 0.24);
   background:
-    linear-gradient(180deg, rgba(125, 217, 234, 0.14), rgba(125, 217, 234, 0.04)),
-    rgba(18, 28, 36, 0.98);
-  box-shadow: inset 0 0 0 1px rgba(125, 217, 234, 0.08);
-  color: var(--mvu-mobile-shell-accent-strong);
+    linear-gradient(180deg, rgba(15, 138, 165, 0.12), rgba(15, 138, 165, 0.04)),
+    rgba(241, 248, 251, 0.98);
+  box-shadow: inset 0 0 0 1px rgba(15, 138, 165, 0.08);
+  color: var(--mvu-mobile-shell-accent);
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-tab-icon {
@@ -11121,6 +11301,11 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-tab-icon svg
   width: 18px;
   height: 18px;
   display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.85;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-tab-label {
@@ -11148,9 +11333,9 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-action-pill {
   min-height: 44px;
   padding: 0 15px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.045);
-  color: rgba(239, 249, 252, 0.92);
+  border: 1px solid rgba(32, 66, 94, 0.08);
+  background: rgba(246, 249, 252, 0.96);
+  color: var(--mvu-mobile-shell-accent-strong);
   font-size: 13px;
   line-height: 1;
   letter-spacing: 0.01em;
@@ -11159,8 +11344,8 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-action-pill {
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-action-pill:hover,
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-action-pill:active {
-  border-color: rgba(125, 217, 234, 0.26);
-  background: rgba(125, 217, 234, 0.08);
+  border-color: rgba(15, 138, 165, 0.2);
+  background: rgba(15, 138, 165, 0.08);
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-action-pill:active {
@@ -11215,7 +11400,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-title {
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-value {
   flex: 0 0 auto;
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1.15;
   font-weight: 700;
   color: var(--mvu-mobile-shell-accent-strong);
@@ -11236,7 +11421,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-meta {
   -webkit-line-clamp: 2;
   font-size: 13px;
   line-height: 1.4;
-  color: rgba(224, 237, 242, 0.78);
+  color: rgba(46, 76, 99, 0.76);
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-summary--compact .mvu-shell-meta {
@@ -11253,17 +11438,17 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-chip {
   min-height: 26px;
   padding: 6px 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.045);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  color: rgba(237, 247, 251, 0.86);
+  background: rgba(243, 248, 251, 0.96);
+  border: 1px solid rgba(32, 66, 94, 0.08);
+  color: rgba(27, 51, 71, 0.86);
   font-size: 11px;
   line-height: 1;
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-chip.is-live,
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-metric.is-live {
-  border-color: rgba(125, 217, 234, 0.22);
-  background: rgba(125, 217, 234, 0.08);
+  border-color: rgba(15, 138, 165, 0.16);
+  background: rgba(15, 138, 165, 0.08);
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-chip.is-gold,
@@ -11288,8 +11473,8 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-metric {
   min-height: 72px;
   padding: 12px;
   border-radius: 15px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(32, 66, 94, 0.08);
+  background: rgba(244, 248, 251, 0.92);
   display: grid;
   align-content: space-between;
   gap: 8px;
@@ -11317,7 +11502,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-line {
   display: grid;
   gap: 4px;
   padding-top: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid rgba(39, 67, 89, 0.08);
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-line:first-child {
@@ -11335,18 +11520,18 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-line-value {
   -webkit-line-clamp: 2;
   font-size: 16px;
   line-height: 1.3;
-  color: rgba(244, 250, 252, 0.94);
+  color: rgba(17, 41, 61, 0.94);
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-card-note {
   -webkit-line-clamp: 2;
   font-size: 13px;
   line-height: 1.42;
-  color: rgba(220, 234, 239, 0.72);
+  color: rgba(65, 88, 109, 0.72);
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-summary--hero .mvu-shell-value {
-  color: #f5fcff;
+  color: #0f8aa5;
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-summary--hero .mvu-shell-title {
@@ -11371,9 +11556,9 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-app-peek-note {
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-app-peek-value {
   -webkit-line-clamp: 1;
-  font-size: 14px;
-  line-height: 1.25;
-  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.2;
+  font-weight: 700;
   color: var(--mvu-mobile-shell-accent-strong);
 }
 
@@ -11384,8 +11569,8 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-app-peek-note {
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-app-peek-meta {
-  -webkit-line-clamp: 2;
-  color: rgba(232, 242, 246, 0.78);
+  -webkit-line-clamp: 1;
+  color: rgba(46, 76, 99, 0.76);
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-app-peek-note {
@@ -11406,33 +11591,175 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-app-peek.is-warn .m
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host {
-  position: absolute;
-  inset: 0;
-  z-index: 4;
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  min-height: 100%;
   border-radius: inherit;
-  overflow: hidden;
-  pointer-events: none;
+  overflow: visible;
+  pointer-events: auto;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .archive-redesign-root,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .mvu-shell-detail-root,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .mvu-shell-detail-scroll {
+  display: grid;
+  gap: 12px;
+  min-height: 100%;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .archive-modal-grid,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .dossier-shell,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .relation-layout,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .equipment-layout,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .vault-layout,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .profile-snapshot,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .nsfw-modal-grid,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .skill-designer-layout,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .spirit-entry-grid,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .dossier-columns,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .dossier-columns--life-core,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .dossier-columns--life-record,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .dossier-columns--relation-overview,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .dossier-section-stack,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .dossier-contrib-grid,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .dossier-action-toolbar,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .dossier-form-row,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .dossier-form-row--donate,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .relation-gift-row.dossier-form-row,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .relation-gift-row,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .identity-growth-grid,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .wallet-strip,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .location-status-layout,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .faction-layout-shell,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .intel-layout-dashboard,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .intel-pending-editor,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .map-action-grid,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .request-console-row {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 10px !important;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .dossier-row-grid--two,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .dossier-row-grid--three,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .stats-grid,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .module-grid,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .hero-metrics,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .archive-tile-grid,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .inventory-hover-grid,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .nsfw-bodypart-grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 8px !important;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .archive-card,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .timeline-card,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .relation-card,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .intel-card,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .location-summary-card,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .nsfw-theme-card {
+  min-height: 0 !important;
+  padding: 14px !important;
+  border-radius: 18px !important;
+  border: 1px solid rgba(37, 94, 128, 0.12) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(242, 248, 252, 0.98)) !important;
+  box-shadow: 0 12px 24px rgba(18, 54, 78, 0.08) !important;
+  color: #163247 !important;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .archive-card-head,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .simple-head {
+  margin-bottom: 8px !important;
+  gap: 8px !important;
+  align-items: flex-start !important;
+  flex-wrap: wrap !important;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .archive-card-title,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .simple-title {
+  color: #163247 !important;
+  font-size: 13px !important;
+  line-height: 1.3 !important;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .archive-card-head::after,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .archive-redesign-decor {
+  display: none !important;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .dossier-row,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .dossier-list-row,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .simple-row,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .hero-row,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .status-row {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 4px !important;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .dossier-row > span,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .dossier-list-row > span,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .simple-row span,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .hero-row span,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .status-row span {
+  color: #5e7486 !important;
+  min-width: 0;
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+  word-break: break-word;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .archive-card b,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .relation-card b,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .intel-card b,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .timeline-card b,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .location-summary-card b,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .legend-chip b {
+  color: #163247 !important;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .archive-card span,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .relation-card span,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .intel-card span,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .timeline-card span,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .location-summary-card span,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .archive-note,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .location-empty-note,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .legend-chip span {
+  color: #5e7486 !important;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .request-console-input,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .request-console-textarea,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .relation-gift-select,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .relation-action-btn,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .intel-add-row .intel-add-btn,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .map-dispatch-action-btn {
+  min-height: 44px !important;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .dossier-topology-board {
+  min-height: 180px !important;
 }
 
 #detailModal.mvu-modal-display-shell {
-  position: absolute !important;
-  inset: 0 !important;
+  position: relative !important;
+  inset: auto !important;
   z-index: 1;
-  width: auto !important;
+  width: 100% !important;
   height: auto !important;
   min-height: 0 !important;
-  padding: 8px !important;
+  padding: 0 !important;
   align-items: stretch !important;
   justify-content: stretch !important;
-  background:
-    linear-gradient(180deg, rgba(4, 11, 16, 0.12), rgba(4, 11, 16, 0.42)),
-    rgba(4, 11, 16, 0.34) !important;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 #detailModal.mvu-modal-display-shell.show {
-  display: flex !important;
+  display: block !important;
   pointer-events: auto;
 }
 
@@ -11441,35 +11768,21 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host {
 #detailModal.archive-redesign-mode.mvu-modal-display-shell .mvu-modal-panel.archive-redesign-panel {
   width: 100% !important;
   max-width: none !important;
-  height: 100% !important;
+  height: auto !important;
   max-height: none !important;
   min-height: 0 !important;
-  border-radius: 20px !important;
-  border: 1px solid rgba(112, 214, 240, 0.22) !important;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)),
-    rgba(9, 18, 27, 0.96) !important;
-  box-shadow:
-    0 22px 40px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+  border-radius: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 #detailModal.mvu-modal-display-shell.show .mvu-modal-panel {
-  animation: mvuMobileSheetIn 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: none !important;
 }
 
 #detailModal.mvu-modal-display-shell .modal-head {
-  position: sticky;
-  top: 0;
-  z-index: 4;
-  min-height: 58px;
-  padding: 16px 16px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background:
-    linear-gradient(180deg, rgba(8, 18, 27, 0.98), rgba(8, 18, 27, 0.8)),
-    rgba(8, 18, 27, 0.92);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  display: none !important;
 }
 
 #detailModal.mvu-modal-display-shell .modal-title {
@@ -11488,7 +11801,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host {
 #detailModal.mvu-modal-display-shell .modal-body.archive-body,
 #detailModal.archive-redesign-mode.mvu-modal-display-shell .modal-body.archive-redesign-body {
   min-height: 0;
-  padding: 12px 12px calc(14px + env(safe-area-inset-bottom, 0px)) !important;
+  padding: 0 0 calc(14px + env(safe-area-inset-bottom, 0px)) !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
   overscroll-behavior: contain;
@@ -11498,9 +11811,11 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host {
 #detailModal.mvu-modal-display-shell .mvu-unified-modal-root,
 #detailModal.mvu-modal-display-shell .mvu-unified-sheet,
 #detailModal.mvu-modal-display-shell .mvu-unified-sheet-scroll,
+#detailModal.mvu-modal-display-shell .mvu-shell-detail-root,
+#detailModal.mvu-modal-display-shell .mvu-shell-detail-scroll,
 #detailModal.archive-redesign-mode.mvu-modal-display-shell .archive-redesign-root {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   min-height: 100%;
 }
 
@@ -11555,12 +11870,12 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host {
 #detailModal.mvu-modal-display-shell .location-summary-card,
 #detailModal.mvu-modal-display-shell .nsfw-theme-card {
   min-height: 0 !important;
-  padding: 12px !important;
-  border-radius: 16px !important;
-  border: 1px solid rgba(255, 255, 255, 0.07) !important;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015)),
-    rgba(13, 24, 34, 0.92) !important;
+  padding: 14px !important;
+  border-radius: 18px !important;
+  border: 1px solid rgba(37, 94, 128, 0.12) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(242, 248, 252, 0.98)) !important;
+  box-shadow: 0 12px 24px rgba(18, 54, 78, 0.08) !important;
+  color: #163247 !important;
 }
 
 #detailModal.mvu-modal-display-shell .archive-card-head,
@@ -11573,8 +11888,13 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host {
 
 #detailModal.mvu-modal-display-shell .archive-card-title,
 #detailModal.mvu-modal-display-shell .simple-title {
+  color: #163247 !important;
   font-size: 13px !important;
   line-height: 1.3 !important;
+}
+
+#detailModal.mvu-modal-display-shell .archive-card-head::after {
+  display: none !important;
 }
 
 #detailModal.mvu-modal-display-shell .dossier-row,
@@ -11591,10 +11911,31 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host {
 #detailModal.mvu-modal-display-shell .simple-row span,
 #detailModal.mvu-modal-display-shell .hero-row span,
 #detailModal.mvu-modal-display-shell .status-row span {
+  color: #5e7486 !important;
   min-width: 0;
   font-size: 12px !important;
   line-height: 1.5 !important;
   word-break: break-word;
+}
+
+#detailModal.mvu-modal-display-shell .archive-card b,
+#detailModal.mvu-modal-display-shell .relation-card b,
+#detailModal.mvu-modal-display-shell .intel-card b,
+#detailModal.mvu-modal-display-shell .timeline-card b,
+#detailModal.mvu-modal-display-shell .location-summary-card b,
+#detailModal.mvu-modal-display-shell .legend-chip b {
+  color: #163247 !important;
+}
+
+#detailModal.mvu-modal-display-shell .archive-card span,
+#detailModal.mvu-modal-display-shell .relation-card span,
+#detailModal.mvu-modal-display-shell .intel-card span,
+#detailModal.mvu-modal-display-shell .timeline-card span,
+#detailModal.mvu-modal-display-shell .location-summary-card span,
+#detailModal.mvu-modal-display-shell .archive-note,
+#detailModal.mvu-modal-display-shell .location-empty-note,
+#detailModal.mvu-modal-display-shell .legend-chip span {
+  color: #5e7486 !important;
 }
 
 #detailModal.mvu-modal-display-shell .request-console-input,
@@ -11616,6 +11957,10 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host {
 
 #detailModal.archive-redesign-mode.mvu-modal-display-shell .archive-redesign-root .dossier-section {
   gap: 8px;
+}
+
+#detailModal.archive-redesign-mode.mvu-modal-display-shell .archive-redesign-decor {
+  display: none !important;
 }
 
 #detailModal.archive-redesign-mode.mvu-modal-display-shell .mvu-modal-panel.archive-redesign-panel > .archive-redesign-decor .top-left-rings {
