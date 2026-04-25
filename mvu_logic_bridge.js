@@ -53,6 +53,25 @@
     }
     function resolveShellPreviewTitle(previewKey) {
       const key = String(previewKey || '').trim();
+      if (key.startsWith('技能设计台：')) {
+        try {
+          const payload = JSON.parse(decodeURIComponent(key.slice('技能设计台：'.length)));
+          const scope = String(payload && payload.scope || '').trim();
+          const label = String(payload && payload.label || '').trim();
+          const scopeTitleMap = {
+            fusion_skill: '融合技设计',
+            art: '功法设计',
+            special_ability: '特殊技能设计',
+            spirit_skill: '魂技设计',
+            soul_bone_skill: '魂骨技能设计',
+            blood_skill: '血脉技能设计',
+            blood_passive: '血脉被动设计'
+          };
+          return [scopeTitleMap[scope] || '技能设计', label].filter(Boolean).join(' / ') || '技能设计';
+        } catch (err) {
+          return '技能设计';
+        }
+      }
       const previewTitleMap = {
         '\u89d2\u8272\u5207\u6362\u5668': '\u89d2\u8272',
         '\u751f\u547d\u56fe\u8c31\u8be6\u60c5\u9875': '\u8be6\u7ec6\u6863\u6848',
@@ -165,8 +184,8 @@
         actions: ['显示过滤', '字号密度', '主题切换']
       },
       '生命图谱详细页': {
-        title: '生命图谱',
-        summary: '档案页主面板点击后直接进入 2级弹窗，不再额外设置中转层。',
+        title: '详细档案',
+        summary: '角色状态、修为、外观与成长记录。',
         fields: ['activeChar.stat.*', 'activeChar.status.*', 'activeChar.stat.conditions', 'activeChar.energy.core', 'activeChar.bloodline_power(基础态)'],
         duties: ['展示完整生命体征', '集中显示状态/伤势/领域', '收纳成长修正与魂核进度'],
         actions: ['分区显示基础属性', '异常状态列表', '恢复与判定说明']
@@ -208,9 +227,9 @@
       },
       '武魂融合技详细页': {
         title: '武魂融合技档案',
-        summary: '集中查看当前角色已录入的武魂融合技、自体融合与搭档型融合信息。',
-        fields: ['activeChar.martial_fusion_skills.*.fusion_mode', 'activeChar.martial_fusion_skills.*.partner', 'activeChar.martial_fusion_skills.*.source_spirits', 'activeChar.martial_fusion_skills.*.skill_data'],
-        duties: ['展示融合技总览', '区分自体融合与双人融合', '直接下钻到融合技设计与效果详情'],
+        summary: '集中查看当前角色已录入的武魂融合技、自体融合与多人融合信息。',
+        fields: ['activeChar.martial_fusion_skills.*.fusion_mode', 'activeChar.martial_fusion_skills.*.partner', 'activeChar.martial_fusion_skills.*.source_spirits', 'activeChar.martial_fusion_skills.*.fusion_participants', 'activeChar.martial_fusion_skills.*.skill_data'],
+        duties: ['展示融合技总览', '区分自体融合与多人融合', '直接下钻到融合技设计与效果详情'],
         actions: ['查看融合模式', '查看来源武魂', '打开融合技详情']
       },
       '储物仓库详细页': {
@@ -919,7 +938,7 @@
 
       if (key === '生命图谱详细页') {
         return {
-          title: '生命图谱',
+          title: '详细档案',
           body: `
             <div class="archive-modal-grid life-graph-grid">
               <div class="archive-card life-growth-card">
@@ -3247,6 +3266,7 @@
 
     const SKILL_DESIGNER_PREVIEW_PREFIX = '技能设计台：';
     const SKILL_SUMMARY_EFFECT_MECHANISM_SET = new Set(['属性摘要', '构型摘要', '术式摘要', '极性摘要', '属性系数摘要', '机制参数摘要']);
+    const SKILL_DESIGNER_SELF_FUSION_PARTNER = '自身双武魂';
     const SKILL_DESIGNER_SKILL_TYPES = Object.freeze(['强攻系', '控制系', '食物系', '精神系', '防御系', '敏攻系', '元素系', '辅助系', '治疗系', '被动', '融合技', '功法', '特殊能力']);
     const SKILL_DESIGNER_TARGET_OPTIONS = Object.freeze(['自身', '友方单体', '友方群体', '敌方单体', '敌方群体', '全场', '食用者', '使用者', '召唤物', '造物']);
     const SKILL_DESIGNER_MAIN_MECHANIC_POOL = Object.freeze({
@@ -4213,6 +4233,17 @@
       return '敌方单体';
     }
 
+    function normalizeSkillDesignerTargetForForm(target = '', fallback = '') {
+      const text = normalizeSkillUiText(target, fallback);
+      const aliasMap = {
+        '己方/单体': '友方单体',
+        '己方/群体': '友方群体',
+        '敌方/单体': '敌方单体',
+        '敌方/群体': '敌方群体',
+      };
+      return aliasMap[text] || text;
+    }
+
     function resolveSkillDesignerImplicitAttributeConfig(state = {}, previewMeta = {}) {
       const attachedAttributes = normalizeSkillDesignerArray(state && state.attachedAttributes);
       const scope = toText(previewMeta && previewMeta.scope, 'skill');
@@ -4305,6 +4336,10 @@
         artStage: normalizeSkillUiText(safeSkill['境界'] || designDraft['境界'], '未入门'),
         artLevel: Math.max(0, toNumber(safeSkill['lv'] ?? designDraft['lv'], 0)),
         artExp: Math.max(0, toNumber(safeSkill['exp'] ?? designDraft['exp'], 0)),
+        fusionMode: (designDraft['融合模式'] || safeSkill['融合模式']) ? normalizeSkillDesignerFusionMode(designDraft['融合模式'] || safeSkill['融合模式']) : '',
+        fusionPartner: normalizeSkillUiText(designDraft['融合对象'] || safeSkill['融合对象'], ''),
+        fusionSourceSpirits: normalizeSkillDesignerArray(designDraft['来源武魂'] || safeSkill['来源武魂']),
+        fusionParticipants: getSkillDesignerRawFusionParticipants(designDraft, safeSkill),
         mechanicParams: normalizeSkillDesignerMechanicParamMap(
           mergedMechanicParams,
           {
@@ -4370,6 +4405,7 @@
 
     function buildSkillDesignerCompactSummary(draft = {}) {
       return [
+        buildSkillDesignerFusionSummary(draft),
         buildSkillDesignerMechanicSummary(draft),
         buildSkillDesignerMechanicParamSummary(draft),
         buildSkillDesignerExecutionSummary(draft),
@@ -4434,11 +4470,29 @@
     }
 
     function buildSkillDesignerSelectOptions(options = [], selected = '', blankLabel = '未设置') {
-      const optionList = Array.from(new Set([blankLabel ? '' : null].concat(Array.isArray(options) ? options : []).filter(value => value !== null)));
-      return optionList.map(value => {
-        const safeValue = value === '' ? '' : toText(value, '');
-        const label = safeValue === '' ? blankLabel : safeValue;
-        return `<option value=\"${escapeHtmlAttr(safeValue)}\"${safeValue === toText(selected, '') ? ' selected' : ''}>${htmlEscape(label)}</option>`;
+      const rawOptions = Array.isArray(options) ? options : [];
+      const normalizedOptions = rawOptions.map(option => {
+        if (option && typeof option === 'object') {
+          const value = toText(option.value ?? option.label, '').trim();
+          const label = toText(option.label ?? option.value, value).trim();
+          return value ? { value, label: label || value } : null;
+        }
+        const value = toText(option, '').trim();
+        return value ? { value, label: value } : null;
+      }).filter(Boolean);
+      const optionList = [];
+      const seen = new Set();
+      if (blankLabel) optionList.push({ value: '', label: blankLabel });
+      normalizedOptions.forEach(option => {
+        if (seen.has(option.value)) return;
+        seen.add(option.value);
+        optionList.push(option);
+      });
+      const selectedText = toText(selected, '');
+      return optionList.map(option => {
+        const safeValue = toText(option.value, '');
+        const label = toText(option.label, safeValue);
+        return `<option value=\"${escapeHtmlAttr(safeValue)}\"${safeValue === selectedText ? ' selected' : ''}>${htmlEscape(label)}</option>`;
       }).join('');
     }
 
@@ -4455,6 +4509,388 @@
           </label>
         `;
       }).join('');
+    }
+
+    function normalizeSkillDesignerFusionMode(value = '') {
+      const raw = normalizeSkillUiText(value, '').trim();
+      if (!raw) return 'partner';
+      if (raw === 'self' || /自体|自身|自己|双生|双武魂/.test(raw)) return 'self';
+      return 'partner';
+    }
+
+    function formatSkillDesignerFusionModeLabel(mode = '', participants = []) {
+      if (normalizeSkillDesignerFusionMode(mode) === 'self') return '自体融合';
+      return normalizeSkillDesignerFusionParticipantList(participants).length > 2 ? '多人融合' : '双人融合';
+    }
+
+    function resolveSkillDesignerSpiritDisplayName(slotName = '', spiritData = {}) {
+      const safeSpirit = spiritData && typeof spiritData === 'object' ? spiritData : {};
+      return normalizeSkillUiText(
+        safeSpirit['表象名称'] || safeSpirit.name || safeSpirit.type || slotName,
+        slotName || '武魂',
+      );
+    }
+
+    function getSkillDesignerSpiritNameOptions(charData = {}) {
+      const names = safeEntries(deepGet(charData, 'spirit', {}))
+        .map(([slotName, spiritData]) => resolveSkillDesignerSpiritDisplayName(slotName, spiritData))
+        .map(name => normalizeSkillUiText(name, '').trim())
+        .filter(name => name && !/^(未设置|未知|无)$/.test(name));
+      return Array.from(new Set(names));
+    }
+
+    function getSkillDesignerCharDisplayName(charKey = '', charData = {}) {
+      return normalizeSkillUiText(
+        charData && (charData.name || deepGet(charData, 'base.name', '')),
+        charKey || '未命名角色',
+      );
+    }
+
+    function getSkillDesignerCharByPreviewPath(rootData = {}, previewMeta = {}) {
+      const path = Array.isArray(previewMeta && previewMeta.path) ? previewMeta.path : [];
+      const charKey = path[0] === 'char' ? toText(path[1], '').trim() : '';
+      return {
+        charKey,
+        charData: charKey ? deepGet(rootData, ['char', charKey], {}) : {},
+      };
+    }
+
+    function getSkillDesignerFusionRecord(rootData = {}, previewMeta = {}) {
+      const path = Array.isArray(previewMeta && previewMeta.path) ? previewMeta.path : [];
+      if (toText(previewMeta && previewMeta.scope, '') !== 'fusion_skill') return {};
+      if (toText(path[path.length - 1], '') !== 'skill_data') return {};
+      const record = deepGet(rootData, path.slice(0, -1), {});
+      return record && typeof record === 'object' ? record : {};
+    }
+
+    function findSkillDesignerCharKeyByName(rootData = {}, rawName = '') {
+      const target = normalizeSkillUiText(rawName, '').trim();
+      if (!target) return '';
+      const charRoot = deepGet(rootData, 'char', {});
+      if (charRoot && Object.prototype.hasOwnProperty.call(charRoot, target)) return target;
+      const match = safeEntries(charRoot).find(([key, charData]) =>
+        getSkillDesignerCharDisplayName(key, charData) === target
+      );
+      return match ? match[0] : '';
+    }
+
+    function getSkillDesignerFusionSelfEntry(rootData = {}, previewMeta = {}, snapshot = {}) {
+      const { charKey, charData } = getSkillDesignerCharByPreviewPath(rootData, previewMeta);
+      const fallbackName = normalizeSkillUiText(snapshot && snapshot.activeName, charKey || '当前角色');
+      return {
+        charKey,
+        charName: getSkillDesignerCharDisplayName(charKey, charData) || fallbackName,
+        charData,
+        spirits: getSkillDesignerSpiritNameOptions(charData),
+      };
+    }
+
+    function getSkillDesignerFusionCharOptions(rootData = {}, previewMeta = {}, extraParticipants = []) {
+      const selfEntry = getSkillDesignerFusionSelfEntry(rootData, previewMeta);
+      const charOptions = safeEntries(deepGet(rootData, 'char', {}))
+        .map(([key, charData]) => ({
+          value: key,
+          label: getSkillDesignerCharDisplayName(key, charData),
+        }))
+        .filter(option => option.value && option.label && option.value !== selfEntry.charKey);
+      normalizeSkillDesignerFusionParticipantList(extraParticipants).forEach(participant => {
+        if (
+          participant.charKey
+          && participant.charName
+          && participant.charKey !== selfEntry.charKey
+          && !charOptions.some(option => option.value === participant.charKey)
+        ) {
+          charOptions.unshift({ value: participant.charKey, label: participant.charName });
+        }
+      });
+      return charOptions;
+    }
+
+    function getSkillDesignerFusionCharData(rootData = {}, charKey = '') {
+      return charKey ? deepGet(rootData, ['char', charKey], {}) : {};
+    }
+
+    function getSkillDesignerFusionSpiritOptions(rootData = {}, charKey = '', fallbackSpirit = '') {
+      const options = getSkillDesignerSpiritNameOptions(getSkillDesignerFusionCharData(rootData, charKey));
+      const fallback = normalizeSkillUiText(fallbackSpirit, '');
+      if (fallback && !options.includes(fallback)) options.unshift(fallback);
+      return options;
+    }
+
+    function resolveSkillDesignerFusionSpirit(rootData = {}, charKey = '', currentSpirit = '') {
+      const spiritOptions = getSkillDesignerSpiritNameOptions(getSkillDesignerFusionCharData(rootData, charKey));
+      const current = normalizeSkillUiText(currentSpirit, '');
+      if (current && spiritOptions.includes(current)) return current;
+      return spiritOptions[0] || current;
+    }
+
+    function normalizeSkillDesignerFusionParticipant(participant = {}, rootData = {}) {
+      const raw = participant && typeof participant === 'object' ? participant : {};
+      const roleText = normalizeSkillUiText(raw.role || raw['类型'] || raw['身份'], '');
+      const role = roleText === 'self' || /自身|自体|自己|本体/.test(roleText) ? 'self' : 'partner';
+      const rawCharName = normalizeSkillUiText(raw.charName || raw.char_name || raw.name || raw['角色'] || raw['角色名'], '');
+      let charKey = normalizeSkillUiText(raw.charKey || raw.char_key || raw.key || raw['角色键'] || raw['角色key'], '');
+      if (!charKey && rawCharName) charKey = findSkillDesignerCharKeyByName(rootData, rawCharName);
+      const charData = getSkillDesignerFusionCharData(rootData, charKey);
+      const charName = getSkillDesignerCharDisplayName(charKey, charData) || rawCharName || charKey;
+      const spirit = normalizeSkillUiText(raw.spirit || raw.spiritName || raw.spirit_name || raw.sourceSpirit || raw.source_spirit || raw['武魂'] || raw['来源武魂'], '');
+      return {
+        role,
+        charKey,
+        charName,
+        spirit,
+      };
+    }
+
+    function normalizeSkillDesignerFusionParticipantList(participants = [], rootData = {}) {
+      if (!Array.isArray(participants)) return [];
+      return participants
+        .map(participant => normalizeSkillDesignerFusionParticipant(participant, rootData))
+        .filter(participant => participant.charKey || participant.charName || participant.spirit);
+    }
+
+    function getSkillDesignerRawFusionParticipants(draft = {}, fusionRecord = {}) {
+      const safeDraft = draft && typeof draft === 'object' ? draft : {};
+      const safeRecord = fusionRecord && typeof fusionRecord === 'object' ? fusionRecord : {};
+      const raw = [
+        safeDraft.fusionParticipants,
+        safeDraft.fusion_participants,
+        safeDraft['融合参与者'],
+        safeDraft.participants,
+        safeRecord.fusion_participants,
+        safeRecord.participants,
+      ].find(candidate => Array.isArray(candidate) && candidate.length);
+      return Array.isArray(raw) ? raw : [];
+    }
+
+    function parseSkillDesignerFusionPartnerNames(value = '') {
+      const raw = normalizeSkillUiText(value, '');
+      if (!raw || raw === SKILL_DESIGNER_SELF_FUSION_PARTNER) return [];
+      return raw
+        .split(/[、,，+\/|｜；;]/)
+        .map(item => normalizeSkillUiText(item, '').trim())
+        .filter(Boolean);
+    }
+
+    function createSkillDesignerFusionParticipant(role = 'partner', charKey = '', charName = '', spirit = '') {
+      return {
+        role: role === 'self' ? 'self' : 'partner',
+        charKey: normalizeSkillUiText(charKey, ''),
+        charName: normalizeSkillUiText(charName, ''),
+        spirit: normalizeSkillUiText(spirit, ''),
+      };
+    }
+
+    function createSkillDesignerDefaultPartnerParticipant(rootData = {}, previewMeta = {}, usedCharKeys = []) {
+      const used = new Set(normalizeSkillDesignerArray(usedCharKeys));
+      const options = getSkillDesignerFusionCharOptions(rootData, previewMeta);
+      const option = options.find(item => !used.has(item.value)) || options[0] || { value: '', label: '' };
+      const spiritOptions = getSkillDesignerFusionSpiritOptions(rootData, option.value);
+      return createSkillDesignerFusionParticipant('partner', option.value, option.label, spiritOptions[0] || '');
+    }
+
+    function buildSkillDesignerFusionParticipants(snapshot = {}, previewMeta = {}, baseDraft = {}, fusionRecord = {}) {
+      if (toText(previewMeta && previewMeta.scope, '') !== 'fusion_skill') return [];
+      const rootData = snapshot && snapshot.rootData ? snapshot.rootData : {};
+      const selfEntry = getSkillDesignerFusionSelfEntry(rootData, previewMeta, snapshot);
+      const selfSpiritOptions = selfEntry.spirits;
+      let fusionMode = normalizeSkillDesignerFusionMode(
+        baseDraft.fusionMode
+        || baseDraft['融合模式']
+        || fusionRecord.fusion_mode
+        || '',
+      );
+      if (fusionMode === 'self' && selfSpiritOptions.length < 2) fusionMode = 'partner';
+      const rawParticipants = getSkillDesignerRawFusionParticipants(baseDraft, fusionRecord);
+      let participants = normalizeSkillDesignerFusionParticipantList(rawParticipants, rootData);
+      if (!participants.length) {
+        const sourceSpirits = normalizeSkillDesignerArray(
+          baseDraft.fusionSourceSpirits
+          || baseDraft['来源武魂']
+          || fusionRecord.source_spirits
+        );
+        if (fusionMode === 'self') {
+          participants = [
+            createSkillDesignerFusionParticipant('self', selfEntry.charKey, selfEntry.charName, sourceSpirits[0] || selfSpiritOptions[0] || ''),
+            createSkillDesignerFusionParticipant('self', selfEntry.charKey, selfEntry.charName, sourceSpirits[1] || selfSpiritOptions[1] || selfSpiritOptions[0] || ''),
+          ];
+        } else {
+          const partnerNames = parseSkillDesignerFusionPartnerNames(
+            baseDraft.fusionPartner
+            || baseDraft['融合对象']
+            || fusionRecord.partner
+            || '',
+          );
+          participants = [
+            createSkillDesignerFusionParticipant('self', selfEntry.charKey, selfEntry.charName, sourceSpirits[0] || selfSpiritOptions[0] || ''),
+          ];
+          partnerNames.forEach((name, index) => {
+            const charKey = findSkillDesignerCharKeyByName(rootData, name);
+            const charName = charKey ? getSkillDesignerCharDisplayName(charKey, getSkillDesignerFusionCharData(rootData, charKey)) : name;
+            const spiritOptions = getSkillDesignerFusionSpiritOptions(rootData, charKey);
+            participants.push(createSkillDesignerFusionParticipant('partner', charKey, charName, sourceSpirits[index + 1] || spiritOptions[0] || ''));
+          });
+          if (participants.length < 2) {
+            participants.push(createSkillDesignerDefaultPartnerParticipant(rootData, previewMeta, participants.map(item => item.charKey)));
+          }
+        }
+      }
+      if (fusionMode === 'self') {
+        const selfRows = participants.filter(participant => participant.role === 'self');
+        const firstSpirit = resolveSkillDesignerFusionSpirit(rootData, selfEntry.charKey, selfRows[0] && selfRows[0].spirit ? selfRows[0].spirit : (selfSpiritOptions[0] || ''));
+        let secondSpirit = resolveSkillDesignerFusionSpirit(rootData, selfEntry.charKey, selfRows[1] && selfRows[1].spirit ? selfRows[1].spirit : (selfSpiritOptions.find(name => name !== firstSpirit) || selfSpiritOptions[1] || firstSpirit));
+        if (selfSpiritOptions.length > 1 && secondSpirit === firstSpirit) {
+          secondSpirit = selfSpiritOptions.find(name => name !== firstSpirit) || secondSpirit;
+        }
+        return [
+          createSkillDesignerFusionParticipant('self', selfEntry.charKey, selfEntry.charName, firstSpirit),
+          createSkillDesignerFusionParticipant('self', selfEntry.charKey, selfEntry.charName, secondSpirit),
+        ];
+      }
+      const normalized = participants.map((participant, index) => {
+        if (index === 0 || participant.role === 'self') {
+          const spirit = resolveSkillDesignerFusionSpirit(rootData, selfEntry.charKey, participant.spirit);
+          return createSkillDesignerFusionParticipant('self', selfEntry.charKey, selfEntry.charName, spirit);
+        }
+        const charKey = participant.charKey || findSkillDesignerCharKeyByName(rootData, participant.charName);
+        const charName = getSkillDesignerCharDisplayName(charKey, getSkillDesignerFusionCharData(rootData, charKey)) || participant.charName;
+        const spirit = resolveSkillDesignerFusionSpirit(rootData, charKey, participant.spirit);
+        return createSkillDesignerFusionParticipant('partner', charKey, charName, spirit);
+      });
+      if (!normalized.some(participant => participant.role === 'partner')) {
+        normalized.push(createSkillDesignerDefaultPartnerParticipant(rootData, previewMeta, normalized.map(item => item.charKey)));
+      }
+      return normalized;
+    }
+
+    function deriveSkillDesignerFusionFields(mode = '', participants = [], fallbackPartner = '') {
+      const participantList = normalizeSkillDesignerFusionParticipantList(participants);
+      const fusionMode = normalizeSkillDesignerFusionMode(mode);
+      const partnerNames = participantList
+        .filter(participant => participant.role !== 'self')
+        .map(participant => participant.charName || participant.charKey)
+        .filter(Boolean);
+      return {
+        fusionMode,
+        fusionPartner: fusionMode === 'self'
+          ? SKILL_DESIGNER_SELF_FUSION_PARTNER
+          : (partnerNames.length ? Array.from(new Set(partnerNames)).join('、') : normalizeSkillUiText(fallbackPartner, '')),
+        fusionSourceSpirits: participantList.map(participant => participant.spirit).filter(Boolean),
+        fusionParticipants: participantList,
+      };
+    }
+
+    function isSkillDesignerFusionBlankText(value = '') {
+      const text = normalizeSkillUiText(value, '').trim();
+      return !text || /^(未设置|未知|无|未接入武魂)$/.test(text);
+    }
+
+    function assertSkillDesignerFusionState(draft = {}) {
+      const fields = deriveSkillDesignerFusionFields(draft.fusionMode, draft.fusionParticipants, draft.fusionPartner);
+      const participants = fields.fusionParticipants;
+      if (participants.length < 2) throw new Error('融合技至少需要两个参与武魂。');
+      const incomplete = participants.some(participant =>
+        (isSkillDesignerFusionBlankText(participant.charKey) && isSkillDesignerFusionBlankText(participant.charName))
+        || isSkillDesignerFusionBlankText(participant.spirit)
+      );
+      if (incomplete) throw new Error('融合对象需要指定角色与武魂。');
+      if (fields.fusionMode === 'self') {
+        const spirits = participants.map(participant => participant.spirit).filter(spirit => !isSkillDesignerFusionBlankText(spirit));
+        if (new Set(spirits).size < 2) throw new Error('自体融合需要选择两个不同武魂。');
+      }
+      return fields;
+    }
+
+    function buildSkillDesignerFusionParticipantRows(participants = [], rootData = {}, previewMeta = {}) {
+      const participantList = normalizeSkillDesignerFusionParticipantList(participants, rootData);
+      const mode = participantList.filter(participant => participant.role === 'partner').length ? 'partner' : 'self';
+      const partnerCount = participantList.filter(participant => participant.role === 'partner').length;
+      return participantList.map((participant, index) => {
+        const isSelf = participant.role === 'self';
+        const charOptions = isSelf
+          ? [{ value: participant.charKey, label: participant.charName || participant.charKey || '当前角色' }]
+          : getSkillDesignerFusionCharOptions(rootData, previewMeta, participantList);
+        const spiritOptions = getSkillDesignerFusionSpiritOptions(rootData, participant.charKey, participant.spirit);
+        const charLabel = participant.charName || participant.charKey || '未设置';
+        return `
+          <div class=\"skill-designer-fusion-participant-row\" data-fusion-participant-row>
+            <input type=\"hidden\" value=\"${escapeHtmlAttr(participant.role)}\" data-skill-designer-fusion-role />
+            <label class=\"mvu-editor-field skill-designer-fusion-char-field\">
+              <span class=\"mvu-editor-label\">角色</span>
+              ${isSelf
+                ? `
+                  <div class=\"mvu-editor-static skill-designer-fusion-self-char\">${htmlEscape(charLabel)}</div>
+                  <input type=\"hidden\" value=\"${escapeHtmlAttr(participant.charKey)}\" data-skill-designer-fusion-char data-skill-designer-fusion-char-name=\"${escapeHtmlAttr(charLabel)}\" />
+                `
+                : `
+                  <select class=\"mvu-editor-select\" data-skill-designer-fusion-char data-skill-designer-disableable>
+                    ${buildSkillDesignerSelectOptions(charOptions, participant.charKey, '未设置')}
+                  </select>
+                `}
+            </label>
+            <label class=\"mvu-editor-field skill-designer-fusion-spirit-field\">
+              <span class=\"mvu-editor-label\">武魂</span>
+              <select class=\"mvu-editor-select\" data-skill-designer-fusion-spirit data-skill-designer-disableable>
+                ${buildSkillDesignerSelectOptions(spiritOptions, participant.spirit, spiritOptions.length ? '未设置' : '未接入武魂')}
+              </select>
+            </label>
+            <div class=\"skill-designer-fusion-row-actions\">
+              ${!isSelf && mode === 'partner' && partnerCount > 1
+                ? `<button type=\"button\" class=\"tag-chip\" data-skill-designer-remove-fusion-participant data-skill-designer-disableable>移除</button>`
+                : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function getSkillDesignerFusionDraftSeed(snapshot = {}, previewMeta = {}, baseDraft = {}) {
+      if (toText(previewMeta && previewMeta.scope, '') !== 'fusion_skill') return {};
+      const rootData = snapshot && snapshot.rootData ? snapshot.rootData : {};
+      const fusionRecord = getSkillDesignerFusionRecord(rootData, previewMeta);
+      const selfEntry = getSkillDesignerFusionSelfEntry(rootData, previewMeta, snapshot);
+      const spiritNames = selfEntry.spirits;
+      const rawMode = baseDraft.fusionMode
+        || baseDraft['融合模式']
+        || fusionRecord.fusion_mode
+        || '';
+      let fusionMode = normalizeSkillDesignerFusionMode(rawMode);
+      if (fusionMode === 'self' && spiritNames.length < 2) fusionMode = 'partner';
+      const rawPartner = baseDraft.fusionPartner
+        || baseDraft['融合对象']
+        || fusionRecord.partner
+        || '';
+      const fusionPartner = fusionMode === 'self'
+        ? SKILL_DESIGNER_SELF_FUSION_PARTNER
+        : normalizeSkillUiText(rawPartner, '');
+      let fusionSourceSpirits = normalizeSkillDesignerArray(
+        baseDraft.fusionSourceSpirits
+        || baseDraft['来源武魂']
+        || fusionRecord.source_spirits
+      );
+      if (fusionMode === 'self' && !fusionSourceSpirits.length) fusionSourceSpirits = spiritNames.slice(0, 2);
+      const fusionParticipants = buildSkillDesignerFusionParticipants(snapshot, previewMeta, baseDraft, fusionRecord);
+      const derivedFields = deriveSkillDesignerFusionFields(fusionMode, fusionParticipants, fusionPartner);
+      return {
+        fusionMode: derivedFields.fusionMode,
+        fusionPartner: derivedFields.fusionPartner,
+        fusionSourceSpirits: derivedFields.fusionSourceSpirits.length ? derivedFields.fusionSourceSpirits : fusionSourceSpirits,
+        fusionParticipants: derivedFields.fusionParticipants,
+      };
+    }
+
+    function buildSkillDesignerFusionSummary(draft = {}) {
+      if (!draft || !draft.fusionMode) return '';
+      const derivedFields = deriveSkillDesignerFusionFields(draft.fusionMode, draft.fusionParticipants, draft.fusionPartner);
+      const participantText = derivedFields.fusionParticipants
+        .map(participant => {
+          const charName = participant.charName || participant.charKey || '未设置';
+          const spirit = participant.spirit || '未设置';
+          return `${charName}:${spirit}`;
+        })
+        .join(' + ');
+      const fallbackSourceText = normalizeSkillDesignerArray(draft.fusionSourceSpirits).join('/');
+      return [formatSkillDesignerFusionModeLabel(derivedFields.fusionMode, derivedFields.fusionParticipants), participantText || derivedFields.fusionPartner || fallbackSourceText].filter(Boolean).join(' / ');
     }
 
     function createSkillDesignerTextParam(key, label, placeholder = '') {
@@ -5029,7 +5465,15 @@
       const typeMeta = resolveSkillDesignerTypeMeta(previewMeta, baseDraft.type);
       const costConfig = parseSkillDesignerCostConfig(baseDraft.cost, baseDraft.resourceType, baseDraft.resourceValue);
       const resolvedPrimaryMain = normalizeSkillUiText(baseDraft.primaryMain, '');
-      const resolvedTarget = normalizeSkillUiText(baseDraft.target, getSkillDesignerDefaultTarget(previewMeta, typeMeta.value));
+      let resolvedTarget = normalizeSkillDesignerTargetForForm(baseDraft.target, getSkillDesignerDefaultTarget(previewMeta, typeMeta.value));
+      if (/^(未知|未设置|无)$/.test(resolvedTarget)) resolvedTarget = getSkillDesignerDefaultTarget(previewMeta, typeMeta.value);
+      const isFusionScope = toText(previewMeta && previewMeta.scope, '') === 'fusion_skill';
+      const rawFusionMode = isFusionScope ? normalizeSkillDesignerFusionMode(baseDraft.fusionMode || baseDraft['融合模式']) : '';
+      const rawFusionPartner = isFusionScope ? normalizeSkillUiText(baseDraft.fusionPartner || baseDraft['融合对象'], '') : '';
+      const rawFusionParticipants = isFusionScope ? normalizeSkillDesignerFusionParticipantList(getSkillDesignerRawFusionParticipants(baseDraft)) : [];
+      const derivedFusionFields = isFusionScope
+        ? deriveSkillDesignerFusionFields(rawFusionMode, rawFusionParticipants, rawFusionPartner)
+        : { fusionMode: '', fusionPartner: '', fusionSourceSpirits: [], fusionParticipants: [] };
       const resolvedPrimarySub = normalizeSkillUiText(
         baseDraft.primarySub,
         getSkillDesignerDefaultPrimarySub(resolvedPrimaryMain, resolvedTarget, typeMeta.value),
@@ -5064,6 +5508,12 @@
         artStage: normalizeSkillUiText(baseDraft.artStage, '未入门'),
         artLevel: Math.max(0, toNumber(baseDraft.artLevel, 0)),
         artExp: Math.max(0, toNumber(baseDraft.artExp, 0)),
+        fusionMode: derivedFusionFields.fusionMode,
+        fusionPartner: derivedFusionFields.fusionPartner,
+        fusionSourceSpirits: derivedFusionFields.fusionSourceSpirits.length
+          ? derivedFusionFields.fusionSourceSpirits
+          : (isFusionScope ? normalizeSkillDesignerArray(baseDraft.fusionSourceSpirits || baseDraft['来源武魂']) : []),
+        fusionParticipants: derivedFusionFields.fusionParticipants,
       };
       const implicitAttributeConfig = resolveSkillDesignerImplicitAttributeConfig(coreState, previewMeta);
       return {
@@ -5081,10 +5531,34 @@
         return input ? toText(input.value, '').trim() : '';
       };
       const readCheckedValues = name => Array.from(mountEl ? mountEl.querySelectorAll(`input[name=\"${name}\"]:checked`) : []).map(node => toText(node.value, '').trim()).filter(Boolean);
+      const readFusionParticipants = () => Array.from(mountEl ? mountEl.querySelectorAll('[data-fusion-participant-row]') : [])
+        .map(row => {
+          const roleInput = row.querySelector('[data-skill-designer-fusion-role]');
+          const charInput = row.querySelector('[data-skill-designer-fusion-char]');
+          const spiritInput = row.querySelector('[data-skill-designer-fusion-spirit]');
+          const role = normalizeSkillUiText(roleInput && roleInput.value, '') === 'self' ? 'self' : 'partner';
+          const charKey = normalizeSkillUiText(charInput && charInput.value, '');
+          const selectedCharOption = charInput && charInput.tagName === 'SELECT'
+            ? charInput.options[charInput.selectedIndex]
+            : null;
+          const charName = normalizeSkillUiText(
+            charInput && charInput.getAttribute('data-skill-designer-fusion-char-name'),
+            normalizeSkillUiText(selectedCharOption && selectedCharOption.textContent, charKey),
+          );
+          const spirit = normalizeSkillUiText(spiritInput && spiritInput.value, '');
+          return createSkillDesignerFusionParticipant(role, charKey, charName, spirit);
+        })
+        .filter(participant => participant.charKey || participant.charName || participant.spirit);
       const typeMeta = resolveSkillDesignerTypeMeta(previewMeta, readField('type'));
       const resolvedPrimaryMain = readField('primaryMain');
       const resolvedPrimarySub = readField('primarySub');
-      const resolvedTarget = readField('target') || getSkillDesignerDefaultTarget(previewMeta, typeMeta.value);
+      const resolvedTarget = normalizeSkillDesignerTargetForForm(readField('target'), getSkillDesignerDefaultTarget(previewMeta, typeMeta.value));
+      const isFusionScope = toText(previewMeta && previewMeta.scope, '') === 'fusion_skill';
+      const fusionMode = isFusionScope ? normalizeSkillDesignerFusionMode(readField('fusionMode')) : '';
+      const fusionParticipants = isFusionScope ? readFusionParticipants() : [];
+      const derivedFusionFields = isFusionScope
+        ? deriveSkillDesignerFusionFields(fusionMode, fusionParticipants, '')
+        : { fusionPartner: '', fusionSourceSpirits: [], fusionParticipants: [] };
       const derivedMainRole = inferSkillDesignerMainRole(
         typeMeta.value,
         resolvedTarget,
@@ -5114,6 +5588,10 @@
         artStage: readField('artStage') || '未入门',
         artLevel: Math.max(0, toNumber(readField('artLevel'), 0)),
         artExp: Math.max(0, toNumber(readField('artExp'), 0)),
+        fusionMode,
+        fusionPartner: derivedFusionFields.fusionPartner,
+        fusionSourceSpirits: derivedFusionFields.fusionSourceSpirits,
+        fusionParticipants: derivedFusionFields.fusionParticipants,
       };
       const implicitAttributeConfig = resolveSkillDesignerImplicitAttributeConfig(baseState, previewMeta);
       return {
@@ -6362,6 +6840,9 @@
     function buildSkillDesignerUpdatedSkill(skillSource = {}, formState = {}, previewMeta = {}) {
       const safeSkill = skillSource && typeof skillSource === 'object' ? cloneJsonValue(skillSource) : {};
       const normalized = buildSkillDesignerFormStateFromDraft(formState, previewMeta);
+      const normalizedFusionFields = previewMeta && previewMeta.scope === 'fusion_skill'
+        ? assertSkillDesignerFusionState(normalized)
+        : null;
       const designSummary = buildSkillDesignerCompactSummary(normalized);
       safeSkill['魂技名'] = normalized.name;
       safeSkill['name'] = normalized.name;
@@ -6378,6 +6859,12 @@
         safeSkill['境界'] = normalizeSkillUiText(normalized.artStage, '未入门');
         safeSkill['lv'] = Math.max(0, toNumber(normalized.artLevel, 0));
         safeSkill['exp'] = Math.max(0, toNumber(normalized.artExp, 0));
+      }
+      if (previewMeta && previewMeta.scope === 'fusion_skill') {
+        safeSkill['融合模式'] = normalizedFusionFields.fusionMode;
+        safeSkill['融合对象'] = normalizedFusionFields.fusionPartner;
+        safeSkill['来源武魂'] = [...normalizedFusionFields.fusionSourceSpirits];
+        safeSkill.fusion_participants = cloneJsonValue(normalizedFusionFields.fusionParticipants);
       }
       safeSkill['附带属性'] = [...normalized.attachedAttributes];
       safeSkill['特效量化参数'] = designSummary;
@@ -6398,6 +6885,12 @@
         '境界': normalizeSkillUiText(normalized.artStage, '未入门'),
         'lv': Math.max(0, toNumber(normalized.artLevel, 0)),
         'exp': Math.max(0, toNumber(normalized.artExp, 0)),
+        ...(previewMeta && previewMeta.scope === 'fusion_skill' ? {
+          '融合模式': normalizedFusionFields.fusionMode,
+          '融合对象': normalizedFusionFields.fusionPartner,
+          '来源武魂': [...normalizedFusionFields.fusionSourceSpirits],
+          fusion_participants: cloneJsonValue(normalizedFusionFields.fusionParticipants),
+        } : {}),
         '设计摘要': designSummary,
       };
       const systemBase = buildSkillDesignerSystemBaseEffect(skillSource, normalized, previewMeta);
@@ -6417,16 +6910,31 @@
         const fusionRecordPath = path.slice(0, -1);
         const existingFusion = deepGet(rootData, fusionRecordPath, {});
         const fusionName = normalizeSkillUiText(nextSkill && (nextSkill['魂技名'] || nextSkill.name), toText(previewMeta && previewMeta.label, '未命名融合技'));
+        const designDraft = nextSkill && nextSkill['设计稿'] && typeof nextSkill['设计稿'] === 'object' ? nextSkill['设计稿'] : {};
+        const charKey = path[0] === 'char' ? toText(path[1], '') : '';
+        const spiritOptions = getSkillDesignerSpiritNameOptions(charKey ? deepGet(rootData, ['char', charKey], {}) : {});
+        const canUseSelfFusion = spiritOptions.length >= 2;
+        let fusionMode = normalizeSkillDesignerFusionMode(designDraft['融合模式'] || nextSkill['融合模式'] || existingFusion.fusion_mode || 'partner');
+        if (fusionMode === 'self' && !canUseSelfFusion) fusionMode = 'partner';
+        const rawParticipants = getSkillDesignerRawFusionParticipants(designDraft, nextSkill).length
+          ? getSkillDesignerRawFusionParticipants(designDraft, nextSkill)
+          : getSkillDesignerRawFusionParticipants({}, existingFusion);
+        const fusionParticipants = normalizeSkillDesignerFusionParticipantList(rawParticipants, rootData);
+        const fusionFields = deriveSkillDesignerFusionFields(
+          fusionMode,
+          fusionParticipants,
+          normalizeSkillUiText(designDraft['融合对象'] || nextSkill['融合对象'] || existingFusion.partner, '未知搭档'),
+        );
+        const partnerValue = fusionFields.fusionPartner;
+        let sourceSpirits = fusionFields.fusionSourceSpirits.length
+          ? fusionFields.fusionSourceSpirits
+          : normalizeSkillDesignerArray(designDraft['来源武魂'] || nextSkill['来源武魂'] || existingFusion.source_spirits);
+        if (fusionMode === 'self' && !sourceSpirits.length) sourceSpirits = spiritOptions.slice(0, 2);
         updates.push({ path: [...fusionRecordPath, 'name'], value: fusionName });
-        if (!Object.prototype.hasOwnProperty.call(existingFusion, 'fusion_mode')) {
-          updates.push({ path: [...fusionRecordPath, 'fusion_mode'], value: 'partner' });
-        }
-        if (!Object.prototype.hasOwnProperty.call(existingFusion, 'partner')) {
-          updates.push({ path: [...fusionRecordPath, 'partner'], value: '未知搭档' });
-        }
-        if (!Object.prototype.hasOwnProperty.call(existingFusion, 'source_spirits')) {
-          updates.push({ path: [...fusionRecordPath, 'source_spirits'], value: [] });
-        }
+        updates.push({ path: [...fusionRecordPath, 'fusion_mode'], value: fusionMode });
+        updates.push({ path: [...fusionRecordPath, 'partner'], value: partnerValue });
+        updates.push({ path: [...fusionRecordPath, 'source_spirits'], value: sourceSpirits });
+        updates.push({ path: [...fusionRecordPath, 'fusion_participants'], value: cloneJsonValue(fusionFields.fusionParticipants) });
       }
       return updates;
     }
@@ -7543,7 +8051,7 @@
         setPrivateArchiveLongPressTarget(node, enabled);
       });
       getLiveUiElements('#mvu-unified-mount .mvu-unified-section-title').forEach(node => {
-        if (toText(node.textContent, '').trim() === '核心生命体征') {
+        if (toText(node.textContent, '').trim() === '详细档案') {
           setPrivateArchiveLongPressTarget(node, enabled);
         }
       });
@@ -7569,8 +8077,8 @@
         : (snapshot.unlockedKnowledges.length ? shortenText(snapshot.unlockedKnowledges[snapshot.unlockedKnowledges.length - 1], 12) : '暂无');
       return `
         <div class="panel-head">
-          <div class="panel-title${allowNsfwLongPress ? ' nsfw-trigger-title' : ''}"${allowNsfwLongPress ? ` data-longpress="${PRIVATE_ARCHIVE_PREVIEW_KEY}" data-longpress-delay="600"` : ''}>核心生命体征</div>
-          <span class="meta-pill">${htmlEscape(nextLevelSoul.isMax ? '离下一级所需魂力：已满级' : `离下一级所需魂力：${formatNumber(nextLevelSoul.needed)}`)}</span>
+          <div class="panel-title${allowNsfwLongPress ? ' nsfw-trigger-title' : ''}"${allowNsfwLongPress ? ` data-longpress="${PRIVATE_ARCHIVE_PREVIEW_KEY}" data-longpress-delay="600"` : ''}>详细档案</div>
+          <span class="meta-pill">${htmlEscape(nextLevelSoul.isMax ? '下级魂力 已满级' : `下级魂力 ${formatNumber(nextLevelSoul.needed)}`)}</span>
         </div>
         <div class="stats-grid">
           <div class="stat-item compact no-bar">
@@ -8923,7 +9431,7 @@
       const social = deepGet(snapshot, 'activeChar.social', {});
       const placeText = buildShellLocationLabel(snapshot, { fullLimit: 24, trailLimit: 10 });
       return {
-        title: '生命',
+        title: '详细档案',
         body: `
           <div class="mvu-shell-lite-root" data-shell-light-view="life">
             <section class="mvu-shell-lite-card mvu-shell-lite-card--hero">
@@ -9769,13 +10277,19 @@
       const fusionEntries = safeEntries(deepGet(snapshot, 'activeChar.martial_fusion_skills', {}));
       const partnerCount = fusionEntries.filter(([, fusion]) => toText(deepGet(fusion, 'fusion_mode', 'partner'), 'partner') !== 'self').length;
       const selfCount = fusionEntries.length - partnerCount;
+      const leadFusion = fusionEntries[0] && fusionEntries[0][1] && typeof fusionEntries[0][1] === 'object' ? fusionEntries[0][1] : {};
+      const leadParticipants = normalizeSkillDesignerFusionParticipantList(getSkillDesignerRawFusionParticipants({}, leadFusion), snapshot && snapshot.rootData ? snapshot.rootData : {});
+      const leadPartnerNames = leadParticipants
+        .filter(participant => participant.role !== 'self')
+        .map(participant => participant.charName || participant.charKey)
+        .filter(Boolean);
       const headlineFusion = fusionEntries[0]
         ? toText(deepGet(fusionEntries[0][1], 'skill_data.魂技名', deepGet(fusionEntries[0][1], 'skill_data.name', fusionEntries[0][0])), fusionEntries[0][0])
         : '未录入';
       const partnerLabel = fusionEntries[0]
-        ? (toText(deepGet(fusionEntries[0][1], 'fusion_mode', 'partner'), 'partner') === 'self'
+        ? (toText(deepGet(leadFusion, 'fusion_mode', 'partner'), 'partner') === 'self'
           ? '自体融合'
-          : `搭档 ${toText(deepGet(fusionEntries[0][1], 'partner', '未知'), '未知')}`)
+          : `${leadParticipants.length > 2 ? '多人' : '搭档'} ${leadPartnerNames.length ? Array.from(new Set(leadPartnerNames)).join('、') : toText(deepGet(leadFusion, 'partner', '未知'), '未知')}`)
         : '等待收录';
       return {
         fusionEntries,
@@ -9797,7 +10311,7 @@
       }
       return {
         title: '武魂融合技',
-        desc: `<strong>${htmlEscape(meta.headlineFusion)}</strong><small>已收录 ${htmlEscape(String(meta.fusionEntries.length))} 项 ｜ 双人 ${htmlEscape(String(meta.partnerCount))} / 自体 ${htmlEscape(String(meta.selfCount))}</small><small>${htmlEscape(meta.partnerLabel)}</small>`,
+        desc: `<strong>${htmlEscape(meta.headlineFusion)}</strong><small>已收录 ${htmlEscape(String(meta.fusionEntries.length))} 项 ｜ 外部 ${htmlEscape(String(meta.partnerCount))} / 自体 ${htmlEscape(String(meta.selfCount))}</small><small>${htmlEscape(meta.partnerLabel)}</small>`,
         preview: '武魂融合技详细页'
       };
     }
@@ -10169,6 +10683,41 @@
 
     window.__MVU_RERENDER_UNIFIED_CARDS__ = rerenderUnifiedCardsFromLive;
 
+    function clampUnifiedMapCanvas(root = document) {
+      if (!document.body || !document.body.classList.contains('mvu-layout-unified')) return;
+      const scope = root && typeof root.querySelectorAll === 'function' ? root : document;
+      const canvases = scope.querySelectorAll('#mvu-unified-mount .mvu-unified-map-stage .map-canvas.map-canvas-large, #mvu-unified-mount .mvu-unified-detail-host .map-canvas.map-canvas-large');
+      const viewportHeight = Math.max(520, Number(window.innerHeight) || Number(document.documentElement.clientHeight) || 720);
+      canvases.forEach(canvas => {
+        if (!(canvas instanceof HTMLElement)) return;
+        if (canvas.closest('.mvu-mobile-shell, .mvu-mobile-map-stage, .mvu-shell-map-stage')) return;
+        const isDetail = !!canvas.closest('.mvu-unified-detail-host');
+        const targetHeight = isDetail
+          ? Math.max(240, Math.min(320, Math.round(viewportHeight * 0.38)))
+          : Math.max(210, Math.min(270, Math.round(viewportHeight * 0.34)));
+        canvas.style.setProperty('height', `${targetHeight}px`, 'important');
+        canvas.style.setProperty('width', '100%', 'important');
+        canvas.style.setProperty('min-height', '0px', 'important');
+        canvas.style.setProperty('max-height', `${targetHeight}px`, 'important');
+        canvas.style.setProperty('aspect-ratio', 'auto', 'important');
+        canvas.style.setProperty('flex-basis', 'auto', 'important');
+      });
+    }
+
+    function scheduleUnifiedMapCanvasClamp(root = document) {
+      const run = () => clampUnifiedMapCanvas(root);
+      if (typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(() => window.requestAnimationFrame(run));
+      } else {
+        window.setTimeout(run, 0);
+      }
+      window.setTimeout(run, 80);
+      window.setTimeout(run, 220);
+    }
+
+    window.__MVU_CLAMP_UNIFIED_MAP_CANVAS__ = scheduleUnifiedMapCanvasClamp;
+    window.addEventListener('resize', () => scheduleUnifiedMapCanvasClamp());
+
     function renderLiveCards(snapshot, precomputedSectionSignatures = null) {
       const social = deepGet(snapshot, 'activeChar.social', {});
       const primaryFactionName = snapshot.primaryFaction ? snapshot.primaryFaction[0] : '无';
@@ -10195,6 +10744,7 @@
           try {
             window.__sheepMapResync({ center: false, syncVisual: false });
           } catch (err) {}
+          scheduleUnifiedMapCanvasClamp();
         } else {
           const fallbackMapDisplayName = getMapDisplayName(snapshot);
           const focusNode = resolveDisplayMapNode(snapshot, snapshot.currentLoc);
@@ -10331,6 +10881,7 @@
         const questRecords = (snapshot.recordEntries || []).filter(([, item]) => item && typeof item === 'object' && (Object.prototype.hasOwnProperty.call(item, '状态') || Object.prototype.hasOwnProperty.call(item, '目标进度') || Object.prototype.hasOwnProperty.call(item, '奖励币') || Object.prototype.hasOwnProperty.call(item, '奖励声望')));
         const activeQuestEntry = questRecords.find(([, item]) => !['已完成', '已放弃', '失败', '已失败'].includes(toText(item && item['状态'], '进行中'))) || questRecords[0] || null;
         const activeQuestName = activeQuestEntry ? activeQuestEntry[0] : '';
+        const activeQuestState = activeQuestEntry ? toText(activeQuestEntry[1] && activeQuestEntry[1]['状态'], '进行中') : '暂无';
         const questBoardEntries = safeEntries(deepGet(snapshot, 'rootData.world.quest_board', {})).filter(([, item]) => item && typeof item === 'object');
         const openBoardCount = questBoardEntries.filter(([, item]) => toText(item && item['状态'], '待接取') === '待接取').length;
         setLiveHtml('[data-preview="任务界面"].terminal-side-card, [data-preview="任务界面"].mvu-simple-card, [data-preview="任务界面"].simple-card', `
@@ -10338,7 +10889,7 @@
           <div class="simple-list">
             <div class="simple-row"><b>我的任务</b><span>${htmlEscape(questRecords.length ? `${questRecords.length} 条 / 当前 ${activeQuestName || '已归档'}` : '暂无任务')}</span></div>
             <div class="simple-row"><b>委托板</b><span>${htmlEscape(questBoardEntries.length ? `${questBoardEntries.length} 条 / 待接取 ${openBoardCount}` : '暂无委托')}</span></div>
-            <div class="simple-row"><b>维护方式</b><span>${htmlEscape('AI 维护任务内容，脚本负责进度与奖励结算')}</span></div>
+            <div class="simple-row"><b>当前状态</b><span>${htmlEscape(activeQuestState)}</span></div>
           </div>
         `);
       }
@@ -10361,6 +10912,7 @@
       if (isMapOverviewPreviewKey(previewKey)) {
         if (typeof window.__sheepMapResync === 'function') {
           try { window.__sheepMapResync({ center: false, syncVisual: false }); } catch (err) {}
+          scheduleUnifiedMapCanvasClamp();
         }
         const mapItems = buildDisplayMapItems(snapshot);
         const patchCards = (snapshot.mapActivePatchEntries.length ? snapshot.mapActivePatchEntries : [['\u6682\u65e0\u6fc0\u6d3b\u8865\u4e01', { empty: true }]]).map(([name, patch]) => ({
@@ -10404,13 +10956,45 @@
         const previewMeta = parseSkillDesignerPreviewKey(previewKey) || { path: [], label: '技能', category: '技能', scope: 'skill' };
         const skillSource = previewMeta.path.length ? (deepGet(snapshot.rootData, previewMeta.path, {}) || {}) : {};
         const cachedDesignerDraft = readCachedSkillDesignerDraft(previewKey);
+        const rawDesignerDraft = cachedDesignerDraft || readSkillDesignerDraft(skillSource, previewMeta.label);
+        const fusionDraftSeed = getSkillDesignerFusionDraftSeed(snapshot, previewMeta, rawDesignerDraft);
         const designerDraft = buildSkillDesignerFormStateFromDraft(
-          cachedDesignerDraft || readSkillDesignerDraft(skillSource, previewMeta.label),
+          { ...rawDesignerDraft, ...fusionDraftSeed },
           previewMeta
         );
         const pathTail = formatSkillDesignerWritebackLabel(previewMeta);
         const scopeLabels = getSkillDesignerScopeLabels(previewMeta);
         const recommendedAttrs = new Set(normalizeSkillDesignerArray(SKILL_DESIGNER_ATTRIBUTE_HINTS_BY_TYPE[designerDraft.type] || []));
+        const isFusionDesigner = previewMeta.scope === 'fusion_skill';
+        const { charData: fusionCharData } = getSkillDesignerCharByPreviewPath(snapshot.rootData, previewMeta);
+        const fusionSpiritOptions = isFusionDesigner ? getSkillDesignerSpiritNameOptions(fusionCharData) : [];
+        const fusionModeOptions = isFusionDesigner
+          ? [
+              { value: 'partner', label: '双人/多人融合' },
+              ...(fusionSpiritOptions.length >= 2 || designerDraft.fusionMode === 'self'
+                ? [{ value: 'self', label: '自体融合' }]
+                : []),
+            ]
+          : [];
+        const fusionStructureSection = isFusionDesigner ? `
+                    <section class=\"mvu-editor-section skill-designer-fusion-section\">
+                      <div class=\"mvu-editor-section-title\">融合对象</div>
+                      <div class=\"mvu-editor-field-grid skill-designer-fusion-mode-grid\">
+                        <label class=\"mvu-editor-field\">
+                          <span class=\"mvu-editor-label\">模式</span>
+                          <select class=\"mvu-editor-select\" data-skill-designer-field=\"fusionMode\" data-skill-designer-disableable>
+                            ${buildSkillDesignerSelectOptions(fusionModeOptions, designerDraft.fusionMode, '')}
+                          </select>
+                        </label>
+                      </div>
+                      <div class=\"skill-designer-fusion-participant-list\" data-skill-designer-fusion-participants>
+                        ${buildSkillDesignerFusionParticipantRows(designerDraft.fusionParticipants, snapshot.rootData, previewMeta)}
+                      </div>
+                      <div class=\"mvu-editor-actions skill-designer-fusion-actions\"${designerDraft.fusionMode === 'self' ? ' hidden' : ''}>
+                        <button type=\"button\" class=\"tag-chip\" data-skill-designer-add-fusion-participant data-skill-designer-disableable>新增对象</button>
+                      </div>
+                    </section>
+                  ` : '';
         return {
           title: `${scopeLabels.studioTitle} / ${designerDraft.name}`,
           summary: '',
@@ -10421,6 +11005,9 @@
             const primarySubInput = mountEl.querySelector('[data-skill-designer-field=\"primarySub\"]');
             const typeInput = mountEl.querySelector('[data-skill-designer-field=\"type\"]');
             const deliveryFormInput = mountEl.querySelector('[data-skill-designer-field=\"deliveryForm\"]');
+            const fusionModeInput = mountEl.querySelector('[data-skill-designer-field=\"fusionMode\"]');
+            const fusionParticipantList = mountEl.querySelector('[data-skill-designer-fusion-participants]');
+            const addFusionParticipantBtn = mountEl.querySelector('[data-skill-designer-add-fusion-participant]');
             const secondaryGrid = mountEl.querySelector('[data-skill-designer-secondary-grid]');
             const attributeGrid = mountEl.querySelector('[data-skill-designer-attribute-grid]');
             const mechanicParamGrid = mountEl.querySelector('[data-skill-designer-mechanic-param-grid]');
@@ -10436,7 +11023,9 @@
 
             const readCheckedValues = name => Array.from(mountEl.querySelectorAll(`input[name=\"${name}\"]:checked`)).map(node => toText(node.value, '').trim()).filter(Boolean);
             const syncDraftCache = () => {
-              const nextDraft = buildSkillDesignerFormStateFromDraft(readSkillDesignerFormState(mountEl, previewMeta), previewMeta);
+              const formState = readSkillDesignerFormState(mountEl, previewMeta);
+              const fusionSeed = isFusionDesigner ? getSkillDesignerFusionDraftSeed(snapshot, previewMeta, formState) : {};
+              const nextDraft = buildSkillDesignerFormStateFromDraft({ ...formState, ...fusionSeed }, previewMeta);
               writeCachedSkillDesignerDraft(previewKey, nextDraft);
               return nextDraft;
             };
@@ -10455,9 +11044,65 @@
               });
             };
 
+            const syncFusionFields = () => {
+              if (!fusionModeInput) return;
+              const formState = readSkillDesignerFormState(mountEl, previewMeta);
+              const fusionSeed = getSkillDesignerFusionDraftSeed(snapshot, previewMeta, formState);
+              if (fusionParticipantList) {
+                fusionParticipantList.innerHTML = buildSkillDesignerFusionParticipantRows(fusionSeed.fusionParticipants, snapshot.rootData, previewMeta);
+              }
+              if (addFusionParticipantBtn) {
+                const actions = addFusionParticipantBtn.closest('.skill-designer-fusion-actions');
+                if (actions) actions.hidden = fusionSeed.fusionMode === 'self';
+              }
+              return buildSkillDesignerFormStateFromDraft({ ...formState, ...fusionSeed }, previewMeta);
+            };
+
+            const applyFusionParticipants = participants => {
+              if (!fusionModeInput || !fusionParticipantList) return null;
+              const formState = readSkillDesignerFormState(mountEl, previewMeta);
+              const fusionSeed = getSkillDesignerFusionDraftSeed(snapshot, previewMeta, {
+                ...formState,
+                fusionMode: fusionModeInput.value,
+                fusionParticipants: participants,
+              });
+              fusionParticipantList.innerHTML = buildSkillDesignerFusionParticipantRows(fusionSeed.fusionParticipants, snapshot.rootData, previewMeta);
+              if (addFusionParticipantBtn) {
+                const actions = addFusionParticipantBtn.closest('.skill-designer-fusion-actions');
+                if (actions) actions.hidden = fusionSeed.fusionMode === 'self';
+              }
+              const nextDraft = buildSkillDesignerFormStateFromDraft({ ...formState, ...fusionSeed }, previewMeta);
+              writeCachedSkillDesignerDraft(previewKey, nextDraft);
+              refreshPreview(nextDraft);
+              return nextDraft;
+            };
+
+            const handleFusionAdd = () => {
+              if (!fusionModeInput) return;
+              fusionModeInput.value = 'partner';
+              const currentDraft = syncDraftCache();
+              const nextParticipant = createSkillDesignerDefaultPartnerParticipant(
+                snapshot.rootData,
+                previewMeta,
+                currentDraft.fusionParticipants.map(participant => participant.charKey),
+              );
+              applyFusionParticipants([...currentDraft.fusionParticipants, nextParticipant]);
+            };
+
+            const handleFusionRemove = button => {
+              const row = button ? button.closest('[data-fusion-participant-row]') : null;
+              if (!row) return;
+              const rows = Array.from(mountEl.querySelectorAll('[data-fusion-participant-row]'));
+              const removeIndex = rows.indexOf(row);
+              const currentDraft = syncDraftCache();
+              const nextParticipants = currentDraft.fusionParticipants.filter((participant, index) => index !== removeIndex);
+              applyFusionParticipants(nextParticipants);
+            };
+
             const refreshPreview = (draftOverride = null) => {
               const formState = draftOverride || syncDraftCache();
               const previewMap = {
+                fusion: buildSkillDesignerFusionSummary(formState) || '未设置',
                 mechanic: buildSkillDesignerMechanicSummary(formState) || '未设置',
                 mechanicParams: buildSkillDesignerMechanicParamSummary(formState) || '未设置',
                 execution: buildSkillDesignerExecutionSummary(formState) || '未设置',
@@ -10523,6 +11168,7 @@
               rebuildDeliveryOptions();
               rebuildSecondaryOptions();
               rebuildMechanicParamEditor();
+              syncFusionFields();
               syncChipState();
               syncAttributeHints();
               refreshPreview();
@@ -10563,6 +11209,7 @@
             };
 
             const handleChange = event => {
+              const target = event && event.target instanceof HTMLElement ? event.target : null;
               if (event && event.target === primaryMainInput) {
                 rebuildPrimarySubOptions();
                 rebuildSecondaryOptions();
@@ -10570,6 +11217,10 @@
               if (event && event.target === typeInput) {
                 rebuildDeliveryOptions();
               }
+              const shouldRebuildFusion = !!(target && (
+                target === fusionModeInput
+                || target.matches('[data-skill-designer-fusion-char]')
+              ));
               if (
                 event
                 && (
@@ -10583,7 +11234,8 @@
               }
               syncChipState();
               syncAttributeHints();
-              refreshPreview();
+              const fusionDraft = shouldRebuildFusion ? syncFusionFields() : null;
+              refreshPreview(fusionDraft);
             };
 
             const handleInput = () => {
@@ -10591,11 +11243,27 @@
               refreshPreview();
             };
 
+            const handleClick = event => {
+              const target = event && event.target instanceof HTMLElement ? event.target : null;
+              const addButton = target ? target.closest('[data-skill-designer-add-fusion-participant]') : null;
+              if (addButton) {
+                event.preventDefault();
+                handleFusionAdd();
+                return;
+              }
+              const removeButton = target ? target.closest('[data-skill-designer-remove-fusion-participant]') : null;
+              if (removeButton) {
+                event.preventDefault();
+                handleFusionRemove(removeButton);
+              }
+            };
+
             handleInteractiveRefresh();
             if (form) form.addEventListener('submit', handleSubmit);
             if (refreshBtn) refreshBtn.addEventListener('click', handleRefresh);
             mountEl.addEventListener('change', handleChange);
             mountEl.addEventListener('input', handleInput);
+            mountEl.addEventListener('click', handleClick);
 
             return {
               destroy() {
@@ -10604,6 +11272,7 @@
                 if (refreshBtn) refreshBtn.removeEventListener('click', handleRefresh);
                 mountEl.removeEventListener('change', handleChange);
                 mountEl.removeEventListener('input', handleInput);
+                mountEl.removeEventListener('click', handleClick);
               }
             };
           },
@@ -10651,6 +11320,8 @@
                       </label>
                     </div>
                   </section>
+
+                  ${fusionStructureSection}
 
                   ${previewMeta.scope === 'art' ? `
                     <section class=\"mvu-editor-section\">
@@ -10754,6 +11425,9 @@
               <div class=\"archive-card full skill-designer-summary-card\">
                 <div class=\"archive-card-head\"><div class=\"archive-card-title\">${htmlEscape(scopeLabels.summaryTitle)}</div></div>
                 <div class=\"skill-designer-preview-stack skill-designer-summary-list\">
+                  ${isFusionDesigner
+                    ? `<div class=\"skill-designer-summary-row\"><em>融合对象</em><span data-skill-designer-preview=\"fusion\">${htmlEscape(buildSkillDesignerFusionSummary(designerDraft) || '未设置')}</span></div>`
+                    : ''}
                   <div class=\"skill-designer-summary-row\"><em>机制组合</em><span data-skill-designer-preview=\"mechanic\">${htmlEscape(buildSkillDesignerMechanicSummary(designerDraft) || '未设置')}</span></div>
                   <div class=\"skill-designer-summary-row\"><em>机制参数</em><span data-skill-designer-preview=\"mechanicParams\">${htmlEscape(buildSkillDesignerMechanicParamSummary(designerDraft) || '未设置')}</span></div>
                   <div class=\"skill-designer-summary-row\"><em>执行摘要</em><span data-skill-designer-preview=\"execution\">${htmlEscape(buildSkillDesignerExecutionSummary(designerDraft) || '未设置')}</span></div>
@@ -11109,8 +11783,8 @@
             preview: /功法/.test(toText(skill.category, '')) ? '' : (skill.preview || '')
           }));
         return {
-          title: '生命图谱',
-          summary: '基于当前角色的实时生命体征与状态摘要。',
+          title: '详细档案',
+          summary: '角色状态、修为、外观与成长记录。',
           body: `
             <div class="archive-modal-grid dossier-shell dossier-shell--life">
               <div class="archive-card dossier-card dossier-card--life-core">
@@ -12529,6 +13203,36 @@
         const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
         const fusionArchiveMeta = getFusionArchiveMeta(snapshot);
         const { fusionEntries, partnerCount, selfCount } = fusionArchiveMeta;
+        const getFusionRecordParticipants = fusion => normalizeSkillDesignerFusionParticipantList(
+          getSkillDesignerRawFusionParticipants({}, fusion && typeof fusion === 'object' ? fusion : {}),
+          snapshot.rootData,
+        );
+        const getFusionRecordModeText = fusion => {
+          const safeFusion = fusion && typeof fusion === 'object' ? fusion : {};
+          const participants = getFusionRecordParticipants(safeFusion);
+          if (toText(safeFusion.fusion_mode, 'partner') === 'self') return '自体融合';
+          return participants.length > 2 ? '多人融合' : '双人融合';
+        };
+        const getFusionRecordPartnerText = fusion => {
+          const safeFusion = fusion && typeof fusion === 'object' ? fusion : {};
+          const participants = getFusionRecordParticipants(safeFusion);
+          if (toText(safeFusion.fusion_mode, 'partner') === 'self') return SKILL_DESIGNER_SELF_FUSION_PARTNER;
+          const names = participants
+            .filter(participant => participant.role !== 'self')
+            .map(participant => participant.charName || participant.charKey)
+            .filter(Boolean);
+          return names.length ? Array.from(new Set(names)).join('、') : toText(safeFusion.partner, '未知搭档');
+        };
+        const getFusionRecordParticipantText = fusion => {
+          const safeFusion = fusion && typeof fusion === 'object' ? fusion : {};
+          const participants = getFusionRecordParticipants(safeFusion);
+          if (participants.length) {
+            return participants
+              .map(participant => `${participant.charName || participant.charKey || '未设置'}:${participant.spirit || '未设置'}`)
+              .join(' + ');
+          }
+          return (Array.isArray(safeFusion.source_spirits) ? safeFusion.source_spirits : []).filter(Boolean).join(' / ') || '未记录';
+        };
         const createFusionPreview = activeCharKey
           ? buildSkillDesignerPreviewKey({
               path: ['char', activeCharKey, 'martial_fusion_skills', `武魂融合技_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`, 'skill_data'],
@@ -12545,10 +13249,9 @@
           ? toText(leadSkillData['魂技名'] || leadSkillData.name || leadFusion.name || leadRecordKey, leadRecordKey || '未命名融合技')
           : '';
         const leadModeValue = toText(leadFusion.fusion_mode, 'partner');
-        const leadModeText = leadModeValue === 'self' ? '自体融合' : '双人融合';
-        const leadPartnerRaw = leadModeValue === 'self' ? toText(leadFusion.partner, '无') : toText(leadFusion.partner, '未知搭档');
-        const leadSourceSpirits = Array.isArray(leadFusion.source_spirits) ? leadFusion.source_spirits : [];
-        const leadSourceSpiritText = leadSourceSpirits.filter(Boolean).join(' / ') || '未记录';
+        const leadModeText = getFusionRecordModeText(leadFusion);
+        const leadPartnerRaw = getFusionRecordPartnerText(leadFusion);
+        const leadSourceSpiritText = getFusionRecordParticipantText(leadFusion);
         const leadEffectDesc = toText(leadSkillData['效果描述'] || leadSkillData['描述'] || '', '');
         const leadVisualDesc = toText(leadSkillData['画面描述'] || '', '');
         const leadPreview = activeCharKey && leadRecordKey
@@ -12563,9 +13266,9 @@
           const safeFusion = fusion && typeof fusion === 'object' ? fusion : {};
           const skillData = safeFusion.skill_data && typeof safeFusion.skill_data === 'object' ? safeFusion.skill_data : {};
           const fusionName = toText(skillData['魂技名'] || skillData.name || safeFusion.name || recordKey, recordKey || '未命名融合技');
-          const modeText = toText(safeFusion.fusion_mode, 'partner') === 'self' ? '自体融合' : '双人融合';
-          const partnerText = modeText === '自体融合' ? '自身双武魂' : toText(safeFusion.partner, '未知搭档');
-          const sourceSpiritText = (Array.isArray(safeFusion.source_spirits) ? safeFusion.source_spirits : []).filter(Boolean).join(' / ') || '未记录';
+          const modeText = getFusionRecordModeText(safeFusion);
+          const partnerText = getFusionRecordPartnerText(safeFusion);
+          const sourceSpiritText = getFusionRecordParticipantText(safeFusion);
           const effectDesc = toText(skillData['效果描述'] || skillData['描述'] || '未知', '未知');
           const visualDesc = toText(skillData['画面描述'] || '', '');
           const tags = (Array.isArray(skillData['标签']) ? skillData['标签'] : []).filter(Boolean);
@@ -12579,7 +13282,7 @@
             : '';
           const descParts = [
             `<strong>${htmlEscape(modeText)} · ${htmlEscape(partnerText)}</strong>`,
-            `<small>来源武魂：${htmlEscape(sourceSpiritText)}</small>`,
+            `<small>参与武魂：${htmlEscape(sourceSpiritText)}</small>`,
             effectDesc !== '未知' ? `<small>${htmlEscape(effectDesc)}</small>` : '',
             visualDesc ? `<small>${htmlEscape(visualDesc)}</small>` : '',
             tags.length ? `<small>${htmlEscape(tags.slice(0, 4).join(' / '))}</small>` : ''
@@ -12592,7 +13295,7 @@
         });
         return {
           title: '武魂融合技档案',
-          summary: '集中查看当前角色的自体融合与搭档型融合技。',
+          summary: '集中查看当前角色的自体融合与多人融合技。',
           body: `
             <div class="archive-modal-grid dossier-shell">
               <div class="archive-card dossier-card">
@@ -12605,7 +13308,7 @@
                   ${makeDossierRows([
                     { label: '当前角色', value: htmlEscape(snapshot.activeName) },
                     { label: '融合技总数', value: htmlEscape(String(fusionEntries.length)) },
-                    { label: '双人融合', value: htmlEscape(String(partnerCount)) },
+                    { label: '外部融合', value: htmlEscape(String(partnerCount)) },
                     { label: '自体融合', value: htmlEscape(String(selfCount)) }
                   ], 'dossier-row-grid--two')}
                 </section>
@@ -12630,13 +13333,7 @@
                               rawValue: toText(leadFusion.partner, ''),
                             })
                           : htmlEscape(leadPartnerRaw) },
-                        { label: '来源武魂', value: activeCharKey && leadRecordKey
-                          ? makeInlineEditableValue(leadSourceSpiritText, {
-                              path: ['char', activeCharKey, 'martial_fusion_skills', leadRecordKey, 'source_spirits'],
-                              kind: 'string_list',
-                              rawValue: leadSourceSpirits,
-                            })
-                          : htmlEscape(leadSourceSpiritText), className: 'dossier-row--wide' },
+                        { label: '参与武魂', value: htmlEscape(leadSourceSpiritText), className: 'dossier-row--wide' },
                         { label: '效果摘要', value: htmlEscape(leadEffectDesc || leadVisualDesc || '未记录'), className: 'dossier-row--wide' }
                       ])}
                     `
@@ -13633,7 +14330,7 @@
           title: '试炼与情报',
           summary: '当前试炼资源、票据储备与近期风险情报。',
           body: `
-            <div class="archive-modal-grid" style="grid-template-columns: repeat(2, minmax(0, 1fr)); align-items:start;">
+            <div class="archive-modal-grid" style="grid-template-columns: repeat(2, minmax(0, 1fr)); align-items:stretch;">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">试炼总览</div></div>
                 ${makeTileGrid([
@@ -14220,7 +14917,7 @@
     }
 
     const pageMetaMap = {
-      'page-archive': { title: '档案 / 个人主控', subtitle: '生命图谱、武魂轨道、社会摘要与储物入口', tag: '档案核心' },
+      'page-archive': { title: '档案 / 个人主控', subtitle: '详细档案、武魂轨道、社会摘要与储物入口', tag: '档案核心' },
       'page-map': { title: '星图 / 节点导航', subtitle: '当前位置、下钻路径、本地设施与动态地点', tag: '星图导航' },
       'page-world': { title: '世界 / 时空中枢', subtitle: '时间轴、偏差、金榜与拍卖警报的汇总面板', tag: '世界中枢' },
       'page-org': { title: '势力 / 矩阵沙盘', subtitle: '阵营归属、大陆格局与据点网络的视觉化入口', tag: '势力矩阵' },
@@ -15720,6 +16417,7 @@ ${mvuUpdate}`;
         if (typeof onMount === 'function') {
           activeSubUI = onMount(host);
         }
+        scheduleUnifiedMapCanvasClamp(host);
       };
 
       const liveArchive = buildLiveArchiveModal(targetKey);
@@ -16160,6 +16858,7 @@ ${mvuUpdate}`;
             event.stopPropagation();
             if (typeof window.__sheepMapResync === 'function') {
               try { window.__sheepMapResync({ center: true, syncVisual: true }); } catch (err) {}
+              scheduleUnifiedMapCanvasClamp();
             }
             if (isUnifiedMount && !mapFocusBtn.closest('.mvu-mobile-shell') && typeof window.__MVU_OPEN_UNIFIED_PREVIEW__ === 'function') {
               window.__MVU_OPEN_UNIFIED_PREVIEW__('全息星图主画布', { triggerEl: mapFocusBtn, preserveMapDispatchContext: true });
@@ -16732,6 +17431,120 @@ ${mvuUpdate}`;
     if (detailModal) detailModal.addEventListener('click', event => {
       handleDetailSurfaceClick(event, modalBody, { surface: 'modal', previewKey: currentModalPreviewKey, panel: modalPanel });
     });
+
+    function getFloatingHoverTrigger(eventTarget) {
+      if (!eventTarget || typeof eventTarget.closest !== 'function') return null;
+      const trigger = eventTarget.closest('.interactive-ring');
+      if (!trigger) return null;
+      if (!trigger.querySelector('.ring-hover-card, .relation-hover-card')) return null;
+      return trigger;
+    }
+
+    function clearFloatingHoverCard(trigger) {
+      if (!trigger || !trigger.classList) return;
+      trigger.classList.remove('mvu-hover-floating-active');
+      const card = trigger.querySelector('.ring-hover-card, .relation-hover-card');
+      if (!card) return;
+      card.classList.remove('mvu-hover-card-floating');
+      [
+        'position',
+        'left',
+        'right',
+        'top',
+        'bottom',
+        'width',
+        'maxWidth',
+        'maxHeight',
+        'transform',
+        'zIndex'
+      ].forEach(prop => { card.style[prop] = ''; });
+    }
+
+    function clearAllFloatingHoverCards() {
+      document.querySelectorAll('.interactive-ring.mvu-hover-floating-active').forEach(clearFloatingHoverCard);
+    }
+
+    function clampHoverValue(value, min, max) {
+      if (!Number.isFinite(value)) return min;
+      if (!Number.isFinite(max) || max < min) return min;
+      return Math.min(Math.max(value, min), max);
+    }
+
+    function positionFloatingHoverCard(trigger) {
+      if (!(trigger instanceof Element)) return;
+      const card = trigger.querySelector('.ring-hover-card, .relation-hover-card');
+      if (!(card instanceof HTMLElement)) return;
+      const triggerRect = trigger.getBoundingClientRect();
+      const viewportWidth = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+      const viewportHeight = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+      if (!viewportWidth || !viewportHeight) return;
+
+      const margin = 12;
+      const gap = 8;
+      const maxWidth = Math.max(180, viewportWidth - margin * 2);
+      const maxHeight = Math.max(150, viewportHeight - margin * 2);
+
+      trigger.classList.add('mvu-hover-floating-active');
+      card.classList.add('mvu-hover-card-floating');
+      card.style.position = 'fixed';
+      card.style.right = 'auto';
+      card.style.bottom = 'auto';
+      card.style.transform = 'none';
+      card.style.zIndex = '2147483000';
+      card.style.maxWidth = `${maxWidth}px`;
+      card.style.maxHeight = `${maxHeight}px`;
+      card.style.left = '0px';
+      card.style.top = '0px';
+
+      const cardRect = card.getBoundingClientRect();
+      const width = Math.min(Math.ceil(cardRect.width || 220), maxWidth);
+      const height = Math.min(Math.ceil(cardRect.height || 220), maxHeight);
+      const left = clampHoverValue(
+        triggerRect.left + triggerRect.width / 2 - width / 2,
+        margin,
+        viewportWidth - width - margin
+      );
+      const belowTop = triggerRect.bottom + gap;
+      const aboveTop = triggerRect.top - height - gap;
+      const top = belowTop + height <= viewportHeight - margin
+        ? belowTop
+        : (aboveTop >= margin ? aboveTop : clampHoverValue(belowTop, margin, viewportHeight - height - margin));
+
+      card.style.width = `${width}px`;
+      card.style.left = `${Math.round(left)}px`;
+      card.style.top = `${Math.round(top)}px`;
+    }
+
+    document.addEventListener('pointerover', event => {
+      const trigger = getFloatingHoverTrigger(event.target);
+      if (!trigger) return;
+      positionFloatingHoverCard(trigger);
+    }, true);
+
+    document.addEventListener('pointerout', event => {
+      const trigger = getFloatingHoverTrigger(event.target);
+      if (!trigger) return;
+      const related = event.relatedTarget instanceof Node ? event.relatedTarget : null;
+      if (related && trigger.contains(related)) return;
+      clearFloatingHoverCard(trigger);
+    }, true);
+
+    document.addEventListener('focusin', event => {
+      const trigger = getFloatingHoverTrigger(event.target);
+      if (trigger) positionFloatingHoverCard(trigger);
+    }, true);
+
+    document.addEventListener('focusout', event => {
+      const trigger = getFloatingHoverTrigger(event.target);
+      if (!trigger) return;
+      const related = event.relatedTarget instanceof Node ? event.relatedTarget : null;
+      if (related && trigger.contains(related)) return;
+      clearFloatingHoverCard(trigger);
+    }, true);
+
+    window.addEventListener('resize', clearAllFloatingHoverCards);
+    document.addEventListener('scroll', clearAllFloatingHoverCards, true);
+
 let activeLongPressState = null;
     let suppressedLongPressClickState = null;
 

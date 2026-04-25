@@ -286,6 +286,25 @@ function resolveShellAppMeta(tabId) {
 
 function resolveShellPreviewTitle(previewKey, fallback = '') {
   const key = String(previewKey || '').trim();
+  if (key.startsWith('技能设计台：')) {
+    try {
+      const payload = JSON.parse(decodeURIComponent(key.slice('技能设计台：'.length)));
+      const scope = String(payload && payload.scope || '').trim();
+      const label = String(payload && payload.label || '').trim();
+      const scopeTitleMap = {
+        fusion_skill: '融合技设计',
+        art: '功法设计',
+        special_ability: '特殊技能设计',
+        spirit_skill: '魂技设计',
+        soul_bone_skill: '魂骨技能设计',
+        blood_skill: '血脉技能设计',
+        blood_passive: '血脉被动设计'
+      };
+      return [scopeTitleMap[scope] || '技能设计', label].filter(Boolean).join(' / ') || '技能设计';
+    } catch (err) {
+      return '技能设计';
+    }
+  }
   const previewTitleMap = {
     '\u89d2\u8272\u5207\u6362\u5668': '\u89d2\u8272',
     '\u751f\u547d\u56fe\u8c31\u8be6\u60c5\u9875': '\u8be6\u7ec6\u6863\u6848',
@@ -826,6 +845,9 @@ function requestTabChange(target) {
   if (next === 'page-map' && typeof window.__sheepMapResync === 'function') {
     window.setTimeout(() => {
       try { window.__sheepMapResync({ center: false, syncVisual: false }); } catch (err) {}
+      if (typeof window.__MVU_CLAMP_UNIFIED_MAP_CANVAS__ === 'function') {
+        try { window.__MVU_CLAMP_UNIFIED_MAP_CANVAS__(); } catch (err) {}
+      }
     }, 40);
   }
 }
@@ -2005,8 +2027,8 @@ const DesktopUnifiedLayout = {
               <section class="mvu-unified-section">
                 <div class="mvu-unified-section-headline">
                   <div class="mvu-unified-section-copy">
-                    <b class="mvu-unified-section-title">核心生命体征</b>
-                    <span class="mvu-unified-section-note">角色体征与成长摘要</span>
+                    <b class="mvu-unified-section-title">详细档案</b>
+                    <span class="mvu-unified-section-note">状态 / 修为 / 外观</span>
                   </div>
                   <div class="mvu-unified-chip-row">
                     <button type="button" class="mvu-unified-chip clickable" data-preview="角色切换器">角色</button>
@@ -2204,6 +2226,55 @@ const DesktopUnifiedLayout = {
         window.setTimeout(run, 0);
       }
     };
+    const syncUnifiedFrameViewport = () => {
+      const frame = (detailHostRef.value && detailHostRef.value.closest('.mvu-unified-frame'))
+        || document.querySelector('#mvu-unified-mount .mvu-unified-frame');
+      if (!frame || !frame.isConnected) return;
+      const viewportHeight = Number(window.innerHeight) || Number(document.documentElement.clientHeight) || 720;
+      const sendForm = document.getElementById('send_form');
+      const sendRect = sendForm ? sendForm.getBoundingClientRect() : null;
+      const bottomLimit = sendRect && sendRect.top > 80 && sendRect.top < viewportHeight
+        ? sendRect.top - 10
+        : viewportHeight - 10;
+      const topLimit = 42;
+      const frameMaxHeight = Math.max(360, Math.min(760, bottomLimit - topLimit));
+      frame.style.setProperty('--mvu-unified-frame-max-height', `${Math.floor(frameMaxHeight)}px`);
+
+      const detailHost = detailHostRef.value;
+      if (detailHost && detailHost.isConnected) {
+        const toolbar = frame.querySelector('.mvu-unified-toolbar');
+        const toolbarHeight = toolbar ? toolbar.getBoundingClientRect().height : 64;
+        const detailMaxHeight = Math.max(260, frameMaxHeight - toolbarHeight - 28);
+        detailHost.style.setProperty('--mvu-unified-detail-max-height', `${Math.floor(detailMaxHeight)}px`);
+      }
+
+      const scrollTarget = getDetailScrollTarget();
+      const scrollByAmount = amount => {
+        if (!Number.isFinite(amount) || Math.abs(amount) < 1) return;
+        if (scrollTarget === document.scrollingElement || scrollTarget === document.documentElement || scrollTarget === document.body) {
+          window.scrollBy({ top: amount, behavior: 'auto' });
+        } else if (scrollTarget) {
+          scrollTarget.scrollTop += amount;
+        }
+      };
+
+      let frameRect = frame.getBoundingClientRect();
+      const bottomOverflow = frameRect.bottom - bottomLimit;
+      if (bottomOverflow > 1) {
+        scrollByAmount(bottomOverflow);
+        frameRect = frame.getBoundingClientRect();
+      }
+      const topOverflow = topLimit - frameRect.top;
+      if (topOverflow > 1) {
+        scrollByAmount(-topOverflow);
+      }
+    };
+    const scheduleUnifiedFrameViewportSync = () => {
+      scheduleFrameTask(syncUnifiedFrameViewport);
+      [120, 360, 760].forEach(delay => {
+        window.setTimeout(syncUnifiedFrameViewport, delay);
+      });
+    };
     const rememberReturnScroll = () => {
       const target = getDetailScrollTarget();
       detailState.returnScrollTop = target === document.scrollingElement || target === document.documentElement || target === document.body
@@ -2229,7 +2300,9 @@ const DesktopUnifiedLayout = {
           const rendered = window.__MVU_RENDER_UNIFIED_PREVIEW__(nextPreviewKey, { ...options, host });
           if (rendered === false && detailState.previewKey === nextPreviewKey) {
             closeUnifiedDetail({ force: true });
+            return;
           }
+          syncUnifiedFrameViewport();
         } catch (err) {}
       });
     };
@@ -2246,6 +2319,7 @@ const DesktopUnifiedLayout = {
       detailState.previewKey = nextPreviewKey;
       detailState.isOpen = true;
       requestUnifiedDetailRender(options);
+      scheduleUnifiedFrameViewportSync();
       return true;
     };
     const closeUnifiedDetail = (options = {}) => {
@@ -2267,12 +2341,24 @@ const DesktopUnifiedLayout = {
       if (typeof window.__sheepMapResync !== 'function') return;
       window.setTimeout(() => {
         try { window.__sheepMapResync({ center: false, syncVisual: false }); } catch (err) {}
+        if (typeof window.__MVU_CLAMP_UNIFIED_MAP_CANVAS__ === 'function') {
+          try { window.__MVU_CLAMP_UNIFIED_MAP_CANVAS__(); } catch (err) {}
+          window.setTimeout(() => {
+            try { window.__MVU_CLAMP_UNIFIED_MAP_CANVAS__(); } catch (err) {}
+          }, 80);
+        }
       }, 40);
+    };
+    const setUnifiedTab = tabId => {
+      requestTabChange(tabId);
+      scheduleUnifiedFrameViewportSync();
     };
     onMounted(() => {
       window.__MVU_OPEN_UNIFIED_PREVIEW__ = openUnifiedPreview;
       window.__MVU_CLOSE_UNIFIED_PREVIEW__ = closeUnifiedDetail;
       window.__MVU_GET_UNIFIED_DETAIL_HOST__ = () => detailHostRef.value;
+      window.addEventListener('resize', scheduleUnifiedFrameViewportSync);
+      scheduleUnifiedFrameViewportSync();
       if (mvuTabState.current === 'page-map') {
         requestMapSurfaceSync();
       }
@@ -2281,6 +2367,7 @@ const DesktopUnifiedLayout = {
       }
     });
     onUnmounted(() => {
+      window.removeEventListener('resize', scheduleUnifiedFrameViewportSync);
       if (window.__MVU_OPEN_UNIFIED_PREVIEW__ === openUnifiedPreview) delete window.__MVU_OPEN_UNIFIED_PREVIEW__;
       if (window.__MVU_CLOSE_UNIFIED_PREVIEW__ === closeUnifiedDetail) delete window.__MVU_CLOSE_UNIFIED_PREVIEW__;
       if (typeof window.__MVU_GET_UNIFIED_DETAIL_HOST__ === 'function' && window.__MVU_GET_UNIFIED_DETAIL_HOST__() === detailHostRef.value) {
@@ -2297,6 +2384,9 @@ const DesktopUnifiedLayout = {
         closeUnifiedDetail({ force: true });
       }
     });
+    watch(() => mvuTabState.current, () => {
+      scheduleUnifiedFrameViewportSync();
+    });
     return {
       tabs: TAB_ITEMS,
       activeMeta,
@@ -2308,7 +2398,7 @@ const DesktopUnifiedLayout = {
       modeBadge,
       tabState: mvuTabState,
       layoutState: mvuLayoutState,
-      setTab: requestTabChange,
+      setTab: setUnifiedTab,
       setDesktopMode
     };
   }
