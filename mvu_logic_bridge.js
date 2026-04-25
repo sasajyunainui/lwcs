@@ -55,8 +55,9 @@
       const key = String(previewKey || '').trim();
       const previewTitleMap = {
         '\u89d2\u8272\u5207\u6362\u5668': '\u89d2\u8272',
-        '\u751f\u547d\u56fe\u8c31\u8be6\u60c5\u9875': '\u751f\u547d',
-        '\u751f\u547d\u56fe\u8c31\u8be6\u7ec6\u9875': '\u751f\u547d',
+        '\u751f\u547d\u56fe\u8c31\u8be6\u60c5\u9875': '\u8be6\u7ec6\u6863\u6848',
+        '\u751f\u547d\u56fe\u8c31\u8be6\u7ec6\u9875': '\u8be6\u7ec6\u6863\u6848',
+        '\u79c1\u5bc6\u6863\u6848\u8be6\u7ec6\u9875': '\u79c1\u5bc6\u6863\u6848',
         '\u6b66\u88c5\u5de5\u574a\u8be6\u60c5\u9875': '\u6b66\u88c5',
         '\u6b66\u88c5\u5de5\u574a\u8be6\u7ec6\u9875': '\u6b66\u88c5',
         '\u50a8\u7269\u4ed3\u5e93\u8be6\u60c5\u9875': '\u4ed3\u5e93',
@@ -1346,6 +1347,8 @@
     let lastRenderableSnapshot = null;
     let preferredActiveCharacterName = '';
     let currentModalPreviewKey = '';
+    let currentUnifiedPreviewKey = '';
+    let lastRenderedUnifiedPreviewKey = '';
     let mapDispatchContext = null;
     let activeSubUI = null;
     let lastRenderedShellPreviewKey = '';
@@ -2430,7 +2433,10 @@
     }
 
     function hasOpenSkillDesignerModal() {
-      return !!(detailModal && detailModal.classList.contains('show') && isSkillDesignerPreviewKey(currentModalPreviewKey));
+      return !!(
+        (detailModal && detailModal.classList.contains('show') && isSkillDesignerPreviewKey(currentModalPreviewKey))
+        || (isUnifiedInlinePreviewActive() && isSkillDesignerPreviewKey(currentUnifiedPreviewKey))
+      );
     }
 
     function shouldPauseLiveRefresh(options = {}) {
@@ -7287,14 +7293,20 @@
       lastDashboardSectionRenderSignatures = null;
       renderHeader(liveSnapshot);
       renderLiveCards(liveSnapshot, nextDashboardSectionRenderSignatures);
+      syncPrivateArchiveLongPressTargets(liveSnapshot);
 
       if (activeBattleUI && typeof activeBattleUI.updateData === 'function') {
         activeBattleUI.updateData(liveSnapshot);
       }
 
-      if ((detailModal.classList.contains('show') || isShellInlinePreviewActive()) && currentModalPreviewKey) {
-        if (options.closeModal !== false) closeModal();
-        else renderModalContent(currentModalPreviewKey);
+      const activeDetailPreviewKey = currentUnifiedPreviewKey || currentModalPreviewKey;
+      if ((detailModal.classList.contains('show') || isShellInlinePreviewActive() || isUnifiedInlinePreviewActive()) && activeDetailPreviewKey) {
+        if (options.closeModal !== false) {
+          if (isUnifiedInlinePreviewActive() && currentUnifiedPreviewKey) closeDetailSurface({ surface: 'unified' });
+          else closeModal();
+        } else {
+          rerenderDetailSurface(activeDetailPreviewKey, { surface: currentUnifiedPreviewKey ? 'unified' : 'modal' });
+        }
       }
 
       return true;
@@ -7440,6 +7452,7 @@
       setLiveText('.char-name', snapshot.activeName);
       setLiveHtml('.archive-split-loc span', headerComboHtml);
       setLiveText('.archive-split-name-text', snapshot.activeName);
+      syncPrivateArchiveLongPressTargets(snapshot);
       if (splitBottomTime) splitBottomTime.textContent = '';
       if (splitBottomLoc) splitBottomLoc.textContent = '';
 
@@ -7459,6 +7472,8 @@
       if (statusChips[4]) setLiveNodeText(statusChips[4].querySelector('span'), snapshot.worldAlert);
     }
 
+    const PRIVATE_ARCHIVE_PREVIEW_KEY = '私密档案详细页';
+
     function isFemaleGenderText(value) {
       const normalized = String(value == null ? '' : value).trim().toLowerCase();
       if (!normalized) return false;
@@ -7469,9 +7484,72 @@
         || normalized === 'f';
     }
 
-    function canUseFemaleOnlyLongPress(snapshot) {
-      const genderText = toText(deepGet(snapshot, 'activeChar.stat.gender', ''), '');
-      return isFemaleGenderText(genderText);
+    function getActiveSnapshotCharacter(snapshot) {
+      const activeChar = deepGet(snapshot, 'activeChar', null);
+      if (activeChar && typeof activeChar === 'object') return activeChar;
+      const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot && snapshot.activeName, ''));
+      return activeCharKey ? deepGet(snapshot, ['rootData', 'char', activeCharKey], {}) : {};
+    }
+
+    function getPrivateArchiveAgeValue(value) {
+      if (typeof value === 'number') return Number.isFinite(value) ? value : NaN;
+      const rawText = String(value == null ? '' : value).trim();
+      if (!rawText) return NaN;
+      const directNumber = Number(rawText);
+      if (Number.isFinite(directNumber)) return directNumber;
+      const numericText = rawText.match(/-?\d+(?:\.\d+)?/);
+      return numericText ? Number(numericText[0]) : NaN;
+    }
+
+    function canOpenPrivateArchive(snapshot) {
+      const activeChar = getActiveSnapshotCharacter(snapshot);
+      const genderText = toText(deepGet(activeChar, 'stat.gender', ''), '');
+      if (!isFemaleGenderText(genderText)) return false;
+      const ageValue = getPrivateArchiveAgeValue(deepGet(activeChar, 'stat.age', null));
+      return Number.isFinite(ageValue) && ageValue >= 18;
+    }
+
+    function getActiveNsfwPath(snapshot) {
+      const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot && snapshot.activeName, ''));
+      return activeCharKey ? ['char', activeCharKey, 'nsfw'] : [];
+    }
+
+    function getActiveNsfwData(snapshot) {
+      const activeNsfw = deepGet(snapshot, 'activeChar.nsfw', null);
+      if (activeNsfw && typeof activeNsfw === 'object' && safeEntries(activeNsfw).length) return activeNsfw;
+      const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot && snapshot.activeName, ''));
+      const rootNsfw = activeCharKey ? deepGet(snapshot, ['rootData', 'char', activeCharKey, 'nsfw'], null) : null;
+      if (rootNsfw && typeof rootNsfw === 'object') return rootNsfw;
+      return activeNsfw && typeof activeNsfw === 'object' ? activeNsfw : {};
+    }
+
+    function setPrivateArchiveLongPressTarget(node, enabled, options = {}) {
+      if (!node) return;
+      const useVisualClass = options.visualClass !== false;
+      node.classList.toggle('nsfw-trigger-title', !!(enabled && useVisualClass));
+      node.classList.remove('active-press');
+      if (enabled) {
+        node.setAttribute('data-longpress', PRIVATE_ARCHIVE_PREVIEW_KEY);
+        node.setAttribute('data-longpress-delay', '600');
+      } else {
+        node.removeAttribute('data-longpress');
+        node.removeAttribute('data-longpress-delay');
+      }
+    }
+
+    function syncPrivateArchiveLongPressTargets(snapshot) {
+      const enabled = canOpenPrivateArchive(snapshot);
+      getLiveUiElements('.char-name, .archive-split-name-text').forEach(node => {
+        setPrivateArchiveLongPressTarget(node, enabled);
+      });
+      getLiveUiElements('#mvu-unified-mount .mvu-unified-section-title').forEach(node => {
+        if (toText(node.textContent, '').trim() === '核心生命体征') {
+          setPrivateArchiveLongPressTarget(node, enabled);
+        }
+      });
+      getLiveUiElements('#mvu-unified-mount [data-unified-card="archive-core"][data-unified-surface="shell"]').forEach(node => {
+        setPrivateArchiveLongPressTarget(node, enabled, { visualClass: false });
+      });
     }
 
     function buildArchiveCoreCard(snapshot) {
@@ -7480,7 +7558,7 @@
       const status = deepGet(snapshot, 'activeChar.status', {});
       const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '当前角色');
       const nextLevelSoul = getNextLevelSoulRequirement(stat);
-      const allowNsfwLongPress = canUseFemaleOnlyLongPress(snapshot);
+      const allowNsfwLongPress = canOpenPrivateArchive(snapshot);
       const primaryFactionName = snapshot.primaryFaction ? snapshot.primaryFaction[0] : '无';
       const primaryFactionRole = snapshot.primaryFaction ? toText(deepGet(snapshot.primaryFaction[1], '身份', '无'), '无') : '未加入';
       const topRelationText = snapshot.topRelation
@@ -7491,7 +7569,7 @@
         : (snapshot.unlockedKnowledges.length ? shortenText(snapshot.unlockedKnowledges[snapshot.unlockedKnowledges.length - 1], 12) : '暂无');
       return `
         <div class="panel-head">
-          <div class="panel-title${allowNsfwLongPress ? ' nsfw-trigger-title' : ''}"${allowNsfwLongPress ? ' data-longpress="私密档案详细页" data-longpress-delay="600"' : ''}>核心生命体征</div>
+          <div class="panel-title${allowNsfwLongPress ? ' nsfw-trigger-title' : ''}"${allowNsfwLongPress ? ` data-longpress="${PRIVATE_ARCHIVE_PREVIEW_KEY}" data-longpress-delay="600"` : ''}>核心生命体征</div>
           <span class="meta-pill">${htmlEscape(nextLevelSoul.isMax ? '离下一级所需魂力：已满级' : `离下一级所需魂力：${formatNumber(nextLevelSoul.needed)}`)}</span>
         </div>
         <div class="stats-grid">
@@ -7675,9 +7753,11 @@
       const tone = toText(options.tone, '').trim();
       const requestedSize = toText(options.size, '').trim();
       const size = requestedSize || 'compact';
-      const badgeLimit = size === 'hero' ? 3 : 2;
-      const metricLimit = size === 'hero' ? 4 : 2;
-      const rowLimit = size === 'hero' ? 2 : ((Array.isArray(options.metrics) && options.metrics.length) ? 1 : 2);
+      const longPressPreview = toText(options.longPressPreview, '').trim();
+      const longPressDelay = Math.max(250, toNumber(options.longPressDelay, 600));
+      const badgeLimit = size === 'hero' ? 2 : 1;
+      const metricLimit = size === 'hero' ? 3 : 1;
+      const rowLimit = size === 'hero' ? 2 : 1;
       const badges = collectShellBadgeItems(options.badges || [], badgeLimit);
       const metrics = collectShellMetricItems(options.metrics || [], metricLimit);
       const rows = collectShellLineItems(options.rows || [], rowLimit);
@@ -7687,10 +7767,14 @@
         tone ? `mvu-shell-summary--${tone}` : '',
         size ? `mvu-shell-summary--${size}` : '',
         value ? 'has-value' : '',
+        longPressPreview ? 'nsfw-trigger-title' : '',
       ].filter(Boolean).join(' ');
+      const longPressAttrs = longPressPreview
+        ? ` data-longpress="${escapeHtmlAttr(longPressPreview)}" data-longpress-delay="${escapeHtmlAttr(String(longPressDelay))}"`
+        : '';
 
       return `
-        <div class="${className}">
+        <div class="${className}"${longPressAttrs}>
           <div class="mvu-shell-card-top">
             <div class="mvu-shell-card-copy">
               <div class="mvu-shell-title">${htmlEscape(title)}</div>
@@ -7838,7 +7922,7 @@
           ],
           rows: [
             { label: '状态', value: config.lifeFire ? '已点燃' : '等待命火' },
-            { label: '概览', value: shortenText(toText(config.desc, '打开详情查看血脉'), 28) },
+            { label: '概览', value: shortenText(toText(config.desc, '未记录'), 28) },
           ],
           tone: 'gold',
         });
@@ -8055,6 +8139,7 @@
         ? `${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}`
         : (identitySummary || '独行');
       const fameLevelText = shortenText(toText(social._fame_level, toText(social.fame_level, '籍籍无名')), 8);
+      const allowPrivateArchiveLongPress = canOpenPrivateArchive(snapshot);
       return buildShellSummaryCard({
         kicker: '角色首页',
         title: toText(snapshot.activeName, '当前角色'),
@@ -8077,6 +8162,8 @@
         ],
         tone: 'hero',
         size: 'hero',
+        longPressPreview: allowPrivateArchiveLongPress ? PRIVATE_ARCHIVE_PREVIEW_KEY : '',
+        longPressDelay: 600,
       });
     }
 
@@ -8269,7 +8356,7 @@
         ],
         note: snapshot.latestTimeline
           ? shortenText(toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]), 36)
-          : '查看节点摘要',
+          : '',
         tone: 'hero',
         size: 'hero',
       });
@@ -8279,20 +8366,76 @@
       return '';
     }
 
+    function getShellLocalCharacterEntries(snapshot, limit = 6) {
+      if (!snapshot) return [];
+      const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
+      const activeDisplayName = toText(deepGet(snapshot, 'activeChar.name', deepGet(snapshot, 'activeChar.base.name', snapshot.activeName)), snapshot.activeName);
+      const currentLoc = toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc), snapshot.currentLoc);
+      const normalizedLoc = toText(snapshot.normalizedLoc, currentLoc);
+      return safeEntries(deepGet(snapshot, 'rootData.char', {}))
+        .filter(([name, char]) => {
+          const displayName = toText(deepGet(char, 'name', deepGet(char, 'base.name', name)), name);
+          if ((activeCharKey && name === activeCharKey) || (activeDisplayName && displayName === activeDisplayName)) return false;
+          const npcLoc = toText(deepGet(char, 'status.loc', ''), '');
+          if (!npcLoc) return false;
+          return isLocationCompatible(currentLoc, npcLoc) || isLocationCompatible(normalizedLoc, npcLoc);
+        })
+        .slice(0, Math.max(1, toNumber(limit, 6)));
+    }
+
     function buildShellMapCurrentCard(snapshot) {
       const currentMapDisplayName = getMapDisplayName(snapshot);
       const localFaction = toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知');
+      const nodeStores = safeEntries(deepGet(snapshot, 'locationData.stores', {}));
       return buildShellSummaryCard({
-        kicker: '当前节点',
+        kicker: '地点',
         title: shortenText(toText(snapshot.normalizedLoc, snapshot.currentLoc), 22),
         value: shortenText(currentMapDisplayName, 16),
-        meta: snapshot.normalizedLoc !== snapshot.currentLoc ? shortenText(snapshot.currentLoc, 22) : '当前锚点',
+        meta: snapshot.normalizedLoc !== snapshot.currentLoc ? shortenText(snapshot.currentLoc, 22) : '',
         rows: [
           { label: '掌控', value: shortenText(localFaction, 22) },
-          { label: '入口', value: safeEntries(snapshot.mapAvailableChildMaps).length ? `${safeEntries(snapshot.mapAvailableChildMaps).length} 个可进` : '暂无子图' },
-          { label: '焦点', value: shortenText(toText(deepGet(snapshot, 'mapCurrentFocus.loc', snapshot.currentLoc), snapshot.currentLoc), 24) },
+          { label: '店铺', value: nodeStores.length ? `${nodeStores.length} 处` : '0' },
         ],
       });
+    }
+
+    function buildShellLocalRosterRows(localEntries, limit = 4) {
+      const entries = (Array.isArray(localEntries) ? localEntries : []).slice(0, Math.max(1, toNumber(limit, 4)));
+      if (!entries.length) {
+        return '<div class="mvu-shell-roster-empty">暂无本地角色</div>';
+      }
+      return entries.map(([name, char]) => {
+        const displayName = toText(deepGet(char, 'name', deepGet(char, 'base.name', name)), name);
+        const identity = summarizeShellIdentityText(deepGet(char, 'social.main_identity', ''), { limit: 14 })
+          || shortenText(toText(deepGet(char, 'social.main_identity', '未知身份'), '未知身份'), 14);
+        const action = resolveShellText(deepGet(char, 'status.action', ''), '日常') || '日常';
+        return `
+          <div class="mvu-shell-roster-row">
+            <div class="mvu-shell-roster-name">${htmlEscape(shortenText(displayName, 12))}</div>
+            <div class="mvu-shell-roster-meta">${htmlEscape(shortenText(identity, 18))}</div>
+            <div class="mvu-shell-roster-state">${htmlEscape(shortenText(action, 16))}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function buildShellMapLocalCharactersCard(snapshot) {
+      const localEntries = getShellLocalCharacterEntries(snapshot, 4);
+      const currentLoc = toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc), snapshot.currentLoc);
+      return `
+        <div class="mvu-shell-roster-card">
+          <div class="mvu-shell-roster-head">
+            <div>
+              <span>本地角色</span>
+              <strong>${htmlEscape(shortenText(currentLoc, 22))}</strong>
+            </div>
+            <b>${htmlEscape(localEntries.length ? `${localEntries.length} 名` : '0')}</b>
+          </div>
+          <div class="mvu-shell-roster-list">
+            ${buildShellLocalRosterRows(localEntries, 4)}
+          </div>
+        </div>
+      `;
     }
 
     function buildShellMapRouteCard(snapshot) {
@@ -8627,11 +8770,696 @@
       }
       return buildShellSummaryCard({
         kicker: '任务',
-        title: '委托',
+        title: '任务',
         value: snapshot.questRecordCount ? `${snapshot.questRecordCount} 项` : '待命中',
         meta: `${questBoardEntries.length || 0} 条委托 / ${(snapshot.pendingRequests || []).length || 0} 待办`,
-        note: shortenText(pendingRequestText || (questBoardEntries.length ? `${questBoardEntries.length} 条可查看` : ''), 24),
+        note: shortenText(pendingRequestText, 24),
       });
+    }
+
+    function buildShellCurrentAreaView(snapshot) {
+      const currentMapDisplayName = getMapDisplayName(snapshot);
+      const currentLoc = toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc), snapshot.currentLoc);
+      const localFaction = toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知');
+      const nodeStores = safeEntries(deepGet(snapshot, 'locationData.stores', {}));
+      const localEntries = getShellLocalCharacterEntries(snapshot, 8);
+      const localCards = buildShellLocalRosterRows(localEntries, 8);
+      return {
+        title: '当前地区',
+        body: `
+          <div class="mvu-shell-lite-root" data-shell-light-view="area">
+            <section class="mvu-shell-lite-card">
+              <div class="mvu-shell-lite-section-title">本地角色</div>
+              <div class="mvu-shell-roster-list">${localCards}</div>
+            </section>
+            <section class="mvu-shell-lite-card mvu-shell-lite-card--hero">
+              <div class="mvu-shell-lite-head">
+                <span>${htmlEscape(shortenText(currentMapDisplayName, 18))}</span>
+                <strong>${htmlEscape(shortenText(currentLoc, 28))}</strong>
+              </div>
+              <div class="mvu-shell-lite-grid">
+                <div class="mvu-shell-lite-stat"><span>掌控</span><b>${htmlEscape(shortenText(localFaction, 14))}</b></div>
+                <div class="mvu-shell-lite-stat"><span>角色</span><b>${htmlEscape(String(localEntries.length))}</b></div>
+                <div class="mvu-shell-lite-stat"><span>商店</span><b>${htmlEscape(String(nodeStores.length))}</b></div>
+              </div>
+            </section>
+          </div>
+        `
+      };
+    }
+
+    function buildShellQuestOverviewView(snapshot) {
+      const questRecords = (snapshot.recordEntries || []).filter(([, item]) => item && typeof item === 'object' && (
+        Object.prototype.hasOwnProperty.call(item, '状态')
+        || Object.prototype.hasOwnProperty.call(item, '目标进度')
+        || Object.prototype.hasOwnProperty.call(item, '奖励币')
+        || Object.prototype.hasOwnProperty.call(item, '奖励声望')
+      ));
+      const questBoardEntries = safeEntries(deepGet(snapshot, 'rootData.world.quest_board', {})).filter(([, item]) => item && typeof item === 'object');
+      const renderQuest = ([name, item]) => {
+        const status = toText(item && item['状态'], '进行中');
+        const current = toNumber(item && item['当前进度'], 0);
+        const target = Math.max(1, toNumber(item && item['目标进度'], 1));
+        const desc = toText(item && item['描述'], '暂无说明');
+        return `
+          <div class="mvu-shell-lite-item">
+            <b>${htmlEscape(shortenText(name, 18))}</b>
+            <span>${htmlEscape(status)} · ${htmlEscape(`${current}/${target}`)}</span>
+            <div class="mvu-shell-lite-track"><i style="width:${ratioPercent(current, target)}%;"></i></div>
+            <em>${htmlEscape(shortenText(desc, 28))}</em>
+          </div>
+        `;
+      };
+      const renderBoard = ([id, item]) => {
+        const title = toText(item && item['标题'], id);
+        const status = toText(item && item['状态'], '待接取');
+        const publisher = toText(item && item['发布者'], '系统');
+        return `
+          <div class="mvu-shell-lite-item">
+            <b>${htmlEscape(shortenText(title, 18))}</b>
+            <span>${htmlEscape(status)} · ${htmlEscape(shortenText(publisher, 12))}</span>
+          </div>
+        `;
+      };
+      const questList = questRecords.length
+        ? questRecords.slice(0, 5).map(renderQuest).join('')
+        : '<div class="mvu-shell-lite-empty">暂无任务</div>';
+      const boardList = questBoardEntries.length
+        ? questBoardEntries.slice(0, 4).map(renderBoard).join('')
+        : '<div class="mvu-shell-lite-empty">暂无委托</div>';
+      return {
+        title: '任务',
+        body: `
+          <div class="mvu-shell-lite-root" data-shell-light-view="quest">
+            <section class="mvu-shell-lite-card mvu-shell-lite-card--hero">
+              <div class="mvu-shell-lite-head">
+                <span>任务</span>
+                <strong>${htmlEscape(questRecords[0] ? questRecords[0][0] : '暂无进行中任务')}</strong>
+              </div>
+              <div class="mvu-shell-lite-grid">
+                <div class="mvu-shell-lite-stat"><span>任务</span><b>${htmlEscape(String(questRecords.length))}</b></div>
+                <div class="mvu-shell-lite-stat"><span>委托</span><b>${htmlEscape(String(questBoardEntries.length))}</b></div>
+                <div class="mvu-shell-lite-stat"><span>待办</span><b>${htmlEscape(String((snapshot.pendingRequests || []).length || 0))}</b></div>
+              </div>
+            </section>
+            <section class="mvu-shell-lite-card">
+              <div class="mvu-shell-lite-section-title">我的任务</div>
+              <div class="mvu-shell-lite-list">${questList}</div>
+            </section>
+            <section class="mvu-shell-lite-card">
+              <div class="mvu-shell-lite-section-title">委托板</div>
+              <div class="mvu-shell-lite-list">${boardList}</div>
+            </section>
+          </div>
+        `
+      };
+    }
+
+    function buildShellLiteStats(items = [], options = {}) {
+      const className = toText(options.className, '').trim();
+      const list = (Array.isArray(items) ? items : [])
+        .map(item => ({
+          label: toText(item && item.label, '').trim(),
+          value: toText(item && item.value, '').trim(),
+        }))
+        .filter(item => item.label || item.value);
+      if (!list.length) return '';
+      return `
+        <div class="mvu-shell-lite-grid ${htmlEscape(className)}">
+          ${list.map(item => `
+            <div class="mvu-shell-lite-stat">
+              <span>${htmlEscape(item.label)}</span>
+              <b>${htmlEscape(item.value)}</b>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function buildShellLiteTags(items = []) {
+      const list = (Array.isArray(items) ? items : [])
+        .map(item => toText(item, '').trim())
+        .filter(Boolean)
+        .slice(0, 5);
+      if (!list.length) return '';
+      return `<div class="mvu-shell-lite-tags">${list.map(item => `<span>${htmlEscape(shortenText(item, 16))}</span>`).join('')}</div>`;
+    }
+
+    function buildShellLiteItemList(items = [], fallback = '暂无记录') {
+      const list = (Array.isArray(items) ? items : []).filter(item => item && (item.title || item.meta || item.note));
+      if (!list.length) return `<div class="mvu-shell-lite-empty">${htmlEscape(fallback)}</div>`;
+      return list.map(item => `
+        <div class="mvu-shell-lite-item">
+          <b>${htmlEscape(shortenText(item.title || '未命名', 22))}</b>
+          ${item.meta ? `<span>${htmlEscape(shortenText(item.meta, 30))}</span>` : ''}
+          ${item.note ? `<em>${htmlEscape(shortenText(item.note, 34))}</em>` : ''}
+        </div>
+      `).join('');
+    }
+
+    function buildShellLifeView(snapshot) {
+      const stat = deepGet(snapshot, 'activeChar.stat', {});
+      const status = deepGet(snapshot, 'activeChar.status', {});
+      const social = deepGet(snapshot, 'activeChar.social', {});
+      const placeText = buildShellLocationLabel(snapshot, { fullLimit: 24, trailLimit: 10 });
+      return {
+        title: '生命',
+        body: `
+          <div class="mvu-shell-lite-root" data-shell-light-view="life">
+            <section class="mvu-shell-lite-card mvu-shell-lite-card--hero">
+              <div class="mvu-shell-lite-head">
+                <span>${htmlEscape(placeText || '当前位置')}</span>
+                <strong>${htmlEscape(toText(snapshot && snapshot.activeName, '当前角色'))}</strong>
+              </div>
+              ${buildShellLiteStats([
+                { label: '等级', value: formatCultivationLevelBadge(stat.lv, '0') },
+                { label: '状态', value: shortenText(toText(status.action, '日常'), 10) },
+                { label: '年龄', value: toText(stat.age, '--') },
+              ])}
+            </section>
+            <section class="mvu-shell-lite-card">
+              <div class="mvu-shell-lite-section-title">摘要</div>
+              <div class="mvu-shell-lite-list">${buildShellLiteItemList([
+                { title: '身份', meta: summarizeShellIdentityText(social.main_identity, { limit: 22 }) || toText(social.main_identity, '未记录') },
+                { title: '阵营', meta: snapshot.primaryFaction ? `${snapshot.primaryFaction[0]} / ${toText(deepGet(snapshot.primaryFaction[1], '身份', '成员'), '成员')}` : '未加入' },
+                { title: '名望', meta: `${toText(social._fame_level, toText(social.fame_level, '籍籍无名'))} · ${formatNumber(social.reputation)}` },
+              ], '暂无摘要')}</div>
+            </section>
+          </div>
+        `,
+      };
+    }
+
+    function buildShellArmoryView(snapshot) {
+      const armor = deepGet(snapshot, 'activeChar.equip.armor', {});
+      const mech = deepGet(snapshot, 'activeChar.equip.mech', {});
+      const weapon = deepGet(snapshot, 'activeChar.equip.wpn', {});
+      const jobs = safeEntries(deepGet(snapshot, 'activeChar.job', {}));
+      const accessoryEntries = listAccessoryEntries(deepGet(snapshot, 'activeChar.equip.accessories', {}));
+      const soulBoneEntries = Array.isArray(snapshot && snapshot.soulBoneEntries) ? snapshot.soulBoneEntries : [];
+      const armorText = toNumber(armor.lv, 0) > 0
+        ? `${toText(armor.name, `${armor.lv}字斗铠`)} / ${toText(armor.equip_status, '未装备')}`
+        : '未装配';
+      const mechText = toText(mech.lv, '') && toText(mech.lv, '无') !== '无'
+        ? `${toText(mech.lv, '无')} · ${toText(mech.type, '未定型')}`
+        : '未挂载';
+      const weaponText = toText(weapon.name || weapon['名称'], '无');
+      const jobItems = jobs.slice(0, 4).map(([name, info]) => ({
+        title: name,
+        meta: `Lv.${toText(info && info.lv, 0)} · ${toText(info && info.title, '未定级')}`,
+        note: '',
+      }));
+      return {
+        title: '武装',
+        body: `
+          <div class="mvu-shell-lite-root" data-shell-light-view="armory">
+            <section class="mvu-shell-lite-card mvu-shell-lite-card--hero">
+              <div class="mvu-shell-lite-head">
+                <span>${htmlEscape(shortenText(weaponText, 18))}</span>
+                <strong>${htmlEscape(shortenText(armorText, 24))}</strong>
+              </div>
+              ${buildShellLiteStats([
+                { label: '机甲', value: shortenText(mechText, 10) },
+                { label: '魂骨', value: String(soulBoneEntries.length || 0) },
+                { label: '挂载', value: String(accessoryEntries.length || 0) },
+              ])}
+            </section>
+            <section class="mvu-shell-lite-card">
+              <div class="mvu-shell-lite-section-title">副职</div>
+              <div class="mvu-shell-lite-list">${buildShellLiteItemList(jobItems, '暂无副职')}</div>
+            </section>
+          </div>
+        `,
+      };
+    }
+
+    function buildShellSpiritView(snapshot, previewKey) {
+      const config = previewKey === '第二武魂详细页'
+        ? (snapshot && snapshot.secondaryTrack)
+        : (snapshot && snapshot.primarySpirit);
+      if (!config) {
+        return {
+          title: previewKey === '第二武魂详细页' ? '第二武魂' : '主武魂',
+          body: `<div class="mvu-shell-lite-root"><section class="mvu-shell-lite-card"><div class="mvu-shell-lite-empty">暂无武魂</div></section></div>`,
+        };
+      }
+      const souls = Array.isArray(config.souls) ? config.souls : [];
+      const rings = Array.isArray(config.rings) ? config.rings : [];
+      const skillItems = rings.flatMap(ring => (Array.isArray(ring.skills) ? ring.skills : []).map(skill => ({
+        title: toText(skill && skill.name, '魂技'),
+        meta: shortenText(toText(ring && ring.title, '魂环'), 24),
+        note: shortenText(toText(skill && skill.effectSummary, toText(skill && skill.effectDesc, '')), 30),
+      }))).slice(0, 5);
+      return {
+        title: previewKey === '第二武魂详细页' ? '第二武魂' : '主武魂',
+        body: `
+          <div class="mvu-shell-lite-root" data-shell-light-view="spirit">
+            <section class="mvu-shell-lite-card mvu-shell-lite-card--hero">
+              <div class="mvu-shell-lite-head">
+                <span>${htmlEscape(shortenText(toText(config.spiritType, config.badge), 16))}</span>
+                <strong>${htmlEscape(shortenText(toText(config.spiritName || config.name, '武魂'), 22))}</strong>
+              </div>
+              ${buildShellLiteStats([
+                { label: '魂灵', value: String(souls.length || 0) },
+                { label: '魂环', value: String(rings.length || 0) },
+                { label: '属性', value: shortenText(toText(config.spiritElement, '无'), 8) },
+              ])}
+            </section>
+            <section class="mvu-shell-lite-card">
+              <div class="mvu-shell-lite-section-title">魂技</div>
+              <div class="mvu-shell-lite-list">${buildShellLiteItemList(skillItems, '暂无魂技')}</div>
+            </section>
+          </div>
+        `,
+      };
+    }
+
+    function buildShellFusionView(snapshot) {
+      const fusionMeta = getFusionArchiveMeta(snapshot || {});
+      const entries = (fusionMeta.fusionEntries || []).slice(0, 5).map(([name, item]) => ({
+        title: toText(deepGet(item, 'skill_data.魂技名', deepGet(item, 'skill_data.name', name)), name),
+        meta: `${toText(deepGet(item, 'fusion_mode', 'partner'), 'partner') === 'self' ? '自体' : '双人'} · ${toText(deepGet(item, 'partner', '无'), '无')}`,
+        note: toText(deepGet(item, 'skill_data.效果描述', deepGet(item, 'skill_data.effectDesc', '')), ''),
+      }));
+      return {
+        title: '融合技',
+        body: `
+          <div class="mvu-shell-lite-root" data-shell-light-view="fusion">
+            <section class="mvu-shell-lite-card mvu-shell-lite-card--hero">
+              <div class="mvu-shell-lite-head">
+                <span>融合技</span>
+                <strong>${htmlEscape(`${fusionMeta.fusionEntries.length || 0} 项`)}</strong>
+              </div>
+              ${buildShellLiteStats([
+                { label: '双人', value: String(fusionMeta.partnerCount || 0) },
+                { label: '自体', value: String(fusionMeta.selfCount || 0) },
+              ])}
+            </section>
+            <section class="mvu-shell-lite-card">
+              <div class="mvu-shell-lite-section-title">条目</div>
+              <div class="mvu-shell-lite-list">${buildShellLiteItemList(entries, '暂无融合技')}</div>
+            </section>
+          </div>
+        `,
+      };
+    }
+
+    function buildShellBloodlineView(snapshot) {
+      const config = snapshot && snapshot.bloodline ? snapshot.bloodline : buildBloodlineConfig(deepGet(snapshot, 'activeChar', {}), toText(snapshot && snapshot.activeName, ''));
+      const rings = Array.isArray(config.rings) ? config.rings : [];
+      const skills = [
+        ...(Array.isArray(config.bloodSkills) ? config.bloodSkills : []),
+        ...(Array.isArray(config.bloodPassives) ? config.bloodPassives : []),
+      ].slice(0, 5).map(skill => ({
+        title: toText(skill && skill.name, '血脉能力'),
+        meta: toText(skill && skill.category, '能力'),
+        note: toText(skill && skill.effectSummary, toText(skill && skill.effectDesc, '')),
+      }));
+      return {
+        title: '血脉',
+        body: `
+          <div class="mvu-shell-lite-root" data-shell-light-view="bloodline">
+            <section class="mvu-shell-lite-card mvu-shell-lite-card--hero">
+              <div class="mvu-shell-lite-head">
+                <span>${htmlEscape(toText(config.core, '未凝聚'))}</span>
+                <strong>${htmlEscape(toText(config.bloodline || config.name, '未觉醒血脉'))}</strong>
+              </div>
+              ${buildShellLiteStats([
+                { label: '封印', value: String(config.sealLv || 0) },
+                { label: '血环', value: String(rings.length || 0) },
+              ])}
+            </section>
+            <section class="mvu-shell-lite-card">
+              <div class="mvu-shell-lite-section-title">能力</div>
+              <div class="mvu-shell-lite-list">${buildShellLiteItemList(skills, '暂无能力')}</div>
+            </section>
+          </div>
+        `,
+      };
+    }
+
+    function buildShellWorldStateView(snapshot) {
+      const tick = toText(deepGet(snapshot, 'rootData.world.time.tick', '0'), '0');
+      const latest = snapshot && snapshot.latestTimeline ? snapshot.latestTimeline : null;
+      const auction = deepGet(snapshot, 'rootData.world.auction', {});
+      return {
+        title: '世界',
+        body: `
+          <div class="mvu-shell-lite-root" data-shell-light-view="world">
+            <section class="mvu-shell-lite-card mvu-shell-lite-card--hero">
+              <div class="mvu-shell-lite-head">
+                <span>Tick ${htmlEscape(tick)}</span>
+                <strong>${htmlEscape(toText(deepGet(snapshot, 'rootData.world.name', '斗罗大陆'), '斗罗大陆'))}</strong>
+              </div>
+              ${buildShellLiteStats([
+                { label: '角色', value: String(safeEntries(deepGet(snapshot, 'rootData.char', {})).length || 0) },
+                { label: '势力', value: String((snapshot.orgEntries || []).length || 0) },
+                { label: '警报', value: shortenText(toText(snapshot.worldAlert, '无'), 8) },
+              ])}
+            </section>
+            <section class="mvu-shell-lite-card">
+              <div class="mvu-shell-lite-section-title">动态</div>
+              <div class="mvu-shell-lite-list">${buildShellLiteItemList([
+                latest ? { title: latest[0], meta: `Tick ${toText(deepGet(latest[1], 'trigger_tick', 0), 0)}`, note: toText(deepGet(latest[1], 'event', ''), '') } : null,
+                { title: '拍卖', meta: `${toText(auction.status, '休市')} · ${toText(auction.location, '无')}` },
+              ], '暂无动态')}</div>
+            </section>
+          </div>
+        `,
+      };
+    }
+
+    function buildShellAlertView(snapshot) {
+      const auction = deepGet(snapshot, 'rootData.world.auction', {});
+      return {
+        title: '警报',
+        body: `
+          <div class="mvu-shell-lite-root" data-shell-light-view="alert">
+            <section class="mvu-shell-lite-card mvu-shell-lite-card--hero">
+              <div class="mvu-shell-lite-head">
+                <span>${htmlEscape(toText(auction.location, '无'))}</span>
+                <strong>${htmlEscape(toText(auction.status, '休市'))}</strong>
+              </div>
+              ${buildShellLiteTags([snapshot.worldAlert])}
+            </section>
+            <section class="mvu-shell-lite-card">
+              <div class="mvu-shell-lite-section-title">记录</div>
+              <div class="mvu-shell-lite-list">${buildShellLiteItemList([
+                { title: '生态', meta: toText(snapshot.worldAlert, '无') },
+                { title: '拍卖', meta: `${toText(auction.status, '休市')} · ${toText(auction.location, '无')}` },
+              ], '暂无警报')}</div>
+            </section>
+          </div>
+        `,
+      };
+    }
+
+    function buildShellFactionView(snapshot) {
+      const primaryFaction = snapshot && snapshot.primaryFaction ? snapshot.primaryFaction : null;
+      const factionName = primaryFaction ? primaryFaction[0] : '未加入';
+      const factionData = primaryFaction ? primaryFaction[1] : {};
+      const orgEntry = getPrimaryFactionEntry(snapshot || {});
+      const relations = safeEntries(deepGet(orgEntry.data, 'rel', {})).slice(0, 5).map(([name, item]) => ({
+        title: name,
+        meta: toText(deepGet(item, '态度', deepGet(item, '关系', '未知')), '未知'),
+        note: '',
+      }));
+      return {
+        title: '阵营',
+        body: `
+          <div class="mvu-shell-lite-root" data-shell-light-view="faction">
+            <section class="mvu-shell-lite-card mvu-shell-lite-card--hero">
+              <div class="mvu-shell-lite-head">
+                <span>${htmlEscape(toText(deepGet(factionData, '身份', '无'), '无'))}</span>
+                <strong>${htmlEscape(factionName)}</strong>
+              </div>
+              ${buildShellLiteStats([
+                { label: '权限', value: toText(deepGet(factionData, '权限级', '--'), '--') },
+                { label: '关系', value: String(relations.length || 0) },
+              ])}
+            </section>
+            <section class="mvu-shell-lite-card">
+              <div class="mvu-shell-lite-section-title">关系</div>
+              <div class="mvu-shell-lite-list">${buildShellLiteItemList(relations, '暂无关系')}</div>
+            </section>
+          </div>
+        `,
+      };
+    }
+
+    function buildShellNodeView(snapshot) {
+      const currentLoc = toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc), snapshot.currentLoc);
+      const localFaction = toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知');
+      const stores = safeEntries(deepGet(snapshot, 'locationData.stores', {})).slice(0, 5).map(([name, item]) => ({
+        title: name,
+        meta: toText(deepGet(item, '类型', deepGet(item, 'type', '商店')), '商店'),
+        note: '',
+      }));
+      return {
+        title: '据点',
+        body: `
+          <div class="mvu-shell-lite-root" data-shell-light-view="node">
+            <section class="mvu-shell-lite-card mvu-shell-lite-card--hero">
+              <div class="mvu-shell-lite-head">
+                <span>${htmlEscape(shortenText(localFaction, 18))}</span>
+                <strong>${htmlEscape(shortenText(currentLoc, 28))}</strong>
+              </div>
+              ${buildShellLiteStats([
+                { label: '经济', value: shortenText(toText(deepGet(snapshot, 'locationData.经济状况', '未知'), '未知'), 8) },
+                { label: '守备', value: shortenText(toText(deepGet(snapshot, 'locationData.守护军团', '未知'), '未知'), 8) },
+                { label: '商店', value: String(stores.length || 0) },
+              ])}
+            </section>
+            <section class="mvu-shell-lite-card">
+              <div class="mvu-shell-lite-section-title">商店</div>
+              <div class="mvu-shell-lite-list">${buildShellLiteItemList(stores, '暂无商店')}</div>
+            </section>
+          </div>
+        `,
+      };
+    }
+
+    function buildShellTerminalView(snapshot) {
+      const requestText = resolveShellText((snapshot.pendingRequests || [])[0], resolveShellText(deepGet(snapshot, 'rootData.sys.rsn', ''), '待命中'));
+      return {
+        title: '终端',
+        body: `
+          <div class="mvu-shell-lite-root" data-shell-light-view="terminal">
+            <section class="mvu-shell-lite-card mvu-shell-lite-card--hero">
+              <div class="mvu-shell-lite-head">
+                <span>系统</span>
+                <strong>${htmlEscape(shortenText(requestText, 28))}</strong>
+              </div>
+              ${buildShellLiteStats([
+                { label: '任务', value: String(snapshot.questRecordCount || 0) },
+                { label: '情报', value: String(snapshot.pendingIntelCount || 0) },
+                { label: '图鉴', value: String((snapshot.bestiaryEntries || []).length || 0) },
+              ])}
+            </section>
+          </div>
+        `,
+      };
+    }
+
+    function buildShellIntelView(snapshot) {
+      const pending = snapshot.pendingIntelCount
+        ? [{ title: '待办', meta: `${snapshot.pendingIntelCount} 条`, note: snapshot.pendingIntelContent }]
+        : [];
+      const unlocked = (snapshot.unlockedKnowledges || []).slice(-5).reverse().map(item => ({
+        title: item,
+        meta: '已掌握',
+        note: '',
+      }));
+      return {
+        title: '情报',
+        body: `
+          <div class="mvu-shell-lite-root" data-shell-light-view="intel">
+            <section class="mvu-shell-lite-card mvu-shell-lite-card--hero">
+              <div class="mvu-shell-lite-head">
+                <span>情报</span>
+                <strong>${htmlEscape(`${(snapshot.unlockedKnowledges || []).length || 0} 条`)}</strong>
+              </div>
+              ${buildShellLiteStats([
+                { label: '待办', value: String(snapshot.pendingIntelCount || 0) },
+                { label: '试炼', value: String((snapshot.trialEntries || []).length || 0) },
+              ])}
+            </section>
+            <section class="mvu-shell-lite-card">
+              <div class="mvu-shell-lite-section-title">条目</div>
+              <div class="mvu-shell-lite-list">${buildShellLiteItemList([...pending, ...unlocked], '暂无情报')}</div>
+            </section>
+          </div>
+        `,
+      };
+    }
+
+    function buildShellNewsView(snapshot) {
+      const newsSummary = buildRecentNewsSummary(snapshot || {}, { seqLimit: 3, intelLimit: 3 });
+      const items = [
+        ...(newsSummary.globalNews || []).map(item => ({ title: '全局', meta: item.desc, note: '' })),
+        ...(newsSummary.personalNews || []).map(item => ({ title: '个人', meta: item.desc, note: '' })),
+      ].slice(0, 6);
+      return {
+        title: '见闻',
+        body: `
+          <div class="mvu-shell-lite-root" data-shell-light-view="news">
+            <section class="mvu-shell-lite-card">
+              <div class="mvu-shell-lite-section-title">近期</div>
+              <div class="mvu-shell-lite-list">${buildShellLiteItemList(items, '暂无见闻')}</div>
+            </section>
+          </div>
+        `,
+      };
+    }
+
+    function buildShellBestiaryView(snapshot) {
+      const entries = (snapshot.bestiaryEntries || []).slice(0, 6).map(([name, item]) => ({
+        title: name,
+        meta: toText(deepGet(item, '类型', deepGet(item, 'type', '未知')), '未知'),
+        note: toText(deepGet(item, '描述', deepGet(item, 'desc', '')), ''),
+      }));
+      return {
+        title: '图鉴',
+        body: `
+          <div class="mvu-shell-lite-root" data-shell-light-view="bestiary">
+            <section class="mvu-shell-lite-card mvu-shell-lite-card--hero">
+              <div class="mvu-shell-lite-head">
+                <span>图鉴</span>
+                <strong>${htmlEscape(`${(snapshot.bestiaryEntries || []).length || 0} 种`)}</strong>
+              </div>
+            </section>
+            <section class="mvu-shell-lite-card">
+              <div class="mvu-shell-lite-section-title">记录</div>
+              <div class="mvu-shell-lite-list">${buildShellLiteItemList(entries, '暂无记录')}</div>
+            </section>
+          </div>
+        `,
+      };
+    }
+
+    function buildShellVaultView(snapshot) {
+      const wealth = deepGet(snapshot, 'activeChar.wealth', {});
+      const currencies = [
+        { key: 'fed_coin', label: '联邦币', value: toNumber(wealth.fed_coin, 0) },
+        { key: 'star_coin', label: '星罗币', value: toNumber(wealth.star_coin, 0) },
+        { key: 'tang_pt', label: '唐门积分', value: toNumber(wealth.tang_pt, 0) },
+        { key: 'shrek_pt', label: '学院积分', value: toNumber(wealth.shrek_pt, 0) },
+        { key: 'blood_pt', label: '战功', value: toNumber(wealth.blood_pt, 0) },
+      ];
+      const primaryCurrency = currencies.find(item => item.value > 0) || currencies[0];
+      const secondaryCurrencies = currencies.filter(item => item !== primaryCurrency && item.value > 0);
+      const inventoryEntries = Array.isArray(snapshot && snapshot.inventoryEntries) ? snapshot.inventoryEntries : [];
+      const inventoryItems = inventoryEntries.slice(0, 6).map(([name, item]) => {
+        const qty = toNumber(item && item['数量'], 1);
+        const type = toText(item && item['类型'], '物品');
+        const desc = resolveShellText(item && item['描述'], type) || type;
+        return {
+          title: `${name}${qty > 1 ? ` ×${formatNumber(qty)}` : ''}`,
+          meta: type,
+          note: desc,
+        };
+      });
+      const otherCurrencyText = secondaryCurrencies.map(item => `${item.label} ${formatNumber(item.value)}`);
+      return {
+        title: '仓库',
+        body: `
+          <div class="mvu-shell-lite-root" data-shell-light-view="vault">
+            <section class="mvu-shell-lite-card mvu-shell-lite-card--hero mvu-shell-lite-card--wallet">
+              <div class="mvu-shell-lite-head">
+                <span>${htmlEscape(primaryCurrency.label)}</span>
+                <strong>${htmlEscape(formatNumber(primaryCurrency.value))}</strong>
+              </div>
+              ${buildShellLiteTags(otherCurrencyText)}
+            </section>
+            <section class="mvu-shell-lite-card">
+              <div class="mvu-shell-lite-section-title">物资</div>
+              <div class="mvu-shell-lite-list">${buildShellLiteItemList(inventoryItems, '暂无物品')}</div>
+            </section>
+          </div>
+        `,
+      };
+    }
+
+    function buildShellSocialView(snapshot) {
+      const social = deepGet(snapshot, 'activeChar.social', {});
+      const primaryFactionName = snapshot.primaryFaction ? snapshot.primaryFaction[0] : '';
+      const primaryFactionRole = snapshot.primaryFaction ? toText(deepGet(snapshot.primaryFaction[1], '身份', ''), '') : '';
+      const mainIdentity = summarizeShellIdentityText(social.main_identity, { limit: 18 }) || toText(social.main_identity, '无');
+      const fame = toText(social._fame_level, toText(social.fame_level, '籍籍无名'));
+      const titleText = Array.isArray(snapshot.recentTitles) && snapshot.recentTitles.length ? snapshot.recentTitles[0] : '';
+      const longPressAttrs = canOpenPrivateArchive(snapshot)
+        ? ` data-longpress="${escapeHtmlAttr(PRIVATE_ARCHIVE_PREVIEW_KEY)}" data-longpress-delay="600"`
+        : '';
+      return {
+        title: '社会',
+        body: `
+          <div class="mvu-shell-lite-root" data-shell-light-view="social">
+            <section class="mvu-shell-lite-card mvu-shell-lite-card--hero nsfw-trigger-title"${longPressAttrs}>
+              <div class="mvu-shell-lite-head">
+                <span>${htmlEscape(fame)}</span>
+                <strong>${htmlEscape(toText(snapshot.activeName, '当前角色'))}</strong>
+              </div>
+              ${buildShellLiteStats([
+                { label: '身份', value: shortenText(mainIdentity, 18) },
+                { label: '名望', value: formatNumber(social.reputation) },
+              ])}
+              ${buildShellLiteTags([titleText, primaryFactionName ? `${primaryFactionName} / ${primaryFactionRole || '成员'}` : '', snapshot.publicIntel ? '公开情报' : '未公开'])}
+            </section>
+            <section class="mvu-shell-lite-card">
+              <div class="mvu-shell-lite-section-title">关系</div>
+              <div class="mvu-shell-lite-list">${buildShellLiteItemList((snapshot.relations || []).slice(0, 5).map(([name, rel]) => ({
+                title: name,
+                meta: `${toText(deepGet(rel, '关系', '陌生'), '陌生')} · ${toNumber(deepGet(rel, '好感度', 0), 0)}`,
+                note: toText(deepGet(rel, '_progress_note', deepGet(rel, 'progress_note', '')), ''),
+              })), '暂无关系')}</div>
+            </section>
+          </div>
+        `,
+      };
+    }
+
+    function buildShellTimelineView(snapshot) {
+      const entries = Array.isArray(snapshot && snapshot.timelineEntries) ? snapshot.timelineEntries : [];
+      const latest = snapshot && snapshot.latestTimeline ? snapshot.latestTimeline : entries[0];
+      const latestName = latest ? latest[0] : '';
+      const latestData = latest ? latest[1] : {};
+      const eventText = toText(deepGet(latestData, 'event', latestName), latestName || '暂无编年');
+      const nodes = entries.slice(0, 6).map(([name, item]) => ({
+        title: name,
+        meta: `Tick ${toText(item && item.trigger_tick, 0)} · ${toText(item && item.status, 'pending')}`,
+        note: toText(item && item.event, ''),
+      }));
+      return {
+        title: '编年',
+        body: `
+          <div class="mvu-shell-lite-root" data-shell-light-view="timeline">
+            <section class="mvu-shell-lite-card mvu-shell-lite-card--hero">
+              <div class="mvu-shell-lite-head">
+                <span>${htmlEscape(latest ? `Tick ${toText(deepGet(latestData, 'trigger_tick', 0), 0)}` : 'Tick 0')}</span>
+                <strong>${htmlEscape(shortenText(latestName || '暂无编年', 24))}</strong>
+              </div>
+              <div class="mvu-shell-lite-copy">${htmlEscape(shortenText(eventText, 60))}</div>
+            </section>
+            <section class="mvu-shell-lite-card">
+              <div class="mvu-shell-lite-section-title">近期</div>
+              <div class="mvu-shell-lite-list">${buildShellLiteItemList(nodes, '暂无编年')}</div>
+            </section>
+          </div>
+        `,
+      };
+    }
+
+    function buildShellOrgMatrixView(snapshot) {
+      const entries = Array.isArray(snapshot && snapshot.orgEntries) ? snapshot.orgEntries : [];
+      const primaryFactionEntry = getPrimaryFactionEntry(snapshot || {});
+      const factionStats = getPrimaryFactionPowerStats(snapshot || {});
+      const rows = entries.slice(0, 5).map(([name, item]) => ({
+        title: name,
+        meta: `${toText(item && item.status, '正常')} · ${formatNumber(item && item.size || 0)}`,
+        note: '',
+      }));
+      return {
+        title: '势力',
+        body: `
+          <div class="mvu-shell-lite-root" data-shell-light-view="org">
+            <section class="mvu-shell-lite-card mvu-shell-lite-card--hero">
+              <div class="mvu-shell-lite-head">
+                <span>${htmlEscape(toText(primaryFactionEntry.name, '本地势力'))}</span>
+                <strong>${htmlEscape(`${entries.length || 0} 个势力`)}</strong>
+              </div>
+              ${buildShellLiteStats([
+                { label: '极限', value: String(factionStats.limit || 0) },
+                { label: '超级', value: String(factionStats.super || 0) },
+                { label: '封号', value: String(factionStats.title || 0) },
+              ])}
+            </section>
+            <section class="mvu-shell-lite-card">
+              <div class="mvu-shell-lite-section-title">梯阵</div>
+              <div class="mvu-shell-lite-list">${buildShellLiteItemList(rows, '暂无势力')}</div>
+            </section>
+          </div>
+        `,
+      };
     }
 
     function renderUnifiedSpiritCardsBySurface(snapshot, surface) {
@@ -8686,17 +9514,18 @@
       }
 
       if (sectionSignatures.map !== previousSectionSignatures.map) {
-        const mapStageHtml = buildMapHeroCard(snapshot);
-        setUnifiedMapStageMarkup('panel', mapStageHtml);
         if (isShellSurface) {
-          setUnifiedMapStageMarkup('shell', mapStageHtml);
+          setUnifiedMapStageMarkup('shell', '');
           setUnifiedCardMarkup('home-map', buildShellHomeMapCard(snapshot), { surface: normalizedSurface });
-          setUnifiedCardMarkup('map-hero', mapStageHtml, { surface: normalizedSurface });
+          setUnifiedCardMarkup('map-hero', '', { enabled: false, surface: normalizedSurface });
           setUnifiedCardMarkup('map-current', buildShellMapCurrentCard(snapshot), { preview: '当前节点详情', surface: normalizedSurface });
-          setUnifiedCardMarkup('map-route', buildShellMapRouteCard(snapshot), { preview: '图层控制与跑图', surface: normalizedSurface });
-          setUnifiedCardMarkup('map-dynamic', buildShellMapDynamicCard(snapshot), { preview: '动态地点与扩展节点', surface: normalizedSurface });
+          setUnifiedCardMarkup('map-locals', buildShellMapLocalCharactersCard(snapshot), { preview: '当前节点详情', surface: normalizedSurface });
+          setUnifiedCardMarkup('map-route', '', { enabled: false, surface: normalizedSurface });
+          setUnifiedCardMarkup('map-dynamic', '', { enabled: false, surface: normalizedSurface });
         } else {
-          setUnifiedCardMarkup('map-hero', buildMapHeroCard(snapshot), { preview: '全息星图主画布', surface: normalizedSurface });
+          const mapStageHtml = buildMapHeroCard(snapshot);
+          setUnifiedMapStageMarkup('panel', mapStageHtml);
+          setUnifiedCardMarkup('map-hero', mapStageHtml, { preview: '全息星图主画布', surface: normalizedSurface });
           setUnifiedCardMarkup('map-current', buildSimpleCard('当前位置', { text: '当前' }, [
             { label: '地点', value: snapshot.normalizedLoc !== snapshot.currentLoc ? `${snapshot.normalizedLoc} / ${snapshot.currentLoc}` : snapshot.currentLoc },
             { label: '地图', value: getMapDisplayName(snapshot) },
@@ -9299,6 +10128,7 @@
         'vault': ['仓库', '0'],
         'social': ['社交', '0'],
         'map-current': ['当前位置', '无数据'],
+        'map-locals': ['本地角色', '0'],
         'map-route': ['路线', '0'],
         'map-dynamic': ['动态', '0'],
         'world-hero': ['世界', '无数据'],
@@ -9715,7 +10545,7 @@
               await runDesignerTask(async () => {
                 clearCachedSkillDesignerDraft(previewKey);
                 await refreshLiveSnapshot({ force: true });
-                if (!destroyed && currentModalPreviewKey) renderModalContent(currentModalPreviewKey, getModalRefs());
+                if (!destroyed) rerenderDetailSurface(currentUnifiedPreviewKey || currentModalPreviewKey, { surface: currentUnifiedPreviewKey ? 'unified' : 'modal', force: true });
               }, '已经重新读取当前技能。');
             };
 
@@ -9728,7 +10558,7 @@
                 await replaceStatDataByEditor(buildSkillDesignerWriteUpdates(previewMeta, nextSkill, snapshot.rootData));
                 clearCachedSkillDesignerDraft(previewKey);
                 await refreshLiveSnapshot({ force: true });
-                if (!destroyed && currentModalPreviewKey) renderModalContent(currentModalPreviewKey, getModalRefs());
+                if (!destroyed) rerenderDetailSurface(currentUnifiedPreviewKey || currentModalPreviewKey, { surface: currentUnifiedPreviewKey ? 'unified' : 'modal', force: true });
               }, `已更新${previewMeta.label || '技能'}。`);
             };
 
@@ -10039,10 +10869,10 @@
         };
       }
 
-      if (previewKey === '私密档案详细页') {
-        const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
-        const nsfwPath = activeCharKey ? ['char', activeCharKey, 'nsfw'] : [];
-        const nsfw = deepGet(snapshot, activeCharKey ? `char.${activeCharKey}.nsfw` : 'activeChar.nsfw', {});
+      if (previewKey === PRIVATE_ARCHIVE_PREVIEW_KEY) {
+        if (!canOpenPrivateArchive(snapshot)) return null;
+        const nsfwPath = getActiveNsfwPath(snapshot);
+        const nsfw = getActiveNsfwData(snapshot);
         const bodyPartEntries = safeEntries(deepGet(nsfw, 'body_parts', {}));
 
         return {
@@ -10447,7 +11277,7 @@
                   </div>
                   ${makeDossierTags([
                     { text: toText(social._fame_level, toText(social.fame_level, '籍籍无名')), className: 'warn' },
-                    { text: (social._public_intel ?? social.public_intel) ? '公开情报' : '私密档案' },
+                    { text: (social._public_intel ?? social.public_intel) ? '公开情报' : '未公开' },
                     { text: `称号 ${snapshot.recentTitles.length}` },
                   ])}
                 </div>
@@ -10475,7 +11305,7 @@
               <div class="archive-card dossier-card dossier-card--social-side">
                 <div class="archive-card-head">
                   <div class="archive-card-title">名望摘要</div>
-                  <span class="dossier-pill ${snapshot.publicIntel ? 'live' : 'warn'}">${htmlEscape(snapshot.publicIntel ? '档案已公开' : '私密级')}</span>
+                  <span class="dossier-pill ${snapshot.publicIntel ? 'live' : 'warn'}">${htmlEscape(snapshot.publicIntel ? '档案已公开' : '未公开')}</span>
                 </div>
                 <section class="dossier-section">
                   <div class="dossier-section-title">个人声望量级</div>
@@ -10500,7 +11330,6 @@
                     { label: '当前摘要', value: htmlEscape(toText(social.main_identity, '无')) },
                   ], 'dossier-row-grid--single')}
                 </section>
-                <div class="dossier-note">这一页只保留公开身份与社会可见度信息，着装信息已归回角色档案。</div>
               </div>
             </div>
           `
@@ -10753,7 +11582,6 @@
                   { text: relationRoute },
                   { text: isSameLocation ? '同地可见' : '远端观察', className: isSameLocation ? 'live' : 'warn' },
                 ], 'dossier-tag-row--wrap')}
-                <div class="dossier-note">当前为旁观视角，暂不发起互动。可继续观察这段关系的推进记录。</div>
               `)
           : '<div class="dossier-empty-note">当前没有可操作的关系目标。</div>';
 
@@ -10773,7 +11601,7 @@
                   <div class="dossier-section-stack">
                     <section class="dossier-section">
                       <div class="dossier-section-title">关系态势</div>
-                      <div class="dossier-note dossier-note--dense">${htmlEscape(toText(relationSummaryText, '当前雷达未扫描到足够的社会链接数据，暂无总体分析倾向。'))}</div>
+                      <div class="dossier-note dossier-note--dense">${htmlEscape(toText(relationSummaryText, '关系数据不足'))}</div>
                       ${relationOverviewRowsHtml}
                     </section>
                     <section class="dossier-section">
@@ -10928,10 +11756,6 @@
                   { label: '任务记录', value: String(snapshot.questRecordCount) },
                   { label: '交战目标', value: String(snapshot.combatHistoryEntries.length) }
                 ], 'two')}
-                <div class="intel-combat-summary" style="margin-top: 10px;">
-                  <div class="simple-sub" style="margin: 0 0 6px;">概览说明</div>
-                  <div class="intel-combat-summary-hint">这里汇总当前角色已解锁的情报、待处理线索和交战档案数量，方便快速判断信息密度。</div>
-                </div>
               </div>
 
               <div class="archive-card intel-combat-card">
@@ -10944,7 +11768,6 @@
                 ], 'two')}
                 <div class="intel-combat-summary">
                   <div class="simple-sub" style="margin: 0 0 6px;">按目标聚合</div>
-                  <div class="intel-combat-summary-hint">这里展示每个交战目标的累计交手次数，以及最近一次写入的记录结果。</div>
                   <div class="intel-combat-list">
                     ${combatHistoryCards.map(c => `
                       <div class="intel-combat-row">
@@ -12428,7 +13251,7 @@
                   : '<div class="dossier-empty-note">抵达后暂未识别到立即可执行的交易、工坊或社交入口。</div>'}
               </section>
             `)
-          : `<div class="relation-card"><b>旁观视角</b><span>${htmlEscape(actionSummaryText ? `当前为旁观视角，可见入口：${actionSummaryText}。这里能先查看驻地情形；若想交易、开工坊或社交，需要切回自己的行动视角。` : '当前为旁观视角，这里可以先查看驻地情形；若想交易、开工坊或社交，需要切回自己的行动视角。')}</span></div>`;
+          : `<div class="relation-card"><b>旁观视角</b><span>${htmlEscape(actionSummaryText ? `可见入口：${actionSummaryText}` : '无本地操作')}</span></div>`;
         const travelTags = (snapshot.mapTravelCandidates.length ? snapshot.mapTravelCandidates : snapshot.dynamicLocationNames).filter(name => name !== nodeName).slice(0, 6);
         return {
           title: `本地据点 / ${nodeName}`,
@@ -12690,7 +13513,7 @@
           body: '',
           onMount: (container) => {
             if (!isSnapshotPlayerControlled(snapshot)) {
-              container.innerHTML = '<div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">旁观视角</div></div><div class="intel-layout"><div class="intel-card"><b>先看看这里的店铺动静</b><span>你现在不是自己的行动视角，可以先看看这里卖些什么；若想交易，切回自己的行动视角后再来。</span></div></div></div>';
+              container.innerHTML = '<div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">旁观视角</div></div><div class="intel-layout"><div class="intel-card"><b>店铺概览</b><span>交易不可用</span></div></div></div>';
               return null;
             }
             if (typeof window.mountTradeUI === 'function') {
@@ -13298,6 +14121,7 @@
           renderLiveCards(liveSnapshot, nextDashboardSectionRenderSignatures);
           lastDashboardRenderSignature = nextDashboardRenderSignature;
         }
+        syncPrivateArchiveLongPressTargets(liveSnapshot);
         
         const isCombatActive = !!deepGet(liveSnapshot, 'rootData.world.combat.is_active');
         if (isCombatActive && isSnapshotPlayerControlled(liveSnapshot)) {
@@ -13315,19 +14139,20 @@
           activeBattleUI = null;
         }
 
-        if ((shouldRenderDashboard || !!options.force) && (detailModal.classList.contains('show') || isShellInlinePreviewActive()) && currentModalPreviewKey) {
-          if (currentModalPreviewKey === '角色切换器') {
+        const activeDetailPreviewKey = currentUnifiedPreviewKey || currentModalPreviewKey;
+        if ((shouldRenderDashboard || !!options.force) && (detailModal.classList.contains('show') || isShellInlinePreviewActive() || isUnifiedInlinePreviewActive()) && activeDetailPreviewKey) {
+          if (activeDetailPreviewKey === '角色切换器') {
             return;
           }
           const liveSubUiKeys = new Set(['武装工坊详细页', '储物仓库详细页', '当前节点详情', '交易模块弹窗']);
           if (
-            liveSubUiKeys.has(currentModalPreviewKey)
+            liveSubUiKeys.has(activeDetailPreviewKey)
             && activeSubUI
             && typeof activeSubUI.updateData === 'function'
           ) {
             activeSubUI.updateData(liveSnapshot);
           } else {
-            renderModalContent(currentModalPreviewKey, getModalRefs(), { force: !!options.force });
+            rerenderDetailSurface(activeDetailPreviewKey, { surface: currentUnifiedPreviewKey ? 'unified' : 'modal', force: !!options.force });
           }
         }
       } catch (error) {
@@ -13902,7 +14727,7 @@ ${mvuUpdate}`;
               <div class="dossier-section-title">当前状态</div>
               ${makeDossierRows([
                 { label: '挂起事务', value: htmlEscape(pendingSummary) },
-                { label: '视角说明', value: htmlEscape('当前为旁观视角，这里可以先查看阵营近况与贡献积累；若想发起捐献，请切回自己的行动视角。') },
+                { label: '当前视角', value: '旁观' },
               ], 'dossier-row-grid--single')}
             </section>
             <section class="dossier-section">
@@ -14271,7 +15096,7 @@ ${mvuUpdate}`;
       const services = normalizeMapDispatchServices(detail);
       if (!action && !services.length) return;
       if (!isSnapshotPlayerControlled(liveSnapshot)) {
-        console.warn('[DragonUI] 当前是旁观视角，可先查看情况；如需发起交易、锻造或战斗，请切回自己的行动视角。', detail);
+        console.warn('[DragonUI] 旁观视角不可操作。', detail);
         return;
       }
 
@@ -14459,6 +15284,7 @@ ${mvuUpdate}`;
       }
 
       const targetKey = previewKey || '';
+      if (targetKey === PRIVATE_ARCHIVE_PREVIEW_KEY && !canOpenPrivateArchive(liveSnapshot)) return;
       if (targetKey) {
         if (!modalStack.length || modalStack[modalStack.length - 1] !== targetKey) {
           modalStack.push(targetKey);
@@ -14550,9 +15376,9 @@ ${mvuUpdate}`;
       modalTitle.classList.remove('nsfw-trigger-title');
       modalTitle.removeAttribute('data-longpress');
       modalTitle.removeAttribute('data-longpress-delay');
-      if (unifiedMode && previewKey === '生命图谱详细页') {
+      if (unifiedMode && previewKey === '生命图谱详细页' && canOpenPrivateArchive(liveSnapshot)) {
         modalTitle.classList.add('nsfw-trigger-title');
-        modalTitle.setAttribute('data-longpress', '私密档案详细页');
+        modalTitle.setAttribute('data-longpress', PRIVATE_ARCHIVE_PREVIEW_KEY);
         modalTitle.setAttribute('data-longpress-delay', '600');
       }
     }
@@ -14563,9 +15389,9 @@ ${mvuUpdate}`;
       modalTitle.classList.remove('nsfw-trigger-title');
       modalTitle.removeAttribute('data-longpress');
       modalTitle.removeAttribute('data-longpress-delay');
-      if (unifiedMode && previewKey === '生命图谱详细页') {
+      if (unifiedMode && previewKey === '生命图谱详细页' && canOpenPrivateArchive(liveSnapshot)) {
         modalTitle.classList.add('nsfw-trigger-title');
-        modalTitle.setAttribute('data-longpress', '私密档案详细页');
+        modalTitle.setAttribute('data-longpress', PRIVATE_ARCHIVE_PREVIEW_KEY);
         modalTitle.setAttribute('data-longpress-delay', '600');
       }
     }
@@ -14614,6 +15440,126 @@ ${mvuUpdate}`;
       delete host.dataset.shellPreview;
     }
 
+    function buildShellPrivateArchiveView(snapshot) {
+      const nsfw = getActiveNsfwData(snapshot);
+      const activeName = toText(snapshot && snapshot.activeName, '当前角色');
+      const bodyPartEntries = safeEntries(deepGet(nsfw, 'body_parts', {}));
+      const measurements = deepGet(nsfw, 'measurements', {});
+      const intimateWear = deepGet(nsfw, 'intimate_wear', {});
+      const experienceEntries = safeEntries(deepGet(nsfw, 'experience_counts', {}))
+        .filter(([, value]) => toNumber(value, 0) > 0)
+        .slice(0, 8);
+      const fetishes = Array.isArray(nsfw.fetishes) ? nsfw.fetishes.map(item => toText(item, '')).filter(Boolean).slice(0, 8) : [];
+      const fantasies = Array.isArray(nsfw.fantasies) ? nsfw.fantasies.map(item => toText(item, '')).filter(Boolean).slice(0, 8) : [];
+      const clampMeter = value => Math.max(0, Math.min(100, toNumber(value, 0)));
+      const renderMeter = (label, value, tone = '') => {
+        const percent = clampMeter(value);
+        return `
+          <div class="mvu-shell-private-meter${tone ? ` is-${htmlEscape(tone)}` : ''}">
+            <div class="mvu-shell-private-meter-top">
+              <span>${htmlEscape(label)}</span>
+              <b>${htmlEscape(String(percent))}</b>
+            </div>
+            <div class="mvu-shell-private-track"><i style="width:${percent}%;"></i></div>
+          </div>
+        `;
+      };
+      const renderRow = (label, value) => `
+        <div class="mvu-shell-private-row">
+          <span>${htmlEscape(label)}</span>
+          <b>${htmlEscape(toText(value, '--'))}</b>
+        </div>
+      `;
+      const renderTags = items => items.length
+        ? items.map(item => `<span class="mvu-shell-private-tag">${htmlEscape(shortenText(item, 14))}</span>`).join('')
+        : '<span class="mvu-shell-private-empty">暂无记录</span>';
+      const bodyPartCards = bodyPartEntries.length
+        ? bodyPartEntries.slice(0, 6).map(([partName, partData]) => `
+          <div class="mvu-shell-private-part">
+            <div class="mvu-shell-private-part-head">
+              <b>${htmlEscape(partName)}</b>
+              <span>开发 ${htmlEscape(String(toNumber(deepGet(partData, '开发度', 0), 0)))}</span>
+            </div>
+            <div class="mvu-shell-private-part-text">${htmlEscape(shortenText(toText(deepGet(partData, '状态描述', deepGet(partData, '外观特征', '正常')), '正常'), 34))}</div>
+          </div>
+        `).join('')
+        : '<div class="mvu-shell-private-empty">暂无记录</div>';
+      const experienceTags = experienceEntries.length
+        ? experienceEntries.map(([label, value]) => `<span class="mvu-shell-private-tag">${htmlEscape(label)} ${htmlEscape(String(toNumber(value, 0)))}</span>`).join('')
+        : '<span class="mvu-shell-private-empty">暂无记录</span>';
+
+      return {
+        title: '私密档案',
+        body: `
+          <div class="mvu-shell-private-root" data-private-archive-light="1">
+            <section class="mvu-shell-private-card mvu-shell-private-card--hero">
+              <div class="mvu-shell-private-hero">
+                <span>${htmlEscape(activeName)}</span>
+                <strong>${htmlEscape(toText(deepGet(measurements, '身材描述', ''), toText(deepGet(measurements, '罩杯', '私密概览'), '私密概览')))}</strong>
+              </div>
+              <div class="mvu-shell-private-meters">
+                ${renderMeter('发情', nsfw.arousal, 'live')}
+                ${renderMeter('开发', nsfw.development_level, 'warm')}
+                ${renderMeter('敏感', nsfw.sensitivity, '')}
+              </div>
+            </section>
+
+            <section class="mvu-shell-private-card">
+              <div class="mvu-shell-private-section-title">身体</div>
+              <div class="mvu-shell-private-row-grid">
+                ${renderRow('罩杯', deepGet(measurements, '罩杯', '未知'))}
+                ${renderRow('三围', `${toText(deepGet(measurements, '胸围'), '0')} / ${toText(deepGet(measurements, '腰围'), '0')} / ${toText(deepGet(measurements, '臀围'), '0')}`)}
+                ${renderRow('内衣', deepGet(intimateWear, '内衣', '未知'))}
+                ${renderRow('内裤', deepGet(intimateWear, '内裤', '未知'))}
+              </div>
+            </section>
+
+            <section class="mvu-shell-private-card">
+              <div class="mvu-shell-private-section-title">节律</div>
+              <div class="mvu-shell-private-row-grid">
+                ${renderRow('阶段', nsfw._menstrual_stage || '安全期')}
+                ${renderRow('初潮', nsfw._has_menarche ? '已初潮' : '未初潮')}
+                ${renderRow('受孕节点', String(toNumber(nsfw.conception_tick, -1)))}
+                ${renderRow('怀孕天数', String(toNumber(nsfw._pregnancy_days, 0)))}
+              </div>
+            </section>
+
+            <section class="mvu-shell-private-card">
+              <div class="mvu-shell-private-section-title">身体部位</div>
+              <div class="mvu-shell-private-part-grid">
+                ${bodyPartCards}
+              </div>
+            </section>
+
+            <section class="mvu-shell-private-card">
+              <div class="mvu-shell-private-section-title">偏好</div>
+              <div class="mvu-shell-private-tag-row">${renderTags(fetishes)}</div>
+              <div class="mvu-shell-private-tag-row">${renderTags(fantasies)}</div>
+            </section>
+
+            <section class="mvu-shell-private-card">
+              <div class="mvu-shell-private-section-title">履历</div>
+              <div class="mvu-shell-private-tag-row">${experienceTags}</div>
+            </section>
+          </div>
+        `
+      };
+    }
+
+    function stripShellHeavyEntryNodes(host) {
+      if (!host || typeof host.querySelectorAll !== 'function') return;
+      host.querySelectorAll('[data-preview]').forEach(node => {
+        const previewKey = toText(node.getAttribute('data-preview'), '');
+        if (!previewKey.startsWith(SKILL_DESIGNER_PREVIEW_PREFIX)) return;
+        const removable = node.closest('button, a, .role-switch-tile, .archive-tile, .dossier-list-row, .tag-chip, .relation-action-btn') || node;
+        removable.remove();
+      });
+      host.querySelectorAll('.skill-designer-layout, [data-skill-designer-form]').forEach(node => {
+        const removable = node.closest('.archive-card, .dossier-card') || node;
+        removable.remove();
+      });
+    }
+
     function hideDetailModalElement(refs = getModalRefs()) {
       const currentDetailModal = refs && refs.detailModal ? refs.detailModal : null;
       const currentModalPanel = refs && refs.modalPanel ? refs.modalPanel : null;
@@ -14651,6 +15597,156 @@ ${mvuUpdate}`;
       }
     }
 
+    function getUnifiedInlineHost(options = {}) {
+      const explicitHost = options && options.host instanceof Element ? options.host : null;
+      if (explicitHost && explicitHost.isConnected) return explicitHost;
+      try {
+        if (typeof window.__MVU_GET_UNIFIED_DETAIL_HOST__ === 'function') {
+          const bridgeHost = window.__MVU_GET_UNIFIED_DETAIL_HOST__();
+          if (bridgeHost instanceof Element && bridgeHost.isConnected) return bridgeHost;
+        }
+      } catch (err) {}
+      const host = document.querySelector('#mvu-unified-mount [data-unified-detail-host]');
+      return host instanceof Element && host.isConnected ? host : null;
+    }
+
+    function isUnifiedInlinePreviewActive() {
+      const host = getUnifiedInlineHost();
+      return !!(host && toText(host.dataset.unifiedPreview, '') && document.body && document.body.classList.contains('mvu-layout-unified'));
+    }
+
+    function syncUnifiedTitleLongPress(previewKey) {
+      const title = document.querySelector('#mvu-unified-mount .mvu-unified-detail-title');
+      if (!title) return;
+      title.classList.remove('nsfw-trigger-title');
+      title.removeAttribute('data-longpress');
+      title.removeAttribute('data-longpress-delay');
+      if (String(previewKey || '').includes('生命图谱') && canOpenPrivateArchive(liveSnapshot)) {
+        title.classList.add('nsfw-trigger-title');
+        title.setAttribute('data-longpress', PRIVATE_ARCHIVE_PREVIEW_KEY);
+        title.setAttribute('data-longpress-delay', '600');
+      }
+    }
+
+    function clearUnifiedInlinePreview() {
+      const host = getUnifiedInlineHost();
+      if (currentUnifiedPreviewKey && activeSubUI && typeof activeSubUI.destroy === 'function') {
+        activeSubUI.destroy();
+        activeSubUI = null;
+      }
+      currentUnifiedPreviewKey = '';
+      lastRenderedUnifiedPreviewKey = '';
+      syncUnifiedTitleLongPress('');
+      if (!host) return;
+      host.innerHTML = '';
+      delete host.dataset.unifiedPreview;
+    }
+
+    function wrapUnifiedInlineBody(html, options = {}) {
+      return `<div class="mvu-unified-detail-root archive-redesign-root" data-unified-preview="${escapeHtmlAttr(toText(options.previewKey, ''))}">
+        <div class="mvu-unified-detail-scroll">
+          ${html || ''}
+        </div>
+      </div>`;
+    }
+
+    function isLiveRequiredPreviewKey(previewKey) {
+      const key = toText(previewKey, '');
+      const liveRequiredKeys = new Set([
+        '生命图谱详细页',
+        '私密档案详细页',
+        '社会档案详细页',
+        '所属势力详细页',
+        '人物关系详细页',
+        '情报库详细页',
+        '武装工坊详细页',
+        '武魂融合技详细页',
+        '储物仓库详细页',
+        '第一武魂详细页',
+        '第二武魂详细页',
+        '血脉封印详细页',
+        '编年史档案',
+        '本地据点详情',
+        '当前节点详情',
+        '操作总线',
+        '试炼与情报',
+        '近期见闻',
+        '世界状态总览',
+        '势力矩阵总览',
+        '我的阵营详情',
+        '系统播报与日志',
+        '怪物图鉴',
+        '森林仇恨值'
+      ]);
+      return liveRequiredKeys.has(key) || String(key || '').startsWith('地图节点：');
+    }
+
+    function bindUnifiedDetailDelegation(host) {
+      if (!host || host.__mvuUnifiedDetailDelegationBound) return;
+      host.addEventListener('click', event => {
+        handleDetailSurfaceClick(event, host, { surface: 'unified' });
+      });
+      host.__mvuUnifiedDetailDelegationBound = true;
+    }
+
+    function renderUnifiedInlinePreview(previewKey, options = {}) {
+      const host = getUnifiedInlineHost(options);
+      const targetKey = toText(previewKey, '').trim();
+      if (!host || !targetKey) return false;
+      if (targetKey === PRIVATE_ARCHIVE_PREVIEW_KEY && !canOpenPrivateArchive(liveSnapshot)) return false;
+      if (shouldBlockInlineEditRerender(options)) {
+        pendingLiveRefresh = true;
+        return true;
+      }
+      if (activeSubUI && typeof activeSubUI.destroy === 'function') {
+        activeSubUI.destroy();
+        activeSubUI = null;
+      }
+
+      clearShellInlinePreview();
+      hideDetailModalElement(getModalRefs());
+      syncModalTitleLongPress('', false);
+
+      const shouldResetScroll = lastRenderedUnifiedPreviewKey !== targetKey || toText(host.dataset.unifiedPreview, '') !== targetKey;
+      currentUnifiedPreviewKey = targetKey;
+      lastRenderedUnifiedPreviewKey = targetKey;
+      host.dataset.unifiedPreview = targetKey;
+      bindUnifiedDetailDelegation(host);
+
+      const setHostMarkup = (html, onMount = null) => {
+        host.innerHTML = wrapUnifiedInlineBody(html, { previewKey: targetKey });
+        if (shouldResetScroll) host.scrollTop = 0;
+        syncUnifiedTitleLongPress(targetKey);
+        if (typeof onMount === 'function') {
+          activeSubUI = onMount(host);
+        }
+      };
+
+      const liveArchive = buildLiveArchiveModal(targetKey);
+      const skeletonArchive = !liveArchive && !liveSnapshot ? buildArchiveSkeletonModal(targetKey) : null;
+      if (liveArchive) {
+        setHostMarkup(liveArchive.body, liveArchive.onMount);
+        return true;
+      }
+      if (!liveSnapshot && isLiveRequiredPreviewKey(targetKey)) {
+        setHostMarkup(skeletonArchive ? skeletonArchive.body : '');
+        return true;
+      }
+
+      const archiveBuilder = archiveModalBuilders[targetKey];
+      if (archiveBuilder) {
+        const view = archiveBuilder();
+        setHostMarkup(view.body);
+        return true;
+      }
+
+      const config = previewMap[targetKey] || buildDynamicPreview(targetKey || '详细信息');
+      setHostMarkup(renderGenericModalBody(config));
+      return true;
+    }
+    window.__MVU_RENDER_UNIFIED_PREVIEW__ = renderUnifiedInlinePreview;
+    window.__MVU_CLEAR_UNIFIED_PREVIEW__ = clearUnifiedInlinePreview;
+
     function renderShellInlinePreview(previewKey, options = {}) {
       const host = getShellInlineHost();
       if (!host) return false;
@@ -14669,8 +15765,157 @@ ${mvuUpdate}`;
 
       const setHostMarkup = html => {
         host.innerHTML = wrapArchiveRedesignBody(html, { shellMode: true, previewKey });
+        stripShellHeavyEntryNodes(host);
         if (shouldResetScroll) scrollTarget.scrollTop = 0;
       };
+
+      if (previewKey === PRIVATE_ARCHIVE_PREVIEW_KEY) {
+        const snapshot = liveSnapshot || lastRenderableSnapshot;
+        if (!canOpenPrivateArchive(snapshot)) return false;
+        const shellPrivateArchive = buildShellPrivateArchiveView(snapshot);
+        setHostMarkup(shellPrivateArchive.body);
+        return true;
+      }
+
+      if (previewKey === '生命图谱详细页' || previewKey === '生命图谱详情页') {
+        const snapshot = liveSnapshot || lastRenderableSnapshot;
+        const shellLifeView = buildShellLifeView(snapshot || {});
+        setHostMarkup(shellLifeView.body);
+        return true;
+      }
+
+      if (
+        previewKey === '武装工坊详细页'
+        || previewKey === '武装详情：斗铠'
+        || previewKey === '武装详情：机甲'
+        || previewKey === '武装详情：主武器'
+        || previewKey === '武装详情：附件'
+        || String(previewKey || '').startsWith('斗铠部件：')
+      ) {
+        const snapshot = liveSnapshot || lastRenderableSnapshot;
+        const shellArmoryView = buildShellArmoryView(snapshot || {});
+        setHostMarkup(shellArmoryView.body);
+        return true;
+      }
+
+      if (previewKey === '第一武魂详细页' || previewKey === '第二武魂详细页') {
+        const snapshot = liveSnapshot || lastRenderableSnapshot;
+        const shellSpiritView = buildShellSpiritView(snapshot || {}, previewKey);
+        setHostMarkup(shellSpiritView.body);
+        return true;
+      }
+
+      if (previewKey === '武魂融合技详细页') {
+        const snapshot = liveSnapshot || lastRenderableSnapshot;
+        const shellFusionView = buildShellFusionView(snapshot || {});
+        setHostMarkup(shellFusionView.body);
+        return true;
+      }
+
+      if (previewKey === '血脉封印详细页') {
+        const snapshot = liveSnapshot || lastRenderableSnapshot;
+        const shellBloodlineView = buildShellBloodlineView(snapshot || {});
+        setHostMarkup(shellBloodlineView.body);
+        return true;
+      }
+
+      if (previewKey === '储物仓库详细页') {
+        const snapshot = liveSnapshot || lastRenderableSnapshot;
+        const shellVaultView = buildShellVaultView(snapshot || {});
+        setHostMarkup(shellVaultView.body);
+        return true;
+      }
+
+      if (previewKey === '社会档案详细页') {
+        const snapshot = liveSnapshot || lastRenderableSnapshot;
+        const shellSocialView = buildShellSocialView(snapshot || {});
+        setHostMarkup(shellSocialView.body);
+        return true;
+      }
+
+      if (previewKey === '当前节点详情') {
+        const snapshot = liveSnapshot || lastRenderableSnapshot;
+        const shellAreaView = buildShellCurrentAreaView(snapshot || {});
+        setHostMarkup(shellAreaView.body);
+        return true;
+      }
+
+      if (previewKey === '编年史档案') {
+        const snapshot = liveSnapshot || lastRenderableSnapshot;
+        const shellTimelineView = buildShellTimelineView(snapshot || {});
+        setHostMarkup(shellTimelineView.body);
+        return true;
+      }
+
+      if (previewKey === '势力矩阵总览') {
+        const snapshot = liveSnapshot || lastRenderableSnapshot;
+        const shellOrgView = buildShellOrgMatrixView(snapshot || {});
+        setHostMarkup(shellOrgView.body);
+        return true;
+      }
+
+      if (previewKey === '世界状态总览') {
+        const snapshot = liveSnapshot || lastRenderableSnapshot;
+        const shellWorldView = buildShellWorldStateView(snapshot || {});
+        setHostMarkup(shellWorldView.body);
+        return true;
+      }
+
+      if (previewKey === '拍卖与警报') {
+        const snapshot = liveSnapshot || lastRenderableSnapshot;
+        const shellAlertView = buildShellAlertView(snapshot || {});
+        setHostMarkup(shellAlertView.body);
+        return true;
+      }
+
+      if (previewKey === '我的阵营详情') {
+        const snapshot = liveSnapshot || lastRenderableSnapshot;
+        const shellFactionView = buildShellFactionView(snapshot || {});
+        setHostMarkup(shellFactionView.body);
+        return true;
+      }
+
+      if (previewKey === '本地据点详情') {
+        const snapshot = liveSnapshot || lastRenderableSnapshot;
+        const shellNodeView = buildShellNodeView(snapshot || {});
+        setHostMarkup(shellNodeView.body);
+        return true;
+      }
+
+      if (previewKey === '系统播报与日志') {
+        const snapshot = liveSnapshot || lastRenderableSnapshot;
+        const shellTerminalView = buildShellTerminalView(snapshot || {});
+        setHostMarkup(shellTerminalView.body);
+        return true;
+      }
+
+      if (previewKey === '试炼与情报') {
+        const snapshot = liveSnapshot || lastRenderableSnapshot;
+        const shellIntelView = buildShellIntelView(snapshot || {});
+        setHostMarkup(shellIntelView.body);
+        return true;
+      }
+
+      if (previewKey === '近期见闻') {
+        const snapshot = liveSnapshot || lastRenderableSnapshot;
+        const shellNewsView = buildShellNewsView(snapshot || {});
+        setHostMarkup(shellNewsView.body);
+        return true;
+      }
+
+      if (previewKey === '怪物图鉴') {
+        const snapshot = liveSnapshot || lastRenderableSnapshot;
+        const shellBestiaryView = buildShellBestiaryView(snapshot || {});
+        setHostMarkup(shellBestiaryView.body);
+        return true;
+      }
+
+      if (previewKey === '任务界面') {
+        const snapshot = liveSnapshot || lastRenderableSnapshot;
+        const shellQuestView = buildShellQuestOverviewView(snapshot || {});
+        setHostMarkup(shellQuestView.body);
+        return true;
+      }
 
       const liveArchive = buildLiveArchiveModal(previewKey);
       const skeletonArchive = !liveArchive && !liveSnapshot ? buildArchiveSkeletonModal(previewKey) : null;
@@ -14694,10 +15939,7 @@ ${mvuUpdate}`;
       }
 
       if (String(previewKey || '').startsWith(SKILL_DESIGNER_PREVIEW_PREFIX)) {
-        closeModal();
-        if (typeof showUiToast === 'function') {
-          showUiToast('鎶€鑳借璁″彴鏆傛湭灏辩华锛岃閲嶈瘯銆?', 'error', 4200);
-        }
+        setHostMarkup('');
         return true;
       }
 
@@ -14754,9 +15996,9 @@ ${mvuUpdate}`;
         if (modalLevel) modalLevel.textContent = '';
         if (modalPath) modalPath.textContent = '';
         modalTitle.textContent = liveArchive.title;
-        if (unifiedMode && typeof previewKey === 'string' && previewKey.includes('生命图谱')) {
+        if (unifiedMode && typeof previewKey === 'string' && previewKey.includes('生命图谱') && canOpenPrivateArchive(liveSnapshot)) {
           modalTitle.classList.add('nsfw-trigger-title');
-          modalTitle.setAttribute('data-longpress', '私密档案详细页');
+          modalTitle.setAttribute('data-longpress', PRIVATE_ARCHIVE_PREVIEW_KEY);
           modalTitle.setAttribute('data-longpress-delay', '600');
         }
         if (modalSubtitle) modalSubtitle.textContent = '';
@@ -14909,6 +16151,7 @@ ${mvuUpdate}`;
       mountEl.addEventListener('click', (event) => {
         const eventTarget = event.target instanceof Element ? event.target : (event.target && event.target.parentElement ? event.target.parentElement : null);
         if (isInlineEditInteractionTarget(eventTarget)) return;
+        const isUnifiedMount = mountEl.id === 'mvu-unified-mount';
         const mapFocusBtn = eventTarget ? eventTarget.closest('[data-map-focus-action]') : null;
         if (mapFocusBtn && mountEl.contains(mapFocusBtn)) {
           const action = mapFocusBtn.getAttribute('data-map-focus-action') || '';
@@ -14918,7 +16161,11 @@ ${mvuUpdate}`;
             if (typeof window.__sheepMapResync === 'function') {
               try { window.__sheepMapResync({ center: true, syncVisual: true }); } catch (err) {}
             }
-            toggleModal('全息星图主画布', { triggerEl: mapFocusBtn, displayMode: 'floating', preserveMapDispatchContext: true });
+            if (isUnifiedMount && !mapFocusBtn.closest('.mvu-mobile-shell') && typeof window.__MVU_OPEN_UNIFIED_PREVIEW__ === 'function') {
+              window.__MVU_OPEN_UNIFIED_PREVIEW__('全息星图主画布', { triggerEl: mapFocusBtn, preserveMapDispatchContext: true });
+            } else {
+              toggleModal('全息星图主画布', { triggerEl: mapFocusBtn, displayMode: 'floating', preserveMapDispatchContext: true });
+            }
           }
           return;
         }
@@ -14929,6 +16176,10 @@ ${mvuUpdate}`;
         if (!previewKey) return;
         event.preventDefault();
         event.stopPropagation();
+        if (isUnifiedMount && !clickable.closest('.mvu-mobile-shell') && typeof window.__MVU_OPEN_UNIFIED_PREVIEW__ === 'function') {
+          window.__MVU_OPEN_UNIFIED_PREVIEW__(previewKey, { triggerEl: clickable, preserveMapDispatchContext: true });
+          return;
+        }
         const displayMode = mountEl.id === 'mvu-unified-mount' ? 'floating' : 'auto';
         toggleModal(previewKey, { triggerEl: clickable, displayMode });
       });
@@ -14970,23 +16221,69 @@ ${mvuUpdate}`;
       if (!clickable || !(inClassicShell || inVueShell)) return;
       const previewKey = clickable.dataset.preview;
       if (!previewKey) return;
+      if (unifiedMount && unifiedMount.contains(clickable) && !clickable.closest('.mvu-mobile-shell') && typeof window.__MVU_OPEN_UNIFIED_PREVIEW__ === 'function') {
+        event.preventDefault();
+        event.stopPropagation();
+        window.__MVU_OPEN_UNIFIED_PREVIEW__(previewKey, { triggerEl: clickable, preserveMapDispatchContext: true });
+        return;
+      }
       const displayMode = unifiedMount && unifiedMount.contains(clickable) ? 'floating' : 'auto';
       toggleModal(previewKey, { triggerEl: clickable, displayMode });
     });
 
+    function getDetailSurfacePreviewKey(options = {}) {
+      const explicitKey = toText(options.previewKey, '').trim();
+      if (explicitKey) return explicitKey;
+      return options.surface === 'unified'
+        ? (currentUnifiedPreviewKey || currentModalPreviewKey || '')
+        : (currentModalPreviewKey || currentUnifiedPreviewKey || '');
+    }
+
+    function rerenderDetailSurface(previewKey = '', options = {}) {
+      const targetKey = toText(previewKey, '').trim();
+      if (!targetKey) return;
+      if (options.surface === 'unified' || (currentUnifiedPreviewKey === targetKey && isUnifiedInlinePreviewActive())) {
+        renderUnifiedInlinePreview(targetKey, { ...options, force: !!options.force });
+        return;
+      }
+      renderModalContent(targetKey, getModalRefs(), { force: !!options.force });
+    }
+
+    function openNestedDetailPreview(previewKey, options = {}) {
+      const targetKey = toText(previewKey, '').trim();
+      if (!targetKey) return;
+      if (options.surface === 'unified' && typeof window.__MVU_OPEN_UNIFIED_PREVIEW__ === 'function') {
+        window.__MVU_OPEN_UNIFIED_PREVIEW__(targetKey, { preserveMapDispatchContext: true });
+        return;
+      }
+      openModal(targetKey, { preserveMapDispatchContext: true });
+    }
+
+    function closeDetailSurface(options = {}) {
+      if (options.surface === 'unified' && typeof window.__MVU_CLOSE_UNIFIED_PREVIEW__ === 'function') {
+        window.__MVU_CLOSE_UNIFIED_PREVIEW__({ force: true });
+        return;
+      }
+      closeModal();
+    }
+
     if (modalClose) modalClose.addEventListener('click', popModalOrClose);
-    if (detailModal) detailModal.addEventListener('click', async (event) => {
+    async function handleDetailSurfaceClick(event, surfaceHost = modalBody, options = {}) {
+      const detailSurfaceHost = surfaceHost instanceof Element ? surfaceHost : modalBody;
+      const detailSurfacePanel = options.panel instanceof Element ? options.panel : detailSurfaceHost;
+      const detailPreviewKey = getDetailSurfacePreviewKey(options);
+      if (!detailSurfaceHost) return;
       const eventTarget = event.target instanceof Element ? event.target : (event.target && event.target.parentElement ? event.target.parentElement : null);
       if (isInlineEditInteractionTarget(eventTarget)) {
         event.stopPropagation();
         return;
       }
       const actionBtn = eventTarget ? eventTarget.closest('.armory-action-btn') : null;
-      if (actionBtn && modalBody.contains(actionBtn)) {
+      if (actionBtn && detailSurfaceHost.contains(actionBtn)) {
         event.preventDefault();
         event.stopPropagation();
         if (!isSnapshotPlayerControlled(liveSnapshot)) {
-          if (typeof window.alert === 'function') window.alert('现在是旁观视角，暂时不能进行装备或锻造操作。切回自己的行动视角后再试。');
+          if (typeof window.alert === 'function') window.alert('旁观视角不可操作。');
           return;
         }
         const actionData = buildArmoryActionRequest(liveSnapshot, actionBtn.dataset.armoryAction || '');
@@ -14995,7 +16292,7 @@ ${mvuUpdate}`;
       }
 
       const switchCharBtn = eventTarget ? eventTarget.closest('[data-mvu-switch-char]') : null;
-      if (switchCharBtn && modalBody.contains(switchCharBtn)) {
+      if (switchCharBtn && detailSurfaceHost.contains(switchCharBtn)) {
         event.preventDefault();
         event.stopPropagation();
         const targetName = switchCharBtn.getAttribute('data-mvu-switch-char') || '';
@@ -15008,7 +16305,7 @@ ${mvuUpdate}`;
       }
 
       const mapTravelBtn = eventTarget ? eventTarget.closest('[data-map-travel-node]') : null;
-      if (mapTravelBtn && modalBody.contains(mapTravelBtn)) {
+      if (mapTravelBtn && detailSurfaceHost.contains(mapTravelBtn)) {
         event.preventDefault();
         event.stopPropagation();
         const nodeName = mapTravelBtn.getAttribute('data-map-travel-node') || '';
@@ -15023,18 +16320,18 @@ ${mvuUpdate}`;
           return;
         }
         showUiToast(travelResult.committed ? `已提交前往【${nodeName}】的移动。` : `已规划前往【${nodeName}】。`, 'info', 3200);
-        closeModal();
+        closeDetailSurface(options);
         return;
       }
 
       const relationFocusBtn = eventTarget ? eventTarget.closest('[data-relation-focus]') : null;
-      if (relationFocusBtn && modalBody.contains(relationFocusBtn)) {
+      if (relationFocusBtn && detailSurfaceHost.contains(relationFocusBtn)) {
         event.preventDefault();
         event.stopPropagation();
         const targetName = relationFocusBtn.getAttribute('data-relation-focus') || '';
-        if (targetName && currentModalPreviewKey) {
-          modalFocusState[`${currentModalPreviewKey}::relation-focus`] = targetName;
-          renderModalContent(currentModalPreviewKey);
+        if (targetName && detailPreviewKey) {
+          modalFocusState[`${detailPreviewKey}::relation-focus`] = targetName;
+          rerenderDetailSurface(detailPreviewKey, options);
         }
         return;
       }
@@ -15064,7 +16361,7 @@ ${mvuUpdate}`;
       }
 
       const equipmentActionBtn = eventTarget ? eventTarget.closest('.equipment-action-btn[data-equipment-action]') : null;
-      if (equipmentActionBtn && modalBody.contains(equipmentActionBtn)) {
+      if (equipmentActionBtn && detailSurfaceHost.contains(equipmentActionBtn)) {
         event.preventDefault();
         event.stopPropagation();
         const action = equipmentActionBtn.getAttribute('data-equipment-action') || '';
@@ -15083,11 +16380,11 @@ ${mvuUpdate}`;
       }
 
       const collectionActionBtn = eventTarget ? eventTarget.closest('[data-collection-action]') : null;
-      if (collectionActionBtn && modalBody.contains(collectionActionBtn)) {
+      if (collectionActionBtn && detailSurfaceHost.contains(collectionActionBtn)) {
         event.preventDefault();
         event.stopPropagation();
         const actionType = collectionActionBtn.getAttribute('data-collection-action') || '';
-        const panel = collectionActionBtn.closest('[data-collection-panel]') || modalBody;
+        const panel = collectionActionBtn.closest('[data-collection-panel]') || detailSurfaceHost;
         const readCollectionInput = (key) => {
           const input = panel ? panel.querySelector(`[data-collection-input="${key}"]`) : null;
           return toText(input && 'value' in input ? input.value : '', '').trim();
@@ -15115,7 +16412,7 @@ ${mvuUpdate}`;
               knowledges.push(intelText);
             });
             showUiToast('已新增情报。');
-            if (currentModalPreviewKey) renderModalContent(currentModalPreviewKey);
+            if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
             return;
           }
           if (actionType === 'delete-intel') {
@@ -15124,7 +16421,7 @@ ${mvuUpdate}`;
             if (!charKey || index < 0) throw new Error('当前情报缺少定位信息。');
             await deleteStatDataPathByEditor(['char', charKey, 'unlocked_knowledges', index]);
             showUiToast('已删除情报。');
-            if (currentModalPreviewKey) renderModalContent(currentModalPreviewKey);
+            if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
             return;
           }
           if (actionType === 'clear-intel-pending') {
@@ -15132,7 +16429,7 @@ ${mvuUpdate}`;
             if (!charKey) throw new Error('缺少角色信息。');
             await deleteStatDataPathByEditor(['char', charKey, 'knowledge_unlock_request']);
             showUiToast('已清空待解锁线索。');
-            if (currentModalPreviewKey) renderModalContent(currentModalPreviewKey);
+            if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
             return;
           }
           if (actionType === 'add-item') {
@@ -15164,7 +16461,7 @@ ${mvuUpdate}`;
               };
             });
             showUiToast('已新增物品。');
-            if (currentModalPreviewKey) renderModalContent(currentModalPreviewKey);
+            if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
             return;
           }
           if (actionType === 'add-record') {
@@ -15195,7 +16492,7 @@ ${mvuUpdate}`;
             });
             modalFocusState['任务界面::quest-focus'] = recordName;
             showUiToast('已新增任务。');
-            if (currentModalPreviewKey) renderModalContent(currentModalPreviewKey);
+            if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
             return;
           }
           if (actionType === 'delete-record') {
@@ -15205,7 +16502,7 @@ ${mvuUpdate}`;
             await deleteStatDataPathByEditor(['char', charKey, 'records', recordName]);
             if (modalFocusState['任务界面::quest-focus'] === recordName) delete modalFocusState['任务界面::quest-focus'];
             showUiToast('已删除任务。');
-            if (currentModalPreviewKey) renderModalContent(currentModalPreviewKey);
+            if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
             return;
           }
           if (actionType === 'add-board') {
@@ -15240,7 +16537,7 @@ ${mvuUpdate}`;
             });
             modalFocusState['任务界面::quest-board-focus'] = boardName;
             showUiToast('已新增委托。');
-            if (currentModalPreviewKey) renderModalContent(currentModalPreviewKey);
+            if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
             return;
           }
           if (actionType === 'delete-board') {
@@ -15249,7 +16546,7 @@ ${mvuUpdate}`;
             await deleteStatDataPathByEditor(['world', 'quest_board', boardName]);
             if (modalFocusState['任务界面::quest-board-focus'] === boardName) delete modalFocusState['任务界面::quest-board-focus'];
             showUiToast('已删除委托。');
-            if (currentModalPreviewKey) renderModalContent(currentModalPreviewKey);
+            if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
             return;
           }
         } catch (error) {
@@ -15259,16 +16556,16 @@ ${mvuUpdate}`;
       }
 
       const questActionBtn = eventTarget ? eventTarget.closest('.quest-action-btn[data-quest-action]') : null;
-      if (questActionBtn && modalBody.contains(questActionBtn)) {
+      if (questActionBtn && detailSurfaceHost.contains(questActionBtn)) {
         event.preventDefault();
         event.stopPropagation();
         if (!isSnapshotPlayerControlled(liveSnapshot)) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('现在是旁观视角，暂时不能发起任务请求。切回自己的行动视角后再试。', 'error');
-          else if (typeof window.alert === 'function') window.alert('现在是旁观视角，暂时不能发起任务请求。切回自己的行动视角后再试。');
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('旁观视角不可操作。', 'error');
+          else if (typeof window.alert === 'function') window.alert('旁观视角不可操作。');
           return;
         }
         const actionType = questActionBtn.getAttribute('data-quest-action') || '';
-        const requestPanel = questActionBtn.closest('.request-console-card') || modalBody;
+        const requestPanel = questActionBtn.closest('.request-console-card') || detailSurfaceHost;
         const nameInput = requestPanel ? requestPanel.querySelector('[data-quest-input="name"]') : null;
         const descInput = requestPanel ? requestPanel.querySelector('[data-quest-input="desc"]') : null;
         const requiredInput = requestPanel ? requestPanel.querySelector('[data-quest-input="required"]') : null;
@@ -15294,12 +16591,12 @@ ${mvuUpdate}`;
       }
 
       const relationActionBtn = eventTarget ? eventTarget.closest('.relation-action-btn[data-relation-action][data-relation-target]') : null;
-      if (relationActionBtn && modalBody.contains(relationActionBtn)) {
+      if (relationActionBtn && detailSurfaceHost.contains(relationActionBtn)) {
         event.preventDefault();
         event.stopPropagation();
         if (!isSnapshotPlayerControlled(liveSnapshot)) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('现在是旁观视角，先看看关系近况吧。若想发起互动，请切回自己的行动视角。', 'error');
-          else if (typeof window.alert === 'function') window.alert('现在是旁观视角，先看看关系近况吧。若想发起互动，请切回自己的行动视角。');
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('旁观视角不可操作。', 'error');
+          else if (typeof window.alert === 'function') window.alert('旁观视角不可操作。');
           return;
         }
 
@@ -15349,7 +16646,7 @@ ${mvuUpdate}`;
         } else {
           let itemUsed = '无';
           if (actionType === 'gift') {
-            const actionPanel = relationActionBtn.closest('.relation-action-panel') || modalBody;
+            const actionPanel = relationActionBtn.closest('.relation-action-panel') || detailSurfaceHost;
             const giftSelect = actionPanel ? actionPanel.querySelector('.relation-gift-select') : null;
             itemUsed = toText(giftSelect && giftSelect.value, '');
             if (!itemUsed) {
@@ -15366,40 +16663,40 @@ ${mvuUpdate}`;
       }
 
       const questBoardFocusBtn = eventTarget ? eventTarget.closest('[data-quest-board-focus]') : null;
-      if (questBoardFocusBtn && modalBody.contains(questBoardFocusBtn)) {
+      if (questBoardFocusBtn && detailSurfaceHost.contains(questBoardFocusBtn)) {
         event.preventDefault();
         event.stopPropagation();
         const boardId = questBoardFocusBtn.getAttribute('data-quest-board-focus') || '';
-        if (boardId && currentModalPreviewKey) {
-          modalFocusState[`${currentModalPreviewKey}::quest-board-focus`] = boardId;
-          renderModalContent(currentModalPreviewKey);
+        if (boardId && detailPreviewKey) {
+          modalFocusState[`${detailPreviewKey}::quest-board-focus`] = boardId;
+          rerenderDetailSurface(detailPreviewKey, options);
         }
         return;
       }
 
       const questFocusBtn = eventTarget ? eventTarget.closest('[data-quest-focus]') : null;
-      if (questFocusBtn && modalBody.contains(questFocusBtn)) {
+      if (questFocusBtn && detailSurfaceHost.contains(questFocusBtn)) {
         event.preventDefault();
         event.stopPropagation();
         const questName = questFocusBtn.getAttribute('data-quest-focus') || '';
-        if (questName && currentModalPreviewKey) {
-          modalFocusState[`${currentModalPreviewKey}::quest-focus`] = questName;
-          renderModalContent(currentModalPreviewKey);
+        if (questName && detailPreviewKey) {
+          modalFocusState[`${detailPreviewKey}::quest-focus`] = questName;
+          rerenderDetailSurface(detailPreviewKey, options);
         }
         return;
       }
 
       const factionActionBtn = eventTarget ? eventTarget.closest('.faction-action-btn[data-faction-action]') : null;
-      if (factionActionBtn && modalBody.contains(factionActionBtn)) {
+      if (factionActionBtn && detailSurfaceHost.contains(factionActionBtn)) {
         event.preventDefault();
         event.stopPropagation();
         if (!isSnapshotPlayerControlled(liveSnapshot)) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('现在是旁观视角，暂时不能处理阵营事务。切回自己的行动视角后再试。', 'error');
-          else if (typeof window.alert === 'function') window.alert('现在是旁观视角，暂时不能处理阵营事务。切回自己的行动视角后再试。');
+          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('旁观视角不可操作。', 'error');
+          else if (typeof window.alert === 'function') window.alert('旁观视角不可操作。');
           return;
         }
         const factionAction = factionActionBtn.getAttribute('data-faction-action') || '';
-        const requestPanel = factionActionBtn.closest('.request-console-card') || modalBody;
+        const requestPanel = factionActionBtn.closest('.request-console-card') || detailSurfaceHost;
         let actionData = null;
         if (factionAction === 'donate') {
           const factionInput = requestPanel ? requestPanel.querySelector('[data-faction-input="donateFaction"]') : null;
@@ -15421,16 +16718,19 @@ ${mvuUpdate}`;
       }
 
       const previewClickable = eventTarget ? eventTarget.closest('.clickable[data-preview]') : null;
-      if (previewClickable && modalBody.contains(previewClickable)) {
+      if (previewClickable && detailSurfaceHost.contains(previewClickable)) {
         event.preventDefault();
         event.stopPropagation();
         const previewKey = previewClickable.dataset.preview;
-        if (previewKey) openModal(previewKey, { preserveMapDispatchContext: true });
+        if (previewKey) openNestedDetailPreview(previewKey, options);
         return;
       }
 
-      const clickedInsideModalPanel = !!(eventTarget && modalPanel && modalPanel.contains(eventTarget));
-      if (!clickedInsideModalPanel) popModalOrClose();
+      const clickedInsideDetailSurface = !!(eventTarget && detailSurfacePanel && detailSurfacePanel.contains(eventTarget));
+      if (!clickedInsideDetailSurface && options.surface !== 'unified') popModalOrClose();
+    }
+    if (detailModal) detailModal.addEventListener('click', event => {
+      handleDetailSurfaceClick(event, modalBody, { surface: 'modal', previewKey: currentModalPreviewKey, panel: modalPanel });
     });
 let activeLongPressState = null;
     let suppressedLongPressClickState = null;
@@ -15453,9 +16753,24 @@ let activeLongPressState = null;
       return Number.isFinite(rawDelay) && rawDelay >= 250 ? rawDelay : 800;
     }
 
+    function openLongPressPreview(previewKey, target) {
+      const shellBridge = getMobileShellBridge();
+      const targetInShell = !!(target && typeof target.closest === 'function' && target.closest('.mvu-mobile-shell'));
+      if (targetInShell && shellBridge && typeof shellBridge.openPreview === 'function') {
+        shellBridge.openPreview(previewKey);
+        return;
+      }
+      const targetInUnified = !!(target && typeof target.closest === 'function' && target.closest('#mvu-unified-mount'));
+      if (targetInUnified && typeof window.__MVU_OPEN_UNIFIED_PREVIEW__ === 'function') {
+        window.__MVU_OPEN_UNIFIED_PREVIEW__(previewKey, { preserveMapDispatchContext: true });
+        return;
+      }
+      openModal(previewKey);
+    }
+
     function canTriggerLongPressPreview(previewKey) {
       if (!previewKey) return false;
-      return canUseFemaleOnlyLongPress(liveSnapshot);
+      return previewKey === PRIVATE_ARCHIVE_PREVIEW_KEY && canOpenPrivateArchive(liveSnapshot);
     }
 
     function markSuppressedLongPressClick(target) {
@@ -15471,8 +16786,18 @@ let activeLongPressState = null;
         suppressedLongPressClickState = null;
         return false;
       }
-      return !!(eventTarget && suppressedLongPressClickState.target && (eventTarget === suppressedLongPressClickState.target || suppressedLongPressClickState.target.contains(eventTarget)));
+      return !!(eventTarget && suppressedLongPressClickState.target && (
+        eventTarget === suppressedLongPressClickState.target
+        || suppressedLongPressClickState.target.contains(eventTarget)
+        || eventTarget.contains(suppressedLongPressClickState.target)
+      ));
     }
+
+    window.__MVU_CONSUME_LONG_PRESS_CLICK__ = eventTarget => {
+      if (!shouldSuppressLongPressClick(eventTarget)) return false;
+      suppressedLongPressClickState = null;
+      return true;
+    };
 
     function getLongPressScrollContainer(target) {
       let current = target instanceof Element ? target : null;
@@ -15514,7 +16839,7 @@ let activeLongPressState = null;
           if (!canTriggerLongPressPreview(previewKey)) return;
           markSuppressedLongPressClick(target);
           if (navigator.vibrate) navigator.vibrate(50);
-          openModal(previewKey);
+          openLongPressPreview(previewKey, target);
         }, delay)
       };
     };
@@ -15564,11 +16889,10 @@ let activeLongPressState = null;
     });
     document.addEventListener('click', (event) => {
       const eventTarget = event.target instanceof Element ? event.target : (event.target && event.target.parentElement ? event.target.parentElement : null);
-      if (!shouldSuppressLongPressClick(eventTarget)) return;
+      if (!window.__MVU_CONSUME_LONG_PRESS_CLICK__(eventTarget)) return;
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
-      suppressedLongPressClickState = null;
     }, true);
 
 
@@ -15917,7 +17241,12 @@ window.EquipmentManager = {
     }, true);
 
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') closeModal();
+      if (event.key !== 'Escape') return;
+      if (isUnifiedInlinePreviewActive() && typeof window.__MVU_CLOSE_UNIFIED_PREVIEW__ === 'function') {
+        window.__MVU_CLOSE_UNIFIED_PREVIEW__();
+        return;
+      }
+      closeModal();
     });
 
     window.addEventListener('resize', () => {
