@@ -1,71 +1,5 @@
 /* BattleUI_Module.js - 战斗终端系统 (JS 模块版) */
 
-const BattleStyles =
-  ".battle-module-scope {\n  position: fixed;\n  inset: 0;\n  z-index: 10000;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  background: rgba(0,0,0,0.85);\n  backdrop-filter: blur(5px);\n  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;\n}\n    \n    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Serif+SC:wght@700&display=swap');\n\n    :root {\n      --shell-top: rgba(132, 160, 171, 0.84);\n      --shell-bottom: rgba(58, 96, 112, 0.90);\n      --shell-core: rgba(24, 58, 70, 0.28);\n      --panel: rgba(18, 56, 69, 0.20);\n      --panel-strong: rgba(23, 68, 84, 0.26);\n      --line: rgba(150, 217, 228, 0.22);\n      --line-soft: rgba(150, 217, 228, 0.10);\n      --cyan: #8de1ef;\n      --cyan-soft: rgba(141, 225, 239, 0.14);\n      --gold: #d7c070;\n      --gold-soft: rgba(228, 201, 111, 0.14);\n      --red: #ff8aa2;\n      --white: #f5fcff;\n      --text: #e4f5f9;\n      --text-sub: #bfdde4;\n      --text-dim: #87aeb7;\n      --pill-dark: #202c3b;\n      --pill-dark-border: rgba(255,255,255,0.08);\n      --hp: linear-gradient(90deg, #f38d9f, #f5adba);\n      --sp: linear-gradient(90deg, #73bfd1, #8ec8d5);\n      --men: linear-gradient(90deg, #9ea1dc, #b1bbe8);\n      --font-tech: 'Orbitron', 'Microsoft YaHei', sans-serif;\n      --font-title: 'Noto Serif SC', serif;\n      --font-ui: 'Microsoft YaHei', 'PingFang SC', sans-serif;\n      --grad-top: linear-gradient(90deg, transparent, #8ef7ff 16%, #f1ffff 50%, #98edff 84%, transparent);\n      --shadow-main: 0 24px 60px rgba(0,0,0,0.42);\n      --shadow-soft: inset 0 0 18px rgba(255,255,255,0.02), inset 0 0 16px rgba(0,229,255,0.03);\n      --shadow-cyan: 0 4px 15px rgba(77,240,255,0.14);\n    }\n\n    * { box-sizing: border-box; }\n\n    \n\n    \n\n    .battle-module-scope .battle-shell {\n      width: 640px;\n      height: 480px;\n      position: relative;\n      display: flex;\n      flex-direction: column;\n      overflow: hidden;\n      border-radius: 18px;\n      border: 1px solid rgba(255,255,255,0.10);\n      background:\n        linear-gradient(180deg, var(--shell-top), var(--shell-bottom)),\n        var(--shell-core);\n      backdrop-filter: blur(20px);\n      -webkit-backdrop-filter: blur(20px);\n      clip-path: polygon(16px 0, calc(100% - 16px) 0, 100% 16px, 100% calc(100% - 16px), calc(100% - 16px) 100%, 16px 100%, 0 calc(100% - 16px), 0 16px);\n      box-shadow: var(--shadow-main);\n    }\n\n    .battle-module-scope .battle-shell::before {\n      content: '';\n      position: absolute;\n      left: 0;\n      right: 0;\n      top: 0;\n      height: 3px;\n      background: var(--grad-top);\n      z-index: 2;\n      pointer-events: none;\n    }\n\n    .battle-module-scope .battle-shell::after {\n      content: '';\n      position: absolute;\n      inset: 0;\n      z-index: 0;\n      pointer-events: none;\n      background:\n        radial-gradient(circle at left top, rgba(255,255,255,0.08), transparent 22%),\n        radial-gradient(circle at right bottom, rgba(255,215,0,0.06), transparent 24%),\n        repeating-linear-gradient(90deg, rgba(255,255,255,0.018) 0 1px, transparent 1px 56px),\n        repeating-linear-gradient(180deg, rgba(255,255,255,0.014) 0 1px, transparent 1px 44px);\n      opacity: 0.9;\n    }\n\n    .battle-module-scope .battle-header {\n      position: relative;\n      z-index: 1;\n      flex: 0 0 auto;\n      display: grid;\n      grid-template-columns: 1fr 1fr;\n      gap: 12px;\n      padding: 12px 12px 8px;\n      border-bottom: 1px solid var(--line-soft);\n      background: linear-gradient(90deg, rgba(118,239,255,0.05), transparent 54%, rgba(228,201,111,0.03));\n    }\n\n    .battle-module-scope .combatant-card {\n      min-width: 0;\n      padding: 10px 10px 9px;\n      border-radius: 14px;\n      border: 1px solid var(--line);\n      background:\n        linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015)),\n        rgba(7, 25, 33, 0.08);\n      box-shadow: var(--shadow-soft);\n      display: flex;\n      flex-direction: column;\n      gap: 6px;\n    }\n\n    .battle-module-scope .combatant-card.enemy {\n      text-align: right;\n    }\n\n    .battle-module-scope .name-row {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 8px;\n      min-width: 0;\n    }\n\n    .battle-module-scope .combatant-card.enemy .name-row {\n      flex-direction: row-reverse;\n    }\n\n    .battle-module-scope .name-block {\n      display: flex;\n      align-items: center;\n      gap: 8px;\n      min-width: 0;\n    }\n\n    .battle-module-scope .combatant-card.enemy .name-block {\n      flex-direction: row-reverse;\n    }\n\n    .battle-module-scope .lv-badge {\n      flex: 0 0 auto;\n      padding: 2px 8px;\n      border-radius: 8px;\n      font-size: 11px;\n      line-height: 1.2;\n      color: var(--gold);\n      background: rgba(56, 67, 36, 0.26);\n      border: 1px solid rgba(228,201,111,0.28);\n      box-shadow: inset 0 0 8px rgba(255,215,0,0.05);\n      font-family: var(--font-tech);\n    }\n\n    .battle-module-scope .combatant-name {\n      min-width: 0;\n      font-family: var(--font-title);\n      font-size: 14px;\n      font-weight: 700;\n      color: var(--cyan);\n      white-space: nowrap;\n      overflow: hidden;\n      text-overflow: ellipsis;\n      text-shadow: 0 0 8px rgba(118,239,255,0.20);\n    }\n\n    .battle-module-scope .bar-stack {\n      display: flex;\n      flex-direction: column;\n      gap: 5px;\n    }\n\n    .battle-module-scope .resource-bar {\n      position: relative;\n      height: 10px;\n      border-radius: 999px;\n      overflow: hidden;\n      border: 1px solid rgba(255,255,255,0.08);\n      background: rgba(5, 18, 24, 0.22);\n    }\n\n    .battle-module-scope .resource-fill {\n      width: 100%;\n      height: 100%;\n      transition: width .25s ease;\n    }\n\n    .resource-fill.hp { background: var(--hp); }\n    .resource-fill.sp { background: var(--sp); }\n    .resource-fill.men { background: var(--men); }\n\n    .battle-module-scope .resource-text {\n      position: absolute;\n      inset: 0;\n      display: flex;\n      align-items: center;\n      justify-content: center;\n      font-size: 7px;\n      color: #fff;\n      font-weight: 700;\n      text-shadow: 1px 1px 2px #000;\n      pointer-events: none;\n      font-family: var(--font-tech);\n    }\n\n    .battle-module-scope .stats-grid {\n      display: grid;\n      grid-template-columns: 1.35fr 1fr 1fr 1fr;\n      gap: 6px;\n      min-width: 0;\n    }\n\n    .battle-module-scope .stat-item {\n      min-width: 0;\n      padding: 4px 6px;\n      border-radius: 10px;\n      background: rgba(255,255,255,0.03);\n      border: 1px solid rgba(255,255,255,0.06);\n      box-shadow: inset 0 0 8px rgba(255,255,255,0.01);\n    }\n\n    .battle-module-scope .stat-label {\n      margin-bottom: 2px;\n      font-size: 8px;\n      color: var(--text-dim);\n      line-height: 1.1;\n      white-space: nowrap;\n    }\n\n    .battle-module-scope .stat-value {\n      font-size: 10px;\n      color: var(--white);\n      line-height: 1.15;\n      white-space: nowrap;\n      overflow: hidden;\n      text-overflow: ellipsis;\n      font-family: var(--font-tech);\n    }\n\n    .combatant-card.enemy .stat-label,\n    .battle-module-scope .combatant-card.enemy .stat-value {\n      text-align: right;\n    }\n\n    .battle-module-scope .buff-row {\n      min-height: 16px;\n      display: flex;\n      gap: 4px;\n      flex-wrap: nowrap;\n      overflow-x: auto;\n      overflow-y: hidden;\n      padding-bottom: 1px;\n    }\n\n    .battle-module-scope .combatant-card.enemy .buff-row {\n      justify-content: flex-end;\n    }\n\n    .battle-module-scope .tag-chip {\n      flex: 0 0 auto;\n      display: inline-flex;\n      align-items: center;\n      gap: 4px;\n      padding: 2px 7px;\n      border-radius: 999px;\n      font-size: 8px;\n      line-height: 1;\n      white-space: nowrap;\n      color: var(--text-sub);\n      background: rgba(255,255,255,0.04);\n      border: 1px solid rgba(255,255,255,0.08);\n    }\n\n    .tag-chip.buff { color: var(--cyan); border-color: rgba(118,239,255,0.16); }\n    .tag-chip.debuff { color: var(--red); border-color: rgba(255,122,151,0.18); }\n    .tag-chip.field { color: var(--cyan); border-color: rgba(118,239,255,0.18); }\n    .tag-chip.sustain { color: #d7c7ff; border-color: rgba(215,199,255,0.18); }\n    .tag-chip.charge { color: var(--gold); border-color: rgba(228,201,111,0.18); }\n\n    .battle-module-scope .battle-main {\n      position: relative;\n      z-index: 1;\n      flex: 1 1 auto;\n      min-height: 0;\n      display: grid;\n      grid-template-columns: 86px 1fr 86px;\n      gap: 10px;\n      padding: 8px 12px 12px;\n    }\n\n    .battle-module-scope .side-rail {\n      min-height: 0;\n      display: flex;\n    }\n\n    .battle-module-scope .side-panel {\n      flex: 1;\n      min-height: 0;\n      border-radius: 16px;\n      border: 1px solid var(--line-soft);\n      background:\n        linear-gradient(180deg, rgba(24,76,92,0.18), rgba(16,48,58,0.12)),\n        rgba(255,255,255,0.015);\n      box-shadow: var(--shadow-soft);\n      padding: 8px 6px;\n      display: flex;\n      flex-direction: column;\n      gap: 6px;\n      overflow-y: auto;\n      overflow-x: hidden;\n    }\n\n    .battle-module-scope .side-card {\n      width: 100%;\n      border-radius: 12px;\n      border: 1px solid rgba(255,255,255,0.07);\n      background: rgba(16, 40, 50, 0.18);\n      padding: 6px 6px 5px;\n      display: flex;\n      flex-direction: column;\n      gap: 5px;\n      cursor: pointer;\n      transition: .16s ease;\n      text-align: left;\n      font-family: var(--font-ui);\n      color: var(--text-sub);\n    }\n\n    .battle-module-scope .side-card:hover {\n      border-color: rgba(118,239,255,0.18);\n      box-shadow: var(--shadow-cyan);\n      color: var(--white);\n    }\n\n    .battle-module-scope .side-card.active {\n      color: var(--white);\n      border-color: rgba(118,239,255,0.28);\n      background: rgba(118,239,255,0.08);\n      box-shadow: inset 0 0 8px rgba(118,239,255,0.04);\n    }\n\n    .battle-module-scope .side-card.enemy.active {\n      color: var(--cyan);\n    }\n\n    .battle-module-scope .side-name {\n      font-size: 10px;\n      line-height: 1.2;\n      white-space: nowrap;\n      overflow: hidden;\n      text-overflow: ellipsis;\n      text-align: center;\n    }\n\n    .battle-module-scope .side-mini-bar {\n      height: 4px;\n      border-radius: 999px;\n      overflow: hidden;\n      border: 1px solid rgba(255,255,255,0.08);\n      background: rgba(5, 18, 24, 0.22);\n    }\n\n    .battle-module-scope .side-mini-fill {\n      height: 100%;\n      width: 100%;\n      background: var(--hp);\n    }\n\n    .battle-module-scope .center-column {\n      min-height: 0;\n      display: flex;\n      flex-direction: column;\n      gap: 8px;\n    }\n\n    .battle-module-scope .intent-bar {\n      flex: 0 0 auto;\n      border-radius: 16px;\n      border: 1px solid var(--line-soft);\n      background:\n        linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015)),\n        rgba(16,48,58,0.10);\n      box-shadow: var(--shadow-soft);\n      padding: 8px 10px;\n    }\n\n    .battle-module-scope .intent-inner {\n      min-width: 0;\n      display: flex;\n      align-items: center;\n      gap: 6px;\n      flex-wrap: wrap;\n    }\n\n    .battle-module-scope .intent-chip-row {\n      display: flex;\n      flex-wrap: wrap;\n      gap: 4px;\n      min-width: 0;\n      flex: 0 1 auto;\n    }\n\n    .battle-module-scope .intent-pill {\n      flex: 0 0 auto;\n      padding: 3px 8px;\n      border-radius: 999px;\n      font-size: 9px;\n      line-height: 1;\n      color: var(--white);\n      background: rgba(255,255,255,0.035);\n      border: 1px solid rgba(255,255,255,0.07);\n      white-space: nowrap;\n    }\n\n    .battle-module-scope .ghost-btn {\n      margin-left: auto;\n      border: 1px solid rgba(118,239,255,0.20);\n      background: rgba(118,239,255,0.06);\n      color: var(--cyan);\n      border-radius: 999px;\n      padding: 3px 10px;\n      font-size: 9px;\n      font-family: var(--font-ui);\n      cursor: pointer;\n      white-space: nowrap;\n    }\n\n    .battle-module-scope .ghost-btn:hover {\n      background: rgba(118,239,255,0.10);\n    }\n\n    .battle-module-scope .action-wrap {\n      flex: 1 1 auto;\n      min-height: 0;\n      border-radius: 16px;\n      border: 1px solid var(--line);\n      background:\n        linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)),\n        rgba(16,48,58,0.10);\n      box-shadow: var(--shadow-soft);\n      overflow: hidden;\n      display: flex;\n      flex-direction: column;\n    }\n\n    .battle-module-scope .battle-toolbar {\n      display: flex;\n      align-items: center;\n      justify-content: flex-start;\n      gap: 8px;\n      padding: 6px 12px;\n      border-bottom: 1px solid var(--line-soft);\n      background: linear-gradient(90deg, rgba(118,239,255,0.04), rgba(255,255,255,0.01));\n      flex: 0 0 auto;\n    }\n\n    .battle-module-scope .mode-group {\n      display: flex;\n      align-items: center;\n      gap: 6px;\n      flex-wrap: wrap;\n    }\n\n    .battle-module-scope .mode-btn {\n      border: 1px solid rgba(255,255,255,0.08);\n      background: transparent;\n      color: var(--text-dim);\n      border-radius: 999px;\n      padding: 3px 9px;\n      font-size: 9px;\n      font-family: var(--font-ui);\n      cursor: pointer;\n    }\n\n    .battle-module-scope .mode-btn.active {\n      color: var(--cyan);\n      border-color: rgba(118,239,255,0.24);\n      background: rgba(118,239,255,0.08);\n    }\n\n    .battle-module-scope .action-filters {\n      flex: 0 0 auto;\n      display: flex;\n      gap: 6px;\n      padding: 6px 12px;\n      border-bottom: 1px solid var(--line-soft);\n      background: rgba(118,239,255,0.035);\n      overflow-x: auto;\n      overflow-y: hidden;\n    }\n\n    .battle-module-scope .filter-btn {\n      flex: 0 0 auto;\n      border: 1px solid transparent;\n      background: transparent;\n      color: var(--text-dim);\n      border-radius: 8px;\n      padding: 4px 9px;\n      font-size: 10px;\n      font-family: var(--font-ui);\n      cursor: pointer;\n      white-space: nowrap;\n    }\n\n    .battle-module-scope .filter-btn.active {\n      color: var(--cyan);\n      border-color: rgba(118,239,255,0.22);\n      background: rgba(118,239,255,0.08);\n    }\n\n    .battle-module-scope .action-grid {\n      flex: 1 1 auto;\n      min-height: 0;\n      display: grid;\n      grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));\n      gap: 8px;\n      padding: 8px 12px 12px;\n      overflow-y: auto;\n    }\n\n    .battle-module-scope .action-btn {\n      min-height: 62px;\n      border-radius: 12px;\n      border: 1px solid rgba(118,239,255,0.14);\n      background: linear-gradient(180deg, rgba(0,229,255,0.08), rgba(0,229,255,0.02));\n      color: var(--text);\n      padding: 8px 8px 7px;\n      box-shadow: inset 0 0 10px rgba(0,0,0,0.12);\n      display: flex;\n      flex-direction: column;\n      gap: 5px;\n      align-items: stretch;\n      text-align: left;\n      cursor: pointer;\n      transition: border-color .16s ease, background .16s ease, transform .16s ease;\n      font-family: var(--font-ui);\n    }\n\n    .battle-module-scope .action-btn:hover:not(:disabled) {\n      border-color: rgba(118,239,255,0.24);\n      background: linear-gradient(180deg, rgba(0,229,255,0.14), rgba(0,229,255,0.03));\n      box-shadow: var(--shadow-cyan);\n      transform: translateY(-1px);\n    }\n\n    .battle-module-scope .action-btn.is-selected {\n      border-color: rgba(118,239,255,0.28);\n      background: linear-gradient(180deg, rgba(0,229,255,0.16), rgba(0,229,255,0.04));\n      box-shadow: inset 0 0 10px rgba(0,229,255,0.04);\n    }\n\n    .battle-module-scope .action-btn:disabled {\n      opacity: 0.55;\n      cursor: not-allowed;\n    }\n\n    .battle-module-scope .action-name {\n      font-size: 12px;\n      font-weight: 700;\n      color: var(--white);\n      white-space: nowrap;\n      overflow: hidden;\n      text-overflow: ellipsis;\n    }\n\n    .battle-module-scope .action-meta {\n      margin-top: auto;\n      display: flex;\n      justify-content: space-between;\n      gap: 6px;\n      font-size: 9px;\n      color: var(--text-dim);\n    }\n\n    .action-cost { color: var(--gold); }\n\n    .battle-module-scope .skill-tooltip {\n      position: absolute;\n      left: 108px;\n      bottom: 16px;\n      width: 280px;\n      padding: 10px;\n      border-radius: 12px;\n      border: 1px solid rgba(118,239,255,0.22);\n      background: rgba(10, 30, 38, 0.92);\n      backdrop-filter: blur(14px);\n      -webkit-backdrop-filter: blur(14px);\n      box-shadow: 0 12px 30px rgba(0,0,0,0.55), inset 0 0 15px rgba(0,229,255,0.08);\n      display: none;\n      z-index: 3;\n      pointer-events: none;\n    }\n\n    .skill-tooltip.show { display: block; }\n\n    .battle-module-scope .tt-header {\n      display: flex;\n      justify-content: space-between;\n      gap: 8px;\n      align-items: center;\n      margin-bottom: 8px;\n      padding-bottom: 6px;\n      border-bottom: 1px solid rgba(255,255,255,0.06);\n    }\n\n    .battle-module-scope .tt-name {\n      font-size: 13px;\n      color: var(--cyan);\n      font-weight: 700;\n    }\n\n    .battle-module-scope .tt-cast {\n      flex: 0 0 auto;\n      font-size: 8px;\n      color: var(--gold);\n      padding: 2px 6px;\n      border-radius: 999px;\n      border: 1px solid rgba(228,201,111,0.22);\n      background: rgba(228,201,111,0.08);\n    }\n\n    .battle-module-scope .tt-tags {\n      display: flex;\n      flex-wrap: wrap;\n      gap: 5px;\n      margin-bottom: 8px;\n    }\n\n    .battle-module-scope .tt-tag {\n      padding: 2px 6px;\n      border-radius: 999px;\n      font-size: 8px;\n      color: var(--white);\n      background: rgba(118,239,255,0.08);\n      border: 1px solid rgba(118,239,255,0.14);\n    }\n\n    .battle-module-scope .tt-effects {\n      font-size: 10px;\n      line-height: 1.5;\n      color: var(--text);\n    }\n\n    .battle-module-scope .tt-effect-type {\n      color: var(--cyan);\n      font-weight: 700;\n      margin-right: 4px;\n    }\n\n    ::-webkit-scrollbar { width: 4px; height: 4px; }\n    ::-webkit-scrollbar-thumb { background: rgba(118,239,255,0.22); border-radius: 999px; }\n  ";
-
-const BattleTemplate = `
-<div class="battle-module-scope">
-  <div class="battle-shell">
-    <div class="battle-header">
-      <div class="combatant-card player" id="ui-player-panel">
-        <div class="name-row">
-          <div class="name-block">
-            <span class="lv-badge" id="ui-player-lv">Lv.0</span>
-            <span class="combatant-name" id="ui-player-name">Player</span>
-          </div>
-        </div>
-        <div class="bar-stack">
-          <div class="resource-bar"><div class="resource-fill hp" id="ui-player-hp-bar"></div><div class="resource-text" id="ui-player-hp-text">0 / 0</div></div>
-          <div class="resource-bar"><div class="resource-fill sp" id="ui-player-sp-bar"></div><div class="resource-text" id="ui-player-sp-text">0 / 0</div></div>
-          <div class="resource-bar"><div class="resource-fill men" id="ui-player-men-bar"></div><div class="resource-text" id="ui-player-men-text">0 / 0</div></div>
-        </div>
-        <div class="stats-grid" id="ui-player-stats"></div>
-        <div class="buff-row" id="ui-player-buffs"></div>
-      </div>
-      <div class="combatant-card enemy" id="ui-enemy-panel">
-        <div class="name-row">
-          <div class="name-block">
-            <span class="lv-badge" id="ui-enemy-lv">Lv.0</span>
-            <span class="combatant-name" id="ui-enemy-name">Enemy</span>
-          </div>
-        </div>
-        <div class="bar-stack">
-          <div class="resource-bar"><div class="resource-fill hp" id="ui-enemy-hp-bar"></div><div class="resource-text" id="ui-enemy-hp-text">0 / 0</div></div>
-          <div class="resource-bar"><div class="resource-fill sp" id="ui-enemy-sp-bar"></div><div class="resource-text" id="ui-enemy-sp-text">0 / 0</div></div>
-          <div class="resource-bar"><div class="resource-fill men" id="ui-enemy-men-bar"></div><div class="resource-text" id="ui-enemy-men-text">0 / 0</div></div>
-        </div>
-        <div class="stats-grid" id="ui-enemy-stats"></div>
-        <div class="buff-row" id="ui-enemy-buffs"></div>
-      </div>
-    </div>
-    <div class="battle-main">
-      <div class="side-rail"><div class="side-panel" id="ui-team-player"></div></div>
-      <div class="center-column">
-        <div class="intent-bar">
-          <div class="intent-inner">
-            <div class="intent-chip-row" id="ui-combat-chips"></div>
-            <button class="ghost-btn" id="ui-battle-close" type="button">×</button>
-          </div>
-        </div>
-        <div class="action-wrap">
-          <div class="battle-toolbar">
-            <div class="mode-group" id="ui-mode-group">
-              <button class="mode-btn active" type="button" data-mode="single_round">单回合</button>
-              <button class="mode-btn" type="button" data-mode="multi_round">连推</button>
-            </div>
-            <button class="ghost-btn" id="ui-arbitrate" type="button">结算</button>
-          </div>
-          <div class="action-filters" id="ui-action-filters"></div>
-          <div class="action-grid" id="ui-action-grid"></div>
-          <textarea id="ui-intent-output" style="display:none;"></textarea>
-        </div>
-      </div>
-      <div class="side-rail"><div class="side-panel" id="ui-team-enemy"></div></div>
-    </div>
-    <div class="skill-tooltip" id="ui-skill-tooltip"></div>
-  </div>
-</div>`;
-
 class BattleUIComponent {
   constructor(container, snapshot, options = {}) {
     this.container = container;
@@ -76,13 +10,9 @@ class BattleUIComponent {
   }
 
   initDOM() {
-    if (!document.getElementById('battle-ui-styles')) {
-      const styleEl = document.createElement('style');
-      styleEl.id = 'battle-ui-styles';
-      styleEl.textContent = BattleStyles;
-      document.head.appendChild(styleEl);
+    if (!this.container.querySelector('.battle-module-scope')) {
+      throw new Error('battle_ui_markup_missing');
     }
-    this.container.innerHTML = BattleTemplate;
   }
 
   updateData(newSnapshot) {
@@ -99,6 +29,7 @@ class BattleUIComponent {
     const snapshot = this.snapshot;
     const _options = this.options;
     const wrapperElement = this.container.querySelector('.battle-module-scope');
+    if (!wrapperElement) throw new Error('battle_ui_markup_missing');
     const document = wrapperElement;
     const byId = id => wrapperElement.querySelector(`#${id}`);
 
@@ -171,6 +102,11 @@ class BattleUIComponent {
 
     function getMvuValue(path, fallback) {
       const normalized = normalizeStatPath(path);
+      if (normalized === 'world.combat' || normalized.startsWith('world.combat.')) {
+        const snapshotRoot = component?.snapshot?.rootData || snapshot?.rootData;
+        const snapshotValue = lodashGet(snapshotRoot, normalized, undefined);
+        if (snapshotValue !== undefined) return snapshotValue;
+      }
       if (!normalized) return lodashGet(getAllVariablesSafe(), 'stat_data', fallback);
       return lodashGet(getAllVariablesSafe(), `stat_data.${normalized}`, fallback);
     }
@@ -216,62 +152,24 @@ class BattleUIComponent {
       return String(segment).replace(/~/g, '~0').replace(/\//g, '~1');
     }
 
-    function pushReplaceOp(ops, path, value) {
-      if (value === undefined) return;
-      ops.push({ op: 'replace', path, value: deepClonePlain(value) });
-    }
-
-    function pushParticipantSyncPatch(ops, participant, extraNames = []) {
-      if (!participant || typeof participant !== 'object') return;
-
-      const names = new Set((Array.isArray(extraNames) ? extraNames : [extraNames]).filter(Boolean));
-      if (participant.name) names.add(participant.name);
-      const basePaths = Array.from(names).map(name => `/char/${escapeJsonPointerSegment(name)}`);
-      if (!basePaths.length) return;
-
-      const addToTargets = (suffix, value) => {
-        if (value === undefined) return;
-        basePaths.forEach(base => pushReplaceOp(ops, `${base}${suffix}`, value));
-      };
-
-      if (participant.stat !== undefined) {
-        addToTargets('/stat', participant.stat);
-      } else {
-        [
-          'age',
-          'lv',
-          'type',
-          'talent_tier',
-          'is_evil',
-          'sp',
-          'sp_max',
-          'men',
-          'men_max',
-          'str',
-          'def',
-          'agi',
-          'vit',
-          'vit_max',
-          'conditions',
-        ].forEach(key => {
-          addToTargets(`/${escapeJsonPointerSegment(key)}`, participant[key]);
-        });
-      }
-
-      if (participant.status !== undefined) {
-        addToTargets('/status', participant.status);
-      } else {
-        ['alive', 'wound', 'action', 'active_domain', 'loc', 'current_x', 'current_y'].forEach(key => {
-          addToTargets(`/${escapeJsonPointerSegment(key)}`, participant[key]);
-        });
-      }
-
-      addToTargets('/conditions', participant.conditions);
-      addToTargets('/active_sustains', participant.active_sustains);
-      addToTargets('/charging_skill', participant.charging_skill);
-      addToTargets('/equip', participant.equip);
-      addToTargets('/bloodline_power', participant.bloodline_power);
-    }
+    const COMBAT_STAT_KEYS = [
+      'age',
+      'lv',
+      'type',
+      'talent_tier',
+      'is_evil',
+      'sp',
+      'sp_max',
+      'men',
+      'men_max',
+      'str',
+      'def',
+      'agi',
+      'vit',
+      'vit_max',
+      'conditions',
+    ];
+    const COMBAT_STATUS_KEYS = ['alive', 'wound', 'action', 'active_domain', 'loc', 'current_x', 'current_y'];
 
     function sanitizeCombatPersistenceData(value) {
       if (Array.isArray(value)) return value.map(item => sanitizeCombatPersistenceData(item));
@@ -285,14 +183,227 @@ class BattleUIComponent {
       return cleaned;
     }
 
+    function isPlainRecord(value) {
+      return !!value && typeof value === 'object' && !Array.isArray(value);
+    }
+
+    function isDeepEqual(left, right) {
+      if (left === right) return true;
+      if (Number.isNaN(left) && Number.isNaN(right)) return true;
+
+      if (Array.isArray(left) || Array.isArray(right)) {
+        if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+        for (let index = 0; index < left.length; index += 1) {
+          if (!isDeepEqual(left[index], right[index])) return false;
+        }
+        return true;
+      }
+
+      if (isPlainRecord(left) || isPlainRecord(right)) {
+        if (!isPlainRecord(left) || !isPlainRecord(right)) return false;
+        const leftKeys = Object.keys(left);
+        const rightKeys = Object.keys(right);
+        if (leftKeys.length !== rightKeys.length) return false;
+        for (let index = 0; index < leftKeys.length; index += 1) {
+          const key = leftKeys[index];
+          if (!Object.prototype.hasOwnProperty.call(right, key)) return false;
+          if (!isDeepEqual(left[key], right[key])) return false;
+        }
+        return true;
+      }
+
+      return false;
+    }
+
+    function clonePersistedCombatValue(value) {
+      return sanitizeCombatPersistenceData(deepClonePlain(value));
+    }
+
+    function buildCanonicalCombatStatSnapshot(participant) {
+      if (!participant || typeof participant !== 'object') return undefined;
+      const sourceStat = participant.stat && typeof participant.stat === 'object' ? participant.stat : participant;
+      const snapshot = {};
+      COMBAT_STAT_KEYS.forEach(key => {
+        if (sourceStat[key] !== undefined) snapshot[key] = clonePersistedCombatValue(sourceStat[key]);
+      });
+      return Object.keys(snapshot).length ? snapshot : undefined;
+    }
+
+    function buildCanonicalCombatStatusSnapshot(participant) {
+      if (!participant || typeof participant !== 'object') return undefined;
+      const sourceStatus = participant.status && typeof participant.status === 'object' ? participant.status : participant;
+      const snapshot = {};
+      COMBAT_STATUS_KEYS.forEach(key => {
+        if (sourceStatus[key] !== undefined) snapshot[key] = clonePersistedCombatValue(sourceStatus[key]);
+      });
+      return Object.keys(snapshot).length ? snapshot : undefined;
+    }
+
+    function buildCanonicalParticipantPersistenceSnapshot(participant) {
+      if (!participant || typeof participant !== 'object') return undefined;
+      const source = sanitizeCombatPersistenceData(participant);
+      const snapshot = {};
+      const statSnapshot = buildCanonicalCombatStatSnapshot(source);
+      const statusSnapshot = buildCanonicalCombatStatusSnapshot(source);
+      if (statSnapshot) snapshot.stat = statSnapshot;
+      if (statusSnapshot) snapshot.status = statusSnapshot;
+      ['active_sustains', 'charging_skill', 'decision_memory', 'equip', 'bloodline_power'].forEach(key => {
+        if (source[key] !== undefined) snapshot[key] = clonePersistedCombatValue(source[key]);
+      });
+      return Object.keys(snapshot).length ? snapshot : undefined;
+    }
+
+    function appendJsonPatchDiff(ops, basePath, previousValue, nextValue) {
+      if (!basePath) return;
+
+      if (nextValue === undefined) {
+        if (previousValue !== undefined) ops.push({ op: 'remove', path: basePath });
+        return;
+      }
+
+      if (previousValue === undefined) {
+        ops.push({ op: 'add', path: basePath, value: deepClonePlain(nextValue) });
+        return;
+      }
+
+      if (isDeepEqual(previousValue, nextValue)) return;
+
+      const prevIsArray = Array.isArray(previousValue);
+      const nextIsArray = Array.isArray(nextValue);
+      if (prevIsArray || nextIsArray) {
+        ops.push({ op: 'replace', path: basePath, value: deepClonePlain(nextValue) });
+        return;
+      }
+
+      const prevIsObject = isPlainRecord(previousValue);
+      const nextIsObject = isPlainRecord(nextValue);
+      if (prevIsObject && nextIsObject) {
+        const keys = new Set([...Object.keys(previousValue), ...Object.keys(nextValue)]);
+        keys.forEach(key => {
+          appendJsonPatchDiff(
+            ops,
+            `${basePath}/${escapeJsonPointerSegment(key)}`,
+            previousValue[key],
+            nextValue[key],
+          );
+        });
+        return;
+      }
+
+      ops.push({ op: 'replace', path: basePath, value: deepClonePlain(nextValue) });
+    }
+
+    function appendLegacyParticipantCleanupOps(ops, participantPath, currentCharData) {
+      if (!participantPath || !currentCharData || typeof currentCharData !== 'object') return;
+      const legacyKeys = new Set([...COMBAT_STAT_KEYS, ...COMBAT_STATUS_KEYS]);
+      legacyKeys.forEach(key => {
+        if (!Object.prototype.hasOwnProperty.call(currentCharData, key)) return;
+        ops.push({ op: 'remove', path: `${participantPath}/${escapeJsonPointerSegment(key)}` });
+      });
+    }
+
+    function pushParticipantSyncPatch(ops, participant) {
+      if (!participant || typeof participant !== 'object') return;
+      const participantName = String(participant.name || '').trim();
+      if (!participantName) return;
+
+      const participantPath = `/char/${escapeJsonPointerSegment(participantName)}`;
+      const currentCharData = getMvuValue(`char.${participantName}`, undefined);
+      const previousSnapshot = buildCanonicalParticipantPersistenceSnapshot(currentCharData) || {};
+      const nextSnapshot = buildCanonicalParticipantPersistenceSnapshot(participant) || {};
+      const fieldKeys = new Set([...Object.keys(previousSnapshot), ...Object.keys(nextSnapshot)]);
+
+      fieldKeys.forEach(key => {
+        appendJsonPatchDiff(
+          ops,
+          `${participantPath}/${escapeJsonPointerSegment(key)}`,
+          previousSnapshot[key],
+          nextSnapshot[key],
+        );
+      });
+
+      appendLegacyParticipantCleanupOps(ops, participantPath, currentCharData);
+    }
+
+    const COMBAT_PARTICIPANT_PERSIST_KEYS = [
+      'name',
+      'faction',
+      'age',
+      'lv',
+      'type',
+      'talent_tier',
+      'is_evil',
+      'sp',
+      'sp_max',
+      'men',
+      'men_max',
+      'str',
+      'def',
+      'agi',
+      'vit',
+      'vit_max',
+      'alive',
+      'wound',
+      'action',
+      'active_domain',
+      'loc',
+      'current_x',
+      'current_y',
+      'conditions',
+      'active_sustains',
+      'charging_skill',
+      'decision_memory',
+    ];
+
+    function compactStatusForCombat(status) {
+      if (!status || typeof status !== 'object') return undefined;
+      const compact = {};
+      ['alive', 'wound', 'action', 'active_domain', 'loc', 'current_x', 'current_y'].forEach(key => {
+        if (status[key] !== undefined) compact[key] = status[key];
+      });
+      return Object.keys(compact).length ? compact : undefined;
+    }
+
+    function compactCombatParticipantForPersistence(participant) {
+      if (!participant || typeof participant !== 'object') return participant;
+      const source = sanitizeCombatPersistenceData(participant);
+      const sourceStat = source.stat && typeof source.stat === 'object' ? source.stat : {};
+      const compact = {};
+      COMBAT_PARTICIPANT_PERSIST_KEYS.forEach(key => {
+        if (COMBAT_STAT_KEYS.includes(key) && sourceStat[key] !== undefined) compact[key] = sourceStat[key];
+        else if (source[key] !== undefined) compact[key] = source[key];
+      });
+      const compactStatus = compactStatusForCombat(source.status);
+      if (compactStatus) compact.status = compactStatus;
+      return compact;
+    }
+
+    function compactCombatDataForPersistence(combatData) {
+      const compact = sanitizeCombatPersistenceData(deepClonePlain(combatData || {}));
+      const participants = compact.participants;
+      if (participants && typeof participants === 'object') {
+        participants.player = compactCombatParticipantForPersistence(participants.player);
+        participants.enemy = compactCombatParticipantForPersistence(participants.enemy);
+        participants.team_player = Array.isArray(participants.team_player)
+          ? participants.team_player.map(compactCombatParticipantForPersistence)
+          : [];
+        participants.team_enemy = Array.isArray(participants.team_enemy)
+          ? participants.team_enemy.map(compactCombatParticipantForPersistence)
+          : [];
+      }
+      return compact;
+    }
+
     function buildCombatJsonPatch(combatData) {
-      const safeCombatData = sanitizeCombatPersistenceData(deepClonePlain(combatData));
-      const ops = [{ op: 'replace', path: '/world/combat', value: safeCombatData }];
+      const safeCombatData = compactCombatDataForPersistence(combatData);
+      const ops = [];
+      const previousCombatData = compactCombatDataForPersistence(getMvuValue('world.combat', undefined));
+      appendJsonPatchDiff(ops, '/world/combat', previousCombatData, safeCombatData);
 
       const participants = safeCombatData?.participants;
       if (!participants) return ops;
 
-      pushParticipantSyncPatch(ops, participants.player, ['主角']);
+      pushParticipantSyncPatch(ops, participants.player);
       pushParticipantSyncPatch(ops, participants.enemy);
       (participants.team_player || []).forEach(unit => pushParticipantSyncPatch(ops, unit));
       (participants.team_enemy || []).forEach(unit => pushParticipantSyncPatch(ops, unit));
@@ -309,7 +420,7 @@ class BattleUIComponent {
     }
 
     function persistCombatData(combatData, options = {}) {
-      const safeCombatData = sanitizeCombatPersistenceData(deepClonePlain(combatData));
+      const safeCombatData = compactCombatDataForPersistence(combatData);
       const patchOps = buildCombatJsonPatch(safeCombatData);
       if (Array.isArray(options.extraPatchOps)) {
         patchOps.push(...options.extraPatchOps);
@@ -482,16 +593,10 @@ class BattleUIComponent {
         return adapter.sendBattleRequest({ ...detail, options });
       }
 
-      queueSystemPrompt(detail.systemPrompt);
-      const fillResult = fillChatInput(detail.playerInput, options);
-      const sendResult = options.autoSend === false ? { ok: false, button: null } : clickSendButton(options);
       return {
-        mode: 'dom-fallback',
-        filled: !!fillResult.ok,
-        sent: !!sendResult.ok,
-        pendingSystemPrompt: detail.systemPrompt,
-        inputFound: !!fillResult.input,
-        sendButtonFound: !!sendResult.button,
+        ok: false,
+        mode: 'host-unavailable',
+        reason: 'battle_host_send_unavailable',
       };
     }
 
@@ -734,14 +839,25 @@ class BattleUIComponent {
       persistCombatData(combatData, options = {}) {
         return persistCombatData(combatData, options);
       },
+      executePlayerBattleIntent(playerInput, options = {}) {
+        const impl = root.BattleUIBridge?.__executePlayerBattleIntentImpl;
+        if (typeof impl === 'function') return impl(playerInput, options);
+        throw new Error('battle_player_intent_engine_not_ready');
+      },
       executeBattleFlow(combatData, options = {}) {
-        return ui_executeBattleFlow(combatData, options);
+        const impl = root.BattleUIBridge?.__executeBattleFlowImpl;
+        if (typeof impl === 'function') return impl(combatData, options);
+        throw new Error('battle_flow_engine_not_ready');
       },
       getBattleSnapshot(combatData) {
-        return ui_getBattleSnapshot(combatData);
+        const impl = root.BattleUIBridge?.__getBattleSnapshotImpl;
+        if (typeof impl === 'function') return impl(combatData);
+        return null;
       },
       getAvailableActions(charData, combatData) {
-        return ui_getAvailableActions(charData, combatData);
+        const impl = root.BattleUIBridge?.__getAvailableActionsImpl;
+        if (typeof impl === 'function') return impl(charData, combatData);
+        return [];
       },
       buildCombatJsonPatch(combatData) {
         return buildCombatJsonPatch(combatData);
@@ -831,6 +947,9 @@ class BattleUIComponent {
       const safeUnit = unit && typeof unit === 'object' ? unit : {};
       const stat = safeUnit.stat && typeof safeUnit.stat === 'object' ? safeUnit.stat : {};
       const merged = { ...stat, ...safeUnit };
+      COMBAT_STAT_KEYS.forEach(key => {
+        if (stat[key] !== undefined) merged[key] = stat[key];
+      });
       merged.name = safeUnit.name || stat.name || safeUnit.base?.name || '未知';
       merged.lv = fallbackNumber(merged.lv, 0);
       merged.type = merged.type || stat.type || '未知系';
@@ -1019,14 +1138,16 @@ class BattleUIComponent {
           const intentText = fallbackBuildIntent(action, state.combatData);
           const output = byId('ui-intent-output');
           if (output) output.value = intentText;
+          const battleMode = state.currentMode === 'multi_round' ? 'multi_round' : 'single_round';
           try {
-            const result = root.BattleUIBridge?.executeBattleFlow?.(deepClonePlain(state.combatData), {
-              mode: state.currentMode === 'multi_round' ? 'multi_round' : 'single_round',
-            });
+            const result = root.BattleUIBridge?.executePlayerBattleIntent?.(intentText, { mode: battleMode });
+            if (typeof component.syncFromBattleEngine === 'function') component.syncFromBattleEngine();
             root.dispatchEvent(new CustomEvent('battle-ui-submit-finished', { detail: result || { intentText } }));
             return result || { intentText };
           } catch (error) {
-            return root.sendToAI?.(intentText, '请根据战斗模块动作队列进行本回合仲裁，并只通过 MVU 变量更新战斗结果。', { requestKind: 'battle_arbitration' });
+            const result = { intentText, mode: 'engine_error', battleMode, error };
+            root.dispatchEvent(new CustomEvent('battle-ui-submit-finished', { detail: result }));
+            return result;
           }
         },
       });
@@ -1037,16 +1158,25 @@ class BattleUIComponent {
       if (arbitrateBtn && !arbitrateBtn.__fallbackBattleBound) {
         arbitrateBtn.addEventListener('click', () => root.BattleUI?.submitBattleIntent?.());
         arbitrateBtn.__fallbackBattleBound = true;
+        arbitrateBtn.__battleSubmitBound = true;
       }
-      const closeBtn = byId('ui-battle-close');
-      if (closeBtn && !closeBtn.__fallbackBattleBound) {
-        closeBtn.addEventListener('click', () => {
-          root.dispatchEvent(new CustomEvent('battle-ui-mvu-update-request', {
-            detail: { patchOps: [{ op: 'replace', path: '/world/combat/is_active', value: false }], rootPath: '/world/combat' },
-          }));
-          component.destroy();
+      document.querySelectorAll('#ui-mode-group .mode-btn').forEach(btn => {
+        if (btn.__battleModeBound) return;
+        btn.addEventListener('click', () => {
+          const normalized = btn.dataset.mode === 'multi_round' ? 'multi_round' : 'single_round';
+          if (root.BattleUI && root.BattleUI.state) root.BattleUI.state.currentMode = normalized;
+          document.querySelectorAll('#ui-mode-group .mode-btn').forEach(item => {
+            item.classList.toggle('active', item.dataset.mode === normalized);
+          });
         });
-        closeBtn.__fallbackBattleBound = true;
+        btn.__battleModeBound = true;
+      });
+      const closeBtn = byId('ui-battle-close');
+      if (closeBtn && !closeBtn.__battleCloseBound) {
+        closeBtn.addEventListener('click', () => {
+          root.dispatchEvent(new CustomEvent('battle-ui-close-request', { detail: { source: 'battle_ui' } }));
+        });
+        closeBtn.__battleCloseBound = true;
       }
     };
 
@@ -1054,25 +1184,6 @@ class BattleUIComponent {
 
     installHostHooks();
     /* __BATTLE_ENGINE_INLINE__ */
-    const COMBAT_STAT_KEYS = [
-      'age',
-      'lv',
-      'type',
-      'talent_tier',
-      'is_evil',
-      'sp',
-      'sp_max',
-      'men',
-      'men_max',
-      'str',
-      'def',
-      'agi',
-      'vit',
-      'vit_max',
-      'conditions',
-    ];
-    const COMBAT_STATUS_KEYS = ['alive', 'wound', 'action', 'active_domain', 'loc', 'current_x', 'current_y'];
-
     function createEmptySkillSemantics() {
       return {
         主定位: '无',
@@ -2774,9 +2885,10 @@ class BattleUIComponent {
       };
     }
 
-    function bindCombatMirrorField(target, source, key) {
+    function bindCombatMirrorField(target, source, key, options = {}) {
       if (!target || !source) return;
-      if (target[key] !== undefined) source[key] = target[key];
+      if (options.preferSource && source[key] !== undefined) target[key] = source[key];
+      else if (target[key] !== undefined) source[key] = target[key];
       else if (source[key] !== undefined) target[key] = source[key];
 
       try {
@@ -2799,7 +2911,7 @@ class BattleUIComponent {
       if (!char || char.__combatMirrorBound) return char;
 
       if (char.stat) {
-        COMBAT_STAT_KEYS.forEach(key => bindCombatMirrorField(char, char.stat, key));
+        COMBAT_STAT_KEYS.forEach(key => bindCombatMirrorField(char, char.stat, key, { preferSource: true }));
       }
 
       if (char.status) {
@@ -3606,6 +3718,7 @@ class BattleUIComponent {
         }
 
         return null;
+      }
 
         function settleSustainEffectsAtRoundEnd(char, label) {
           if (!char?.active_sustains) return { log: '', broken: [] };
@@ -3986,8 +4099,6 @@ class BattleUIComponent {
             focusReason = 'finisher';
             ttl = hpRatio < 0.35 ? 3 : 2;
           }
-        }
-
         setActorFocusTarget(actor, focusTarget, focusReason, ttl);
         return { target: focusTarget, reason: focusReason, ttl };
       }
@@ -4029,6 +4140,47 @@ class BattleUIComponent {
         return collectUnifiedSkillEntries(charData, alliedTeam, { includePassive: false, includeActive: true });
       }
 
+      function getBattleActionDisplayName(action) {
+        const skill = action?.skill && typeof action.skill === 'object' ? action.skill : {};
+        return String(
+          skill.魂技名 ||
+            skill.name ||
+            skill.技能名称 ||
+            action?.name ||
+            action?.action_type ||
+            action?.type ||
+            '战斗行动',
+        ).trim();
+      }
+
+      function shouldShowBattleActionTarget(action) {
+        const skill = action?.skill && typeof action.skill === 'object' ? action.skill : {};
+        const actionType = String(action?.action_type || action?.type || '');
+        const skillTargetText = String(
+          getSkillTarget(skill) ||
+            skill.目标 ||
+            skill.对象 ||
+            (Array.isArray(skill._效果数组)
+              ? skill._效果数组.map(effect => `${effect?.目标 || ''}${effect?.对象 || ''}`).join(' ')
+              : ''),
+        );
+        if (/防御|闪避|撤离|治疗|回复|恢复|造物|食物/.test(actionType) && !/攻击|伤害/.test(actionType)) return false;
+        if (/自身|己方|友方|食用者/.test(skillTargetText) && !/敌|对手/.test(skillTargetText)) return false;
+        return true;
+      }
+
+      function buildVisibleBattlePlayerInput(rawInput, action, combatData) {
+        const name = getBattleActionDisplayName(action);
+        const fallbackTarget =
+          action?.target_name ||
+          combatData?.participants?.enemy?.name ||
+          window.BattleUIBridge?.getMVU?.('world.combat.participants.enemy.name') ||
+          '';
+        if (shouldShowBattleActionTarget(action) && fallbackTarget) return `对【${fallbackTarget}】使用【${name}】。`;
+        if (/防御|闪避|撤离/.test(name)) return `执行【${name}】。`;
+        return `使用【${name}】。`;
+      }
+
       function onPlayerAttack(playerInput, options = {}) {
         let combatData = window.BattleUIBridge?.getMVU('world.combat');
         hydrateCombatData(combatData);
@@ -4039,15 +4191,7 @@ class BattleUIComponent {
         const maxRounds = mode === 'multi_round' ? 4 : 1;
 
         // --- 第一步：环境定调与状态快照 ---
-        // 1. 旁路预判（仅限我方碾压敌方时可直接跳过，且不更新 MVU）
-        let lvDiff = attacker.lv - defender.lv;
-        if (lvDiff >= 30) {
-          let systemPrompt = `[战力碾压旁路] 玩家等级碾压对手，无需进行繁琐博弈。请 AI 直接描写玩家以摧枯拉朽之势秒杀敌人的画面！`;
-          sendToAI(playerInput, systemPrompt, { requestKind: 'battle_shortcut' });
-          return;
-        }
-
-        // 2. 状态快照与控制拦截 (完全基于 Schema 属性驱动)
+        // 1. 状态快照与控制拦截 (完全基于 Schema 属性驱动)
         defender.is_controlled = false;
         defender.temp_agi_mult = 1.0;
         defender.temp_reaction_bonus = 0;
@@ -4083,6 +4227,7 @@ class BattleUIComponent {
         const battleLog = [];
         let clashExtraPatchOps = [];
         let continueSimulation = true;
+        let visiblePlayerInput = '';
 
         while (roundCount < maxRounds && continueSimulation && defender.vit > 0) {
           roundCount++;
@@ -4121,6 +4266,7 @@ class BattleUIComponent {
             }
           } else {
             playerAction = parsePlayerIntent(playerInput);
+            if (!visiblePlayerInput) visiblePlayerInput = buildVisibleBattlePlayerInput(playerInput, playerAction, combatData);
 
             // 💥【终极动作序列时间片机制】一回合能做出的总行动上限为 cast_time = 40！
             let totalTimeCost = 0;
@@ -4181,6 +4327,8 @@ class BattleUIComponent {
             }
           }
 
+          const reactionRatio = calculateReactionRatio(attacker, defender, playerAction, combatData);
+          const npcAction = determineNpcAction(combatData, playerAction, reactionRatio);
           let settleResult = executeClash(playerAction, npcAction, combatData);
           roundLog += npcAction.log + ' ' + settleResult.desc;
           if (Array.isArray(settleResult.extraPatchOps) && settleResult.extraPatchOps.length)
@@ -4374,6 +4522,10 @@ class BattleUIComponent {
           battleLog.push(roundLog);
         }
 
+        const startingRound = Number(combatData.round || 0);
+        combatData.round = startingRound + roundCount;
+        combatData.phase = attacker.vit <= 0 || defender.vit <= 0 ? '结算阶段' : '宣告阶段';
+
         let isWin = defender.vit <= 0;
         const unresolvedReason =
           !isWin && attacker.vit > 0 && defender.vit > 0
@@ -4404,8 +4556,37 @@ class BattleUIComponent {
         if (mvuUpdate?.updateVariableText) {
           systemPrompt += `\n\n[Front-end state JSON]\nThe following block is a front-end generated reference payload, not an MVU command. Do not output another variable-update wrapper. If variable maintenance is needed later, copy only the patch field exactly as-is.\n${mvuUpdate.updateVariableText}`;
         }
-        sendToAI(playerInput, systemPrompt, { mvuUpdate, requestKind: 'battle_arbitration' });
+        sendToAI(visiblePlayerInput || String(playerInput || '战斗行动').split('\n')[0] || '战斗行动', systemPrompt, {
+          mvuUpdate,
+          requestKind: 'battle_arbitration',
+        });
       }
+
+      root.BattleUIBridge = Object.assign(root.BattleUIBridge || {}, {
+        __executePlayerBattleIntentImpl(playerInput, options = {}) {
+          const battleMode = options.mode === 'multi_round' ? 'multi_round' : 'single_round';
+          onPlayerAttack(String(playerInput || ''), { mode: battleMode });
+          return {
+            intentText: String(playerInput || ''),
+            mode: 'engine_arbitrated',
+            battleMode,
+            aiRequest: root.__lastBattleAIRequest || null,
+          };
+        },
+        __executeBattleFlowImpl(combatData, options = {}) {
+          const state = root.BattleUI?.state || {};
+          const actionList = [
+            ...(state.selectedPreActions || []),
+            state.selectedSkillActions?.[state.selectedSkillActions.length - 1] || state.selectedAction,
+          ].filter(Boolean);
+          const intentText =
+            String(options.intentText || '').trim() ||
+            String(root.BattleUI?.buildIntentText?.(actionList) || '').trim() ||
+            String(root.__battleLastIntentText || '').trim();
+          if (!intentText) throw new Error('battle_intent_empty');
+          return root.BattleUIBridge.__executePlayerBattleIntentImpl(intentText, options);
+        },
+      });
 
       // ==========================================
       // 📍 2. 战前消耗与战后结算区 (彻底净化版)
@@ -4617,14 +4798,10 @@ class BattleUIComponent {
         let combatType = combatData.combat_type || '突发遭遇';
         const preferredPlayerName = String(window.BattleUIBridge?.getMVU('sys.player_name') || '').trim();
         const attackerName = String(
-          attackerChar?.name || combatData?.participants?.player?.name || preferredPlayerName || '主角',
-        );
+          attackerChar?.name || combatData?.participants?.player?.name || preferredPlayerName || '',
+        ).trim();
         const attackerPath = `/char/${escapeJsonPointerSegment(attackerName)}`;
-        let inventory =
-          window.BattleUIBridge?.getMVU(`char.${attackerName}.inventory`) ||
-          (preferredPlayerName ? window.BattleUIBridge?.getMVU(`char.${preferredPlayerName}.inventory`) : null) ||
-          window.BattleUIBridge?.getMVU('char.主角.inventory') ||
-          {};
+        let inventory = (attackerName ? window.BattleUIBridge?.getMVU(`char.${attackerName}.inventory`) : null) || {};
 
         // --- 触发世界战斗图鉴录入 ---
         let bestiary = window.BattleUIBridge?.getMVU('world.bestiary') || {};
@@ -5026,7 +5203,8 @@ class BattleUIComponent {
         const logs = [];
         const preferredOwnerName = String(window.BattleUIBridge?.getMVU('sys.player_name') || '').trim();
         const currentTick = Number(window.BattleUIBridge?.getMVU('world.time.tick') || 0);
-        const resolvedOwnerName = String(ownerName || preferredOwnerName || '主角');
+        const resolvedOwnerName = String(ownerName || preferredOwnerName || '').trim();
+        if (!resolvedOwnerName) return { patchOps: [], log: '' };
         const ownerPath = `/char/${escapeJsonPointerSegment(resolvedOwnerName)}/inventory`;
 
         creationEffects.forEach(effect => {
@@ -5056,21 +5234,15 @@ class BattleUIComponent {
 
           const currentItem = inventory[itemName];
           const itemPath = `${ownerPath}/${escapedItemName}`;
-          if (currentItem && typeof currentItem === 'object') {
-            patchOps.push({ op: 'replace', path: `${itemPath}/数量`, value: Number(currentItem.数量 || 0) + addCount });
-            if (nextItem.触发方式 !== undefined)
-              patchOps.push({ op: 'replace', path: `${itemPath}/触发方式`, value: nextItem.触发方式 });
-            if (nextItem.使用效果 !== undefined)
-              patchOps.push({ op: 'replace', path: `${itemPath}/使用效果`, value: nextItem.使用效果 });
-            if (nextItem.描述 !== undefined)
-              patchOps.push({ op: 'replace', path: `${itemPath}/描述`, value: nextItem.描述 });
-            if (nextItem.有效期至 !== undefined)
-              patchOps.push({ op: 'replace', path: `${itemPath}/有效期至`, value: nextItem.有效期至 });
-            if (nextItem.有效期至tick !== undefined)
-              patchOps.push({ op: 'replace', path: `${itemPath}/有效期至tick`, value: nextItem.有效期至tick });
-          } else {
-            patchOps.push({ op: 'replace', path: itemPath, value: nextItem });
-          }
+          const nextItemValue =
+            currentItem && typeof currentItem === 'object'
+              ? {
+                  ...deepClonePlain(currentItem),
+                  ...nextItem,
+                  数量: Number(currentItem.数量 || 0) + addCount,
+                }
+              : nextItem;
+          appendJsonPatchDiff(patchOps, itemPath, currentItem, nextItemValue);
 
           if (itemType === '食物') logs.push(`生成了可食用造物【${itemName}】×${addCount}`);
           else logs.push(`生成了临时造物【${itemName}】×${addCount}`);
@@ -5173,13 +5345,12 @@ class BattleUIComponent {
 
         const actorCharData = attacker?.name ? window.BattleUIBridge?.getMVU(`char.${attacker.name}`) : null;
         const preferredPlayerName = String(window.BattleUIBridge?.getMVU('sys.player_name') || '').trim();
-        const attackerName = String(attacker?.name || '').trim();
-        const canPersistCreation =
-          !!actorCharData || (!!preferredPlayerName && attackerName === preferredPlayerName) || attackerName === '主角';
+        const attackerName = String(attacker?.name || preferredPlayerName || '').trim();
+        const canPersistCreation = !!attackerName;
         const creationPatchBundle = buildSkillCreationPatchBundle(
           playerAction.skill,
           actorCharData?.inventory || attacker?.inventory || {},
-          actorCharData?.name || attackerName || preferredPlayerName || '主角',
+          attackerName,
         );
         if (canPersistCreation && creationPatchBundle.patchOps.length > 0) {
           result.extraPatchOps = creationPatchBundle.patchOps;
@@ -5704,6 +5875,7 @@ class BattleUIComponent {
                   (1 - selfResourceBlockRatio),
               ),
           );
+        }
         if (directMenEffect) {
           applyImmediateRecoveryEffect(directMenEffect, 'men', '精神力');
           if (selfMirrorEffect && !effectTargetsSelf(directMenEffect))
@@ -5722,6 +5894,7 @@ class BattleUIComponent {
                   (1 - selfResourceBlockRatio),
               ),
           );
+        }
 
           if (directCleanseEffect) {
             const cleanseTarget = resolveSkillEffectTargetCharacter(
@@ -6145,6 +6318,7 @@ class BattleUIComponent {
           const pMult = getWoundMult(attacker);
           const dMult = getWoundMult(defender);
           const attackerSpeed = attacker.agi * pMult - (playerAction.cast_time || 0) * 10;
+          const isChargingHighThreat = !!behaviorState?.isChargingHighThreat;
           const validSkills = availableSkills.filter(skill => {
             const castTime = getSkillCastTime(skill);
             const npcSpeed = defender.agi * dMult - castTime * 10;
@@ -7153,13 +7327,10 @@ class BattleUIComponent {
           let combatData = window.BattleUIBridge?.getMVU('world.combat');
           hydrateCombatData(combatData);
           let attacker = combatData.participants.player;
-          const preferredPlayerName = String(
-            window.BattleUIBridge?.getMVU('sys.player_name') || attacker?.name || '主角',
-          ).trim();
+          const preferredPlayerName = String(window.BattleUIBridge?.getMVU('sys.player_name') || attacker?.name || '').trim();
           let charData =
-            window.BattleUIBridge?.getMVU('char.' + attacker.name) ||
-            window.BattleUIBridge?.getMVU('char.' + preferredPlayerName) ||
-            window.BattleUIBridge?.getMVU('char.主角');
+            (attacker?.name ? window.BattleUIBridge?.getMVU('char.' + attacker.name) : null) ||
+            (preferredPlayerName ? window.BattleUIBridge?.getMVU('char.' + preferredPlayerName) : null);
           bindCombatParticipant(charData);
 
           let action = {
@@ -7361,7 +7532,9 @@ class BattleUIComponent {
             if (p.vit > 0) allFighters.push({ char: p, side: 'player' });
           });
           (combatData.participants.team_enemy || []).forEach(e => {
-                 if (e.vit > 0) allFighters.p   });
+            bindCombatParticipant(e);
+            if (e.vit > 0) allFighters.push({ char: e, side: 'enemy' });
+          });
 
           let typePriority = {
             辅助系: 1,
@@ -8374,6 +8547,9 @@ class BattleUIComponent {
           const stat = safeUnit.stat && typeof safeUnit.stat === 'object' ? safeUnit.stat : {};
           const status = safeUnit.status && typeof safeUnit.status === 'object' ? safeUnit.status : {};
           const merged = { ...stat, ...safeUnit };
+          COMBAT_STAT_KEYS.forEach(key => {
+            if (stat[key] !== undefined) merged[key] = stat[key];
+          });
           merged.name = safeUnit.name || stat.name || safeUnit.base?.name || '未知';
           merged.lv = toUiNumber(merged.lv, 0);
           merged.type = merged.type || stat.type || '未知系';
@@ -8601,6 +8777,16 @@ class BattleUIComponent {
           });
         }
 
+        function setUiBattleMode(mode) {
+          const normalized = mode === 'multi_round' ? 'multi_round' : 'single_round';
+          if (window.BattleUI && window.BattleUI.state) {
+            window.BattleUI.state.currentMode = normalized;
+          }
+          document.querySelectorAll('#ui-mode-group .mode-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.mode === normalized);
+          });
+        }
+
         async function initBattleUiFromMvu() {
           syncFromBattleEngine();
         }
@@ -8641,6 +8827,7 @@ class BattleUIComponent {
               currentMode: previousState.currentMode || 'single_round',
             },
           });
+          setUiBattleMode(window.BattleUI.state.currentMode);
           renderUiActionFilters(availableActions, activeCategory);
           renderUiActionGrid(availableActions, activeCategory);
           const output = byId('ui-intent-output');
@@ -8717,9 +8904,8 @@ class BattleUIComponent {
               console.error('battle arbitration failed', error);
               result = { intentText, mode: 'engine_error', battleMode, error };
             }
-          } else if (window.BattleUIBridge?.pushUserInput) {
-            const pushResult = window.BattleUIBridge.pushUserInput(intentText, { autoSend: false });
-            result = { intentText, mode: 'intent_buffered', battleMode, delivery: pushResult };
+          } else {
+            result = { intentText, mode: 'engine_unavailable', battleMode, error: 'battle_engine_unavailable' };
           }
 
           try {
@@ -8732,28 +8918,25 @@ class BattleUIComponent {
 
         function bindUIEvents() {
           document.querySelectorAll('#ui-mode-group .mode-btn').forEach(btn => {
+            if (btn.__battleModeBound) return;
             btn.addEventListener('click', () => {
-              document.querySelectorAll('#ui-mode-group .mode-btn').forEach(item => item.classList.remove('active'));
-              btn.classList.add('active');
-              if (window.BattleUI && window.BattleUI.state) {
-                window.BattleUI.state.currentMode = btn.dataset.mode;
-              }
+              setUiBattleMode(btn.dataset.mode);
             });
+            btn.__battleModeBound = true;
           });
 
           const arbitrateBtn = byId('ui-arbitrate');
-          if (arbitrateBtn) arbitrateBtn.addEventListener('click', submitBattleIntent);
+          if (arbitrateBtn && !arbitrateBtn.__battleSubmitBound) {
+            arbitrateBtn.addEventListener('click', submitBattleIntent);
+            arbitrateBtn.__battleSubmitBound = true;
+          }
+
           const closeBtn = byId('ui-battle-close');
-          if (closeBtn) {
+          if (closeBtn && !closeBtn.__battleCloseBound) {
             closeBtn.addEventListener('click', () => {
-              const detail = {
-                combatData: Object.assign({}, window.BattleUI?.state?.combatData || {}, { is_active: false }),
-                patchOps: [{ op: 'replace', path: '/world/combat/is_active', value: false }],
-                rootPath: '/world/combat',
-              };
-              window.dispatchEvent(new CustomEvent('battle-ui-mvu-update-request', { detail }));
-              component.destroy();
+              window.dispatchEvent(new CustomEvent('battle-ui-close-request', { detail: { source: 'battle_ui' } }));
             });
+            closeBtn.__battleCloseBound = true;
           }
         }
 
@@ -8771,11 +8954,10 @@ class BattleUIComponent {
 
         initBattleUiFromMvu();
       }
-    }
-  }
 }
 
 window.BattleUIComponent = BattleUIComponent;
 window.mountBattleUI = function(containerElement, snapshot, options = {}) {
   return new BattleUIComponent(containerElement, snapshot, options);
 };
+

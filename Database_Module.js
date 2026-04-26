@@ -16476,8 +16476,74 @@ $CONTENT
 - auto_execute 只有在对象、物品/目标、数量/材料、价格或执行方式足够明确，且文本有“直接/立即/确认/执行/开始/成交”等明确执行意图时才为 true。
 - 不允许把战斗、交易、副职业结果直接写死在正文规划里；只输出模块意图，让前端模块结算。
 `.trim();
+    function findJsonObjectEnd_ACU(source, startIndex) {
+        let depth = 0;
+        let inString = false;
+        let escaped = false;
+        for (let i = startIndex; i < source.length; i++) {
+            const ch = source[i];
+            if (inString) {
+                if (escaped) {
+                    escaped = false;
+                }
+                else if (ch === '\\') {
+                    escaped = true;
+                }
+                else if (ch === '"') {
+                    inString = false;
+                }
+                continue;
+            }
+            if (ch === '"') {
+                inString = true;
+            }
+            else if (ch === '{') {
+                depth++;
+            }
+            else if (ch === '}') {
+                depth--;
+                if (depth === 0)
+                    return i + 1;
+            }
+        }
+        return -1;
+    }
+    function collectBareModuleIntentCandidates_ACU(text) {
+        const source = String(text || '');
+        const matches = [];
+        const moduleKeyPattern = /"module"\s*:/g;
+        let match;
+        while ((match = moduleKeyPattern.exec(source)) !== null) {
+            const start = source.lastIndexOf('{', match.index);
+            if (start < 0)
+                continue;
+            const end = findJsonObjectEnd_ACU(source, start);
+            if (end <= start)
+                continue;
+            const jsonText = source.slice(start, end);
+            const parsed = safeJsonParse_ACU(jsonText, null);
+            if (!parsed || typeof parsed !== 'object')
+                continue;
+            const hasIntentShape = Object.prototype.hasOwnProperty.call(parsed, 'module')
+                && (Object.prototype.hasOwnProperty.call(parsed, 'request')
+                    || Object.prototype.hasOwnProperty.call(parsed, 'auto_execute')
+                    || Object.prototype.hasOwnProperty.call(parsed, 'confidence'));
+            if (!hasIntentShape)
+                continue;
+            const intent = normalizeModuleIntent_ACU(parsed);
+            if (!intent)
+                continue;
+            matches.push({ start, end, jsonText, intent });
+        }
+        return matches;
+    }
     function stripModuleIntentBlocks_ACU(text) {
-        return String(text || '').replace(/<moduleIntent>[\s\S]*?<\/moduleIntent>/gi, '').trim();
+        let cleaned = String(text || '').replace(/<moduleIntent>[\s\S]*?<\/moduleIntent>/gi, '');
+        const bareMatches = collectBareModuleIntentCandidates_ACU(cleaned);
+        for (const item of bareMatches.sort((a, b) => b.start - a.start)) {
+            cleaned = `${cleaned.slice(0, item.start)}${cleaned.slice(item.end)}`;
+        }
+        return cleaned.trim();
     }
     function appendModuleIntentInstructionToMessages_ACU(messages) {
         if (!Array.isArray(messages))
@@ -16517,10 +16583,15 @@ $CONTENT
     function extractModuleIntentFromText_ACU(text) {
         const source = String(text || '');
         const match = source.match(/<moduleIntent>\s*([\s\S]*?)\s*<\/moduleIntent>/i);
-        if (!match)
+        if (match) {
+            const parsed = safeJsonParse_ACU(match[1], null);
+            return normalizeModuleIntent_ACU(parsed);
+        }
+        const bareMatches = collectBareModuleIntentCandidates_ACU(source);
+        if (!bareMatches.length)
             return null;
-        const parsed = safeJsonParse_ACU(match[1], null);
-        return normalizeModuleIntent_ACU(parsed);
+        const decisiveMatch = [...bareMatches].reverse().find(item => item.intent && item.intent.module !== 'none') || bareMatches[bareMatches.length - 1];
+        return decisiveMatch.intent;
     }
     function extractModuleIntentFromPlanning_ACU(finalMessage) {
         const sources = [finalMessage];

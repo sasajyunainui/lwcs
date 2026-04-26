@@ -105,7 +105,8 @@
         '\u8bd5\u70bc\u4e0e\u60c5\u62a5': '\u60c5\u62a5',
         '\u8fd1\u671f\u89c1\u95fb': '\u89c1\u95fb',
         '\u602a\u7269\u56fe\u9274': '\u56fe\u9274',
-        '\u4efb\u52a1\u754c\u9762': '\u4efb\u52a1'
+        '\u4efb\u52a1\u754c\u9762': '\u4efb\u52a1',
+        '\u6218\u6597\u7ec8\u7aef': '\u6218\u6597'
       };
       return previewTitleMap[key] || key || '\u8be6\u60c5';
     }
@@ -1355,6 +1356,11 @@
     }
 
     let activeBattleUI = null;
+    const BATTLE_INLINE_PREVIEW_KEY = '战斗终端';
+    let battleInlineDismissed = false;
+    let battleInlineMountToken = 0;
+    let battleReturnEntrySyncToken = 0;
+    let pendingBattleInlineMount = null;
     let liveSnapshot = null;
     let lastRenderableSnapshot = null;
     let preferredActiveCharacterName = '';
@@ -1364,6 +1370,7 @@
     let mapDispatchContext = null;
     let activeSubUI = null;
     let lastAutoTradeRequestSignature = '';
+    let hasHydratedAutoTradeRequestSignature = false;
     let lastInjectedModuleArbitrationPrompt = false;
     let lastRenderedShellPreviewKey = '';
     let activeInlineEditState = null;
@@ -2088,7 +2095,12 @@
           }], { once: true });
         }
         await helper.createChatMessages([{ role: 'user', message: userText }], { refresh: 'affected' });
-        await helper.triggerSlash('/trigger');
+        const patchOps = Array.isArray(meta && meta.patchOps) ? meta.patchOps : [];
+        if (patchOps.length) {
+          await applyJsonPatchOpsByEditor(patchOps, { force: true });
+          await refreshLiveSnapshot({ force: true });
+        }
+        await helper.triggerSlash('/trigger await=true');
         return { ok: true, requestKind };
       } catch (error) {
         console.error('[DragonUI] UI request dispatch failed', error);
@@ -2096,6 +2108,25 @@
         return { ok: false, requestKind, reason: 'dispatch_failed', error };
       }
     }
+
+    function installBattleUiHostSendBridge() {
+      const sendFromBattleUi = async (detail = {}) => {
+        const requestKind = toText(
+          detail.requestKind || detail.channels?.requestKind || detail.options?.requestKind,
+          'battle_arbitration'
+        );
+        const patchOps = Array.isArray(detail.mvuUpdate?.patchOps) ? detail.mvuUpdate.patchOps : [];
+        return dispatchUiAiRequest(detail.playerInput, detail.systemPrompt, { requestKind, patchOps });
+      };
+      window.BattleUIBridge = Object.assign(window.BattleUIBridge || {}, {
+        hostSend: sendFromBattleUi
+      });
+      window.__battleUIHostAdapter = Object.assign(window.__battleUIHostAdapter || {}, {
+        sendUIRequest: sendFromBattleUi,
+        sendBattleRequest: sendFromBattleUi
+      });
+    }
+    installBattleUiHostSendBridge();
 
     function installModuleArbitrationPrompt() {
       if (lastInjectedModuleArbitrationPrompt) return;
@@ -14587,26 +14618,14 @@
         syncPrivateArchiveLongPressTargets(liveSnapshot);
         maybeOpenTradeRequestFromAI(liveSnapshot);
         
-        const liveCombatData = normalizeCombatForBattleUI(liveSnapshot);
-        const isCombatActive = !!(liveCombatData && liveCombatData.is_active);
-        if (isCombatActive && isSnapshotPlayerControlled(liveSnapshot)) {
-          if (!activeBattleUI && typeof window.mountBattleUI === 'function') {
-            activeBattleUI = window.mountBattleUI(ensureBattleOverlayContainer(), liveSnapshot, {
-              onAction: (actionData) => {
-                dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
-              }
-            });
-          } else if (activeBattleUI && typeof activeBattleUI.updateData === 'function') {
-            activeBattleUI.updateData(liveSnapshot);
-          }
-        } else if (activeBattleUI && typeof activeBattleUI.destroy === 'function') {
-          activeBattleUI.destroy();
-          activeBattleUI = null;
-        }
+        syncBattleUiForSnapshot(liveSnapshot, options);
 
         const activeDetailPreviewKey = currentUnifiedPreviewKey || currentModalPreviewKey;
         if ((shouldRenderDashboard || !!options.force) && (detailModal.classList.contains('show') || isShellInlinePreviewActive() || isUnifiedInlinePreviewActive()) && activeDetailPreviewKey) {
           if (activeDetailPreviewKey === '角色切换器') {
+            return;
+          }
+          if (activeDetailPreviewKey === BATTLE_INLINE_PREVIEW_KEY) {
             return;
           }
           const liveSubUiKeys = new Set(['武装工坊详细页', '储物仓库详细页', '当前节点详情', '交易模块弹窗', '交易网络']);
@@ -14636,6 +14655,13 @@
 
     window.__MVU_REFRESH_LIVE_SNAPSHOT__ = options => refreshLiveSnapshot(options);
     window.__MVU_GET_LIVE_SNAPSHOT__ = () => liveSnapshot || lastRenderableSnapshot || null;
+    window.__MVU_OPEN_BATTLE_UI__ = async () => {
+      battleInlineDismissed = false;
+      removeBattleReturnEntries();
+      await openBattleInlineSurface();
+      await refreshLiveSnapshot({ force: true, reopenBattle: true });
+      return !!activeBattleUI;
+    };
     window.__MVU_APPLY_PATCHES__ = (patches, options = {}) => applyJsonPatchOpsByEditor(patches, options);
 
     function buildRingHoverMarkup(ring) {
@@ -15431,14 +15457,210 @@ ${mvuUpdate}`;
       };
     }
 
-    function ensureBattleOverlayContainer() {
-      let overlay = document.getElementById('battle-overlay');
-      if (!overlay) {
-        overlay = document.createElement('div');
-        overlay.id = 'battle-overlay';
-        document.body.appendChild(overlay);
+    function buildBattleInlineHostMarkup() {
+      return `
+        <div id="mvu-battle-inline-host" class="mvu-battle-inline-host">
+          <div class="battle-module-scope">
+            <section class="battle-shell" aria-label="战斗">
+              <div class="battle-header">
+                <div class="combatant-card player" id="ui-player-panel">
+                  <div class="name-row">
+                    <div class="name-block">
+                      <span class="lv-badge" id="ui-player-lv">Lv.0</span>
+                      <span class="combatant-name" id="ui-player-name">己方</span>
+                    </div>
+                  </div>
+                  <div class="bar-stack">
+                    <div class="resource-bar"><div class="resource-fill hp" id="ui-player-hp-bar"></div><div class="resource-text" id="ui-player-hp-text">0 / 0</div></div>
+                    <div class="resource-bar"><div class="resource-fill sp" id="ui-player-sp-bar"></div><div class="resource-text" id="ui-player-sp-text">0 / 0</div></div>
+                    <div class="resource-bar"><div class="resource-fill men" id="ui-player-men-bar"></div><div class="resource-text" id="ui-player-men-text">0 / 0</div></div>
+                  </div>
+                  <div class="stats-grid" id="ui-player-stats"></div>
+                  <div class="buff-row" id="ui-player-buffs"></div>
+                </div>
+                <div class="combatant-card enemy" id="ui-enemy-panel">
+                  <div class="name-row">
+                    <div class="name-block">
+                      <span class="lv-badge" id="ui-enemy-lv">Lv.0</span>
+                      <span class="combatant-name" id="ui-enemy-name">对手</span>
+                    </div>
+                  </div>
+                  <div class="bar-stack">
+                    <div class="resource-bar"><div class="resource-fill hp" id="ui-enemy-hp-bar"></div><div class="resource-text" id="ui-enemy-hp-text">0 / 0</div></div>
+                    <div class="resource-bar"><div class="resource-fill sp" id="ui-enemy-sp-bar"></div><div class="resource-text" id="ui-enemy-sp-text">0 / 0</div></div>
+                    <div class="resource-bar"><div class="resource-fill men" id="ui-enemy-men-bar"></div><div class="resource-text" id="ui-enemy-men-text">0 / 0</div></div>
+                  </div>
+                  <div class="stats-grid" id="ui-enemy-stats"></div>
+                  <div class="buff-row" id="ui-enemy-buffs"></div>
+                </div>
+              </div>
+              <div class="battle-main">
+                <div class="side-rail"><div class="side-panel" id="ui-team-player"></div></div>
+                <div class="center-column">
+                  <div class="intent-bar">
+                    <div class="intent-inner">
+                      <div class="intent-chip-row" id="ui-combat-chips"></div>
+                    </div>
+                  </div>
+                  <div class="action-wrap">
+                    <div class="battle-toolbar">
+                      <div class="mode-group" id="ui-mode-group">
+                        <button class="mode-btn active" type="button" data-mode="single_round">单回合</button>
+                        <button class="mode-btn" type="button" data-mode="multi_round">连续推演</button>
+                      </div>
+                      <div class="battle-toolbar-actions">
+                        <button class="ghost-btn" id="ui-arbitrate" type="button">结算</button>
+                        <button class="ghost-btn battle-close-btn" id="ui-battle-close" type="button" aria-label="退出战斗">退出</button>
+                      </div>
+                    </div>
+                    <div class="action-filters" id="ui-action-filters"></div>
+                    <div class="action-grid" id="ui-action-grid"></div>
+                    <textarea id="ui-intent-output" hidden></textarea>
+                  </div>
+                </div>
+                <div class="side-rail"><div class="side-panel" id="ui-team-enemy"></div></div>
+              </div>
+              <div class="skill-tooltip" id="ui-skill-tooltip"></div>
+            </section>
+          </div>
+        </div>`;
+    }
+
+    function getBattleInlineHost() {
+      const host = document.getElementById('mvu-battle-inline-host');
+      return host instanceof Element && host.isConnected ? host : null;
+    }
+
+    function waitForBattleInlineHost(attempts = 12) {
+      return new Promise(resolve => {
+        const check = remaining => {
+          const host = getBattleInlineHost();
+          if (host || remaining <= 0) {
+            resolve(host || null);
+            return;
+          }
+          if (typeof window.requestAnimationFrame === 'function') {
+            window.requestAnimationFrame(() => check(remaining - 1));
+          } else {
+            window.setTimeout(() => check(remaining - 1), 16);
+          }
+        };
+        check(attempts);
+      });
+    }
+
+    function isCombatActiveForBattleInline(snapshot) {
+      const combatData = deepGet(snapshot, 'rootData.world.combat', {});
+      return !!(combatData && typeof combatData === 'object' && combatData.is_active && isSnapshotPlayerControlled(snapshot));
+    }
+
+    function getBattleInlineSummary(snapshot) {
+      const combatData = deepGet(snapshot, 'rootData.world.combat', {});
+      const player = toText(combatData && combatData.participants && combatData.participants.player && combatData.participants.player.name, '己方');
+      const enemy = toText(combatData && combatData.participants && combatData.participants.enemy && combatData.participants.enemy.name, '对手');
+      const round = toNumber(combatData && combatData.round, 0);
+      return {
+        title: '战斗',
+        meta: `${player} / ${enemy}`,
+        roundText: `回合 ${round}`
+      };
+    }
+
+    function openBattleInlineFromReturnEntry() {
+      battleInlineDismissed = false;
+      removeBattleReturnEntries();
+      openBattleInlineSurface().then(() => refreshLiveSnapshot({ force: true, reopenBattle: true }));
+    }
+
+    function removeBattleReturnEntries() {
+      document.querySelectorAll('[data-mvu-battle-return="1"]').forEach(node => node.remove());
+    }
+
+    function ensureBattleReturnEntry(container, className, html) {
+      if (!(container instanceof Element)) return;
+      let entry = container.querySelector('[data-mvu-battle-return="1"]');
+      if (!entry) {
+        entry = document.createElement('button');
+        entry.type = 'button';
+        entry.setAttribute('data-mvu-battle-return', '1');
+        container.appendChild(entry);
       }
-      return overlay;
+      entry.className = className;
+      entry.innerHTML = html;
+      entry.onclick = event => {
+        event.preventDefault();
+        event.stopPropagation();
+        openBattleInlineFromReturnEntry();
+      };
+    }
+
+    function syncBattleReturnEntries(snapshot, isActive) {
+      if (!isActive) {
+        removeBattleReturnEntries();
+        return;
+      }
+      const summary = getBattleInlineSummary(snapshot);
+      const unifiedActionGrid = document.querySelector('#mvu-unified-mount .mvu-unified-action-grid');
+      ensureBattleReturnEntry(
+        unifiedActionGrid,
+        'mvu-unified-action-btn mvu-unified-grid-btn mvu-battle-return-entry',
+        `<span>${htmlEscape(summary.title)}</span><small>${htmlEscape(summary.meta)}</small>`
+      );
+      const unifiedTabRow = document.querySelector('#mvu-unified-mount .mvu-unified-tab-row');
+      ensureBattleReturnEntry(
+        unifiedTabRow,
+        'mvu-tab-btn mvu-battle-return-tab',
+        htmlEscape(summary.title)
+      );
+      const splitHosts = [
+        document.getElementById('splitFooterTabsLeft'),
+        document.getElementById('splitFooterTabsRight')
+      ].filter(Boolean);
+      splitHosts.forEach(host => ensureBattleReturnEntry(
+        host,
+        'mvu-tab-btn mvu-battle-return-tab',
+        htmlEscape(summary.title)
+      ));
+    }
+
+    function scheduleBattleReturnEntrySync(snapshot, isActive) {
+      const token = ++battleReturnEntrySyncToken;
+      const run = () => {
+        if (token !== battleReturnEntrySyncToken) return;
+        const latestSnapshot = liveSnapshot || lastRenderableSnapshot || snapshot;
+        syncBattleReturnEntries(latestSnapshot, isActive && isCombatActiveForBattleInline(latestSnapshot));
+      };
+      if (typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(run);
+      }
+      [80, 240, 520].forEach(delay => window.setTimeout(run, delay));
+    }
+
+    function openBattleInlineSurface() {
+      const layoutState = window.__MVU_LAYOUT_STATE__ || {};
+      const useShellSurface = !!layoutState.isMobileViewport || layoutState.surfaceMode === 'shell';
+      if (useShellSurface) {
+        const bridge = getMobileShellBridge();
+        if (bridge && typeof bridge.open === 'function') bridge.open();
+        if (bridge && typeof bridge.openPreview === 'function') {
+          bridge.openPreview(BATTLE_INLINE_PREVIEW_KEY);
+        } else if (typeof window.__MVU_OPEN_SHELL_PREVIEW__ === 'function') {
+          window.__MVU_OPEN_SHELL_PREVIEW__(BATTLE_INLINE_PREVIEW_KEY, { preserveMapDispatchContext: true });
+        }
+        return waitForBattleInlineHost();
+      }
+
+      if (typeof window.mvuSetDesktopMode === 'function') {
+        window.mvuSetDesktopMode('unified');
+      }
+      if (typeof window.__MVU_OPEN_UNIFIED_PREVIEW__ !== 'function') {
+        return Promise.resolve(null);
+      }
+      window.__MVU_OPEN_UNIFIED_PREVIEW__(BATTLE_INLINE_PREVIEW_KEY, {
+        preserveMapDispatchContext: true,
+        replace: true
+      });
+      return waitForBattleInlineHost();
     }
 
     const COMBAT_PARTICIPANT_STAT_KEYS = ['age', 'lv', 'type', 'talent_tier', 'is_evil', 'sp', 'sp_max', 'men', 'men_max', 'str', 'def', 'agi', 'vit', 'vit_max'];
@@ -15454,7 +15676,7 @@ ${mvuUpdate}`;
       participant.faction = faction;
       participant.status = status;
       COMBAT_PARTICIPANT_STAT_KEYS.forEach(key => {
-        if (participant[key] === undefined && stat[key] !== undefined) participant[key] = stat[key];
+        if (stat[key] !== undefined) participant[key] = stat[key];
       });
       participant.lv = toNumber(participant.lv, toNumber(stat.lv, 1));
       participant.type = toText(participant.type, toText(stat.type, '未知系'));
@@ -15537,6 +15759,60 @@ ${mvuUpdate}`;
       return nextCombat;
     }
 
+    function syncBattleUiForSnapshot(snapshot, options = {}) {
+      const liveCombatData = normalizeCombatForBattleUI(snapshot);
+      const isCombatActive = !!(liveCombatData && liveCombatData.is_active);
+      const canUseBattle = isCombatActive && isSnapshotPlayerControlled(snapshot);
+      syncBattleReturnEntries(snapshot, canUseBattle && battleInlineDismissed);
+      if (canUseBattle && battleInlineDismissed && !options.reopenBattle) {
+        if (activeBattleUI && typeof activeBattleUI.destroy === 'function') activeBattleUI.destroy();
+        activeBattleUI = null;
+        scheduleBattleReturnEntrySync(snapshot, true);
+        return;
+      }
+      if (canUseBattle) {
+        const currentHost = getBattleInlineHost();
+        if (activeBattleUI && currentHost && activeBattleUI.container === currentHost && typeof activeBattleUI.updateData === 'function') {
+          activeBattleUI.updateData(snapshot);
+          return;
+        }
+        if (activeBattleUI && typeof activeBattleUI.destroy === 'function') activeBattleUI.destroy();
+        activeBattleUI = null;
+        if (pendingBattleInlineMount) return;
+        const mountToken = ++battleInlineMountToken;
+        pendingBattleInlineMount = openBattleInlineSurface()
+          .then(host => {
+            if (mountToken !== battleInlineMountToken) return;
+            const latestSnapshot = liveSnapshot || lastRenderableSnapshot || snapshot;
+            const latestCombatData = normalizeCombatForBattleUI(latestSnapshot);
+            if (!latestCombatData || !latestCombatData.is_active || !isSnapshotPlayerControlled(latestSnapshot)) return;
+            if (!host || typeof window.mountBattleUI !== 'function') {
+              showUiToast('战斗终端嵌入宿主未就绪，战斗模块未打开。', 'error', 4200);
+              return;
+            }
+            activeBattleUI = window.mountBattleUI(host, latestSnapshot, {
+              onAction: (actionData) => {
+                dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
+              }
+            });
+          })
+          .catch(error => {
+            console.error('[DragonUI] Battle inline mount failed', error);
+            showUiToast('战斗终端打开失败。', 'error', 4200);
+          })
+          .finally(() => {
+            if (mountToken === battleInlineMountToken) pendingBattleInlineMount = null;
+          });
+      } else {
+        battleInlineMountToken++;
+        pendingBattleInlineMount = null;
+        battleInlineDismissed = false;
+        removeBattleReturnEntries();
+        if (activeBattleUI && typeof activeBattleUI.destroy === 'function') activeBattleUI.destroy();
+        activeBattleUI = null;
+      }
+    }
+
     function buildMapBattleCombatData(snapshot, dispatchDetail) {
       const detail = dispatchDetail || {};
       const npcTarget = toText(detail.npcTarget, '');
@@ -15575,6 +15851,7 @@ ${mvuUpdate}`;
       if (!combatData) return { ok: false, reason: 'combat_context_unresolved' };
       const playerName = toText(combatData.participants.player.name, '玩家');
       const enemyName = toText(combatData.participants.enemy.name, '对手');
+      battleInlineDismissed = false;
       await applyJsonPatchOpsByEditor([
         { op: 'replace', path: '/world/combat', value: combatData },
         { op: 'replace', path: '/sys/rsn', value: `[战斗模块] ${playerName} 向 ${enemyName} 发起切磋，战斗模块已接管。` }
@@ -15613,12 +15890,18 @@ ${mvuUpdate}`;
       const status = toText(tradeRequest && tradeRequest.status, 'pending');
       if (!tradeRequest || typeof tradeRequest !== 'object' || !action || action === '无' || /handled|done|完成|已处理|取消|cancel/i.test(status)) {
         lastAutoTradeRequestSignature = '';
+        hasHydratedAutoTradeRequestSignature = true;
         return;
       }
       if (!isSnapshotPlayerControlled(snapshot)) return;
       const signature = (() => {
         try { return JSON.stringify(tradeRequest); } catch (error) { return `${action}:${Date.now()}`; }
       })();
+      if (!hasHydratedAutoTradeRequestSignature) {
+        lastAutoTradeRequestSignature = signature;
+        hasHydratedAutoTradeRequestSignature = true;
+        return;
+      }
       if (signature === lastAutoTradeRequestSignature) return;
       lastAutoTradeRequestSignature = signature;
       mapDispatchContext = buildTradeDispatchFromRequest(snapshot, tradeRequest);
@@ -16397,16 +16680,12 @@ ${mvuUpdate}`;
         try {
           battleOpenResult = await openMapBattleModule(liveSnapshot, detail);
         } catch (error) {
-          console.warn('[DragonUI] 战斗模块开启失败，回落到AI请求。', error);
+          console.warn('[DragonUI] 战斗模块开启失败。', error);
         }
         if (battleOpenResult && battleOpenResult.ok) {
           return;
         }
-        const arenaName = toText(detail.currentLoc, toText(detail.target, toText(liveSnapshot && liveSnapshot.currentLoc, '未知地点')));
-        const npcTargets = Array.isArray(detail.npcTargets) ? detail.npcTargets.map(item => toText(item, '')).filter(Boolean) : [];
-        const targetLabel = npcTargets.length ? `在场人物（${npcTargets.join('、')}）中的一人` : '合适的对手';
-        const systemPrompt = `以下内容属于前端已经发起的地图切磋请求。当前没有锁定唯一对手，不要报错，也不要要求玩家重新点击；请结合【${arenaName}】现场情况与在场人物，自然判断是否有人应战。${npcTargets.length ? ` 候选对手：${npcTargets.join('、')}。若有人应战，请自然承接为切磋剧情并继续后续战斗推进。` : ' 若当前没有明确对手，也请以前端请求已发出的事实为基础，自然描述无人应战、稍后再战或由他人出面回应。'}`;
-        dispatchUiAiRequest(`我想在【${arenaName}】与${targetLabel}切磋。`, systemPrompt, { requestKind: 'map_sparring' });
+        showUiToast(`战斗模块开启失败：${battleOpenResult && battleOpenResult.reason ? battleOpenResult.reason : 'combat_context_unresolved'}`, 'error', 4200);
         return;
       }
 
@@ -16446,7 +16725,27 @@ ${mvuUpdate}`;
       }
     }
 
+    function handleBattleUiCloseRequest(event) {
+      const detail = event && event.detail && typeof event.detail === 'object' ? event.detail : {};
+      detail.handled = true;
+      if (isCombatActiveForBattleInline(liveSnapshot || lastRenderableSnapshot)) {
+        battleInlineDismissed = true;
+        scheduleBattleReturnEntrySync(liveSnapshot || lastRenderableSnapshot, true);
+      }
+      if (activeBattleUI && typeof activeBattleUI.destroy === 'function') activeBattleUI.destroy();
+      activeBattleUI = null;
+      battleInlineMountToken++;
+      pendingBattleInlineMount = null;
+      const shellBridge = getMobileShellBridge();
+      if (shellBridge && typeof shellBridge.onPreviewClosed === 'function') {
+        shellBridge.onPreviewClosed();
+      } else if (currentUnifiedPreviewKey === BATTLE_INLINE_PREVIEW_KEY && typeof window.__MVU_CLOSE_UNIFIED_PREVIEW__ === 'function') {
+        window.__MVU_CLOSE_UNIFIED_PREVIEW__({ force: true });
+      }
+    }
+
     window.addEventListener('battle-ui-mvu-update-request', handleBattleMvuUpdateRequest);
+    window.addEventListener('battle-ui-close-request', handleBattleUiCloseRequest);
 
     var currentModalDisplayMode = 'auto';
     var lastRenderedModalPreviewKey = '';
@@ -16923,6 +17222,14 @@ ${mvuUpdate}`;
 
     function clearUnifiedInlinePreview() {
       const host = getUnifiedInlineHost();
+      if (currentUnifiedPreviewKey === BATTLE_INLINE_PREVIEW_KEY && activeBattleUI && typeof activeBattleUI.destroy === 'function') {
+        if (isCombatActiveForBattleInline(liveSnapshot || lastRenderableSnapshot)) {
+          battleInlineDismissed = true;
+          scheduleBattleReturnEntrySync(liveSnapshot || lastRenderableSnapshot, true);
+        }
+        activeBattleUI.destroy();
+        activeBattleUI = null;
+      }
       if (currentUnifiedPreviewKey && activeSubUI && typeof activeSubUI.destroy === 'function') {
         activeSubUI.destroy();
         activeSubUI = null;
@@ -17016,6 +17323,11 @@ ${mvuUpdate}`;
         scheduleUnifiedMapCanvasClamp(host);
       };
 
+      if (targetKey === BATTLE_INLINE_PREVIEW_KEY) {
+        setHostMarkup(buildBattleInlineHostMarkup());
+        return true;
+      }
+
       const liveArchive = buildLiveArchiveModal(targetKey);
       const skeletonArchive = !liveArchive && !liveSnapshot ? buildArchiveSkeletonModal(targetKey) : null;
       if (liveArchive) {
@@ -17062,6 +17374,11 @@ ${mvuUpdate}`;
         stripShellHeavyEntryNodes(host);
         if (shouldResetScroll) scrollTarget.scrollTop = 0;
       };
+
+      if (previewKey === BATTLE_INLINE_PREVIEW_KEY) {
+        setHostMarkup(buildBattleInlineHostMarkup());
+        return true;
+      }
 
       if (previewKey === PRIVATE_ARCHIVE_PREVIEW_KEY) {
         const snapshot = liveSnapshot || lastRenderableSnapshot;

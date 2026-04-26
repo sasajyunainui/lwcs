@@ -75,11 +75,8 @@
     unified.style.pointerEvents = 'auto';
     unified.style.zIndex = '1000';
 
-    if (!hostDoc.getElementById('battle-overlay')) {
-      const overlay = hostDoc.createElement('div');
-      overlay.id = 'battle-overlay';
-      hostDoc.body.appendChild(overlay);
-    }
+    const battleOverlay = hostDoc.getElementById('battle-overlay');
+    if (battleOverlay) battleOverlay.remove();
 
     if (!hostDoc.getElementById('page-map')) {
       const pageMap = hostDoc.createElement('div');
