@@ -450,29 +450,6 @@ function getBeastStats(age, species) {
   };
 }
 
-function calcYouthTalentRankScore(char) {
-  if (!char) return -999999;
-
-  const age = Number(char.stat?.age || 0);
-  const lv = Number(char.stat?.lv || 0);
-  const rep = Number(char.social?.reputation || 0);
-
-  if (age >= 18 || rep < 500) return -999999;
-
-  const talentBonusMap = {
-    绝世妖孽: 120,
-    顶级天才: 90,
-    天才: 60,
-    优秀: 30,
-    正常: 0,
-    劣等: -30,
-  };
-
-  const talentBonus = talentBonusMap[char.stat?.talent_tier] || 0;
-
-  return Math.floor(rep / 100 + lv * 2 + talentBonus);
-}
-
 function isSoulBeastCharacter(char = {}) {
   return !!(Number(char?.stat?.age || 0) >= 10000 || char?.social?.factions?.['魂兽一族']);
 }
@@ -485,45 +462,6 @@ function formatCultivationLevelText(level, fallback = '未知') {
   }
   const text = String(level ?? '').trim();
   return text || fallback;
-}
-
-const CONTINENT_RANK_NON_HUMAN_FACTIONS = new Set([
-  '深渊位面',
-  '魂兽一族',
-  '星斗大森林',
-  '极北之地',
-  '无尽海域',
-  '自然地带',
-]);
-
-function calcContinentRankScore(char, data) {
-  if (!char) return -999999;
-
-  if (!char.status?.alive) return -999999;
-
-  const armorLv = Number(char.equip?.armor?.lv || 0);
-  if (armorLv <= 0) return -999999;
-
-  let armorBaseScore = 0;
-  if (armorLv === 1) armorBaseScore = 1500;
-  else if (armorLv === 2) armorBaseScore = 3500;
-  else if (armorLv === 3) armorBaseScore = 6000;
-  else if (armorLv >= 4) armorBaseScore = 8500;
-
-  let maxFactionInf = 0;
-  if (char.social?.factions) {
-    _(char.social.factions).forEach((facData, facName) => {
-      const orgInf = Number(data?.org?.[facName]?.inf || 0);
-      if (orgInf > maxFactionInf) maxFactionInf = orgInf;
-    });
-  }
-  const factionBonus = Math.floor((maxFactionInf * 8) / 1000);
-
-  const rep = Number(char.social?.reputation || 0);
-  const reputationBonus = Math.floor((rep * 11) / 100);
-  const lvBonus = Math.floor(Number(char.stat?.lv || 0) * 95);
-
-  return Math.floor(armorBaseScore + lvBonus + reputationBonus + factionBonus);
 }
 
 function autoBreakthrough(data) {
@@ -859,375 +797,6 @@ const FactionDistribution = {
     branches: [],
   },
 };
-
-function refreshContinentRanking(data) {
-  if (!data.world.rankings) data.world.rankings = {};
-  if (!data.world.rankings.continent_wind) {
-    data.world.rankings.continent_wind = {
-      _last榜单: {},
-      _top100: {},
-    };
-  }
-
-  const board = data.world.rankings.continent_wind;
-  const oldRanks = { ...(board._last榜单 || {}) };
-  const realCandidates = [];
-  const seatCandidates = [];
-  const factionCounts = {};
-  const seatUsage = {};
-  const tierConfigs = [
-    { key: 'limit', label: '极限斗罗', lv: 99, armorLv: 4, repMultiplier: 1.2 },
-    { key: 'super', label: '超级斗罗', lv: 95, armorLv: 3, repMultiplier: 1.0 },
-    { key: 'title', label: '封号斗罗', lv: 90, armorLv: 2, repMultiplier: 0.85 },
-  ];
-  const orgEntries = Object.entries(data.org || {}).filter(
-    ([orgName, orgData]) =>
-      !CONTINENT_RANK_NON_HUMAN_FACTIONS.has(orgName) &&
-      orgData &&
-      typeof orgData === 'object' &&
-      orgData.power_stats &&
-      typeof orgData.power_stats === 'object',
-  );
-  const clearContinentTitles = char => {
-    if (!char?.social?.titles || typeof char.social.titles !== 'object') return;
-    delete char.social.titles['大陆风云榜'];
-    _(Object.keys(char.social.titles)).forEach(k => {
-      if (/^大陆风云榜第\d+名$/.test(k)) delete char.social.titles[k];
-    });
-  };
-  const appendSeatCandidate = (orgName, orgData, tierConfig, seatIndex) => {
-    const seatName = `【${orgName}】${tierConfig.label}第${seatIndex}席`;
-    const repBase = Number(orgData?.inf || 0);
-    const reputation = Math.max(0, Math.floor(repBase * tierConfig.repMultiplier) - (seatIndex - 1) * 120);
-    const seatChar = {
-      stat: { lv: tierConfig.lv },
-      equip: { armor: { lv: tierConfig.armorLv } },
-      social: {
-        reputation,
-        factions: { [orgName]: { 身份: tierConfig.label, 权限级: 5 } },
-      },
-      status: { alive: true },
-    };
-    const score = calcContinentRankScore(seatChar, data);
-    if (score <= -999999) return;
-    seatCandidates.push({
-      source: 'seat',
-      charName: seatName,
-      score,
-      orgName,
-      tierKey: tierConfig.key,
-      seatIndex,
-    });
-  };
-
-  _(data.char).forEach((char, charName) => {
-    const score = calcContinentRankScore(char, data);
-    if (score <= -999999) {
-      clearContinentTitles(char);
-      return;
-    }
-    realCandidates.push({ source: 'real', charName, score });
-
-    if (!char.status?.alive || !char.social?.factions || typeof char.social.factions !== 'object') return;
-    const lv = Number(char.stat?.lv || 0);
-    Object.keys(char.social.factions).forEach(orgName => {
-      if (!orgName || CONTINENT_RANK_NON_HUMAN_FACTIONS.has(orgName)) return;
-      if (!factionCounts[orgName]) factionCounts[orgName] = { limit: 0, super: 0, title: 0 };
-      if (lv >= 99) factionCounts[orgName].limit += 1;
-      else if (lv >= 95) factionCounts[orgName].super += 1;
-      else if (lv >= 90) factionCounts[orgName].title += 1;
-    });
-  });
-
-  orgEntries.forEach(([orgName, orgData]) => {
-    const current = factionCounts[orgName] || { limit: 0, super: 0, title: 0 };
-    const target = {
-      limit: Math.max(0, Number(orgData.power_stats.limit_douluo || 0)),
-      super: Math.max(0, Number(orgData.power_stats.super_douluo || 0)),
-      title: Math.max(0, Number(orgData.power_stats.title_douluo || 0)),
-    };
-    if (!seatUsage[orgName]) seatUsage[orgName] = { limit: 0, super: 0, title: 0 };
-    tierConfigs.forEach(tierConfig => {
-      const deficit = Math.max(0, Number(target[tierConfig.key] || 0) - Number(current[tierConfig.key] || 0));
-      for (let i = 0; i < deficit; i += 1) {
-        seatUsage[orgName][tierConfig.key] += 1;
-        appendSeatCandidate(orgName, orgData, tierConfig, seatUsage[orgName][tierConfig.key]);
-      }
-    });
-  });
-
-  const weightedFactions = orgEntries
-    .map(([orgName, orgData]) => {
-      const ps = orgData?.power_stats || {};
-      const weight = Math.max(
-        1,
-        Number(ps.limit_douluo || 0) * 6 + Number(ps.super_douluo || 0) * 3 + Number(ps.title_douluo || 0),
-      );
-      return { orgName, orgData, weight };
-    })
-    .sort((a, b) => b.weight - a.weight || Number(b.orgData?.inf || 0) - Number(a.orgData?.inf || 0));
-
-  let extraCursor = 0;
-  let extraGuard = 0;
-  while (realCandidates.length + seatCandidates.length < 100 && weightedFactions.length > 0 && extraGuard < 5000) {
-    extraGuard += 1;
-    const picked = weightedFactions[extraCursor % weightedFactions.length];
-    extraCursor += 1;
-    if (!picked) break;
-    if (!seatUsage[picked.orgName]) seatUsage[picked.orgName] = { limit: 0, super: 0, title: 0 };
-    const usage = seatUsage[picked.orgName];
-    let tierKey = 'title';
-    if (usage.limit <= usage.super && usage.limit <= usage.title) tierKey = 'limit';
-    else if (usage.super <= usage.title) tierKey = 'super';
-    const tierConfig = tierConfigs.find(item => item.key === tierKey) || tierConfigs[2];
-    usage[tierKey] += 1;
-    appendSeatCandidate(picked.orgName, picked.orgData, tierConfig, usage[tierKey]);
-  }
-
-  const rankedCandidates = realCandidates
-    .concat(seatCandidates)
-    .sort(
-      (a, b) =>
-        b.score - a.score ||
-        String(a.charName).localeCompare(String(b.charName), 'zh-Hans-CN', { numeric: true, sensitivity: 'base' }),
-    );
-
-  const top100 = rankedCandidates.slice(0, 100);
-  const newRanks = {};
-  const broadcastMsgs = [];
-
-  top100.forEach((entry, idx) => {
-    if (entry.source !== 'real') return;
-    const rank = idx + 1;
-    newRanks[entry.charName] = rank;
-    const c = data.char[entry.charName];
-    if (!c) return;
-
-    if (!c.social || typeof c.social !== 'object') c.social = {};
-    if (!c.social.titles) c.social.titles = {};
-    _(Object.keys(c.social.titles)).forEach(k => {
-      if (/^大陆风云榜第\d+名$/.test(k)) delete c.social.titles[k];
-    });
-
-    const wasOnBoard = !!oldRanks[entry.charName];
-    const oldRank = oldRanks[entry.charName] || null;
-
-    c.social.titles['大陆风云榜'] = { 来源: '传灵塔评定', 声望加成: 0 };
-    c.social.titles[`大陆风云榜第${rank}名`] = { 来源: '传灵塔评定', 声望加成: 0 };
-
-    if (!wasOnBoard) {
-      broadcastMsgs.push(`[风云震动] ${entry.charName} 强势杀入【大陆风云榜第${rank}名】！`);
-    } else {
-      const diff = oldRank - rank;
-      if (diff >= 5) {
-        broadcastMsgs.push(`[风云异动] ${entry.charName} 排名飙升至【大陆风云榜第${rank}名】！`);
-      }
-    }
-  });
-
-  realCandidates.forEach(entry => {
-    if (newRanks[entry.charName]) return;
-    clearContinentTitles(data.char?.[entry.charName]);
-  });
-
-  _(oldRanks).forEach((oldRank, charName) => {
-    if (!newRanks[charName] && data.char[charName]) {
-      const c = data.char[charName];
-      clearContinentTitles(c);
-      if (!c.status?.alive) {
-        broadcastMsgs.push(`[巨星陨落] 原风云榜第${oldRank}名 ${charName} 确认死亡，已从榜单除名！`);
-      } else {
-        broadcastMsgs.push(`[风云跌落] ${charName} 已遗憾跌出【大陆风云榜】。`);
-      }
-    }
-  });
-
-  board._top100 = _(top100)
-    .map((entry, idx) => [String(idx + 1), { 角色名: entry.charName, 评分: entry.score }])
-    .fromPairs()
-    .value();
-  board._last榜单 = newRanks;
-
-  if (broadcastMsgs.length > 0) {
-    data.sys.rsn = broadcastMsgs.slice(0, 3).join(' ');
-  }
-}
-function refreshYouthTalentRanking(data) {
-  if (!data.world.rankings) data.world.rankings = {};
-  if (!data.world.rankings.youth_talent) {
-    data.world.rankings.youth_talent = {
-      _last榜单: {},
-      _top30: {},
-    };
-  }
-
-  const board = data.world.rankings.youth_talent;
-  const oldRanks = { ...(board._last榜单 || {}) };
-
-  const candidates = [];
-
-  const currentTick = data.world.time.tick;
-  const isYear7 = currentTick >= 367920 && currentTick < 420480;
-
-  const fixedRanks = isYear7
-    ? {
-        舞丝朵: 9,
-        龙尘: 10,
-        骆桂星: 17,
-        徐愉程: 19,
-        杨念夏: 27,
-        郑怡然: 30,
-      }
-    : {};
-
-  _(data.char).forEach((char, charName) => {
-    const score = calcYouthTalentRankScore(char);
-    if (score <= -999999) {
-      if (char.social?.titles) {
-        delete char.social.titles['少年天才榜'];
-        _(Object.keys(char.social.titles)).forEach(k => {
-          if (/^少年天才榜第\d+名$/.test(k)) delete char.social.titles[k];
-        });
-      }
-      return;
-    }
-
-    candidates.push({
-      charName,
-      score,
-      reputation: Number(char.social?.reputation || 0),
-      lv: Number(char.stat?.lv || 0),
-    });
-  });
-
-  candidates.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    if (b.reputation !== a.reputation) return b.reputation - a.reputation;
-    return b.lv - a.lv;
-  });
-
-  const top30Array = new Array(30).fill(null);
-
-  const fixedCandidates = candidates.filter(c => fixedRanks[c.charName]);
-
-  fixedCandidates.sort((a, b) => fixedRanks[a.charName] - fixedRanks[b.charName]);
-
-  fixedCandidates.forEach(c => {
-    let targetIdx = fixedRanks[c.charName] - 1;
-
-    while (targetIdx < 30 && top30Array[targetIdx] !== null) {
-      targetIdx++;
-    }
-
-    if (targetIdx < 30) {
-      top30Array[targetIdx] = c;
-    }
-  });
-
-  const normalCandidates = candidates.filter(c => !fixedRanks[c.charName]);
-  let normalIdx = 0;
-  for (let i = 0; i < 30; i++) {
-    if (top30Array[i] === null && normalIdx < normalCandidates.length) {
-      top30Array[i] = normalCandidates[normalIdx++];
-    }
-  }
-
-  const top30 = top30Array.filter(c => c !== null);
-
-  const newRanks = {};
-  const broadcastMsgs = [];
-
-  top30.forEach((entry, idx) => {
-    const rank = idx + 1;
-    newRanks[entry.charName] = rank;
-
-    const c = data.char[entry.charName];
-    if (!c.social.titles) c.social.titles = {};
-
-    _(Object.keys(c.social.titles)).forEach(k => {
-      if (/^少年天才榜第\d+名$/.test(k)) delete c.social.titles[k];
-    });
-
-    const wasOnBoard = !!oldRanks[entry.charName];
-    const oldRank = oldRanks[entry.charName] || null;
-
-    c.social.titles['少年天才榜'] = { 来源: '传灵塔评定', 声望加成: 0 };
-    c.social.titles[`少年天才榜第${rank}名`] = { 来源: '传灵塔评定', 声望加成: 0 };
-
-    if (!wasOnBoard) {
-      broadcastMsgs.push(`[榜单收录] ${entry.charName} 以 ${entry.score} 分跻身【少年天才榜第${rank}名】！`);
-    } else {
-      const diff = oldRank - rank;
-      if (diff >= 3) {
-        broadcastMsgs.push(`[榜单异动] ${entry.charName} 排名飙升至【少年天才榜第${rank}名】！`);
-      } else if (diff <= -3) {
-        broadcastMsgs.push(`[榜单异动] ${entry.charName} 下滑至【少年天才榜第${rank}名】。`);
-      }
-    }
-  });
-
-  _(oldRanks).forEach((oldRank, charName) => {
-    if (!newRanks[charName] && data.char[charName]) {
-      const c = data.char[charName];
-      if (c.social?.titles) {
-        delete c.social.titles['少年天才榜'];
-        _(Object.keys(c.social.titles)).forEach(k => {
-          if (/^少年天才榜第\d+名$/.test(k)) delete c.social.titles[k];
-        });
-      }
-      broadcastMsgs.push(`[榜单跌落] ${charName} 已跌出【少年天才榜】。`);
-    }
-  });
-
-  board._top30 = _(top30)
-    .map((entry, idx) => [String(idx + 1), { 角色名: entry.charName, 评分: entry.score }])
-    .fromPairs()
-    .value();
-
-  board._last榜单 = newRanks;
-
-  if (broadcastMsgs.length > 0) {
-    data.sys.rsn = broadcastMsgs.join(' ');
-  }
-}
-
-function checkDestinyAnchors(data, currentTick) {
-  if (!data.world.flags) data.world.flags = {};
-
-  if (currentTick >= 367920 && !data.world.flags['anchor_year_7_youth_talent']) {
-    const anchors = {
-      舞丝朵: { age: 14, lv: 41, rep: 4500, faction: '史莱克学院' },
-      龙尘: { age: 14, lv: 42, rep: 4000, faction: '日月皇家魂导师学院' },
-      骆桂星: { age: 13, lv: 38, rep: 3000, faction: '史莱克学院' },
-      徐愉程: { age: 13, lv: 41, rep: 2500, faction: '史莱克学院' },
-      杨念夏: { age: 13, lv: 37, rep: 1500, faction: '史莱克学院' },
-      郑怡然: { age: 13, lv: 36, rep: 1000, faction: '史莱克学院' },
-    };
-    let triggered = false;
-    _(anchors).forEach((target, name) => {
-      if (data.char[name]) {
-        const c = data.char[name];
-        c.stat.age = target.age;
-        c.stat.lv = Math.max(c.stat.lv, target.lv);
-        c.social.reputation = target.rep;
-
-        if (!c.social.factions) c.social.factions = {};
-        c.social.factions[target.faction] = { 身份: '外院学生', 权限级: 1 };
-        triggered = true;
-      }
-    });
-
-    if (triggered) {
-      data.sys.rsn = `[命运锚点] 世界线收束！第七年时间锁触发，核心天才数据已强制校准。`;
-      refreshYouthTalentRanking(data);
-      refreshContinentRanking(data);
-    }
-
-    autoBreakthrough(data);
-
-    data.world.flags['anchor_year_7_youth_talent'] = true;
-  }
-}
 
 function getBaseStats(lv) {
   let spBase = 100;
@@ -9204,24 +8773,18 @@ export const Schema = z
               .prefault({}),
           })
           .prefault({}),
-        rankings: z
+        trade_request: z
           .object({
-            youth_talent: z
-              .object({
-                _last榜单: z.record(z.string(), z.coerce.number().prefault(0)).prefault({}),
-                _top30: z
-                  .record(
-                    z.string(),
-                    z
-                      .object({
-                        角色名: z.string().prefault('无'),
-                        评分: z.coerce.number().prefault(0),
-                      })
-                      .prefault({}),
-                  )
-                  .prefault({}),
-              })
-              .prefault({}),
+            action: z.string().prefault('无').describe('AI或剧情发起的交易模块请求类型'),
+            target: z.string().prefault('').describe('交易地点、店铺或拍卖目标'),
+            npc: z.string().prefault('').describe('交易对象NPC'),
+            item: z.string().prefault('').describe('交易物品名称'),
+            quantity: z.coerce.number().prefault(1).describe('交易数量'),
+            price: z.coerce.number().prefault(0).describe('单价或出价'),
+            currency: z.string().prefault('fed_coin').describe('货币类型'),
+            status: z.string().prefault('pending').describe('pending/opened/handled/无'),
+            auto_execute: z.boolean().prefault(false).describe('是否允许前端交易模块自动提交仲裁'),
+            source: z.string().prefault('AI').describe('请求来源'),
           })
           .prefault({}),
         quest_board: z
@@ -9372,10 +8935,7 @@ export const Schema = z
         combat: z
           .object({
             is_active: z.boolean().prefault(false).describe('是否处于战斗中'),
-            combat_type: z
-              .enum(['切磋', '死战', '未知'])
-              .prefault('未知')
-              .describe('战斗烈度，决定是否触发锁血保护与死亡结算'),
+            combat_type: z.string().prefault('未知').describe('战斗烈度，决定是否触发锁血保护与死亡结算'),
             initiative: z
               .string()
               .prefault('无')
@@ -9386,16 +8946,7 @@ export const Schema = z
             environment: z.string().prefault('正常').describe('战场环境或全局领域法则'),
 
             participants: z
-              .record(
-                z.string().describe('参战者姓名或怪物名'),
-                z
-                  .object({
-                    faction: z.enum(['己方', '敌对', '中立']).prefault('敌对').describe('所属阵营'),
-                    status: z.string().prefault('存活').describe('存活/重伤/濒死/死亡/逃跑'),
-                    is_summon: z.boolean().prefault(false).describe('是否为离体参战的魂灵'),
-                  })
-                  .prefault({}),
-              )
+              .record(z.string().describe('参战槽位或参战者姓名'), z.any())
               .prefault({})
               .describe('当前战场所有参战单位的实时状态'),
           })
@@ -10478,24 +10029,12 @@ export const Schema = z
     }
 
     if (!data.world.flags) data.world.flags = {};
-    const hasContinentRankingData = Object.keys(data.world?.rankings?.continent_wind?._top100 || data.world?.rankings?.continent_wind?.top100 || {}).length > 0;
-    const hasYouthRankingData = Object.keys(data.world?.rankings?.youth_talent?._top30 || data.world?.rankings?.youth_talent?.top30 || {}).length > 0;
-    if (!data.world.flags['initial_setup_complete'] || !hasContinentRankingData || !hasYouthRankingData) {
-      refreshContinentRanking(data);
-      refreshYouthTalentRanking(data);
-      if (!data.world.flags['initial_setup_complete']) {
-        data.world.flags['initial_setup_complete'] = true;
-        if (data.sys.rsn === '初始化' || !data.sys.rsn) data.sys.rsn = '';
-        data.sys.rsn += ' [系统提示] 世界初始化完成！大陆风云榜与少年天才榜已完成首次排位！';
-      }
+    if (!data.world.flags['initial_setup_complete']) {
+      data.world.flags['initial_setup_complete'] = true;
     }
 
     if (delta > 0) {
       let daysPassed = Math.floor(currentTick / 144) - Math.floor(lastTick / 144);
-
-      checkDestinyAnchors(data, currentTick);
-      refreshYouthTalentRanking(data);
-      refreshContinentRanking(data);
 
       _(data.char).forEach((c, charName) => {
         const trainedBonus = ensureNumericStatBonusMap(c.stat, 'trained_bonus');
@@ -12500,7 +12039,7 @@ export const Schema = z
         forest_killed_age: Number(data.world?.forest_killed_age || 0),
         timeline: cloneValue(data.world?.timeline || {}, {}),
         auction: cloneValue(data.world?.auction || {}, {}),
-        rankings: cloneValue(data.world?.rankings || {}, {}),
+        trade_request: cloneValue(data.world?.trade_request || {}, {}),
         quest_board: cloneValue(data.world?.quest_board || {}, {}),
         bestiary: cloneValue(data.world?.bestiary || {}, {}),
         combat: cloneValue(data.world?.combat || {}, {}),

@@ -1198,7 +1198,6 @@ const RightPanel = {
           <div class="split-page split-right-page" :class="{ active: tabState.current === 'page-world' }" data-target="page-world">
             <div class="stack-3">
               <div class="mvu-simple-card live-card clickable" data-preview="编年史档案"></div>
-              <div class="mvu-simple-card entry-card" data-rank-card="天道金榜"></div>
               <div class="mvu-simple-card live-card clickable" data-preview="拍卖与警报"></div>
             </div>
           </div>
@@ -2116,7 +2115,7 @@ const DesktopUnifiedLayout = {
                 <div class="mvu-unified-section-headline">
                   <div class="mvu-unified-section-copy">
                     <b class="mvu-unified-section-title">世界状态</b>
-                    <span class="mvu-unified-section-note">时间线、榜单与全局警报</span>
+                    <span class="mvu-unified-section-note">时间线、拍卖与全局警报</span>
                   </div>
                   <div class="mvu-unified-chip-row">
                     <button type="button" class="mvu-unified-chip clickable" data-preview="世界状态总览">总览</button>
@@ -2127,9 +2126,8 @@ const DesktopUnifiedLayout = {
               </section>
 
               <section class="mvu-unified-section">
-                <div class="mvu-unified-grid mvu-unified-grid--three">
+                <div class="mvu-unified-grid mvu-unified-grid--two">
                   <div class="mvu-unified-card clickable" data-preview="编年史档案" data-unified-card="world-timeline" data-unified-surface="panel"></div>
-                  <div class="mvu-unified-card" data-unified-card="world-ranks" data-unified-surface="panel"></div>
                   <div class="mvu-unified-card clickable" data-preview="拍卖与警报" data-unified-card="world-alerts" data-unified-surface="panel"></div>
                 </div>
               </section>

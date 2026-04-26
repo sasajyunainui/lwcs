@@ -411,9 +411,49 @@ class TradeUIComponent {
     }
 
     this.updateShopItems();
+
+    const prefillAction = String(this.options.prefillAction || '').trim();
+    if (prefillAction && this.$('#priv-action')) {
+      const actionText = /卖|出售|sell/i.test(prefillAction) ? '私下卖出' : '私下买入';
+      this.$('#priv-action').value = actionText;
+    }
+
+    const prefillItem = String(this.options.prefillItem || '').trim();
+    if (prefillItem) {
+      if (initialTab === 'tab-private' && this.$('#priv-item')) this.$('#priv-item').value = prefillItem;
+      if (initialTab === 'tab-shop') this.setSelectIfExists('#shop-item-sel', prefillItem);
+      if (initialTab === 'tab-sell') this.setSelectIfExists('#sell-item-sel', prefillItem);
+      if (initialTab === 'tab-auction') this.setSelectIfExists('#auc-item-sel', prefillItem);
+    }
+
+    const prefillQty = Math.max(1, Number(this.options.prefillQty || this.options.quantity || 0));
+    if (prefillQty > 0) {
+      if (this.$('#shop-qty')) this.$('#shop-qty').value = String(prefillQty);
+      if (this.$('#sell-qty')) this.$('#sell-qty').value = String(prefillQty);
+      if (this.$('#priv-qty')) this.$('#priv-qty').value = String(prefillQty);
+    }
+
+    const prefillPrice = Math.max(0, Number(this.options.prefillPrice || this.options.price || 0));
+    if (prefillPrice > 0) {
+      if (this.$('#priv-price')) this.$('#priv-price').value = String(prefillPrice);
+      if (this.$('#auc-bid')) this.$('#auc-bid').value = String(prefillPrice);
+    }
+
     this.updateSellPreview();
     this.updatePrivPreview();
     this.updateAucPreview();
+
+    if (this.options.autoExecute) {
+      window.setTimeout(() => this.runInitialAutoExecute(), 80);
+    }
+  }
+
+  runInitialAutoExecute() {
+    const activeTab = this.container.querySelector('.trade-tab.active')?.dataset.target || 'tab-shop';
+    if (activeTab === 'tab-shop' && !this.$('#btn-buy')?.disabled) this.executeShopBuy();
+    else if (activeTab === 'tab-sell' && !this.$('#btn-sell')?.disabled) this.executeSell();
+    else if (activeTab === 'tab-private' && !this.$('#btn-private')?.disabled) this.executePrivateTrade();
+    else if (activeTab === 'tab-auction' && !this.$('#btn-auc')?.disabled) this.executeAuction();
   }
 
   bindEvents() {

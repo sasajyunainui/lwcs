@@ -394,6 +394,7 @@ class ProfessionUIComponent {
     this.initDOM();
     this.bindEvents();
     this.syncData();
+    this.applyInitialContext();
   }
 
   initDOM() {
@@ -490,6 +491,89 @@ class ProfessionUIComponent {
     this.snapshot = newSnapshot;
     this.updateHeaderStatus();
     this.restoreUiState(currentState);
+  }
+
+  getInitialRequest() {
+    const direct = this.options?.professionRequest;
+    if (direct && typeof direct === 'object') return direct;
+    const fromDispatch = this.options?.dispatchContext?.professionRequest;
+    return fromDispatch && typeof fromDispatch === 'object' ? fromDispatch : {};
+  }
+
+  normalizeInitialMode(rawMode) {
+    const value = String(rawMode || '').trim().toLowerCase();
+    if (/manufacture|制造|组装|总装|封装/.test(value)) return 'manufacture';
+    if (/design|设计|图纸|蓝图/.test(value)) return 'design';
+    if (/repair|修理|维修|维护|修复|整备/.test(value)) return 'repair';
+    if (/forge|锻造|锻打|融锻|百锻|千锻|灵锻|魂锻|天锻/.test(value)) return 'forge';
+    return '';
+  }
+
+  parseInitialMaterials(value) {
+    if (Array.isArray(value)) return value.map(item => String(item || '').trim()).filter(Boolean);
+    if (value && typeof value === 'object') return Object.keys(value).filter(Boolean);
+    return String(value || '')
+      .split(/[、,，|/]+/)
+      .map(item => item.trim())
+      .filter(Boolean);
+  }
+
+  setInitialTier(req) {
+    const tierSel = this.$('#prof-tier');
+    if (!tierSel) return;
+    const subtype = String(req.subtype || req.target_type || '').trim().toLowerCase();
+    const tier = Number(req.tier || req.level || req.rank || 0);
+    let value = '';
+    if (this.activeMode !== 'forge') {
+      if (/armor|斗铠/.test(subtype) && tier) value = `armor-${tier}`;
+      else if (/mech|机甲/.test(subtype) && tier) value = `mech-${tier}`;
+    } else if (tier) {
+      value = String(tier);
+    }
+    if (value && Array.from(tierSel.options || []).some(opt => opt.value === value)) {
+      tierSel.value = value;
+    }
+    this.syncCostInputState();
+  }
+
+  applyInitialContext() {
+    const req = this.getInitialRequest();
+    const mode = this.normalizeInitialMode(this.options.prefillMode || req.mode || req.action || req.profession || req.job);
+    if (mode) this.setActiveMode(mode);
+
+    this.setInitialTier(req);
+
+    const qty = Math.max(1, Number(this.options.prefillQty || req.quantity || req.qty || req.cost || 0));
+    const costInput = this.$('#prof-cost');
+    if (qty > 0 && costInput && !costInput.disabled) costInput.value = String(qty);
+
+    const target = String(this.options.prefillTarget || req.target || req.item || req.output || req.object || '').trim();
+    if (target && this.$('#prof-target')) this.$('#prof-target').value = target;
+
+    const materials = this.parseInitialMaterials(
+      this.options.prefillMaterials || req.materials || req.material || req.items || req.ingredients || ''
+    );
+    if (materials.length) {
+      const materialSet = new Set(materials);
+      this.$$('.material-cb').forEach(cb => {
+        cb.checked = materialSet.has(cb.value);
+      });
+    }
+    if (!target && materials.length) this.autoGenerateTargetName();
+
+    this.updatePreview();
+
+    const autoExecute = this.options.autoExecute === true
+      || req.auto_execute === true
+      || /auto|ready|执行|确认|开始|直接/.test(String(req.status || ''));
+    if (autoExecute) {
+      window.setTimeout(() => this.runInitialAutoExecute(), 100);
+    }
+  }
+
+  runInitialAutoExecute() {
+    const submitBtn = this.$('#prof-submit');
+    if (submitBtn && !submitBtn.disabled) this.executeProfessionAction();
   }
 
   get charData() { return this.snapshot?.activeChar || {}; }
