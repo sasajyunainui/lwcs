@@ -2086,16 +2086,6 @@ const DesktopUnifiedLayout = {
           <section class="mvu-unified-page" :class="{ active: tabState.current === 'page-map' }" data-target="page-map">
             <div class="mvu-unified-section-stack">
               <section class="mvu-unified-section">
-                <div class="mvu-unified-section-headline">
-                  <div class="mvu-unified-section-copy">
-                    <b class="mvu-unified-section-title">地图总览</b>
-                    <span class="mvu-unified-section-note">当前所在、地图层级与焦点节点</span>
-                  </div>
-                  <div class="mvu-unified-chip-row">
-                    <button type="button" class="mvu-unified-chip clickable" data-preview="全息星图主画布">星图</button>
-                    <button type="button" class="mvu-unified-chip" data-map-focus-action="current">定位当前</button>
-                  </div>
-                </div>
                 <div class="mvu-unified-map-stage" data-mvu-map-stage="panel"></div>
               </section>
 

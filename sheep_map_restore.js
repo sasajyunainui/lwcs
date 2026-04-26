@@ -6001,11 +6001,29 @@
   }
 
   function setMapHtml(selector, value) {
+    let mutated = false;
     getMapUiElements(selector).forEach(el => {
       const nextValue = value == null ? '' : String(value);
       if (el.innerHTML === nextValue) return;
       el.innerHTML = nextValue;
+      mutated = true;
     });
+    if (mutated) invalidateMapUiRefCache();
+  }
+
+  function dispatchMapAiRequest(playerInput, systemPrompt, meta = {}) {
+    const detail = {
+      playerInput: toText(playerInput, ''),
+      systemPrompt: toText(systemPrompt, ''),
+      meta: meta && typeof meta === 'object' ? { ...meta } : {}
+    };
+    try {
+      window.dispatchEvent(new CustomEvent('map-ai-request', { detail }));
+      return detail.handled === true;
+    } catch (error) {
+      console.error('Dispatch map AI request failed:', error);
+      return false;
+    }
   }
 
   function setMapNodeText(node, value) {
@@ -6886,7 +6904,7 @@
     return request;
   }
 
-  function commitMapTravel() {
+  function commitMapTravel(options = {}) {
     const request = hasPendingTravelRequestForTarget() ? mapState.pendingTravelRequest : queueMapTravelRequest();
     if (!request) return;
     const isFreeTravel = request.target_loc === '无';
@@ -6947,7 +6965,7 @@
       }
     }
 
-    if (typeof window.sendToAI === 'function' && mapState.baseSnapshot && mapState.baseSnapshot.activeChar) {
+    if (mapState.baseSnapshot && mapState.baseSnapshot.activeChar) {
       try {
         const HIDDEN_RULES = `[前端仲裁器说明]\n以下内容为系统后台已完成结算的仲裁结果，系统已自动扣除了相应的金钱、体力与时间。\n请仅将以下仲裁结论转写成自然剧情，描写路途见闻、到达环境与角色反应即可。`;
         const activeName = toText(mapState.baseSnapshot.activeName, '主角');
@@ -7006,8 +7024,13 @@
         }
 
         const logMsg = `[系统仲裁] 玩家乘坐 ${request.method}，经过 ${request.est_duration} 的跋涉，现已抵达新地点：【${finalLocName}】。${targetTerrainLine ? `\n${targetTerrainLine}` : ''}`;
-        const sysPrompt = `${HIDDEN_RULES}\n\n${logMsg}\n\n${buildMapUpdateVariableBlock('Travel completed.', patchOps, '以下为本次地图移动结算的完整 MVU 更新，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。')}`;
-        window.sendToAI(`[启程前往] 我乘坐 ${request.method} 前往【${finalLocName}】${targetTerrainLine ? ` 目标地形：${targetTerrainBrief}` : ''}`, sysPrompt, { requestKind: 'map_travel_confirm' });
+        const followUpAction = toText(options && options.followUpAction, '');
+        const followUpLabel = followUpAction ? getNodeInteractionLabel(followUpAction) : '';
+        const followUpLine = followUpLabel
+          ? `\n[抵达后意图]\n玩家刚才点击的是【${followUpLabel}】。本轮只完成移动与到达描写；不要直接结算交易、工坊或战斗胜负，抵达后由玩家再次发起对应模块。`
+          : '';
+        const sysPrompt = `${HIDDEN_RULES}\n\n${logMsg}${followUpLine}\n\n${buildMapUpdateVariableBlock('Travel completed.', patchOps, '以下为本次地图移动结算的完整 MVU 更新，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。')}`;
+        dispatchMapAiRequest(`[启程前往] 我乘坐 ${request.method} 前往【${finalLocName}】${targetTerrainLine ? ` 目标地形：${targetTerrainBrief}` : ''}`, sysPrompt, { requestKind: 'map_travel_confirm' });
       } catch (e) {
         console.error('Send map travel to AI failed:', e);
       }
@@ -7053,14 +7076,14 @@
     if (['trade', 'bid', 'craft', 'black_market', 'auction', 'shop', 'battle', 'talk', 'brief', 'intel'].includes(action) || itemServices.some(s => ['shop', 'auction', 'black_market', 'craft', 'battle', 'talk', 'brief', 'intel'].includes(s))) {
       try {
         window.dispatchEvent(new CustomEvent('map-action-dispatch', {
-          detail: { target: item.name, action, services: itemServices, actionSlots: item.actionSlots || [], eventId: item.eventId, nodeKind: item.nodeKind, mapId: mapState.currentMapId, currentLoc: snapshot.currentLoc, npcTargets: talkTargets, npcTarget, executorType }
+          detail: { target: item.name, action, services: itemServices, actionSlots: item.actionSlots || [], eventId: item.eventId, nodeKind: item.nodeKind, mapId: mapState.currentMapId, currentLoc: toText(snapshot.currentLocFull, snapshot.currentLoc), npcTargets: talkTargets, npcTarget, executorType }
         }));
       } catch (e) {}
       return mapState.lastNodeAction;
     }
 
     // 对于普通的轻量文字动作（查看、研读、训练等），前端直接做基础结算并扔给后端润色
-    if (typeof window.sendToAI === 'function' && mapState.baseSnapshot) {
+    if (mapState.baseSnapshot) {
       try {
         const HIDDEN_RULES = `[前端代发说明]\n以下内容属于地图页代发的节点动作请求，请直接承接剧情推进，不要输出 JSON 块或系统术语。`;
 
@@ -7121,7 +7144,7 @@ ${logMsg}
 
 请结合当前设施、在场角色与地点功能，自然写出这次行动的过程、收获与后续推进；若当前节点并不适合该动作，也请在剧情里明确说明阻碍原因。`;
 
-        window.sendToAI(playerInput, sysPrompt, { requestKind: `map_action_${action}` });
+        dispatchMapAiRequest(playerInput, sysPrompt, { requestKind: `map_action_${action}` });
       } catch (e) {
         console.error('Send map action to AI failed:', e);
       }
@@ -7153,7 +7176,13 @@ ${logMsg}
       return true;
     }
     if (!focusItem || mapState.selectedFreePoint) return false;
-    if (actionType !== 'inspect' && !isFocusCurrentNode) return false;
+    if (actionType !== 'inspect' && !isFocusCurrentNode) {
+      if (getMapTravelPreview()) {
+        commitMapTravel({ followUpAction: actionType });
+        return true;
+      }
+      return false;
+    }
     triggerPreviewNodeInteraction(focusItem, actionType);
     syncInteractiveMapUI({ center: false });
     return true;
@@ -7792,6 +7821,7 @@ ${logMsg}
       btn.disabled = !inPreview;
       btn.classList.toggle('active', inPreview);
     });
+    ensureMapInteractionBindings();
     updateMapCoordinateReadout();
   }
 

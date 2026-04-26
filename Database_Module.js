@@ -16617,6 +16617,11 @@ $CONTENT
                     routeResult
                 };
             }
+            if (intent.auto_execute === true) {
+                const reason = routeResult?.reason || routeResult?.result?.reason || 'inline_execute_failed';
+                showToastr_ACU('error', `${intent.module === 'trade' ? '交易' : '副职业'}自动执行失败，已中止本轮正文生成：${reason}`);
+                return { action: 'block', finalMessage: stripModuleIntentBlocks_ACU(finalMessage), intent, routeResult, reason: 'inline_auto_execute_failed' };
+            }
             showToastr_ACU('info', intent.module === 'trade' ? '交易模块已打开，请补全后执行。' : '副职业工坊已打开，请补全后执行。');
             return { action: 'block', finalMessage: stripModuleIntentBlocks_ACU(finalMessage), intent, routeResult, reason: 'module_waiting_user' };
         }
@@ -45145,6 +45150,80 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
             // ignore
         }
     }
+    const MVU_DATABASE_GENERATE_HOOK_KEY_ACU = '__ACU_MVU_DATABASE_GENERATE_HOOK__';
+    function installTavernHelperGenerateHook_ACU() {
+        try {
+            const hostWin = getHostWindow();
+            const targetWin = hostWin || window;
+            const helper = targetWin.TavernHelper || window.TavernHelper;
+            if (!helper || typeof helper.generate !== 'function') {
+                return false;
+            }
+            const currentGenerate = helper.generate;
+            if (currentGenerate && currentGenerate[MVU_DATABASE_GENERATE_HOOK_KEY_ACU]) {
+                return true;
+            }
+            const storedOriginal = typeof targetWin.original_TavernHelper_generate_ACU === 'function'
+                ? targetWin.original_TavernHelper_generate_ACU
+                : null;
+            const originalGenerate = storedOriginal && !storedOriginal[MVU_DATABASE_GENERATE_HOOK_KEY_ACU]
+                ? storedOriginal
+                : currentGenerate;
+            targetWin.original_TavernHelper_generate_ACU = originalGenerate;
+            try {
+                window.original_TavernHelper_generate_ACU = originalGenerate;
+            }
+            catch (e) { }
+            const wrappedGenerate = async function (...args) {
+                const options = args[0] || {};
+                // quiet/automatic_trigger 直接透传
+                if (isQuietLikeGeneration_ACU('tavernhelper', { quiet_prompt: options.quiet_prompt }) || options.automatic_trigger) {
+                    return originalGenerate.apply(this, args);
+                }
+                // [重构] 调用 service 层编排函数，传入 UI 规划回调
+                const result = await orchestrateTavernHelperHook_ACU(options, runOptimizationLogicWithUI_ACU);
+                switch (result.action) {
+                    case 'loop_retry': {
+                        const loopSettings = settings_ACU.plotSettings.loopSettings || DEFAULT_PLOT_SETTINGS_ACU.loopSettings;
+                        loopState_ACU.awaitingReply = false;
+                        await enterLoopRetryFlow_ACU({ loopSettings, shouldDeleteAiReply: false });
+                        return;
+                    }
+                    case 'planned': {
+                        // UI 操作：写回 options
+                        if (result.writeBack) {
+                            if (result.writeBack.target === 'injects') {
+                                options.injects[0].content = result.writeBack.value;
+                            }
+                            else if (result.writeBack.target === 'prompt') {
+                                options.prompt = result.writeBack.value;
+                            }
+                            else {
+                                options.user_input = result.writeBack.value;
+                            }
+                        }
+                        options._qrf_processed_by_hook = true;
+                        break;
+                    }
+                    case 'module_blocked': {
+                        options._qrf_processed_by_hook = true;
+                        return;
+                    }
+                    // 'passthrough', 'skipped', 'aborted' — 不做额外操作，直接透传
+                }
+                return await originalGenerate.apply(this, args);
+            };
+            wrappedGenerate[MVU_DATABASE_GENERATE_HOOK_KEY_ACU] = true;
+            wrappedGenerate.__ACU_MVU_DATABASE_ORIGINAL_GENERATE__ = originalGenerate;
+            helper.generate = wrappedGenerate;
+            logDebug_ACU('[剧情推进] TavernHelper.generate hook registered by local database module.');
+            return true;
+        }
+        catch (e) {
+            logWarn_ACU('[剧情推进] Failed to install TavernHelper.generate hook:', e);
+            return false;
+        }
+    }
     function mainInitialize_ACU() {
         function buildVectorRecallBlockingFingerprint_ACU(result) {
             const signature = String(result?.signature || '').trim();
@@ -45264,51 +45343,7 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                     }
                     await loadPresetAndCleanCharacterData_ACU();
                     // [剧情推进] TavernHelper钩子：拦截直接的JS调用
-                    if (!window.original_TavernHelper_generate_ACU) {
-                        if (window.TavernHelper && typeof window.TavernHelper.generate === 'function') {
-                            window.original_TavernHelper_generate_ACU = window.TavernHelper.generate;
-                            window.TavernHelper.generate = async function (...args) {
-                                const options = args[0] || {};
-                                // quiet/automatic_trigger 直接透传
-                                if (isQuietLikeGeneration_ACU('tavernhelper', { quiet_prompt: options.quiet_prompt }) || options.automatic_trigger) {
-                                    return window.original_TavernHelper_generate_ACU.apply(this, args);
-                                }
-                                // [重构] 调用 service 层编排函数，传入 UI 规划回调
-                                const result = await orchestrateTavernHelperHook_ACU(options, runOptimizationLogicWithUI_ACU);
-                                switch (result.action) {
-                                    case 'loop_retry': {
-                                        const loopSettings = settings_ACU.plotSettings.loopSettings || DEFAULT_PLOT_SETTINGS_ACU.loopSettings;
-                                        loopState_ACU.awaitingReply = false;
-                                        await enterLoopRetryFlow_ACU({ loopSettings, shouldDeleteAiReply: false });
-                                        return;
-                                    }
-                                    case 'planned': {
-                                        // UI 操作：写回 options
-                                        if (result.writeBack) {
-                                            if (result.writeBack.target === 'injects') {
-                                                options.injects[0].content = result.writeBack.value;
-                                            }
-                                            else if (result.writeBack.target === 'prompt') {
-                                                options.prompt = result.writeBack.value;
-                                            }
-                                            else {
-                                                options.user_input = result.writeBack.value;
-                                            }
-                                        }
-                                        options._qrf_processed_by_hook = true;
-                                        break;
-                                    }
-                                    case 'module_blocked': {
-                                        options._qrf_processed_by_hook = true;
-                                        return;
-                                    }
-                                    // 'passthrough', 'skipped', 'aborted' — 不做额外操作，直接透传
-                                }
-                                return await window.original_TavernHelper_generate_ACU.apply(this, args);
-                            };
-                            logDebug_ACU('[剧情推进] TavernHelper.generate hook registered.');
-                        }
-                    }
+                    installTavernHelperGenerateHook_ACU();
                     // [新增] 切换角色卡（聊天）时，强制从新聊天记录的本地数据读取最新的表格并刷新UI
                     logDebug_ACU('ACU: Chat changed, forcing reload of table data from new chat history.');
                     const scheduledChatIdentifier_ACU = cleanChatName_ACU(chatFileName);
@@ -45616,6 +45651,7 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                 logDebug_ACU(`ACU: Initializing with current chat on load: ${chatId}`);
                 await resetScriptStateForNewChat_ACU(chatId);
                 await loadPresetAndCleanCharacterData_ACU();
+                installTavernHelperGenerateHook_ACU();
                 // 再次强制刷新数据和UI，确保初始加载时表格显示正确
                 await loadAllChatMessages_ACU();
                 // [修复] SQLite 模式下，启动时初始化内存数据库

@@ -7719,12 +7719,13 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-she
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-card--life-profile {
   grid-area: profile;
   display: grid !important;
-  grid-template-columns: minmax(210px, 0.68fr) minmax(0, 1.32fr);
+  grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
-    "head head"
-    "base appearance"
-    "wardrobe wardrobe";
-  align-items: stretch;
+    "head"
+    "base"
+    "appearance"
+    "wardrobe";
+  align-items: start;
   gap: 12px !important;
   padding: 16px !important;
   border-color: rgba(240, 200, 106, 0.2) !important;
@@ -7794,6 +7795,15 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-car
   background: rgba(255, 255, 255, 0.026);
 }
 
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-card--life-core .dossier-columns {
+  display: grid !important;
+  align-items: start !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-card--life-core .dossier-section {
+  height: auto !important;
+}
+
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-card--life-profile .dossier-row,
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-card--life-core .dossier-row,
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-card--life-record .dossier-row,
@@ -7827,6 +7837,23 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-car
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-card--life-record .dossier-list-row > span {
   font-size: 13px;
   line-height: 1.42;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-card--life-profile > .dossier-section:nth-of-type(2) .dossier-row-grid--two {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0 18px !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-card--life-profile > .dossier-section:nth-of-type(2) .dossier-row {
+  display: grid !important;
+  grid-template-columns: minmax(60px, 0.34fr) minmax(0, 1fr) !important;
+  gap: 8px !important;
+  align-items: center !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-card--life-profile > .dossier-section:nth-of-type(2) .dossier-row--wide {
+  grid-column: 1 / -1;
 }
 
 @media (max-width: 900px) {
@@ -12817,7 +12844,7 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-map-stage .map-canvas.ma
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-map-stage .map-side-stack {
   display: grid !important;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 10px !important;
 }
 

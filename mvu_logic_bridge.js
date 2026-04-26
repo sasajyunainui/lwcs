@@ -1365,8 +1365,6 @@
     let activeSubUI = null;
     let lastAutoTradeRequestSignature = '';
     let lastInjectedModuleArbitrationPrompt = false;
-    let directModuleIntentGuardLock = false;
-    let directModuleIntentGuardObserver = null;
     let lastRenderedShellPreviewKey = '';
     let activeInlineEditState = null;
     let inlineEditSessionToken = 0;
@@ -8028,7 +8026,7 @@
       const genderText = toText(deepGet(activeChar, 'stat.gender', ''), '');
       if (!isFemaleGenderText(genderText)) return false;
       const ageValue = getPrivateArchiveAgeValue(deepGet(activeChar, 'stat.age', null));
-      return Number.isFinite(ageValue) && ageValue >= 18;
+      return Number.isFinite(ageValue) && ageValue >= 6;
     }
 
     function getActiveNsfwPath(snapshot) {
@@ -10013,9 +10011,8 @@
           setUnifiedCardMarkup('map-route', '', { enabled: false, surface: normalizedSurface });
           setUnifiedCardMarkup('map-dynamic', '', { enabled: false, surface: normalizedSurface });
         } else {
-          const mapStageHtml = buildMapHeroCard(snapshot);
-          setUnifiedMapStageMarkup('panel', mapStageHtml);
-          setUnifiedCardMarkup('map-hero', mapStageHtml, { preview: '全息星图主画布', surface: normalizedSurface });
+          ensureUnifiedSheepMapStage('panel');
+          setUnifiedCardMarkup('map-hero', '', { enabled: false, surface: normalizedSurface });
           setUnifiedCardMarkup('map-current', buildSimpleCard('当前位置', { text: '当前' }, [
             { label: '地点', value: snapshot.normalizedLoc !== snapshot.currentLoc ? `${snapshot.normalizedLoc} / ${snapshot.currentLoc}` : snapshot.currentLoc },
             { label: '地图', value: getMapDisplayName(snapshot) },
@@ -10116,6 +10113,25 @@
       }
     }
 
+    function ensureUnifiedSheepMapStage(stage = 'panel') {
+      const stageKey = toText(stage, '').trim();
+      if (!stageKey) return;
+      const selector = `#mvu-unified-mount [data-mvu-map-stage="${stageKey}"]`;
+      getLiveUiElements(selector).forEach(node => {
+        if (!(node instanceof Element)) return;
+        const hasSheepMap = !!node.querySelector('.map-layout .map-canvas.interactive-map [data-map-node-layer]');
+        if (!hasSheepMap) setLiveNodeHtml(node, '');
+      });
+      if (typeof window.__sheepMapResync === 'function') {
+        window.setTimeout(() => {
+          try {
+            window.__sheepMapResync({ center: false, syncVisual: false });
+          } catch (err) {}
+          if (typeof scheduleUnifiedMapCanvasClamp === 'function') scheduleUnifiedMapCanvasClamp();
+        }, 0);
+      }
+    }
+
     function setUnifiedCardMarkup(slot, html, options = {}) {
       const surface = normalizeUnifiedSurfaceKey(options.surface);
       const selector = surface
@@ -10172,7 +10188,8 @@
       }
 
       if (sectionSignatures.map !== previousSectionSignatures.map) {
-        setUnifiedCardMarkup('map-hero', buildMapHeroCard(snapshot), { preview: '全息星图主画布' });
+        ensureUnifiedSheepMapStage('panel');
+        setUnifiedCardMarkup('map-hero', '', { enabled: false });
         setUnifiedCardMarkup('map-current', buildSimpleCard('当前位置', { text: '当前' }, [
           { label: '地点', value: snapshot.normalizedLoc !== snapshot.currentLoc ? `${snapshot.normalizedLoc} / ${snapshot.currentLoc}` : snapshot.currentLoc },
           { label: '地图', value: getMapDisplayName(snapshot) },
@@ -10363,136 +10380,12 @@
       return '未命名地图';
     }
 
-    function getMapBounds(snapshot) {
-      const sheepSnapshot = getSheepMapSnapshot(snapshot);
-      if (sheepSnapshot && sheepSnapshot.bounds && typeof sheepSnapshot.bounds === 'object') {
-        return {
-          minX: toNumber(deepGet(sheepSnapshot, 'bounds.minX', 0), 0),
-          minY: toNumber(deepGet(sheepSnapshot, 'bounds.minY', 0), 0),
-          width: Math.max(1, toNumber(deepGet(sheepSnapshot, 'bounds.width', 3174), 3174) || 3174),
-          height: Math.max(1, toNumber(deepGet(sheepSnapshot, 'bounds.height', 2246), 2246) || 2246)
-        };
-      }
-      const mapMeta = getMapMeta(snapshot);
-      return {
-        minX: toNumber(deepGet(mapMeta, 'bounds.min_x', 0), 0),
-        minY: toNumber(deepGet(mapMeta, 'bounds.min_y', 0), 0),
-        width: Math.max(1, toNumber(deepGet(mapMeta, 'bounds.width', 3174), 3174) || 3174),
-        height: Math.max(1, toNumber(deepGet(mapMeta, 'bounds.height', 2246), 2246) || 2246)
-      };
-    }
-
-    function mapCoordToPercent(value, min, span, fallback) {
-      const num = Number(value);
-      if (!Number.isFinite(num)) return fallback;
-      const ratio = (num - min) / Math.max(span, 1);
-      return Math.max(8, Math.min(92, 8 + ratio * 84));
-    }
-
-    function buildDisplayMapItems(snapshot) {
-      const bounds = getMapBounds(snapshot);
-      const seen = new Set();
-      const items = [];
-      const pushItem = (name, item, extra = {}) => {
-        const safeName = toText(name, '').trim();
-        if (!safeName || seen.has(safeName)) return;
-        seen.add(safeName);
-        const x = mapCoordToPercent(item && item.x, bounds.minX, bounds.width, 50);
-        const y = mapCoordToPercent(item && item.y, bounds.minY, bounds.height, 50);
-        const edgeClasses = [
-          x <= 16 ? 'edge-left' : '',
-          x >= 84 ? 'edge-right' : '',
-          y <= 18 ? 'edge-top' : '',
-          y >= 82 ? 'edge-bottom' : ''
-        ].filter(Boolean).join(' ');
-        items.push({
-          name: safeName,
-          source: extra.source || toText(item && item.source, 'static'),
-          type: toText(extra.type || (item && item.type) || (item && item.icon) || '节点', '节点'),
-          desc: toText(extra.desc || (item && item.desc) || '无', '无'),
-          state: toText(extra.state || (item && item.state) || '可见', '可见'),
-          canEnter: !!(extra.canEnter || deepGet(item, 'can_enter', false) || (item && item.child_map_id && item.child_map_id !== '无')),
-          childMapId: toText(extra.childMapId || (item && item.child_map_id) || '无', '无'),
-          major: !!extra.major,
-          current: safeName === snapshot.currentLoc || safeName === toText(deepGet(snapshot, 'mapCurrentFocus.loc', ''), ''),
-          x,
-          y,
-          edgeClasses
-        });
-      };
-
-      snapshot.mapVisibleNodeEntries.forEach(([name, item]) => {
-        pushItem(name, item, { source: toText(item && item.source, 'static'), type: toText(item && item.type, '地图节点'), state: toText(item && item.level ? `Lv.${item.level}` : '可见', '可见'), canEnter: !!deepGet(item, 'can_enter', false), childMapId: item && item.child_map_id, major: !!deepGet(item, 'can_enter', false) || toNumber(item && item.level, 0) <= 2 });
-      });
-      snapshot.mapVisibleDynamicEntries.forEach(([name, item]) => {
-        pushItem(name, item, { source: 'dynamic', type: '动态地点', state: '动态', canEnter: false, major: false, desc: toText(item && item.desc, '无') });
-      });
-
-      return items.slice(0, 12);
-    }
-
     function resolveDisplayMapNode(snapshot, nodeName) {
       const node = snapshot.mapVisibleNodeEntries.find(([name]) => name === nodeName);
       if (node) return { name: nodeName, source: toText(node[1] && node[1].source, 'static'), type: toText(node[1] && node[1].type, '地图节点'), state: node[1] && node[1].level ? `Lv.${node[1].level}` : '可见', childMapId: toText(node[1] && node[1].child_map_id, '无'), x: node[1] && node[1].x, y: node[1] && node[1].y, desc: toText(node[1] && node[1].desc, '无') };
       const dynamicNode = snapshot.mapVisibleDynamicEntries.find(([name]) => name === nodeName);
       if (dynamicNode) return { name: nodeName, source: 'dynamic', type: '动态地点', state: '动态', childMapId: '无', x: dynamicNode[1] && dynamicNode[1].x, y: dynamicNode[1] && dynamicNode[1].y, desc: toText(dynamicNode[1] && dynamicNode[1].desc, '无') };
       return null;
-    }
-
-    function buildMapHeroCard(snapshot) {
-      const items = buildDisplayMapItems(snapshot);
-      const currentChildMapCount = safeEntries(snapshot.mapAvailableChildMaps).length;
-      const currentMapDisplayName = getMapDisplayName(snapshot);
-      const fallbackNodeSlots = [
-        { left: '48%', top: '42%', major: true },
-        { left: '28%', top: '48%', major: false },
-        { left: '72%', top: '58%', major: true, current: true },
-        { left: '56%', top: '74%', major: false }
-      ];
-      const fallbackBaseLabel = toText(snapshot.currentLoc || snapshot.normalizedLoc, '未命名节点');
-      const fallbackLabels = snapshot.mapNodeLabels.length
-        ? [...snapshot.mapNodeLabels]
-        : [snapshot.normalizedLoc, snapshot.currentLoc].filter(label => toText(label, ''));
-      while (fallbackLabels.length < 4) fallbackLabels.push(fallbackBaseLabel);
-      const nodesHtml = (items.length ? items.map(item => `<div class="map-node clickable ${item.current ? 'current' : ''} ${item.canEnter ? 'origin' : ''} ${htmlEscape(item.edgeClasses || '')}" data-preview="地图节点：${htmlEscape(item.name)}" style="left:${item.x}%; top:${item.y}%;"><div class="map-dot ${item.major ? 'major' : ''}"></div><div class="map-label">${htmlEscape(item.name)}</div></div>`) : fallbackNodeSlots.map((slot, index) => {
-        const label = fallbackLabels[index] || snapshot.currentLoc;
-        return `<div class="map-node clickable ${slot.current ? 'current' : ''}" data-preview="地图节点：${htmlEscape(label)}" style="left:${slot.left}; top:${slot.top};"><div class="map-dot ${slot.major ? 'major' : ''}"></div><div class="map-label">${htmlEscape(label)}</div></div>`;
-      })).join('');
-      const patchMarkers = snapshot.mapActivePatchEntries.slice(0, 3).map(([patchId, patch]) => {
-        const bounds = getMapBounds(snapshot);
-        const centerX = toNumber(deepGet(patch, 'bounds.x', 0), 0) + toNumber(deepGet(patch, 'bounds.w', 0), 0) / 2;
-        const centerY = toNumber(deepGet(patch, 'bounds.y', 0), 0) + toNumber(deepGet(patch, 'bounds.h', 0), 0) / 2;
-        const left = mapCoordToPercent(centerX, bounds.minX, bounds.width, 50);
-        const top = mapCoordToPercent(centerY, bounds.minY, bounds.height, 50);
-        return `<div class="map-free-marker target" style="left:${left}%; top:${top}%">${htmlEscape(patchId.replace(/^patch_/, ''))}</div>`;
-      }).join('');
-      return `
-        <div class="module-name">全息星图</div>
-        <div class="map-canvas map-canvas-large">
-          <div class="map-legend-strip">
-            <span class="map-legend-chip"><i class="map-legend-dot major"></i>主节点</span>
-            <span class="map-legend-chip"><i class="map-legend-dot"></i>次级节点 / 动态地点</span>
-            <span class="map-legend-chip"><i class="map-legend-dot"></i>${htmlEscape(`当前地图 ${currentMapDisplayName}`)}</span>
-          </div>
-          <div class="map-focus-pill">${htmlEscape(`当前锚点 / ${toText(deepGet(snapshot, 'mapCurrentFocus.loc', snapshot.currentLoc), snapshot.currentLoc)}`)}</div>
-          ${nodesHtml}
-          ${patchMarkers}
-          <div class="map-canvas-hud">
-            <div class="map-hud-card live"><b>位置链</b><span>${htmlEscape(`${currentMapDisplayName} → ${snapshot.currentLoc}`)}</span></div>
-            <div class="map-hud-card gold"><b>可进入子图</b><span>${htmlEscape(currentChildMapCount ? `${currentChildMapCount} 个入口` : '当前无子图入口')}</span></div>
-          </div>
-        </div>
-        <div class="map-status-strip">
-          <div class="map-status-chip live"><b>当前锚点</b><span>${htmlEscape(snapshot.currentLoc)}</span></div>
-          <div class="map-status-chip"><b>当前地图</b><span>${htmlEscape(currentMapDisplayName)}</span></div>
-          <div class="map-status-chip"><b>可见节点</b><span>${htmlEscape(String(items.length || fallbackLabels.filter(Boolean).length))}</span></div>
-          <div class="map-status-chip gold"><b>激活补丁</b><span>${htmlEscape(String(snapshot.mapActivePatchEntries.length))}</span></div>
-        </div>
-        <div class="module-foot">
-          <span class="foot-hint">可下钻节点：${htmlEscape(String(currentChildMapCount || safeEntries(snapshot.mapAvailableChildMaps).length))} / 可跑图 ${htmlEscape(String(snapshot.mapTravelCandidates.length || snapshot.mapNodeLabels.length))}</span>
-          <span class="enter-chip">节点下钻</span>
-        </div>
-      `;
     }
 
     function isMapOverviewPreviewKey(previewKey) {
@@ -10723,42 +10616,6 @@
             window.__sheepMapResync({ center: false, syncVisual: false });
           } catch (err) {}
           scheduleUnifiedMapCanvasClamp();
-        } else {
-          const fallbackMapDisplayName = getMapDisplayName(snapshot);
-          const focusNode = resolveDisplayMapNode(snapshot, snapshot.currentLoc);
-          setLiveHtml('[data-preview="全息星图主画布"].map-hero-card', buildMapHeroCard(snapshot));
-          setLiveHtml('[data-preview="当前节点详情"].map-side-card', buildSimpleCard('当前位置', { text: '当前' }, [
-            { label: '地点', value: snapshot.normalizedLoc !== snapshot.currentLoc ? `${snapshot.normalizedLoc} · ${snapshot.currentLoc}` : snapshot.currentLoc },
-            { label: '地图', value: fallbackMapDisplayName },
-            { label: '节点类型', value: focusNode ? focusNode.type : toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知') },
-            { label: '入口', value: focusNode && focusNode.childMapId !== '无' ? '可进入子图' : '当前无子图入口' }
-          ]));
-          setLiveHtml('[data-preview="图层控制与跑图"].map-side-card', `
-            <div class="simple-head"><div class="simple-title">图层控制</div><span class="map-side-badge gold">导航</span></div>
-            <div class="map-layer-pills">
-              <span class="map-layer-pill">${htmlEscape(fallbackMapDisplayName)}</span>
-              <span class="map-layer-pill current">${htmlEscape(snapshot.currentLoc)}</span>
-              <span class="map-layer-pill">${htmlEscape(`缩放 ${snapshot.mapZoomHint}`)}</span>
-            </div>
-            <div class="simple-list">
-              <div class="simple-row"><b>层级</b><span>${htmlEscape(`${fallbackMapDisplayName} / 当前焦点`)}</span></div>
-              <div class="simple-row"><b>移动结算</b><span>地图仲裁器直结</span></div>
-              <div class="simple-row"><b>可进子图</b><span>${htmlEscape(`${safeEntries(snapshot.mapAvailableChildMaps).length} 个`)}</span></div>
-              <div class="simple-row"><b>激活补丁</b><span>${htmlEscape(`${snapshot.mapActivePatchEntries.length} 项`)}</span></div>
-            </div>
-          `);
-          setLiveHtml('[data-preview="动态地点与扩展节点"].map-side-card', `
-            <div class="simple-head"><div class="simple-title">动态地点</div><span class="map-side-badge">动态</span></div>
-            <div class="map-event-strip">
-              <span class="map-event-chip live">时间线 ${htmlEscape(String(snapshot.timelineEntries.length))}</span>
-              <span class="map-event-chip warn">动态点 ${htmlEscape(String(snapshot.mapVisibleDynamicEntries.length))}</span>
-              <span class="map-event-chip warn">补丁 ${htmlEscape(String(snapshot.mapActivePatchEntries.length))}</span>
-            </div>
-            <div class="simple-list">
-              <div class="simple-row"><b>扩展节点</b><span>${htmlEscape(snapshot.mapVisibleDynamicEntries[0] ? snapshot.mapVisibleDynamicEntries[0][0] : '暂无')}</span></div>
-              <div class="simple-row"><b>最近变化</b><span>${htmlEscape(snapshot.latestTimeline ? snapshot.latestTimeline[0] : '无')}</span></div>
-            </div>
-          `);
         }
       }
 
@@ -10871,46 +10728,27 @@
       const mech = deepGet(snapshot, 'activeChar.equip.mech', {});
       const jobs = safeEntries(deepGet(snapshot, 'activeChar.job', {}));
       if (isMapOverviewPreviewKey(previewKey)) {
-        if (typeof window.__sheepMapResync === 'function') {
-          try { window.__sheepMapResync({ center: false, syncVisual: false }); } catch (err) {}
-          scheduleUnifiedMapCanvasClamp();
-        }
-        const mapItems = buildDisplayMapItems(snapshot);
-        const patchCards = (snapshot.mapActivePatchEntries.length ? snapshot.mapActivePatchEntries : [['\u6682\u65e0\u6fc0\u6d3b\u8865\u4e01', { empty: true }]]).map(([name, patch]) => ({
-          title: patch && patch.empty ? name : name,
-          desc: patch && patch.empty
-            ? '\u5f53\u524d\u5730\u56fe\u65e0\u6fc0\u6d3b\u8865\u4e01\u3002'
-            : `\u5750\u6807 ${toText(deepGet(patch, 'bounds.x', 0), 0)},${toText(deepGet(patch, 'bounds.y', 0), 0)}`
-        }));
-        const childMapCards = (safeEntries(snapshot.mapAvailableChildMaps).length ? safeEntries(snapshot.mapAvailableChildMaps) : [['\u6682\u65e0\u5b50\u56fe\u5165\u53e3', '\u65e0']]).map(([name, mapId]) => ({
-          title: name,
-          desc: mapId === '\u65e0' ? '\u5f53\u524d\u5730\u56fe\u6682\u65e0\u53ef\u8fdb\u5165\u5b50\u56fe\u3002' : '\u53ef\u8fdb\u5165\u5bf9\u5e94\u5b50\u56fe'
-        }));
         return {
           title: `${'\u5168\u606f\u661f\u56fe'} / ${getMapDisplayName(snapshot)}`,
           summary: '',
           body: `
             <div class="archive-modal-grid">
-              <div class="archive-card full">
-                ${buildMapHeroCard(snapshot)}
-              </div>
-              <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">\u53ef\u8fdb\u5165\u5b50\u56fe</div></div>
-                ${makeTimelineStack(childMapCards)}
-              </div>
-              <div class="archive-card">
-                <div class="archive-card-head"><div class="archive-card-title">\u6fc0\u6d3b\u8865\u4e01</div></div>
-                ${makeTimelineStack(patchCards)}
-              </div>
-              <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">\u5730\u56fe\u8282\u70b9</div></div>
-                ${makeTagCloud(mapItems.slice(0, 12).map(item => ({
-                  text: `${item.name}${item.canEnter ? ' \u2198' : ''}`,
-                  className: item.current ? 'live' : (item.canEnter ? 'warn' : '')
-                })))}
+              <div class="archive-card full mvu-map-detail-card">
+                <div class="mvu-unified-map-stage mvu-archive-map-stage" data-mvu-map-stage="detail"></div>
               </div>
             </div>
-          `
+          `,
+          onMount: mountEl => {
+            const stage = mountEl && mountEl.querySelector ? mountEl.querySelector('[data-mvu-map-stage="detail"]') : null;
+            if (stage) setLiveNodeHtml(stage, '');
+            if (typeof window.__sheepMapResync === 'function') {
+              window.setTimeout(() => {
+                try { window.__sheepMapResync({ center: false, syncVisual: false }); } catch (err) {}
+                scheduleUnifiedMapCanvasClamp();
+              }, 0);
+            }
+            return null;
+          }
         };
       }
       if (String(previewKey || '').startsWith(SKILL_DESIGNER_PREVIEW_PREFIX)) {
@@ -11855,7 +11693,7 @@
                     { label: '体型', value: makeInlineEditableValue(snapshot.appearanceMeta.build, { path: ['char', activeCharKey, 'appearance', '体型'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.appearance.体型', snapshot.appearanceMeta.build) }) },
                     { label: '长相描述', value: makeInlineEditableValue(snapshot.appearanceMeta.looks, { path: ['char', activeCharKey, 'appearance', '长相描述'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.appearance.长相描述', snapshot.appearanceMeta.looks) }), className: 'dossier-row--wide' },
                     { label: '特征', value: makeInlineEditableValue(snapshot.appearanceMeta.features, { path: ['char', activeCharKey, 'appearance', '特殊特征'], kind: 'string_list', rawValue: deepGet(snapshot, 'activeChar.appearance.特殊特征', []) }), className: 'dossier-row--wide' },
-                    { label: '当前套装', value: makeInlineEditableValue(toText(clothing.outfit, '无'), { path: ['char', activeCharKey, 'clothing', 'outfit'], kind: 'string', rawValue: clothing.outfit }) },
+                    { label: '当前套装', value: makeInlineEditableValue(toText(clothing.outfit, '无'), { path: ['char', activeCharKey, 'clothing', 'outfit'], kind: 'string', rawValue: clothing.outfit }), className: 'dossier-row--wide' },
                     { label: '衣柜套数', value: String(wardrobeEntries.length) },
                     { label: '上装', value: activeWardrobePath ? makeInlineEditableValue(toText(deepGet(clothing, ['wardrobe', activeWardrobeKey, '上装'], '无'), '无'), { path: [...activeWardrobePath, '上装'], kind: 'string', rawValue: deepGet(clothing, ['wardrobe', activeWardrobeKey, '上装'], '') }) : '无' },
                     { label: '下装', value: activeWardrobePath ? makeInlineEditableValue(toText(deepGet(clothing, ['wardrobe', activeWardrobeKey, '下装'], '无'), '无'), { path: [...activeWardrobePath, '下装'], kind: 'string', rawValue: deepGet(clothing, ['wardrobe', activeWardrobeKey, '下装'], '') }) : '无' },
@@ -14139,6 +13977,7 @@
               return window.mountTradeUI(container, snapshot, {
                 initialTab: tradeLaunchOptions.initialTab,
                 prefillNpc: tradeLaunchOptions.prefillNpc,
+                lockNpc: tradeLaunchOptions.lockNpc,
                 preferredStore: tradeLaunchOptions.preferredStore,
                 prefillAction: tradeLaunchOptions.prefillAction,
                 prefillItem: tradeLaunchOptions.prefillItem,
@@ -15568,8 +15407,6 @@ ${mvuUpdate}`;
         initialTab = 'tab-sell';
       } else if ((requestAction && toText(tradeRequest.npc, npcTarget)) || (action === 'trade' && npcTarget)) {
         initialTab = 'tab-private';
-      } else if (action === 'trade' && !services.length) {
-        initialTab = 'tab-private';
       }
 
       const target = toText(detail.target, '');
@@ -15584,6 +15421,7 @@ ${mvuUpdate}`;
       return {
         initialTab,
         prefillNpc: initialTab === 'tab-private' ? toText(tradeRequest.npc, npcTarget) : '',
+        lockNpc: initialTab === 'tab-private' && !!toText(tradeRequest.npc, npcTarget),
         preferredStore: toText(tradeRequest.target, preferredStore) || preferredStore,
         prefillAction: requestAction,
         prefillItem: toText(tradeRequest.item, ''),
@@ -15708,7 +15546,7 @@ ${mvuUpdate}`;
       const player = buildCombatParticipantFromSnapshotChar(snapshot, activeKey, '己方');
       const enemy = buildCombatParticipantFromSnapshotChar(snapshot, targetKey, '敌对');
       if (!player || !enemy) return null;
-      const arenaName = toText(detail.target, toText(detail.currentLoc, toText(snapshot.currentLoc, '未知地点')));
+      const arenaName = toText(detail.currentLoc, toText(detail.target, toText(snapshot.currentLoc, '未知地点')));
       return {
         is_active: true,
         combat_type: toText(detail.combatType || detail.combat_type, '擂台切磋'),
@@ -15803,7 +15641,7 @@ ${mvuUpdate}`;
       const targetChar = chars && typeof chars === 'object' ? (chars[targetKey] || {}) : {};
       const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), activeKey);
       const targetName = toText(targetChar && (targetChar.name || deepGet(targetChar, 'base.name', '')), npcTarget || targetKey);
-      const arenaName = toText(detail.target, toText(detail.currentLoc, toText(snapshot.currentLoc, '未知地点')));
+      const arenaName = toText(detail.currentLoc, toText(detail.target, toText(snapshot.currentLoc, '未知地点')));
       const relationMap = deepGet(activeChar, 'social.relations', {});
       const relationData = relationMap && typeof relationMap === 'object'
         ? (relationMap[targetName] || relationMap[targetKey] || {})
@@ -15862,7 +15700,7 @@ ${mvuUpdate}`;
       const relationData = relationMap && typeof relationMap === 'object'
         ? (relationMap[targetName] || relationMap[resolvedTarget.key] || {})
         : {};
-      const arenaName = toText(detail.target, toText(detail.currentLoc, toText(snapshot.currentLoc, '未知地点')));
+      const arenaName = toText(detail.currentLoc, toText(detail.target, toText(snapshot.currentLoc, '未知地点')));
       const currentTick = toNumber(deepGet(snapshot, 'rootData.world.time.tick', 0), 0);
       const itemUsed = interactAction === '送礼'
         ? (toText(detail.itemUsed, toText(detail.item_used, '无')) || '无')
@@ -16277,6 +16115,7 @@ ${mvuUpdate}`;
       const capture = await captureInlineModuleAction((container, done) => window.mountTradeUI(container, snapshot, {
         initialTab: launchOptions.initialTab,
         prefillNpc: launchOptions.prefillNpc,
+        lockNpc: launchOptions.lockNpc,
         preferredStore: launchOptions.preferredStore,
         prefillAction: launchOptions.prefillAction,
         prefillItem: launchOptions.prefillItem,
@@ -16304,93 +16143,6 @@ ${mvuUpdate}`;
       if (!capture.ok) return capture;
       const inlineAction = normalizeInlineModuleAction(capture.actionData, 'profession', professionRequest);
       return inlineAction ? { ok: true, inlineAction } : { ok: false, reason: 'profession_action_invalid' };
-    }
-
-    function setChatInputValue(input, value) {
-      if (!input) return;
-      input.value = value;
-      try {
-        input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: value ? 'insertText' : 'deleteContent' }));
-      } catch (error) {
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-
-    async function tryHandleDirectModuleIntentEvent(event) {
-      if (directModuleIntentGuardLock) return false;
-      if (event?.type === 'keydown') {
-        if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey || event.isComposing) return false;
-      } else if (event?.type === 'click') {
-        const target = event.target instanceof Element ? event.target : null;
-        if (!target || !target.closest('#send_but')) return false;
-      }
-
-      const input = getChatSendTextarea();
-      const text = toText(input && input.value, '').trim();
-      if (!input || !text) return false;
-      const snapshot = liveSnapshot || lastRenderableSnapshot;
-      const battleIntent = buildDirectBattleIntent(snapshot, text);
-      const tradeRequest = battleIntent ? null : buildDirectTradeRequest(snapshot, text);
-      const professionRequest = battleIntent || tradeRequest ? null : buildDirectProfessionRequest(snapshot, text);
-      if (!battleIntent && !tradeRequest && !professionRequest) return false;
-
-      if (event) {
-        event.preventDefault();
-        event.stopPropagation();
-        if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
-      }
-
-      directModuleIntentGuardLock = true;
-      try {
-        if (battleIntent) {
-          const result = await openMapBattleModule(snapshot, battleIntent);
-          if (!result || !result.ok) throw new Error(result?.reason || '战斗上下文无法解析');
-          setChatInputValue(input, '');
-          await refreshLiveSnapshot({ force: true });
-          return true;
-        }
-
-        if (professionRequest) {
-          openProfessionModuleFromRequest(snapshot, professionRequest);
-          setChatInputValue(input, '');
-          return true;
-        }
-
-        await applyJsonPatchOpsByEditor([
-          { op: 'replace', path: '/world/trade_request', value: tradeRequest },
-          { op: 'replace', path: '/sys/rsn', value: `[交易模块] ${tradeRequest.action} ${tradeRequest.item} 的请求已由前端接管。` }
-        ]);
-        setChatInputValue(input, '');
-        await refreshLiveSnapshot({ force: true });
-        mapDispatchContext = buildTradeDispatchFromRequest(snapshot, tradeRequest);
-        openModal('交易网络', { preserveMapDispatchContext: true });
-        return true;
-      } catch (error) {
-        console.warn('[DragonUI] 直接输入模块接管失败', error);
-        showUiToast(error && error.message ? error.message : '模块接管失败。', 'error', 3600);
-        return false;
-      } finally {
-        directModuleIntentGuardLock = false;
-      }
-    }
-
-    function bindDirectModuleIntentGuardTargets() {
-      const form = document.getElementById('send_form');
-      if (form && !form.__mvuDirectModuleIntentSubmitBound) {
-        form.addEventListener('submit', event => { tryHandleDirectModuleIntentEvent(event); }, true);
-        form.__mvuDirectModuleIntentSubmitBound = true;
-      }
-      const sendButton = document.getElementById('send_but');
-      if (sendButton && !sendButton.__mvuDirectModuleIntentClickBound) {
-        sendButton.addEventListener('click', event => { tryHandleDirectModuleIntentEvent(event); }, true);
-        sendButton.__mvuDirectModuleIntentClickBound = true;
-      }
-      const input = getChatSendTextarea();
-      if (input && !input.__mvuDirectModuleIntentKeyBound) {
-        input.addEventListener('keydown', event => { tryHandleDirectModuleIntentEvent(event); }, true);
-        input.__mvuDirectModuleIntentKeyBound = true;
-      }
     }
 
     function buildTradeRequestFromObject(snapshot, source) {
@@ -16500,6 +16252,15 @@ ${mvuUpdate}`;
 
       if (moduleKind === 'trade') {
         let inlineResult = null;
+        const privateTradeNpc = toText(request && request.npc, '');
+        if (privateTradeNpc && !resolveSnapshotCharKey(snapshot, privateTradeNpc)) {
+          return {
+            handled: false,
+            kind: moduleKind,
+            request,
+            reason: 'trade_target_unresolved'
+          };
+        }
         if (wantsInline && request.auto_execute === true) {
           inlineResult = await buildInlineTradeAction(snapshot, request);
           if (inlineResult && inlineResult.ok && inlineResult.inlineAction) {
@@ -16515,6 +16276,14 @@ ${mvuUpdate}`;
               result: inlineResult
             };
           }
+          return {
+            handled: false,
+            kind: moduleKind,
+            request,
+            dispatchMode: 'inline',
+            reason: inlineResult && inlineResult.reason ? inlineResult.reason : 'trade_inline_action_unavailable',
+            result: inlineResult || null
+          };
         }
         await applyJsonPatchOpsByEditor([
           { op: 'replace', path: '/world/trade_request', value: request },
@@ -16547,13 +16316,13 @@ ${mvuUpdate}`;
             result: inlineResult
           };
         }
-        const result = openProfessionModuleFromRequest(snapshot, request);
         return {
-          handled: true,
+          handled: false,
           kind: moduleKind,
           request,
-          dispatchMode: 'inline_fallback_ui',
-          result: { ...(inlineResult || {}), uiOpened: true, openResult: result }
+          dispatchMode: 'inline',
+          reason: inlineResult && inlineResult.reason ? inlineResult.reason : 'profession_inline_action_unavailable',
+          result: inlineResult || null
         };
       }
       const result = openProfessionModuleFromRequest(snapshot, request);
@@ -16561,10 +16330,6 @@ ${mvuUpdate}`;
     }
 
     function installDirectModuleIntentGuard() {
-      if (directModuleIntentGuardObserver) {
-        try { directModuleIntentGuardObserver.disconnect(); } catch (error) {}
-        directModuleIntentGuardObserver = null;
-      }
       window.__MVU_ROUTE_MODULE_INTENT__ = (input, options = {}) => routeModuleIntentPayload(input, options);
       window.__MVU_TEST_DIRECT_MODULE_INTENT__ = text => ({
         battle: buildDirectBattleIntent(liveSnapshot || lastRenderableSnapshot, text),
@@ -16612,7 +16377,7 @@ ${mvuUpdate}`;
           dispatchUiAiRequest(interactInit.playerInput, interactInit.systemPrompt, { requestKind: interactInit.requestKind });
           return;
         }
-        const arenaName = toText(detail.target, toText(detail.currentLoc, toText(liveSnapshot && liveSnapshot.currentLoc, '未知地点')));
+        const arenaName = toText(detail.currentLoc, toText(detail.target, toText(liveSnapshot && liveSnapshot.currentLoc, '未知地点')));
         const npcTargets = Array.isArray(detail.npcTargets) ? detail.npcTargets.map(item => toText(item, '')).filter(Boolean) : [];
         const targetLabel = npcTargets.length ? `在场人物（${npcTargets.join('、')}）` : '在场人员';
         const playerInputMap = {
@@ -16637,7 +16402,7 @@ ${mvuUpdate}`;
         if (battleOpenResult && battleOpenResult.ok) {
           return;
         }
-        const arenaName = toText(detail.target, toText(detail.currentLoc, toText(liveSnapshot && liveSnapshot.currentLoc, '未知地点')));
+        const arenaName = toText(detail.currentLoc, toText(detail.target, toText(liveSnapshot && liveSnapshot.currentLoc, '未知地点')));
         const npcTargets = Array.isArray(detail.npcTargets) ? detail.npcTargets.map(item => toText(item, '')).filter(Boolean) : [];
         const targetLabel = npcTargets.length ? `在场人物（${npcTargets.join('、')}）中的一人` : '合适的对手';
         const systemPrompt = `以下内容属于前端已经发起的地图切磋请求。当前没有锁定唯一对手，不要报错，也不要要求玩家重新点击；请结合【${arenaName}】现场情况与在场人物，自然判断是否有人应战。${npcTargets.length ? ` 候选对手：${npcTargets.join('、')}。若有人应战，请自然承接为切磋剧情并继续后续战斗推进。` : ' 若当前没有明确对手，也请以前端请求已发出的事实为基础，自然描述无人应战、稍后再战或由他人出面回应。'}`;
@@ -16652,6 +16417,20 @@ ${mvuUpdate}`;
     }
 
     window.addEventListener('map-action-dispatch', handleMapActionDispatch);
+
+    async function handleMapAiRequest(event) {
+      const detail = event && event.detail && typeof event.detail === 'object' ? event.detail : {};
+      const playerInput = toText(detail.playerInput || detail.input || '', '').trim();
+      const systemPrompt = toText(detail.systemPrompt || detail.prompt || '', '').trim();
+      const meta = detail.meta && typeof detail.meta === 'object' ? detail.meta : {};
+      if (!playerInput) return;
+      detail.handled = true;
+      detail.result = await dispatchUiAiRequest(playerInput, systemPrompt, {
+        requestKind: toText(meta.requestKind, 'map_ai_request')
+      });
+    }
+
+    window.addEventListener('map-ai-request', handleMapAiRequest);
 
     async function handleBattleMvuUpdateRequest(event) {
       const detail = event && event.detail && typeof event.detail === 'object' ? event.detail : {};
@@ -17676,11 +17455,6 @@ ${mvuUpdate}`;
             if (typeof window.__sheepMapResync === 'function') {
               try { window.__sheepMapResync({ center: true, syncVisual: true }); } catch (err) {}
               scheduleUnifiedMapCanvasClamp();
-            }
-            if (isUnifiedMount && !mapFocusBtn.closest('.mvu-mobile-shell') && typeof window.__MVU_OPEN_UNIFIED_PREVIEW__ === 'function') {
-              window.__MVU_OPEN_UNIFIED_PREVIEW__('全息星图主画布', { triggerEl: mapFocusBtn, preserveMapDispatchContext: true });
-            } else {
-              toggleModal('全息星图主画布', { triggerEl: mapFocusBtn, displayMode: 'floating', preserveMapDispatchContext: true });
             }
           }
           return;

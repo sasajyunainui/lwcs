@@ -84,6 +84,10 @@ const TradeStyles = `
     margin-bottom: 15px;
   }
 
+  .trade-module-scope .form-group.is-context-locked {
+    display: none;
+  }
+
   .trade-module-scope .form-group label {
     display: block;
     font-size: 11px;
@@ -401,6 +405,11 @@ class TradeUIComponent {
     const prefillNpc = String(this.options.prefillNpc || '').trim();
     if (prefillNpc && this.$('#priv-npc')) {
       this.$('#priv-npc').value = prefillNpc;
+      if (this.options.lockNpc === true) {
+        this.$('#priv-npc').readOnly = true;
+        const group = this.$('#priv-npc').closest('.form-group');
+        if (group) group.classList.add('is-context-locked');
+      }
     }
 
     const preferredStore = String(this.options.preferredStore || '').trim();
@@ -504,11 +513,11 @@ class TradeUIComponent {
   }
 
   get worldData() {
-    return this.snapshot?.sd?.world || {};
+    return this.snapshot?.sd?.world || this.snapshot?.rootData?.world || {};
   }
 
   get allChars() {
-    return this.snapshot?.sd?.char || {};
+    return this.snapshot?.sd?.char || this.snapshot?.rootData?.char || {};
   }
 
   get activeName() {

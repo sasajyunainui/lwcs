@@ -28,6 +28,11 @@
     processedPlans: 0,
     blockedPlans: 0,
     continuedPlans: 0,
+    capturedPlanningResponses: 0,
+    rewrittenPlanningResponses: 0,
+    preflightRoutes: 0,
+    lastPlanningSignature: '',
+    lastPlanningSignatureAt: 0,
     lastIntent: null,
     lastAction: '',
     lastError: ''
@@ -109,6 +114,185 @@
     return normalizeModuleIntent(safeJsonParse(match[1], null));
   }
 
+  function hasModuleIntentBlock(text) {
+    return /<moduleIntent>[\s\S]*?<\/moduleIntent>/i.test(toText(text, ''));
+  }
+
+  function decodeEscapedResponseText(text) {
+    return toText(text, '')
+      .replace(/\\r/g, '\r')
+      .replace(/\\n/g, '\n')
+      .replace(/\\t/g, '\t')
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, '\\');
+  }
+
+  function collectTextCandidates(value, output = [], depth = 0, seen = new Set()) {
+    if (value === undefined || value === null || depth > 8) return output;
+    if (typeof value === 'string') {
+      if (value) output.push(value);
+      return output;
+    }
+    if (typeof value !== 'object') return output;
+    if (seen.has(value)) return output;
+    seen.add(value);
+
+    if (Array.isArray(value)) {
+      value.forEach(item => collectTextCandidates(item, output, depth + 1, seen));
+      return output;
+    }
+
+    const preferredKeys = [
+      'content', 'text', 'output_text', 'message', 'mes', 'reply',
+      'response', 'result', 'data', 'delta', 'choices', 'candidates',
+      'parts', 'output', 'finalMessage', 'prompt', 'user_input'
+    ];
+    preferredKeys.forEach(key => {
+      if (Object.prototype.hasOwnProperty.call(value, key)) {
+        collectTextCandidates(value[key], output, depth + 1, seen);
+      }
+    });
+
+    if (depth < 4) {
+      Object.keys(value).forEach(key => {
+        if (!preferredKeys.includes(key)) collectTextCandidates(value[key], output, depth + 1, seen);
+      });
+    }
+
+    return output;
+  }
+
+  function extractStreamDeltaText(value) {
+    if (!value || typeof value !== 'object') return '';
+    const parts = [];
+    const push = text => {
+      const valueText = toText(text, '');
+      if (valueText) parts.push(valueText);
+    };
+
+    if (Array.isArray(value.choices)) {
+      value.choices.forEach(choice => {
+        push(choice && choice.delta && choice.delta.content);
+        push(choice && choice.message && choice.message.content);
+        push(choice && choice.text);
+      });
+    }
+    if (Array.isArray(value.candidates)) {
+      value.candidates.forEach(candidate => {
+        const candidateParts = candidate && candidate.content && Array.isArray(candidate.content.parts)
+          ? candidate.content.parts
+          : [];
+        candidateParts.forEach(part => push(part && part.text));
+        push(candidate && candidate.text);
+      });
+    }
+    push(value.content);
+    push(value.text);
+    push(value.output_text);
+    return parts.join('');
+  }
+
+  function collectResponseTextCandidates(rawText) {
+    const raw = toText(rawText, '');
+    const candidates = [];
+    if (!raw) return candidates;
+    candidates.push(raw);
+
+    const parsed = safeJsonParse(raw, null);
+    if (parsed) collectTextCandidates(parsed, candidates);
+
+    const streamParts = [];
+    raw.split(/\r?\n/).forEach(line => {
+      const match = line.match(/^\s*data:\s*(.*)$/);
+      if (!match) return;
+      const payload = match[1].trim();
+      if (!payload || payload === '[DONE]') return;
+      const streamObject = safeJsonParse(payload, null);
+      if (!streamObject) return;
+      const deltaText = extractStreamDeltaText(streamObject);
+      if (deltaText) streamParts.push(deltaText);
+    });
+    if (streamParts.length) candidates.push(streamParts.join(''));
+
+    return candidates;
+  }
+
+  function findPlanningTextInValue(value) {
+    const candidates = typeof value === 'string'
+      ? collectResponseTextCandidates(value)
+      : collectTextCandidates(value, []);
+
+    for (const candidate of candidates) {
+      const variants = [candidate, decodeEscapedResponseText(candidate)];
+      for (const variant of variants) {
+        if (!hasModuleIntentBlock(variant)) continue;
+        if (extractModuleIntentFromText(variant)) return variant;
+      }
+    }
+    return null;
+  }
+
+  function planningSignature(text) {
+    const source = toText(text, '');
+    const match = source.match(/<moduleIntent>\s*([\s\S]*?)\s*<\/moduleIntent>/i);
+    return match ? match[1].replace(/\s+/g, ' ').trim().slice(0, 800) : '';
+  }
+
+  function isDuplicatePlanningText(text) {
+    const signature = planningSignature(text);
+    if (!signature) return false;
+    const now = Date.now();
+    const duplicate = state.lastPlanningSignature === signature && now - state.lastPlanningSignatureAt < 5000;
+    state.lastPlanningSignature = signature;
+    state.lastPlanningSignatureAt = now;
+    return duplicate;
+  }
+
+  function replacePlanningStrings(value, finalMessage, depth = 0, seen = new Set()) {
+    if (value === undefined || value === null || depth > 8) return value;
+    if (typeof value === 'string') {
+      if (hasModuleIntentBlock(value) || hasModuleIntentBlock(decodeEscapedResponseText(value))) return finalMessage;
+      return value;
+    }
+    if (typeof value !== 'object') return value;
+    if (seen.has(value)) return value;
+    seen.add(value);
+    if (Array.isArray(value)) return value.map(item => replacePlanningStrings(item, finalMessage, depth + 1, seen));
+    const next = {};
+    Object.keys(value).forEach(key => {
+      next[key] = replacePlanningStrings(value[key], finalMessage, depth + 1, seen);
+    });
+    return next;
+  }
+
+  function rewriteRawResponseText(rawText, finalMessage) {
+    const raw = toText(rawText, '');
+    const parsed = safeJsonParse(raw, null);
+    if (parsed) {
+      return JSON.stringify(replacePlanningStrings(parsed, finalMessage));
+    }
+    if (hasModuleIntentBlock(raw)) return finalMessage;
+    return raw;
+  }
+
+  function rewriteResultValue(value, finalMessage) {
+    if (typeof value === 'string') {
+      return hasModuleIntentBlock(value) || hasModuleIntentBlock(decodeEscapedResponseText(value))
+        ? finalMessage
+        : value;
+    }
+    if (value && typeof value === 'object') return replacePlanningStrings(value, finalMessage);
+    return value;
+  }
+
+  function createBlockedError(decision) {
+    const error = new Error('MVU_MODULE_INTENT_BLOCKED');
+    error.name = 'AbortError';
+    error.__mvuModuleIntentBlocked = true;
+    error.decision = decision;
+    return error;
+  }
+
   function hasModuleIntentInstruction(messages) {
     return Array.isArray(messages) && messages.some(msg => toText(msg && msg.content, '').includes('<moduleIntent>'));
   }
@@ -166,6 +350,41 @@
     const patchedMessages = appendModuleIntentInstructionToMessages(parsed.messages);
     if (patchedMessages === parsed.messages) return null;
     return JSON.stringify({ ...parsed, messages: patchedMessages });
+  }
+
+  function isLikelyFinalGenerationMessages(messages) {
+    if (!Array.isArray(messages) || !messages.length) return false;
+    if (isLikelyDatabasePlanningMessages(messages)) return false;
+    const joined = messages.map(msg => toText(msg && msg.content, '')).join('\n');
+    if (!joined.trim()) return false;
+    if (/<tableEdit>|templateAssistantDraft|文本优化|优化建议/.test(joined)) return false;
+    return /<input>[\s\S]*?<\/input>|故事信息已结束，下接用户输入内容|<Output_format>|<content>|全局回复格式铁律|<UpdateVariable>|<JSONPatch>/i.test(joined)
+      && /【模块接管规则】|当剧情即将进入实际战斗|world\/combat|trade_request|副职业工坊|锻造|制造|修理|交易|切磋|单挑|战斗/.test(joined);
+  }
+
+  function extractLatestInputFromMessages(messages) {
+    if (!Array.isArray(messages)) return '';
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const content = toText(messages[i] && messages[i].content, '');
+      if (!content) continue;
+
+      const inputMatches = [...content.matchAll(/<input>\s*([\s\S]*?)\s*<\/input>/gi)];
+      if (inputMatches.length) return stripModuleIntentBlocks(inputMatches[inputMatches.length - 1][1]).trim();
+
+      const roundMatches = [...content.matchAll(/<本轮用户输入>\s*([\s\S]*?)\s*<\/本轮用户输入>/gi)];
+      if (roundMatches.length) return stripModuleIntentBlocks(roundMatches[roundMatches.length - 1][1]).trim();
+
+      if (messages[i] && messages[i].role === 'user') {
+        const plain = stripModuleIntentBlocks(content).trim();
+        if (plain && plain.length < 2000) return plain;
+      }
+    }
+    return '';
+  }
+
+  function parseRequestBodyMessages(body) {
+    const parsed = typeof body === 'string' ? safeJsonParse(body, null) : null;
+    return parsed && Array.isArray(parsed.messages) ? parsed.messages : null;
   }
 
   function getRouter() {
@@ -309,6 +528,99 @@
     state.continuedPlans += 1;
     state.lastAction = 'continue_unknown';
     return { action: 'continue', finalMessage: stripModuleIntentBlocks(finalMessage), intent };
+  }
+
+  async function processPlanningResponseValue(value, sourceLabel = 'response') {
+    const planningText = findPlanningTextInValue(value);
+    if (!planningText) return null;
+
+    if (isDuplicatePlanningText(planningText)) {
+      state.lastAction = `skip_duplicate_${sourceLabel}`;
+      return { action: 'continue', finalMessage: stripModuleIntentBlocks(planningText), duplicate: true };
+    }
+
+    state.capturedPlanningResponses += 1;
+    state.lastAction = `capture_${sourceLabel}`;
+    const decision = await processPlanningText(planningText);
+    if (decision && decision.action === 'block') {
+      await stopGeneration();
+      throw createBlockedError(decision);
+    }
+    return decision;
+  }
+
+  function responseFromText(originalResponse, bodyText) {
+    if (typeof Response !== 'function') return originalResponse;
+    const headers = new Headers(originalResponse.headers || {});
+    headers.delete('content-length');
+    headers.delete('Content-Length');
+    return new Response(bodyText, {
+      status: originalResponse.status,
+      statusText: originalResponse.statusText,
+      headers
+    });
+  }
+
+  async function inspectFetchPlanningResponse(response, sourceLabel = 'fetch') {
+    if (!response || typeof response.clone !== 'function') return response;
+    let rawText = '';
+    try {
+      rawText = await response.clone().text();
+    } catch (error) {
+      state.lastError = error && error.message ? error.message : String(error);
+      return response;
+    }
+
+    const decision = await processPlanningResponseValue(rawText, sourceLabel);
+    if (!decision || decision.action !== 'continue' || !decision.finalMessage || decision.duplicate) {
+      return response;
+    }
+
+    state.rewrittenPlanningResponses += 1;
+    return responseFromText(response, rewriteRawResponseText(rawText, decision.finalMessage));
+  }
+
+  async function routePreflightModuleIntentFromMessages(messages) {
+    if (!isLikelyFinalGenerationMessages(messages)) return null;
+    const inputText = extractLatestInputFromMessages(messages);
+    if (!inputText) return null;
+
+    const router = getRouter();
+    if (!router) return null;
+
+    const dryRun = await router(inputText, { source: 'database_bridge_preflight', dryRun: true });
+    if (!dryRun || !dryRun.handled || !dryRun.kind || !dryRun.request) return null;
+
+    if (dryRun.kind !== 'battle') return null;
+
+    const routeResult = await router({
+      module: 'battle',
+      kind: 'battle',
+      request: dryRun.request,
+      source: 'database_bridge_preflight'
+    }, { source: 'database_bridge_preflight' });
+
+    state.preflightRoutes += 1;
+    state.blockedPlans += 1;
+    state.lastIntent = {
+      module: 'battle',
+      confidence: 1,
+      request: cloneJson(dryRun.request, dryRun.request),
+      auto_execute: false
+    };
+    state.lastAction = routeResult && routeResult.handled
+      ? 'block_battle_preflight_routed'
+      : 'block_battle_preflight_failed';
+    showToast(routeResult && routeResult.handled ? 'info' : 'error', routeResult && routeResult.handled
+      ? '战斗模块已接管，本轮正文生成已中止。'
+      : '战斗模块接管失败，本轮正文生成已中止。');
+    await stopGeneration();
+    throw createBlockedError({
+      action: 'block',
+      reason: routeResult && routeResult.handled ? 'battle_preflight_routed' : 'battle_preflight_failed',
+      intent: state.lastIntent,
+      routeResult
+    });
   }
 
   function getOptionsPlanningText(options) {
@@ -457,7 +769,18 @@
 
     const original = helper.generateRaw;
     helper.generateRaw = function (options, ...rest) {
-      return original.call(this, patchGenerateRawOptions(options), ...rest);
+      const patchedOptions = patchGenerateRawOptions(options);
+      const shouldInspect = patchedOptions !== options || hasModuleIntentInstruction(patchedOptions && patchedOptions.ordered_prompts);
+      const resultPromise = original.call(this, patchedOptions, ...rest);
+      if (!shouldInspect) return resultPromise;
+      return Promise.resolve(resultPromise).then(async result => {
+        const decision = await processPlanningResponseValue(result, 'generateRaw');
+        if (decision && decision.action === 'continue' && decision.finalMessage && !decision.duplicate) {
+          state.rewrittenPlanningResponses += 1;
+          return rewriteResultValue(result, decision.finalMessage);
+        }
+        return result;
+      });
     };
     helper.generateRaw.__mvuDatabaseBridgeWrapped = true;
     helper.generateRaw[ORIGINAL_GENERATE_RAW_KEY] = original;
@@ -474,18 +797,41 @@
 
     const original = hostWin.fetch;
     hostWin.fetch = function (input, init) {
+      const runFetch = () => {
+        let shouldInspect = false;
+        let nextInit = init;
+        try {
+          const url = typeof input === 'string' ? input : toText(input && input.url, '');
+          if (url.includes('/api/backends/chat-completions/generate') && init && typeof init.body === 'string') {
+            const patchedBody = patchRequestBody(init.body);
+            if (patchedBody) {
+              shouldInspect = true;
+              nextInit = { ...init, body: patchedBody };
+            } else {
+              shouldInspect = hasModuleIntentBlock(init.body);
+            }
+          }
+        } catch (error) {
+          state.lastError = error && error.message ? error.message : String(error);
+        }
+        const responsePromise = original.call(this, input, nextInit);
+        if (!shouldInspect) return responsePromise;
+        return Promise.resolve(responsePromise).then(response => inspectFetchPlanningResponse(response, 'fetch'));
+      };
+
       try {
         const url = typeof input === 'string' ? input : toText(input && input.url, '');
         if (url.includes('/api/backends/chat-completions/generate') && init && typeof init.body === 'string') {
-          const patchedBody = patchRequestBody(init.body);
-          if (patchedBody) {
-            return original.call(this, input, { ...init, body: patchedBody });
+          const messages = parseRequestBodyMessages(init.body);
+          if (messages) {
+            return Promise.resolve(routePreflightModuleIntentFromMessages(messages)).then(() => runFetch());
           }
         }
       } catch (error) {
         state.lastError = error && error.message ? error.message : String(error);
       }
-      return original.call(this, input, init);
+
+      return runFetch();
     };
     hostWin.fetch.__mvuDatabaseBridgeWrapped = true;
     hostWin.fetch[ORIGINAL_FETCH_KEY] = original;
@@ -542,7 +888,18 @@
 
     const original = service.sendRequest;
     service.sendRequest = function (profileId, messages, maxTokens, ...rest) {
-      return original.call(this, profileId, appendModuleIntentInstructionToMessages(messages), maxTokens, ...rest);
+      const patchedMessages = appendModuleIntentInstructionToMessages(messages);
+      const shouldInspect = patchedMessages !== messages || hasModuleIntentInstruction(patchedMessages);
+      const resultPromise = original.call(this, profileId, patchedMessages, maxTokens, ...rest);
+      if (!shouldInspect) return resultPromise;
+      return Promise.resolve(resultPromise).then(async result => {
+        const decision = await processPlanningResponseValue(result, 'connectionManager');
+        if (decision && decision.action === 'continue' && decision.finalMessage && !decision.duplicate) {
+          state.rewrittenPlanningResponses += 1;
+          return rewriteResultValue(result, decision.finalMessage);
+        }
+        return result;
+      });
     };
     service.sendRequest.__mvuDatabaseBridgeWrapped = true;
     service.sendRequest[ORIGINAL_CM_SEND_KEY] = original;
