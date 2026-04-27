@@ -9305,6 +9305,10 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-tab-btn:hover {
   background: linear-gradient(90deg, #f38d9f, #f5adba);
 }
 
+#mvu-battle-inline-host .resource-fill.vit {
+  background: linear-gradient(90deg, #d9b26f, #e6c58f);
+}
+
 #mvu-battle-inline-host .resource-fill.sp {
   background: linear-gradient(90deg, #73bfd1, #8ec8d5);
 }

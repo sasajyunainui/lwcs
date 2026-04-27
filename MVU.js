@@ -8988,6 +8988,37 @@ export const Schema = z
             回合: z.coerce.number().prefault(0).describe('当前回合数'),
             阶段: z.enum(['无', '宣告阶段', '对轰判定阶段', '回合结算阶段']).prefault('无').describe('当前战斗阶段'),
             环境: z.string().prefault('正常').describe('战场环境或全局领域法则'),
+            战斗意图: z
+              .enum(['点到为止', '尽量生擒', '重伤压制', '必杀'])
+              .prefault('点到为止')
+              .describe('本次战斗的主观意图，决定是否允许致死与前端建议结局'),
+            裁断约束: z
+              .object({
+                可致死: z.boolean().prefault(false),
+                可外界介入: z.boolean().prefault(false),
+                关系收手系数: z.coerce.number().prefault(0),
+                场地安全系数: z.coerce.number().prefault(0),
+                实力差距系数: z.coerce.number().prefault(0),
+                绝境失手系数: z.coerce.number().prefault(0),
+                失手等级: z.string().prefault('稳住'),
+              })
+              .prefault({}),
+            前端建议结果: z.string().prefault(''),
+            裁断结果: z.string().prefault(''),
+            建议终点HP区间: z.string().prefault(''),
+            前端推荐终点HP: z.coerce.number().prefault(0),
+            预计HP伤害: z.coerce.number().prefault(0),
+            本次操作: z
+              .object({
+                批次ID: z.string().prefault(''),
+                模式: z.string().prefault('single_round'),
+                起始回合: z.coerce.number().prefault(0),
+                结束回合: z.coerce.number().prefault(0),
+                玩家输入: z.string().prefault(''),
+                结算状态: z.string().prefault(''),
+                AI确认结果: z.string().prefault(''),
+              })
+              .prefault({}),
 
             参战者: z
               .record(z.string().describe('参战槽位或参战者姓名'), z.any())

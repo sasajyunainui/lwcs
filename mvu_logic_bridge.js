@@ -6613,8 +6613,8 @@
           ].filter(effect => safeEntries(effect).length);
         case '条件触发': {
           const triggerRule = normalizeSkillUiText(params['triggerRule'], '');
-          const judgeKey = /低血|生命|血量/.test(triggerRule) ? 'vit_ratio' : 'men_max';
-          const judgeThreshold = judgeKey === 'vit_ratio' ? 0.5 : 1.0;
+          const judgeKey = /低血|生命|血量/.test(triggerRule) ? 'hp_ratio' : 'men_max';
+          const judgeThreshold = judgeKey === 'hp_ratio' ? 0.5 : 1.0;
           return [
             buildSkillDesignerRuntimeObject({
               '机制': '条件触发',
@@ -6682,7 +6682,7 @@
           effects.push(buildSkillDesignerRuntimeObject({
             '机制': '斩杀补伤',
             '目标': offensiveTarget,
-            '判定属性': 'vit_ratio',
+            '判定属性': 'hp_ratio',
             '判定阈值': parseSkillDesignerPercentRatio(params['executeLine'], 0.25),
             '成功参数': { 'final_damage_mult': parseSkillDesignerFactorInputValue(params['bonusRatio'], 1.5, { plusBase: true }) },
             '失败参数': {},
@@ -8118,7 +8118,6 @@
       const stat = deepGet(snapshot, 'activeChar.属性', {});
       const social = deepGet(snapshot, 'activeChar.社交', {});
       const status = deepGet(snapshot, 'activeChar.状态', {});
-      const hpPair = getDisplayHpPair(stat);
       const hpPair = getDisplayHpPair(stat);
       const woundLabel = getDisplayWoundLabel(stat);
       const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '当前角色');
@@ -15860,11 +15859,19 @@ ${mvuUpdate}`;
       return {
         进行中: true,
         战斗类型: toText(detail.战斗类型, '擂台切磋'),
+        战斗意图: '点到为止',
         先攻: '无',
         允许撤离: true,
         回合: 0,
         阶段: '宣告阶段',
         环境: arenaName,
+        裁断约束: {},
+        前端建议结果: '',
+        裁断结果: '',
+        建议终点HP区间: '',
+        前端推荐终点HP: 0,
+        预计HP伤害: 0,
+        本次操作: {},
         参战者: {
           player,
           enemy,

@@ -555,7 +555,21 @@ class BattleUIComponent {
       appendLegacyParticipantCleanupOps(ops, participantPath, currentCharData);
     }
 
-    const COMBAT_WORLD_PERSIST_KEYS = ['进行中', '战斗类型', '先攻', '允许撤离', '环境'];
+    const COMBAT_WORLD_PERSIST_KEYS = [
+      '进行中',
+      '战斗类型',
+      '战斗意图',
+      '先攻',
+      '允许撤离',
+      '环境',
+      '裁断约束',
+      '前端建议结果',
+      '裁断结果',
+      '建议终点HP区间',
+      '前端推荐终点HP',
+      '预计HP伤害',
+      '本次操作',
+    ];
 
     function compactCombatParticipantForPersistence(participant) {
       if (participant === null || participant === undefined) return undefined;
@@ -649,7 +663,9 @@ class BattleUIComponent {
 
     function persistCombatData(combatData, options = {}) {
       const safeCombatData = compactCombatDataForPersistence(combatData);
-      const patchOps = buildCombatJsonPatch(combatData, { syncHpRecoveryOnly: options.syncHpRecoveryOnly === true });
+      const patchOps = buildCombatJsonPatch(combatData, {
+        syncHpRecoveryOnly: options.syncHpRecoveryOnly !== false,
+      });
       if (Array.isArray(options.extraPatchOps)) {
         patchOps.push(...options.extraPatchOps);
       }
@@ -1255,10 +1271,12 @@ class BattleUIComponent {
       const unit = fallbackUnit(rawUnit);
       fallbackText(`ui-${prefix}-lv`, `Lv.${unit.等级 || 0}`);
       fallbackText(`ui-${prefix}-name`, unit.name || (prefix === 'player' ? '玩家' : '对手'));
-      fallbackText(`ui-${prefix}-hp-text`, `${Math.round(unit.体力)} / ${Math.round(unit.体力上限)}`);
+      fallbackText(`ui-${prefix}-hp-text`, `${Math.round(unit.HP)} / ${Math.round(unit.HP上限)}`);
+      fallbackText(`ui-${prefix}-sta-text`, `${Math.round(unit.体力)} / ${Math.round(unit.体力上限)}`);
       fallbackText(`ui-${prefix}-sp-text`, `${Math.round(unit.魂力)} / ${Math.round(unit.魂力上限)}`);
       fallbackText(`ui-${prefix}-men-text`, `${Math.round(unit.精神力)} / ${Math.round(unit.精神力上限)}`);
-      fallbackBar(`ui-${prefix}-hp-bar`, unit.体力, unit.体力上限);
+      fallbackBar(`ui-${prefix}-hp-bar`, unit.HP, unit.HP上限);
+      fallbackBar(`ui-${prefix}-sta-bar`, unit.体力, unit.体力上限);
       fallbackBar(`ui-${prefix}-sp-bar`, unit.魂力, unit.魂力上限);
       fallbackBar(`ui-${prefix}-men-bar`, unit.精神力, unit.精神力上限);
       fallbackRenderStats(`ui-${prefix}-stats`, unit);
@@ -1363,6 +1381,7 @@ class BattleUIComponent {
       const charData = getMvuValue(`char.${player.name}`) || getMvuValue(`char.${getMvuValue('sys.玩家名') || ''}`) || participants.player;
       const availableActions = fallbackCollectActions(charData);
       const previousState = root.BattleUI?.state || {};
+      const currentIntentMode = previousState.currentIntentMode || combatData.战斗意图 || '点到为止';
       const selectedAction = previousState.selectedAction && availableActions.find(action => action.id === previousState.selectedAction.id)
         ? previousState.selectedAction
         : availableActions[0] || null;
@@ -1377,6 +1396,7 @@ class BattleUIComponent {
           selectedSkillActions: selectedAction ? [selectedAction] : [],
           selectedPreActions: [],
           currentMode: previousState.currentMode || 'single_round',
+          currentIntentMode,
         },
         buildIntentText(actions = []) {
           return fallbackBuildIntent(actions[0] || root.BattleUI?.state?.selectedAction, root.BattleUI?.state?.combatData);
@@ -1388,8 +1408,12 @@ class BattleUIComponent {
           const output = byId('ui-intent-output');
           if (output) output.value = intentText;
           const battleMode = state.currentMode === 'multi_round' ? 'multi_round' : 'single_round';
+          state.combatData.战斗意图 = state.currentIntentMode || '点到为止';
           try {
-            const result = root.BattleUIBridge?.executePlayerBattleIntent?.(intentText, { mode: battleMode });
+            const result = root.BattleUIBridge?.executePlayerBattleIntent?.(intentText, {
+              mode: battleMode,
+              intentMode: state.currentIntentMode || '点到为止',
+            });
             if (typeof component.syncFromBattleEngine === 'function') component.syncFromBattleEngine();
             root.dispatchEvent(new CustomEvent('battle-ui-submit-finished', { detail: result || { intentText } }));
             return result || { intentText };
@@ -1403,6 +1427,8 @@ class BattleUIComponent {
       fallbackRenderActions(availableActions, selectedAction?.id || '');
       const output = byId('ui-intent-output');
       if (output && selectedAction) output.value = fallbackBuildIntent(selectedAction, combatData);
+      const intentModeInput = byId('ui-intent-mode');
+      if (intentModeInput && intentModeInput.value !== currentIntentMode) intentModeInput.value = currentIntentMode;
       const arbitrateBtn = byId('ui-arbitrate');
       if (arbitrateBtn && !arbitrateBtn.__fallbackBattleBound) {
         arbitrateBtn.addEventListener('click', () => root.BattleUI?.submitBattleIntent?.());
@@ -1420,6 +1446,12 @@ class BattleUIComponent {
         });
         btn.__battleModeBound = true;
       });
+      if (intentModeInput && !intentModeInput.__battleIntentBound) {
+        intentModeInput.addEventListener('change', () => {
+          if (root.BattleUI && root.BattleUI.state) root.BattleUI.state.currentIntentMode = intentModeInput.value || '点到为止';
+        });
+        intentModeInput.__battleIntentBound = true;
+      }
       const closeBtn = byId('ui-battle-close');
       if (closeBtn && !closeBtn.__battleCloseBound) {
         closeBtn.addEventListener('click', () => {
@@ -1489,6 +1521,10 @@ class BattleUIComponent {
         case 'vit':
           return Number(stats[judgeKey] || 0);
         case 'vit_ratio':
+          return (
+            Math.max(0, Number(entity?.sta || stats?.sta || entity?.体力 || stats?.体力 || 0)) /
+            Math.max(1, Number(entity?.sta_max || stats?.sta_max || entity?.体力上限 || stats?.体力上限 || 1))
+          );
         case 'hp_ratio':
           return (
             Math.max(0, Number(entity?.vit || stats?.vit || 0)) /
@@ -3175,6 +3211,70 @@ class BattleUIComponent {
       }
     }
 
+    function normalizeCombatHpFields(source) {
+      if (!source || typeof source !== 'object') return;
+      source.HP上限 = Math.max(1, Number.isFinite(Number(source.HP上限)) ? Number(source.HP上限) : Math.max(1, Number(source.体力上限 || 1)));
+      source.HP = Math.max(
+        0,
+        Math.min(
+          source.HP上限,
+          Number.isFinite(Number(source.HP)) ? Number(source.HP) : Math.max(0, Number(source.体力 || source.HP上限 || 0)),
+        ),
+      );
+      source.体力上限 = Math.max(1, Number.isFinite(Number(source.体力上限)) ? Number(source.体力上限) : 1);
+      source.体力 = Math.max(0, Math.min(source.体力上限, Number.isFinite(Number(source.体力)) ? Number(source.体力) : source.体力上限));
+    }
+
+    function getHpDrivenStaminaFactor(nextHp = 0, hpMax = 1) {
+      const ratio = Math.max(0, Number(nextHp || 0)) / Math.max(1, Number(hpMax || 1));
+      if (ratio <= 0.2) return 2;
+      if (ratio <= 0.5) return 1;
+      return 0.5;
+    }
+
+    function applyStaminaLinkFromHpChange(source, previousHp, nextHp) {
+      if (!source || typeof source !== 'object') return;
+      const delta = Number(nextHp || 0) - Number(previousHp || 0);
+      if (!delta) return;
+      const factor = getHpDrivenStaminaFactor(nextHp, source.HP上限);
+      const nextStamina = Number(source.体力 || 0) + delta * factor;
+      source.体力 = Math.max(0, Math.min(Number(source.体力上限 || 1), nextStamina));
+    }
+
+    function bindCombatHpAliasField(target, source) {
+      if (!target || !source) return;
+      normalizeCombatHpFields(source);
+      try {
+        Object.defineProperty(target, 'vit', {
+          configurable: true,
+          enumerable: true,
+          get() {
+            return source.HP;
+          },
+          set(value) {
+            const previousHp = Number(source.HP || 0);
+            const nextHp = Math.max(0, Math.min(Number(source.HP上限 || 1), Number(value || 0)));
+            source.HP = nextHp;
+            applyStaminaLinkFromHpChange(source, previousHp, nextHp);
+          },
+        });
+        Object.defineProperty(target, 'vit_max', {
+          configurable: true,
+          enumerable: true,
+          get() {
+            return source.HP上限;
+          },
+          set(value) {
+            source.HP上限 = Math.max(1, Number(value || 1));
+            source.HP = Math.max(0, Math.min(source.HP上限, Number(source.HP || 0)));
+          },
+        });
+      } catch (error) {
+        target.vit = source.HP;
+        target.vit_max = source.HP上限;
+      }
+    }
+
     function bindCombatRuntimeAliases(target, source) {
       if (!target || !source) return;
       bindCombatAliasField(target, source, 'str', '力量', 0);
@@ -3186,8 +3286,7 @@ class BattleUIComponent {
       bindCombatAliasField(target, source, 'men_max', '精神力上限', 1);
       bindCombatAliasField(target, source, 'sta', '体力', 0);
       bindCombatAliasField(target, source, 'sta_max', '体力上限', 1);
-      bindCombatAliasField(target, source, 'vit', 'HP', 0);
-      bindCombatAliasField(target, source, 'vit_max', 'HP上限', 1);
+      bindCombatHpAliasField(target, source);
     }
 
     function bindCombatParticipant(char) {
@@ -3378,16 +3477,30 @@ class BattleUIComponent {
         skill && char && skill.__targetForSupportCost && isSupportLikeSkill(skill)
           ? getSupportCostScale(char, skill.__targetForSupportCost)
           : 1;
-      const rawReqSp = parseResourceCostValue(costStr, '魂力', stats.sp, stats.sp_max);
+      const rawReqSp = parseResourceCostValue(
+        costStr,
+        '魂力',
+        stats.sp ?? stats.魂力,
+        stats.sp_max ?? stats.魂力上限,
+      );
       const rawReqVit = parseResourceCostValue(
         costStr,
         '体力',
         stats.sta ?? stats.体力 ?? stats.vit,
         stats.sta_max ?? stats.体力上限 ?? stats.vit_max,
       );
-      const rawReqMen = parseResourceCostValue(costStr, '精神力', stats.men, stats.men_max);
+      const rawReqMen = parseResourceCostValue(
+        costStr,
+        '精神力',
+        stats.men ?? stats.精神力,
+        stats.men_max ?? stats.精神力上限,
+      );
       const reqSp = Math.floor(rawReqSp * costScale);
-      const reqVit = Math.floor(rawReqVit * costScale);
+      const hpRatio =
+        Math.max(0, Number(stats.vit ?? stats.HP ?? stats.体力 ?? 0)) /
+        Math.max(1, Number(stats.vit_max ?? stats.HP上限 ?? stats.体力上限 ?? 1));
+      const staminaCostScale = hpRatio <= 0.2 ? 2 : 1;
+      const reqVit = Math.floor(rawReqVit * costScale * staminaCostScale);
       const reqMen = Math.floor(rawReqMen * costScale);
 
         return {
@@ -3395,9 +3508,9 @@ class BattleUIComponent {
           reqVit,
           reqMen,
           canCast:
-            (stats.sp || 0) >= reqSp &&
+          ((stats.sp ?? stats.魂力) || 0) >= reqSp &&
           ((stats.sta ?? stats.体力 ?? stats.vit) || 0) >= reqVit &&
-          (stats.men || 0) >= reqMen,
+          ((stats.men ?? stats.精神力) || 0) >= reqMen,
         };
       }
 
@@ -4421,6 +4534,105 @@ class BattleUIComponent {
         };
       }
 
+      function normalizeBattleIntentMode(value) {
+        const text = String(value || '').trim();
+        if (['点到为止', '尽量生擒', '重伤压制', '必杀'].includes(text)) return text;
+        return '点到为止';
+      }
+
+      function getBattleRelationRestraintFactor(attacker, target) {
+        const attackerName = String(attacker?.name || '').trim();
+        const relationMap = attacker?.社交?.关系 && typeof attacker.社交.关系 === 'object' ? attacker.社交.关系 : {};
+        const relationData = relationMap[target?.name] || relationMap[attackerName] || {};
+        const relationText = String(relationData?.关系 || '').trim();
+        if (/恋人|生死之交|挚友/.test(relationText)) return 1.0;
+        if (/亲密/.test(relationText)) return 0.82;
+        if (/朋友/.test(relationText)) return 0.68;
+        if (/认识/.test(relationText)) return 0.55;
+        if (/敌视/.test(relationText)) return 0.18;
+        if (/仇敌/.test(relationText)) return 0.05;
+        return 0.4;
+      }
+
+      function getBattleEnvironmentSafetyFactor(combatData = {}) {
+        const env = String(combatData?.环境 || '').trim();
+        let score = 0.35;
+        if (/试炼馆|斗魂场|演武|擂台|学院|城|塔|馆/.test(env)) score += 0.35;
+        if (/荒野|黑市|深海|核心区|伏击|追杀/.test(env)) score -= 0.25;
+        return Math.max(0, Math.min(1, score));
+      }
+
+      function getBattlePowerGapFactor(attacker, target) {
+        const keys = ['力量', '防御', '敏捷', '体力上限', '精神力上限'];
+        const diffs = keys.map(key => {
+          const left = Math.max(1, Number(attacker?.[key] || attacker?.属性?.[key] || 1));
+          const right = Math.max(1, Number(target?.[key] || target?.属性?.[key] || 1));
+          return Math.abs(left - right) / Math.max(left, right, 1);
+        });
+        const avg = diffs.reduce((sum, value) => sum + value, 0) / Math.max(1, diffs.length);
+        return Math.max(0, Math.min(1, avg));
+      }
+
+      function getBattleDesperationFactor(attacker) {
+        const hpRatio = Math.max(0, Number(attacker?.vit || 0)) / Math.max(1, Number(attacker?.vit_max || 1));
+        const staRatio = Math.max(0, Number(attacker?.sta || attacker?.体力 || 0)) / Math.max(1, Number(attacker?.sta_max || attacker?.体力上限 || 1));
+        const score = ((1 - hpRatio) * 0.45) + ((1 - staRatio) * 0.55);
+        return Math.max(0, Math.min(1, score));
+      }
+
+      function buildHpSuggestionPayload(attacker, defender, combatData, appliedDamage = 0) {
+        const intentMode = normalizeBattleIntentMode(combatData?.战斗意图);
+        const relationFactor = getBattleRelationRestraintFactor(attacker, defender);
+        const environmentFactor = getBattleEnvironmentSafetyFactor(combatData);
+        const powerGapFactor = getBattlePowerGapFactor(attacker, defender);
+        const desperationFactor = getBattleDesperationFactor(attacker);
+        const targetHpMax = Math.max(1, Number(defender?.vit_max || 1));
+        const targetHpCurrent = Math.max(0, Number(defender?.vit || 0));
+        const controlScore = Math.max(0, Math.min(1, relationFactor * 0.45 + environmentFactor * 0.35 + powerGapFactor * 0.2 - desperationFactor * 0.35));
+        let range = [0.01, 0.08];
+        let suggestedResult = '重伤压制';
+        if (intentMode === '尽量生擒') {
+          range = controlScore >= 0.6 ? [0.2, 0.4] : [0.12, 0.28];
+          suggestedResult = controlScore >= 0.58 ? '生擒制服' : '外界中断';
+        } else if (intentMode === '重伤压制') {
+          range = controlScore >= 0.6 ? [0.12, 0.24] : [0.05, 0.16];
+          suggestedResult = '重伤压制';
+        } else if (intentMode === '必杀') {
+          range = [0, 0.15];
+          suggestedResult = '致死确认';
+        } else if (controlScore >= 0.75) {
+          range = [0.35, 0.55];
+          suggestedResult = '点到为止';
+        } else if (controlScore >= 0.45) {
+          range = [0.18, 0.35];
+          suggestedResult = '点到为止';
+        } else if (controlScore >= 0.2) {
+          range = [0.08, 0.18];
+          suggestedResult = '外界中断';
+        }
+        if (intentMode !== '必杀' && targetHpCurrent <= Math.ceil(targetHpMax * range[0])) {
+          suggestedResult = intentMode === '尽量生擒' ? '生擒制服' : '点到为止';
+        }
+        const recommendedEndHp = Math.max(0, Math.min(targetHpCurrent, Math.round(targetHpMax * ((range[0] + range[1]) / 2))));
+        const expectedDamage = Math.max(0, Math.max(Math.round(appliedDamage || 0), targetHpCurrent - recommendedEndHp));
+        const desperationLevel = desperationFactor >= 0.75 ? '几乎失控' : desperationFactor >= 0.45 ? '失手偏高' : '稳住';
+        return {
+          建议终点HP区间: `${Math.round(range[0] * 100)}% - ${Math.round(range[1] * 100)}%`,
+          前端推荐终点HP: recommendedEndHp,
+          预计HP伤害: expectedDamage,
+          前端建议结果: suggestedResult,
+          裁断约束: {
+            可致死: intentMode === '必杀',
+            可外界介入: environmentFactor >= 0.55 || relationFactor >= 0.58,
+            关系收手系数: Number(relationFactor.toFixed(3)),
+            场地安全系数: Number(environmentFactor.toFixed(3)),
+            实力差距系数: Number(powerGapFactor.toFixed(3)),
+            绝境失手系数: Number(desperationFactor.toFixed(3)),
+            失手等级: desperationLevel,
+          },
+        };
+      }
+
       function chooseAndBuildActorAction(actor, target, battleState, candidates, phaseLabel, logPrefix = '') {
         const choice = chooseActorActionByCandidates(actor, target, battleState, candidates, phaseLabel);
         if (!choice.option) return null;
@@ -4484,6 +4696,7 @@ class BattleUIComponent {
         const mode = options.mode === 'multi_round' ? 'multi_round' : 'single_round';
         const modeLabel = mode === 'multi_round' ? '自动续推' : '单回合';
         const maxRounds = mode === 'multi_round' ? 4 : 1;
+        combatData.战斗意图 = normalizeBattleIntentMode(options.intentMode || combatData.战斗意图 || '点到为止');
 
         // --- 第一步：环境定调与状态快照 ---
         // 1. 状态快照与控制拦截 (完全基于 Schema 属性驱动)
@@ -4840,14 +5053,36 @@ class BattleUIComponent {
         if (settleResult.log) battleLog.push(settleResult.log);
         if (settleResult.extraPatchOps) extraPatchOps.push(...settleResult.extraPatchOps);
 
+        const hpSuggestion = buildHpSuggestionPayload(
+          attacker,
+          defender,
+          combatData,
+          Math.max(0, Number(settleResult?.dmg || 0)),
+        );
+        combatData.前端建议结果 = hpSuggestion.前端建议结果;
+        combatData.裁断约束 = hpSuggestion.裁断约束;
+        combatData.建议终点HP区间 = hpSuggestion.建议终点HP区间;
+        combatData.前端推荐终点HP = hpSuggestion.前端推荐终点HP;
+        combatData.预计HP伤害 = hpSuggestion.预计HP伤害;
+        combatData.本次操作 = {
+          批次ID: `battle-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          模式: mode,
+          起始回合: startingRound + 1,
+          结束回合: combatData.回合,
+          玩家输入: String(visiblePlayerInput || playerInput || '战斗行动'),
+          结算状态: 'pending_ai_confirm',
+          AI确认结果: '',
+        };
         const mvuUpdate =
           window.BattleUIBridge?.persistCombatData?.(combatData, {
             analysis:
               'Frontend battle arbitration already produced the exact combat result. Apply the following JSONPatch exactly as given.',
             extraPatchOps,
+            syncHpRecoveryOnly: true,
           }) || null;
 
         let systemPrompt = `[前端暗箱演算完毕][${modeLabel}] 共进行 ${roundCount} 回合。\n战报：\n${battleLog.join('\n')}\n请严格根据战报描写画面！`;
+        systemPrompt += `\n\n[战斗意图]\n${combatData.战斗意图}\n[前端建议结果]\n${combatData.前端建议结果}\n[建议终点HP区间]\n${combatData.建议终点HP区间}\n[前端推荐终点HP]\n${combatData.前端推荐终点HP}\n[预计HP伤害]\n${combatData.预计HP伤害}\n[裁断约束]\n可致死：${combatData.裁断约束?.可致死 ? '是' : '否'}；可外界介入：${combatData.裁断约束?.可外界介入 ? '是' : '否'}；关系收手系数：${combatData.裁断约束?.关系收手系数}；场地安全系数：${combatData.裁断约束?.场地安全系数}；实力差距系数：${combatData.裁断约束?.实力差距系数}；绝境失手系数：${combatData.裁断约束?.绝境失手系数}；失手等级：${combatData.裁断约束?.失手等级}\n请按正常 MVU 变量维护写入：/char/${defender.name}/属性/HP、/char/${defender.name}/状态/存活、/char/${defender.name}/状态/受伤部位，并在 /world/战斗/裁断结果 中写一个简短结论（继续交锋/点到为止/生擒制服/重伤压制/外界中断/强制撤离/致死确认）。治疗或恢复类结算已由前端直接处理，不需要你重复写治疗回复。`;
         sendToAI(visiblePlayerInput || String(playerInput || '战斗行动').split('\n')[0] || '战斗行动', systemPrompt, {
           mvuUpdate,
           requestKind: 'battle_arbitration',
@@ -6644,7 +6879,7 @@ class BattleUIComponent {
               const cost = parseSkillCostForChar(skill, defender);
               delete skill.__targetForSupportCost;
               const spRatio = cost.reqSp > 0 ? cost.reqSp / Math.max(1, defender.sp) : 0;
-              const vitRatio = cost.reqVit > 0 ? cost.reqVit / Math.max(1, defender.vit) : 0;
+              const vitRatio = cost.reqVit > 0 ? cost.reqVit / Math.max(1, defender.sta || defender.体力 || 1) : 0;
 
               if (defender.type === '强攻系') {
                 if (skillType2 === '输出') weight += 40 + Math.floor(skillPower / 10);
@@ -8617,6 +8852,7 @@ class BattleUIComponent {
               analysis:
                 'Frontend team battle arbitration already produced the exact combat result. Apply the following JSONPatch exactly as given.',
               extraPatchOps,
+              syncHpRecoveryOnly: true,
             }) || null;
 
           return {
@@ -9096,6 +9332,13 @@ class BattleUIComponent {
           });
         }
 
+        function setUiIntentMode(mode) {
+          const normalized = String(mode || '点到为止').trim() || '点到为止';
+          if (window.BattleUI && window.BattleUI.state) window.BattleUI.state.currentIntentMode = normalized;
+          const select = byId('ui-intent-mode');
+          if (select && select.value !== normalized) select.value = normalized;
+        }
+
         async function initBattleUiFromMvu() {
           syncFromBattleEngine();
         }
@@ -9119,6 +9362,7 @@ class BattleUIComponent {
           const availableActions = collectUiSkillActions(charData);
           const previousState = window.BattleUI?.state || {};
           const activeCategory = previousState.activeCategory || '全部';
+          const currentIntentMode = previousState.currentIntentMode || combatData.战斗意图 || '点到为止';
           const selectedAction = previousState.selectedAction && availableActions.find(action => action.id === previousState.selectedAction.id)
             ? previousState.selectedAction
             : availableActions[0] || null;
@@ -9134,9 +9378,11 @@ class BattleUIComponent {
               selectedSkillActions: selectedAction ? [selectedAction] : [],
               selectedPreActions: [],
               currentMode: previousState.currentMode || 'single_round',
+              currentIntentMode,
             },
           });
           setUiBattleMode(window.BattleUI.state.currentMode);
+          setUiIntentMode(window.BattleUI.state.currentIntentMode);
           renderUiActionFilters(availableActions, activeCategory);
           renderUiActionGrid(availableActions, activeCategory);
           const output = byId('ui-intent-output');
@@ -9183,6 +9429,7 @@ class BattleUIComponent {
         function submitBattleIntent() {
           const state = window.BattleUI?.state || {};
           const battleMode = state.currentMode === 'multi_round' ? 'multi_round' : 'single_round';
+          state.combatData.战斗意图 = state.currentIntentMode || '点到为止';
           const queue = [
             ...(state.selectedPreActions || []),
             state.selectedSkillActions?.[state.selectedSkillActions.length - 1],
@@ -9194,14 +9441,14 @@ class BattleUIComponent {
 
           let result = { intentText, mode: 'intent_only', battleMode };
           try {
-            window.dispatchEvent(new CustomEvent('battle-ui-intent-submit', { detail: { intentText, battleMode } }));
+              window.dispatchEvent(new CustomEvent('battle-ui-intent-submit', { detail: { intentText, battleMode, intentMode: state.currentIntentMode || '点到为止' } }));
           } catch (error) {
             console.warn('battle-ui-intent-submit dispatch failed', error);
           }
 
           if (typeof onPlayerAttack === 'function') {
             try {
-              onPlayerAttack(intentText, { mode: battleMode });
+              onPlayerAttack(intentText, { mode: battleMode, intentMode: state.currentIntentMode || '点到为止' });
               if (typeof syncFromBattleEngine === 'function') syncFromBattleEngine();
               result = {
                 intentText,
@@ -9233,6 +9480,14 @@ class BattleUIComponent {
             });
             btn.__battleModeBound = true;
           });
+
+          const intentModeInput = byId('ui-intent-mode');
+          if (intentModeInput && !intentModeInput.__battleIntentBound) {
+            intentModeInput.addEventListener('change', () => {
+              setUiIntentMode(intentModeInput.value || '点到为止');
+            });
+            intentModeInput.__battleIntentBound = true;
+          }
 
           const arbitrateBtn = byId('ui-arbitrate');
           if (arbitrateBtn && !arbitrateBtn.__battleSubmitBound) {
