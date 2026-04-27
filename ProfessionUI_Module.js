@@ -521,8 +521,8 @@ class ProfessionUIComponent {
   setInitialTier(req) {
     const tierSel = this.$('#prof-tier');
     if (!tierSel) return;
-    const subtype = String(req.subtype || req.target_type || '').trim().toLowerCase();
-    const tier = Number(req.tier || req.level || req.rank || 0);
+    const subtype = String(req.子类型 || req.目标类型 || '').trim().toLowerCase();
+    const tier = Number(req.阶级 || req.等级 || 0);
     let value = '';
     if (this.activeMode !== 'forge') {
       if (/armor|斗铠/.test(subtype) && tier) value = `armor-${tier}`;
@@ -538,20 +538,20 @@ class ProfessionUIComponent {
 
   applyInitialContext() {
     const req = this.getInitialRequest();
-    const mode = this.normalizeInitialMode(this.options.prefillMode || req.mode || req.action || req.profession || req.job);
+    const mode = this.normalizeInitialMode(this.options.prefillMode || req.模式 || req.动作 || req.副职业 || req.职业);
     if (mode) this.setActiveMode(mode);
 
     this.setInitialTier(req);
 
-    const qty = Math.max(1, Number(this.options.prefillQty || req.quantity || req.qty || req.cost || 0));
+    const qty = Math.max(1, Number(this.options.prefillQty || req.数量 || 0));
     const costInput = this.$('#prof-cost');
     if (qty > 0 && costInput && !costInput.disabled) costInput.value = String(qty);
 
-    const target = String(this.options.prefillTarget || req.target || req.item || req.output || req.object || '').trim();
+    const target = String(this.options.prefillTarget || req.目标 || req.物品 || req.产物 || '').trim();
     if (target && this.$('#prof-target')) this.$('#prof-target').value = target;
 
     const materials = this.parseInitialMaterials(
-      this.options.prefillMaterials || req.materials || req.material || req.items || req.ingredients || ''
+      this.options.prefillMaterials || req.材料 || ''
     );
     if (materials.length) {
       const materialSet = new Set(materials);
@@ -564,8 +564,8 @@ class ProfessionUIComponent {
     this.updatePreview();
 
     const autoExecute = this.options.autoExecute === true
-      || req.auto_execute === true
-      || /auto|ready|执行|确认|开始|直接/.test(String(req.status || ''));
+      || req.自动执行 === true
+      || /auto|ready|执行|确认|开始|直接/.test(String(req.状态 || ''));
     if (autoExecute) {
       window.setTimeout(() => this.runInitialAutoExecute(), 100);
     }
@@ -583,7 +583,7 @@ class ProfessionUIComponent {
     const snapshotActive = String(this.snapshot?.activeName || '').trim();
     if (snapshotActive && chars[snapshotActive]) return snapshotActive;
 
-    const playerName = String(this.snapshot?.sd?.sys?.player_name || '').trim();
+    const playerName = String(this.snapshot?.sd?.sys?.玩家名 || '').trim();
     if (playerName && chars[playerName]) return playerName;
     if (chars['主角']) return '主角';
 
@@ -591,7 +591,7 @@ class ProfessionUIComponent {
     return firstName || '主角';
   }
   get activeCharBasePath() { return `/char/${this.escapeJsonPointer(this.activeName)}`; }
-  get currentInventory() { return this.charData.inventory || {}; }
+  get currentInventory() { return this.charData.背包 || {}; }
 
   syncData() {
     this.updateHeaderStatus();
@@ -602,10 +602,10 @@ class ProfessionUIComponent {
   }
 
   updateHeaderStatus() {
-    const stat = this.charData.stat || {};
-    this.$('#chip-vs').textContent = `${Number(stat.vit || 0).toLocaleString()} / ${Number(stat.sp || 0).toLocaleString()}`;
-    this.$('#chip-men').textContent = Number(stat.men || 0).toLocaleString();
-    this.$('#chip-men-realm').textContent = stat._men_realm || stat.men_realm || '未知';
+    const stat = this.charData.属性 || {};
+    this.$('#chip-vs').textContent = `${Number(stat.体力 || 0).toLocaleString()} / ${Number(stat.魂力 || 0).toLocaleString()}`;
+    this.$('#chip-men').textContent = Number(stat.精神力 || 0).toLocaleString();
+    this.$('#chip-men-realm').textContent = stat.精神境界 || '未知';
   }
 
   updateModeChrome() {
@@ -731,15 +731,15 @@ class ProfessionUIComponent {
   }
 
   getJobRuntime(jobName, charObj = this.charData) {
-    const job = charObj?.job?.[jobName] || {};
-    const totalExp = Number(job.exp || 0);
-    let lv = Math.max(Number(job.lv || 0), this.getLevelFromTotalExp(totalExp));
+    const job = charObj?.职业?.[jobName] || {};
+    const totalExp = Number(job.经验 || 0);
+    let lv = Math.max(Number(job.等级 || 0), this.getLevelFromTotalExp(totalExp));
     lv = this.clamp(lv, 0, 9);
     const cExp = JOB_EXP_THRESHOLDS[Math.max(0, lv - 1)] || 0;
     const nExp = JOB_EXP_THRESHOLDS[Math.min(lv, 9)] || JOB_EXP_THRESHOLDS[9];
     const expRatio = lv >= 9 ? 0 : this.clamp((totalExp - cExp) / Math.max(1, (nExp - cExp)), 0, 0.999);
-    const limitSuccessRate = Number(job?.limits?.success_rate ?? this.deriveLimitSuccessRate(lv, totalExp));
-    const maxFusion = Number(job?.limits?.max_fusion ?? Math.max(1, Math.floor(lv / 2)));
+    const limitSuccessRate = Number(job?.限制?.成功率 ?? this.deriveLimitSuccessRate(lv, totalExp));
+    const maxFusion = Number(job?.限制?.最大融合数 ?? Math.max(1, Math.floor(lv / 2)));
 
     return { jobName, job, lv, exp: totalExp, expRatio, limitSuccessRate, maxFusion, currentBaseExp: cExp, nextLevelExp: nExp };
   }
@@ -750,7 +750,7 @@ class ProfessionUIComponent {
 
   deriveJobLimitsFromExp(exp) {
     const lv = this.getLevelFromTotalExp(exp);
-    return { lv, max_fusion: Math.max(1, Math.floor(lv / 2)), success_rate: this.deriveLimitSuccessRate(lv, exp) };
+    return { lv, 最大融合数: Math.max(1, Math.floor(lv / 2)), 成功率: this.deriveLimitSuccessRate(lv, exp) };
   }
 
   getItemTier(itemName) {
@@ -882,8 +882,8 @@ class ProfessionUIComponent {
   }
 
   formatResourceCost(costs) { return `体:${costs.vit.toLocaleString()} / 魂:${costs.sp.toLocaleString()} / 精:${costs.men.toLocaleString()}`; }
-  formatCurrentResources() { const s = this.charData.stat || {}; return `体:${Number(s.vit || 0).toLocaleString()} / 魂:${Number(s.sp || 0).toLocaleString()} / 精:${Number(s.men || 0).toLocaleString()}`; }
-  hasEnoughResources(costs) { const s = this.charData.stat || {}; return Number(s.vit || 0) >= costs.vit && Number(s.sp || 0) >= costs.sp && Number(s.men || 0) >= costs.men; }
+  formatCurrentResources() { const s = this.charData.属性 || {}; return `体:${Number(s.vit || 0).toLocaleString()} / 魂:${Number(s.sp || 0).toLocaleString()} / 精:${Number(s.men || 0).toLocaleString()}`; }
+  hasEnoughResources(costs) { const s = this.charData.属性 || {}; return Number(s.vit || 0) >= costs.vit && Number(s.sp || 0) >= costs.sp && Number(s.men || 0) >= costs.men; }
 
   resolveDispatchNpcTarget() {
     const detail = this.options?.dispatchContext || {};
@@ -922,7 +922,7 @@ class ProfessionUIComponent {
   getRelationScore(name) {
     const resolved = this.resolveCharacterByName(name);
     const relationName = resolved.displayName || String(name || '').trim();
-    return Number(this.charData?.social?.relations?.[name]?.好感度 || this.charData?.social?.relations?.[relationName]?.好感度 || 0);
+    return Number(this.charData?.社交?.关系?.[name]?.好感度 || this.charData?.社交?.关系?.[relationName]?.好感度 || 0);
   }
 
   getFusionContext(runtime, materialNames) {
@@ -942,7 +942,7 @@ class ProfessionUIComponent {
 
   buildCommissionFeePatches(fee) {
     const amount = Math.max(0, Number(fee || 0));
-    return amount <= 0 ? [] : [{ op: 'replace', path: `${this.activeCharBasePath}/wealth/fed_coin`, value: Math.max(0, Number(this.charData.wealth?.fed_coin || 0) - amount) }];
+    return amount <= 0 ? [] : [{ op: 'replace', path: `${this.activeCharBasePath}/财富/联邦币`, value: Math.max(0, Number(this.charData.财富?.联邦币 || 0) - amount) }];
   }
 
   toggleCommissionFields() {
@@ -987,8 +987,8 @@ class ProfessionUIComponent {
   getCommissionContext(cfg, runtime, tier, materialNames, targetName) {
     const type = this.getCommissionType();
     const targetNpcName = this.getTargetNpcName();
-    const currentLoc = String(this.charData?.status?.loc || '');
-    const wealth = Number(this.charData?.wealth?.fed_coin || 0);
+    const currentLoc = String(this.charData?.状态?.位置 || '');
+    const wealth = Number(this.charData?.财富?.联邦币 || 0);
     const fusion = this.getFusionContext(runtime, materialNames);
     const ctx = {
       type, isCommission: type !== 'self', isOfficial: type === 'official', isPrivate: type === 'private',
@@ -997,7 +997,7 @@ class ProfessionUIComponent {
       note: `由${this.activeName}亲自执行，按当前角色职业熟练度仲裁。`, error: null, targetChar: null, hasEnoughFunds: true
     };
 
-    if (!this.charData?.job?.[cfg.jobName]) { ctx.error = `${this.activeName}未掌握【${cfg.jobName}】副职业，无法发起该类操作。`; return ctx; }
+    if (!this.charData?.职业?.[cfg.jobName]) { ctx.error = `${this.activeName}未掌握【${cfg.jobName}】副职业，无法发起该类操作。`; return ctx; }
 
     if (ctx.isOfficial) {
       ctx.executorName = `${cfg.jobName}协会`; ctx.executorRuntime = this.buildOfficialCommissionRuntime(cfg.jobName); ctx.validationRuntime = ctx.executorRuntime;
@@ -1014,8 +1014,8 @@ class ProfessionUIComponent {
         const relationName = resolvedTarget.displayName || targetNpcName;
         ctx.targetChar = targetChar || null;
         if (!targetChar) ctx.error = `找不到代工目标【${targetNpcName}】。`;
-        else if (!this.isLocationCompatible(currentLoc, String(targetChar?.status?.loc || ''))) ctx.error = `【${targetNpcName}】当前不在你身边，无法进行当面代工交接。`;
-        else if (!targetChar?.job?.[cfg.jobName]) ctx.error = `【${targetNpcName}】并未掌握【${cfg.jobName}】副职业。`;
+        else if (!this.isLocationCompatible(currentLoc, String(targetChar?.状态?.位置 || ''))) ctx.error = `【${targetNpcName}】当前不在你身边，无法进行当面代工交接。`;
+        else if (!targetChar?.职业?.[cfg.jobName]) ctx.error = `【${targetNpcName}】并未掌握【${cfg.jobName}】副职业。`;
         else {
           const npcRuntime = this.getJobRuntime(cfg.jobName, targetChar);
           ctx.executorName = relationName; ctx.executorRuntime = npcRuntime; ctx.validationRuntime = npcRuntime;
@@ -1134,7 +1134,7 @@ class ProfessionUIComponent {
   validateForgeRules(runtime, tier, materialNames, targetName, options = {}) {
     if (!targetName.trim()) return '请先填写目标产物名称。';
     if (materialNames.length === 0) return '锻造至少需要选择一种材料。';
-    if (tier === 5 && !options.isCommission && !['灵域境', '神元境'].includes(this.charData.stat?._men_realm || this.charData.stat?.men_realm || '')) return '天锻需要精神力达到【灵域境】。';
+    if (tier === 5 && !options.isCommission && !['灵域境', '神元境'].includes(this.charData.属性?.精神境界 || '')) return '天锻需要精神力达到【灵域境】。';
     if (materialNames.length === 1) {
       if (runtime.lv < this.getForgeUnlockLevel(tier)) return `${this.getForgeTierLabel(tier)}单金属锻造尚未解锁，需要 Lv.${this.getForgeUnlockLevel(tier)} 锻造师。`;
       const mTier = this.getItemTier(materialNames[0]);
@@ -1215,7 +1215,7 @@ class ProfessionUIComponent {
       if (!ruleError) {
         const efc = Math.max(commissionCtx.fusionCount || 1, materialNames.length || 1);
         const isFusion = efc > 1;
-        const rate = commissionCtx.isCommission ? Number(commissionCtx.successRate || 0) : (isFusion ? this.getForgeFusionSuccessRate(runtime, efc, !!this.charData.arts?.['暗器百解']) : this.getSingleTierSuccessRate(tier, runtime));
+        const rate = commissionCtx.isCommission ? Number(commissionCtx.successRate || 0) : (isFusion ? this.getForgeFusionSuccessRate(runtime, efc, !!this.charData.功法?.['暗器百解']) : this.getSingleTierSuccessRate(tier, runtime));
         const dfr = isFusion ? Number(commissionCtx.fusionSync || (materialNames.length > 1 ? this.getForgeFusionRate(effectiveRuntime, materialNames) : 100)) : Number(this.currentInventory[materialNames[0]]?.融合参数?.融合率 ?? this.currentInventory[materialNames[0]]?.融合参数?.契合度 ?? 100);
         rateText = `<span class="val-highlight">${rate}%</span>`;
         fusionText = isFusion ? `<span class="val-cyan">${efc}级复合 / 融合率${dfr}%</span>` : `<span class="val-cyan">单金属 / 融合率${dfr}%</span>`;
@@ -1262,32 +1262,32 @@ class ProfessionUIComponent {
   // --- 提交操作相关补丁生成 --- 
   buildResourcePatches(costs) {
     return [
-      { op: 'replace', path: `${this.activeCharBasePath}/stat/vit`, value: Math.max(0, Number(this.charData.stat?.vit || 0) - costs.vit) },
-      { op: 'replace', path: `${this.activeCharBasePath}/stat/sp`, value: Math.max(0, Number(this.charData.stat?.sp || 0) - costs.sp) },
-      { op: 'replace', path: `${this.activeCharBasePath}/stat/men`, value: Math.max(0, Number(this.charData.stat?.men || 0) - costs.men) }
+      { op: 'replace', path: `${this.activeCharBasePath}/属性/vit`, value: Math.max(0, Number(this.charData.属性?.vit || 0) - costs.vit) },
+      { op: 'replace', path: `${this.activeCharBasePath}/属性/sp`, value: Math.max(0, Number(this.charData.属性?.sp || 0) - costs.sp) },
+      { op: 'replace', path: `${this.activeCharBasePath}/属性/men`, value: Math.max(0, Number(this.charData.属性?.men || 0) - costs.men) }
     ];
   }
   buildMaterialConsumePatches(materialNames, qty) {
     return materialNames.map(mName => {
       const nextQty = Number(this.currentInventory[mName]?.数量 || 0) - qty;
       return nextQty <= 0 
-        ? { op: 'remove', path: `${this.activeCharBasePath}/inventory/${this.escapeJsonPointer(mName)}` } 
-        : { op: 'replace', path: `${this.activeCharBasePath}/inventory/${this.escapeJsonPointer(mName)}/数量`, value: nextQty };
+        ? { op: 'remove', path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(mName)}` } 
+        : { op: 'replace', path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(mName)}/数量`, value: nextQty };
     });
   }
   buildConsumePlanPatches(plan) {
     return Object.entries(plan || {}).filter(([_, q]) => Number(q) > 0).map(([name, consumeQty]) => {
       const nextQty = Number(this.currentInventory[name]?.数量 || 0) - Number(consumeQty);
       return nextQty <= 0 
-        ? { op: 'remove', path: `${this.activeCharBasePath}/inventory/${this.escapeJsonPointer(name)}` } 
-        : { op: 'replace', path: `${this.activeCharBasePath}/inventory/${this.escapeJsonPointer(name)}/数量`, value: nextQty };
+        ? { op: 'remove', path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(name)}` } 
+        : { op: 'replace', path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(name)}/数量`, value: nextQty };
     });
   }
   buildInventoryAddPatches(itemName, itemData, amount = 1) {
     if (this.currentInventory[itemName]) {
-      return [{ op: 'replace', path: `${this.activeCharBasePath}/inventory/${this.escapeJsonPointer(itemName)}/数量`, value: Number(this.currentInventory[itemName].数量 || 0) + amount }];
+      return [{ op: 'replace', path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(itemName)}/数量`, value: Number(this.currentInventory[itemName].数量 || 0) + amount }];
     }
-    return [{ op: 'replace', path: `${this.activeCharBasePath}/inventory/${this.escapeJsonPointer(itemName)}`, value: Object.assign({}, itemData, { 数量: amount }) }];
+    return [{ op: 'replace', path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(itemName)}`, value: Object.assign({}, itemData, { 数量: amount }) }];
   }
   buildJobProgressPatches(jobName, expGain) {
     const runtime = this.getJobRuntime(jobName);
@@ -1295,10 +1295,10 @@ class ProfessionUIComponent {
     const derived = this.deriveJobLimitsFromExp(nextExp);
     return {
       patches: [
-        { op: 'replace', path: `${this.activeCharBasePath}/job/${this.escapeJsonPointer(jobName)}/exp`, value: nextExp },
-        { op: 'replace', path: `${this.activeCharBasePath}/job/${this.escapeJsonPointer(jobName)}/lv`, value: derived.lv },
-        { op: 'replace', path: `${this.activeCharBasePath}/job/${this.escapeJsonPointer(jobName)}/limits/max_fusion`, value: derived.max_fusion },
-        { op: 'replace', path: `${this.activeCharBasePath}/job/${this.escapeJsonPointer(jobName)}/limits/success_rate`, value: derived.success_rate }
+        { op: 'replace', path: `${this.activeCharBasePath}/职业/${this.escapeJsonPointer(jobName)}/经验`, value: nextExp },
+        { op: 'replace', path: `${this.activeCharBasePath}/职业/${this.escapeJsonPointer(jobName)}/等级`, value: derived.lv },
+        { op: 'replace', path: `${this.activeCharBasePath}/职业/${this.escapeJsonPointer(jobName)}/限制/最大融合数`, value: derived.最大融合数 },
+        { op: 'replace', path: `${this.activeCharBasePath}/职业/${this.escapeJsonPointer(jobName)}/限制/成功率`, value: derived.成功率 }
       ],
       oldLv: runtime.lv, newLv: derived.lv
     };
@@ -1306,8 +1306,8 @@ class ProfessionUIComponent {
   buildSystemResultPatches(resultLog, roll, successRate) {
     return [
       { op: 'replace', path: '/sys/rsn', value: String(resultLog || '') },
-      { op: 'replace', path: '/sys/last_roll', value: Number.isFinite(Number(roll)) ? Number(roll) : 0 },
-      { op: 'replace', path: '/sys/fsr', value: Number.isFinite(Number(successRate)) ? Number(successRate) : 0 }
+      { op: 'replace', path: '/sys/最近检定', value: Number.isFinite(Number(roll)) ? Number(roll) : 0 },
+      { op: 'replace', path: '/sys/最终成功率', value: Number.isFinite(Number(successRate)) ? Number(successRate) : 0 }
     ];
   }
   buildFrontEndStateBlock(analysis, patchOps) {
@@ -1362,7 +1362,7 @@ class ProfessionUIComponent {
     
     const efc = Math.max(Number(commissionCtx.fusionCount || 1), materialNames.length || 1);
     const isFusion = efc > 1;
-    const successRate = commissionCtx.isCommission ? Number(commissionCtx.successRate || 0) : (isFusion ? this.getForgeFusionSuccessRate(runtime, efc, !!this.charData.arts?.['暗器百解']) : this.getSingleTierSuccessRate(tier, runtime));
+    const successRate = commissionCtx.isCommission ? Number(commissionCtx.successRate || 0) : (isFusion ? this.getForgeFusionSuccessRate(runtime, efc, !!this.charData.功法?.['暗器百解']) : this.getSingleTierSuccessRate(tier, runtime));
     const fusionRate = isFusion ? Number(commissionCtx.fusionSync || this.getForgeFusionRate(commissionCtx.executorRuntime || runtime, materialNames)) : Number(this.currentInventory[materialNames[0]]?.融合参数?.融合率 ?? 100);
     const maxQ = this.getForgeMaxQ(tier, efc);
     
@@ -1466,7 +1466,7 @@ class ProfessionUIComponent {
         if ('耐久' in (existing || {})) nextItem.耐久 = 100;
         if ('完整度' in (existing || {})) nextItem.完整度 = 100;
         if (!('耐久' in (existing || {})) && !('完整度' in (existing || {}))) nextItem.完整度 = 100;
-        patchOps.push({ op: 'replace', path: `${this.activeCharBasePath}/inventory/${this.escapeJsonPointer(targetName)}`, value: nextItem });
+        patchOps.push({ op: 'replace', path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(targetName)}`, value: nextItem });
         resultLog = `[${commissionCtx.isCommission ? '委托成功' : cfg.displayName + '成功'}] ${commissionCtx.executorName}完成了对【${targetName}】的整备修理。当前状态：${repairDesc.status}。`;
       }
       if (!commissionCtx.isCommission) {

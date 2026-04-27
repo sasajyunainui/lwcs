@@ -173,7 +173,7 @@
       '角色切换器': {
         title: '角色浏览 / 切换弹窗',
         summary: '查看全部角色摘要，并默认聚焦当前玩家角色。',
-        fields: ['sd.char', 'char[*].is_player', 'char[*].stat.lv', 'char[*].status.loc', 'char[*].social.main_identity'],
+        fields: ['sd.char', 'char[*].is_player', 'char[*].属性.等级', 'char[*].状态.位置', 'char[*].社交.主身份'],
         duties: ['浏览所有角色', '切换当前查看角色', '高亮玩家角色与关键 NPC'],
         actions: ['角色卡列表', '筛选：玩家 / 阵营 / 存活状态', '切换后刷新首页摘要']
       },
@@ -187,77 +187,77 @@
       '生命图谱详细页': {
         title: '详细档案',
         summary: '角色状态、修为、外观与成长记录。',
-        fields: ['activeChar.stat.*', 'activeChar.status.*', 'activeChar.stat.conditions', 'activeChar.energy.core', 'activeChar.bloodline_power(基础态)'],
+        fields: ['activeChar.属性.*', 'activeChar.状态.*', 'activeChar.属性.状态效果', 'activeChar.魂核.核心', 'activeChar.血脉之力(基础态)'],
         duties: ['展示完整生命体征', '集中显示状态/伤势/领域', '收纳成长修正与魂核进度'],
         actions: ['分区显示基础属性', '异常状态列表', '恢复与判定说明']
       },
       '社会档案详细页': {
         title: '社会档案弹窗',
         summary: '由“名望等级”芯片进入，聚焦声望、身份与称号。',
-        fields: ['activeChar.social.reputation', 'activeChar.social.fame_level', 'activeChar.social.main_identity', 'activeChar.social.titles'],
+        fields: ['activeChar.社交.声望', 'activeChar.社交.名望等级', 'activeChar.社交.主身份', 'activeChar.社交.称号'],
         duties: ['展示公开身份', '显示称号来源', '整理名望等级与公开情报状态'],
         actions: ['切换到关系/阵营/情报子页', '保留声望来源说明']
       },
       '所属势力详细页': {
         title: '阵营身份弹窗',
         summary: '由“所属势力”芯片进入，直接展示该角色在各势力中的身份。',
-        fields: ['activeChar.social.factions'],
+        fields: ['activeChar.社交.势力'],
         duties: ['展示所属势力列表', '显示身份与权限级', '在势力矩阵中高亮当前归属'],
         actions: ['跳转势力矩阵', '查看晋升入口']
       },
       '人物关系详细页': {
         title: '人物关系弹窗',
-        summary: '由“关系摘要”芯片进入，承接重型 social.relations 结构。',
-        fields: ['activeChar.social.relations'],
-        duties: ['显示好感度与阶段', '显示关系路线与推进提示', '展示 npc_job、favor_buff 与分析结果'],
+        summary: '由“关系摘要”芯片进入，承接重型 社交.关系 结构。',
+        fields: ['activeChar.社交.关系'],
+        duties: ['显示好感度与阶段', '显示关系路线与推进提示', '展示对方身份、好感加成 与分析结果'],
         actions: ['查看关系路线', '查看关系推进重点', '闲聊 / 送礼 / 请教 / 切磋 / 表白']
       },
       '情报库详细页': {
         title: '情报库弹窗',
         summary: '由“已解锁情报”芯片进入，统一展开已知信息、待解锁线索与战斗记录。',
-        fields: ['activeChar.unlocked_knowledges', 'activeChar.knowledge_unlock_request', 'activeChar.records', 'activeChar.combat_history'],
+        fields: ['activeChar.已掌握情报', 'activeChar.待解锁情报', 'activeChar.记录', 'activeChar.战斗历史'],
         duties: ['展示已解锁情报', '显示待解锁线索', '聚合近期记录与战斗摘要'],
         actions: ['按情报筛选', '跳转关联节点']
       },
       '武装工坊详细页': {
         title: '武装工坊弹窗',
         summary: '查看当前武装、斗铠部件与副职业工坊。',
-        fields: ['activeChar.equip.wpn', 'activeChar.equip.armor', 'activeChar.equip.mech', 'activeChar.equip.accessories', 'activeChar.job'],
+        fields: ['activeChar.装备.武器', 'activeChar.装备.斗铠', 'activeChar.装备.机甲', 'activeChar.装备.饰品', 'activeChar.职业'],
         duties: ['展示武器/斗铠/机甲', '展示装备槽位状态', '显示副职业等级与融合信息'],
         actions: ['打开斗铠总览', '查看槽位覆盖', '浏览装备摘要']
       },
       '武魂融合技详细页': {
         title: '武魂融合技档案',
         summary: '集中查看当前角色已录入的武魂融合技、自体融合与多人融合信息。',
-        fields: ['activeChar.martial_fusion_skills.*.fusion_mode', 'activeChar.martial_fusion_skills.*.partner', 'activeChar.martial_fusion_skills.*.source_spirits', 'activeChar.martial_fusion_skills.*.fusion_participants', 'activeChar.martial_fusion_skills.*.skill_data'],
+        fields: ['activeChar.武魂融合技.*.融合模式', 'activeChar.武魂融合技.*.融合对象', 'activeChar.武魂融合技.*.来源武魂', 'activeChar.武魂融合技.*.融合参与者', 'activeChar.武魂融合技.*.技能数据'],
         duties: ['展示融合技总览', '区分自体融合与多人融合', '直接下钻到融合技设计与效果详情'],
         actions: ['查看融合模式', '查看来源武魂', '打开融合技详情']
       },
       '储物仓库详细页': {
         title: '储物仓库',
         summary: '聚合当前背包与货币数据，并以仓库式视图展示核心物资。',
-        fields: ['activeChar.inventory', 'activeChar.wealth'],
+        fields: ['activeChar.背包', 'activeChar.财富'],
         duties: ['展示物品数量', '展示品质/品阶/描述', '整合多种货币与资产摘要'],
         actions: ['按分类筛选', '查看物品详情', '整理 / 使用道具']
       },
       '血脉封印详细页': {
         title: '血脉封印弹窗',
         summary: '承接血脉体系的状态模块，在 1 个页面内汇总封印层级与当前能力。',
-        fields: ['activeChar.spirit', 'activeChar.soul_bone', 'activeChar.bloodline_power.skills', 'activeChar.bloodline_power.blood_rings', 'activeChar.arts / special_abilities'],
+        fields: ['activeChar.武魂', 'activeChar.魂骨', 'activeChar.血脉之力.技能', 'activeChar.血脉之力.气血魂环', 'activeChar.功法 / 特殊能力'],
         duties: ['展示血脉本体', '展示封印/魂环/魂技', '展示当前已固化能力'],
         actions: ['按页签查看魂环 / 能力 / 魂骨 / 血脉', '悬浮魂环查看技能说明', '查看封印层级']
       },
       '全息星图主画布': {
         title: '全息星图主画布',
         summary: '星图页本身就是 1级地图页；点击主画布或节点后，直接下钻到节点详情弹窗。',
-        fields: ['WORLD_MAP_TREE', 'sd.world.locations', 'sd.world.dynamic_locations', 'activeChar.status.loc'],
+        fields: ['WORLD_MAP_TREE', 'sd.world.地点', 'sd.world.动态地点', 'activeChar.状态.位置'],
         duties: ['显示地图主视图', '高亮当前节点', '驱动节点级下钻'],
         actions: ['点击节点开详情', '切换图层控制', '查看跑图与交易可用性']
       },
       '当前节点详情': {
         title: '当前节点详情弹窗',
         summary: '用于查看当前位置归一化后的完整节点信息。',
-        fields: ['activeChar.status.loc', 'sd.world.locations[normalizedLoc]', 'WORLD_MAP_TREE 当前节点', 'stores'],
+        fields: ['activeChar.状态.位置', 'sd.world.地点[normalizedLoc]', 'WORLD_MAP_TREE 当前节点', '商店'],
         duties: ['展示掌控势力/人口/经济', '显示本地商店摘要', '显示父节点与子节点'],
         actions: ['跳转商店弹窗', '跳转地图层级', '查看动态地点']
       },
@@ -270,43 +270,43 @@
       },
       '动态地点与扩展节点': {
         title: '动态地点弹窗',
-        summary: '承接 world.dynamic_locations，避免把动态节点硬塞进地图首页。',
-        fields: ['sd.world.dynamic_locations'],
+        summary: '承接 world.动态地点，避免把动态节点硬塞进地图首页。',
+        fields: ['sd.world.动态地点'],
         duties: ['列出剧情新增地点', '显示归属父节点', '用于补地图树的动态扩展'],
         actions: ['按父节点筛选', '跳到地图节点详情']
       },
       '拍卖与警报': {
         title: '拍卖行 / 世界警报弹窗',
         summary: '拍卖状态、拍品与当前世界警报。',
-        fields: ['sd.world.auction', 'sd.world.forest_killed_age'],
+        fields: ['sd.world.拍卖', 'sd.world.累计击杀年限'],
         duties: ['显示拍卖状态与拍品', '显示生态风险与兽潮相关阈值', '显示下次刷新时间'],
         actions: ['查看拍卖清单', '评估当前世界风险']
       },
       '势力矩阵总览': {
         title: '势力矩阵弹窗',
         summary: '满足“查看所有势力”的核心入口，不再只显示当前角色视角。',
-        fields: ['sd.org', 'activeChar.social.factions'],
+        fields: ['sd.org', 'activeChar.社交.势力'],
         duties: ['浏览所有势力', '显示影响力与底蕴', '高亮当前角色所属势力'],
         actions: ['按阵营筛选', '查看势力档案', '查看本地据点与交易关联']
       },
       '我的阵营详情': {
         title: '我的阵营弹窗',
         summary: '聚焦当前查看角色在各势力中的身份与权限。',
-        fields: ['activeChar.social.factions', 'activeChar.social.main_identity', 'activeChar.social.titles'],
+        fields: ['activeChar.社交.势力', 'activeChar.社交.主身份', 'activeChar.社交.称号'],
         duties: ['展示所属势力', '展示身份与权限级', '补充主身份与头衔'],
         actions: ['跳转势力矩阵', '查看晋升入口']
       },
       '本地据点详情': {
         title: '本地据点弹窗',
         summary: '围绕当前节点展示据点级信息，是星图与势力页的交叉入口。',
-        fields: ['activeChar.status.loc', 'sd.world.locations[normalizedLoc]'],
+        fields: ['activeChar.状态.位置', 'sd.world.地点[normalizedLoc]'],
         duties: ['显示掌控势力/人口/守护军团', '显示经济状况', '整理本地设施与商店'],
         actions: ['查看本地商店信息', '跳回地图节点详情']
       },
       '系统播报与日志': {
         title: '系统播报 / 日志弹窗',
         summary: '终端页左侧主模块，集中展示系统广播与最近日志。',
-        fields: ['sd.sys.rsn', 'sd.sys.seq', 'sd.sys.last_roll', 'sd.sys.fsr'],
+        fields: ['sd.sys.rsn', 'sd.sys.seq', 'sd.sys.最近检定', 'sd.sys.最终成功率'],
         duties: ['显示最新播报', '显示事件序列', '显示检定结果'],
         actions: ['按时间倒序', '保留日志筛选与复制能力']
       },
@@ -334,14 +334,14 @@
       '怪物图鉴': {
         title: '怪物图鉴',
         summary: '已遭遇的深渊生物与魂兽标准数据记录。',
-        fields: ['sd.world.bestiary'],
+        fields: ['sd.world.图鉴'],
         duties: ['查看已记录怪物', '复用物种基础数据', '回顾遭遇对象'],
         actions: ['按名称查阅', '查看已记录条目']
       },
       '森林仇恨值': {
         title: '森林仇恨值',
         summary: '星斗大森林累计击杀魂兽年限与兽潮阈值监控。',
-        fields: ['sd.world.forest_killed_age', 'sd.world.flags.beast_tide'],
+        fields: ['sd.world.累计击杀年限', 'sd.world.标记.beast_tide'],
         duties: ['查看累计击杀年限', '评估距离兽潮阈值', '观察是否触发兽潮'],
         actions: ['查看阈值进度', '评估森林风险']
       }
@@ -353,16 +353,13 @@
         .replace(/sd\.[^,，\s]+/g, '世界状态')
         .replace(/WORLD_MAP_TREE/g, '地图节点')
         .replace(/travel[\s_]?request/gi, '出行安排')
-        .replace(/knowledge_unlock_request/gi, '待解锁线索')
-        .replace(/unlocked_knowledges/gi, '已掌握情报')
         .replace(/player_action/gi, '玩家行动')
         .replace(/settle_result/gi, '结算结果')
 
-        .replace(/promotion_request/gi, '晋升安排')
-        .replace(/donate_request/gi, '捐赠安排')
-        .replace(/hunt_request/gi, '狩猎安排')
-        .replace(/ascension_request/gi, '升灵台安排')
-        .replace(/tower_request/gi, '魂灵塔安排')
+        .replace(/捐献请求/gi, '捐赠安排')
+        .replace(/猎魂请求/gi, '狩猎安排')
+        .replace(/升灵台请求/gi, '升灵台安排')
+        .replace(/魂灵塔请求/gi, '魂灵塔安排')
         .replace(/request 变量/gi, '当前安排')
         .replace(/展示/g, '查看')
         .replace(/显示/g, '查看')
@@ -579,14 +576,14 @@
         return 0;
       };
       const items = [];
-      if (options.includeLvEquiv && toNumber(bonus.lv_equiv, 0) > 0) items.push({ label: '等效等级', value: String(toNumber(bonus.lv_equiv, 0)) });
+      if (options.includeLvEquiv && toNumber(bonus.等效等级, 0) > 0) items.push({ label: '等效等级', value: String(toNumber(bonus.等效等级, 0)) });
       items.push(
-        { label: '体力加成', value: formatNumber(normalizeBonusValue(bonus.vit_max)) },
-        { label: '魂力加成', value: formatNumber(normalizeBonusValue(bonus.sp_max)) },
-        { label: '精神加成', value: formatNumber(normalizeBonusValue(bonus.men_max)) },
-        { label: '力量加成', value: formatNumber(normalizeBonusValue(bonus.str)) },
-        { label: '防御加成', value: formatNumber(normalizeBonusValue(bonus.def)) },
-        { label: '敏捷加成', value: formatNumber(normalizeBonusValue(bonus.agi)) }
+        { label: '体力加成', value: formatNumber(normalizeBonusValue(bonus.体力上限)) },
+        { label: '魂力加成', value: formatNumber(normalizeBonusValue(bonus.魂力上限)) },
+        { label: '精神加成', value: formatNumber(normalizeBonusValue(bonus.精神力上限)) },
+        { label: '力量加成', value: formatNumber(normalizeBonusValue(bonus.力量)) },
+        { label: '防御加成', value: formatNumber(normalizeBonusValue(bonus.防御)) },
+        { label: '敏捷加成', value: formatNumber(normalizeBonusValue(bonus.敏捷)) }
       );
       return items;
     }
@@ -608,12 +605,12 @@
           : htmlEscape(formatNumber(rawValue));
       };
       return [
-        { label: '体力加成', value: makeBonusValue('vit_max') },
-        ...(includeSoulPower ? [{ label: '魂力加成', value: makeBonusValue('sp_max') }] : []),
-        { label: '精神加成', value: makeBonusValue('men_max') },
-        { label: '力量加成', value: makeBonusValue('str') },
-        { label: '防御加成', value: makeBonusValue('def') },
-        { label: '敏捷加成', value: makeBonusValue('agi') }
+        { label: '体力加成', value: makeBonusValue('体力上限') },
+        ...(includeSoulPower ? [{ label: '魂力加成', value: makeBonusValue('魂力上限') }] : []),
+        { label: '精神加成', value: makeBonusValue('精神力上限') },
+        { label: '力量加成', value: makeBonusValue('力量') },
+        { label: '防御加成', value: makeBonusValue('防御') },
+        { label: '敏捷加成', value: makeBonusValue('敏捷') }
       ];
     }
 
@@ -650,7 +647,7 @@
     }
 
     function resolveSpiritAttributeUiState(spiritData = {}) {
-      const rawSystem = normalizeSkillUiText((spiritData && spiritData['属性体系']) || (spiritData && spiritData['element']), '无');
+      const rawSystem = normalizeSkillUiText(spiritData && spiritData['属性体系'], '无');
       const attributeSystem = SPIRIT_ATTRIBUTE_SYSTEM_OPTIONS.includes(rawSystem) ? rawSystem : '无';
       const unlockedAttrs = normalizeSpiritAttributeTokenList(spiritData && spiritData['已解锁属性']);
       let capacityAttrs = normalizeSpiritAttributeTokenList(spiritData && spiritData['可容纳属性']);
@@ -682,7 +679,7 @@
       };
       const aliases = aliasMap[slotLabel] || [slotLabel];
       for (const key of aliases) {
-        const found = deepGet(source, ['parts', key], null)
+        const found = deepGet(source, ['部件', key], null)
           || deepGet(source, ['部件', key], null)
           || deepGet(source, ['slots', key], null)
           || deepGet(source, ['components', key], null)
@@ -700,22 +697,22 @@
       const chars = deepGet(snapshot, 'rootData.char', {});
       const activeChar = chars && typeof chars === 'object' ? (chars[activeKey] || {}) : {};
       const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, activeKey));
-      const currentLoc = toText(deepGet(activeChar, 'status.loc', snapshot.currentLoc || '当前位置'), '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
-      const armor = deepGet(activeChar, 'equip.armor', {});
-      const mech = deepGet(activeChar, 'equip.mech', {});
-      const weapon = deepGet(activeChar, 'equip.wpn', {});
-      const accessoryEntries = listAccessoryEntries(deepGet(activeChar, 'equip.accessories', {}));
-      const armorName = toText(armor.name || armor['名称'], '当前斗铠');
-      const mechName = toText(mech.name || mech['名称'] || mech.type || mech['型号'], '当前机甲');
+      const currentLoc = toText(deepGet(activeChar, '状态.位置', snapshot.currentLoc || '当前位置'), '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
+      const armor = deepGet(activeChar, '装备.斗铠', {});
+      const mech = deepGet(activeChar, '装备.机甲', {});
+      const weapon = deepGet(activeChar, '装备.武器', {});
+      const accessoryEntries = listAccessoryEntries(deepGet(activeChar, '装备.饰品', {}));
+      const armorName = toText(armor.名称 || armor['名称'], '当前斗铠');
+      const mechName = toText(mech.型号 || mech['型号'], '当前机甲');
       const actionMap = {
-        equip_mech: { title: '装备机甲', playerInput: `我要在【${currentLoc}】装备机甲【${mechName}】。`, note: `请按 MVU 装备规则将 char.equip.mech.equip_status 处理为“已装备”。若当前斗铠已装备且机甲不是红级，请同步处理斗铠卸下并清空对应 _stats_bonus。` },
-        unequip_mech: { title: '卸下机甲', playerInput: `我要在【${currentLoc}】解除机甲【${mechName}】的装载。`, note: `请将 char.equip.mech.equip_status 处理为“未装备”，并将 mech._stats_bonus 清零。` },
-        equip_armor: { title: '穿戴斗铠', playerInput: `我要在【${currentLoc}】穿戴斗铠【${armorName}】。`, note: `请按 MVU 装备规则尝试将 char.equip.armor.equip_status 处理为“已装备”。需要校验斗铠等级门槛（1字50级/2字70级/3字80级/4字90级）；若不满足则保持未装备并写入装备反噬。若当前已装备非红级机甲，斗铠不能保持已装备。` },
-        unequip_armor: { title: '卸下斗铠', playerInput: `我要在【${currentLoc}】解除斗铠【${armorName}】的装备状态。`, note: `请将 char.equip.armor.equip_status 处理为“未装备”，并将 armor._stats_bonus 清零。` }
+        equip_mech: { title: '装备机甲', playerInput: `我要在【${currentLoc}】装备机甲【${mechName}】。`, note: `请按 MVU 装备规则将 char.装备.机甲.装备状态 处理为“已装备”。若当前斗铠已装备且机甲不是红级，请同步处理斗铠卸下并清空对应 _属性加成。` },
+        unequip_mech: { title: '卸下机甲', playerInput: `我要在【${currentLoc}】解除机甲【${mechName}】的装载。`, note: `请将 char.装备.机甲.装备状态 处理为“未装备”，并将 机甲._属性加成 清零。` },
+        equip_armor: { title: '穿戴斗铠', playerInput: `我要在【${currentLoc}】穿戴斗铠【${armorName}】。`, note: `请按 MVU 装备规则尝试将 char.装备.斗铠.装备状态 处理为“已装备”。需要校验斗铠等级门槛（1字50级/2字70级/3字80级/4字90级）；若不满足则保持未装备并写入装备反噬。若当前已装备非红级机甲，斗铠不能保持已装备。` },
+        unequip_armor: { title: '卸下斗铠', playerInput: `我要在【${currentLoc}】解除斗铠【${armorName}】的装备状态。`, note: `请将 char.装备.斗铠.装备状态 处理为“未装备”，并将 斗铠._属性加成 清零。` }
       };
       const actionMeta = actionMap[actionType];
       if (!actionMeta) return null;
-      const systemPrompt = `以下内容属于前端发起的装备管理请求，不要在正文直接复述“系统提示 / 请求类型 / JSONPatch”等术语。\n\n[装备管理]\n角色：${activeName}\n地点：${currentLoc}\n动作：${actionMeta.title}\n当前斗铠：${summarizeArmoryValue(armor.name || armor['名称'] || armor.equip_status || '无')}\n当前机甲：${summarizeArmoryValue(mech.name || mech['名称'] || mech.type || mech.status || '无')}\n当前主武器：${summarizeArmoryValue(weapon.name || weapon['名称'] || '无')}\n当前附件：${summarizeAccessoryEntries(accessoryEntries)}\n\n${actionMeta.note}\n\n请将这次操作写成自然剧情，并在需要时同步更新角色的装备状态、相关装备字段与系统播报。`;
+      const systemPrompt = `以下内容属于前端发起的装备管理请求，不要在正文直接复述“系统提示 / 请求类型 / JSONPatch”等术语。\n\n[装备管理]\n角色：${activeName}\n地点：${currentLoc}\n动作：${actionMeta.title}\n当前斗铠：${summarizeArmoryValue(armor.名称 || armor['名称'] || armor.装备状态 || '无')}\n当前机甲：${summarizeArmoryValue(mech.型号 || mech['型号'] || mech.装备状态 || '无')}\n当前主武器：${summarizeArmoryValue(weapon.名称 || weapon['名称'] || '无')}\n当前附件：${summarizeAccessoryEntries(accessoryEntries)}\n\n${actionMeta.note}\n\n请将这次操作写成自然剧情，并在需要时同步更新角色的装备状态、相关装备字段与系统播报。`;
       return {
         playerInput: actionMeta.playerInput,
         systemPrompt,
@@ -957,9 +954,9 @@
                         <div class="meta-item meta-item-wide"><b>名望</b><span></span></div>
                       </div>
                     </div>
-                    <div class="identity-panel identity-appearance-panel">
+                    <div class="identity-panel identity-look-panel">
                       <div class="identity-panel-title">外貌概览</div>
-                      <div class="identity-appearance-grid">
+                      <div class="identity-look-grid">
                         <div class="meta-item"><b>发色</b><span></span></div>
                         <div class="meta-item"><b>发型</b><span></span></div>
                         <div class="meta-item"><b>瞳色</b><span></span></div>
@@ -1486,11 +1483,11 @@
     }
 
     function getNextLevelSoulRequirement(stat) {
-      const currentLv = toNumber(stat && stat.lv, 0);
+      const currentLv = toNumber(stat && stat.等级, 0);
       if (currentLv >= 100) {
         return { needed: 0, nextLevel: currentLv, isMax: true };
       }
-      const currentSpMax = toNumber(stat && stat.sp_max, 0);
+      const currentSpMax = toNumber(stat && stat.魂力上限, 0);
       const nextLevel = currentLv + 1;
       const nextSpMax = getBaseSpMaxForLevel(nextLevel);
       return {
@@ -1504,6 +1501,21 @@
       const upper = Math.max(0, toNumber(max, 0));
       if (!upper) return 0;
       return Math.max(0, Math.min(100, Math.round((toNumber(current, 0) / upper) * 100)));
+    }
+
+    function getDisplayHpPair(stat = {}) {
+      const hpMax = Math.max(1, toNumber(stat && (stat.HP上限 ?? stat.体力上限), 1));
+      const hp = Math.max(0, Math.min(hpMax, toNumber(stat && (stat.HP ?? stat.体力), hpMax)));
+      return { hp, hpMax };
+    }
+
+    function getDisplayWoundLabel(stat = {}) {
+      const { hp, hpMax } = getDisplayHpPair(stat);
+      const ratio = hp / Math.max(1, hpMax);
+      if (ratio <= 0.05 && hp > 0) return '濒死';
+      if (ratio <= 0.2) return '重伤';
+      if (ratio <= 0.5) return '轻伤';
+      return '无伤';
     }
 
     function deepGet(source, path, fallback) {
@@ -1531,28 +1543,28 @@
       return fallback;
     }
 
-    const TRAINED_BONUS_PREVIEW_FIELDS = Object.freeze(['str', 'def', 'agi', 'vit_max', 'men_max', 'sp_max']);
+    const TRAINED_BONUS_PREVIEW_FIELDS = Object.freeze(['力量', '防御', '敏捷', '体力上限', '精神力上限', '魂力上限']);
     const trainedBonusPreviewOverrides = new Map();
 
     function createTrackedStatPreviewMap(source = {}) {
       return {
-        str: Math.floor(toNumber(source && source.str, 0)),
-        def: Math.floor(toNumber(source && source.def, 0)),
-        agi: Math.floor(toNumber(source && source.agi, 0)),
-        vit_max: Math.floor(toNumber(source && source.vit_max, 0)),
-        men_max: Math.floor(toNumber(source && source.men_max, 0)),
-        sp_max: Math.floor(toNumber(source && source.sp_max, 0)),
+        力量: Math.floor(toNumber(source && source.力量, 0)),
+        防御: Math.floor(toNumber(source && source.防御, 0)),
+        敏捷: Math.floor(toNumber(source && source.敏捷, 0)),
+        体力上限: Math.floor(toNumber(source && source.体力上限, 0)),
+        精神力上限: Math.floor(toNumber(source && source.精神力上限, 0)),
+        魂力上限: Math.floor(toNumber(source && source.魂力上限, 0)),
       };
     }
 
     function createTrackedStatDeltaMap(source = {}) {
       return {
-        str: Math.floor(toNumber(source && source.str, 0)),
-        def: Math.floor(toNumber(source && source.def, 0)),
-        agi: Math.floor(toNumber(source && source.agi, 0)),
-        vit_max: Math.floor(toNumber(source && source.vit_max, 0)),
-        men_max: Math.floor(toNumber(source && source.men_max, 0)),
-        sp_max: Math.floor(toNumber(source && source.sp_max, 0)),
+        力量: Math.floor(toNumber(source && source.力量, 0)),
+        防御: Math.floor(toNumber(source && source.防御, 0)),
+        敏捷: Math.floor(toNumber(source && source.敏捷, 0)),
+        体力上限: Math.floor(toNumber(source && source.体力上限, 0)),
+        精神力上限: Math.floor(toNumber(source && source.精神力上限, 0)),
+        魂力上限: Math.floor(toNumber(source && source.魂力上限, 0)),
       };
     }
 
@@ -1560,8 +1572,8 @@
       return Array.isArray(path)
         && path.length >= 5
         && path[0] === 'char'
-        && path[2] === 'stat'
-        && path[3] === 'trained_bonus'
+        && path[2] === '属性'
+        && path[3] === '训练加成'
         && TRAINED_BONUS_PREVIEW_FIELDS.includes(String(path[4] || '').trim());
     }
 
@@ -1578,7 +1590,7 @@
 
       const hadPreviousEntry = trainedBonusPreviewOverrides.has(charKey);
       const previousEntry = hadPreviousEntry ? cloneJsonValue(trainedBonusPreviewOverrides.get(charKey), null) : null;
-      const liveStat = liveSnapshot ? deepGet(liveSnapshot, ['rootData', 'char', charKey, 'stat'], {}) : {};
+      const liveStat = liveSnapshot ? deepGet(liveSnapshot, ['rootData', 'char', charKey, '属性'], {}) : {};
       const nextEntry = previousEntry && typeof previousEntry === 'object'
         ? previousEntry
         : { baseStats: createTrackedStatPreviewMap(liveStat), deltas: createTrackedStatDeltaMap() };
@@ -1613,12 +1625,12 @@
       const baseStats = createTrackedStatPreviewMap(entry.baseStats || rawStats);
       const deltas = createTrackedStatDeltaMap(entry.deltas || {});
       const previewStats = {
-        str: baseStats.str + deltas.str,
-        def: baseStats.def + deltas.def,
-        agi: baseStats.agi + deltas.agi,
-        vit_max: baseStats.vit_max + deltas.vit_max,
-        men_max: baseStats.men_max + deltas.men_max,
-        sp_max: baseStats.sp_max + deltas.sp_max,
+        力量: baseStats.力量 + deltas.力量,
+        防御: baseStats.防御 + deltas.防御,
+        敏捷: baseStats.敏捷 + deltas.敏捷,
+        体力上限: baseStats.体力上限 + deltas.体力上限,
+        精神力上限: baseStats.精神力上限 + deltas.精神力上限,
+        魂力上限: baseStats.魂力上限 + deltas.魂力上限,
       };
 
       const allSettled = TRAINED_BONUS_PREVIEW_FIELDS.every(field => rawStats[field] === previewStats[field]);
@@ -2070,6 +2082,7 @@
       const requestKind = toText(meta && meta.requestKind, 'ui_request') || 'ui_request';
       const userText = toText(playerInput, '').trim();
       const hiddenPrompt = toText(systemPrompt, '').trim();
+      const patchOps = Array.isArray(meta && meta.patchOps) ? meta.patchOps : [];
 
       if (!userText) {
         showUiToast('请求内容为空，无法提交。', 'error', 4200);
@@ -2084,6 +2097,11 @@
       }
 
       try {
+        // Always persist MVU patches first, so generation reads newest state.
+        if (patchOps.length) {
+          await applyJsonPatchOpsByEditor(patchOps, { force: true });
+          await refreshLiveSnapshot({ force: true });
+        }
         if (hiddenPrompt) {
           helper.injectPrompts([{
             id: buildUiRequestInjectionId(requestKind),
@@ -2095,11 +2113,6 @@
           }], { once: true });
         }
         await helper.createChatMessages([{ role: 'user', message: userText }], { refresh: 'affected' });
-        const patchOps = Array.isArray(meta && meta.patchOps) ? meta.patchOps : [];
-        if (patchOps.length) {
-          await applyJsonPatchOpsByEditor(patchOps, { force: true });
-          await refreshLiveSnapshot({ force: true });
-        }
         await helper.triggerSlash('/trigger await=true');
         return { ok: true, requestKind };
       } catch (error) {
@@ -2139,8 +2152,8 @@
           depth: 0,
           role: 'system',
           content: `【模块接管规则】
-当剧情即将进入实际战斗、切磋、伏击、追击或技能对轰时，不要直接写出最终胜负、掉血、战利品或死亡结算。必须先开启 MVU 变量 /world/combat/is_active，并写入 /world/combat/combat_type、/world/combat/phase、/world/combat/environment、/world/combat/participants。participants 至少包含 player 与 enemy 两个槽位；如果只知道参战者姓名，也要把姓名写入对应槽位，前端会用角色档案补全战斗数据。
-当剧情即将进入购买、出售、私下交易、竞拍、讨价还价或物资交换时，不要直接改写金钱/库存并宣布成交。必须写入 /world/trade_request/action、target、npc、item、quantity、price、currency、status；如果剧情已经明确成交意图，可设置 auto_execute=true 让交易模块自动提交仲裁。
+当剧情即将进入实际战斗、切磋、伏击、追击或技能对轰时，不要直接写出最终胜负、掉血、战利品或死亡结算。必须先开启 MVU 变量 /world/战斗/进行中，并写入 /world/战斗/战斗类型、/world/战斗/阶段、/world/战斗/环境、/world/战斗/参战者。参战者 至少包含 player 与 enemy 两个槽位；如果只知道参战者姓名，也要把姓名写入对应槽位，前端会用角色档案补全战斗数据。
+当剧情即将进入购买、出售、私下交易、竞拍、讨价还价或物资交换时，不要直接改写金钱/库存并宣布成交。必须写入 /world/交易请求/动作、目标、对象、物品、数量、价格、货币、状态、自动执行；如果剧情已经明确成交意图，可设置 自动执行=true 让交易模块自动提交仲裁。
 当剧情即将进入锻造、制造、设计、修理、官方代工或私人代工时，不要直接改写材料、成品、装备状态或副职业经验。必须先让前端副职业工坊接管；若推演脚本已经得到结构化计划，应调用 window.__MVU_ROUTE_MODULE_INTENT__ 并传入 profession/craft 请求。
 如果只是闲聊中提到战斗、交易或副职业，不需要触发模块；只有玩家或剧情角色真正发起可结算行为时才触发。`,
           should_scan: true
@@ -2229,11 +2242,11 @@
     function normalizeSpiritSkillSlotsInStatDataForEditor(statData = {}) {
       const chars = isPlainObjectValue(statData && statData.char) ? statData.char : {};
       Object.values(chars).forEach(charData => {
-        const spirits = isPlainObjectValue(charData && charData.spirit) ? charData.spirit : {};
+        const spirits = isPlainObjectValue(charData && charData.武魂) ? charData.武魂 : {};
         Object.values(spirits).forEach(spiritData => {
-          const soulSpirits = isPlainObjectValue(spiritData && spiritData.soul_spirits) ? spiritData.soul_spirits : {};
+          const soulSpirits = isPlainObjectValue(spiritData && spiritData.魂灵) ? spiritData.魂灵 : {};
           Object.values(soulSpirits).forEach(soulSpirit => {
-            const rings = isPlainObjectValue(soulSpirit && soulSpirit.rings) ? soulSpirit.rings : {};
+            const rings = isPlainObjectValue(soulSpirit && soulSpirit.魂环) ? soulSpirit.魂环 : {};
             Object.entries(rings).forEach(([ringIndex, ringData]) => {
               normalizeSingleSpiritSkillSlotMapForEditor(ringData && ringData['魂技'], ringIndex);
             });
@@ -3034,11 +3047,11 @@
 
     function hasRootRuntimeSignals(rootData) {
       if (!rootData || typeof rootData !== 'object') return false;
-      if (toText(deepGet(rootData, 'sys.player_name', ''), '').trim()) return true;
+      if (toText(deepGet(rootData, 'sys.玩家名', ''), '').trim()) return true;
       if (safeEntries(deepGet(rootData, 'sys.seq', {})).length) return true;
-      if (safeEntries(deepGet(rootData, 'world.timeline', {})).length) return true;
-      if (deepGet(rootData, 'world.deviation', undefined) !== undefined) return true;
-      if (toText(deepGet(rootData, 'world.time._calendar', deepGet(rootData, 'world.time.calendar', '')), '').trim()) return true;
+      if (safeEntries(deepGet(rootData, 'world.时间线', {})).length) return true;
+      if (deepGet(rootData, 'world.偏差值', undefined) !== undefined) return true;
+      if (toText(deepGet(rootData, 'world.时间._calendar', deepGet(rootData, 'world.时间.calendar', '')), '').trim()) return true;
       if (safeEntries(deepGet(rootData, 'map.visible_nodes', {})).length) return true;
       if (safeEntries(deepGet(rootData, 'map.visible_dynamic_locations', {})).length) return true;
       return false;
@@ -3048,7 +3061,7 @@
       if (!rootData || typeof rootData !== 'object') return false;
       const chars = rootData.char && typeof rootData.char === 'object' ? rootData.char : {};
       const preferredName = getPreferredActiveCharacterName();
-      const sysPlayerName = toText(deepGet(rootData, 'sys.player_name', ''), '').trim();
+      const sysPlayerName = toText(deepGet(rootData, 'sys.玩家名', ''), '').trim();
       const contextMeta = getCurrentChatContextMeta();
       if (preferredName && chars[preferredName]) return true;
       if (sysPlayerName && chars[sysPlayerName]) return true;
@@ -3064,10 +3077,10 @@
       const contextMeta = getCurrentChatContextMeta();
       let score = 0;
       if (rootData.sys && typeof rootData.sys === 'object') score += 6;
-      if (toText(deepGet(rootData, 'sys.player_name', ''), '').trim()) score += 12;
+      if (toText(deepGet(rootData, 'sys.玩家名', ''), '').trim()) score += 12;
       if (safeEntries(deepGet(rootData, 'sys.seq', {})).length) score += 6;
-      if (safeEntries(deepGet(rootData, 'world.timeline', {})).length) score += 5;
-      if (deepGet(rootData, 'world.deviation', undefined) !== undefined) score += 3;
+      if (safeEntries(deepGet(rootData, 'world.时间线', {})).length) score += 5;
+      if (deepGet(rootData, 'world.偏差值', undefined) !== undefined) score += 3;
       if (rootData.map && typeof rootData.map === 'object' && Object.keys(rootData.map).length) score += 3;
       if (safeEntries(chars).length) score += 1;
       if (contextMeta.name1 && chars[contextMeta.name1]) score += 10;
@@ -3129,7 +3142,7 @@
       return [...(Array.isArray(entries) ? entries : [])].sort((a, b) => {
         const rankDiff = getCharacterDisplayPriority(a[0], a[1], options) - getCharacterDisplayPriority(b[0], b[1], options);
         if (rankDiff !== 0) return rankDiff;
-        const lvDiff = toNumber(deepGet(b[1], 'stat.lv', 0), 0) - toNumber(deepGet(a[1], 'stat.lv', 0), 0);
+        const lvDiff = toNumber(deepGet(b[1], '属性.等级', 0), 0) - toNumber(deepGet(a[1], '属性.等级', 0), 0);
         if (lvDiff !== 0) return lvDiff;
         return toText(a[0], '').localeCompare(toText(b[0], ''), 'zh-Hans-CN', { numeric: true, sensitivity: 'base' });
       });
@@ -3143,7 +3156,7 @@
       const chars = sd && sd.char ? sd.char : {};
       const charEntries = safeEntries(chars);
       const preferredName = getPreferredActiveCharacterName();
-      const sysPlayerName = toText(deepGet(sd, 'sys.player_name', ''), '').trim();
+      const sysPlayerName = toText(deepGet(sd, 'sys.玩家名', ''), '').trim();
       const contextMeta = getCurrentChatContextMeta();
       const sortedEntries = sortCharacterEntries(charEntries, { playerName: sysPlayerName, currentName: preferredName });
       const realPlayerEntry = findRealPlayerEntry(charEntries, sysPlayerName);
@@ -3159,7 +3172,7 @@
       }
 
       const namedCandidates = [
-        deepGet(sd, 'sys.player_name', ''),
+        deepGet(sd, 'sys.玩家名', ''),
         contextMeta.name1,
         contextMeta.name2
       ].filter(Boolean);
@@ -3185,13 +3198,13 @@
     }
 
     function isSnapshotPlayerControlled(snapshot) {
-      const playerName = toText(deepGet(snapshot, 'rootData.sys.player_name', ''), '').trim();
+      const playerName = toText(deepGet(snapshot, 'rootData.sys.玩家名', ''), '').trim();
       const activeName = toText(snapshot && snapshot.activeName, '').trim();
       return isPlayerCharacterEntry(activeName, deepGet(snapshot, 'activeChar', {}), playerName);
     }
 
-    function formatAppearanceMeta(appearance) {
-      const data = appearance && typeof appearance === 'object' ? appearance : {};
+    function formatAppearanceMeta(外貌数据) {
+      const data = 外貌数据 && typeof 外貌数据 === 'object' ? 外貌数据 : {};
       const features = Array.isArray(data['特殊特征'])
         ? data['特殊特征']
           .map(item => toText(item, '').trim())
@@ -3209,8 +3222,8 @@
       };
     }
 
-    function formatAppearanceText(appearance) {
-      const meta = formatAppearanceMeta(appearance);
+    function formatAppearanceText(外貌数据) {
+      const meta = formatAppearanceMeta(外貌数据);
       const parts = [
         meta.hairColor,
         meta.hairStyle,
@@ -3227,7 +3240,7 @@
 
     function normalizeLocationName(sd, rawLoc) {
       const loc = toText(rawLoc, '未知');
-      const worldLocations = deepGet(sd, 'world.locations', {});
+      const worldLocations = deepGet(sd, 'world.地点', {});
       if (worldLocations[loc]) return loc;
 
       const separators = ['·', '｜', '/', '→'];
@@ -3243,7 +3256,7 @@
     }
 
     function resolveLocationData(sd, rawLoc) {
-      const worldLocations = deepGet(sd, 'world.locations', {});
+      const worldLocations = deepGet(sd, 'world.地点', {});
       const exact = toText(rawLoc, '未知');
       if (worldLocations[exact]) return { name: exact, data: worldLocations[exact] };
       const normalized = normalizeLocationName(sd, exact);
@@ -4167,7 +4180,7 @@
       const scope = toText(previewMeta && previewMeta.scope, 'skill');
       const label = toText(previewMeta && previewMeta.label, '').trim();
       if (scope === 'spirit_skill') {
-        const ringMarkerIndex = path.findIndex(part => toText(part, '') === 'rings');
+        const ringMarkerIndex = path.findIndex(part => toText(part, '') === '魂环');
         const ringIndex = ringMarkerIndex >= 0 ? path[ringMarkerIndex + 1] : '';
         const ringLabel = formatSkillDesignerChineseOrdinal(ringIndex, '魂环');
         const skillLabel = formatSkillDesignerSpiritSkillLabel(label || path[path.length - 1], ringIndex);
@@ -4581,7 +4594,7 @@
     }
 
     function getSkillDesignerSpiritNameOptions(charData = {}) {
-      const names = safeEntries(deepGet(charData, 'spirit', {}))
+      const names = safeEntries(deepGet(charData, '武魂', {}))
         .map(([slotName, spiritData]) => resolveSkillDesignerSpiritDisplayName(slotName, spiritData))
         .map(name => normalizeSkillUiText(name, '').trim())
         .filter(name => name && !/^(未设置|未知|无)$/.test(name));
@@ -4607,7 +4620,7 @@
     function getSkillDesignerFusionRecord(rootData = {}, previewMeta = {}) {
       const path = Array.isArray(previewMeta && previewMeta.path) ? previewMeta.path : [];
       if (toText(previewMeta && previewMeta.scope, '') !== 'fusion_skill') return {};
-      if (toText(path[path.length - 1], '') !== 'skill_data') return {};
+      if (toText(path[path.length - 1], '') !== '技能数据') return {};
       const record = deepGet(rootData, path.slice(0, -1), {});
       return record && typeof record === 'object' ? record : {};
     }
@@ -4703,11 +4716,8 @@
       const safeRecord = fusionRecord && typeof fusionRecord === 'object' ? fusionRecord : {};
       const raw = [
         safeDraft.fusionParticipants,
-        safeDraft.fusion_participants,
         safeDraft['融合参与者'],
-        safeDraft.participants,
-        safeRecord.fusion_participants,
-        safeRecord.participants,
+        safeRecord['融合参与者'],
       ].find(candidate => Array.isArray(candidate) && candidate.length);
       return Array.isArray(raw) ? raw : [];
     }
@@ -4746,7 +4756,7 @@
       let fusionMode = normalizeSkillDesignerFusionMode(
         baseDraft.fusionMode
         || baseDraft['融合模式']
-        || fusionRecord.fusion_mode
+        || fusionRecord.融合模式
         || '',
       );
       if (fusionMode === 'self' && selfSpiritOptions.length < 2) fusionMode = 'partner';
@@ -4756,7 +4766,7 @@
         const sourceSpirits = normalizeSkillDesignerArray(
           baseDraft.fusionSourceSpirits
           || baseDraft['来源武魂']
-          || fusionRecord.source_spirits
+          || fusionRecord.来源武魂
         );
         if (fusionMode === 'self') {
           participants = [
@@ -4767,7 +4777,7 @@
           const partnerNames = parseSkillDesignerFusionPartnerNames(
             baseDraft.fusionPartner
             || baseDraft['融合对象']
-            || fusionRecord.partner
+            || fusionRecord['融合对象']
             || '',
           );
           participants = [
@@ -4901,13 +4911,13 @@
       const spiritNames = selfEntry.spirits;
       const rawMode = baseDraft.fusionMode
         || baseDraft['融合模式']
-        || fusionRecord.fusion_mode
+        || fusionRecord.融合模式
         || '';
       let fusionMode = normalizeSkillDesignerFusionMode(rawMode);
       if (fusionMode === 'self' && spiritNames.length < 2) fusionMode = 'partner';
       const rawPartner = baseDraft.fusionPartner
         || baseDraft['融合对象']
-        || fusionRecord.partner
+        || fusionRecord['融合对象']
         || '';
       const fusionPartner = fusionMode === 'self'
         ? SKILL_DESIGNER_SELF_FUSION_PARTNER
@@ -4915,7 +4925,7 @@
       let fusionSourceSpirits = normalizeSkillDesignerArray(
         baseDraft.fusionSourceSpirits
         || baseDraft['来源武魂']
-        || fusionRecord.source_spirits
+        || fusionRecord.来源武魂
       );
       if (fusionMode === 'self' && !fusionSourceSpirits.length) fusionSourceSpirits = spiritNames.slice(0, 2);
       const fusionParticipants = buildSkillDesignerFusionParticipants(snapshot, previewMeta, baseDraft, fusionRecord);
@@ -6390,7 +6400,7 @@
               '判定属性': 'men_max',
               '判定阈值': 1.05,
               '成功参数': {
-                'stat_mods': { 'agi': agiRatio },
+                '面板修改比例': { 'agi': agiRatio },
                 'reaction_penalty': penalty,
                 'skip_turn': illusionPower >= 1.35,
               },
@@ -6913,7 +6923,7 @@
         safeSkill['融合模式'] = normalizedFusionFields.fusionMode;
         safeSkill['融合对象'] = normalizedFusionFields.fusionPartner;
         safeSkill['来源武魂'] = [...normalizedFusionFields.fusionSourceSpirits];
-        safeSkill.fusion_participants = cloneJsonValue(normalizedFusionFields.fusionParticipants);
+        safeSkill['融合参与者'] = cloneJsonValue(normalizedFusionFields.fusionParticipants);
       }
       safeSkill['附带属性'] = [...normalized.attachedAttributes];
       safeSkill['特效量化参数'] = designSummary;
@@ -6938,7 +6948,7 @@
           '融合模式': normalizedFusionFields.fusionMode,
           '融合对象': normalizedFusionFields.fusionPartner,
           '来源武魂': [...normalizedFusionFields.fusionSourceSpirits],
-          fusion_participants: cloneJsonValue(normalizedFusionFields.fusionParticipants),
+          '融合参与者': cloneJsonValue(normalizedFusionFields.fusionParticipants),
         } : {}),
         '设计摘要': designSummary,
       };
@@ -6955,7 +6965,7 @@
       const path = Array.isArray(previewMeta && previewMeta.path) ? previewMeta.path : [];
       if (!path.length) return [];
       const updates = [{ path, value: nextSkill }];
-      if (toText(previewMeta && previewMeta.scope, '') === 'fusion_skill' && toText(path[path.length - 1], '') === 'skill_data') {
+      if (toText(previewMeta && previewMeta.scope, '') === 'fusion_skill' && toText(path[path.length - 1], '') === '技能数据') {
         const fusionRecordPath = path.slice(0, -1);
         const existingFusion = deepGet(rootData, fusionRecordPath, {});
         const fusionName = normalizeSkillUiText(nextSkill && (nextSkill['魂技名'] || nextSkill.name), toText(previewMeta && previewMeta.label, '未命名融合技'));
@@ -6963,7 +6973,7 @@
         const charKey = path[0] === 'char' ? toText(path[1], '') : '';
         const spiritOptions = getSkillDesignerSpiritNameOptions(charKey ? deepGet(rootData, ['char', charKey], {}) : {});
         const canUseSelfFusion = spiritOptions.length >= 2;
-        let fusionMode = normalizeSkillDesignerFusionMode(designDraft['融合模式'] || nextSkill['融合模式'] || existingFusion.fusion_mode || 'partner');
+        let fusionMode = normalizeSkillDesignerFusionMode(designDraft['融合模式'] || nextSkill['融合模式'] || existingFusion.融合模式 || 'partner');
         if (fusionMode === 'self' && !canUseSelfFusion) fusionMode = 'partner';
         const rawParticipants = getSkillDesignerRawFusionParticipants(designDraft, nextSkill).length
           ? getSkillDesignerRawFusionParticipants(designDraft, nextSkill)
@@ -6972,18 +6982,18 @@
         const fusionFields = deriveSkillDesignerFusionFields(
           fusionMode,
           fusionParticipants,
-          normalizeSkillUiText(designDraft['融合对象'] || nextSkill['融合对象'] || existingFusion.partner, '未知搭档'),
+          normalizeSkillUiText(designDraft['融合对象'] || nextSkill['融合对象'] || existingFusion['融合对象'], '未知搭档'),
         );
         const partnerValue = fusionFields.fusionPartner;
         let sourceSpirits = fusionFields.fusionSourceSpirits.length
           ? fusionFields.fusionSourceSpirits
-          : normalizeSkillDesignerArray(designDraft['来源武魂'] || nextSkill['来源武魂'] || existingFusion.source_spirits);
+          : normalizeSkillDesignerArray(designDraft['来源武魂'] || nextSkill['来源武魂'] || existingFusion.来源武魂);
         if (fusionMode === 'self' && !sourceSpirits.length) sourceSpirits = spiritOptions.slice(0, 2);
-        updates.push({ path: [...fusionRecordPath, 'name'], value: fusionName });
-        updates.push({ path: [...fusionRecordPath, 'fusion_mode'], value: fusionMode });
-        updates.push({ path: [...fusionRecordPath, 'partner'], value: partnerValue });
-        updates.push({ path: [...fusionRecordPath, 'source_spirits'], value: sourceSpirits });
-        updates.push({ path: [...fusionRecordPath, 'fusion_participants'], value: cloneJsonValue(fusionFields.fusionParticipants) });
+        updates.push({ path: [...fusionRecordPath, '名称'], value: fusionName });
+        updates.push({ path: [...fusionRecordPath, '融合模式'], value: fusionMode });
+        updates.push({ path: [...fusionRecordPath, '融合对象'], value: partnerValue });
+        updates.push({ path: [...fusionRecordPath, '来源武魂'], value: sourceSpirits });
+        updates.push({ path: [...fusionRecordPath, '融合参与者'], value: cloneJsonValue(fusionFields.fusionParticipants) });
       }
       return updates;
     }
@@ -7165,15 +7175,15 @@
 
     function buildSpiritConfig(slotName, spiritData, previewKey, badgeText, badgeClass, spiritBasePath = []) {
       const spiritPath = Array.isArray(spiritBasePath) ? spiritBasePath : [];
-      const soulEntries = safeEntries(spiritData && spiritData.soul_spirits);
+      const soulEntries = safeEntries(spiritData && spiritData.魂灵);
       const summaryRings = [];
       const souls = soulEntries.map(([soulName, soulData]) => {
-        const soulPath = [...spiritPath, 'soul_spirits', soulName];
-        const ringEntries = safeEntries(soulData && soulData.rings)
+        const soulPath = [...spiritPath, '魂灵', soulName];
+        const ringEntries = safeEntries(soulData && soulData.魂环)
           .sort((a, b) => toNumber(a[0], 0) - toNumber(b[0], 0))
           .map(([ringIndex, ring]) => {
             const skills = buildSkillList(ring && ring['魂技'], {
-              basePath: [...soulPath, 'rings', ringIndex, '魂技'],
+              basePath: [...soulPath, '魂环', ringIndex, '魂技'],
               category: '魂环魂技',
               scope: 'spirit_skill',
             });
@@ -7206,7 +7216,7 @@
           comp: `${compValue}%`,
           compValue,
           path: soulPath,
-          rings: ringEntries
+          魂环: ringEntries
         };
       });
 
@@ -7223,7 +7233,7 @@
           comp: '--',
           compValue: 0,
           path: [],
-          rings: []
+          魂环: []
         });
       }
 
@@ -7239,7 +7249,7 @@
         badgeClass,
         name: `${displayName}（${spiritType}）`,
         desc: `属性体系：${attributeState.attributeSystem} / 魂灵：${soulCount}`,
-        rings: (summaryRings.length ? summaryRings : souls[0].rings).slice(0, 10),
+        魂环: (summaryRings.length ? summaryRings : souls[0].魂环).slice(0, 10),
         souls,
         soulCount,
         slotName,
@@ -7254,7 +7264,7 @@
     }
 
     function shouldRenderBloodline(activeChar, activeName = '') {
-      const displayName = String(activeName || deepGet(activeChar, 'stat.name', '') || '').trim();
+      const displayName = String(activeName || deepGet(activeChar, '属性.name', '') || '').trim();
       return displayName === '唐舞麟';
     }
 
@@ -7268,7 +7278,7 @@
           badgeClass: 'gold',
           name: '',
           desc: '',
-          rings: [],
+          魂环: [],
           bloodSkills: [],
           bloodPassives: [],
           bloodPermanentBonuses: [],
@@ -7278,20 +7288,20 @@
           bloodline: '无'
         };
       }
-      const bloodline = normalizeSkillUiText(deepGet(activeChar, 'bloodline_power.bloodline', '无'), '无');
-      const sealLv = toNumber(deepGet(activeChar, 'bloodline_power.seal_lv', 0), 0);
-      const core = normalizeSkillUiText(deepGet(activeChar, 'bloodline_power.core', '未凝聚'), '未凝聚');
-      const rawSkills = deepGet(activeChar, 'bloodline_power.skills', {});
-      const rawRings = deepGet(activeChar, 'bloodline_power.blood_rings', {});
-      const rawPassives = deepGet(activeChar, 'bloodline_power.passives', {});
-      const rawPermanentBonuses = deepGet(activeChar, 'bloodline_power.permanent_bonuses', {});
+      const bloodline = normalizeSkillUiText(deepGet(activeChar, '血脉之力.血脉', '无'), '无');
+      const sealLv = toNumber(deepGet(activeChar, '血脉之力.解封层数', 0), 0);
+      const core = normalizeSkillUiText(deepGet(activeChar, '血脉之力.核心', '未凝聚'), '未凝聚');
+      const rawSkills = deepGet(activeChar, '血脉之力.技能', {});
+      const rawRings = deepGet(activeChar, '血脉之力.气血魂环', {});
+      const rawPassives = deepGet(activeChar, '血脉之力.被动', {});
+      const rawPermanentBonuses = deepGet(activeChar, '血脉之力.永久加成', {});
       const hasBloodlineData = toText(bloodline, '无') !== '无'
         || sealLv > 0
         || safeEntries(rawRings).length > 0
         || safeEntries(rawSkills).length > 0
         || safeEntries(rawPassives).length > 0
         || safeEntries(rawPermanentBonuses).length > 0;
-      const ringEntries = safeEntries(deepGet(activeChar, 'bloodline_power.blood_rings', {}))
+      const ringEntries = safeEntries(deepGet(activeChar, '血脉之力.气血魂环', {}))
         .sort((a, b) => toNumber(a[0], 0) - toNumber(b[0], 0))
         .map(([index, ring]) => ({
           glyph: ringGlyph(ring && ring['颜色'], index, ring && ring['年限'], { forceGold: true }),
@@ -7299,7 +7309,7 @@
           title: `血脉环位 · ${index}`,
           desc: `${toText(ring && ring['颜色'], '未形成')} / ${safeEntries(ring && ring['魂技']).length || 0}项能力`,
           skills: buildSkillList(ring && ring['魂技'], {
-            basePath: [...bloodlineBasePath, 'blood_rings', index, '魂技'],
+            basePath: [...bloodlineBasePath, '气血魂环', index, '魂技'],
             category: '血脉魂环',
             scope: 'blood_ring_skill',
           })
@@ -7314,29 +7324,29 @@
         badgeClass: 'gold',
         name: `${bloodline === '无' ? '未觉醒血脉' : bloodline}`,
         desc: `解封层数：${sealLv} / 体力魂核：${core}`,
-        rings: normalizedRingEntries,
+        魂环: normalizedRingEntries,
         bloodSkills: buildSkillList(rawSkills, {
           basePath: [...bloodlineBasePath, 'skills'],
           category: '血脉散技',
           scope: 'blood_skill',
         }),
         bloodPassives: buildSkillList(rawPassives, {
-          basePath: [...bloodlineBasePath, 'passives'],
+          basePath: [...bloodlineBasePath, '被动'],
           category: '血脉特性',
           scope: 'blood_passive',
         }),
         bloodPermanentBonuses: buildPermanentBonusList(rawPermanentBonuses),
         sealLv,
         core,
-        lifeFire: !!deepGet(activeChar, 'bloodline_power.life_fire', false),
+        lifeFire: !!deepGet(activeChar, '血脉之力.生命之火', false),
         bloodline: bloodline === '无' ? '未觉醒血脉' : bloodline
       };
     }
 
     function getPrimaryFactionEntry(snapshot) {
       const preferredName = toText(
-        deepGet(snapshot, 'locationData.掌控势力', snapshot && snapshot.factions && snapshot.factions[0] ? snapshot.factions[0][0] : ''),
-        snapshot && snapshot.factions && snapshot.factions[0] ? snapshot.factions[0][0] : ''
+        deepGet(snapshot, 'locationData.掌控势力', snapshot && snapshot.势力 && snapshot.势力[0] ? snapshot.势力[0][0] : ''),
+        snapshot && snapshot.势力 && snapshot.势力[0] ? snapshot.势力[0][0] : ''
       );
       const fallbackEntry = snapshot && Array.isArray(snapshot.orgEntries) && snapshot.orgEntries.length ? snapshot.orgEntries[0] : ['', {}];
       const matchedEntry = snapshot && Array.isArray(snapshot.orgEntries)
@@ -7378,7 +7388,7 @@
         emptyDesc = '当前未记录对外关系。'
       } = options || {};
       const safeOrgName = toText(orgName, '').trim();
-      const relationEntries = safeEntries(deepGet(orgData, 'rel', {})).slice(0, Math.max(1, max));
+      const relationEntries = safeEntries(deepGet(orgData, '关系', {})).slice(0, Math.max(1, max));
       if (!relationEntries.length) {
         return `<div class="relation-card"><b>${htmlEscape(emptyTitle)}</b><span>${htmlEscape(emptyDesc)}</span></div>`;
       }
@@ -7402,7 +7412,7 @@
               .join(' / ');
             const editableValue = safeOrgName
               ? makeInlineEditableValue(relationValue, {
-                  path: ['org', safeOrgName, 'rel', relationName, relationField],
+                  path: ['org', safeOrgName, '关系', relationName, relationField],
                   kind: 'string',
                   rawValue: relationValue,
                 })
@@ -7420,7 +7430,7 @@
     }
 
     function buildFactionRelationSummary(orgData, max = 3) {
-      return safeEntries(deepGet(orgData, 'rel', {}))
+      return safeEntries(deepGet(orgData, '关系', {}))
         .slice(0, Math.max(1, max))
         .map(([name, relData]) => {
           const meta = buildFactionRelationMeta(name, relData);
@@ -7431,8 +7441,8 @@
 
     function getPrimaryFactionPowerStats(snapshot) {
       const preferredName = toText(
-        deepGet(snapshot, 'locationData.掌控势力', snapshot && snapshot.factions && snapshot.factions[0] ? snapshot.factions[0][0] : ''),
-        snapshot && snapshot.factions && snapshot.factions[0] ? snapshot.factions[0][0] : ''
+        deepGet(snapshot, 'locationData.掌控势力', snapshot && snapshot.势力 && snapshot.势力[0] ? snapshot.势力[0][0] : ''),
+        snapshot && snapshot.势力 && snapshot.势力[0] ? snapshot.势力[0][0] : ''
       );
       const fallbackEntry = snapshot && Array.isArray(snapshot.orgEntries) && snapshot.orgEntries.length ? snapshot.orgEntries[0] : ['', {}];
       const matchedEntry = snapshot && Array.isArray(snapshot.orgEntries)
@@ -7442,9 +7452,9 @@
       const matchedData = matchedEntry && matchedEntry[1] ? matchedEntry[1] : {};
       return {
         name: matchedName,
-        limit: toNumber(deepGet(matchedData, 'power_stats.limit_douluo', 0), 0),
-        super: toNumber(deepGet(matchedData, 'power_stats.super_douluo', 0), 0),
-        title: toNumber(deepGet(matchedData, 'power_stats.title_douluo', 0), 0)
+        limit: toNumber(deepGet(matchedData, '战力统计.极限斗罗', 0), 0),
+        super: toNumber(deepGet(matchedData, '战力统计.超级斗罗', 0), 0),
+        title: toNumber(deepGet(matchedData, '战力统计.封号斗罗', 0), 0)
       };
     }
 
@@ -7454,49 +7464,49 @@
         if (text) result.push(text);
       };
 
-      const quest = activeChar && activeChar.quest_request;
+      const quest = activeChar && activeChar.任务请求;
       if (quest && toText(quest.action, '无') !== '无') {
-        push(`任务：${toText(quest.quest_name, '未命名任务')}`);
+        push(`任务：${toText(quest.任务名称, '未命名任务')}`);
       }
 
-      const tower = activeChar && activeChar.tower_request;
-      if (tower && toText(tower.action, '无') !== '无') {
-        const clearedFloor = toNumber(tower.cleared_floor, 0);
-        push(`魂灵塔：${toText(tower.action, '冲塔')}${clearedFloor > 0 ? ` / 第${clearedFloor}层` : ''}`);
+      const tower = activeChar && activeChar.魂灵塔请求;
+      if (tower && toText(tower.动作, '无') !== '无') {
+        const clearedFloor = toNumber(tower.通关层数, 0);
+        push(`魂灵塔：${toText(tower.动作, '冲塔')}${clearedFloor > 0 ? ` / 第${clearedFloor}层` : ''}`);
       }
 
-      const ascension = activeChar && activeChar.ascension_request;
-      if (ascension && toText(ascension.ticket_type, '无') !== '无') {
-        const gainAge = toNumber(ascension.gain_age, 0);
-        const spiritKey = toText(ascension.spirit_key, '未指定');
-        const soulSpiritKey = toText(ascension.soul_spirit_key, '未指定');
-        push(`升灵台：${toText(ascension.ticket_type)} / ${spiritKey}-${soulSpiritKey}${gainAge > 0 ? ` / +${gainAge}年` : ''}`);
+      const ascension = activeChar && activeChar.升灵台请求;
+      if (ascension && toText(ascension.门票名, '无') !== '无') {
+        const gainAge = toNumber(ascension.提升年限, 0);
+        const spiritKey = toText(ascension.武魂槽位, '未指定');
+        const soulSpiritKey = toText(ascension.魂灵槽位, '未指定');
+        push(`升灵台：${toText(ascension.门票名)} / ${spiritKey}-${soulSpiritKey}${gainAge > 0 ? ` / +${gainAge}年` : ''}`);
       }
 
 
-      const hunt = activeChar && activeChar.hunt_request;
-      if (hunt && toNumber(hunt.killed_age, 0) > 0) {
-        push(`狩猎：${formatAge(hunt.killed_age)}${deepGet(hunt, 'is_ferocious', false) ? ' / 凶兽' : ''}`);
+      const hunt = activeChar && activeChar.猎魂请求;
+      if (hunt && toNumber(hunt.击杀年限, 0) > 0) {
+        push(`狩猎：${formatAge(hunt.击杀年限)}${deepGet(hunt, '是否凶兽', false) ? ' / 凶兽' : ''}`);
       }
 
-      const promotion = activeChar && activeChar.promotion_request;
-      if (promotion && toText(promotion.target_faction, '无') !== '无') {
-        push(`晋升：${toText(promotion.target_faction)} / ${toText(promotion.target_title, '')}`.trim());
+      const promotion = activeChar && activeChar.晋升请求;
+      if (promotion && toText(promotion.目标势力, '无') !== '无') {
+        push(`晋升：${toText(promotion.目标势力)} / ${toText(promotion.目标职位, '')}`.trim());
       }
 
-      const donate = activeChar && activeChar.donate_request;
-      if (donate && toText(donate.item_name, '无') !== '无') {
-        push(`捐献：${toText(donate.item_name)} × ${toNumber(donate.quantity, 1)}`);
+      const donate = activeChar && activeChar.捐献请求;
+      if (donate && toText(donate.物品名称, '无') !== '无') {
+        push(`捐献：${toText(donate.物品名称)} × ${toNumber(donate.数量, 1)}`);
       }
 
-      const abyssKill = activeChar && activeChar.abyss_kill_request;
-      if (abyssKill && toText(abyssKill.kill_tier, '无') !== '无') {
-        push(`深渊：${toText(abyssKill.kill_tier)} × ${toNumber(abyssKill.quantity, 1)}`);
+      const abyssKill = activeChar && activeChar.深渊击杀请求;
+      if (abyssKill && toText(abyssKill.击杀级别, '无') !== '无') {
+        push(`深渊：${toText(abyssKill.击杀级别)} × ${toNumber(abyssKill.数量, 1)}`);
       }
 
-      const interact = activeChar && activeChar.interact_request;
-      if (interact && toText(interact.action, '无') !== '无') {
-        push(`互动：${toText(interact.target_npc, '未知对象')} / ${toText(interact.action, '互动')}`);
+      const interact = activeChar && activeChar.互动请求;
+      if (interact && toText(interact.动作, '无') !== '无') {
+        push(`互动：${toText(interact.目标人物, '未知对象')} / ${toText(interact.动作, '互动')}`);
       }
 
       return result;
@@ -7522,9 +7532,9 @@
 
     function buildRecentPlanSummary(snapshot, options = {}) {
       const { worldLimit = 2, recordLimit = 2 } = options || {};
-      const worldPlans = (snapshot.timelineEntries || []).filter(([, item]) => toText(deepGet(item, 'status', 'pending'), 'pending') !== 'done').slice(0, Math.max(1, worldLimit)).map(([name, item]) => ({
+      const worldPlans = (snapshot.timelineEntries || []).filter(([, item]) => toText(deepGet(item, '状态', 'pending'), 'pending') !== 'done').slice(0, Math.max(1, worldLimit)).map(([name, item]) => ({
         title: `世界 / ${name}`,
-        desc: `${toText(deepGet(item, 'event', '无'), '无')} ｜ Tick ${toText(deepGet(item, 'trigger_tick', 0), '0')} ｜ ${toText(deepGet(item, 'status', 'pending'), 'pending')}`
+        desc: `${toText(deepGet(item, '事件', '无'), '无')} ｜ Tick ${toText(deepGet(item, '触发tick', 0), '0')} ｜ ${toText(deepGet(item, '状态', 'pending'), 'pending')}`
       }));
       const personalPlans = (snapshot.recordEntries || []).filter(([, item]) => toText(item && item['状态'], '进行中') !== '已完成' && toText(item && item['状态'], '进行中') !== '已放弃').slice(0, Math.max(1, recordLimit)).map(([name, item]) => ({
         title: `个人 / ${name}`,
@@ -7544,33 +7554,33 @@
       const runtimeReady = true;
       sd = rawRootData;
       const [activeName, activeChar] = resolveActiveCharacter(sd || {});
-      const currentLoc = toText(deepGet(activeChar, 'status.loc', '未知'), '未知').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
+      const currentLoc = toText(deepGet(activeChar, '状态.位置', '未知'), '未知').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
       const locationInfo = resolveLocationData(sd, currentLoc);
       const locationData = locationInfo.data || {};
-      const storeNames = safeEntries(locationData && locationData.stores).map(([name]) => name);
-      const dynamicLocationNames = safeEntries(deepGet(sd, 'world.dynamic_locations', {})).map(([name]) => name);
-      const timelineEntries = safeEntries(deepGet(sd, 'world.timeline', {})).sort((a, b) => toNumber(deepGet(b[1], 'trigger_tick', 0), 0) - toNumber(deepGet(a[1], 'trigger_tick', 0), 0));
+      const storeNames = safeEntries(locationData && locationData.商店).map(([name]) => name);
+      const dynamicLocationNames = safeEntries(deepGet(sd, 'world.动态地点', {})).map(([name]) => name);
+      const timelineEntries = safeEntries(deepGet(sd, 'world.时间线', {})).sort((a, b) => toNumber(deepGet(b[1], '触发tick', 0), 0) - toNumber(deepGet(a[1], '触发tick', 0), 0));
       const seqEntries = safeEntries(deepGet(sd, 'sys.seq', {})).sort((a, b) => toNumber(b[0], 0) - toNumber(a[0], 0));
-      const factions = safeEntries(deepGet(activeChar, 'social.factions', {}));
-      const relations = safeEntries(deepGet(activeChar, 'social.relations', {})).sort((a, b) => toNumber(deepGet(b[1], '好感度', 0), 0) - toNumber(deepGet(a[1], '好感度', 0), 0));
-      const unlockedKnowledges = Array.isArray(activeChar && activeChar.unlocked_knowledges) ? activeChar.unlocked_knowledges : [];
-      const inventoryEntries = safeEntries(activeChar && activeChar.inventory);
-      const flagEntries = safeEntries(deepGet(sd, 'world.flags', {})).filter(([, value]) => !!value);
+      const factions = safeEntries(deepGet(activeChar, '社交.势力', {}));
+      const relations = safeEntries(deepGet(activeChar, '社交.关系', {})).sort((a, b) => toNumber(deepGet(b[1], '好感度', 0), 0) - toNumber(deepGet(a[1], '好感度', 0), 0));
+      const unlockedKnowledges = Array.isArray(activeChar && activeChar.已掌握情报) ? activeChar.已掌握情报 : [];
+      const inventoryEntries = safeEntries(activeChar && activeChar.背包);
+      const flagEntries = safeEntries(deepGet(sd, 'world.标记', {})).filter(([, value]) => !!value);
       const orgEntries = safeEntries(sd && sd.org).sort((a, b) => {
         const aFav = factions.some(([name]) => name === a[0]) ? 1 : 0;
         const bFav = factions.some(([name]) => name === b[0]) ? 1 : 0;
         if (aFav !== bFav) return bFav - aFav;
-        return toNumber(deepGet(b[1], 'inf', 0), 0) - toNumber(deepGet(a[1], 'inf', 0), 0);
+        return toNumber(deepGet(b[1], '影响力', 0), 0) - toNumber(deepGet(a[1], '影响力', 0), 0);
       });
 
-      const spiritEntries = safeEntries(activeChar && activeChar.spirit);
+      const spiritEntries = safeEntries(activeChar && activeChar.武魂);
       const primarySpirit = spiritEntries[0]
-        ? buildSpiritConfig(spiritEntries[0][0], spiritEntries[0][1], '第一武魂详细页', '第一武魂', 'cyan', ['char', activeName, 'spirit', spiritEntries[0][0]])
+        ? buildSpiritConfig(spiritEntries[0][0], spiritEntries[0][1], '第一武魂详细页', '第一武魂', 'cyan', ['char', activeName, '武魂', spiritEntries[0][0]])
         : buildSpiritConfig('第一武魂', {}, '第一武魂详细页', '第一武魂', 'cyan');
       const secondarySpirit = spiritEntries[1]
-        ? buildSpiritConfig(spiritEntries[1][0], spiritEntries[1][1], '第二武魂详细页', '第二武魂', 'gold', ['char', activeName, 'spirit', spiritEntries[1][0]])
+        ? buildSpiritConfig(spiritEntries[1][0], spiritEntries[1][1], '第二武魂详细页', '第二武魂', 'gold', ['char', activeName, '武魂', spiritEntries[1][0]])
         : null;
-      const bloodline = buildBloodlineConfig(activeChar || {}, activeName, ['char', activeName, 'bloodline_power']);
+      const bloodline = buildBloodlineConfig(activeChar || {}, activeName, ['char', activeName, '血脉之力']);
 
       // --- 收集额外能力与功法，放到外层给生命图谱使用 ---
       const safeRecords = (obj) => {
@@ -7581,7 +7591,7 @@
         }));
       };
       const extraSkills = [];
-      safeRecords(deepGet(activeChar, 'arts', {})).forEach(art => {
+        safeRecords(deepGet(activeChar, '功法', {})).forEach(art => {
         extraSkills.push({
           category: '功法绝学',
           name: art.name,
@@ -7591,35 +7601,35 @@
         });
       });
       if (bloodline.valid) {
-        safeRecords(deepGet(activeChar, 'bloodline_power.skills', {})).forEach(skill => {
+        safeRecords(deepGet(activeChar, '血脉之力.技能', {})).forEach(skill => {
           extraSkills.push({
             category: '血脉散技',
             name: skill.name,
             level: toText(skill.状态, '已掌握'),
             desc: toText(skill.描述 || skill.效果描述 || skill.effectDesc, '无说明'),
             preview: buildSkillDesignerPreviewKey({
-              path: ['char', activeName, 'bloodline_power', 'skills', skill.recordKey || skill.name],
+              path: ['char', activeName, '血脉之力', '技能', skill.recordKey || skill.name],
               label: toText(skill.name, skill.recordKey || '血脉散技'),
               category: '血脉散技',
               scope: 'blood_skill',
             })
           });
         });
-        safeRecords(deepGet(activeChar, 'bloodline_power.passives', {})).forEach(skill => {
+        safeRecords(deepGet(activeChar, '血脉之力.被动', {})).forEach(skill => {
           extraSkills.push({
             category: '血脉特性',
             name: skill.name,
             level: toText(skill.状态, '已固化'),
             desc: toText(skill.描述 || skill.效果描述 || skill.effectDesc, '无说明'),
             preview: buildSkillDesignerPreviewKey({
-              path: ['char', activeName, 'bloodline_power', 'passives', skill.recordKey || skill.name],
+              path: ['char', activeName, '血脉之力', '被动', skill.recordKey || skill.name],
               label: toText(skill.name, skill.recordKey || '血脉特性'),
               category: '血脉特性',
               scope: 'blood_passive',
             })
           });
         });
-        safeEntries(deepGet(activeChar, 'bloodline_power.permanent_bonuses', {})).forEach(([name, bonus]) => {
+        safeEntries(deepGet(activeChar, '血脉之力.永久加成', {})).forEach(([name, bonus]) => {
           extraSkills.push({
             category: '血脉永久成长',
             name: toText(bonus && bonus['名称'], name || '永久成长'),
@@ -7628,28 +7638,29 @@
           });
         });
       }
-      safeRecords(deepGet(activeChar, 'martial_fusion_skills', {})).forEach(fusion => {
+      safeRecords(deepGet(activeChar, '武魂融合技', {})).forEach(fusion => {
+        const fusionName = toText(fusion['名称'], fusion.name || fusion.recordKey || '武魂融合技');
         extraSkills.push({
           category: '武魂融合技',
-          name: fusion.name,
-          level: `搭档: ${toText(fusion.partner, '未知')}`,
-          desc: toText(deepGet(fusion, 'skill_data.描述', '无'), '爆发技'),
+          name: fusionName,
+          level: `搭档: ${toText(fusion['融合对象'], '未知')}`,
+          desc: toText(deepGet(fusion, '技能数据.描述', '无'), '爆发技'),
           preview: buildSkillDesignerPreviewKey({
-            path: ['char', activeName, 'martial_fusion_skills', fusion.recordKey || fusion.name, 'skill_data'],
-            label: toText(fusion.name, fusion.recordKey || '武魂融合技'),
+            path: ['char', activeName, '武魂融合技', fusion.recordKey || fusionName, '技能数据'],
+            label: toText(fusionName, fusion.recordKey || '武魂融合技'),
             category: '武魂融合技',
             scope: 'fusion_skill',
           })
         });
       });
-      safeRecords(deepGet(activeChar, 'special_abilities', {})).forEach(abi => {
+      safeRecords(deepGet(activeChar, '特殊能力', {})).forEach(abi => {
         extraSkills.push({
           category: '特殊能力',
           name: abi.name,
           level: toText(abi.技能类型 || abi.主定位, '被动'),
           desc: toText(abi.效果描述 || abi.战斗摘要?.一句话定位, '暂无描述'),
           preview: buildSkillDesignerPreviewKey({
-            path: ['char', activeName, 'special_abilities', abi.recordKey || abi.name],
+            path: ['char', activeName, '特殊能力', abi.recordKey || abi.name],
             label: toText(abi.name, abi.recordKey || '特殊能力'),
             category: '特殊能力',
             scope: 'special_ability',
@@ -7660,9 +7671,9 @@
       const nextNodeCandidates = [
         locationInfo.name,
         currentLoc,
-        toText(deepGet(sd, 'world.auction.location', ''), ''),
+        toText(deepGet(sd, 'world.拍卖.地点', ''), ''),
         ...storeNames,
-        ...safeEntries(deepGet(sd, 'world.locations', {})).map(([name]) => name),
+        ...safeEntries(deepGet(sd, 'world.地点', {})).map(([name]) => name),
         ...dynamicLocationNames
       ].filter(Boolean);
 
@@ -7671,17 +7682,17 @@
         if (!mapNodeLabels.includes(name)) mapNodeLabels.push(name);
       });
 
-      const recentTitles = safeEntries(deepGet(activeChar, 'social.titles', {})).map(([name]) => name);
-      const titleEntries = safeEntries(deepGet(activeChar, 'social.titles', {}));
-      const recordEntries = safeEntries(deepGet(activeChar, 'records', {}));
-      const conditionEntries = safeEntries(deepGet(activeChar, 'stat.conditions', {}));
-      const soulBoneEntries = safeEntries(deepGet(activeChar, 'soul_bone', {}));
-      const artEntries = safeEntries(deepGet(activeChar, 'arts', {})).sort((a, b) => toNumber(deepGet(b[1], 'lv', 0), 0) - toNumber(deepGet(a[1], 'lv', 0), 0));
-      const specialAbilityEntries = safeEntries(deepGet(activeChar, 'special_abilities', {}));
-      const combatHistoryEntries = safeEntries(deepGet(activeChar, 'combat_history', {})).sort((a, b) => toNumber(deepGet(b[1], 'last_tick', 0), 0) - toNumber(deepGet(a[1], 'last_tick', 0), 0));
+      const recentTitles = safeEntries(deepGet(activeChar, '社交.称号', {})).map(([name]) => name);
+      const titleEntries = safeEntries(deepGet(activeChar, '社交.称号', {}));
+      const recordEntries = safeEntries(deepGet(activeChar, '记录', {}));
+      const conditionEntries = safeEntries(deepGet(activeChar, '属性.状态效果', {}));
+      const soulBoneEntries = safeEntries(deepGet(activeChar, '魂骨', {}));
+      const artEntries = safeEntries(deepGet(activeChar, '功法', {})).sort((a, b) => toNumber(deepGet(b[1], 'lv', 0), 0) - toNumber(deepGet(a[1], 'lv', 0), 0));
+      const specialAbilityEntries = safeEntries(deepGet(activeChar, '特殊能力', {}));
+      const combatHistoryEntries = safeEntries(deepGet(activeChar, '战斗历史', {})).sort((a, b) => toNumber(deepGet(b[1], '最近tick', 0), 0) - toNumber(deepGet(a[1], '最近tick', 0), 0));
       const pendingRequests = collectPendingRequests(activeChar || {}, sd || {});
-      const bestiaryEntries = safeEntries(deepGet(sd, 'world.bestiary', {}));
-      const forestKilledAge = toNumber(deepGet(sd, 'world.forest_killed_age', 0), 0);
+      const bestiaryEntries = safeEntries(deepGet(sd, 'world.图鉴', {}));
+      const forestKilledAge = toNumber(deepGet(sd, 'world.累计击杀年限', 0), 0);
       const mapData = sd && sd.map && typeof sd.map === 'object' ? sd.map : {};
       const sheepSnapshot = window.__sheepMapSnapshot && typeof window.__sheepMapSnapshot === 'object'
         ? window.__sheepMapSnapshot
@@ -7750,19 +7761,19 @@
         deepGet(mapData, 'current_zoom_hint', sheepSnapshot && Number.isFinite(Number(sheepSnapshot.currentZoomHint)) ? Number(sheepSnapshot.currentZoomHint) : 0),
         0
       );
-      const pendingIntelContent = toText(deepGet(activeChar, 'knowledge_unlock_request.content', '无'), '无');
-      const pendingIntelImpact = toNumber(deepGet(activeChar, 'knowledge_unlock_request.impact', 0), 0);
+      const pendingIntelContent = toText(deepGet(activeChar, '待解锁情报.内容', '无'), '无');
+      const pendingIntelImpact = toNumber(deepGet(activeChar, '待解锁情报.影响', 0), 0);
       const pendingIntel = pendingIntelContent !== '无';
       const primaryFaction = factions[0] || null;
       const topRelation = relations[0] || null;
       const questRecordCount = recordEntries.filter(([, item]) => toText(item && item['状态'], '进行中') !== '已放弃').length;
-      const warningText = toNumber(deepGet(sd, 'world.deviation', 0), 0) >= 40
-        ? `偏差 ${toNumber(deepGet(sd, 'world.deviation', 0), 0)} / 高危`
-        : (deepGet(sd, 'world.flags.beast_tide', false)
+      const warningText = toNumber(deepGet(sd, 'world.偏差值', 0), 0) >= 40
+        ? `偏差 ${toNumber(deepGet(sd, 'world.偏差值', 0), 0)} / 高危`
+        : (deepGet(sd, 'world.标记.beast_tide', false)
           ? '兽潮警报 / 已触发'
           : (flagEntries.length ? `世界旗标 ${flagEntries.length} 项` : '无'));
-      const auctionStatus = toText(deepGet(sd, 'world.auction.status', '休市'), '休市');
-      const auctionLocation = toText(deepGet(sd, 'world.auction.location', '无'), '无');
+      const auctionStatus = toText(deepGet(sd, 'world.拍卖.状态', '休市'), '休市');
+      const auctionLocation = toText(deepGet(sd, 'world.拍卖.地点', '无'), '无');
 
       const chars = sd && sd.char ? sd.char : {};
       const charEntries = safeEntries(chars);
@@ -7771,9 +7782,9 @@
         rawRootData,
         rootData: sd,
         activeName: toText(activeName, contextMeta.name1 || contextMeta.name2 || '当前角色'),
-        appearanceMeta: formatAppearanceMeta(deepGet(activeChar, 'appearance', {})),
-        appearanceText: formatAppearanceText(deepGet(activeChar, 'appearance', {})),
-        personalityText: toText(deepGet(activeChar, 'personality', '未设定'), '未设定'),
+        appearanceMeta: formatAppearanceMeta(deepGet(activeChar, '外貌', {})),
+        appearanceText: formatAppearanceText(deepGet(activeChar, '外貌', {})),
+        personalityText: toText(deepGet(activeChar, '性格', '未设定'), '未设定'),
         activeChar: activeChar || {},
         currentLoc,
         normalizedLoc: locationInfo.name,
@@ -7783,7 +7794,7 @@
         timelineEntries,
         latestTimeline: timelineEntries[0] || null,
         seqEntries,
-        factions,
+        势力: factions,
         relations,
         unlockedKnowledges,
         inventoryEntries,
@@ -7807,7 +7818,7 @@
         pendingIntelImpact,
         primaryFaction,
         topRelation,
-        relationAnalysis: deepGet(activeChar, 'social.relation_analysis', {}),
+        关系分析: deepGet(activeChar, '社交.关系分析', {}),
 
         questRecordCount,
         recentTitles,
@@ -7825,7 +7836,7 @@
         mapActivePatchEntries,
         mapAvailableChildMaps,
         mapTravelCandidates,
-        publicIntel: !!deepGet(activeChar, 'social._public_intel', deepGet(activeChar, 'social.public_intel', false)),
+        publicIntel: !!deepGet(activeChar, 'social.公开情报', deepGet(activeChar, 'social.public_intel', false)),
         extraSkills
       };
     }
@@ -7874,21 +7885,21 @@
     }
 
     function buildHeaderRenderSignature(snapshot) {
-      const status = deepGet(snapshot, 'activeChar.status', {});
+      const status = deepGet(snapshot, 'activeChar.状态', {});
       const bloodline = snapshot && snapshot.bloodline && snapshot.bloodline.valid
         ? { bloodline: snapshot.bloodline.bloodline, sealLv: snapshot.bloodline.sealLv }
         : null;
       return buildRenderSignature({
         activeName: toText(snapshot && snapshot.activeName, ''),
         currentLoc: toText(snapshot && snapshot.currentLoc, ''),
-        worldTimeText: toText(deepGet(snapshot, 'rootData.world.time._calendar', deepGet(snapshot, 'rootData.world.time.calendar', '')), ''),
-        action: toText(status && status.action, ''),
-        activeDomain: toText(status && status.active_domain, ''),
-        wound: toText(status && status.wound, ''),
-        alive: deepGet(status, 'alive', true) !== false,
+        worldTimeText: toText(deepGet(snapshot, 'rootData.world.时间._calendar', deepGet(snapshot, 'rootData.world.时间.calendar', '')), ''),
+        action: toText(status && status.行动, ''),
+        activeDomain: toText(status && status.当前领域, ''),
+        wound: getDisplayWoundLabel(deepGet(snapshot, 'activeChar.属性', {})),
+        alive: deepGet(status, '存活', true) !== false,
         bloodline,
-        armorStatus: toText(deepGet(snapshot, 'activeChar.equip.armor.equip_status', ''), ''),
-        mechLv: toText(deepGet(snapshot, 'activeChar.equip.mech.lv', ''), ''),
+        armorStatus: toText(deepGet(snapshot, 'activeChar.装备.斗铠.装备状态', ''), ''),
+        mechLv: toText(deepGet(snapshot, 'activeChar.装备.机甲.等级', ''), ''),
         worldAlert: toText(snapshot && snapshot.worldAlert, '')
       });
     }
@@ -7918,7 +7929,7 @@
           timelineEntries: Array.isArray(snapshot && snapshot.timelineEntries) ? snapshot.timelineEntries : []
         }),
         social: buildRenderSignature({
-          social: deepGet(snapshot, 'activeChar.social', {}),
+          social: deepGet(snapshot, 'activeChar.社交', {}),
           primaryFaction: snapshot && snapshot.primaryFaction ? snapshot.primaryFaction : null,
           topRelation: snapshot && snapshot.topRelation ? snapshot.topRelation : null,
           relations: Array.isArray(snapshot && snapshot.relations) ? snapshot.relations : [],
@@ -7930,7 +7941,7 @@
         world: buildRenderSignature({
           rootWorld: deepGet(snapshot, 'rootData.world', {}),
           worldAlert: toText(snapshot && snapshot.worldAlert, ''),
-          factions: Array.isArray(snapshot && snapshot.factions) ? snapshot.factions : [],
+          factions: Array.isArray(snapshot && snapshot.势力) ? snapshot.势力 : [],
           locationData: snapshot && snapshot.locationData ? snapshot.locationData : null,
           latestTimeline: snapshot && snapshot.latestTimeline ? snapshot.latestTimeline : null
         }),
@@ -7997,7 +8008,7 @@
     }
 
     function renderHeader(snapshot) {
-      const worldTimeText = toText(deepGet(snapshot, 'rootData.world.time._calendar', deepGet(snapshot, 'rootData.world.time.calendar', '斗罗历未同步')), '斗罗历未同步');
+      const worldTimeText = toText(deepGet(snapshot, 'rootData.world.时间._calendar', deepGet(snapshot, 'rootData.world.时间.calendar', '斗罗历未同步')), '斗罗历未同步');
       const headerComboHtml = `<span style="opacity:1;font-size:12px;color:#fff;">${worldTimeText}</span><span style="opacity:0.65;font-size:11px;">${snapshot.currentLoc}</span>`;
       setLiveHtml('.header-loc span', headerComboHtml);
       setLiveText('.char-name', snapshot.activeName);
@@ -8008,8 +8019,8 @@
       if (splitBottomLoc) splitBottomLoc.textContent = '';
 
       const statusChips = getLiveUiElements('.header-status-row .header-status-chip');
-      if (statusChips[0]) setLiveNodeText(statusChips[0].querySelector('span'), `${toText(deepGet(snapshot, 'activeChar.status.action', '日常'), '日常')} / ${toText(deepGet(snapshot, 'activeChar.status.active_domain', '无'), '无')}`);
-      if (statusChips[1]) setLiveNodeText(statusChips[1].querySelector('span'), `${toText(deepGet(snapshot, 'activeChar.status.wound', '无伤'), '无伤')} / ${deepGet(snapshot, 'activeChar.status.alive', true) ? '状态稳定' : '已陨落'}`);
+      if (statusChips[0]) setLiveNodeText(statusChips[0].querySelector('span'), `${toText(deepGet(snapshot, 'activeChar.状态.行动', '日常'), '日常')} / ${toText(deepGet(snapshot, 'activeChar.状态.当前领域', '无'), '无')}`);
+      if (statusChips[1]) setLiveNodeText(statusChips[1].querySelector('span'), `${getDisplayWoundLabel(deepGet(snapshot, 'activeChar.属性', {}))} / ${deepGet(snapshot, 'activeChar.状态.存活', true) ? '状态稳定' : '已陨落'}`);
       if (statusChips[2]) {
         const shouldShowBloodline = !!(snapshot.bloodline && snapshot.bloodline.valid);
         if (statusChips[2].style.display !== (shouldShowBloodline ? '' : 'none')) {
@@ -8019,7 +8030,7 @@
           setLiveNodeText(statusChips[2].querySelector('span'), `${snapshot.bloodline.bloodline} / ${snapshot.bloodline.sealLv}层`);
         }
       }
-      if (statusChips[3]) setLiveNodeText(statusChips[3].querySelector('span'), `斗铠${toText(deepGet(snapshot, 'activeChar.equip.armor.equip_status', '未装备'), '未装备')} / 机甲${toText(deepGet(snapshot, 'activeChar.equip.mech.lv', '无'), '无')}`);
+      if (statusChips[3]) setLiveNodeText(statusChips[3].querySelector('span'), `斗铠${toText(deepGet(snapshot, 'activeChar.装备.斗铠.装备状态', '未装备'), '未装备')} / 机甲${toText(deepGet(snapshot, 'activeChar.装备.机甲.等级', '无'), '无')}`);
       if (statusChips[4]) setLiveNodeText(statusChips[4].querySelector('span'), snapshot.worldAlert);
     }
 
@@ -8054,22 +8065,22 @@
 
     function canOpenPrivateArchive(snapshot) {
       const activeChar = getActiveSnapshotCharacter(snapshot);
-      const genderText = toText(deepGet(activeChar, 'stat.gender', ''), '');
+      const genderText = toText(deepGet(activeChar, '属性.性别', ''), '');
       if (!isFemaleGenderText(genderText)) return false;
-      const ageValue = getPrivateArchiveAgeValue(deepGet(activeChar, 'stat.age', null));
+      const ageValue = getPrivateArchiveAgeValue(deepGet(activeChar, '属性.年龄', null));
       return Number.isFinite(ageValue) && ageValue >= 6;
     }
 
     function getActiveNsfwPath(snapshot) {
       const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot && snapshot.activeName, ''));
-      return activeCharKey ? ['char', activeCharKey, 'nsfw'] : [];
+      return activeCharKey ? ['char', activeCharKey, '私密档案'] : [];
     }
 
     function getActiveNsfwData(snapshot) {
-      const activeNsfw = deepGet(snapshot, 'activeChar.nsfw', null);
+      const activeNsfw = deepGet(snapshot, 'activeChar.私密档案', null);
       if (activeNsfw && typeof activeNsfw === 'object' && safeEntries(activeNsfw).length) return activeNsfw;
       const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot && snapshot.activeName, ''));
-      const rootNsfw = activeCharKey ? deepGet(snapshot, ['rootData', 'char', activeCharKey, 'nsfw'], null) : null;
+      const rootNsfw = activeCharKey ? deepGet(snapshot, ['rootData', 'char', activeCharKey, '私密档案'], null) : null;
       if (rootNsfw && typeof rootNsfw === 'object') return rootNsfw;
       return activeNsfw && typeof activeNsfw === 'object' ? activeNsfw : {};
     }
@@ -8104,9 +8115,12 @@
     }
 
     function buildArchiveCoreCard(snapshot) {
-      const stat = deepGet(snapshot, 'activeChar.stat', {});
-      const social = deepGet(snapshot, 'activeChar.social', {});
-      const status = deepGet(snapshot, 'activeChar.status', {});
+      const stat = deepGet(snapshot, 'activeChar.属性', {});
+      const social = deepGet(snapshot, 'activeChar.社交', {});
+      const status = deepGet(snapshot, 'activeChar.状态', {});
+      const hpPair = getDisplayHpPair(stat);
+      const hpPair = getDisplayHpPair(stat);
+      const woundLabel = getDisplayWoundLabel(stat);
       const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '当前角色');
       const nextLevelSoul = getNextLevelSoulRequirement(stat);
       const allowNsfwLongPress = canOpenPrivateArchive(snapshot);
@@ -8126,47 +8140,52 @@
         <div class="stats-grid">
           <div class="stat-item compact no-bar">
             <div class="stat-label">年龄 / 性别</div>
-            <div class="stat-value">${htmlEscape(`${toText(stat.age, '0')}岁 / ${toText(stat.gender, '未知')}`)}</div>
+            <div class="stat-value">${htmlEscape(`${toText(stat.年龄, '0')}岁 / ${toText(stat.性别, '未知')}`)}</div>
           </div>
           <div class="stat-item">
             <div class="stat-label">修为等级</div>
-            <div class="stat-value cyan">${htmlEscape(formatCultivationLevelBadge(stat.lv, '0'))}</div>
-            <div class="line"><div class="fill" style="color: var(--cyan); width: ${ratioPercent(stat.sp, stat.sp_max)}%;"></div></div>
+            <div class="stat-value cyan">${htmlEscape(formatCultivationLevelBadge(stat.等级, '0'))}</div>
+            <div class="line"><div class="fill" style="color: var(--cyan); width: ${ratioPercent(stat.魂力, stat.魂力上限)}%;"></div></div>
           </div>
           <div class="stat-item">
             <div class="stat-label">魂力 (SP)</div>
-            <div class="stat-value cyan">${htmlEscape(formatNumber(stat.sp))} / ${htmlEscape(formatNumber(stat.sp_max))}</div>
-            <div class="line"><div class="fill" style="color: var(--cyan); width: ${ratioPercent(stat.sp, stat.sp_max)}%;"></div></div>
+            <div class="stat-value cyan">${htmlEscape(formatNumber(stat.魂力))} / ${htmlEscape(formatNumber(stat.魂力上限))}</div>
+            <div class="line"><div class="fill" style="color: var(--cyan); width: ${ratioPercent(stat.魂力, stat.魂力上限)}%;"></div></div>
           </div>
           <div class="stat-item compact no-bar">
             <div class="stat-label">状态概览</div>
-            <div class="stat-value">${htmlEscape(`${toText(status.action, '日常')} / ${toText(status.wound, '无伤')}`)}</div>
+            <div class="stat-value">${htmlEscape(`${toText(status.行动, '日常')} / ${woundLabel}`)}</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">生命 (HP)</div>
+            <div class="stat-value red">${htmlEscape(formatNumber(hpPair.hp))} / ${htmlEscape(formatNumber(hpPair.hpMax))}</div>
+            <div class="line"><div class="fill" style="color: var(--red); width: ${ratioPercent(hpPair.hp, hpPair.hpMax)}%;"></div></div>
           </div>
           <div class="stat-item">
             <div class="stat-label">体力 (VIT)</div>
-            <div class="stat-value red">${htmlEscape(formatNumber(stat.vit))} / ${htmlEscape(formatNumber(stat.vit_max))}</div>
-            <div class="line"><div class="fill" style="color: var(--red); width: ${ratioPercent(stat.vit, stat.vit_max)}%;"></div></div>
+            <div class="stat-value red">${htmlEscape(formatNumber(stat.体力))} / ${htmlEscape(formatNumber(stat.体力上限))}</div>
+            <div class="line"><div class="fill" style="color: var(--red); width: ${ratioPercent(stat.体力, stat.体力上限)}%;"></div></div>
           </div>
           <div class="stat-item">
-            <div class="stat-label">精神力 (MEN) · ${htmlEscape(toText(stat._men_realm, toText(stat.men_realm, '灵元境')))}</div>
-            <div class="stat-value">${htmlEscape(formatNumber(stat.men))} / ${htmlEscape(formatNumber(stat.men_max))}</div>
-            <div class="line"><div class="fill" style="color: var(--white); width: ${ratioPercent(stat.men, stat.men_max)}%;"></div></div>
+            <div class="stat-label">精神力 (MEN) · ${htmlEscape(toText(stat._men_realm, toText(stat.精神力_realm, '灵元境')))}</div>
+            <div class="stat-value">${htmlEscape(formatNumber(stat.精神力))} / ${htmlEscape(formatNumber(stat.精神力上限))}</div>
+            <div class="line"><div class="fill" style="color: var(--white); width: ${ratioPercent(stat.精神力, stat.精神力上限)}%;"></div></div>
           </div>
         </div>
       `;
     }
 
     function buildArmoryCard(snapshot) {
-      const armor = deepGet(snapshot, 'activeChar.equip.armor', {});
-      const mech = deepGet(snapshot, 'activeChar.equip.mech', {});
-      const weapon = deepGet(snapshot, 'activeChar.equip.wpn', {});
-      const accessoryEntries = listAccessoryEntries(deepGet(snapshot, 'activeChar.equip.accessories', {}));
-      const jobs = safeEntries(deepGet(snapshot, 'activeChar.job', {}));
+      const armor = deepGet(snapshot, 'activeChar.装备.斗铠', {});
+      const mech = deepGet(snapshot, 'activeChar.装备.机甲', {});
+      const weapon = deepGet(snapshot, 'activeChar.装备.武器', {});
+      const accessoryEntries = listAccessoryEntries(deepGet(snapshot, 'activeChar.装备.饰品', {}));
+      const jobs = safeEntries(deepGet(snapshot, 'activeChar.职业', {}));
       const jobSummary = jobs.length ? `${jobs[0][0]} Lv.${toText(deepGet(jobs[0][1], 'lv', 0), '0')}` : '未展开';
-      const jobCoreTechSummary = jobs.length ? (Object.keys(deepGet(jobs[0][1], 'core_tech', {})).slice(0, 2).join(' / ') || '暂无核心技术') : '暂无核心技术';
-      const jobLimitSummary = jobs.length ? `融锻上限 ${toText(deepGet(jobs[0][1], 'limits.max_fusion', 1), '1')} / 成功率 ${toText(deepGet(jobs[0][1], 'limits.success_rate', 0), '0')}%` : '暂无工坊上限';
-      const armorSummary = toNumber(armor.lv, 0) > 0 ? `${toText(armor.name, `${armor.lv}字斗铠`)} / ${toText(armor.equip_status, '未装备')}` : '未装备';
-      const mechSummary = toText(mech.lv, '无') !== '无' ? `${toText(mech.lv, '无')}·${toText(mech.type, '未定型')} / ${toText(mech.equip_status || mech.status, '未装备')}` : '无';
+      const jobCoreTechSummary = jobs.length ? (Object.keys(deepGet(jobs[0][1], '核心技艺', {})).slice(0, 2).join(' / ') || '暂无核心技术') : '暂无核心技术';
+      const jobLimitSummary = jobs.length ? `融锻上限 ${toText(deepGet(jobs[0][1], '限制.最大融合数', 1), '1')} / 成功率 ${toText(deepGet(jobs[0][1], '限制.成功率', 0), '0')}%` : '暂无工坊上限';
+      const armorSummary = toNumber(armor.等级, 0) > 0 ? `${toText(armor.名称, `${armor.等级}字斗铠`)} / ${toText(armor.装备状态, '未装备')}` : '未装备';
+      const mechSummary = toText(mech.等级, '无') !== '无' ? `${toText(mech.等级, '无')}·${toText(mech.型号, '未定型')} / ${toText(mech.装备状态, '未装备')}` : '无';
       const accessorySummary = accessoryEntries.length ? `${accessoryEntries.length}件` : '无';
       const boneCount = snapshot.soulBoneEntries ? snapshot.soulBoneEntries.length : 0;
       return `
@@ -8180,23 +8199,23 @@
     }
 
     function buildVaultCard(snapshot) {
-      const wealth = deepGet(snapshot, 'activeChar.wealth', {});
+      const wealth = deepGet(snapshot, 'activeChar.财富', {});
       const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '当前角色');
       return `
         <div class="module-name">储物仓库</div>
         <div class="module-grid">
           <div class="mini-box"><b>物品种类</b><span>${htmlEscape(String(snapshot.inventoryEntries.length || 0))}</span></div>
-          <div class="mini-box"><b>流动资金</b><span>${htmlEscape(formatNumber(wealth.fed_coin))} / 星罗 ${htmlEscape(formatNumber(wealth.star_coin))}</span></div>
+          <div class="mini-box"><b>流动资金</b><span>${htmlEscape(formatNumber(wealth.联邦币))} / 星罗 ${htmlEscape(formatNumber(wealth.星罗币))}</span></div>
         </div>
         <div class="module-foot">
           <span class="foot-hint">记录物资总计 ${htmlEscape(String(snapshot.inventoryEntries.length || 0))} 件</span>
-          <span class="enter-chip gold-chip">积分/战功：${htmlEscape(formatNumber(wealth.tang_pt))} / ${htmlEscape(formatNumber(wealth.shrek_pt))} / ${htmlEscape(formatNumber(wealth.blood_pt))}</span>
+          <span class="enter-chip gold-chip">积分/战功：${htmlEscape(formatNumber(wealth.唐门积分))} / ${htmlEscape(formatNumber(wealth.学院积分))} / ${htmlEscape(formatNumber(wealth.战功))}</span>
         </div>
       `;
     }
 
     function buildUnifiedSocialCard(snapshot) {
-      const social = deepGet(snapshot, 'activeChar.social', {});
+      const social = deepGet(snapshot, 'activeChar.社交', {});
       const primaryFactionName = snapshot.primaryFaction ? snapshot.primaryFaction[0] : '无';
       const primaryFactionRole = snapshot.primaryFaction ? toText(deepGet(snapshot.primaryFaction[1], '身份', '无'), '无') : '未加入';
       const topRelationText = snapshot.topRelation
@@ -8208,10 +8227,10 @@
       return `
         <div class="mvu-unified-card-head">
           <div class="mvu-unified-card-title">社交摘要</div>
-          <span class="mvu-unified-card-pill">${htmlEscape(toText(social._fame_level, toText(social.fame_level, '籍籍无名')))}</span>
+          <span class="mvu-unified-card-pill">${htmlEscape(toText(social.名望等级, toText(social.名望等级, '籍籍无名')))}</span>
         </div>
         <div class="mvu-unified-row-list">
-          <div class="mvu-unified-row"><b>名望</b><span>${htmlEscape(`${toText(social._fame_level, toText(social.fame_level, '籍籍无名'))} / ${formatNumber(social.reputation)}`)}</span></div>
+          <div class="mvu-unified-row"><b>名望</b><span>${htmlEscape(`${toText(social.名望等级, toText(social.名望等级, '籍籍无名'))} / ${formatNumber(social.声望)}`)}</span></div>
           <div class="mvu-unified-row"><b>所属势力</b><span>${htmlEscape(`${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}`)}</span></div>
           <div class="mvu-unified-row"><b>关系摘要</b><span>${htmlEscape(topRelationText)}</span></div>
           <div class="mvu-unified-row"><b>已解锁情报</b><span>${htmlEscape(`${snapshot.unlockedKnowledges.length} / ${latestIntelText}`)}</span></div>
@@ -8424,7 +8443,7 @@
       const spiritName = resolveShellText(soul.spiritName || soul.desc || soul.name, '');
       const description = resolveShellText(soul.description, '');
       const state = toText(soul.state, '').trim();
-      const ringCount = Array.isArray(soul.rings) ? soul.rings.filter(isRenderableShellRing).length : 0;
+      const ringCount = Array.isArray(soul.魂环) ? soul.魂环.filter(isRenderableShellRing).length : 0;
       if (ringCount > 0) return true;
       if (spiritName && !/^(未设置|魂灵槽位)$/.test(spiritName)) return true;
       if (description && !/^(尚未接入魂灵。|未设置)$/.test(description)) return true;
@@ -8445,10 +8464,10 @@
           meta: `核心 ${shortenText(toText(config.core, '未凝核'), 16)}`,
           badges: [
             config.lifeFire ? { text: '命火已燃', tone: 'gold' } : { text: '命火未燃' },
-            ...((config.rings || []).slice(0, 2).map(item => shortenText(toText(item && item.title, ''), 16))),
+            ...((config.魂环 || []).slice(0, 2).map(item => shortenText(toText(item && item.title, ''), 16))),
           ],
           metrics: [
-            { label: '血环', value: String((config.rings || []).length || 0), tone: 'gold' },
+            { label: '血环', value: String((config.魂环 || []).length || 0), tone: 'gold' },
             { label: '技能', value: String((config.bloodSkills || []).length || 0) },
             { label: '特性', value: String((config.bloodPassives || []).length || 0) },
             { label: '成长', value: String((config.bloodPermanentBonuses || []).length || 0) },
@@ -8465,7 +8484,7 @@
       const primarySoul = renderableSouls[0] || null;
       const unlockedAttrs = Array.isArray(config.spiritUnlockedAttrs) ? config.spiritUnlockedAttrs : [];
       const soulCount = renderableSouls.length || Math.max(0, toNumber(config.soulCount, 0));
-      const ringCount = Array.isArray(config.rings) ? config.rings.filter(isRenderableShellRing).length : 0;
+      const ringCount = Array.isArray(config.魂环) ? config.魂环.filter(isRenderableShellRing).length : 0;
       const hasSpiritProgress = !!primarySoul || soulCount > 0 || ringCount > 0;
       if (!hasSpiritProgress) {
         return buildShellSummaryCard({
@@ -8479,7 +8498,7 @@
           tone: primary ? 'live' : 'cyan',
         });
       }
-      const renderableRings = (config.rings || []).filter(isRenderableShellRing);
+      const renderableRings = (config.魂环 || []).filter(isRenderableShellRing);
       return buildShellSummaryCard({
         kicker: primary ? '主武魂' : normalizeUserFacingTrackLabel(config.badge, '第二武魂'),
         title: shortenText(toText(config.spiritName || config.name, primary ? '主武魂' : normalizeUserFacingTrackLabel(config.badge, '第二武魂')), 20),
@@ -8513,13 +8532,13 @@
           tone: 'gold',
         });
       }
-      const stat = deepGet(snapshot, 'activeChar.stat', {});
-      const status = deepGet(snapshot, 'activeChar.status', {});
+      const stat = deepGet(snapshot, 'activeChar.属性', {});
+      const status = deepGet(snapshot, 'activeChar.状态', {});
       const placeText = buildShellLocationLabel(snapshot, { fullLimit: 18, trailLimit: 8 });
       return buildShellAppPeek({
         value: toText(snapshot.activeName, '当前角色'),
-        meta: `${formatCultivationLevelBadge(stat.lv, '0')} · ${placeText}`,
-        note: toText(status.action, '日常'),
+        meta: `${formatCultivationLevelBadge(stat.等级, '0')} · ${placeText}`,
+        note: toText(status.行动, '日常'),
         tone: 'live',
       });
     }
@@ -8566,14 +8585,14 @@
           note: '当前聊天',
         });
       }
-      const rawWorldTime = toText(deepGet(snapshot, 'rootData.world.time._calendar', deepGet(snapshot, 'rootData.world.time.calendar', '时间未同步')), '时间未同步');
+      const rawWorldTime = toText(deepGet(snapshot, 'rootData.world.时间._calendar', deepGet(snapshot, 'rootData.world.时间.calendar', '时间未同步')), '时间未同步');
       const worldTime = resolveShellText(rawWorldTime, '等待同步');
-      const deviation = toNumber(deepGet(snapshot, 'rootData.world.deviation', 0), 0);
+      const deviation = toNumber(deepGet(snapshot, 'rootData.world.偏差值', 0), 0);
       const deviationState = deviation >= 40 ? '高危' : (deviation >= 10 ? '波动' : '平稳');
       const worldAlertText = resolveShellText(snapshot.worldAlert, '');
       const timelineHeadline = snapshot.latestTimeline ? snapshot.latestTimeline[0] : '';
       const timelineNote = snapshot.latestTimeline
-        ? toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0])
+        ? toText(deepGet(snapshot.latestTimeline[1], '事件', snapshot.latestTimeline[0]), snapshot.latestTimeline[0])
         : '';
       const headline = worldAlertText
         || timelineHeadline
@@ -8596,7 +8615,7 @@
         });
       }
       const primaryFactionEntry = getPrimaryFactionEntry(snapshot);
-      const primaryFaction = snapshot.factions[0] || null;
+      const primaryFaction = snapshot.势力[0] || null;
       const factionName = primaryFaction ? primaryFaction[0] : primaryFactionEntry.name || toText(deepGet(snapshot, 'locationData.掌控势力', '未加入'), '未加入');
       const roleText = primaryFaction
         ? toText(deepGet(primaryFaction[1], '身份', '未加入'), '未加入')
@@ -8647,36 +8666,36 @@
           size: 'hero',
         });
       }
-      const stat = deepGet(snapshot, 'activeChar.stat', {});
-      const social = deepGet(snapshot, 'activeChar.social', {});
-      const status = deepGet(snapshot, 'activeChar.status', {});
+      const stat = deepGet(snapshot, 'activeChar.属性', {});
+      const social = deepGet(snapshot, 'activeChar.社交', {});
+      const status = deepGet(snapshot, 'activeChar.状态', {});
       const primaryFactionName = snapshot.primaryFaction ? snapshot.primaryFaction[0] : '未加入';
       const primaryFactionRole = snapshot.primaryFaction ? toText(deepGet(snapshot.primaryFaction[1], '身份', '未加入'), '未加入') : '未加入';
       const titleText = Array.isArray(snapshot.recentTitles) && snapshot.recentTitles.length ? snapshot.recentTitles[0] : '';
       const nextLevelSoul = getNextLevelSoulRequirement(stat);
       const placeText = buildShellLocationLabel(snapshot, { fullLimit: 18, trailLimit: 8 });
-      const hasSoulPowerMeter = toNumber(stat.sp_max, 0) > 0;
-      const hasVitalityMeter = toNumber(stat.vit_max, 0) > 0;
-      const hasMentalMeter = toNumber(stat.men_max, 0) > 0;
-      const ageMetric = toNumber(stat.age, 0);
+      const hasSoulPowerMeter = toNumber(stat.魂力上限, 0) > 0;
+      const hasVitalityMeter = toNumber(stat.体力上限, 0) > 0;
+      const hasMentalMeter = toNumber(stat.精神力上限, 0) > 0;
+      const ageMetric = toNumber(stat.年龄, 0);
       const talentMetric = shortenText(toText(stat.talent_tier, '未定'), 8);
-      const typeMetric = shortenText(toText(stat.type, '未定'), 8);
+      const typeMetric = shortenText(toText(stat.系别, '未定'), 8);
       const factionJoined = primaryFactionName !== '未加入';
       const nextLevelNeeded = Math.max(0, toNumber(nextLevelSoul && nextLevelSoul.needed, 0));
-      const woundText = toText(status.wound, '').trim();
+      const woundText = getDisplayWoundLabel(stat);
       const statusSummary = !woundText || /^(无|无伤)$/i.test(woundText)
-        ? toText(status.action, '日常')
-        : `${toText(status.action, '日常')} / ${woundText}`;
-      const identitySummary = summarizeShellIdentityText(social.main_identity, { limit: 12 }) || shortenText(toText(social.main_identity, ''), 14);
+        ? toText(status.行动, '日常')
+        : `${toText(status.行动, '日常')} / ${woundText}`;
+      const identitySummary = summarizeShellIdentityText(social.主身份, { limit: 12 }) || shortenText(toText(social.主身份, ''), 14);
       const factionSummary = factionJoined
         ? `${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}`
         : (identitySummary || '独行');
-      const fameLevelText = shortenText(toText(social._fame_level, toText(social.fame_level, '籍籍无名')), 8);
+      const fameLevelText = shortenText(toText(social.名望等级, toText(social.名望等级, '籍籍无名')), 8);
       const allowPrivateArchiveLongPress = canOpenPrivateArchive(snapshot);
       return buildShellSummaryCard({
         kicker: '角色首页',
         title: toText(snapshot.activeName, '当前角色'),
-        value: formatCultivationLevelBadge(stat.lv, '0'),
+        value: formatCultivationLevelBadge(stat.等级, '0'),
         meta: placeText,
         badges: [
           titleText ? { text: shortenText(titleText, 10), tone: 'gold' } : '',
@@ -8684,14 +8703,14 @@
           fameLevelText && fameLevelText !== '籍籍无名' ? { text: fameLevelText, tone: 'gold' } : '',
         ],
         metrics: [
-          hasSoulPowerMeter ? { label: '魂力', value: `${ratioPercent(stat.sp, stat.sp_max)}%`, tone: 'live' } : { label: '年龄', value: ageMetric > 0 ? String(ageMetric) : '--' },
-          hasVitalityMeter ? { label: '体力', value: `${ratioPercent(stat.vit, stat.vit_max)}%`, tone: 'warn' } : { label: '天赋', value: talentMetric || '--', tone: 'gold' },
-          hasMentalMeter ? { label: '精神', value: `${ratioPercent(stat.men, stat.men_max)}%` } : { label: '系别', value: typeMetric || '--' },
+          hpPair.hpMax > 0 ? { label: 'HP', value: `${ratioPercent(hpPair.hp, hpPair.hpMax)}%`, tone: 'warn' } : { label: '年龄', value: ageMetric > 0 ? String(ageMetric) : '--' },
+          hasVitalityMeter ? { label: '体力', value: `${ratioPercent(stat.体力, stat.体力上限)}%`, tone: 'gold' } : { label: '天赋', value: talentMetric || '--', tone: 'gold' },
+          hasMentalMeter ? { label: '精神', value: `${ratioPercent(stat.精神力, stat.精神力上限)}%` } : { label: '系别', value: typeMetric || '--' },
           { label: '状态', value: shortenText(statusSummary, 10) || '--' },
         ],
         rows: [
           { label: factionJoined ? '阵营' : '身份', value: factionSummary },
-          { label: '名望', value: social.reputation ? `${fameLevelText} · ${formatNumber(social.reputation)}` : fameLevelText },
+          { label: '名望', value: social.声望 ? `${fameLevelText} · ${formatNumber(social.声望)}` : fameLevelText },
         ],
         tone: 'hero',
         size: 'hero',
@@ -8714,21 +8733,21 @@
           ],
         });
       }
-      const armor = deepGet(snapshot, 'activeChar.equip.armor', {});
-      const mech = deepGet(snapshot, 'activeChar.equip.mech', {});
-      const weapon = deepGet(snapshot, 'activeChar.equip.wpn', {});
-      const accessoryEntries = listAccessoryEntries(deepGet(snapshot, 'activeChar.equip.accessories', {}));
-      const jobs = safeEntries(deepGet(snapshot, 'activeChar.job', {}));
+      const armor = deepGet(snapshot, 'activeChar.装备.斗铠', {});
+      const mech = deepGet(snapshot, 'activeChar.装备.机甲', {});
+      const weapon = deepGet(snapshot, 'activeChar.装备.武器', {});
+      const accessoryEntries = listAccessoryEntries(deepGet(snapshot, 'activeChar.装备.饰品', {}));
+      const jobs = safeEntries(deepGet(snapshot, 'activeChar.职业', {}));
       const jobSummary = jobs.length ? `${jobs[0][0]} Lv.${toText(deepGet(jobs[0][1], 'lv', 0), '0')}` : '未开启';
-      const weaponName = toText(weapon.name, '').trim();
-      const hasArmor = toNumber(armor.lv, 0) > 0;
+      const weaponName = toText(weapon.名称, '').trim();
+      const hasArmor = toNumber(armor.等级, 0) > 0;
       const hasWeapon = !!weaponName && !/^(无|未记录)$/.test(weaponName);
-      const hasMech = !!toText(mech.lv, '').trim();
+      const hasMech = !!toText(mech.等级, '').trim();
       const hasLoadout = hasArmor || hasWeapon || hasMech || accessoryEntries.length || (snapshot.soulBoneEntries || []).length;
-      const armorSummary = toNumber(armor.lv, 0) > 0
-        ? `${toText(armor.name, `${armor.lv}字斗铠`)} / ${toText(armor.equip_status, '已装配')}`
+      const armorSummary = toNumber(armor.等级, 0) > 0
+        ? `${toText(armor.名称, `${armor.等级}字斗铠`)} / ${toText(armor.装备状态, '已装配')}`
         : '未装配';
-      const mechSummary = toText(mech.lv, '') ? `${toText(mech.lv, '')} · ${toText(mech.type, '未定型')}` : '未挂载';
+      const mechSummary = toText(mech.等级, '') ? `${toText(mech.等级, '')} · ${toText(mech.型号, '未定型')}` : '未挂载';
       if (!hasLoadout) {
         return buildShellSummaryCard({
           title: jobs.length ? '工坊' : '武装',
@@ -8742,15 +8761,15 @@
       return buildShellSummaryCard({
         kicker: '武装',
         title: '武装',
-        value: toNumber(armor.lv, 0) > 0 ? shortenText(toText(armor.name, `${armor.lv}字斗铠`), 12) : '未装配',
+        value: toNumber(armor.等级, 0) > 0 ? shortenText(toText(armor.名称, `${armor.等级}字斗铠`), 12) : '未装配',
         meta: shortenText(armorSummary, 24),
         metrics: [
-          { label: '机甲', value: toText(mech.lv, '--') || '--' },
+          { label: '机甲', value: toText(mech.等级, '--') || '--' },
           { label: '魂骨', value: String((snapshot.soulBoneEntries || []).length || 0), tone: 'gold' },
           { label: '挂载', value: String(accessoryEntries.length || 0) },
         ],
         rows: [
-          { label: '主武器', value: shortenText(toText(weapon.name, '未记录'), 14) },
+          { label: '主武器', value: shortenText(toText(weapon.名称, '未记录'), 14) },
           { label: '工坊', value: shortenText(jobSummary, 14) },
           { label: '机甲', value: shortenText(mechSummary, 14) },
         ],
@@ -8770,12 +8789,12 @@
           ],
         });
       }
-      const wealth = deepGet(snapshot, 'activeChar.wealth', {});
+      const wealth = deepGet(snapshot, 'activeChar.财富', {});
       const inventoryCount = (snapshot.inventoryEntries || []).length || 0;
-      const fedCoin = toNumber(wealth.fed_coin, 0);
-      const starCoin = toNumber(wealth.star_coin, 0);
-      const tangPt = toNumber(wealth.tang_pt, 0);
-      const bloodPt = toNumber(wealth.blood_pt, 0);
+      const fedCoin = toNumber(wealth.联邦币, 0);
+      const starCoin = toNumber(wealth.星罗币, 0);
+      const tangPt = toNumber(wealth.唐门积分, 0);
+      const bloodPt = toNumber(wealth.战功, 0);
       const hasStoredResources = inventoryCount > 0 || fedCoin > 0 || starCoin > 0 || tangPt > 0 || bloodPt > 0;
       if (!hasStoredResources) {
         return buildShellSummaryCard({
@@ -8818,7 +8837,7 @@
           ],
         });
       }
-      const social = deepGet(snapshot, 'activeChar.social', {});
+      const social = deepGet(snapshot, 'activeChar.社交', {});
       const primaryFactionName = snapshot.primaryFaction ? snapshot.primaryFaction[0] : '未加入';
       const primaryFactionRole = snapshot.primaryFaction ? toText(deepGet(snapshot.primaryFaction[1], '身份', '未加入'), '未加入') : '未加入';
       const topRelationText = snapshot.topRelation
@@ -8828,9 +8847,9 @@
         ? `${shortenText(snapshot.pendingIntelContent, 10)} / +${snapshot.pendingIntelImpact}`
         : ((snapshot.unlockedKnowledges || []).length ? shortenText(snapshot.unlockedKnowledges[(snapshot.unlockedKnowledges || []).length - 1], 12) : '暂无');
       const currentTitle = Array.isArray(snapshot.recentTitles) && snapshot.recentTitles.length ? snapshot.recentTitles[0] : '';
-      const fameLevel = shortenText(toText(social._fame_level, toText(social.fame_level, '籍籍无名')), 12);
-      const reputationText = formatNumber(social.reputation);
-      const mainIdentity = summarizeShellIdentityText(social.main_identity, { limit: 12 }) || shortenText(toText(social.main_identity, ''), 14);
+      const fameLevel = shortenText(toText(social.名望等级, toText(social.名望等级, '籍籍无名')), 12);
+      const reputationText = formatNumber(social.声望);
+      const mainIdentity = summarizeShellIdentityText(social.主身份, { limit: 12 }) || shortenText(toText(social.主身份, ''), 14);
       const factionSummary = primaryFactionName === '未加入'
         ? (mainIdentity || '未结盟')
         : `${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}`;
@@ -8846,7 +8865,7 @@
         ],
         metrics: [
           { label: '关系', value: String((snapshot.relations || []).length || 0), tone: 'live' },
-          { label: '势力', value: String((snapshot.factions || []).length || 0) },
+          { label: '势力', value: String((snapshot.势力 || []).length || 0) },
         ],
         rows: [
           { label: primaryFactionName === '未加入' ? '身份' : '所属', value: factionSummary },
@@ -8888,7 +8907,7 @@
           { label: '子图', value: String(childMapCount || 0), tone: 'gold' },
         ],
         note: snapshot.latestTimeline
-          ? shortenText(toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]), 36)
+          ? shortenText(toText(deepGet(snapshot.latestTimeline[1], '事件', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]), 36)
           : '',
         tone: 'hero',
         size: 'hero',
@@ -8903,13 +8922,13 @@
       if (!snapshot) return [];
       const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
       const activeDisplayName = toText(deepGet(snapshot, 'activeChar.name', deepGet(snapshot, 'activeChar.base.name', snapshot.activeName)), snapshot.activeName);
-      const currentLoc = toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc), snapshot.currentLoc);
+      const currentLoc = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc), snapshot.currentLoc);
       const normalizedLoc = toText(snapshot.normalizedLoc, currentLoc);
       return safeEntries(deepGet(snapshot, 'rootData.char', {}))
         .filter(([name, char]) => {
           const displayName = toText(deepGet(char, 'name', deepGet(char, 'base.name', name)), name);
           if ((activeCharKey && name === activeCharKey) || (activeDisplayName && displayName === activeDisplayName)) return false;
-          const npcLoc = toText(deepGet(char, 'status.loc', ''), '');
+          const npcLoc = toText(deepGet(char, '状态.位置', ''), '');
           if (!npcLoc) return false;
           return isLocationCompatible(currentLoc, npcLoc) || isLocationCompatible(normalizedLoc, npcLoc);
         })
@@ -8919,7 +8938,7 @@
     function buildShellMapCurrentCard(snapshot) {
       const currentMapDisplayName = getMapDisplayName(snapshot);
       const localFaction = toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知');
-      const nodeStores = safeEntries(deepGet(snapshot, 'locationData.stores', {}));
+      const nodeStores = safeEntries(deepGet(snapshot, 'locationData.商店', {}));
       return buildShellSummaryCard({
         kicker: '地点',
         title: shortenText(toText(snapshot.normalizedLoc, snapshot.currentLoc), 22),
@@ -8939,9 +8958,9 @@
       }
       return entries.map(([name, char]) => {
         const displayName = toText(deepGet(char, 'name', deepGet(char, 'base.name', name)), name);
-        const identity = summarizeShellIdentityText(deepGet(char, 'social.main_identity', ''), { limit: 14 })
-          || shortenText(toText(deepGet(char, 'social.main_identity', '未知身份'), '未知身份'), 14);
-        const action = resolveShellText(deepGet(char, 'status.action', ''), '日常') || '日常';
+        const identity = summarizeShellIdentityText(deepGet(char, '社交.主身份', ''), { limit: 14 })
+          || shortenText(toText(deepGet(char, '社交.主身份', '未知身份'), '未知身份'), 14);
+        const action = resolveShellText(deepGet(char, '状态.行动', ''), '日常') || '日常';
         return `
           <div class="mvu-shell-roster-row">
             <div class="mvu-shell-roster-name">${htmlEscape(shortenText(displayName, 12))}</div>
@@ -8954,7 +8973,7 @@
 
     function buildShellMapLocalCharactersCard(snapshot) {
       const localEntries = getShellLocalCharacterEntries(snapshot, 4);
-      const currentLoc = toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc), snapshot.currentLoc);
+      const currentLoc = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc), snapshot.currentLoc);
       return `
         <div class="mvu-shell-roster-card">
           <div class="mvu-shell-roster-head">
@@ -9006,7 +9025,7 @@
         rows: [
           { label: '激活补丁', value: String(snapshot.mapActivePatchEntries.length || 0) },
           { label: '最新补丁', value: shortenText(latestPatch, 18) },
-          { label: '地图信息', value: snapshot.latestTimeline ? shortenText(toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]), 28) : '暂无新变化' },
+          { label: '地图信息', value: snapshot.latestTimeline ? shortenText(toText(deepGet(snapshot.latestTimeline[1], '事件', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]), 28) : '暂无新变化' },
         ],
       });
     }
@@ -9029,16 +9048,16 @@
           size: 'hero',
         });
       }
-      const rawWorldTime = toText(deepGet(snapshot, 'rootData.world.time._calendar', deepGet(snapshot, 'rootData.world.time.calendar', '时间未同步')), '时间未同步');
+      const rawWorldTime = toText(deepGet(snapshot, 'rootData.world.时间._calendar', deepGet(snapshot, 'rootData.world.时间.calendar', '时间未同步')), '时间未同步');
       const worldTime = resolveShellText(rawWorldTime, '等待同步');
-      const deviation = toNumber(deepGet(snapshot, 'rootData.world.deviation', 0), 0);
+      const deviation = toNumber(deepGet(snapshot, 'rootData.world.偏差值', 0), 0);
       const deviationState = deviation >= 40 ? '高危' : (deviation >= 10 ? '波动' : '平稳');
       const forestRatio = Math.max(0, Math.min(100, Number(((toNumber(snapshot.forestKilledAge, 0) / 1000000) * 100).toFixed(1))));
       const recentPlans = buildRecentPlanSummary(snapshot, { worldLimit: 2, recordLimit: 2 });
       const recentNews = buildRecentNewsSummary(snapshot, { seqLimit: 2, intelLimit: 2 });
       const worldAlertText = resolveShellText(snapshot.worldAlert, '');
       const timelineEventText = snapshot.latestTimeline
-        ? toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0])
+        ? toText(deepGet(snapshot.latestTimeline[1], '事件', snapshot.latestTimeline[0]), snapshot.latestTimeline[0])
         : '';
       return buildShellSummaryCard({
         kicker: '世界',
@@ -9071,10 +9090,10 @@
         });
       }
       const timelineStatus = latestTimeline
-        ? `${toText(deepGet(latestTimeline[1], 'status', 'pending'), 'pending')} / Tick ${toText(deepGet(latestTimeline[1], 'trigger_tick', 0), '0')}`
+        ? `${toText(deepGet(latestTimeline[1], '状态', 'pending'), 'pending')} / Tick ${toText(deepGet(latestTimeline[1], '触发tick', 0), '0')}`
         : '等待下一条时间线';
       const latestTimelineText = latestTimeline
-        ? toText(deepGet(latestTimeline[1], 'event', latestTimeline[0]), latestTimeline[0])
+        ? toText(deepGet(latestTimeline[1], '事件', latestTimeline[0]), latestTimeline[0])
         : '';
       return buildShellSummaryCard({
         kicker: '编年',
@@ -9134,7 +9153,7 @@
         value: `${(snapshot.orgEntries || []).length || 0} 个焦点`,
         meta: `本地 ${shortenText(localFaction, 12)}`,
         badges: [
-          snapshot.factions[0] ? { text: shortenText(snapshot.factions[0][0], 10), tone: 'gold' } : '',
+          snapshot.势力[0] ? { text: shortenText(snapshot.势力[0][0], 10), tone: 'gold' } : '',
           buildFactionRelationSummary(primaryFactionEntry.data || {}, 2),
         ],
         metrics: [
@@ -9150,7 +9169,7 @@
     }
 
     function buildShellOrgFactionCard(snapshot) {
-      const primaryFaction = snapshot.factions[0] || null;
+      const primaryFaction = snapshot.势力[0] || null;
       const primaryFactionEntry = getPrimaryFactionEntry(snapshot);
       const factionName = primaryFaction ? primaryFaction[0] : primaryFactionEntry.name;
       const factionData = primaryFaction ? primaryFaction[1] : primaryFactionEntry.data;
@@ -9158,9 +9177,9 @@
         kicker: '我的阵营',
         title: shortenText(toText(factionName, '未加入'), 14),
         value: shortenText(toText(deepGet(factionData, '身份', '未加入'), '未加入'), 10),
-        meta: shortenText(toText(deepGet(factionData, 'status', '正常'), '正常'), 18),
+        meta: shortenText(toText(deepGet(factionData, '状态', '正常'), '正常'), 18),
         rows: [
-          { label: '影响力', value: formatNumber(deepGet(factionData, 'inf', 0)) },
+          { label: '影响力', value: formatNumber(deepGet(factionData, '影响力', 0)) },
           { label: '关系', value: shortenText(buildFactionRelationSummary(primaryFactionEntry.data || {}, 2) || '暂无', 16) },
         ],
       });
@@ -9278,7 +9297,7 @@
     }
 
     function buildShellTerminalQuestCard(snapshot) {
-      const questBoardEntries = safeEntries(deepGet(snapshot, 'rootData.world.quest_board', {})).filter(([, item]) => item && typeof item === 'object');
+      const questBoardEntries = safeEntries(deepGet(snapshot, 'rootData.world.委托板', {})).filter(([, item]) => item && typeof item === 'object');
       const pendingRequestText = resolveShellText((snapshot.pendingRequests || [])[0], '');
       if (!snapshot.questRecordCount && !questBoardEntries.length && !pendingRequestText) {
         return buildShellSummaryCard({
@@ -9298,9 +9317,9 @@
 
     function buildShellCurrentAreaView(snapshot) {
       const currentMapDisplayName = getMapDisplayName(snapshot);
-      const currentLoc = toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc), snapshot.currentLoc);
+      const currentLoc = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc), snapshot.currentLoc);
       const localFaction = toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知');
-      const nodeStores = safeEntries(deepGet(snapshot, 'locationData.stores', {}));
+      const nodeStores = safeEntries(deepGet(snapshot, 'locationData.商店', {}));
       const localEntries = getShellLocalCharacterEntries(snapshot, 8);
       const localCards = buildShellLocalRosterRows(localEntries, 8);
       return {
@@ -9334,7 +9353,7 @@
         || Object.prototype.hasOwnProperty.call(item, '奖励币')
         || Object.prototype.hasOwnProperty.call(item, '奖励声望')
       ));
-      const questBoardEntries = safeEntries(deepGet(snapshot, 'rootData.world.quest_board', {})).filter(([, item]) => item && typeof item === 'object');
+      const questBoardEntries = safeEntries(deepGet(snapshot, 'rootData.world.委托板', {})).filter(([, item]) => item && typeof item === 'object');
       const renderQuest = ([name, item]) => {
         const status = toText(item && item['状态'], '进行中');
         const current = toNumber(item && item['当前进度'], 0);
@@ -9437,9 +9456,9 @@
     }
 
     function buildShellLifeView(snapshot) {
-      const stat = deepGet(snapshot, 'activeChar.stat', {});
-      const status = deepGet(snapshot, 'activeChar.status', {});
-      const social = deepGet(snapshot, 'activeChar.social', {});
+      const stat = deepGet(snapshot, 'activeChar.属性', {});
+      const status = deepGet(snapshot, 'activeChar.状态', {});
+      const social = deepGet(snapshot, 'activeChar.社交', {});
       const placeText = buildShellLocationLabel(snapshot, { fullLimit: 24, trailLimit: 10 });
       return {
         title: '详细档案',
@@ -9451,17 +9470,17 @@
                 <strong>${htmlEscape(toText(snapshot && snapshot.activeName, '当前角色'))}</strong>
               </div>
               ${buildShellLiteStats([
-                { label: '等级', value: formatCultivationLevelBadge(stat.lv, '0') },
-                { label: '状态', value: shortenText(toText(status.action, '日常'), 10) },
-                { label: '年龄', value: toText(stat.age, '--') },
+                { label: '等级', value: formatCultivationLevelBadge(stat.等级, '0') },
+                { label: '状态', value: shortenText(toText(status.行动, '日常'), 10) },
+                { label: '年龄', value: toText(stat.年龄, '--') },
               ])}
             </section>
             <section class="mvu-shell-lite-card">
               <div class="mvu-shell-lite-section-title">摘要</div>
               <div class="mvu-shell-lite-list">${buildShellLiteItemList([
-                { title: '身份', meta: summarizeShellIdentityText(social.main_identity, { limit: 22 }) || toText(social.main_identity, '未记录') },
+                { title: '身份', meta: summarizeShellIdentityText(social.主身份, { limit: 22 }) || toText(social.主身份, '未记录') },
                 { title: '阵营', meta: snapshot.primaryFaction ? `${snapshot.primaryFaction[0]} / ${toText(deepGet(snapshot.primaryFaction[1], '身份', '成员'), '成员')}` : '未加入' },
-                { title: '名望', meta: `${toText(social._fame_level, toText(social.fame_level, '籍籍无名'))} · ${formatNumber(social.reputation)}` },
+                { title: '名望', meta: `${toText(social.名望等级, toText(social.名望等级, '籍籍无名'))} · ${formatNumber(social.声望)}` },
               ], '暂无摘要')}</div>
             </section>
           </div>
@@ -9470,22 +9489,22 @@
     }
 
     function buildShellArmoryView(snapshot) {
-      const armor = deepGet(snapshot, 'activeChar.equip.armor', {});
-      const mech = deepGet(snapshot, 'activeChar.equip.mech', {});
-      const weapon = deepGet(snapshot, 'activeChar.equip.wpn', {});
-      const jobs = safeEntries(deepGet(snapshot, 'activeChar.job', {}));
-      const accessoryEntries = listAccessoryEntries(deepGet(snapshot, 'activeChar.equip.accessories', {}));
+      const armor = deepGet(snapshot, 'activeChar.装备.斗铠', {});
+      const mech = deepGet(snapshot, 'activeChar.装备.机甲', {});
+      const weapon = deepGet(snapshot, 'activeChar.装备.武器', {});
+      const jobs = safeEntries(deepGet(snapshot, 'activeChar.职业', {}));
+      const accessoryEntries = listAccessoryEntries(deepGet(snapshot, 'activeChar.装备.饰品', {}));
       const soulBoneEntries = Array.isArray(snapshot && snapshot.soulBoneEntries) ? snapshot.soulBoneEntries : [];
-      const armorText = toNumber(armor.lv, 0) > 0
-        ? `${toText(armor.name, `${armor.lv}字斗铠`)} / ${toText(armor.equip_status, '未装备')}`
+      const armorText = toNumber(armor.等级, 0) > 0
+        ? `${toText(armor.名称, `${armor.等级}字斗铠`)} / ${toText(armor.装备状态, '未装备')}`
         : '未装配';
-      const mechText = toText(mech.lv, '') && toText(mech.lv, '无') !== '无'
-        ? `${toText(mech.lv, '无')} · ${toText(mech.type, '未定型')}`
+      const mechText = toText(mech.等级, '') && toText(mech.等级, '无') !== '无'
+        ? `${toText(mech.等级, '无')} · ${toText(mech.型号, '未定型')}`
         : '未挂载';
-      const weaponText = toText(weapon.name || weapon['名称'], '无');
+      const weaponText = toText(weapon.名称 || weapon['名称'], '无');
       const jobItems = jobs.slice(0, 4).map(([name, info]) => ({
         title: name,
-        meta: `Lv.${toText(info && info.lv, 0)} · ${toText(info && info.title, '未定级')}`,
+        meta: `Lv.${toText(info && info.等级, 0)} · ${toText(info && info.称号, '未定级')}`,
         note: '',
       }));
       return {
@@ -9523,7 +9542,7 @@
         };
       }
       const souls = Array.isArray(config.souls) ? config.souls : [];
-      const rings = Array.isArray(config.rings) ? config.rings : [];
+      const rings = Array.isArray(config.魂环) ? config.魂环 : [];
       const skillItems = rings.flatMap(ring => (Array.isArray(ring.skills) ? ring.skills : []).map(skill => ({
         title: toText(skill && skill.name, '魂技'),
         meta: shortenText(toText(ring && ring.title, '魂环'), 24),
@@ -9556,9 +9575,9 @@
     function buildShellFusionView(snapshot) {
       const fusionMeta = getFusionArchiveMeta(snapshot || {});
       const entries = (fusionMeta.fusionEntries || []).slice(0, 5).map(([name, item]) => ({
-        title: toText(deepGet(item, 'skill_data.魂技名', deepGet(item, 'skill_data.name', name)), name),
-        meta: `${toText(deepGet(item, 'fusion_mode', 'partner'), 'partner') === 'self' ? '自体' : '双人'} · ${toText(deepGet(item, 'partner', '无'), '无')}`,
-        note: toText(deepGet(item, 'skill_data.效果描述', deepGet(item, 'skill_data.effectDesc', '')), ''),
+        title: toText(deepGet(item, '技能数据.魂技名', deepGet(item, '技能数据.name', name)), name),
+        meta: `${toText(deepGet(item, '融合模式', 'partner'), 'partner') === 'self' ? '自体' : '双人'} · ${toText(deepGet(item, '融合对象', '无'), '无')}`,
+        note: toText(deepGet(item, '技能数据.效果描述', deepGet(item, '技能数据.effectDesc', '')), ''),
       }));
       return {
         title: '融合技',
@@ -9585,7 +9604,7 @@
 
     function buildShellBloodlineView(snapshot) {
       const config = snapshot && snapshot.bloodline ? snapshot.bloodline : buildBloodlineConfig(deepGet(snapshot, 'activeChar', {}), toText(snapshot && snapshot.activeName, ''));
-      const rings = Array.isArray(config.rings) ? config.rings : [];
+      const rings = Array.isArray(config.魂环) ? config.魂环 : [];
       const skills = [
         ...(Array.isArray(config.bloodSkills) ? config.bloodSkills : []),
         ...(Array.isArray(config.bloodPassives) ? config.bloodPassives : []),
@@ -9618,9 +9637,9 @@
     }
 
     function buildShellWorldStateView(snapshot) {
-      const tick = toText(deepGet(snapshot, 'rootData.world.time.tick', '0'), '0');
+      const tick = toText(deepGet(snapshot, 'rootData.world.时间.tick', '0'), '0');
       const latest = snapshot && snapshot.latestTimeline ? snapshot.latestTimeline : null;
-      const auction = deepGet(snapshot, 'rootData.world.auction', {});
+      const auction = deepGet(snapshot, 'rootData.world.拍卖', {});
       return {
         title: '世界',
         body: `
@@ -9639,8 +9658,8 @@
             <section class="mvu-shell-lite-card">
               <div class="mvu-shell-lite-section-title">动态</div>
               <div class="mvu-shell-lite-list">${buildShellLiteItemList([
-                latest ? { title: latest[0], meta: `Tick ${toText(deepGet(latest[1], 'trigger_tick', 0), 0)}`, note: toText(deepGet(latest[1], 'event', ''), '') } : null,
-                { title: '拍卖', meta: `${toText(auction.status, '休市')} · ${toText(auction.location, '无')}` },
+                latest ? { title: latest[0], meta: `Tick ${toText(deepGet(latest[1], '触发tick', 0), 0)}`, note: toText(deepGet(latest[1], '事件', ''), '') } : null,
+                { title: '拍卖', meta: `${toText(auction.状态, '休市')} · ${toText(auction.地点, '无')}` },
               ], '暂无动态')}</div>
             </section>
           </div>
@@ -9649,15 +9668,15 @@
     }
 
     function buildShellAlertView(snapshot) {
-      const auction = deepGet(snapshot, 'rootData.world.auction', {});
+      const auction = deepGet(snapshot, 'rootData.world.拍卖', {});
       return {
         title: '警报',
         body: `
           <div class="mvu-shell-lite-root" data-shell-light-view="alert">
             <section class="mvu-shell-lite-card mvu-shell-lite-card--hero">
               <div class="mvu-shell-lite-head">
-                <span>${htmlEscape(toText(auction.location, '无'))}</span>
-                <strong>${htmlEscape(toText(auction.status, '休市'))}</strong>
+                <span>${htmlEscape(toText(auction.地点, '无'))}</span>
+                <strong>${htmlEscape(toText(auction.状态, '休市'))}</strong>
               </div>
               ${buildShellLiteTags([snapshot.worldAlert])}
             </section>
@@ -9665,7 +9684,7 @@
               <div class="mvu-shell-lite-section-title">记录</div>
               <div class="mvu-shell-lite-list">${buildShellLiteItemList([
                 { title: '生态', meta: toText(snapshot.worldAlert, '无') },
-                { title: '拍卖', meta: `${toText(auction.status, '休市')} · ${toText(auction.location, '无')}` },
+                { title: '拍卖', meta: `${toText(auction.状态, '休市')} · ${toText(auction.地点, '无')}` },
               ], '暂无警报')}</div>
             </section>
           </div>
@@ -9678,7 +9697,7 @@
       const factionName = primaryFaction ? primaryFaction[0] : '未加入';
       const factionData = primaryFaction ? primaryFaction[1] : {};
       const orgEntry = getPrimaryFactionEntry(snapshot || {});
-      const relations = safeEntries(deepGet(orgEntry.data, 'rel', {})).slice(0, 5).map(([name, item]) => ({
+      const relations = safeEntries(deepGet(orgEntry.data, '关系', {})).slice(0, 5).map(([name, item]) => ({
         title: name,
         meta: toText(deepGet(item, '态度', deepGet(item, '关系', '未知')), '未知'),
         note: '',
@@ -9707,9 +9726,9 @@
     }
 
     function buildShellNodeView(snapshot) {
-      const currentLoc = toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc), snapshot.currentLoc);
+      const currentLoc = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc), snapshot.currentLoc);
       const localFaction = toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知');
-      const stores = safeEntries(deepGet(snapshot, 'locationData.stores', {})).slice(0, 5).map(([name, item]) => ({
+      const 商店列表 = safeEntries(deepGet(snapshot, 'locationData.商店', {})).slice(0, 5).map(([name, item]) => ({
         title: name,
         meta: toText(deepGet(item, '类型', deepGet(item, 'type', '商店')), '商店'),
         note: '',
@@ -9726,12 +9745,12 @@
               ${buildShellLiteStats([
                 { label: '经济', value: shortenText(toText(deepGet(snapshot, 'locationData.经济状况', '未知'), '未知'), 8) },
                 { label: '守备', value: shortenText(toText(deepGet(snapshot, 'locationData.守护军团', '未知'), '未知'), 8) },
-                { label: '商店', value: String(stores.length || 0) },
+                { label: '商店', value: String(商店列表.length || 0) },
               ])}
             </section>
             <section class="mvu-shell-lite-card">
               <div class="mvu-shell-lite-section-title">商店</div>
-              <div class="mvu-shell-lite-list">${buildShellLiteItemList(stores, '暂无商店')}</div>
+              <div class="mvu-shell-lite-list">${buildShellLiteItemList(商店列表, '暂无商店')}</div>
             </section>
           </div>
         `,
@@ -9837,7 +9856,7 @@
     }
 
     function buildShellVaultView(snapshot) {
-      const wealth = deepGet(snapshot, 'activeChar.wealth', {});
+      const wealth = deepGet(snapshot, 'activeChar.财富', {});
       const currencies = [
         { key: 'fed_coin', label: '联邦币', value: toNumber(wealth.fed_coin, 0) },
         { key: 'star_coin', label: '星罗币', value: toNumber(wealth.star_coin, 0) },
@@ -9880,11 +9899,11 @@
     }
 
     function buildShellSocialView(snapshot) {
-      const social = deepGet(snapshot, 'activeChar.social', {});
+      const social = deepGet(snapshot, 'activeChar.社交', {});
       const primaryFactionName = snapshot.primaryFaction ? snapshot.primaryFaction[0] : '';
       const primaryFactionRole = snapshot.primaryFaction ? toText(deepGet(snapshot.primaryFaction[1], '身份', ''), '') : '';
-      const mainIdentity = summarizeShellIdentityText(social.main_identity, { limit: 18 }) || toText(social.main_identity, '无');
-      const fame = toText(social._fame_level, toText(social.fame_level, '籍籍无名'));
+      const mainIdentity = summarizeShellIdentityText(social.主身份, { limit: 18 }) || toText(social.主身份, '无');
+      const fame = toText(social.名望等级, toText(social.名望等级, '籍籍无名'));
       const titleText = Array.isArray(snapshot.recentTitles) && snapshot.recentTitles.length ? snapshot.recentTitles[0] : '';
       const longPressAttrs = canOpenPrivateArchive(snapshot)
         ? ` data-longpress="${escapeHtmlAttr(PRIVATE_ARCHIVE_PREVIEW_KEY)}" data-longpress-delay="600"`
@@ -9900,7 +9919,7 @@
               </div>
               ${buildShellLiteStats([
                 { label: '身份', value: shortenText(mainIdentity, 18) },
-                { label: '名望', value: formatNumber(social.reputation) },
+                { label: '名望', value: formatNumber(social.声望) },
               ])}
               ${buildShellLiteTags([titleText, primaryFactionName ? `${primaryFactionName} / ${primaryFactionRole || '成员'}` : '', snapshot.publicIntel ? '公开情报' : '未公开'])}
             </section>
@@ -9909,7 +9928,7 @@
               <div class="mvu-shell-lite-list">${buildShellLiteItemList((snapshot.relations || []).slice(0, 5).map(([name, rel]) => ({
                 title: name,
                 meta: `${toText(deepGet(rel, '关系', '陌生'), '陌生')} · ${toNumber(deepGet(rel, '好感度', 0), 0)}`,
-                note: toText(deepGet(rel, '_progress_note', deepGet(rel, 'progress_note', '')), ''),
+                note: toText(deepGet(rel, '_推进提示', ''), ''),
               })), '暂无关系')}</div>
             </section>
           </div>
@@ -9922,11 +9941,11 @@
       const latest = snapshot && snapshot.latestTimeline ? snapshot.latestTimeline : entries[0];
       const latestName = latest ? latest[0] : '';
       const latestData = latest ? latest[1] : {};
-      const eventText = toText(deepGet(latestData, 'event', latestName), latestName || '暂无编年');
+      const eventText = toText(deepGet(latestData, '事件', latestName), latestName || '暂无编年');
       const nodes = entries.slice(0, 6).map(([name, item]) => ({
         title: name,
-        meta: `Tick ${toText(item && item.trigger_tick, 0)} · ${toText(item && item.status, 'pending')}`,
-        note: toText(item && item.event, ''),
+        meta: `Tick ${toText(item && item.触发tick, 0)} · ${toText(item && item.状态, 'pending')}`,
+        note: toText(item && item.事件, ''),
       }));
       return {
         title: '编年',
@@ -9934,7 +9953,7 @@
           <div class="mvu-shell-lite-root" data-shell-light-view="timeline">
             <section class="mvu-shell-lite-card mvu-shell-lite-card--hero">
               <div class="mvu-shell-lite-head">
-                <span>${htmlEscape(latest ? `Tick ${toText(deepGet(latestData, 'trigger_tick', 0), 0)}` : 'Tick 0')}</span>
+                <span>${htmlEscape(latest ? `Tick ${toText(deepGet(latestData, '触发tick', 0), 0)}` : 'Tick 0')}</span>
                 <strong>${htmlEscape(shortenText(latestName || '暂无编年', 24))}</strong>
               </div>
               <div class="mvu-shell-lite-copy">${htmlEscape(shortenText(eventText, 60))}</div>
@@ -9954,7 +9973,7 @@
       const factionStats = getPrimaryFactionPowerStats(snapshot || {});
       const rows = entries.slice(0, 5).map(([name, item]) => ({
         title: name,
-        meta: `${toText(item && item.status, '正常')} · ${formatNumber(item && item.size || 0)}`,
+        meta: `${toText(item && item.状态, '正常')} · ${formatNumber(item && item.规模 || 0)}`,
         note: '',
       }));
       return {
@@ -10081,17 +10100,17 @@
         } else {
           setUnifiedCardMarkup('world-hero', buildWorldHeroCard(snapshot), { preview: '世界状态总览', surface: normalizedSurface });
           setUnifiedCardMarkup('world-timeline', buildSimpleCard('编年史档案', null, [
-            { label: '最近事件', value: snapshot.latestTimeline ? toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]) : '暂无' },
-            { label: '状态', value: snapshot.latestTimeline ? `${toText(deepGet(snapshot.latestTimeline[1], 'status', 'pending'), 'pending')} / Tick ${toText(deepGet(snapshot.latestTimeline[1], 'trigger_tick', 0), '0')}` : '暂无时间线' },
+            { label: '最近事件', value: snapshot.latestTimeline ? toText(deepGet(snapshot.latestTimeline[1], '事件', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]) : '暂无' },
+            { label: '状态', value: snapshot.latestTimeline ? `${toText(deepGet(snapshot.latestTimeline[1], '状态', 'pending'), 'pending')} / Tick ${toText(deepGet(snapshot.latestTimeline[1], '触发tick', 0), '0')}` : '暂无时间线' },
           ]), { preview: '编年史档案', surface: normalizedSurface });
           setUnifiedCardMarkup('world-alerts', buildSimpleCard('拍卖与警报', null, [
-            { label: '拍卖行', value: `${toText(deepGet(snapshot, 'rootData.world.auction.status', '休市'), '休市')} / ${toText(deepGet(snapshot, 'rootData.world.auction.location', '无'), '无')}` },
+            { label: '拍卖行', value: `${toText(deepGet(snapshot, 'rootData.world.拍卖.状态', '休市'), '休市')} / ${toText(deepGet(snapshot, 'rootData.world.拍卖.地点', '无'), '无')}` },
             { label: '生态警报', value: snapshot.worldAlert },
           ]), { preview: '拍卖与警报', surface: normalizedSurface });
           setUnifiedCardMarkup('org-hero', buildOrgHeroCard(snapshot), { preview: '势力矩阵总览', surface: normalizedSurface });
           setUnifiedCardMarkup('org-faction', buildSimpleCard('我的阵营', null, [
-            { label: '当前所属', value: snapshot.factions[0] ? snapshot.factions[0][0] : '无' },
-            { label: '身份', value: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '未加入' },
+            { label: '当前所属', value: snapshot.势力[0] ? snapshot.势力[0][0] : '无' },
+            { label: '身份', value: snapshot.势力[0] ? toText(deepGet(snapshot.势力[0][1], '身份', '无'), '无') : '未加入' },
           ]), { preview: '我的阵营详情', surface: normalizedSurface });
           setUnifiedCardMarkup('org-node', buildSimpleCard('本地据点', null, [
             { label: '掌控势力', value: toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知') },
@@ -10137,7 +10156,7 @@
             <div class="simple-head"><div class="simple-title">任务界面</div></div>
             <div class="simple-list">
               <div class="simple-row"><b>我的任务</b><span>${htmlEscape(`${(snapshot.recordEntries || []).length} 条记录`)}</span></div>
-              <div class="simple-row"><b>委托板</b><span>${htmlEscape(`${safeEntries(deepGet(snapshot, 'rootData.world.quest_board', {})).length} 条委托`)}</span></div>
+              <div class="simple-row"><b>委托板</b><span>${htmlEscape(`${safeEntries(deepGet(snapshot, 'rootData.world.委托板', {})).length} 条委托`)}</span></div>
             </div>
           `, { preview: '任务界面', surface: normalizedSurface });
         }
@@ -10247,17 +10266,17 @@
       if (sectionSignatures.world !== previousSectionSignatures.world) {
         setUnifiedCardMarkup('world-hero', buildWorldHeroCard(snapshot), { preview: '世界状态总览' });
         setUnifiedCardMarkup('world-timeline', buildSimpleCard('编年史档案', null, [
-          { label: '最近事件', value: snapshot.latestTimeline ? toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]) : '暂无' },
-          { label: '状态', value: snapshot.latestTimeline ? `${toText(deepGet(snapshot.latestTimeline[1], 'status', 'pending'), 'pending')} / Tick ${toText(deepGet(snapshot.latestTimeline[1], 'trigger_tick', 0), '0')}` : '暂无时间线' }
+          { label: '最近事件', value: snapshot.latestTimeline ? toText(deepGet(snapshot.latestTimeline[1], '事件', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]) : '暂无' },
+          { label: '状态', value: snapshot.latestTimeline ? `${toText(deepGet(snapshot.latestTimeline[1], '状态', 'pending'), 'pending')} / Tick ${toText(deepGet(snapshot.latestTimeline[1], '触发tick', 0), '0')}` : '暂无时间线' }
         ]), { preview: '编年史档案' });
         setUnifiedCardMarkup('world-alerts', buildSimpleCard('拍卖与警报', null, [
-          { label: '拍卖行', value: `${toText(deepGet(snapshot, 'rootData.world.auction.status', '休市'), '休市')} / ${toText(deepGet(snapshot, 'rootData.world.auction.location', '无'), '无')}` },
+          { label: '拍卖行', value: `${toText(deepGet(snapshot, 'rootData.world.拍卖.状态', '休市'), '休市')} / ${toText(deepGet(snapshot, 'rootData.world.拍卖.地点', '无'), '无')}` },
           { label: '生态警报', value: snapshot.worldAlert }
         ]), { preview: '拍卖与警报' });
         setUnifiedCardMarkup('org-hero', buildOrgHeroCard(snapshot), { preview: '势力矩阵总览' });
         setUnifiedCardMarkup('org-faction', buildSimpleCard('我的阵营', null, [
-          { label: '当前所属', value: snapshot.factions[0] ? snapshot.factions[0][0] : '无' },
-          { label: '身份', value: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '未加入' }
+          { label: '当前所属', value: snapshot.势力[0] ? snapshot.势力[0][0] : '无' },
+          { label: '身份', value: snapshot.势力[0] ? toText(deepGet(snapshot.势力[0][1], '身份', '无'), '无') : '未加入' }
         ]), { preview: '我的阵营详情' });
         setUnifiedCardMarkup('org-node', buildSimpleCard('本地据点', null, [
           { label: '掌控势力', value: toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知') },
@@ -10294,15 +10313,15 @@
           <div class="simple-head"><div class="simple-title">任务界面</div></div>
           <div class="simple-list">
             <div class="simple-row"><b>我的任务</b><span>${htmlEscape(`${(snapshot.recordEntries || []).length} 条记录`)}</span></div>
-            <div class="simple-row"><b>委托板</b><span>${htmlEscape(`${safeEntries(deepGet(snapshot, 'rootData.world.quest_board', {})).length} 条委托`)}</span></div>
+            <div class="simple-row"><b>委托板</b><span>${htmlEscape(`${safeEntries(deepGet(snapshot, 'rootData.world.委托板', {})).length} 条委托`)}</span></div>
           </div>
         `, { preview: '任务界面' });
       }
     }
 
     function getFusionArchiveMeta(snapshot) {
-      const fusionEntries = safeEntries(deepGet(snapshot, 'activeChar.martial_fusion_skills', {}));
-      const partnerCount = fusionEntries.filter(([, fusion]) => toText(deepGet(fusion, 'fusion_mode', 'partner'), 'partner') !== 'self').length;
+      const fusionEntries = safeEntries(deepGet(snapshot, 'activeChar.武魂融合技', {}));
+      const partnerCount = fusionEntries.filter(([, fusion]) => toText(deepGet(fusion, '融合模式', 'partner'), 'partner') !== 'self').length;
       const selfCount = fusionEntries.length - partnerCount;
       const leadFusion = fusionEntries[0] && fusionEntries[0][1] && typeof fusionEntries[0][1] === 'object' ? fusionEntries[0][1] : {};
       const leadParticipants = normalizeSkillDesignerFusionParticipantList(getSkillDesignerRawFusionParticipants({}, leadFusion), snapshot && snapshot.rootData ? snapshot.rootData : {});
@@ -10311,12 +10330,12 @@
         .map(participant => participant.charName || participant.charKey)
         .filter(Boolean);
       const headlineFusion = fusionEntries[0]
-        ? toText(deepGet(fusionEntries[0][1], 'skill_data.魂技名', deepGet(fusionEntries[0][1], 'skill_data.name', fusionEntries[0][0])), fusionEntries[0][0])
+        ? toText(deepGet(fusionEntries[0][1], '技能数据.魂技名', deepGet(fusionEntries[0][1], '技能数据.name', fusionEntries[0][0])), fusionEntries[0][0])
         : '未录入';
       const partnerLabel = fusionEntries[0]
-        ? (toText(deepGet(leadFusion, 'fusion_mode', 'partner'), 'partner') === 'self'
+        ? (toText(deepGet(leadFusion, '融合模式', 'partner'), 'partner') === 'self'
           ? '自体融合'
-          : `${leadParticipants.length > 2 ? '多人' : '搭档'} ${leadPartnerNames.length ? Array.from(new Set(leadPartnerNames)).join('、') : toText(deepGet(leadFusion, 'partner', '未知'), '未知')}`)
+          : `${leadParticipants.length > 2 ? '多人' : '搭档'} ${leadPartnerNames.length ? Array.from(new Set(leadPartnerNames)).join('、') : toText(deepGet(leadFusion, '融合对象', '未知'), '未知')}`)
         : '等待收录';
       return {
         fusionEntries,
@@ -10439,8 +10458,8 @@
     }
 
     function buildWorldHeroCard(snapshot) {
-      const worldTime = toText(deepGet(snapshot, 'rootData.world.time._calendar', deepGet(snapshot, 'rootData.world.time.calendar', '斗罗历未同步')), '斗罗历未同步');
-      const deviation = toNumber(deepGet(snapshot, 'rootData.world.deviation', 0), 0);
+      const worldTime = toText(deepGet(snapshot, 'rootData.world.时间._calendar', deepGet(snapshot, 'rootData.world.时间.calendar', '斗罗历未同步')), '斗罗历未同步');
+      const deviation = toNumber(deepGet(snapshot, 'rootData.world.偏差值', 0), 0);
       const forestRatio = Math.max(0, Math.min(100, Number(((toNumber(snapshot.forestKilledAge, 0) / 1000000) * 100).toFixed(1))));
       const forestStage = forestRatio >= 100 ? '兽潮临界' : (forestRatio >= 70 ? '高度紧张' : (forestRatio >= 30 ? '持续升温' : '相对安全'));
       const latest = snapshot.latestTimeline;
@@ -10482,7 +10501,7 @@
       return `
         <div class="module-name">势力矩阵</div>
         <div class="matrix-board">
-          ${topOrgs.map(([name, data], index) => `<div class="matrix-node ${snapshot.factions.some(([fac]) => fac === name) || index === 0 ? 'gold' : ''}"><b>${htmlEscape(name)}</b><span>${htmlEscape(`影响力 ${formatNumber(data && data.inf)} / ${toText(data && data.status, '正常')}`)}</span></div>`).join('')}
+          ${topOrgs.map(([name, data], index) => `<div class="matrix-node ${snapshot.势力.some(([fac]) => fac === name) || index === 0 ? 'gold' : ''}"><b>${htmlEscape(name)}</b><span>${htmlEscape(`影响力 ${formatNumber(data && data.影响力)} / ${toText(data && data.状态, '正常')}`)}</span></div>`).join('')}
         </div>
         ${(() => { const factionStats = getPrimaryFactionPowerStats(snapshot); return `
         <div class="hero-list">
@@ -10493,7 +10512,7 @@
         </div>
         `; })()}
         <div class="module-foot">
-          <span class="foot-hint">本地高亮：${htmlEscape(toText(deepGet(snapshot, 'locationData.掌控势力', snapshot.factions[0] ? snapshot.factions[0][0] : '未知'), '未知'))}</span>
+          <span class="foot-hint">本地高亮：${htmlEscape(toText(deepGet(snapshot, 'locationData.掌控势力', snapshot.势力[0] ? snapshot.势力[0][0] : '未知'), '未知'))}</span>
           <span class="enter-chip gold-chip">展开矩阵</span>
         </div>
       `;
@@ -10621,7 +10640,7 @@
     window.addEventListener('resize', () => scheduleUnifiedMapCanvasClamp());
 
     function renderLiveCards(snapshot, precomputedSectionSignatures = null) {
-      const social = deepGet(snapshot, 'activeChar.social', {});
+      const social = deepGet(snapshot, 'activeChar.社交', {});
       const primaryFactionName = snapshot.primaryFaction ? snapshot.primaryFaction[0] : '无';
       const primaryFactionRole = snapshot.primaryFaction ? toText(deepGet(snapshot.primaryFaction[1], '身份', '无'), '无') : '未加入';
       const topRelationText = snapshot.topRelation
@@ -10651,7 +10670,7 @@
       }
 
       if (sectionSignatures.social !== previousSectionSignatures.social) {
-        setLiveText('.archive-social-card .social-chip[data-preview="社会档案详细页"] span', `${toText(social._fame_level, toText(social.fame_level, '籍籍无名'))} / ${formatNumber(social.reputation)}`);
+        setLiveText('.archive-social-card .social-chip[data-preview="社会档案详细页"] span', `${toText(social.名望等级, toText(social.名望等级, '籍籍无名'))} / ${formatNumber(social.声望)}`);
         setLiveText('.archive-social-card .social-chip[data-preview="所属势力详细页"] span', `${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}`);
         setLiveText('.archive-social-card .social-chip[data-preview="人物关系详细页"] span', topRelationText);
         setLiveText('.archive-social-card .social-chip[data-preview="情报库详细页"] span', `${snapshot.unlockedKnowledges.length} / ${latestIntelText}`);
@@ -10667,8 +10686,8 @@
           el.style.overflow = 'hidden';
           el.style.flex = '1.2 1 0';
           setLiveNodeHtml(el, buildSimpleCard('编年史', null, [
-            { label: '最近事件', value: snapshot.latestTimeline ? toText(deepGet(snapshot.latestTimeline[1], 'event', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]) : '暂无' },
-            { label: '推进状态', value: snapshot.latestTimeline ? `${toText(deepGet(snapshot.latestTimeline[1], 'status', 'pending'), 'pending')} / Tick ${toText(deepGet(snapshot.latestTimeline[1], 'trigger_tick', 0), '0')}` : '暂无时间线' }
+            { label: '最近事件', value: snapshot.latestTimeline ? toText(deepGet(snapshot.latestTimeline[1], '事件', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]) : '暂无' },
+            { label: '推进状态', value: snapshot.latestTimeline ? `${toText(deepGet(snapshot.latestTimeline[1], '状态', 'pending'), 'pending')} / Tick ${toText(deepGet(snapshot.latestTimeline[1], '触发tick', 0), '0')}` : '暂无时间线' }
           ]));
           const simpleList = el.querySelector('.simple-list');
           if (simpleList) {
@@ -10677,13 +10696,13 @@
           }
         });
         setLiveHtml('[data-preview="拍卖与警报"].mvu-simple-card', buildSimpleCard('拍卖行与警报', null, [
-          { label: '拍卖行', value: `${toText(deepGet(snapshot, 'rootData.world.auction.status', '休市'), '休市')} / ${toText(deepGet(snapshot, 'rootData.world.auction.location', '无'), '无')}` },
+          { label: '拍卖行', value: `${toText(deepGet(snapshot, 'rootData.world.拍卖.状态', '休市'), '休市')} / ${toText(deepGet(snapshot, 'rootData.world.拍卖.地点', '无'), '无')}` },
           { label: '生态警报', value: snapshot.worldAlert }
         ]));
         setLiveHtml('[data-preview="势力矩阵总览"].hero-card', buildOrgHeroCard(snapshot));
         setLiveHtml('[data-preview="我的阵营详情"].mvu-simple-card', buildSimpleCard('我的阵营', null, [
-          { label: '当前所属', value: snapshot.factions[0] ? snapshot.factions[0][0] : '无' },
-          { label: '身份', value: snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '未加入' }
+          { label: '当前所属', value: snapshot.势力[0] ? snapshot.势力[0][0] : '无' },
+          { label: '身份', value: snapshot.势力[0] ? toText(deepGet(snapshot.势力[0][1], '身份', '无'), '无') : '未加入' }
         ]));
         setLiveHtml('[data-preview="本地据点详情"].mvu-simple-card', buildSimpleCard('本地据点', null, [
           { label: '掌控势力', value: toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知') },
@@ -10707,7 +10726,7 @@
         <div class="simple-list">
           <div class="simple-row"><b>试炼入口</b><span>${htmlEscape(snapshot.inventoryEntries.some(([name]) => /门票|魂灵塔/.test(name)) ? '升灵台 / 魂灵塔 / 狩猎' : '当前无门票，仅常规狩猎')}</span></div>
           <div class="simple-row"><b>情报状态</b><span>${htmlEscape(`已掌握 ${snapshot.unlockedKnowledges.length} 条 / 新线索 ${snapshot.pendingIntelCount} 条`)}</span></div>
-          <div class="simple-row"><b>深渊击杀</b><span>${htmlEscape(toText(deepGet(snapshot, 'activeChar.abyss_kill_request.kill_tier', '无'), '无') !== '无' ? `${toText(deepGet(snapshot, 'activeChar.abyss_kill_request.kill_tier', '无'), '无')} × ${toNumber(deepGet(snapshot, 'activeChar.abyss_kill_request.quantity', 1), 1)}` : '暂无待结算')}</span></div>
+          <div class="simple-row"><b>深渊击杀</b><span>${htmlEscape(toText(deepGet(snapshot, 'activeChar.深渊击杀请求.击杀级别', '无'), '无') !== '无' ? `${toText(deepGet(snapshot, 'activeChar.深渊击杀请求.击杀级别', '无'), '无')} × ${toNumber(deepGet(snapshot, 'activeChar.深渊击杀请求.数量', 1), 1)}` : '暂无待结算')}</span></div>
         </div>
       `);
         setLiveHtml('[data-preview="近期见闻"].terminal-side-card, [data-preview="近期见闻"].mvu-simple-card, [data-preview="近期见闻"].simple-card', `
@@ -10731,7 +10750,7 @@
         const activeQuestEntry = questRecords.find(([, item]) => !['已完成', '已放弃', '失败', '已失败'].includes(toText(item && item['状态'], '进行中'))) || questRecords[0] || null;
         const activeQuestName = activeQuestEntry ? activeQuestEntry[0] : '';
         const activeQuestState = activeQuestEntry ? toText(activeQuestEntry[1] && activeQuestEntry[1]['状态'], '进行中') : '暂无';
-        const questBoardEntries = safeEntries(deepGet(snapshot, 'rootData.world.quest_board', {})).filter(([, item]) => item && typeof item === 'object');
+        const questBoardEntries = safeEntries(deepGet(snapshot, 'rootData.world.委托板', {})).filter(([, item]) => item && typeof item === 'object');
         const openBoardCount = questBoardEntries.filter(([, item]) => toText(item && item['状态'], '待接取') === '待接取').length;
         setLiveHtml('[data-preview="任务界面"].terminal-side-card, [data-preview="任务界面"].mvu-simple-card, [data-preview="任务界面"].simple-card', `
           <div class="simple-head"><div class="simple-title">任务界面</div></div>
@@ -10749,15 +10768,15 @@
       if (!liveSnapshot) return null;
       const snapshot = liveSnapshot;
       const tradeLaunchOptions = buildMapTradeModalOptions(snapshot, mapDispatchContext);
-      const stat = deepGet(snapshot, 'activeChar.stat', {});
-      const social = deepGet(snapshot, 'activeChar.social', {});
-      const status = deepGet(snapshot, 'activeChar.status', {});
-      const wealth = deepGet(snapshot, 'activeChar.wealth', {});
-      const clothing = deepGet(snapshot, 'activeChar.clothing', {});
-      const wardrobeEntries = safeEntries(deepGet(snapshot, 'activeChar.clothing.wardrobe', {}));
-      const armor = deepGet(snapshot, 'activeChar.equip.armor', {});
-      const mech = deepGet(snapshot, 'activeChar.equip.mech', {});
-      const jobs = safeEntries(deepGet(snapshot, 'activeChar.job', {}));
+      const stat = deepGet(snapshot, 'activeChar.属性', {});
+      const social = deepGet(snapshot, 'activeChar.社交', {});
+      const status = deepGet(snapshot, 'activeChar.状态', {});
+      const wealth = deepGet(snapshot, 'activeChar.财富', {});
+      const 穿搭数据 = deepGet(snapshot, 'activeChar.穿搭', {});
+      const wardrobeEntries = safeEntries(deepGet(snapshot, 'activeChar.穿搭.衣柜', {}));
+      const armor = deepGet(snapshot, 'activeChar.装备.斗铠', {});
+      const mech = deepGet(snapshot, 'activeChar.装备.机甲', {});
+      const jobs = safeEntries(deepGet(snapshot, 'activeChar.职业', {}));
       if (isMapOverviewPreviewKey(previewKey)) {
         return {
           title: `${'\u5168\u606f\u661f\u56fe'} / ${getMapDisplayName(snapshot)}`,
@@ -11275,7 +11294,7 @@
       }
 
       if (previewKey === '角色切换器') {
-        const playerName = toText(deepGet(snapshot, 'rootData.sys.player_name', ''), '');
+        const playerName = toText(deepGet(snapshot, 'rootData.sys.玩家名', ''), '');
         const currentCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
         const charEntries = sortCharacterEntries(safeEntries(deepGet(snapshot, 'rootData.char', {})), { playerName, currentName: snapshot.activeName });
         const switchCards = charEntries.length
@@ -11284,10 +11303,10 @@
               const activeDisplayName = toText(snapshot.activeName, '');
               const isCurrent = (currentCharKey && name === currentCharKey) || (!currentCharKey && !!activeDisplayName && displayName === activeDisplayName);
               const isPlayer = isPlayerCharacterEntry(name, char, playerName);
-              const lvText = formatCultivationLevelBadge(deepGet(char, 'stat.lv', 0), '0');
-              const identityText = toText(deepGet(char, 'social.main_identity', deepGet(char, 'base.identity', '无')), '无');
-              const locText = toText(deepGet(char, 'status.loc', '未知地点'), '未知地点').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
-              const actionText = toText(deepGet(char, 'status.action', '日常'), '日常');
+              const lvText = formatCultivationLevelBadge(deepGet(char, '属性.等级', 0), '0');
+              const identityText = toText(deepGet(char, '社交.主身份', deepGet(char, 'base.identity', '无')), '无');
+              const locText = toText(deepGet(char, '状态.位置', '未知地点'), '未知地点').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
+              const actionText = toText(deepGet(char, '状态.行动', '日常'), '日常');
               const searchText = [
                 name,
                 isPlayer ? '玩家' : '角色',
@@ -11377,7 +11396,7 @@
         if (!canOpenPrivateArchive(snapshot)) return null;
         const nsfwPath = getActiveNsfwPath(snapshot);
         const nsfw = getActiveNsfwData(snapshot);
-        const bodyPartEntries = safeEntries(deepGet(nsfw, 'body_parts', {}));
+        const bodyPartEntries = safeEntries(deepGet(nsfw, '身体部位', {}));
 
         return {
           title: '私密档案',
@@ -11406,25 +11425,25 @@
                   <div class="nsfw-progress-container">
                     <div class="nsfw-progress-label">
                       <span>发情度</span>
-                      <span>${makeInlineEditableValue(toText(nsfw.arousal, '0'), { path: [...nsfwPath, 'arousal'], kind: 'number' })} / 100</span>
+                      <span>${makeInlineEditableValue(toText(nsfw.发情度, '0'), { path: [...nsfwPath, '发情度'], kind: 'number' })} / 100</span>
                     </div>
                     <div class="nsfw-progress-track arousal">
-                      <div class="nsfw-fill-arousal" style="width: ${Math.min(100, Math.max(0, toNumber(nsfw.arousal, 0)))}%;"></div>
+                      <div class="nsfw-fill-arousal" style="width: ${Math.min(100, Math.max(0, toNumber(nsfw.发情度, 0)))}%;"></div>
                     </div>
                   </div>
                   <div class="nsfw-progress-container">
                     <div class="nsfw-progress-label">
                       <span>开发度</span>
-                      <span>${makeInlineEditableValue(toText(nsfw.development_level, '0'), { path: [...nsfwPath, 'development_level'], kind: 'number' })} / 100</span>
+                      <span>${makeInlineEditableValue(toText(nsfw.开发度, '0'), { path: [...nsfwPath, '开发度'], kind: 'number' })} / 100</span>
                     </div>
                     <div class="nsfw-progress-track dev">
-                      <div class="nsfw-fill-dev" style="width: ${Math.min(100, Math.max(0, toNumber(nsfw.development_level, 0)))}%;"></div>
+                      <div class="nsfw-fill-dev" style="width: ${Math.min(100, Math.max(0, toNumber(nsfw.开发度, 0)))}%;"></div>
                     </div>
                   </div>
                   <div class="identity-growth-grid" style="grid-template-columns: 1fr;">
                     <div class="nsfw-meta-item">
                       <b>敏感度基础值</b>
-                      <span>${makeInlineEditableValue(toText(nsfw.sensitivity, '10'), { path: [...nsfwPath, 'sensitivity'], kind: 'number' })}</span>
+                      <span>${makeInlineEditableValue(toText(nsfw.敏感度, '10'), { path: [...nsfwPath, '敏感度'], kind: 'number' })}</span>
                     </div>
                   </div>
                 </div>
@@ -11439,28 +11458,28 @@
                   <div class="identity-growth-grid" style="grid-template-columns: 1fr 1fr;">
                     <div class="nsfw-meta-item">
                       <b>罩杯</b>
-                      <span>${makeInlineEditableValue(toText(deepGet(nsfw, 'measurements.罩杯'), '未知'), { path: [...nsfwPath, 'measurements', '罩杯'], kind: 'string' })}</span>
+                      <span>${makeInlineEditableValue(toText(deepGet(nsfw, '身材数据.罩杯'), '未知'), { path: [...nsfwPath, '身材数据', '罩杯'], kind: 'string' })}</span>
                     </div>
                     <div class="nsfw-meta-item">
                       <b>三围 (胸/腰/臀)</b>
                       <span>
-                        ${makeInlineEditableValue(toText(deepGet(nsfw, 'measurements.胸围'), '0'), { path: [...nsfwPath, 'measurements', '胸围'], kind: 'number' })} /
-                        ${makeInlineEditableValue(toText(deepGet(nsfw, 'measurements.腰围'), '0'), { path: [...nsfwPath, 'measurements', '腰围'], kind: 'number' })} /
-                        ${makeInlineEditableValue(toText(deepGet(nsfw, 'measurements.臀围'), '0'), { path: [...nsfwPath, 'measurements', '臀围'], kind: 'number' })}
+                        ${makeInlineEditableValue(toText(deepGet(nsfw, '身材数据.胸围'), '0'), { path: [...nsfwPath, '身材数据', '胸围'], kind: 'number' })} /
+                        ${makeInlineEditableValue(toText(deepGet(nsfw, '身材数据.腰围'), '0'), { path: [...nsfwPath, '身材数据', '腰围'], kind: 'number' })} /
+                        ${makeInlineEditableValue(toText(deepGet(nsfw, '身材数据.臀围'), '0'), { path: [...nsfwPath, '身材数据', '臀围'], kind: 'number' })}
                       </span>
                     </div>
                     <div class="nsfw-meta-item">
                       <b>内衣</b>
-                      <span>${makeInlineEditableValue(toText(deepGet(nsfw, 'intimate_wear.内衣'), '未知'), { path: [...nsfwPath, 'intimate_wear', '内衣'], kind: 'string' })}</span>
+                      <span>${makeInlineEditableValue(toText(deepGet(nsfw, '贴身衣物.内衣'), '未知'), { path: [...nsfwPath, '贴身衣物', '内衣'], kind: 'string' })}</span>
                     </div>
                     <div class="nsfw-meta-item">
                       <b>内裤</b>
-                      <span>${makeInlineEditableValue(toText(deepGet(nsfw, 'intimate_wear.内裤'), '未知'), { path: [...nsfwPath, 'intimate_wear', '内裤'], kind: 'string' })}</span>
+                      <span>${makeInlineEditableValue(toText(deepGet(nsfw, '贴身衣物.内裤'), '未知'), { path: [...nsfwPath, '贴身衣物', '内裤'], kind: 'string' })}</span>
                     </div>
                   </div>
                   <div class="nsfw-meta-item" style="margin-top:8px;">
                     <b>身材描述</b>
-                    <span class="nsfw-text-wrap">${makeInlineEditableValue(toText(deepGet(nsfw, 'measurements.身材描述'), '无'), { path: [...nsfwPath, 'measurements', '身材描述'], kind: 'string' })}</span>
+                    <span class="nsfw-text-wrap">${makeInlineEditableValue(toText(deepGet(nsfw, '身材数据.身材描述'), '无'), { path: [...nsfwPath, '身材数据', '身材描述'], kind: 'string' })}</span>
                   </div>
                 </div>
               </div>
@@ -11474,23 +11493,23 @@
                   <div class="identity-growth-grid" style="grid-template-columns: 1fr 1fr;">
                     <div class="nsfw-meta-item">
                       <b>当前生理阶段</b>
-                      <span class="nsfw-highlight-red">${makeInlineEditableValue(toText(nsfw._menstrual_stage, '安全期'), { path: [...nsfwPath, '_menstrual_stage'], kind: 'string' })}</span>
+                      <span class="nsfw-highlight-red">${makeInlineEditableValue(toText(nsfw._生理阶段, '安全期'), { path: [...nsfwPath, '_生理阶段'], kind: 'string' })}</span>
                     </div>
                     <div class="nsfw-meta-item">
                       <b>是否初潮</b>
-                      <span>${makeInlineEditableValue(nsfw._has_menarche ? '已初潮' : '未初潮', { path: [...nsfwPath, '_has_menarche'], kind: 'boolean' })}</span>
+                      <span>${makeInlineEditableValue(nsfw._已来初潮 ? '已初潮' : '未初潮', { path: [...nsfwPath, '_已来初潮'], kind: 'boolean' })}</span>
                     </div>
                     <div class="nsfw-meta-item">
                       <b>受孕节点</b>
-                      <span>${makeInlineEditableValue(String(toNumber(nsfw.conception_tick, -1)), { path: [...nsfwPath, 'conception_tick'], kind: 'number' })}</span>
+                      <span>${makeInlineEditableValue(String(toNumber(nsfw.受孕tick, -1)), { path: [...nsfwPath, '受孕tick'], kind: 'number' })}</span>
                     </div>
                     <div class="nsfw-meta-item">
                       <b>当前怀孕天数</b>
-                      <span>${makeInlineEditableValue(String(toNumber(nsfw._pregnancy_days, 0)), { path: [...nsfwPath, '_pregnancy_days'], kind: 'number' })}</span>
+                      <span>${makeInlineEditableValue(String(toNumber(nsfw._怀孕天数, 0)), { path: [...nsfwPath, '_怀孕天数'], kind: 'number' })}</span>
                     </div>
                     <div class="nsfw-meta-item" style="grid-column: span 2;">
                       <b>孕父</b>
-                      <span>${makeInlineEditableValue(toText(nsfw.pregnancy_father, '无'), { path: [...nsfwPath, 'pregnancy_father'], kind: 'string' })}</span>
+                      <span>${makeInlineEditableValue(toText(nsfw.受孕对象, '无'), { path: [...nsfwPath, '受孕对象'], kind: 'string' })}</span>
                     </div>
                   </div>
                 </div>
@@ -11506,7 +11525,7 @@
                     ${['高潮', '颜射', '内射', '吞精', '宠物扮演', '自慰', '性交', '手交', '足交', '口交', '素股', '发交', 'SM', 'COSPLAY'].map(exp => `
                       <div class="nsfw-meta-item">
                         <b>${exp}</b>
-                        <span>${makeInlineEditableValue(String(toNumber(deepGet(nsfw, ['experience_counts', exp]), 0)), { path: [...nsfwPath, 'experience_counts', exp], kind: 'number' })}</span>
+                        <span>${makeInlineEditableValue(String(toNumber(deepGet(nsfw, ['经历次数', exp]), 0)), { path: [...nsfwPath, '经历次数', exp], kind: 'number' })}</span>
                       </div>
                     `).join('')}
                   </div>
@@ -11522,16 +11541,16 @@
                   <div style="margin-bottom: 8px;">
                     <b style="font-size: 11px; color: #ffb3c1; display: block; margin-bottom: 6px;">癖好</b>
                     <div style="display:flex; flex-wrap:wrap; gap:6px;">
-                      ${(Array.isArray(nsfw.fetishes) ? nsfw.fetishes : []).map((f, i) => `
-                        <span class="nsfw-tag">${makeInlineEditableValue(toText(f), { path: [...nsfwPath, 'fetishes', i], kind: 'string' })}</span>
+                      ${(Array.isArray(nsfw.癖好) ? nsfw.癖好 : []).map((f, i) => `
+                        <span class="nsfw-tag">${makeInlineEditableValue(toText(f), { path: [...nsfwPath, '癖好', i], kind: 'string' })}</span>
                       `).join('')}
                     </div>
                   </div>
                   <div>
                     <b style="font-size: 11px; color: #ffb3c1; display: block; margin-bottom: 6px;">幻想</b>
                     <div style="display:flex; flex-wrap:wrap; gap:6px;">
-                      ${(Array.isArray(nsfw.fantasies) ? nsfw.fantasies : []).map((f, i) => `
-                        <span class="nsfw-tag">${makeInlineEditableValue(toText(f), { path: [...nsfwPath, 'fantasies', i], kind: 'string' })}</span>
+                      ${(Array.isArray(nsfw.幻想) ? nsfw.幻想 : []).map((f, i) => `
+                        <span class="nsfw-tag">${makeInlineEditableValue(toText(f), { path: [...nsfwPath, '幻想', i], kind: 'string' })}</span>
                       `).join('')}
                     </div>
                   </div>
@@ -11550,32 +11569,32 @@
                         <div class="nsfw-bodypart-card">
                           <div class="nsfw-bodypart-head">
                             <div class="nsfw-bodypart-name">${htmlEscape(partName)}</div>
-                            <span class="nsfw-bodypart-badge">开发 ${makeInlineEditableValue(String(toNumber(deepGet(partData, '开发度', 0), 0)), { path: [...nsfwPath, 'body_parts', partName, '开发度'], kind: 'number' })}</span>
+                            <span class="nsfw-bodypart-badge">开发 ${makeInlineEditableValue(String(toNumber(deepGet(partData, '开发度', 0), 0)), { path: [...nsfwPath, '身体部位', partName, '开发度'], kind: 'number' })}</span>
                           </div>
                           <div class="nsfw-bodypart-meta">
                             <div class="nsfw-meta-item">
                               <b>外观特征</b>
-                              <span class="nsfw-text-wrap">${makeInlineEditableValue(toText(deepGet(partData, '外观特征', '无'), '无'), { path: [...nsfwPath, 'body_parts', partName, '外观特征'], kind: 'string' })}</span>
+                              <span class="nsfw-text-wrap">${makeInlineEditableValue(toText(deepGet(partData, '外观特征', '无'), '无'), { path: [...nsfwPath, '身体部位', partName, '外观特征'], kind: 'string' })}</span>
                             </div>
                             <div class="identity-growth-grid" style="grid-template-columns: 1fr 1fr;">
                               <div class="nsfw-meta-item">
                                 <b>敏感度加成</b>
-                                <span>${makeInlineEditableValue(String(toNumber(deepGet(partData, '敏感度加成', 0), 0)), { path: [...nsfwPath, 'body_parts', partName, '敏感度加成'], kind: 'number' })}</span>
+                                <span>${makeInlineEditableValue(String(toNumber(deepGet(partData, '敏感度加成', 0), 0)), { path: [...nsfwPath, '身体部位', partName, '敏感度加成'], kind: 'number' })}</span>
                               </div>
                               <div class="nsfw-meta-item">
                                 <b>状态描述</b>
-                                <span>${makeInlineEditableValue(toText(deepGet(partData, '状态描述', '正常'), '正常'), { path: [...nsfwPath, 'body_parts', partName, '状态描述'], kind: 'string' })}</span>
+                                <span>${makeInlineEditableValue(toText(deepGet(partData, '状态描述', '正常'), '正常'), { path: [...nsfwPath, '身体部位', partName, '状态描述'], kind: 'string' })}</span>
                               </div>
                             </div>
                             <div class="nsfw-meta-item">
                               <b>体液残留</b>
-                              <span>${makeInlineEditableValue(toText(deepGet(partData, '体液残留', '无'), '无'), { path: [...nsfwPath, 'body_parts', partName, '体液残留'], kind: 'string' })}</span>
+                              <span>${makeInlineEditableValue(toText(deepGet(partData, '体液残留', '无'), '无'), { path: [...nsfwPath, '身体部位', partName, '体液残留'], kind: 'string' })}</span>
                             </div>
                           </div>
                         </div>
                       `).join('')}
                     </div>
-                  ` : '<div class="dossier-empty-note">当前角色尚未录入 body_parts 结构。</div>'}
+                  ` : '<div class="dossier-empty-note">当前角色尚未录入身体部位结构。</div>'}
                 </div>
               </div>
 
@@ -11588,16 +11607,16 @@
 
       if (previewKey === '生命图谱详细页') {
         const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
-        const trainedBonusPath = activeCharKey ? ['char', activeCharKey, 'stat', 'trained_bonus'] : [];
-        const trainedBonusItems = buildEditableStatBonusItems(trainedBonusPath, deepGet(snapshot, 'activeChar.stat.trained_bonus', {}), { includeSoulPower: false });
+        const trainedBonusPath = activeCharKey ? ['char', activeCharKey, '属性', '训练加成'] : [];
+        const trainedBonusItems = buildEditableStatBonusItems(trainedBonusPath, deepGet(snapshot, 'activeChar.属性.训练加成', {}), { includeSoulPower: false });
         const lifePreviewStats = activeCharKey ? resolveTrackedStatPreview(activeCharKey, stat) : createTrackedStatPreviewMap(stat);
-        const activeWardrobeKey = toText(clothing.outfit, '').trim();
+      const activeWardrobeKey = toText(穿搭数据.着装, '').trim();
         const activeWardrobePath = activeWardrobeKey && activeWardrobeKey !== '无'
-          ? ['char', activeCharKey, 'clothing', 'wardrobe', activeWardrobeKey]
+          ? ['char', activeCharKey, '穿搭', '衣柜', activeWardrobeKey]
           : null;
         const createAbilityPreview = activeCharKey
           ? buildSkillDesignerPreviewKey({
-            path: ['char', activeCharKey, 'special_abilities', `自建特殊能力_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`],
+            path: ['char', activeCharKey, '特殊能力', `自建特殊能力_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`],
             label: '新建特殊能力',
             category: '特殊能力',
             scope: 'special_ability',
@@ -11626,28 +11645,28 @@
                   <section class="dossier-section">
                     <div class="dossier-section-title">成长信息</div>
                     ${makeDossierRows([
-                      { label: '等级', value: htmlEscape(formatCultivationLevelBadge(stat.lv, '0')) },
-                      { label: '精神境界', value: htmlEscape(toText(stat._men_realm, toText(stat.men_realm, '灵元境'))) },
+                      { label: '等级', value: htmlEscape(formatCultivationLevelBadge(stat.等级, '0')) },
+                      { label: '精神境界', value: htmlEscape(toText(stat._men_realm, toText(stat.精神力_realm, '灵元境'))) },
                       { label: '天赋梯队', value: htmlEscape(toText(stat.talent_tier, '未定')) },
                       { label: '系别', value: activeCharKey
-                        ? makeInlineEditableValue(toText(stat.type, '未知'), {
-                            path: ['char', activeCharKey, 'stat', 'type'],
+                        ? makeInlineEditableValue(toText(stat.系别, '未知'), {
+                            path: ['char', activeCharKey, '属性', '系别'],
                             kind: 'string',
-                            rawValue: toText(stat.type, '未知'),
+                            rawValue: toText(stat.系别, '未知'),
                           })
-                        : htmlEscape(toText(stat.type, '未知')) },
-                      { label: '名望', value: htmlEscape(`${toText(social._fame_level, toText(social.fame_level, '籍籍无名'))} / ${formatNumber(social.reputation)}`) },
+                        : htmlEscape(toText(stat.系别, '未知')) },
+                      { label: '名望', value: htmlEscape(`${toText(social.名望等级, toText(social.名望等级, '籍籍无名'))} / ${formatNumber(social.声望)}`) },
                     ], 'dossier-row-grid--two')}
                   </section>
                   <section class="dossier-section dossier-section--radar">
                     <div class="dossier-section-title">战斗轮廓</div>
                     <div class="battle-radar-wrap dossier-radar-wrap">
                       ${(() => {
-                        const fStr = Math.max(0, toNumber(lifePreviewStats.str, stat.str));
-                        const fDef = Math.max(0, toNumber(lifePreviewStats.def, stat.def));
-                        const fAgi = Math.max(0, toNumber(lifePreviewStats.agi, stat.agi));
-                        const fMen = Math.max(0, toNumber(lifePreviewStats.men_max, stat.men_max));
-                        const fVit = Math.max(0, toNumber(lifePreviewStats.vit_max, stat.vit_max));
+                        const fStr = Math.max(0, toNumber(lifePreviewStats.力量, stat.力量));
+                        const fDef = Math.max(0, toNumber(lifePreviewStats.防御, stat.防御));
+                        const fAgi = Math.max(0, toNumber(lifePreviewStats.敏捷, stat.敏捷));
+                        const fMen = Math.max(0, toNumber(lifePreviewStats.精神力上限, stat.精神力上限));
+                        const fVit = Math.max(0, toNumber(lifePreviewStats.体力上限, stat.体力上限));
                         const maxAxis = Math.max(1, fStr, fDef, fAgi, fMen, fVit);
                         return makeRadarSvg(['力量', '防御', '敏捷', '精神', '体力'], [
                           Math.max(12, Math.min(100, Math.round(fStr / maxAxis * 100))),
@@ -11664,41 +11683,35 @@
                   <div class="dossier-section-title">当前状态</div>
                   ${makeDossierRows([
                     { label: '行动状态', value: activeCharKey
-                      ? makeInlineEditableValue(toText(status.action, '日常'), {
-                          path: ['char', activeCharKey, 'status', 'action'],
+                      ? makeInlineEditableValue(toText(status.行动, '日常'), {
+                          path: ['char', activeCharKey, '状态', '行动'],
                           kind: 'string',
-                          rawValue: toText(status.action, '日常'),
+                          rawValue: toText(status.行动, '日常'),
                         })
-                      : htmlEscape(toText(status.action, '日常')) },
-                    { label: '伤势', value: activeCharKey
-                      ? makeInlineEditableValue(toText(status.wound, '无伤'), {
-                          path: ['char', activeCharKey, 'status', 'wound'],
-                          kind: 'string',
-                          rawValue: toText(status.wound, '无伤'),
-                        })
-                      : htmlEscape(toText(status.wound, '无伤')) },
+                      : htmlEscape(toText(status.行动, '日常')) },
+                    { label: '伤势', value: htmlEscape(getDisplayWoundLabel(stat)) },
                     { label: '魂核状态', value: activeCharKey
-                      ? `${makeInlineEditableValue(String(toNumber(deepGet(snapshot, 'activeChar.energy.core.数量', 0), 0)), {
-                          path: ['char', activeCharKey, 'energy', 'core', '数量'],
+                      ? `${makeInlineEditableValue(String(toNumber(deepGet(snapshot, 'activeChar.魂核.核心.数量', 0), 0)), {
+                          path: ['char', activeCharKey, '魂核', '核心', '数量'],
                           kind: 'number',
-                          rawValue: toNumber(deepGet(snapshot, 'activeChar.energy.core.数量', 0), 0),
+                          rawValue: toNumber(deepGet(snapshot, 'activeChar.魂核.核心.数量', 0), 0),
                           editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
-                        })} 枚 / 进度 ${makeInlineEditableValue(String(toNumber(deepGet(snapshot, 'activeChar.energy.core.progress', 0), 0)), {
-                          path: ['char', activeCharKey, 'energy', 'core', 'progress'],
+                        })} 枚 / 进度 ${makeInlineEditableValue(String(toNumber(deepGet(snapshot, 'activeChar.魂核.核心.进度', 0), 0)), {
+                          path: ['char', activeCharKey, '魂核', '核心', '进度'],
                           kind: 'number',
-                          rawValue: toNumber(deepGet(snapshot, 'activeChar.energy.core.progress', 0), 0),
+                          rawValue: toNumber(deepGet(snapshot, 'activeChar.魂核.核心.进度', 0), 0),
                           editorMeta: { min: 0, max: 100, integer: true, hint: '范围 0 - 100 · 整数' },
                         })}%`
-                      : htmlEscape(`${toText(deepGet(snapshot, 'activeChar.energy.core.数量', 0), '0')} 枚 / 进度 ${toText(deepGet(snapshot, 'activeChar.energy.core.progress', 0), '0')}%`) },
+                      : htmlEscape(`${toText(deepGet(snapshot, 'activeChar.魂核.核心.数量', 0), '0')} 枚 / 进度 ${toText(deepGet(snapshot, 'activeChar.魂核.核心.进度', 0), '0')}%`) },
                     ...(snapshot.bloodline && snapshot.bloodline.valid ? [{ label: '血脉状态', value: htmlEscape(`${snapshot.bloodline.bloodline} / ${snapshot.bloodline.sealLv}层`) }] : []),
                     { label: '灵物吸收', value: activeCharKey
-                      ? `${makeInlineEditableValue(String(toNumber(status.consuming_herb_age, 0), 0), {
-                          path: ['char', activeCharKey, 'status', 'consuming_herb_age'],
+                      ? `${makeInlineEditableValue(String(toNumber(status.吸收灵物年限, 0), 0), {
+                          path: ['char', activeCharKey, '状态', '吸收灵物年限'],
                           kind: 'number',
-                          rawValue: toNumber(status.consuming_herb_age, 0),
+                          rawValue: toNumber(status.吸收灵物年限, 0),
                           editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
                         })} 年`
-                      : htmlEscape(toNumber(status.consuming_herb_age, 0) > 0 ? `${formatNumber(toNumber(status.consuming_herb_age, 0))} 年` : '当前无吸收') },
+                      : htmlEscape(toNumber(status.吸收灵物年限, 0) > 0 ? `${formatNumber(toNumber(status.吸收灵物年限, 0))} 年` : '当前无吸收') },
                   ], 'dossier-row-grid--two')}
                 </section>
               </div>
@@ -11710,26 +11723,26 @@
                 <section class="dossier-section">
                   <div class="dossier-section-title">基础描述</div>
                   ${makeDossierRows([
-                    { label: '年龄 / 性别', value: `${makeInlineEditableValue(`${toText(stat.age, '0')}岁`, { path: ['char', activeCharKey, 'stat', 'age'], kind: 'number', rawValue: stat.age, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } })} / ${makeInlineEditableValue(toText(stat.gender, '未知'), { path: ['char', activeCharKey, 'stat', 'gender'], kind: 'string', rawValue: stat.gender })}` },
-                    { label: '性格', value: makeInlineEditableValue(snapshot.personalityText, { path: ['char', activeCharKey, 'personality'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.personality', snapshot.personalityText) }) },
+                    { label: '年龄 / 性别', value: `${makeInlineEditableValue(`${toText(stat.年龄, '0')}岁`, { path: ['char', activeCharKey, '属性', '年龄'], kind: 'number', rawValue: stat.年龄, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } })} / ${makeInlineEditableValue(toText(stat.性别, '未知'), { path: ['char', activeCharKey, '属性', '性别'], kind: 'string', rawValue: stat.性别 })}` },
+                    { label: '性格', value: makeInlineEditableValue(snapshot.personalityText, { path: ['char', activeCharKey, '性格'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.性格', snapshot.personalityText) }) },
                   ], 'dossier-row-grid--two')}
                 </section>
                 <section class="dossier-section">
                   <div class="dossier-section-title">外貌与着装</div>
                   ${makeDossierRows([
-                    { label: '发色', value: makeInlineEditableValue(snapshot.appearanceMeta.hairColor, { path: ['char', activeCharKey, 'appearance', '发色'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.appearance.发色', snapshot.appearanceMeta.hairColor) }) },
-                    { label: '发型', value: makeInlineEditableValue(snapshot.appearanceMeta.hairStyle, { path: ['char', activeCharKey, 'appearance', '发型'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.appearance.发型', snapshot.appearanceMeta.hairStyle) }) },
-                    { label: '瞳色', value: makeInlineEditableValue(snapshot.appearanceMeta.eyes, { path: ['char', activeCharKey, 'appearance', '瞳色'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.appearance.瞳色', snapshot.appearanceMeta.eyes) }) },
-                    { label: '身高', value: makeInlineEditableValue(snapshot.appearanceMeta.height, { path: ['char', activeCharKey, 'appearance', '身高'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.appearance.身高', snapshot.appearanceMeta.height) }) },
-                    { label: '体型', value: makeInlineEditableValue(snapshot.appearanceMeta.build, { path: ['char', activeCharKey, 'appearance', '体型'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.appearance.体型', snapshot.appearanceMeta.build) }) },
-                    { label: '长相描述', value: makeInlineEditableValue(snapshot.appearanceMeta.looks, { path: ['char', activeCharKey, 'appearance', '长相描述'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.appearance.长相描述', snapshot.appearanceMeta.looks) }), className: 'dossier-row--wide' },
-                    { label: '特征', value: makeInlineEditableValue(snapshot.appearanceMeta.features, { path: ['char', activeCharKey, 'appearance', '特殊特征'], kind: 'string_list', rawValue: deepGet(snapshot, 'activeChar.appearance.特殊特征', []) }), className: 'dossier-row--wide' },
-                    { label: '当前套装', value: makeInlineEditableValue(toText(clothing.outfit, '无'), { path: ['char', activeCharKey, 'clothing', 'outfit'], kind: 'string', rawValue: clothing.outfit }), className: 'dossier-row--wide' },
+                    { label: '发色', value: makeInlineEditableValue(snapshot.appearanceMeta.hairColor, { path: ['char', activeCharKey, '外貌', '发色'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.外貌.发色', snapshot.appearanceMeta.hairColor) }) },
+                    { label: '发型', value: makeInlineEditableValue(snapshot.appearanceMeta.hairStyle, { path: ['char', activeCharKey, '外貌', '发型'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.外貌.发型', snapshot.appearanceMeta.hairStyle) }) },
+                    { label: '瞳色', value: makeInlineEditableValue(snapshot.appearanceMeta.eyes, { path: ['char', activeCharKey, '外貌', '瞳色'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.外貌.瞳色', snapshot.appearanceMeta.eyes) }) },
+                    { label: '身高', value: makeInlineEditableValue(snapshot.appearanceMeta.height, { path: ['char', activeCharKey, '外貌', '身高'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.外貌.身高', snapshot.appearanceMeta.height) }) },
+                    { label: '体型', value: makeInlineEditableValue(snapshot.appearanceMeta.build, { path: ['char', activeCharKey, '外貌', '体型'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.外貌.体型', snapshot.appearanceMeta.build) }) },
+                    { label: '长相描述', value: makeInlineEditableValue(snapshot.appearanceMeta.looks, { path: ['char', activeCharKey, '外貌', '长相描述'], kind: 'string', rawValue: deepGet(snapshot, 'activeChar.外貌.长相描述', snapshot.appearanceMeta.looks) }), className: 'dossier-row--wide' },
+                    { label: '特征', value: makeInlineEditableValue(snapshot.appearanceMeta.features, { path: ['char', activeCharKey, '外貌', '特殊特征'], kind: 'string_list', rawValue: deepGet(snapshot, 'activeChar.外貌.特殊特征', []) }), className: 'dossier-row--wide' },
+                    { label: '当前套装', value: makeInlineEditableValue(toText(穿搭数据.着装, '无'), { path: ['char', activeCharKey, '穿搭', '着装'], kind: 'string', rawValue: 穿搭数据.着装 }), className: 'dossier-row--wide' },
                     { label: '衣柜套数', value: String(wardrobeEntries.length) },
-                    { label: '上装', value: activeWardrobePath ? makeInlineEditableValue(toText(deepGet(clothing, ['wardrobe', activeWardrobeKey, '上装'], '无'), '无'), { path: [...activeWardrobePath, '上装'], kind: 'string', rawValue: deepGet(clothing, ['wardrobe', activeWardrobeKey, '上装'], '') }) : '无' },
-                    { label: '下装', value: activeWardrobePath ? makeInlineEditableValue(toText(deepGet(clothing, ['wardrobe', activeWardrobeKey, '下装'], '无'), '无'), { path: [...activeWardrobePath, '下装'], kind: 'string', rawValue: deepGet(clothing, ['wardrobe', activeWardrobeKey, '下装'], '') }) : '无' },
-                    { label: '鞋子', value: activeWardrobePath ? makeInlineEditableValue(toText(deepGet(clothing, ['wardrobe', activeWardrobeKey, '鞋子'], '无'), '无'), { path: [...activeWardrobePath, '鞋子'], kind: 'string', rawValue: deepGet(clothing, ['wardrobe', activeWardrobeKey, '鞋子'], '') }) : '无' },
-                    { label: '套装描述', value: activeWardrobePath ? makeInlineEditableValue(toText(deepGet(clothing, ['wardrobe', activeWardrobeKey, '描述'], '暂无描述'), '暂无描述'), { path: [...activeWardrobePath, '描述'], kind: 'string', rawValue: deepGet(clothing, ['wardrobe', activeWardrobeKey, '描述'], '') }) : '暂无描述', className: 'dossier-row--wide' },
+                    { label: '上装', value: activeWardrobePath ? makeInlineEditableValue(toText(deepGet(穿搭数据, ['衣柜', activeWardrobeKey, '上装'], '无'), '无'), { path: [...activeWardrobePath, '上装'], kind: 'string', rawValue: deepGet(穿搭数据, ['衣柜', activeWardrobeKey, '上装'], '') }) : '无' },
+                    { label: '下装', value: activeWardrobePath ? makeInlineEditableValue(toText(deepGet(穿搭数据, ['衣柜', activeWardrobeKey, '下装'], '无'), '无'), { path: [...activeWardrobePath, '下装'], kind: 'string', rawValue: deepGet(穿搭数据, ['衣柜', activeWardrobeKey, '下装'], '') }) : '无' },
+                    { label: '鞋子', value: activeWardrobePath ? makeInlineEditableValue(toText(deepGet(穿搭数据, ['衣柜', activeWardrobeKey, '鞋子'], '无'), '无'), { path: [...activeWardrobePath, '鞋子'], kind: 'string', rawValue: deepGet(穿搭数据, ['衣柜', activeWardrobeKey, '鞋子'], '') }) : '无' },
+                    { label: '套装描述', value: activeWardrobePath ? makeInlineEditableValue(toText(deepGet(穿搭数据, ['衣柜', activeWardrobeKey, '描述'], '暂无描述'), '暂无描述'), { path: [...activeWardrobePath, '描述'], kind: 'string', rawValue: deepGet(穿搭数据, ['衣柜', activeWardrobeKey, '描述'], '') }) : '暂无描述', className: 'dossier-row--wide' },
                   ], 'dossier-row-grid--two')}
                 </section>
                 <section class="dossier-section">
@@ -11780,18 +11793,18 @@
                     <div class="dossier-head-name">${htmlEscape(snapshot.activeName)}</div>
                   </div>
                   ${makeDossierTags([
-                    { text: toText(social._fame_level, toText(social.fame_level, '籍籍无名')), className: 'warn' },
-                    { text: (social._public_intel ?? social.public_intel) ? '公开情报' : '未公开' },
+                    { text: toText(social.名望等级, toText(social.名望等级, '籍籍无名')), className: 'warn' },
+                    { text: (social.公开情报 ?? social.public_intel) ? '公开情报' : '未公开' },
                     { text: `称号 ${snapshot.recentTitles.length}` },
                   ])}
                 </div>
                 <section class="dossier-section">
                   <div class="dossier-section-title">公开身份</div>
                   ${makeDossierRows([
-                    { label: '当前身份', value: makeInlineEditableValue(toText(social.main_identity, '无'), { path: ['char', activeCharKey, 'social', 'main_identity'], kind: 'string', rawValue: social.main_identity }) },
-                    { label: '名望层级', value: htmlEscape(toText(social._fame_level, toText(social.fame_level, '籍籍无名'))) },
+                    { label: '当前身份', value: makeInlineEditableValue(toText(social.主身份, '无'), { path: ['char', activeCharKey, '社交', '主身份'], kind: 'string', rawValue: social.主身份 }) },
+                    { label: '名望层级', value: htmlEscape(toText(social.名望等级, toText(social.名望等级, '籍籍无名'))) },
                     { label: '公开情报', value: htmlEscape(snapshot.publicIntel ? '已公开' : '未公开') },
-                    { label: '主要圈层', value: htmlEscape(snapshot.factions.map(([name]) => name).join(' / ') || '暂无') },
+                    { label: '主要圈层', value: htmlEscape(snapshot.势力.map(([name]) => name).join(' / ') || '暂无') },
                     { label: '当前主称号', value: htmlEscape(snapshot.recentTitles[0] || '暂无') },
                     { label: '主阵营身份', value: htmlEscape(snapshot.primaryFaction ? `${snapshot.primaryFaction[0]} / ${toText(deepGet(snapshot.primaryFaction[1], '身份', '无'), '无')}` : '无') },
                   ], 'dossier-row-grid--two')}
@@ -11800,8 +11813,8 @@
                   <div class="dossier-section-title">社会标签</div>
                   ${makeDossierTags([
                     { text: snapshot.activeName, className: 'live' },
-                    { text: toText(social.main_identity, '无') },
-                    { text: snapshot.factions.map(([name]) => name).join(' / ') || '无圈层' },
+                    { text: toText(social.主身份, '无') },
+                    { text: snapshot.势力.map(([name]) => name).join(' / ') || '无圈层' },
                     { text: snapshot.recentTitles[0] || '暂无主称号' },
                   ], 'dossier-tag-row--wrap')}
                 </section>
@@ -11815,13 +11828,13 @@
                   <div class="dossier-section-title">个人声望量级</div>
                   ${makeDossierMeter(
                     '当前声望',
-                    makeInlineEditableValue(`${formatNumber(social.reputation)} / 5,000 阈值`, {
-                      path: ['char', activeCharKey, 'social', 'reputation'],
+                    makeInlineEditableValue(`${formatNumber(social.声望)} / 5,000 阈值`, {
+                      path: ['char', activeCharKey, '社交', '声望'],
                       kind: 'number',
-                      rawValue: social.reputation,
+                      rawValue: social.声望,
                       editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数 · 5,000 为当前量级阈值参考，不是硬上限' }
                     }),
-                    ratioPercent(social.reputation, 5000),
+                    ratioPercent(social.声望, 5000),
                     'dossier-meter--accent'
                   )}
                 </section>
@@ -11831,7 +11844,7 @@
                     { label: '头衔总数', value: String(snapshot.titleEntries.length) },
                     { label: '主阵营身份', value: htmlEscape(snapshot.primaryFaction ? `${snapshot.primaryFaction[0]} / ${toText(deepGet(snapshot.primaryFaction[1], '身份', '无'), '无')}` : '无') },
                     { label: '档案状态', value: htmlEscape(snapshot.publicIntel ? '公开可见' : '仅内部可见') },
-                    { label: '当前摘要', value: htmlEscape(toText(social.main_identity, '无')) },
+                    { label: '当前摘要', value: htmlEscape(toText(social.主身份, '无')) },
                   ], 'dossier-row-grid--single')}
                 </section>
               </div>
@@ -11854,7 +11867,7 @@
           { left: 25, top: 75, className: 'warn hover-up hover-right' },
           { left: 75, top: 75, className: 'hover-up hover-left' }
         ];
-        const currentLocFull = toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc || '未知地点'), snapshot.currentLoc || '未知地点');
+        const currentLocFull = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc || '未知地点'), snapshot.currentLoc || '未知地点');
         const relationNodes = snapshot.relations.slice(0, 5);
         const relationLinks = relationPositions.slice(0, relationNodes.length).map((pos, index) => {
           const lineClass = index === 1 ? 'gold' : index === 3 ? 'alert' : 'cyan';
@@ -11868,19 +11881,19 @@
               <b>${htmlEscape(name)}</b><span>${htmlEscape(toText(rel && rel['关系'], '陌生'))}</span>
               <div class="relation-hover-card">
                 <span class="relation-hover-title">${htmlEscape(name)}</span>
-                <span class="relation-hover-desc">${htmlEscape(`${toText(rel && rel['关系'], '陌生')} / ${toText(rel && rel['relation_route'], '朋友线')}`)}</span>
+                <span class="relation-hover-desc">${htmlEscape(`${toText(rel && rel['关系'], '陌生')} / ${toText(rel && rel['关系路线'], '朋友线')}`)}</span>
                 <div class="relation-hover-tags">
                   <span class="relation-hover-chip">${htmlEscape(`好感 ${favor}`)}</span>
-                  <span class="relation-hover-chip">${htmlEscape(toText(rel && rel['npc_job'], '未知身份'))}</span>
+                  <span class="relation-hover-chip">${htmlEscape(toText(rel && rel['对方身份'], '未知身份'))}</span>
                 </div>
                 <div class="relation-hover-skill">
-                  <span>${htmlEscape(toText(rel && rel['favor_buff'], '暂无额外关系加成说明'))}</span>
-                  <span>${htmlEscape(toText(rel && rel['_progress_note'], toText(rel && rel['progress_note'], '暂无推进提示')))}</span>
-                  <span>${htmlEscape(`下一阶段：${toText(rel && rel['_next_stage'], toText(rel && rel['next_stage'], '无'))} / ${toNumber(rel && rel['_next_stage_threshold'], toNumber(rel && rel['next_stage_threshold'], 0))}`)}</span>
-                  <span>${htmlEscape(`最近互动：${toText(rel && rel['last_interact_action'], '无')} / ${toNumber(rel && rel['recent_favor_delta'], 0)}`)}</span>
-                  <span>${htmlEscape(`当前加成：${toText(rel && rel['_current_relation_bonus'], toText(rel && rel['current_relation_bonus'], toText(rel && rel['favor_buff'], '无')) )}`)}</span>
-                  <span>${htmlEscape(`下一解锁：${toText(rel && rel['_next_unlock_bonus'], toText(rel && rel['next_unlock_bonus'], '无'))}`)}</span>
-                  <span>${htmlEscape(`关系状态：${toText(rel && rel['_availability'], toText(rel && rel['availability'], '未知'))} / ${toText(rel && rel['_route_lock_reason'], toText(rel && rel['route_lock_reason'], '无'))}`)}</span>
+                  <span>${htmlEscape(toText(rel && rel['好感加成'], '暂无额外关系加成说明'))}</span>
+                  <span>${htmlEscape(toText(rel && rel['_推进提示'], '暂无推进提示'))}</span>
+                  <span>${htmlEscape(`下一阶段：${toText(rel && rel['_下一阶段'], '无')} / ${toNumber(rel && rel['_下一阶段_threshold'], 0)}`)}</span>
+                  <span>${htmlEscape(`最近互动：${toText(rel && rel['上次互动动作'], '无')} / ${toNumber(rel && rel['最近好感变化'], 0)}`)}</span>
+                  <span>${htmlEscape(`当前加成：${toText(rel && rel['_当前关系加成'], toText(rel && rel['好感加成'], '无'))}`)}</span>
+                  <span>${htmlEscape(`下一解锁：${toText(rel && rel['_下档解锁加成'], '无')}`)}</span>
+                  <span>${htmlEscape(`关系状态：${toText(rel && rel['_维护优先级'], '未知')} / ${toText(rel && rel['_切线限制原因'], '无')}`)}</span>
                 </div>
                 <div class="energy-stack">
                   <div class="energy-row-block">
@@ -11893,27 +11906,27 @@
           `;
         }).join('');
 
-        const relationFocusTargets = Array.isArray(deepGet(snapshot, 'relationAnalysis.top_targets', []))
-          ? deepGet(snapshot, 'relationAnalysis.top_targets', [])
+        const relationFocusTargets = Array.isArray(deepGet(snapshot, '关系分析.重点对象', []))
+          ? deepGet(snapshot, '关系分析.重点对象', [])
           : [];
         const relationDirectoryPage = paginateModalItems(snapshot.relations, previewKey, 'relation-directory', 6);
         const relationFocusStateKey = `${previewKey}::relation-focus`;
-        let relationDetailName = toText(modalFocusState[relationFocusStateKey], toText(deepGet(snapshot, 'relationAnalysis.focus_target', deepGet(relationFocusTargets, '0.target', relationNodes[0] ? relationNodes[0][0] : '')), ''));
+        let relationDetailName = toText(modalFocusState[relationFocusStateKey], toText(deepGet(snapshot, '关系分析.关注对象', deepGet(relationFocusTargets, '0.target', relationNodes[0] ? relationNodes[0][0] : '')), ''));
         if (!snapshot.relations.some(([entryName]) => entryName === relationDetailName)) relationDetailName = snapshot.relations[0] ? snapshot.relations[0][0] : '';
         if (relationDetailName) modalFocusState[relationFocusStateKey] = relationDetailName;
         else delete modalFocusState[relationFocusStateKey];
 
         const relationDetailEntry = relationDetailName ? snapshot.relations.find(([entryName]) => entryName === relationDetailName) : null;
         const relationDetail = relationDetailEntry && relationDetailEntry[1];
-        const relationDetailPath = relationDetailName && activeCharKey ? ['char', activeCharKey, 'social', 'relations', relationDetailName] : [];
+        const relationDetailPath = relationDetailName && activeCharKey ? ['char', activeCharKey, '社交', '关系', relationDetailName] : [];
         const resolvedTarget = relationDetailName ? resolveSnapshotCharacter(snapshot, relationDetailName) : { key: '', displayName: '', char: null };
         const relationTargetChar = resolvedTarget.char || null;
-        const relationTargetLoc = toText(deepGet(relationTargetChar, 'status.loc', ''), '');
+        const relationTargetLoc = toText(deepGet(relationTargetChar, '状态.位置', ''), '');
         const relationTargetLocLabel = relationTargetLoc ? relationTargetLoc.replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '') : '未知地点';
         const relationFavor = toNumber(relationDetail && relationDetail['好感度'], 0);
-        const relationRoute = toText(relationDetail && relationDetail['relation_route'], '朋友线');
-        const routeSwitchable = !!deepGet(relationDetail, '_route_switchable', false);
-        const isContactable = !!relationTargetChar && deepGet(relationTargetChar, 'status.alive', true) !== false;
+        const relationRoute = toText(relationDetail && relationDetail['关系路线'], '朋友线');
+        const routeSwitchable = !!deepGet(relationDetail, '_可切线', false);
+        const isContactable = !!relationTargetChar && deepGet(relationTargetChar, '状态.存活', true) !== false;
         const isSameLocation = !!relationTargetChar && isLocationCompatible(currentLocFull, relationTargetLoc);
         const isPlayerControlled = isSnapshotPlayerControlled(snapshot);
         const canTalk = isSameLocation && isContactable;
@@ -11931,20 +11944,20 @@
           ? relationDirectoryPage.items.map(([name, rel]) => {
               const resolved = resolveSnapshotCharacter(snapshot, name);
               const targetChar = resolved.char || null;
-              const targetLoc = toText(deepGet(targetChar, 'status.loc', ''), '');
-              const alive = !!targetChar && deepGet(targetChar, 'status.alive', true) !== false;
+              const targetLoc = toText(deepGet(targetChar, '状态.位置', ''), '');
+              const alive = !!targetChar && deepGet(targetChar, '状态.存活', true) !== false;
               const sameLocation = !!targetChar && isLocationCompatible(currentLocFull, targetLoc);
               const favor = toNumber(rel && rel['好感度'], 0);
               const stage = toText(rel && rel['关系'], '陌生');
-              const route = toText(rel && rel['relation_route'], '朋友线');
+              const route = toText(rel && rel['关系路线'], '朋友线');
               const availability = sameLocation ? '在场可接触' : (alive ? '远端存活' : '不可接触');
               const availabilityClass = sameLocation ? 'live' : (alive ? 'warn' : '');
-              const progressNote = toText(rel && rel['_progress_note'], toText(rel && rel['progress_note'], '暂无推进提示'));
+              const progressNote = toText(rel && rel['_推进提示'], '暂无推进提示');
               return `
                 <button type="button" class="dossier-list-row dossier-list-row--button relation-directory-item ${name === relationDetailName ? 'active' : ''}" data-relation-focus="${escapeHtmlAttr(name)}">
                   <b>${htmlEscape(name)}</b>
                   <span>
-                    <strong>${htmlEscape(toText(rel && rel['npc_job'], '未知身份'))}</strong>
+                    <strong>${htmlEscape(toText(rel && rel['对方身份'], '未知身份'))}</strong>
                     <em>${htmlEscape(`${stage} / ${route} / 好感 ${favor}`)}</em>
                     <small class="${availabilityClass}">${htmlEscape(`${availability} ｜ ${progressNote}`)}</small>
                   </span>
@@ -11960,17 +11973,17 @@
               const detail = detailEntry && detailEntry[1];
               return {
                 title: `${targetName} / ${toText(item && item.relation, '陌生')}`,
-                desc: `${toText(item && item.reason, '暂无推进建议')} ｜ 建议：${toText(item && item.recommended_action, '继续观察')} ｜ 下一阶段：${toText(detail && detail['_next_stage'], toText(detail && detail['next_stage'], '无'))} / ${toNumber(detail && detail['_next_stage_threshold'], toNumber(detail && detail['next_stage_threshold'], 0))}`,
+                desc: `${toText(item && item.reason, '暂无推进建议')} ｜ 建议：${toText(item && item.recommended_action, '继续观察')} ｜ 下一阶段：${toText(detail && detail['_下一阶段'], '无')} / ${toNumber(detail && detail['_下一阶段_threshold'], 0)}`,
               };
             }), 'dossier-list--compact')
           : makeDossierList(snapshot.relations.slice(0, 2).map(([name, rel]) => ({
               title: `${name} / ${toText(rel && rel['关系'], '陌生')}`,
-              desc: `路线：${toText(rel && rel['relation_route'], '朋友线')} / 好感：${toText(rel && rel['好感度'], 0)} ｜ 下一阶段：${toText(rel && rel['_next_stage'], toText(rel && rel['next_stage'], '无'))} / ${toNumber(rel && rel['_next_stage_threshold'], toNumber(rel && rel['next_stage_threshold'], 0))}`,
+              desc: `路线：${toText(rel && rel['关系路线'], '朋友线')} / 好感：${toText(rel && rel['好感度'], 0)} ｜ 下一阶段：${toText(rel && rel['_下一阶段'], '无')} / ${toNumber(rel && rel['_下一阶段_threshold'], 0)}`,
             })), 'dossier-list--compact')) || '<div class="dossier-empty-note">关系线索仍在铺陈。</div>';
 
-        const sameLocationTargets = Array.isArray(deepGet(snapshot, 'relationAnalysis.same_location_targets', [])) ? deepGet(snapshot, 'relationAnalysis.same_location_targets', []) : [];
-        const trustTargets = Array.isArray(deepGet(snapshot, 'relationAnalysis.trust_targets', [])) ? deepGet(snapshot, 'relationAnalysis.trust_targets', []) : [];
-        const recommendedActions = Array.isArray(deepGet(snapshot, 'relationAnalysis.recommended_actions', [])) ? deepGet(snapshot, 'relationAnalysis.recommended_actions', []) : [];
+        const sameLocationTargets = Array.isArray(deepGet(snapshot, '关系分析.同地对象', [])) ? deepGet(snapshot, '关系分析.同地对象', []) : [];
+        const trustTargets = Array.isArray(deepGet(snapshot, '关系分析.信任对象', [])) ? deepGet(snapshot, '关系分析.信任对象', []) : [];
+        const recommendedActions = Array.isArray(deepGet(snapshot, '关系分析.建议行动', [])) ? deepGet(snapshot, '关系分析.建议行动', []) : [];
         const relationSummaryText = relationFocusTargets.length
           ? `当前重点关系对象：${relationFocusTargets.slice(0, 2).map(item => `${toText(item && item.target, '无')}(${toText(item && item.relation, '陌生')}/${toNumber(item && item.favor, 0)})`).join('、')}`
           : sameLocationTargets.length
@@ -11979,7 +11992,7 @@
               ? `当前建议：${recommendedActions.slice(0, 2).join('；')}`
               : (trustTargets.length ? `高信任对象：${trustTargets.slice(0, 3).join('、')}` : '当前雷达未扫描到足够的社会链接数据，暂无总体分析倾向。');
         const relationOverviewRowsHtml = makeDossierRows([
-          { label: '焦点对象', value: htmlEscape(toText(deepGet(snapshot, 'relationAnalysis.focus_target', relationDetailName || '无'), relationDetailName || '无')) },
+          { label: '焦点对象', value: htmlEscape(toText(deepGet(snapshot, '关系分析.关注对象', relationDetailName || '无'), relationDetailName || '无')) },
           { label: '系统建议', value: htmlEscape(recommendedActions.slice(0, 3).join(' / ') || '无') },
           { label: '在场目标', value: htmlEscape(sameLocationTargets.slice(0, 4).join(' / ') || '无') },
         ], 'dossier-row-grid--two');
@@ -11995,7 +12008,7 @@
                 : htmlEscape(toText(relationDetail && relationDetail['关系'], '陌生')) },
               { label: '路线', value: relationDetailPath.length
                 ? makeInlineEditableValue(relationRoute, {
-                    path: [...relationDetailPath, 'relation_route'],
+                    path: [...relationDetailPath, '关系路线'],
                     kind: 'enum_select',
                     rawValue: relationRoute,
                     editorMeta: { options: ['朋友线', '恋人线'] },
@@ -12010,52 +12023,52 @@
                   })
                 : htmlEscape(String(relationFavor)) },
               { label: '对方身份', value: relationDetailPath.length
-                ? makeInlineEditableValue(toText(relationDetail && relationDetail['npc_job'], '无'), {
-                    path: [...relationDetailPath, 'npc_job'],
+                ? makeInlineEditableValue(toText(relationDetail && relationDetail['对方身份'], '无'), {
+                    path: [...relationDetailPath, '对方身份'],
                     kind: 'string',
-                    rawValue: toText(relationDetail && relationDetail['npc_job'], '无'),
+                    rawValue: toText(relationDetail && relationDetail['对方身份'], '无'),
                   })
-                : htmlEscape(toText(relationDetail && relationDetail['npc_job'], '无')) },
+                : htmlEscape(toText(relationDetail && relationDetail['对方身份'], '无')) },
               { label: '位置状态', value: htmlEscape(`${relationTargetLocLabel} / ${isSameLocation ? '同地可接触' : (isContactable ? '远端可联系' : '当前不可接触')}`) },
-              { label: '推进提示', value: htmlEscape(toText(relationDetail && relationDetail['_progress_note'], toText(relationDetail && relationDetail['progress_note'], '暂无'))) },
-              { label: '关系状态', value: htmlEscape(`${toText(relationDetail && relationDetail['_availability'], '未知')} / ${toText(relationDetail && relationDetail['_route_lock_reason'], '无')}`) },
+              { label: '推进提示', value: htmlEscape(toText(relationDetail && relationDetail['_推进提示'], '暂无')) },
+              { label: '关系状态', value: htmlEscape(`${toText(relationDetail && relationDetail['_维护优先级'], '未知')} / ${toText(relationDetail && relationDetail['_切线限制原因'], '无')}`) },
             ], 'dossier-row-grid--two')
           : '<div class="dossier-empty-note">先从对象列表里选择一个目标。</div>';
         const relationRecordRowsHtml = relationDetail
           ? makeDossierRows([
               { label: '关系加成', value: relationDetailPath.length
-                ? makeInlineEditableValue(toText(relationDetail && relationDetail['favor_buff'], '无'), {
-                    path: [...relationDetailPath, 'favor_buff'],
+                ? makeInlineEditableValue(toText(relationDetail && relationDetail['好感加成'], '无'), {
+                    path: [...relationDetailPath, '好感加成'],
                     kind: 'string',
-                    rawValue: toText(relationDetail && relationDetail['favor_buff'], '无'),
+                    rawValue: toText(relationDetail && relationDetail['好感加成'], '无'),
                   })
-                : htmlEscape(toText(relationDetail && relationDetail['favor_buff'], '无')) },
-              { label: '当前加成', value: htmlEscape(toText(relationDetail && relationDetail['_current_relation_bonus'], '无')) },
-              { label: '下一解锁', value: htmlEscape(toText(relationDetail && relationDetail['_next_unlock_bonus'], '无')) },
-              { label: '下一阶段', value: htmlEscape(`${toText(relationDetail && relationDetail['_next_stage'], '无')} / ${toNumber(relationDetail && relationDetail['_next_stage_threshold'], 0)}`) },
+                : htmlEscape(toText(relationDetail && relationDetail['好感加成'], '无')) },
+              { label: '当前加成', value: htmlEscape(toText(relationDetail && relationDetail['_当前关系加成'], '无')) },
+              { label: '下一解锁', value: htmlEscape(toText(relationDetail && relationDetail['_下档解锁加成'], '无')) },
+              { label: '下一阶段', value: htmlEscape(`${toText(relationDetail && relationDetail['_下一阶段'], '无')} / ${toNumber(relationDetail && relationDetail['_下一阶段_threshold'], 0)}`) },
               { label: '最近互动', value: relationDetailPath.length
-                ? makeInlineEditableValue(toText(relationDetail && relationDetail['last_interact_action'], '无'), {
-                    path: [...relationDetailPath, 'last_interact_action'],
+                ? makeInlineEditableValue(toText(relationDetail && relationDetail['上次互动动作'], '无'), {
+                    path: [...relationDetailPath, '上次互动动作'],
                     kind: 'string',
-                    rawValue: toText(relationDetail && relationDetail['last_interact_action'], '无'),
+                    rawValue: toText(relationDetail && relationDetail['上次互动动作'], '无'),
                   })
-                : htmlEscape(toText(relationDetail && relationDetail['last_interact_action'], '无')) },
+                : htmlEscape(toText(relationDetail && relationDetail['上次互动动作'], '无')) },
               { label: '最近变动', value: relationDetailPath.length
-                ? makeInlineEditableValue(String(toNumber(relationDetail && relationDetail['recent_favor_delta'], 0)), {
-                    path: [...relationDetailPath, 'recent_favor_delta'],
+                ? makeInlineEditableValue(String(toNumber(relationDetail && relationDetail['最近好感变化'], 0)), {
+                    path: [...relationDetailPath, '最近好感变化'],
                     kind: 'number',
-                    rawValue: toNumber(relationDetail && relationDetail['recent_favor_delta'], 0),
+                    rawValue: toNumber(relationDetail && relationDetail['最近好感变化'], 0),
                     editorMeta: { integer: true, hint: '整数 · 可正可负 · 不设硬上下限' },
                   })
-                : htmlEscape(String(toNumber(relationDetail && relationDetail['recent_favor_delta'], 0))) },
+                : htmlEscape(String(toNumber(relationDetail && relationDetail['最近好感变化'], 0))) },
               { label: '上次互动Tick', value: relationDetailPath.length
-                ? makeInlineEditableValue(String(toNumber(relationDetail && relationDetail['last_interact_tick'], 0)), {
-                    path: [...relationDetailPath, 'last_interact_tick'],
+                ? makeInlineEditableValue(String(toNumber(relationDetail && relationDetail['上次互动tick'], 0)), {
+                    path: [...relationDetailPath, '上次互动tick'],
                     kind: 'number',
-                    rawValue: toNumber(relationDetail && relationDetail['last_interact_tick'], 0),
+                    rawValue: toNumber(relationDetail && relationDetail['上次互动tick'], 0),
                     editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
                   })
-                : htmlEscape(String(toNumber(relationDetail && relationDetail['last_interact_tick'], 0))) },
+                : htmlEscape(String(toNumber(relationDetail && relationDetail['上次互动tick'], 0))) },
               { label: '推进路线', value: htmlEscape(routeSwitchable ? '可切恋人线' : relationRoute) },
             ], 'dossier-row-grid--two')
           : '';
@@ -12145,8 +12158,8 @@
 
       if (previewKey === '情报库详细页') {
         const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
-        const knowledgeRequestPath = activeCharKey ? ['char', activeCharKey, 'knowledge_unlock_request'] : [];
-        const intelNodes = [toText(deepGet(snapshot, 'activeChar.knowledge_unlock_request.content', '无'), '无'), ...snapshot.unlockedKnowledges.slice(-4).reverse()].filter(item => item && item !== '无');
+        const knowledgeRequestPath = activeCharKey ? ['char', activeCharKey, '待解锁情报'] : [];
+        const intelNodes = [toText(deepGet(snapshot, 'activeChar.待解锁情报.内容', '无'), '无'), ...snapshot.unlockedKnowledges.slice(-4).reverse()].filter(item => item && item !== '无');
         const coreIntel = intelNodes[0] || '暂无核心情报';
         const sideIntels = intelNodes.slice(1, 5);
         const unlockedIntelEntries = (snapshot.unlockedKnowledges || []).map((text, index) => ({ text, index })).slice().reverse();
@@ -12154,14 +12167,14 @@
         const unlockedIntelPage = paginateModalItems(unlockedIntelEntries, previewKey, 'intel-records', unlockedIntelPageSize);
         const pendingIntelDefault = snapshot.pendingIntelCount ? snapshot.pendingIntelContent : '';
         const pendingIntelImpactDefault = snapshot.pendingIntelCount ? snapshot.pendingIntelImpact : 0;
-        const pendingIntelContentValue = toText(deepGet(snapshot, 'activeChar.knowledge_unlock_request.content', pendingIntelDefault || '未知'), pendingIntelDefault || '未知');
-        const pendingIntelImpactValue = toNumber(deepGet(snapshot, 'activeChar.knowledge_unlock_request.impact', pendingIntelImpactDefault), pendingIntelImpactDefault);
+        const pendingIntelContentValue = toText(deepGet(snapshot, 'activeChar.待解锁情报.内容', pendingIntelDefault || '未知'), pendingIntelDefault || '未知');
+        const pendingIntelImpactValue = toNumber(deepGet(snapshot, 'activeChar.待解锁情报.影响', pendingIntelImpactDefault), pendingIntelImpactDefault);
         const hasPendingIntel = snapshot.pendingIntelCount > 0;
         const latestUnlockedIntel = snapshot.unlockedKnowledges.length
           ? toText(snapshot.unlockedKnowledges[snapshot.unlockedKnowledges.length - 1], '鏆傛棤')
           : '鏆傛棤';
         const intelOverviewText = snapshot.pendingIntelCount ? pendingIntelContentValue : latestUnlockedIntel;
-        const combatHistoryTotalCount = snapshot.combatHistoryEntries.reduce((total, [, info]) => total + Math.max(0, toNumber(info && info.count, 0)), 0);
+        const combatHistoryTotalCount = snapshot.combatHistoryEntries.reduce((total, [, info]) => total + Math.max(0, toNumber(info && info.次数, 0)), 0);
         const latestCombatEntry = snapshot.combatHistoryEntries.length ? snapshot.combatHistoryEntries[0] : null;
         const latestCombatTarget = latestCombatEntry ? toText(latestCombatEntry[0], '暂无') : '暂无';
         const latestCombatResult = latestCombatEntry ? toText(latestCombatEntry[1] && latestCombatEntry[1].last_result, '未记录') : '未记录';
@@ -12172,8 +12185,8 @@
               desc: '当前角色还没有任何交战档案。'
             };
           }
-          const countValue = Math.max(0, toNumber(info && info.count, 0));
-          const tickValue = toText(info && info.last_tick, '未记录');
+          const countValue = Math.max(0, toNumber(info && info.次数, 0));
+          const tickValue = toText(info && info.最近tick, '未记录');
           const lastResult = toText(info && info.last_result, '');
           return {
             title: `${name}`,
@@ -12190,7 +12203,7 @@
                 <div style="display:flex; gap:8px; align-items:flex-start; justify-content:space-between;">
                   <b style="flex:1 1 auto;">${activeCharKey
                     ? makeInlineEditableValue(toText(item && item.text, '未知'), {
-                        path: ['char', activeCharKey, 'unlocked_knowledges', toNumber(item && item.index, 0)],
+                        path: ['char', activeCharKey, '已掌握情报', toNumber(item && item.index, 0)],
                         kind: 'string',
                         rawValue: toText(item && item.text, '未知'),
                         multiline: true,
@@ -12326,32 +12339,32 @@
         || String(previewKey || '').startsWith('斗铠部件：')
       ) {
         const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
-        const armor = deepGet(snapshot, 'activeChar.equip.armor', {});
-        const mech = deepGet(snapshot, 'activeChar.equip.mech', {});
-        const weapon = deepGet(snapshot, 'activeChar.equip.wpn', {});
-        const accessories = deepGet(snapshot, 'activeChar.equip.accessories', {});
+        const armor = deepGet(snapshot, 'activeChar.装备.斗铠', {});
+        const mech = deepGet(snapshot, 'activeChar.装备.机甲', {});
+        const weapon = deepGet(snapshot, 'activeChar.装备.武器', {});
+        const accessories = deepGet(snapshot, 'activeChar.装备.饰品', {});
         const accessoryEntries = listAccessoryEntries(accessories);
-        const armorPath = activeCharKey ? ['char', activeCharKey, 'equip', 'armor'] : [];
-        const mechPath = activeCharKey ? ['char', activeCharKey, 'equip', 'mech'] : [];
-        const weaponPath = activeCharKey ? ['char', activeCharKey, 'equip', 'wpn'] : [];
-        const accessoriesPath = activeCharKey ? ['char', activeCharKey, 'equip', 'accessories'] : [];
-        const jobs = safeEntries(deepGet(snapshot, 'activeChar.job', {}));
+        const armorPath = activeCharKey ? ['char', activeCharKey, '装备', '斗铠'] : [];
+        const mechPath = activeCharKey ? ['char', activeCharKey, '装备', '机甲'] : [];
+        const weaponPath = activeCharKey ? ['char', activeCharKey, '装备', '武器'] : [];
+        const accessoriesPath = activeCharKey ? ['char', activeCharKey, '装备', '饰品'] : [];
+        const jobs = safeEntries(deepGet(snapshot, 'activeChar.职业', {}));
         const isPlayerControlled = isSnapshotPlayerControlled(snapshot);
-        const armorSummary = toNumber(armor.lv, 0) > 0 ? `${toText(armor.name, `${armor.lv}字斗铠`)} / ${toText(armor.equip_status, '未装备')}` : '未装备';
-        const mechSummary = toText(mech.lv, '无') !== '无' ? `${toText(mech.lv, '无')}·${toText(mech.type, '未定型')} / ${toText(mech.equip_status || mech.status, '未装备')}` : '未部署';
-        const weaponSummary = weapon && (weapon.name || weapon['名称']) ? `${toText(weapon.name || weapon['名称'], '无')} / ${toText(weapon.tier || weapon['品阶'], '无品阶')}` : '无';
+        const armorSummary = toNumber(armor.等级, 0) > 0 ? `${toText(armor.名称, `${armor.等级}字斗铠`)} / ${toText(armor.装备状态, '未装备')}` : '未装备';
+        const mechSummary = toText(mech.等级, '无') !== '无' ? `${toText(mech.等级, '无')}·${toText(mech.型号, '未定型')} / ${toText(mech.装备状态, '未装备')}` : '未部署';
+        const weaponSummary = weapon && (weapon.名称 || weapon['名称']) ? `${toText(weapon.名称 || weapon['名称'], '无')} / ${toText(weapon.品阶 || weapon['品阶'], '无品阶')}` : '无';
         const accessorySummary = summarizeAccessoryEntries(accessoryEntries);
-        const jobSummary = jobs.length ? jobs.slice(0, 2).map(([name, info]) => `${name} Lv.${toText(info && info.lv, 0)}`).join(' / ') : '未掌握';
-        const jobCoreTechSummary = jobs.length ? (Object.keys(deepGet(jobs[0][1], 'core_tech', {})).slice(0, 2).join(' / ') || '暂无核心技术') : '暂无核心技术';
-        const jobLimitSummary = jobs.length ? `融锻上限 ${toText(deepGet(jobs[0][1], 'limits.max_fusion', 1), '1')} / 成功率 ${toText(deepGet(jobs[0][1], 'limits.success_rate', 0), '0')}%` : '暂无工坊上限';
-        const battleForm = `${toText(deepGet(snapshot, 'activeChar.status.action', '日常'), '日常')} / ${toText(deepGet(snapshot, 'activeChar.status.active_domain', '常态'), '常态')}`;
-        const armorExists = toNumber(armor.lv, 0) > 0 || !!toText(armor.name || armor['名称'], '');
-        const mechExists = toText(mech.lv, '无') !== '无' || !!toText(mech.name || mech['名称'] || mech.type, '');
-        const armorEquipped = toText(armor.equip_status, '未装备') === '已装备';
-        const mechEquipped = toText(mech.equip_status, '未装备') === '已装备';
-        const armorBonusItems = buildStatsBonusItems(deepGet(armor, '_stats_bonus', deepGet(armor, 'stats_bonus', {})), { includeLvEquiv: true });
-        const mechBonusItems = buildStatsBonusItems(deepGet(mech, '_stats_bonus', deepGet(mech, 'stats_bonus', {})));
-        const weaponBonusItems = buildStatsBonusItems(deepGet(weapon, 'stats_bonus', {}));
+        const jobSummary = jobs.length ? jobs.slice(0, 2).map(([name, info]) => `${name} Lv.${toText(info && info.等级, 0)}`).join(' / ') : '未掌握';
+        const jobCoreTechSummary = jobs.length ? (Object.keys(deepGet(jobs[0][1], '核心技艺', {})).slice(0, 2).join(' / ') || '暂无核心技术') : '暂无核心技术';
+        const jobLimitSummary = jobs.length ? `融锻上限 ${toText(deepGet(jobs[0][1], '限制.最大融合数', 1), '1')} / 成功率 ${toText(deepGet(jobs[0][1], '限制.成功率', 0), '0')}%` : '暂无工坊上限';
+        const battleForm = `${toText(deepGet(snapshot, 'activeChar.状态.行动', '日常'), '日常')} / ${toText(deepGet(snapshot, 'activeChar.状态.当前领域', '常态'), '常态')}`;
+        const armorExists = toNumber(armor.等级, 0) > 0 || !!toText(armor.名称 || armor['名称'], '');
+        const mechExists = toText(mech.等级, '无') !== '无' || !!toText(mech.型号, '');
+        const armorEquipped = toText(armor.装备状态, '未装备') === '已装备';
+        const mechEquipped = toText(mech.装备状态, '未装备') === '已装备';
+        const armorBonusItems = buildStatsBonusItems(deepGet(armor, '_属性加成', deepGet(armor, '属性加成', {})), { includeLvEquiv: true });
+        const mechBonusItems = buildStatsBonusItems(deepGet(mech, '_属性加成', deepGet(mech, '属性加成', {})));
+        const weaponBonusItems = buildStatsBonusItems(deepGet(weapon, '属性加成', {}));
         const armorSlotDefs = [
           { x: 50, y: 12, label: '头盔', preview: '斗铠部件：头盔' },
           { x: 50, y: 34, label: '胸铠', preview: '斗铠部件：胸铠' },
@@ -12380,7 +12393,7 @@
 
         if (previewKey === '武装详情：斗铠') {
           return {
-            title: toText(armor.name, '斗铠详情'),
+            title: toText(armor.名称, '斗铠详情'),
             summary: '',
             body: `
               <div class="equipment-layout">
@@ -12388,35 +12401,35 @@
                   <div class="archive-card-head"><div class="archive-card-title">斗铠详情</div></div>
                   ${makeTileGrid([
                     { label: '名称', value: armorPath.length
-                      ? makeInlineEditableValue(toText(armor.name, '无'), {
-                          path: [...armorPath, 'name'],
+                      ? makeInlineEditableValue(toText(armor.名称, '无'), {
+                          path: [...armorPath, '名称'],
                           kind: 'string',
-                          rawValue: toText(armor.name, '无'),
+                          rawValue: toText(armor.名称, '无'),
                         })
-                      : htmlEscape(toText(armor.name, '无')) },
+                      : htmlEscape(toText(armor.名称, '无')) },
                     { label: '字级', value: armorPath.length
-                      ? makeInlineEditableValue(toNumber(armor.lv, 0) > 0 ? `${toNumber(armor.lv, 0)}字斗铠` : '无', {
-                          path: [...armorPath, 'lv'],
+                      ? makeInlineEditableValue(toNumber(armor.等级, 0) > 0 ? `${toNumber(armor.等级, 0)}字斗铠` : '无', {
+                          path: [...armorPath, '等级'],
                           kind: 'number',
-                          rawValue: toNumber(armor.lv, 0),
+                          rawValue: toNumber(armor.等级, 0),
                           editorMeta: { min: 0, max: 4, integer: true, hint: '范围 0 - 4 · 整数' },
                         })
-                      : htmlEscape(toNumber(armor.lv, 0) > 0 ? `${toNumber(armor.lv, 0)}字斗铠` : '无') },
+                      : htmlEscape(toNumber(armor.等级, 0) > 0 ? `${toNumber(armor.等级, 0)}字斗铠` : '无') },
                     { label: '领域', value: armorPath.length
-                      ? makeInlineEditableValue(toText(armor.domain, '无'), {
-                          path: [...armorPath, 'domain'],
+                      ? makeInlineEditableValue(toText(armor.领域, '无'), {
+                          path: [...armorPath, '领域'],
                           kind: 'string',
-                          rawValue: toText(armor.domain, '无'),
+                          rawValue: toText(armor.领域, '无'),
                         })
-                      : htmlEscape(toText(armor.domain, '无')) },
+                      : htmlEscape(toText(armor.领域, '无')) },
                     { label: '装备状态', value: armorPath.length
-                      ? makeInlineEditableValue(toText(armor.equip_status, '未装备'), {
-                          path: [...armorPath, 'equip_status'],
+                      ? makeInlineEditableValue(toText(armor.装备状态, '未装备'), {
+                          path: [...armorPath, '装备状态'],
                           kind: 'enum_select',
-                          rawValue: toText(armor.equip_status, '未装备'),
+                          rawValue: toText(armor.装备状态, '未装备'),
                           editorMeta: { options: ['未装备', '已装备'] },
                         })
-                      : htmlEscape(toText(armor.equip_status, '未装备')) }
+                      : htmlEscape(toText(armor.装备状态, '未装备')) }
                   ])}
                 </div>
                 <div class="archive-card full">
@@ -12425,7 +12438,7 @@
                 </div>
                 <div class="archive-card">
                   <div class="archive-card-head"><div class="archive-card-title">斗铠部件</div></div>
-                  ${makeInteractiveFigureBoard(toText(armor.name, '斗铠'), armorSlots, { preview: '武装详情：斗铠' })}
+                  ${makeInteractiveFigureBoard(toText(armor.名称, '斗铠'), armorSlots, { preview: '武装详情：斗铠' })}
                 </div>
                 ${isPlayerControlled && armorExists ? `
                   <div class="archive-card full">
@@ -12441,7 +12454,7 @@
 
         if (previewKey === '武装详情：机甲') {
           return {
-            title: mechExists ? toText(mech.name || mech['名称'] || mech.type, '机甲详情') : '机甲详情',
+            title: mechExists ? toText(mech.型号, '机甲详情') : '机甲详情',
             summary: '',
             body: `
               <div class="archive-modal-grid">
@@ -12449,41 +12462,41 @@
                   <div class="archive-card-head"><div class="archive-card-title">机甲详情</div></div>
                   ${makeTileGrid([
                     { label: '级别', value: mechPath.length
-                      ? makeInlineEditableValue(toText(mech.lv, '无'), {
-                          path: [...mechPath, 'lv'],
+                      ? makeInlineEditableValue(toText(mech.等级, '无'), {
+                          path: [...mechPath, '等级'],
                           kind: 'string',
-                          rawValue: toText(mech.lv, '无'),
+                          rawValue: toText(mech.等级, '无'),
                         })
-                      : htmlEscape(toText(mech.lv, '无')) },
+                      : htmlEscape(toText(mech.等级, '无')) },
                     { label: '类型', value: mechPath.length
-                      ? makeInlineEditableValue(toText(mech.type, '无'), {
-                          path: [...mechPath, 'type'],
+                      ? makeInlineEditableValue(toText(mech.型号, '无'), {
+                          path: [...mechPath, '型号'],
                           kind: 'string',
-                          rawValue: toText(mech.type, '无'),
+                          rawValue: toText(mech.型号, '无'),
                         })
-                      : htmlEscape(toText(mech.type, '无')) },
+                      : htmlEscape(toText(mech.型号, '无')) },
                     { label: '机体状态', value: mechPath.length
-                      ? makeInlineEditableValue(toText(mech.status, '完好'), {
-                          path: [...mechPath, 'status'],
+                      ? makeInlineEditableValue(toText(mech.状态, '完好'), {
+                          path: [...mechPath, '状态'],
                           kind: 'string',
-                          rawValue: toText(mech.status, '完好'),
+                          rawValue: toText(mech.状态, '完好'),
                         })
-                      : htmlEscape(toText(mech.status, '完好')) },
+                      : htmlEscape(toText(mech.状态, '完好')) },
                     { label: '装备状态', value: mechPath.length
-                      ? makeInlineEditableValue(toText(mech.equip_status, '未装备'), {
-                          path: [...mechPath, 'equip_status'],
+                      ? makeInlineEditableValue(toText(mech.装备状态, '未装备'), {
+                          path: [...mechPath, '装备状态'],
                           kind: 'enum_select',
-                          rawValue: toText(mech.equip_status, '未装备'),
+                          rawValue: toText(mech.装备状态, '未装备'),
                           editorMeta: { options: ['未装备', '已装备'] },
                         })
-                      : htmlEscape(toText(mech.equip_status, '未装备')) },
+                      : htmlEscape(toText(mech.装备状态, '未装备')) },
                     { label: '机载武器', value: mechPath.length
-                      ? makeInlineEditableValue(toText(mech.weapon, '无'), {
-                          path: [...mechPath, 'weapon'],
+                      ? makeInlineEditableValue(toText(mech.武装, '无'), {
+                          path: [...mechPath, '武装'],
                           kind: 'string',
-                          rawValue: toText(mech.weapon, '无'),
+                          rawValue: toText(mech.武装, '无'),
                         })
-                      : htmlEscape(toText(mech.weapon, '无')) },
+                      : htmlEscape(toText(mech.武装, '无')) },
                     { label: '品质系数', value: mechPath.length
                       ? makeInlineEditableValue(String(toNumber(deepGet(mech, '品质系数', 1), 1)), {
                           path: [...mechPath, '品质系数'],
@@ -12512,7 +12525,7 @@
 
         if (previewKey === '武装详情：主武器') {
           return {
-            title: toText(weapon.name || weapon['名称'], '主武器详情'),
+            title: toText(weapon.名称 || weapon['名称'], '主武器详情'),
             summary: '',
             body: `
               <div class="archive-modal-grid">
@@ -12520,34 +12533,34 @@
                   <div class="archive-card-head"><div class="archive-card-title">主武器详情</div></div>
                   ${makeTileGrid([
                     { label: '名称', value: weaponPath.length
-                      ? makeInlineEditableValue(toText(weapon.name, '无'), {
-                          path: [...weaponPath, 'name'],
+                      ? makeInlineEditableValue(toText(weapon.名称, '无'), {
+                          path: [...weaponPath, '名称'],
                           kind: 'string',
-                          rawValue: toText(weapon.name, '无'),
+                          rawValue: toText(weapon.名称, '无'),
                         })
-                      : htmlEscape(toText(weapon.name, '无')) },
+                      : htmlEscape(toText(weapon.名称, '无')) },
                     { label: '品阶', value: weaponPath.length
-                      ? makeInlineEditableValue(toText(weapon.tier, '无'), {
-                          path: [...weaponPath, 'tier'],
+                      ? makeInlineEditableValue(toText(weapon.品阶, '无'), {
+                          path: [...weaponPath, '品阶'],
                           kind: 'string',
-                          rawValue: toText(weapon.tier, '无'),
+                          rawValue: toText(weapon.品阶, '无'),
                         })
-                      : htmlEscape(toText(weapon.tier, '无')) },
-                    { label: '特性数', value: String(Object.keys(deepGet(weapon, 'traits', {})).length) },
-                    { label: '主要特性', value: Object.keys(deepGet(weapon, 'traits', {})).slice(0, 2).join(' / ') || '无' }
+                      : htmlEscape(toText(weapon.品阶, '无')) },
+                    { label: '特性数', value: String(Object.keys(deepGet(weapon, '特性', {})).length) },
+                    { label: '主要特性', value: Object.keys(deepGet(weapon, '特性', {})).slice(0, 2).join(' / ') || '无' }
                   ])}
                 </div>
                 <div class="archive-card full">
                   <div class="archive-card-head"><div class="archive-card-title">武器加成</div></div>
-                  ${makeTileGrid(weaponPath.length ? buildEditableStatBonusItems([...weaponPath, 'stats_bonus'], deepGet(weapon, 'stats_bonus', {})) : weaponBonusItems)}
+                  ${makeTileGrid(weaponPath.length ? buildEditableStatBonusItems([...weaponPath, '属性加成'], deepGet(weapon, '属性加成', {})) : weaponBonusItems)}
                 </div>
                 <div class="archive-card full">
                   <div class="archive-card-head"><div class="archive-card-title">武器特性</div></div>
-                  ${makeTimelineStack(safeEntries(deepGet(weapon, 'traits', {})).length ? safeEntries(deepGet(weapon, 'traits', {})).map(([name, item]) => ({
+                  ${makeTimelineStack(safeEntries(deepGet(weapon, '特性', {})).length ? safeEntries(deepGet(weapon, '特性', {})).map(([name, item]) => ({
                     title: htmlEscape(name),
                     desc: weaponPath.length
                       ? makeInlineEditableValue(toText(deepGet(item, '描述', '无'), '无'), {
-                          path: [...weaponPath, 'traits', name, '描述'],
+                          path: [...weaponPath, '特性', name, '描述'],
                           kind: 'string',
                           rawValue: toText(deepGet(item, '描述', '无'), '无'),
                           multiline: true,
@@ -12555,7 +12568,7 @@
                       : htmlEscape(toText(deepGet(item, '描述', '无'), '无'))
                   })) : [{ title: '暂无武器特性', desc: '当前主武器未记录额外特性。' }])}
                 </div>
-                ${isPlayerControlled && (weapon && (weapon.name || weapon['名称'])) ? `
+                ${isPlayerControlled && (weapon && (weapon.名称 || weapon['名称'])) ? `
                   <div class="archive-card full">
                     <div class="tag-cloud armory-quick-actions" style="justify-content:flex-end;">
                       <button type="button" class="relation-action-btn equipment-action-btn" data-equipment-action="unequip" data-equipment-char="${escapeHtmlAttr(activeCharKey)}" data-equipment-kind="wpn">卸下主武器</button>
@@ -12615,12 +12628,12 @@
         if (String(previewKey || '').startsWith('斗铠部件：')) {
           const slotName = String(previewKey).replace('斗铠部件：', '');
           const partData = resolveArmorPartData(armor, slotName);
-          const partPath = armorPath.length ? [...armorPath, 'parts', slotName] : [];
+          const partPath = armorPath.length ? [...armorPath, '部件', slotName] : [];
           const fallbackPartItems = [
             { label: '部位', value: slotName },
             { label: '记录', value: '当前未记录独立部件属性' },
             { label: '所属斗铠', value: armorSummary },
-            { label: '附件状态', value: slotName === '戒指' ? accessorySummary : toText(armor.equip_status, '未装备') }
+            { label: '附件状态', value: slotName === '戒指' ? accessorySummary : toText(armor.装备状态, '未装备') }
           ];
           return {
             title: `${slotName}详情`,
@@ -12645,15 +12658,15 @@
                           editorMeta: { min: 0.8, max: 2, step: 0.1, hint: '范围 0.8 - 2.0 · 可输入小数 · 步长 0.1' },
                         })
                       : htmlEscape(String(toNumber(partData['品质系数'], 1))) },
-                    { label: '所属斗铠', value: toText(armor.name, '无') },
+                    { label: '所属斗铠', value: toText(armor.名称, '无') },
                     { label: '装配状态', value: armorPath.length
-                      ? makeInlineEditableValue(toText(armor.equip_status, '未装备'), {
-                          path: [...armorPath, 'equip_status'],
+                      ? makeInlineEditableValue(toText(armor.装备状态, '未装备'), {
+                          path: [...armorPath, '装备状态'],
                           kind: 'enum_select',
-                          rawValue: toText(armor.equip_status, '未装备'),
+                          rawValue: toText(armor.装备状态, '未装备'),
                           editorMeta: { options: ['未装备', '已装备'] },
                         })
-                      : htmlEscape(toText(armor.equip_status, '未装备')) }
+                      : htmlEscape(toText(armor.装备状态, '未装备')) }
                   ] : fallbackPartItems)}
                 </div>
               </div>
@@ -12662,12 +12675,19 @@
         }
 
         const getBoneBonus = (age, part) => {
-          let rb = { str: Math.floor(age * 0.05), def: Math.floor(age * 0.05), agi: Math.floor(age * 0.05), vit_max: Math.floor(age * 0.05), men_max: Math.floor(age * 0.01), sp_max: Math.floor(age * 0.1) };
+          let rb = {
+            力量: Math.floor(age * 0.05),
+            防御: Math.floor(age * 0.05),
+            敏捷: Math.floor(age * 0.05),
+            体力上限: Math.floor(age * 0.05),
+            精神力上限: Math.floor(age * 0.01),
+            魂力上限: Math.floor(age * 0.1),
+          };
           let bonus = { ...rb };
-          if (part === "躯干魂骨") { bonus.str*=2; bonus.def*=2; bonus.agi*=2; bonus.vit_max*=2; bonus.sp_max*=2; }
-          else if (part === "头部魂骨") { bonus.men_max*=2; }
-          else if (part === "左腿魂骨" || part === "右腿魂骨") { bonus.agi*=2; }
-          else if (part === "左臂魂骨" || part === "右臂魂骨") { bonus.str*=2; }
+          if (part === "躯干魂骨") { bonus.力量 *= 2; bonus.防御 *= 2; bonus.敏捷 *= 2; bonus.体力上限 *= 2; bonus.魂力上限 *= 2; }
+          else if (part === "头部魂骨") { bonus.精神力上限 *= 2; }
+          else if (part === "左腿魂骨" || part === "右腿魂骨") { bonus.敏捷 *= 2; }
+          else if (part === "左臂魂骨" || part === "右臂魂骨") { bonus.力量 *= 2; }
           return bonus;
         };
 
@@ -12678,25 +12698,25 @@
           const boneName = toText(bone && (bone.name || bone['名称'] || bone['表象名称']), slot);
           const age = toText(bone && (bone['年限'] || bone.age), '');
           const quality = toText(bone && (bone['品质'] || bone['品阶']), '');
-          let descText = `${toText(bone && (bone['状态'] || bone.status), '已装载')}`;
+          let descText = `${toText(bone && (bone['状态']), '已装载')}`;
           if (age || quality) descText += ` ｜ ${[age ? `${age}年` : '', quality].filter(Boolean).join(' ')}`;
           
           const realAge = toNumber(age, 0);
           if (realAge > 0) {
             const stats = getBoneBonus(realAge, slot);
             const statParts = [];
-            if (stats.str) statParts.push(`力+${formatNumber(stats.str)}`);
-            if (stats.def) statParts.push(`防+${formatNumber(stats.def)}`);
-            if (stats.agi) statParts.push(`敏+${formatNumber(stats.agi)}`);
-            if (stats.vit_max) statParts.push(`体+${formatNumber(stats.vit_max)}`);
-            if (stats.men_max) statParts.push(`精+${formatNumber(stats.men_max)}`);
+            if (stats.力量) statParts.push(`力+${formatNumber(stats.力量)}`);
+            if (stats.防御) statParts.push(`防+${formatNumber(stats.防御)}`);
+            if (stats.敏捷) statParts.push(`敏+${formatNumber(stats.敏捷)}`);
+            if (stats.体力上限) statParts.push(`体+${formatNumber(stats.体力上限)}`);
+            if (stats.精神力上限) statParts.push(`精+${formatNumber(stats.精神力上限)}`);
             if (statParts.length) descText += ` ｜ 属性加成: ${statParts.join(' ')}`;
           }
 
           const skillsObj = bone && bone['附带技能'];
           if (skillsObj && Object.keys(skillsObj).length) {
             const parsedSkills = buildSkillList(skillsObj, {
-              basePath: ['char', snapshot.activeName, 'soul_bone', slot, '附带技能'],
+              basePath: ['char', snapshot.activeName, '魂骨', slot, '附带技能'],
               category: '魂骨附带技能',
               scope: 'soul_bone_skill',
             });
@@ -12769,7 +12789,7 @@
       if (previewKey === '储物仓库详细页') {
         const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
         const inventoryCells = snapshot.inventoryEntries
-          .sort((a, b) => toNumber(deepGet(b[1], 'market_value.price', b[1] && b[1]['数量']), 0) - toNumber(deepGet(a[1], 'market_value.price', a[1] && a[1]['数量']), 0))
+          .sort((a, b) => toNumber(deepGet(b[1], '市场估值.价格', b[1] && b[1]['数量']), 0) - toNumber(deepGet(a[1], '市场估值.价格', a[1] && a[1]['数量']), 0))
           .slice(0, 18)
           .map(([name, item]) => ({
             charKey: activeCharKey,
@@ -12800,7 +12820,7 @@
               desc: '未知'
             };
           }
-          const itemPath = activeCharKey ? ['char', activeCharKey, 'inventory', name] : [];
+          const itemPath = activeCharKey ? ['char', activeCharKey, '背包', name] : [];
           const typeValue = toText(item && item['类型'], '物品');
           const qtyValue = toNumber(item && item['数量'], 1);
           const qualityValue = toText(item && item['品质'], '无');
@@ -12811,8 +12831,8 @@
           const binderValue = toText(item && item['绑定者'], '无');
           const tagsValue = Array.isArray(item && item['标签']) ? item['标签'] : [];
           const descValue = toText(item && item['描述'], '暂无说明');
-          const priceValue = toNumber(deepGet(item, ['market_value', 'price'], 0), 0);
-          const currencyValue = toText(deepGet(item, ['market_value', 'currency'], 'fed_coin'), 'fed_coin');
+          const priceValue = toNumber(deepGet(item, ['市场估值', '价格'], 0), 0);
+          const currencyValue = toText(deepGet(item, ['市场估值', '货币'], '联邦币'), '联邦币');
           const durabilityCurrent = toNumber(deepGet(item, ['耐久', '当前'], 0), 0);
           const durabilityMax = toNumber(deepGet(item, ['耐久', '上限'], 0), 0);
           const canEquipItem = !!(window.EquipmentManager && window.EquipmentManager.parseEquipSlot(name, item));
@@ -12830,7 +12850,7 @@
           ].join(' ｜ ');
           const lineThree = [
             `标签 ${itemPath.length ? makeInlineEditableValue(tagsValue.join('、') || '无', { path: [...itemPath, '标签'], kind: 'string_list', rawValue: tagsValue }) : htmlEscape(tagsValue.join('、') || '无')}`,
-            `市价 ${itemPath.length ? makeInlineEditableValue(String(priceValue), { path: [...itemPath, 'market_value', 'price'], kind: 'number', rawValue: priceValue, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } }) : htmlEscape(String(priceValue))}`,
+            `市价 ${itemPath.length ? makeInlineEditableValue(String(priceValue), { path: [...itemPath, '市场估值', '价格'], kind: 'number', rawValue: priceValue, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } }) : htmlEscape(String(priceValue))}`,
             `货币 ${htmlEscape(({
               fed_coin: '联邦币',
               star_coin: '星罗币',
@@ -12877,11 +12897,11 @@
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">钱包条</div></div>
                 ${makeWalletStrip([
-                  { label: '联邦币', value: makeInlineEditableValue(formatNumber(wealth.fed_coin), { path: ['char', activeCharKey, 'wealth', 'fed_coin'], kind: 'number', rawValue: wealth.fed_coin, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } }), className: 'gold' },
-                  { label: '星罗币', value: makeInlineEditableValue(formatNumber(wealth.star_coin), { path: ['char', activeCharKey, 'wealth', 'star_coin'], kind: 'number', rawValue: wealth.star_coin, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } }), className: 'cyan' },
-                  { label: '唐门积分', value: makeInlineEditableValue(formatNumber(wealth.tang_pt), { path: ['char', activeCharKey, 'wealth', 'tang_pt'], kind: 'number', rawValue: wealth.tang_pt, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } }), className: 'cyan' },
-                  { label: '学院积分', value: makeInlineEditableValue(formatNumber(wealth.shrek_pt), { path: ['char', activeCharKey, 'wealth', 'shrek_pt'], kind: 'number', rawValue: wealth.shrek_pt, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } }), className: 'cyan' },
-                  { label: '战功', value: makeInlineEditableValue(formatNumber(wealth.blood_pt), { path: ['char', activeCharKey, 'wealth', 'blood_pt'], kind: 'number', rawValue: wealth.blood_pt, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } }), className: 'red' }
+                  { label: '联邦币', value: makeInlineEditableValue(formatNumber(wealth.联邦币), { path: ['char', activeCharKey, '财富', '联邦币'], kind: 'number', rawValue: wealth.联邦币, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } }), className: 'gold' },
+                  { label: '星罗币', value: makeInlineEditableValue(formatNumber(wealth.星罗币), { path: ['char', activeCharKey, '财富', '星罗币'], kind: 'number', rawValue: wealth.星罗币, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } }), className: 'cyan' },
+                  { label: '唐门积分', value: makeInlineEditableValue(formatNumber(wealth.唐门积分), { path: ['char', activeCharKey, '财富', '唐门积分'], kind: 'number', rawValue: wealth.唐门积分, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } }), className: 'cyan' },
+                  { label: '学院积分', value: makeInlineEditableValue(formatNumber(wealth.学院积分), { path: ['char', activeCharKey, '财富', '学院积分'], kind: 'number', rawValue: wealth.学院积分, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } }), className: 'cyan' },
+                  { label: '战功', value: makeInlineEditableValue(formatNumber(wealth.战功), { path: ['char', activeCharKey, '财富', '战功'], kind: 'number', rawValue: wealth.战功, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } }), className: 'red' }
                 ])}
               </div>
               <div class="archive-card full">
@@ -13013,10 +13033,10 @@
                           ? makeInlineEditableValue(soul.description, { path: [...soul.path, '描述'], kind: 'string', rawValue: soul.description, multiline: true })
                           : htmlEscape(soul.description)}
                       </div>
-                      ${soul.rings.length ? `
+                      ${soul.魂环.length ? `
                         <div class="soul-ring-section">
                           <div class="rings soul-ring-lane">
-                            ${soul.rings.map(ring => `<div class="ring ${ring.ringClass} interactive-ring">${htmlEscape(ring.glyph)}${buildRingHoverMarkup(ring)}</div>`).join('')}
+                            ${soul.魂环.map(ring => `<div class="ring ${ring.ringClass} interactive-ring">${htmlEscape(ring.glyph)}${buildRingHoverMarkup(ring)}</div>`).join('')}
                           </div>
                         </div>
                       ` : ''}
@@ -13040,18 +13060,18 @@
         const getFusionRecordModeText = fusion => {
           const safeFusion = fusion && typeof fusion === 'object' ? fusion : {};
           const participants = getFusionRecordParticipants(safeFusion);
-          if (toText(safeFusion.fusion_mode, 'partner') === 'self') return '自体融合';
+          if (toText(safeFusion.融合模式, 'partner') === 'self') return '自体融合';
           return participants.length > 2 ? '多人融合' : '双人融合';
         };
         const getFusionRecordPartnerText = fusion => {
           const safeFusion = fusion && typeof fusion === 'object' ? fusion : {};
           const participants = getFusionRecordParticipants(safeFusion);
-          if (toText(safeFusion.fusion_mode, 'partner') === 'self') return SKILL_DESIGNER_SELF_FUSION_PARTNER;
+          if (toText(safeFusion.融合模式, 'partner') === 'self') return SKILL_DESIGNER_SELF_FUSION_PARTNER;
           const names = participants
             .filter(participant => participant.role !== 'self')
             .map(participant => participant.charName || participant.charKey)
             .filter(Boolean);
-          return names.length ? Array.from(new Set(names)).join('、') : toText(safeFusion.partner, '未知搭档');
+          return names.length ? Array.from(new Set(names)).join('、') : toText(safeFusion['融合对象'], '未知搭档');
         };
         const getFusionRecordParticipantText = fusion => {
           const safeFusion = fusion && typeof fusion === 'object' ? fusion : {};
@@ -13061,11 +13081,11 @@
               .map(participant => `${participant.charName || participant.charKey || '未设置'}:${participant.spirit || '未设置'}`)
               .join(' + ');
           }
-          return (Array.isArray(safeFusion.source_spirits) ? safeFusion.source_spirits : []).filter(Boolean).join(' / ') || '未记录';
+          return (Array.isArray(safeFusion.来源武魂) ? safeFusion.来源武魂 : []).filter(Boolean).join(' / ') || '未记录';
         };
         const createFusionPreview = activeCharKey
           ? buildSkillDesignerPreviewKey({
-              path: ['char', activeCharKey, 'martial_fusion_skills', `武魂融合技_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`, 'skill_data'],
+              path: ['char', activeCharKey, '武魂融合技', `武魂融合技_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`, '技能数据'],
               label: '新建武魂融合技',
               category: '武魂融合技',
               scope: 'fusion_skill',
@@ -13074,11 +13094,11 @@
         const leadFusionEntry = fusionEntries[0] || null;
         const leadRecordKey = leadFusionEntry ? leadFusionEntry[0] : '';
         const leadFusion = leadFusionEntry && leadFusionEntry[1] && typeof leadFusionEntry[1] === 'object' ? leadFusionEntry[1] : {};
-        const leadSkillData = leadFusion.skill_data && typeof leadFusion.skill_data === 'object' ? leadFusion.skill_data : {};
+        const leadSkillData = leadFusion.技能数据 && typeof leadFusion.技能数据 === 'object' ? leadFusion.技能数据 : {};
         const leadFusionName = leadFusionEntry
-          ? toText(leadSkillData['魂技名'] || leadSkillData.name || leadFusion.name || leadRecordKey, leadRecordKey || '未命名融合技')
+          ? toText(leadSkillData['魂技名'] || leadSkillData.name || leadFusion['名称'] || leadFusion.name || leadRecordKey, leadRecordKey || '未命名融合技')
           : '';
-        const leadModeValue = toText(leadFusion.fusion_mode, 'partner');
+        const leadModeValue = toText(leadFusion.融合模式, 'partner');
         const leadModeText = getFusionRecordModeText(leadFusion);
         const leadPartnerRaw = getFusionRecordPartnerText(leadFusion);
         const leadSourceSpiritText = getFusionRecordParticipantText(leadFusion);
@@ -13086,7 +13106,7 @@
         const leadVisualDesc = toText(leadSkillData['画面描述'] || '', '');
         const leadPreview = activeCharKey && leadRecordKey
           ? buildSkillDesignerPreviewKey({
-              path: ['char', activeCharKey, 'martial_fusion_skills', leadRecordKey, 'skill_data'],
+              path: ['char', activeCharKey, '武魂融合技', leadRecordKey, '技能数据'],
               label: leadFusionName,
               category: '武魂融合技',
               scope: 'fusion_skill',
@@ -13094,8 +13114,8 @@
           : '';
         const fusionList = fusionEntries.map(([recordKey, fusion]) => {
           const safeFusion = fusion && typeof fusion === 'object' ? fusion : {};
-          const skillData = safeFusion.skill_data && typeof safeFusion.skill_data === 'object' ? safeFusion.skill_data : {};
-          const fusionName = toText(skillData['魂技名'] || skillData.name || safeFusion.name || recordKey, recordKey || '未命名融合技');
+          const skillData = safeFusion.技能数据 && typeof safeFusion.技能数据 === 'object' ? safeFusion.技能数据 : {};
+          const fusionName = toText(skillData['魂技名'] || skillData.name || safeFusion['名称'] || safeFusion.name || recordKey, recordKey || '未命名融合技');
           const modeText = getFusionRecordModeText(safeFusion);
           const partnerText = getFusionRecordPartnerText(safeFusion);
           const sourceSpiritText = getFusionRecordParticipantText(safeFusion);
@@ -13104,7 +13124,7 @@
           const tags = (Array.isArray(skillData['标签']) ? skillData['标签'] : []).filter(Boolean);
           const preview = activeCharKey
             ? buildSkillDesignerPreviewKey({
-                path: ['char', activeCharKey, 'martial_fusion_skills', recordKey, 'skill_data'],
+                path: ['char', activeCharKey, '武魂融合技', recordKey, '技能数据'],
                 label: fusionName,
                 category: '武魂融合技',
                 scope: 'fusion_skill',
@@ -13150,7 +13170,7 @@
                         { label: '当前招牌', value: leadPreview ? `<button type="button" class="dossier-pill live clickable" data-preview="${escapeHtmlAttr(leadPreview)}">${htmlEscape(leadFusionName)}</button>` : htmlEscape(leadFusionName) },
                         { label: '融合模式', value: activeCharKey && leadRecordKey
                           ? makeInlineEditableValue(leadModeText, {
-                              path: ['char', activeCharKey, 'martial_fusion_skills', leadRecordKey, 'fusion_mode'],
+                              path: ['char', activeCharKey, '武魂融合技', leadRecordKey, '融合模式'],
                               kind: 'string',
                               rawValue: leadModeValue,
                               editorMeta: { hint: '可填 self 或 partner' },
@@ -13158,9 +13178,9 @@
                           : htmlEscape(leadModeText) },
                         { label: '搭档', value: activeCharKey && leadRecordKey
                           ? makeInlineEditableValue(leadPartnerRaw, {
-                              path: ['char', activeCharKey, 'martial_fusion_skills', leadRecordKey, 'partner'],
+                              path: ['char', activeCharKey, '武魂融合技', leadRecordKey, '融合对象'],
                               kind: 'string',
-                              rawValue: toText(leadFusion.partner, ''),
+                              rawValue: toText(leadFusion['融合对象'], ''),
                             })
                           : htmlEscape(leadPartnerRaw) },
                         { label: '参与武魂', value: htmlEscape(leadSourceSpiritText), className: 'dossier-row--wide' },
@@ -13199,9 +13219,9 @@
 
       if (previewKey === '血脉封印详细页') {
         const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
-        const bloodlinePath = activeCharKey ? ['char', activeCharKey, 'bloodline_power'] : [];
+        const bloodlinePath = activeCharKey ? ['char', activeCharKey, '血脉之力'] : [];
         const bloodMainSkill = snapshot.bloodline.bloodSkills[0] || null;
-        const bloodlineRawName = toText(deepGet(snapshot, 'activeChar.bloodline_power.bloodline', '无'), '无');
+        const bloodlineRawName = toText(deepGet(snapshot, 'activeChar.血脉之力.血脉', '无'), '无');
         return {
           title: '血脉封印弹窗',
           summary: '血脉层级、体力魂环与当前已固化能力。',
@@ -13270,11 +13290,11 @@
                   </div>
                 </div>
               ` : ''}
-              ${snapshot.bloodline.rings.length ? `
+              ${snapshot.bloodline.魂环.length ? `
                 <div class="archive-card full spirit-flow-card">
                   <div class="archive-card-head"><div class="archive-card-title">体力魂环轨道</div></div>
                   <div class="orbit-track">
-                    ${snapshot.bloodline.rings.map(ring => `<div class="ring ${ring.ringClass || 'ring-gold'} interactive-ring">${htmlEscape(ring.glyph)}${buildRingHoverMarkup(ring)}</div>`).join('')}
+                    ${snapshot.bloodline.魂环.map(ring => `<div class="ring ${ring.ringClass || 'ring-gold'} interactive-ring">${htmlEscape(ring.glyph)}${buildRingHoverMarkup(ring)}</div>`).join('')}
                   </div>
                 </div>
               ` : ''}
@@ -13297,7 +13317,7 @@
                 <div class="history-timeline-wrap"><div class="history-timeline-track">
                   ${nodes.map(([name, item], index) => `
                     <div class="history-node ${index === nodes.length - 1 ? 'major' : ''}">
-                      <div class="history-node-date">Tick ${htmlEscape(toText(item && item.trigger_tick, 0))}</div>
+                      <div class="history-node-date">Tick ${htmlEscape(toText(item && item.触发tick, 0))}</div>
                       <div class="history-node-dot"></div>
                       <div class="history-node-label">${htmlEscape(name)}</div>
                     </div>
@@ -13305,12 +13325,12 @@
                 </div></div>
                 <div class="history-floating-card">
                   <div class="history-floating-title">${htmlEscape(focus ? `【当前锚点】${focus[0]}` : '【当前锚点】待开启')}</div>
-                  <div class="history-floating-desc">${htmlEscape(focus ? toText(deepGet(focus[1], 'event', '暂无描述'), '暂无描述') : '世界时间线尚未展开。')}</div>
+                  <div class="history-floating-desc">${htmlEscape(focus ? toText(deepGet(focus[1], '事件', '暂无描述'), '暂无描述') : '世界时间线尚未展开。')}</div>
                 </div>
               </div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">近期详细日志</div></div>
-                ${makeTimelineStack(snapshot.timelineEntries.slice(0, 5).map(([name, item]) => ({ title: `${name} / Tick ${toText(item && item.trigger_tick, 0)}`, desc: `${toText(item && item.status, 'pending')} ｜ ${toText(item && item.event, '暂无描述')}` }))) }
+                ${makeTimelineStack(snapshot.timelineEntries.slice(0, 5).map(([name, item]) => ({ title: `${name} / Tick ${toText(item && item.触发tick, 0)}`, desc: `${toText(item && item.状态, 'pending')} ｜ ${toText(item && item.事件, '暂无描述')}` }))) }
               </div>
             </div>
           `
@@ -13329,13 +13349,13 @@
           }
         }
         const targetCharPath = targetChar ? ['char', targetCharKey] : [];
-        const targetStat = deepGet(targetChar, 'stat', {});
-        const targetSocial = deepGet(targetChar, 'social', {});
-        const targetArmor = deepGet(targetChar, 'equip.armor', {});
-        const targetMech = deepGet(targetChar, 'equip.mech', {});
-        const targetWeapon = deepGet(targetChar, 'equip.wpn', {});
-        const targetAccessories = listAccessoryEntries(deepGet(targetChar, 'equip.accessories', {}));
-        const targetSpiritEntries = safeEntries(deepGet(targetChar, 'spirit', {}));
+        const targetStat = deepGet(targetChar, '属性', {});
+        const targetSocial = deepGet(targetChar, '社交', {});
+        const targetArmor = deepGet(targetChar, '装备.斗铠', {});
+        const targetMech = deepGet(targetChar, '装备.机甲', {});
+        const targetWeapon = deepGet(targetChar, '装备.武器', {});
+        const targetAccessories = listAccessoryEntries(deepGet(targetChar, '装备.饰品', {}));
+        const targetSpiritEntries = safeEntries(deepGet(targetChar, '武魂', {}));
         return {
           title: `${targetName} / 角色基本信息`,
           summary: '角色轻量信息面板：属性、武魂与装备概览。',
@@ -13345,39 +13365,39 @@
                 <div class="archive-card-head"><div class="archive-card-title">基础信息</div></div>
                 ${makeTileGrid([
                   { label: '角色名', value: targetName || '未知' },
-                  { label: '等级', value: targetChar ? formatCultivationLevelBadge(targetStat.lv, '0') : '未收录' },
+                  { label: '等级', value: targetChar ? formatCultivationLevelBadge(targetStat.等级, '0') : '未收录' },
                   { label: '系别', value: targetCharPath.length
-                    ? makeInlineEditableValue(toText(targetStat.type, '未知'), {
-                        path: [...targetCharPath, 'stat', 'type'],
+                    ? makeInlineEditableValue(toText(targetStat.系别, '未知'), {
+                        path: [...targetCharPath, '属性', '系别'],
                         kind: 'string',
-                        rawValue: toText(targetStat.type, '未知'),
+                        rawValue: toText(targetStat.系别, '未知'),
                       })
-                    : (targetChar ? toText(targetStat.type, '未知') : '未收录') },
+                    : (targetChar ? toText(targetStat.系别, '未知') : '未收录') },
                   { label: '公开身份', value: targetCharPath.length
-                    ? makeInlineEditableValue(toText(targetSocial.main_identity, '无'), {
-                        path: [...targetCharPath, 'social', 'main_identity'],
+                    ? makeInlineEditableValue(toText(targetSocial.主身份, '无'), {
+                        path: [...targetCharPath, '社交', '主身份'],
                         kind: 'string',
-                        rawValue: toText(targetSocial.main_identity, '无'),
+                        rawValue: toText(targetSocial.主身份, '无'),
                       })
-                    : (targetChar ? toText(targetSocial.main_identity, '无') : '未收录') },
+                    : (targetChar ? toText(targetSocial.主身份, '无') : '未收录') },
                   { label: '名望', value: targetCharPath.length
-                    ? makeInlineEditableValue(formatNumber(targetSocial.reputation), {
-                        path: [...targetCharPath, 'social', 'reputation'],
+                    ? makeInlineEditableValue(formatNumber(targetSocial.声望), {
+                        path: [...targetCharPath, '社交', '声望'],
                         kind: 'number',
-                        rawValue: toNumber(targetSocial.reputation, 0),
+                        rawValue: toNumber(targetSocial.声望, 0),
                         editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
                       })
-                    : (targetChar ? formatNumber(targetSocial.reputation) : '未收录') },
-                  { label: '魂力', value: targetChar ? `${formatNumber(targetStat.sp)} / ${formatNumber(targetStat.sp_max)}` : '未收录' },
-                  { label: '体力', value: targetChar ? `${formatNumber(targetStat.vit)} / ${formatNumber(targetStat.vit_max)}` : '未收录' },
-                  { label: '精神力', value: targetChar ? `${formatNumber(targetStat.men)} / ${formatNumber(targetStat.men_max)}` : '未收录' },
-                  { label: '力量', value: targetChar ? formatNumber(targetStat.str) : '未收录' },
-                  { label: '防御', value: targetChar ? formatNumber(targetStat.def) : '未收录' },
-                  { label: '敏捷', value: targetChar ? formatNumber(targetStat.agi) : '未收录' }
+                    : (targetChar ? formatNumber(targetSocial.声望) : '未收录') },
+                  { label: '魂力', value: targetChar ? `${formatNumber(targetStat.魂力)} / ${formatNumber(targetStat.魂力上限)}` : '未收录' },
+                  { label: '体力', value: targetChar ? `${formatNumber(targetStat.体力)} / ${formatNumber(targetStat.体力上限)}` : '未收录' },
+                  { label: '精神力', value: targetChar ? `${formatNumber(targetStat.精神力)} / ${formatNumber(targetStat.精神力上限)}` : '未收录' },
+                  { label: '力量', value: targetChar ? formatNumber(targetStat.力量) : '未收录' },
+                  { label: '防御', value: targetChar ? formatNumber(targetStat.防御) : '未收录' },
+                  { label: '敏捷', value: targetChar ? formatNumber(targetStat.敏捷) : '未收录' }
                 ], 'three')}
               </div>
               <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">武魂概览</div></div>${makeTimelineStack(targetSpiritEntries.length ? targetSpiritEntries.map(([spiritName, spirit]) => {
-                const spiritPath = targetCharPath.length ? [...targetCharPath, 'spirit', spiritName] : [];
+                const spiritPath = targetCharPath.length ? [...targetCharPath, '武魂', spiritName] : [];
                 return {
                   title: spiritName,
                   desc: [
@@ -13389,54 +13409,54 @@
                         })
                       : htmlEscape(toText(spirit && spirit.type, '未知'))}`,
                     `元素 ${spiritPath.length
-                      ? makeInlineEditableValue(toText(spirit && spirit.element, '无'), {
-                          path: [...spiritPath, 'element'],
+                      ? makeInlineEditableValue(toText(spirit && spirit['属性体系'], '无'), {
+                          path: [...spiritPath, '属性体系'],
                           kind: 'string',
-                          rawValue: toText(spirit && spirit.element, '无'),
+                          rawValue: toText(spirit && spirit['属性体系'], '无'),
                         })
-                      : htmlEscape(toText(spirit && spirit.element, '无'))}`,
-                    `魂灵 ${safeEntries(deepGet(spirit, 'souls', {})).length}`,
+                      : htmlEscape(toText(spirit && spirit['属性体系'], '无'))}`,
+                    `魂灵 ${safeEntries(deepGet(spirit, '魂灵', {})).length}`,
                   ].join(' / ')
                 };
               }) : [{ title: '暂无武魂记录', desc: targetChar ? '当前角色未记录武魂数据。' : '该角色暂无角色档案。' }])}</div>
               <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">装备概览</div></div>${makeTileGrid([
                 { label: '斗铠', value: targetCharPath.length
-                  ? `${makeInlineEditableValue(toText(targetArmor.name, '无'), {
-                      path: [...targetCharPath, 'equip', 'armor', 'name'],
+                  ? `${makeInlineEditableValue(toText(targetArmor.名称, '无'), {
+                      path: [...targetCharPath, '装备', '斗铠', '名称'],
                       kind: 'string',
-                      rawValue: toText(targetArmor.name, '无'),
-                    })} / ${makeInlineEditableValue(toText(targetArmor.equip_status, '未装备'), {
-                      path: [...targetCharPath, 'equip', 'armor', 'equip_status'],
+                      rawValue: toText(targetArmor.名称, '无'),
+                    })} / ${makeInlineEditableValue(toText(targetArmor.装备状态, '未装备'), {
+                      path: [...targetCharPath, '装备', '斗铠', '装备状态'],
                       kind: 'string',
-                      rawValue: toText(targetArmor.equip_status, '未装备'),
+                      rawValue: toText(targetArmor.装备状态, '未装备'),
                     })}`
-                  : (targetChar ? (toText(targetArmor.name, '无') !== '无' ? `${toText(targetArmor.name, '无')} / ${toText(targetArmor.equip_status, '未装备')}` : '无') : '未收录') },
+                  : (targetChar ? (toText(targetArmor.名称, '无') !== '无' ? `${toText(targetArmor.名称, '无')} / ${toText(targetArmor.装备状态, '未装备')}` : '无') : '未收录') },
                 { label: '机甲', value: targetCharPath.length
-                  ? `${makeInlineEditableValue(toText(targetMech.lv, '无'), {
-                      path: [...targetCharPath, 'equip', 'mech', 'lv'],
+                  ? `${makeInlineEditableValue(toText(targetMech.等级, '无'), {
+                      path: [...targetCharPath, '装备', '机甲', '等级'],
                       kind: 'string',
-                      rawValue: toText(targetMech.lv, '无'),
-                    })}·${makeInlineEditableValue(toText(targetMech.type, '未定型'), {
-                      path: [...targetCharPath, 'equip', 'mech', 'type'],
+                      rawValue: toText(targetMech.等级, '无'),
+                    })}·${makeInlineEditableValue(toText(targetMech.型号, '未定型'), {
+                      path: [...targetCharPath, '装备', '机甲', '型号'],
                       kind: 'string',
-                      rawValue: toText(targetMech.type, '未定型'),
-                    })} / ${makeInlineEditableValue(toText(targetMech.equip_status || targetMech.status, '未装备'), {
-                      path: [...targetCharPath, 'equip', 'mech', targetMech.equip_status !== undefined ? 'equip_status' : 'status'],
+                      rawValue: toText(targetMech.型号, '未定型'),
+                    })} / ${makeInlineEditableValue(toText(targetMech.装备状态, '未装备'), {
+                      path: [...targetCharPath, '装备', '机甲', '装备状态'],
                       kind: 'string',
-                      rawValue: toText(targetMech.equip_status || targetMech.status, '未装备'),
+                      rawValue: toText(targetMech.装备状态, '未装备'),
                     })}`
-                  : (targetChar ? (toText(targetMech.lv, '无') !== '无' ? `${toText(targetMech.lv, '无')}·${toText(targetMech.type, '未定型')} / ${toText(targetMech.equip_status || targetMech.status, '未装备')}` : '无') : '未收录') },
+                  : (targetChar ? (toText(targetMech.等级, '无') !== '无' ? `${toText(targetMech.等级, '无')}·${toText(targetMech.型号, '未定型')} / ${toText(targetMech.装备状态, '未装备')}` : '无') : '未收录') },
                 { label: '主武器', value: targetCharPath.length
-                  ? `${makeInlineEditableValue(toText(targetWeapon.name || targetWeapon['名称'], '无'), {
-                      path: [...targetCharPath, 'equip', 'wpn', targetWeapon.name !== undefined ? 'name' : '名称'],
+                  ? `${makeInlineEditableValue(toText(targetWeapon['名称'], '无'), {
+                      path: [...targetCharPath, '装备', '武器', '名称'],
                       kind: 'string',
-                      rawValue: toText(targetWeapon.name || targetWeapon['名称'], '无'),
-                    })} / ${makeInlineEditableValue(toText(targetWeapon.tier || targetWeapon['品阶'], '无品阶'), {
-                      path: [...targetCharPath, 'equip', 'wpn', targetWeapon.tier !== undefined ? 'tier' : '品阶'],
+                      rawValue: toText(targetWeapon['名称'], '无'),
+                    })} / ${makeInlineEditableValue(toText(targetWeapon.品阶 || targetWeapon['品阶'], '无品阶'), {
+                      path: [...targetCharPath, '装备', '武器', '品阶'],
                       kind: 'string',
-                      rawValue: toText(targetWeapon.tier || targetWeapon['品阶'], '无品阶'),
+                      rawValue: toText(targetWeapon.品阶 || targetWeapon['品阶'], '无品阶'),
                     })}`
-                  : (targetChar ? (targetWeapon && (targetWeapon.name || targetWeapon['名称']) ? `${toText(targetWeapon.name || targetWeapon['名称'], '无')} / ${toText(targetWeapon.tier || targetWeapon['品阶'], '无品阶')}` : '无') : '未收录') },
+                  : (targetChar ? (targetWeapon && targetWeapon['名称'] ? `${toText(targetWeapon['名称'], '无')} / ${toText(targetWeapon.品阶 || targetWeapon['品阶'], '无品阶')}` : '无') : '未收录') },
                 { label: '附件', value: targetChar ? summarizeAccessoryEntries(targetAccessories) : '未收录' }
               ], 'two')}</div>
             </div>
@@ -13445,8 +13465,8 @@
       }
 
       if (previewKey === '拍卖与警报') {
-        const auctionItems = safeEntries(deepGet(snapshot, 'rootData.world.auction.items', {})).slice(0, 6);
-        const auctionPath = ['world', 'auction'];
+        const auctionItems = safeEntries(deepGet(snapshot, 'rootData.world.拍卖.拍品', {})).slice(0, 6);
+        const auctionPath = ['world', '拍卖'];
         return {
           title: '拍卖行 / 世界警报弹窗',
           summary: '拍卖状态、拍品与当前世界警报。',
@@ -13455,20 +13475,20 @@
               <div class="archive-card">
                 <div class="archive-card-head"><div class="archive-card-title">拍卖状态</div></div>
                 ${makeTileGrid([
-                  { label: '状态', value: makeInlineEditableValue(toText(deepGet(snapshot, 'rootData.world.auction.status', '休市'), '休市'), {
-                      path: [...auctionPath, 'status'],
+                  { label: '状态', value: makeInlineEditableValue(toText(deepGet(snapshot, 'rootData.world.拍卖.状态', '休市'), '休市'), {
+                      path: [...auctionPath, '状态'],
                       kind: 'string',
-                      rawValue: toText(deepGet(snapshot, 'rootData.world.auction.status', '休市'), '休市'),
+                      rawValue: toText(deepGet(snapshot, 'rootData.world.拍卖.状态', '休市'), '休市'),
                     }) },
-                  { label: '地点', value: makeInlineEditableValue(toText(deepGet(snapshot, 'rootData.world.auction.location', '无'), '无'), {
-                      path: [...auctionPath, 'location'],
+                  { label: '地点', value: makeInlineEditableValue(toText(deepGet(snapshot, 'rootData.world.拍卖.地点', '无'), '无'), {
+                      path: [...auctionPath, '地点'],
                       kind: 'string',
-                      rawValue: toText(deepGet(snapshot, 'rootData.world.auction.location', '无'), '无'),
+                      rawValue: toText(deepGet(snapshot, 'rootData.world.拍卖.地点', '无'), '无'),
                     }) },
-                  { label: '下次刷新', value: makeInlineEditableValue(String(toNumber(deepGet(snapshot, 'rootData.world.auction.next_tick', 0), 0)), {
-                      path: [...auctionPath, 'next_tick'],
+                  { label: '下次刷新', value: makeInlineEditableValue(String(toNumber(deepGet(snapshot, 'rootData.world.拍卖.下次刷新tick', 0), 0)), {
+                      path: [...auctionPath, '下次刷新tick'],
                       kind: 'number',
-                      rawValue: toNumber(deepGet(snapshot, 'rootData.world.auction.next_tick', 0), 0),
+                      rawValue: toNumber(deepGet(snapshot, 'rootData.world.拍卖.下次刷新tick', 0), 0),
                       editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
                     }) },
                   { label: '当前拍品', value: `${auctionItems.length} 件` }
@@ -13477,7 +13497,7 @@
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">拍品列表</div></div>
                 ${makeTimelineStack(auctionItems.map(([name, item]) => {
-                  const itemPath = [...auctionPath, 'items', name];
+                  const itemPath = [...auctionPath, '拍品', name];
                   return {
                     title: name,
                     desc: [
@@ -13486,10 +13506,10 @@
                         kind: 'string',
                         rawValue: toText(item && item.tier, '低阶'),
                       })}`,
-                      `价格 ${makeInlineEditableValue(String(toNumber(item && item.price, 0)), {
-                        path: [...itemPath, 'price'],
+                      `价格 ${makeInlineEditableValue(String(toNumber(item && item.价格, 0)), {
+                        path: [...itemPath, '价格'],
                         kind: 'number',
-                        rawValue: toNumber(item && item.price, 0),
+                        rawValue: toNumber(item && item.价格, 0),
                         editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
                       })}`,
                       `说明 ${makeInlineEditableValue(toText(item && item.lore, '暂无说明'), {
@@ -13520,8 +13540,8 @@
                     <button type="button" class="role-switch-tile clickable" data-preview="org_detail_${escapeHtmlAttr(name)}" style="text-align:left; border:1px solid rgba(255,255,255,0.08); background:rgba(0,0,0,0.2); padding:12px; border-radius:8px; cursor:pointer;">
                       <div class="role-switch-head" style="margin-bottom:6px;font-size:15px;"><b>${htmlEscape(name)}</b><span class="state-tag">点击详情</span></div>
                       <div class="role-switch-meta" style="font-size:12px;color:var(--text-muted);">
-                        规模：${formatNumber(item && item.size || 0)} ｜ 状态：${toText(item && item.status, '正常')} <br>
-                        顶尖战力：${toText(deepGet(item, 'power_stats.title_douluo', 0), '0')} 位封号斗罗
+                        规模：${formatNumber(item && item.规模 || 0)} ｜ 状态：${toText(item && item.状态, '正常')} <br>
+                        顶尖战力：${toText(deepGet(item, '战力统计.封号斗罗', 0), '0')} 位封号斗罗
                       </div>
                     </button>
                   `).join('')}
@@ -13547,7 +13567,7 @@
         // Automatically gather characters belonging to this organization
         const orgMembers = [];
         for (const [charName, charInfo] of snapshot.charEntries) {
-           const factions = safeEntries(deepGet(charInfo, 'social.factions', {}));
+           const factions = safeEntries(deepGet(charInfo, '社交.势力', {}));
            const matchingFaction = factions.find(([fName]) => fName === targetOrgName);
            if (matchingFaction) {
                orgMembers.push({
@@ -13566,67 +13586,67 @@
                 <div class="archive-card-head"><div class="archive-card-title">势力概况</div></div>
                 ${makeTileGrid([
                   { label: '影响力', value: targetOrgPath.length
-                    ? makeInlineEditableValue(formatNumber(targetOrgData.inf || 0), {
-                        path: [...targetOrgPath, 'inf'],
+                    ? makeInlineEditableValue(formatNumber(targetOrgData.影响力 || 0), {
+                        path: [...targetOrgPath, '影响力'],
                         kind: 'number',
-                        rawValue: toNumber(targetOrgData.inf, 0),
+                        rawValue: toNumber(targetOrgData.影响力, 0),
                         editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
                       })
-                    : formatNumber(targetOrgData.inf || 0) },
+                    : formatNumber(targetOrgData.影响力 || 0) },
                   { label: '势力规模', value: targetOrgPath.length
-                    ? makeInlineEditableValue(formatNumber(targetOrgData.size || 0), {
-                        path: [...targetOrgPath, 'size'],
+                    ? makeInlineEditableValue(formatNumber(targetOrgData.规模 || 0), {
+                        path: [...targetOrgPath, '规模'],
                         kind: 'number',
-                        rawValue: toNumber(targetOrgData.size, 0),
+                        rawValue: toNumber(targetOrgData.规模, 0),
                         editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
                       })
-                    : formatNumber(targetOrgData.size || 0) },
+                    : formatNumber(targetOrgData.规模 || 0) },
                   { label: '当前状态', value: targetOrgPath.length
-                    ? makeInlineEditableValue(toText(targetOrgData.status, '正常'), {
-                        path: [...targetOrgPath, 'status'],
+                    ? makeInlineEditableValue(toText(targetOrgData.状态, '正常'), {
+                        path: [...targetOrgPath, '状态'],
                         kind: 'string',
-                        rawValue: toText(targetOrgData.status, '正常'),
+                        rawValue: toText(targetOrgData.状态, '正常'),
                       })
-                    : toText(targetOrgData.status, '正常') },
+                    : toText(targetOrgData.状态, '正常') },
                   { label: '上级势力', value: targetOrgPath.length
-                    ? makeInlineEditableValue(toText(targetOrgData.parent_faction, '无'), {
-                        path: [...targetOrgPath, 'parent_faction'],
+                    ? makeInlineEditableValue(toText(targetOrgData.上级势力, '无'), {
+                        path: [...targetOrgPath, '上级势力'],
                         kind: 'string',
-                        rawValue: toText(targetOrgData.parent_faction, '无'),
+                        rawValue: toText(targetOrgData.上级势力, '无'),
                       })
-                    : toText(targetOrgData.parent_faction, '无') },
+                    : toText(targetOrgData.上级势力, '无') },
                   { label: '下次刷新', value: targetOrgPath.length
-                    ? makeInlineEditableValue(String(toNumber(targetOrgData.next_refresh_tick, 0)), {
-                        path: [...targetOrgPath, 'next_refresh_tick'],
+                    ? makeInlineEditableValue(String(toNumber(targetOrgData.下次刷新tick, 0)), {
+                        path: [...targetOrgPath, '下次刷新tick'],
                         kind: 'number',
-                        rawValue: toNumber(targetOrgData.next_refresh_tick, 0),
+                        rawValue: toNumber(targetOrgData.下次刷新tick, 0),
                         editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
                       })
-                    : String(toNumber(targetOrgData.next_refresh_tick, 0)) },
+                    : String(toNumber(targetOrgData.下次刷新tick, 0)) },
                   { label: '极限斗罗', value: targetOrgPath.length
-                    ? makeInlineEditableValue(String(toNumber(deepGet(targetOrgData, 'power_stats.limit_douluo', 0), 0)), {
-                        path: [...targetOrgPath, 'power_stats', 'limit_douluo'],
+                    ? makeInlineEditableValue(String(toNumber(deepGet(targetOrgData, '战力统计.极限斗罗', 0), 0)), {
+                        path: [...targetOrgPath, '战力统计', '极限斗罗'],
                         kind: 'number',
-                        rawValue: toNumber(deepGet(targetOrgData, 'power_stats.limit_douluo', 0), 0),
+                        rawValue: toNumber(deepGet(targetOrgData, '战力统计.极限斗罗', 0), 0),
                         editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
                       })
-                    : deepGet(targetOrgData, 'power_stats.limit_douluo', 0) },
+                    : deepGet(targetOrgData, '战力统计.极限斗罗', 0) },
                   { label: '超级斗罗', value: targetOrgPath.length
-                    ? makeInlineEditableValue(String(toNumber(deepGet(targetOrgData, 'power_stats.super_douluo', 0), 0)), {
-                        path: [...targetOrgPath, 'power_stats', 'super_douluo'],
+                    ? makeInlineEditableValue(String(toNumber(deepGet(targetOrgData, '战力统计.超级斗罗', 0), 0)), {
+                        path: [...targetOrgPath, '战力统计', '超级斗罗'],
                         kind: 'number',
-                        rawValue: toNumber(deepGet(targetOrgData, 'power_stats.super_douluo', 0), 0),
+                        rawValue: toNumber(deepGet(targetOrgData, '战力统计.超级斗罗', 0), 0),
                         editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
                       })
-                    : deepGet(targetOrgData, 'power_stats.super_douluo', 0) },
+                    : deepGet(targetOrgData, '战力统计.超级斗罗', 0) },
                   { label: '封号斗罗', value: targetOrgPath.length
-                    ? makeInlineEditableValue(String(toNumber(deepGet(targetOrgData, 'power_stats.title_douluo', 0), 0)), {
-                        path: [...targetOrgPath, 'power_stats', 'title_douluo'],
+                    ? makeInlineEditableValue(String(toNumber(deepGet(targetOrgData, '战力统计.封号斗罗', 0), 0)), {
+                        path: [...targetOrgPath, '战力统计', '封号斗罗'],
                         kind: 'number',
-                        rawValue: toNumber(deepGet(targetOrgData, 'power_stats.title_douluo', 0), 0),
+                        rawValue: toNumber(deepGet(targetOrgData, '战力统计.封号斗罗', 0), 0),
                         editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
                       })
-                    : deepGet(targetOrgData, 'power_stats.title_douluo', 0) }
+                    : deepGet(targetOrgData, '战力统计.封号斗罗', 0) }
                 ], 'two')}
               </div>
               <div class="archive-card full">
@@ -13659,15 +13679,15 @@
         const nodeName = previewKey.startsWith('地图节点：') ? previewKey.replace('地图节点：', '') : snapshot.currentLoc;
         const mapNode = resolveDisplayMapNode(snapshot, nodeName);
         const nodeInfo = resolveLocationData(snapshot.rootData, nodeName);
-        const locationBasePath = nodeInfo && nodeInfo.data ? ['world', 'locations', nodeInfo.name] : [];
-        const nodeStores = safeEntries(nodeInfo.data && nodeInfo.data.stores);
+        const locationBasePath = nodeInfo && nodeInfo.data ? ['world', '地点', nodeInfo.name] : [];
+        const nodeStores = safeEntries(nodeInfo.data && nodeInfo.data.商店);
         const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
         const activeDisplayName = toText(deepGet(snapshot, 'activeChar.name', deepGet(snapshot, 'activeChar.base.name', snapshot.activeName)), snapshot.activeName);
         const localNpcEntries = safeEntries(deepGet(snapshot, 'rootData.char', {}))
           .filter(([name, char]) => {
             const displayName = toText(deepGet(char, 'name', deepGet(char, 'base.name', name)), name);
             if ((activeCharKey && name === activeCharKey) || (activeDisplayName && displayName === activeDisplayName)) return false;
-            const npcLoc = toText(deepGet(char, 'status.loc', ''), '');
+            const npcLoc = toText(deepGet(char, '状态.位置', ''), '');
             return npcLoc ? isLocationCompatible(nodeName, npcLoc) : false;
           })
           .slice(0, 4);
@@ -13676,7 +13696,7 @@
           : '';
         const officialCommissionLocationName = ['锻造师协会', '制造师协会', '设计师协会', '修理师协会']
           .find(locationName => isLocationCompatible(nodeName, locationName) || isLocationCompatible(locationName, nodeName)) || '';
-        const currentNodeLocFull = toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc), snapshot.currentLoc);
+        const currentNodeLocFull = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc), snapshot.currentLoc);
         const canDispatchHere = !!toText(currentNodeLocFull, '') && isLocationCompatible(nodeName, currentNodeLocFull);
         const isTransmissionTowerNode =
           /传灵塔|升灵台|魂灵塔/.test(nodeName)
@@ -13684,7 +13704,7 @@
 
         const localNpcCards = localNpcEntries.map(([name, char]) => ({
           title: toText(deepGet(char, 'name', deepGet(char, 'base.name', name)), name),
-          desc: `${toText(deepGet(char, 'social.main_identity', '未知身份'), '未知身份')} / ${toText(deepGet(char, 'status.loc', '未知地点'), '未知地点')}`
+          desc: `${toText(deepGet(char, '社交.主身份', '未知身份'), '未知身份')} / ${toText(deepGet(char, '状态.位置', '未知地点'), '未知地点')}`
         }));
         const availableActionButtons = [
           ...(nodeStores.length ? [{ text: '前往商店', action: 'shop', target: nodeStores[0][0], className: 'live' }] : []),
@@ -13847,8 +13867,8 @@
       }
 
       if (previewKey === '图层控制与跑图') {
-        const statusLoc = toText(deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLoc), snapshot.currentLoc);
-        const statusCoordSystem = toText(deepGet(snapshot, 'activeChar.status.coord_system', 'image'), 'image');
+        const statusLoc = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc), snapshot.currentLoc);
+        const statusCoordSystem = toText(deepGet(snapshot, 'activeChar.状态.坐标系', 'image'), 'image');
         return {
           title: '图层控制 / 跑图弹窗',
           summary: '当前位置、可见层级与跑图仲裁状态。',
@@ -13871,7 +13891,7 @@
       }
 
       if (previewKey === '动态地点与扩展节点') {
-        const dynamicLocationEntries = snapshot.dynamicLocationNames.map(name => [name, deepGet(snapshot, ['rootData', 'world', 'dynamic_locations', name], {})]);
+        const dynamicLocationEntries = snapshot.dynamicLocationNames.map(name => [name, deepGet(snapshot, ['rootData', 'world', '动态地点', name], {})]);
         return {
           title: '动态地点弹窗',
           summary: '剧情推进生成的扩展节点。',
@@ -13880,7 +13900,7 @@
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">动态节点列表</div></div>
                 ${makeTimelineStack(dynamicLocationEntries.length ? dynamicLocationEntries.map(([name, item]) => {
-                  const basePath = ['world', 'dynamic_locations', name];
+                  const basePath = ['world', '动态地点', name];
                   return {
                     title: name,
                     desc: [
@@ -13889,15 +13909,15 @@
                         kind: 'string',
                         rawValue: toText(item && item['归属父节点'], '未知'),
                       })}`,
-                      `势力 ${makeInlineEditableValue(toText(item && item.faction, '未知'), {
-                        path: [...basePath, 'faction'],
+                      `势力 ${makeInlineEditableValue(toText(item && item.势力, '未知'), {
+                        path: [...basePath, '势力'],
                         kind: 'string',
-                        rawValue: toText(item && item.faction, '未知'),
+                        rawValue: toText(item && item.势力, '未知'),
                       })}`,
-                      `类型 ${makeInlineEditableValue(toText(item && item.node_type, '未知'), {
-                        path: [...basePath, 'node_type'],
+                      `类型 ${makeInlineEditableValue(toText(item && item.节点类型, '未知'), {
+                        path: [...basePath, '节点类型'],
                         kind: 'string',
-                        rawValue: toText(item && item.node_type, '未知'),
+                        rawValue: toText(item && item.节点类型, '未知'),
                       })}`,
                       `重要度 ${makeInlineEditableValue(String(toNumber(item && item.importance, 0)), {
                         path: [...basePath, 'importance'],
@@ -13926,8 +13946,8 @@
       }
 
       if (previewKey === '世界状态总览') {
-        const worldTime = resolveShellText(deepGet(snapshot, 'rootData.world.time._calendar', deepGet(snapshot, 'rootData.world.time.calendar', '')), '');
-        const deviation = toNumber(deepGet(snapshot, 'rootData.world.deviation', 0), 0);
+        const worldTime = resolveShellText(deepGet(snapshot, 'rootData.world.时间._calendar', deepGet(snapshot, 'rootData.world.时间.calendar', '')), '');
+        const deviation = toNumber(deepGet(snapshot, 'rootData.world.偏差值', 0), 0);
         const forestRatio = Math.max(0, Math.min(100, Number(((toNumber(snapshot.forestKilledAge, 0) / 1000000) * 100).toFixed(1))));
         const worldAlertText = resolveShellText(snapshot.worldAlert, '');
         const recentNews = buildRecentNewsSummary(snapshot, { seqLimit: 4, intelLimit: 4 });
@@ -13936,7 +13956,7 @@
           .slice(0, 5)
           .map(([name, item]) => ({
             title: name,
-            desc: toText(item && (item.event || item['事件'] || item.desc || item['描述']), '')
+            desc: toText(item && (item.事件 || item['事件'] || item.desc || item['描述']), '')
           }))
           .filter(item => item.title && resolveShellText(item.desc, ''));
         const newsCards = (recentNews.cards || [])
@@ -13953,8 +13973,8 @@
             desc: toText(item && item.desc, '')
           }))
           .filter(item => item.title && resolveShellText(item.desc, ''));
-        const auctionStatus = resolveShellText(deepGet(snapshot, 'rootData.world.auction.status', ''), '');
-        const auctionLocation = resolveShellText(deepGet(snapshot, 'rootData.world.auction.location', ''), '');
+        const auctionStatus = resolveShellText(deepGet(snapshot, 'rootData.world.拍卖.状态', ''), '');
+        const auctionLocation = resolveShellText(deepGet(snapshot, 'rootData.world.拍卖.地点', ''), '');
         const hasAuction = auctionStatus && auctionStatus !== '休市';
         return {
           title: '世界',
@@ -14059,9 +14079,9 @@
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">当前状态</div></div>
                 ${makeTileGrid([
-                  { label: '当前行动', value: toText(status.action, '日常') },
+                  { label: '当前行动', value: toText(status.行动, '日常') },
                   { label: '所在位置', value: snapshot.currentLoc },
-                  { label: '伤势', value: toText(status.wound, '无伤') },
+                  { label: '伤势', value: getDisplayWoundLabel(stat) },
                   { label: '世界安排', value: String(planSummary.worldPlans.length) },
                   { label: '个人待办', value: String(planSummary.personalPlans.length) },
                   { label: '请求摘要', value: String(snapshot.pendingRequests.length) }
@@ -14086,16 +14106,16 @@
 
       if (previewKey === '试炼与情报') {
         const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
-        const towerPath = activeCharKey ? ['char', activeCharKey, 'tower_records'] : [];
-        const towerDiscountEntries = safeEntries(deepGet(snapshot, 'activeChar.tower_records.discount_available', {})).filter(([, value]) => !!value);
-        const ascensionRequest = deepGet(snapshot, 'activeChar.ascension_request', {});
-        const towerRequest = deepGet(snapshot, 'activeChar.tower_request', {});
-        const huntRequest = deepGet(snapshot, 'activeChar.hunt_request', {});
-        const abyssKillRequest = deepGet(snapshot, 'activeChar.abyss_kill_request', {});
-        const huntPendingAge = toNumber(huntRequest && huntRequest.killed_age, 0);
-        const huntPendingText = huntPendingAge > 0 ? `${huntPendingAge}年${deepGet(snapshot, 'activeChar.hunt_request.is_ferocious', false) ? ' / 凶兽级' : ' / 常规目标'}` : '无待处理';
-        const abyssKillTier = toText(abyssKillRequest && abyssKillRequest.kill_tier, '无');
-        const abyssKillQty = Math.max(1, toNumber(abyssKillRequest && abyssKillRequest.quantity, 1));
+        const towerPath = activeCharKey ? ['char', activeCharKey, '魂灵塔记录'] : [];
+        const towerDiscountEntries = safeEntries(deepGet(snapshot, 'activeChar.魂灵塔记录.折扣资格', {})).filter(([, value]) => !!value);
+        const ascensionRequest = deepGet(snapshot, 'activeChar.升灵台请求', {});
+        const towerRequest = deepGet(snapshot, 'activeChar.魂灵塔请求', {});
+        const huntRequest = deepGet(snapshot, 'activeChar.猎魂请求', {});
+        const abyssKillRequest = deepGet(snapshot, 'activeChar.深渊击杀请求', {});
+        const huntPendingAge = toNumber(huntRequest && huntRequest.击杀年限, 0);
+        const huntPendingText = huntPendingAge > 0 ? `${huntPendingAge}年${deepGet(snapshot, 'activeChar.猎魂请求.是否凶兽', false) ? ' / 凶兽级' : ' / 常规目标'}` : '无待处理';
+        const abyssKillTier = toText(abyssKillRequest && abyssKillRequest.击杀级别, '无');
+        const abyssKillQty = Math.max(1, toNumber(abyssKillRequest && abyssKillRequest.数量, 1));
         const abyssPendingText = abyssKillTier !== '无' ? `${abyssKillTier} × ${abyssKillQty}` : '无待处理';
         const ascensionTicketCount = (snapshot.inventoryEntries || [])
           .filter(([name]) => /升灵台/.test(toText(name, '')))
@@ -14106,19 +14126,19 @@
         const ticketCards = trialTickets.length
           ? trialTickets.map(([name, item]) => ({ title: `${name} ×${toNumber(item && item['数量'], 0)}`, desc: toText(item && item['描述'], '可用于对应试炼场景。') }))
           : [{ title: '暂无试炼门票', desc: '当前背包中没有升灵台或魂灵塔相关门票。' }];
-        const towerPending = toText(towerRequest && towerRequest.action, '无') !== '无';
-        const ascensionPending = toText(ascensionRequest && ascensionRequest.ticket_type, '无') !== '无';
-        const towerPendingText = towerPending ? `${toText(towerRequest && towerRequest.action, '冲塔')} / 第${Math.max(0, toNumber(towerRequest && towerRequest.cleared_floor, 0))}层` : '无待处理';
+        const towerPending = toText(towerRequest && towerRequest.动作, '无') !== '无';
+        const ascensionPending = toText(ascensionRequest && ascensionRequest.门票名, '无') !== '无';
+        const towerPendingText = towerPending ? `${toText(towerRequest && towerRequest.动作, '冲塔')} / 第${Math.max(0, toNumber(towerRequest && towerRequest.通关层数, 0))}层` : '无待处理';
         const ascensionPendingText = ascensionPending
-          ? `${toText(ascensionRequest && ascensionRequest.ticket_type, '未知门票')} / ${toText(ascensionRequest && ascensionRequest.spirit_key, '未指定')}-${toText(ascensionRequest && ascensionRequest.soul_spirit_key, '未指定')} / +${Math.max(0, toNumber(ascensionRequest && ascensionRequest.gain_age, 0))}年`
+          ? `${toText(ascensionRequest && ascensionRequest.门票名, '未知门票')} / ${toText(ascensionRequest && ascensionRequest.武魂槽位, '未指定')}-${toText(ascensionRequest && ascensionRequest.魂灵槽位, '未指定')} / +${Math.max(0, toNumber(ascensionRequest && ascensionRequest.提升年限, 0))}年`
           : '无待处理';
         const ascensionTicketOptionsHtml = ascensionTickets.length
-          ? ascensionTickets.map(name => `<option value="${escapeHtmlAttr(name)}"${name === toText(ascensionRequest && ascensionRequest.ticket_type, '') ? ' selected' : ''}>${htmlEscape(name)}</option>`).join('')
+          ? ascensionTickets.map(name => `<option value="${escapeHtmlAttr(name)}"${name === toText(ascensionRequest && ascensionRequest.门票名, '') ? ' selected' : ''}>${htmlEscape(name)}</option>`).join('')
           : '<option value="">暂无门票</option>';
         const soulSpiritTargetOptionsHtml = soulSpiritTargets.length
           ? soulSpiritTargets.map(item => {
               const rawValue = `${item.spiritKey}::${item.soulSpiritKey}`;
-              const selected = rawValue === `${toText(ascensionRequest && ascensionRequest.spirit_key, '')}::${toText(ascensionRequest && ascensionRequest.soul_spirit_key, '')}`;
+              const selected = rawValue === `${toText(ascensionRequest && ascensionRequest.武魂槽位, '')}::${toText(ascensionRequest && ascensionRequest.魂灵槽位, '')}`;
               return `<option value="${escapeHtmlAttr(rawValue)}"${selected ? ' selected' : ''}>${htmlEscape(item.label)}</option>`;
             }).join('')
           : '<option value="">暂无魂灵</option>';
@@ -14133,19 +14153,19 @@
                 ${makeTileGrid([
                   { label: '升灵台门票', value: String(ascensionTicketCount) },
                   { label: '魂灵塔最高', value: towerPath.length
-                    ? makeInlineEditableValue(String(toNumber(deepGet(snapshot, 'activeChar.tower_records.max_floor', 0), 0)), {
-                        path: [...towerPath, 'max_floor'],
+                    ? makeInlineEditableValue(String(toNumber(deepGet(snapshot, 'activeChar.魂灵塔记录.最高层', 0), 0)), {
+                        path: [...towerPath, '最高层'],
                         kind: 'number',
-                        rawValue: toNumber(deepGet(snapshot, 'activeChar.tower_records.max_floor', 0), 0),
+                        rawValue: toNumber(deepGet(snapshot, 'activeChar.魂灵塔记录.最高层', 0), 0),
                         editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
                       })
-                    : htmlEscape(String(toNumber(deepGet(snapshot, 'activeChar.tower_records.max_floor', 0), 0))) },
+                    : htmlEscape(String(toNumber(deepGet(snapshot, 'activeChar.魂灵塔记录.最高层', 0), 0))) },
                   { label: '可用折扣层', value: towerDiscountEntries.length ? `${towerDiscountEntries.length}` : '0' },
                   { label: '升灵台待处理', value: ascensionPendingText },
                   { label: '魂灵塔待处理', value: towerPendingText },
                   { label: '现实狩猎待处理', value: huntPendingText },
                   { label: '深渊战果待处理', value: abyssPendingText },
-                  { label: '当前战功', value: formatNumber(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0)) }
+                  { label: '当前战功', value: formatNumber(deepGet(snapshot, 'activeChar.财富.战功', 0)) }
                 ], 'two')}
               </div>
 
@@ -14177,7 +14197,7 @@
           || Object.prototype.hasOwnProperty.call(item, '奖励币')
           || Object.prototype.hasOwnProperty.call(item, '奖励声望')
         ));
-        const questBoardEntries = safeEntries(deepGet(snapshot, 'rootData.world.quest_board', {})).filter(([, item]) => item && typeof item === 'object');
+        const questBoardEntries = safeEntries(deepGet(snapshot, 'rootData.world.委托板', {})).filter(([, item]) => item && typeof item === 'object');
         const questPage = paginateModalItems(questRecords, previewKey, 'quest-records', 6);
         const boardPage = paginateModalItems(questBoardEntries, previewKey, 'quest-board', 6);
         const questFocusStateKey = `${previewKey}::quest-focus`;
@@ -14198,8 +14218,8 @@
         const focusBoard = focusBoardEntry && focusBoardEntry[1];
         const focusQuestStatus = toText(focusQuest && focusQuest['状态'], '进行中');
         const focusBoardStatus = toText(focusBoard && focusBoard['状态'], '待接取');
-        const focusQuestPath = focusQuestName && activeCharKey ? ['char', activeCharKey, 'records', focusQuestName] : [];
-        const focusBoardPath = focusBoardId ? ['world', 'quest_board', focusBoardId] : [];
+        const focusQuestPath = focusQuestName && activeCharKey ? ['char', activeCharKey, '记录', focusQuestName] : [];
+        const focusBoardPath = focusBoardId ? ['world', '委托板', focusBoardId] : [];
         const focusBoardDescPath = focusBoardPath.length ? [...focusBoardPath, focusBoardStatus === '待接取' ? '框架描述' : '描述'] : [];
         const focusBoardDesc = focusBoard
           ? (focusBoardStatus === '待接取' ? toText(focusBoard['框架描述'], toText(focusBoard['描述'], '未知')) : toText(focusBoard['描述'], toText(focusBoard['框架描述'], '未知')))
@@ -14506,7 +14526,7 @@
               const displayValue = value === undefined || value === null || value === '' ? '无' : String(value);
               const kind = typeof value === 'number' ? 'number' : (typeof value === 'boolean' ? 'boolean' : 'string');
               return `${htmlEscape(toText(key, '字段'))}：${makeInlineEditableValue(displayValue, {
-                path: ['world', 'bestiary', name, key],
+                path: ['world', '图鉴', name, key],
                 kind,
                 rawValue: value === undefined ? displayValue : value,
               })}`;
@@ -14558,7 +14578,7 @@
           summary: '星斗大森林累计击杀年限与兽潮阈值监控。',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
-              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">仇恨累计</div></div>${makeTileGrid([{ label: '累计击杀年限', value: makeInlineEditableValue(formatNumber(snapshot.forestKilledAge), { path: ['world', 'forest_killed_age'], kind: 'number', rawValue: snapshot.forestKilledAge, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数 · 1000000 为兽潮阈值参考，不是硬上限' } }) }, { label: '兽潮阈值', value: '1000000' }, { label: '剩余安全空间', value: remaining > 0 ? formatNumber(remaining) : '0' }, { label: '当前阶段', value: stage }], 'two')}<div style="margin-top:12px;"><div style="display:flex;justify-content:space-between;font-size:12px;color:#bfdde4;margin-bottom:6px;"><span>阈值进度</span><span>${progress}%</span></div><div style="height:10px;border-radius:999px;background:rgba(255,255,255,0.08);overflow:hidden;border:1px solid rgba(150,217,228,0.12);"><div style="height:100%;width:${progress}%;background:${progress >= 100 ? 'linear-gradient(90deg,#ff6b6b,#ffb36b)' : (progress >= 70 ? 'linear-gradient(90deg,#ffd36b,#ff8a5b)' : 'linear-gradient(90deg,#72e6ff,#7dffb2)')};box-shadow:0 0 12px rgba(255,180,107,0.35);"></div></div></div></div>
+              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">仇恨累计</div></div>${makeTileGrid([{ label: '累计击杀年限', value: makeInlineEditableValue(formatNumber(snapshot.forestKilledAge), { path: ['world', '累计击杀年限'], kind: 'number', rawValue: snapshot.forestKilledAge, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数 · 1000000 为兽潮阈值参考，不是硬上限' } }) }, { label: '兽潮阈值', value: '1000000' }, { label: '剩余安全空间', value: remaining > 0 ? formatNumber(remaining) : '0' }, { label: '当前阶段', value: stage }], 'two')}<div style="margin-top:12px;"><div style="display:flex;justify-content:space-between;font-size:12px;color:#bfdde4;margin-bottom:6px;"><span>阈值进度</span><span>${progress}%</span></div><div style="height:10px;border-radius:999px;background:rgba(255,255,255,0.08);overflow:hidden;border:1px solid rgba(150,217,228,0.12);"><div style="height:100%;width:${progress}%;background:${progress >= 100 ? 'linear-gradient(90deg,#ff6b6b,#ffb36b)' : (progress >= 70 ? 'linear-gradient(90deg,#ffd36b,#ff8a5b)' : 'linear-gradient(90deg,#72e6ff,#7dffb2)')};box-shadow:0 0 12px rgba(255,180,107,0.35);"></div></div></div></div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">阶段说明</div></div>
                 ${makeTimelineStack([
@@ -14701,7 +14721,7 @@
         ? `<div class="dual-side-top"><div class="strip-head"><div class="strip-title cyan">武魂档案</div></div><span class="badge ${config.badgeClass || 'cyan'}">${config.badge}</span></div>`
         : `<div class="dual-side-top dual-side-top-right"><span class="badge ${config.badgeClass || 'gold'}">${config.badge}</span></div>`;
 
-      return `${head}<div class="strip-name">${config.name}</div><div class="rings dual-grid ${isPrimary ? 'primary-rings' : 'secondary-rings'}">${buildSpiritRingGrid(config.rings, isPrimary ? 'ring-white' : 'ring-gold')}</div>`;
+      return `${head}<div class="strip-name">${config.name}</div><div class="rings dual-grid ${isPrimary ? 'primary-rings' : 'secondary-rings'}">${buildSpiritRingGrid(config.魂环, isPrimary ? 'ring-white' : 'ring-gold')}</div>`;
     }
 
     function renderArchiveBloodlineEntry(config) {
@@ -14710,7 +14730,7 @@
           <span class="badge ${config.badgeClass || 'gold'}">${config.badge}</span>
         </div>
         <div class="strip-name">${config.name}</div>
-        <div class="rings dual-grid secondary-rings">${buildSpiritRingGrid(config.rings, 'ring-gold')}</div>
+        <div class="rings dual-grid secondary-rings">${buildSpiritRingGrid(config.魂环, 'ring-gold')}</div>
       `;
     }
 
@@ -14979,8 +14999,8 @@
     function listSoulSpiritTargets(snapshot) {
       const activeChar = deepGet(snapshot, 'activeChar', {});
       const result = [];
-      safeEntries(deepGet(activeChar, 'spirit', {})).forEach(([spiritKey, spiritData]) => {
-        safeEntries(deepGet(spiritData, 'soul_spirits', {})).forEach(([soulSpiritKey, soulSpirit]) => {
+      safeEntries(deepGet(activeChar, '武魂', {})).forEach(([spiritKey, spiritData]) => {
+        safeEntries(deepGet(spiritData, '魂灵', {})).forEach(([soulSpiritKey, soulSpirit]) => {
           const spiritName = toText(deepGet(spiritData, '表象名称', spiritKey), spiritKey);
           const soulSpiritName = toText(deepGet(soulSpirit, '表象名称', soulSpiritKey), soulSpiritKey);
           const age = toNumber(deepGet(soulSpirit, '年限', 0), 0);
@@ -15048,13 +15068,13 @@
       const targetFaction = toText(options.targetFaction, '').trim();
       const quantity = Math.max(1, Math.floor(toNumber(options.quantity, 1)));
       if (!itemName || !targetFaction || itemName === '无' || targetFaction === '无') return null;
-      const ownedCount = toNumber(deepGet(snapshot, ['activeChar', 'inventory', itemName, '数量'], 0), 0);
+      const ownedCount = toNumber(deepGet(snapshot, ['activeChar', '背包', itemName, '数量'], 0), 0);
       if (ownedCount < quantity) return null;
       const chars = deepGet(snapshot, 'rootData.char', {});
       const activeChar = chars && typeof chars === 'object' ? (chars[activeKey] || {}) : {};
       const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, activeKey));
-      const currentLoc = toText(deepGet(activeChar, 'status.loc', snapshot.currentLoc || '当前位置'), snapshot.currentLoc || '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
-      const talentTier = toText(deepGet(activeChar, 'stat.talent_tier', '正常'), '正常');
+      const currentLoc = toText(deepGet(activeChar, '状态.位置', snapshot.currentLoc || '当前位置'), snapshot.currentLoc || '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
+      const talentTier = toText(deepGet(activeChar, '属性.talent_tier', '正常'), '正常');
       const basePrice = getDonateBasePrice(itemName);
       const talentMultiplier = getDonateTalentMultiplier(talentTier);
       const totalValue = basePrice * quantity;
@@ -15095,9 +15115,9 @@
       const chars = deepGet(snapshot, 'rootData.char', {});
       const activeChar = chars && typeof chars === 'object' ? (chars[activeKey] || {}) : {};
       const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, activeKey));
-      const currentLoc = toText(deepGet(activeChar, 'status.loc', snapshot.currentLoc || '当前位置'), snapshot.currentLoc || '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
-      const boardEntry = deepGet(snapshot, ['rootData', 'world', 'quest_board', questName], null);
-      const recordEntry = deepGet(snapshot, ['activeChar', 'records', questName], null);
+      const currentLoc = toText(deepGet(activeChar, '状态.位置', snapshot.currentLoc || '当前位置'), snapshot.currentLoc || '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
+      const boardEntry = deepGet(snapshot, ['rootData', 'world', '委托板', questName], null);
+      const recordEntry = deepGet(snapshot, ['activeChar', '记录', questName], null);
       const boardTitle = toText(boardEntry && boardEntry['标题'], questName);
       const boardFrameDesc = toText(boardEntry && boardEntry['框架描述'], '无');
       const boardHiddenDesc = toText(boardEntry && boardEntry['描述'], boardFrameDesc);
@@ -15127,7 +15147,7 @@
         requestLabel = `[任务接取申请] ${activeName} 在【${currentLoc}】准备接取委托【${boardTitle}】。`;
         analysisLabel = 'Quest accept request initialized from task panel.';
         playerInput = `我想接取委托板上的【${boardTitle}】。`;
-        extraRequirement = `这是一个接取前只公开框架的委托。你现在可以在剧情里正常披露详细目标，但必须保留 quest_request.quest_desc = ${questDesc}、required_count = ${requiredCount}、reward_coin = ${rewardCoin}、reward_rep = ${rewardRep}。`;
+        extraRequirement = `这是一个接取前只公开框架的委托。你现在可以在剧情里正常披露详细目标，但必须保留 任务请求.任务描述 = ${questDesc}、目标进度 = ${requiredCount}、奖励币 = ${rewardCoin}、奖励声望 = ${rewardRep}。`;
       } else if (actionType === 'submit') {
         if (!recordEntry || ['已完成', '已放弃', '失败', '已失败'].includes(recordStatus)) return null;
         questAction = '提交';
@@ -15140,7 +15160,7 @@
         requestLabel = `[任务提交申请] ${activeName} 在【${currentLoc}】准备提交任务【${questName}】。`;
         analysisLabel = 'Quest submit request initialized from task panel.';
         playerInput = `我想提交当前任务【${questName}】。`;
-        extraRequirement = '你必须保留 quest_request.action = 提交，并保留 quest_name、quest_desc、required_count、reward_coin、reward_rep 这些字段，使 MVU 后续可以按进度进行结算。';
+        extraRequirement = '你必须保留 任务请求.动作 = 提交，并保留 任务名称、任务描述、目标进度、奖励币、奖励声望 这些字段，使 MVU 后续可以按进度进行结算。';
       } else if (actionType === 'abandon') {
         if (!recordEntry || ['已完成', '已放弃', '失败', '已失败'].includes(recordStatus)) return null;
         questAction = '放弃';
@@ -15153,7 +15173,7 @@
         requestLabel = `[任务放弃申请] ${activeName} 在【${currentLoc}】准备放弃任务【${questName}】。`;
         analysisLabel = 'Quest abandon request initialized from task panel.';
         playerInput = `我想放弃当前任务【${questName}】。`;
-        extraRequirement = '你必须保留 quest_request.action = 放弃，并保留 quest_name、quest_desc、required_count、reward_coin、reward_rep 这些字段，使 MVU 后续可以正确回滚委托板状态。';
+        extraRequirement = '你必须保留 任务请求.动作 = 放弃，并保留 任务名称、任务描述、目标进度、奖励币、奖励声望 这些字段，使 MVU 后续可以正确回滚委托板状态。';
       } else if (actionType === 'progress') {
         if (!recordEntry || ['已完成', '已放弃', '失败', '已失败'].includes(recordStatus)) return null;
         questAction = '更新进度';
@@ -15165,14 +15185,14 @@
         requestLabel = `[任务进度申请] ${activeName} 在【${currentLoc}】推进任务【${questName}】，计划增加 ${progressAdd} 点进度。`;
         analysisLabel = 'Quest progress request initialized from task panel.';
         playerInput = `我想推进任务【${questName}】的进度。`;
-        extraRequirement = `你必须保留 quest_request.action = 更新进度 与 progress_add = ${progressAdd}，并保留 quest_name、quest_desc、required_count、reward_coin、reward_rep 这些字段。`;
+        extraRequirement = `你必须保留 任务请求.动作 = 更新进度 与 进度增量 = ${progressAdd}，并保留 任务名称、任务描述、目标进度、奖励币、奖励声望 这些字段。`;
       } else {
         return null;
       }
 
       const patchOps = [
-        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/quest_request`, value: { action: questAction, quest_name: questName, quest_desc: questDesc, progress_add: progressAdd, required_count: requiredCount, reward_coin: rewardCoin, reward_rep: rewardRep } },
-        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/status/action`, value: statusAction },
+        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/任务请求`, value: { 动作: questAction, 任务名称: questName, 任务描述: questDesc, 进度增量: progressAdd, 目标进度: requiredCount, 奖励币: rewardCoin, 奖励声望: rewardRep } },
+        { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/状态/行动`, value: statusAction },
         { op: 'replace', path: '/sys/rsn', value: requestLabel }
       ];
       const mvuUpdate = buildMvuUpdateBlock(
@@ -15193,17 +15213,17 @@ ${mvuUpdate}`;
       return {
         playerInput,
         systemPrompt,
-        requestKind: 'quest_request'
+        requestKind: '任务请求'
       };
     }
 
 
     function buildFactionAffairConsoleHtml(snapshot, preferredFactionName = '') {
-      const pendingDonateItem = toText(deepGet(snapshot, 'activeChar.donate_request.item_name', '无'), '无');
-      const pendingDonateFaction = toText(deepGet(snapshot, 'activeChar.donate_request.target_faction', '无'), '无');
-      const pendingDonateQty = Math.max(1, toNumber(deepGet(snapshot, 'activeChar.donate_request.quantity', 1), 1));
+      const pendingDonateItem = toText(deepGet(snapshot, 'activeChar.捐献请求.物品名称', '无'), '无');
+      const pendingDonateFaction = toText(deepGet(snapshot, 'activeChar.捐献请求.目标势力', '无'), '无');
+      const pendingDonateQty = Math.max(1, toNumber(deepGet(snapshot, 'activeChar.捐献请求.数量', 1), 1));
       const factionNames = [];
-      [preferredFactionName, pendingDonateFaction, ...(snapshot.factions || []).map(([name]) => name), '唐门', '史莱克学院', '战神殿', '传灵塔', '联邦军方', '血神军团', '圣灵教'].forEach(name => {
+      [preferredFactionName, pendingDonateFaction, ...(snapshot.势力 || []).map(([name]) => name), '唐门', '史莱克学院', '战神殿', '传灵塔', '联邦军方', '血神军团', '圣灵教'].forEach(name => {
         const text = toText(name, '').trim();
         if (text && text !== '无' && !factionNames.includes(text)) factionNames.push(text);
       });
@@ -15228,9 +15248,9 @@ ${mvuUpdate}`;
             <section class="dossier-section">
               <div class="dossier-section-title">主要贡献池</div>
               <div class="dossier-contrib-grid">
-                ${makeDossierMeter('唐门', htmlEscape(formatNumber(deepGet(snapshot, 'activeChar.wealth.tang_pt', 0))), ratioPercent(deepGet(snapshot, 'activeChar.wealth.tang_pt', 0), 1000), 'dossier-meter--cyan')}
-                ${makeDossierMeter('史莱克学院', htmlEscape(formatNumber(deepGet(snapshot, 'activeChar.wealth.shrek_pt', 0))), ratioPercent(deepGet(snapshot, 'activeChar.wealth.shrek_pt', 0), 1000), 'dossier-meter--green')}
-                ${makeDossierMeter('战神殿/军方', htmlEscape(formatNumber(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0))), ratioPercent(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0), 1000), 'dossier-meter--red')}
+                ${makeDossierMeter('唐门', htmlEscape(formatNumber(deepGet(snapshot, 'activeChar.财富.唐门积分', 0))), ratioPercent(deepGet(snapshot, 'activeChar.财富.唐门积分', 0), 1000), 'dossier-meter--cyan')}
+                ${makeDossierMeter('史莱克学院', htmlEscape(formatNumber(deepGet(snapshot, 'activeChar.财富.学院积分', 0))), ratioPercent(deepGet(snapshot, 'activeChar.财富.学院积分', 0), 1000), 'dossier-meter--green')}
+                ${makeDossierMeter('战神殿/军方', htmlEscape(formatNumber(deepGet(snapshot, 'activeChar.财富.战功', 0))), ratioPercent(deepGet(snapshot, 'activeChar.财富.战功', 0), 1000), 'dossier-meter--red')}
               </div>
             </section>
           </div>
@@ -15257,9 +15277,9 @@ ${mvuUpdate}`;
           <section class="dossier-section">
             <div class="dossier-section-title">主要贡献池</div>
             <div class="dossier-contrib-grid">
-              ${makeDossierMeter('唐门', htmlEscape(formatNumber(deepGet(snapshot, 'activeChar.wealth.tang_pt', 0))), ratioPercent(deepGet(snapshot, 'activeChar.wealth.tang_pt', 0), 1000), 'dossier-meter--cyan')}
-              ${makeDossierMeter('史莱克学院', htmlEscape(formatNumber(deepGet(snapshot, 'activeChar.wealth.shrek_pt', 0))), ratioPercent(deepGet(snapshot, 'activeChar.wealth.shrek_pt', 0), 1000), 'dossier-meter--green')}
-              ${makeDossierMeter('战神殿/军方', htmlEscape(formatNumber(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0))), ratioPercent(deepGet(snapshot, 'activeChar.wealth.blood_pt', 0), 1000), 'dossier-meter--red')}
+              ${makeDossierMeter('唐门', htmlEscape(formatNumber(deepGet(snapshot, 'activeChar.财富.唐门积分', 0))), ratioPercent(deepGet(snapshot, 'activeChar.财富.唐门积分', 0), 1000), 'dossier-meter--cyan')}
+              ${makeDossierMeter('史莱克学院', htmlEscape(formatNumber(deepGet(snapshot, 'activeChar.财富.学院积分', 0))), ratioPercent(deepGet(snapshot, 'activeChar.财富.学院积分', 0), 1000), 'dossier-meter--green')}
+              ${makeDossierMeter('战神殿/军方', htmlEscape(formatNumber(deepGet(snapshot, 'activeChar.财富.战功', 0))), ratioPercent(deepGet(snapshot, 'activeChar.财富.战功', 0), 1000), 'dossier-meter--red')}
             </div>
           </section>
         </div>
@@ -15269,7 +15289,7 @@ ${mvuUpdate}`;
     function buildFactionRelationDossierList(orgName, orgData, options = {}) {
       const { max = 6, emptyTitle = '暂无阵营关系', emptyDesc = '当前未记录对外关系。' } = options || {};
       const safeOrgName = toText(orgName, '').trim();
-      const relationEntries = safeEntries(deepGet(orgData, 'rel', {})).slice(0, Math.max(1, max));
+      const relationEntries = safeEntries(deepGet(orgData, '关系', {})).slice(0, Math.max(1, max));
       if (!relationEntries.length) {
         return `<div class="dossier-empty-note">${htmlEscape(emptyTitle)}：${htmlEscape(emptyDesc)}</div>`;
       }
@@ -15291,7 +15311,7 @@ ${mvuUpdate}`;
           .join(' / ');
         const editableValue = safeOrgName
           ? makeInlineEditableValue(relationValue, {
-              path: ['org', safeOrgName, 'rel', relationName, relationField],
+              path: ['org', safeOrgName, '关系', relationName, relationField],
               kind: 'string',
               rawValue: relationValue,
             })
@@ -15305,15 +15325,15 @@ ${mvuUpdate}`;
     }
 
     function buildFactionDossierModal(snapshot, previewKey = '所属势力详细页') {
-      const currentFactionName = snapshot.factions[0] ? snapshot.factions[0][0] : '';
-      const currentFactionRole = snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '身份', '无'), '无') : '未加入';
-      const currentFactionPower = snapshot.factions[0] ? toText(deepGet(snapshot.factions[0][1], '权限级', 0), '0') : '0';
+      const currentFactionName = snapshot.势力[0] ? snapshot.势力[0][0] : '';
+      const currentFactionRole = snapshot.势力[0] ? toText(deepGet(snapshot.势力[0][1], '身份', '无'), '无') : '未加入';
+      const currentFactionPower = snapshot.势力[0] ? toText(deepGet(snapshot.势力[0][1], '权限级', 0), '0') : '0';
       const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
-      const currentFactionPath = currentFactionName && activeCharKey ? ['char', activeCharKey, 'social', 'factions', currentFactionName] : [];
+      const currentFactionPath = currentFactionName && activeCharKey ? ['char', activeCharKey, '社交', '势力', currentFactionName] : [];
       const currentFactionEntry = currentFactionName
         ? (snapshot.orgEntries.find(([name]) => name === currentFactionName) || [currentFactionName, {}])
         : ['', {}];
-      const factionRows = snapshot.factions.length ? snapshot.factions : [['未加入势力', { 身份: '无', 权限级: 0 }]];
+      const factionRows = snapshot.势力.length ? snapshot.势力 : [['未加入势力', { 身份: '无', 权限级: 0 }]];
       const title = previewKey === '我的阵营详情' ? '我的阵营弹窗' : '阵营身份弹窗';
 
       return {
@@ -15324,11 +15344,11 @@ ${mvuUpdate}`;
             <div class="archive-card dossier-card dossier-card--faction-list">
               <div class="archive-card-head">
                 <div class="archive-card-title">所属势力列表</div>
-                <span class="dossier-pill ${snapshot.factions.length ? 'live' : 'warn'}">${snapshot.factions.length ? `已加入 ${snapshot.factions.length}` : '未加入'}</span>
+                <span class="dossier-pill ${snapshot.势力.length ? 'live' : 'warn'}">${snapshot.势力.length ? `已加入 ${snapshot.势力.length}` : '未加入'}</span>
               </div>
               <div class="dossier-list dossier-list--factions">
                 ${factionRows.map(([name, info], idx) => {
-                  const factionPath = activeCharKey && name !== '未加入势力' ? ['char', activeCharKey, 'social', 'factions', name] : [];
+                  const factionPath = activeCharKey && name !== '未加入势力' ? ['char', activeCharKey, '社交', '势力', name] : [];
                   const identityValue = toText(info && info['身份'], '无');
                   const powerValue = toNumber(info && info['权限级'], 0);
                   return `
@@ -15384,12 +15404,12 @@ ${mvuUpdate}`;
                       })
                     : htmlEscape(currentFactionPower) },
                   { label: '主公开身份', value: activeCharKey
-                    ? makeInlineEditableValue(toText(deepGet(snapshot, 'activeChar.social.main_identity', '无'), '无'), {
-                        path: ['char', activeCharKey, 'social', 'main_identity'],
+                    ? makeInlineEditableValue(toText(deepGet(snapshot, 'activeChar.社交.主身份', '无'), '无'), {
+                        path: ['char', activeCharKey, '社交', '主身份'],
                         kind: 'string',
-                        rawValue: toText(deepGet(snapshot, 'activeChar.social.main_identity', '无'), '无'),
+                        rawValue: toText(deepGet(snapshot, 'activeChar.社交.主身份', '无'), '无'),
                       })
-                    : htmlEscape(toText(deepGet(snapshot, 'activeChar.social.main_identity', '无'), '无')) },
+                    : htmlEscape(toText(deepGet(snapshot, 'activeChar.社交.主身份', '无'), '无')) },
                   { label: '当前称号', value: htmlEscape(snapshot.recentTitles[0] || '暂无') },
                   { label: '当前位置', value: htmlEscape(snapshot.currentLoc || '未知') },
                 ], 'dossier-row-grid--two')}
@@ -15414,24 +15434,24 @@ ${mvuUpdate}`;
       const services = normalizeMapDispatchServices(detail);
       const action = toText(detail.action, '');
       const tradeRequest = detail.tradeRequest && typeof detail.tradeRequest === 'object' ? detail.tradeRequest : {};
-      const requestAction = toText(tradeRequest.action, '');
+      const requestAction = toText(tradeRequest.动作, '');
       const npcTarget = toText(detail.npcTarget, '');
       const currentLoc = toText(snapshot && snapshot.currentLoc, '');
       const normalizedLoc = toText(snapshot && snapshot.normalizedLoc, currentLoc);
-      const locations = deepGet(snapshot, 'rootData.world.locations', {});
+      const 地点映射 = deepGet(snapshot, 'rootData.world.地点', {});
       const currentLocation = snapshot && snapshot.locationData && typeof snapshot.locationData === 'object'
         ? snapshot.locationData
-        : (locations && typeof locations === 'object'
-          ? (locations[normalizedLoc] || locations[currentLoc] || {})
+        : (地点映射 && typeof 地点映射 === 'object'
+          ? (地点映射[normalizedLoc] || 地点映射[currentLoc] || {})
           : {});
-      const storeMap = currentLocation && typeof currentLocation === 'object' ? (currentLocation.stores || {}) : {};
+      const storeMap = currentLocation && typeof currentLocation === 'object' ? (currentLocation.商店 || {}) : {};
 
       let initialTab = 'tab-shop';
       if (/竞拍|拍卖|auction|bid/i.test(requestAction) || action === 'bid' || services.includes('auction')) {
         initialTab = 'tab-auction';
-      } else if ((/出售|卖出|sell/i.test(requestAction) && !toText(tradeRequest.npc, npcTarget)) || action === 'sell') {
+      } else if ((/出售|卖出|sell/i.test(requestAction) && !toText(tradeRequest.对象, npcTarget)) || action === 'sell') {
         initialTab = 'tab-sell';
-      } else if ((requestAction && toText(tradeRequest.npc, npcTarget)) || (action === 'trade' && npcTarget)) {
+      } else if ((requestAction && toText(tradeRequest.对象, npcTarget)) || (action === 'trade' && npcTarget)) {
         initialTab = 'tab-private';
       }
 
@@ -15446,14 +15466,14 @@ ${mvuUpdate}`;
 
       return {
         initialTab,
-        prefillNpc: initialTab === 'tab-private' ? toText(tradeRequest.npc, npcTarget) : '',
-        lockNpc: initialTab === 'tab-private' && !!toText(tradeRequest.npc, npcTarget),
-        preferredStore: toText(tradeRequest.target, preferredStore) || preferredStore,
+        prefillNpc: initialTab === 'tab-private' ? toText(tradeRequest.对象, npcTarget) : '',
+        lockNpc: initialTab === 'tab-private' && !!toText(tradeRequest.对象, npcTarget),
+        preferredStore: toText(tradeRequest.目标, preferredStore) || preferredStore,
         prefillAction: requestAction,
-        prefillItem: toText(tradeRequest.item, ''),
-        prefillQty: Math.max(1, toNumber(tradeRequest.quantity, 1)),
-        prefillPrice: Math.max(0, toNumber(tradeRequest.price, 0)),
-        autoExecute: tradeRequest.auto_execute === true || /auto|ready|执行|成交|确认/.test(toText(tradeRequest.status, ''))
+        prefillItem: toText(tradeRequest.物品, ''),
+        prefillQty: Math.max(1, toNumber(tradeRequest.数量, 1)),
+        prefillPrice: Math.max(0, toNumber(tradeRequest.价格, 0)),
+        autoExecute: tradeRequest.自动执行 === true || /auto|ready|执行|成交|确认/.test(toText(tradeRequest.状态, ''))
       };
     }
 
@@ -15472,6 +15492,7 @@ ${mvuUpdate}`;
                   </div>
                   <div class="bar-stack">
                     <div class="resource-bar"><div class="resource-fill hp" id="ui-player-hp-bar"></div><div class="resource-text" id="ui-player-hp-text">0 / 0</div></div>
+                    <div class="resource-bar"><div class="resource-fill vit" id="ui-player-sta-bar"></div><div class="resource-text" id="ui-player-sta-text">0 / 0</div></div>
                     <div class="resource-bar"><div class="resource-fill sp" id="ui-player-sp-bar"></div><div class="resource-text" id="ui-player-sp-text">0 / 0</div></div>
                     <div class="resource-bar"><div class="resource-fill men" id="ui-player-men-bar"></div><div class="resource-text" id="ui-player-men-text">0 / 0</div></div>
                   </div>
@@ -15487,6 +15508,7 @@ ${mvuUpdate}`;
                   </div>
                   <div class="bar-stack">
                     <div class="resource-bar"><div class="resource-fill hp" id="ui-enemy-hp-bar"></div><div class="resource-text" id="ui-enemy-hp-text">0 / 0</div></div>
+                    <div class="resource-bar"><div class="resource-fill vit" id="ui-enemy-sta-bar"></div><div class="resource-text" id="ui-enemy-sta-text">0 / 0</div></div>
                     <div class="resource-bar"><div class="resource-fill sp" id="ui-enemy-sp-bar"></div><div class="resource-text" id="ui-enemy-sp-text">0 / 0</div></div>
                     <div class="resource-bar"><div class="resource-fill men" id="ui-enemy-men-bar"></div><div class="resource-text" id="ui-enemy-men-text">0 / 0</div></div>
                   </div>
@@ -15508,6 +15530,12 @@ ${mvuUpdate}`;
                         <button class="mode-btn active" type="button" data-mode="single_round">单回合</button>
                         <button class="mode-btn" type="button" data-mode="multi_round">连续推演</button>
                       </div>
+                      <select class="request-console-input" id="ui-intent-mode" style="flex:0 0 124px;">
+                        <option value="点到为止" selected>点到为止</option>
+                        <option value="尽量生擒">尽量生擒</option>
+                        <option value="重伤压制">重伤压制</option>
+                        <option value="必杀">必杀</option>
+                      </select>
                       <div class="battle-toolbar-actions">
                         <button class="ghost-btn" id="ui-arbitrate" type="button">结算</button>
                         <button class="ghost-btn battle-close-btn" id="ui-battle-close" type="button" aria-label="退出战斗">退出</button>
@@ -15550,15 +15578,15 @@ ${mvuUpdate}`;
     }
 
     function isCombatActiveForBattleInline(snapshot) {
-      const combatData = deepGet(snapshot, 'rootData.world.combat', {});
-      return !!(combatData && typeof combatData === 'object' && combatData.is_active && isSnapshotPlayerControlled(snapshot));
+      const combatData = deepGet(snapshot, 'rootData.world.战斗', {});
+      return !!(combatData && typeof combatData === 'object' && combatData.进行中 && isSnapshotPlayerControlled(snapshot));
     }
 
     function getBattleInlineSummary(snapshot) {
-      const combatData = deepGet(snapshot, 'rootData.world.combat', {});
-      const player = toText(combatData && combatData.participants && combatData.participants.player && combatData.participants.player.name, '己方');
-      const enemy = toText(combatData && combatData.participants && combatData.participants.enemy && combatData.participants.enemy.name, '对手');
-      const round = toNumber(combatData && combatData.round, 0);
+      const combatData = deepGet(snapshot, 'rootData.world.战斗', {});
+      const player = toText(combatData && combatData.参战者 && combatData.参战者.player && combatData.参战者.player.name, '己方');
+      const enemy = toText(combatData && combatData.参战者 && combatData.参战者.enemy && combatData.参战者.enemy.name, '对手');
+      const round = toNumber(combatData && combatData.回合, 0);
       return {
         title: '战斗',
         meta: `${player} / ${enemy}`,
@@ -15663,36 +15691,38 @@ ${mvuUpdate}`;
       return waitForBattleInlineHost();
     }
 
-    const COMBAT_PARTICIPANT_STAT_KEYS = ['age', 'lv', 'type', 'talent_tier', 'is_evil', 'sp', 'sp_max', 'men', 'men_max', 'str', 'def', 'agi', 'vit', 'vit_max'];
+    const COMBAT_PARTICIPANT_STAT_KEYS = ['年龄', '等级', '系别', '天赋梯队', '邪魂师', 'HP', 'HP上限', '魂力', '魂力上限', '精神力', '精神力上限', '力量', '防御', '敏捷', '体力', '体力上限'];
 
     function buildCombatParticipantFromSnapshotChar(snapshot, charKey, faction = '敌对') {
       const chars = deepGet(snapshot, 'rootData.char', {});
       const sourceChar = chars && typeof chars === 'object' ? chars[charKey] : null;
       if (!sourceChar || typeof sourceChar !== 'object') return null;
       const participant = cloneJsonValue(sourceChar, {});
-      const stat = participant.stat && typeof participant.stat === 'object' ? participant.stat : {};
-      const status = participant.status && typeof participant.status === 'object' ? participant.status : {};
+      const stat = participant.属性 && typeof participant.属性 === 'object' ? participant.属性 : {};
+      const status = participant.状态 && typeof participant.状态 === 'object' ? participant.状态 : {};
       participant.name = toText(participant.name || deepGet(participant, 'base.name', ''), charKey);
-      participant.faction = faction;
-      participant.status = status;
+      participant.势力 = faction;
+      participant.状态 = status;
       COMBAT_PARTICIPANT_STAT_KEYS.forEach(key => {
         if (stat[key] !== undefined) participant[key] = stat[key];
       });
-      participant.lv = toNumber(participant.lv, toNumber(stat.lv, 1));
-      participant.type = toText(participant.type, toText(stat.type, '未知系'));
-      participant.vit_max = Math.max(1, toNumber(participant.vit_max, toNumber(stat.vit_max, 1)));
-      participant.vit = Math.max(0, toNumber(participant.vit, toNumber(stat.vit, participant.vit_max)));
-      participant.sp_max = Math.max(1, toNumber(participant.sp_max, toNumber(stat.sp_max, 1)));
-      participant.sp = Math.max(0, toNumber(participant.sp, toNumber(stat.sp, participant.sp_max)));
-      participant.men_max = Math.max(1, toNumber(participant.men_max, toNumber(stat.men_max, 1)));
-      participant.men = Math.max(0, toNumber(participant.men, toNumber(stat.men, participant.men_max)));
-      participant.str = Math.max(0, toNumber(participant.str, toNumber(stat.str, 1)));
-      participant.def = Math.max(0, toNumber(participant.def, toNumber(stat.def, 1)));
-      participant.agi = Math.max(0, toNumber(participant.agi, toNumber(stat.agi, 1)));
-      participant.conditions = cloneJsonValue(participant.conditions || stat.conditions || {}, {});
-      participant.active_sustains = cloneJsonValue(participant.active_sustains || {}, {});
-      participant.charging_skill = participant.charging_skill || null;
-      participant.alive = status.alive !== false;
+      participant.等级 = toNumber(participant.等级, toNumber(stat.等级, 1));
+      participant.系别 = toText(participant.系别, toText(stat.系别, '未知系'));
+      participant.HP上限 = Math.max(1, toNumber(participant.HP上限, toNumber(stat.HP上限, toNumber(stat.体力上限, 1))));
+      participant.HP = Math.max(0, toNumber(participant.HP, toNumber(stat.HP, toNumber(stat.体力, participant.HP上限))));
+      participant.体力上限 = Math.max(1, toNumber(participant.体力上限, toNumber(stat.体力上限, 1)));
+      participant.体力 = Math.max(0, toNumber(participant.体力, toNumber(stat.体力, participant.体力上限)));
+      participant.魂力上限 = Math.max(1, toNumber(participant.魂力上限, toNumber(stat.魂力上限, 1)));
+      participant.魂力 = Math.max(0, toNumber(participant.魂力, toNumber(stat.魂力, participant.魂力上限)));
+      participant.精神力上限 = Math.max(1, toNumber(participant.精神力上限, toNumber(stat.精神力上限, 1)));
+      participant.精神力 = Math.max(0, toNumber(participant.精神力, toNumber(stat.精神力, participant.精神力上限)));
+      participant.力量 = Math.max(0, toNumber(participant.力量, toNumber(stat.力量, 1)));
+      participant.防御 = Math.max(0, toNumber(participant.防御, toNumber(stat.防御, 1)));
+      participant.敏捷 = Math.max(0, toNumber(participant.敏捷, toNumber(stat.敏捷, 1)));
+      participant.状态效果 = cloneJsonValue(participant.状态效果 || stat.状态效果 || {}, {});
+      participant.持续效果 = cloneJsonValue(participant.持续效果 || {}, {});
+      participant.蓄力技能 = participant.蓄力技能 || null;
+      participant.存活 = status.存活 !== false;
       return participant;
     }
 
@@ -15700,11 +15730,11 @@ ${mvuUpdate}`;
       const base = baseParticipant && typeof baseParticipant === 'object' ? baseParticipant : {};
       const override = overrideParticipant && typeof overrideParticipant === 'object' ? overrideParticipant : {};
       const merged = { ...base, ...override };
-      if (base.stat || override.stat) merged.stat = { ...(base.stat || {}), ...(override.stat || {}) };
-      if (base.status || override.status) {
-        merged.status = {
-          ...(base.status && typeof base.status === 'object' ? base.status : {}),
-          ...(override.status && typeof override.status === 'object' ? override.status : {})
+      if (base.属性 || override.属性) merged.属性 = { ...(base.属性 || {}), ...(override.属性 || {}) };
+      if (base.状态 || override.状态) {
+        merged.状态 = {
+          ...(base.状态 && typeof base.状态 === 'object' ? base.状态 : {}),
+          ...(override.状态 && typeof override.状态 === 'object' ? override.状态 : {})
         };
       }
       if (!merged.name) merged.name = base.name || override.name || '';
@@ -15712,15 +15742,15 @@ ${mvuUpdate}`;
     }
 
     function findCombatOpponentKey(snapshot, combatData = {}) {
-      const participants = combatData && combatData.participants && typeof combatData.participants === 'object'
-        ? combatData.participants
+      const participants = combatData && combatData.参战者 && typeof combatData.参战者 === 'object'
+        ? combatData.参战者
         : {};
       const explicitEnemy = participants.enemy && typeof participants.enemy === 'object'
         ? toText(participants.enemy.name, '')
         : '';
       if (explicitEnemy) return resolveSnapshotCharKey(snapshot, explicitEnemy);
 
-      const playerKey = resolveSnapshotCharKey(snapshot, deepGet(snapshot, 'rootData.sys.player_name', '') || toText(snapshot && snapshot.activeName, ''));
+      const playerKey = resolveSnapshotCharKey(snapshot, deepGet(snapshot, 'rootData.sys.玩家名', '') || toText(snapshot && snapshot.activeName, ''));
       for (const [key, value] of Object.entries(participants)) {
         if (['player', 'enemy', 'team_player', 'team_enemy'].includes(key)) continue;
         const candidateName = toText(value && typeof value === 'object' ? value.name : key, key);
@@ -15731,16 +15761,16 @@ ${mvuUpdate}`;
     }
 
     function normalizeCombatForBattleUI(snapshot) {
-      const combatData = deepGet(snapshot, 'rootData.world.combat', {});
-      if (!combatData || typeof combatData !== 'object' || !combatData.is_active) return combatData;
-      if (combatData.participants?.player?.stat && combatData.participants?.enemy?.stat) return combatData;
+      const combatData = deepGet(snapshot, 'rootData.world.战斗', {});
+      if (!combatData || typeof combatData !== 'object' || !combatData.进行中) return combatData;
+      if (combatData.参战者?.player?.属性 && combatData.参战者?.enemy?.属性) return combatData;
 
-      const playerKey = resolveSnapshotCharKey(snapshot, combatData.participants?.player?.name || deepGet(snapshot, 'rootData.sys.player_name', '') || toText(snapshot && snapshot.activeName, ''));
+      const playerKey = resolveSnapshotCharKey(snapshot, combatData.参战者?.player?.name || deepGet(snapshot, 'rootData.sys.玩家名', '') || toText(snapshot && snapshot.activeName, ''));
       const enemyKey = findCombatOpponentKey(snapshot, combatData);
       if (!playerKey || !enemyKey) return combatData;
 
       const nextCombat = cloneJsonValue(combatData, {});
-      const participants = nextCombat.participants && typeof nextCombat.participants === 'object' ? nextCombat.participants : {};
+      const participants = nextCombat.参战者 && typeof nextCombat.参战者 === 'object' ? nextCombat.参战者 : {};
       participants.player = mergeCombatParticipant(
         buildCombatParticipantFromSnapshotChar(snapshot, playerKey, '己方'),
         participants.player
@@ -15751,17 +15781,21 @@ ${mvuUpdate}`;
       );
       participants.team_player = Array.isArray(participants.team_player) ? participants.team_player : [];
       participants.team_enemy = Array.isArray(participants.team_enemy) ? participants.team_enemy : [];
-      nextCombat.participants = participants;
-      nextCombat.combat_type = toText(nextCombat.combat_type, '突发遭遇');
-      nextCombat.phase = toText(nextCombat.phase, '宣告阶段');
-      nextCombat.environment = toText(nextCombat.environment, '正常');
-      snapshot.rootData.world.combat = nextCombat;
+      nextCombat.参战者 = participants;
+      nextCombat.战斗类型 = toText(nextCombat.战斗类型, '突发遭遇');
+      nextCombat.回合 = Math.max(0, toNumber(nextCombat.回合, 0));
+      const stageValue = toText(nextCombat.阶段, '宣告阶段');
+      nextCombat.阶段 = ['无', '宣告阶段', '对轰判定阶段', '回合结算阶段'].includes(stageValue)
+        ? stageValue
+        : '宣告阶段';
+      nextCombat.环境 = toText(nextCombat.环境, '正常');
+      snapshot.rootData.world.战斗 = nextCombat;
       return nextCombat;
     }
 
     function syncBattleUiForSnapshot(snapshot, options = {}) {
       const liveCombatData = normalizeCombatForBattleUI(snapshot);
-      const isCombatActive = !!(liveCombatData && liveCombatData.is_active);
+      const isCombatActive = !!(liveCombatData && liveCombatData.进行中);
       const canUseBattle = isCombatActive && isSnapshotPlayerControlled(snapshot);
       syncBattleReturnEntries(snapshot, canUseBattle && battleInlineDismissed);
       if (canUseBattle && battleInlineDismissed && !options.reopenBattle) {
@@ -15785,7 +15819,7 @@ ${mvuUpdate}`;
             if (mountToken !== battleInlineMountToken) return;
             const latestSnapshot = liveSnapshot || lastRenderableSnapshot || snapshot;
             const latestCombatData = normalizeCombatForBattleUI(latestSnapshot);
-            if (!latestCombatData || !latestCombatData.is_active || !isSnapshotPlayerControlled(latestSnapshot)) return;
+            if (!latestCombatData || !latestCombatData.进行中 || !isSnapshotPlayerControlled(latestSnapshot)) return;
             if (!host || typeof window.mountBattleUI !== 'function') {
               showUiToast('战斗终端嵌入宿主未就绪，战斗模块未打开。', 'error', 4200);
               return;
@@ -15816,7 +15850,7 @@ ${mvuUpdate}`;
     function buildMapBattleCombatData(snapshot, dispatchDetail) {
       const detail = dispatchDetail || {};
       const npcTarget = toText(detail.npcTarget, '');
-      const activeKey = resolveSnapshotCharKey(snapshot, toText(snapshot && snapshot.activeName, '') || deepGet(snapshot, 'rootData.sys.player_name', ''));
+      const activeKey = resolveSnapshotCharKey(snapshot, toText(snapshot && snapshot.activeName, '') || deepGet(snapshot, 'rootData.sys.玩家名', ''));
       const targetKey = resolveSnapshotCharKey(snapshot, npcTarget);
       if (!snapshot || !snapshot.rootData || !activeKey || !targetKey) return null;
       const player = buildCombatParticipantFromSnapshotChar(snapshot, activeKey, '己方');
@@ -15824,14 +15858,14 @@ ${mvuUpdate}`;
       if (!player || !enemy) return null;
       const arenaName = toText(detail.currentLoc, toText(detail.target, toText(snapshot.currentLoc, '未知地点')));
       return {
-        is_active: true,
-        combat_type: toText(detail.combatType || detail.combat_type, '擂台切磋'),
-        initiative: '无',
-        allow_flee: true,
-        round: 0,
-        phase: '宣告阶段',
-        environment: arenaName,
-        participants: {
+        进行中: true,
+        战斗类型: toText(detail.战斗类型, '擂台切磋'),
+        先攻: '无',
+        允许撤离: true,
+        回合: 0,
+        阶段: '宣告阶段',
+        环境: arenaName,
+        参战者: {
           player,
           enemy,
           team_player: [],
@@ -15839,7 +15873,7 @@ ${mvuUpdate}`;
         },
         source: 'map_action',
         request: {
-          action: 'battle',
+          action: '战斗',
           target: arenaName,
           npcTarget
         }
@@ -15849,11 +15883,11 @@ ${mvuUpdate}`;
     async function openMapBattleModule(snapshot, dispatchDetail) {
       const combatData = buildMapBattleCombatData(snapshot, dispatchDetail);
       if (!combatData) return { ok: false, reason: 'combat_context_unresolved' };
-      const playerName = toText(combatData.participants.player.name, '玩家');
-      const enemyName = toText(combatData.participants.enemy.name, '对手');
+      const playerName = toText(combatData.参战者.player.name, '玩家');
+      const enemyName = toText(combatData.参战者.enemy.name, '对手');
       battleInlineDismissed = false;
       await applyJsonPatchOpsByEditor([
-        { op: 'replace', path: '/world/combat', value: combatData },
+        { op: 'replace', path: '/world/战斗', value: combatData },
         { op: 'replace', path: '/sys/rsn', value: `[战斗模块] ${playerName} 向 ${enemyName} 发起切磋，战斗模块已接管。` }
       ]);
       showUiToast('战斗模块已开启。', 'info', 2400);
@@ -15862,32 +15896,32 @@ ${mvuUpdate}`;
 
     function buildTradeDispatchFromRequest(snapshot, tradeRequest) {
       const req = tradeRequest && typeof tradeRequest === 'object' ? tradeRequest : {};
-      const actionText = toText(req.action, '');
+      const actionText = toText(req.动作, '');
       let action = 'trade';
       const services = [];
       if (/竞拍|拍卖|auction|bid/i.test(actionText)) {
         action = 'bid';
         services.push('auction');
-      } else if (/店铺|采购|购买|shop/i.test(actionText) && !toText(req.npc, '')) {
+      } else if (/店铺|采购|购买|shop/i.test(actionText) && !toText(req.对象, '')) {
         action = 'shop';
         services.push('shop');
-      } else if (/出售|卖出|sell/i.test(actionText) && !toText(req.npc, '')) {
+      } else if (/出售|卖出|sell/i.test(actionText) && !toText(req.对象, '')) {
         action = 'sell';
       }
       return {
         action,
-        target: toText(req.target, toText(snapshot && snapshot.currentLoc, '')),
+        target: toText(req.目标, toText(snapshot && snapshot.currentLoc, '')),
         currentLoc: toText(snapshot && snapshot.currentLoc, ''),
-        npcTarget: toText(req.npc, ''),
+        npcTarget: toText(req.对象, ''),
         services,
         tradeRequest: cloneJsonValue(req, {})
       };
     }
 
     function maybeOpenTradeRequestFromAI(snapshot) {
-      const tradeRequest = deepGet(snapshot, 'rootData.world.trade_request', {});
-      const action = toText(tradeRequest && tradeRequest.action, '');
-      const status = toText(tradeRequest && tradeRequest.status, 'pending');
+      const tradeRequest = deepGet(snapshot, 'rootData.world.交易请求', {});
+      const action = toText(tradeRequest && tradeRequest.动作, '');
+      const status = toText(tradeRequest && tradeRequest.状态, 'pending');
       if (!tradeRequest || typeof tradeRequest !== 'object' || !action || action === '无' || /handled|done|完成|已处理|取消|cancel/i.test(status)) {
         lastAutoTradeRequestSignature = '';
         hasHydratedAutoTradeRequestSignature = true;
@@ -15925,15 +15959,15 @@ ${mvuUpdate}`;
       const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), activeKey);
       const targetName = toText(targetChar && (targetChar.name || deepGet(targetChar, 'base.name', '')), npcTarget || targetKey);
       const arenaName = toText(detail.currentLoc, toText(detail.target, toText(snapshot.currentLoc, '未知地点')));
-      const relationMap = deepGet(activeChar, 'social.relations', {});
+      const relationMap = deepGet(activeChar, '社交.关系', {});
       const relationData = relationMap && typeof relationMap === 'object'
         ? (relationMap[targetName] || relationMap[targetKey] || {})
         : {};
       const relationSummary = relationData && typeof relationData === 'object'
-        ? `${toText(relationData['关系'], '陌生')} / ${toText(relationData['relation_route'], '朋友线')} / 好感 ${toNumber(relationData['好感度'], 0)}`
+        ? `${toText(relationData['关系'], '陌生')} / ${toText(relationData['关系路线'], '朋友线')} / 好感 ${toNumber(relationData['好感度'], 0)}`
         : '暂无明确关系记录';
-      const activeLoc = toText(deepGet(activeChar, 'status.loc', arenaName), arenaName || '未知地点');
-      const targetLoc = toText(deepGet(targetChar, 'status.loc', arenaName), arenaName || '未知地点');
+      const activeLoc = toText(deepGet(activeChar, '状态.位置', arenaName), arenaName || '未知地点');
+      const targetLoc = toText(deepGet(targetChar, '状态.位置', arenaName), arenaName || '未知地点');
       const systemPrompt = `以下内容属于前端代发的地图切磋请求，请直接承接剧情推进，不要输出 JSON 块或变量维护指令。
 [切磋请求] ${activeName} 在【${arenaName}】向【${targetName}】发起切磋。
 [切磋原则]
@@ -15979,29 +16013,29 @@ ${mvuUpdate}`;
       const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, activeKey));
       const resolvedTarget = resolveSnapshotCharacter(snapshot, npcTarget);
       const targetName = toText(resolvedTarget.displayName, npcTarget);
-      const relationMap = deepGet(snapshot, 'activeChar.social.relations', {});
+      const relationMap = deepGet(snapshot, 'activeChar.社交.关系', {});
       const relationData = relationMap && typeof relationMap === 'object'
         ? (relationMap[targetName] || relationMap[resolvedTarget.key] || {})
         : {};
       const arenaName = toText(detail.currentLoc, toText(detail.target, toText(snapshot.currentLoc, '未知地点')));
-      const currentTick = toNumber(deepGet(snapshot, 'rootData.world.time.tick', 0), 0);
+      const currentTick = toNumber(deepGet(snapshot, 'rootData.world.时间.tick', 0), 0);
       const itemUsed = interactAction === '送礼'
         ? (toText(detail.itemUsed, toText(detail.item_used, '无')) || '无')
         : '无';
       const targetChar = resolvedTarget && resolvedTarget.char && typeof resolvedTarget.char === 'object' ? resolvedTarget.char : {};
-      const activeIdentity = toText(deepGet(activeChar, 'social.main_identity', '无'), '无');
-      const targetIdentity = toText(deepGet(targetChar, 'social.main_identity', '无'), '无');
-      const activePersonality = toText(deepGet(activeChar, 'personality', '未设定'), '未设定');
-      const targetPersonality = toText(deepGet(targetChar, 'personality', '未设定'), '未设定');
-      const activeLoc = toText(deepGet(activeChar, 'status.loc', arenaName), arenaName || '未知地点');
-      const targetLoc = toText(deepGet(targetChar, 'status.loc', '未知地点'), '未知地点');
-      const activeFactions = Object.keys(deepGet(activeChar, 'social.factions', {})).filter(Boolean);
-      const targetFactions = Object.keys(deepGet(targetChar, 'social.factions', {})).filter(Boolean);
+      const activeIdentity = toText(deepGet(activeChar, '社交.主身份', '无'), '无');
+      const targetIdentity = toText(deepGet(targetChar, '社交.主身份', '无'), '无');
+      const activePersonality = toText(deepGet(activeChar, '性格', '未设定'), '未设定');
+      const targetPersonality = toText(deepGet(targetChar, '性格', '未设定'), '未设定');
+      const activeLoc = toText(deepGet(activeChar, '状态.位置', arenaName), arenaName || '未知地点');
+      const targetLoc = toText(deepGet(targetChar, '状态.位置', '未知地点'), '未知地点');
+      const activeFactions = Object.keys(deepGet(activeChar, '社交.势力', {})).filter(Boolean);
+      const targetFactions = Object.keys(deepGet(targetChar, '社交.势力', {})).filter(Boolean);
       const recentInteractText = relationData && typeof relationData === 'object'
-        ? `${toText(relationData['last_interact_action'], '无')} / ${toNumber(relationData['recent_favor_delta'], 0)}`
+        ? `${toText(relationData['上次互动动作'], '无')} / ${toNumber(relationData['最近好感变化'], 0)}`
         : '无';
-      const progressNote = relationData && typeof relationData === 'object' ? toText(deepGet(relationData, '_progress_note', deepGet(relationData, 'progress_note', '暂无')),'暂无') : '暂无';
-      const routeSwitchable = !!deepGet(relationData, '_route_switchable', false);
+      const progressNote = relationData && typeof relationData === 'object' ? toText(deepGet(relationData, '_推进提示', '暂无'),'暂无') : '暂无';
+      const routeSwitchable = !!deepGet(relationData, '_可切线', false);
       const sourceLabel = toText(detail.sourceLabel, '地图 NPC 互动');
       const actionPromptMap = {
         talk: `我想在【${arenaName}】和【${targetName}】闲聊。`,
@@ -16016,7 +16050,7 @@ ${mvuUpdate}`;
       };
 
       const relationSummary = relationData && typeof relationData === 'object'
-        ? `${toText(relationData['关系'], '陌生')} / 路线 ${toText(relationData['relation_route'], '朋友线')} / 好感 ${toNumber(relationData['好感度'], 0)}`
+        ? `${toText(relationData['关系'], '陌生')} / 路线 ${toText(relationData['关系路线'], '朋友线')} / 好感 ${toNumber(relationData['好感度'], 0)}`
         : '暂无已知关系记录';
 
       const systemPrompt = `以下内容属于前端代发的${sourceLabel}请求，请直接承接剧情推进，不要输出 JSON 块或变量维护指令。
@@ -16060,7 +16094,7 @@ ${mvuUpdate}`;
 
     function getSnapshotActiveCharName(snapshot) {
       return toText(
-        deepGet(snapshot, 'rootData.sys.player_name', '') || toText(snapshot && snapshot.activeName, ''),
+        deepGet(snapshot, 'rootData.sys.玩家名', '') || toText(snapshot && snapshot.activeName, ''),
         ''
       ).trim();
     }
@@ -16106,7 +16140,7 @@ ${mvuUpdate}`;
 
     function hasActionableBattleIntent(text) {
       const raw = toText(text, '').trim();
-      if (!raw || raw.startsWith('/') || /<UpdateVariable|<JSONPatch|\/world\/combat|\/world\/trade_request/i.test(raw)) return false;
+      if (!raw || raw.startsWith('/') || /<UpdateVariable|<JSONPatch|\/world\/战斗|\/world\/交易请求/i.test(raw)) return false;
       if (!/(切磋|单挑|挑战|对决|交手|打一场|打一架|开打|开战|战斗|攻击|袭击|伏击|追击|技能对轰|动手)/.test(raw)) return false;
       if (/(是什么|为什么|怎么|如何|会不会|能不能|如果|假如|规则|机制|说明|解释|讨论|听说|回忆)/.test(raw)
         && !/(我想|我要|我准备|我打算|现在|直接|开始|发起|向|与|和|对|找)/.test(raw)) {
@@ -16116,7 +16150,7 @@ ${mvuUpdate}`;
     }
 
     function buildDirectBattleIntent(snapshot, text) {
-      if (!snapshot || !snapshot.rootData || deepGet(snapshot, 'rootData.world.combat.is_active', false)) return null;
+      if (!snapshot || !snapshot.rootData || deepGet(snapshot, 'rootData.world.战斗.进行中', false)) return null;
       if (!hasActionableBattleIntent(text)) return null;
       const activeName = getSnapshotActiveCharName(snapshot);
       const targetName = findMentionedCharacterName(snapshot, text, { activeName });
@@ -16131,7 +16165,7 @@ ${mvuUpdate}`;
         target: arenaName,
         currentLoc: arenaName,
         npcTarget: targetName,
-        combatType: isDeadly ? '突发遭遇' : '擂台切磋',
+        战斗类型: isDeadly ? '突发遭遇' : '擂台切磋',
         source: 'direct_input_guard'
       };
     }
@@ -16180,16 +16214,16 @@ ${mvuUpdate}`;
         : (/出售|卖出/.test(raw) ? '出售' : (/购买|买入|采购/.test(raw) ? '购买' : '交易'));
       const priceMatch = raw.match(/(?:单价|价格|报价|出价|价钱|花费|支付|用)\s*(\d{1,9})/) || raw.match(/(\d{1,9})\s*(?:联邦币|金魂币|金币)/);
       return {
-        action,
-        target: findBracketLocationToken(snapshot, raw),
-        npc: npcName,
-        item: itemName,
-        quantity: parseDirectIntentCount(raw, 1),
-        price: priceMatch ? Math.max(0, toNumber(priceMatch[1], 0)) : 0,
-        currency: /金魂币|金币/.test(raw) ? 'gold_coin' : 'fed_coin',
-        status: /直接|立即|确认|成交|买下|拍下|自动/.test(raw) ? 'ready' : 'pending',
-        auto_execute: /直接|立即|确认|成交|买下|拍下|自动/.test(raw),
-        source: 'direct_input_guard'
+        动作: action,
+        目标: findBracketLocationToken(snapshot, raw),
+        对象: npcName,
+        物品: itemName,
+        数量: parseDirectIntentCount(raw, 1),
+        价格: priceMatch ? Math.max(0, toNumber(priceMatch[1], 0)) : 0,
+        货币: /金魂币|金币/.test(raw) ? 'gold_coin' : 'fed_coin',
+        状态: /直接|立即|确认|成交|买下|拍下|自动/.test(raw) ? 'ready' : 'pending',
+        自动执行: /直接|立即|确认|成交|买下|拍下|自动/.test(raw),
+        来源: 'direct_input_guard'
       };
     }
 
@@ -16249,30 +16283,30 @@ ${mvuUpdate}`;
 
     function buildProfessionRequestFromObject(snapshot, source) {
       const req = source && typeof source === 'object' ? source : {};
-      const mode = normalizeProfessionMode(req.mode || req.action || req.profession || req.job || req.type);
+      const mode = normalizeProfessionMode(req.模式 || req.动作 || req.副职业 || req.职业 || req.类型);
       if (!mode) return null;
-      const npc = toText(req.npc || req.executor || req.executorName || req.npcTarget, '');
+      const npc = toText(req.对象 || req.执行者 || req.执行者名称, '');
       return {
-        mode,
-        action: normalizeProfessionActionLabel(mode),
-        target: toText(req.target || req.item || req.output || req.object, ''),
-        materials: Array.isArray(req.materials)
-          ? req.materials.map(item => toText(item, '')).filter(Boolean)
-          : (req.materials && typeof req.materials === 'object'
-            ? Object.keys(req.materials).filter(Boolean)
-            : toText(req.material || req.items || req.ingredients, '')
+        模式: mode,
+        动作: normalizeProfessionActionLabel(mode),
+        目标: toText(req.目标 || req.产物 || req.物品, ''),
+        材料: Array.isArray(req.材料)
+          ? req.材料.map(item => toText(item, '')).filter(Boolean)
+          : (req.材料 && typeof req.材料 === 'object'
+            ? Object.keys(req.材料).filter(Boolean)
+            : toText(req.材料, '')
               .split(/[、,，|/]+/)
               .map(item => item.trim())
               .filter(Boolean)),
-        quantity: Math.max(1, toNumber(req.quantity || req.qty || req.cost, 1)),
-        tier: Math.max(1, Math.min(5, toNumber(req.tier || req.level || req.rank, 1))),
-        subtype: toText(req.subtype || req.target_type, ''),
-        npc,
-        executorType: toText(req.executorType || req.executor_type || req.craftSource || (npc ? 'private' : ''), ''),
-        targetLocation: toText(req.location || req.targetLocation || req.target_loc, toText(snapshot && snapshot.currentLoc, '')),
-        status: toText(req.status, req.auto_execute ? 'ready' : 'pending'),
-        auto_execute: req.auto_execute === true || req.autoExecute === true,
-        source: toText(req.source, 'module_intent_router')
+        数量: Math.max(1, toNumber(req.数量 || req.耗材数量, 1)),
+        阶级: Math.max(1, Math.min(5, toNumber(req.阶级 || req.等级, 1))),
+        子类型: toText(req.子类型 || req.目标类型, ''),
+        对象: npc,
+        执行者类型: toText(req.执行者类型 || (npc ? 'private' : ''), ''),
+        目标地点: toText(req.目标地点 || req.地点, toText(snapshot && snapshot.currentLoc, '')),
+        状态: toText(req.状态, req.自动执行 ? 'ready' : 'pending'),
+        自动执行: req.自动执行 === true,
+        来源: toText(req.来源, 'module_intent_router')
       };
     }
 
@@ -16292,19 +16326,19 @@ ${mvuUpdate}`;
       if (!target && !/打开|进入|办理|工坊|协会|委托/.test(raw)) return null;
       const materials = findDirectProfessionMaterials(snapshot, raw, target, npc);
       return {
-        mode,
-        action: normalizeProfessionActionLabel(mode),
-        target,
-        materials,
-        quantity: parseDirectIntentCount(raw, 1),
-        tier: parseDirectProfessionTier(raw),
-        subtype: parseDirectProfessionSubtype(raw),
-        npc,
-        executorType: /协会|官方/.test(raw) ? 'official' : (npc || /委托|代工|帮/.test(raw) ? 'private' : 'self'),
-        targetLocation: findBracketLocationToken(snapshot, raw),
-        status: /直接|立即|确认|开始|自动|执行/.test(raw) ? 'ready' : 'pending',
-        auto_execute: /直接|立即|确认|开始|自动|执行/.test(raw),
-        source: 'direct_input_guard'
+        模式: mode,
+        动作: normalizeProfessionActionLabel(mode),
+        目标: target,
+        材料: materials,
+        数量: parseDirectIntentCount(raw, 1),
+        阶级: parseDirectProfessionTier(raw),
+        子类型: parseDirectProfessionSubtype(raw),
+        对象: npc,
+        执行者类型: /协会|官方/.test(raw) ? 'official' : (npc || /委托|代工|帮/.test(raw) ? 'private' : 'self'),
+        目标地点: findBracketLocationToken(snapshot, raw),
+        状态: /直接|立即|确认|开始|自动|执行/.test(raw) ? 'ready' : 'pending',
+        自动执行: /直接|立即|确认|开始|自动|执行/.test(raw),
+        来源: 'direct_input_guard'
       };
     }
 
@@ -16312,10 +16346,10 @@ ${mvuUpdate}`;
       const req = professionRequest && typeof professionRequest === 'object' ? professionRequest : {};
       return {
         action: 'craft',
-        target: toText(req.targetLocation || req.target, toText(snapshot && snapshot.currentLoc, '')),
+        target: toText(req.目标地点 || req.目标, toText(snapshot && snapshot.currentLoc, '')),
         currentLoc: toText(snapshot && snapshot.currentLoc, ''),
-        npcTarget: toText(req.npc, ''),
-        executorType: toText(req.executorType, toText(req.npc, '') ? 'private' : 'self'),
+        npcTarget: toText(req.对象, ''),
+        executorType: toText(req.执行者类型, toText(req.对象, '') ? 'private' : 'self'),
         services: ['craft'],
         professionRequest: cloneJsonValue(req, {})
       };
@@ -16430,21 +16464,21 @@ ${mvuUpdate}`;
 
     function buildTradeRequestFromObject(snapshot, source) {
       const req = source && typeof source === 'object' ? source : {};
-      const action = toText(req.action || req.mode || req.type, '交易');
-      const npc = toText(req.npc || req.npcTarget || req.targetNpc || req.executor, '');
-      const item = toText(req.item || req.targetItem || req.goods || req.object || req.target, '');
+      const action = toText(req.动作 || req.模式 || req.类型, '交易');
+      const npc = toText(req.对象 || req.目标对象, '');
+      const item = toText(req.物品 || req.目标物品 || req.目标, '');
       if (!item) return null;
       return {
-        action,
-        target: toText(req.location || req.targetLocation || req.shop || req.store, toText(snapshot && snapshot.currentLoc, '')),
-        npc,
-        item,
-        quantity: Math.max(1, toNumber(req.quantity || req.qty || req.count, 1)),
-        price: Math.max(0, toNumber(req.price || req.bid || req.offer, 0)),
-        currency: toText(req.currency, /金魂币|金币/.test(toText(req.currencyText || req.text, '')) ? 'gold_coin' : 'fed_coin'),
-        status: toText(req.status, (req.auto_execute || req.autoExecute) ? 'ready' : 'pending'),
-        auto_execute: req.auto_execute === true || req.autoExecute === true,
-        source: toText(req.source, 'module_intent_router')
+        动作: action,
+        目标: toText(req.目标地点 || req.地点 || req.目标, toText(snapshot && snapshot.currentLoc, '')),
+        对象: npc,
+        物品: item,
+        数量: Math.max(1, toNumber(req.数量, 1)),
+        价格: Math.max(0, toNumber(req.价格 || 0, 0)),
+        货币: toText(req.货币, /金魂币|金币/.test(toText(req.货币文本 || req.text, '')) ? 'gold_coin' : 'fed_coin'),
+        状态: toText(req.状态, req.自动执行 ? 'ready' : 'pending'),
+        自动执行: req.自动执行 === true,
+        来源: toText(req.来源, 'module_intent_router')
       };
     }
 
@@ -16458,7 +16492,7 @@ ${mvuUpdate}`;
           kind: outerPayload.kind || outerPayload.module || nestedRequest.kind || nestedRequest.module,
           type: outerPayload.type || nestedRequest.type,
           action_type: outerPayload.action_type || nestedRequest.action_type,
-          auto_execute: outerPayload.auto_execute === true || nestedRequest.auto_execute === true,
+          自动执行: outerPayload.自动执行 === true || nestedRequest.自动执行 === true,
           autoExecute: outerPayload.autoExecute === true || nestedRequest.autoExecute === true,
           source: outerPayload.source || nestedRequest.source
         }
@@ -16468,7 +16502,7 @@ ${mvuUpdate}`;
         : toText(outerPayload.text || outerPayload.plan || outerPayload.message || outerPayload.narrative || outerPayload.intent || outerPayload.raw
           || payload.text || payload.plan || payload.message || payload.narrative || payload.intent || payload.raw, '');
       const kind = toText(outerPayload.kind || outerPayload.type || outerPayload.module || outerPayload.action_type
-        || payload.kind || payload.type || payload.module || payload.action_type || payload.action, '').toLowerCase();
+        || payload.kind || payload.type || payload.module || payload.action_type || payload.动作, '').toLowerCase();
       return { payload, text, kind };
     }
 
@@ -16477,7 +16511,7 @@ ${mvuUpdate}`;
       const { payload, text, kind } = resolveModuleIntentPayload(input);
       if (!snapshot || !snapshot.rootData) return { handled: false, reason: 'snapshot_unavailable' };
 
-      const forceAutoExecute = options.autoExecute === true || payload.auto_execute === true || payload.autoExecute === true;
+      const forceAutoExecute = options.autoExecute === true || payload.自动执行 === true || payload.autoExecute === true;
       const dryRun = options.dryRun === true || payload.dryRun === true;
       const dispatchMode = toText(options.dispatchMode || payload.dispatchMode, '').toLowerCase();
       const wantsInline = dispatchMode === 'inline';
@@ -16492,7 +16526,7 @@ ${mvuUpdate}`;
           target: toText(payload.location || payload.targetLocation || payload.arena || payload.target, findBracketLocationToken(snapshot, text)),
           currentLoc: toText(payload.currentLoc || payload.location, toText(snapshot && snapshot.currentLoc, '')),
           npcTarget,
-          combatType: toText(payload.combatType || payload.combat_type, /死战|生死|击杀|袭击|伏击/.test(text) ? '突发遭遇' : '擂台切磋'),
+          战斗类型: toText(payload.战斗类型, /死战|生死|击杀|袭击|伏击/.test(text) ? '突发遭遇' : '擂台切磋'),
           source: toText(payload.source, 'module_intent_router')
         };
         if (!npcTarget) request = null;
@@ -16518,8 +16552,8 @@ ${mvuUpdate}`;
 
       if (!request || !moduleKind) return { handled: false, reason: 'no_module_intent' };
       if (forceAutoExecute && (moduleKind === 'trade' || moduleKind === 'profession')) {
-        request.auto_execute = true;
-        request.status = 'ready';
+        request.自动执行 = true;
+        request.状态 = 'ready';
       }
       if (dryRun) return { handled: true, dryRun: true, kind: moduleKind, request };
 
@@ -16535,7 +16569,7 @@ ${mvuUpdate}`;
 
       if (moduleKind === 'trade') {
         let inlineResult = null;
-        const privateTradeNpc = toText(request && request.npc, '');
+        const privateTradeNpc = toText(request && request.对象, '');
         if (privateTradeNpc && !resolveSnapshotCharKey(snapshot, privateTradeNpc)) {
           return {
             handled: false,
@@ -16544,7 +16578,7 @@ ${mvuUpdate}`;
             reason: 'trade_target_unresolved'
           };
         }
-        if (wantsInline && request.auto_execute === true) {
+        if (wantsInline && request.自动执行 === true) {
           inlineResult = await buildInlineTradeAction(snapshot, request);
           if (inlineResult && inlineResult.ok && inlineResult.inlineAction) {
             return {
@@ -16569,8 +16603,8 @@ ${mvuUpdate}`;
           };
         }
         await applyJsonPatchOpsByEditor([
-          { op: 'replace', path: '/world/trade_request', value: request },
-          { op: 'replace', path: '/sys/rsn', value: `[交易模块] ${request.action} ${request.item} 的请求已由前端接管。` }
+          { op: 'replace', path: '/world/交易请求', value: request },
+          { op: 'replace', path: '/sys/rsn', value: `[交易模块] ${request.动作} ${request.物品} 的请求已由前端接管。` }
         ]);
         await refreshLiveSnapshot({ force: true });
         mapDispatchContext = buildTradeDispatchFromRequest(snapshot, request);
@@ -16584,7 +16618,7 @@ ${mvuUpdate}`;
         };
       }
 
-      if (wantsInline && request.auto_execute === true) {
+      if (wantsInline && request.自动执行 === true) {
         const inlineResult = await buildInlineProfessionAction(snapshot, request);
         if (inlineResult && inlineResult.ok && inlineResult.inlineAction) {
           return {
@@ -17035,14 +17069,14 @@ ${mvuUpdate}`;
     function buildShellPrivateArchiveView(snapshot) {
       const nsfw = getActiveNsfwData(snapshot);
       const activeName = toText(snapshot && snapshot.activeName, '当前角色');
-      const bodyPartEntries = safeEntries(deepGet(nsfw, 'body_parts', {}));
-      const measurements = deepGet(nsfw, 'measurements', {});
-      const intimateWear = deepGet(nsfw, 'intimate_wear', {});
-      const experienceEntries = safeEntries(deepGet(nsfw, 'experience_counts', {}))
+      const bodyPartEntries = safeEntries(deepGet(nsfw, '身体部位', {}));
+      const measurements = deepGet(nsfw, '身材数据', {});
+      const intimateWear = deepGet(nsfw, '贴身衣物', {});
+      const experienceEntries = safeEntries(deepGet(nsfw, '经历次数', {}))
         .filter(([, value]) => toNumber(value, 0) > 0)
         .slice(0, 8);
-      const fetishes = Array.isArray(nsfw.fetishes) ? nsfw.fetishes.map(item => toText(item, '')).filter(Boolean).slice(0, 8) : [];
-      const fantasies = Array.isArray(nsfw.fantasies) ? nsfw.fantasies.map(item => toText(item, '')).filter(Boolean).slice(0, 8) : [];
+      const fetishes = Array.isArray(nsfw.癖好) ? nsfw.癖好.map(item => toText(item, '')).filter(Boolean).slice(0, 8) : [];
+      const fantasies = Array.isArray(nsfw.幻想) ? nsfw.幻想.map(item => toText(item, '')).filter(Boolean).slice(0, 8) : [];
       const clampMeter = value => Math.max(0, Math.min(100, toNumber(value, 0)));
       const renderMeter = (label, value, tone = '') => {
         const percent = clampMeter(value);
@@ -17090,9 +17124,9 @@ ${mvuUpdate}`;
                 <strong>${htmlEscape(toText(deepGet(measurements, '身材描述', ''), toText(deepGet(measurements, '罩杯', '私密概览'), '私密概览')))}</strong>
               </div>
               <div class="mvu-shell-private-meters">
-                ${renderMeter('发情', nsfw.arousal, 'live')}
-                ${renderMeter('开发', nsfw.development_level, 'warm')}
-                ${renderMeter('敏感', nsfw.sensitivity, '')}
+                ${renderMeter('发情', nsfw.发情度, 'live')}
+                ${renderMeter('开发', nsfw.开发度, 'warm')}
+                ${renderMeter('敏感', nsfw.敏感度, '')}
               </div>
             </section>
 
@@ -17109,10 +17143,10 @@ ${mvuUpdate}`;
             <section class="mvu-shell-private-card">
               <div class="mvu-shell-private-section-title">节律</div>
               <div class="mvu-shell-private-row-grid">
-                ${renderRow('阶段', nsfw._menstrual_stage || '安全期')}
-                ${renderRow('初潮', nsfw._has_menarche ? '已初潮' : '未初潮')}
-                ${renderRow('受孕节点', String(toNumber(nsfw.conception_tick, -1)))}
-                ${renderRow('怀孕天数', String(toNumber(nsfw._pregnancy_days, 0)))}
+                ${renderRow('阶段', nsfw._生理阶段 || '安全期')}
+                ${renderRow('初潮', nsfw._已来初潮 ? '已初潮' : '未初潮')}
+                ${renderRow('受孕节点', String(toNumber(nsfw.受孕tick, -1)))}
+                ${renderRow('怀孕天数', String(toNumber(nsfw._怀孕天数, 0)))}
               </div>
             </section>
 
@@ -18007,7 +18041,7 @@ ${mvuUpdate}`;
             if (!charKey) throw new Error('缺少角色信息。');
             if (!intelText) throw new Error('请输入情报内容。');
             await mutateStatDataByEditor(statData => {
-              const intelPath = ['char', charKey, 'unlocked_knowledges'];
+              const intelPath = ['char', charKey, '已掌握情报'];
               let knowledges = deepGet(statData, intelPath, null);
               if (!Array.isArray(knowledges)) {
                 deepSetMutable(statData, intelPath, []);
@@ -18026,7 +18060,7 @@ ${mvuUpdate}`;
             const charKey = collectionActionBtn.getAttribute('data-collection-char') || '';
             const index = toNumber(collectionActionBtn.getAttribute('data-collection-index'), -1);
             if (!charKey || index < 0) throw new Error('当前情报缺少定位信息。');
-            await deleteStatDataPathByEditor(['char', charKey, 'unlocked_knowledges', index]);
+            await deleteStatDataPathByEditor(['char', charKey, '已掌握情报', index]);
             showUiToast('已删除情报。');
             if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
             return;
@@ -18034,7 +18068,7 @@ ${mvuUpdate}`;
           if (actionType === 'clear-intel-pending') {
             const charKey = collectionActionBtn.getAttribute('data-collection-char') || '';
             if (!charKey) throw new Error('缺少角色信息。');
-            await deleteStatDataPathByEditor(['char', charKey, 'knowledge_unlock_request']);
+            await deleteStatDataPathByEditor(['char', charKey, '待解锁情报']);
             showUiToast('已清空待解锁线索。');
             if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
             return;
@@ -18048,7 +18082,7 @@ ${mvuUpdate}`;
             if (!charKey) throw new Error('缺少角色信息。');
             if (!itemName) throw new Error('请输入物品名。');
             await mutateStatDataByEditor(statData => {
-              const inventoryPath = ['char', charKey, 'inventory'];
+              const inventoryPath = ['char', charKey, '背包'];
               let inventory = deepGet(statData, inventoryPath, null);
               if (!inventory || typeof inventory !== 'object' || Array.isArray(inventory)) {
                 deepSetMutable(statData, inventoryPath, {});
@@ -18080,7 +18114,7 @@ ${mvuUpdate}`;
             if (!charKey) throw new Error('缺少角色信息。');
             if (!recordName) throw new Error('请输入任务名。');
             await mutateStatDataByEditor(statData => {
-              const recordPath = ['char', charKey, 'records'];
+              const recordPath = ['char', charKey, '记录'];
               let records = deepGet(statData, recordPath, null);
               if (!records || typeof records !== 'object' || Array.isArray(records)) {
                 deepSetMutable(statData, recordPath, {});
@@ -18106,7 +18140,7 @@ ${mvuUpdate}`;
             const charKey = collectionActionBtn.getAttribute('data-collection-char') || '';
             const recordName = collectionActionBtn.getAttribute('data-collection-key') || '';
             if (!charKey || !recordName) throw new Error('当前任务缺少定位信息。');
-            await deleteStatDataPathByEditor(['char', charKey, 'records', recordName]);
+            await deleteStatDataPathByEditor(['char', charKey, '记录', recordName]);
             if (modalFocusState['任务界面::quest-focus'] === recordName) delete modalFocusState['任务界面::quest-focus'];
             showUiToast('已删除任务。');
             if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
@@ -18119,7 +18153,7 @@ ${mvuUpdate}`;
             const boardDesc = readCollectionInput('board-desc') || '未知';
             if (!boardName) throw new Error('请输入委托名。');
             await mutateStatDataByEditor(statData => {
-              const boardPath = ['world', 'quest_board'];
+              const boardPath = ['world', '委托板'];
               let boardMap = deepGet(statData, boardPath, null);
               if (!boardMap || typeof boardMap !== 'object' || Array.isArray(boardMap)) {
                 deepSetMutable(statData, boardPath, {});
@@ -18150,7 +18184,7 @@ ${mvuUpdate}`;
           if (actionType === 'delete-board') {
             const boardName = collectionActionBtn.getAttribute('data-collection-key') || '';
             if (!boardName) throw new Error('当前委托缺少定位信息。');
-            await deleteStatDataPathByEditor(['world', 'quest_board', boardName]);
+            await deleteStatDataPathByEditor(['world', '委托板', boardName]);
             if (modalFocusState['任务界面::quest-board-focus'] === boardName) delete modalFocusState['任务界面::quest-board-focus'];
             showUiToast('已删除委托。');
             if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
@@ -18216,15 +18250,15 @@ ${mvuUpdate}`;
           return;
         }
 
-        const currentLocFull = toText(deepGet(liveSnapshot, 'activeChar.status.loc', liveSnapshot.currentLoc || ''), liveSnapshot.currentLoc || '');
-        const targetLoc = toText(deepGet(resolvedTarget.char, 'status.loc', ''), '');
+        const currentLocFull = toText(deepGet(liveSnapshot, 'activeChar.状态.位置', liveSnapshot.currentLoc || ''), liveSnapshot.currentLoc || '');
+        const targetLoc = toText(deepGet(resolvedTarget.char, '状态.位置', ''), '');
         const isSameLocation = isLocationCompatible(currentLocFull, targetLoc);
-        const isContactable = deepGet(resolvedTarget.char, 'status.alive', true) !== false;
-        const relationMap = deepGet(liveSnapshot, 'activeChar.social.relations', {});
+        const isContactable = deepGet(resolvedTarget.char, '状态.存活', true) !== false;
+        const relationMap = deepGet(liveSnapshot, 'activeChar.社交.关系', {});
         const relationData = relationMap && typeof relationMap === 'object' ? (relationMap[targetName] || relationMap[resolvedTarget.key] || {}) : {};
         const favor = toNumber(relationData && relationData['好感度'], 0);
-        const route = toText(relationData && relationData['relation_route'], '朋友线');
-        const routeSwitchable = !!deepGet(relationData, '_route_switchable', false);
+        const route = toText(relationData && relationData['关系路线'], '朋友线');
+        const routeSwitchable = !!deepGet(relationData, '_可切线', false);
 
         if (!isContactable || !isSameLocation) {
           if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show(`【${targetName}】当前不在你身边，无法进行当面关系互动。`, 'error');
@@ -18692,7 +18726,7 @@ window.EquipmentManager = {
 
   buildInventoryItemValue(itemName, itemData = {}, options = {}) {
     const safeItem = cloneJsonValue(itemData, {});
-    delete safeItem.equip_status;
+    delete safeItem.装备状态;
     if (safeItem.name === itemName) delete safeItem.name;
     if (safeItem['名称'] === itemName) delete safeItem['名称'];
     safeItem.数量 = Math.max(1, toNumber(options.quantity, 1));
@@ -18708,11 +18742,11 @@ window.EquipmentManager = {
     if (existing) {
       const nextQty = Math.max(1, toNumber(existing.数量, 1) + toNumber(nextValue.数量, 1));
       inventoryBuffer[itemName] = { ...existing, ...nextValue, 数量: nextQty };
-      patches.push({ op: 'replace', path: `${charPath}/inventory/${this.escapePtr(itemName)}`, value: cloneJsonValue(inventoryBuffer[itemName], {}) });
+      patches.push({ op: 'replace', path: `${charPath}/背包/${this.escapePtr(itemName)}`, value: cloneJsonValue(inventoryBuffer[itemName], {}) });
       return;
     }
     inventoryBuffer[itemName] = cloneJsonValue(nextValue, {});
-    patches.push({ op: 'add', path: `${charPath}/inventory/${this.escapePtr(itemName)}`, value: cloneJsonValue(inventoryBuffer[itemName], {}) });
+    patches.push({ op: 'add', path: `${charPath}/背包/${this.escapePtr(itemName)}`, value: cloneJsonValue(inventoryBuffer[itemName], {}) });
   },
 
   queueInventoryConsume(patches, charPath, inventoryBuffer, itemName, quantity = 1) {
@@ -18721,20 +18755,20 @@ window.EquipmentManager = {
     const nextQty = Math.max(0, toNumber(existing.数量, 1) - Math.max(1, toNumber(quantity, 1)));
     if (nextQty <= 0) {
       delete inventoryBuffer[itemName];
-      patches.push({ op: 'remove', path: `${charPath}/inventory/${this.escapePtr(itemName)}` });
+      patches.push({ op: 'remove', path: `${charPath}/背包/${this.escapePtr(itemName)}` });
       return true;
     }
     inventoryBuffer[itemName] = { ...existing, 数量: nextQty };
-    patches.push({ op: 'replace', path: `${charPath}/inventory/${this.escapePtr(itemName)}`, value: cloneJsonValue(inventoryBuffer[itemName], {}) });
+    patches.push({ op: 'replace', path: `${charPath}/背包/${this.escapePtr(itemName)}`, value: cloneJsonValue(inventoryBuffer[itemName], {}) });
     return true;
   },
 
   async performEquip(charRef, itemName) {
     try {
       const { charKey, activeChar } = await this.resolveCharContext(charRef);
-      const inventory = activeChar.inventory || {};
-      const equip = activeChar.equip || {};
-      const soulBone = activeChar.soul_bone || {};
+      const inventory = activeChar.背包 || {};
+      const 装备数据 = activeChar.装备 || {};
+      const soulBone = activeChar.魂骨 || {};
       const itemData = inventory[itemName];
       if (!itemData || (itemData.数量 || 0) <= 0) {
         throw new Error(`背包中未找到物品: ${itemName}`);
@@ -18748,10 +18782,10 @@ window.EquipmentManager = {
       if (slotInfo.mainSlot === 'armor') {
         const newTier = this.getArmorTier(itemName);
         if (newTier) {
-          const armorParts = (equip.armor && equip.armor.parts) ? equip.armor.parts : {};
+          const armorParts = (装备数据.斗铠 && 装备数据.斗铠.部件) ? 装备数据.斗铠.部件 : {};
           for (const [key, piece] of Object.entries(armorParts)) {
-            if (piece && typeof piece === 'object' && piece.name && piece.name !== '无' && key !== slotInfo.subSlot) {
-              const pieceTier = this.getArmorTier(piece.name);
+            if (piece && typeof piece === 'object' && piece['名称'] && piece['名称'] !== '无' && key !== slotInfo.subSlot) {
+              const pieceTier = this.getArmorTier(piece['名称']);
               if (pieceTier && pieceTier !== newTier) {
                 throw new Error(`【换装失败】\n背包中的【${newTier}】不可与身上的【${pieceTier}】混穿！\n必须成套更换相同级别的斗铠。`);
               }
@@ -18779,26 +18813,29 @@ window.EquipmentManager = {
           品质: itemData['品质'] || '常规',
           状态: '已装载'
         };
-        patches.push({ op: 'add', path: `${charPath}/soul_bone/${slotInfo.subSlot}`, value: newBoneData });
+        patches.push({ op: 'add', path: `${charPath}/魂骨/${slotInfo.subSlot}`, value: newBoneData });
       } else {
         let oldItem = null;
-        let equipPath = `${charPath}/equip/${slotInfo.mainSlot}`;
+        const equipKeyMap = { armor: '斗铠', mech: '机甲', wpn: '武器', accessory: '饰品' };
+        const equipKey = equipKeyMap[slotInfo.mainSlot] || slotInfo.mainSlot;
+        let equipPath = `${charPath}/装备/${equipKey}`;
         if (slotInfo.subSlot) {
-          equipPath += `/parts/${slotInfo.subSlot}`;
-          oldItem = equip[slotInfo.mainSlot]?.parts?.[slotInfo.subSlot];
+          equipPath += `/部件/${slotInfo.subSlot}`;
+          oldItem = equip[equipKey]?.部件?.[slotInfo.subSlot];
         } else {
-          oldItem = equip[slotInfo.mainSlot];
+          oldItem = equip[equipKey];
         }
 
-        if (oldItem && typeof oldItem === 'object' && (oldItem.name || oldItem['名称']) && toText(oldItem.name || oldItem['名称'], '无') !== '无') {
-          const oldName = toText(oldItem.name || oldItem['名称'], '');
+        if (oldItem && typeof oldItem === 'object' && oldItem['名称'] && toText(oldItem['名称'], '无') !== '无') {
+          const oldName = toText(oldItem['名称'], '');
           this.queueInventoryAdd(patches, charPath, inventoryBuffer, oldName, oldItem);
         }
 
-        const newEquipData = Object.assign({}, itemData, { name: itemName });
+        const newEquipData = Object.assign({}, itemData, { 名称: itemName });
+        delete newEquipData.name;
         delete newEquipData.数量;
-        if (slotInfo.subSlot && (!equip[slotInfo.mainSlot] || !equip[slotInfo.mainSlot].parts)) {
-          patches.push({ op: 'add', path: `${charPath}/equip/${slotInfo.mainSlot}/parts`, value: {} });
+        if (slotInfo.subSlot && (!equip[equipKey] || !equip[equipKey].部件)) {
+          patches.push({ op: 'add', path: `${charPath}/装备/${equipKey}/部件`, value: {} });
         }
         patches.push({ op: oldItem !== undefined ? 'replace' : 'add', path: equipPath, value: newEquipData });
       }
@@ -18812,56 +18849,56 @@ window.EquipmentManager = {
   async performUnequip(charRef, targetType, targetName = '') {
     try {
       const { charKey, activeChar } = await this.resolveCharContext(charRef);
-      const equip = activeChar.equip || {};
+      const 装备数据 = activeChar.装备 || {};
       const charPath = `/char/${this.escapePtr(charKey)}`;
-      const inventoryBuffer = cloneJsonValue(activeChar.inventory || {}, {});
+      const inventoryBuffer = cloneJsonValue(activeChar.背包 || {}, {});
       const patches = [];
 
       if (targetType === 'armor') {
-        const armor = equip.armor || {};
-        const armorParts = armor.parts && typeof armor.parts === 'object' ? armor.parts : {};
-        const returnParts = Object.values(armorParts).filter(part => part && typeof part === 'object' && toText(part.name || part['名称'], '') && toText(part.name || part['名称'], '无') !== '无');
-        if (!returnParts.length && toText(armor.equip_status, '未装备') === '未装备') {
+        const armor = 装备数据.斗铠 || {};
+        const armorParts = armor.部件 && typeof armor.部件 === 'object' ? armor.部件 : {};
+        const returnParts = Object.values(armorParts).filter(part => part && typeof part === 'object' && toText(part['名称'], '') && toText(part['名称'], '无') !== '无');
+        if (!returnParts.length && toText(armor.装备状态, '未装备') === '未装备') {
           throw new Error('当前没有可卸下的斗铠部件。');
         }
         returnParts.forEach(part => {
-          const itemName = toText(part.name || part['名称'], '');
+          const itemName = toText(part['名称'], '');
           this.queueInventoryAdd(patches, charPath, inventoryBuffer, itemName, part);
         });
-        patches.push({ op: 'replace', path: `${charPath}/equip/armor/parts`, value: {} });
-        patches.push({ op: 'replace', path: `${charPath}/equip/armor/equip_status`, value: '未装备' });
-        patches.push({ op: 'replace', path: `${charPath}/equip/armor/_stats_bonus`, value: {} });
+        patches.push({ op: 'replace', path: `${charPath}/装备/斗铠/部件`, value: {} });
+        patches.push({ op: 'replace', path: `${charPath}/装备/斗铠/装备状态`, value: '未装备' });
+        patches.push({ op: 'replace', path: `${charPath}/装备/斗铠/_属性加成`, value: {} });
         await this.submitPatch(patches, '已卸下斗铠');
         return;
       }
 
       if (targetType === 'mech') {
-        const mech = equip.mech || {};
-        const mechName = toText(mech.name || mech['名称'], '');
+        const mech = 装备数据.机甲 || {};
+        const mechName = toText(mech.型号, '');
         if (!mechName) throw new Error('当前没有已装载的机甲。');
         this.queueInventoryAdd(patches, charPath, inventoryBuffer, mechName, mech);
-        patches.push({ op: 'replace', path: `${charPath}/equip/mech`, value: {} });
+        patches.push({ op: 'replace', path: `${charPath}/装备/机甲`, value: {} });
         await this.submitPatch(patches, `已卸下机甲 ${mechName}`);
         return;
       }
 
       if (targetType === 'wpn') {
-        const weapon = equip.wpn || {};
-        const weaponName = toText(weapon.name || weapon['名称'], '');
+        const weapon = 装备数据.武器 || {};
+        const weaponName = toText(weapon.名称 || weapon['名称'], '');
         if (!weaponName) throw new Error('当前没有已装备的主武器。');
         this.queueInventoryAdd(patches, charPath, inventoryBuffer, weaponName, weapon);
-        patches.push({ op: 'replace', path: `${charPath}/equip/wpn`, value: {} });
+        patches.push({ op: 'replace', path: `${charPath}/装备/武器`, value: {} });
         await this.submitPatch(patches, `已卸下主武器 ${weaponName}`);
         return;
       }
 
       if (targetType === 'accessory') {
-        const accessories = equip.accessories && typeof equip.accessories === 'object' ? equip.accessories : {};
+        const accessories = 装备数据.饰品 && typeof 装备数据.饰品 === 'object' ? 装备数据.饰品 : {};
         const targetAccessoryName = toText(targetName, '');
         const accessoryData = targetAccessoryName ? accessories[targetAccessoryName] : null;
         if (!targetAccessoryName || !accessoryData) throw new Error('未找到要拆卸的附件。');
         this.queueInventoryAdd(patches, charPath, inventoryBuffer, targetAccessoryName, accessoryData);
-        patches.push({ op: 'remove', path: `${charPath}/equip/accessories/${this.escapePtr(targetAccessoryName)}` });
+        patches.push({ op: 'remove', path: `${charPath}/装备/饰品/${this.escapePtr(targetAccessoryName)}` });
         await this.submitPatch(patches, `已拆卸附件 ${targetAccessoryName}`);
         return;
       }
@@ -18875,7 +18912,7 @@ window.EquipmentManager = {
   async performDiscard(charRef, itemName, mode = 'one') {
     try {
       const { charKey, activeChar } = await this.resolveCharContext(charRef);
-      const inventory = activeChar.inventory || {};
+      const inventory = activeChar.背包 || {};
       const itemData = inventory[itemName];
       if (!itemData) throw new Error(`背包中未找到物品: ${itemName}`);
       const currentQty = Math.max(1, toNumber(itemData.数量, 1));
@@ -18996,3 +19033,4 @@ window.EquipmentManager = {
   
 window.mvuSetMainTabExternal = setMainTab;
 window.mvuSetMainTab = setMainTab;
+

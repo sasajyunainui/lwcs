@@ -3285,9 +3285,9 @@
     safeEntries(charData).forEach(([charId, charInfo]) => {
       const npcName = toText(charInfo && (charInfo.name || deepGet(charInfo, 'base.name', '')), charId);
       if (!npcName || npcName === activeName || charId === activeName) return;
-      const charLoc = toText(charInfo && charInfo.status && charInfo.status.loc, '');
-      const npcFaction = toText(charInfo && (charInfo.faction || deepGet(charInfo, 'org.name', '') || deepGet(charInfo, 'org.main', '')), '');
-      const npcState = toText(deepGet(charInfo, 'status.action', ''), '');
+      const charLoc = toText(charInfo && charInfo.状态 && charInfo.状态.位置, '');
+      const npcFaction = toText(charInfo && (deepGet(charInfo, '社交.主身份', '') || deepGet(charInfo, '所属势力', '')), '');
+      const npcState = toText(deepGet(charInfo, '状态.行动', ''), '');
       const npcMetaParts = [];
       if (npcFaction) npcMetaParts.push(npcFaction);
       if (npcState) npcMetaParts.push(`状态 ${npcState}`);
@@ -3309,7 +3309,7 @@
 
   function resolveActiveCharacter(sd) {
     const chars = sd && sd.char && typeof sd.char === 'object' ? sd.char : {};
-    const named = [deepGet(sd, 'sys.player_name', ''), '主角', '玩家'].filter(Boolean);
+    const named = [deepGet(sd, 'sys.玩家名', ''), '主角', '玩家'].filter(Boolean);
     for (const name of named) {
       if (chars[name]) return [name, chars[name]];
     }
@@ -3456,31 +3456,31 @@
   function buildRoutineActionPreview(snapshot, action = '') {
     const safeAction = toText(action, '');
     const activeChar = deepGet(snapshot, 'activeChar', {}) || {};
-    const stat = deepGet(activeChar, 'stat', {}) || {};
-    const multiplier = Math.max(0, toNumber(deepGet(stat, 'multiplier.cultivation', 1), 1));
-    const currentMen = Math.max(0, toNumber(stat.men, 0));
-    const menMax = Math.max(0, toNumber(stat.men_max, 0));
-    const currentVit = Math.max(0, toNumber(stat.vit, 0));
-    const vitMax = Math.max(0, toNumber(stat.vit_max, 0));
-    const currentSp = Math.max(0, toNumber(stat.sp, 0));
-    const spMax = Math.max(0, toNumber(stat.sp_max, 0));
-    const age = Math.max(0, toNumber(stat.age, 0));
-    const coreCount = Math.max(0, toNumber(deepGet(activeChar, 'energy.core.数量', 0), 0));
-    const hasXuanTianGong = !!deepGet(activeChar, 'arts.玄天功');
-    const hasPurpleDemonEye = !!deepGet(activeChar, 'arts.紫极魔瞳');
+    const stat = deepGet(activeChar, '属性', {}) || {};
+    const multiplier = Math.max(0, toNumber(deepGet(stat, '训练加成.修炼倍率', 1), 1));
+    const currentMen = Math.max(0, toNumber(stat.精神力, 0));
+    const menMax = Math.max(0, toNumber(stat.精神力上限, 0));
+    const currentVit = Math.max(0, toNumber(stat.体力, 0));
+    const vitMax = Math.max(0, toNumber(stat.体力上限, 0));
+    const currentSp = Math.max(0, toNumber(stat.魂力, 0));
+    const spMax = Math.max(0, toNumber(stat.魂力上限, 0));
+    const age = Math.max(0, toNumber(stat.年龄, 0));
+    const coreCount = Math.max(0, toNumber(deepGet(activeChar, '魂核.核心.数量', 0), 0));
+    const hasXuanTianGong = !!deepGet(activeChar, '功法.玄天功');
+    const hasPurpleDemonEye = !!deepGet(activeChar, '功法.紫极魔瞳');
 
     if (safeAction === 'meditate') {
       const spRate = coreCount === 0 ? 0.05 : coreCount === 1 ? 0.2 : coreCount === 2 ? 0.3 : 0.4;
       const menGain = Math.max(0, Math.min(menMax, Math.floor(currentMen + menMax * 0.008 * 6)) - currentMen);
       const vitGain = Math.max(0, Math.min(vitMax, Math.floor(currentVit + vitMax * 0.005 * 6)) - currentVit);
       const spGain = Math.max(0, Math.min(spMax, Math.floor(currentSp + spMax * spRate * 6)) - currentSp);
-      let spMaxGain = (0.2 + coreCount * 0.2) * getCultivationTalentRate(stat.talent_tier) * multiplier;
+      let spMaxGain = (0.2 + coreCount * 0.2) * getCultivationTalentRate(stat.天赋梯队) * multiplier;
       if (hasXuanTianGong) spMaxGain = Math.floor(spMaxGain * 1.1);
-      if (toNumber(stat.lv, 0) >= 20 && toNumber(stat.lv, 0) < 30) {
+      if (toNumber(stat.等级, 0) >= 20 && toNumber(stat.等级, 0) < 30) {
         spMaxGain = Math.floor(spMaxGain * 0.4);
-      } else if (toNumber(stat.lv, 0) >= 30 && toNumber(stat.lv, 0) < 40) {
+      } else if (toNumber(stat.等级, 0) >= 30 && toNumber(stat.等级, 0) < 40) {
         spMaxGain = Math.floor(spMaxGain * 0.9);
-      } else if (toNumber(stat.lv, 0) >= 40 && toNumber(stat.lv, 0) < 60) {
+      } else if (toNumber(stat.等级, 0) >= 40 && toNumber(stat.等级, 0) < 60) {
         spMaxGain = Math.floor(spMaxGain * 0.6);
       } else {
         spMaxGain = Math.floor(spMaxGain);
@@ -3893,7 +3893,7 @@
   function buildSnapshotFromMapPayload(payload, sourceRootData, activeName, activeChar, cachedIndexes = null) {
     const isPreview = payload && payload.current_map_id && payload.current_map_id !== 'map_douluo_world';
     const rootData = isPreview ? (payload.rootData || sourceRootData || mapState.baseSnapshot?.rootData || {}) : (sourceRootData || payload || {});
-    const currentLocFull = toText(deepGet(activeChar, 'status.loc', '斗罗大陆-未知地点'), '斗罗大陆-未知地点');
+    const currentLocFull = toText(deepGet(activeChar, '状态.位置', '斗罗大陆-未知地点'), '斗罗大陆-未知地点');
     const currentMapId = isPreview ? payload.current_map_id : 'map_douluo_world';
     const characterIndexPayload = cachedIndexes && cachedIndexes.charactersByLoc instanceof Map
       ? cachedIndexes
@@ -3914,13 +3914,13 @@
     if (isPreview && payload.visible_nodes) {
       Object.assign(visibleNodes, payload.visible_nodes);
     } else {
-      const rootLocations = deepGet(rootData, 'world.locations', {});
+      const rootLocations = deepGet(rootData, 'world.地点', {});
       Object.assign(visibleNodes, rootLocations);
     }
 
     const currentFocusCoord = {
-      x: toNumber(deepGet(activeChar, 'status.current_x', -1), NaN),
-      y: toNumber(deepGet(activeChar, 'status.current_y', -1), NaN)
+      x: toNumber(deepGet(activeChar, '状态.横坐标', -1), NaN),
+      y: toNumber(deepGet(activeChar, '状态.纵坐标', -1), NaN)
     };
     const currentAnchorMeta = resolveVisibleLocationAnchor({
       currentMapId,
@@ -4014,15 +4014,15 @@
               bounds: { ...DEFAULT_IMAGE_BOUNDS }
             }
           },
-          locations: {}
+          地点集合: {}
         }
       },
       activeName: '',
       activeChar: {
-        status: { loc: '' },
-        stat: { sp: 0, vit: 0 },
-        wealth: { fed_coin: 0 },
-        equip: { armor: {}, mech: {} }
+        状态: { 位置: '' },
+        属性: { 魂力: 0, 体力: 0 },
+        财富: { 联邦币: 0 },
+        装备: { 斗铠: {}, 机甲: {} }
       },
       currentLoc: '',
       currentLocFull: '',
@@ -4057,12 +4057,12 @@
       : '';
   }
 
-  function getRawLocationNodeByName(nodeName, locations = null) {
+  function getRawLocationNodeByName(nodeName, 地点集合 = null) {
     const key = toText(nodeName, '');
-    const rootLocations = locations && typeof locations === 'object'
-      ? { custom: locations }
+    const rootLocations = 地点集合 && typeof 地点集合 === 'object'
+      ? { custom: 地点集合 }
       : {
-          locs: deepGet((mapState.baseSnapshot && mapState.baseSnapshot.rootData) || (mapState.snapshot && mapState.snapshot.rootData) || {}, 'world.locations', {}) || {},
+          locs: deepGet((mapState.baseSnapshot && mapState.baseSnapshot.rootData) || (mapState.snapshot && mapState.snapshot.rootData) || {}, 'world.地点', {}) || {},
           wilds: deepGet((mapState.baseSnapshot && mapState.baseSnapshot.rootData) || (mapState.snapshot && mapState.snapshot.rootData) || {}, 'world.wild_zones', {}) || {},
           realms: deepGet((mapState.baseSnapshot && mapState.baseSnapshot.rootData) || (mapState.snapshot && mapState.snapshot.rootData) || {}, 'world.secret_realms', {}) || {},
           dungeons: deepGet((mapState.baseSnapshot && mapState.baseSnapshot.rootData) || (mapState.snapshot && mapState.snapshot.rootData) || {}, 'world.dungeons', {}) || {}
@@ -4550,7 +4550,7 @@
   function getRawActualCurrentLoc() {
     const snapshot = getActualCurrentSnapshot() || {};
     return toText(
-      deepGet(snapshot, 'activeChar.status.loc', snapshot.currentLocFull || snapshot.currentLoc),
+      deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLocFull || snapshot.currentLoc),
       toText(snapshot.currentLocFull || snapshot.currentLoc, '斗罗大陆-未知地点')
     );
   }
@@ -4565,7 +4565,7 @@
     const snapshot = getActualCurrentSnapshot();
     if (!snapshot) return null;
     const sd = snapshot.rootData || {};
-    const charStatus = deepGet(snapshot, 'activeChar.status') || {};
+    const charStatus = deepGet(snapshot, 'activeChar.状态') || {};
     const actualLocName = getActualCurrentLoc();
 
     // 1. 如果你在大地图野外，优先采用身上的绝对坐标作为唯一真理（防止在野外地图消失）
@@ -4591,7 +4591,7 @@
        }
        
        // 如果没画出来，直接去全量静态底层字典里查老底
-       const staticLocs = deepGet(sd, 'world.locations', {});
+       const staticLocs = deepGet(sd, 'world.地点', {});
        for (const locKey in staticLocs) {
           const locData = staticLocs[locKey];
           if (!locData) continue;
@@ -6656,15 +6656,15 @@
 
   function getTravelMethodVariantInfo(snapshot) {
     const activeChar = snapshot && snapshot.activeChar && typeof snapshot.activeChar === 'object' ? snapshot.activeChar : {};
-    const stat = activeChar.stat || {};
-    const equip = activeChar.equip || {};
-    const armorLv = Number(toNumber(deepGet(equip, 'armor.lv', 0), 0));
-    const armorName = toText(deepGet(equip, 'armor.name', '无'), '无');
-    const armorFullSet = deepGet(equip, 'armor.full_set', undefined);
-    const mechLv = toText(deepGet(equip, 'mech.lv', '无'), '无');
-    const mechStatus = toText(deepGet(equip, 'mech.status', '完好'), '完好');
+    const stat = activeChar.属性 || {};
+    const equip = activeChar.装备 || {};
+    const armorLv = Number(toNumber(deepGet(equip, '斗铠.等级', 0), 0));
+    const armorName = toText(deepGet(equip, '斗铠.名称', '无'), '无');
+    const armorFullSet = deepGet(equip, '斗铠.完整套装', undefined);
+    const mechLv = toText(deepGet(equip, '机甲.等级', '无'), '无');
+    const mechStatus = toText(deepGet(equip, '机甲.状态', '完好'), '完好');
     return {
-      lv: Number(toNumber(stat.lv, 0)),
+      lv: Number(toNumber(stat.等级, 0)),
       hasDoukai: armorLv > 0
         && armorName !== '无'
         && (armorFullSet === undefined || armorFullSet === null ? true : !!armorFullSet),
@@ -6728,8 +6728,8 @@
 
   function calculateTravelCost(method, distance, snapshot, options = {}) {
     const activeChar = snapshot && snapshot.activeChar && typeof snapshot.activeChar === 'object' ? snapshot.activeChar : {};
-    const stat = activeChar.stat || {};
-    const wealth = activeChar.wealth || {};
+    const stat = activeChar.属性 || {};
+    const wealth = activeChar.财富 || {};
     const { lv, hasDoukai, hasMecha } = getTravelMethodVariantInfo(snapshot);
     const resolvedMethod = resolveTravelMethodVariant(method, snapshot);
     const distanceScale = Math.max(0.01, Number(toNumber(options && options.distanceScale, 1), 1));
@@ -6785,9 +6785,9 @@
       }
     }
 
-    const curCoin = Number(toNumber(wealth.fed_coin, 0));
-    const curSp = Number(toNumber(stat.sp, 0));
-    const curVit = Number(toNumber(stat.vit, 0));
+    const curCoin = Number(toNumber(wealth.联邦币, 0));
+    const curSp = Number(toNumber(stat.魂力, 0));
+    const curVit = Number(toNumber(stat.体力, 0));
     if (canAfford && fedCoin > curCoin) { canAfford = false; reason = '联邦币不足'; }
     if (canAfford && sp > curSp) { canAfford = false; reason = '魂力不足'; }
     if (canAfford && vit > curVit) { canAfford = false; reason = '体力不足'; }
@@ -6945,11 +6945,11 @@
       mapState.lastTravelNote = `[地图移动] ${request.method} → ${request.target_loc}${targetTerrainShort}${request.route_plan ? ` · ${request.route_plan}` : ''} · ${request.est_duration} · 坐标 ${request.coord_text}`;
     }
 
-    if (mapState.baseSnapshot && mapState.baseSnapshot.activeChar && mapState.baseSnapshot.activeChar.status) {
-      mapState.baseSnapshot.activeChar.status.loc = finalLocName;
+    if (mapState.baseSnapshot && mapState.baseSnapshot.activeChar && mapState.baseSnapshot.activeChar.状态) {
+      mapState.baseSnapshot.activeChar.状态.位置 = finalLocName;
       const isWorldMove = !hasActivePreview() || mapState.coordSystem === MAP_COORD_SYSTEM_IMAGE;
       if (isWorldMove) {
-        mapState.baseSnapshot.activeChar.status.coord_system = MAP_COORD_SYSTEM_IMAGE;
+        mapState.baseSnapshot.activeChar.状态.坐标系 = MAP_COORD_SYSTEM_IMAGE;
         mapState.baseSnapshot.currentFocusCoord = { x: targetCoord.x, y: targetCoord.y };
         const currentAnchorMeta = resolveVisibleLocationAnchor(mapState.baseSnapshot, finalLocName);
         mapState.baseSnapshot.currentLoc = currentAnchorMeta.leafName;
@@ -6973,51 +6973,51 @@
         const activeChar = mapState.baseSnapshot.activeChar || {};
         const targetTerrainLine = targetTerrainBrief ? `目标地形：${targetTerrainBrief}` : '';
         const patchOps = [
-          { op: 'replace', path: `/char/${activePath}/status/loc`, value: String(finalLocName) },
+          { op: 'replace', path: `/char/${activePath}/状态/位置`, value: String(finalLocName) },
         ];
 
         // 严格执行【野外双轨坐标法】：去野外强写 x, y，进城强写 -1！
         if (isFreeTravel && targetCoord.x >= 0 && targetCoord.y >= 0) {
           patchOps.push(
-            { op: 'add', path: `/char/${activePath}/status/current_x`, value: targetCoord.x },
-            { op: 'add', path: `/char/${activePath}/status/current_y`, value: targetCoord.y }
+            { op: 'add', path: `/char/${activePath}/状态/横坐标`, value: targetCoord.x },
+            { op: 'add', path: `/char/${activePath}/状态/纵坐标`, value: targetCoord.y }
           );
         } else {
           patchOps.push(
-            { op: 'add', path: `/char/${activePath}/status/current_x`, value: -1 },
-            { op: 'add', path: `/char/${activePath}/status/current_y`, value: -1 }
+            { op: 'add', path: `/char/${activePath}/状态/横坐标`, value: -1 },
+            { op: 'add', path: `/char/${activePath}/状态/纵坐标`, value: -1 }
           );
         }
         
         patchOps.push(
-          { op: 'replace', path: `/world/time/tick`, value: (Number(deepGet(mapState.baseSnapshot.rootData, 'world.time.tick', 0)) + request.est_ticks) },
+          { op: 'replace', path: `/world/时间/tick`, value: (Number(deepGet(mapState.baseSnapshot.rootData, 'world.时间.tick', 0)) + request.est_ticks) },
           { op: 'replace', path: `/sys/rsn`, value: `[地图移动完成] 玩家乘坐 ${request.method} 抵达 ${finalLocName.replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '')}${targetTerrainInfo ? `（${toText(targetTerrainInfo.name, '未知地形')}）` : ''}，历时 ${request.est_duration}。` }
         );
 
         if (request.costs) {
           if (request.costs.fedCoin > 0) {
-            const curCoin = Number(toNumber(deepGet(activeChar, 'wealth.fed_coin', 0), 0));
+            const curCoin = Number(toNumber(deepGet(activeChar, '财富.联邦币', 0), 0));
             const nextCoin = Math.max(0, curCoin - request.costs.fedCoin);
-            patchOps.push({ op: 'replace', path: `/char/${activePath}/wealth/fed_coin`, value: nextCoin });
-            if (activeChar.wealth) activeChar.wealth.fed_coin = nextCoin;
+            patchOps.push({ op: 'replace', path: `/char/${activePath}/财富/联邦币`, value: nextCoin });
+            if (activeChar.财富) activeChar.财富.联邦币 = nextCoin;
           }
           if (request.costs.sp > 0) {
-            const curSp = Number(toNumber(deepGet(activeChar, 'stat.sp', 0), 0));
+            const curSp = Number(toNumber(deepGet(activeChar, '属性.魂力', 0), 0));
             const nextSp = Math.max(0, curSp - request.costs.sp);
-            patchOps.push({ op: 'replace', path: `/char/${activePath}/stat/sp`, value: nextSp });
-            if (activeChar.stat) activeChar.stat.sp = nextSp;
+            patchOps.push({ op: 'replace', path: `/char/${activePath}/属性/魂力`, value: nextSp });
+            if (activeChar.属性) activeChar.属性.魂力 = nextSp;
           }
           if (request.costs.vit > 0) {
-            const curVit = Number(toNumber(deepGet(activeChar, 'stat.vit', 0), 0));
+            const curVit = Number(toNumber(deepGet(activeChar, '属性.体力', 0), 0));
             const nextVit = Math.max(0, curVit - request.costs.vit);
-            patchOps.push({ op: 'replace', path: `/char/${activePath}/stat/vit`, value: nextVit });
-            if (activeChar.stat) activeChar.stat.vit = nextVit;
+            patchOps.push({ op: 'replace', path: `/char/${activePath}/属性/体力`, value: nextVit });
+            if (activeChar.属性) activeChar.属性.体力 = nextVit;
             if (nextVit <= 1) {
               const fatigueState = { 类型: 'debuff', 层数: 1, 描述: '长途跋涉导致极度疲劳' };
-              patchOps.push({ op: 'insert', path: `/char/${activePath}/stat/conditions/疲劳`, value: fatigueState });
-              if (activeChar.stat) {
-                if (!activeChar.stat.conditions || typeof activeChar.stat.conditions !== 'object') activeChar.stat.conditions = {};
-                activeChar.stat.conditions['疲劳'] = fatigueState;
+              patchOps.push({ op: 'insert', path: `/char/${activePath}/属性/状态效果/疲劳`, value: fatigueState });
+              if (activeChar.属性) {
+                if (!activeChar.属性.状态效果 || typeof activeChar.属性.状态效果 !== 'object') activeChar.属性.状态效果 = {};
+                activeChar.属性.状态效果['疲劳'] = fatigueState;
               }
             }
           }
@@ -7054,7 +7054,7 @@
       for (const [charId, charInfo] of Object.entries(charData)) {
         const npcName = toText(charInfo && (charInfo.name || deepGet(charInfo, 'base.name', '')), charId);
         if (!npcName || npcName === activeName || charId === activeName) continue;
-        const charLoc = toText(charInfo && charInfo.status && charInfo.status.loc, '');
+        const charLoc = toText(charInfo && charInfo.状态 && charInfo.状态.位置, '');
         const charLocSegments = charLoc.split('-').filter(Boolean);
         if (charLocSegments.includes(item.name) || charLoc === item.name) {
           talkTargets.push(npcName);

@@ -1,4 +1,4 @@
-import { registerMvuSchema } from 'https://testingcf.jsdelivr.net/gh/StageDog/tavern_resource/dist/util/mvu_zod.js';
+﻿import { registerMvuSchema } from 'https://testingcf.jsdelivr.net/gh/StageDog/tavern_resource/dist/util/mvu_zod.js';
 import { TimelineEvents } from 'https://cdn.jsdelivr.net/gh/sasajyunainui/lwcs@V1.38/timeline.js';
 import { IntelEvents } from 'https://cdn.jsdelivr.net/gh/sasajyunainui/lwcs@V1.35/IntelEvents.js';
 
@@ -185,21 +185,21 @@ function refreshFlatLocationsFromTree(node, name) {
     FLAT_LOCATIONS[name] = { x: node.x, y: node.y };
     if (!node.coord_system) node.coord_system = node.level <= 2 ? MAP_COORD_SYSTEM_IMAGE : MAP_COORD_SYSTEM_LOCAL;
   }
-  if (node.children) {
-    for (const childName in node.children) {
-      refreshFlatLocationsFromTree(node.children[childName], childName);
+  if (node.子节点) {
+    for (const childName in node.子节点) {
+      refreshFlatLocationsFromTree(node.子节点[childName], childName);
     }
   }
 }
 
 function calculateTravelResourceCost(method, distance, char = {}) {
-  const stat = char.stat || {};
-  const wealth = char.wealth || {};
-  const equip = char.equip || {};
-  const lv = Number(stat.lv || 0);
-  const hasDoukai = Number(equip?.armor?.lv || 0) > 0 && String(equip?.armor?.equip_status || '未装备') === '已装备';
+  const 属性 = char.属性 || {};
+  const 财富 = char.财富 || {};
+  const 装备 = char.装备 || {};
+  const lv = Number(属性.等级 || 0);
+  const hasDoukai = Number(装备?.斗铠?.等级 || 0) > 0 && String(装备?.斗铠?.装备状态 || '未装备') === '已装备';
   const hasMecha =
-    String(equip?.mech?.lv || '无') !== '无' && String(equip?.mech?.equip_status || '未装备') === '已装备';
+    String(装备?.机甲?.等级 || '无') !== '无' && String(装备?.机甲?.装备状态 || '未装备') === '已装备';
 
   let fedCoin = 0;
   let sp = 0;
@@ -244,9 +244,9 @@ function calculateTravelResourceCost(method, distance, char = {}) {
     note = '神级传送';
   }
 
-  const curCoin = Number(wealth.fed_coin || 0);
-  const curSp = Number(stat.sp || 0);
-  const curVit = Number(stat.vit || 0);
+  const curCoin = Number(财富.联邦币 || 0);
+  const curSp = Number(属性.魂力 || 0);
+  const curVit = Number(属性.体力 || 0);
   if (canAfford && fedCoin > curCoin) {
     canAfford = false;
     reason = '联邦币不足';
@@ -274,27 +274,27 @@ function findMapNodeEntry(targetName, sd) {
       found = { name, node, path: nextPath };
       return;
     }
-    if (node.children) {
-      Object.keys(node.children).forEach(childName => {
-        visit(node.children[childName], childName, nextPath);
+    if (node.子节点) {
+      Object.keys(node.子节点).forEach(childName => {
+        visit(node.子节点[childName], childName, nextPath);
       });
     }
   };
 
-  if (sd && sd.world && sd.world.locations) {
-    Object.keys(sd.world.locations).forEach(locName => {
-      visit(sd.world.locations[locName], locName, []);
+  if (sd && sd.world && sd.world.地点) {
+    Object.keys(sd.world.地点).forEach(locName => {
+      visit(sd.world.地点[locName], locName, []);
     });
   }
 
-  if (!found && sd && sd.world && sd.world.locations && safeTargetName.includes('-')) {
+  if (!found && sd && sd.world && sd.world.地点 && safeTargetName.includes('-')) {
     const rawSegments = safeTargetName
       .split('-')
       .map(seg => String(seg || '').trim())
       .filter(Boolean);
     const pathSegments = rawSegments.filter(seg => seg !== '斗罗大陆' && seg !== '斗灵大陆');
     if (pathSegments.length >= 1) {
-      let currentNode = sd.world.locations[pathSegments[0]];
+      let currentNode = sd.world.地点[pathSegments[0]];
       const currentPath = [];
       if (currentNode && !(typeof currentNode.condition === 'function' && !currentNode.condition(sd))) {
         currentPath.push(pathSegments[0]);
@@ -308,7 +308,7 @@ function findMapNodeEntry(targetName, sd) {
           let valid = true;
           for (let i = 1; i < pathSegments.length; i++) {
             const seg = pathSegments[i];
-            currentNode = currentNode?.children?.[seg];
+            currentNode = currentNode?.子节点?.[seg];
             if (!currentNode || (typeof currentNode.condition === 'function' && !currentNode.condition(sd))) {
               valid = false;
               break;
@@ -332,8 +332,8 @@ function findMapNodeEntry(targetName, sd) {
 
 function isWorldLocationName(locName, sd) {
   if (!locName || !sd) return false;
-  if (sd?.world?.dynamic_locations?.[locName]) {
-    return isWorldMapId(sd.world.dynamic_locations[locName].map_id || 'map_douluo_world');
+  if (sd?.world?.动态地点?.[locName]) {
+    return isWorldMapId(sd.world.动态地点[locName].地图ID || 'map_douluo_world');
   }
   const entry = findMapNodeEntry(locName, sd);
   return !!(entry && Array.isArray(entry.path) && entry.path.length <= 1);
@@ -451,7 +451,7 @@ function getBeastStats(age, species) {
 }
 
 function isSoulBeastCharacter(char = {}) {
-  return !!(Number(char?.stat?.age || 0) >= 10000 || char?.social?.factions?.['魂兽一族']);
+  return !!(Number(char?.属性?.年龄 || 0) >= 10000 || char?.社交?.势力?.['魂兽一族']);
 }
 
 function formatCultivationLevelText(level, fallback = '未知') {
@@ -466,16 +466,16 @@ function formatCultivationLevelText(level, fallback = '未知') {
 
 function autoBreakthrough(data) {
   _(data.char).forEach((c, charName) => {
-    if (!c.status?.alive) return;
+    if (!c.状态?.存活) return;
     const isBeast = isSoulBeastCharacter(c);
     if (isBeast) return;
 
-    const currentLv = c.stat.lv;
+    const currentLv = c.属性.等级;
     if (currentLv >= 100) return;
 
     const nextLvStats = getBaseStats(currentLv + 1);
 
-    if (c.stat.sp_max >= nextLvStats.sp_max) {
+    if (c.属性.魂力上限 >= nextLvStats.sp_max) {
       const coreCount = c.energy?.core?.数量 || 0;
       let maxLv = 69;
       if (coreCount === 1) maxLv = 89;
@@ -484,22 +484,22 @@ function autoBreakthrough(data) {
 
       if (currentLv >= maxLv) return;
 
-      c.stat.lv += 1;
-      const newLv = c.stat.lv;
+      c.属性.等级 += 1;
+      const newLv = c.属性.等级;
 
       if (newLv % 10 === 0) {
         const ringIndex = newLv / 10;
-        const spiritKeys = Object.keys(c.spirit || {});
+        const spiritKeys = Object.keys(c.武魂 || {});
         if (spiritKeys.length === 0) return;
 
-        const isPlayer = charName === data.sys?.player_name;
-        const playerChar = data.char[data.sys?.player_name];
+        const isPlayer = charName === data.sys?.玩家名;
+        const playerChar = data.char[data.sys?.玩家名];
         const isSameNodeGroup = (c1, c2) => {
           if (!c1 || !c2) return false;
-          const loc1 = c1.status?.loc || '';
-          const loc2 = c2.status?.loc || '';
+          const loc1 = c1.状态?.位置 || '';
+          const loc2 = c2.状态?.位置 || '';
           if (loc1 && loc2 && loc1 === loc2) return true;
-          const dyn = data.world?.dynamic_locations || {};
+          const dyn = data.world?.动态地点 || {};
           const p1 = dyn[loc1]?.归属父节点 || loc1.split('-').slice(0, -1).join('-');
           const p2 = dyn[loc2]?.归属父节点 || loc2.split('-').slice(0, -1).join('-');
           return p1 && p2 && p1 === p2;
@@ -507,13 +507,13 @@ function autoBreakthrough(data) {
         const isNearPlayer = !isPlayer && isSameNodeGroup(c, playerChar);
 
         spiritKeys.forEach(spiritKey => {
-          const targetSpirit = c.spirit[spiritKey];
-          if (!targetSpirit.soul_spirits) targetSpirit.soul_spirits = {};
+          const targetSpirit = c.武魂[spiritKey];
+          if (!targetSpirit.魂灵) targetSpirit.魂灵 = {};
 
           let ringAssigned = false;
           let candidateSpirit = null;
 
-          _(targetSpirit.soul_spirits).forEach((ss, ssName) => {
+          _(targetSpirit.魂灵).forEach((ss, ssName) => {
             if (ringAssigned || candidateSpirit) return;
 
             let cap = 1;
@@ -521,7 +521,7 @@ function autoBreakthrough(data) {
             else if (ss.年限 >= 1000) cap = 3;
             else if (ss.年限 >= 100) cap = 2;
 
-            const currentRingsCount = Object.keys(ss.rings || {}).length;
+            const currentRingsCount = Object.keys(ss.魂环 || {}).length;
 
             if (currentRingsCount < cap) {
               candidateSpirit = { ss, ssName };
@@ -531,8 +531,8 @@ function autoBreakthrough(data) {
           if (candidateSpirit) {
             const { ss, ssName } = candidateSpirit;
             if (isPlayer) {
-              if (!c.status) c.status = {};
-              c.status.pending_ring_choice = {
+              if (!c.状态) c.状态 = {};
+              c.状态.待选魂环 = {
                 武魂槽位: spiritKey,
                 候选魂灵: [ssName],
                 待生成魂环位: ringIndex,
@@ -548,7 +548,7 @@ function autoBreakthrough(data) {
               data.sys.rsn += ` [修为突破] ${charName} 踏入 ${newLv} 级！已达到第 ${ringIndex} 魂环门槛，但当前场景内请通过剧情决定其【${ssName}】是否为【${spiritKey}】衍生新魂环。`;
             } else {
               const newRingColor = getRingColorByAge(ss.年限);
-              ss.rings[ringIndex.toString()] = {
+              ss.魂环[ringIndex.toString()] = {
                 年限: ss.年限,
                 颜色: newRingColor,
                 魂技: {
@@ -560,7 +560,7 @@ function autoBreakthrough(data) {
                   },
                 },
               };
-              ss.rings[ringIndex.toString()].魂技 = buildDefaultRingSkillMap(ringIndex, ss.年限);
+              ss.魂环[ringIndex.toString()].魂技 = buildDefaultRingSkillMap(ringIndex, ss.年限);
               ringAssigned = true;
               if (data.sys.rsn === '初始化' || !data.sys.rsn) data.sys.rsn = '';
               data.sys.rsn += ` [修为突破] ${charName} 踏入 ${newLv} 级！其【${ssName}】底蕴深厚，自动为【${spiritKey}】衍生出第 ${ringIndex} 个魂环！`;
@@ -569,17 +569,17 @@ function autoBreakthrough(data) {
 
           if (!ringAssigned) {
             let currentSpiritsCount = 0;
-            _(c.spirit).forEach(sp => {
-              currentSpiritsCount += Object.keys(sp.soul_spirits || {}).length;
+            _(c.武魂).forEach(sp => {
+              currentSpiritsCount += Object.keys(sp.魂灵 || {}).length;
             });
             const realmLimit =
               { 灵元境: 1, 灵通境: 2, 灵海境: 5, 灵渊境: 9, 灵域境: 99, 神元境: 999 }[
-                c.stat._men_realm || c.stat.men_realm
+                c.属性.精神境界 || c.属性.精神力_realm
               ] || 1;
 
             if (currentSpiritsCount >= realmLimit) {
               if (data.sys.rsn === '初始化' || !data.sys.rsn) data.sys.rsn = '';
-              data.sys.rsn += ` [修为突破] ${charName} 踏入 ${newLv} 级！但精神力仅为【${c.stat._men_realm || c.stat.men_realm}】，无法承载更多魂灵，【${spiritKey}】暂缓附加魂环！`;
+              data.sys.rsn += ` [修为突破] ${charName} 踏入 ${newLv} 级！但精神力仅为【${c.属性.精神境界 || c.属性.精神力_realm}】，无法承载更多魂灵，【${spiritKey}】暂缓附加魂环！`;
               return;
             }
 
@@ -1929,7 +1929,7 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
     return Array.from(new Set(keys)).slice(0, count);
   };
 
-  const combat = {
+  const 战斗 = {
     技能类型: '输出',
     对象: targetMap[targetModel] || '敌方/单体',
     cast_time: randInt(castRange[0], castRange[1]),
@@ -1984,9 +1984,9 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
     },
   };
 
-  const clash = combat.仲裁逻辑.瞬间交锋模块;
-  const state = combat.仲裁逻辑.状态挂载模块;
-  const field = combat.仲裁逻辑.召唤与场地模块;
+  const clash = 战斗.仲裁逻辑.瞬间交锋模块;
+  const state = 战斗.仲裁逻辑.状态挂载模块;
+  const field = 战斗.仲裁逻辑.召唤与场地模块;
   const scaleStatMods = factor => {
     ['str', 'def', 'agi', 'men_max', 'sp_max'].forEach(k => {
       const value = state.面板修改比例[k];
@@ -2028,12 +2028,12 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
   };
 
   if (main === '伤害类') {
-    combat.技能类型 = '输出';
+    战斗.技能类型 = '输出';
     clash.基础威力倍率 = Math.round(powerBase * targetFactor);
     clash.伤害类型 = getDamageType();
     if (archetype === '多段伤害') clash.基础威力倍率 = Math.round(powerBase * 0.85);
     if (archetype === '延迟爆发') {
-      combat.cast_time += 10;
+      战斗.cast_time += 10;
       state.状态名称 = '蓄势标记';
       state.持续回合 = 1;
     }
@@ -2044,7 +2044,7 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
       state.计算层效果.dot_damage = state.持续真伤dot;
     }
   } else if (main === '控制类') {
-    combat.技能类型 = '控制';
+    战斗.技能类型 = '控制';
     state.状态名称 = archetype;
     state.持续回合 = ['硬控', '位移限制'].includes(archetype) ? 1 : 2;
     state.特殊机制标识 = archetype === '硬控' ? '硬控' : archetype;
@@ -2078,7 +2078,7 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
     }
     if (archetype === '硬控') state.计算层效果.skip_turn = true;
   } else if (main === '削弱类') {
-    combat.技能类型 = '控制';
+    战斗.技能类型 = '控制';
     state.状态名称 = archetype;
     state.持续回合 = { C: 1, B: 2, A: 3, S: 4 }[grade] || 2;
     if (archetype === '单属性削弱') {
@@ -2119,7 +2119,7 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
     if (targetFactor < 1) state.持续回合 = Math.max(1, Math.round(state.持续回合 * targetFactor));
     scaleStatMods(targetFactor);
   } else if (main === '增益类') {
-    combat.技能类型 = '辅助';
+    战斗.技能类型 = '辅助';
     state.状态名称 = archetype;
     state.持续回合 = { C: 2, B: 3, A: 3, S: 4 }[grade] || 3;
     if (archetype === '单属性增益') {
@@ -2158,7 +2158,7 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
     if (targetFactor < 1) state.持续回合 = Math.max(1, Math.round(state.持续回合 * Math.max(0.8, targetFactor)));
     scaleStatMods(targetFactor);
   } else if (main === '防御类') {
-    combat.技能类型 = '防御';
+    战斗.技能类型 = '防御';
     state.状态名称 = archetype;
     state.持续回合 = { C: 1, B: 2, A: 2, S: 3 }[grade] || 2;
     if (archetype === '护盾') {
@@ -2184,7 +2184,7 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
     }
     if (targetFactor < 1) state.持续回合 = Math.max(1, Math.round(state.持续回合 * Math.max(0.8, targetFactor)));
   } else if (main === '回复类') {
-    combat.技能类型 = '辅助';
+    战斗.技能类型 = '辅助';
     if (archetype === '体力恢复')
       clash.瞬间恢复比例 = Number(
         (randomInRange({ C: [8, 12], B: [12, 20], A: [20, 35], S: [35, 60] }) * targetFactor).toFixed(2),
@@ -2216,7 +2216,7 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
     if (targetFactor < 1)
       state.持续回合 = Math.max(1, Math.round((state.持续回合 || 0) * Math.max(0.8, targetFactor))) || state.持续回合;
   } else if (main === '感知/认知类') {
-    combat.技能类型 = '辅助';
+    战斗.技能类型 = '辅助';
     state.状态名称 = archetype;
     state.持续回合 = 2;
     if (archetype === '标记锁定') {
@@ -2262,7 +2262,7 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
     }
     if (archetype === '认知扭曲') state.特殊机制标识 = '认知扭曲';
   } else if (main === '位移类') {
-    combat.技能类型 = '辅助';
+    战斗.技能类型 = '辅助';
     state.状态名称 = archetype;
     state.持续回合 = ['位移交换'].includes(archetype) ? 2 : 1;
     state.特殊机制标识 = archetype;
@@ -2318,12 +2318,12 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
       );
     }
   } else if (main === '特殊规则类') {
-    combat.技能类型 = '辅助';
+    战斗.技能类型 = '辅助';
     state.状态名称 = archetype;
     state.持续回合 = 2;
     state.特殊机制标识 = archetype;
     if (archetype === '强制绑定/锁定') {
-      combat.技能类型 = '控制';
+      战斗.技能类型 = '控制';
       state.持续回合 = { C: 1, B: 2, A: 2, S: 3 }[grade] || 2;
       state.计算层效果.lock_level = { C: 1, B: 2, A: 2, S: 3 }[grade] || 1;
       state.计算层效果.dodge_penalty = Number(
@@ -2334,7 +2334,7 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
       );
     }
     if (archetype === '反制') {
-      combat.技能类型 = '防御';
+      战斗.技能类型 = '防御';
       state.持续回合 = { C: 1, B: 2, A: 2, S: 3 }[grade] || 2;
       state.计算层效果.counter_attack_ratio = Number(
         randomInRange({ C: [0.35, 0.5], B: [0.5, 0.75], A: [0.75, 1.0], S: [1.0, 1.25] }).toFixed(2),
@@ -2344,7 +2344,7 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
       );
     }
     if (archetype === '条件触发') {
-      combat.技能类型 = '输出';
+      战斗.技能类型 = '输出';
       state.持续回合 = 0;
       state.计算层效果.final_damage_mult = Number(
         randomInRange({ C: [1.1, 1.18], B: [1.18, 1.28], A: [1.28, 1.42], S: [1.42, 1.6] }).toFixed(2),
@@ -2354,7 +2354,7 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
       );
     }
     if (archetype === '转化') {
-      combat.技能类型 = '输出';
+      战斗.技能类型 = '输出';
       state.持续回合 = 0;
       clash.基础威力倍率 = Math.max(
         Number(clash.基础威力倍率 || 0),
@@ -2367,13 +2367,13 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
       state.特殊机制标识 = [state.特殊机制标识, '伤害转回复'].filter(v => v && v !== '无').join('/') || '伤害转回复';
     }
     if (archetype === '复制') {
-      combat.技能类型 = '辅助';
+      战斗.技能类型 = '辅助';
       state.持续回合 = { C: 1, B: 2, A: 2, S: 3 }[grade] || 2;
       state.特殊机制标识 = [state.特殊机制标识, '复制增益'].filter(v => v && v !== '无').join('/') || '复制增益';
     }
     if (archetype === '分身') {
-      combat.技能类型 = '辅助';
-      combat.对象 = '自身';
+      战斗.技能类型 = '辅助';
+      战斗.对象 = '自身';
       const cloneType =
         type === '精神系' || type === '控制系'
           ? '精神力分身'
@@ -2407,12 +2407,12 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
       }
     }
     if (archetype === '状态交换') {
-      combat.技能类型 = '辅助';
+      战斗.技能类型 = '辅助';
       state.持续回合 = 0;
       state.特殊机制标识 = [state.特殊机制标识, '状态交换'].filter(v => v && v !== '无').join('/') || '状态交换';
     }
     if (archetype === '规则改写') {
-      combat.技能类型 = '输出';
+      战斗.技能类型 = '输出';
       state.持续回合 = 0;
       clash.基础威力倍率 = Math.max(
         Number(clash.基础威力倍率 || 0),
@@ -2611,14 +2611,14 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
     state.特殊机制标识 = [state.特殊机制标识, '自身也受影响'].filter(v => v && v !== '无').join('/');
   if (mutation.includes('随机目标'))
     state.特殊机制标识 = [state.特殊机制标识, '随机目标'].filter(v => v && v !== '无').join('/');
-  combat.消耗 =
+  战斗.消耗 =
     [`魂力:${spCost}`, vitCost > 0 ? `体力:${vitCost}` : '', menCost > 0 ? `精神力:${menCost}` : '']
       .filter(Boolean)
       .join(' | ') || '无';
 
-  if (delivery === '延迟触发') combat.cast_time += 8;
-  if (delivery === '范围展开') combat.cast_time += 5;
-  if (delivery === '自身附体') combat.cast_time = Math.max(0, combat.cast_time - 5);
+  if (delivery === '延迟触发') 战斗.cast_time += 8;
+  if (delivery === '范围展开') 战斗.cast_time += 5;
+  if (delivery === '自身附体') 战斗.cast_time = Math.max(0, 战斗.cast_time - 5);
 
   if (delivery === '范围展开' || delivery === '召唤承载') {
     const isSummonCarrier = delivery === '召唤承载';
@@ -2644,7 +2644,7 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
     }
   }
 
-  return combat;
+  return 战斗;
 }
 
 function isSkillTodoText(text) {
@@ -2828,7 +2828,7 @@ function compileSkillRuntimeFromDsl(skill = {}, context = {}) {
     primaryPrimitive?.params && typeof primaryPrimitive.params === 'object' && !Array.isArray(primaryPrimitive.params)
       ? primaryPrimitive.params
       : {};
-  let effects = clonePackedSkillEffects(params.effects || params.packed_effects || []);
+  let effects = clonePackedSkillEffects(params.效果 || params.packed_effects || []);
   let attachedAttributes = normalizeSkillAttachedAttributeArray(params.attachedAttributes || params.attached || []);
   let visualDesc = String(params.visualDesc || params.visual || skill?.画面描述 || AI_TODO_SKILL_VISUAL).trim();
   let effectDesc = String(params.effectDesc || params.effect || skill?.效果描述 || AI_TODO_SKILL_EFFECT).trim();
@@ -2876,7 +2876,7 @@ function compileSkillRuntimeFromDsl(skill = {}, context = {}) {
 function applySkillRuntimeFromDsl(skill = {}, context = {}) {
   if (!skill || typeof skill !== 'object') return skill;
   const runtime = compileSkillRuntimeFromDsl(skill, context);
-  skill._效果数组 = clonePackedSkillEffects(runtime.effects || []);
+  skill._效果数组 = clonePackedSkillEffects(runtime.效果 || []);
   skill.附带属性 = normalizeSkillAttachedAttributeArray(runtime.attachedAttributes || []);
   skill.画面描述 = runtime.visualDesc;
   skill.效果描述 = runtime.effectDesc;
@@ -2926,27 +2926,27 @@ function normalizeSingleRingSkillSlotMap(skillMap = {}, ringIndex = 1) {
 
 function stripLegacySkillFieldsFromCharacter(char = {}) {
   if (!char || typeof char !== 'object') return char;
-  _(char.spirit || {}).forEach(spiritData => {
-    stripLegacySkillFieldsFromSkillMap(spiritData?.custom_skills || {});
-    _(spiritData?.soul_spirits || {}).forEach(soulSpirit => {
-      _(soulSpirit?.rings || {}).forEach((ringData, ringIndex) => {
+  _(char.武魂 || {}).forEach(spiritData => {
+    stripLegacySkillFieldsFromSkillMap(spiritData?.自创魂技 || {});
+    _(spiritData?.魂灵 || {}).forEach(soulSpirit => {
+      _(soulSpirit?.魂环 || {}).forEach((ringData, ringIndex) => {
         normalizeSingleRingSkillSlotMap(ringData?.魂技 || {}, ringIndex);
         stripLegacySkillFieldsFromSkillMap(ringData?.魂技 || {});
       });
     });
   });
-  stripLegacySkillFieldsFromSkillMap(char?.secret_skills || {});
-  stripLegacySkillFieldsFromSkillMap(char?.special_abilities || {});
-  _(char?.martial_fusion_skills || {}).forEach(fusionData =>
-    stripLegacySkillFieldsFromSkill(fusionData?.skill_data || {}),
+  stripLegacySkillFieldsFromSkillMap(char?.秘技 || {});
+  stripLegacySkillFieldsFromSkillMap(char?.特殊能力 || {});
+  _(char?.武魂融合技 || {}).forEach(fusionData =>
+    stripLegacySkillFieldsFromSkill(fusionData?.技能数据 || {}),
   );
-  stripLegacySkillFieldsFromSkillMap(char?.bloodline_power?.skills || {});
-  stripLegacySkillFieldsFromSkillMap(char?.bloodline_power?.passives || {});
-  _(char?.bloodline_power?.blood_rings || {}).forEach((ringData, ringIndex) => {
+  stripLegacySkillFieldsFromSkillMap(char?.血脉之力?.skills || {});
+  stripLegacySkillFieldsFromSkillMap(char?.血脉之力?.被动 || {});
+  _(char?.血脉之力?.气血魂环 || {}).forEach((ringData, ringIndex) => {
     normalizeSingleRingSkillSlotMap(ringData?.魂技 || {}, ringIndex);
     stripLegacySkillFieldsFromSkillMap(ringData?.魂技 || {});
   });
-  _(char?.soul_bone || {}).forEach(boneData => stripLegacySkillFieldsFromSkillMap(boneData?.附带技能 || {}));
+  _(char?.魂骨 || {}).forEach(boneData => stripLegacySkillFieldsFromSkillMap(boneData?.附带技能 || {}));
   return char;
 }
 
@@ -3147,9 +3147,9 @@ function buildPackedRecoverAttributeEffect(target, property, ratio, duration = 0
 }
 
 function buildSingleSkillEffectSummary(effect) {
-  const mech = String(effect?.机制 || '');
+  const 机甲 = String(effect?.机制 || '');
   const target = buildSkillTargetLabel(effect?.目标 || effect?.对象 || '目标');
-  switch (mech) {
+  switch (机甲) {
     case '直接伤害': {
       const damageType = effect.伤害类型 && effect.伤害类型 !== '无' ? effect.伤害类型 : '伤害';
       return '对' + target + '造成1次' + damageType + '打击，威力系数' + formatSkillNumber(effect.威力倍率);
@@ -3379,8 +3379,8 @@ function buildSingleSkillEffectSummary(effect) {
     }
     default:
       if (Number(effect?.持续回合 || 0) > 0)
-        return '对' + target + '施加【' + mech + '】效果，持续' + formatSkillNumber(effect.持续回合) + '回合';
-      return '对' + target + '施加【' + mech + '】效果';
+        return '对' + target + '施加【' + 机甲 + '】效果，持续' + formatSkillNumber(effect.持续回合) + '回合';
+      return '对' + target + '施加【' + 机甲 + '】效果';
   }
 }
 
@@ -3533,7 +3533,7 @@ const SKILL_MUTATION_MECHANIC_TYPES_V1 = [
   '阵营错位/锁定',
 ];
 
-const NUMERIC_STAT_BONUS_KEYS = ['str', 'def', 'agi', 'vit_max', 'men_max', 'sp_max'];
+const NUMERIC_STAT_BONUS_KEYS = ['力量', '防御', '敏捷', '体力上限', '精神力上限', '魂力上限'];
 
 function normalizeDiscreteStatBonusInteger(value = 0) {
   const numeric = Number(value || 0);
@@ -3546,12 +3546,12 @@ function normalizeDiscreteStatBonusInteger(value = 0) {
 function createNumericStatBonusMap(seed = {}) {
   const source = seed && typeof seed === 'object' ? seed : {};
   return {
-    str: normalizeDiscreteStatBonusInteger(source.str),
-    def: normalizeDiscreteStatBonusInteger(source.def),
-    agi: normalizeDiscreteStatBonusInteger(source.agi),
-    vit_max: normalizeDiscreteStatBonusInteger(source.vit_max),
-    men_max: normalizeDiscreteStatBonusInteger(source.men_max),
-    sp_max: normalizeDiscreteStatBonusInteger(source.sp_max),
+    力量: normalizeDiscreteStatBonusInteger(source.力量),
+    防御: normalizeDiscreteStatBonusInteger(source.防御),
+    敏捷: normalizeDiscreteStatBonusInteger(source.敏捷),
+    体力上限: normalizeDiscreteStatBonusInteger(source.体力上限),
+    精神力上限: normalizeDiscreteStatBonusInteger(source.精神力上限),
+    魂力上限: normalizeDiscreteStatBonusInteger(source.魂力上限),
   };
 }
 
@@ -3581,12 +3581,12 @@ function ensureNumericStatBonusMap(target = {}, fieldName = '') {
 
 function buildNumericStatBonusSummary(bonusMap = {}) {
   const labels = {
-    str: '力量',
-    def: '防御',
-    agi: '敏捷',
-    vit_max: '体力上限',
-    men_max: '精神力上限',
-    sp_max: '魂力上限',
+    力量: '力量',
+    防御: '防御',
+    敏捷: '敏捷',
+    体力上限: '体力上限',
+    精神力上限: '精神力上限',
+    魂力上限: '魂力上限',
   };
   const segments = [];
   Object.entries(createNumericStatBonusMap(bonusMap)).forEach(([key, value]) => {
@@ -3596,26 +3596,54 @@ function buildNumericStatBonusSummary(bonusMap = {}) {
   return segments.join('，') || '无';
 }
 
+function normalizeStatHpFields(stat = {}) {
+  if (!stat || typeof stat !== 'object') return { HP: 0, HP上限: 1 };
+  const hpMaxFallback = Math.max(1, Number(stat.体力上限 || 1));
+  const hpMax = Math.max(1, Number.isFinite(Number(stat.HP上限)) ? Number(stat.HP上限) : hpMaxFallback);
+  const hpFallback = Number.isFinite(Number(stat.体力)) ? Number(stat.体力) : hpMax;
+  const hp = Math.max(0, Math.min(hpMax, Number.isFinite(Number(stat.HP)) ? Number(stat.HP) : hpFallback));
+  stat.HP上限 = hpMax;
+  stat.HP = hp;
+  return { HP: hp, HP上限: hpMax };
+}
+
+function getComputedWoundLevelFromStat(stat = {}) {
+  const { HP, HP上限 } = normalizeStatHpFields(stat);
+  const ratio = HP / Math.max(1, HP上限);
+  if (ratio <= 0.05 && HP > 0) return '濒死';
+  if (ratio <= 0.2) return '重伤';
+  if (ratio <= 0.5) return '轻伤';
+  return '无';
+}
+
+function getComputedWoundRecoveryRatioFromStat(stat = {}) {
+  const woundLevel = getComputedWoundLevelFromStat(stat);
+  if (woundLevel === '轻伤') return 0.7;
+  if (woundLevel === '重伤') return 0.3;
+  if (woundLevel === '濒死') return 0.05;
+  return 1.0;
+}
+
 const GOLDEN_DRAGON_PERMANENT_BONUS_NODES = {
   7: {
     名称: '【第七层·体魄升华I】',
     描述: '永久额外提升基础力量、体力、防御与魂力上限5%。',
-    百分比: { str: 0.05, def: 0.05, vit_max: 0.05, sp_max: 0.05 },
+    百分比: { 力量: 0.05, 防御: 0.05, 体力上限: 0.05, 魂力上限: 0.05 },
   },
   9: {
     名称: '【第九层·体魄升华II】·永久成长',
     描述: '解封时按当前体力上限额外固化10%永久成长。',
-    百分比: { vit_max: 0.1 },
+    百分比: { 体力上限: 0.1 },
   },
   13: {
     名称: '【第十三层·体魄升华III】',
     描述: '永久额外提升基础力量、体力、防御与魂力上限5%。',
-    百分比: { str: 0.05, def: 0.05, vit_max: 0.05, sp_max: 0.05 },
+    百分比: { 力量: 0.05, 防御: 0.05, 体力上限: 0.05, 魂力上限: 0.05 },
   },
   15: {
     名称: '【第十五层·体魄升华IV】',
     描述: '永久额外提升基础力量、体力、防御与魂力上限5%。',
-    百分比: { str: 0.05, def: 0.05, vit_max: 0.05, sp_max: 0.05 },
+    百分比: { 力量: 0.05, 防御: 0.05, 体力上限: 0.05, 魂力上限: 0.05 },
   },
 };
 
@@ -3627,21 +3655,21 @@ const GOLDEN_DRAGON_NON_SKILL_NODE_NAMES = new Set(
 );
 
 function applyGoldenDragonPermanentBonusNodes(char, currentStats = {}) {
-  if (!char?.bloodline_power || !String(char.bloodline_power.bloodline || '').includes('金龙王'))
+  if (!char?.血脉之力 || !String(char.血脉之力.血脉 || '').includes('金龙王'))
     return createNumericStatBonusMap();
-  if (!char.stat || typeof char.stat !== 'object') return createNumericStatBonusMap();
-  if (!char.bloodline_power.permanent_bonuses || typeof char.bloodline_power.permanent_bonuses !== 'object')
-    char.bloodline_power.permanent_bonuses = {};
-  const trainedBonus = ensureNumericStatBonusMap(char.stat, 'trained_bonus');
+  if (!char.属性 || typeof char.属性 !== 'object') return createNumericStatBonusMap();
+  if (!char.血脉之力.永久加成 || typeof char.血脉之力.永久加成 !== 'object')
+    char.血脉之力.永久加成 = {};
+  const trainedBonus = ensureNumericStatBonusMap(char.属性, '训练加成');
   const totalAdded = createNumericStatBonusMap();
   const virtualStats = createNumericStatBonusMap(currentStats);
   Object.entries(GOLDEN_DRAGON_PERMANENT_BONUS_NODES)
     .sort((a, b) => Number(a[0]) - Number(b[0]))
     .forEach(([sealKey, node]) => {
       const sealLv = Number(sealKey || 0);
-      if (sealLv <= 0 || sealLv > Number(char.bloodline_power?.seal_lv || 0)) return;
+      if (sealLv <= 0 || sealLv > Number(char.血脉之力?.解封层数 || 0)) return;
       const recordKey = String(node?.名称 || `第${sealLv}层永久成长`);
-      if (char.bloodline_power.permanent_bonuses[recordKey]) return;
+      if (char.血脉之力.永久加成[recordKey]) return;
       const appliedBonus = createNumericStatBonusMap();
       Object.entries(node?.百分比 || {}).forEach(([statKey, ratio]) => {
         const gain = Math.max(
@@ -3654,7 +3682,7 @@ function applyGoldenDragonPermanentBonusNodes(char, currentStats = {}) {
         virtualStats[statKey] = Number(virtualStats[statKey] || 0) + gain;
       });
       const effectText = buildNumericStatBonusSummary(appliedBonus);
-      char.bloodline_power.permanent_bonuses[recordKey] = {
+      char.血脉之力.永久加成[recordKey] = {
         名称: recordKey,
         描述: String(node?.描述 || '无'),
         来源层级: sealLv,
@@ -3971,7 +3999,7 @@ function autoGenerateSkill(
 
   const blueprint = rollSkillBlueprint(type, grade, ringIndex, preferredSecondary);
   const summary = buildSkillBattleSummary(blueprint);
-  const combat = buildSkillCombatProfile(blueprint, { quality, ringIndex, type });
+  const 战斗 = buildSkillCombatProfile(blueprint, { quality, ringIndex, type });
   const main = blueprint.主机制大类;
   const archetype = blueprint.主机制原型;
   const secondary = blueprint.副机制 || [];
@@ -3998,16 +4026,16 @@ function autoGenerateSkill(
     '敌方/群体': '敌方群体',
     全场: '全场',
   };
-  const normalizedTarget = blueprint.目标模型 || reverseTargetMap[combat.对象] || '敌方单体';
+  const normalizedTarget = blueprint.目标模型 || reverseTargetMap[战斗.对象] || '敌方单体';
 
   const randomInRange = table => {
     const [min, max] = table?.[grade] || table?.B || [1, 1];
     return min + Math.random() * (max - min);
   };
 
-  const clash = combat.仲裁逻辑?.瞬间交锋模块 || {};
-  const state = combat.仲裁逻辑?.状态挂载模块 || {};
-  const field = combat.仲裁逻辑?.召唤与场地模块 || {};
+  const clash = 战斗.仲裁逻辑?.瞬间交锋模块 || {};
+  const state = 战斗.仲裁逻辑?.状态挂载模块 || {};
+  const field = 战斗.仲裁逻辑?.召唤与场地模块 || {};
   const stateCalc = state.计算层效果 || {
     skip_turn: false,
     cannot_react: false,
@@ -4587,14 +4615,14 @@ function autoGenerateSkill(
   }
 
   if (passiveMode) {
-    combat.对象 = '自身';
-    combat.技能类型 = String(combat.技能类型 || '').includes('被动')
-      ? String(combat.技能类型 || '被动')
-      : String(combat.技能类型 || '').trim()
-        ? `被动/${combat.技能类型}`
+    战斗.对象 = '自身';
+    战斗.技能类型 = String(战斗.技能类型 || '').includes('被动')
+      ? String(战斗.技能类型 || '被动')
+      : String(战斗.技能类型 || '').trim()
+        ? `被动/${战斗.技能类型}`
         : '被动';
-    combat.cast_time = 0;
-    combat.消耗 = '无';
+    战斗.cast_time = 0;
+    战斗.消耗 = '无';
 
     const passiveFriendlyMechs = new Set([
       '属性变化',
@@ -4614,9 +4642,9 @@ function autoGenerateSkill(
     ]);
     const passiveEffects = [];
     packedEffects.forEach(effect => {
-      const mech = String(effect?.机制 || '');
-      if (!passiveFriendlyMechs.has(mech)) return;
-      if (mech === '属性永久强化') {
+      const 机甲 = String(effect?.机制 || '');
+      if (!passiveFriendlyMechs.has(机甲)) return;
+      if (机甲 === '属性永久强化') {
         passiveEffects.push({ ...effect, 目标: '自身' });
         return;
       }
@@ -4692,7 +4720,7 @@ function autoGenerateSkill(
         词条: {},
         耐久: 100,
         完整度: 100,
-        market_value: { price: 0, currency: 'fed_coin' },
+        市场估值: { 价格: 0, 货币: '联邦币' },
         描述: itemDesc,
         标签: ['临时造物', type === '食物系' ? '食物系' : '造物系'],
         来源技能: itemName,
@@ -4704,10 +4732,10 @@ function autoGenerateSkill(
 
   packedEffects.unshift({
     机制: '系统基础',
-    消耗: combat.消耗 || '无',
-    对象: combat.对象 || normalizedTarget,
-    技能类型: combat.技能类型 || '无',
-    cast_time: combat.cast_time || 0,
+    消耗: 战斗.消耗 || '无',
+    对象: 战斗.对象 || normalizedTarget,
+    技能类型: 战斗.技能类型 || '无',
+    cast_time: 战斗.cast_time || 0,
     标签: tagList,
     级别: quality,
   });
@@ -4844,10 +4872,10 @@ function resolveSoulSpiritSpeciesCategory(species = '') {
   return matched?.category || '未知';
 }
 
-function inferSoulSpiritQuality(spirit = {}) {
-  const age = Math.max(0, Number(spirit?.年限 || 0));
-  const species = String(spirit?.表象名称 || '').trim();
-  const status = String(spirit?.状态 || '').trim();
+function inferSoulSpiritQuality(武魂 = {}) {
+  const age = Math.max(0, Number(武魂?.年限 || 0));
+  const species = String(武魂?.表象名称 || '').trim();
+  const 状态 = String(武魂?.状态 || '').trim();
   if (age <= 0 && (!species || species === '未展露' || isAiTodoText(species))) return '';
 
   let score = 2;
@@ -4861,23 +4889,23 @@ function inferSoulSpiritQuality(spirit = {}) {
   else if (/(龙|凤|凰|王|皇|帝|君|圣|天狐|九尾|泰坦|邪眼)/.test(species)) score += 1;
   else if (/(草|藤|虫|鼠|兔|雀|蚁)/.test(species)) score -= 1;
 
-  if (/(残|衰|濒死|破碎|虚弱)/.test(status)) score -= 1;
+  if (/(残|衰|濒死|破碎|虚弱)/.test(状态)) score -= 1;
   return SOUL_SPIRIT_QUALITY_VALUES[_.clamp(score, 0, SOUL_SPIRIT_QUALITY_VALUES.length - 1)] || '';
 }
 
-function resolveSoulSpiritQuality(spirit = {}) {
-  const explicit = normalizeSoulSpiritQuality(spirit?.品质 || '');
+function resolveSoulSpiritQuality(武魂 = {}) {
+  const explicit = normalizeSoulSpiritQuality(武魂?.品质 || '');
   if (explicit) return explicit;
-  const inferred = inferSoulSpiritQuality(spirit);
+  const inferred = inferSoulSpiritQuality(武魂);
   if (inferred) return inferred;
-  const raw = String(spirit?.品质 || '').trim();
+  const raw = String(武魂?.品质 || '').trim();
   return raw || AI_TODO_SOUL_SPIRIT_QUALITY;
 }
 
-function buildSoulSpiritDescriptionTodoText(spirit = {}) {
-  const species = String(spirit?.表象名称 || '').trim();
-  const quality = normalizeSoulSpiritQuality(spirit?.品质 || '');
-  const age = Math.max(0, Math.floor(Number(spirit?.年限 || 0)));
+function buildSoulSpiritDescriptionTodoText(武魂 = {}) {
+  const species = String(武魂?.表象名称 || '').trim();
+  const quality = normalizeSoulSpiritQuality(武魂?.品质 || '');
+  const age = Math.max(0, Math.floor(Number(武魂?.年限 || 0)));
   const category = resolveSoulSpiritSpeciesCategory(species);
   const segments = [];
   if (species && species !== '未展露' && !isAiTodoText(species)) segments.push(`物种=${species}`);
@@ -4888,39 +4916,39 @@ function buildSoulSpiritDescriptionTodoText(spirit = {}) {
   return `待生成（请结合${segments.join('；')}补全魂灵外形、血脉特征、行动风格与能力倾向，避免空泛套话）`;
 }
 
-function syncSoulSpiritRuntimeData(spirit = {}) {
-  if (!spirit || typeof spirit !== 'object') return spirit;
-  const resolvedQuality = resolveSoulSpiritQuality(spirit);
-  spirit.品质 = resolvedQuality;
+function syncSoulSpiritRuntimeData(武魂 = {}) {
+  if (!武魂 || typeof 武魂 !== 'object') return 武魂;
+  const resolvedQuality = resolveSoulSpiritQuality(武魂);
+  武魂.品质 = resolvedQuality;
 
-  const currentDesc = String(spirit.描述 || '').trim();
+  const currentDesc = String(武魂.描述 || '').trim();
   if (!currentDesc || currentDesc === '无' || isAiTodoText(currentDesc) || currentDesc.startsWith('待生成')) {
-    spirit.描述 = buildSoulSpiritDescriptionTodoText({ ...spirit, 品质: resolvedQuality });
+    武魂.描述 = buildSoulSpiritDescriptionTodoText({ ...武魂, 品质: resolvedQuality });
   }
 
-  if (!spirit.战力面板 || typeof spirit.战力面板 !== 'object') {
-    spirit.战力面板 = createEmptySoulSpiritPowerPanel();
+  if (!武魂.战力面板 || typeof 武魂.战力面板 !== 'object') {
+    武魂.战力面板 = createEmptySoulSpiritPowerPanel();
   }
 
   const visibleSpecies =
-    !isAiTodoText(spirit.表象名称) && String(spirit.表象名称 || '').trim() && spirit.表象名称 !== '未展露'
-      ? String(spirit.表象名称).trim()
+    !isAiTodoText(武魂.表象名称) && String(武魂.表象名称 || '').trim() && 武魂.表象名称 !== '未展露'
+      ? String(武魂.表象名称).trim()
       : '未知';
   const normalizedQuality = normalizeSoulSpiritQuality(resolvedQuality);
-  spirit.战力面板._品质快照 = normalizedQuality || '无';
-  spirit.战力面板._物种快照 = visibleSpecies;
+  武魂.战力面板._品质快照 = normalizedQuality || '无';
+  武魂.战力面板._物种快照 = visibleSpecies;
 
-  if (Number(spirit.年限 || 0) > 0) {
-    const stats = getBeastStats(spirit.年限, visibleSpecies, resolvedQuality);
-    spirit.战力面板.对标等级 = Number(stats.对标等级 || 0);
-    spirit.战力面板.str = Number(stats.str || 0);
-    spirit.战力面板.def = Number(stats.def || 0);
-    spirit.战力面板.agi = Number(stats.agi || 0);
-    spirit.战力面板.vit_max = Number(stats.vit_max || 0);
-    spirit.战力面板.men_max = Number(stats.men_max || 0);
-    spirit.战力面板.sp_max = Number(stats.sp_max || 0);
+  if (Number(武魂.年限 || 0) > 0) {
+    const stats = getBeastStats(武魂.年限, visibleSpecies, resolvedQuality);
+    武魂.战力面板.对标等级 = Number(stats.对标等级 || 0);
+    武魂.战力面板.str = Number(stats.str || 0);
+    武魂.战力面板.def = Number(stats.def || 0);
+    武魂.战力面板.agi = Number(stats.agi || 0);
+    武魂.战力面板.vit_max = Number(stats.vit_max || 0);
+    武魂.战力面板.men_max = Number(stats.men_max || 0);
+    武魂.战力面板.sp_max = Number(stats.sp_max || 0);
   }
-  return spirit;
+  return 武魂;
 }
 
 const SILVER_DRAGON_NINE_ELEMENTS = ['水', '火', '风', '土', '光', '暗', '空间', '创造', '毁灭'];
@@ -5908,12 +5936,12 @@ function applySkillElementInheritance(skill = {}, context = {}) {
 function getFusionSkillElementProfile(fusionSkill = {}, char = {}) {
   const slots = getNormalizedFusionSourceSpirits(fusionSkill, char);
   for (const slot of slots) {
-    const spiritData = char?.spirit?.[slot];
+    const spiritData = char?.武魂?.[slot];
     if (!spiritData || typeof spiritData !== 'object') continue;
     const profile = buildElementProfileFromAttributeState(normalizeSpiritAttributeState(spiritData, slot, char));
     if (profile.system !== '无属性') return profile;
   }
-  return buildElementProfileFromAttributeState(normalizeBloodlineAttributeState(char?.bloodline_power || {}));
+  return buildElementProfileFromAttributeState(normalizeBloodlineAttributeState(char?.血脉之力 || {}));
 }
 
 function cloneSkillStructData(skill = {}) {
@@ -5994,11 +6022,11 @@ function syncConstructSkillMetadata(skill = {}) {
 const FUSION_SPIRIT_SLOTS = ['第一武魂', '第二武魂'];
 
 function getNormalizedFusionMode(fusionSkill = {}) {
-  return fusionSkill?.fusion_mode === 'self' ? 'self' : 'partner';
+  return fusionSkill?.融合模式 === 'self' ? 'self' : 'partner';
 }
 
 function getNormalizedFusionSourceSpirits(fusionSkill = {}, char = {}) {
-  const rawSlots = Array.isArray(fusionSkill?.source_spirits) ? fusionSkill.source_spirits : [];
+  const rawSlots = Array.isArray(fusionSkill?.来源武魂) ? fusionSkill.来源武魂 : [];
   let slots = rawSlots.map(slot => String(slot || '').trim()).filter(slot => FUSION_SPIRIT_SLOTS.includes(slot));
   if (!slots.length) slots = getNormalizedFusionMode(fusionSkill) === 'self' ? [...FUSION_SPIRIT_SLOTS] : ['第一武魂'];
   return Array.from(new Set(slots));
@@ -6151,11 +6179,11 @@ const TANGMEN_SECRET_SKILL_TEMPLATES = {
 
 const WealthSchema = z
   .object({
-    fed_coin: z.coerce.number().prefault(0).describe('联邦币'),
-    star_coin: z.coerce.number().prefault(0).describe('星罗币'),
-    tang_pt: z.coerce.number().prefault(0).describe('唐门积分'),
-    shrek_pt: z.coerce.number().prefault(0).describe('史莱克徽章/积分'),
-    blood_pt: z.coerce.number().prefault(0).describe('血神军团功勋'),
+    联邦币: z.coerce.number().prefault(0).describe('联邦币'),
+    星罗币: z.coerce.number().prefault(0).describe('星罗币'),
+    唐门积分: z.coerce.number().prefault(0).describe('唐门积分'),
+    学院积分: z.coerce.number().prefault(0).describe('史莱克徽章/积分'),
+    战功: z.coerce.number().prefault(0).describe('血神军团功勋'),
   })
   .prefault({});
   const BodyPartSchema = z
@@ -6192,7 +6220,7 @@ const AppearanceSchema = z
 
 const ClothingSchema = z
   .object({
-    wardrobe: z
+    衣柜: z
       .record(
         z.string().describe('套装名称'),
         z
@@ -6206,40 +6234,40 @@ const ClothingSchema = z
       )
       .prefault({})
       .describe('衣柜，存放所有可换的套装'),
-    outfit: z.string().prefault('待补全(从衣柜中选择当前套装名)').describe('当前着装，值为衣柜里某一套的名称'),
+    着装: z.string().prefault('待补全(从衣柜中选择当前套装名)').describe('当前着装，值为衣柜里某一套的名称'),
   })
-  .prefault({ outfit: '待补全(从衣柜中选择当前套装名)' });
+  .prefault({ 着装: '待补全(从衣柜中选择当前套装名)' });
 const EquipmentSchema = z
   .object({
-    wpn: z
+    武器: z
       .object({
-        name: z.string().prefault('无'),
-        tier: z.string().prefault('无').describe('品阶如: 魂导器/神器/超神器'),
-        traits: z
+        名称: z.string().prefault('无'),
+        品阶: z.string().prefault('无').describe('品阶如: 魂导器/神器/超神器'),
+        特性: z
           .record(z.string(), z.object({ 描述: z.string().prefault('无') }).prefault({}))
           .prefault({})
           .describe('附带的绝对特性，如:无视防御/吞噬/绝对禁锢'),
-        stats_bonus: z
+        属性加成: z
           .object({
-            sp_max: z.coerce.number().prefault(0),
-            men_max: z.coerce.number().prefault(0),
-            str: z.coerce.number().prefault(0),
-            def: z.coerce.number().prefault(0),
-            agi: z.coerce.number().prefault(0),
-            vit_max: z.coerce.number().prefault(0),
+            魂力上限: z.coerce.number().prefault(0),
+            精神力上限: z.coerce.number().prefault(0),
+            力量: z.coerce.number().prefault(0),
+            防御: z.coerce.number().prefault(0),
+            敏捷: z.coerce.number().prefault(0),
+            体力上限: z.coerce.number().prefault(0),
           })
           .prefault({}),
       })
       .prefault({}),
-    arm: z.string().prefault('无'),
-    armor: z
+    持握部位: z.string().prefault('无'),
+    斗铠: z
       .object({
-        lv: z.coerce.number().prefault(0),
-        name: z.string().prefault('无'),
-        domain: z.string().prefault('无'),
-        material: z.string().prefault('无').describe('锻造金属材质'),
-        equip_status: z.string().prefault('未装备'),
-        parts: z
+        等级: z.coerce.number().prefault(0),
+        名称: z.string().prefault('无'),
+        领域: z.string().prefault('无'),
+        材质: z.string().prefault('无').describe('锻造金属材质'),
+        装备状态: z.string().prefault('未装备'),
+        部件: z
           .record(
             z.string(),
             z
@@ -6250,55 +6278,55 @@ const EquipmentSchema = z
               .prefault({}),
           )
           .prefault({}),
-        _stats_bonus: z
+        _属性加成: z
           .object({
-            lv_equiv: z.coerce.number().prefault(0),
-            sp_max: z.coerce.number().prefault(0),
-            men_max: z.coerce.number().prefault(0),
-            str: z.coerce.number().prefault(0),
-            def: z.coerce.number().prefault(0),
-            agi: z.coerce.number().prefault(0),
-            vit_max: z.coerce.number().prefault(0),
+            等效等级: z.coerce.number().prefault(0),
+            魂力上限: z.coerce.number().prefault(0),
+            精神力上限: z.coerce.number().prefault(0),
+            力量: z.coerce.number().prefault(0),
+            防御: z.coerce.number().prefault(0),
+            敏捷: z.coerce.number().prefault(0),
+            体力上限: z.coerce.number().prefault(0),
           })
           .prefault({}),
-        _is_rejected: z.boolean().prefault(false),
+        _已排异: z.boolean().prefault(false),
       })
       .prefault({}),
-    mech: z
+    机甲: z
       .object({
-        lv: z.string().prefault('无'),
-        type: z.string().prefault('无'),
-        material: z.string().prefault('无').describe('机甲金属材质'),
-        status: z.string().prefault('完好'),
-        equip_status: z.string().prefault('未装备'),
-        weapon: z.string().prefault('无'),
+        等级: z.string().prefault('无'),
+        型号: z.string().prefault('无'),
+        材质: z.string().prefault('无').describe('机甲金属材质'),
+        状态: z.string().prefault('完好'),
+        装备状态: z.string().prefault('未装备'),
+        武装: z.string().prefault('无'),
         品质系数: z.coerce.number().prefault(1.0).describe('0.8为劣质，1.0为标准，1.5以上为极品，最高可达2.0'),
-        _stats_bonus: z
+        _属性加成: z
           .object({
-            sp_max: z.coerce.number().prefault(0),
-            men_max: z.coerce.number().prefault(0),
-            str: z.coerce.number().prefault(0),
-            def: z.coerce.number().prefault(0),
-            agi: z.coerce.number().prefault(0),
-            vit_max: z.coerce.number().prefault(0),
+            魂力上限: z.coerce.number().prefault(0),
+            精神力上限: z.coerce.number().prefault(0),
+            力量: z.coerce.number().prefault(0),
+            防御: z.coerce.number().prefault(0),
+            敏捷: z.coerce.number().prefault(0),
+            体力上限: z.coerce.number().prefault(0),
           })
           .prefault({}),
       })
       .prefault({}),
-    accessories: z
+    饰品: z
       .record(z.string(), z.object({ 描述: z.string().prefault('无') }).prefault({}))
       .prefault({})
       .describe('储物魂导器等杂项'),
   })
   .prefault({})
-  .transform(equip => {
-    if (equip.armor.lv > 0) {
+  .transform(装备 => {
+    if (装备.斗铠.等级 > 0) {
       let totalQuality = 0,
         count = 0;
       let maxQ = -Infinity,
         minQ = Infinity;
 
-      _(equip.armor.parts).forEach(p => {
+      _(装备.斗铠.部件).forEach(p => {
         if (p.状态 !== '未打造' && p.状态 !== '重创') {
           totalQuality += p.品质系数;
           count++;
@@ -6309,7 +6337,7 @@ const EquipmentSchema = z
 
       if (count > 0) {
         let avgQ = totalQuality / count;
-        let base = ArmorBaseStats[equip.armor.lv] || ArmorBaseStats[1];
+        let base = ArmorBaseStats[装备.斗铠.等级] || ArmorBaseStats[1];
         let mult = count === 10 ? avgQ : 0.05 * avgQ * count;
 
         function getQualityTier(q) {
@@ -6319,41 +6347,41 @@ const EquipmentSchema = z
           if (q <= 1.8) return 3;
           return 4;
         }
-        equip.armor._is_rejected = false;
+        装备.斗铠._已排异 = false;
         if (count > 1 && getQualityTier(maxQ) !== getQualityTier(minQ)) {
           mult *= 0.2;
-          equip.armor._is_rejected = true;
+          装备.斗铠._已排异 = true;
         }
 
-        equip.armor._stats_bonus.sp_max = Math.floor(base.sp_max * mult);
-        equip.armor._stats_bonus.men_max = Math.floor(base.men_max * mult);
-        equip.armor._stats_bonus.str = Math.floor(base.str * mult);
-        equip.armor._stats_bonus.agi = Math.floor(base.agi * mult);
-        equip.armor._stats_bonus.vit_max = Math.floor(base.vit_max * mult);
-        equip.armor._stats_bonus.def = Math.floor(base.str * mult);
+        装备.斗铠._属性加成.魂力上限 = Math.floor(base.sp_max * mult);
+        装备.斗铠._属性加成.精神力上限 = Math.floor(base.men_max * mult);
+        装备.斗铠._属性加成.力量 = Math.floor(base.str * mult);
+        装备.斗铠._属性加成.敏捷 = Math.floor(base.agi * mult);
+        装备.斗铠._属性加成.体力上限 = Math.floor(base.vit_max * mult);
+        装备.斗铠._属性加成.防御 = Math.floor(base.str * mult);
       } else {
-        equip.armor._stats_bonus = { lv_equiv: 0, sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
+        装备.斗铠._属性加成 = { 等效等级: 0, 魂力上限: 0, 精神力上限: 0, 力量: 0, 防御: 0, 敏捷: 0, 体力上限: 0 };
       }
     } else {
-      equip.armor._stats_bonus = { lv_equiv: 0, sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
+      装备.斗铠._属性加成 = { 等效等级: 0, 魂力上限: 0, 精神力上限: 0, 力量: 0, 防御: 0, 敏捷: 0, 体力上限: 0 };
     }
 
-    if (equip.mech.lv !== '无' && equip.mech.status !== '重创') {
-      let base = MechBaseStats[equip.mech.lv];
+    if (装备.机甲.等级 !== '无' && 装备.机甲.状态 !== '重创') {
+      let base = MechBaseStats[装备.机甲.等级];
       if (base) {
-        let mult = equip.mech.品质系数 || 1.0;
-        equip.mech._stats_bonus.sp_max = Math.floor(base.sp_max * mult);
-        equip.mech._stats_bonus.men_max = Math.floor(base.men_max * mult);
-        equip.mech._stats_bonus.str = Math.floor(base.str * mult);
-        equip.mech._stats_bonus.agi = Math.floor(base.agi * mult);
-        equip.mech._stats_bonus.vit_max = Math.floor(base.vit_max * mult);
-        equip.mech._stats_bonus.def = Math.floor(base.str * mult);
+        let mult = 装备.机甲.品质系数 || 1.0;
+        装备.机甲._属性加成.魂力上限 = Math.floor(base.sp_max * mult);
+        装备.机甲._属性加成.精神力上限 = Math.floor(base.men_max * mult);
+        装备.机甲._属性加成.力量 = Math.floor(base.str * mult);
+        装备.机甲._属性加成.敏捷 = Math.floor(base.agi * mult);
+        装备.机甲._属性加成.体力上限 = Math.floor(base.vit_max * mult);
+        装备.机甲._属性加成.防御 = Math.floor(base.str * mult);
       }
     } else {
-      equip.mech._stats_bonus = { sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
+      装备.机甲._属性加成 = { 魂力上限: 0, 精神力上限: 0, 力量: 0, 防御: 0, 敏捷: 0, 体力上限: 0 };
     }
 
-    return equip;
+    return 装备;
   });
 const SkillStructSchema = z
   .object({
@@ -6370,25 +6398,23 @@ const SoulBoneSchema = z
     z
       .object({
         名称: z.string().prefault('无'),
-        name: z.string().prefault('无'),
         表象名称: z.string().prefault('无'),
         年限: z.coerce.number().prefault(0),
-        age: z.coerce.number().prefault(0),
         来源: z.string().prefault('无'),
         状态: z.string().prefault('已装载'),
-        status: z.string().prefault('已装载'),
+        状态: z.string().prefault('已装载'),
         品质: z.string().prefault('无'),
         品阶: z.string().prefault('无'),
         描述: z.string().prefault('无'),
         附带技能: z.record(z.string(), SkillStructSchema).prefault({}),
-        stats_bonus: z
+        属性加成: z
           .object({
-            str: z.coerce.number().prefault(0),
-            def: z.coerce.number().prefault(0),
-            agi: z.coerce.number().prefault(0),
-            vit_max: z.coerce.number().prefault(0),
-            men_max: z.coerce.number().prefault(0),
-            sp_max: z.coerce.number().prefault(0),
+            力量: z.coerce.number().prefault(0),
+            防御: z.coerce.number().prefault(0),
+            敏捷: z.coerce.number().prefault(0),
+            体力上限: z.coerce.number().prefault(0),
+            精神力上限: z.coerce.number().prefault(0),
+            魂力上限: z.coerce.number().prefault(0),
           })
           .prefault({}),
       })
@@ -6397,12 +6423,12 @@ const SoulBoneSchema = z
   .prefault({});
 const AdditiveStatBonusSchema = z
   .object({
-    str: z.coerce.number().prefault(0),
-    def: z.coerce.number().prefault(0),
-    agi: z.coerce.number().prefault(0),
-    vit_max: z.coerce.number().prefault(0),
-    men_max: z.coerce.number().prefault(0),
-    sp_max: z.coerce.number().prefault(0),
+    力量: z.coerce.number().prefault(0),
+    防御: z.coerce.number().prefault(0),
+    敏捷: z.coerce.number().prefault(0),
+    体力上限: z.coerce.number().prefault(0),
+    精神力上限: z.coerce.number().prefault(0),
+    魂力上限: z.coerce.number().prefault(0),
   })
   .prefault({});
 const BloodlinePermanentBonusSchema = z
@@ -6417,20 +6443,20 @@ const BloodlinePermanentBonusSchema = z
   .prefault({});
 const BloodlinePowerSchema = z
   .object({
-    bloodline: z.string().prefault('无').describe('血脉名称'),
-    seal_lv: z.coerce.number().prefault(0).describe('血脉封印解除层数'),
-    core: z.string().prefault('未凝聚').describe('气血魂核状态'),
-    life_fire: z.boolean().prefault(false).describe('生命之火状态'),
+    血脉: z.string().prefault('无').describe('血脉名称'),
+    解封层数: z.coerce.number().prefault(0).describe('血脉封印解除层数'),
+    核心: z.string().prefault('未凝聚').describe('气血魂核状态'),
+    生命之火: z.boolean().prefault(false).describe('生命之火状态'),
     属性体系: z.string().prefault(AI_TODO_ATTRIBUTE_SYSTEM).describe('血脉属性体系：无/元素/五行'),
     已解锁属性: z.array(z.string()).prefault([]).describe('血脉当前已经真正获得的属性列表'),
     可容纳属性: z.array(z.string()).prefault([AI_TODO_ATTRIBUTE_CAPACITY]).describe('血脉理论可承载的属性上限'),
-    skills: z.record(z.string(), SkillStructSchema).prefault({}).describe('血脉主动散技(无魂环)'),
-    passives: z.record(z.string(), SkillStructSchema).prefault({}).describe('血脉被动特性'),
-    permanent_bonuses: z
+    技能: z.record(z.string(), SkillStructSchema).prefault({}).describe('血脉主动散技(无魂环)'),
+    被动: z.record(z.string(), SkillStructSchema).prefault({}).describe('血脉被动特性'),
+    永久加成: z
       .record(z.string(), BloodlinePermanentBonusSchema)
       .prefault({})
       .describe('血脉永久成长节点，按解封时当前属性固化为固定数值'),
-    blood_rings: z
+    气血魂环: z
       .record(
         z.string(),
         z
@@ -6446,9 +6472,9 @@ const BloodlinePowerSchema = z
   .prefault({});
 const StatsSchema = z
   .object({
-    age: z.coerce.number().prefault(0).describe('年龄(出场必填)'),
-    gender: z.string().prefault('待补全(填写性别：男/女)').describe('性别'),
-    lv: z
+    年龄: z.coerce.number().prefault(0).describe('年龄(出场必填)'),
+    性别: z.string().prefault('待补全(填写性别：男/女)').describe('性别'),
+    等级: z
       .any()
       .transform(val => {
         if (val === '准神') return 99.5;
@@ -6456,54 +6482,56 @@ const StatsSchema = z
         return isNaN(num) ? 1 : num;
       })
       .prefault(1),
-    last_herb_lv: z.coerce.number().prefault(-20).describe('上次吸收灵物的等级'),
-    lv_penalty: z.coerce.number().prefault(0).describe('违规吸收导致的等级上限永久扣除'),
-    type: z.string().prefault('强攻系').describe('魂师系别'),
-    talent_tier: z.string().prefault('正常').describe('天赋梯队'),
-    background: z
+    上次灵物等级: z.coerce.number().prefault(-20).describe('上次吸收灵物的等级'),
+    等级惩罚: z.coerce.number().prefault(0).describe('违规吸收导致的等级上限永久扣除'),
+    系别: z.string().prefault('强攻系').describe('魂师系别'),
+    天赋梯队: z.string().prefault('正常').describe('天赋梯队'),
+    背景: z
       .string()
       .prefault('待补全(填写背景阶层：顶级势力/一流势力/普通势力/平民)')
       .describe('背景阶层标签：顶级势力/一流势力/普通势力/平民'),
-    is_evil: z.boolean().prefault(false).describe('是否为邪魂师'),
-    hidden_variance: z.coerce.number().prefault(0).describe('先天底子波动值'),
-    innate_sp_lv: z.coerce.number().prefault(0).describe('先天魂力'),
-    talent_roll: z.coerce.number().prefault(0).describe('天赋检定最终得分(D100+补正)'),
+    邪魂师: z.boolean().prefault(false).describe('是否为邪魂师'),
+    底子波动: z.coerce.number().prefault(0).describe('先天底子波动值'),
+    先天魂力: z.coerce.number().prefault(0).describe('先天魂力'),
+    天赋检定: z.coerce.number().prefault(0).describe('天赋检定最终得分(D100+补正)'),
 
-    sp: z.coerce.number().prefault(10).describe('当前魂力'),
-    sp_max: z.coerce.number().prefault(10).describe('魂力上限'),
-    men: z.coerce.number().prefault(10).describe('当前精神力'),
-    men_max: z.coerce.number().prefault(10).describe('精神力上限'),
-    _men_realm: z.string().prefault('灵元境'),
+    魂力: z.coerce.number().prefault(10).describe('当前魂力'),
+    魂力上限: z.coerce.number().prefault(10).describe('魂力上限'),
+    精神力: z.coerce.number().prefault(10).describe('当前精神力'),
+    精神力上限: z.coerce.number().prefault(10).describe('精神力上限'),
+    精神境界: z.string().prefault('灵元境'),
 
-    str: z.coerce.number().prefault(10).describe('力量'),
-    def: z.coerce.number().prefault(10).describe('防御'),
-    agi: z.coerce.number().prefault(10).describe('敏捷'),
-    vit: z.coerce.number().prefault(10).describe('当前体力'),
-    vit_max: z.coerce.number().prefault(10).describe('体力上限'),
+    力量: z.coerce.number().prefault(10).describe('力量'),
+    防御: z.coerce.number().prefault(10).describe('防御'),
+    敏捷: z.coerce.number().prefault(10).describe('敏捷'),
+    HP: z.coerce.number().prefault(-1).describe('当前生命值/伤势值'),
+    HP上限: z.coerce.number().prefault(-1).describe('生命值上限'),
+    体力: z.coerce.number().prefault(10).describe('当前体力'),
+    体力上限: z.coerce.number().prefault(10).describe('体力上限'),
 
-    multiplier: z
+    倍率系数: z
       .object({
-        cultivation: z.coerce.number().prefault(1.0).describe('修炼系数'),
-        str: z.coerce.number().prefault(1.0),
-        def: z.coerce.number().prefault(1.0),
-        agi: z.coerce.number().prefault(1.0),
-        vit_max: z.coerce.number().prefault(1.0),
-        men_max: z.coerce.number().prefault(1.0),
+        修炼: z.coerce.number().prefault(1.0).describe('修炼系数'),
+        力量: z.coerce.number().prefault(1.0),
+        防御: z.coerce.number().prefault(1.0),
+        敏捷: z.coerce.number().prefault(1.0),
+        体力上限: z.coerce.number().prefault(1.0),
+        精神力上限: z.coerce.number().prefault(1.0),
       })
       .prefault({}),
 
-    trained_bonus: z
+    训练加成: z
       .object({
-        str: z.coerce.number().prefault(0),
-        def: z.coerce.number().prefault(0),
-        agi: z.coerce.number().prefault(0),
-        vit_max: z.coerce.number().prefault(0),
-        men_max: z.coerce.number().prefault(0),
-        sp_max: z.coerce.number().prefault(0),
+        力量: z.coerce.number().prefault(0),
+        防御: z.coerce.number().prefault(0),
+        敏捷: z.coerce.number().prefault(0),
+        体力上限: z.coerce.number().prefault(0),
+        精神力上限: z.coerce.number().prefault(0),
+        魂力上限: z.coerce.number().prefault(0),
       })
       .prefault({}),
 
-    conditions: z
+    状态效果: z
       .record(
         z.string(),
         z
@@ -6511,22 +6539,22 @@ const StatsSchema = z
             类型: z.string().prefault('buff'),
             层数: z.coerce.number().prefault(1),
             描述: z.string().prefault('无'),
-            duration: z.coerce.number().prefault(1).describe('剩余持续回合数，每回合结算阶段减1'),
+            持续回合: z.coerce.number().prefault(1).describe('剩余持续回合数，每回合结算阶段减1'),
 
-            stat_mods: z
+            面板倍率: z
               .object({
-                str: z.coerce.number().prefault(1.0),
-                def: z.coerce.number().prefault(1.0),
-                agi: z.coerce.number().prefault(1.0),
-                sp_max: z.coerce.number().prefault(1.0),
+                力量: z.coerce.number().prefault(1.0),
+                防御: z.coerce.number().prefault(1.0),
+                敏捷: z.coerce.number().prefault(1.0),
+                魂力上限: z.coerce.number().prefault(1.0),
               })
               .prefault({}),
 
-            combat_effects: z
+            战斗效果: z
               .object({
-                dot_damage: z.coerce.number().prefault(0).describe('每回合结算阶段扣除的绝对体力值(如：撕裂/中毒)'),
-                skip_turn: z.boolean().prefault(false).describe('是否强制跳过本回合宣告(如：眩晕/冰封/镇狱禁锢)'),
-                armor_pen: z.coerce.number().prefault(0).describe('攻击时无视目标防御的百分比(如：粉碎/破甲)'),
+                持续伤害: z.coerce.number().prefault(0).describe('每回合结算阶段扣除的绝对体力值(如：撕裂/中毒)'),
+                跳过回合: z.boolean().prefault(false).describe('是否强制跳过本回合宣告(如：眩晕/冰封/镇狱禁锢)'),
+                破防比例: z.coerce.number().prefault(0).describe('攻击时无视目标防御的百分比(如：粉碎/破甲)'),
               })
               .prefault({}),
           })
@@ -6536,22 +6564,27 @@ const StatsSchema = z
   })
   .prefault({})
   .transform(data => {
-    data.trained_bonus = createNumericStatBonusMap(data.trained_bonus);
+    data.训练加成 = createNumericStatBonusMap(data.训练加成);
 
-    if (data.hidden_variance === 0) {
-      data.hidden_variance = 0.95 + Math.random() * 0.1;
+    if (data.底子波动 === 0) {
+      data.底子波动 = 0.95 + Math.random() * 0.1;
     }
 
-    if (data.lv > 10 && data.trained_bonus.str === 0 && data.trained_bonus.men_max === 0) {
+    if (data.HP上限 < 0) data.HP上限 = Math.max(1, Number(data.体力上限 || 10));
+    if (data.HP < 0) data.HP = Math.max(0, Math.min(Number(data.HP上限 || 1), Number(data.体力 || data.HP上限 || 1)));
+    data.HP上限 = Math.max(1, Number(data.HP上限 || 1));
+    data.HP = Math.max(0, Math.min(Number(data.HP || 0), data.HP上限));
+
+    if (data.等级 > 10 && data.训练加成.力量 === 0 && data.训练加成.精神力上限 === 0) {
       const hardWorkFactor =
-        { 绝世妖孽: 1.6, 顶级天才: 1.2, 天才: 1.0, 优秀: 0.8, 正常: 0.5, 劣等: 0.2 }[data.talent_tier] || 0.5;
-      const baseForTrace = getBaseStats(data.lv);
-      const traceMultiplier = 0.005 * (data.lv - 10) * hardWorkFactor;
-      data.trained_bonus.str = Math.floor(baseForTrace.str * traceMultiplier);
-      data.trained_bonus.def = Math.floor(baseForTrace.def * traceMultiplier);
-      data.trained_bonus.agi = Math.floor(baseForTrace.agi * traceMultiplier);
-      data.trained_bonus.vit_max = Math.floor(baseForTrace.vit_max * traceMultiplier);
-      data.trained_bonus.men_max = Math.floor(baseForTrace.men_max * traceMultiplier);
+        { 绝世妖孽: 1.6, 顶级天才: 1.2, 天才: 1.0, 优秀: 0.8, 正常: 0.5, 劣等: 0.2 }[data.天赋梯队] || 0.5;
+      const baseForTrace = getBaseStats(data.等级);
+      const traceMultiplier = 0.005 * (data.等级 - 10) * hardWorkFactor;
+      data.训练加成.力量 = Math.floor(baseForTrace.str * traceMultiplier);
+      data.训练加成.防御 = Math.floor(baseForTrace.def * traceMultiplier);
+      data.训练加成.敏捷 = Math.floor(baseForTrace.agi * traceMultiplier);
+      data.训练加成.体力上限 = Math.floor(baseForTrace.vit_max * traceMultiplier);
+      data.训练加成.精神力上限 = Math.floor(baseForTrace.men_max * traceMultiplier);
     }
     return data;
   });
@@ -6627,16 +6660,16 @@ function normalizeDynamicLocationNodeType(value = '', level = 4, locName = '') {
 
 function normalizeRelationAnalysisTopTargetsInput(value = []) {
   const normalizeItem = item => ({
-    target: String(item?.target || '无').trim() || '无',
-    relation: String(item?.relation || '陌生').trim() || '陌生',
-    favor: Number(item?.favor || 0),
-    route: String(item?.route || '朋友线').trim() || '朋友线',
-    reason: String(item?.reason || '无').trim() || '无',
-    recommended_action: String(item?.recommended_action || item?.recommendedAction || '继续观察').trim() || '继续观察',
+    对象: String(item?.对象 || '无').trim() || '无',
+    关系: String(item?.关系 || '陌生').trim() || '陌生',
+    好感度: Number(item?.好感度 || 0),
+    路线: String(item?.路线 || '朋友线').trim() || '朋友线',
+    原因: String(item?.原因 || '无').trim() || '无',
+    建议行动: String(item?.建议行动 || '继续观察').trim() || '继续观察',
   });
   if (Array.isArray(value)) return value.filter(item => item && typeof item === 'object').map(normalizeItem);
   if (value && typeof value === 'object') {
-    if ('target' in value || 'reason' in value || 'recommended_action' in value || 'recommendedAction' in value) {
+    if ('对象' in value || '原因' in value || '建议行动' in value) {
       return [normalizeItem(value)];
     }
     return Object.values(value)
@@ -6654,119 +6687,117 @@ function normalizeCleanupNameArray(value = []) {
 
 function stripRelationAnalysisRemovedTargets(analysis = {}, removedNames = new Set()) {
   if (!analysis || typeof analysis !== 'object' || !removedNames.size) return analysis;
-  if (removedNames.has(String(analysis.focus_target || '').trim())) analysis.focus_target = '无';
-  if (Array.isArray(analysis.top_targets)) {
-    analysis.top_targets = analysis.top_targets.filter(item => !removedNames.has(String(item?.target || '').trim()));
+  if (removedNames.has(String(analysis.关注对象 || '').trim())) analysis.关注对象 = '无';
+  if (Array.isArray(analysis.重点对象)) {
+    analysis.重点对象 = analysis.重点对象.filter(item => !removedNames.has(String(item?.对象 || '').trim()));
   }
-  if (Array.isArray(analysis.blocked_targets)) {
-    analysis.blocked_targets = analysis.blocked_targets.filter(
-      item => !removedNames.has(String(item?.target || '').trim()),
-    );
+  if (Array.isArray(analysis.受阻对象)) {
+    analysis.受阻对象 = analysis.受阻对象.filter(item => !removedNames.has(String(item?.对象 || '').trim()));
   }
-  ['romance_candidates', 'trust_targets', 'risk_targets', 'same_location_targets', 'contactable_targets'].forEach(
+  ['恋爱候选', '信任对象', '风险对象', '同地对象', '可联络对象'].forEach(
     key => {
       if (!Array.isArray(analysis[key])) return;
       analysis[key] = analysis[key].filter(item => !removedNames.has(String(item || '').trim()));
     },
   );
-  if (analysis.focus_target === '无' && Array.isArray(analysis.top_targets) && analysis.top_targets.length > 0) {
-    analysis.focus_target = String(analysis.top_targets[0]?.target || '无').trim() || '无';
+  if (analysis.关注对象 === '无' && Array.isArray(analysis.重点对象) && analysis.重点对象.length > 0) {
+    analysis.关注对象 = String(analysis.重点对象[0]?.对象 || '无').trim() || '无';
   }
-  if ((!Array.isArray(analysis.top_targets) || analysis.top_targets.length === 0) && analysis.focus_target === '无') {
-    analysis.summary = '当前尚未积累足够的人物关系数据。';
+  if ((!Array.isArray(analysis.重点对象) || analysis.重点对象.length === 0) && analysis.关注对象 === '无') {
+    analysis.摘要 = '当前尚未积累足够的人物关系数据。';
   }
   return analysis;
 }
 
 function applyCleanupRequest(data = {}) {
-  const request = data?.sys?.cleanup_request;
-  if (!request || typeof request !== 'object' || String(request.action || '无').trim() !== 'apply') return data;
-  const playerName = String(data?.sys?.player_name || '').trim();
-  const removedChars = normalizeCleanupNameArray(request.characters).filter(name => name && name !== playerName);
+  const request = data?.sys?.清理请求;
+  if (!request || typeof request !== 'object' || String(request.动作 || '无').trim() !== 'apply') return data;
+  const playerName = String(data?.sys?.玩家名 || '').trim();
+  const removedChars = normalizeCleanupNameArray(request.角色).filter(name => name && name !== playerName);
   const removedCharSet = new Set(removedChars);
-  const removedLocations = normalizeCleanupNameArray(request.dynamic_locations);
+  const removedLocations = normalizeCleanupNameArray(request.动态地点);
   const removedLocationParentMap = {};
 
   removedLocations.forEach(locName => {
     removedLocationParentMap[locName] =
-      String(data?.world?.dynamic_locations?.[locName]?.归属父节点 || '无').trim() || '无';
-    if (data?.world?.dynamic_locations && locName in data.world.dynamic_locations)
-      delete data.world.dynamic_locations[locName];
+      String(data?.world?.动态地点?.[locName]?.归属父节点 || '无').trim() || '无';
+    if (data?.world?.动态地点 && locName in data.world.动态地点)
+      delete data.world.动态地点[locName];
   });
 
   removedChars.forEach(charName => {
     if (data?.char && charName in data.char) delete data.char[charName];
-    if (data?.world?.combat?.participants && charName in data.world.combat.participants) {
-      delete data.world.combat.participants[charName];
+    if (data?.world?.战斗?.参战者 && charName in data.world.战斗.参战者) {
+      delete data.world.战斗.参战者[charName];
     }
   });
 
   _(data?.char || {}).forEach(charData => {
     if (!charData || typeof charData !== 'object') return;
-    if (request.purge_relations !== false) {
-      if (charData.social?.relations && typeof charData.social.relations === 'object') {
-        removedChars.forEach(charName => delete charData.social.relations[charName]);
+    if (request.清理关系 !== false) {
+      if (charData.社交?.关系 && typeof charData.社交.关系 === 'object') {
+        removedChars.forEach(charName => delete charData.社交.关系[charName]);
       }
-      if (charData.social?.relation_analysis && typeof charData.social.relation_analysis === 'object') {
-        stripRelationAnalysisRemovedTargets(charData.social.relation_analysis, removedCharSet);
+      if (charData.社交?.关系分析 && typeof charData.社交.关系分析 === 'object') {
+        stripRelationAnalysisRemovedTargets(charData.社交.关系分析, removedCharSet);
       }
     }
-    if (request.reset_location_refs === false || !charData.status || typeof charData.status !== 'object') return;
-    const currentLoc = String(charData.status.loc || '').trim();
+    if (request.重置地点引用 === false || !charData.状态 || typeof charData.状态 !== 'object') return;
+    const currentLoc = String(charData.状态.位置 || '').trim();
     if (!currentLoc) return;
     removedLocations.forEach(locName => {
       if (currentLoc !== locName && !currentLoc.endsWith(`-${locName}`)) return;
       const parentName = removedLocationParentMap[locName];
-      charData.status.loc = parentName && parentName !== '无' ? `斗罗大陆-${parentName}` : '未知';
+      charData.状态.位置 = parentName && parentName !== '无' ? `斗罗大陆-${parentName}` : '未知';
     });
   });
 
-  data.sys.cleanup_request = {
-    action: '无',
-    characters: [],
-    dynamic_locations: [],
-    purge_relations: true,
-    reset_location_refs: true,
+  data.sys.清理请求 = {
+    动作: '无',
+    角色: [],
+    动态地点: [],
+    清理关系: true,
+    重置地点引用: true,
   };
   return data;
 }
 
 const CharacterSchema = z
   .object({
-    stat: StatsSchema,
-    equip: EquipmentSchema,
-    appearance: AppearanceSchema,
-    clothing: ClothingSchema,
-    personality: z.string().prefault(AI_TODO_PERSONALITY).describe('角色的性格特征，随经历可能发生改变'),
-    soul_bone: SoulBoneSchema,
-    bloodline_power: BloodlinePowerSchema,
-    energy: z
+    属性: StatsSchema,
+    装备: EquipmentSchema,
+    外貌: AppearanceSchema,
+    穿搭: ClothingSchema,
+    性格: z.string().prefault(AI_TODO_PERSONALITY).describe('角色的性格特征，随经历可能发生改变'),
+    魂骨: SoulBoneSchema,
+    血脉之力: BloodlinePowerSchema,
+    魂核: z
       .object({
-        core: z
+        核心: z
           .object({
             数量: z.coerce.number().prefault(0),
-            progress: z.coerce.number().prefault(0).describe('凝聚进度(%)'),
+            进度: z.coerce.number().prefault(0).describe('凝聚进度(%)'),
           })
           .prefault({}),
       })
       .prefault({}),
-    wealth: WealthSchema,
-nsfw: z
+    财富: WealthSchema,
+私密档案: z
       .object({
-        arousal: z.coerce.number().prefault(0).describe('当前发情度/催情值(0-100)'),
-        sensitivity: z.coerce.number().prefault(10).describe('身体整体敏感度基础值'),
-        development_level: z.coerce.number().prefault(0).describe('身体整体开发度/调教进度(0-100)'),
+        发情度: z.coerce.number().prefault(0).describe('当前发情度/催情值(0-100)'),
+        敏感度: z.coerce.number().prefault(10).describe('身体整体敏感度基础值'),
+        开发度: z.coerce.number().prefault(0).describe('身体整体开发度/调教进度(0-100)'),
         
-        fetishes: z.array(z.string()).prefault(['待生成(请根据角色经历，填写已觉醒的特殊癖好标签)']),
-        fantasies: z.array(z.string()).prefault(['待生成(请根据角色隐藏的性格，描写其内心深处渴望被对待的私密方式)']),
+        癖好: z.array(z.string()).prefault(['待生成(请根据角色经历，填写已觉醒的特殊癖好标签)']),
+        幻想: z.array(z.string()).prefault(['待生成(请根据角色隐藏的性格，描写其内心深处渴望被对待的私密方式)']),
         
-        menstrual_offset: z.coerce.number().prefault(() => Math.floor(Math.random() * 4032)).describe('初始生理期偏移量(28天=4032tick)'),
-        conception_tick: z.coerce.number().prefault(-1).describe('受孕时的tick，-1表示未怀孕'),
-        pregnancy_father: z.string().prefault('无').describe('孩子父亲'),
+        生理期偏移: z.coerce.number().prefault(() => Math.floor(Math.random() * 4032)).describe('初始生理期偏移量(28天=4032tick)'),
+        受孕tick: z.coerce.number().prefault(-1).describe('受孕时的tick，-1表示未怀孕'),
+        受孕对象: z.string().prefault('无').describe('孩子父亲'),
 
-        _menstrual_stage: z.string().prefault('计算中...').describe('当前生理阶段(只读)'),
-        _pregnancy_days: z.coerce.number().prefault(0).describe('当前怀孕天数(只读)'),
-         measurements: z
+        _生理阶段: z.string().prefault('计算中...').describe('当前生理阶段(只读)'),
+        _怀孕天数: z.coerce.number().prefault(0).describe('当前怀孕天数(只读)'),
+         身材数据: z
           .object({
             胸围: z.coerce.number().prefault(0),
             腰围: z.coerce.number().prefault(0),
@@ -6776,9 +6807,9 @@ nsfw: z
           })
           .prefault({}),
 
-        _has_menarche: z.boolean().prefault(false).describe('是否已来初潮(底层只读)'),
-        menstrual_offset: z.coerce.number().prefault(0),     
-        body_parts: z
+        _已来初潮: z.boolean().prefault(false).describe('是否已来初潮(底层只读)'),
+        生理期偏移: z.coerce.number().prefault(0),     
+        身体部位: z
           .object({
             胸部: BodyPartSchema,
             花穴: BodyPartSchema,
@@ -6794,7 +6825,7 @@ nsfw: z
             脖颈: BodyPartSchema,
           })
           .prefault({}),
-        intimate_wear: z
+        贴身衣物: z
           .object({
             内衣: z.string().prefault('待生成(请根据当前情境描写具体内衣款式，如蕾丝胸罩/真空/拘束具)'),
             内裤: z.string().prefault('待生成(请描写具体内裤款式，如丁字裤/C字裤/真空/贞操带)'),
@@ -6802,7 +6833,7 @@ nsfw: z
           })
           .prefault({}),
 
-        experience_counts: z
+        经历次数: z
           .object({
             自慰: z.coerce.number().prefault(0),
             性交: z.coerce.number().prefault(0),
@@ -6821,109 +6852,119 @@ nsfw: z
           })
           .prefault({}),
 
-        _recent_climax_tick: z.coerce.number().prefault(0).describe('最近一次高潮发生的tick'),
+        _最近高潮tick: z.coerce.number().prefault(0).describe('最近一次高潮发生的tick'),
       })
       .prefault({}),
 
 
-    status: z
+    状态: z
       .object({
-        loc: z.string().prefault(AI_TODO_STATUS_LOC).describe('当前位置绝对路径'),
-        current_x: z.coerce.number().prefault(-1).describe('当前位置横坐标'),
-        current_y: z.coerce.number().prefault(-1).describe('当前位置纵坐标'),
-        alive: z.boolean().prefault(true),
-        wound: z.string().prefault('无'),
-        action: z.string().prefault('日常').describe('行为状态: 日常/冥想/战斗/睡眠/凝聚魂核'),
-        active_domain: z.string().prefault('无').describe('当前正在展开的领域名称(斗铠/精神/武魂领域)'),
-        consuming_herb_age: z.coerce.number().prefault(0).describe('当前正在吸收的灵物年份(阅后即焚)'),
+        位置: z.string().prefault(AI_TODO_STATUS_LOC).describe('当前位置绝对路径'),
+        横坐标: z.coerce.number().prefault(-1).describe('当前位置横坐标'),
+        纵坐标: z.coerce.number().prefault(-1).describe('当前位置纵坐标'),
+        存活: z.boolean().prefault(true),
+        受伤部位: z
+          .record(
+            z.string(),
+            z
+              .object({
+                程度: z.enum(['轻', '中', '重']).prefault('轻'),
+                描述: z.string().prefault(''),
+              })
+              .prefault({}),
+          )
+          .prefault({}),
+        行动: z.string().prefault('日常').describe('行为状态: 日常/冥想/战斗/睡眠/凝聚魂核'),
+        当前领域: z.string().prefault('无').describe('当前正在展开的领域名称(斗铠/精神/武魂领域)'),
+        吸收灵物年限: z.coerce.number().prefault(0).describe('当前正在吸收的灵物年份(阅后即焚)'),
       })
       .prefault({}),
-    unlocked_knowledges: z.array(z.string()).prefault([]).describe('该角色已解锁的核心情报列表'),
-    knowledge_unlock_request: z
+    已掌握情报: z.array(z.string()).prefault([]).describe('该角色已解锁的核心情报列表'),
+    待解锁情报: z
       .object({
-        content: z.string().prefault('无').describe('解锁的情报内容(用一句话自然语言概括)'),
-        impact: z.coerce.number().prefault(0).describe('对世界线的破坏度(0-10，未填写时为0)'),
+        内容: z.string().prefault('无').describe('解锁的情报内容(用一句话自然语言概括)'),
+        影响: z.coerce.number().prefault(0).describe('对世界线的破坏度(0-10，未填写时为0)'),
       })
       .prefault({}),
 
-    hunt_request: z
+    猎魂请求: z
       .object({
-        killed_age: z.coerce.number().prefault(0).describe('击杀现实魂兽年限'),
-        is_ferocious: z.boolean().prefault(false).describe('是否为凶兽(十万年以上)'),
+        击杀年限: z.coerce.number().prefault(0).describe('击杀现实魂兽年限'),
+        是否凶兽: z.boolean().prefault(false).describe('是否为凶兽(十万年以上)'),
       })
       .prefault({}),
-    tower_records: z
+    魂灵塔记录: z
       .object({
-        max_floor: z.coerce.number().prefault(0).describe('历史最高通关层数'),
-        discount_available: z
+        最高层: z.coerce.number().prefault(0).describe('历史最高通关层数'),
+        折扣资格: z
           .record(z.string(), z.boolean().prefault(true))
           .prefault({})
           .describe('各层五折购买资格，key为层数，true表示未使用'),
       })
       .prefault({}),
-    ascension_request: z
+    升灵台请求: z
       .object({
-        ticket_type: z.string().prefault('无').describe('本次使用的升灵台门票名'),
-        spirit_key: z.string().prefault('无').describe('目标武魂槽位，如：第一武魂'),
-        soul_spirit_key: z.string().prefault('无').describe('目标魂灵槽位，如：第一魂灵'),
-        gain_age: z.coerce.number().prefault(0).describe('本次升灵增加的魂灵年限'),
+        门票名: z.string().prefault('无').describe('本次使用的升灵台门票名'),
+        武魂槽位: z.string().prefault('无').describe('目标武魂槽位，如：第一武魂'),
+        魂灵槽位: z.string().prefault('无').describe('目标魂灵槽位，如：第一魂灵'),
+        提升年限: z.coerce.number().prefault(0).describe('本次升灵增加的魂灵年限'),
       })
       .prefault({}),
-    tower_request: z
+    魂灵塔请求: z
       .object({
-        action: z.string().prefault('无').describe('魂灵塔操作类型，如：冲塔'),
-        cleared_floor: z.coerce.number().prefault(0).describe('本次结算的最高通关层数'),
-      })
-      .prefault({}),
-
-    interact_request: z
-      .object({
-        target_npc: z.string().prefault('无').describe('互动对象姓名'),
-        action: z.string().prefault('无').describe('互动类型：闲聊/送礼/切磋/请教/双修/表白'),
-        item_used: z.string().prefault('无').describe('互动使用物品'),
-        ai_score: z.coerce.number().prefault(0).describe('互动结果分值'),
-      })
-      .prefault({}),
-    promotion_request: z
-      .object({
-        target_faction: z.string().prefault('无').describe('目标势力(如:唐门/战神殿)'),
-        target_title: z.string().prefault('无').describe('申请职位(如:红级/预备战神)'),
+        动作: z.string().prefault('无').describe('魂灵塔操作类型，如：冲塔'),
+        通关层数: z.coerce.number().prefault(0).describe('本次结算的最高通关层数'),
       })
       .prefault({}),
 
-    donate_request: z
+    互动请求: z
       .object({
-        item_name: z.string().prefault('无').describe('捐献物品名称'),
-        target_faction: z.string().prefault('无').describe('目标势力'),
-        quantity: z.coerce.number().prefault(1).describe('数量'),
+        目标人物: z.string().prefault('无').describe('互动对象姓名'),
+        动作: z.string().prefault('无').describe('互动类型：闲聊/送礼/切磋/请教/双修/表白'),
+        使用物品: z.string().prefault('无').describe('互动使用物品'),
+        结果评分: z.coerce.number().prefault(0).describe('互动结果分值'),
       })
       .prefault({}),
-    abyss_kill_request: z
+    晋升请求: z
       .object({
-        kill_tier: z.string().prefault('无').describe('击杀级别：低阶生物/中阶生物/高阶生物/深渊王者'),
-        quantity: z.coerce.number().prefault(1).describe('击杀数量'),
+        目标势力: z.string().prefault('无').describe('目标势力(如:唐门/战神殿)'),
+        目标职位: z.string().prefault('无').describe('申请职位(如:红级/预备战神)'),
       })
       .prefault({}),
 
-    combat_history: z
+    捐献请求: z
+      .object({
+        物品名称: z.string().prefault('无').describe('捐献物品名称'),
+        目标势力: z.string().prefault('无').describe('目标势力'),
+        数量: z.coerce.number().prefault(1).describe('数量'),
+      })
+      .prefault({}),
+    深渊击杀请求: z
+      .object({
+        击杀级别: z.string().prefault('无').describe('击杀级别：低阶生物/中阶生物/高阶生物/深渊王者'),
+        数量: z.coerce.number().prefault(1).describe('击杀数量'),
+      })
+      .prefault({}),
+
+    战斗历史: z
       .record(
         z.string(),
-        z.object({ count: z.coerce.number().prefault(0), last_tick: z.coerce.number().prefault(0) }).prefault({}),
+        z.object({ 次数: z.coerce.number().prefault(0), 最近tick: z.coerce.number().prefault(0) }).prefault({}),
       )
       .prefault({})
       .transform(data => _(data).entries().takeRight(20).fromPairs().value()),
 
-    job: z
+    职业: z
       .record(
         z.string(),
         z
           .object({
-            lv: z.coerce.number().prefault(0),
-            exp: z.coerce.number().prefault(0),
-            title: z.string().prefault('无'),
-            core_tech: z.record(z.string(), z.boolean().prefault(true)).prefault({}),
-            limits: z
-              .object({ max_fusion: z.coerce.number().prefault(1), success_rate: z.coerce.number().prefault(0) })
+            等级: z.coerce.number().prefault(0),
+            经验: z.coerce.number().prefault(0),
+            称号: z.string().prefault('无'),
+            核心技艺: z.record(z.string(), z.boolean().prefault(true)).prefault({}),
+            限制: z
+              .object({ 最大融合数: z.coerce.number().prefault(1), 成功率: z.coerce.number().prefault(0) })
               .prefault({}),
           })
           .prefault({}),
@@ -6931,34 +6972,34 @@ nsfw: z
       .prefault({})
       .transform(jobs => {
         _(jobs).forEach(jobData => {
-          while (jobData.lv < 9 && jobData.exp >= JobExpThresholds[jobData.lv]) {
-            jobData.lv++;
+          while (jobData.等级 < 9 && jobData.经验 >= JobExpThresholds[jobData.等级]) {
+            jobData.等级++;
           }
-          jobData.limits.max_fusion = Math.max(1, Math.floor(jobData.lv / 2));
+          jobData.限制.最大融合数 = Math.max(1, Math.floor(jobData.等级 / 2));
 
-          if (jobData.lv === 9) {
-            let overflowExp = Math.max(0, jobData.exp - 3000000);
+          if (jobData.等级 === 9) {
+            let overflowExp = Math.max(0, jobData.经验 - 3000000);
             let extraRate = Math.floor(overflowExp / 500000);
-            jobData.limits.success_rate = Math.min(50, 10 + extraRate);
-          } else if (jobData.lv > 0) {
-            let currentBaseExp = JobExpThresholds[jobData.lv - 1];
-            let nextLevelExp = JobExpThresholds[jobData.lv];
-            let progress = (jobData.exp - currentBaseExp) / (nextLevelExp - currentBaseExp);
+            jobData.限制.成功率 = Math.min(50, 10 + extraRate);
+          } else if (jobData.等级 > 0) {
+            let currentBaseExp = JobExpThresholds[jobData.等级 - 1];
+            let nextLevelExp = JobExpThresholds[jobData.等级];
+            let progress = (jobData.经验 - currentBaseExp) / (nextLevelExp - currentBaseExp);
             progress = Math.max(0, Math.min(1, progress));
 
-            if (jobData.lv % 2 === 0) {
-              jobData.limits.success_rate = Math.floor(80 + 15 * progress);
+            if (jobData.等级 % 2 === 0) {
+              jobData.限制.成功率 = Math.floor(80 + 15 * progress);
             } else {
-              jobData.limits.success_rate = Math.floor(30 + 40 * progress);
+              jobData.限制.成功率 = Math.floor(30 + 40 * progress);
             }
           } else {
-            jobData.limits.success_rate = 0;
+            jobData.限制.成功率 = 0;
           }
         });
         return jobs;
       }),
 
-    spirit: z
+    武魂: z
       .object({
         第一武魂: z
           .object({
@@ -6968,7 +7009,7 @@ nsfw: z
             属性体系: z.string().prefault(AI_TODO_ATTRIBUTE_SYSTEM).describe('武魂属性体系：无/元素/五行'),
             已解锁属性: z.array(z.string()).prefault([]).describe('当前已经真正获得的属性列表'),
             可容纳属性: z.array(z.string()).prefault([AI_TODO_ATTRIBUTE_CAPACITY]).describe('武魂理论可承载的属性上限'),
-            soul_spirits: z
+            魂灵: z
               .record(
                 z.string().describe('魂灵槽位(如:第一魂灵)'),
                 z
@@ -6992,7 +7033,7 @@ nsfw: z
                       })
                       .prefault({})
                       .describe('魂灵战力面板'),
-                    rings: z
+                    魂环: z
                       .record(
                         z.string().describe('第几魂环'),
                         z
@@ -7008,7 +7049,7 @@ nsfw: z
                   .prefault({}),
               )
               .prefault({}),
-            custom_skills: z
+            自创魂技: z
               .record(z.string().describe('自创魂技名称'), SkillStructSchema)
               .prefault({})
               .describe('不依赖固定魂环位的武魂自创魂技'),
@@ -7022,7 +7063,7 @@ nsfw: z
             属性体系: z.string().prefault(AI_TODO_ATTRIBUTE_SYSTEM).describe('武魂属性体系：无/元素/五行'),
             已解锁属性: z.array(z.string()).prefault([]).describe('当前已经真正获得的属性列表'),
             可容纳属性: z.array(z.string()).prefault([AI_TODO_ATTRIBUTE_CAPACITY]).describe('武魂理论可承载的属性上限'),
-            soul_spirits: z
+            魂灵: z
               .record(
                 z.string().describe('魂灵槽位(如:第一魂灵)'),
                 z
@@ -7046,7 +7087,7 @@ nsfw: z
                       })
                       .prefault({})
                       .describe('魂灵战力面板'),
-                    rings: z
+                    魂环: z
                       .record(
                         z.string().describe('第几魂环'),
                         z
@@ -7062,7 +7103,7 @@ nsfw: z
                   .prefault({}),
               )
               .prefault({}),
-            custom_skills: z
+            自创魂技: z
               .record(z.string().describe('自创魂技名称'), SkillStructSchema)
               .prefault({})
               .describe('不依赖固定魂环位的武魂自创魂技'),
@@ -7072,7 +7113,7 @@ nsfw: z
       .describe('固定武魂槽位')
       .prefault({}),
 
-    arts: z
+    功法: z
       .record(
         z.string(),
         z
@@ -7085,138 +7126,138 @@ nsfw: z
           .prefault({}),
       )
       .prefault({}),
-    secret_skills: z
+    秘技: z
       .record(z.string().describe('秘技名称'), SkillStructSchema)
       .prefault({})
       .describe('非魂环类统一技能容器，如唐门绝学、宗门秘技等'),
-    special_abilities: z
+    特殊能力: z
       .record(z.string().describe('能力名称'), SkillStructSchema)
       .prefault({})
       .describe('统一特殊能力技能容器'),
-    martial_fusion_skills: z
+    武魂融合技: z
       .record(
         z.string().describe('融合技名称'),
         z
           .object({
-            fusion_mode: z
+            融合模式: z
               .enum(['partner', 'self'])
               .prefault('partner')
               .describe('融合模式：partner=普通武魂融合技；self=自体武魂融合技'),
-            partner: z.string().prefault('无').describe('partner模式下的融合对象/羁绊队友姓名；self模式固定为"无"'),
-            source_spirits: z
+            融合对象: z.string().prefault('无').describe('partner模式下的融合对象/羁绊队友姓名；self模式固定为"无"'),
+            来源武魂: z
               .array(z.enum(['第一武魂', '第二武魂']))
               .prefault([])
               .describe('参与融合的武魂槽位。自体融合通常为[第一武魂, 第二武魂]'),
-            skill_data: SkillStructSchema,
+            技能数据: SkillStructSchema,
           })
           .prefault({}),
       )
       .prefault({})
       .describe('武魂融合技列表（统一区分自体融合与普通融合）'),
-    spiritual_domain: z
+    精神领域: z
       .object({
-        name: z.string().prefault('无').describe('精神领域名称，例如：时光回溯、情绪剥夺'),
-        description: z.string().prefault('无').describe('领域效果的具体描述，用自然语言描写'),
-        is_active: z
+        名称: z.string().prefault('无').describe('精神领域名称，例如：时光回溯、情绪剥夺'),
+        描述: z.string().prefault('无').describe('领域效果的具体描述，用自然语言描写'),
+        进行中: z
           .boolean()
           .prefault(false)
           .describe('当前是否展开，开启门槛：基础精神力>25000。战斗中开启需消耗8000精神/回合'),
-        maintenance_cost: z
+        维护消耗: z
           .object({
-            men: z.coerce.number().prefault(8000),
+            精神力: z.coerce.number().prefault(8000),
           })
-          .prefault({ men: 8000 }),
-        combat_modifiers: z
+          .prefault({ 精神力: 8000 }),
+        战斗修饰: z
           .object({
-            conditional_evasion: z
+            条件闪避: z
               .object({
-                enabled: z
+                启用: z
                   .boolean()
                   .prefault(false)
                   .describe('【开启条件】若领域包含时空倒流、攻击无效化等闪避法则，请设为true'),
-                compare_stat: z.string().prefault('men').describe("【比对属性】填'men'(精神力比拼)"),
-                max_ratio: z.coerce
+                比对属性: z.string().prefault('men').describe("【比对属性】填'men'(精神力比拼)"),
+                最大倍率: z.coerce
                   .number()
                   .prefault(1.5)
                   .describe('【容错倍率】填1.5，意为敌方精神力不超过我方1.5倍时法则生效'),
-                success_msg: z
+                战报文案: z
                   .string()
                   .prefault('')
                   .describe('【战报文案】例如：时光倒流，将状态回溯至受击前，伤害无效！'),
               })
               .prefault({}),
-            stat_suppression: z
+            属性压制: z
               .object({
-                enabled: z
+                启用: z
                   .boolean()
                   .prefault(false)
                   .describe('【开启条件】若领域包含剥夺情绪、降维等削弱法则，请设为true'),
-                target_stat: z
+                目标属性: z
                   .string()
                   .prefault('all')
                   .describe("【削弱目标】填'all'(全属性)或'str'(力量)/'men'(精神)等"),
-                reduce_ratio: z.coerce.number().prefault(0.3).describe('【削弱比例】填0.1~0.5之间，0.3代表削弱30%属性'),
+                削弱比例: z.coerce.number().prefault(0.3).describe('【削弱比例】填0.1~0.5之间，0.3代表削弱30%属性'),
               })
               .prefault({}),
-            absolute_hit_true_dmg: z
+            必中真伤: z
               .object({
-                enabled: z
+                启用: z
                   .boolean()
                   .prefault(false)
                   .describe('【开启条件】若领域包含因果律、必定命中、真实伤害、无视防御的法则，请设为true'),
-                true_dmg_ratio: z.coerce
+                真伤比例: z.coerce
                   .number()
                   .prefault(0.1)
                   .describe('【真伤比例】附加自身精神力上限的百分之多少作为真实伤害，默认0.1'),
-                success_msg: z
+                战报文案: z
                   .string()
                   .prefault('')
                   .describe('【战报文案】例如：因果已定，无视一切防御直接粉碎精神之海！'),
               })
               .prefault({}),
-            time_dilation: z
+            时间迟滞: z
               .object({
-                enabled: z
+                启用: z
                   .boolean()
                   .prefault(false)
                   .describe('【开启条件】若领域包含时间减缓、重力禁锢等拉长敌方前摇的法则，请设为true'),
-                cast_time_multiplier: z.coerce
+                蓄力倍率: z.coerce
                   .number()
                   .prefault(2.0)
                   .describe('【前摇惩罚倍率】填2.0，意为敌方所有技能蓄力时间翻倍'),
-                success_msg: z
+                战报文案: z
                   .string()
                   .prefault('')
                   .describe('【战报文案】例如：时间沼泽降临，对方的动作变得如同慢放一般。'),
               })
               .prefault({}),
-            soul_leech: z
+            灵魂汲取: z
               .object({
-                enabled: z
+                启用: z
                   .boolean()
                   .prefault(false)
                   .describe('【开启条件】若领域包含吞噬、生命汲取、血气反哺等吸血法则，请设为true'),
-                leech_ratio: z.coerce
+                汲取比例: z.coerce
                   .number()
                   .prefault(0.5)
                   .describe('【吸取比例】填0.5，意为对敌方造成的精神/生命伤害的50%将恢复给自身'),
-                success_msg: z
+                战报文案: z
                   .string()
                   .prefault('')
                   .describe('【战报文案】例如：吞噬领域将掠夺来的生命能量疯狂反哺己身！'),
               })
               .prefault({}),
-            illusion_misdirection: z
+            幻境偏移: z
               .object({
-                enabled: z
+                启用: z
                   .boolean()
                   .prefault(false)
                   .describe('【开启条件】若领域包含幻境、精神致盲、让敌方动作偏移落空的法则，请设为true'),
-                misdirection_chance: z.coerce
+                偏移概率: z.coerce
                   .number()
                   .prefault(0.4)
                   .describe('【偏移概率】填0.4，意为敌方有40%概率技能丢失目标或跳过回合'),
-                success_msg: z
+                战报文案: z
                   .string()
                   .prefault('')
                   .describe('【战报文案】例如：大梦无觉，对方彻底迷失在幻境中，技能偏离了目标！'),
@@ -7227,82 +7268,82 @@ nsfw: z
       })
       .prefault({}),
 
-    social: z
+    社交: z
       .object({
-        reputation: z.coerce.number().prefault(0),
-        _fame_level: z.string().prefault('籍籍无名'),
-        main_identity: z.string().prefault(AI_TODO_MAIN_IDENTITY).describe('当前主要公开身份'),
-        _public_intel: z.boolean().prefault(false).describe('是否为公开情报(声望>5000自动为true)'),
-        factions: z
+        声望: z.coerce.number().prefault(0),
+        名望等级: z.string().prefault('籍籍无名'),
+        主身份: z.string().prefault(AI_TODO_MAIN_IDENTITY).describe('当前主要公开身份'),
+        公开情报: z.boolean().prefault(false).describe('是否为公开情报(声望>5000自动为true)'),
+        势力: z
           .record(
             z.string(),
             z.object({ 身份: z.string().prefault('无'), 权限级: z.coerce.number().prefault(0) }).prefault({}),
           )
           .prefault({}),
-        titles: z
+        称号: z
           .record(
             z.string(),
             z.object({ 来源: z.string().prefault('无'), 声望加成: z.coerce.number().prefault(0) }).prefault({}),
           )
           .prefault({}),
-        relations: z
+        关系: z
           .record(
             z.string(),
             z
               .object({
                 关系: z.string().prefault('陌生'),
                 好感度: z.coerce.number().prefault(0),
-                relation_route: z.string().prefault('朋友线').describe('终极分支: 朋友线/恋人线'),
-                npc_job: z.string().prefault('无'),
-                favor_buff: z.string().prefault('无'),
-                _relation_stage: z.string().prefault('陌生').describe('结构化关系阶段，默认与关系称谓同步'),
-                _next_stage: z.string().prefault('认识').describe('下一阶段名称'),
-                _next_stage_threshold: z.coerce.number().prefault(11).describe('达到下一阶段所需最低好感度'),
-                _route_switchable: z.boolean().prefault(false).describe('当前是否允许切入恋人线等特殊路线'),
-                _route_lock_reason: z.string().prefault('好感度不足').describe('路线切换受限时的原因'),
-                _progress_note: z.string().prefault('无').describe('当前关系推进提示'),
-                _availability: z.string().prefault('未知').describe('关系维护优先级：高风险/待接触/可接触/优先维护'),
-                last_interact_tick: z.coerce.number().prefault(0).describe('最近一次互动发生的 tick'),
-                last_interact_action: z.string().prefault('无').describe('最近一次互动动作'),
-                recent_favor_delta: z.coerce.number().prefault(0).describe('最近一次互动导致的好感变化'),
-                _current_relation_bonus: z.string().prefault('无').describe('当前已激活的关系加成说明'),
-                _next_unlock_bonus: z.string().prefault('无').describe('下一档可解锁的羁绊加成说明'),
-                _next_unlock_threshold: z.coerce.number().prefault(30).describe('下一档羁绊加成所需好感度'),
+                关系路线: z.string().prefault('朋友线').describe('终极分支: 朋友线/恋人线'),
+                对方身份: z.string().prefault('无'),
+                好感加成: z.string().prefault('无'),
+                _关系阶段: z.string().prefault('陌生').describe('结构化关系阶段，默认与关系称谓同步'),
+                _下一阶段: z.string().prefault('认识').describe('下一阶段名称'),
+                _下一阶段阈值: z.coerce.number().prefault(11).describe('达到下一阶段所需最低好感度'),
+                _可切线: z.boolean().prefault(false).describe('当前是否允许切入恋人线等特殊路线'),
+                _切线限制原因: z.string().prefault('好感度不足').describe('路线切换受限时的原因'),
+                _推进提示: z.string().prefault('无').describe('当前关系推进提示'),
+                _维护优先级: z.string().prefault('未知').describe('关系维护优先级：高风险/待接触/可接触/优先维护'),
+                上次互动tick: z.coerce.number().prefault(0).describe('最近一次互动发生的 tick'),
+                上次互动动作: z.string().prefault('无').describe('最近一次互动动作'),
+                最近好感变化: z.coerce.number().prefault(0).describe('最近一次互动导致的好感变化'),
+                _当前关系加成: z.string().prefault('无').describe('当前已激活的关系加成说明'),
+                _下档解锁加成: z.string().prefault('无').describe('下一档可解锁的羁绊加成说明'),
+                _下档解锁阈值: z.coerce.number().prefault(30).describe('下一档羁绊加成所需好感度'),
               })
               .prefault({}),
           )
           .prefault({}),
-        relation_analysis: z
+        关系分析: z
           .object({
-            summary: z.string().prefault('当前尚未积累足够的人物关系数据。'),
-            focus_target: z.string().prefault('无'),
-            top_targets: z
+            摘要: z.string().prefault('当前尚未积累足够的人物关系数据。'),
+            关注对象: z.string().prefault('无'),
+            重点对象: z
               .any()
               .transform(value => normalizeRelationAnalysisTopTargetsInput(value))
               .prefault([]),
-            recommended_actions: z.array(z.string()).prefault([]),
-            romance_candidates: z.array(z.string()).prefault([]),
-            trust_targets: z.array(z.string()).prefault([]),
-            risk_targets: z.array(z.string()).prefault([]),
-            blocked_targets: z
+            建议行动: z.array(z.string()).prefault([]),
+            恋爱候选: z.array(z.string()).prefault([]),
+            信任对象: z.array(z.string()).prefault([]),
+            风险对象: z.array(z.string()).prefault([]),
+            受阻对象: z
               .array(
                 z
                   .object({
-                    target: z.string().prefault('无'),
-                    reason: z.string().prefault('无'),
+                    对象: z.string().prefault('无'),
+                    原因: z.string().prefault('无'),
                   })
                   .prefault({}),
               )
               .prefault([]),
-            same_location_targets: z.array(z.string()).prefault([]),
-            contactable_targets: z.array(z.string()).prefault([]),
+            同地对象: z.array(z.string()).prefault([]),
+            可联络对象: z.array(z.string()).prefault([]),
           })
           .prefault({}),
       })
       .prefault({})
-      .transform(social => {
-        social._public_intel = social.reputation >= 5000;
-        social._fame_level = social.fame_level || social._fame_level;
+      .transform(社交 => {
+        社交.公开情报 = 社交.声望 >= 5000;
+        社交.名望等级 = 社交.名望等级 || '籍籍无名';
 
         const topTargets = [];
         const romanceCandidates = [];
@@ -7310,9 +7351,9 @@ nsfw: z
         const riskTargets = [];
         const blockedTargets = [];
 
-        _(social.relations).forEach((relData, targetName) => {
+        _(社交.关系).forEach((relData, targetName) => {
           const val = Number(relData.好感度 || 0);
-          let route = relData.relation_route || '朋友线';
+          let route = relData.关系路线 || '朋友线';
           let nextStage = '已达当前路线终点';
           let nextStageThreshold = 999;
           let progressNote = '维持当前关系即可。';
@@ -7383,92 +7424,92 @@ nsfw: z
             recommendedAction = route === '恋人线' ? '维护专属陪伴与排他性事件' : '作为核心盟友长期经营';
           }
 
-          relData._relation_stage = relData.关系;
-          relData._next_stage = nextStage;
-          relData._next_stage_threshold = nextStageThreshold;
-          relData._route_switchable = route !== '恋人线' && val >= 60;
-          relData._route_lock_reason = relData._route_switchable
+          relData._关系阶段 = relData.关系;
+          relData._下一阶段 = nextStage;
+          relData._下一阶段阈值 = nextStageThreshold;
+          relData._可切线 = route !== '恋人线' && val >= 60;
+          relData._切线限制原因 = relData._可切线
             ? '无'
             : route === '恋人线'
               ? '当前已处于恋人线'
               : '好感度需达到 60 后才能稳定切入恋人线';
-          relData._progress_note = progressNote;
-          relData._availability = val <= -10 ? '高风险' : val <= 10 ? '待接触' : val <= 60 ? '可接触' : '优先维护';
-          relData._current_relation_bonus = relData.favor_buff || '无';
-          relData._next_unlock_bonus = nextUnlockBonus;
-          relData._next_unlock_threshold = nextUnlockThreshold;
+          relData._推进提示 = progressNote;
+          relData._维护优先级 = val <= -10 ? '高风险' : val <= 10 ? '待接触' : val <= 60 ? '可接触' : '优先维护';
+          relData._当前关系加成 = relData.好感加成 || '无';
+          relData._下档解锁加成 = nextUnlockBonus;
+          relData._下档解锁阈值 = nextUnlockThreshold;
 
           topTargets.push({
-            target: targetName,
-            relation: relData.关系,
-            favor: val,
-            route,
-            reason: progressNote,
-            recommended_action: recommendedAction,
+            对象: targetName,
+            关系: relData.关系,
+            好感度: val,
+            路线: route,
+            原因: progressNote,
+            建议行动: recommendedAction,
           });
 
           if (val >= 60) trustTargets.push(targetName);
           if (route === '恋人线' && val >= 60) romanceCandidates.push(targetName);
           if (val <= -10) riskTargets.push(targetName);
-          if (!relData._route_switchable && route !== '恋人线' && val < 60) {
-            blockedTargets.push({ target: targetName, reason: relData._route_lock_reason });
+          if (!relData._可切线 && route !== '恋人线' && val < 60) {
+            blockedTargets.push({ 对象: targetName, 原因: relData._切线限制原因 });
           }
         });
 
-        const sortedTopTargets = topTargets.sort((a, b) => Number(b.favor || 0) - Number(a.favor || 0));
-        const fallbackFocusTarget = sortedTopTargets[0]?.target || '无';
-        const existingTopTargets = Array.isArray(social.relation_analysis.top_targets)
-          ? social.relation_analysis.top_targets
+        const sortedTopTargets = topTargets.sort((a, b) => Number(b.好感度 || 0) - Number(a.好感度 || 0));
+        const fallbackFocusTarget = sortedTopTargets[0]?.对象 || '无';
+        const existingTopTargets = Array.isArray(社交.关系分析.重点对象)
+          ? 社交.关系分析.重点对象
           : [];
-        const existingRecommendedActions = Array.isArray(social.relation_analysis.recommended_actions)
-          ? social.relation_analysis.recommended_actions.map(item => String(item || '').trim()).filter(Boolean)
+        const existingRecommendedActions = Array.isArray(社交.关系分析.建议行动)
+          ? 社交.关系分析.建议行动.map(item => String(item || '').trim()).filter(Boolean)
           : [];
         const shouldFillFocusTarget =
-          !String(social.relation_analysis.focus_target || '').trim() ||
-          String(social.relation_analysis.focus_target || '').trim() === '无' ||
-          isAiTodoText(social.relation_analysis.focus_target);
+          !String(社交.关系分析.关注对象 || '').trim() ||
+          String(社交.关系分析.关注对象 || '').trim() === '无' ||
+          isAiTodoText(社交.关系分析.关注对象);
         const shouldFillTopTargets =
           existingTopTargets.length === 0 ||
           existingTopTargets.every(
-            item => !String(item?.target || '').trim() || String(item?.target || '').trim() === '无',
+            item => !String(item?.对象 || '').trim() || String(item?.对象 || '').trim() === '无',
           );
         const shouldFillRecommendedActions =
           existingRecommendedActions.length === 0 || existingRecommendedActions.every(item => item === '无');
-        if (shouldFillFocusTarget) social.relation_analysis.focus_target = fallbackFocusTarget;
-        if (shouldFillTopTargets) social.relation_analysis.top_targets = sortedTopTargets.slice(0, 5);
+        if (shouldFillFocusTarget) 社交.关系分析.关注对象 = fallbackFocusTarget;
+        if (shouldFillTopTargets) 社交.关系分析.重点对象 = sortedTopTargets.slice(0, 5);
         if (shouldFillRecommendedActions) {
-          social.relation_analysis.recommended_actions = Array.from(
-            new Set(sortedTopTargets.map(item => String(item.recommended_action || '').trim()).filter(Boolean)),
+          社交.关系分析.建议行动 = Array.from(
+            new Set(sortedTopTargets.map(item => String(item.建议行动 || '').trim()).filter(Boolean)),
           ).slice(0, 3);
         }
         if (
-          !String(social.relation_analysis.summary || '').trim() ||
-          social.relation_analysis.summary === '当前尚未积累足够的人物关系数据。'
+          !String(社交.关系分析.摘要 || '').trim() ||
+          社交.关系分析.摘要 === '当前尚未积累足够的人物关系数据。'
         ) {
-          social.relation_analysis.summary = sortedTopTargets.length
+          社交.关系分析.摘要 = sortedTopTargets.length
             ? `当前最应关注的关系对象为${fallbackFocusTarget}，优先推进${sortedTopTargets
                 .slice(0, 2)
-                .map(item => item.target)
+                .map(item => item.对象)
                 .join('、')}。`
             : '当前尚未积累足够的人物关系数据。';
         }
-        social.relation_analysis.romance_candidates = romanceCandidates.sort(
-          (a, b) => Number((social.relations[b] || {}).好感度 || 0) - Number((social.relations[a] || {}).好感度 || 0),
+        社交.关系分析.恋爱候选 = romanceCandidates.sort(
+          (a, b) => Number((社交.关系[b] || {}).好感度 || 0) - Number((社交.关系[a] || {}).好感度 || 0),
         );
-        social.relation_analysis.trust_targets = trustTargets.sort(
-          (a, b) => Number((social.relations[b] || {}).好感度 || 0) - Number((social.relations[a] || {}).好感度 || 0),
+        社交.关系分析.信任对象 = trustTargets.sort(
+          (a, b) => Number((社交.关系[b] || {}).好感度 || 0) - Number((社交.关系[a] || {}).好感度 || 0),
         );
-        social.relation_analysis.risk_targets = riskTargets.sort(
-          (a, b) => Number((social.relations[a] || {}).好感度 || 0) - Number((social.relations[b] || {}).好感度 || 0),
+        社交.关系分析.风险对象 = riskTargets.sort(
+          (a, b) => Number((社交.关系[a] || {}).好感度 || 0) - Number((社交.关系[b] || {}).好感度 || 0),
         );
-        social.relation_analysis.blocked_targets = blockedTargets;
-        social.relation_analysis.same_location_targets = social.relation_analysis.same_location_targets || [];
-        social.relation_analysis.contactable_targets = social.relation_analysis.contactable_targets || [];
+        社交.关系分析.受阻对象 = blockedTargets;
+        社交.关系分析.同地对象 = 社交.关系分析.同地对象 || [];
+        社交.关系分析.可联络对象 = 社交.关系分析.可联络对象 || [];
 
-        return social;
+        return 社交;
       }),
 
-    inventory: z
+    背包: z
       .record(
         z.string(),
         z
@@ -7533,10 +7574,11 @@ nsfw: z
               .array(
                 z
                   .object({
-                    target: z.string().prefault('无'),
-                    type: z.string().prefault('无'),
-                    description: z.string().prefault('无'),
-                    value: z.any().prefault(null),
+                    目标: z.string().prefault('无'),
+                    类型: z.string().prefault('无'),
+                    描述: z.string().prefault('无'),
+                    数值: z.any().prefault(null),
+                    目标上限: z.string().prefault('无'),
                   })
                   .prefault({}),
               )
@@ -7551,8 +7593,8 @@ nsfw: z
               .number()
               .prefault(0)
               .describe('大于0时表示该临时道具会在指定 tick 自动失效并从背包删除'),
-            market_value: z
-              .object({ price: z.coerce.number().prefault(0), currency: z.string().prefault('fed_coin') })
+            市场估值: z
+              .object({ 价格: z.coerce.number().prefault(0), 货币: z.string().prefault('联邦币') })
               .prefault({}),
             描述: z.string().prefault('无'),
           })
@@ -7560,7 +7602,7 @@ nsfw: z
       )
       .prefault({}),
 
-    records: z
+    记录: z
       .record(
         z.string(),
         z
@@ -7577,21 +7619,21 @@ nsfw: z
       )
       .prefault({}),
 
-    quest_request: z
+    任务请求: z
       .object({
-        action: z.string().prefault('无').describe('接取/更新进度/提交/放弃'),
-        quest_name: z.string().prefault('无').describe('任务名称'),
-        quest_desc: z.string().prefault('无').describe('任务描述与目标'),
-        progress_add: z.coerce.number().prefault(0).describe('本次进度增量'),
-        required_count: z.coerce.number().prefault(1).describe('完成所需的总进度'),
-        reward_coin: z.coerce.number().prefault(0).describe('奖励联邦币'),
-        reward_rep: z.coerce.number().prefault(0).describe('奖励声望'),
+        动作: z.string().prefault('无').describe('接取/更新进度/提交/放弃'),
+        任务名称: z.string().prefault('无').describe('任务名称'),
+        任务描述: z.string().prefault('无').describe('任务描述与目标'),
+        进度增量: z.coerce.number().prefault(0).describe('本次进度增量'),
+        目标进度: z.coerce.number().prefault(1).describe('完成所需的总进度'),
+        奖励币: z.coerce.number().prefault(0).describe('奖励联邦币'),
+        奖励声望: z.coerce.number().prefault(0).describe('奖励声望'),
       })
       .prefault({}),
   })
   .prefault({})
   .transform(char => {
-    const secondarySpirit = char.spirit && char.spirit['第二武魂'];
+    const secondarySpirit = char.武魂 && char.武魂['第二武魂'];
     if (secondarySpirit && typeof secondarySpirit === 'object') {
       const secondaryName = String(secondarySpirit['表象名称'] || '').trim();
       const secondaryDesc = String(secondarySpirit['描述'] || '').trim();
@@ -7601,8 +7643,8 @@ nsfw: z
         attr => attr && attr !== '无' && !isAiTodoText(attr),
       );
       const hasElementSystem = ['元素', '五行'].includes(String(secondaryAttributeState.属性体系 || '').trim());
-      const hasSoulSpirits = !!(secondarySpirit.soul_spirits && Object.keys(secondarySpirit.soul_spirits).length);
-      const hasCustomSkills = !!(secondarySpirit.custom_skills && Object.keys(secondarySpirit.custom_skills).length);
+      const hasSoulSpirits = !!(secondarySpirit.魂灵 && Object.keys(secondarySpirit.魂灵).length);
+      const hasCustomSkills = !!(secondarySpirit.自创魂技 && Object.keys(secondarySpirit.自创魂技).length);
       const hasRealSecondarySpirit =
         (secondaryName && secondaryName !== '未展露' && !isAiTodoText(secondaryName)) ||
         (secondaryDesc && secondaryDesc !== '无' && !isAiTodoText(secondaryDesc)) ||
@@ -7613,17 +7655,17 @@ nsfw: z
         hasCustomSkills;
 
       if (!hasRealSecondarySpirit) {
-        const nextSpirit = { ...(char.spirit || {}) };
+        const nextSpirit = { ...(char.武魂 || {}) };
         delete nextSpirit['第二武魂'];
-        char.spirit = nextSpirit;
+        char.武魂 = nextSpirit;
       }
     }
 
-    if (char.bloodline_power?.bloodline === '金龙王') {
-      let currentSealLv = char.bloodline_power.seal_lv || 0;
-      if (!char.bloodline_power.skills) char.bloodline_power.skills = {};
-      if (!char.bloodline_power.passives) char.bloodline_power.passives = {};
-      if (!char.bloodline_power.permanent_bonuses) char.bloodline_power.permanent_bonuses = {};
+    if (char.血脉之力?.血脉 === '金龙王') {
+      let currentSealLv = char.血脉之力.解封层数 || 0;
+      if (!char.血脉之力.技能) char.血脉之力.技能 = {};
+      if (!char.血脉之力.被动) char.血脉之力.被动 = {};
+      if (!char.血脉之力.永久加成) char.血脉之力.永久加成 = {};
       const fixedNames = new Set([
         ...Object.values(GoldenDragonSkills || {})
           .map(skill => skill?.技能名称)
@@ -7631,27 +7673,27 @@ nsfw: z
         ...Array.from(GOLDEN_DRAGON_NON_SKILL_NODE_NAMES),
       ]);
       fixedNames.forEach(name => {
-        delete char.bloodline_power.skills[name];
-        delete char.bloodline_power.passives[name];
+        delete char.血脉之力.技能[name];
+        delete char.血脉之力.被动[name];
       });
 
       for (let i = 1; i <= currentSealLv; i++) {
         let skillData = GoldenDragonSkills[i];
         if (skillData) {
           const targetMap = isPassiveSkillStructData(skillData)
-            ? char.bloodline_power.passives
-            : char.bloodline_power.skills;
+            ? char.血脉之力.被动
+            : char.血脉之力.技能;
           if (!targetMap[skillData.技能名称]) {
             targetMap[skillData.技能名称] = { ...cloneSkillStructData(skillData), 状态: skillData.状态 || '已固化' };
           }
         }
       }
     }
-    if (!char.secret_skills) char.secret_skills = {};
-    Object.keys(char.arts || {}).forEach(artName => {
+    if (!char.秘技) char.秘技 = {};
+    Object.keys(char.功法 || {}).forEach(artName => {
       const template = TANGMEN_SECRET_SKILL_TEMPLATES[artName];
-      if (template && !char.secret_skills[artName]) {
-        char.secret_skills[artName] = cloneSkillStructData(template);
+      if (template && !char.秘技[artName]) {
+        char.秘技[artName] = cloneSkillStructData(template);
       }
     });
 
@@ -7659,30 +7701,30 @@ nsfw: z
       _.merge(char, char._initial_state_override);
       delete char._initial_state_override;
 
-      if (char.equip.armor.equip_status === '已装备') {
-        let armorLv = char.equip.armor.lv;
+      if (char.装备.斗铠.装备状态 === '已装备') {
+        let armorLv = char.装备.斗铠.等级;
         const reqLv = [0, 50, 70, 80, 90][armorLv] || 0;
 
-        if (char.stat.lv < reqLv) {
-          char.equip.armor.equip_status = '未装备';
-          if (!char.stat.conditions['装备反噬'])
-            char.stat.conditions['装备反噬'] = { 类型: 'debuff', 层数: 1, 描述: '强行穿戴高阶斗铠失败，气血震荡' };
+        if (char.属性.等级 < reqLv) {
+          char.装备.斗铠.装备状态 = '未装备';
+          if (!char.属性.状态效果['装备反噬'])
+            char.属性.状态效果['装备反噬'] = { 类型: 'debuff', 层数: 1, 描述: '强行穿戴高阶斗铠失败，气血震荡' };
         } else if (
-          char.equip.mech.lv !== '无' &&
-          char.equip.mech.lv !== '红级' &&
-          char.equip.mech.status !== '重创' &&
-          char.equip.mech.equip_status === '已装备'
+          char.装备.机甲.等级 !== '无' &&
+          char.装备.机甲.等级 !== '红级' &&
+          char.装备.机甲.状态 !== '重创' &&
+          char.装备.机甲.装备状态 === '已装备'
         ) {
-          char.equip.armor.equip_status = '未装备';
+          char.装备.斗铠.装备状态 = '未装备';
         }
       }
 
-      if (char.equip.mech.equip_status === '已装备') {
-        let mechReqLv = { 黄级: 40, 紫级: 50, 黑级: 60, 红级: 80 }[char.equip.mech.lv] || 0;
-        if (char.stat.lv < mechReqLv) {
-          char.equip.mech.equip_status = '未装备';
-          if (!char.stat.conditions['机甲反噬'])
-            char.stat.conditions['机甲反噬'] = {
+      if (char.装备.机甲.装备状态 === '已装备') {
+        let mechReqLv = { 黄级: 40, 紫级: 50, 黑级: 60, 红级: 80 }[char.装备.机甲.等级] || 0;
+        if (char.属性.等级 < mechReqLv) {
+          char.装备.机甲.装备状态 = '未装备';
+          if (!char.属性.状态效果['机甲反噬'])
+            char.属性.状态效果['机甲反噬'] = {
               类型: 'debuff',
               层数: 1,
               描述: '精神力与魂力不足以驾驭高阶机甲，遭到反噬',
@@ -7690,33 +7732,33 @@ nsfw: z
         }
       }
 
-      const reqLv = [0, 50, 70, 80, 90][Number(char?.equip?.armor?.lv || 0)] || 0;
-      if (char.stat.lv < reqLv) {
-        char.equip.armor.equip_status = '未装备';
-        if (!char.stat.conditions['装备反噬'])
-          char.stat.conditions['装备反噬'] = { 类型: 'debuff', 层数: 1, 描述: '强行穿戴高阶斗铠失败，气血震荡' };
-      } else if (char.equip.mech.lv !== '无' && char.equip.mech.lv !== '红级' && char.equip.mech.status !== '重创') {
-        char.equip.armor.equip_status = '未装备';
+      const reqLv = [0, 50, 70, 80, 90][Number(char?.装备?.斗铠?.等级 || 0)] || 0;
+      if (char.属性.等级 < reqLv) {
+        char.装备.斗铠.装备状态 = '未装备';
+        if (!char.属性.状态效果['装备反噬'])
+          char.属性.状态效果['装备反噬'] = { 类型: 'debuff', 层数: 1, 描述: '强行穿戴高阶斗铠失败，气血震荡' };
+      } else if (char.装备.机甲.等级 !== '无' && char.装备.机甲.等级 !== '红级' && char.装备.机甲.状态 !== '重创') {
+        char.装备.斗铠.装备状态 = '未装备';
       }
     }
 
-    if (char.stat.background !== '无' && char.stat.background !== '已推演') {
+    if (char.属性.背景 !== '无' && char.属性.背景 !== '已推演') {
       let bgBonus = 0;
-      if (char.stat.background === '顶级势力') bgBonus = 80;
-      else if (char.stat.background === '一流势力') bgBonus = 50;
-      else if (char.stat.background === '普通势力') bgBonus = 20;
-      else if (char.stat.background === '平民') bgBonus = 0;
+      if (char.属性.背景 === '顶级势力') bgBonus = 80;
+      else if (char.属性.背景 === '一流势力') bgBonus = 50;
+      else if (char.属性.背景 === '普通势力') bgBonus = 20;
+      else if (char.属性.背景 === '平民') bgBonus = 0;
 
-      const currentTier = String(char.stat.talent_tier || '').trim();
+      const currentTier = String(char.属性.天赋梯队 || '').trim();
       const hasPresetTalent =
-        Number(char.stat.talent_roll || 0) > 0 ||
-        Number(char.stat.innate_sp_lv || 0) > 0 ||
+        Number(char.属性.天赋检定 || 0) > 0 ||
+        Number(char.属性.先天魂力 || 0) > 0 ||
         (currentTier && currentTier !== '正常');
 
       if (!hasPresetTalent) {
         let roll = Math.floor(Math.random() * 100) + 1;
         let totalScore = roll + bgBonus;
-        char.stat.talent_roll = totalScore;
+        char.属性.天赋检定 = totalScore;
 
         let tier = '正常';
         let innate = 3;
@@ -7767,46 +7809,46 @@ nsfw: z
           maxLimit = 29;
         }
 
-        char.stat.talent_tier = tier;
-        char.stat.innate_sp_lv = innate;
+        char.属性.天赋梯队 = tier;
+        char.属性.先天魂力 = innate;
 
-        if (char.stat.lv === 1 && char.stat.age > 6) {
-          let calculatedLv = Math.floor(innate + (char.stat.age - 6) * factor);
-          char.stat.lv = Math.min(maxLimit, Math.max(1, calculatedLv));
+        if (char.属性.等级 === 1 && char.属性.年龄 > 6) {
+          let calculatedLv = Math.floor(innate + (char.属性.年龄 - 6) * factor);
+          char.属性.等级 = Math.min(maxLimit, Math.max(1, calculatedLv));
         }
       }
 
-      char.stat.background = '已推演';
+      char.属性.背景 = '已推演';
     }
 
-    if (char.stat.lv >= 99 && (char.energy?.core?.数量 || 0) < 3) {
-      if (!char.energy) char.energy = {};
-      if (!char.energy.core) char.energy.core = {};
-      char.energy.core.数量 = 3;
-    } else if (char.stat.lv >= 90 && (char.energy?.core?.数量 || 0) < 2) {
-      if (!char.energy) char.energy = {};
-      if (!char.energy.core) char.energy.core = {};
-      char.energy.core.数量 = 2;
-    } else if (char.stat.lv >= 70 && (char.energy?.core?.数量 || 0) < 1) {
-      if (!char.energy) char.energy = {};
-      if (!char.energy.core) char.energy.core = {};
-      char.energy.core.数量 = 1;
+    if (char.属性.等级 >= 99 && (char.魂核?.核心?.数量 || 0) < 3) {
+      if (!char.魂核) char.魂核 = {};
+      if (!char.魂核.核心) char.魂核.核心 = {};
+      char.魂核.核心.数量 = 3;
+    } else if (char.属性.等级 >= 90 && (char.魂核?.核心?.数量 || 0) < 2) {
+      if (!char.魂核) char.魂核 = {};
+      if (!char.魂核.核心) char.魂核.核心 = {};
+      char.魂核.核心.数量 = 2;
+    } else if (char.属性.等级 >= 70 && (char.魂核?.核心?.数量 || 0) < 1) {
+      if (!char.魂核) char.魂核 = {};
+      if (!char.魂核.核心) char.魂核.核心 = {};
+      char.魂核.核心.数量 = 1;
     }
 
-    let coreCount = char.energy?.core?.数量 || 0;
-    let penalty = char.stat.lv_penalty || 0;
+    let coreCount = char.魂核?.核心?.数量 || 0;
+    let penalty = char.属性.等级惩罚 || 0;
     let maxLv = 69;
     if (coreCount === 1) maxLv = 89;
     else if (coreCount === 2) maxLv = 98;
     else if (coreCount >= 3) maxLv = 150;
-    char.stat.lv = Math.min(char.stat.lv, maxLv - penalty);
+    char.属性.等级 = Math.min(char.属性.等级, maxLv - penalty);
 
-    const base = getBaseStats(char.stat.lv);
+    const base = getBaseStats(char.属性.等级);
     let maxTypeMult = { sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
-    let spiritKeys = Object.keys(char.spirit || {});
+    let spiritKeys = Object.keys(char.武魂 || {});
     if (spiritKeys.length > 0) {
       spiritKeys.forEach(k => {
-        let tm = TypeMultipliers[char.spirit[k].type] || TypeMultipliers['强攻系'];
+        let tm = TypeMultipliers[char.武魂[k].type] || TypeMultipliers['强攻系'];
         maxTypeMult.sp_max = Math.max(maxTypeMult.sp_max, tm.sp_max);
         maxTypeMult.men_max = Math.max(maxTypeMult.men_max, tm.men_max);
         maxTypeMult.str = Math.max(maxTypeMult.str, tm.str);
@@ -7815,17 +7857,17 @@ nsfw: z
         maxTypeMult.vit_max = Math.max(maxTypeMult.vit_max, tm.vit_max);
       });
     } else {
-      maxTypeMult = { ...(TypeMultipliers[char.stat.type] || TypeMultipliers['强攻系']) };
+      maxTypeMult = { ...(TypeMultipliers[char.属性.系别] || TypeMultipliers['强攻系']) };
     }
     const typeMult = maxTypeMult;
-    const hiddenVar = char.stat.hidden_variance;
-    let final_str = Math.floor(base.str * typeMult.str * hiddenVar) + char.stat.trained_bonus.str;
-    let final_def = Math.floor(base.def * typeMult.def * hiddenVar) + char.stat.trained_bonus.def;
-    let final_agi = Math.floor(base.agi * typeMult.agi * hiddenVar) + char.stat.trained_bonus.agi;
-    let final_vit_max = Math.floor(base.vit_max * typeMult.vit_max * hiddenVar) + char.stat.trained_bonus.vit_max;
-    let final_men_max = Math.floor(base.men_max * typeMult.men_max * hiddenVar) + char.stat.trained_bonus.men_max;
-    let final_sp_max = Math.floor(base.sp_max * typeMult.sp_max * hiddenVar) + (char.stat.trained_bonus.sp_max || 0);
-    let bName = char.bloodline_power?.bloodline || '无';
+    const hiddenVar = char.属性.底子波动;
+    let final_str = Math.floor(base.str * typeMult.str * hiddenVar) + char.属性.训练加成.力量;
+    let final_def = Math.floor(base.def * typeMult.def * hiddenVar) + char.属性.训练加成.防御;
+    let final_agi = Math.floor(base.agi * typeMult.agi * hiddenVar) + char.属性.训练加成.敏捷;
+    let final_vit_max = Math.floor(base.vit_max * typeMult.vit_max * hiddenVar) + char.属性.训练加成.体力上限;
+    let final_men_max = Math.floor(base.men_max * typeMult.men_max * hiddenVar) + char.属性.训练加成.精神力上限;
+    let final_sp_max = Math.floor(base.sp_max * typeMult.sp_max * hiddenVar) + (char.属性.训练加成.魂力上限 || 0);
+    let bName = char.血脉之力?.血脉 || '无';
 
     if (bName.includes('金龙王')) {
       let vitInc = final_vit_max * 9;
@@ -7842,85 +7884,85 @@ nsfw: z
       let menInc = final_men_max * 9;
       final_men_max += Math.min(menInc, 40000);
     }
-    if (char.social?.factions?.['本体宗']) {
+    if (char.社交?.势力?.['本体宗']) {
       let vitInc = final_vit_max * 2;
       final_vit_max += Math.min(vitInc, 40000);
     }
     let previewMen = final_men_max;
-    if (previewMen >= 50000) char.stat._men_realm = '神元境';
-    else if (previewMen >= 20000) char.stat._men_realm = '灵域境';
-    else if (previewMen >= 3000) char.stat._men_realm = '灵渊境';
-    else if (previewMen >= 500) char.stat._men_realm = '灵海境';
-    else if (previewMen >= 50) char.stat._men_realm = '灵通境';
-    else char.stat._men_realm = '灵元境';
+    if (previewMen >= 50000) char.属性.精神境界 = '神元境';
+    else if (previewMen >= 20000) char.属性.精神境界 = '灵域境';
+    else if (previewMen >= 3000) char.属性.精神境界 = '灵渊境';
+    else if (previewMen >= 500) char.属性.精神境界 = '灵海境';
+    else if (previewMen >= 50) char.属性.精神境界 = '灵通境';
+    else char.属性.精神境界 = '灵元境';
 
-    let tier = char.stat.talent_tier;
+    let tier = char.属性.天赋梯队;
     const isBeast = isSoulBeastCharacter(char);
 
     if (isBeast) {
-      char.equip.armor.lv = 0;
-      char.equip.armor.name = '无';
-      char.equip.armor.domain = '无';
-      char.equip.armor.material = '无';
-      char.equip.armor.equip_status = '未装备';
-      char.equip.armor.parts = {};
-      char.equip.armor._stats_bonus = { lv_equiv: 0, sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
-      char.equip.armor._is_rejected = false;
-      char.equip.mech.lv = '无';
-      char.equip.mech.type = '无';
-      char.equip.mech.material = '无';
-      char.equip.mech.status = '完好';
-      char.equip.mech.equip_status = '未装备';
-      char.equip.mech.weapon = '无';
-      char.equip.mech.品质系数 = 1.0;
-      char.equip.mech._stats_bonus = { sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
-      char.soul_bone = {};
+      char.装备.斗铠.等级 = 0;
+      char.装备.斗铠.名称 = '无';
+      char.装备.斗铠.领域 = '无';
+      char.装备.斗铠.材质 = '无';
+      char.装备.斗铠.装备状态 = '未装备';
+      char.装备.斗铠.部件 = {};
+      char.装备.斗铠._属性加成 = { 等效等级: 0, 魂力上限: 0, 精神力上限: 0, 力量: 0, 防御: 0, 敏捷: 0, 体力上限: 0 };
+      char.装备.斗铠._已排异 = false;
+      char.装备.机甲.等级 = '无';
+      char.装备.机甲.型号 = '无';
+      char.装备.机甲.材质 = '无';
+      char.装备.机甲.状态 = '完好';
+      char.装备.机甲.装备状态 = '未装备';
+      char.装备.机甲.武装 = '无';
+      char.装备.机甲.品质系数 = 1.0;
+      char.装备.机甲._属性加成 = { 魂力上限: 0, 精神力上限: 0, 力量: 0, 防御: 0, 敏捷: 0, 体力上限: 0 };
+      char.魂骨 = {};
     }
 
     if (!isBeast && ['绝世妖孽', '顶级天才', '天才'].includes(tier)) {
       let armorLv = 0;
-      if (char.stat.lv >= 99) {
+      if (char.属性.等级 >= 99) {
         armorLv = 4;
-      } else if (char.stat.lv >= 98) {
+      } else if (char.属性.等级 >= 98) {
         armorLv = Math.random() < 0.5 ? 4 : 3;
-      } else if (char.stat.lv >= 90 && tier === '天才') {
+      } else if (char.属性.等级 >= 90 && tier === '天才') {
         if (Math.random() < 0.5) {
           armorLv = 3;
         } else {
           armorLv = 0;
-          char.equip.mech.lv = '红级';
-          char.equip.mech.status = '完好';
+          char.装备.机甲.等级 = '红级';
+          char.装备.机甲.状态 = '完好';
         }
-      } else if (char.stat.lv >= 80) armorLv = 3;
-      else if (char.stat.lv >= 70) armorLv = 2;
-      else if (char.stat.lv >= 50) armorLv = 1;
+      } else if (char.属性.等级 >= 80) armorLv = 3;
+      else if (char.属性.等级 >= 70) armorLv = 2;
+      else if (char.属性.等级 >= 50) armorLv = 1;
 
-      if (char.stat.is_evil && armorLv > 3) {
+      if (char.属性.邪魂师 && armorLv > 3) {
         armorLv = 3;
       }
 
       if (armorLv > 0) {
-        char.equip.armor.lv = armorLv;
-        char.equip.armor.equip_status = '未装备';
+        char.装备.斗铠.等级 = armorLv;
+        char.装备.斗铠.装备状态 = '未装备';
         let parts = ['头盔', '胸铠', '左肩', '右肩', '左臂', '右臂', '左腿', '右腿', '战裙', '战靴'];
-        parts.forEach(p => (char.equip.armor.parts[p] = { 状态: '完好', 品质系数: 1.0 }));
+        parts.forEach(p => (char.装备.斗铠.部件[p] = { 状态: '完好', 品质系数: 1.0 }));
       }
     } else if (!isBeast && tier === '优秀') {
-      if (char.stat.lv >= 70) {
-        char.equip.mech.lv = '黑级';
-        char.equip.mech.status = '完好';
-        char.equip.mech.equip_status = '未装备';
-      } else if (char.stat.lv >= 50) {
-        char.equip.mech.lv = '紫级';
-        char.equip.mech.status = '完好';
-        char.equip.mech.equip_status = '未装备';
+      if (char.属性.等级 >= 70) {
+        char.装备.机甲.等级 = '黑级';
+        char.装备.机甲.状态 = '完好';
+        char.装备.机甲.装备状态 = '未装备';
+      } else if (char.属性.等级 >= 50) {
+        char.装备.机甲.等级 = '紫级';
+        char.装备.机甲.状态 = '完好';
+        char.装备.机甲.装备状态 = '未装备';
       }
     }
 
     let boneCount = 0;
     if (!isBeast) {
-      if (char.stat.lv >= 90) boneCount += 2;
-      else if (char.stat.lv >= 80) boneCount += 1;
+      if (char.属性.等级 >= 90) boneCount += 2;
+      else if (char.属性.等级 >= 80) boneCount += 1;
     }
 
     if (!isBeast && boneCount > 0) {
@@ -7938,9 +7980,9 @@ nsfw: z
         let randomSource = sourcePool[Math.floor(Math.random() * sourcePool.length)];
         if (tier === '绝世妖孽') randomSource = '上古神祇遗迹传承';
 
-        char.soul_bone[boneParts[i]] = {
+        char.魂骨[boneParts[i]] = {
           名称: `【未鉴定之${boneParts[i].replace('魂骨', '骨')}】`,
-          年限: char.stat.lv >= 90 ? 50000 : 10000,
+          年限: char.属性.等级 >= 90 ? 50000 : 10000,
           来源: randomSource,
           附带技能: { 被动增幅: cloneSkillStructData() },
         };
@@ -7948,30 +7990,30 @@ nsfw: z
     }
 
     let totalSpirits = 0;
-    const genericSkillAge = Math.max(1000, Number(char.stat.lv || 1) * 200);
-    _(char.spirit || {}).forEach((spiritData, spiritKey) => {
+    const genericSkillAge = Math.max(1000, Number(char.属性.等级 || 1) * 200);
+    _(char.武魂 || {}).forEach((spiritData, spiritKey) => {
       if (!(spiritData && typeof spiritData === 'object')) return;
       const spiritAttributeState = normalizeSpiritAttributeState(spiritData, spiritKey, char);
       spiritData.属性体系 = spiritAttributeState.属性体系;
       spiritData.已解锁属性 = spiritAttributeState.已解锁属性;
       spiritData.可容纳属性 = spiritAttributeState.可容纳属性;
       const runtimeElementProfile = buildElementProfileFromAttributeState(spiritAttributeState);
-      totalSpirits += Object.keys(spiritData?.soul_spirits || {}).length;
-      _(spiritData?.soul_spirits || {}).forEach(spirit => {
-        syncSoulSpiritRuntimeData(spirit);
+      totalSpirits += Object.keys(spiritData?.魂灵 || {}).length;
+      _(spiritData?.魂灵 || {}).forEach(武魂 => {
+        syncSoulSpiritRuntimeData(武魂);
 
-        _(spirit.rings || {}).forEach((ring, ringIndexStr) => {
+        _(武魂.魂环 || {}).forEach((ring, ringIndexStr) => {
           const ringIndex = parseInt(ringIndexStr) || 1;
-          spirit.附机制候选 = normalizeSoulSpiritSecondaryCandidates(spirit.附机制候选, char.stat.type, ringIndex);
+          武魂.附机制候选 = normalizeSoulSpiritSecondaryCandidates(武魂.附机制候选, char.属性.系别, ringIndex);
           ensureSkillMapGenerated(ring.魂技, (_, skillName) => ({
-            type: char.stat.type,
-            talentTier: char.stat.talent_tier,
+            type: char.属性.系别,
+            talentTier: char.属性.天赋梯队,
             age: ring.年限,
             ringIndex,
-            compatibility: spirit.契合度 || 100,
-            deferGenerationUntilSecondaryReady: hasPendingSecondaryTodoCandidates(spirit.附机制候选),
-            preferredSecondary: Array.isArray(spirit.附机制候选)
-              ? spirit.附机制候选.filter(option => SOUL_SPIRIT_SECONDARY_OPTIONS_V1.includes(option))
+            compatibility: 武魂.契合度 || 100,
+            deferGenerationUntilSecondaryReady: hasPendingSecondaryTodoCandidates(武魂.附机制候选),
+            preferredSecondary: Array.isArray(武魂.附机制候选)
+              ? 武魂.附机制候选.filter(option => SOUL_SPIRIT_SECONDARY_OPTIONS_V1.includes(option))
               : [],
             elementProfile: runtimeElementProfile,
             unlockedAttributes: spiritAttributeState.已解锁属性,
@@ -7980,20 +8022,20 @@ nsfw: z
             forceTrueBody: ringIndex === 7,
             textContext: {
               spiritName:
-                !isAiTodoText(spirit.表象名称) && spirit.表象名称 !== '未展露'
-                  ? spirit.表象名称
+                !isAiTodoText(武魂.表象名称) && 武魂.表象名称 !== '未展露'
+                  ? 武魂.表象名称
                   : spiritData?.表象名称 || skillName,
-              type: char.stat.type,
+              type: char.属性.系别,
             },
           }));
         });
       });
 
-      ensureSkillMapGenerated(spiritData?.custom_skills, (_, skillName) => ({
-        type: spiritData?.type || char.stat.type,
-        talentTier: char.stat.talent_tier,
+      ensureSkillMapGenerated(spiritData?.自创魂技, (_, skillName) => ({
+        type: spiritData?.type || char.属性.系别,
+        talentTier: char.属性.天赋梯队,
         age: genericSkillAge,
-        ringIndex: Math.max(1, Math.ceil(Number(char.stat.lv || 1) / 10)),
+        ringIndex: Math.max(1, Math.ceil(Number(char.属性.等级 || 1) / 10)),
         compatibility: 100,
         elementProfile: runtimeElementProfile,
         unlockedAttributes: spiritAttributeState.已解锁属性,
@@ -8005,53 +8047,53 @@ nsfw: z
             !isAiTodoText(spiritData?.表象名称) && spiritData?.表象名称 !== '未展露'
               ? spiritData.表象名称
               : spiritKey || skillName,
-          type: spiritData?.type || char.stat.type,
+          type: spiritData?.type || char.属性.系别,
         },
       }));
     });
 
-    _(char.soul_bone || {}).forEach((bone, bonePart) => {
+    _(char.魂骨 || {}).forEach((bone, bonePart) => {
       ensureSkillMapGenerated(bone?.附带技能, (_, skillName) => ({
-        type: char.stat.type,
-        talentTier: char.stat.talent_tier,
+        type: char.属性.系别,
+        talentTier: char.属性.天赋梯队,
         age: bone?.年限 || bone?.age || genericSkillAge,
         ringIndex: 1,
         compatibility: 100,
         preferredSecondary: getBonePreferredSecondary(bonePart),
         textContext: {
           spiritName: bone?.名称 || bonePart || skillName,
-          type: char.stat.type,
+          type: char.属性.系别,
         },
       }));
     });
 
-    ensureSkillMapGenerated(char.secret_skills, (_, skillName) => ({
+    ensureSkillMapGenerated(char.秘技, (_, skillName) => ({
       enableGenerate: false,
       textContext: {
         spiritName: skillName,
-        type: char.stat.type,
+        type: char.属性.系别,
       },
     }));
 
-    ensureSkillMapGenerated(char.special_abilities, (_, skillName) => ({
+    ensureSkillMapGenerated(char.特殊能力, (_, skillName) => ({
       enableGenerate: false,
       textContext: {
         spiritName: skillName,
-        type: char.stat.type,
+        type: char.属性.系别,
       },
     }));
 
-    if (!char.bloodline_power || typeof char.bloodline_power !== 'object') char.bloodline_power = {};
-    const bloodlineAttributeState = normalizeBloodlineAttributeState(char.bloodline_power);
-    char.bloodline_power.属性体系 = bloodlineAttributeState.属性体系;
-    char.bloodline_power.已解锁属性 = bloodlineAttributeState.已解锁属性;
-    char.bloodline_power.可容纳属性 = bloodlineAttributeState.可容纳属性;
+    if (!char.血脉之力 || typeof char.血脉之力 !== 'object') char.血脉之力 = {};
+    const bloodlineAttributeState = normalizeBloodlineAttributeState(char.血脉之力);
+    char.血脉之力.属性体系 = bloodlineAttributeState.属性体系;
+    char.血脉之力.已解锁属性 = bloodlineAttributeState.已解锁属性;
+    char.血脉之力.可容纳属性 = bloodlineAttributeState.可容纳属性;
     const bloodlineElementProfile = buildElementProfileFromAttributeState(bloodlineAttributeState);
-    ensureSkillMapGenerated(char.bloodline_power?.passives, (_, skillName) => ({
-      type: char.stat.type,
-      talentTier: char.stat.talent_tier,
+    ensureSkillMapGenerated(char.血脉之力?.被动, (_, skillName) => ({
+      type: char.属性.系别,
+      talentTier: char.属性.天赋梯队,
       age: Math.max(10000, genericSkillAge),
-      ringIndex: Math.max(1, Number(char.bloodline_power?.seal_lv || 1)),
+      ringIndex: Math.max(1, Number(char.血脉之力?.解封层数 || 1)),
       compatibility: 100,
       passiveMode: true,
       passiveName: skillName,
@@ -8061,16 +8103,16 @@ nsfw: z
       attributeCapacity: bloodlineAttributeState.可容纳属性,
       elementTrigger: '继承血脉',
       textContext: {
-        spiritName: char.bloodline_power?.bloodline || skillName,
-        type: char.stat.type,
+        spiritName: char.血脉之力?.血脉 || skillName,
+        type: char.属性.系别,
       },
     }));
 
-    ensureSkillMapGenerated(char.bloodline_power?.skills, (_, skillName) => ({
-      type: char.stat.type,
-      talentTier: char.stat.talent_tier,
+    ensureSkillMapGenerated(char.血脉之力?.skills, (_, skillName) => ({
+      type: char.属性.系别,
+      talentTier: char.属性.天赋梯队,
       age: Math.max(10000, genericSkillAge),
-      ringIndex: Math.max(1, Number(char.bloodline_power?.seal_lv || 1)),
+      ringIndex: Math.max(1, Number(char.血脉之力?.解封层数 || 1)),
       compatibility: 100,
       preferredSecondary: [],
       elementProfile: bloodlineElementProfile,
@@ -8078,16 +8120,16 @@ nsfw: z
       attributeCapacity: bloodlineAttributeState.可容纳属性,
       elementTrigger: '继承血脉',
       textContext: {
-        spiritName: char.bloodline_power?.bloodline || skillName,
-        type: char.stat.type,
+        spiritName: char.血脉之力?.血脉 || skillName,
+        type: char.属性.系别,
       },
     }));
 
-    _(char.bloodline_power?.blood_rings || {}).forEach((ringData, ringIndexStr) => {
+    _(char.血脉之力?.气血魂环 || {}).forEach((ringData, ringIndexStr) => {
       const ringIndex = parseInt(ringIndexStr) || 1;
       ensureSkillMapGenerated(ringData?.魂技, (_, skillName) => ({
-        type: char.stat.type,
-        talentTier: char.stat.talent_tier,
+        type: char.属性.系别,
+        talentTier: char.属性.天赋梯队,
         age: Math.max(1000, ringIndex * 5000),
         ringIndex,
         compatibility: 100,
@@ -8097,23 +8139,23 @@ nsfw: z
         attributeCapacity: bloodlineAttributeState.可容纳属性,
         elementTrigger: '继承血脉',
         textContext: {
-          spiritName: char.bloodline_power?.bloodline || skillName,
-          type: char.stat.type,
+          spiritName: char.血脉之力?.血脉 || skillName,
+          type: char.属性.系别,
         },
       }));
     });
 
-    _(char.martial_fusion_skills || {}).forEach((fusionData, fusionName) => {
+    _(char.武魂融合技 || {}).forEach((fusionData, fusionName) => {
       if (!fusionData || typeof fusionData !== 'object') return;
-      fusionData.fusion_mode = getNormalizedFusionMode(fusionData);
-      fusionData.source_spirits = getNormalizedFusionSourceSpirits(fusionData, char);
-      if (fusionData.fusion_mode === 'self') fusionData.partner = '无';
+      fusionData.融合模式 = getNormalizedFusionMode(fusionData);
+      fusionData.来源武魂 = getNormalizedFusionSourceSpirits(fusionData, char);
+      if (fusionData.融合模式 === 'self') fusionData.融合对象 = '无';
       const fusionElementProfile = getFusionSkillElementProfile(fusionData, char);
-      ensureSkillStructGenerated(fusionData?.skill_data, {
-        type: char.stat.type,
-        talentTier: char.stat.talent_tier,
+      ensureSkillStructGenerated(fusionData?.技能数据, {
+        type: char.属性.系别,
+        talentTier: char.属性.天赋梯队,
         age: Math.max(10000, genericSkillAge),
-        ringIndex: Math.max(1, Math.ceil(Number(char.stat.lv || 1) / 10)),
+        ringIndex: Math.max(1, Math.ceil(Number(char.属性.等级 || 1) / 10)),
         compatibility: 100,
         preferredSecondary: [],
         elementProfile: fusionElementProfile,
@@ -8122,24 +8164,24 @@ nsfw: z
         elementTrigger: '融合',
         textContext: {
           spiritName: fusionName,
-          type: char.stat.type,
+          type: char.属性.系别,
         },
       });
-      ensureFusionSkillMentalCost(fusionData?.skill_data, 0.5);
+      ensureFusionSkillMentalCost(fusionData?.技能数据, 0.5);
     });
 
     const realmLimit =
       { 灵元境: 1, 灵通境: 2, 灵海境: 5, 灵渊境: 9, 灵域境: 99, 神元境: 999 }[
-        char.stat._men_realm || char.stat.men_realm
+        char.属性.精神境界 || char.属性.精神力_realm
       ] || 1;
     if (totalSpirits > realmLimit) {
-      char.stat.conditions['精神超载'] = { 类型: 'debuff', 层数: 1, 描述: '魂灵数量超出精神力承载极限，面临崩溃风险' };
+      char.属性.状态效果['精神超载'] = { 类型: 'debuff', 层数: 1, 描述: '魂灵数量超出精神力承载极限，面临崩溃风险' };
     }
 
-    if (char.equip.armor.lv > 0) {
+    if (char.装备.斗铠.等级 > 0) {
       let totalQuality = 0,
         count = 0;
-      _(char.equip.armor.parts).forEach(p => {
+      _(char.装备.斗铠.部件).forEach(p => {
         if (p.状态 !== '未打造' && p.状态 !== '重创') {
           totalQuality += p.品质系数;
           count++;
@@ -8147,35 +8189,35 @@ nsfw: z
       });
       if (count > 0) {
         let avgQ = totalQuality / count;
-        let base = ArmorBaseStats[char.equip.armor.lv] || ArmorBaseStats[1];
+        let base = ArmorBaseStats[char.装备.斗铠.等级] || ArmorBaseStats[1];
         let mult = count === 10 ? avgQ : 0.05 * avgQ * count;
-        char.equip.armor._stats_bonus.sp_max = Math.floor(base.sp_max * mult);
-        char.equip.armor._stats_bonus.men_max = Math.floor(base.men_max * mult);
-        char.equip.armor._stats_bonus.str = Math.floor(base.str * mult);
-        char.equip.armor._stats_bonus.agi = Math.floor(base.agi * mult);
-        char.equip.armor._stats_bonus.vit_max = Math.floor(base.vit_max * mult);
-        char.equip.armor._stats_bonus.def = Math.floor(base.str * mult);
+        char.装备.斗铠._属性加成.魂力上限 = Math.floor(base.sp_max * mult);
+        char.装备.斗铠._属性加成.精神力上限 = Math.floor(base.men_max * mult);
+        char.装备.斗铠._属性加成.力量 = Math.floor(base.str * mult);
+        char.装备.斗铠._属性加成.敏捷 = Math.floor(base.agi * mult);
+        char.装备.斗铠._属性加成.体力上限 = Math.floor(base.vit_max * mult);
+        char.装备.斗铠._属性加成.防御 = Math.floor(base.str * mult);
       }
     }
-    if (char.equip.mech.lv !== '无' && char.equip.mech.status !== '重创') {
-      let base = MechBaseStats[char.equip.mech.lv];
+    if (char.装备.机甲.等级 !== '无' && char.装备.机甲.状态 !== '重创') {
+      let base = MechBaseStats[char.装备.机甲.等级];
       if (base) {
-        const mult = char.equip.mech.品质系数 || 1.0;
-        char.equip.mech._stats_bonus.sp_max = Math.floor(base.sp_max * mult);
-        char.equip.mech._stats_bonus.men_max = Math.floor(base.men_max * mult);
-        char.equip.mech._stats_bonus.str = Math.floor(base.str * mult);
-        char.equip.mech._stats_bonus.agi = Math.floor(base.agi * mult);
-        char.equip.mech._stats_bonus.vit_max = Math.floor(base.vit_max * mult);
-        char.equip.mech._stats_bonus.def = Math.floor(base.str * mult);
+        const mult = char.装备.机甲.品质系数 || 1.0;
+        char.装备.机甲._属性加成.魂力上限 = Math.floor(base.sp_max * mult);
+        char.装备.机甲._属性加成.精神力上限 = Math.floor(base.men_max * mult);
+        char.装备.机甲._属性加成.力量 = Math.floor(base.str * mult);
+        char.装备.机甲._属性加成.敏捷 = Math.floor(base.agi * mult);
+        char.装备.机甲._属性加成.体力上限 = Math.floor(base.vit_max * mult);
+        char.装备.机甲._属性加成.防御 = Math.floor(base.str * mult);
       }
     }
 
-    const wpnBonus = char.equip.wpn?.stats_bonus || {};
-    const armorBonus = char.equip.armor?.equip_status === '已装备' ? char.equip.armor?._stats_bonus || {} : {};
-    const mechBonus = char.equip.mech?.equip_status === '已装备' ? char.equip.mech?._stats_bonus || {} : {};
+    const wpnBonus = char.装备.武器?.属性加成 || {};
+    const armorBonus = char.装备.斗铠?.装备状态 === '已装备' ? char.装备.斗铠?._属性加成 || {} : {};
+    const mechBonus = char.装备.机甲?.装备状态 === '已装备' ? char.装备.机甲?._属性加成 || {} : {};
     let boneBonus = { str: 0, def: 0, agi: 0, vit_max: 0, men_max: 0, sp_max: 0 };
 
-    _(char.soul_bone).forEach((bone, part) => {
+    _(char.魂骨).forEach((bone, part) => {
       if (bone.年限 > 0) {
         let ringBonus = getRingBonus(bone.年限);
 
@@ -8212,11 +8254,11 @@ nsfw: z
       }
     });
     let ringTotalBonus = { str: 0, def: 0, agi: 0, vit_max: 0, men_max: 0, sp_max: 0 };
-    _(char.spirit).forEach(spiritData => {
-      _(spiritData.soul_spirits).forEach(ss => {
+    _(char.武魂).forEach(spiritData => {
+      _(spiritData.魂灵).forEach(ss => {
         let compMult = Math.max(0.1, (ss.契合度 !== undefined ? ss.契合度 : 100) / 100);
 
-        _(ss.rings).forEach(ring => {
+        _(ss.魂环).forEach(ring => {
           if (ring.年限 > 0) {
             let bonus = getRingBonus(ring.年限);
             ringTotalBonus.str += Math.floor(bonus.str * compMult);
@@ -8238,65 +8280,65 @@ nsfw: z
     final_sp_max = Math.floor(final_sp_max + ringTotalBonus.sp_max + boneBonus.sp_max);
 
     const goldenDragonPermanentBonus = applyGoldenDragonPermanentBonusNodes(char, {
-      str: final_str,
-      def: final_def,
-      agi: final_agi,
-      vit_max: final_vit_max,
-      men_max: final_men_max,
-      sp_max: final_sp_max,
+      力量: final_str,
+      防御: final_def,
+      敏捷: final_agi,
+      体力上限: final_vit_max,
+      精神力上限: final_men_max,
+      魂力上限: final_sp_max,
     });
-    final_str = Math.floor(final_str + goldenDragonPermanentBonus.str);
-    final_def = Math.floor(final_def + goldenDragonPermanentBonus.def);
-    final_agi = Math.floor(final_agi + goldenDragonPermanentBonus.agi);
-    final_vit_max = Math.floor(final_vit_max + goldenDragonPermanentBonus.vit_max);
-    final_men_max = Math.floor(final_men_max + goldenDragonPermanentBonus.men_max);
-    final_sp_max = Math.floor(final_sp_max + goldenDragonPermanentBonus.sp_max);
+    final_str = Math.floor(final_str + goldenDragonPermanentBonus.力量);
+    final_def = Math.floor(final_def + goldenDragonPermanentBonus.防御);
+    final_agi = Math.floor(final_agi + goldenDragonPermanentBonus.敏捷);
+    final_vit_max = Math.floor(final_vit_max + goldenDragonPermanentBonus.体力上限);
+    final_men_max = Math.floor(final_men_max + goldenDragonPermanentBonus.精神力上限);
+    final_sp_max = Math.floor(final_sp_max + goldenDragonPermanentBonus.魂力上限);
 
-    if (final_men_max >= 50000) char.stat._men_realm = '神元境';
-    else if (final_men_max >= 20000) char.stat._men_realm = '灵域境';
-    else if (final_men_max >= 3000) char.stat._men_realm = '灵渊境';
-    else if (final_men_max >= 500) char.stat._men_realm = '灵海境';
-    else if (final_men_max >= 50) char.stat._men_realm = '灵通境';
-    else char.stat._men_realm = '灵元境';
+    if (final_men_max >= 50000) char.属性.精神境界 = '神元境';
+    else if (final_men_max >= 20000) char.属性.精神境界 = '灵域境';
+    else if (final_men_max >= 3000) char.属性.精神境界 = '灵渊境';
+    else if (final_men_max >= 500) char.属性.精神境界 = '灵海境';
+    else if (final_men_max >= 50) char.属性.精神境界 = '灵通境';
+    else char.属性.精神境界 = '灵元境';
 
-    char.stat.str = Math.floor(final_str + (wpnBonus.str || 0) + (armorBonus.str || 0) + (mechBonus.str || 0));
-    char.stat.def = Math.floor(final_def + (wpnBonus.def || 0) + (armorBonus.def || 0) + (mechBonus.def || 0));
-    char.stat.agi = Math.floor(final_agi + (wpnBonus.agi || 0) + (armorBonus.agi || 0) + (mechBonus.agi || 0));
-    char.stat.vit_max = Math.floor(
-      final_vit_max + (wpnBonus.vit_max || 0) + (armorBonus.vit_max || 0) + (mechBonus.vit_max || 0),
+    char.属性.力量 = Math.floor(final_str + (wpnBonus.力量 || 0) + (armorBonus.力量 || 0) + (mechBonus.力量 || 0));
+    char.属性.防御 = Math.floor(final_def + (wpnBonus.防御 || 0) + (armorBonus.防御 || 0) + (mechBonus.防御 || 0));
+    char.属性.敏捷 = Math.floor(final_agi + (wpnBonus.敏捷 || 0) + (armorBonus.敏捷 || 0) + (mechBonus.敏捷 || 0));
+    char.属性.体力上限 = Math.floor(
+      final_vit_max + (wpnBonus.体力上限 || 0) + (armorBonus.体力上限 || 0) + (mechBonus.体力上限 || 0),
     );
-    char.stat.men_max = Math.floor(
-      final_men_max + (wpnBonus.men_max || 0) + (armorBonus.men_max || 0) + (mechBonus.men_max || 0),
+    char.属性.HP上限 = Math.max(1, Number(char.属性.体力上限 || 1));
+    char.属性.精神力上限 = Math.floor(
+      final_men_max + (wpnBonus.精神力上限 || 0) + (armorBonus.精神力上限 || 0) + (mechBonus.精神力上限 || 0),
     );
-    char.stat.sp_max = Math.floor(
-      final_sp_max + (wpnBonus.sp_max || 0) + (armorBonus.sp_max || 0) + (mechBonus.sp_max || 0),
+    char.属性.魂力上限 = Math.floor(
+      final_sp_max + (wpnBonus.魂力上限 || 0) + (armorBonus.魂力上限 || 0) + (mechBonus.魂力上限 || 0),
     );
-    if (char.stat.sp <= 10 && char.stat.vit <= 10) {
-      let ratio = 1.0;
-      if (char.status.wound === '轻伤') ratio = 0.7;
-      else if (char.status.wound === '重伤') ratio = 0.3;
-      else if (char.status.wound === '濒死') ratio = 0.05;
-
-      char.stat.sp = Math.floor(char.stat.sp_max * ratio);
-      char.stat.vit = Math.floor(char.stat.vit_max * ratio);
-      char.stat.men = Math.floor(char.stat.men_max * ratio);
+    normalizeStatHpFields(char.属性);
+    if (char.属性.魂力 <= 10 && char.属性.体力 <= 10) {
+      let ratio = getComputedWoundRecoveryRatioFromStat(char.属性);
+      char.属性.魂力 = Math.floor(char.属性.魂力上限 * ratio);
+      char.属性.体力 = Math.floor(char.属性.体力上限 * ratio);
+      char.属性.精神力 = Math.floor(char.属性.精神力上限 * ratio);
+      char.属性.HP = Math.max(0, Math.min(char.属性.HP上限, Math.floor(char.属性.HP上限 * ratio)));
     } else {
-      char.stat.sp = Math.min(char.stat.sp, char.stat.sp_max);
-      char.stat.vit = Math.min(char.stat.vit, char.stat.vit_max);
-      char.stat.men = Math.min(char.stat.men, char.stat.men_max);
+      char.属性.魂力 = Math.min(char.属性.魂力, char.属性.魂力上限);
+      char.属性.体力 = Math.min(char.属性.体力, char.属性.体力上限);
+      char.属性.精神力 = Math.min(char.属性.精神力, char.属性.精神力上限);
+      char.属性.HP = Math.min(char.属性.HP, char.属性.HP上限);
     }
 
 
-    let rep = char.social.reputation || 0;
-    if (rep >= 10000) char.social._fame_level = '举世无双';
-    else if (rep >= 5000) char.social._fame_level = '名动联邦';
-    else if (rep >= 2000) char.social._fame_level = '威震一方';
-    else if (rep >= 500) char.social._fame_level = '声名鹊起';
-    else if (rep >= 100) char.social._fame_level = '初露锋芒';
-    else char.social._fame_level = '籍籍无名';
-    if (char.equip.armor?._is_rejected) {
-      if (!char.stat.conditions['回路冲突']) {
-        char.stat.conditions['回路冲突'] = {
+    let rep = char.社交.声望 || 0;
+    if (rep >= 10000) char.社交.名望等级 = '举世无双';
+    else if (rep >= 5000) char.社交.名望等级 = '名动联邦';
+    else if (rep >= 2000) char.社交.名望等级 = '威震一方';
+    else if (rep >= 500) char.社交.名望等级 = '声名鹊起';
+    else if (rep >= 100) char.社交.名望等级 = '初露锋芒';
+    else char.社交.名望等级 = '籍籍无名';
+    if (char.装备.斗铠?._已排异) {
+      if (!char.属性.状态效果['回路冲突']) {
+        char.属性.状态效果['回路冲突'] = {
           类型: 'debuff',
           层数: 1,
           描述: '斗铠各部件材质品质差距过大，能量回路产生排斥，气血不畅！',
@@ -8306,16 +8348,16 @@ nsfw: z
         };
       }
     } else {
-      delete char.stat.conditions['回路冲突'];
+      delete char.属性.状态效果['回路冲突'];
     }
 
-    char.stat.vit = Math.min(char.stat.vit, char.stat.vit_max);
-    char.stat.sp = Math.min(char.stat.sp, char.stat.sp_max);
-    char.stat.men = Math.min(char.stat.men, char.stat.men_max);
+    char.属性.体力 = Math.min(char.属性.体力, char.属性.体力上限);
+    char.属性.魂力 = Math.min(char.属性.魂力, char.属性.魂力上限);
+    char.属性.精神力 = Math.min(char.属性.精神力, char.属性.精神力上限);
 
- const gender = String(char.stat?.gender || '');
+ const gender = String(char.属性?.性别 || '');
     if (!gender.includes('女') && !gender.includes('待补全')) {
-      delete char.nsfw; 
+      delete char.私密档案; 
     }
 
     return char;
@@ -8323,249 +8365,249 @@ nsfw: z
 
 const FactionSchema = z
   .object({
-    inf: z.coerce.number().prefault(0),
-    size: z.coerce.number().prefault(0),
-    status: z.string().prefault('正常'),
-    parent_faction: z.string().prefault('无').describe('上级势力/从属关系，如：斗罗联邦'),
-    next_refresh_tick: z.coerce.number().prefault(0),
-    rel: z.record(z.string(), z.object({ 态度: z.string().prefault('中立') }).prefault({})).prefault({}),
-    mem: z.record(z.string(), z.object({ 职位: z.string().prefault('外围') }).prefault({})).prefault({}),
-    power_stats: z
+    影响力: z.coerce.number().prefault(0),
+    规模: z.coerce.number().prefault(0),
+    状态: z.string().prefault('正常'),
+    上级势力: z.string().prefault('无').describe('上级势力/从属关系，如：斗罗联邦'),
+    下次刷新tick: z.coerce.number().prefault(0),
+    关系: z.record(z.string(), z.object({ 态度: z.string().prefault('中立') }).prefault({})).prefault({}),
+    成员: z.record(z.string(), z.object({ 职位: z.string().prefault('外围') }).prefault({})).prefault({}),
+    战力统计: z
       .object({
-        limit_douluo: z.coerce.number().prefault(0).describe('极限斗罗数量'),
-        super_douluo: z.coerce.number().prefault(0).describe('超级斗罗数量'),
-        title_douluo: z.coerce.number().prefault(0).describe('普通封号斗罗数量'),
+        极限斗罗: z.coerce.number().prefault(0).describe('极限斗罗数量'),
+        超级斗罗: z.coerce.number().prefault(0).describe('超级斗罗数量'),
+        封号斗罗: z.coerce.number().prefault(0).describe('普通封号斗罗数量'),
       })
       .prefault({}),
   })
   .prefault({});
 const BaseProductPool = {
   高能压缩干粮: {
-    price: 50,
-    currency: 'fed_coin',
-    type: '补给品',
-    description: '长途旅行必备，能快速补充少量体力。',
-    effects: [{ target: 'stat.vit', type: 'percentage', value: 0.1, target_max: 'stat.vit_max' }],
+    价格: 50,
+    货币: '联邦币',
+    类型: '补给品',
+    描述: '长途旅行必备，能快速补充少量体力。',
+    效果: [{ 目标: '属性.体力', 类型: 'percentage', 数值: 0.1, 目标上限: '属性.体力上限' }],
   },
-  纯净水: { price: 10, currency: 'fed_coin', type: '补给品', description: '基础的饮用水，能缓解口渴。', effects: [] },
+  纯净水: { 价格: 10, 货币: '联邦币', 类型: '补给品', 描述: '基础的饮用水，能缓解口渴。', 效果: [] },
   初级恢复药剂: {
-    price: 500,
-    currency: 'fed_coin',
-    type: '药剂',
-    description: '能恢复少量魂力和体力，战斗后的应急用品。',
-    effects: [
-      { target: 'stat.sp', type: 'percentage', value: 0.15, target_max: 'stat.sp_max' },
-      { target: 'stat.vit', type: 'percentage', value: 0.15, target_max: 'stat.vit_max' },
+    价格: 500,
+    货币: '联邦币',
+    类型: '药剂',
+    描述: '能恢复少量魂力和体力，战斗后的应急用品。',
+    效果: [
+      { 目标: '属性.魂力', 类型: 'percentage', 数值: 0.15, 目标上限: '属性.魂力上限' },
+      { 目标: '属性.体力', 类型: 'percentage', 数值: 0.15, 目标上限: '属性.体力上限' },
     ],
   },
   中级恢复药剂: {
-    price: 2000,
-    currency: 'fed_coin',
-    type: '药剂',
-    description: '效果显著的恢复药剂，能应对大多数战斗消耗。',
-    effects: [
-      { target: 'stat.sp', type: 'percentage', value: 0.35, target_max: 'stat.sp_max' },
-      { target: 'stat.vit', type: 'percentage', value: 0.35, target_max: 'stat.vit_max' },
+    价格: 2000,
+    货币: '联邦币',
+    类型: '药剂',
+    描述: '效果显著的恢复药剂，能应对大多数战斗消耗。',
+    效果: [
+      { 目标: '属性.魂力', 类型: 'percentage', 数值: 0.35, 目标上限: '属性.魂力上限' },
+      { 目标: '属性.体力', 类型: 'percentage', 数值: 0.35, 目标上限: '属性.体力上限' },
     ],
   },
   高级恢复药剂: {
-    price: 8000,
-    currency: 'fed_coin',
-    type: '药剂',
-    description: '珍贵的强效恢复药剂，关键时刻能扭转战局。',
-    effects: [
-      { target: 'stat.sp', type: 'percentage', value: 0.7, target_max: 'stat.sp_max' },
-      { target: 'stat.vit', type: 'percentage', value: 0.7, target_max: 'stat.vit_max' },
+    价格: 8000,
+    货币: '联邦币',
+    类型: '药剂',
+    描述: '珍贵的强效恢复药剂，关键时刻能扭转战局。',
+    效果: [
+      { 目标: '属性.魂力', 类型: 'percentage', 数值: 0.7, 目标上限: '属性.魂力上限' },
+      { 目标: '属性.体力', 类型: 'percentage', 数值: 0.7, 目标上限: '属性.体力上限' },
     ],
   },
   精神恢复冥想香: {
-    price: 1500,
-    currency: 'fed_coin',
-    type: '药剂',
-    description: '点燃后能帮助魂师快速集中精神，恢复消耗的精神力。',
-    effects: [{ target: 'stat.men', type: 'percentage', value: 0.25, target_max: 'stat.men_max' }],
+    价格: 1500,
+    货币: '联邦币',
+    类型: '药剂',
+    描述: '点燃后能帮助魂师快速集中精神，恢复消耗的精神力。',
+    效果: [{ 目标: '属性.精神力', 类型: 'percentage', 数值: 0.25, 目标上限: '属性.精神力上限' }],
   },
   基础解毒散: {
-    price: 300,
-    currency: 'fed_coin',
-    type: '药剂',
-    description: '可以解除一些百年魂兽的普通毒素。',
-    effects: [{ target: 'stat.conditions', type: 'remove_by_name', value: '普通中毒' }],
+    价格: 300,
+    货币: '联邦币',
+    类型: '药剂',
+    描述: '可以解除一些百年魂兽的普通毒素。',
+    效果: [{ 目标: '属性.状态效果', 类型: 'remove_by_name', 数值: '普通中毒' }],
   },
   千年解毒丹: {
-    price: 2500,
-    currency: 'fed_coin',
-    type: '药剂',
-    description: '能有效化解千年魂兽的剧毒，是魂师深入森林的保障。',
-    effects: [{ target: 'stat.conditions', type: 'remove_by_name', value: '千年剧毒' }],
+    价格: 2500,
+    货币: '联邦币',
+    类型: '药剂',
+    描述: '能有效化解千年魂兽的剧毒，是魂师深入森林的保障。',
+    效果: [{ 目标: '属性.状态效果', 类型: 'remove_by_name', 数值: '千年剧毒' }],
   },
   力量增幅药剂: {
-    price: 1200,
-    currency: 'fed_coin',
-    type: '药剂',
-    description: '饮用后短时间内肌肉膨胀，力量获得显著提升。',
-    effects: [
+    价格: 1200,
+    货币: '联邦币',
+    类型: '药剂',
+    描述: '饮用后短时间内肌肉膨胀，力量获得显著提升。',
+    效果: [
       {
-        target: 'stat.conditions',
-        type: 'add',
-        value: { 力量增幅: { 类型: 'buff', 层数: 1, 描述: '力量临时提升15%，持续3回合。', stat_mods: { str: 1.15 } } },
+        目标: '属性.状态效果',
+        类型: 'add',
+        数值: { 力量增幅: { 类型: 'buff', 层数: 1, 描述: '力量临时提升15%，持续3回合。', stat_mods: { str: 1.15 } } },
       },
     ],
   },
   野外生存帐篷: {
-    price: 1000,
-    currency: 'fed_coin',
-    type: '工具',
-    description: '在野外提供一个相对安全的休息点。',
-    effects: [],
+    价格: 1000,
+    货币: '联邦币',
+    类型: '工具',
+    描述: '在野外提供一个相对安全的休息点。',
+    效果: [],
   },
   照明魂导器: {
-    price: 800,
-    currency: 'fed_coin',
-    type: '工具',
-    description: '最基础的手持照明工具，比火把方便得多。',
-    effects: [],
+    价格: 800,
+    货币: '联邦币',
+    类型: '工具',
+    描述: '最基础的手持照明工具，比火把方便得多。',
+    效果: [],
   },
   普通铁锭: {
-    price: 200,
-    currency: 'fed_coin',
-    type: '材料',
-    description: '最基础的锻造材料，用于练习或打造低级工具。',
-    effects: [],
+    价格: 200,
+    货币: '联邦币',
+    类型: '材料',
+    描述: '最基础的锻造材料，用于练习或打造低级工具。',
+    效果: [],
   },
   百锻精铁: {
-    price: 1500,
-    currency: 'fed_coin',
-    type: '材料',
-    description: '经过百次锻打的精铁，是打造魂导器的入门材料。',
-    effects: [],
+    价格: 1500,
+    货币: '联邦币',
+    类型: '材料',
+    描述: '经过百次锻打的精铁，是打造魂导器的入门材料。',
+    效果: [],
   },
   一级能量核心: {
-    price: 1000,
-    currency: 'fed_coin',
-    type: '材料',
-    description: '为低级魂导器供能的标准电池。',
-    effects: [],
+    价格: 1000,
+    货币: '联邦币',
+    类型: '材料',
+    描述: '为低级魂导器供能的标准电池。',
+    效果: [],
   },
   二级能量核心: {
-    price: 5000,
-    currency: 'fed_coin',
-    type: '材料',
-    description: '能量输出更稳定的二级核心，适用于中阶魂导器。',
-    effects: [],
+    价格: 5000,
+    货币: '联邦币',
+    类型: '材料',
+    描述: '能量输出更稳定的二级核心，适用于中阶魂导器。',
+    效果: [],
   },
 };
 
 const TangmenShopProducts = {
   玄天功秘籍: {
-    price: 500,
-    currency: 'tang_pt',
-    type: '功法',
-    description: '唐门基础内功心法，修炼后可大幅提升魂力恢复速度与精纯度。',
-    requirements: { faction: '唐门' },
-    effects: [{ target: 'arts', type: 'add', value: { 玄天功: { 境界: '入门', lv: 1, exp: 0, 描述: '唐门绝学' } } }],
+    价格: 500,
+    货币: '唐门积分',
+    类型: '功法',
+    描述: '唐门基础内功心法，修炼后可大幅提升魂力恢复速度与精纯度。',
+    需求: { 势力: '唐门' },
+    效果: [{ 目标: '功法', 类型: 'add', 数值: { 玄天功: { 境界: '入门', lv: 1, exp: 0, 描述: '唐门绝学' } } }],
   },
   紫极魔瞳秘籍: {
-    price: 500,
-    currency: 'tang_pt',
-    type: '功法',
-    description: '唐门瞳术，修炼后可提升视力、动态视觉与精神力。',
-    requirements: { faction: '唐门' },
-    effects: [{ target: 'arts', type: 'add', value: { 紫极魔瞳: { 境界: '入门', lv: 1, exp: 0, 描述: '唐门绝学' } } }],
+    价格: 500,
+    货币: '唐门积分',
+    类型: '功法',
+    描述: '唐门瞳术，修炼后可提升视力、动态视觉与精神力。',
+    需求: { 势力: '唐门' },
+    效果: [{ 目标: '功法', 类型: 'add', 数值: { 紫极魔瞳: { 境界: '入门', lv: 1, exp: 0, 描述: '唐门绝学' } } }],
   },
   暗器百解: {
-    price: 2000,
-    currency: 'tang_pt',
-    type: '技术',
-    description: '记录了唐门上百种暗器制作与手法的总纲。',
-    requirements: { faction: '唐门', rank: ['黄级', '紫级', '黑级', '红级', '长老', '殿主'] },
-    effects: [
-      { target: 'arts', type: 'add', value: { 暗器百解: { 境界: '入门', lv: 1, exp: 0, 描述: '唐门暗器总纲' } } },
+    价格: 2000,
+    货币: '唐门积分',
+    类型: '技术',
+    描述: '记录了唐门上百种暗器制作与手法的总纲。',
+    需求: { 势力: '唐门', 阶级: ['黄级', '紫级', '黑级', '红级', '长老', '殿主'] },
+    效果: [
+      { 目标: '功法', 类型: 'add', 数值: { 暗器百解: { 境界: '入门', lv: 1, exp: 0, 描述: '唐门暗器总纲' } } },
     ],
   },
   百年炽火阳泉草: {
-    price: 8000,
-    currency: 'tang_pt',
-    type: '灵物',
-    description: '生长于冰火两仪眼阳泉旁的百年灵草，蕴含纯粹的火属性能量。',
-    requirements: { faction: '唐门', rank: ['黄级', '紫级', '黑级', '红级', '长老', '殿主'] },
-    effects: [{ target: 'status.consuming_herb_age', type: 'set', value: 100 }],
+    价格: 8000,
+    货币: '唐门积分',
+    类型: '灵物',
+    描述: '生长于冰火两仪眼阳泉旁的百年灵草，蕴含纯粹的火属性能量。',
+    需求: { 势力: '唐门', 阶级: ['黄级', '紫级', '黑级', '红级', '长老', '殿主'] },
+    效果: [{ 目标: '状态.吸收灵物年限', 类型: 'set', 数值: 100 }],
   },
   千年寒极冰晶花: {
-    price: 50000,
-    currency: 'tang_pt',
-    type: '灵物',
-    description: '生长于冰火两仪眼寒泉旁的千年奇花，蕴含极致的冰属性能量。',
-    requirements: { faction: '唐门', rank: ['紫级', '黑级', '红级', '长老', '殿主'] },
-    effects: [{ target: 'status.consuming_herb_age', type: 'set', value: 1000 }],
+    价格: 50000,
+    货币: '唐门积分',
+    类型: '灵物',
+    描述: '生长于冰火两仪眼寒泉旁的千年奇花，蕴含极致的冰属性能量。',
+    需求: { 势力: '唐门', 阶级: ['紫级', '黑级', '红级', '长老', '殿主'] },
+    效果: [{ 目标: '状态.吸收灵物年限', 类型: 'set', 数值: 1000 }],
   },
   万年望穿秋水露: {
-    price: 250000,
-    currency: 'tang_pt',
-    type: '灵物',
-    description: '冰火两仪眼孕育的万年仙品，服用后可极大增强精神力与视力。',
-    requirements: { faction: '唐门', rank: ['红级', '长老', '殿主'] },
-    effects: [{ target: 'status.consuming_herb_age', type: 'set', value: 10000 }],
+    价格: 250000,
+    货币: '唐门积分',
+    类型: '灵物',
+    描述: '冰火两仪眼孕育的万年仙品，服用后可极大增强精神力与视力。',
+    需求: { 势力: '唐门', 阶级: ['红级', '长老', '殿主'] },
+    效果: [{ 目标: '状态.吸收灵物年限', 类型: 'set', 数值: 10000 }],
   },
   万年魂骨兑换凭证: {
-    price: 500000,
-    currency: 'tang_pt',
-    type: '战略资源',
-    description: '唐门最高级别的奖励之一。可从宗门宝库中挑选一块万年魂骨。',
-    requirements: { faction: '唐门', rank: ['红级', '长老', '殿主'] },
-    effects: [
-      { target: 'inventory', type: 'add', value: { '万年魂骨(未指定)': { 数量: 1, 类型: '魂骨', 品质: '万年' } } },
+    价格: 500000,
+    货币: '唐门积分',
+    类型: '战略资源',
+    描述: '唐门最高级别的奖励之一。可从宗门宝库中挑选一块万年魂骨。',
+    需求: { 势力: '唐门', 阶级: ['红级', '长老', '殿主'] },
+    效果: [
+      { 目标: '背包', 类型: 'add', 数值: { '万年魂骨(未指定)': { 数量: 1, 类型: '魂骨', 品质: '万年' } } },
     ],
   },
 };
 
 const ShrekAcademyShopProducts = {
   百年龙鳞果: {
-    price: 500,
-    currency: 'shrek_pt',
-    type: '灵物',
-    description: '百年级别的灵果，能小幅强化气血。',
-    requirements: { faction: '史莱克学院' },
-    effects: [{ target: 'status.consuming_herb_age', type: 'set', value: 100 }],
+    价格: 500,
+    货币: '学院积分',
+    类型: '灵物',
+    描述: '百年级别的灵果，能小幅强化气血。',
+    需求: { 势力: '史莱克学院' },
+    效果: [{ 目标: '状态.吸收灵物年限', 类型: 'set', 数值: 100 }],
   },
   千年海心莲子: {
-    price: 8000,
-    currency: 'shrek_pt',
-    type: '灵物',
-    description: '千年级别的仙品莲子，能显著提升精神力。',
-    requirements: { faction: '史莱克学院' },
-    effects: [{ target: 'status.consuming_herb_age', type: 'set', value: 1000 }],
+    价格: 8000,
+    货币: '学院积分',
+    类型: '灵物',
+    描述: '千年级别的仙品莲子，能显著提升精神力。',
+    需求: { 势力: '史莱克学院' },
+    效果: [{ 目标: '状态.吸收灵物年限', 类型: 'set', 数值: 1000 }],
   },
   万年绮罗郁金香: {
-    price: 120000,
-    currency: 'shrek_pt',
-    type: '灵物',
-    description: '万年级别的仙品，服用后可百毒不侵。',
-    requirements: { faction: '史莱克学院', rank: ['内院弟子', '史莱克七怪', '老师', '宿老', '阁主'] },
-    effects: [{ target: 'status.consuming_herb_age', type: 'set', value: 10000 }],
+    价格: 120000,
+    货币: '学院积分',
+    类型: '灵物',
+    描述: '万年级别的仙品，服用后可百毒不侵。',
+    需求: { 势力: '史莱克学院', 阶级: ['内院弟子', '史莱克七怪', '老师', '宿老', '阁主'] },
+    效果: [{ 目标: '状态.吸收灵物年限', 类型: 'set', 数值: 10000 }],
   },
   万年魂骨兑换凭证: {
-    price: 300000,
-    currency: 'shrek_pt',
-    type: '战略资源',
-    description: '史莱克学院内院的核心奖励。每人仅限兑换一次。',
-    requirements: {
-      faction: '史莱克学院',
-      rank: ['内院弟子', '史莱克七怪', '老师', '宿老', '阁主'],
-      limit_tag: 'redeemed_10k_bone',
+    价格: 300000,
+    货币: '学院积分',
+    类型: '战略资源',
+    描述: '史莱克学院内院的核心奖励。每人仅限兑换一次。',
+    需求: {
+      势力: '史莱克学院',
+      阶级: ['内院弟子', '史莱克七怪', '老师', '宿老', '阁主'],
+      限购标记: 'redeemed_10k_bone',
     },
-    effects: [
-      { target: 'inventory', type: 'add', value: { '万年魂骨(未指定)': { 数量: 1, 类型: '魂骨', 品质: '万年' } } },
+    效果: [
+      { 目标: '背包', 类型: 'add', 数值: { '万年魂骨(未指定)': { 数量: 1, 类型: '魂骨', 品质: '万年' } } },
     ],
   },
   十万年魂骨兑换凭证: {
-    price: 1000000,
-    currency: 'shrek_pt',
-    type: '战略资源',
-    description: '史莱克学院的至高奖励。每人终身仅限兑换一次。',
-    requirements: { faction: '史莱克学院', rank: ['宿老', '阁主', '史莱克七怪'], limit_tag: 'redeemed_100k_bone' },
-    effects: [
-      { target: 'inventory', type: 'add', value: { '十万年魂骨(未指定)': { 数量: 1, 类型: '魂骨', 品质: '十万年' } } },
+    价格: 1000000,
+    货币: '学院积分',
+    类型: '战略资源',
+    描述: '史莱克学院的至高奖励。每人终身仅限兑换一次。',
+    需求: { 势力: '史莱克学院', 阶级: ['宿老', '阁主', '史莱克七怪'], 限购标记: 'redeemed_100k_bone' },
+    效果: [
+      { 目标: '背包', 类型: 'add', 数值: { '十万年魂骨(未指定)': { 数量: 1, 类型: '魂骨', 品质: '十万年' } } },
     ],
   },
 };
@@ -8573,136 +8615,136 @@ const ShrekAcademyShopProducts = {
 const AssociationShopProducts = {
   锻造师协会: {
     百锻金属块: {
-      price: 50000,
-      currency: 'fed_coin',
-      type: '材料',
-      description: '经过百次锻打的金属，是锻造师的基础材料。',
-      effects: [{ target: 'inventory', type: 'add', value: { 百锻金属块: { 数量: 1, 类型: '材料', 品质: '百锻' } } }],
+      价格: 50000,
+      货币: '联邦币',
+      类型: '材料',
+      描述: '经过百次锻打的金属，是锻造师的基础材料。',
+      效果: [{ 目标: '背包', 类型: 'add', 数值: { 百锻金属块: { 数量: 1, 类型: '材料', 品质: '百锻' } } }],
     },
     千锻金属块: {
-      price: 500000,
-      currency: 'fed_coin',
-      type: '材料',
-      description: '千锤百炼的稀有金属，拥有了初步的灵性。',
-      effects: [{ target: 'inventory', type: 'add', value: { 千锻金属块: { 数量: 1, 类型: '材料', 品质: '千锻' } } }],
+      价格: 500000,
+      货币: '联邦币',
+      类型: '材料',
+      描述: '千锤百炼的稀有金属，拥有了初步的灵性。',
+      效果: [{ 目标: '背包', 类型: 'add', 数值: { 千锻金属块: { 数量: 1, 类型: '材料', 品质: '千锻' } } }],
     },
     灵锻金属块: {
-      price: 10000000,
-      currency: 'fed_coin',
-      type: '材料',
-      description: '被赋予生命的金属，是四级以上锻造师的杰作。',
-      effects: [{ target: 'inventory', type: 'add', value: { 灵锻金属块: { 数量: 1, 类型: '材料', 品质: '灵锻' } } }],
+      价格: 10000000,
+      货币: '联邦币',
+      类型: '材料',
+      描述: '被赋予生命的金属，是四级以上锻造师的杰作。',
+      效果: [{ 目标: '背包', 类型: 'add', 数值: { 灵锻金属块: { 数量: 1, 类型: '材料', 品质: '灵锻' } } }],
     },
     魂锻金属块: {
-      price: 80000000,
-      currency: 'fed_coin',
-      type: '材料',
-      description: '与灵魂相融的金属，圣匠的标志。',
-      effects: [{ target: 'inventory', type: 'add', value: { 魂锻金属块: { 数量: 1, 类型: '材料', 品质: '魂锻' } } }],
+      价格: 80000000,
+      货币: '联邦币',
+      类型: '材料',
+      描述: '与灵魂相融的金属，圣匠的标志。',
+      效果: [{ 目标: '背包', 类型: 'add', 数值: { 魂锻金属块: { 数量: 1, 类型: '材料', 品质: '魂锻' } } }],
     },
     天锻金属块: {
-      price: 500000000,
-      currency: 'fed_coin',
-      type: '材料',
-      description: '引动天地法则淬炼而成的神级金属。',
-      effects: [{ target: 'inventory', type: 'add', value: { 天锻金属块: { 数量: 1, 类型: '材料', 品质: '天锻' } } }],
+      价格: 500000000,
+      货币: '联邦币',
+      类型: '材料',
+      描述: '引动天地法则淬炼而成的神级金属。',
+      效果: [{ 目标: '背包', 类型: 'add', 数值: { 天锻金属块: { 数量: 1, 类型: '材料', 品质: '天锻' } } }],
     },
   },
   设计师协会: {
     一字斗铠设计图: {
-      price: 100000,
-      currency: 'fed_coin',
-      type: '图纸',
-      description: '标准的一字斗铠设计蓝图。',
-      effects: [{ target: 'inventory', type: 'add', value: { 一字斗铠设计图: { 数量: 1, 类型: '图纸' } } }],
+      价格: 100000,
+      货币: '联邦币',
+      类型: '图纸',
+      描述: '标准的一字斗铠设计蓝图。',
+      效果: [{ 目标: '背包', 类型: 'add', 数值: { 一字斗铠设计图: { 数量: 1, 类型: '图纸' } } }],
     },
     二字斗铠设计图: {
-      price: 2000000,
-      currency: 'fed_coin',
-      type: '图纸',
-      description: '蕴含领域雏形的二字斗铠设计图。',
-      effects: [{ target: 'inventory', type: 'add', value: { 二字斗铠设计图: { 数量: 1, 类型: '图纸' } } }],
+      价格: 2000000,
+      货币: '联邦币',
+      类型: '图纸',
+      描述: '蕴含领域雏形的二字斗铠设计图。',
+      效果: [{ 目标: '背包', 类型: 'add', 数值: { 二字斗铠设计图: { 数量: 1, 类型: '图纸' } } }],
     },
     三字斗铠设计图: {
-      price: 20000000,
-      currency: 'fed_coin',
-      type: '图纸',
-      description: '能够赋予斗铠真正领域的三字斗铠设计图。',
-      effects: [{ target: 'inventory', type: 'add', value: { 三字斗铠设计图: { 数量: 1, 类型: '图纸' } } }],
+      价格: 20000000,
+      货币: '联邦币',
+      类型: '图纸',
+      描述: '能够赋予斗铠真正领域的三字斗铠设计图。',
+      效果: [{ 目标: '背包', 类型: 'add', 数值: { 三字斗铠设计图: { 数量: 1, 类型: '图纸' } } }],
     },
     四字斗铠设计图: {
-      price: 150000000,
-      currency: 'fed_coin',
-      type: '图纸',
-      description: '传说中的四字斗铠设计图。',
-      effects: [{ target: 'inventory', type: 'add', value: { 四字斗铠设计图: { 数量: 1, 类型: '图纸' } } }],
+      价格: 150000000,
+      货币: '联邦币',
+      类型: '图纸',
+      描述: '传说中的四字斗铠设计图。',
+      效果: [{ 目标: '背包', 类型: 'add', 数值: { 四字斗铠设计图: { 数量: 1, 类型: '图纸' } } }],
     },
   },
   机甲师协会: {
     黄级机甲现货: {
-      price: 6000000,
-      currency: 'fed_coin',
-      type: '装备',
-      description: '制式黄级机甲(流水线白板，品质系数1.0)。',
-      effects: [{ target: 'inventory', type: 'add', value: { 黄级机甲现货: { 数量: 1, 类型: '装备', 品质: '黄级' } } }],
+      价格: 6000000,
+      货币: '联邦币',
+      类型: '装备',
+      描述: '制式黄级机甲(流水线白板，品质系数1.0)。',
+      效果: [{ 目标: '背包', 类型: 'add', 数值: { 黄级机甲现货: { 数量: 1, 类型: '装备', 品质: '黄级' } } }],
     },
     紫级机甲现货: {
-      price: 80000000,
-      currency: 'fed_coin',
-      type: '装备',
-      description: '制式紫级机甲(流水线白板，品质系数1.0)。',
-      effects: [{ target: 'inventory', type: 'add', value: { 紫级机甲现货: { 数量: 1, 类型: '装备', 品质: '紫级' } } }],
+      价格: 80000000,
+      货币: '联邦币',
+      类型: '装备',
+      描述: '制式紫级机甲(流水线白板，品质系数1.0)。',
+      效果: [{ 目标: '背包', 类型: 'add', 数值: { 紫级机甲现货: { 数量: 1, 类型: '装备', 品质: '紫级' } } }],
     },
     黑级机甲现货: {
-      price: 1000000000,
-      currency: 'fed_coin',
-      type: '装备',
-      description: '制式黑级机甲(流水线白板，品质系数1.0)。',
-      effects: [{ target: 'inventory', type: 'add', value: { 黑级机甲现货: { 数量: 1, 类型: '装备', 品质: '黑级' } } }],
+      价格: 1000000000,
+      货币: '联邦币',
+      类型: '装备',
+      描述: '制式黑级机甲(流水线白板，品质系数1.0)。',
+      效果: [{ 目标: '背包', 类型: 'add', 数值: { 黑级机甲现货: { 数量: 1, 类型: '装备', 品质: '黑级' } } }],
     },
     红级机甲定制: {
-      price: 5000000000,
-      currency: 'fed_coin',
-      type: '服务',
-      description: '神级机甲的顶级代工定制服务(需自备神级材料)。',
-      effects: [],
+      价格: 5000000000,
+      货币: '联邦币',
+      类型: '服务',
+      描述: '神级机甲的顶级代工定制服务(需自备神级材料)。',
+      效果: [],
     },
   },
   修理师协会: {
     基础维护套件: {
-      price: 50000,
-      currency: 'fed_coin',
-      type: '消耗品',
-      description: '用于机甲和魂导器的日常保养。',
-      effects: [{ target: 'inventory', type: 'add', value: { 基础维护套件: { 数量: 1, 类型: '消耗品' } } }],
+      价格: 50000,
+      货币: '联邦币',
+      类型: '消耗品',
+      描述: '用于机甲和魂导器的日常保养。',
+      效果: [{ 目标: '背包', 类型: 'add', 数值: { 基础维护套件: { 数量: 1, 类型: '消耗品' } } }],
     },
     精密修复模块: {
-      price: 500000,
-      currency: 'fed_coin',
-      type: '消耗品',
-      description: '可以修复机甲或斗铠的中度损伤。',
-      effects: [{ target: 'inventory', type: 'add', value: { 精密修复模块: { 数量: 1, 类型: '消耗品' } } }],
+      价格: 500000,
+      货币: '联邦币',
+      类型: '消耗品',
+      描述: '可以修复机甲或斗铠的中度损伤。',
+      效果: [{ 目标: '背包', 类型: 'add', 数值: { 精密修复模块: { 数量: 1, 类型: '消耗品' } } }],
     },
     机甲超频模块: {
-      price: 500000,
-      currency: 'fed_coin',
-      type: '消耗品',
-      description: '一次性模块，能让机甲在短时间内爆发出超越极限的性能。',
-      effects: [{ target: 'inventory', type: 'add', value: { 机甲超频模块: { 数量: 1, 类型: '消耗品' } } }],
+      价格: 500000,
+      货币: '联邦币',
+      类型: '消耗品',
+      描述: '一次性模块，能让机甲在短时间内爆发出超越极限的性能。',
+      效果: [{ 目标: '背包', 类型: 'add', 数值: { 机甲超频模块: { 数量: 1, 类型: '消耗品' } } }],
     },
     斗铠本源蕴养液: {
-      price: 20000000,
-      currency: 'fed_coin',
-      type: '消耗品',
-      description: '极其珍贵的蕴养液，能修复受损的斗铠本源。',
-      effects: [{ target: 'inventory', type: 'add', value: { 斗铠本源蕴养液: { 数量: 1, 类型: '消耗品' } } }],
+      价格: 20000000,
+      货币: '联邦币',
+      类型: '消耗品',
+      描述: '极其珍贵的蕴养液，能修复受损的斗铠本源。',
+      效果: [{ 目标: '背包', 类型: 'add', 数值: { 斗铠本源蕴养液: { 数量: 1, 类型: '消耗品' } } }],
     },
     神级重塑核心: {
-      price: 500000000,
-      currency: 'fed_coin',
-      type: '核心部件',
-      description: '传说中的物品，据说能让彻底损毁的斗铠甚至神器重获新生。',
-      effects: [{ target: 'inventory', type: 'add', value: { 神级重塑核心: { 数量: 1, 类型: '核心部件' } } }],
+      价格: 500000000,
+      货币: '联邦币',
+      类型: '核心部件',
+      描述: '传说中的物品，据说能让彻底损毁的斗铠甚至神器重获新生。',
+      效果: [{ 目标: '背包', 类型: 'add', 数值: { 神级重塑核心: { 数量: 1, 类型: '核心部件' } } }],
     },
   },
 };
@@ -8710,84 +8752,84 @@ export const Schema = z
   .object({
     sys: z
       .object({
-        player_name: z.string().prefault('无名氏').describe('当前玩家角色姓名'),
+        玩家名: z.string().prefault('无名氏').describe('当前玩家角色姓名'),
         rsn: z.string().prefault('初始化'),
-        cleanup_request: z
+        清理请求: z
           .object({
-            action: z.string().prefault('无').describe('填apply时执行一次临时变量清理'),
-            characters: z.array(z.string()).prefault([]).describe('要清理的临时角色名列表'),
-            dynamic_locations: z.array(z.string()).prefault([]).describe('要清理的动态地点名列表'),
-            purge_relations: z.boolean().prefault(true),
-            reset_location_refs: z.boolean().prefault(true),
+            动作: z.string().prefault('无').describe('填apply时执行一次临时变量清理'),
+            角色: z.array(z.string()).prefault([]).describe('要清理的临时角色名列表'),
+            动态地点: z.array(z.string()).prefault([]).describe('要清理的动态地点名列表'),
+            清理关系: z.boolean().prefault(true),
+            重置地点引用: z.boolean().prefault(true),
           })
           .prefault({}),
         seq: z.record(z.string(), z.object({ 事件: z.string().prefault('无') }).prefault({})).prefault({}),
-        last_roll: z.coerce.number().prefault(0).describe('最近一次D100物理检定客观点数'),
-        fsr: z.coerce.number().prefault(0).describe('当前交互行为的最终成功率'),
+        最近检定: z.coerce.number().prefault(0).describe('最近一次D100物理检定客观点数'),
+        最终成功率: z.coerce.number().prefault(0).describe('当前交互行为的最终成功率'),
       })
       .prefault({}),
     char: z.record(z.string(), CharacterSchema).prefault({}),
     org: z.record(z.string(), FactionSchema).prefault({}),
     world: z
       .object({
-        time: z
+        时间: z
           .object({
             tick: z.coerce.number().prefault(0),
-            _last_settle_tick: z.coerce.number().prefault(0),
+            _上次结算tick: z.coerce.number().prefault(0),
             _calendar: z.string().prefault('斗罗历X年X月X日 HH:MM'),
-            _last_lv_up: z.coerce.number().prefault(0),
+            _上次升级tick: z.coerce.number().prefault(0),
           })
           .prefault({}),
-        flags: z.record(z.string(), z.boolean().prefault(true)).prefault({}),
-        deviation: z.coerce.number().prefault(0).describe('世界线偏差值(0-100)'),
-        deviation_multiplier: z.coerce.number().prefault(1.0).describe('偏差值累计倍率'),
-        forest_killed_age: z.coerce.number().prefault(0).describe('星斗大森林累计被杀魂兽年限'),
-        timeline: z
+        标记: z.record(z.string(), z.boolean().prefault(true)).prefault({}),
+        偏差值: z.coerce.number().prefault(0).describe('世界线偏差值(0-100)'),
+        偏差倍率: z.coerce.number().prefault(1.0).describe('偏差值累计倍率'),
+        累计击杀年限: z.coerce.number().prefault(0).describe('星斗大森林累计被杀魂兽年限'),
+        时间线: z
           .record(
             z.string(),
             z
               .object({
-                trigger_tick: z.coerce.number().prefault(0),
-                event: z.string().prefault('无'),
-                status: z.string().prefault('pending'),
+                触发tick: z.coerce.number().prefault(0),
+                事件: z.string().prefault('无'),
+                状态: z.string().prefault('pending'),
               })
               .prefault({}),
           )
           .prefault({}),
-        auction: z
+        拍卖: z
           .object({
-            status: z.string().prefault('休市'),
-            next_tick: z.coerce.number().prefault(7),
-            location: z.string().prefault('无'),
-            items: z
+            状态: z.string().prefault('休市'),
+            下次刷新tick: z.coerce.number().prefault(7),
+            地点: z.string().prefault('无'),
+            拍品: z
               .record(
                 z.string(),
                 z
                   .object({
-                    tier: z.string().prefault('低阶'),
-                    lore: z.string().prefault('无'),
-                    price: z.coerce.number().prefault(0),
+                    品级: z.string().prefault('低阶'),
+                    背景: z.string().prefault('无'),
+                    价格: z.coerce.number().prefault(0),
                   })
                   .prefault({}),
               )
               .prefault({}),
           })
           .prefault({}),
-        trade_request: z
+        交易请求: z
           .object({
-            action: z.string().prefault('无').describe('AI或剧情发起的交易模块请求类型'),
-            target: z.string().prefault('').describe('交易地点、店铺或拍卖目标'),
-            npc: z.string().prefault('').describe('交易对象NPC'),
-            item: z.string().prefault('').describe('交易物品名称'),
-            quantity: z.coerce.number().prefault(1).describe('交易数量'),
-            price: z.coerce.number().prefault(0).describe('单价或出价'),
-            currency: z.string().prefault('fed_coin').describe('货币类型'),
-            status: z.string().prefault('pending').describe('pending/opened/handled/无'),
-            auto_execute: z.boolean().prefault(false).describe('是否允许前端交易模块自动提交仲裁'),
-            source: z.string().prefault('AI').describe('请求来源'),
+            动作: z.string().prefault('无').describe('AI或剧情发起的交易模块请求类型'),
+            目标: z.string().prefault('').describe('交易地点、店铺或拍卖目标'),
+            对象: z.string().prefault('').describe('交易对象NPC'),
+            物品: z.string().prefault('').describe('交易物品名称'),
+            数量: z.coerce.number().prefault(1).describe('交易数量'),
+            价格: z.coerce.number().prefault(0).describe('单价或出价'),
+            货币: z.string().prefault('联邦币').describe('货币类型'),
+            状态: z.string().prefault('pending').describe('pending/opened/handled/无'),
+            自动执行: z.boolean().prefault(false).describe('是否允许前端交易模块自动提交仲裁'),
+            来源: z.string().prefault('AI').describe('请求来源'),
           })
           .prefault({}),
-        quest_board: z
+        委托板: z
           .record(
             z.string(),
             z
@@ -8811,7 +8853,7 @@ export const Schema = z
               .prefault({}),
           )
           .prefault({}),
-        locations: z
+        地点: z
           .record(
             z.string().describe('地点名称'),
             z
@@ -8822,38 +8864,40 @@ export const Schema = z
                 经济状况: z.enum(['繁荣', '普通', '萧条', '未知']).prefault('未知'),
                 x: z.coerce.number().prefault(-1),
                 y: z.coerce.number().prefault(-1),
-                type: z.string().prefault('地图节点'),
-                desc: z.string().prefault('无'),
-                state: z.string().prefault('intact'),
-                icon: z.string().prefault('node'),
-                node_kind: z.string().prefault(''),
-                interactions: z.array(z.string()).prefault([]),
-                services: z.array(z.string()).prefault([]),
-                action_slots: z.array(z.string()).prefault([]),
-                event_id: z.string().prefault(''),
-                children: z.record(z.string(), z.any()).prefault({}),
-                stores: z
+                类型: z.string().prefault('地图节点'),
+                描述: z.string().prefault('无'),
+                状态: z.string().prefault('intact'),
+                图标: z.string().prefault('node'),
+                节点类别: z.string().prefault(''),
+                交互: z.array(z.string()).prefault([]),
+                服务: z.array(z.string()).prefault([]),
+                行动槽: z.array(z.string()).prefault([]),
+                事件ID: z.string().prefault(''),
+                子节点: z.record(z.string(), z.any()).prefault({}),
+                商店: z
                   .record(
                     z.string().describe('商店名，如：传灵塔分店'),
                     z
                       .object({
-                        inventory: z
+                        库存: z
                           .record(
                             z.string().describe('商品ID或名称'),
                             z
                               .object({
-                                price: z.coerce.number().prefault(0).describe('价格'),
-                                currency: z.string().prefault('fed_coin').describe('货币类型'),
-                                stock: z.coerce.number().prefault(0).describe('库存'),
-                                req_fame: z.coerce.number().prefault(0).describe('声望要求'),
-                                description: z.string().prefault('').describe('物品描述'),
-                                effects: z.array(z.any()).prefault([]).describe('购买效果'),
+                                价格: z.coerce.number().prefault(0).describe('价格'),
+                                货币: z.string().prefault('联邦币').describe('货币类型'),
+                                类型: z.string().prefault('物品').describe('商品类型'),
+                                库存: z.coerce.number().prefault(0).describe('库存'),
+                                需求声望: z.coerce.number().prefault(0).describe('声望要求'),
+                                描述: z.string().prefault('').describe('物品描述'),
+                                效果: z.array(z.any()).prefault([]).describe('购买效果'),
+                                需求: z.record(z.string(), z.any()).prefault({}).describe('额外兑换条件'),
                               })
                               .prefault({}),
                           )
                           .prefault({})
                           .describe('商品库存列表'),
-                        _next_refresh_tick: z.coerce.number().prefault(0).describe('下次刷新时间'),
+                        _下次刷新tick: z.coerce.number().prefault(0).describe('下次刷新时间'),
                       })
                       .prefault({}),
                   )
@@ -8865,7 +8909,7 @@ export const Schema = z
           .prefault({})
           .describe('世界主要地点的数据化索引'),
 
-        dynamic_locations: z
+        动态地点: z
           .record(
             z.string().describe('动态生成的具体地点名称，如：东海学院旁小吃街'),
             z
@@ -8878,32 +8922,32 @@ export const Schema = z
                 描述: z.string().prefault('无'),
                 x: z.coerce.number().prefault(-1).describe('地图坐标X'),
                 y: z.coerce.number().prefault(-1).describe('地图坐标Y'),
-                map_id: z.string().prefault('无'),
-                node_type: z
+                地图ID: z.string().prefault('无'),
+                节点类型: z
                   .any()
                   .transform(value => normalizeDynamicLocationNodeType(value))
                   .prefault('未知')
                   .describe('地点类型'),
-                icon: z.string().prefault('marker').describe('前端渲染使用的图标标识'),
-                settlement_id: z.string().prefault('无').describe('归属城市ID'),
-                faction: z.string().prefault('未知'),
-                importance: z.coerce.number().prefault(0),
-                state: z.string().prefault('intact'),
-                node_kind: z.string().prefault(''),
-                interactions: z.array(z.string()).prefault([]),
-                services: z.array(z.string()).prefault([]),
-                action_slots: z.array(z.string()).prefault([]),
-                event_id: z.string().prefault(''),
+                图标: z.string().prefault('marker').describe('前端渲染使用的图标标识'),
+                所属城镇ID: z.string().prefault('无').describe('归属城市ID'),
+                势力: z.string().prefault('未知'),
+                重要度: z.coerce.number().prefault(0),
+                状态: z.string().prefault('intact'),
+                节点类别: z.string().prefault(''),
+                交互: z.array(z.string()).prefault([]),
+                服务: z.array(z.string()).prefault([]),
+                行动槽: z.array(z.string()).prefault([]),
+                事件ID: z.string().prefault(''),
               })
               .prefault({}),
           )
           .prefault({})
-          .transform(locations => {
-            _(locations).forEach((locData, locName) => {
-              locData.node_type = normalizeDynamicLocationNodeType(locData.node_type, locData.层级, locName);
+          .transform(地点数据 => {
+            _(地点数据).forEach((locData, locName) => {
+              locData.节点类型 = normalizeDynamicLocationNodeType(locData.节点类型, locData.层级, locName);
               if (locData.x === -1 || locData.y === -1) {
                 const siblingCoords = new Set();
-                _(locations).forEach(otherLoc => {
+                _(地点数据).forEach(otherLoc => {
                   if (otherLoc.归属父节点 === locData.归属父节点 && otherLoc.x !== -1 && otherLoc.y !== -1) {
                     siblingCoords.add(`${otherLoc.x},${otherLoc.y}`);
                   }
@@ -8925,27 +8969,27 @@ export const Schema = z
                 siblingCoords.add(`${newX},${newY}`);
               }
             });
-            return locations;
+            return 地点数据;
           })
           .describe('随剧情动态拓展的子地图节点'),
-        bestiary: z
+        图鉴: z
           .record(z.string().describe('物种或怪物名称，如：巴安'), z.object({}).prefault({}))
           .prefault({})
           .describe('怪物图鉴，记录已遭遇怪物的标准数据'),
-        combat: z
+        战斗: z
           .object({
-            is_active: z.boolean().prefault(false).describe('是否处于战斗中'),
-            combat_type: z.string().prefault('未知').describe('战斗烈度，决定是否触发锁血保护与死亡结算'),
-            initiative: z
+            进行中: z.boolean().prefault(false).describe('是否处于战斗中'),
+            战斗类型: z.string().prefault('未知').describe('战斗烈度，决定是否触发锁血保护与死亡结算'),
+            先攻: z
               .string()
               .prefault('无')
               .describe('掌握先手权的角色名。若为"无"则代表公平开局；若有名字则代表突发偷袭，防守方首回合反应率减半'),
-            allow_flee: z.boolean().prefault(true).describe('是否允许逃跑。若为false则代表背水一战，触发困兽机制'),
-            round: z.coerce.number().prefault(0).describe('当前回合数'),
-            phase: z.enum(['无', '宣告阶段', '对轰判定阶段', '回合结算阶段']).prefault('无').describe('当前战斗阶段'),
-            environment: z.string().prefault('正常').describe('战场环境或全局领域法则'),
+            允许撤离: z.boolean().prefault(true).describe('是否允许逃跑。若为false则代表背水一战，触发困兽机制'),
+            回合: z.coerce.number().prefault(0).describe('当前回合数'),
+            阶段: z.enum(['无', '宣告阶段', '对轰判定阶段', '回合结算阶段']).prefault('无').describe('当前战斗阶段'),
+            环境: z.string().prefault('正常').describe('战场环境或全局领域法则'),
 
-            participants: z
+            参战者: z
               .record(z.string().describe('参战槽位或参战者姓名'), z.any())
               .prefault({})
               .describe('当前战场所有参战单位的实时状态'),
@@ -9007,11 +9051,11 @@ export const Schema = z
 
     if (!data.org || typeof data.org !== 'object') data.org = {};
     if (!data.world || typeof data.world !== 'object') data.world = {};
-    if (!data.world.time || typeof data.world.time !== 'object') data.world.time = {};
-    if (!data.world.flags || typeof data.world.flags !== 'object') data.world.flags = {};
-    if (!data.world.dynamic_locations || typeof data.world.dynamic_locations !== 'object')
-      data.world.dynamic_locations = {};
-    if (!data.world.locations || typeof data.world.locations !== 'object') data.world.locations = {};
+    if (!data.world.时间 || typeof data.world.时间 !== 'object') data.world.时间 = {};
+    if (!data.world.标记 || typeof data.world.标记 !== 'object') data.world.标记 = {};
+    if (!data.world.动态地点 || typeof data.world.动态地点 !== 'object')
+      data.world.动态地点 = {};
+    if (!data.world.地点 || typeof data.world.地点 !== 'object') data.world.地点 = {};
 
     const RESERVED_CHAR_KEYS = new Set([
       'display_data',
@@ -9041,12 +9085,12 @@ export const Schema = z
     });
 
     if (!data.sys.seq || typeof data.sys.seq !== 'object') data.sys.seq = {};
-    if (typeof data.sys.player_name !== 'string' || !data.sys.player_name.trim()) data.sys.player_name = '无名氏';
+    if (typeof data.sys.玩家名 !== 'string' || !data.sys.玩家名.trim()) data.sys.玩家名 = '无名氏';
     if (typeof data.sys.rsn !== 'string' || !data.sys.rsn.trim()) data.sys.rsn = '初始化';
-    data.sys.last_roll = Number(data.sys.last_roll || 0);
+    data.sys.最近检定 = Number(data.sys.最近检定 || 0);
 
-    let currentTick = Number(data.world.time.tick || 0);
-    data.world.time.tick = currentTick;
+    let currentTick = Number(data.world.时间.tick || 0);
+    data.world.时间.tick = currentTick;
 
     const formatTickToCalendarDateLocal = tickValue => {
       const safeTick = Math.max(0, Number(tickValue || 0));
@@ -9063,14 +9107,14 @@ export const Schema = z
 
     const formatTickToCalendar = tickValue => formatTickToCalendarDateLocal(tickValue);
 
-    data.world.time._calendar = formatTickToCalendar(currentTick);
+    data.world.时间._calendar = formatTickToCalendar(currentTick);
     applyCleanupRequest(data);
 
     _(data.char || {}).forEach(charData => {
-      if (!charData || typeof charData !== 'object' || !charData.inventory || typeof charData.inventory !== 'object')
+      if (!charData || typeof charData !== 'object' || !charData.背包 || typeof charData.背包 !== 'object')
         return;
-      Object.keys(charData.inventory).forEach(itemName => {
-        const item = charData.inventory[itemName];
+      Object.keys(charData.背包).forEach(itemName => {
+        const item = charData.背包[itemName];
         const expiryTick = Number(item?.有效期至tick || 0);
         if (expiryTick > 0) {
           item.有效期至 = formatTickToCalendarDateLocal(expiryTick);
@@ -9085,7 +9129,7 @@ export const Schema = z
           }
         }
         if (expiryTick > 0 && currentTick >= expiryTick) {
-          delete charData.inventory[itemName];
+          delete charData.背包[itemName];
         }
       });
     });
@@ -9104,7 +9148,7 @@ export const Schema = z
       return parts.join('');
     };
 
-    let lastTick = data.world.time._last_settle_tick ?? data.world.time.last_settle_tick ?? currentTick;
+    let lastTick = data.world.时间._上次结算tick ?? data.world.时间.上次结算tick ?? currentTick;
     let delta = currentTick - lastTick;
 
     let refreshQuestBoardFrames = () => {};
@@ -9323,7 +9367,7 @@ export const Schema = z
       };
 
       function getQuestBoardRegionLabel(char = {}) {
-        const raw = String(char?.status?.loc || '当前区域')
+        const raw = String(char?.状态?.位置 || '当前区域')
           .replace(/^斗罗大陆-/, '')
           .replace(/^斗灵大陆-/, '')
           .trim();
@@ -9334,13 +9378,13 @@ export const Schema = z
 
       function getQuestBoardJobLevel(char = {}, keywords = []) {
         let result = 0;
-        _(char?.job || {}).forEach((jobData, jobName) => {
+        _(char?.职业 || {}).forEach((jobData, jobName) => {
           const safeName = String(jobName || '').trim();
           if (!safeName) return;
           if (
             (Array.isArray(keywords) ? keywords : []).some(keyword => safeName.includes(String(keyword || '').trim()))
           ) {
-            result = Math.max(result, Number(jobData?.lv || 0));
+            result = Math.max(result, Number(jobData?.等级 || 0));
           }
         });
         return result;
@@ -9348,8 +9392,8 @@ export const Schema = z
 
       function getQuestBoardMaxJobLevel(char = {}) {
         let result = 0;
-        _(char?.job || {}).forEach(jobData => {
-          result = Math.max(result, Number(jobData?.lv || 0));
+        _(char?.职业 || {}).forEach(jobData => {
+          result = Math.max(result, Number(jobData?.等级 || 0));
         });
         return result;
       }
@@ -9509,7 +9553,7 @@ export const Schema = z
       }
 
       function pickQuestBoardDescriptor(playerChar = {}) {
-        const combatTierIndex = getQuestCombatTierIndex(Number(playerChar?.stat?.lv || 0));
+        const combatTierIndex = getQuestCombatTierIndex(Number(playerChar?.属性?.等级 || 0));
         const maxJobLevel = getQuestBoardMaxJobLevel(playerChar);
         const descriptors = [
           { descriptor: QUEST_BOARD_GENERAL_DESCRIPTORS[0], weight: 24 },
@@ -9531,7 +9575,7 @@ export const Schema = z
       }
 
       function resolveQuestBoardBaseTierIndex(playerChar = {}, descriptor = {}) {
-        const combatTierIndex = getQuestCombatTierIndex(Number(playerChar?.stat?.lv || 0));
+        const combatTierIndex = getQuestCombatTierIndex(Number(playerChar?.属性?.等级 || 0));
         const maxJobTierIndex = getQuestProfessionTierIndex(getQuestBoardMaxJobLevel(playerChar));
         if (descriptor.class === 'profession') {
           return questBoardClampIndex(
@@ -9561,7 +9605,7 @@ export const Schema = z
         const publisher = descriptor.publisher || questBoardPickRandom(descriptor.publishers || ['系统']) || '系统';
         const resourceLabel = QUEST_BOARD_TIER_SETTINGS[tier]?.resourceLabel || '常规资源';
         const progressCount = buildQuestBoardRequiredCount(tier, descriptor);
-        const playerLevel = Number(playerChar?.stat?.lv || 0);
+        const playerLevel = Number(playerChar?.属性?.等级 || 0);
         const relevantJobLevel =
           descriptor.class === 'profession' ? Number(descriptor._jobLevel || 0) : getQuestBoardMaxJobLevel(playerChar);
         const powerFactor = Math.min(
@@ -9596,8 +9640,8 @@ export const Schema = z
 
       refreshQuestBoardFrames = function refreshQuestBoardFrames(dataRef, currentTickValue = 0) {
         if (!dataRef?.world) return;
-        if (!dataRef.world.quest_board || typeof dataRef.world.quest_board !== 'object') dataRef.world.quest_board = {};
-        const board = dataRef.world.quest_board;
+        if (!dataRef.world.委托板 || typeof dataRef.world.委托板 !== 'object') dataRef.world.委托板 = {};
+        const board = dataRef.world.委托板;
 
         Object.keys(board).forEach(questId => {
           const entry = board[questId];
@@ -9608,9 +9652,9 @@ export const Schema = z
           const generatedTick = Number(entry.生成tick || 0);
           if (generatedTick <= 0) return;
           const age = Math.max(0, Number(currentTickValue || 0) - generatedTick);
-          const status = String(entry.状态 || '待接取');
-          if (status === '待接取' && age >= QUEST_BOARD_PENDING_STALE_TICKS) delete board[questId];
-          else if ((status === '已完成' || status === '已放弃') && age >= QUEST_BOARD_ARCHIVE_STALE_TICKS)
+          const 状态 = String(entry.状态 || '待接取');
+          if (状态 === '待接取' && age >= QUEST_BOARD_PENDING_STALE_TICKS) delete board[questId];
+          else if ((状态 === '已完成' || 状态 === '已放弃') && age >= QUEST_BOARD_ARCHIVE_STALE_TICKS)
             delete board[questId];
         });
 
@@ -9619,11 +9663,11 @@ export const Schema = z
         );
         if (pendingEntries.length >= QUEST_BOARD_PENDING_LIMIT) return;
 
-        const playerName = String(dataRef?.sys?.player_name || '').trim();
+        const playerName = String(dataRef?.sys?.玩家名 || '').trim();
         const playerChar = playerName ? dataRef?.char?.[playerName] : null;
         if (!playerChar) return;
 
-        const combatTierIndex = getQuestCombatTierIndex(Number(playerChar?.stat?.lv || 0));
+        const combatTierIndex = getQuestCombatTierIndex(Number(playerChar?.属性?.等级 || 0));
         const maxJobLevel = getQuestBoardMaxJobLevel(playerChar);
         const spawnChance = Math.min(
           82,
@@ -9740,30 +9784,30 @@ export const Schema = z
 
     _(data.char).forEach((char, charName) => {
       let isBeast = isSoulBeastCharacter(char);
-      let expectedRings = isBeast ? 0 : Math.floor(char.stat.lv / 10);
+      let expectedRings = isBeast ? 0 : Math.floor(char.属性.等级 / 10);
       let currentRings = 0;
       let currentSpirits = 0;
       let firstSpiritName = '未知武魂';
 
-      if (!char.spirit) char.spirit = {};
-      let spiritKeys = Object.keys(char.spirit);
+      if (!char.武魂) char.武魂 = {};
+      let spiritKeys = Object.keys(char.武魂);
       if (spiritKeys.length > 0) {
         firstSpiritName = spiritKeys[0];
-        let targetSpirit = char.spirit[firstSpiritName];
-        _(targetSpirit.soul_spirits || {}).forEach(ss => {
+        let targetSpirit = char.武魂[firstSpiritName];
+        _(targetSpirit.魂灵 || {}).forEach(ss => {
           currentSpirits++;
-          if (ss.rings) currentRings += Object.keys(ss.rings).length;
+          if (ss.魂环) currentRings += Object.keys(ss.魂环).length;
         });
       }
 
-      const isPlayer = charName === data.sys?.player_name;
-      const playerChar = data.char[data.sys?.player_name];
+      const isPlayer = charName === data.sys?.玩家名;
+      const playerChar = data.char[data.sys?.玩家名];
       const isSameNodeGroup = (c1, c2) => {
         if (!c1 || !c2) return false;
-        const loc1 = c1.status?.loc || '';
-        const loc2 = c2.status?.loc || '';
+        const loc1 = c1.状态?.位置 || '';
+        const loc2 = c2.状态?.位置 || '';
         if (loc1 && loc2 && loc1 === loc2) return true;
-        const dyn = data.world?.dynamic_locations || {};
+        const dyn = data.world?.动态地点 || {};
         const p1 = dyn[loc1]?.归属父节点 || loc1.split('-').slice(0, -1).join('-');
         const p2 = dyn[loc2]?.归属父节点 || loc2.split('-').slice(0, -1).join('-');
         return p1 && p2 && p1 === p2;
@@ -9775,20 +9819,20 @@ export const Schema = z
         if (isNearPlayer && data.sys?.rsn !== '初始化') return;
 
         if (spiritKeys.length === 0) {
-          char.spirit[firstSpiritName] = {
+          char.武魂[firstSpiritName] = {
             表象名称: '未展露',
-            type: char.stat.type,
-            soul_spirits: {},
-            domains: {},
-            custom_skills: {},
+            type: char.属性.系别,
+            魂灵: {},
+            领域: {},
+            自创魂技: {},
           };
           spiritKeys = [firstSpiritName];
         }
 
         spiritKeys.forEach(spiritKey => {
-          let targetSpirit = char.spirit[spiritKey];
+          let targetSpirit = char.武魂[spiritKey];
           if (!targetSpirit.表象名称) targetSpirit.表象名称 = '未展露';
-          if (!targetSpirit.soul_spirits) targetSpirit.soul_spirits = {};
+          if (!targetSpirit.魂灵) targetSpirit.魂灵 = {};
 
           let ringsNeeded = expectedRings;
           let currentRingIndex = 1;
@@ -9797,19 +9841,19 @@ export const Schema = z
 
           const realmLimit =
             { 灵元境: 1, 灵通境: 2, 灵海境: 5, 灵渊境: 9, 灵域境: 99, 神元境: 999 }[
-              char.stat._men_realm || char.stat.men_realm
+              char.属性.精神境界 || char.属性.精神力_realm
             ] || 1;
 
           let currentTotalSpirits = 0;
-          _(char.spirit).forEach(sp => {
-            currentTotalSpirits += Object.keys(sp.soul_spirits || {}).length;
+          _(char.武魂).forEach(sp => {
+            currentTotalSpirits += Object.keys(sp.魂灵 || {}).length;
           });
           while (ringsNeeded > 0 && spiritIndex < 9 && currentTotalSpirits < realmLimit) {
             let spData = rollSpirit(
-              char.stat.talent_tier,
-              char.stat.lv,
+              char.属性.天赋梯队,
+              char.属性.等级,
               spiritIndex,
-              char.stat._men_realm || char.stat.men_realm,
+              char.属性.精神境界 || char.属性.精神力_realm,
             );
 
             if (spData.age <= lastAge) {
@@ -9823,11 +9867,11 @@ export const Schema = z
 
             let spiritName = spiritIndex === 0 ? '第1魂灵' : `第${spiritIndex + 1}魂灵`;
             let talentBonus =
-              { 绝世妖孽: 30, 顶级天才: 20, 天才: 10, 优秀: 0, 正常: -10, 劣等: -20 }[char.stat.talent_tier] || 0;
+              { 绝世妖孽: 30, 顶级天才: 20, 天才: 10, 优秀: 0, 正常: -10, 劣等: -20 }[char.属性.天赋梯队] || 0;
             let indexBonus = spiritIndex * 5;
             let calculatedComp = Math.min(100, Math.max(0, 60 + talentBonus + indexBonus));
 
-            targetSpirit.soul_spirits[spiritName] = {
+            targetSpirit.魂灵[spiritName] = {
               表象名称: AI_TODO_SOUL_SPIRIT_NAME,
               描述: buildSoulSpiritDescriptionTodoText({
                 表象名称: AI_TODO_SOUL_SPIRIT_NAME,
@@ -9838,14 +9882,14 @@ export const Schema = z
               年限: spData.age,
               品质: AI_TODO_SOUL_SPIRIT_QUALITY,
               契合度: calculatedComp,
-              附机制候选: buildSoulSpiritSecondaryDefaultValue(char.stat.type, 1),
+              附机制候选: buildSoulSpiritSecondaryDefaultValue(char.属性.系别, 1),
               状态: '活跃',
               战力面板: createEmptySoulSpiritPowerPanel(),
-              rings: {},
+              魂环: {},
             };
 
             for (let i = 0; i < ringsToProvide; i++) {
-              targetSpirit.soul_spirits[spiritName].rings[currentRingIndex.toString()] = {
+              targetSpirit.魂灵[spiritName].魂环[currentRingIndex.toString()] = {
                 年限: spData.age,
                 颜色: getRingColorByAge(spData.age),
                 魂技: {
@@ -9857,7 +9901,7 @@ export const Schema = z
                   },
                 },
               };
-              targetSpirit.soul_spirits[spiritName].rings[currentRingIndex.toString()].魂技 = buildDefaultRingSkillMap(currentRingIndex, spData.age);
+              targetSpirit.魂灵[spiritName].魂环[currentRingIndex.toString()].魂技 = buildDefaultRingSkillMap(currentRingIndex, spData.age);
               currentRingIndex++;
             }
             ringsNeeded -= ringsToProvide;
@@ -9909,24 +9953,19 @@ export const Schema = z
 
     const upcomingTimelinePreview =
       typeof TimelineEvents !== 'undefined'
-        ? buildUpcomingTimelinePreview(TimelineEvents, currentTick, data.world.flags || {}, 5)
+        ? buildUpcomingTimelinePreview(TimelineEvents, currentTick, data.world.标记 || {}, 5)
         : [];
-    delete data.world._upcoming_timeline_preview;
-    delete data.world._upcoming_timeline_preview_text;
-    delete data.world._cue;
     if (!data.world._引导 || typeof data.world._引导 !== 'object' || Array.isArray(data.world._引导)) data.world._引导 = {};
-    delete data.world._引导.tl;
-    delete data.world._引导.next_tl;
     data.world._引导.时间线预览 = buildUpcomingTimelinePreviewText(upcomingTimelinePreview);
 
     if (typeof TimelineEvents !== 'undefined') {
-      let dev = data.world.deviation || 0;
+      let dev = data.world.偏差值 || 0;
 
       let allEvents = Array.isArray(TimelineEvents) ? TimelineEvents : Object.values(TimelineEvents).flat();
 
       allEvents.map(lowerCaseKeys).forEach(event => {
         let eventKey = event.事件名 || event.event_name || event.flag;
-        if (!data.world.flags[eventKey]) {
+        if (!data.world.标记[eventKey]) {
           let drift = dev > 0 ? Math.floor((Math.random() * 2 - 1) * dev * 100) : 0;
           let actualTick = event.tick + drift;
 
@@ -9952,7 +9991,7 @@ export const Schema = z
               _.merge(data.org[faction_name], updates);
             }
             if (event.faction_name && data.org[event.faction_name]) {
-              data.org[event.faction_name].inf += 500;
+              data.org[event.faction_name].影响力 += 500;
             }
 
             const eventDesc =
@@ -9970,20 +10009,20 @@ export const Schema = z
               msg += ` 🚨[世界线暴走] 当前偏差值高达 ${dev}！该历史节点已受混沌干扰，请 AI 强制魔改该事件的细节或结果！`;
             }
             data.sys.rsn = msg;
-            data.world.flags[eventKey] = true;
+            data.world.标记[eventKey] = true;
           }
         }
       });
     }
 
     if (typeof IntelEvents !== 'undefined') {
-      let dev = data.world.deviation || 0;
+      let dev = data.world.偏差值 || 0;
 
       let allIntels = Array.isArray(IntelEvents) ? IntelEvents : Object.values(IntelEvents).flat();
 
       allIntels.map(lowerCaseKeys).forEach((intel, index) => {
         let intelKey = intel.trigger_flag ? `intel_${intel.trigger_flag}` : `intel_${intel.tick}_${index}`;
-        if (!data.world.flags[intelKey]) {
+        if (!data.world.标记[intelKey]) {
           let drift = dev > 0 ? Math.floor((Math.random() * 2 - 1) * dev * 100) : 0;
           let actualTick = intel.tick + drift;
 
@@ -9991,14 +10030,14 @@ export const Schema = z
             if (intel.knowers) {
               intel.knowers.forEach(target => {
                 if (data.char[target]) {
-                  data.char[target].knowledge_unlock_request = {
-                    content: intel.content || intel.trigger_flag,
-                    impact: intel.impact ?? 0,
+                  data.char[target].待解锁情报 = {
+                    内容: intel.content || intel.trigger_flag,
+                    影响: intel.影响 ?? 0,
                   };
                 } else {
                   _(data.char).forEach((c, charName) => {
                     let isMatch = false;
-                    _(c.social?.factions || {}).forEach((facData, facName) => {
+                    _(c.社交?.势力 || {}).forEach((facData, facName) => {
                       if (target === facName) {
                         isMatch = true;
                       } else if (target.includes(facName) && target.includes('高层') && facData.权限级 >= 7) {
@@ -10007,9 +10046,9 @@ export const Schema = z
                     });
 
                     if (isMatch) {
-                      c.knowledge_unlock_request = {
-                        content: intel.content || intel.trigger_flag,
-                        impact: intel.impact ?? 0,
+                      c.待解锁情报 = {
+                        内容: intel.content || intel.trigger_flag,
+                        影响: intel.影响 ?? 0,
                       };
                     }
                   });
@@ -10022,27 +10061,27 @@ export const Schema = z
               data.sys.rsn += ` 🚨[情报异变] 偏差值过高！刚刚解锁的【${intel.content.substring(0, 10)}...】情报可能已被第三方篡改或发生恶性反转，请 AI 自由推演！`;
             }
 
-            data.world.flags[intelKey] = true;
+            data.world.标记[intelKey] = true;
           }
         }
       });
     }
 
-    if (!data.world.flags) data.world.flags = {};
-    if (!data.world.flags['initial_setup_complete']) {
-      data.world.flags['initial_setup_complete'] = true;
+    if (!data.world.标记) data.world.标记 = {};
+    if (!data.world.标记['initial_setup_complete']) {
+      data.world.标记['initial_setup_complete'] = true;
     }
 
     if (delta > 0) {
       let daysPassed = Math.floor(currentTick / 144) - Math.floor(lastTick / 144);
 
       _(data.char).forEach((c, charName) => {
-        const trainedBonus = ensureNumericStatBonusMap(c.stat, 'trained_bonus');
+        const trainedBonus = ensureNumericStatBonusMap(c.属性, '训练加成');
         if (daysPassed > 0 && Math.random() < 0.05) {
-          const locName = _.get(c, 'status.loc', '');
+          const locName = _.get(c, '状态.位置', '');
           const locData =
-            _.get(data, ['world', 'locations', locName], null) ||
-            _.get(data, ['world', 'dynamic_locations', locName], null);
+            _.get(data, ['world', '地点', locName], null) ||
+            _.get(data, ['world', '动态地点', locName], null);
 
           const opportunities = Array.isArray(locData && locData.opportunities) ? locData.opportunities : [];
 
@@ -10052,31 +10091,31 @@ export const Schema = z
             data.sys.rsn += ` 🎲[区域机遇] ${charName} 在【${locName}】触发了特殊事件：${event}！(请 AI 自由推演细节)`;
           }
         }
-        if (c.status.loc && c.status.loc.includes('血神军团入伍考核')) {
-          c.stat.sp = 0;
-          if (!c.stat.conditions['禁魔领域']) {
-            c.stat.conditions['禁魔领域'] = {
+        if (c.状态.位置 && c.状态.位置.includes('血神军团入伍考核')) {
+          c.属性.魂力 = 0;
+          if (!c.属性.状态效果['禁魔领域']) {
+            c.属性.状态效果['禁魔领域'] = {
               类型: 'debuff',
               层数: 1,
               描述: '处于考核虚拟网中，魂力被绝对封印，仅能使用肉体力量与气血',
             };
           }
         } else {
-          delete c.stat.conditions['禁魔领域'];
+          delete c.属性.状态效果['禁魔领域'];
         }
 
-        if (c.status.alive && c.status.wound !== '濒死') {
-          if (daysPassed > 0 && c.status.action === '日常') {
-            const isCity = /城|学院|镇|塔|村|都/.test(c.status.loc);
+        if (c.状态.存活 && getComputedWoundLevelFromStat(c.属性) !== '濒死') {
+          if (daysPassed > 0 && c.状态.行动 === '日常') {
+            const isCity = /城|学院|镇|塔|村|都/.test(c.状态.位置);
 
             if (isCity) {
               let cost = 300 * daysPassed;
-              if ((c.wealth?.fed_coin || 0) >= cost) {
-                c.wealth.fed_coin -= cost;
-                delete c.stat.conditions['饥饿'];
+              if ((c.财富?.联邦币 || 0) >= cost) {
+                c.财富.联邦币 -= cost;
+                delete c.属性.状态效果['饥饿'];
               } else {
-                c.wealth.fed_coin = 0;
-                c.stat.conditions['饥饿'] = { 类型: 'debuff', 层数: 1, 描述: '缺乏资金购买食物，体力流失加剧' };
+                c.财富.联邦币 = 0;
+                c.属性.状态效果['饥饿'] = { 类型: 'debuff', 层数: 1, 描述: '缺乏资金购买食物，体力流失加剧' };
               }
             }
           }
@@ -10086,35 +10125,35 @@ export const Schema = z
           // 日常/未明确动作不自动消耗体力与精神力，避免时间跳跃时把整段剧情硬判为持续消耗
           let vitMenRate = 0;
 
-          if (c.status.action === '冥想') {
+          if (c.状态.行动 === '冥想') {
             spRate = coreCount === 0 ? 0.05 : coreCount === 1 ? 0.2 : coreCount === 2 ? 0.3 : 0.4;
             vitMenRate = 0.005;
             let menRate = 0.008;
-            c.stat.men = Math.min(c.stat.men_max, Math.floor(c.stat.men + c.stat.men_max * menRate * delta));
-            c.stat.vit = Math.min(c.stat.vit_max, Math.floor(c.stat.vit + c.stat.vit_max * vitMenRate * delta));
-          } else if (c.status.action === '战斗') {
+            c.属性.精神力 = Math.min(c.属性.精神力上限, Math.floor(c.属性.精神力 + c.属性.精神力上限 * menRate * delta));
+            c.属性.体力 = Math.min(c.属性.体力上限, Math.floor(c.属性.体力 + c.属性.体力上限 * vitMenRate * delta));
+          } else if (c.状态.行动 === '战斗') {
             spRate = 0;
             vitMenRate = 0;
-            c.stat.men = c.stat.men;
-            c.stat.vit = c.stat.vit;
-          } else if (c.status.action === '睡眠') {
+            c.属性.精神力 = c.属性.精神力;
+            c.属性.体力 = c.属性.体力;
+          } else if (c.状态.行动 === '睡眠') {
             spRate = 0.01;
             let sleepRate = 0.01;
-            c.stat.men = Math.min(c.stat.men_max, Math.floor(c.stat.men + c.stat.men_max * sleepRate * delta));
-            c.stat.vit = Math.min(c.stat.vit_max, Math.floor(c.stat.vit + c.stat.vit_max * sleepRate * delta));
+            c.属性.精神力 = Math.min(c.属性.精神力上限, Math.floor(c.属性.精神力 + c.属性.精神力上限 * sleepRate * delta));
+            c.属性.体力 = Math.min(c.属性.体力上限, Math.floor(c.属性.体力 + c.属性.体力上限 * sleepRate * delta));
           } else {
-            c.stat.men = Math.min(c.stat.men_max, Math.floor(c.stat.men + c.stat.men_max * vitMenRate * delta));
-            c.stat.vit = Math.min(c.stat.vit_max, Math.floor(c.stat.vit + c.stat.vit_max * vitMenRate * delta));
+            c.属性.精神力 = Math.min(c.属性.精神力上限, Math.floor(c.属性.精神力 + c.属性.精神力上限 * vitMenRate * delta));
+            c.属性.体力 = Math.min(c.属性.体力上限, Math.floor(c.属性.体力 + c.属性.体力上限 * vitMenRate * delta));
           }
 
-          c.stat.sp = Math.min(c.stat.sp_max, Math.floor(c.stat.sp + c.stat.sp_max * spRate * delta));
+          c.属性.魂力 = Math.min(c.属性.魂力上限, Math.floor(c.属性.魂力 + c.属性.魂力上限 * spRate * delta));
 
-          let bloodCore = c.bloodline_power?.core || '未凝聚';
+          let bloodCore = c.血脉之力?.core || '未凝聚';
           if (bloodCore !== '未凝聚') {
-            c.stat.vit = Math.min(c.stat.vit_max, Math.floor(c.stat.vit + c.stat.vit_max * 0.05 * delta));
+            c.属性.体力 = Math.min(c.属性.体力上限, Math.floor(c.属性.体力 + c.属性.体力上限 * 0.05 * delta));
           }
 
-          if (c.status.action === '冥想') {
+          if (c.状态.行动 === '冥想') {
             let baseGrowth = (0.2 + coreCount * 0.2) * (delta / 6);
             let talentCultRate =
               {
@@ -10124,122 +10163,122 @@ export const Schema = z
                 优秀: 1.5,
                 正常: 1.0,
                 劣等: 0.5,
-              }[c.stat.talent_tier] || 1.0;
-            let finalGrowth = baseGrowth * talentCultRate * (c.stat.multiplier?.cultivation || 1.0);
+              }[c.属性.天赋梯队] || 1.0;
+            let finalGrowth = baseGrowth * talentCultRate * (c.属性.倍率系数?.修炼 || 1.0);
 
-            if (c.arts?.['玄天功']) finalGrowth = Math.floor(finalGrowth * 1.1);
+            if (c.功法?.['玄天功']) finalGrowth = Math.floor(finalGrowth * 1.1);
 
-            if (c.stat.lv >= 20 && c.stat.lv < 30) {
+            if (c.属性.等级 >= 20 && c.属性.等级 < 30) {
               finalGrowth = Math.floor(finalGrowth * 0.4);
-            } else if (c.stat.lv >= 30 && c.stat.lv < 40) {
+            } else if (c.属性.等级 >= 30 && c.属性.等级 < 40) {
               finalGrowth = Math.floor(finalGrowth * 0.9);
-            } else if (c.stat.lv >= 40 && c.stat.lv < 60) {
+            } else if (c.属性.等级 >= 40 && c.属性.等级 < 60) {
               finalGrowth = Math.floor(finalGrowth * 0.6);
             }
 
-            c.stat.sp_max = Math.floor(c.stat.sp_max + finalGrowth);
+            c.属性.魂力上限 = Math.floor(c.属性.魂力上限 + finalGrowth);
           }
 
-          if (c.status.action === '肉体训练') {
+          if (c.状态.行动 === '肉体训练') {
             let cycles = Math.floor(delta / 6);
             let actualCycles = 0;
             for (let i = 0; i < cycles; i++) {
-              if (c.stat.vit >= c.stat.vit_max * 0.3) {
-                c.stat.vit -= c.stat.vit_max * 0.3;
+              if (c.属性.体力 >= c.属性.体力上限 * 0.3) {
+                c.属性.体力 -= c.属性.体力上限 * 0.3;
                 actualCycles++;
               } else {
-                c.status.action = '日常';
+                c.状态.行动 = '日常';
                 break;
               }
             }
             if (actualCycles > 0) {
-              let gain = 0.05 * (c.stat.multiplier?.cultivation || 1.0) * actualCycles;
+              let gain = 0.05 * (c.属性.倍率系数?.修炼 || 1.0) * actualCycles;
               addNumericStatBonusEntries(trainedBonus, {
-                str: gain,
-                def: gain,
-                agi: gain,
-                vit_max: gain,
+                力量: gain,
+                防御: gain,
+                敏捷: gain,
+                体力上限: gain,
               });
             }
-          } else if (c.status.action === '精神训练') {
+          } else if (c.状态.行动 === '精神训练') {
             let cycles = Math.floor(delta / 6);
             let actualCycles = 0;
             for (let i = 0; i < cycles; i++) {
-              if (c.stat.men > c.stat.men_max * 0.1) {
-                c.stat.men -= c.stat.men * 0.8;
+              if (c.属性.精神力 > c.属性.精神力上限 * 0.1) {
+                c.属性.精神力 -= c.属性.精神力 * 0.8;
                 actualCycles++;
               } else {
-                c.status.action = '日常';
+                c.状态.行动 = '日常';
                 break;
               }
             }
-            if (actualCycles > 0 && c.stat.age <= 40) {
-              let gain = 0.02 * (c.stat.multiplier?.cultivation || 1.0) * actualCycles;
-              if (c.arts?.['紫极魔瞳']) gain = Math.floor(gain * 1.1);
-              addNumericStatBonusValue(trainedBonus, 'men_max', gain);
+            if (actualCycles > 0 && c.属性.年龄 <= 40) {
+              let gain = 0.02 * (c.属性.倍率系数?.修炼 || 1.0) * actualCycles;
+              if (c.功法?.['紫极魔瞳']) gain = Math.floor(gain * 1.1);
+              addNumericStatBonusValue(trainedBonus, '精神力上限', gain);
             }
           } else {
             let daysPassed = Math.floor(delta / 144);
             if (daysPassed > 0) {
-              let passiveGain = 0.01 * (c.stat.multiplier?.cultivation || 1.0) * daysPassed;
+              let passiveGain = 0.01 * (c.属性.倍率系数?.修炼 || 1.0) * daysPassed;
               addNumericStatBonusEntries(trainedBonus, {
-                str: passiveGain,
-                def: passiveGain,
-                agi: passiveGain,
-                vit_max: passiveGain,
+                力量: passiveGain,
+                防御: passiveGain,
+                敏捷: passiveGain,
+                体力上限: passiveGain,
               });
 
-              if (c.stat.age <= 40) {
-                addNumericStatBonusValue(trainedBonus, 'men_max', passiveGain * 0.5);
+              if (c.属性.年龄 <= 40) {
+                addNumericStatBonusValue(trainedBonus, '精神力上限', passiveGain * 0.5);
               }
             }
           }
 
-          if (c.status.action === '凝聚魂核') {
+          if (c.状态.行动 === '凝聚魂核') {
             let cycles = delta / 480;
             if (cycles > 0) {
               let deduct = Math.floor(50 * cycles);
-              c.stat.sp_max = Math.max(10, c.stat.sp_max - deduct);
+              c.属性.魂力上限 = Math.max(10, c.属性.魂力上限 - deduct);
 
-              if (!c.energy.core) c.energy.core = { 数量: 0, progress: 0 };
-              c.energy.core.progress += cycles;
+              if (!c.魂核.核心) c.魂核.核心 = { 数量: 0, 进度: 0 };
+              c.魂核.核心.进度 += cycles;
 
-              if (c.energy.core.progress >= 100) {
-                c.energy.core.数量 += 1;
-                c.energy.core.progress = 0;
-                c.status.action = '日常';
-                data.sys.rsn = `[境界突破] ${c.stat.age}岁的 ${c.stat.name || '角色'} 成功凝聚第 ${c.energy.core.数量} 魂核！修为上限解锁！`;
+              if (c.魂核.核心.进度 >= 100) {
+                c.魂核.核心.数量 += 1;
+                c.魂核.核心.进度 = 0;
+                c.状态.行动 = '日常';
+                data.sys.rsn = `[境界突破] ${c.属性.年龄}岁的 ${charName || '角色'} 成功凝聚第 ${c.魂核.核心.数量} 魂核！修为上限解锁！`;
               }
             }
           }
         }
       });
       refreshQuestBoardFrames(data, currentTick);
-      data.world.time._last_settle_tick = currentTick;
+      data.world.时间._上次结算tick = currentTick;
     }
 
     _(data.char).forEach((c, charName) => {
-      if (c.knowledge_unlock_request && c.knowledge_unlock_request.content !== '无') {
-        let req = c.knowledge_unlock_request;
-        const finalImpact = Math.max(0, Number(req?.impact || 0));
+      if (c.待解锁情报 && c.待解锁情报.内容 !== '无') {
+        let req = c.待解锁情报;
+        const finalImpact = Math.max(0, Number(req?.影响 || 0));
 
-        if (!c.unlocked_knowledges.includes(req.content)) {
-          c.unlocked_knowledges.push(req.content);
-          data.world.deviation = (data.world.deviation || 0) + finalImpact;
-          data.sys.rsn = `[情报解锁] ${charName} 获知了关键情报：${req.content}。世界线偏差值增加 ${finalImpact}！`;
+        if (!c.已掌握情报.includes(req.内容)) {
+          c.已掌握情报.push(req.内容);
+          data.world.偏差值 = (data.world.偏差值 || 0) + finalImpact;
+          data.sys.rsn = `[情报解锁] ${charName} 获知了关键情报：${req.内容}。世界线偏差值增加 ${finalImpact}！`;
         }
 
-        c.knowledge_unlock_request = { content: '无', impact: 0 };
+        c.待解锁情报 = { 内容: '无', 影响: 0 };
       }
     });
 
     _(data.char).forEach((c, charName) => {
-      const trainedBonus = ensureNumericStatBonusMap(c.stat, 'trained_bonus');
-      if (c.nsfw) {
-        const age = Number(c.stat?.age || 0);
+      const trainedBonus = ensureNumericStatBonusMap(c.属性, '训练加成');
+      if (c.私密档案) {
+        const age = Number(c.属性?.年龄 || 0);
 
     
-        if (!c.nsfw._has_menarche) {
+        if (!c.私密档案._已来初潮) {
           if (age >= 10 && currentTick % 144 === 0) { 
             let menarcheChance = 0;
             if (age === 11) menarcheChance = 0.05;      
@@ -10248,26 +10287,26 @@ export const Schema = z
             else if (age >= 14) menarcheChance = 0.95;
 
             if (Math.random() < menarcheChance) { 
-              c.nsfw._has_menarche = true;
-              c.nsfw.menstrual_offset = 4032 - (currentTick % 4032); 
+              c.私密档案._已来初潮 = true;
+              c.私密档案.生理期偏移 = 4032 - (currentTick % 4032); 
               
               if (currentTick > 0 && data.sys.rsn !== '初始化') {
                 if (!data.sys.rsn) data.sys.rsn = '';
                 data.sys.rsn += ` [生理变化] ${charName} 迎来了初潮，正式进入青春期！`;
               }
             } else {
-              c.nsfw._menstrual_stage = '未初潮(青春期前)';
+              c.私密档案._生理阶段 = '未初潮(青春期前)';
             }
           } else if (age < 10) {
-            c.nsfw._menstrual_stage = '未初潮(幼年)';
+            c.私密档案._生理阶段 = '未初潮(幼年)';
           }
         }
 
-        if (c.nsfw._has_menarche) {
-          if (c.nsfw.conception_tick > 0) {
-            const pregDays = Math.floor((currentTick - c.nsfw.conception_tick) / 144);
-            c.nsfw._pregnancy_days = pregDays;
-            c.nsfw._menstrual_stage = '孕期停经'; 
+        if (c.私密档案._已来初潮) {
+          if (c.私密档案.受孕tick > 0) {
+            const pregDays = Math.floor((currentTick - c.私密档案.受孕tick) / 144);
+            c.私密档案._怀孕天数 = pregDays;
+            c.私密档案._生理阶段 = '孕期停经'; 
 
             if (pregDays >= 270 && currentTick % 144 === 0) {
               const birthChance = (pregDays - 270) / 30; 
@@ -10275,47 +10314,49 @@ export const Schema = z
               if (Math.random() < birthChance || pregDays >= 300) {
                 if (data.sys.rsn === '初始化' || !data.sys.rsn) data.sys.rsn = '';
                 data.sys.rsn += ` [生命降生] ${charName} 经过 ${pregDays} 天的孕育，成功分娩！`;
-                c.nsfw.conception_tick = -1;
-                c.nsfw.pregnancy_father = '无';
-                c.nsfw._pregnancy_days = 0;
+                c.私密档案.受孕tick = -1;
+                c.私密档案.受孕对象 = '无';
+                c.私密档案._怀孕天数 = 0;
               }
             }
           } else {
-            c.nsfw._pregnancy_days = 0;
-            const cycleTick = (currentTick + c.nsfw.menstrual_offset) % 4032;
+            c.私密档案._怀孕天数 = 0;
+            const cycleTick = (currentTick + c.私密档案.生理期偏移) % 4032;
             const cycleDays = cycleTick / 144;
             
             if (cycleDays <= 5) {
-              c.nsfw._menstrual_stage = '生理期(极度敏感/易疲劳)';
+              c.私密档案._生理阶段 = '生理期(极度敏感/易疲劳)';
             } else if (cycleDays > 11 && cycleDays <= 16) {
-              c.nsfw._menstrual_stage = '排卵期(渴望繁衍/受孕率极高)';
+              c.私密档案._生理阶段 = '排卵期(渴望繁衍/受孕率极高)';
             } else {
-              c.nsfw._menstrual_stage = '安全期'; 
+              c.私密档案._生理阶段 = '安全期'; 
             }
           }
         }
       }
-      if (c.status.consuming_herb_age > 0) {
-        let age = c.status.consuming_herb_age;
-        if (c.stat.lv_penalty > 0 && age >= 10000) {
+      if (c.状态.吸收灵物年限 > 0) {
+        let age = c.状态.吸收灵物年限;
+        if (c.属性.等级惩罚 > 0 && age >= 10000) {
           let recoverAmount = age >= 100000 ? 3 : 1;
-          c.stat.lv_penalty = Math.max(0, c.stat.lv_penalty - recoverAmount);
-          if (c.status.wound === '濒死') c.status.wound = '重伤';
+          c.属性.等级惩罚 = Math.max(0, c.属性.等级惩罚 - recoverAmount);
+          if (getComputedWoundLevelFromStat(c.属性) === '濒死') {
+            c.属性.HP = Math.max(Math.ceil(c.属性.HP上限 * 0.1), Number(c.属性.HP || 0));
+          }
           data.sys.rsn = `[本源修复] ${charName} 吸收高阶灵物，庞大的生机修补了受损的根基！恢复了 ${recoverAmount} 级等级上限。`;
         } else {
-          if (c.stat.lv - c.stat.last_herb_lv >= 20) {
-              if (!c.stat.trained_bonus) {
-              c.stat.trained_bonus = { str: 0, def: 0, agi: 0, vit_max: 0, men_max: 0, sp_max: 0 };
+          if (c.属性.等级 - c.属性.上次灵物等级 >= 20) {
+              if (!c.属性.训练加成) {
+              c.属性.训练加成 = { 力量: 0, 防御: 0, 敏捷: 0, 体力上限: 0, 精神力上限: 0, 魂力上限: 0 };
             }
-            if (c.stat.trained_bonus.sp_max === undefined) {
-              c.stat.trained_bonus.sp_max = 0;
+            if (c.属性.训练加成.魂力上限 === undefined) {
+              c.属性.训练加成.魂力上限 = 0;
             }
-            addNumericStatBonusValue(trainedBonus, 'sp_max', gain);
-            c.stat.last_herb_lv = c.stat.lv;
+            addNumericStatBonusValue(trainedBonus, '魂力上限', gain);
+            c.属性.上次灵物等级 = c.属性.等级;
             data.sys.rsn = `[灵物吸收] ${charName} 成功吸收 ${age} 年灵物，魂力成长槽提升 ${gain} 点！`;
           } else {
-            c.stat.lv_penalty += 1;
-            c.stat.conditions['灵物反噬'] = {
+            c.属性.等级惩罚 += 1;
+            c.属性.状态效果['灵物反噬'] = {
               类型: 'debuff',
               层数: 1,
               描述: '短时间内强行吸收灵物，经脉受损，永久扣除1级等级上限',
@@ -10323,102 +10364,102 @@ export const Schema = z
             data.sys.rsn = `[灵物反噬] ${charName} 违规连续吸收灵物！经脉受损，永久扣除 1 级等级上限！`;
           }
         }
-        c.status.consuming_herb_age = 0;
+        c.状态.吸收灵物年限 = 0;
       }
 
-      if (c.bloodline_power?._was_life_fire === true && c.bloodline_power?.life_fire === false) {
+      if (c.血脉之力?._was_life_fire === true && c.血脉之力?.生命之火 === false) {
         data.sys.rsn = `[生命之火熄灭] ${charName} 透支本源，修为暴跌 3 级，陷入濒死！`;
-        c.stat.lv = Math.max(1, c.stat.lv - 3);
-        c.stat.lv_penalty += 3;
-        c.status.wound = '濒死';
-        c.stat.vit = 1;
+        c.属性.等级 = Math.max(1, c.属性.等级 - 3);
+        c.属性.等级惩罚 += 3;
+        c.属性.HP = Math.max(1, Math.floor(c.属性.HP上限 * 0.03));
+        c.属性.体力 = 1;
       }
 
-      if (c.bloodline_power) c.bloodline_power._was_life_fire = c.bloodline_power.life_fire;
+      if (c.血脉之力) c.血脉之力._was_life_fire = c.血脉之力.生命之火;
 
       let vitMult = 1.0,
         strMult = 1.0,
         allMult = 1.0,
         menMult = 1.0;
-      if (c.bloodline_power?.core !== '未凝聚') {
+      if (c.血脉之力?.core !== '未凝聚') {
         vitMult = Math.max(vitMult, 1.5);
         strMult = Math.max(strMult, 1.5);
       }
-      if (c.bloodline_power?.life_fire === true) {
+      if (c.血脉之力?.生命之火 === true) {
         allMult = 2.0;
       }
 
       let hasDragon = false;
-      _(c.spirit).forEach(sp => {
+      _(c.武魂).forEach(sp => {
         if (/龙/.test(sp.表象名称)) hasDragon = true;
       });
       if (hasDragon) vitMult = Math.max(vitMult, 1.5);
 
       let eb = {
         sp:
-          (c.equip?.wpn?.stats_bonus?.sp_max || 0) +
-          (c.equip?.armor?.stats_bonus?.sp_max || 0) +
-          (c.equip?.mech?.stats_bonus?.sp_max || 0),
+          (c.装备?.武器?.属性加成?.魂力上限 || 0) +
+          (c.装备?.斗铠?._属性加成?.魂力上限 || 0) +
+          (c.装备?.机甲?._属性加成?.魂力上限 || 0),
         men:
-          (c.equip?.wpn?.stats_bonus?.men_max || 0) +
-          (c.equip?.armor?.stats_bonus?.men_max || 0) +
-          (c.equip?.mech?.stats_bonus?.men_max || 0),
+          (c.装备?.武器?.属性加成?.精神力上限 || 0) +
+          (c.装备?.斗铠?._属性加成?.精神力上限 || 0) +
+          (c.装备?.机甲?._属性加成?.精神力上限 || 0),
         str:
-          (c.equip?.wpn?.stats_bonus?.str || 0) +
-          (c.equip?.armor?.stats_bonus?.str || 0) +
-          (c.equip?.mech?.stats_bonus?.str || 0),
+          (c.装备?.武器?.属性加成?.力量 || 0) +
+          (c.装备?.斗铠?._属性加成?.力量 || 0) +
+          (c.装备?.机甲?._属性加成?.力量 || 0),
         def:
-          (c.equip?.wpn?.stats_bonus?.def || 0) +
-          (c.equip?.armor?.stats_bonus?.def || 0) +
-          (c.equip?.mech?.stats_bonus?.def || 0),
+          (c.装备?.武器?.属性加成?.防御 || 0) +
+          (c.装备?.斗铠?._属性加成?.防御 || 0) +
+          (c.装备?.机甲?._属性加成?.防御 || 0),
         agi:
-          (c.equip?.wpn?.stats_bonus?.agi || 0) +
-          (c.equip?.armor?.stats_bonus?.agi || 0) +
-          (c.equip?.mech?.stats_bonus?.agi || 0),
+          (c.装备?.武器?.属性加成?.敏捷 || 0) +
+          (c.装备?.斗铠?._属性加成?.敏捷 || 0) +
+          (c.装备?.机甲?._属性加成?.敏捷 || 0),
         vit:
-          (c.equip?.wpn?.stats_bonus?.vit_max || 0) +
-          (c.equip?.armor?.stats_bonus?.vit_max || 0) +
-          (c.equip?.mech?.stats_bonus?.vit_max || 0),
+          (c.装备?.武器?.属性加成?.体力上限 || 0) +
+          (c.装备?.斗铠?._属性加成?.体力上限 || 0) +
+          (c.装备?.机甲?._属性加成?.体力上限 || 0),
       };
       if (allMult > 1.0) {
-        c.stat.sp_max = Math.floor((c.stat.sp_max - eb.sp) * allMult) + eb.sp;
-        c.stat.men_max = Math.floor((c.stat.men_max - eb.men) * allMult) + eb.men;
-        c.stat.str = Math.floor((c.stat.str - eb.str) * allMult) + eb.str;
-        c.stat.def = Math.floor((c.stat.def - eb.def) * allMult) + eb.def;
-        c.stat.agi = Math.floor((c.stat.agi - eb.agi) * allMult) + eb.agi;
-        c.stat.vit_max = Math.floor((c.stat.vit_max - eb.vit) * allMult) + eb.vit;
+        c.属性.魂力上限 = Math.floor((c.属性.魂力上限 - eb.sp) * allMult) + eb.sp;
+        c.属性.精神力上限 = Math.floor((c.属性.精神力上限 - eb.men) * allMult) + eb.men;
+        c.属性.力量 = Math.floor((c.属性.力量 - eb.str) * allMult) + eb.str;
+        c.属性.防御 = Math.floor((c.属性.防御 - eb.def) * allMult) + eb.def;
+        c.属性.敏捷 = Math.floor((c.属性.敏捷 - eb.agi) * allMult) + eb.agi;
+        c.属性.体力上限 = Math.floor((c.属性.体力上限 - eb.vit) * allMult) + eb.vit;
       }
 
       if (vitMult > 1.0)
-        c.stat.vit_max = Math.max(c.stat.vit_max, Math.floor((c.stat.vit_max - eb.vit) * vitMult) + eb.vit);
-      if (strMult > 1.0) c.stat.str = Math.max(c.stat.str, Math.floor((c.stat.str - eb.str) * strMult) + eb.str);
+        c.属性.体力上限 = Math.max(c.属性.体力上限, Math.floor((c.属性.体力上限 - eb.vit) * vitMult) + eb.vit);
+      if (strMult > 1.0) c.属性.力量 = Math.max(c.属性.力量, Math.floor((c.属性.力量 - eb.str) * strMult) + eb.str);
       if (menMult > 1.0)
-        c.stat.men_max = Math.max(c.stat.men_max, Math.floor((c.stat.men_max - eb.men) * menMult) + eb.men);
+        c.属性.精神力上限 = Math.max(c.属性.精神力上限, Math.floor((c.属性.精神力上限 - eb.men) * menMult) + eb.men);
 
-      if (c.status.active_domain && c.status.active_domain.includes('斗铠领域')) {
-        let ratio = c.status.active_domain.includes('四字') ? 1.2 : 1.1;
-        let attrs = ['sp_max', 'men_max', 'str', 'def', 'agi', 'vit_max'];
+      if (c.状态.当前领域 && c.状态.当前领域.includes('斗铠领域')) {
+        let ratio = c.状态.当前领域.includes('四字') ? 1.2 : 1.1;
+        let attrs = ['魂力上限', '精神力上限', '力量', '防御', '敏捷', '体力上限'];
 
-        if (c.status.active_domain.includes('未定')) {
+        if (c.状态.当前领域.includes('未定')) {
           if (ratio === 1.2) {
             let a1 = attrs.splice(Math.floor(Math.random() * attrs.length), 1)[0];
             let a2 = attrs.splice(Math.floor(Math.random() * attrs.length), 1)[0];
-            c.status.active_domain = `【四字斗铠领域】全开[${a1},${a2}]`;
+            c.状态.当前领域 = `【四字斗铠领域】全开[${a1},${a2}]`;
           } else {
             let a1 = attrs[Math.floor(Math.random() * attrs.length)];
-            c.status.active_domain = `【三字斗铠领域】全开[${a1}]`;
+            c.状态.当前领域 = `【三字斗铠领域】全开[${a1}]`;
           }
         }
 
-        ['sp_max', 'men_max', 'str', 'def', 'agi', 'vit_max'].forEach(attr => {
-          if (c.status.active_domain.includes(attr)) {
-            c.stat[attr] = Math.floor(c.stat[attr] * ratio);
+        ['魂力上限', '精神力上限', '力量', '防御', '敏捷', '体力上限'].forEach(attr => {
+          if (c.状态.当前领域.includes(attr)) {
+            c.属性[attr] = Math.floor(c.属性[attr] * ratio);
           }
         });
       }
 
       let buffMods = { str: 0, def: 0, agi: 0, sp_max: 0 };
-      _(c.stat.conditions).forEach(cond => {
+      _(c.属性.状态效果).forEach(cond => {
         if (cond.stat_mods) {
           if (cond.stat_mods.str !== 1.0) buffMods.str += cond.stat_mods.str - 1.0;
           if (cond.stat_mods.def !== 1.0) buffMods.def += cond.stat_mods.def - 1.0;
@@ -10426,40 +10467,40 @@ export const Schema = z
           if (cond.stat_mods.sp_max !== 1.0) buffMods.sp_max += cond.stat_mods.sp_max - 1.0;
         }
       });
-      if (buffMods.str !== 0) c.stat.str = Math.floor(c.stat.str * Math.max(0.1, 1.0 + buffMods.str));
-      if (buffMods.def !== 0) c.stat.def = Math.floor(c.stat.def * Math.max(0.1, 1.0 + buffMods.def));
-      if (buffMods.agi !== 0) c.stat.agi = Math.floor(c.stat.agi * Math.max(0.1, 1.0 + buffMods.agi));
-      if (buffMods.sp_max !== 0) c.stat.sp_max = Math.floor(c.stat.sp_max * Math.max(0.1, 1.0 + buffMods.sp_max));
+      if (buffMods.str !== 0) c.属性.力量 = Math.floor(c.属性.力量 * Math.max(0.1, 1.0 + buffMods.str));
+      if (buffMods.def !== 0) c.属性.防御 = Math.floor(c.属性.防御 * Math.max(0.1, 1.0 + buffMods.def));
+      if (buffMods.agi !== 0) c.属性.敏捷 = Math.floor(c.属性.敏捷 * Math.max(0.1, 1.0 + buffMods.agi));
+      if (buffMods.sp_max !== 0) c.属性.魂力上限 = Math.floor(c.属性.魂力上限 * Math.max(0.1, 1.0 + buffMods.sp_max));
 
       let finalMen =
-        c.stat.men_max -
-        (c.equip?.wpn?.stats_bonus?.men_max || 0) -
-        (c.equip?.armor?._stats_bonus?.men_max || 0) -
-        (c.equip?.mech?._stats_bonus?.men_max || 0);
-      if (finalMen >= 50000) c.stat._men_realm = '神元境';
-      else if (finalMen >= 20000) c.stat._men_realm = '灵域境';
-      else if (finalMen >= 3000) c.stat._men_realm = '灵渊境';
-      else if (finalMen >= 500) c.stat._men_realm = '灵海境';
-      else if (finalMen >= 50) c.stat._men_realm = '灵通境';
-      else c.stat._men_realm = '灵元境';
+        c.属性.精神力上限 -
+        (c.装备?.武器?.属性加成?.精神力上限 || 0) -
+        (c.装备?.斗铠?._属性加成?.精神力上限 || 0) -
+        (c.装备?.机甲?._属性加成?.精神力上限 || 0);
+      if (finalMen >= 50000) c.属性.精神境界 = '神元境';
+      else if (finalMen >= 20000) c.属性.精神境界 = '灵域境';
+      else if (finalMen >= 3000) c.属性.精神境界 = '灵渊境';
+      else if (finalMen >= 500) c.属性.精神境界 = '灵海境';
+      else if (finalMen >= 50) c.属性.精神境界 = '灵通境';
+      else c.属性.精神境界 = '灵元境';
 
-      if (finalMen < 25000 && c.spiritual_domain?.is_active) {
-        c.spiritual_domain.is_active = false;
-        if (c.status.active_domain && c.status.active_domain.includes('精神领域')) {
-          c.status.active_domain = c.status.active_domain.replace(/精神领域/g, '').trim();
+      if (finalMen < 25000 && c.精神领域?.进行中) {
+        c.精神领域.进行中 = false;
+        if (c.状态.当前领域 && c.状态.当前领域.includes('精神领域')) {
+          c.状态.当前领域 = c.状态.当前领域.replace(/精神领域/g, '').trim();
         }
       }
 
-      c.stat.vit = Math.min(c.stat.vit, c.stat.vit_max);
-      c.stat.sp = Math.min(c.stat.sp, c.stat.sp_max);
-      c.stat.men = Math.min(c.stat.men, c.stat.men_max);
+      c.属性.体力 = Math.min(c.属性.体力, c.属性.体力上限);
+      c.属性.魂力 = Math.min(c.属性.魂力, c.属性.魂力上限);
+      c.属性.精神力 = Math.min(c.属性.精神力, c.属性.精神力上限);
     });
 
     _(data.char).forEach((c, charName) => {
-      const trainedBonus = ensureNumericStatBonusMap(c.stat, 'trained_bonus');
-      if (c.interact_request && c.interact_request.action !== '无') {
-        let req = c.interact_request;
-        let targetName = req.target_npc;
+      const trainedBonus = ensureNumericStatBonusMap(c.属性, '训练加成');
+      if (c.互动请求 && c.互动请求.动作 !== '无') {
+        let req = c.互动请求;
+        let targetName = req.目标人物;
         let targetNPC = data.char[targetName];
         if (!targetNPC) {
           const resolvedTargetEntry = Object.entries(data.char || {}).find(([charKey, charInfo]) => {
@@ -10473,40 +10514,40 @@ export const Schema = z
         if (!targetNPC) {
           msg = `[互动失败] 找不到目标角色【${targetName}】。`;
         } else {
-          if (!c.social.relations[targetName]) {
-            c.social.relations[targetName] = {
+          if (!c.社交.关系[targetName]) {
+            c.社交.关系[targetName] = {
               关系: '陌生',
               好感度: 0,
-              relation_route: '朋友线',
-              npc_job: '无',
-              favor_buff: '无',
+              关系路线: '朋友线',
+              对方身份: '无',
+              好感加成: '无',
             };
           }
-          let rel = c.social.relations[targetName];
-          let score = req.ai_score;
-          const currentTick = Number(data.world?.time?.tick || 0);
+          let rel = c.社交.关系[targetName];
+          let score = req.结果评分;
+          const currentTick = Number(data.world?.时间?.tick || 0);
 
-          if (req.action === '送礼') {
-            if (req.item_used !== '无' && c.inventory[req.item_used] && c.inventory[req.item_used].数量 > 0) {
-              c.inventory[req.item_used].数量 -= 1;
-              if (c.inventory[req.item_used].数量 <= 0) delete c.inventory[req.item_used];
+          if (req.动作 === '送礼') {
+            if (req.使用物品 !== '无' && c.背包[req.使用物品] && c.背包[req.使用物品].数量 > 0) {
+              c.背包[req.使用物品].数量 -= 1;
+              if (c.背包[req.使用物品].数量 <= 0) delete c.背包[req.使用物品];
 
               score = Math.floor(score * 1.5) + 5;
-              msg = `[社交互动] ${charName} 向 ${targetName} 赠送了【${req.item_used}】。`;
+              msg = `[社交互动] ${charName} 向 ${targetName} 赠送了【${req.使用物品}】。`;
             } else {
-              msg = `[互动失败] 背包中没有足够的【${req.item_used}】用来送礼！`;
+              msg = `[互动失败] 背包中没有足够的【${req.使用物品}】用来送礼！`;
               score = 0;
             }
-          } else if (req.action === '请教') {
+          } else if (req.动作 === '请教') {
             if (rel.好感度 >= 30 && score > 0) {
-              addNumericStatBonusEntries(trainedBonus, { str: score, men_max: score });
+              addNumericStatBonusEntries(trainedBonus, { 力量: score, 精神力上限: score });
               msg = `[社交互动] ${charName} 向 ${targetName} 请教修炼心得，受益匪浅！`;
             } else {
               msg = `[社交互动] ${charName} 试图请教 ${targetName}，但对方似乎不太愿意倾囊相授。(好感度需>=30)`;
               score = 0;
             }
           } else {
-            msg = `[社交互动] ${charName} 与 ${targetName} 进行了【${req.action}】。`;
+            msg = `[社交互动] ${charName} 与 ${targetName} 进行了【${req.动作}】。`;
           }
 
           if (score !== 0) {
@@ -10514,90 +10555,90 @@ export const Schema = z
             msg += ` 好感度变化：${score > 0 ? '+' : ''}${score} (当前: ${rel.好感度})。`;
           }
 
-          if (req.action === '表白' && score > 0) {
-            const currentRoute = String(rel.relation_route || '朋友线');
+          if (req.动作 === '表白' && score > 0) {
+            const currentRoute = String(rel.关系路线 || '朋友线');
             const targetRel =
-              targetNPC.social && targetNPC.social.relations && targetNPC.social.relations[charName]
-                ? targetNPC.social.relations[charName]
+              targetNPC.社交 && targetNPC.社交.关系 && targetNPC.社交.关系[charName]
+                ? targetNPC.社交.关系[charName]
                 : null;
-            const targetCurrentRoute = String(targetRel?.relation_route || '朋友线');
+            const targetCurrentRoute = String(targetRel?.关系路线 || '朋友线');
             const favorAfterConfess = Number(rel.好感度 || 0);
             const shouldAutoPromoteLoveRoute = currentRoute !== '恋人线' && favorAfterConfess >= 60;
 
             if (currentRoute === '恋人线' || targetCurrentRoute === '恋人线') {
-              rel.relation_route = '恋人线';
-              if (targetRel) targetRel.relation_route = '恋人线';
+              rel.关系路线 = '恋人线';
+              if (targetRel) targetRel.关系路线 = '恋人线';
             } else if (shouldAutoPromoteLoveRoute) {
-              rel.relation_route = '恋人线';
+              rel.关系路线 = '恋人线';
               msg += ` 关系路线切入【恋人线】。`;
               if (targetRel) {
-                targetRel.relation_route = '恋人线';
+                targetRel.关系路线 = '恋人线';
               }
             }
           }
 
-          rel.last_interact_tick = currentTick;
-          rel.last_interact_action = req.action;
-          rel.recent_favor_delta = score;
-          if (!rel.npc_job || rel.npc_job === '无') {
-            const targetIdentity = targetNPC.social?.main_identity;
-            rel.npc_job = !isAiTodoText(targetIdentity) && targetIdentity ? targetIdentity : '无';
+          rel.上次互动tick = currentTick;
+          rel.上次互动动作 = req.动作;
+          rel.最近好感变化 = score;
+          if (!rel.对方身份 || rel.对方身份 === '无') {
+            const targetIdentity = targetNPC.社交?.主身份;
+            rel.对方身份 = !isAiTodoText(targetIdentity) && targetIdentity ? targetIdentity : '无';
           }
 
-          if (!targetNPC.social.relations[charName]) {
-            targetNPC.social.relations[charName] = {
+          if (!targetNPC.社交.关系[charName]) {
+            targetNPC.社交.关系[charName] = {
               关系: '陌生',
               好感度: 0,
-              relation_route: '朋友线',
-              npc_job: '无',
-              favor_buff: '无',
+              关系路线: '朋友线',
+              对方身份: '无',
+              好感加成: '无',
             };
           }
-          targetNPC.social.relations[charName].好感度 = rel.好感度;
-          targetNPC.social.relations[charName].relation_route =
-            rel.relation_route || targetNPC.social.relations[charName].relation_route || '朋友线';
-          targetNPC.social.relations[charName].last_interact_tick = currentTick;
-          targetNPC.social.relations[charName].last_interact_action = req.action;
-          targetNPC.social.relations[charName].recent_favor_delta = score;
-          if (!targetNPC.social.relations[charName].npc_job || targetNPC.social.relations[charName].npc_job === '无') {
-            const sourceIdentity = c.social?.main_identity;
-            targetNPC.social.relations[charName].npc_job =
+          targetNPC.社交.关系[charName].好感度 = rel.好感度;
+          targetNPC.社交.关系[charName].关系路线 =
+            rel.关系路线 || targetNPC.社交.关系[charName].关系路线 || '朋友线';
+          targetNPC.社交.关系[charName].上次互动tick = currentTick;
+          targetNPC.社交.关系[charName].上次互动动作 = req.动作;
+          targetNPC.社交.关系[charName].最近好感变化 = score;
+          if (!targetNPC.社交.关系[charName].对方身份 || targetNPC.社交.关系[charName].对方身份 === '无') {
+            const sourceIdentity = c.社交?.主身份;
+            targetNPC.社交.关系[charName].对方身份 =
               !isAiTodoText(sourceIdentity) && sourceIdentity ? sourceIdentity : '无';
           }
         }
 
         if (msg) data.sys.rsn = msg;
-        c.interact_request = { target_npc: '无', action: '无', item_used: '无', ai_score: 0 };
+        c.互动请求 = { 目标人物: '无', 动作: '无', 使用物品: '无', 结果评分: 0 };
       }
     });
 
     _(data.char).forEach((c, charName) => {
-      if (c.quest_request && c.quest_request.action !== '无') {
-        let req = c.quest_request;
-        let qName = req.quest_name;
+      if (c.任务请求 && c.任务请求.动作 !== '无') {
+        let req = c.任务请求;
+        let qName = req.任务名称;
         let msg = '';
-        if (!data.world.quest_board || typeof data.world.quest_board !== 'object') data.world.quest_board = {};
-        let boardEntry = data.world.quest_board[qName];
+        if (!data.world.委托板 || typeof data.world.委托板 !== 'object') data.world.委托板 = {};
+        let boardEntry = data.world.委托板[qName];
 
-        if (req.action === '接取') {
-          c.records[qName] = {
+        if (req.动作 === '接取') {
+          c.记录[qName] = {
             类型: (boardEntry && boardEntry.类型) || '悬赏任务',
             状态: '进行中',
             当前进度: 0,
-            目标进度: req.required_count,
-            奖励币: req.reward_coin,
-            奖励声望: req.reward_rep,
-            描述: req.quest_desc,
+            目标进度: req.目标进度,
+            奖励币: req.奖励币,
+            奖励声望: req.奖励声望,
+            描述: req.任务描述,
           };
           if (boardEntry && typeof boardEntry === 'object') {
             boardEntry.状态 = '进行中';
             boardEntry.承接者 = charName;
           }
-          msg = `[任务接取] ${charName} 接取了悬赏：【${qName}】。目标：${req.quest_desc}。`;
-        } else if (req.action === '更新进度' && c.records[qName]) {
-          let q = c.records[qName];
+          msg = `[任务接取] ${charName} 接取了悬赏：【${qName}】。目标：${req.任务描述}。`;
+        } else if (req.动作 === '更新进度' && c.记录[qName]) {
+          let q = c.记录[qName];
           if (q.状态 === '进行中') {
-            q.当前进度 += req.progress_add;
+            q.当前进度 += req.进度增量;
             msg = `[任务进度] 【${qName}】进度更新：${q.当前进度}/${q.目标进度}。`;
             if (q.当前进度 >= q.目标进度) {
               q.状态 = '可提交';
@@ -10605,12 +10646,12 @@ export const Schema = z
               msg += ` (已达成目标，可前往提交！)`;
             }
           }
-        } else if (req.action === '提交' && c.records[qName]) {
-          let q = c.records[qName];
+        } else if (req.动作 === '提交' && c.记录[qName]) {
+          let q = c.记录[qName];
           if (q.状态 === '可提交' || q.当前进度 >= q.目标进度) {
             q.状态 = '已完成';
-            c.wealth.fed_coin = (c.wealth.fed_coin || 0) + (q.奖励币 || 0);
-            c.social.reputation = (c.social.reputation || 0) + (q.奖励声望 || 0);
+            c.财富.联邦币 = (c.财富.联邦币 || 0) + (q.奖励币 || 0);
+            c.社交.声望 = (c.社交.声望 || 0) + (q.奖励声望 || 0);
             if (boardEntry && typeof boardEntry === 'object') {
               boardEntry.状态 = '已完成';
               boardEntry.承接者 = charName;
@@ -10619,8 +10660,8 @@ export const Schema = z
           } else {
             msg = `[任务提交失败] 【${qName}】进度未达标 (${q.当前进度}/${q.目标进度})，NPC 拒绝结算！`;
           }
-        } else if (req.action === '放弃' && c.records[qName]) {
-          c.records[qName].状态 = '已放弃';
+        } else if (req.动作 === '放弃' && c.记录[qName]) {
+          c.记录[qName].状态 = '已放弃';
           if (boardEntry && typeof boardEntry === 'object') {
             boardEntry.状态 = '待接取';
             boardEntry.承接者 = '无';
@@ -10629,33 +10670,33 @@ export const Schema = z
         }
 
         if (msg) data.sys.rsn = msg;
-        c.quest_request = {
-          action: '无',
-          quest_name: '无',
-          quest_desc: '无',
-          progress_add: 0,
-          required_count: 1,
-          reward_coin: 0,
-          reward_rep: 0,
+        c.任务请求 = {
+          动作: '无',
+          任务名称: '无',
+          任务描述: '无',
+          进度增量: 0,
+          目标进度: 1,
+          奖励币: 0,
+          奖励声望: 0,
         };
       }
     });
 
     _(data.char).forEach((c, charName) => {
-      if (c.promotion_request && c.promotion_request.target_faction !== '无') {
-        let req = c.promotion_request;
-        let fac = req.target_faction;
-        let title = req.target_title;
-        let lv = c.stat.lv;
-        let armorLv = c.equip.armor.lv;
-        let mechLvStr = c.equip.mech.lv;
+      if (c.晋升请求 && c.晋升请求.目标势力 !== '无') {
+        let req = c.晋升请求;
+        let fac = req.目标势力;
+        let title = req.目标职位;
+        let lv = c.属性.等级;
+        let armorLv = c.装备.斗铠.等级;
+        let mechLvStr = c.装备.机甲.等级;
         let mechLv = mechLvStr === '紫级' ? 2 : mechLvStr === '黑级' ? 3 : mechLvStr === '红级' ? 4 : 0;
-        let age = c.stat.age;
-        let realm = c.stat._men_realm || c.stat.men_realm;
+        let age = c.属性.年龄;
+        let realm = c.属性.精神境界 || c.属性.精神力_realm;
 
-        let pts = c.wealth.tang_pt || 0;
-        if (fac === '史莱克学院') pts = c.wealth.shrek_pt || 0;
-        if (fac === '战神殿' || fac === '血神军团' || fac === '联邦军方') pts = c.wealth.blood_pt || 0;
+        let pts = c.财富.唐门积分 || 0;
+        if (fac === '史莱克学院') pts = c.财富.学院积分 || 0;
+        if (fac === '战神殿' || fac === '血神军团' || fac === '联邦军方') pts = c.财富.战功 || 0;
 
         let success = false;
         let cost = 0;
@@ -10685,19 +10726,19 @@ export const Schema = z
             cost = 0;
           }
         } else if (fac === '史莱克学院') {
-          if (title === '外院毕业生' && lv >= 50 && armorLv >= 1 && c.stat.age <= 35) {
+          if (title === '外院毕业生' && lv >= 50 && armorLv >= 1 && c.属性.年龄 <= 35) {
             success = true;
             cost = 0;
           } else if (title === '内院弟子') {
             if (
-              c.stat.age <= 20 &&
+              c.属性.年龄 <= 20 &&
               armorLv >= 1 &&
               lv >= 50 &&
-              ['灵海境', '灵渊境', '灵域境', '神元境'].includes(c.stat._men_realm || c.stat.men_realm)
+              ['灵海境', '灵渊境', '灵域境', '神元境'].includes(c.属性.精神境界 || c.属性.精神力_realm)
             ) {
               success = true;
               cost = 0;
-            } else if (c.stat.age > 20 && c.stat.age <= 30 && armorLv >= 2) {
+            } else if (c.属性.年龄 > 20 && c.属性.年龄 <= 30 && armorLv >= 2) {
               success = true;
               cost = 0;
             }
@@ -10758,8 +10799,8 @@ export const Schema = z
             success = true;
             cost = 0;
 
-            if (!c.social.factions['联邦军方']) c.social.factions['联邦军方'] = { 身份: '少将', 权限级: 7 };
-            else c.social.factions['联邦军方'].身份 = '少将';
+            if (!c.社交.势力['联邦军方']) c.社交.势力['联邦军方'] = { 身份: '少将', 权限级: 7 };
+            else c.社交.势力['联邦军方'].身份 = '少将';
           } else if (title === '少尉' && lv >= 40 && (armorLv >= 1 || mechLv >= 2) && pts >= 1000) {
             success = true;
             cost = 1000;
@@ -10795,7 +10836,7 @@ export const Schema = z
             cost = 0;
           }
         } else if (fac === '圣灵教') {
-          if (c.stat.is_evil) {
+          if (c.属性.邪魂师) {
             if (title === '坛主' && lv >= 70 && armorLv >= 2) {
               success = true;
               cost = 0;
@@ -10817,24 +10858,24 @@ export const Schema = z
           }
         }
         if (success) {
-          if (fac === '唐门') c.wealth.tang_pt -= cost;
-          else if (fac === '史莱克学院') c.wealth.shrek_pt -= cost;
-          else if (fac === '战神殿' || fac === '血神军团' || fac === '联邦军方') c.wealth.blood_pt -= cost;
+          if (fac === '唐门') c.财富.唐门积分 -= cost;
+          else if (fac === '史莱克学院') c.财富.学院积分 -= cost;
+          else if (fac === '战神殿' || fac === '血神军团' || fac === '联邦军方') c.财富.战功 -= cost;
 
-          if (!c.social.factions[fac]) c.social.factions[fac] = { 身份: title, 权限级: 1 };
-          else c.social.factions[fac].身份 = title;
+          if (!c.社交.势力[fac]) c.社交.势力[fac] = { 身份: title, 权限级: 1 };
+          else c.社交.势力[fac].身份 = title;
 
           msg = `[势力晋升] 恭喜 ${charName} 成功晋升为【${fac} - ${title}】！`;
           if (cost > 0) msg += `扣除贡献/战功: ${cost}。`;
         }
         data.sys.rsn = msg;
-        c.promotion_request = { target_faction: '无', target_title: '无' };
+        c.晋升请求 = { 目标势力: '无', 目标职位: '无' };
       }
-      if (c.donate_request && c.donate_request.item_name !== '无') {
-        let req = c.donate_request;
-        let itemName = req.item_name;
+      if (c.捐献请求 && c.捐献请求.物品名称 !== '无') {
+        let req = c.捐献请求;
+        let itemName = req.物品名称;
 
-        if (!c.inventory[itemName] || c.inventory[itemName].数量 < req.quantity) {
+        if (!c.背包[itemName] || c.背包[itemName].数量 < req.数量) {
           data.sys.rsn = `[捐献失败] 背包中没有足够的【${itemName}】。`;
         } else {
           let basePrice = 10000;
@@ -10844,61 +10885,61 @@ export const Schema = z
           else if (/千锻|一字|黄级|百年/.test(itemName)) basePrice = 100000;
 
           let talentMult =
-            { 绝世妖孽: 2.0, 顶级天才: 1.8, 天才: 1.5, 优秀: 1.2, 正常: 1.0, 劣等: 0.5 }[c.stat.talent_tier] || 1.0;
+            { 绝世妖孽: 2.0, 顶级天才: 1.8, 天才: 1.5, 优秀: 1.2, 正常: 1.0, 劣等: 0.5 }[c.属性.天赋梯队] || 1.0;
 
-          let totalValue = basePrice * req.quantity;
+          let totalValue = basePrice * req.数量;
           let pointsEarned = Math.floor((totalValue / 1000) * talentMult);
 
-          c.inventory[itemName].数量 -= req.quantity;
-          if (c.inventory[itemName].数量 <= 0) delete c.inventory[itemName];
+          c.背包[itemName].数量 -= req.数量;
+          if (c.背包[itemName].数量 <= 0) delete c.背包[itemName];
 
-          if (req.target_faction === '史莱克学院') c.wealth.shrek_pt = (c.wealth.shrek_pt || 0) + pointsEarned;
-          else if (req.target_faction === '战神殿' || req.target_faction === '血神军团')
-            c.wealth.blood_pt = (c.wealth.blood_pt || 0) + pointsEarned;
-          else c.wealth.tang_pt = (c.wealth.tang_pt || 0) + pointsEarned;
+          if (req.目标势力 === '史莱克学院') c.财富.学院积分 = (c.财富.学院积分 || 0) + pointsEarned;
+          else if (req.目标势力 === '战神殿' || req.目标势力 === '血神军团')
+            c.财富.战功 = (c.财富.战功 || 0) + pointsEarned;
+          else c.财富.唐门积分 = (c.财富.唐门积分 || 0) + pointsEarned;
 
-          data.sys.rsn = `[物资捐献] ${charName} 向【${req.target_faction}】上交了 ${req.quantity} 份【${itemName}】。获得 ${pointsEarned} 贡献点！`;
+          data.sys.rsn = `[物资捐献] ${charName} 向【${req.目标势力}】上交了 ${req.数量} 份【${itemName}】。获得 ${pointsEarned} 贡献点！`;
         }
-        c.donate_request = { item_name: '无', target_faction: '无', quantity: 1 };
+        c.捐献请求 = { 物品名称: '无', 目标势力: '无', 数量: 1 };
       }
     });
 
     _(data.char).forEach((c, charName) => {
-      if (c.ascension_request && c.ascension_request.ticket_type !== '无') {
-        let req = c.ascension_request;
-        let ticketName = String(req.ticket_type || '无');
-        let gainAge = Math.max(0, Math.floor(Number(req.gain_age || 0)));
+      if (c.升灵台请求 && c.升灵台请求.门票名 !== '无') {
+        let req = c.升灵台请求;
+        let ticketName = String(req.门票名 || '无');
+        let gainAge = Math.max(0, Math.floor(Number(req.提升年限 || 0)));
         let msg = '';
 
-        if (!c.inventory?.[ticketName] || Number(c.inventory[ticketName].数量 || 0) < 1) {
+        if (!c.背包?.[ticketName] || Number(c.背包[ticketName].数量 || 0) < 1) {
           msg = `[升灵台失败] ${charName} 缺少【${ticketName}】门票，无法完成本次升灵结算。`;
         } else {
-          let spiritKey = String(req.spirit_key || '无');
-          if (spiritKey === '无' || !c.spirit?.[spiritKey]) {
+          let spiritKey = String(req.武魂槽位 || '无');
+          if (spiritKey === '无' || !c.武魂?.[spiritKey]) {
             spiritKey =
-              Object.keys(c.spirit || {}).find(key => c.spirit?.[key]?.soul_spirits && Object.keys(c.spirit[key].soul_spirits || {}).length > 0) || '';
+              Object.keys(c.武魂 || {}).find(key => c.武魂?.[key]?.魂灵 && Object.keys(c.武魂[key].魂灵 || {}).length > 0) || '';
           }
-          let spiritData = spiritKey ? c.spirit?.[spiritKey] : null;
+          let spiritData = spiritKey ? c.武魂?.[spiritKey] : null;
 
-          let soulSpiritKey = String(req.soul_spirit_key || '无');
-          if (soulSpiritKey === '无' || !spiritData?.soul_spirits?.[soulSpiritKey]) {
-            soulSpiritKey = spiritData ? Object.keys(spiritData.soul_spirits || {})[0] || '' : '';
+          let soulSpiritKey = String(req.魂灵槽位 || '无');
+          if (soulSpiritKey === '无' || !spiritData?.魂灵?.[soulSpiritKey]) {
+            soulSpiritKey = spiritData ? Object.keys(spiritData.魂灵 || {})[0] || '' : '';
           }
-          let soulSpirit = soulSpiritKey ? spiritData?.soul_spirits?.[soulSpiritKey] : null;
+          let soulSpirit = soulSpiritKey ? spiritData?.魂灵?.[soulSpiritKey] : null;
 
           if (!spiritData || !soulSpirit) {
             msg = `[升灵台失败] ${charName} 当前没有可升灵的魂灵目标，未消耗门票。`;
           } else if (gainAge <= 0) {
             msg = `[升灵台失败] ${charName} 未填写有效的升灵收益年限，未消耗门票。`;
           } else {
-            c.inventory[ticketName].数量 -= 1;
-            if (c.inventory[ticketName].数量 <= 0) delete c.inventory[ticketName];
+            c.背包[ticketName].数量 -= 1;
+            if (c.背包[ticketName].数量 <= 0) delete c.背包[ticketName];
 
             let oldAge = Math.max(0, Math.floor(Number(soulSpirit.年限 || 0)));
             let newAge = oldAge + gainAge;
             soulSpirit.年限 = newAge;
 
-            _(soulSpirit.rings || {}).forEach(ring => {
+            _(soulSpirit.魂环 || {}).forEach(ring => {
               if (!ring || typeof ring !== 'object') return;
               ring.年限 = newAge;
               ring.颜色 = getRingColorByAge(newAge);
@@ -10909,28 +10950,28 @@ export const Schema = z
         }
 
         data.sys.rsn = msg;
-        c.ascension_request = { ticket_type: '无', spirit_key: '无', soul_spirit_key: '无', gain_age: 0 };
+        c.升灵台请求 = { 门票名: '无', 武魂槽位: '无', 魂灵槽位: '无', 提升年限: 0 };
       }
 
-      if (c.tower_request && c.tower_request.action !== '无') {
-        let req = c.tower_request;
-        let clearedFloor = Math.max(0, Math.floor(Number(req.cleared_floor || 0)));
-        let action = String(req.action || '冲塔');
+      if (c.魂灵塔请求 && c.魂灵塔请求.动作 !== '无') {
+        let req = c.魂灵塔请求;
+        let clearedFloor = Math.max(0, Math.floor(Number(req.通关层数 || 0)));
+        let action = String(req.动作 || '冲塔');
         let msg = '';
 
         if (clearedFloor <= 0) {
           msg = `[魂灵塔记录失败] ${charName} 未提供有效的通关层数，无法登记本次${action}结果。`;
         } else {
-          if (!c.tower_records || typeof c.tower_records !== 'object') c.tower_records = { max_floor: 0, discount_available: {} };
-          if (!c.tower_records.discount_available || typeof c.tower_records.discount_available !== 'object')
-            c.tower_records.discount_available = {};
+          if (!c.魂灵塔记录 || typeof c.魂灵塔记录 !== 'object') c.魂灵塔记录 = { 最高层: 0, 折扣资格: {} };
+          if (!c.魂灵塔记录.折扣资格 || typeof c.魂灵塔记录.折扣资格 !== 'object')
+            c.魂灵塔记录.折扣资格 = {};
 
-          let oldMaxFloor = Math.max(0, Math.floor(Number(c.tower_records.max_floor || 0)));
+          let oldMaxFloor = Math.max(0, Math.floor(Number(c.魂灵塔记录.最高层 || 0)));
           let newMaxFloor = Math.max(oldMaxFloor, clearedFloor);
-          c.tower_records.max_floor = newMaxFloor;
+          c.魂灵塔记录.最高层 = newMaxFloor;
 
           for (let floor = oldMaxFloor + 1; floor <= clearedFloor; floor += 1) {
-            c.tower_records.discount_available[String(floor)] = true;
+            c.魂灵塔记录.折扣资格[String(floor)] = true;
           }
 
           if (clearedFloor > oldMaxFloor) {
@@ -10941,82 +10982,84 @@ export const Schema = z
         }
 
         data.sys.rsn = msg;
-        c.tower_request = { action: '无', cleared_floor: 0 };
+        c.魂灵塔请求 = { 动作: '无', 通关层数: 0 };
       }
 
-      if (c.abyss_kill_request && c.abyss_kill_request.kill_tier !== '无') {
-        let req = c.abyss_kill_request;
+      if (c.深渊击杀请求 && c.深渊击杀请求.击杀级别 !== '无') {
+        let req = c.深渊击杀请求;
         let pts = 0;
 
-        if (req.kill_tier === '低阶生物') pts = 10 * req.quantity;
-        else if (req.kill_tier === '中阶生物') pts = 100 * req.quantity;
-        else if (req.kill_tier === '高阶生物') pts = 1000 * req.quantity;
-        else if (req.kill_tier === '深渊王者') pts = 50000 * req.quantity;
+        if (req.击杀级别 === '低阶生物') pts = 10 * req.数量;
+        else if (req.击杀级别 === '中阶生物') pts = 100 * req.数量;
+        else if (req.击杀级别 === '高阶生物') pts = 1000 * req.数量;
+        else if (req.击杀级别 === '深渊王者') pts = 50000 * req.数量;
 
         if (pts > 0) {
-          c.wealth.blood_pt = (c.wealth.blood_pt || 0) + pts;
-          data.sys.rsn = `[深渊战功] ${charName} 击杀了 ${req.quantity} 只【${req.kill_tier}】，获得 ${pts} 点战功！`;
+          c.财富.战功 = (c.财富.战功 || 0) + pts;
+          data.sys.rsn = `[深渊战功] ${charName} 击杀了 ${req.数量} 只【${req.击杀级别}】，获得 ${pts} 点战功！`;
         } else {
           data.sys.rsn = `[深渊战功] ${charName} 击杀上报异常，未获得战功。`;
         }
-        c.abyss_kill_request = { kill_tier: '无', quantity: 1 };
+        c.深渊击杀请求 = { 击杀级别: '无', 数量: 1 };
       }
     });
     _(data.char).forEach((c, charName) => {
-      if (c.status.loc) {
-        if (c.status.loc.includes('生命之湖') && c.stat.lv < 90) {
-          c.stat.conditions['极致凶威压制'] = {
+      if (c.状态.位置) {
+        if (c.状态.位置.includes('生命之湖') && c.属性.等级 < 90) {
+          c.属性.状态效果['极致凶威压制'] = {
             类型: 'debuff',
             层数: 1,
             描述: '擅闯生命之湖，被多股凶兽级精神力锁定，随时陨落！',
           };
-        } else if (c.status.loc.includes('星斗大森林核心区') && c.stat.lv < 50) {
-          c.stat.conditions['跨阶恐惧'] = { 类型: 'debuff', 层数: 1, 描述: '实力不足以踏足核心区，深陷高阶魂兽包围' };
-          if (c.status.wound === '无') c.status.wound = '重伤';
-        } else if (c.status.loc.includes('深海') && c.stat.lv < 50) {
-          c.stat.conditions['深海压迫'] = { 类型: 'debuff', 层数: 1, 描述: '修为不足以抵御深海重压' };
+        } else if (c.状态.位置.includes('星斗大森林核心区') && c.属性.等级 < 50) {
+          c.属性.状态效果['跨阶恐惧'] = { 类型: 'debuff', 层数: 1, 描述: '实力不足以踏足核心区，深陷高阶魂兽包围' };
+          if (getComputedWoundLevelFromStat(c.属性) === '无') {
+            c.属性.HP = Math.min(Number(c.属性.HP || c.属性.HP上限 || 0), Math.max(1, Math.floor(Number(c.属性.HP上限 || 1) * 0.2)));
+          }
+        } else if (c.状态.位置.includes('深海') && c.属性.等级 < 50) {
+          c.属性.状态效果['深海压迫'] = { 类型: 'debuff', 层数: 1, 描述: '修为不足以抵御深海重压' };
         }
       }
 
-      if (c.hunt_request && c.hunt_request.killed_age > 0) {
-        let req = c.hunt_request;
-        let age = req.killed_age;
+      if (c.猎魂请求 && c.猎魂请求.击杀年限 > 0) {
+        let req = c.猎魂请求;
+        let age = req.击杀年限;
 
         let ringName = `${age}年魂环`;
-        if (!c.inventory[ringName])
-          c.inventory[ringName] = { 数量: 0, 类型: '魂环', 品质: '标准', 描述: '未吸收的无主魂环' };
-        c.inventory[ringName].数量 += 1;
+        if (!c.背包[ringName])
+          c.背包[ringName] = { 数量: 0, 类型: '魂环', 品质: '标准', 描述: '未吸收的无主魂环' };
+        c.背包[ringName].数量 += 1;
         let msg = `[现实狩猎] ${charName} 击杀了 ${age} 年魂兽，获得【${ringName}】！`;
 
         let dropRate = age >= 100000 ? 100 : (age / 100000) * 100;
         let roll = Math.floor(Math.random() * 100) + 1;
-        data.sys.last_roll = roll;
+        data.sys.最近检定 = roll;
         if (roll <= dropRate) {
           let boneName = `${age}年魂骨`;
-          if (!c.inventory[boneName])
-            c.inventory[boneName] = {
+          if (!c.背包[boneName])
+            c.背包[boneName] = {
               数量: 0,
               类型: '魂骨',
               品质: age >= 100000 ? '极品' : '常规',
               描述: '未吸收的无主魂骨',
             };
-          c.inventory[boneName].数量 += 1;
+          c.背包[boneName].数量 += 1;
           msg += `【好运爆发】成功剥离出【${boneName}】！(Roll: ${roll} <= ${dropRate}%)`;
         }
 
-        if (c.status.loc && c.status.loc.includes('星斗大森林')) {
-          data.world.forest_killed_age = (data.world.forest_killed_age || 0) + age;
-          if (data.world.forest_killed_age >= 1000000 && !data.world.flags['beast_tide']) {
+        if (c.状态.位置 && c.状态.位置.includes('星斗大森林')) {
+          data.world.累计击杀年限 = (data.world.累计击杀年限 || 0) + age;
+          if (data.world.累计击杀年限 >= 1000000 && !data.world.标记['beast_tide']) {
             msg += `\n🚨 [大区警报] 星斗大森林魂兽死伤惨重(累计超100万年)，血腥气彻底引爆凶兽怒火！【兽潮】开始集结！`;
-            if (!data.world.flags) data.world.flags = {};
-            data.world.flags['beast_tide'] = true;
+            if (!data.world.标记) data.world.标记 = {};
+            data.world.标记['beast_tide'] = true;
           }
         }
 
-        if (req.is_ferocious || age >= 100000) {
-          let deviationGain = Math.floor(30 * (data.world.deviation_multiplier || 1.0));
-          data.world.deviation = (data.world.deviation || 0) + deviationGain;
-          c.stat.conditions['魂兽公敌'] = {
+        if (req.是否凶兽 || age >= 100000) {
+          let deviationGain = Math.floor(30 * (data.world.偏差倍率 || 1.0));
+          data.world.偏差值 = (data.world.偏差值 || 0) + deviationGain;
+          c.属性.状态效果['魂兽公敌'] = {
             类型: 'debuff',
             层数: 1,
             描述: '击杀顶级魂兽染上的极致怨气，野外魂兽仇恨锁定',
@@ -11025,22 +11068,22 @@ export const Schema = z
           msg += `\n💀 [命运反噬] 击杀十万年/凶兽！世界线偏差值暴涨 ${deviationGain}！烙上【魂兽公敌】印记！`;
         }
         data.sys.rsn = msg;
-        c.hunt_request = { killed_age: 0, is_ferocious: false };
+        c.猎魂请求 = { 击杀年限: 0, 是否凶兽: false };
       }
     });
 
     const REFRESH_INTERVAL = 1008;
 
-    _(data.world.locations).forEach((cityData, cityName) => {
-      if (!cityData.stores) cityData.stores = {};
+    _(data.world.地点).forEach((cityData, cityName) => {
+      if (!cityData.商店) cityData.商店 = {};
 
       const groceryStoreName = '城市杂货店';
-      if (!cityData.stores[groceryStoreName]) {
-        cityData.stores[groceryStoreName] = { inventory: {}, next_refresh_tick: 0 };
+      if (!cityData.商店[groceryStoreName]) {
+        cityData.商店[groceryStoreName] = { 库存: {}, 下次刷新tick: 0 };
       }
-      const groceryStore = cityData.stores[groceryStoreName];
+      const groceryStore = cityData.商店[groceryStoreName];
 
-      if (currentTick >= (groceryStore.next_refresh_tick || 0)) {
+      if (currentTick >= (groceryStore.下次刷新tick || 0)) {
         let newInventory = {};
         const economy = cityData.经济状况 || '普通';
         let stockMultiplier = 1.0;
@@ -11050,109 +11093,109 @@ export const Schema = z
         _(BaseProductPool).forEach((item, itemName) => {
           newInventory[itemName] = {
             ...item,
-            stock: Math.floor((Math.random() * 10 + 5) * stockMultiplier),
+            库存: Math.floor((Math.random() * 10 + 5) * stockMultiplier),
           };
         });
-        groceryStore.inventory = newInventory;
-        groceryStore.next_refresh_tick = currentTick + REFRESH_INTERVAL;
+        groceryStore.库存 = newInventory;
+        groceryStore.下次刷新tick = currentTick + REFRESH_INTERVAL;
       }
     });
 
     _(FactionDistribution).forEach((dist, factionName) => {
       (dist.branches || []).forEach(cityName => {
-        if (data.world.locations[cityName]) {
-          const cityData = data.world.locations[cityName];
+        if (data.world.地点[cityName]) {
+          const cityData = data.world.地点[cityName];
           const storeName = `${factionName}分店`;
-          if (!cityData.stores[storeName]) {
-            cityData.stores[storeName] = { inventory: {}, next_refresh_tick: 0 };
+          if (!cityData.商店[storeName]) {
+            cityData.商店[storeName] = { 库存: {}, 下次刷新tick: 0 };
           }
-          const store = cityData.stores[storeName];
+          const store = cityData.商店[storeName];
 
-          if (currentTick >= (store.next_refresh_tick || 0)) {
-            store.inventory = {};
+          if (currentTick >= (store.下次刷新tick || 0)) {
+            store.库存 = {};
 
-            if (factionName === '唐门') _.merge(store.inventory, TangmenShopProducts);
-            else if (factionName === '史莱克学院') _.merge(store.inventory, ShrekAcademyShopProducts);
+            if (factionName === '唐门') _.merge(store.库存, TangmenShopProducts);
+            else if (factionName === '史莱克学院') _.merge(store.库存, ShrekAcademyShopProducts);
             else if (AssociationShopProducts[factionName])
-              _.merge(store.inventory, AssociationShopProducts[factionName]);
+              _.merge(store.库存, AssociationShopProducts[factionName]);
             else if (factionName === '传灵塔') {
-              store.inventory['十年魂灵·随机型'] = {
-                price: 50000,
-                currency: 'fed_coin',
-                type: '魂灵',
-                stock: 5,
-                req_fame: 0,
-                description: '最基础的人造魂灵，适合平民魂师。',
-                effects: [
+              store.库存['十年魂灵·随机型'] = {
+                价格: 50000,
+                货币: '联邦币',
+                类型: '魂灵',
+                库存: 5,
+                需求声望: 0,
+                描述: '最基础的人造魂灵，适合平民魂师。',
+                效果: [
                   {
-                    target: 'inventory',
-                    type: 'add',
-                    value: { '十年魂灵(随机)': { 数量: 1, 类型: '魂灵', 品质: '十年' } },
+                    目标: '背包',
+                    类型: 'add',
+                    数值: { '十年魂灵(随机)': { 数量: 1, 类型: '魂灵', 品质: '十年' } },
                   },
                 ],
               };
-              store.inventory['百年魂灵·随机型'] = {
-                price: 1000000,
-                currency: 'fed_coin',
-                type: '魂灵',
-                stock: 3,
-                req_fame: 0,
-                description: '品质尚可的百年魂灵。',
-                effects: [
+              store.库存['百年魂灵·随机型'] = {
+                价格: 1000000,
+                货币: '联邦币',
+                类型: '魂灵',
+                库存: 3,
+                需求声望: 0,
+                描述: '品质尚可的百年魂灵。',
+                效果: [
                   {
-                    target: 'inventory',
-                    type: 'add',
-                    value: { '百年魂灵(随机)': { 数量: 1, 类型: '魂灵', 品质: '百年' } },
+                    目标: '背包',
+                    类型: 'add',
+                    数值: { '百年魂灵(随机)': { 数量: 1, 类型: '魂灵', 品质: '百年' } },
                   },
                 ],
               };
 
-              let isWanNianUnlocked = data.world.flags['event_clt_wannian'];
+              let isWanNianUnlocked = data.world.标记['event_clt_wannian'];
 
               if (isWanNianUnlocked) {
-                store.inventory['千年魂灵·随机型'] = {
-                  price: 6000000,
-                  currency: 'fed_coin',
-                  type: '魂灵',
-                  stock: 2,
-                  req_fame: 500,
-                  description: '技术成熟后的量产千年魂灵，价格已大幅下降。',
-                  effects: [
+                store.库存['千年魂灵·随机型'] = {
+                  价格: 6000000,
+                  货币: '联邦币',
+                  类型: '魂灵',
+                  库存: 2,
+                  需求声望: 500,
+                  描述: '技术成熟后的量产千年魂灵，价格已大幅下降。',
+                  效果: [
                     {
-                      target: 'inventory',
-                      type: 'add',
-                      value: { '千年魂灵(随机)': { 数量: 1, 类型: '魂灵', 品质: '千年' } },
+                      目标: '背包',
+                      类型: 'add',
+                      数值: { '千年魂灵(随机)': { 数量: 1, 类型: '魂灵', 品质: '千年' } },
                     },
                   ],
                 };
-                store.inventory['万年魂灵·随机型'] = {
-                  price: 100000000,
-                  currency: 'fed_coin',
-                  type: '魂灵',
-                  stock: 1,
-                  req_fame: 5000,
-                  description: '传灵塔尖端科技结晶，万年级别魂灵！',
-                  effects: [
+                store.库存['万年魂灵·随机型'] = {
+                  价格: 100000000,
+                  货币: '联邦币',
+                  类型: '魂灵',
+                  库存: 1,
+                  需求声望: 5000,
+                  描述: '传灵塔尖端科技结晶，万年级别魂灵！',
+                  效果: [
                     {
-                      target: 'inventory',
-                      type: 'add',
-                      value: { '万年魂灵(随机)': { 数量: 1, 类型: '魂灵', 品质: '万年' } },
+                      目标: '背包',
+                      类型: 'add',
+                      数值: { '万年魂灵(随机)': { 数量: 1, 类型: '魂灵', 品质: '万年' } },
                     },
                   ],
                 };
               } else {
-                store.inventory['千年魂灵·随机型'] = {
-                  price: 20000000,
-                  currency: 'fed_coin',
-                  type: '魂灵',
-                  stock: 1,
-                  req_fame: 1000,
-                  description: '当前技术下极难培育的千年魂灵，造价高昂。',
-                  effects: [
+                store.库存['千年魂灵·随机型'] = {
+                  价格: 20000000,
+                  货币: '联邦币',
+                  类型: '魂灵',
+                  库存: 1,
+                  需求声望: 1000,
+                  描述: '当前技术下极难培育的千年魂灵，造价高昂。',
+                  效果: [
                     {
-                      target: 'inventory',
-                      type: 'add',
-                      value: { '千年魂灵(随机)': { 数量: 1, 类型: '魂灵', 品质: '千年' } },
+                      目标: '背包',
+                      类型: 'add',
+                      数值: { '千年魂灵(随机)': { 数量: 1, 类型: '魂灵', 品质: '千年' } },
                     },
                   ],
                 };
@@ -11164,36 +11207,36 @@ export const Schema = z
               else if (economy === '萧条') probMultiplier = 0.5;
 
               if (Math.random() * 100 <= 20 * probMultiplier) {
-                store.inventory['初级升灵台门票'] = {
-                  price: 500000,
-                  currency: 'fed_coin',
-                  type: '门票',
-                  stock: 1,
-                  req_fame: 0,
-                  description: '可进入初级升灵台，最高遭遇3千年以下虚拟魂兽。',
-                  effects: [],
+                store.库存['初级升灵台门票'] = {
+                  价格: 500000,
+                  货币: '联邦币',
+                  类型: '门票',
+                  库存: 1,
+                  需求声望: 0,
+                  描述: '可进入初级升灵台，最高遭遇3千年以下虚拟魂兽。',
+                  效果: [],
                 };
               }
               if (Math.random() * 100 <= 10 * probMultiplier) {
-                store.inventory['中级升灵台门票'] = {
-                  price: 5000000,
-                  currency: 'fed_coin',
-                  type: '门票',
-                  stock: 1,
-                  req_fame: 1000,
-                  description: '可进入中级升灵台，最高遭遇2万年以下虚拟魂兽。',
-                  effects: [],
+                store.库存['中级升灵台门票'] = {
+                  价格: 5000000,
+                  货币: '联邦币',
+                  类型: '门票',
+                  库存: 1,
+                  需求声望: 1000,
+                  描述: '可进入中级升灵台，最高遭遇2万年以下虚拟魂兽。',
+                  效果: [],
                 };
               }
               if (Math.random() * 100 <= 5 * probMultiplier) {
-                store.inventory['高级升灵台门票'] = {
-                  price: 50000000,
-                  currency: 'fed_coin',
-                  type: '门票',
-                  stock: 1,
-                  req_fame: 5000,
-                  description: '可进入高级升灵台，最高遭遇10万年以下虚拟魂兽。',
-                  effects: [],
+                store.库存['高级升灵台门票'] = {
+                  价格: 50000000,
+                  货币: '联邦币',
+                  类型: '门票',
+                  库存: 1,
+                  需求声望: 5000,
+                  描述: '可进入高级升灵台，最高遭遇10万年以下虚拟魂兽。',
+                  效果: [],
                 };
               }
             }
@@ -11204,22 +11247,22 @@ export const Schema = z
             else if (economy === '萧条') probMultiplier = 0.2;
 
             if (factionName.includes('锻造师协会')) {
-              tryGenerateDynamicItem(store.inventory, '千锻金属块', 500000, 2, 60 * probMultiplier);
-              tryGenerateDynamicItem(store.inventory, '灵锻金属块', 10000000, 3, 20 * probMultiplier);
-              tryGenerateDynamicItem(store.inventory, '魂锻金属块', 80000000, 4, 3 * probMultiplier);
-              tryGenerateDynamicItem(store.inventory, '天锻金属块', 500000000, 5, 0.1 * probMultiplier);
+              tryGenerateDynamicItem(store.库存, '千锻金属块', 500000, 2, 60 * probMultiplier);
+              tryGenerateDynamicItem(store.库存, '灵锻金属块', 10000000, 3, 20 * probMultiplier);
+              tryGenerateDynamicItem(store.库存, '魂锻金属块', 80000000, 4, 3 * probMultiplier);
+              tryGenerateDynamicItem(store.库存, '天锻金属块', 500000000, 5, 0.1 * probMultiplier);
             } else if (factionName.includes('设计师协会')) {
-              tryGenerateDynamicItem(store.inventory, '二字斗铠设计图', 2000000, 3, 30 * probMultiplier);
-              tryGenerateDynamicItem(store.inventory, '三字斗铠设计图', 20000000, 4, 5 * probMultiplier);
-              tryGenerateDynamicItem(store.inventory, '四字斗铠设计图', 150000000, 5, 0.5 * probMultiplier);
+              tryGenerateDynamicItem(store.库存, '二字斗铠设计图', 2000000, 3, 30 * probMultiplier);
+              tryGenerateDynamicItem(store.库存, '三字斗铠设计图', 20000000, 4, 5 * probMultiplier);
+              tryGenerateDynamicItem(store.库存, '四字斗铠设计图', 150000000, 5, 0.5 * probMultiplier);
             }
 
-            store.next_refresh_tick = currentTick + REFRESH_INTERVAL;
+            store.下次刷新tick = currentTick + REFRESH_INTERVAL;
           }
       }
     });
     });
-    function tryGenerateDynamicItem(inventory, itemName, basePrice, tier, prob) {
+    function tryGenerateDynamicItem(背包, itemName, basePrice, tier, prob) {
       if (Math.random() * 100 > prob) return;
 
       let metalCount = 1;
@@ -11236,24 +11279,24 @@ export const Schema = z
       let forgeMult = 1 + (metalCount - 1) * 0.3;
       let fluctuation = 0.85 + Math.random() * 0.3;
       let finalPrice = Math.floor(basePrice * forgeMult * fluctuation);
-      let stock = tier === 1 ? Math.floor(Math.random() * 10) + 5 : Math.floor(Math.random() * 2) + 1;
+      let 库存 = tier === 1 ? Math.floor(Math.random() * 10) + 5 : Math.floor(Math.random() * 2) + 1;
 
       let reqFame = 0;
       if (tier === 3) reqFame = 1000;
       else if (tier === 4) reqFame = 5000;
       else if (tier === 5) reqFame = 20000;
 
-      inventory[`[随机]${itemName}${nameSuffix}`] = {
-        price: finalPrice,
-        currency: 'fed_coin',
-        stock,
-        req_fame: reqFame,
-        description: `一批限时供应的${itemName}。`,
-        effects: [
+      背包[`[随机]${itemName}${nameSuffix}`] = {
+        价格: finalPrice,
+        货币: '联邦币',
+        库存,
+        需求声望: reqFame,
+        描述: `一批限时供应的${itemName}。`,
+        效果: [
           {
-            target: 'inventory',
-            type: 'add',
-            value: { [`${itemName}${nameSuffix}`]: { 数量: 1, 类型: '材料', 品质: '随机' } },
+            目标: '背包',
+            类型: 'add',
+            数值: { [`${itemName}${nameSuffix}`]: { 数量: 1, 类型: '材料', 品质: '随机' } },
           },
         ],
       };
@@ -11263,22 +11306,22 @@ export const Schema = z
       if (!data.world) data.world = {};
 
       FLAT_LOCATIONS = {};
-      if (data.world.locations) {
-        for (let rootName in data.world.locations) {
-          refreshFlatLocationsFromTree(data.world.locations[rootName], rootName);
+      if (data.world.地点) {
+        for (let rootName in data.world.地点) {
+          refreshFlatLocationsFromTree(data.world.地点[rootName], rootName);
         }
       }
 
-      if (!data.world.map_patches) data.world.map_patches = {};
-      if (!data.world.dynamic_locations) data.world.dynamic_locations = {};
+      if (!data.world.地图补丁) data.world.地图补丁 = {};
+      if (!data.world.动态地点) data.world.动态地点 = {};
 
-      _(data.world.dynamic_locations).forEach((locData, locName) => {
+      _(data.world.动态地点).forEach((locData, locName) => {
         if (locData.x === undefined) locData.x = FLAT_LOCATIONS[locData.归属父节点]?.x ?? -1;
         if (locData.y === undefined) locData.y = FLAT_LOCATIONS[locData.归属父节点]?.y ?? -1;
-        if (!locData.map_id || locData.map_id === '无') locData.map_id = 'map_douluo_world';
-        locData.node_type = normalizeDynamicLocationNodeType(locData.node_type, locData.层级, locName);
+        if (!locData.地图ID || locData.地图ID === '无') locData.地图ID = 'map_douluo_world';
+        locData.节点类型 = normalizeDynamicLocationNodeType(locData.节点类型, locData.层级, locName);
         if (!locData.icon || locData.icon === '无') locData.icon = 'marker';
-        if (!locData.settlement_id || locData.settlement_id === '无') locData.settlement_id = '无';
+        if (!locData.所属城镇ID || locData.所属城镇ID === '无') locData.所属城镇ID = '无';
       });
 
       // 先清空存储态占位文本，再在 display_all 打包阶段按需注入显示占位词。
@@ -11286,35 +11329,35 @@ export const Schema = z
       clearStorageTodoPlaceholders(data.char);
 
       // travel_request 已弃用：统一移除；promotion/donate 仅玩家保留。
-      const PLAYER_NAME = data.sys?.player_name;
+      const PLAYER_NAME = data.sys?.玩家名;
       _(data.char).forEach((charData, charName) => {
         if (!charData || typeof charData !== 'object') return;
         delete charData.travel_request;
         if (charName === PLAYER_NAME) {
-          if (!charData.promotion_request || typeof charData.promotion_request !== 'object') {
-            charData.promotion_request = { target_faction: '无', target_title: '无' };
+          if (!charData.晋升请求 || typeof charData.晋升请求 !== 'object') {
+            charData.晋升请求 = { 目标势力: '无', 目标职位: '无' };
           } else {
-            if (charData.promotion_request.target_faction === undefined) charData.promotion_request.target_faction = '无';
-            if (charData.promotion_request.target_title === undefined) charData.promotion_request.target_title = '无';
+            if (charData.晋升请求.目标势力 === undefined) charData.晋升请求.目标势力 = '无';
+            if (charData.晋升请求.目标职位 === undefined) charData.晋升请求.目标职位 = '无';
           }
-          if (!charData.donate_request || typeof charData.donate_request !== 'object') {
-            charData.donate_request = { item_name: '无', target_faction: '无', quantity: 1 };
+          if (!charData.捐献请求 || typeof charData.捐献请求 !== 'object') {
+            charData.捐献请求 = { 物品名称: '无', 目标势力: '无', 数量: 1 };
           } else {
-            if (charData.donate_request.item_name === undefined) charData.donate_request.item_name = '无';
-            if (charData.donate_request.target_faction === undefined) charData.donate_request.target_faction = '无';
-            if (charData.donate_request.quantity === undefined) charData.donate_request.quantity = 1;
+            if (charData.捐献请求.物品名称 === undefined) charData.捐献请求.物品名称 = '无';
+            if (charData.捐献请求.目标势力 === undefined) charData.捐献请求.目标势力 = '无';
+            if (charData.捐献请求.数量 === undefined) charData.捐献请求.数量 = 1;
           }
         } else {
-          delete charData.promotion_request;
-          delete charData.donate_request;
+          delete charData.晋升请求;
+          delete charData.捐献请求;
         }
       });
 
       const visibleChars = {};
       const protagonist = data.char[PLAYER_NAME];
-      const unlocked = protagonist?.unlocked_knowledges || [];
-      const currentLoc = protagonist?.status?.loc || '未知';
-      const relations = protagonist?.social?.relations || {};
+      const unlocked = protagonist?.已掌握情报 || [];
+      const currentLoc = protagonist?.状态?.位置 || '未知';
+      const 关系 = protagonist?.社交?.关系 || {};
       const normalizeLocForMatch = location => {
         const raw = String(location || '')
           .replace(/^斗罗大陆-/, '')
@@ -11385,30 +11428,30 @@ export const Schema = z
       const injectDisplayCharacterTodoDefaults = (charData = {}) => {
         if (!charData || typeof charData !== 'object') return charData;
 
-        ensureDisplayText(charData, 'personality', AI_TODO_PERSONALITY);
-        if (charData.social && typeof charData.social === 'object') {
-          ensureDisplayText(charData.social, 'main_identity', AI_TODO_MAIN_IDENTITY);
+        ensureDisplayText(charData, '性格', AI_TODO_PERSONALITY);
+        if (charData.社交 && typeof charData.社交 === 'object') {
+          ensureDisplayText(charData.社交, '主身份', AI_TODO_MAIN_IDENTITY);
         }
-        if (charData.status && typeof charData.status === 'object') {
-          ensureDisplayText(charData.status, 'loc', AI_TODO_STATUS_LOC);
+        if (charData.状态 && typeof charData.状态 === 'object') {
+          ensureDisplayText(charData.状态, '位置', AI_TODO_STATUS_LOC);
         }
-        if (charData.appearance && typeof charData.appearance === 'object') {
-          ensureDisplayText(charData.appearance, '发色', '待补全(根据角色外貌补全发色)');
-          ensureDisplayText(charData.appearance, '发型', '待补全(根据角色发质与气质补全发型)');
-          ensureDisplayText(charData.appearance, '瞳色', '待补全(根据角色外貌补全瞳色)');
-          ensureDisplayText(charData.appearance, '身高', '待补全(根据角色设定补全身高)');
-          ensureDisplayText(charData.appearance, '体型', '待补全(根据角色体态补全体型)');
-          ensureDisplayText(charData.appearance, '长相描述', '待补全(根据角色面部特征补全长相描述)');
-          if (!Array.isArray(charData.appearance.特殊特征)) charData.appearance.特殊特征 = [];
+        if (charData.外貌 && typeof charData.外貌 === 'object') {
+          ensureDisplayText(charData.外貌, '发色', '待补全(根据角色外貌补全发色)');
+          ensureDisplayText(charData.外貌, '发型', '待补全(根据角色发质与气质补全发型)');
+          ensureDisplayText(charData.外貌, '瞳色', '待补全(根据角色外貌补全瞳色)');
+          ensureDisplayText(charData.外貌, '身高', '待补全(根据角色设定补全身高)');
+          ensureDisplayText(charData.外貌, '体型', '待补全(根据角色体态补全体型)');
+          ensureDisplayText(charData.外貌, '长相描述', '待补全(根据角色面部特征补全长相描述)');
+          if (!Array.isArray(charData.外貌.特殊特征)) charData.外貌.特殊特征 = [];
           else {
-            charData.appearance.特殊特征 = charData.appearance.特殊特征
+            charData.外貌.特殊特征 = charData.外貌.特殊特征
               .map(item => String(item ?? '').trim())
               .filter(item => item && !/^待补全\(/.test(item));
           }
         }
-        if (charData.clothing && typeof charData.clothing === 'object') {
-          ensureDisplayText(charData.clothing, 'outfit', '待补全(从衣柜中选择当前套装名)');
-          _(charData.clothing.wardrobe || {}).forEach(wardrobeData => {
+        if (charData.穿搭 && typeof charData.穿搭 === 'object') {
+          ensureDisplayText(charData.穿搭, '着装', '待补全(从衣柜中选择当前套装名)');
+          _(charData.穿搭.衣柜 || {}).forEach(wardrobeData => {
             if (!wardrobeData || typeof wardrobeData !== 'object') return;
             ensureDisplayText(wardrobeData, '上装', '待补全(根据当前套装补全上装)');
             ensureDisplayText(wardrobeData, '下装', '待补全(根据当前套装补全下装)');
@@ -11416,31 +11459,31 @@ export const Schema = z
             ensureDisplayText(wardrobeData, '描述', '待补全(根据套装整体补全服装描述)');
           });
         }
-        if (charData.nsfw && typeof charData.nsfw === 'object') {
-          ensureDisplayStringArray(charData.nsfw, 'fetishes', '待生成(请根据角色经历，填写已觉醒的特殊癖好标签)');
+        if (charData.私密档案 && typeof charData.私密档案 === 'object') {
+          ensureDisplayStringArray(charData.私密档案, '癖好', '待生成(请根据角色经历，填写已觉醒的特殊癖好标签)');
           ensureDisplayStringArray(
-            charData.nsfw,
-            'fantasies',
+            charData.私密档案,
+            '幻想',
             '待生成(请根据角色隐藏的性格，描写其内心深处渴望被对待的私密方式)',
           );
-          if (charData.nsfw.measurements && typeof charData.nsfw.measurements === 'object') {
-            ensureDisplayText(charData.nsfw.measurements, '罩杯', '待生成(请根据角色体型填写，如A/B/C/D/E)');
-            ensureDisplayText(charData.nsfw.measurements, '身材描述', '待生成(请描写其身材曲线与肉感)');
+          if (charData.私密档案.身材数据 && typeof charData.私密档案.身材数据 === 'object') {
+            ensureDisplayText(charData.私密档案.身材数据, '罩杯', '待生成(请根据角色体型填写，如A/B/C/D/E)');
+            ensureDisplayText(charData.私密档案.身材数据, '身材描述', '待生成(请描写其身材曲线与肉感)');
           }
-          if (charData.nsfw.intimate_wear && typeof charData.nsfw.intimate_wear === 'object') {
+          if (charData.私密档案.贴身衣物 && typeof charData.私密档案.贴身衣物 === 'object') {
             ensureDisplayText(
-              charData.nsfw.intimate_wear,
+              charData.私密档案.贴身衣物,
               '内衣',
               '待生成(请根据当前情境描写具体内衣款式，如蕾丝胸罩/真空/拘束具)',
             );
-            ensureDisplayText(charData.nsfw.intimate_wear, '内裤', '待生成(请描写具体内裤款式，如丁字裤/C字裤/真空/贞操带)');
+            ensureDisplayText(charData.私密档案.贴身衣物, '内裤', '待生成(请描写具体内裤款式，如丁字裤/C字裤/真空/贞操带)');
             ensureDisplayStringArray(
-              charData.nsfw.intimate_wear,
+              charData.私密档案.贴身衣物,
               '特殊道具',
               '待生成(若体内或体表佩戴了跳蛋/项圈等道具请在此列出)',
             );
           }
-          _(charData.nsfw.body_parts || {}).forEach(partData => {
+          _(charData.私密档案.身体部位 || {}).forEach(partData => {
             if (!partData || typeof partData !== 'object') return;
             ensureDisplayText(
               partData,
@@ -11450,9 +11493,9 @@ export const Schema = z
           });
         }
 
-        _(charData.spirit || {}).forEach((spiritData, spiritKey) => {
+        _(charData.武魂 || {}).forEach((spiritData, spiritKey) => {
           if (!spiritData || typeof spiritData !== 'object') return;
-          const spiritType = spiritData?.type || charData?.stat?.type || '强攻系';
+          const spiritType = spiritData?.type || charData?.属性?.type || '强攻系';
           const isSecondarySpirit = spiritKey === '第二武魂';
           ensureDisplayText(spiritData, '表象名称', isSecondarySpirit ? '未展露' : AI_TODO_SPIRIT_NAME);
           ensureDisplayText(spiritData, '描述', isSecondarySpirit ? '无' : AI_TODO_SPIRIT_DESC);
@@ -11474,14 +11517,14 @@ export const Schema = z
             spiritData.可容纳属性 = [AI_TODO_ATTRIBUTE_CAPACITY];
           }
 
-          _(spiritData?.soul_spirits || {}).forEach((soulSpirit, soulSpiritKey) => {
+          _(spiritData?.魂灵 || {}).forEach((soulSpirit, soulSpiritKey) => {
             if (!soulSpirit || typeof soulSpirit !== 'object') return;
             ensureDisplayText(soulSpirit, '表象名称', AI_TODO_SOUL_SPIRIT_NAME);
             if (isEmptyDisplayText(soulSpirit.描述))
               soulSpirit.描述 = buildSoulSpiritDescriptionTodoText(soulSpirit);
             ensureDisplayText(soulSpirit, '品质', AI_TODO_SOUL_SPIRIT_QUALITY);
             ensureDisplayStringArray(soulSpirit, '附机制候选', AI_TODO_SOUL_SPIRIT_SECONDARY);
-            _(soulSpirit?.rings || {}).forEach(ringData => {
+            _(soulSpirit?.魂环 || {}).forEach(ringData => {
               if (!ringData || typeof ringData !== 'object') return;
               ensureDisplayText(ringData, '颜色', '无');
               injectDisplaySkillMapDefaults(ringData.魂技, skillName => ({
@@ -11499,7 +11542,7 @@ export const Schema = z
             });
           });
 
-          injectDisplaySkillMapDefaults(spiritData.custom_skills, skillName => ({
+          injectDisplaySkillMapDefaults(spiritData.自创魂技, skillName => ({
             type: spiritType,
             textContext: {
               spiritName:
@@ -11511,7 +11554,7 @@ export const Schema = z
           }));
         });
 
-        _(charData.soul_bone || {}).forEach((boneData, bonePart) => {
+        _(charData.魂骨 || {}).forEach((boneData, bonePart) => {
           if (!boneData || typeof boneData !== 'object') return;
           if (isEmptyDisplayText(boneData.名称)) {
             const fallbackPart = String(bonePart || '魂骨');
@@ -11519,83 +11562,83 @@ export const Schema = z
           }
           ensureDisplayText(boneData, '来源', '无');
           injectDisplaySkillMapDefaults(boneData?.附带技能, skillName => ({
-            type: charData?.stat?.type || '强攻系',
+            type: charData?.属性?.type || '强攻系',
             textContext: {
               spiritName: boneData?.名称 || bonePart || skillName,
-              type: charData?.stat?.type || '强攻系',
+              type: charData?.属性?.type || '强攻系',
             },
           }));
         });
 
-        if (charData.bloodline_power && typeof charData.bloodline_power === 'object') {
-          const bloodlineType = charData?.stat?.type || '强攻系';
-          ensureDisplayText(charData.bloodline_power, '属性体系', AI_TODO_ATTRIBUTE_SYSTEM);
+        if (charData.血脉之力 && typeof charData.血脉之力 === 'object') {
+          const bloodlineType = charData?.属性?.type || '强攻系';
+          ensureDisplayText(charData.血脉之力, '属性体系', AI_TODO_ATTRIBUTE_SYSTEM);
           if (
-            !Array.isArray(charData.bloodline_power.已解锁属性) &&
-            (charData.bloodline_power.已解锁属性 === undefined ||
-              charData.bloodline_power.已解锁属性 === null ||
-              charData.bloodline_power.已解锁属性 === '')
+            !Array.isArray(charData.血脉之力.已解锁属性) &&
+            (charData.血脉之力.已解锁属性 === undefined ||
+              charData.血脉之力.已解锁属性 === null ||
+              charData.血脉之力.已解锁属性 === '')
           ) {
-            charData.bloodline_power.已解锁属性 = [];
+            charData.血脉之力.已解锁属性 = [];
           }
-          if (Array.isArray(charData.bloodline_power.可容纳属性)) {
-            const hasCapacity = charData.bloodline_power.可容纳属性.some(item => String(item ?? '').trim());
-            if (!hasCapacity) charData.bloodline_power.可容纳属性 = [AI_TODO_ATTRIBUTE_CAPACITY];
+          if (Array.isArray(charData.血脉之力.可容纳属性)) {
+            const hasCapacity = charData.血脉之力.可容纳属性.some(item => String(item ?? '').trim());
+            if (!hasCapacity) charData.血脉之力.可容纳属性 = [AI_TODO_ATTRIBUTE_CAPACITY];
           } else if (
-            charData.bloodline_power.可容纳属性 === undefined ||
-            charData.bloodline_power.可容纳属性 === null ||
-            charData.bloodline_power.可容纳属性 === ''
+            charData.血脉之力.可容纳属性 === undefined ||
+            charData.血脉之力.可容纳属性 === null ||
+            charData.血脉之力.可容纳属性 === ''
           ) {
-            charData.bloodline_power.可容纳属性 = [AI_TODO_ATTRIBUTE_CAPACITY];
+            charData.血脉之力.可容纳属性 = [AI_TODO_ATTRIBUTE_CAPACITY];
           }
-          injectDisplaySkillMapDefaults(charData.bloodline_power?.passives, skillName => ({
+          injectDisplaySkillMapDefaults(charData.血脉之力?.被动, skillName => ({
             type: bloodlineType,
             textContext: {
-              spiritName: charData.bloodline_power?.bloodline || skillName,
+              spiritName: charData.血脉之力?.血脉 || skillName,
               type: bloodlineType,
             },
           }));
-          injectDisplaySkillMapDefaults(charData.bloodline_power?.skills, skillName => ({
+          injectDisplaySkillMapDefaults(charData.血脉之力?.技能, skillName => ({
             type: bloodlineType,
             textContext: {
-              spiritName: charData.bloodline_power?.bloodline || skillName,
+              spiritName: charData.血脉之力?.血脉 || skillName,
               type: bloodlineType,
             },
           }));
-          _(charData.bloodline_power?.blood_rings || {}).forEach(ringData => {
+          _(charData.血脉之力?.气血魂环 || {}).forEach(ringData => {
             if (!ringData || typeof ringData !== 'object') return;
             injectDisplaySkillMapDefaults(ringData?.魂技, skillName => ({
               type: bloodlineType,
               textContext: {
-                spiritName: charData.bloodline_power?.bloodline || skillName,
+                spiritName: charData.血脉之力?.血脉 || skillName,
                 type: bloodlineType,
               },
             }));
           });
         }
 
-        injectDisplaySkillMapDefaults(charData.special_abilities, skillName => ({
-          type: charData?.stat?.type || '强攻系',
+        injectDisplaySkillMapDefaults(charData.特殊能力, skillName => ({
+          type: charData?.属性?.type || '强攻系',
           textContext: {
             spiritName: skillName,
-            type: charData?.stat?.type || '强攻系',
+            type: charData?.属性?.type || '强攻系',
           },
         }));
-        injectDisplaySkillMapDefaults(charData.secret_skills, skillName => ({
-          type: charData?.stat?.type || '强攻系',
+        injectDisplaySkillMapDefaults(charData.秘技, skillName => ({
+          type: charData?.属性?.type || '强攻系',
           textContext: {
             spiritName: skillName,
-            type: charData?.stat?.type || '强攻系',
+            type: charData?.属性?.type || '强攻系',
           },
         }));
 
-        _(charData.martial_fusion_skills || {}).forEach((fusionData, fusionName) => {
+        _(charData.武魂融合技 || {}).forEach((fusionData, fusionName) => {
           if (!fusionData || typeof fusionData !== 'object') return;
-          injectDisplaySkillStructDefaults(fusionData.skill_data, {
-            type: charData?.stat?.type || '强攻系',
+          injectDisplaySkillStructDefaults(fusionData.技能数据, {
+            type: charData?.属性?.type || '强攻系',
             textContext: {
               spiritName: fusionName,
-              type: charData?.stat?.type || '强攻系',
+              type: charData?.属性?.type || '强攻系',
             },
           });
         });
@@ -11641,30 +11684,30 @@ export const Schema = z
         const battleHistorySummary = [];
         const equipmentBonusSummary = [];
 
-        _(sourceChar.social?.relations || {}).forEach((relData, targetName) => {
+        _(sourceChar.社交?.关系 || {}).forEach((relData, targetName) => {
           relationCards.push({
             目标: targetName,
             关系: relData.关系 || '陌生',
-            可接触性: relData._availability || '未知',
-            推进提示: relData._progress_note || '无',
-            当前关系加成: relData._current_relation_bonus || relData.favor_buff || '无',
-            下一档解锁奖励: relData._next_unlock_bonus || '无',
-            下一档解锁门槛: Number(relData._next_unlock_threshold || 0),
-            路线可切换: !!relData._route_switchable,
-            路线受限原因: relData._route_lock_reason || '无',
-            最近互动tick: Number(relData.last_interact_tick || 0),
-            最近互动动作: relData.last_interact_action || '无',
-            最近互动好感变化: Number(relData.recent_favor_delta || 0),
+            可接触性: relData._维护优先级 || '未知',
+            推进提示: relData._推进提示 || '无',
+            当前关系加成: relData._当前关系加成 || relData.好感加成 || '无',
+            下一档解锁奖励: relData._下档解锁加成 || '无',
+            下一档解锁门槛: Number(relData._下档解锁阈值 || 0),
+            路线可切换: !!relData._可切线,
+            路线受限原因: relData._切线限制原因 || '无',
+            最近互动tick: Number(relData.上次互动tick || 0),
+            最近互动动作: relData.上次互动动作 || '无',
+            最近互动好感变化: Number(relData.最近好感变化 || 0),
           });
         });
 
-        _(sourceChar.inventory || {}).forEach((itemData, itemName) => {
+        _(sourceChar.背包 || {}).forEach((itemData, itemName) => {
           if (!itemData || typeof itemData !== 'object') return;
           const summaryItem = { 物品: itemName };
           let hasContent = false;
-          if (Number(itemData.market_value?.price || 0) > 0) {
-            summaryItem.market_value_price = Number(itemData.market_value?.price || 0);
-            summaryItem.market_value_currency = itemData.market_value?.currency || 'fed_coin';
+          if (Number(itemData.市场估值?.价格 || 0) > 0) {
+            summaryItem.市场估值_价格 = Number(itemData.市场估值?.价格 || 0);
+            summaryItem.市场估值_货币 = itemData.市场估值?.货币 || '联邦币';
             hasContent = true;
           }
           if (itemData.有效期至 && itemData.有效期至 !== '无') {
@@ -11674,26 +11717,26 @@ export const Schema = z
           if (hasContent) inventoryExtraSummary.push(summaryItem);
         });
 
-        _(sourceChar.soul_bone || {}).forEach((boneData, boneName) => {
+        _(sourceChar.魂骨 || {}).forEach((boneData, boneName) => {
           if (!boneData || typeof boneData !== 'object') return;
-          const statsBonus = cloneValue(boneData.stats_bonus || {}, {});
+          const statsBonus = cloneValue(boneData.属性加成 || {}, {});
           if (Object.values(statsBonus).some(value => Number(value || 0) !== 0)) {
             soulBoneStatSummary.push({
               部位: boneName,
-              力量: Number(statsBonus.str || 0),
-              防御: Number(statsBonus.def || 0),
-              敏捷: Number(statsBonus.agi || 0),
-              体力上限: Number(statsBonus.vit_max || 0),
-              精神上限: Number(statsBonus.men_max || 0),
-              魂力上限: Number(statsBonus.sp_max || 0),
+              力量: Number(statsBonus.力量 || 0),
+              防御: Number(statsBonus.防御 || 0),
+              敏捷: Number(statsBonus.敏捷 || 0),
+              体力上限: Number(statsBonus.体力上限 || 0),
+              精神上限: Number(statsBonus.精神力上限 || 0),
+              魂力上限: Number(statsBonus.魂力上限 || 0),
             });
           }
         });
 
-        _(sourceChar.spirit || {}).forEach((spiritData, spiritKey) => {
-          const visibleSpirit = visibleChar.spirit?.[spiritKey] || spiritData || {};
-          _(spiritData?.soul_spirits || {}).forEach((soulSpirit, slotName) => {
-            const visibleSlot = visibleChar.spirit?.[spiritKey]?.soul_spirits?.[slotName] || soulSpirit || {};
+        _(sourceChar.武魂 || {}).forEach((spiritData, spiritKey) => {
+          const visibleSpirit = visibleChar.武魂?.[spiritKey] || spiritData || {};
+          _(spiritData?.魂灵 || {}).forEach((soulSpirit, slotName) => {
+            const visibleSlot = visibleChar.武魂?.[spiritKey]?.魂灵?.[slotName] || soulSpirit || {};
             spiritCombatSummary.push({
               武魂槽位: spiritKey,
               武魂名称: visibleSpirit.表象名称 || spiritData?.表象名称 || '无',
@@ -11712,201 +11755,201 @@ export const Schema = z
           });
         });
 
-        _(sourceChar.job || {}).forEach((jobData, jobName) => {
+        _(sourceChar.职业 || {}).forEach((jobData, jobName) => {
           jobSummary.push({
             职业: jobName,
-            lv: Number(jobData.lv || 0),
-            title: jobData.title || '无',
-            success_rate: Number(jobData.limits?.success_rate || 0),
-            max_fusion: Number(jobData.limits?.max_fusion || 0),
+            等级: Number(jobData.等级 || 0),
+            称号: jobData.称号 || '无',
+            成功率: Number(jobData.限制?.成功率 || 0),
+            最大融合数: Number(jobData.限制?.最大融合数 || 0),
           });
         });
 
-        _(sourceChar.combat_history || {}).forEach((historyData, historyName) => {
+        _(sourceChar.战斗历史 || {}).forEach((historyData, historyName) => {
           battleHistorySummary.push({
             项目: historyName,
-            count: Number(historyData?.count || 0),
-            last_tick: Number(historyData?.last_tick || 0),
+            次数: Number(historyData?.次数 || 0),
+            最近tick: Number(historyData?.最近tick || 0),
           });
         });
 
-        const armorBonus = cloneValue(sourceChar.equip?.armor?._stats_bonus || {}, {});
+        const armorBonus = cloneValue(sourceChar.装备?.斗铠?._属性加成 || {}, {});
         if (Object.values(armorBonus).some(value => Number(value || 0) !== 0)) {
           equipmentBonusSummary.push({
             装备: '斗铠',
-            等效等级: Number(armorBonus.lv_equiv || 0),
-            力量: Number(armorBonus.str || 0),
-            防御: Number(armorBonus.def || 0),
-            敏捷: Number(armorBonus.agi || 0),
-            体力上限: Number(armorBonus.vit_max || 0),
-            精神上限: Number(armorBonus.men_max || 0),
-            魂力上限: Number(armorBonus.sp_max || 0),
+            等效等级: Number(armorBonus.等效等级 || 0),
+            力量: Number(armorBonus.力量 || 0),
+            防御: Number(armorBonus.防御 || 0),
+            敏捷: Number(armorBonus.敏捷 || 0),
+            体力上限: Number(armorBonus.体力上限 || 0),
+            精神上限: Number(armorBonus.精神力上限 || 0),
+            魂力上限: Number(armorBonus.魂力上限 || 0),
           });
         }
-        const mechBonus = cloneValue(sourceChar.equip?.mech?._stats_bonus || {}, {});
+        const mechBonus = cloneValue(sourceChar.装备?.机甲?._属性加成 || {}, {});
         if (Object.values(mechBonus).some(value => Number(value || 0) !== 0)) {
           equipmentBonusSummary.push({
             装备: '机甲',
             等效等级: 0,
-            力量: Number(mechBonus.str || 0),
-            防御: Number(mechBonus.def || 0),
-            敏捷: Number(mechBonus.agi || 0),
-            体力上限: Number(mechBonus.vit_max || 0),
-            精神上限: Number(mechBonus.men_max || 0),
-            魂力上限: Number(mechBonus.sp_max || 0),
+            力量: Number(mechBonus.力量 || 0),
+            防御: Number(mechBonus.防御 || 0),
+            敏捷: Number(mechBonus.敏捷 || 0),
+            体力上限: Number(mechBonus.体力上限 || 0),
+            精神上限: Number(mechBonus.精神力上限 || 0),
+            魂力上限: Number(mechBonus.魂力上限 || 0),
           });
         }
 
-        const relationAnalysis = sourceChar.social?.relation_analysis || {};
+        const 关系分析数据 = sourceChar.社交?.关系分析 || {};
 
         const summary = {
-          精神境界: sourceChar.stat?._men_realm || '无',
-          名望等级: sourceChar.social?._fame_level || '籍籍无名',
-          公开情报: !!sourceChar.social?._public_intel,
-          力量: Number(sourceChar.stat?.str || 0),
-          防御: Number(sourceChar.stat?.def || 0),
-          敏捷: Number(sourceChar.stat?.agi || 0),
-          体力上限: Number(sourceChar.stat?.vit_max || 0),
-          魂力上限: Number(sourceChar.stat?.sp_max || 0),
-          精神上限: Number(sourceChar.stat?.men_max || 0),
-          社交恋爱候选: cloneValue(relationAnalysis.romance_candidates, []),
-          社交信任对象: cloneValue(relationAnalysis.trust_targets, []),
-          社交高风险对象: cloneValue(relationAnalysis.risk_targets, []),
-          社交同地可接触: cloneValue(relationAnalysis.same_location_targets, []),
-          社交可联络对象: cloneValue(relationAnalysis.contactable_targets, []),
-          社交路线受阻对象: cloneValue(relationAnalysis.blocked_targets, []),
+          精神境界: sourceChar.属性?.精神境界 || '无',
+          名望等级: sourceChar.社交?.名望等级 || '籍籍无名',
+          公开情报: !!sourceChar.社交?.公开情报,
+          力量: Number(sourceChar.属性?.力量 || 0),
+          防御: Number(sourceChar.属性?.防御 || 0),
+          敏捷: Number(sourceChar.属性?.敏捷 || 0),
+          体力上限: Number(sourceChar.属性?.体力上限 || 0),
+          魂力上限: Number(sourceChar.属性?.魂力上限 || 0),
+          精神上限: Number(sourceChar.属性?.精神力上限 || 0),
+          社交恋爱候选: cloneValue(关系分析数据.恋爱候选, []),
+          社交信任对象: cloneValue(关系分析数据.信任对象, []),
+          社交高风险对象: cloneValue(关系分析数据.风险对象, []),
+          社交同地可接触: cloneValue(关系分析数据.同地对象, []),
+          社交可联络对象: cloneValue(关系分析数据.可联络对象, []),
+          社交路线受阻对象: cloneValue(关系分析数据.受阻对象, []),
           社交关系卡片: relationCards,
           魂灵战力摘要: spiritCombatSummary,
           副职业摘要: jobSummary,
           装备加成摘要: equipmentBonusSummary,
-          斗铠回路冲突: !!sourceChar.equip?.armor?._is_rejected,
+          斗铠回路冲突: !!sourceChar.装备?.斗铠?._已排异,
           魂骨属性摘要: soulBoneStatSummary,
-          试炼最高层: Number(sourceChar.tower_records?.max_floor || 0),
-          试炼五折资格: Object.keys(sourceChar.tower_records?.discount_available || {}).filter(
-            key => sourceChar.tower_records?.discount_available?.[key],
+          试炼最高层: Number(sourceChar.魂灵塔记录?.最高层 || 0),
+          试炼五折资格: Object.keys(sourceChar.魂灵塔记录?.折扣资格 || {}).filter(
+            key => sourceChar.魂灵塔记录?.折扣资格?.[key],
           ),
           战斗记录摘要: battleHistorySummary,
           物品附加信息: inventoryExtraSummary,
-          领域维护消耗: Number(sourceChar.spiritual_domain?.maintenance_cost?.men || 0),
+          领域维护消耗: Number(sourceChar.精神领域?.维护消耗?.精神力 || 0),
         };
         return pruneSummaryValue(summary) || {};
       };
       const sanitizeDisplayCharacter = (sourceChar = {}) => {
         const nextChar = cloneValue(sourceChar, {});
-        if (nextChar.stat) {
-          delete nextChar.stat.last_herb_lv;
-          delete nextChar.stat.hidden_variance;
-          delete nextChar.stat.talent_tier;
-          delete nextChar.stat.innate_sp_lv;
-          delete nextChar.stat.talent_roll;
-          delete nextChar.stat.multiplier;
-          delete nextChar.stat.trained_bonus;
-          delete nextChar.stat._men_realm;
-          delete nextChar.stat.sp_max;
-          delete nextChar.stat.men_max;
-          delete nextChar.stat.str;
-          delete nextChar.stat.def;
-          delete nextChar.stat.agi;
-          delete nextChar.stat.vit_max;
-          delete nextChar.stat.conditions;
+        if (nextChar.属性) {
+          delete nextChar.属性.上次灵物等级;
+          delete nextChar.属性.底子波动;
+          delete nextChar.属性.天赋梯队;
+          delete nextChar.属性.先天魂力;
+          delete nextChar.属性.天赋检定;
+          delete nextChar.属性.倍率系数;
+          delete nextChar.属性.训练加成;
+          delete nextChar.属性.精神境界;
+          delete nextChar.属性.魂力上限;
+          delete nextChar.属性.精神力上限;
+          delete nextChar.属性.力量;
+          delete nextChar.属性.防御;
+          delete nextChar.属性.敏捷;
+          delete nextChar.属性.体力上限;
+          delete nextChar.属性.状态效果;
         }
-        if (nextChar.status) {
-          delete nextChar.status.active_domain;
+        if (nextChar.状态) {
+          delete nextChar.状态.当前领域;
         }
-        delete nextChar.tower_records;
-        delete nextChar.combat_history;
-        _(nextChar.job || {}).forEach(jobData => {
-          if (jobData && typeof jobData === 'object') delete jobData.limits;
+        delete nextChar.魂灵塔记录;
+        delete nextChar.战斗历史;
+        _(nextChar.职业 || {}).forEach(jobData => {
+          if (jobData && typeof jobData === 'object') delete jobData.限制;
         });
-        _(nextChar.social?.titles || {}).forEach(titleData => {
+        _(nextChar.社交?.称号 || {}).forEach(titleData => {
           if (titleData && typeof titleData === 'object') delete titleData.声望加成;
         });
-        _(nextChar.social?.relations || {}).forEach(relData => {
+        _(nextChar.社交?.关系 || {}).forEach(relData => {
           if (!relData || typeof relData !== 'object') return;
           delete relData.关系;
-          delete relData.favor_buff;
-          delete relData._relation_stage;
-          delete relData._next_stage;
-          delete relData._next_stage_threshold;
-          delete relData._route_switchable;
-          delete relData._route_lock_reason;
-          delete relData._progress_note;
-          delete relData._availability;
-          delete relData.last_interact_tick;
-          delete relData.last_interact_action;
-          delete relData.recent_favor_delta;
-          delete relData._current_relation_bonus;
-          delete relData._next_unlock_bonus;
-          delete relData._next_unlock_threshold;
+          delete relData.好感加成;
+          delete relData._关系阶段;
+          delete relData._下一阶段;
+          delete relData._下一阶段阈值;
+          delete relData._可切线;
+          delete relData._切线限制原因;
+          delete relData._推进提示;
+          delete relData._维护优先级;
+          delete relData.上次互动tick;
+          delete relData.上次互动动作;
+          delete relData.最近好感变化;
+          delete relData._当前关系加成;
+          delete relData._下档解锁加成;
+          delete relData._下档解锁阈值;
         });
-        if (nextChar.social) {
-          delete nextChar.social._fame_level;
-          delete nextChar.social._public_intel;
+        if (nextChar.社交) {
+          delete nextChar.社交.名望等级;
+          delete nextChar.社交.公开情报;
           const rawRelationAnalysis =
-            nextChar.social.relation_analysis && typeof nextChar.social.relation_analysis === 'object'
-              ? nextChar.social.relation_analysis
+            nextChar.社交.关系分析 && typeof nextChar.社交.关系分析 === 'object'
+              ? nextChar.社交.关系分析
               : {};
-          nextChar.social.relation_analysis =
+          nextChar.社交.关系分析 =
             pruneSummaryValue({
-              focus_target: toText(rawRelationAnalysis.focus_target, '无'),
-              top_targets: normalizeRelationAnalysisTopTargetsInput(rawRelationAnalysis.top_targets)
+              关注对象: toText(rawRelationAnalysis.关注对象, '无'),
+              重点对象: normalizeRelationAnalysisTopTargetsInput(rawRelationAnalysis.重点对象)
                 .slice(0, 3)
                 .map(item => ({
-                  target: toText(item && item.target, '无'),
-                  reason: toText(item && item.reason, '无'),
-                  recommended_action: toText(item && item.recommended_action, '继续观察'),
+                  对象: toText(item && item.对象, '无'),
+                  原因: toText(item && item.原因, '无'),
+                  建议行动: toText(item && item.建议行动, '继续观察'),
                 })),
-              recommended_actions: Array.isArray(rawRelationAnalysis.recommended_actions)
-                ? cloneValue(rawRelationAnalysis.recommended_actions, [])
+              建议行动: Array.isArray(rawRelationAnalysis.建议行动)
+                ? cloneValue(rawRelationAnalysis.建议行动, [])
                 : [],
             }) || {};
         }
-        _(nextChar.inventory || {}).forEach(itemData => {
+        _(nextChar.背包 || {}).forEach(itemData => {
           if (itemData && typeof itemData === 'object') {
-            delete itemData.market_value;
+            delete itemData.市场估值;
             delete itemData.有效期至;
           }
         });
-        _(nextChar.soul_bone || {}).forEach(boneData => {
+        _(nextChar.魂骨 || {}).forEach(boneData => {
           if (!boneData || typeof boneData !== 'object') return;
           delete boneData.name;
           delete boneData.age;
-          delete boneData.status;
-          delete boneData.stats_bonus;
+          delete boneData.状态;
+          delete boneData.属性加成;
         });
-        if (nextChar.equip?.armor) {
-          delete nextChar.equip.armor._stats_bonus;
-          delete nextChar.equip.armor._is_rejected;
+        if (nextChar.装备?.斗铠) {
+          delete nextChar.装备.斗铠._属性加成;
+          delete nextChar.装备.斗铠._已排异;
         }
-        if (nextChar.equip?.mech) {
-          delete nextChar.equip.mech._stats_bonus;
+        if (nextChar.装备?.机甲) {
+          delete nextChar.装备.机甲._属性加成;
         }
-        _(nextChar.spirit || {}).forEach(spiritData => {
-          _(spiritData?.soul_spirits || {}).forEach(soulSpirit => {
+        _(nextChar.武魂 || {}).forEach(spiritData => {
+          _(spiritData?.魂灵 || {}).forEach(soulSpirit => {
             delete soulSpirit.战力面板;
           });
         });
-        if (nextChar.spiritual_domain) {
-          delete nextChar.spiritual_domain.combat_modifiers;
-          delete nextChar.spiritual_domain.maintenance_cost;
+        if (nextChar.精神领域) {
+          delete nextChar.精神领域.战斗修饰;
+          delete nextChar.精神领域.维护消耗;
         }
         return nextChar;
       };
       const buildFactionReadOnlySummary = (sourceFaction = {}, detailLevel = 'public') =>
         detailLevel === 'related'
           ? {
-              核心战力: cloneValue(sourceFaction.power_stats, {}),
-              成员数量: Object.keys(sourceFaction.mem || {}).length,
-              下次刷新tick: Number(sourceFaction.next_refresh_tick || 0),
+              核心战力: cloneValue(sourceFaction.战力统计, {}),
+              成员数量: Object.keys(sourceFaction.成员 || {}).length,
+              下次刷新tick: Number(sourceFaction.下次刷新tick || 0),
             }
           : null;
       const sanitizeDisplayFaction = (sourceFaction = {}, detailLevel = 'public') => {
         const nextFaction = {
-          inf: Number(sourceFaction.inf || 0),
-          size: Number(sourceFaction.size || 0),
-          status: sourceFaction.status || '正常',
-          parent_faction: sourceFaction.parent_faction || '无',
-          rel: cloneValue(sourceFaction.rel || {}, {}),
+          影响力: Number(sourceFaction.影响力 || 0),
+          规模: Number(sourceFaction.规模 || 0),
+          状态: sourceFaction.状态 || '正常',
+          上级势力: sourceFaction.上级势力 || '无',
+          关系: cloneValue(sourceFaction.关系 || {}, {}),
         };
         const summary = buildFactionReadOnlySummary(sourceFaction, detailLevel);
         if (summary) nextFaction._summary = summary;
@@ -11919,21 +11962,21 @@ export const Schema = z
               人口: locData.人口,
               守护军团: locData.守护军团,
               经济状况: locData.经济状况,
-              type: locData.type,
-              desc: locData.desc,
-              state: locData.state,
-              node_kind: locData.node_kind,
-              interactions: cloneValue(locData.interactions, []),
-              services: cloneValue(locData.services, []),
-              action_slots: cloneValue(locData.action_slots, []),
-              children: cloneValue(locData.children || {}, {}),
-              商店: Object.keys(locData.stores || {}),
+              类型: locData.类型,
+              描述: locData.描述,
+              状态: locData.状态,
+              节点类别: locData.节点类别,
+              交互: cloneValue(locData.交互, []),
+              服务: cloneValue(locData.服务, []),
+              行动槽: cloneValue(locData.行动槽, []),
+              子节点: cloneValue(locData.子节点 || {}, {}),
+              商店: Object.keys(locData.商店 || {}),
             }
           : {
-              type: locData.type,
-              desc: locData.desc,
-              state: locData.state,
-              known_children: Object.keys(locData.children || {}),
+              类型: locData.类型,
+              描述: locData.描述,
+              状态: locData.状态,
+              已知子节点: Object.keys(locData.子节点 || {}),
             };
       const sanitizeDisplayDynamicLocation = (dynData = {}) => ({
         归属父节点: dynData.归属父节点,
@@ -11941,23 +11984,23 @@ export const Schema = z
         描述: dynData.描述,
         x: dynData.x,
         y: dynData.y,
-        node_type: normalizeDynamicLocationNodeType(dynData.node_type, dynData.层级, dynData.描述),
-        faction: dynData.faction,
-        importance: dynData.importance,
-        state: dynData.state,
-        node_kind: dynData.node_kind,
-        interactions: cloneValue(dynData.interactions, []),
-        services: cloneValue(dynData.services, []),
-        action_slots: cloneValue(dynData.action_slots, []),
+        节点类型: normalizeDynamicLocationNodeType(dynData.节点类型, dynData.层级, dynData.描述),
+        势力: dynData.势力,
+        重要度: dynData.重要度,
+        状态: dynData.状态,
+        节点类别: dynData.节点类别,
+        交互: cloneValue(dynData.交互, []),
+        服务: cloneValue(dynData.服务, []),
+        行动槽: cloneValue(dynData.行动槽, []),
       });
       const buildWorldReadOnlySummary = (baseWorld = {}, visibleWorld = {}) => {
         const visibleStores = {};
-        Object.keys(visibleWorld.locations || {}).forEach(locName => {
-          const storeNames = Object.keys(baseWorld.locations?.[locName]?.stores || {});
+        Object.keys(visibleWorld.地点 || {}).forEach(locName => {
+          const storeNames = Object.keys(baseWorld.地点?.[locName]?.商店 || {});
           if (storeNames.length > 0) visibleStores[locName] = storeNames;
         });
         return {
-          当前日期: baseWorld.time?._calendar || '未知',
+          当前日期: baseWorld.时间?._calendar || '未知',
           当前地点: currentLoc,
           可见商店: visibleStores,
         };
@@ -11965,20 +12008,20 @@ export const Schema = z
 
       Object.keys(data.char).forEach(charName => {
         const realCharData = data.char[charName];
-        const charLoc = realCharData.status?.loc || '未知';
+        const charLoc = realCharData.状态?.位置 || '未知';
 
         const isProtagonist = charName === PLAYER_NAME;
         const isSameLoc = charLoc !== '未知' && isLocationCompatible(currentLoc, charLoc);
-        const isKnown = !!relations[charName];
+        const isKnown = !!关系[charName];
 
         if (isProtagonist || isSameLoc || isKnown) {
           const fakeCharData = sanitizeDisplayCharacter(realCharData);
 
           if (charName === '唐舞麟' && !unlocked.includes('event_ch4_06')) {
-            if (fakeCharData.bloodline_power) fakeCharData.bloodline_power.bloodline = '未知隐性变异(尚未觉醒)';
+            if (fakeCharData.血脉之力) fakeCharData.血脉之力.血脉 = '未知隐性变异(尚未觉醒)';
           }
           if (charName === '古月' && !unlocked.includes('event_ch3_07')) {
-            if (fakeCharData.spirit && fakeCharData.spirit['元素使']) fakeCharData.spirit['元素使'].type = '元素系';
+            if (fakeCharData.武魂 && fakeCharData.武魂['元素使']) fakeCharData.武魂['元素使'].type = '元素系';
           }
           injectDisplayCharacterTodoDefaults(fakeCharData);
           const charSummary = buildCharReadOnlySummary(realCharData, fakeCharData);
@@ -11987,25 +12030,25 @@ export const Schema = z
           visibleChars[charName] = fakeCharData;
         }
       });
-      if (protagonist?.social?.relation_analysis) {
-        const relationWeight = name => Number(protagonist?.social?.relations?.[name]?.好感度 || 0);
-        const sameLocationTargets = Object.keys(relations)
+      if (protagonist?.社交?.关系分析) {
+        const relationWeight = name => Number(protagonist?.社交?.关系?.[name]?.好感度 || 0);
+        const sameLocationTargets = Object.keys(关系)
           .filter(name => {
             if (name === PLAYER_NAME) return false;
             const target = data.char[name];
-            return !!target && target.status?.loc && isLocationCompatible(currentLoc, target.status.loc);
+            return !!target && target.状态?.位置 && isLocationCompatible(currentLoc, target.状态.位置);
           })
           .sort((a, b) => relationWeight(b) - relationWeight(a));
-        const contactableTargets = Object.keys(relations)
+        const contactableTargets = Object.keys(关系)
           .filter(name => {
             if (name === PLAYER_NAME) return false;
             const target = data.char[name];
-            return !!target && target.status?.alive !== false;
+            return !!target && target.状态?.存活 !== false;
           })
           .sort((a, b) => relationWeight(b) - relationWeight(a));
 
-        protagonist.social.relation_analysis.same_location_targets = sameLocationTargets;
-        protagonist.social.relation_analysis.contactable_targets = contactableTargets;
+        protagonist.社交.关系分析.同地对象 = sameLocationTargets;
+        protagonist.社交.关系分析.可联络对象 = contactableTargets;
         if (visibleChars[PLAYER_NAME]) {
           const playerSummary = buildCharReadOnlySummary(protagonist, visibleChars[PLAYER_NAME]);
           if (playerSummary && Object.keys(playerSummary).length > 0)
@@ -12015,9 +12058,9 @@ export const Schema = z
       }
 
       const filtered_org = {};
-      const relatedOrgNames = new Set(Object.keys(protagonist?.social?.factions || {}));
+      const relatedOrgNames = new Set(Object.keys(protagonist?.社交?.势力 || {}));
       Object.values(visibleChars).forEach(visibleChar => {
-        Object.keys(visibleChar?.social?.factions || {}).forEach(facName => relatedOrgNames.add(facName));
+        Object.keys(visibleChar?.社交?.势力 || {}).forEach(facName => relatedOrgNames.add(facName));
       });
       _(data.org || {}).forEach((orgData, orgName) => {
         const detailLevel = relatedOrgNames.has(orgName) ? 'related' : 'public';
@@ -12025,27 +12068,27 @@ export const Schema = z
       });
 
       const filtered_sys = {
-        player_name: data.sys?.player_name,
+        玩家名: data.sys?.玩家名,
         rsn: data.sys?.rsn,
         seq: cloneValue(data.sys?.seq || {}, {}),
-        last_roll: Number(data.sys?.last_roll || 0),
+        最近检定: Number(data.sys?.最近检定 || 0),
       };
 
       const filtered_world = {
-        time: { tick: Number(data.world?.time?.tick || 0), _calendar: data.world?.time?._calendar || '未知' },
-        flags: cloneValue(data.world?.flags || {}, {}),
-        deviation: Number(data.world?.deviation || 0),
-        deviation_multiplier: Number(data.world?.deviation_multiplier || 1),
-        forest_killed_age: Number(data.world?.forest_killed_age || 0),
-        timeline: cloneValue(data.world?.timeline || {}, {}),
-        auction: cloneValue(data.world?.auction || {}, {}),
-        trade_request: cloneValue(data.world?.trade_request || {}, {}),
-        quest_board: cloneValue(data.world?.quest_board || {}, {}),
-        bestiary: cloneValue(data.world?.bestiary || {}, {}),
-        combat: cloneValue(data.world?.combat || {}, {}),
+        时间: { tick: Number(data.world?.时间?.tick || 0), _calendar: data.world?.时间?._calendar || '未知' },
+        标记: cloneValue(data.world?.标记 || {}, {}),
+        偏差值: Number(data.world?.偏差值 || 0),
+        偏差倍率: Number(data.world?.偏差倍率 || 1),
+        累计击杀年限: Number(data.world?.累计击杀年限 || 0),
+        时间线: cloneValue(data.world?.时间线 || {}, {}),
+        拍卖: cloneValue(data.world?.拍卖 || {}, {}),
+        交易请求: cloneValue(data.world?.交易请求 || {}, {}),
+        委托板: cloneValue(data.world?.委托板 || {}, {}),
+        图鉴: cloneValue(data.world?.图鉴 || {}, {}),
+        战斗: cloneValue(data.world?.战斗 || {}, {}),
         _引导: { 时间线预览: data.world?._引导?.时间线预览 || '' },
-        locations: {},
-        dynamic_locations: {},
+        地点: {},
+        动态地点: {},
       };
 
       const currentLocInfo = findMapNodeEntry(currentLoc, data);
@@ -12055,26 +12098,26 @@ export const Schema = z
         : currentLoc;
 
       if (
-        data.world.dynamic_locations[currentLoc]?.map_id &&
-        data.world.dynamic_locations[currentLoc].map_id !== '无'
+        data.world.动态地点[currentLoc]?.地图ID &&
+        data.world.动态地点[currentLoc].地图ID !== '无'
       ) {
         currentContextNodeName =
-          data.world.dynamic_locations[currentLoc].归属父节点 ||
+          data.world.动态地点[currentLoc].归属父节点 ||
           currentLocInfo?.path?.[currentLocInfo.path.length - 1] ||
           '斗罗大陆';
       }
 
-      _(data.world.locations).forEach((locData, locName) => {
+      _(data.world.地点).forEach((locData, locName) => {
         if (locName === currentContextNodeName || (currentLocInfo?.path && currentLocInfo.path.includes(locName))) {
-          filtered_world.locations[locName] = sanitizeDisplayLocation(locData, true);
+          filtered_world.地点[locName] = sanitizeDisplayLocation(locData, true);
         } else {
-          filtered_world.locations[locName] = sanitizeDisplayLocation(locData, false);
+          filtered_world.地点[locName] = sanitizeDisplayLocation(locData, false);
         }
       });
 
-      _(data.world.dynamic_locations).forEach((dynData, dynName) => {
+      _(data.world.动态地点).forEach((dynData, dynName) => {
         if (dynData.归属父节点 === currentContextNodeName) {
-          filtered_world.dynamic_locations[dynName] = sanitizeDisplayDynamicLocation(dynData);
+          filtered_world.动态地点[dynName] = sanitizeDisplayDynamicLocation(dynData);
         }
       });
 
@@ -12093,3 +12136,6 @@ export const Schema = z
   });
 
 $(() => { registerMvuSchema(Schema); });
+
+
+

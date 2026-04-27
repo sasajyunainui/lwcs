@@ -45,15 +45,15 @@
 你必须在原有剧情推进输出最后追加一个机器可读块，用于前端接管可结算行为。不要输出 JS，不要声称你已经执行脚本。
 格式必须严格为：
 <moduleIntent>
-{"module":"battle|trade|profession|none","confidence":0.0,"request":{},"auto_execute":false}
+{"module":"战斗|交易|副职业|无","confidence":0.0,"request":{},"自动执行":false}
 </moduleIntent>
 
 判定规则：
-- battle：玩家输入或剧情推演中已经实际发起战斗、切磋、单挑、挑战、袭击、追击、伏击、技能对轰等可结算行为。包括“剧情里两人决定单挑”这类间接表述。request 使用 npcTarget/location/combatType。
-- trade：已经实际发起购买、出售、私下交易、竞拍、报价、成交等可结算交易。request 使用 action/npc/item/quantity/price/currency/location。
-- profession：已经实际发起锻造、制造、设计、修理、官方代工、私人代工等副职业操作。request 使用 mode/target/materials/quantity/tier/subtype/npc/executorType/location。
-- none：只是讨论、回忆、询问规则、假设、计划但未真正发起可结算行为。
-- auto_execute 只有在对象、物品/目标、数量/材料、价格或执行方式足够明确，且文本有“直接/立即/确认/执行/开始/成交”等明确执行意图时才为 true。
+- 战斗：玩家输入或剧情推演中已经实际发起战斗、切磋、单挑、挑战、袭击、追击、伏击、技能对轰等可结算行为。包括“剧情里两人决定单挑”这类间接表述。request 使用 对象/目标地点/战斗类型。
+- 交易：已经实际发起购买、出售、私下交易、竞拍、报价、成交等可结算交易。request 使用 动作/目标/对象/物品/数量/价格/货币/状态/自动执行。
+- 副职业：已经实际发起锻造、制造、设计、修理、官方代工、私人代工等副职业操作。request 使用 模式/动作/目标/材料/数量/阶级/子类型/对象/执行者类型/目标地点/状态/自动执行。
+- 无：只是讨论、回忆、询问规则、假设、计划但未真正发起可结算行为。
+- 自动执行 只有在对象、物品/目标、数量/材料、价格或执行方式足够明确，且文本有“直接/立即/确认/执行/开始/成交”等明确执行意图时才为 true。
 - 不允许把战斗、交易、副职业结果直接写死在正文规划里；只输出模块意图，让前端模块结算。
 `.trim();
 
@@ -85,10 +85,10 @@
 
   function normalizeModuleIntentName(value) {
     const text = toText(value, '').trim().toLowerCase();
-    if (/battle|combat|战斗|切磋|单挑/.test(text)) return 'battle';
-    if (/trade|交易|购买|出售|竞拍|拍卖/.test(text)) return 'trade';
-    if (/profession|craft|job|副职业|工坊|锻造|制造|设计|修理|维修/.test(text)) return 'profession';
-    return 'none';
+    if (/battle|combat|战斗|切磋|单挑/.test(text)) return '战斗';
+    if (/trade|交易|购买|出售|竞拍|拍卖/.test(text)) return '交易';
+    if (/profession|craft|job|副职业|工坊|锻造|制造|设计|修理|维修/.test(text)) return '副职业';
+    return '无';
   }
 
   function normalizeModuleIntent(rawIntent) {
@@ -97,13 +97,13 @@
     const confidenceRaw = Number(rawIntent.confidence);
     const confidence = Number.isFinite(confidenceRaw)
       ? Math.max(0, Math.min(1, confidenceRaw))
-      : (moduleName === 'none' ? 0 : 1);
+      : (moduleName === '无' ? 0 : 1);
     const request = rawIntent.request && typeof rawIntent.request === 'object' ? rawIntent.request : {};
     return {
       module: moduleName,
       confidence,
       request,
-      auto_execute: rawIntent.auto_execute === true || rawIntent.autoExecute === true
+      自动执行: rawIntent.自动执行 === true
     };
   }
 
@@ -359,7 +359,7 @@
     if (!joined.trim()) return false;
     if (/<tableEdit>|templateAssistantDraft|文本优化|优化建议/.test(joined)) return false;
     return /<input>[\s\S]*?<\/input>|故事信息已结束，下接用户输入内容|<Output_format>|<content>|全局回复格式铁律|<UpdateVariable>|<JSONPatch>/i.test(joined)
-      && /【模块接管规则】|当剧情即将进入实际战斗|world\/combat|trade_request|副职业工坊|锻造|制造|修理|交易|切磋|单挑|战斗/.test(joined);
+      && /【模块接管规则】|当剧情即将进入实际战斗|world\/战斗|交易请求|副职业工坊|锻造|制造|修理|交易|切磋|单挑|战斗/.test(joined);
   }
 
   function extractLatestInputFromMessages(messages) {
@@ -405,9 +405,9 @@
     const request = intent && intent.request && typeof intent.request === 'object' ? intent.request : {};
     return {
       ...request,
-      module: intent ? intent.module : 'none',
-      kind: intent ? intent.module : 'none',
-      auto_execute: !!(intent && intent.auto_execute),
+      module: intent ? intent.module : '无',
+      kind: intent ? intent.module : '无',
+      自动执行: !!(intent && intent.自动执行),
       source: request.source || 'database_planning'
     };
   }
@@ -464,7 +464,7 @@
     state.processedPlans += 1;
     state.lastIntent = cloneJson(intent, intent);
 
-    if (!intent || intent.module === 'none' || intent.confidence < 0.45) {
+    if (!intent || intent.module === '无' || intent.confidence < 0.45) {
       state.continuedPlans += 1;
       state.lastAction = 'continue_none';
       return { action: 'continue', finalMessage: stripModuleIntentBlocks(finalMessage), intent };
@@ -479,7 +479,7 @@
     }
 
     const payload = buildRouterPayload(intent);
-    if (intent.module === 'battle') {
+    if (intent.module === '战斗') {
       const routeResult = await router(payload, { source: 'database_planning' });
       state.blockedPlans += 1;
       state.lastAction = routeResult && routeResult.handled ? 'block_battle_routed' : 'block_battle_route_failed';
@@ -495,11 +495,11 @@
       };
     }
 
-    if (intent.module === 'trade' || intent.module === 'profession') {
+    if (intent.module === '交易' || intent.module === '副职业') {
       const routeResult = await router(payload, {
         source: 'database_planning',
         dispatchMode: 'inline',
-        autoExecute: intent.auto_execute === true
+        autoExecute: intent.自动执行 === true
       });
 
       if (routeResult && routeResult.handled && routeResult.inlineAction) {
@@ -515,7 +515,7 @@
 
       state.blockedPlans += 1;
       state.lastAction = `block_${intent.module}_ui`;
-      showToast('info', intent.module === 'trade' ? '交易模块已打开，请补全后执行。' : '副职业工坊已打开，请补全后执行。');
+      showToast('info', intent.module === '交易' ? '交易模块已打开，请补全后执行。' : '副职业工坊已打开，请补全后执行。');
       return {
         action: 'block',
         finalMessage: stripModuleIntentBlocks(finalMessage),
@@ -591,11 +591,11 @@
     const dryRun = await router(inputText, { source: 'database_bridge_preflight', dryRun: true });
     if (!dryRun || !dryRun.handled || !dryRun.kind || !dryRun.request) return null;
 
-    if (dryRun.kind !== 'battle') return null;
+    if (dryRun.kind !== '战斗') return null;
 
     const routeResult = await router({
-      module: 'battle',
-      kind: 'battle',
+      module: '战斗',
+      kind: '战斗',
       request: dryRun.request,
       source: 'database_bridge_preflight'
     }, { source: 'database_bridge_preflight' });
@@ -603,10 +603,10 @@
     state.preflightRoutes += 1;
     state.blockedPlans += 1;
     state.lastIntent = {
-      module: 'battle',
+      module: '战斗',
       confidence: 1,
       request: cloneJson(dryRun.request, dryRun.request),
-      auto_execute: false
+      自动执行: false
     };
     state.lastAction = routeResult && routeResult.handled
       ? 'block_battle_preflight_routed'
