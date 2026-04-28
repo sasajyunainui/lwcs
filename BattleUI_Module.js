@@ -562,9 +562,13 @@ class BattleUIComponent {
       '先攻',
       '允许撤离',
       '环境',
+      '裁断结果',
+    ];
+
+    const COMBAT_WORLD_TRANSIENT_KEYS = [
+      '阶段',
       '裁断约束',
       '前端建议结果',
-      '裁断结果',
       '建议终点HP区间',
       '前端推荐终点HP',
       '预计HP伤害',
@@ -606,12 +610,6 @@ class BattleUIComponent {
         compact.回合 = Number.isFinite(roundParsed) ? Math.max(0, roundParsed) : 0;
       }
 
-      const stageCandidate = source.阶段;
-      if (stageCandidate !== undefined || compact.进行中 !== undefined) {
-        const fallbackStage = compact.进行中 === false ? '无' : '宣告阶段';
-        compact.阶段 = normalizeCombatStageValue(stageCandidate, fallbackStage);
-      }
-
       const participants = source.参战者 && typeof source.参战者 === 'object' ? source.参战者 : undefined;
       if (participants) {
         const compactParticipants = {};
@@ -639,8 +637,15 @@ class BattleUIComponent {
       const fullCombatData = sanitizeCombatPersistenceData(deepClonePlain(combatData || {}));
       const safeCombatData = compactCombatDataForPersistence(fullCombatData);
       const ops = [];
-      const previousCombatData = compactCombatDataForPersistence(getMvuValue('world.战斗', undefined));
+      const previousRawCombatData = sanitizeCombatPersistenceData(getMvuValue('world.战斗', undefined));
+      const previousCombatData = compactCombatDataForPersistence(previousRawCombatData);
       appendJsonPatchDiff(ops, '/world/战斗', previousCombatData, safeCombatData);
+      if (previousRawCombatData && typeof previousRawCombatData === 'object') {
+        COMBAT_WORLD_TRANSIENT_KEYS.forEach(key => {
+          if (!Object.prototype.hasOwnProperty.call(previousRawCombatData, key)) return;
+          ops.push({ op: 'remove', path: `/world/战斗/${escapeJsonPointerSegment(key)}` });
+        });
+      }
 
       const participants = fullCombatData?.参战者;
       if (!participants) return ops;

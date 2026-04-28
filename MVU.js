@@ -8400,7 +8400,6 @@ const FactionSchema = z
     规模: z.coerce.number().prefault(0),
     状态: z.string().prefault('正常'),
     上级势力: z.string().prefault('无').describe('上级势力/从属关系，如：斗罗联邦'),
-    下次刷新tick: z.coerce.number().prefault(0),
     关系: z.record(z.string(), z.object({ 态度: z.string().prefault('中立') }).prefault({})).prefault({}),
     成员: z.record(z.string(), z.object({ 职位: z.string().prefault('外围') }).prefault({})).prefault({}),
     战力统计: z
@@ -9038,40 +9037,12 @@ export const Schema = z
               .describe('掌握先手权的角色名。若为"无"则代表公平开局；若有名字则代表突发偷袭，防守方首回合反应率减半'),
             允许撤离: z.boolean().prefault(true).describe('是否允许逃跑。若为false则代表背水一战，触发困兽机制'),
             回合: z.coerce.number().prefault(0).describe('当前回合数'),
-            阶段: z.enum(['无', '宣告阶段', '对轰判定阶段', '回合结算阶段']).prefault('无').describe('当前战斗阶段'),
             环境: z.string().prefault('正常').describe('战场环境或全局领域法则'),
             战斗意图: z
               .enum(['点到为止', '尽量生擒', '重伤压制', '必杀'])
               .prefault('点到为止')
               .describe('本次战斗的主观意图，决定是否允许致死与前端建议结局'),
-            裁断约束: z
-              .object({
-                可致死: z.boolean().prefault(false),
-                可外界介入: z.boolean().prefault(false),
-                关系收手系数: z.coerce.number().prefault(0),
-                场地安全系数: z.coerce.number().prefault(0),
-                实力差距系数: z.coerce.number().prefault(0),
-                绝境失手系数: z.coerce.number().prefault(0),
-                失手等级: z.string().prefault('稳住'),
-              })
-              .prefault({}),
-            前端建议结果: z.string().prefault(''),
             裁断结果: z.string().prefault(''),
-            建议终点HP区间: z.string().prefault(''),
-            前端推荐终点HP: z.coerce.number().prefault(0),
-            预计HP伤害: z.coerce.number().prefault(0),
-            本次操作: z
-              .object({
-                批次ID: z.string().prefault(''),
-                模式: z.string().prefault('single_round'),
-                起始回合: z.coerce.number().prefault(0),
-                结束回合: z.coerce.number().prefault(0),
-                玩家输入: z.string().prefault(''),
-                结算状态: z.string().prefault(''),
-                AI确认结果: z.string().prefault(''),
-              })
-              .prefault({}),
-
             参战者: z
               .record(z.string().describe('参战槽位或参战者姓名'), z.any())
               .prefault({})
@@ -12137,7 +12108,6 @@ export const Schema = z
           ? {
               核心战力: cloneValue(sourceFaction.战力统计, {}),
               成员数量: Object.keys(sourceFaction.成员 || {}).length,
-              下次刷新tick: Number(sourceFaction.下次刷新tick || 0),
             }
           : null;
       const sanitizeDisplayFaction = (sourceFaction = {}, detailLevel = 'public') => {

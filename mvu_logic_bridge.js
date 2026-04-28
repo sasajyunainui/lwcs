@@ -2250,7 +2250,7 @@
           depth: 0,
           role: 'system',
           content: `【模块接管规则】
-当剧情即将进入实际战斗、切磋、伏击、追击或技能对轰时，不要直接写出最终胜负、掉血、战利品或死亡结算。必须先开启 MVU 变量 /world/战斗/进行中，并写入 /world/战斗/战斗类型、/world/战斗/阶段、/world/战斗/环境、/world/战斗/参战者。参战者 至少包含 player 与 enemy 两个槽位；如果只知道参战者姓名，也要把姓名写入对应槽位，前端会用角色档案补全战斗数据。
+当剧情即将进入实际战斗、切磋、伏击、追击或技能对轰时，不要直接写出最终胜负、掉血、战利品或死亡结算。必须先开启 MVU 变量 /world/战斗/进行中，并写入 /world/战斗/战斗类型、/world/战斗/环境、/world/战斗/参战者；若已明确战斗意图，也可一并写入 /world/战斗/战斗意图。参战者 至少包含 player 与 enemy 两个槽位；如果只知道参战者姓名，也要把姓名写入对应槽位，前端会用角色档案补全战斗数据。
 当剧情即将进入购买、出售、私下交易、竞拍、讨价还价或物资交换时，不要直接改写金钱/库存并宣布成交。必须写入 /world/交易请求/动作、目标、对象、物品、数量、价格、货币、状态、自动执行；如果剧情已经明确成交意图，可设置 自动执行=true 让交易模块自动提交仲裁。
 当剧情即将进入锻造、制造、设计、修理、官方代工或私人代工时，不要直接改写材料、成品、装备状态或副职业经验。必须先让前端副职业工坊接管；若推演脚本已经得到结构化计划，应调用 window.__MVU_ROUTE_MODULE_INTENT__ 并传入 profession/craft 请求。
 如果只是闲聊中提到战斗、交易或副职业，不需要触发模块；只有玩家或剧情角色真正发起可结算行为时才触发。`,
@@ -13776,14 +13776,6 @@
                         rawValue: toText(targetOrgData.上级势力, '无'),
                       })
                     : toText(targetOrgData.上级势力, '无') },
-                  { label: '下次刷新', value: targetOrgPath.length
-                    ? makeInlineEditableValue(String(toNumber(targetOrgData.下次刷新tick, 0)), {
-                        path: [...targetOrgPath, '下次刷新tick'],
-                        kind: 'number',
-                        rawValue: toNumber(targetOrgData.下次刷新tick, 0),
-                        editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
-                      })
-                    : String(toNumber(targetOrgData.下次刷新tick, 0)) },
                   { label: '极限斗罗', value: targetOrgPath.length
                     ? makeInlineEditableValue(String(toNumber(deepGet(targetOrgData, '战力统计.极限斗罗', 0), 0)), {
                         path: [...targetOrgPath, '战力统计', '极限斗罗'],
@@ -16025,15 +16017,8 @@ ${mvuUpdate}`;
         先攻: '无',
         允许撤离: true,
         回合: 0,
-        阶段: '宣告阶段',
         环境: arenaName,
-        裁断约束: {},
-        前端建议结果: '',
         裁断结果: '',
-        建议终点HP区间: '',
-        前端推荐终点HP: 0,
-        预计HP伤害: 0,
-        本次操作: {},
         参战者: {
           player,
           enemy,
