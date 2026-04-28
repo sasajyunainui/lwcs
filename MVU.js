@@ -6664,6 +6664,99 @@ function normalizeDynamicLocationNodeType(value = '', level = 4, locName = '') {
   return inferDynamicLocationNodeTypeByLevel(level);
 }
 
+function normalizeDynamicLocationTextList(value = []) {
+  return Array.isArray(value)
+    ? value.map(item => String(item || '').trim()).filter(Boolean)
+    : [];
+}
+
+function buildCompactDynamicLocationDisplayPayload(dynData = {}) {
+  const nextData = {
+    归属父节点: dynData.归属父节点,
+    层级: dynData.层级,
+    描述: dynData.描述,
+    x: dynData.x,
+    y: dynData.y,
+    节点类型: normalizeDynamicLocationNodeType(dynData.节点类型 || dynData.nodeKind, dynData.层级, dynData.描述),
+  };
+
+  const faction = String(dynData.势力 || '').trim();
+  if (faction && faction !== '未知') nextData.势力 = faction;
+
+  const importance = Number(dynData.重要度 ?? dynData.importance ?? 0);
+  if (Number.isFinite(importance) && importance > 0) nextData.重要度 = importance;
+
+  const status = String(dynData.状态 || dynData.state || '').trim();
+  if (status && status !== 'intact') nextData.状态 = status;
+
+  const nodeCategory = String(dynData.节点类别 || dynData.nodeKind || '').trim();
+  if (nodeCategory) nextData.节点类别 = nodeCategory;
+
+  const interactions = normalizeDynamicLocationTextList(dynData.交互 || dynData.interactions);
+  if (interactions.length) nextData.交互 = interactions;
+
+  const services = normalizeDynamicLocationTextList(dynData.服务 || dynData.services);
+  if (services.length) nextData.服务 = services;
+
+  return nextData;
+}
+
+function pruneDynamicLocationStorageFields(locData = {}) {
+  if (!locData || typeof locData !== 'object' || Array.isArray(locData)) return locData;
+
+  const mapId = String(locData.地图ID || '').trim();
+  if (mapId && mapId !== '无' && mapId !== 'map_douluo_world') locData.地图ID = mapId;
+  else delete locData.地图ID;
+
+  const icon = String(locData.图标 || locData.icon || '').trim();
+  if (icon && icon !== '无' && icon !== 'marker') locData.图标 = icon;
+  else delete locData.图标;
+  delete locData.icon;
+
+  const settlementId = String(locData.所属城镇ID || '').trim();
+  if (settlementId && settlementId !== '无') locData.所属城镇ID = settlementId;
+  else delete locData.所属城镇ID;
+
+  const faction = String(locData.势力 || '').trim();
+  if (faction && faction !== '未知') locData.势力 = faction;
+  else delete locData.势力;
+
+  const importance = Number(locData.重要度 ?? locData.importance ?? 0);
+  if (Number.isFinite(importance) && importance > 0) locData.重要度 = importance;
+  else delete locData.重要度;
+  delete locData.importance;
+
+  const status = String(locData.状态 || locData.state || '').trim();
+  if (status && status !== 'intact') locData.状态 = status;
+  else delete locData.状态;
+  delete locData.state;
+
+  const nodeCategory = String(locData.节点类别 || locData.nodeKind || '').trim();
+  if (nodeCategory) locData.节点类别 = nodeCategory;
+  else delete locData.节点类别;
+  delete locData.nodeKind;
+
+  const eventId = String(locData.事件ID || locData.eventId || '').trim();
+  if (eventId) locData.事件ID = eventId;
+  else delete locData.事件ID;
+  delete locData.eventId;
+
+  const interactions = normalizeDynamicLocationTextList(locData.交互 || locData.interactions);
+  if (interactions.length) locData.交互 = interactions;
+  else delete locData.交互;
+  delete locData.interactions;
+
+  const services = normalizeDynamicLocationTextList(locData.服务 || locData.services);
+  if (services.length) locData.服务 = services;
+  else delete locData.服务;
+  delete locData.services;
+
+  delete locData.行动槽;
+  delete locData.actionSlots;
+  delete locData.action_slots;
+  return locData;
+}
+
 function normalizeRelationAnalysisTopTargetsInput(value = []) {
   const normalizeItem = item => ({
     对象: String(item?.对象 || '无').trim() || '无',
@@ -8896,7 +8989,6 @@ export const Schema = z
                 节点类别: z.string().prefault(''),
                 交互: z.array(z.string()).prefault([]),
                 服务: z.array(z.string()).prefault([]),
-                行动槽: z.array(z.string()).prefault([]),
                 事件ID: z.string().prefault(''),
               })
               .prefault({}),
@@ -11437,7 +11529,6 @@ export const Schema = z
         }
       }
 
-      if (!data.world.地图补丁) data.world.地图补丁 = {};
       if (!data.world.动态地点) data.world.动态地点 = {};
 
       _(data.world.动态地点).forEach((locData, locName) => {
@@ -12084,21 +12175,8 @@ export const Schema = z
               状态: locData.状态,
               已知子节点: Object.keys(locData.子节点 || {}),
             };
-      const sanitizeDisplayDynamicLocation = (dynData = {}) => ({
-        归属父节点: dynData.归属父节点,
-        层级: dynData.层级,
-        描述: dynData.描述,
-        x: dynData.x,
-        y: dynData.y,
-        节点类型: normalizeDynamicLocationNodeType(dynData.节点类型, dynData.层级, dynData.描述),
-        势力: dynData.势力,
-        重要度: dynData.重要度,
-        状态: dynData.状态,
-        节点类别: dynData.节点类别,
-        交互: cloneValue(dynData.交互, []),
-        服务: cloneValue(dynData.服务, []),
-        行动槽: cloneValue(dynData.行动槽, []),
-      });
+      const sanitizeDisplayDynamicLocation = (dynData = {}) =>
+        buildCompactDynamicLocationDisplayPayload(dynData);
       const buildWorldReadOnlySummary = (baseWorld = {}, visibleWorld = {}) => {
         const visibleStores = {};
         Object.keys(visibleWorld.地点 || {}).forEach(locName => {
@@ -12238,6 +12316,10 @@ export const Schema = z
         char: visibleChars,
       };
     }
+
+    _(data.world?.动态地点 || {}).forEach(locData => {
+      pruneDynamicLocationStorageFields(locData);
+    });
 
     return data;
   });

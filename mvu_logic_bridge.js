@@ -7871,9 +7871,6 @@
         sheepSnapshot && (sheepSnapshot.visibleDynamics || sheepSnapshot.visibleDynamicLocations)
       );
       const mapVisibleDynamicEntries = mapVisibleDynamicEntriesCore.length ? mapVisibleDynamicEntriesCore : mapVisibleDynamicEntriesSheep;
-      const mapActivePatchEntriesCore = normalizeMapEntries(deepGet(mapData, 'active_patches', {}));
-      const mapActivePatchEntriesSheep = normalizeMapEntries(sheepSnapshot && sheepSnapshot.activePatches);
-      const mapActivePatchEntries = mapActivePatchEntriesCore.length ? mapActivePatchEntriesCore : mapActivePatchEntriesSheep;
       const mapAvailableChildMapsCore = deepGet(mapData, 'available_child_maps', {}) || {};
       const mapAvailableChildMapsSheep = sheepSnapshot && sheepSnapshot.availableChildMaps && typeof sheepSnapshot.availableChildMaps === 'object'
         ? sheepSnapshot.availableChildMaps
@@ -7966,7 +7963,6 @@
         mapCurrentFocus,
         mapVisibleNodeEntries,
         mapVisibleDynamicEntries,
-        mapActivePatchEntries,
         mapAvailableChildMaps,
         mapTravelCandidates,
         publicIntel: !!deepGet(activeChar, 'social.公开情报', deepGet(activeChar, 'social.public_intel', false)),
@@ -8056,7 +8052,6 @@
           mapNodeLabels: Array.isArray(snapshot && snapshot.mapNodeLabels) ? snapshot.mapNodeLabels : [],
           mapVisibleNodeEntries: Array.isArray(snapshot && snapshot.mapVisibleNodeEntries) ? snapshot.mapVisibleNodeEntries : [],
           mapVisibleDynamicEntries: Array.isArray(snapshot && snapshot.mapVisibleDynamicEntries) ? snapshot.mapVisibleDynamicEntries : [],
-          mapActivePatchEntries: Array.isArray(snapshot && snapshot.mapActivePatchEntries) ? snapshot.mapActivePatchEntries : [],
           mapAvailableChildMaps: Array.isArray(snapshot && snapshot.mapAvailableChildMaps) ? snapshot.mapAvailableChildMaps : [],
           latestTimeline: snapshot && snapshot.latestTimeline ? snapshot.latestTimeline : null,
           timelineEntries: Array.isArray(snapshot && snapshot.timelineEntries) ? snapshot.timelineEntries : []
@@ -9060,7 +9055,6 @@
         metrics: [
           { label: '可见', value: String(snapshot.mapVisibleNodeEntries.length || snapshot.mapNodeLabels.length || 0), tone: 'live' },
           { label: '动态', value: String(snapshot.mapVisibleDynamicEntries.length || 0) },
-          { label: '补丁', value: String(snapshot.mapActivePatchEntries.length || 0) },
           { label: '子图', value: String(childMapCount || 0), tone: 'gold' },
         ],
         note: snapshot.latestTimeline
@@ -9163,25 +9157,20 @@
     }
 
     function buildShellMapDynamicCard(snapshot) {
-      if (!snapshot || (!snapshot.mapVisibleDynamicEntries.length && !snapshot.mapActivePatchEntries.length && !snapshot.latestTimeline)) {
+      if (!snapshot || (!snapshot.mapVisibleDynamicEntries.length && !snapshot.latestTimeline)) {
         return buildShellSummaryCard({
           title: '动态',
           value: '0',
           meta: '无地图动态',
-          rows: [
-            { label: '补丁', value: '0' },
-          ],
+          rows: [],
         });
       }
-      const latestPatch = snapshot.mapActivePatchEntries[0] ? snapshot.mapActivePatchEntries[0][0].replace(/^patch_/, '') : '暂无';
       return buildShellSummaryCard({
         kicker: '动态',
         title: '动态',
         value: `${snapshot.mapVisibleDynamicEntries.length || 0} 处`,
         meta: snapshot.latestTimeline ? shortenText(snapshot.latestTimeline[0], 20) : '等待新变化',
         rows: [
-          { label: '激活补丁', value: String(snapshot.mapActivePatchEntries.length || 0) },
-          { label: '最新补丁', value: shortenText(latestPatch, 18) },
           { label: '地图信息', value: snapshot.latestTimeline ? shortenText(toText(deepGet(snapshot.latestTimeline[1], '事件', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]), 28) : '暂无新变化' },
         ],
       });
@@ -10253,7 +10242,6 @@
             <div class="simple-head"><div class="simple-title">动态节点</div></div>
             <div class="simple-list">
               <div class="simple-row"><b>可见动态点</b><span>${htmlEscape(String(snapshot.mapVisibleDynamicEntries.length || 0))}</span></div>
-              <div class="simple-row"><b>活跃补丁</b><span>${htmlEscape(String(snapshot.mapActivePatchEntries.length || 0))}</span></div>
               <div class="simple-row"><b>最近变化</b><span>${htmlEscape(snapshot.latestTimeline ? snapshot.latestTimeline[0] : '暂无')}</span></div>
             </div>
           `, { preview: '动态地点与扩展节点', surface: normalizedSurface });
@@ -10430,7 +10418,6 @@
           <div class="simple-head"><div class="simple-title">动态节点</div></div>
           <div class="simple-list">
             <div class="simple-row"><b>可见动态点</b><span>${htmlEscape(String(snapshot.mapVisibleDynamicEntries.length || 0))}</span></div>
-            <div class="simple-row"><b>活跃补丁</b><span>${htmlEscape(String(snapshot.mapActivePatchEntries.length || 0))}</span></div>
             <div class="simple-row"><b>最近变化</b><span>${htmlEscape(snapshot.latestTimeline ? snapshot.latestTimeline[0] : '暂无')}</span></div>
           </div>
         `, { preview: '动态地点与扩展节点' });

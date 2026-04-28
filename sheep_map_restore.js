@@ -1746,7 +1746,6 @@
     .map-canvas.is-calibrating .map-legend-strip,
     .map-canvas.is-calibrating .map-focus-pill,
     .map-canvas.is-calibrating .map-coord-strip,
-    .map-canvas.is-calibrating .map-patch-layer,
     .map-canvas.is-calibrating .map-node-layer,
     .map-canvas.is-calibrating .map-free-marker,
     .map-canvas.is-calibrating .map-crosshair,
@@ -1851,7 +1850,6 @@
     }
 
     .map-terrain,
-    .map-patch-layer,
     .map-node-layer {
       position: absolute;
       inset: 0;
@@ -1862,12 +1860,6 @@
       -webkit-user-drag: none;
       user-select: none;
       z-index: 1;
-      overflow: hidden;
-    }
-
-    .map-patch-layer {
-      pointer-events: none;
-      z-index: 2;
       overflow: hidden;
     }
 
@@ -1955,56 +1947,6 @@
         radial-gradient(circle at 50% 46%, rgba(255,255,255,0.06), transparent 28%),
         linear-gradient(180deg, rgba(0,0,0,0.02), rgba(0,0,0,0.08));
       pointer-events: none;
-    }
-
-    .map-patch {
-      position: absolute;
-      border-radius: 12px;
-      border: 1px solid rgba(255,255,255,0.24);
-      background: rgba(196,98,83,0.12);
-      box-shadow: inset 0 0 18px rgba(255,255,255,0.04), 0 0 20px rgba(0,0,0,0.18);
-      overflow: hidden;
-    }
-
-    .map-patch::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(135deg, rgba(255,255,255,0.10), transparent 55%);
-      opacity: 0.5;
-    }
-
-    .map-patch.patch-construction {
-      border-color: rgba(222,181,96,0.46);
-      background: rgba(170,122,34,0.16);
-    }
-
-    .map-patch.patch-destruction {
-      border-color: rgba(210,92,92,0.52);
-      background: rgba(138,42,42,0.18);
-    }
-
-    .map-patch.patch-visibility {
-      border-style: dashed;
-      border-color: rgba(123,175,218,0.50);
-      background: rgba(48,88,124,0.12);
-    }
-
-    .map-patch-label {
-      position: absolute;
-      left: 8px;
-      top: 6px;
-      max-width: calc(100% - 16px);
-      padding: 2px 6px;
-      border-radius: 999px;
-      background: rgba(8,16,24,0.78);
-      border: 1px solid rgba(255,255,255,0.12);
-      color: rgba(245,248,250,0.92);
-      font-size: 9px;
-      line-height: 1.2;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
     .map-node {
@@ -2833,10 +2775,9 @@
             </div>
           </div>
         </div>
-        <div class='map-canvas map-canvas-large interactive-map'>
+          <div class='map-canvas map-canvas-large interactive-map'>
           <div class='map-world' data-map-world>
             <div class='map-terrain' data-map-terrain></div>
-            <div class='map-patch-layer' data-map-patch-layer></div>
             <div class='map-node-layer' data-map-node-layer></div>
             <div class='map-free-marker current is-hidden' data-map-free-current></div>
             <div class='map-free-marker target is-hidden' data-map-free-target></div>
@@ -2940,7 +2881,6 @@
     bounds: { ...DEFAULT_IMAGE_BOUNDS },
     items: [],
     itemMap: new Map(),
-    activePatches: [],
     coordSystem: MAP_COORD_SYSTEM_IMAGE,
     currentMapId: 'map_douluo_world',
     mapLevel: 'world',
@@ -3953,7 +3893,6 @@
       travelCandidates: Array.from(new Set([...Object.keys(visibleNodes), ...Object.keys(visibleDynamics)])),
       visibleNodes: safeEntries(visibleNodes),
       visibleDynamics: safeEntries(visibleDynamics),
-      activePatches: [],
       mapLevel: isPreview ? payload.map_meta?.map_level || 'city' : 'world',
       mapMeta: isPreview ? payload.map_meta : null,
       previewMeta: isPreview ? payload.preview_meta : null,
@@ -4037,7 +3976,6 @@
       travelCandidates: [],
       visibleNodes: [],
       visibleDynamics: [],
-      activePatches: [],
       mapLevel: 'world',
       coordSystem: MAP_COORD_SYSTEM_IMAGE
     };
@@ -4179,7 +4117,6 @@
       },
       visible_nodes: Object.fromEntries(visibleNodeEntries),
       visible_dynamic_locations: Object.fromEntries(dynamicEntries),
-      active_patches: {},
       travel_candidates: Array.from(new Set([
         ...visibleNodeEntries.map(([childName]) => childName),
         ...dynamicEntries.map(([dynName]) => dynName)
@@ -4240,7 +4177,6 @@
     mapState.items = snapshot.items;
     invalidateMapDerivedCache();
     mapState.itemMap = new Map(snapshot.items.map(item => [item.name, item]));
-    mapState.activePatches = snapshot.activePatches.map(([id, patch]) => ({ id, layer: toText(patch && patch.layer, 'overlay'), asset: toText(patch && patch.asset, id), bounds: patch && patch.bounds ? patch.bounds : { x: 0, y: 0, w: 0, h: 0 } }));
     mapState.coordSystem = MAP_COORD_SYSTEM_IMAGE;
     mapState.currentMapId = snapshot.currentMapId;
     mapState.mapLevel = snapshot.mapLevel;
@@ -6225,36 +6161,6 @@
     });
   }
 
-  function renderMapPatchLayer() {
-    const patchKey = `${mapState.currentMapId}|${mapState.activePatches.map(patch => `${patch.id || ''}:${patch.asset || ''}:${toNumber(patch.bounds?.x, 0)},${toNumber(patch.bounds?.y, 0)},${toNumber(patch.bounds?.w, 0)},${toNumber(patch.bounds?.h, 0)}`).join('|')}`;
-    const patchHtml = mapState.activePatches.map(patch => {
-      const bounds = patch.bounds || {};
-      const x = toNumber(bounds.x, NaN);
-      const y = toNumber(bounds.y, NaN);
-      const w = Math.max(0, toNumber(bounds.w, 0));
-      const h = Math.max(0, toNumber(bounds.h, 0));
-      if (!Number.isFinite(x) || !Number.isFinite(y) || w <= 0 || h <= 0) return '';
-      const from = projectCoord({ x, y });
-      const to = projectCoord({ x: x + w, y: y + h });
-      const fallbackLeft = (x / Math.max(1, WORLD_IMAGE_WIDTH - 1)) * 100;
-      const fallbackTop = (y / Math.max(1, WORLD_IMAGE_HEIGHT - 1)) * 100;
-      const fallbackWidth = (w / Math.max(1, WORLD_IMAGE_WIDTH - 1)) * 100;
-      const fallbackHeight = (h / Math.max(1, WORLD_IMAGE_HEIGHT - 1)) * 100;
-      const left = Number.isFinite(from.left) ? from.left * 100 : fallbackLeft;
-      const top = Number.isFinite(from.top) ? from.top * 100 : fallbackTop;
-      const width = Number.isFinite(to.left) && Number.isFinite(from.left) ? (to.left - from.left) * 100 : fallbackWidth;
-      const height = Number.isFinite(to.top) && Number.isFinite(from.top) ? (to.top - from.top) * 100 : fallbackHeight;
-      const cls = `map-patch patch-${htmlEscape(toText(patch.layer, 'overlay'))}`;
-      const label = htmlEscape(toText(patch.asset, patch.id));
-      return `<div class='${cls}' style='left:${left}%;top:${top}%;width:${width}%;height:${height}%;'><span class='map-patch-label'>${label}</span></div>`;
-    }).join('');
-    getMapUiElements('[data-map-patch-layer]').forEach(el => {
-      if (el.dataset.renderKey === patchKey) return;
-      el.innerHTML = patchHtml;
-      el.dataset.renderKey = patchKey;
-    });
-  }
-
   function getMapNodeLabelOffset(name) {
     const key = toText(name, '');
     if (key === '史莱克新城') return { x: 20, y: -14 };
@@ -6467,7 +6373,6 @@
   }
 
   function renderMapVisualState() {
-    renderMapPatchLayer();
     renderMapNodeLayer();
     renderMapFreeMarkers();
     getMapUiElements('[data-map-layer-pill]').forEach(pill => {
