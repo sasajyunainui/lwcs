@@ -222,7 +222,7 @@
       '武装工坊详细页': {
         title: '武装工坊弹窗',
         summary: '查看当前武装、斗铠部件与副职业工坊。',
-        fields: ['activeChar.装备.武器', 'activeChar.装备.斗铠', 'activeChar.装备.机甲', 'activeChar.装备.饰品', 'activeChar.职业'],
+        fields: ['activeChar.装备.武器', 'activeChar.装备.斗铠', 'activeChar.装备.机甲', 'activeChar.职业'],
         duties: ['展示武器/斗铠/机甲', '展示装备槽位状态', '显示副职业等级与融合信息'],
         actions: ['打开斗铠总览', '查看槽位覆盖', '浏览装备摘要']
       },
@@ -341,7 +341,7 @@
       '森林仇恨值': {
         title: '森林仇恨值',
         summary: '星斗大森林累计击杀魂兽年限与兽潮阈值监控。',
-        fields: ['sd.world.累计击杀年限', 'sd.world.标记.beast_tide'],
+        fields: ['sd.world.累计击杀年限', 'sd.world.兽潮已触发'],
         duties: ['查看累计击杀年限', '评估距离兽潮阈值', '观察是否触发兽潮'],
         actions: ['查看阈值进度', '评估森林风险']
       }
@@ -357,9 +357,6 @@
         .replace(/settle_result/gi, '结算结果')
 
         .replace(/捐献请求/gi, '捐赠安排')
-        .replace(/猎魂请求/gi, '狩猎安排')
-        .replace(/升灵台请求/gi, '升灵台安排')
-        .replace(/魂灵塔请求/gi, '魂灵塔安排')
         .replace(/request 变量/gi, '当前安排')
         .replace(/展示/g, '查看')
         .replace(/显示/g, '查看')
@@ -701,7 +698,6 @@
       const armor = deepGet(activeChar, '装备.斗铠', {});
       const mech = deepGet(activeChar, '装备.机甲', {});
       const weapon = deepGet(activeChar, '装备.武器', {});
-      const accessoryEntries = listAccessoryEntries(deepGet(activeChar, '装备.饰品', {}));
       const armorName = toText(armor.名称 || armor['名称'], '当前斗铠');
       const mechName = toText(mech.型号 || mech['型号'], '当前机甲');
       const actionMap = {
@@ -712,7 +708,7 @@
       };
       const actionMeta = actionMap[actionType];
       if (!actionMeta) return null;
-      const systemPrompt = `以下内容属于前端发起的装备管理请求，不要在正文直接复述“系统提示 / 请求类型 / JSONPatch”等术语。\n\n[装备管理]\n角色：${activeName}\n地点：${currentLoc}\n动作：${actionMeta.title}\n当前斗铠：${summarizeArmoryValue(armor.名称 || armor['名称'] || armor.装备状态 || '无')}\n当前机甲：${summarizeArmoryValue(mech.型号 || mech['型号'] || mech.装备状态 || '无')}\n当前主武器：${summarizeArmoryValue(weapon.名称 || weapon['名称'] || '无')}\n当前附件：${summarizeAccessoryEntries(accessoryEntries)}\n\n${actionMeta.note}\n\n请将这次操作写成自然剧情，并在需要时同步更新角色的装备状态、相关装备字段与系统播报。`;
+      const systemPrompt = `以下内容属于前端发起的装备管理请求，不要在正文直接复述“系统提示 / 请求类型 / JSONPatch”等术语。\n\n[装备管理]\n角色：${activeName}\n地点：${currentLoc}\n动作：${actionMeta.title}\n当前斗铠：${summarizeArmoryValue(armor.名称 || armor['名称'] || armor.装备状态 || '无')}\n当前机甲：${summarizeArmoryValue(mech.型号 || mech['型号'] || mech.装备状态 || '无')}\n当前主武器：${summarizeArmoryValue(weapon.名称 || weapon['名称'] || '无')}\n\n${actionMeta.note}\n\n请将这次操作写成自然剧情，并在需要时同步更新角色的装备状态、相关装备字段与系统播报。`;
       return {
         playerInput: actionMeta.playerInput,
         systemPrompt,
@@ -1111,7 +1107,6 @@
                   { label: '斗铠', value: '' },
                   { label: '机甲', value: '' },
                   { label: '主武器', value: '' },
-                  { label: '附件', value: '' },
                   { label: '副职业', value: '' },
                   { label: '战斗形态', value: '' }
                 ])}
@@ -1368,7 +1363,6 @@
     let activeSubUI = null;
     let lastAutoTradeRequestSignature = '';
     let hasHydratedAutoTradeRequestSignature = false;
-    let lastInjectedModuleArbitrationPrompt = false;
     let lastRenderedShellPreviewKey = '';
     let activeInlineEditState = null;
     let inlineEditSessionToken = 0;
@@ -1833,6 +1827,17 @@
       const safePatches = Array.isArray(patches) ? patches.filter(item => item && item.op && item.path) : [];
       if (!safePatches.length) throw new Error('没有可应用的变量改动。');
       return mutateStatDataByEditor(statData => {
+        const readMutableValue = pathValue => {
+          const path = normalizeEditorPath(pathValue);
+          if (!path.length) return statData;
+          let current = statData;
+          for (let index = 0; index < path.length; index += 1) {
+            const token = path[index];
+            if (current == null || typeof current !== 'object' || !(token in current)) return undefined;
+            current = current[token];
+          }
+          return current;
+        };
         safePatches.forEach(patch => {
           const path = decodeJsonPointerPath(patch.path);
           if (!path.length) return;
@@ -1840,8 +1845,15 @@
             deepDeleteMutable(statData, path);
             return;
           }
-          if (patch.op === 'replace' || patch.op === 'add') {
+          if (patch.op === 'replace' || patch.op === 'add' || patch.op === 'insert') {
             deepSetMutable(statData, path, cloneJsonValue(patch.value, patch.value));
+            return;
+          }
+          if (patch.op === 'delta') {
+            const previousValue = Number(readMutableValue(path) ?? 0);
+            const deltaValue = Number(patch.value ?? 0);
+            const nextValue = (Number.isFinite(previousValue) ? previousValue : 0) + (Number.isFinite(deltaValue) ? deltaValue : 0);
+            deepSetMutable(statData, path, nextValue);
           }
         });
       }, options);
@@ -2175,12 +2187,28 @@
       return `dragon-ui-${normalizedKind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     }
 
+    function setPendingBattlePlanningContext(userInput, hiddenPrompt, requestKind) {
+      if (requestKind !== 'battle_arbitration' || !hiddenPrompt) return;
+      window.__DRAGON_UI_PENDING_BATTLE_CONTEXT__ = {
+        userInput: toText(userInput, '').trim(),
+        hiddenPrompt: toText(hiddenPrompt, '').trim(),
+        requestKind: toText(requestKind, ''),
+        at: Date.now()
+      };
+    }
+
     async function dispatchUiAiRequest(playerInput, systemPrompt, meta = {}) {
       const helper = window.TavernHelper && typeof window.TavernHelper === 'object' ? window.TavernHelper : null;
+      const battleBridge = window.BattleUIBridge && typeof window.BattleUIBridge === 'object' ? window.BattleUIBridge : null;
       const requestKind = toText(meta && meta.requestKind, 'ui_request') || 'ui_request';
       const userText = toText(playerInput, '').trim();
       const hiddenPrompt = toText(systemPrompt, '').trim();
       const patchOps = Array.isArray(meta && meta.patchOps) ? meta.patchOps : [];
+      const useBattlePayloadInjection =
+        requestKind === 'battle_arbitration'
+        && !!hiddenPrompt
+        && battleBridge
+        && typeof battleBridge.setPendingSystemPrompt === 'function';
 
       if (!userText) {
         showUiToast('请求内容为空，无法提交。', 'error', 4200);
@@ -2201,19 +2229,30 @@
           await refreshLiveSnapshot({ force: true });
         }
         if (hiddenPrompt) {
-          helper.injectPrompts([{
-            id: buildUiRequestInjectionId(requestKind),
-            position: 'in_chat',
-            depth: 0,
-            role: 'system',
-            content: hiddenPrompt,
-            should_scan: true
-          }], { once: true });
+          setPendingBattlePlanningContext(userText, hiddenPrompt, requestKind);
+          if (useBattlePayloadInjection) {
+            if (typeof battleBridge.clearPendingSystemPrompt === 'function') {
+              battleBridge.clearPendingSystemPrompt();
+            }
+            battleBridge.setPendingSystemPrompt(hiddenPrompt);
+          } else {
+            helper.injectPrompts([{
+              id: buildUiRequestInjectionId(requestKind),
+              position: 'in_chat',
+              depth: 0,
+              role: 'system',
+              content: hiddenPrompt,
+              should_scan: true
+            }], { once: true });
+          }
         }
         await helper.createChatMessages([{ role: 'user', message: userText }], { refresh: 'affected' });
-        await helper.triggerSlash('/trigger await=true');
+        await helper.triggerSlash('/trigger');
         return { ok: true, requestKind };
       } catch (error) {
+        if (useBattlePayloadInjection && battleBridge && typeof battleBridge.clearPendingSystemPrompt === 'function') {
+          battleBridge.clearPendingSystemPrompt();
+        }
         console.error('[DragonUI] UI request dispatch failed', error);
         showUiToast(error && error.message ? error.message : '请求提交失败。', 'error', 4200);
         return { ok: false, requestKind, reason: 'dispatch_failed', error };
@@ -2239,40 +2278,14 @@
     }
     installBattleUiHostSendBridge();
 
-    function installModuleArbitrationPrompt() {
-      if (lastInjectedModuleArbitrationPrompt) return;
-      const helper = window.TavernHelper && typeof window.TavernHelper === 'object' ? window.TavernHelper : null;
-      if (!helper || typeof helper.injectPrompts !== 'function') return;
-      try {
-        helper.injectPrompts([{
-          id: 'dragon-ui-module-arbitration-rules',
-          position: 'in_chat',
-          depth: 0,
-          role: 'system',
-          content: `【模块接管规则】
-当剧情即将进入实际战斗、切磋、伏击、追击或技能对轰时，不要直接写出最终胜负、掉血、战利品或死亡结算。必须先开启 MVU 变量 /world/战斗/进行中，并写入 /world/战斗/战斗类型、/world/战斗/环境、/world/战斗/参战者；若已明确战斗意图，也可一并写入 /world/战斗/战斗意图。参战者 只能使用 player、enemy、team_player、team_enemy 四个标准槽位。
-如果参战者是现有角色，可只写姓名，由前端按角色档案补全。
-如果参战者不是现有角色，则必须提供最小战斗种子，不得只写名字：
-- 人类：名称、单位性质=人类、身份=普通人|魂师|军人、数量；魂师与军人额外提供 等级
-- 魂兽：名称、单位性质=魂兽、数量、年限、标准物种；标准物种 只能为 龙类|蛛类|熊类|植物系|海魂兽|鸟类|猫科|蛇类
-- 深渊：名称、单位性质=深渊、数量、级别、标准种族；级别 只能为 低阶生物|中阶生物|高阶生物|深渊王者|深渊帝君；标准种族 只能为 四爪蝙蝠|六爪蝙蝠|深渊炸弹蜂|噬蜥|六爪魔|巴安|守护天牛|深渊猛犸|深渊魔傀|黑皇族|魔魅族|深渊恶镰|附体魔
-当剧情即将进入购买、出售、私下交易、竞拍、讨价还价或物资交换时，不要直接改写金钱/库存并宣布成交。必须写入 /world/交易请求/动作、目标、对象、物品、数量、价格、货币、状态、自动执行；如果剧情已经明确成交意图，可设置 自动执行=true 让交易模块自动提交仲裁。
-当剧情即将进入锻造、制造、设计、修理、官方代工或私人代工时，不要直接改写材料、成品、装备状态或副职业经验。必须先让前端副职业工坊接管；若推演脚本已经得到结构化计划，应调用 window.__MVU_ROUTE_MODULE_INTENT__ 并传入 profession/craft 请求。
-如果只是闲聊中提到战斗、交易或副职业，不需要触发模块；只有玩家或剧情角色真正发起可结算行为时才触发。`,
-          should_scan: true
-        }], { once: false });
-        lastInjectedModuleArbitrationPrompt = true;
-      } catch (error) {
-        console.warn('[DragonUI] 模块接管提示注入失败', error);
-      }
-    }
-
     const MVU_EDITOR_STORE_COMMIT_DELAY = 140;
     const MVU_EDITOR_ROOT_OBJECT_KEYS = ['sys', 'world', 'org', 'char', 'map'];
     const MVU_WRAPPER_ROOT_KEYS = ['display_data', 'delta_data', 'initialized_lorebooks', 'schema', 'stat_data'];
     const MVU_WRAPPER_PREFIX_KEYS = new Set(['stat_data', 'display_data', 'data', 'variables', 'payload', 'root', 'mvu', 'state']);
+    const MVU_RECENT_MESSAGE_SCAN_DEPTH = 24;
     const mvuEditorStore = {
       statData: null,
+      messageId: 'latest',
       signature: '',
       dirty: false,
       version: 0,
@@ -2435,6 +2448,7 @@
     function writeMvuEditorStoreSnapshot(statData, options = {}) {
       const safeStatData = statData && typeof statData === 'object' ? cloneJsonValue(statData, {}) : {};
       mvuEditorStore.statData = safeStatData;
+      if (options.messageId !== undefined) mvuEditorStore.messageId = options.messageId;
       mvuEditorStore.signature = serializeMvuEditorStoreStatData(safeStatData);
       if (!options.keepDirty) mvuEditorStore.dirty = false;
       return mvuEditorStore.statData;
@@ -2455,20 +2469,23 @@
       if (!host || typeof host.getMvuData !== 'function' || typeof host.replaceMvuData !== 'function') {
         throw new Error('未找到可用的 MVU 写回接口。');
       }
-      const currentMvuData = await Promise.resolve(host.getMvuData({ type: 'message', message_id: 'latest' }));
+      const scanned = await scanRecentMessageVariablesWithReaders([
+        messageId => Promise.resolve(host.getMvuData({ type: 'message', message_id: messageId })),
+      ]);
+      const currentMvuData = scanned && scanned.vars ? scanned.vars : null;
       if (!currentMvuData || typeof currentMvuData !== 'object') {
         throw new Error('读取当前 MVU 数据失败。');
       }
       const safeMvuData = normalizeMvuDataEnvelopeForEditor(currentMvuData);
-      return { host, mvuData: safeMvuData };
+      return { host, mvuData: safeMvuData, messageId: scanned && scanned.messageId !== undefined ? scanned.messageId : 'latest' };
     }
 
     async function ensureMvuEditorStoreReady(options = {}) {
       if (!options.force && mvuEditorStore.dirty && mvuEditorStore.statData && typeof mvuEditorStore.statData === 'object') {
         return mvuEditorStore.statData;
       }
-      const { mvuData } = await readLatestMvuDataByEditor();
-      return writeMvuEditorStoreSnapshot(mvuData.stat_data);
+      const { mvuData, messageId } = await readLatestMvuDataByEditor();
+      return writeMvuEditorStoreSnapshot(mvuData.stat_data, { messageId });
     }
 
     async function flushMvuEditorStore(options = {}) {
@@ -2487,13 +2504,14 @@
       mvuEditorStore.flushPromise = (async () => {
         const flushVersion = mvuEditorStore.version;
         const flushStatData = cloneJsonValue(mvuEditorStore.statData, {});
-        const { host, mvuData } = await readLatestMvuDataByEditor();
+        const { host, mvuData, messageId } = await readLatestMvuDataByEditor();
         const nextMvuData = cloneJsonValue(mvuData, {});
         const safeFlushStatData = buildSafeStatDataForEditorWrite(flushStatData, mvuData.stat_data);
         nextMvuData.stat_data = safeFlushStatData;
-        await Promise.resolve(host.replaceMvuData(nextMvuData, { type: 'message', message_id: 'latest' }));
+        await Promise.resolve(host.replaceMvuData(nextMvuData, { type: 'message', message_id: messageId }));
         if (mvuEditorStore.version === flushVersion) {
           mvuEditorStore.dirty = false;
+          mvuEditorStore.messageId = messageId;
           mvuEditorStore.signature = serializeMvuEditorStoreStatData(safeFlushStatData);
         }
         if (options.refresh !== false) {
@@ -2930,10 +2948,57 @@
       } catch (err) {}
     }
 
-    function getLatestMessageVariablesFallback() {
+    function buildRecentMessageIdCandidates(depth = MVU_RECENT_MESSAGE_SCAN_DEPTH) {
+      const ids = ['latest'];
+      for (let index = 1; index <= Math.max(1, depth); index += 1) {
+        ids.push(-index);
+      }
+      return ids;
+    }
+
+    async function scanRecentMessageVariablesWithReaders(readers = [], options = {}) {
+      const depth = toNumber(options && options.depth, MVU_RECENT_MESSAGE_SCAN_DEPTH);
+      const messageIds = buildRecentMessageIdCandidates(depth);
+      let fallbackVars = null;
+      let fallbackMessageId = 'latest';
+      let bestVars = null;
+      let bestMessageId = 'latest';
+      let bestScore = -Infinity;
+
+      for (const messageId of messageIds) {
+        for (const reader of readers) {
+          if (typeof reader !== 'function') continue;
+          try {
+            const vars = await reader(messageId);
+            if (!vars || typeof vars !== 'object') continue;
+            if (!fallbackVars) {
+              fallbackVars = vars;
+              fallbackMessageId = messageId;
+            }
+            const rootData = resolveRootData(vars);
+            const nextScore = scoreRootDataCandidate(rootData);
+            if (nextScore > bestScore) {
+              bestScore = nextScore;
+              bestVars = vars;
+              bestMessageId = messageId;
+            }
+          } catch (err) {}
+        }
+      }
+
+      return {
+        vars: bestVars || fallbackVars,
+        messageId: bestVars ? bestMessageId : fallbackMessageId,
+      };
+    }
+
+    async function getLatestMessageVariablesFallback() {
       try {
         if (window.TavernHelper && typeof window.TavernHelper.getVariables === 'function') {
-          return window.TavernHelper.getVariables({ type: 'message', message_id: 'latest' }) || null;
+          const scanned = await scanRecentMessageVariablesWithReaders([
+            messageId => Promise.resolve(window.TavernHelper.getVariables({ type: 'message', message_id: messageId })),
+          ]);
+          return scanned && scanned.vars ? scanned.vars : null;
         }
       } catch (err) {}
       return null;
@@ -2941,33 +3006,30 @@
 
     async function getAllVariablesSafe() {
       const host = getMvuHost();
-      const readers = [];
+      const scanned = await scanRecentMessageVariablesWithReaders([
+        host && typeof host.getMvuData === 'function'
+          ? messageId => Promise.resolve(host.getMvuData({ type: 'message', message_id: messageId }))
+          : null,
+        window.TavernHelper && typeof window.TavernHelper.getVariables === 'function'
+          ? messageId => Promise.resolve(window.TavernHelper.getVariables({ type: 'message', message_id: messageId }))
+          : null,
+      ]);
+      if (scanned && scanned.vars) {
+        return scanned.vars;
+      }
       if (host && typeof host.getAllVariables === 'function') {
-        readers.push(() => Promise.resolve(host.getAllVariables()));
-      }
-      if (window.getAllVariables && typeof window.getAllVariables === 'function') {
-        readers.push(() => Promise.resolve(window.getAllVariables()));
-      }
-      readers.push(() => Promise.resolve(getLatestMessageVariablesFallback()));
-
-      let fallbackVars = null;
-      let bestVars = null;
-      let bestScore = -Infinity;
-      for (const read of readers) {
         try {
-          const vars = await read();
-          if (!vars || typeof vars !== 'object') continue;
-          if (!fallbackVars) fallbackVars = vars;
-          const rootData = resolveRootData(vars);
-          const nextScore = scoreRootDataCandidate(rootData);
-          if (nextScore > bestScore) {
-            bestScore = nextScore;
-            bestVars = vars;
-          }
+          const vars = await Promise.resolve(host.getAllVariables());
+          if (vars && typeof vars === 'object') return vars;
         } catch (err) {}
       }
-
-      return bestVars || fallbackVars;
+      if (window.getAllVariables && typeof window.getAllVariables === 'function') {
+        try {
+          const vars = await Promise.resolve(window.getAllVariables());
+          if (vars && typeof vars === 'object') return vars;
+        } catch (err) {}
+      }
+      return await getLatestMessageVariablesFallback();
     }
 
     function getSharedMvuRefreshHub() {
@@ -2979,12 +3041,14 @@
 
       const subscribers = new Map();
       const POLL_KEY = '__dragonUiSharedRefreshPollTimer';
+      const CHAT_CONTEXT_POLL_KEY = '__dragonUiSharedChatContextPollTimer';
       const POLL_VIS_KEY = '__dragonUiSharedRefreshPollVisibilityBound';
       const POLL_FOCUS_KEY = '__dragonUiSharedRefreshPollFocusBound';
       let bindingsReady = false;
       let running = false;
       let pending = false;
       let lastTriggerArgs = [];
+      let lastChatContextSignature = '';
 
       const getAllVariablesDirect = async () => {
         return await getAllVariablesSafe();
@@ -3040,6 +3104,16 @@
 
           const host = getMvuHost();
           const eventName = host && host.events ? host.events.VARIABLE_UPDATE_ENDED : '';
+          const getChatContextSignature = () => {
+            const meta = getCurrentChatContextMeta();
+            return [
+              toText(meta.characterId, '').trim(),
+              toText(meta.groupId, '').trim(),
+              toText(meta.chatId, '').trim(),
+              toText(meta.name1, '').trim(),
+              toText(meta.name2, '').trim(),
+            ].join('||');
+          };
           let bound = false;
           const triggerFromEvent = (...args) => hub.trigger({ source: 'event', eventName }, ...args);
 
@@ -3074,6 +3148,21 @@
             window[POLL_KEY] = window.setInterval(() => {
               hub.trigger({ source: 'poll' });
             }, 1500);
+          }
+
+          lastChatContextSignature = getChatContextSignature();
+          if (!window[CHAT_CONTEXT_POLL_KEY]) {
+            window[CHAT_CONTEXT_POLL_KEY] = window.setInterval(() => {
+              const nextSignature = getChatContextSignature();
+              if (nextSignature === lastChatContextSignature) return;
+              lastChatContextSignature = nextSignature;
+              try {
+                if (!window.__MVU_MANUAL_CHAR_SET) {
+                  setPreferredActiveCharacterName('');
+                }
+              } catch (err) {}
+              hub.trigger({ source: 'chat_context', signature: nextSignature });
+            }, 250);
           }
 
           if (!window[POLL_VIS_KEY]) {
@@ -7632,26 +7721,6 @@
         push(`任务：${toText(quest.任务名称, '未命名任务')}`);
       }
 
-      const tower = activeChar && activeChar.魂灵塔请求;
-      if (tower && toText(tower.动作, '无') !== '无') {
-        const clearedFloor = toNumber(tower.通关层数, 0);
-        push(`魂灵塔：${toText(tower.动作, '冲塔')}${clearedFloor > 0 ? ` / 第${clearedFloor}层` : ''}`);
-      }
-
-      const ascension = activeChar && activeChar.升灵台请求;
-      if (ascension && toText(ascension.门票名, '无') !== '无') {
-        const gainAge = toNumber(ascension.提升年限, 0);
-        const spiritKey = toText(ascension.武魂槽位, '未指定');
-        const soulSpiritKey = toText(ascension.魂灵槽位, '未指定');
-        push(`升灵台：${toText(ascension.门票名)} / ${spiritKey}-${soulSpiritKey}${gainAge > 0 ? ` / +${gainAge}年` : ''}`);
-      }
-
-
-      const hunt = activeChar && activeChar.猎魂请求;
-      if (hunt && toNumber(hunt.击杀年限, 0) > 0) {
-        push(`狩猎：${formatAge(hunt.击杀年限)}${deepGet(hunt, '是否凶兽', false) ? ' / 凶兽' : ''}`);
-      }
-
       const promotion = activeChar && activeChar.晋升请求;
       if (promotion && toText(promotion.目标势力, '无') !== '无') {
         push(`晋升：${toText(promotion.目标势力)} / ${toText(promotion.目标职位, '')}`.trim());
@@ -7660,11 +7729,6 @@
       const donate = activeChar && activeChar.捐献请求;
       if (donate && toText(donate.物品名称, '无') !== '无') {
         push(`捐献：${toText(donate.物品名称)} × ${toNumber(donate.数量, 1)}`);
-      }
-
-      const abyssKill = activeChar && activeChar.深渊击杀请求;
-      if (abyssKill && toText(abyssKill.击杀级别, '无') !== '无') {
-        push(`深渊：${toText(abyssKill.击杀级别)} × ${toNumber(abyssKill.数量, 1)}`);
       }
 
       const interact = activeChar && activeChar.互动请求;
@@ -7695,7 +7759,7 @@
 
     function buildRecentPlanSummary(snapshot, options = {}) {
       const { worldLimit = 2, recordLimit = 2 } = options || {};
-      const worldPlans = (snapshot.timelineEntries || []).filter(([, item]) => toText(deepGet(item, '状态', 'pending'), 'pending') !== 'done').slice(0, Math.max(1, worldLimit)).map(([name, item]) => ({
+      const worldPlans = (snapshot.timelineEntries || []).filter(([, item]) => !/done|handled|完成|已处理|取消|cancel/i.test(toText(deepGet(item, '状态', 'pending'), 'pending'))).slice(0, Math.max(1, worldLimit)).map(([name, item]) => ({
         title: `世界 / ${name}`,
         desc: `${toText(deepGet(item, '事件', '无'), '无')} ｜ Tick ${toText(deepGet(item, '触发tick', 0), '0')} ｜ ${toText(deepGet(item, '状态', 'pending'), 'pending')}`
       }));
@@ -7728,7 +7792,9 @@
       const relations = safeEntries(deepGet(activeChar, '社交.关系', {})).sort((a, b) => toNumber(deepGet(b[1], '好感度', 0), 0) - toNumber(deepGet(a[1], '好感度', 0), 0));
       const unlockedKnowledges = Array.isArray(activeChar && activeChar.已掌握情报) ? activeChar.已掌握情报 : [];
       const inventoryEntries = safeEntries(activeChar && activeChar.背包);
-      const flagEntries = safeEntries(deepGet(sd, 'world.标记', {})).filter(([, value]) => !!value);
+      const flagEntries = [];
+      if (deepGet(sd, 'world.兽潮已触发', false)) flagEntries.push(['兽潮已触发', true]);
+      if (deepGet(sd, 'world.传灵塔千年魂灵开放', false)) flagEntries.push(['传灵塔千年魂灵开放', true]);
       const orgEntries = safeEntries(sd && sd.org).sort((a, b) => {
         const aFav = factions.some(([name]) => name === a[0]) ? 1 : 0;
         const bFav = factions.some(([name]) => name === b[0]) ? 1 : 0;
@@ -7931,9 +7997,9 @@
       const questRecordCount = recordEntries.filter(([, item]) => toText(item && item['状态'], '进行中') !== '已放弃').length;
       const warningText = toNumber(deepGet(sd, 'world.偏差值', 0), 0) >= 40
         ? `偏差 ${toNumber(deepGet(sd, 'world.偏差值', 0), 0)} / 高危`
-        : (deepGet(sd, 'world.标记.beast_tide', false)
+        : (deepGet(sd, 'world.兽潮已触发', false)
           ? '兽潮警报 / 已触发'
-          : (flagEntries.length ? `世界旗标 ${flagEntries.length} 项` : '无'));
+          : (flagEntries.length ? `世界状态 ${flagEntries.length} 项` : '无'));
       const auctionStatus = toText(deepGet(sd, 'world.拍卖.状态', '休市'), '休市');
       const auctionLocation = toText(deepGet(sd, 'world.拍卖.地点', '无'), '无');
 
@@ -8354,14 +8420,12 @@
       const armor = deepGet(snapshot, 'activeChar.装备.斗铠', {});
       const mech = deepGet(snapshot, 'activeChar.装备.机甲', {});
       const weapon = deepGet(snapshot, 'activeChar.装备.武器', {});
-      const accessoryEntries = listAccessoryEntries(deepGet(snapshot, 'activeChar.装备.饰品', {}));
       const jobs = safeEntries(deepGet(snapshot, 'activeChar.职业', {}));
       const jobSummary = jobs.length ? `${jobs[0][0]} Lv.${toText(deepGet(jobs[0][1], 'lv', 0), '0')}` : '未展开';
       const jobCoreTechSummary = jobs.length ? (Object.keys(deepGet(jobs[0][1], '核心技艺', {})).slice(0, 2).join(' / ') || '暂无核心技术') : '暂无核心技术';
       const jobLimitSummary = jobs.length ? `融锻上限 ${toText(deepGet(jobs[0][1], '限制.最大融合数', 1), '1')} / 成功率 ${toText(deepGet(jobs[0][1], '限制.成功率', 0), '0')}%` : '暂无工坊上限';
       const armorSummary = toNumber(armor.等级, 0) > 0 ? `${toText(armor.名称, `${armor.等级}字斗铠`)} / ${toText(armor.装备状态, '未装备')}` : '未装备';
       const mechSummary = toText(mech.等级, '无') !== '无' ? `${toText(mech.等级, '无')}·${toText(mech.型号, '未定型')} / ${toText(mech.装备状态, '未装备')}` : '无';
-      const accessorySummary = accessoryEntries.length ? `${accessoryEntries.length}件` : '无';
       const boneCount = snapshot.soulBoneEntries ? snapshot.soulBoneEntries.length : 0;
       return `
         <div class="module-name">武装工坊</div>
@@ -8927,14 +8991,13 @@
       const armor = deepGet(snapshot, 'activeChar.装备.斗铠', {});
       const mech = deepGet(snapshot, 'activeChar.装备.机甲', {});
       const weapon = deepGet(snapshot, 'activeChar.装备.武器', {});
-      const accessoryEntries = listAccessoryEntries(deepGet(snapshot, 'activeChar.装备.饰品', {}));
       const jobs = safeEntries(deepGet(snapshot, 'activeChar.职业', {}));
       const jobSummary = jobs.length ? `${jobs[0][0]} Lv.${toText(deepGet(jobs[0][1], 'lv', 0), '0')}` : '未开启';
       const weaponName = toText(weapon.名称, '').trim();
       const hasArmor = toNumber(armor.等级, 0) > 0;
       const hasWeapon = !!weaponName && !/^(无|未记录)$/.test(weaponName);
       const hasMech = !!toText(mech.等级, '').trim();
-      const hasLoadout = hasArmor || hasWeapon || hasMech || accessoryEntries.length || (snapshot.soulBoneEntries || []).length;
+      const hasLoadout = hasArmor || hasWeapon || hasMech || (snapshot.soulBoneEntries || []).length;
       const armorSummary = toNumber(armor.等级, 0) > 0
         ? `${toText(armor.名称, `${armor.等级}字斗铠`)} / ${toText(armor.装备状态, '已装配')}`
         : '未装配';
@@ -8957,7 +9020,6 @@
         metrics: [
           { label: '机甲', value: toText(mech.等级, '--') || '--' },
           { label: '魂骨', value: String((snapshot.soulBoneEntries || []).length || 0), tone: 'gold' },
-          { label: '挂载', value: String(accessoryEntries.length || 0) },
         ],
         rows: [
           { label: '主武器', value: shortenText(toText(weapon.名称, '未记录'), 14) },
@@ -9694,7 +9756,6 @@
       const mech = deepGet(snapshot, 'activeChar.装备.机甲', {});
       const weapon = deepGet(snapshot, 'activeChar.装备.武器', {});
       const jobs = safeEntries(deepGet(snapshot, 'activeChar.职业', {}));
-      const accessoryEntries = listAccessoryEntries(deepGet(snapshot, 'activeChar.装备.饰品', {}));
       const soulBoneEntries = Array.isArray(snapshot && snapshot.soulBoneEntries) ? snapshot.soulBoneEntries : [];
       const armorText = toNumber(armor.等级, 0) > 0
         ? `${toText(armor.名称, `${armor.等级}字斗铠`)} / ${toText(armor.装备状态, '未装备')}`
@@ -9720,7 +9781,6 @@
               ${buildShellLiteStats([
                 { label: '机甲', value: shortenText(mechText, 10) },
                 { label: '魂骨', value: String(soulBoneEntries.length || 0) },
-                { label: '挂载', value: String(accessoryEntries.length || 0) },
               ])}
             </section>
             <section class="mvu-shell-lite-card">
@@ -10925,7 +10985,7 @@
         <div class="simple-list">
           <div class="simple-row"><b>试炼入口</b><span>${htmlEscape(snapshot.inventoryEntries.some(([name]) => /门票|魂灵塔/.test(name)) ? '升灵台 / 魂灵塔 / 狩猎' : '当前无门票，仅常规狩猎')}</span></div>
           <div class="simple-row"><b>情报状态</b><span>${htmlEscape(`已掌握 ${snapshot.unlockedKnowledges.length} 条 / 新线索 ${snapshot.pendingIntelCount} 条`)}</span></div>
-          <div class="simple-row"><b>深渊击杀</b><span>${htmlEscape(toText(deepGet(snapshot, 'activeChar.深渊击杀请求.击杀级别', '无'), '无') !== '无' ? `${toText(deepGet(snapshot, 'activeChar.深渊击杀请求.击杀级别', '无'), '无')} × ${toNumber(deepGet(snapshot, 'activeChar.深渊击杀请求.数量', 1), 1)}` : '暂无待结算')}</span></div>
+          <div class="simple-row"><b>累计猎杀</b><span>${htmlEscape(formatNumber(snapshot.forestKilledAge || 0))} 年</span></div>
         </div>
       `);
         setLiveHtml('[data-preview="近期见闻"].terminal-side-card, [data-preview="近期见闻"].mvu-simple-card, [data-preview="近期见闻"].simple-card', `
@@ -12535,25 +12595,20 @@
         || previewKey === '武装详情：斗铠'
         || previewKey === '武装详情：机甲'
         || previewKey === '武装详情：主武器'
-        || previewKey === '武装详情：附件'
         || String(previewKey || '').startsWith('斗铠部件：')
       ) {
         const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
         const armor = deepGet(snapshot, 'activeChar.装备.斗铠', {});
         const mech = deepGet(snapshot, 'activeChar.装备.机甲', {});
         const weapon = deepGet(snapshot, 'activeChar.装备.武器', {});
-        const accessories = deepGet(snapshot, 'activeChar.装备.饰品', {});
-        const accessoryEntries = listAccessoryEntries(accessories);
         const armorPath = activeCharKey ? ['char', activeCharKey, '装备', '斗铠'] : [];
         const mechPath = activeCharKey ? ['char', activeCharKey, '装备', '机甲'] : [];
         const weaponPath = activeCharKey ? ['char', activeCharKey, '装备', '武器'] : [];
-        const accessoriesPath = activeCharKey ? ['char', activeCharKey, '装备', '饰品'] : [];
         const jobs = safeEntries(deepGet(snapshot, 'activeChar.职业', {}));
         const isPlayerControlled = isSnapshotPlayerControlled(snapshot);
         const armorSummary = toNumber(armor.等级, 0) > 0 ? `${toText(armor.名称, `${armor.等级}字斗铠`)} / ${toText(armor.装备状态, '未装备')}` : '未装备';
         const mechSummary = toText(mech.等级, '无') !== '无' ? `${toText(mech.等级, '无')}·${toText(mech.型号, '未定型')} / ${toText(mech.装备状态, '未装备')}` : '未部署';
         const weaponSummary = weapon && (weapon.名称 || weapon['名称']) ? `${toText(weapon.名称 || weapon['名称'], '无')} / ${toText(weapon.品阶 || weapon['品阶'], '无品阶')}` : '无';
-        const accessorySummary = summarizeAccessoryEntries(accessoryEntries);
         const jobSummary = jobs.length ? jobs.slice(0, 2).map(([name, info]) => `${name} Lv.${toText(info && info.等级, 0)}`).join(' / ') : '未掌握';
         const jobCoreTechSummary = jobs.length ? (Object.keys(deepGet(jobs[0][1], '核心技艺', {})).slice(0, 2).join(' / ') || '暂无核心技术') : '暂无核心技术';
         const jobLimitSummary = jobs.length ? `融锻上限 ${toText(deepGet(jobs[0][1], '限制.最大融合数', 1), '1')} / 成功率 ${toText(deepGet(jobs[0][1], '限制.成功率', 0), '0')}%` : '暂无工坊上限';
@@ -12575,20 +12630,17 @@
           { x: 34, y: 82, label: '左腿', preview: '斗铠部件：左腿' },
           { x: 66, y: 82, label: '右腿', preview: '斗铠部件：右腿' },
           { x: 50, y: 68, label: '战裙', preview: '斗铠部件：战裙' },
-          { x: 50, y: 94, label: '战靴', preview: '斗铠部件：战靴' },
-          { x: 82, y: 10, label: '戒指', preview: '武装详情：附件' }
+          { x: 50, y: 94, label: '战靴', preview: '斗铠部件：战靴' }
         ];
         const armorSlots = armorSlotDefs.map(slot => ({
           ...slot,
-          className: slot.label === '戒指'
-            ? (accessoryEntries.length ? 'on' : 'off')
-            : (() => {
-              const partData = resolveArmorPartData(armor, slot.label);
-              const partStatus = toText(partData && partData['状态'], '未打造');
-              if (!partData || partStatus === '未打造') return 'off';
-              if (partStatus === '重创') return 'warn';
-              return 'on';
-            })()
+          className: (() => {
+            const partData = resolveArmorPartData(armor, slot.label);
+            const partStatus = toText(partData && partData['状态'], '未打造');
+            if (!partData || partStatus === '未打造') return 'off';
+            if (partStatus === '重创') return 'warn';
+            return 'on';
+          })()
         }));
 
         if (previewKey === '武装详情：斗铠') {
@@ -12780,51 +12832,6 @@
           };
         }
 
-        if (previewKey === '武装详情：附件') {
-          return {
-            title: accessoryEntries.length === 1 ? accessoryEntries[0].name : '附件详情',
-            summary: '',
-            body: `
-              <div class="archive-modal-grid">
-                <div class="archive-card full">
-                  <div class="archive-card-head"><div class="archive-card-title">附件详情</div></div>
-                  ${makeTimelineStack(
-                    accessoryEntries.length
-                      ? safeEntries(accessories).map(([name, item]) => ({
-                          title: htmlEscape(name),
-                          desc: accessoriesPath.length
-                            ? makeInlineEditableValue(toText(deepGet(item, '描述', '无'), '无'), {
-                                path: [...accessoriesPath, name, '描述'],
-                                kind: 'string',
-                                rawValue: toText(deepGet(item, '描述', '无'), '无'),
-                                multiline: true,
-                              })
-                            : htmlEscape(toText(deepGet(item, '描述', '无'), '无'))
-                        }))
-                      : [{ title: '暂无附件', desc: '当前未装配附件。' }]
-                  )}
-                </div>
-                <div class="archive-card full">
-                  <div class="archive-card-head"><div class="archive-card-title">附件摘要</div></div>
-                  ${makeTileGrid([
-                    { label: '附件数量', value: String(accessoryEntries.length) },
-                    { label: '当前摘要', value: accessorySummary },
-                    { label: '首个附件', value: accessoryEntries[0] ? accessoryEntries[0].name : '无' },
-                    { label: '附加说明', value: accessoryEntries[0] ? accessoryEntries[0].desc : '当前未装配附件' }
-                  ])}
-                </div>
-                ${isPlayerControlled && accessoryEntries.length ? `
-                  <div class="archive-card full">
-                    <div class="tag-cloud armory-quick-actions" style="justify-content:flex-end;">
-                      ${accessoryEntries.map(item => `<button type="button" class="relation-action-btn equipment-action-btn" data-equipment-action="unequip" data-equipment-char="${escapeHtmlAttr(activeCharKey)}" data-equipment-kind="accessory" data-equipment-name="${escapeHtmlAttr(item.name)}">拆卸 ${htmlEscape(item.name)}</button>`).join('')}
-                    </div>
-                  </div>
-                ` : ''}
-              </div>
-            `
-          };
-        }
-
         if (String(previewKey || '').startsWith('斗铠部件：')) {
           const slotName = String(previewKey).replace('斗铠部件：', '');
           const partData = resolveArmorPartData(armor, slotName);
@@ -12833,7 +12840,7 @@
             { label: '部位', value: slotName },
             { label: '记录', value: '当前未记录独立部件属性' },
             { label: '所属斗铠', value: armorSummary },
-            { label: '附件状态', value: slotName === '戒指' ? accessorySummary : toText(armor.装备状态, '未装备') }
+            { label: '装配状态', value: toText(armor.装备状态, '未装备') }
           ];
           return {
             title: `${slotName}详情`,
@@ -12948,7 +12955,6 @@
                   { label: '斗铠', value: armorSummary, preview: '武装详情：斗铠' },
                   { label: '机甲', value: mechSummary, preview: '武装详情：机甲' },
                   { label: '主武器', value: weaponSummary, preview: '武装详情：主武器' },
-                  { label: '附件', value: accessorySummary, preview: '武装详情：附件' },
                   { label: '副职业', value: jobSummary },
                   { label: '战斗形态', value: battleForm }
                 ])}
@@ -13554,7 +13560,6 @@
         const targetArmor = deepGet(targetChar, '装备.斗铠', {});
         const targetMech = deepGet(targetChar, '装备.机甲', {});
         const targetWeapon = deepGet(targetChar, '装备.武器', {});
-        const targetAccessories = listAccessoryEntries(deepGet(targetChar, '装备.饰品', {}));
         const targetSpiritEntries = safeEntries(deepGet(targetChar, '武魂', {}));
         return {
           title: `${targetName} / 角色基本信息`,
@@ -13656,8 +13661,7 @@
                       kind: 'string',
                       rawValue: toText(targetWeapon.品阶 || targetWeapon['品阶'], '无品阶'),
                     })}`
-                  : (targetChar ? (targetWeapon && targetWeapon['名称'] ? `${toText(targetWeapon['名称'], '无')} / ${toText(targetWeapon.品阶 || targetWeapon['品阶'], '无品阶')}` : '无') : '未收录') },
-                { label: '附件', value: targetChar ? summarizeAccessoryEntries(targetAccessories) : '未收录' }
+                  : (targetChar ? (targetWeapon && targetWeapon['名称'] ? `${toText(targetWeapon['名称'], '无')} / ${toText(targetWeapon.品阶 || targetWeapon['品阶'], '无品阶')}` : '无') : '未收录') }
               ], 'two')}</div>
             </div>
           `
@@ -14300,40 +14304,13 @@
         const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
         const towerPath = activeCharKey ? ['char', activeCharKey, '魂灵塔记录'] : [];
         const towerDiscountEntries = safeEntries(deepGet(snapshot, 'activeChar.魂灵塔记录.折扣资格', {})).filter(([, value]) => !!value);
-        const ascensionRequest = deepGet(snapshot, 'activeChar.升灵台请求', {});
-        const towerRequest = deepGet(snapshot, 'activeChar.魂灵塔请求', {});
-        const huntRequest = deepGet(snapshot, 'activeChar.猎魂请求', {});
-        const abyssKillRequest = deepGet(snapshot, 'activeChar.深渊击杀请求', {});
-        const huntPendingAge = toNumber(huntRequest && huntRequest.击杀年限, 0);
-        const huntPendingText = huntPendingAge > 0 ? `${huntPendingAge}年${deepGet(snapshot, 'activeChar.猎魂请求.是否凶兽', false) ? ' / 凶兽级' : ' / 常规目标'}` : '无待处理';
-        const abyssKillTier = toText(abyssKillRequest && abyssKillRequest.击杀级别, '无');
-        const abyssKillQty = Math.max(1, toNumber(abyssKillRequest && abyssKillRequest.数量, 1));
-        const abyssPendingText = abyssKillTier !== '无' ? `${abyssKillTier} × ${abyssKillQty}` : '无待处理';
         const ascensionTicketCount = (snapshot.inventoryEntries || [])
           .filter(([name]) => /升灵台/.test(toText(name, '')))
           .reduce((sum, [, item]) => sum + Math.max(0, toNumber(item && item['数量'], 0)), 0);
-        const ascensionTickets = listAscensionTicketNames(snapshot);
-        const soulSpiritTargets = listSoulSpiritTargets(snapshot);
         const trialTickets = (snapshot.inventoryEntries || []).filter(([name]) => /升灵台|魂灵塔/.test(name)).slice(0, 8);
         const ticketCards = trialTickets.length
           ? trialTickets.map(([name, item]) => ({ title: `${name} ×${toNumber(item && item['数量'], 0)}`, desc: toText(item && item['描述'], '可用于对应试炼场景。') }))
           : [{ title: '暂无试炼门票', desc: '当前背包中没有升灵台或魂灵塔相关门票。' }];
-        const towerPending = toText(towerRequest && towerRequest.动作, '无') !== '无';
-        const ascensionPending = toText(ascensionRequest && ascensionRequest.门票名, '无') !== '无';
-        const towerPendingText = towerPending ? `${toText(towerRequest && towerRequest.动作, '冲塔')} / 第${Math.max(0, toNumber(towerRequest && towerRequest.通关层数, 0))}层` : '无待处理';
-        const ascensionPendingText = ascensionPending
-          ? `${toText(ascensionRequest && ascensionRequest.门票名, '未知门票')} / ${toText(ascensionRequest && ascensionRequest.武魂槽位, '未指定')}-${toText(ascensionRequest && ascensionRequest.魂灵槽位, '未指定')} / +${Math.max(0, toNumber(ascensionRequest && ascensionRequest.提升年限, 0))}年`
-          : '无待处理';
-        const ascensionTicketOptionsHtml = ascensionTickets.length
-          ? ascensionTickets.map(name => `<option value="${escapeHtmlAttr(name)}"${name === toText(ascensionRequest && ascensionRequest.门票名, '') ? ' selected' : ''}>${htmlEscape(name)}</option>`).join('')
-          : '<option value="">暂无门票</option>';
-        const soulSpiritTargetOptionsHtml = soulSpiritTargets.length
-          ? soulSpiritTargets.map(item => {
-              const rawValue = `${item.spiritKey}::${item.soulSpiritKey}`;
-              const selected = rawValue === `${toText(ascensionRequest && ascensionRequest.武魂槽位, '')}::${toText(ascensionRequest && ascensionRequest.魂灵槽位, '')}`;
-              return `<option value="${escapeHtmlAttr(rawValue)}"${selected ? ' selected' : ''}>${htmlEscape(item.label)}</option>`;
-            }).join('')
-          : '<option value="">暂无魂灵</option>';
         delete modalFocusState[`${previewKey}::trial-focus`];
         return {
           title: '试炼与情报',
@@ -14353,10 +14330,8 @@
                       })
                     : htmlEscape(String(toNumber(deepGet(snapshot, 'activeChar.魂灵塔记录.最高层', 0), 0))) },
                   { label: '可用折扣层', value: towerDiscountEntries.length ? `${towerDiscountEntries.length}` : '0' },
-                  { label: '升灵台待处理', value: ascensionPendingText },
-                  { label: '魂灵塔待处理', value: towerPendingText },
-                  { label: '现实狩猎待处理', value: huntPendingText },
-                  { label: '深渊战果待处理', value: abyssPendingText },
+                  { label: '累计猎杀年限', value: formatNumber(snapshot.forestKilledAge || 0) },
+                  { label: '图鉴条目', value: String((snapshot.bestiaryEntries || []).length || 0) },
                   { label: '当前战功', value: formatNumber(deepGet(snapshot, 'activeChar.财富.战功', 0)) }
                 ], 'two')}
               </div>
@@ -14859,7 +14834,6 @@
     async function initLiveBindings() {
       bindInlineEditing();
       await waitForMvuReady();
-      installModuleArbitrationPrompt();
       installDirectModuleIntentGuard();
       await refreshLiveSnapshot();
       bindMvuUpdates(vars => refreshLiveSnapshot({ sharedVars: vars }));
@@ -15683,10 +15657,10 @@ ${mvuUpdate}`;
                     </div>
                   </div>
                   <div class="bar-stack">
-                    <div class="resource-bar"><div class="resource-fill hp" id="ui-player-hp-bar"></div><div class="resource-text" id="ui-player-hp-text">0 / 0</div></div>
-                    <div class="resource-bar"><div class="resource-fill vit" id="ui-player-sta-bar"></div><div class="resource-text" id="ui-player-sta-text">0 / 0</div></div>
-                    <div class="resource-bar"><div class="resource-fill sp" id="ui-player-sp-bar"></div><div class="resource-text" id="ui-player-sp-text">0 / 0</div></div>
-                    <div class="resource-bar"><div class="resource-fill men" id="ui-player-men-bar"></div><div class="resource-text" id="ui-player-men-text">0 / 0</div></div>
+                    <div class="resource-bar" title="生命"><span class="resource-label">生命</span><div class="resource-fill hp" id="ui-player-hp-bar"></div><div class="resource-text" id="ui-player-hp-text">0 / 0</div></div>
+                    <div class="resource-bar" title="体力"><span class="resource-label">体力</span><div class="resource-fill vit" id="ui-player-sta-bar"></div><div class="resource-text" id="ui-player-sta-text">0 / 0</div></div>
+                    <div class="resource-bar" title="魂力"><span class="resource-label">魂力</span><div class="resource-fill sp" id="ui-player-sp-bar"></div><div class="resource-text" id="ui-player-sp-text">0 / 0</div></div>
+                    <div class="resource-bar" title="精神"><span class="resource-label">精神</span><div class="resource-fill men" id="ui-player-men-bar"></div><div class="resource-text" id="ui-player-men-text">0 / 0</div></div>
                   </div>
                   <div class="stats-grid" id="ui-player-stats"></div>
                   <div class="buff-row" id="ui-player-buffs"></div>
@@ -15699,10 +15673,10 @@ ${mvuUpdate}`;
                     </div>
                   </div>
                   <div class="bar-stack">
-                    <div class="resource-bar"><div class="resource-fill hp" id="ui-enemy-hp-bar"></div><div class="resource-text" id="ui-enemy-hp-text">0 / 0</div></div>
-                    <div class="resource-bar"><div class="resource-fill vit" id="ui-enemy-sta-bar"></div><div class="resource-text" id="ui-enemy-sta-text">0 / 0</div></div>
-                    <div class="resource-bar"><div class="resource-fill sp" id="ui-enemy-sp-bar"></div><div class="resource-text" id="ui-enemy-sp-text">0 / 0</div></div>
-                    <div class="resource-bar"><div class="resource-fill men" id="ui-enemy-men-bar"></div><div class="resource-text" id="ui-enemy-men-text">0 / 0</div></div>
+                    <div class="resource-bar" title="生命"><span class="resource-label">生命</span><div class="resource-fill hp" id="ui-enemy-hp-bar"></div><div class="resource-text" id="ui-enemy-hp-text">0 / 0</div></div>
+                    <div class="resource-bar" title="体力"><span class="resource-label">体力</span><div class="resource-fill vit" id="ui-enemy-sta-bar"></div><div class="resource-text" id="ui-enemy-sta-text">0 / 0</div></div>
+                    <div class="resource-bar" title="魂力"><span class="resource-label">魂力</span><div class="resource-fill sp" id="ui-enemy-sp-bar"></div><div class="resource-text" id="ui-enemy-sp-text">0 / 0</div></div>
+                    <div class="resource-bar" title="精神"><span class="resource-label">精神</span><div class="resource-fill men" id="ui-enemy-men-bar"></div><div class="resource-text" id="ui-enemy-men-text">0 / 0</div></div>
                   </div>
                   <div class="stats-grid" id="ui-enemy-stats"></div>
                   <div class="buff-row" id="ui-enemy-buffs"></div>
@@ -15963,6 +15937,527 @@ ${mvuUpdate}`;
       '附体魔',
     ]);
 
+    const BATTLE_TEMPORARY_TYPE_MULTIPLIERS = Object.freeze({
+      强攻系: { sp_max: 1.0, men_max: 1.0, str: 1.0, def: 1.0, agi: 1.0, vit_max: 1.0 },
+      防御系: { sp_max: 1.0, men_max: 1.0, str: 0.9, def: 1.5, agi: 0.7, vit_max: 1.0 },
+      敏攻系: { sp_max: 1.0, men_max: 1.0, str: 0.8, def: 0.7, agi: 1.6, vit_max: 0.8 },
+      控制系: { sp_max: 1.0, men_max: 1.2, str: 0.9, def: 0.8, agi: 1.1, vit_max: 0.9 },
+      辅助系: { sp_max: 1.2, men_max: 1.2, str: 0.7, def: 0.6, agi: 0.8, vit_max: 0.7 },
+      食物系: { sp_max: 1.2, men_max: 1.2, str: 0.7, def: 0.6, agi: 0.8, vit_max: 0.7 },
+      治疗系: { sp_max: 1.2, men_max: 1.2, str: 0.7, def: 0.6, agi: 0.8, vit_max: 0.7 },
+    });
+
+    function getTemporaryBattleBaseStats(level = 1) {
+      const lv = Math.max(1, Number(level) || 1);
+      let spBase = 100;
+      if (lv <= 10) spBase = 100 + (lv - 1) * 73.66;
+      else if (lv <= 30) spBase = 763 + (lv - 10) * 161.85;
+      else if (lv <= 50) spBase = 4000 + Math.pow(lv - 30, 2) * 27.5;
+      else if (lv <= 70) spBase = 15000 + (lv - 50) * 1000;
+      else if (lv <= 90) spBase = 35000 + (lv - 70) * 1250;
+      else if (lv <= 95) spBase = 60000 + (lv - 90) * 6818;
+      else if (lv < 98) spBase = 94090 + (lv - 95) * 15303.3;
+      else if (lv === 98) spBase = 140000;
+      else if (lv === 99) spBase = 200000;
+      else if (lv === 99.5) spBase = 400000;
+      else if (lv >= 100) spBase = 700000;
+
+      let strBase = 10;
+      if (lv <= 10) strBase = 10 + (lv - 1) * 4.66;
+      else if (lv <= 30) strBase = 52 + (lv - 10) * 22.4;
+      else if (lv <= 50) strBase = 500 + Math.pow(lv - 30, 2) * 3.75;
+      else if (lv <= 70) strBase = 2000 + Math.pow(lv - 50, 2) * 12.5;
+      else if (lv <= 90) strBase = 7000 + (lv - 70) * 400;
+      else if (lv <= 95) strBase = 15000 + (lv - 90) * 2157;
+      else if (lv < 98) strBase = 25785 + (lv - 95) * 3071.6;
+      else if (lv === 98) strBase = 35000;
+      else if (lv === 99) strBase = 43000;
+      else if (lv === 99.5) strBase = 60000;
+      else if (lv >= 100) strBase = 80000;
+
+      let menBase = lv;
+      if (lv <= 20) menBase = lv;
+      else if (lv <= 30) menBase = 20 + (lv - 20) * 3;
+      else if (lv <= 50) menBase = 50 + Math.pow(lv - 30, 2) * 1.125;
+      else if (lv <= 70) menBase = 500 + Math.pow(lv - 50, 2) * 6.25;
+      else if (lv <= 90) menBase = 3000 + (lv - 70) * 100;
+      else if (lv <= 95) menBase = 5000 + (lv - 90) * 600;
+      else if (lv < 98) menBase = 8000 + (lv - 95) * 2000;
+      else if (lv === 98) menBase = 15000;
+      else if (lv === 99) menBase = 19000;
+      else if (lv === 99.5) menBase = 23000;
+      else if (lv >= 100) menBase = 50000;
+
+      return {
+        sp_max: Math.floor(spBase),
+        men_max: Math.floor(menBase),
+        str: Math.floor(strBase),
+        def: Math.floor(strBase),
+        agi: Math.floor(strBase / 2),
+        vit_max: Math.floor(strBase),
+      };
+    }
+
+    function hashTemporaryBattleSeed(seedText = '') {
+      const text = String(seedText || '');
+      let hash = 2166136261;
+      for (let index = 0; index < text.length; index += 1) {
+        hash ^= text.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+      }
+      return hash >>> 0;
+    }
+
+    function createTemporaryBattleRng(seedText = '') {
+      let state = hashTemporaryBattleSeed(seedText) || 1;
+      return () => {
+        state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+        return state / 4294967296;
+      };
+    }
+
+    function withTemporaryBattleRandom(seedText, runner) {
+      const rng = createTemporaryBattleRng(seedText);
+      return runner(rng);
+    }
+
+    function pickTemporaryBattleItem(items = [], rng = Math.random) {
+      if (!Array.isArray(items) || !items.length) return '';
+      return items[Math.max(0, Math.min(items.length - 1, Math.floor(rng() * items.length)))] || items[0];
+    }
+
+    function pickTemporaryBattleInt(min = 0, max = min, rng = Math.random) {
+      const low = Math.floor(Math.min(min, max));
+      const high = Math.floor(Math.max(min, max));
+      if (high <= low) return low;
+      return low + Math.floor(rng() * (high - low + 1));
+    }
+
+    function createTemporaryBattleSkillShell(skillName = '魂技1') {
+      return {
+        魂技名: skillName,
+        画面描述: '未知',
+        效果描述: '未知',
+        _效果数组: [],
+      };
+    }
+
+    function buildTemporaryBattleSkillMap(skillCount = 0) {
+      const total = Math.max(0, Math.min(4, Math.floor(Number(skillCount || 0))));
+      const skillMap = {};
+      for (let index = 1; index <= total; index += 1) {
+        skillMap[`魂技${index}`] = createTemporaryBattleSkillShell(`魂技${index}`);
+      }
+      return skillMap;
+    }
+
+    function estimateTemporaryHumanSkillCount(level = 1) {
+      const safeLevel = Math.max(1, Math.floor(Number(level || 1)));
+      if (safeLevel >= 80) return 4;
+      if (safeLevel >= 50) return 3;
+      if (safeLevel >= 30) return 2;
+      return 1;
+    }
+
+    function estimateTemporaryMonsterSkillCount(unitNature = '魂兽', seed = {}) {
+      if (unitNature === '魂兽') {
+        const age = Math.max(0, Math.floor(Number(seed?.年限 || 0)));
+        if (age >= 100000) return 4;
+        if (age >= 10000) return 3;
+        if (age >= 1000) return 2;
+        return 1;
+      }
+      const tier = String(seed?.级别 || '').trim();
+      if (tier === '深渊帝君' || tier === '深渊王者') return 4;
+      if (tier === '高阶生物') return 3;
+      if (tier === '中阶生物') return 2;
+      return 1;
+    }
+
+    function buildTemporaryBattleEquipmentShell() {
+      return {
+        武器: { 名称: '无', 品阶: '无', 属性加成: { 魂力上限: 0, 精神力上限: 0, 力量: 0, 防御: 0, 敏捷: 0, 体力上限: 0 } },
+        斗铠: { 等级: 0, 名称: '无', 领域: '无', 材质: '无', 装备状态: '未装备', 部件: {} },
+        机甲: { 等级: '无', 型号: '无', 材质: '无', 状态: '完好', 装备状态: '未装备', 武装: '无', 品质系数: 1.0 },
+      };
+    }
+
+    function buildTemporaryBattleSkeleton(name = '未知单位', unitNature = '人类') {
+      return {
+        name,
+        名称: name,
+        来源: '临时单位',
+        单位性质: unitNature,
+        属性: {
+          等级: 0,
+          系别: '未知系',
+          HP: 1,
+          HP上限: 1,
+          体力: 1,
+          体力上限: 1,
+          魂力: 0,
+          魂力上限: 0,
+          精神力: 1,
+          精神力上限: 1,
+          力量: 1,
+          防御: 1,
+          敏捷: 1,
+          状态效果: {},
+        },
+        状态: {
+          存活: true,
+          当前领域: '无',
+        },
+        装备: buildTemporaryBattleEquipmentShell(),
+        持续效果: {},
+        蓄力技能: null,
+        特殊能力: {},
+        社交: { 势力: {} },
+      };
+    }
+
+    function resolveTemporaryHumanCombatType(identity = '魂师', rng = Math.random) {
+      if (identity === '军人') {
+        return pickTemporaryBattleItem(['强攻系', '强攻系', '防御系', '敏攻系', '控制系'], rng) || '强攻系';
+      }
+      return pickTemporaryBattleItem(['强攻系', '敏攻系', '防御系', '控制系', '辅助系', '治疗系', '食物系'], rng) || '强攻系';
+    }
+
+    function resolveTemporaryHumanMechGrade(level = 1) {
+      if (level >= 90) return '红级';
+      if (level >= 70) return '黑级';
+      if (level >= 50) return '紫级';
+      return '黄级';
+    }
+
+    function resolveTemporaryHumanArmorLevel(level = 1) {
+      if (level >= 90) return 4;
+      if (level >= 80) return 3;
+      if (level >= 70) return 2;
+      return 1;
+    }
+
+    function applyTemporaryHumanEquipment(stats, equipment, identity = '魂师', level = 1, rng = Math.random) {
+      if (identity === '普通人') return stats;
+      const safeStats = stats;
+      const allowMech =
+        identity === '军人'
+          ? level >= 20 && rng() < (level >= 70 ? 0.85 : level >= 50 ? 0.75 : 0.65)
+          : level >= 30 && rng() < (level >= 70 ? 0.65 : level >= 50 ? 0.45 : 0.25);
+      if (allowMech) {
+        const mechGrade = resolveTemporaryHumanMechGrade(level);
+        equipment.机甲.等级 = mechGrade;
+        equipment.机甲.型号 = `${mechGrade}制式机甲`;
+        equipment.机甲.装备状态 = '已装备';
+        const mechMult = mechGrade === '红级' ? 1.35 : mechGrade === '黑级' ? 1.22 : mechGrade === '紫级' ? 1.14 : 1.08;
+        safeStats.sp_max = Math.floor(safeStats.sp_max * mechMult);
+        safeStats.men_max = Math.floor(safeStats.men_max * Math.max(1.02, mechMult - 0.03));
+        safeStats.def = Math.floor(safeStats.def * (mechMult + 0.08));
+        safeStats.agi = Math.floor(safeStats.agi * Math.max(1.02, mechMult - 0.01));
+        safeStats.vit_max = Math.floor(safeStats.vit_max * (mechMult + 0.05));
+      }
+
+      const allowArmor =
+        identity === '军人'
+          ? level >= 60 && rng() < (level >= 90 ? 0.4 : level >= 80 ? 0.28 : 0.15)
+          : level >= 50 && rng() < (level >= 80 ? 0.5 : level >= 70 ? 0.35 : 0.18);
+      if (allowArmor) {
+        const armorLevel = resolveTemporaryHumanArmorLevel(level);
+        equipment.斗铠.等级 = armorLevel;
+        equipment.斗铠.名称 = `${armorLevel}字斗铠`;
+        equipment.斗铠.装备状态 = '已装备';
+        const armorMult = armorLevel === 4 ? 1.42 : armorLevel === 3 ? 1.28 : armorLevel === 2 ? 1.18 : 1.1;
+        safeStats.str = Math.floor(safeStats.str * armorMult);
+        safeStats.def = Math.floor(safeStats.def * (armorMult + 0.1));
+        safeStats.vit_max = Math.floor(safeStats.vit_max * (armorMult + 0.05));
+        safeStats.sp_max = Math.floor(safeStats.sp_max * Math.max(1.03, armorMult - 0.08));
+      }
+      return safeStats;
+    }
+
+    function getTemporarySoulBeastStats(age = 1, species = '') {
+      let level = 1;
+      if (age >= 100000) level = 90 + Math.floor((age - 100000) / 100000);
+      else if (age >= 10000) level = 50 + Math.floor((age - 10000) / 2250);
+      else if (age >= 1000) level = 30 + Math.floor((age - 1000) / 450);
+      else if (age >= 100) level = 10 + Math.floor((age - 100) / 45);
+      else level = Math.max(1, Math.floor(age / 10));
+      const base = getTemporaryBattleBaseStats(level);
+      const mult = {
+        龙类: { str: 1.5, vit_max: 1.5, def: 1.3, agi: 0.9 },
+        蛛类: { agi: 1.6, str: 0.8, def: 0.8 },
+        熊类: { str: 1.8, def: 1.5, agi: 0.6 },
+        植物系: { vit_max: 2.0, str: 0.7, def: 0.8 },
+        海魂兽: { sp_max: 1.3, men_max: 1.2, agi: 1.1 },
+        鸟类: { agi: 1.8, str: 0.7, vit_max: 0.8 },
+        猫科: { agi: 1.5, str: 1.2, def: 0.9 },
+        蛇类: { agi: 1.4, str: 1.0, def: 0.9, men_max: 1.1 },
+      }[species] || { str: 1.0, def: 1.0, agi: 1.0, vit_max: 1.0, men_max: 1.0, sp_max: 1.0 };
+      return {
+        对标等级: level,
+        str: Math.floor(base.str * (mult.str || 1)),
+        def: Math.floor(base.def * (mult.def || 1)),
+        agi: Math.floor(base.agi * (mult.agi || 1)),
+        vit_max: Math.floor(base.vit_max * (mult.vit_max || 1)),
+        men_max: Math.floor(base.men_max * (mult.men_max || 1)),
+        sp_max: Math.floor(base.sp_max * (mult.sp_max || 1)),
+      };
+    }
+
+    function getTemporaryAbyssStats(tier = '', species = '') {
+      return withTemporaryBattleRandom(`${tier}|${species}`, rng => {
+        let level = 10;
+        let mult = { str: 1.0, def: 1.0, agi: 1.0, vit_max: 1.0, men_max: 1.0, sp_max: 1.0 };
+        if (tier === '低阶生物') {
+          level = 20 + Math.floor(rng() * 20);
+          mult = { str: 0.8, def: 0.8, agi: 1.2, vit_max: 0.8, men_max: 0.5, sp_max: 1.0 };
+        } else if (tier === '中阶生物') {
+          level = 40 + Math.floor(rng() * 30);
+          mult = { str: 1.2, def: 1.2, agi: 1.0, vit_max: 1.2, men_max: 0.8, sp_max: 1.2 };
+        } else if (tier === '高阶生物') {
+          level = 70 + Math.floor(rng() * 20);
+          mult = { str: 1.5, def: 1.5, agi: 1.5, vit_max: 1.5, men_max: 1.2, sp_max: 1.5 };
+        } else if (tier === '深渊王者' || tier === '深渊帝君') {
+          level = 99;
+          mult = { str: 2.0, def: 2.0, agi: 2.0, vit_max: 2.0, men_max: 2.0, sp_max: 2.0 };
+        }
+
+        if (species.includes('蝙蝠') || species.includes('魔魅') || species.includes('恶镰')) {
+          mult.agi *= 1.5;
+          mult.def *= 0.7;
+        } else if (species.includes('巴安') || species.includes('天牛') || species.includes('猛犸')) {
+          mult.def *= 1.8;
+          mult.vit_max *= 1.8;
+          mult.agi *= 0.6;
+        } else if (species.includes('黑皇')) {
+          mult.sp_max *= 1.5;
+          mult.men_max *= 1.5;
+        }
+
+        const base = getTemporaryBattleBaseStats(level);
+        return {
+          对标等级: level,
+          str: Math.floor(base.str * mult.str),
+          def: Math.floor(base.def * mult.def),
+          agi: Math.floor(base.agi * mult.agi),
+          vit_max: Math.floor(base.vit_max * mult.vit_max),
+          men_max: Math.floor(base.men_max * mult.men_max),
+          sp_max: Math.floor(base.sp_max * mult.sp_max),
+        };
+      });
+    }
+
+    function inferTemporarySoulBeastCombatType(species = '', stats = {}) {
+      const text = String(species || '').trim();
+      if (/植物/.test(text)) return '控制系';
+      if (/海/.test(text)) return '控制系';
+      if (/蛛|鸟|猫|蛇/.test(text)) return '敏攻系';
+      if (/熊/.test(text)) return '防御系';
+      if (Number(stats?.men_max || 0) > Number(stats?.str || 0) * 1.3) return '控制系';
+      if (Number(stats?.agi || 0) > Number(stats?.def || 0) * 1.2) return '敏攻系';
+      if (Number(stats?.def || 0) > Number(stats?.agi || 0) * 1.2) return '防御系';
+      return '强攻系';
+    }
+
+    function inferTemporaryAbyssCombatType(species = '', stats = {}) {
+      const text = String(species || '').trim();
+      if (/蝙蝠|魔魅|恶镰/.test(text)) return '敏攻系';
+      if (/附体魔|黑皇/.test(text)) return '控制系';
+      if (/巴安|天牛|猛犸|魔傀/.test(text)) return '防御系';
+      if (Number(stats?.men_max || 0) > Number(stats?.str || 0) * 1.3) return '控制系';
+      if (Number(stats?.agi || 0) > Number(stats?.def || 0) * 1.2) return '敏攻系';
+      if (Number(stats?.def || 0) > Number(stats?.agi || 0) * 1.2) return '防御系';
+      return '强攻系';
+    }
+
+    function buildTemporaryHumanParticipant(seed = {}, slotName = 'enemy') {
+      const identity = String(seed?.身份 || '普通人').trim();
+      const quantity = Math.max(1, Math.floor(Number(seed?.数量 || 1)));
+      const level = identity === '普通人' ? 0 : Math.max(1, Math.floor(Number(seed?.等级 || 1)));
+      const unitName = String(seed?.名称 || seed?.name || slotName || '临时单位').trim() || '临时单位';
+      return withTemporaryBattleRandom(`${unitName}|${identity}|${quantity}|${level}|${slotName}`, rng => {
+        const next = buildTemporaryBattleSkeleton(unitName, '人类');
+        next.身份 = identity;
+        next.数量 = quantity;
+        if (identity === '普通人') {
+          const hpMax = pickTemporaryBattleInt(48, 82, rng);
+          const menMax = pickTemporaryBattleInt(8, 16, rng);
+          next.属性.等级 = 0;
+          next.属性.系别 = '普通人';
+          next.属性.HP上限 = hpMax;
+          next.属性.HP = hpMax;
+          next.属性.体力上限 = hpMax;
+          next.属性.体力 = hpMax;
+          next.属性.魂力上限 = 0;
+          next.属性.魂力 = 0;
+          next.属性.精神力上限 = menMax;
+          next.属性.精神力 = menMax;
+          next.属性.力量 = pickTemporaryBattleInt(6, 10, rng);
+          next.属性.防御 = pickTemporaryBattleInt(5, 9, rng);
+          next.属性.敏捷 = pickTemporaryBattleInt(6, 10, rng);
+          return next;
+        }
+
+        const combatType = resolveTemporaryHumanCombatType(identity, rng);
+        const base = getTemporaryBattleBaseStats(level);
+        const typeMult = BATTLE_TEMPORARY_TYPE_MULTIPLIERS[combatType] || BATTLE_TEMPORARY_TYPE_MULTIPLIERS['强攻系'];
+        const variance = 0.92 + rng() * 0.16;
+        const derived = {
+          str: Math.floor(base.str * typeMult.str * variance),
+          def: Math.floor(base.def * typeMult.def * variance),
+          agi: Math.floor(base.agi * typeMult.agi * variance),
+          vit_max: Math.floor(base.vit_max * typeMult.vit_max * variance),
+          men_max: Math.floor(base.men_max * typeMult.men_max * variance),
+          sp_max: Math.floor(base.sp_max * typeMult.sp_max * variance),
+        };
+        applyTemporaryHumanEquipment(derived, next.装备, identity, level, rng);
+        next.属性.等级 = level;
+        next.属性.系别 = combatType;
+        next.属性.HP上限 = Math.max(1, derived.vit_max);
+        next.属性.HP = next.属性.HP上限;
+        next.属性.体力上限 = next.属性.HP上限;
+        next.属性.体力 = next.属性.HP上限;
+        next.属性.魂力上限 = Math.max(1, derived.sp_max);
+        next.属性.魂力 = next.属性.魂力上限;
+        next.属性.精神力上限 = Math.max(1, derived.men_max);
+        next.属性.精神力 = next.属性.精神力上限;
+        next.属性.力量 = Math.max(1, derived.str);
+        next.属性.防御 = Math.max(1, derived.def);
+        next.属性.敏捷 = Math.max(1, derived.agi);
+        next.特殊能力 = buildTemporaryBattleSkillMap(estimateTemporaryHumanSkillCount(level));
+        return next;
+      });
+    }
+
+    function buildTemporarySoulBeastParticipant(seed = {}, slotName = 'enemy') {
+      const unitName = String(seed?.名称 || seed?.name || slotName || '魂兽').trim() || '魂兽';
+      const species = String(seed?.标准物种 || '').trim();
+      const age = Math.max(1, Math.floor(Number(seed?.年限 || 1)));
+      const quantity = Math.max(1, Math.floor(Number(seed?.数量 || 1)));
+      const stats = getTemporarySoulBeastStats(age, species);
+      const combatType = inferTemporarySoulBeastCombatType(species, stats);
+      const next = buildTemporaryBattleSkeleton(unitName, '魂兽');
+      next.数量 = quantity;
+      next.年限 = age;
+      next.标准物种 = species;
+      next.属性.年龄 = age;
+      next.属性.等级 = Number(stats.对标等级 || 1);
+      next.属性.系别 = combatType;
+      next.属性.HP上限 = Math.max(1, Number(stats.vit_max || 1));
+      next.属性.HP = next.属性.HP上限;
+      next.属性.体力上限 = next.属性.HP上限;
+      next.属性.体力 = next.属性.体力上限;
+      next.属性.魂力上限 = Math.max(1, Number(stats.sp_max || 1));
+      next.属性.魂力 = next.属性.魂力上限;
+      next.属性.精神力上限 = Math.max(1, Number(stats.men_max || 1));
+      next.属性.精神力 = next.属性.精神力上限;
+      next.属性.力量 = Math.max(1, Number(stats.str || 1));
+      next.属性.防御 = Math.max(1, Number(stats.def || 1));
+      next.属性.敏捷 = Math.max(1, Number(stats.agi || 1));
+      next.社交.势力['魂兽一族'] = { 身份: '敌对', 权限级: 1 };
+      next.特殊能力 = buildTemporaryBattleSkillMap(estimateTemporaryMonsterSkillCount('魂兽', seed));
+      return next;
+    }
+
+    function buildTemporaryAbyssParticipant(seed = {}, slotName = 'enemy') {
+      const unitName = String(seed?.名称 || seed?.name || slotName || '深渊生物').trim() || '深渊生物';
+      const race = String(seed?.标准种族 || '').trim();
+      const tier = String(seed?.级别 || '').trim();
+      const quantity = Math.max(1, Math.floor(Number(seed?.数量 || 1)));
+      const stats = getTemporaryAbyssStats(tier, race);
+      const combatType = inferTemporaryAbyssCombatType(race, stats);
+      const next = buildTemporaryBattleSkeleton(unitName, '深渊');
+      next.数量 = quantity;
+      next.级别 = tier;
+      next.标准种族 = race;
+      next.属性.等级 = Number(stats.对标等级 || 1);
+      next.属性.系别 = combatType;
+      next.属性.HP上限 = Math.max(1, Number(stats.vit_max || 1));
+      next.属性.HP = next.属性.HP上限;
+      next.属性.体力上限 = next.属性.HP上限;
+      next.属性.体力 = next.属性.体力上限;
+      next.属性.魂力上限 = Math.max(1, Number(stats.sp_max || 1));
+      next.属性.魂力 = next.属性.魂力上限;
+      next.属性.精神力上限 = Math.max(1, Number(stats.men_max || 1));
+      next.属性.精神力 = next.属性.精神力上限;
+      next.属性.力量 = Math.max(1, Number(stats.str || 1));
+      next.属性.防御 = Math.max(1, Number(stats.def || 1));
+      next.属性.敏捷 = Math.max(1, Number(stats.agi || 1));
+      next.社交.势力['深渊生物'] = { 身份: '敌对', 权限级: 1 };
+      next.特殊能力 = buildTemporaryBattleSkillMap(estimateTemporaryMonsterSkillCount('深渊', seed));
+      return next;
+    }
+
+    function buildExpandedBattleSeedParticipant(snapshot, participant = null, slotKey = 'enemy') {
+      if (!participant || typeof participant !== 'object' || Array.isArray(participant)) return null;
+      if (isExpandedBattleParticipant(participant)) return cloneJsonValue(participant, {});
+      const participantName = String(participant.name || participant.名称 || '').trim();
+      const charKey = resolveSnapshotCharKey(snapshot, participantName);
+      if (charKey) return buildCombatParticipantFromSnapshotChar(snapshot, charKey, slotKey === 'player' ? '己方' : '敌对');
+      const unitNature = String(participant.单位性质 || '').trim();
+      if (unitNature === '人类') return buildTemporaryHumanParticipant(participant, slotKey);
+      if (unitNature === '魂兽') return buildTemporarySoulBeastParticipant(participant, slotKey);
+      if (unitNature === '深渊') return buildTemporaryAbyssParticipant(participant, slotKey);
+      return cloneJsonValue(participant, {});
+    }
+
+    function explodeBattleSeedParticipant(snapshot, participant = null, slotKey = 'enemy') {
+      const expanded = buildExpandedBattleSeedParticipant(snapshot, participant, slotKey);
+      if (!expanded) return [];
+      if (isExpandedBattleParticipant(expanded) && String(expanded.来源 || '').trim() !== '临时单位') return [expanded];
+      const quantity = Math.max(1, Math.floor(Number(participant?.数量 || expanded?.数量 || 1)));
+      if (quantity <= 1) return [expanded];
+      const results = [];
+      const baseName = String(participant?.名称 || participant?.name || expanded?.名称 || expanded?.name || slotKey).trim() || slotKey;
+      for (let index = 1; index <= quantity; index += 1) {
+        const cloneSeed = cloneJsonValue(participant, {});
+        const displayName = index === 1 ? baseName : `${baseName}·${index}`;
+        cloneSeed.名称 = displayName;
+        cloneSeed.name = displayName;
+        cloneSeed.数量 = 1;
+        const nextExpanded = buildExpandedBattleSeedParticipant(snapshot, cloneSeed, `${slotKey}_${index}`);
+        if (nextExpanded) results.push(nextExpanded);
+      }
+      return results;
+    }
+
+    function expandBattleRosterForSnapshot(snapshot, combatData = {}) {
+      const participants = combatData?.参战者 && typeof combatData.参战者 === 'object' ? combatData.参战者 : null;
+      if (!participants) return null;
+      const nextParticipants = {
+        player: null,
+        enemy: null,
+        team_player: [],
+        team_enemy: [],
+      };
+      const playerUnits = explodeBattleSeedParticipant(snapshot, participants.player, 'player');
+      nextParticipants.player = playerUnits[0] || null;
+      if (playerUnits.length > 1) nextParticipants.team_player.push(...playerUnits.slice(1));
+
+      const enemyUnits = explodeBattleSeedParticipant(snapshot, participants.enemy, 'enemy');
+      nextParticipants.enemy = enemyUnits[0] || null;
+      if (enemyUnits.length > 1) nextParticipants.team_enemy.push(...enemyUnits.slice(1));
+
+      const teamPlayerSeeds = Array.isArray(participants.team_player) ? participants.team_player : [];
+      teamPlayerSeeds.forEach((participant, index) => {
+        nextParticipants.team_player.push(...explodeBattleSeedParticipant(snapshot, participant, `team_player_${index + 1}`));
+      });
+      const teamEnemySeeds = Array.isArray(participants.team_enemy) ? participants.team_enemy : [];
+      teamEnemySeeds.forEach((participant, index) => {
+        nextParticipants.team_enemy.push(...explodeBattleSeedParticipant(snapshot, participant, `team_enemy_${index + 1}`));
+      });
+
+      if (nextParticipants.player) nextParticipants.player.势力 = '己方';
+      if (nextParticipants.enemy) nextParticipants.enemy.势力 = '敌对';
+      nextParticipants.team_player.forEach(unit => {
+        if (unit && typeof unit === 'object') unit.势力 = '己方';
+      });
+      nextParticipants.team_enemy.forEach(unit => {
+        if (unit && typeof unit === 'object') unit.势力 = '敌对';
+      });
+      return nextParticipants;
+    }
+
     function validateBattleSeedParticipant(snapshot, seed, role = 'enemy') {
       const normalized = normalizeBattleSeedParticipant(seed);
       if (!normalized) return { ok: false, reason: `${role}_seed_missing_name` };
@@ -16075,17 +16570,100 @@ ${mvuUpdate}`;
       );
     }
 
+    function compactBattleParticipantForStorage(snapshot, participant) {
+      if (participant === null || participant === undefined) return undefined;
+      if (typeof participant === 'string' || typeof participant === 'number') {
+        return { name: String(participant) };
+      }
+      if (typeof participant !== 'object' || Array.isArray(participant)) return undefined;
+      const source = cloneJsonValue(participant, {});
+      const participantName = toText(source.name || source.名称, '');
+      const resolvedKey = participantName ? resolveSnapshotCharKey(snapshot, participantName) : '';
+      if (resolvedKey) {
+        const compact = { name: participantName || resolvedKey };
+        if (source.势力 !== undefined) compact.势力 = toText(source.势力, '');
+        const aliveCandidate =
+          source.存活 !== undefined
+            ? source.存活
+            : source.状态 && typeof source.状态 === 'object'
+              ? source.状态.存活
+              : undefined;
+        if (aliveCandidate !== undefined) compact.存活 = aliveCandidate !== false;
+        return compact;
+      }
+
+      const compact = {};
+      if (participantName) {
+        compact.name = participantName;
+        compact.名称 = participantName;
+      }
+      [
+        '来源',
+        '单位性质',
+        '身份',
+        '数量',
+        '等级',
+        '年限',
+        '标准物种',
+        '级别',
+        '标准种族',
+        '势力'
+      ].forEach(key => {
+        if (source[key] !== undefined) compact[key] = cloneJsonValue(source[key], source[key]);
+      });
+      const aliveCandidate =
+        source.存活 !== undefined
+          ? source.存活
+          : source.状态 && typeof source.状态 === 'object'
+            ? source.状态.存活
+            : undefined;
+      if (aliveCandidate !== undefined) compact.存活 = aliveCandidate !== false;
+      return Object.keys(compact).length ? compact : undefined;
+    }
+
+    function compactBattleRosterForStorage(snapshot, participants) {
+      if (!participants || typeof participants !== 'object') return null;
+      const compact = {
+        player: compactBattleParticipantForStorage(snapshot, participants.player),
+        enemy: compactBattleParticipantForStorage(snapshot, participants.enemy),
+        team_player: Array.isArray(participants.team_player)
+          ? participants.team_player.map(item => compactBattleParticipantForStorage(snapshot, item)).filter(Boolean)
+          : [],
+        team_enemy: Array.isArray(participants.team_enemy)
+          ? participants.team_enemy.map(item => compactBattleParticipantForStorage(snapshot, item)).filter(Boolean)
+          : []
+      };
+      return compact;
+    }
+
+    function compactCombatDataForWorldStorage(snapshot, combatData) {
+      const source = cloneJsonValue(combatData, {});
+      if (!source || typeof source !== 'object') return combatData;
+      if (source.参战者 && typeof source.参战者 === 'object') {
+        source.参战者 = compactBattleRosterForStorage(snapshot, source.参战者);
+      }
+      return source;
+    }
+
     function normalizeCombatForBattleUI(snapshot) {
       const combatData = deepGet(snapshot, 'rootData.world.战斗', {});
       if (!combatData || typeof combatData !== 'object' || !combatData.进行中) return combatData;
       const participants = combatData.参战者 && typeof combatData.参战者 === 'object' ? combatData.参战者 : null;
       if (!participants) return null;
-      const teamPlayer = Array.isArray(participants.team_player) ? participants.team_player : null;
-      const teamEnemy = Array.isArray(participants.team_enemy) ? participants.team_enemy : null;
-      if (!isExpandedBattleParticipant(participants.player) || !isExpandedBattleParticipant(participants.enemy)) return null;
+      let nextCombat = combatData;
+      if (!isExpandedBattleParticipant(participants.player) || !isExpandedBattleParticipant(participants.enemy)) {
+        const expandedParticipants = expandBattleRosterForSnapshot(snapshot, combatData);
+        if (!expandedParticipants) return null;
+        nextCombat = cloneJsonValue(combatData, {});
+        nextCombat.参战者 = expandedParticipants;
+        snapshot.rootData.world.战斗 = nextCombat;
+      }
+      const teamPlayer = Array.isArray(nextCombat.参战者?.team_player) ? nextCombat.参战者.team_player : null;
+      const teamEnemy = Array.isArray(nextCombat.参战者?.team_enemy) ? nextCombat.参战者.team_enemy : null;
+      if (!isExpandedBattleParticipant(nextCombat.参战者?.player) || !isExpandedBattleParticipant(nextCombat.参战者?.enemy)) return null;
       if (!teamPlayer || !teamEnemy) return null;
       if (!teamPlayer.every(isExpandedBattleParticipant) || !teamEnemy.every(isExpandedBattleParticipant)) return null;
-      return combatData;
+      return nextCombat;
     }
 
     function syncBattleUiForSnapshot(snapshot, options = {}) {
@@ -16171,9 +16749,10 @@ ${mvuUpdate}`;
       if (!combatData || combatData.ok === false) return { ok: false, reason: combatData?.reason || 'combat_context_unresolved' };
       const playerName = toText(combatData.参战者.player.name || combatData.参战者.player.名称, '玩家');
       const enemyName = toText(combatData.参战者.enemy.name || combatData.参战者.enemy.名称, '对手');
+      const compactCombatData = compactCombatDataForWorldStorage(snapshot, combatData);
       battleInlineDismissed = false;
       await applyJsonPatchOpsByEditor([
-        { op: 'replace', path: '/world/战斗', value: combatData },
+        { op: 'replace', path: '/world/战斗', value: compactCombatData },
         { op: 'replace', path: '/sys/rsn', value: `[战斗模块] ${playerName} 向 ${enemyName} 发起切磋，战斗模块已接管。` }
       ]);
       showUiToast('战斗模块已开启。', 'info', 2400);
@@ -17742,7 +18321,6 @@ ${mvuUpdate}`;
         || previewKey === '武装详情：斗铠'
         || previewKey === '武装详情：机甲'
         || previewKey === '武装详情：主武器'
-        || previewKey === '武装详情：附件'
         || String(previewKey || '').startsWith('斗铠部件：')
       ) {
         const snapshot = liveSnapshot || lastRenderableSnapshot;
@@ -19176,7 +19754,7 @@ window.EquipmentManager = {
         patches.push({ op: 'add', path: `${charPath}/魂骨/${slotInfo.subSlot}`, value: newBoneData });
       } else {
         let oldItem = null;
-        const equipKeyMap = { armor: '斗铠', mech: '机甲', wpn: '武器', accessory: '饰品' };
+        const equipKeyMap = { armor: '斗铠', mech: '机甲', wpn: '武器' };
         const equipKey = equipKeyMap[slotInfo.mainSlot] || slotInfo.mainSlot;
         let equipPath = `${charPath}/装备/${equipKey}`;
         if (slotInfo.subSlot) {
@@ -19249,17 +19827,6 @@ window.EquipmentManager = {
         this.queueInventoryAdd(patches, charPath, inventoryBuffer, weaponName, weapon);
         patches.push({ op: 'replace', path: `${charPath}/装备/武器`, value: {} });
         await this.submitPatch(patches, `已卸下主武器 ${weaponName}`);
-        return;
-      }
-
-      if (targetType === 'accessory') {
-        const accessories = 装备数据.饰品 && typeof 装备数据.饰品 === 'object' ? 装备数据.饰品 : {};
-        const targetAccessoryName = toText(targetName, '');
-        const accessoryData = targetAccessoryName ? accessories[targetAccessoryName] : null;
-        if (!targetAccessoryName || !accessoryData) throw new Error('未找到要拆卸的附件。');
-        this.queueInventoryAdd(patches, charPath, inventoryBuffer, targetAccessoryName, accessoryData);
-        patches.push({ op: 'remove', path: `${charPath}/装备/饰品/${this.escapePtr(targetAccessoryName)}` });
-        await this.submitPatch(patches, `已拆卸附件 ${targetAccessoryName}`);
         return;
       }
 

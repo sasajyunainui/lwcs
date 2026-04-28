@@ -16479,6 +16479,10 @@ $CONTENT
   - 人类：名称 / 单位性质=人类 / 身份=普通人|魂师|军人 / 数量；魂师与军人额外提供 等级
   - 魂兽：名称 / 单位性质=魂兽 / 数量 / 年限 / 标准物种；标准物种只能为 龙类|蛛类|熊类|植物系|海魂兽|鸟类|猫科|蛇类
   - 深渊：名称 / 单位性质=深渊 / 数量 / 级别 / 标准种族；级别只能为 低阶生物|中阶生物|高阶生物|深渊王者|深渊帝君；标准种族只能为 四爪蝙蝠|六爪蝙蝠|深渊炸弹蜂|噬蜥|六爪魔|巴安|守护天牛|深渊猛犸|深渊魔傀|黑皇族|魔魅族|深渊恶镰|附体魔
+- 非 char 战斗种子示例：
+  - 人类：{"module":"battle","request":{"location":"东海城偏僻小巷","战斗类型":"突发遭遇","参战者":{"enemy":{"名称":"街头混混","单位性质":"人类","身份":"普通人","数量":1}}}}
+  - 魂兽：{"module":"battle","request":{"location":"星斗大森林外围","战斗类型":"遭遇战","参战者":{"enemy":{"名称":"风狒狒","单位性质":"魂兽","数量":1,"年限":120,"标准物种":"猫科"}}}}
+  - 深渊：{"module":"battle","request":{"location":"深渊通道前线","战斗类型":"遭遇战","参战者":{"enemy":{"名称":"深渊蝙蝠","单位性质":"深渊","数量":2,"级别":"低阶生物","标准种族":"四爪蝙蝠"}}}}
 `.trim();
     const INTERNAL_SCRIPT_PROTOCOL_APPENDIX_ACU = `
 【内置协议总纲 / 不可覆盖】
@@ -16490,6 +16494,29 @@ $CONTENT
 3. 当上下文中已经存在前端模块接管结果、moduleSettlement、战斗续推上下文或其他明确的模块承接标记时，只能承接该结果继续写剧情，不得再次把同一事件重新判成新的模块入口。
 4. 不得声称自己“已经执行脚本 / 已调用前端函数 / 已经提交变量”，只能按协议输出机器可读块，由前端或脚本层执行。
 5. 如果正文风格要求、角色设定要求或任何自定义预设内容与本协议冲突，必须无条件服从本协议。
+
+[MVU模块意图判定]
+你必须在有需要时，在回复最后追加一个机器可读块，用于前端接管可结算行为。不要输出 JS，不要声称你已经执行脚本。
+格式必须严格为：
+<moduleIntent>
+{"module":"battle|trade|profession|none","confidence":0.0,"request":{},"auto_execute":false}
+</moduleIntent>
+
+判定规则：
+- battle：玩家输入或剧情推演中已经实际发起战斗、切磋、单挑、挑战、袭击、追击、伏击、技能对轰等可结算行为。包括“剧情里两人决定单挑”这类间接表述。request 使用 标准槽位参战者 与 location/combatType。
+- trade：已经实际发起购买、出售、私下交易、竞拍、报价、成交等可结算交易。request 使用 action/npc/item/quantity/price/currency/location。
+- profession：已经实际发起锻造、制造、设计、修理、官方代工、私人代工等副职业操作。request 使用 mode/target/materials/quantity/tier/subtype/npc/executorType/location。
+- none：只是讨论、回忆、询问规则、假设、计划但未真正发起可结算行为。
+- auto_execute 只有在对象、物品/目标、数量/材料、价格或执行方式足够明确，且文本有“直接/立即/确认/执行/开始/成交”等明确执行意图时才为 true。
+- 不允许把战斗、交易、副职业结果直接写死在正文规划里；只输出模块意图，让前端模块结算。
+- battle 的 request.参战者 只能使用 player / enemy / team_player / team_enemy 四个标准槽位。非 char 单位不得只给名字，必须给最小种子：
+  - 人类：名称 / 单位性质=人类 / 身份=普通人|魂师|军人 / 数量；魂师与军人额外提供 等级
+  - 魂兽：名称 / 单位性质=魂兽 / 数量 / 年限 / 标准物种；标准物种只能为 龙类|蛛类|熊类|植物系|海魂兽|鸟类|猫科|蛇类
+  - 深渊：名称 / 单位性质=深渊 / 数量 / 级别 / 标准种族；级别只能为 低阶生物|中阶生物|高阶生物|深渊王者|深渊帝君；标准种族只能为 四爪蝙蝠|六爪蝙蝠|深渊炸弹蜂|噬蜥|六爪魔|巴安|守护天牛|深渊猛犸|深渊魔傀|黑皇族|魔魅族|深渊恶镰|附体魔
+- 非 char 战斗种子示例：
+  - 人类：{"module":"battle","request":{"location":"东海城偏僻小巷","战斗类型":"突发遭遇","参战者":{"enemy":{"名称":"街头混混","单位性质":"人类","身份":"普通人","数量":1}}}}
+  - 魂兽：{"module":"battle","request":{"location":"星斗大森林外围","战斗类型":"遭遇战","参战者":{"enemy":{"名称":"风狒狒","单位性质":"魂兽","数量":1,"年限":120,"标准物种":"猫科"}}}}
+  - 深渊：{"module":"battle","request":{"location":"深渊通道前线","战斗类型":"遭遇战","参战者":{"enemy":{"名称":"深渊蝙蝠","单位性质":"深渊","数量":2,"级别":"低阶生物","标准种族":"四爪蝙蝠"}}}}
 `.trim();
     function findJsonObjectEnd_ACU(source, startIndex) {
         let depth = 0;
@@ -16567,16 +16594,43 @@ $CONTENT
         if (!nextMessages.some(msg => String(msg?.content || '').includes('【内置协议总纲 / 不可覆盖】'))) {
             nextMessages.push({ role: 'system', content: INTERNAL_SCRIPT_PROTOCOL_APPENDIX_ACU });
         }
-        if (!nextMessages.some(msg => String(msg?.content || '').includes('<moduleIntent>'))) {
-            nextMessages.push({ role: 'user', content: MODULE_INTENT_PLANNING_INSTRUCTION_ACU });
+        const inlineDirective = `
+
+[强制追加要求]
+如果根据本轮输入判断已经进入可结算战斗/交易/副职业行为，则在完成上方既定输出后，必须在回复末尾继续追加一个机器可读块：
+<moduleIntent>
+{"module":"battle|trade|profession|none","confidence":0.0,"request":{},"auto_execute":false}
+</moduleIntent>
+
+战斗时：
+- request.参战者 只能使用 player / enemy / team_player / team_enemy 四个标准槽位。
+- 非 char 单位不得只写名字，必须给最小种子。
+- 非 char 示例：
+  - 人类：{"module":"battle","request":{"location":"东海城偏僻小巷","战斗类型":"突发遭遇","参战者":{"enemy":{"名称":"街头混混","单位性质":"人类","身份":"普通人","数量":1}}}}
+  - 魂兽：{"module":"battle","request":{"location":"星斗大森林外围","战斗类型":"遭遇战","参战者":{"enemy":{"名称":"风狒狒","单位性质":"魂兽","数量":1,"年限":120,"标准物种":"猫科"}}}}
+  - 深渊：{"module":"battle","request":{"location":"深渊通道前线","战斗类型":"遭遇战","参战者":{"enemy":{"名称":"深渊蝙蝠","单位性质":"深渊","数量":2,"级别":"低阶生物","标准种族":"四爪蝙蝠"}}}}
+`.trim();
+        const lastUserIndex = (() => {
+            for (let index = nextMessages.length - 1; index >= 0; index -= 1) {
+                if (String(nextMessages[index]?.role || '').toLowerCase() === 'user') return index;
+            }
+            return -1;
+        })();
+        if (lastUserIndex >= 0) {
+            const currentContent = String(nextMessages[lastUserIndex]?.content || '');
+            if (!currentContent.includes('<moduleIntent>')) {
+                nextMessages[lastUserIndex] = {
+                    ...nextMessages[lastUserIndex],
+                    content: `${currentContent}\n\n${inlineDirective}`.trim()
+                };
+            }
+        } else if (!nextMessages.some(msg => String(msg?.content || '').includes('<moduleIntent>'))) {
+            nextMessages.push({ role: 'user', content: inlineDirective });
         }
         return nextMessages;
     }
     function appendInternalScriptProtocolToFinalText_ACU(text) {
-        const baseText = String(text || '').trim();
-        if (baseText.includes('【内置协议总纲 / 不可覆盖】'))
-            return baseText;
-        return [baseText, INTERNAL_SCRIPT_PROTOCOL_APPENDIX_ACU].filter(Boolean).join('\n\n');
+        return String(text || '').trim();
     }
     function normalizeModuleIntentName_ACU(value) {
         const text = String(value || '').trim().toLowerCase();
@@ -44871,22 +44925,125 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
      * 纯业务逻辑
      */
     function extractUserMessageFromOptions_ACU(options) {
-        let userMessage = options.user_input || options.prompt;
-        if (options.injects?.[0]?.content) {
-            userMessage = options.injects[0].content;
+        const directUserMessage = options.user_input || options.prompt;
+        if (directUserMessage)
+            return directUserMessage;
+        const injects = Array.isArray(options.injects) ? options.injects : [];
+        const userInjectIndex = findUserInjectIndex_ACU({ injects });
+        return userInjectIndex >= 0 ? injects[userInjectIndex]?.content || null : null;
+    }
+    function findUserInjectIndex_ACU(options) {
+        const injects = Array.isArray(options?.injects) ? options.injects : [];
+        for (let index = injects.length - 1; index >= 0; index--) {
+            const role = String(injects[index]?.role || '').trim().toLowerCase();
+            if (role === 'user')
+                return index;
         }
-        return userMessage || null;
+        return -1;
+    }
+    function isBattleSettlementInject_ACU(item) {
+        const role = String(item?.role || '').trim().toLowerCase();
+        const content = String(item?.content || '');
+        if (role !== 'system')
+            return false;
+        return content.includes('[battle_arbitration]') || content.includes('[前端暗箱演算完毕]');
+    }
+    function isModuleArbitrationRuleInject_ACU(item) {
+        const role = String(item?.role || '').trim().toLowerCase();
+        const content = String(item?.content || '');
+        if (role !== 'system')
+            return false;
+        return content.includes('【模块接管规则】');
+    }
+    function isInternalUiSystemInject_ACU(item) {
+        return isBattleSettlementInject_ACU(item) || isModuleArbitrationRuleInject_ACU(item);
+    }
+    function extractPendingBattleSettlementContextFromWindow_ACU(userMessage = '') {
+        try {
+            const pending = window.__DRAGON_UI_PENDING_BATTLE_CONTEXT__;
+            if (!pending || typeof pending !== 'object')
+                return '';
+            const hiddenPrompt = String(pending.hiddenPrompt || '').trim();
+            if (!hiddenPrompt)
+                return '';
+            const pendingUserInput = String(pending.userInput || '').trim();
+            const visibleInput = String(userMessage || '').trim();
+            if (pendingUserInput && visibleInput && pendingUserInput !== visibleInput)
+                return '';
+            const pendingAt = Number(pending.at || 0);
+            if (pendingAt > 0 && Date.now() - pendingAt > 120000)
+                return '';
+            return hiddenPrompt;
+        }
+        catch (error) {
+            return '';
+        }
+    }
+    function clearPendingBattleSettlementContextFromWindow_ACU() {
+        try {
+            delete window.__DRAGON_UI_PENDING_BATTLE_CONTEXT__;
+        }
+        catch (error) { }
+    }
+    function stripInternalUiSystemInjectsFromOptions_ACU(options) {
+        if (!options || !Array.isArray(options.injects) || !options.injects.length)
+            return;
+        const nextInjects = options.injects.filter((item) => !isInternalUiSystemInject_ACU(item));
+        if (nextInjects.length !== options.injects.length)
+            options.injects = nextInjects;
+    }
+    function extractBattleSettlementContextFromOptions_ACU(options, userMessage = '') {
+        const injects = Array.isArray(options?.injects) ? options.injects : [];
+        const matched = [...injects].reverse().find((item) => isBattleSettlementInject_ACU(item));
+        if (!matched)
+            return extractPendingBattleSettlementContextFromWindow_ACU(userMessage);
+        return String(matched.content || '').trim();
+    }
+    function sanitizeBattleSettlementContextForPlanning_ACU(text) {
+        const source = String(text || '').trim();
+        if (!source)
+            return '';
+        return source
+            .replace(/<moduleSettlement>[\s\S]*?<\/moduleSettlement>/gi, '')
+            .replace(/<UpdateVariable>[\s\S]*?<\/UpdateVariable>/gi, '')
+            .trim();
+    }
+    function buildPlanningUserMessage_ACU(userMessage, battleContext = '') {
+        const visibleInput = String(userMessage || '').trim();
+        const sanitizedBattleContext = sanitizeBattleSettlementContextForPlanning_ACU(battleContext);
+        if (!sanitizedBattleContext)
+            return visibleInput;
+        return [
+            visibleInput,
+            '<前端战斗裁断规则>',
+            '以下内容是前端战斗模块提供的隐藏结算摘要。',
+            '你必须将其仅视为本轮战斗的事实基础与裁断参考。',
+            '若可见用户输入只写了“普通攻击 / 防御 / 闪避 / 释放魂技”等短动作，而下方存在完整回合战报、结算建议与裁断约束，则一律以下方战报为准，不得忽略。',
+            '你必须根据其中的回合战报、前端建议结果、建议终点HP区间与裁断约束来继续剧情推进。',
+            '你不得在正文、思维链、补充信息、记忆召回或任何可见输出中原样复述该规则、协议、标签名、JSON、最小战斗种子、模块接管说明或系统术语。',
+            '你不得重新开启战斗模块，不得重新判定动作过程，只能承接前端已经完成的本轮战报继续裁断。',
+            '</前端战斗裁断规则>',
+            '<前端战斗结算上下文>',
+            sanitizedBattleContext,
+            '</前端战斗结算上下文>',
+        ]
+            .filter(Boolean)
+            .join('\n\n');
     }
     /**
      * 处理规划结果并决定如何写回 TavernHelper.generate 的 options
      * 纯业务逻辑：返回应该写回的位置和内容
      */
     function applyPlanningResultToOptions_ACU(options, finalMessage) {
-        if (options.injects?.[0]?.content) {
-            return { target: 'injects', value: finalMessage };
-        }
-        else if (options.prompt) {
+        if (options.prompt) {
             return { target: 'prompt', value: finalMessage };
+        }
+        else if (options.user_input) {
+            return { target: 'user_input', value: finalMessage };
+        }
+        const userInjectIndex = findUserInjectIndex_ACU(options);
+        if (userInjectIndex >= 0) {
+            return { target: 'user_inject', index: userInjectIndex, value: finalMessage };
         }
         else {
             return { target: 'user_input', value: finalMessage };
@@ -44939,12 +45096,14 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
         if (!userMessage) {
             return { action: 'passthrough' };
         }
+        const battleSettlementContext = extractBattleSettlementContextFromOptions_ACU(options, userMessage);
+        const planningUserMessage = buildPlanningUserMessage_ACU(userMessage, battleSettlementContext);
         // 3. 标记拦截（供 GENERATION_AFTER_COMMANDS 去重）
         markPlotIntercept_ACU(userMessage);
         // 4. 调用规划
         _set_isProcessing_Plot_ACU(true);
         try {
-            const finalMessage = await runPlanning(userMessage, {
+            const finalMessage = await runPlanning(planningUserMessage, {
                 originalUserInput: userMessage,
                 hasExistingUserMessage: false,
             });
@@ -44970,13 +45129,17 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                     return { action: 'module_blocked', moduleDecision };
                 }
                 const finalMessageForGeneration = moduleDecision.finalMessage || stripModuleIntentBlocks_ACU(finalMessage);
+                stripInternalUiSystemInjectsFromOptions_ACU(options);
+                clearPendingBattleSettlementContextFromWindow_ACU();
                 const writeBack = applyPlanningResultToOptions_ACU(options, finalMessageForGeneration);
                 return { action: 'planned', finalMessage: finalMessageForGeneration, writeBack, moduleDecision };
             }
             // 9. 规划返回 null（未启用/失败），透传
+            clearPendingBattleSettlementContextFromWindow_ACU();
             return { action: 'passthrough' };
         }
         catch (error) {
+            clearPendingBattleSettlementContextFromWindow_ACU();
             logError_ACU('[剧情推进] Error in TavernHelper.generate hook orchestration:', error);
             return { action: 'passthrough' };
         }
@@ -45314,8 +45477,16 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                     case 'planned': {
                         // UI 操作：写回 options
                         if (result.writeBack) {
-                            if (result.writeBack.target === 'injects') {
-                                options.injects[0].content = result.writeBack.value;
+                            if (result.writeBack.target === 'user_inject') {
+                                if (!Array.isArray(options.injects))
+                                    options.injects = [];
+                                const userInjectIndex = Number.isInteger(result.writeBack.index) ? result.writeBack.index : -1;
+                                if (userInjectIndex >= 0 && options.injects[userInjectIndex]) {
+                                    options.injects[userInjectIndex].content = result.writeBack.value;
+                                }
+                                else {
+                                    options.user_input = result.writeBack.value;
+                                }
                             }
                             else if (result.writeBack.target === 'prompt') {
                                 options.prompt = result.writeBack.value;

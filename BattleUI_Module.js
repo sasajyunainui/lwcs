@@ -693,6 +693,7 @@ class BattleUIComponent {
 
       const participants = fullCombatData?.参战者;
       if (!participants) return ops;
+      if (options.skipParticipantSync === true) return ops;
 
       pushParticipantSyncPatch(ops, participants.player, options);
       pushParticipantSyncPatch(ops, participants.enemy, options);
@@ -714,6 +715,7 @@ class BattleUIComponent {
       const safeCombatData = compactCombatDataForPersistence(combatData);
       const patchOps = buildCombatJsonPatch(combatData, {
         syncHpRecoveryOnly: options.syncHpRecoveryOnly !== false,
+        skipParticipantSync: options.skipParticipantSync === true,
       });
       if (Array.isArray(options.extraPatchOps)) {
         patchOps.push(...options.extraPatchOps);
@@ -5176,32 +5178,26 @@ class BattleUIComponent {
         const mvuUpdate =
           window.BattleUIBridge?.persistCombatData?.(combatData, {
             analysis:
-              'Frontend battle arbitration already produced the exact combat result. Apply the following JSONPatch exactly as given.',
+              'Frontend battle arbitration updates deterministic battle state changes (resource consumption, equipment/domain toggles, ongoing status effects, sustain effects, charging state and battle context), but does not directly settle final HP, survival or the final裁断结果. Let the plot continuation decide the terminal landing.',
             extraPatchOps,
-            syncHpRecoveryOnly: true,
+            syncHpRecoveryOnly: false,
           }) || null;
 
-        const defenderFlags = getCombatTargetSpeciesFlags(defender);
-        const defenderPromptStats = defender?.属性 && typeof defender.属性 === 'object' ? defender.属性 : defender || {};
-        const defenderPromptTier = String(defenderPromptStats?.talent_tier || defender?.talent_tier || '炮灰');
-        const defenderPromptAge = Math.max(0, Number(defenderPromptStats?.age || defenderPromptStats?.年龄 || defender?.age || defender?.年龄 || 0));
-        let systemPrompt = `[前端暗箱演算完毕][${modeLabel}] 共进行 ${roundCount} 回合。\n战报：\n${battleLog.join('\n')}\n请严格根据战报描写画面！`;
-        systemPrompt += `\n\n[前端战果类型]\n${battleOutcome.type}\n[前端战果说明]\n${battleOutcome.label}\n[战斗意图]\n${combatData.战斗意图}\n[前端建议结果]\n${combatData.前端建议结果}\n[建议终点HP区间]\n${combatData.建议终点HP区间}\n[前端推荐终点HP]\n${combatData.前端推荐终点HP}\n[预计HP伤害]\n${combatData.预计HP伤害}\n[裁断约束]\n可致死：${combatData.裁断约束?.可致死 ? '是' : '否'}；可外界介入：${combatData.裁断约束?.可外界介入 ? '是' : '否'}；关系收手系数：${combatData.裁断约束?.关系收手系数}；场地安全系数：${combatData.裁断约束?.场地安全系数}；实力差距系数：${combatData.裁断约束?.实力差距系数}；绝境失手系数：${combatData.裁断约束?.绝境失手系数}；失手等级：${combatData.裁断约束?.失手等级}\n前端不会直接判定正式死亡。若战果只是击倒/制服/濒死压制，则不得自行写死；只有在符合战斗意图与剧情裁断时，才允许把目标写为死亡。\n请按正常 MVU 变量维护写入：/char/${defender.name}/属性/HP、/char/${defender.name}/状态/存活、/char/${defender.name}/状态/受伤部位，并在 /world/战斗/裁断结果 中写一个简短结论（继续交锋/点到为止/生擒制服/重伤压制/外界中断/强制撤离/致死确认）。治疗或恢复类结算已由前端直接处理，不需要你重复写治疗回复。`;
-        if (defenderFlags.isAbyss) {
-          systemPrompt += `\n若你最终确认【${defender.name}】已正式死亡，再额外写入：/char/${attacker.name}/深渊击杀请求 = {"击杀级别":"${defenderPromptTier}","数量":1}。`;
-        } else if (defenderFlags.isBeast) {
-          systemPrompt += `\n若你最终确认【${defender.name}】已正式死亡，再额外写入：/char/${attacker.name}/猎魂请求 = {"击杀年限":${defenderPromptAge},"是否凶兽":${defenderPromptAge >= 100000 ? 'true' : 'false'}}。`;
-        }
+        let systemPrompt = `<moduleSettlement>\n[battle_arbitration] 前端战斗模块已经完成本轮结算。正文只承接本次战报与结算结果，不要重新开启战斗模块，不要输出 <moduleIntent>、<UpdateVariable>、JSON、最小战斗种子或任何模块接管说明。\n</moduleSettlement>\n\n[前端暗箱演算完毕][${modeLabel}] 共进行 ${roundCount} 回合。\n战报：\n${battleLog.join('\n')}\n请严格根据战报描写画面！`;
+        systemPrompt += `\n\n[前端战果类型]\n${battleOutcome.type}\n[前端战果说明]\n${battleOutcome.label}\n[战斗意图]\n${combatData.战斗意图}\n[前端建议结果]\n${combatData.前端建议结果}\n[建议终点HP区间]\n${combatData.建议终点HP区间}\n[前端推荐终点HP]\n${combatData.前端推荐终点HP}\n[预计HP伤害]\n${combatData.预计HP伤害}\n[裁断约束]\n可致死：${combatData.裁断约束?.可致死 ? '是' : '否'}；可外界介入：${combatData.裁断约束?.可外界介入 ? '是' : '否'}；关系收手系数：${combatData.裁断约束?.关系收手系数}；场地安全系数：${combatData.裁断约束?.场地安全系数}；实力差距系数：${combatData.裁断约束?.实力差距系数}；绝境失手系数：${combatData.裁断约束?.绝境失手系数}；失手等级：${combatData.裁断约束?.失手等级}\n前端只提供战报、约束与建议，不直接决定本轮是否结束战斗，也不直接落定双方最终HP/存活。请你根据战报、战斗意图、前端建议结果与建议终点HP区间，自行判断：1. 本轮是否结束战斗；2. 双方各自还剩多少HP；3. 是否产生击倒/制服/濒死压制/外界中断/强制撤离/致死确认。\n请按正常 MVU 变量维护写入你最终认可的结果：/char/${attacker.name}/属性/HP、/char/${attacker.name}/状态/存活、/char/${defender.name}/属性/HP、/char/${defender.name}/状态/存活、/char/${defender.name}/状态/受伤部位；若战斗应继续，保留 /world/战斗/进行中 = true；若战斗应结束，再写入 /world/战斗/裁断结果 并将 /world/战斗/进行中 设为 false。`;
         sendToAI(visiblePlayerInput || String(playerInput || '战斗行动').split('\n')[0] || '战斗行动', systemPrompt, {
           mvuUpdate,
           requestKind: 'battle_arbitration',
         });
       }
 
-      root.BattleUIBridge = Object.assign(root.BattleUIBridge || {}, {
+        root.BattleUIBridge = Object.assign(root.BattleUIBridge || {}, {
         __executePlayerBattleIntentImpl(playerInput, options = {}) {
           const battleMode = options.mode === 'multi_round' ? 'multi_round' : 'single_round';
-          onPlayerAttack(String(playerInput || ''), { mode: battleMode });
+          onPlayerAttack(String(playerInput || ''), {
+            mode: battleMode,
+            intentMode: options.intentMode,
+          });
           return {
             intentText: String(playerInput || ''),
             mode: 'engine_arbitrated',
@@ -8102,6 +8098,41 @@ class BattleUIComponent {
         // ==========================================
         // 📍 6. 辅助区：意图解析与NPC决策 (真实读取版)
         // ==========================================
+        function parseSerializedPlayerActionQueue(playerInput) {
+          const source = String(playerInput || '');
+          const match = source.match(/\[动作队列\]([\s\S]*?)\[\/动作队列\]/i);
+          if (!match) return [];
+          try {
+            const parsed = JSON.parse(match[1]);
+            return Array.isArray(parsed) ? parsed.filter(item => item && typeof item === 'object') : [];
+          } catch (error) {
+            console.warn('battle action queue parse failed', error);
+            return [];
+          }
+        }
+
+        function buildPlayerActionFromSerializedEntry(entry) {
+          if (!entry || typeof entry !== 'object') return null;
+          const actionType = String(entry.action_type || entry.type || entry.skill?.技能类型 || '常规攻击').trim() || '常规攻击';
+          const rawSkill = entry.skill && typeof entry.skill === 'object' ? entry.skill : { name: actionType };
+          const skillName = String(
+            rawSkill.魂技名 || rawSkill.name || rawSkill.技能名称 || actionType,
+          ).trim() || actionType;
+          const nextAction = {
+            action_type: actionType,
+            cast_time: Number(entry.cast_time ?? rawSkill.cast_time ?? 10) || 10,
+            is_charged: entry.is_charged === true,
+            skill: normalizeSkillData(rawSkill, skillName),
+          };
+          if (entry.equip_target) nextAction.equip_target = String(entry.equip_target || '').trim();
+          if (entry.heal_ratio !== undefined) nextAction.heal_ratio = Number(entry.heal_ratio || 0) || 0;
+          if (Array.isArray(entry.fusionElements)) {
+            nextAction.fusionElements = normalizeBattleSkillAttributeTokens(entry.fusionElements);
+          }
+          if (entry.fusionPattern) nextAction.fusionPattern = String(entry.fusionPattern || '').trim();
+          return nextAction;
+        }
+
         function parsePlayerIntent(playerInput) {
           let combatData = window.BattleUIBridge?.getMVU('world.战斗');
           hydrateCombatData(combatData);
@@ -8128,6 +8159,36 @@ class BattleUIComponent {
             ),
           };
           if (!charData) return action;
+
+          const serializedQueue = parseSerializedPlayerActionQueue(playerInput);
+          if (serializedQueue.length) {
+            const queueActions = serializedQueue.map(buildPlayerActionFromSerializedEntry).filter(Boolean);
+            if (queueActions.length) {
+              const mainAction = queueActions[queueActions.length - 1];
+              const preActions = queueActions.slice(0, -1);
+              if (preActions.length) mainAction.pre_actions = preActions;
+              return mainAction;
+            }
+          }
+
+          if (/防御/.test(playerInput) && !/普通攻击|攻击|伤害/.test(playerInput)) {
+            action.action_type = '防御';
+            action.cast_time = 10;
+            action.skill = normalizeSkillData({ name: '防御', 技能类型: '防御', 消耗: '无', cast_time: 10 }, '防御');
+            return action;
+          }
+          if (/闪避/.test(playerInput)) {
+            action.action_type = '闪避';
+            action.cast_time = 12;
+            action.skill = normalizeSkillData({ name: '闪避', 技能类型: '防御', 消耗: '体力', cast_time: 12 }, '闪避');
+            return action;
+          }
+          if (/撤离|逃跑|逃走|脱离/.test(playerInput)) {
+            action.action_type = '撤离';
+            action.cast_time = 20;
+            action.skill = normalizeSkillData({ name: '撤离', 技能类型: '辅助', 消耗: '无', cast_time: 20 }, '撤离');
+            return action;
+          }
 
           let matchedSkill = null;
           let matchedSkillName = '';

@@ -128,20 +128,44 @@
   function ensureGetAllVariablesShim() {
     if (hostWin.getAllVariables) return;
 
+    const buildMessageIdCandidates = (depth = 24) => {
+      const ids = ['latest'];
+      for (let index = 1; index <= Math.max(1, depth); index += 1) ids.push(-index);
+      return ids;
+    };
+
+    const hasLikelyRootData = (data) => {
+      if (!data || typeof data !== 'object') return false;
+      const statData = data.stat_data && typeof data.stat_data === 'object' ? data.stat_data : data;
+      return !!(statData && typeof statData === 'object' && (statData.char || statData.world || statData.sys || statData.org || statData.map));
+    };
+
+    const scanRecentMessageData = async (reader) => {
+      if (typeof reader !== 'function') return null;
+      let fallback = null;
+      for (const messageId of buildMessageIdCandidates()) {
+        try {
+          const data = await Promise.resolve(reader(messageId));
+          if (!data || typeof data !== 'object') continue;
+          if (!fallback) fallback = data;
+          if (hasLikelyRootData(data)) return data;
+        } catch (err) {}
+      }
+      return fallback;
+    };
+
     hostWin.getAllVariables = async function () {
       try {
         const mvu = hostWin.Mvu || window.Mvu;
         if (mvu && typeof mvu.getMvuData === 'function') {
-          const data = await Promise.resolve(mvu.getMvuData({ type: 'message', message_id: 'latest' }));
-          if (data && data.stat_data) return data;
+          const data = await scanRecentMessageData(messageId => mvu.getMvuData({ type: 'message', message_id: messageId }));
           if (data) return data;
         }
       } catch (err) {}
 
       try {
         if (hostWin.TavernHelper && typeof hostWin.TavernHelper.getVariables === 'function') {
-          const latest = await Promise.resolve(hostWin.TavernHelper.getVariables({ type: 'message', message_id: 'latest' }));
-          if (latest && latest.stat_data) return latest;
+          const latest = await scanRecentMessageData(messageId => hostWin.TavernHelper.getVariables({ type: 'message', message_id: messageId }));
           return latest || null;
         }
       } catch (err) {}

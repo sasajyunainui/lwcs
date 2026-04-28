@@ -4616,6 +4616,16 @@ export const TimelineEvents = {
       总步骤数: 1,
       当前步骤: 1,
       前置事件: 'event_arrive_mingdu',
+      后续事件: 'event_clt_wannian',
+    },
+    {
+      Flag: 'event_clt_wannian',
+      Tick: 814960,
+      事件名: '万年魂灵研制成功',
+      描述: '传灵塔成功研制出人造千年与万年魂灵，大幅降低高阶魂灵价格，进一步巩固其大陆第一势力的地位。',
+      总步骤数: 1,
+      当前步骤: 1,
+      前置事件: 'event_tangmen_info',
       后续事件: 'event_forge_money',
     },
     {
@@ -4625,7 +4635,7 @@ export const TimelineEvents = {
       描述: '唐舞麟在锻造师协会完成三件魂锻任务筹集资金，并借灵域境精神力摸到八级圣匠门槛。',
       总步骤数: 1,
       当前步骤: 1,
-      前置事件: 'event_tangmen_info',
+      前置事件: 'event_clt_wannian',
       后续事件: 'event_meet_shenxing',
     },
     {

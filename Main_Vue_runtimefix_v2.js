@@ -692,8 +692,8 @@ function applyLayoutBodyClasses() {
   const body = document.body;
   if (!body) return;
   const unifiedMount = document.getElementById('mvu-unified-mount');
-  if (unifiedMount && mvuLayoutState.unifiedAnchorReady && unifiedMount.dataset?.mvuBooting) {
-    delete unifiedMount.dataset.mvuBooting;
+  if (unifiedMount && mvuLayoutState.unifiedAnchorReady && unifiedMount.hasAttribute('data-mvu-booting')) {
+    unifiedMount.removeAttribute('data-mvu-booting');
   }
   const shellSurfaceMode = isShellSurfaceMode();
   body.classList.toggle('mvu-unified-mount-ready', !!mvuLayoutState.unifiedAnchorReady);
@@ -899,7 +899,18 @@ function createUnifiedAnchorManager(options = {}) {
   let rafToken = 0;
   let lastReadyState = null;
 
+  function hasStableUnifiedMountContent() {
+    const mountEl = document.getElementById(mountId);
+    if (!mountEl || !mountEl.isConnected) return false;
+    if (mountEl.__mvuVueMounted) return true;
+    if (mountEl.children && mountEl.children.length > 0) return true;
+    return false;
+  }
+
   function setReadyState(nextReady) {
+    if (!nextReady && lastReadyState === true && hasStableUnifiedMountContent()) {
+      return;
+    }
     if (lastReadyState === nextReady) return;
     lastReadyState = nextReady;
     onReadyChange(nextReady);
@@ -1018,7 +1029,6 @@ function createUnifiedAnchorManager(options = {}) {
       cancelAnimationFrame(rafToken);
       rafToken = 0;
     }
-    setReadyState(false);
   }
 
   return {
@@ -2136,6 +2146,62 @@ const DesktopUnifiedLayout = {
     const detailHostRef = ref(null);
     const detailState = mvuUnifiedDetailState;
     const detailTitle = computed(() => resolveShellPreviewTitle(detailState.previewKey, activeMeta.value.title));
+    let removeDetailWheelBridge = null;
+    const isVerticallyScrollable = element => {
+      if (!(element instanceof HTMLElement)) return false;
+      try {
+        const style = window.getComputedStyle(element);
+        const overflowY = style ? style.overflowY : '';
+        return (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay')
+          && element.scrollHeight > element.clientHeight + 2;
+      } catch (err) {
+        return false;
+      }
+    };
+    const findInnerScrollableForWheel = target => {
+      const host = detailHostRef.value;
+      let current = target instanceof HTMLElement ? target : host;
+      while (current && current instanceof HTMLElement) {
+        if (current === host) break;
+        if (isVerticallyScrollable(current)) return current;
+        current = current.parentElement;
+      }
+      return isVerticallyScrollable(host) ? host : null;
+    };
+    const getChatScrollTarget = () => {
+      const chat = document.getElementById('chat');
+      return chat instanceof HTMLElement ? chat : null;
+    };
+    const handleUnifiedDetailWheel = event => {
+      if (!(event instanceof WheelEvent) || event.ctrlKey) return;
+      const host = detailHostRef.value;
+      if (!(host instanceof HTMLElement) || !host.isConnected) return;
+      const deltaY = Number(event.deltaY || 0);
+      if (!Number.isFinite(deltaY) || Math.abs(deltaY) < 1 || Math.abs(deltaY) < Math.abs(Number(event.deltaX || 0))) return;
+      const scrollable = findInnerScrollableForWheel(event.target);
+      if (!scrollable) return;
+      const maxScrollTop = Math.max(0, scrollable.scrollHeight - scrollable.clientHeight);
+      const currentTop = Number(scrollable.scrollTop || 0);
+      const canScrollUp = currentTop > 1;
+      const canScrollDown = currentTop < maxScrollTop - 1;
+      if ((deltaY < 0 && canScrollUp) || (deltaY > 0 && canScrollDown)) return;
+      const chat = getChatScrollTarget();
+      if (!chat || chat.scrollHeight <= chat.clientHeight + 2) return;
+      event.preventDefault();
+      chat.scrollTop += deltaY;
+    };
+    const bindDetailWheelBridge = () => {
+      if (typeof removeDetailWheelBridge === 'function') {
+        removeDetailWheelBridge();
+        removeDetailWheelBridge = null;
+      }
+      const host = detailHostRef.value;
+      if (!(host instanceof HTMLElement)) return;
+      host.addEventListener('wheel', handleUnifiedDetailWheel, { passive: false });
+      removeDetailWheelBridge = () => {
+        host.removeEventListener('wheel', handleUnifiedDetailWheel, { passive: false });
+      };
+    };
     const getDetailScrollTarget = () => {
       let current = detailHostRef.value ? detailHostRef.value.closest('.mvu-unified-frame') : document.getElementById('mvu-unified-mount');
       while (current && current !== document.body) {
@@ -2292,6 +2358,7 @@ const DesktopUnifiedLayout = {
       window.__MVU_CLOSE_UNIFIED_PREVIEW__ = closeUnifiedDetail;
       window.__MVU_GET_UNIFIED_DETAIL_HOST__ = () => detailHostRef.value;
       window.addEventListener('resize', scheduleUnifiedFrameViewportSync);
+      bindDetailWheelBridge();
       scheduleUnifiedFrameViewportSync();
       if (mvuTabState.current === 'page-map') {
         requestMapSurfaceSync();
@@ -2302,6 +2369,10 @@ const DesktopUnifiedLayout = {
     });
     onUnmounted(() => {
       window.removeEventListener('resize', scheduleUnifiedFrameViewportSync);
+      if (typeof removeDetailWheelBridge === 'function') {
+        removeDetailWheelBridge();
+        removeDetailWheelBridge = null;
+      }
       if (window.__MVU_OPEN_UNIFIED_PREVIEW__ === openUnifiedPreview) delete window.__MVU_OPEN_UNIFIED_PREVIEW__;
       if (window.__MVU_CLOSE_UNIFIED_PREVIEW__ === closeUnifiedDetail) delete window.__MVU_CLOSE_UNIFIED_PREVIEW__;
       if (typeof window.__MVU_GET_UNIFIED_DETAIL_HOST__ === 'function' && window.__MVU_GET_UNIFIED_DETAIL_HOST__() === detailHostRef.value) {
@@ -2457,8 +2528,8 @@ function mountMvuVue() {
   refreshViewportState();
   syncLayoutMode();
   const finishUnifiedBootstrap = () => {
-    if (unifiedMount && unifiedMount.dataset) {
-      delete unifiedMount.dataset.mvuBooting;
+    if (unifiedMount && unifiedMount.hasAttribute('data-mvu-booting')) {
+      unifiedMount.removeAttribute('data-mvu-booting');
     }
   };
   if (typeof window.requestAnimationFrame === 'function') {
@@ -2466,6 +2537,8 @@ function mountMvuVue() {
   } else {
     window.setTimeout(finishUnifiedBootstrap, 32);
   }
+  window.setTimeout(finishUnifiedBootstrap, 160);
+  window.setTimeout(finishUnifiedBootstrap, 640);
   if (typeof window.__MVU_SYNC_DETAIL_MODAL_HOST__ === 'function') {
     try { window.__MVU_SYNC_DETAIL_MODAL_HOST__(); } catch (err) {}
   }
