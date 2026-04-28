@@ -8822,6 +8822,7 @@
       const typeMetric = shortenText(toText(stat.系别, '未定'), 8);
       const factionJoined = primaryFactionName !== '未加入';
       const nextLevelNeeded = Math.max(0, toNumber(nextLevelSoul && nextLevelSoul.needed, 0));
+      const hpPair = getDisplayHpPair(stat);
       const woundText = getDisplayWoundLabel(stat);
       const injurySummary = buildInjurySummaryText(status, { limit: 2, empty: '无' });
       const statusSummary = !woundText || /^(无)$/i.test(woundText)
@@ -9601,6 +9602,8 @@
       const stat = deepGet(snapshot, 'activeChar.属性', {});
       const status = deepGet(snapshot, 'activeChar.状态', {});
       const social = deepGet(snapshot, 'activeChar.社交', {});
+      const hpPair = getDisplayHpPair(stat);
+      const woundLabel = getDisplayWoundLabel(stat);
       const placeText = buildShellLocationLabel(snapshot, { fullLimit: 24, trailLimit: 10 });
       return {
         title: '详细档案',
@@ -9614,8 +9617,27 @@
               ${buildShellLiteStats([
                 { label: '等级', value: formatCultivationLevelBadge(stat.等级, '0') },
                 { label: '状态', value: shortenText(toText(status.行动, '日常'), 10) },
-                { label: '年龄', value: toText(stat.年龄, '--') },
+                { label: '伤势', value: woundLabel },
+                { label: '年龄 / 性别', value: `${toText(stat.年龄, '--')} / ${toText(stat.性别, '未知')}` },
               ])}
+            </section>
+            <section class="mvu-shell-lite-card">
+              <div class="mvu-shell-lite-section-title">资源</div>
+              ${buildShellLiteStats([
+                { label: 'HP', value: `${formatNumber(hpPair.hp)} / ${formatNumber(hpPair.hpMax)}` },
+                { label: '体力', value: `${formatNumber(stat.体力)} / ${formatNumber(stat.体力上限)}` },
+                { label: '魂力', value: `${formatNumber(stat.魂力)} / ${formatNumber(stat.魂力上限)}` },
+                { label: '精神', value: `${formatNumber(stat.精神力)} / ${formatNumber(stat.精神力上限)}` },
+              ], { className: 'mvu-shell-lite-grid--two' })}
+            </section>
+            <section class="mvu-shell-lite-card">
+              <div class="mvu-shell-lite-section-title">属性</div>
+              ${buildShellLiteStats([
+                { label: '力量', value: formatNumber(stat.力量) },
+                { label: '防御', value: formatNumber(stat.防御) },
+                { label: '敏捷', value: formatNumber(stat.敏捷) },
+                { label: '精神境界', value: toText(stat.精神境界, '灵元境') },
+              ], { className: 'mvu-shell-lite-grid--two' })}
             </section>
             <section class="mvu-shell-lite-card">
               <div class="mvu-shell-lite-section-title">摘要</div>

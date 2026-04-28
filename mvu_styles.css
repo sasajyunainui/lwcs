@@ -2637,6 +2637,29 @@
       min-height: 132px;
     }
 
+    .split-shell-left .split-page > .hero-card,
+    .split-shell-left .split-page > .stack-3 {
+      height: auto;
+      min-height: 0;
+      overflow: visible;
+    }
+
+    .split-shell-left .mvu-panel.core-card .stats-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 12px;
+    }
+
+    .split-shell-left .mvu-panel.core-card .stat-item {
+      min-height: 0;
+    }
+
+    .split-shell-left .mvu-panel.core-card .stat-value {
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+      line-height: 1.35;
+    }
+
     .split-shell-left .dual-spirit-strip,
     .split-shell-left .secondary-track {
       min-height: 108px;
@@ -7286,6 +7309,8 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-page {
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host {
   min-width: 0;
+  height: var(--mvu-unified-detail-max-height, min(68svh, 760px));
+  min-height: var(--mvu-unified-detail-max-height, min(68svh, 760px));
   max-height: var(--mvu-unified-detail-max-height, min(68svh, 760px));
   overflow-x: hidden;
   overflow-y: auto;
@@ -7298,6 +7323,7 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-root,
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-scroll {
   display: grid;
   min-width: 0;
+  min-height: 100%;
   gap: 12px;
 }
 
@@ -7387,6 +7413,8 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .status-row 
 
 @media (max-width: 720px) {
   body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host {
+    height: var(--mvu-unified-detail-max-height, min(68svh, 720px));
+    min-height: var(--mvu-unified-detail-max-height, min(68svh, 720px));
     max-height: var(--mvu-unified-detail-max-height, min(68svh, 720px));
   }
 
@@ -13240,6 +13268,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-app-live:empty {
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card--hero {
   min-height: 0;
+  overflow: visible;
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card--spotlight {
@@ -13979,6 +14008,14 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-summary--hero {
   gap: 8px;
 }
 
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card--hero .mvu-shell-summary.has-value .mvu-shell-card-top {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-card--hero .mvu-shell-value {
+  justify-self: start;
+}
+
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-summary--compact {
   gap: 6px;
 }
@@ -14112,6 +14149,10 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-metric-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-summary--hero .mvu-shell-metric-grid {
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-metric {
@@ -14666,6 +14707,10 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 7px;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .mvu-shell-lite-grid.mvu-shell-lite-grid--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .mvu-shell-lite-stat,

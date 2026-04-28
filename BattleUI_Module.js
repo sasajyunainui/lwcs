@@ -4867,9 +4867,7 @@ class BattleUIComponent {
 
             const npcSkillType = getSkillType(npcAction.skill);
             if (npcAction.type === '危机自保' && npcSkillType === '控制' && getSkillCastTime(npcAction.skill) < 10) {
-              let pMult = getWoundMult(attacker);
-              let dMult = getWoundMult(defender);
-              if (defender.men_max > attacker.men_max || defender.agi * dMult > attacker.agi * pMult) {
+              if (defender.men_max > attacker.men_max || defender.agi > attacker.agi) {
                 if (hasSuperArmor) {
                   roundLog += ` NPC释放[${npcAction.skill.name}]试图打断，但玩家处于霸体状态，强行免疫了控制！`;
                 } else {
@@ -5852,23 +5850,9 @@ class BattleUIComponent {
       }
 
       // ==========================================
-      // 📍 疲劳折损计算
-      // ==========================================
-      function getWoundMult(char) {
-        let ratio = getCombatStaminaRatio(char);
-        if (ratio > 0.5) return 1.0;
-        if (ratio > 0.3) return 0.9;
-        if (ratio > 0.1) return 0.7;
-        return 0.5;
-      }
-
-      // ==========================================
       // 📍 核心结算区：动作博弈与交锋
       // ==========================================
       function calculateReactionRatio(attacker, defender, playerAction, combatData) {
-        let pMult = getWoundMult(attacker);
-        let dMult = getWoundMult(defender);
-
         const atkCombat = attacker?.状态效果
           ? Object.values(attacker.状态效果).map(c => c?.战斗效果 || {})
           : [];
@@ -5880,10 +5864,10 @@ class BattleUIComponent {
           0.9,
           Math.max(0, playerAction.cast_time / 100 - totalCastSpeedBonus + totalCastSpeedPenalty),
         );
-        let attackerSpeed = attacker.agi * pMult * (1 - castPenalty) + totalAtkSpeedBonus;
+        let attackerSpeed = attacker.agi * (1 - castPenalty) + totalAtkSpeedBonus;
 
         let defenderReaction =
-          defender.agi * dMult * (defender.temp_agi_mult || 1.0) +
+          defender.agi * (defender.temp_agi_mult || 1.0) +
           defender.men_max +
           (defender.temp_reaction_bonus || 0) -
           (defender.temp_reaction_penalty || 0);
@@ -6028,13 +6012,11 @@ class BattleUIComponent {
           pState,
         );
 
-        let pMult = getWoundMult(attacker);
-        let dMult = getWoundMult(defender);
-        let aStr = attackerFinalStat.str * pMult;
-        let aAgi = attackerFinalStat.agi * pMult;
-        let dStr = defenderFinalStat.str * dMult;
-        let dDef = defenderFinalStat.def * dMult;
-        let dAgi = defenderFinalStat.agi * dMult;
+        let aStr = attackerFinalStat.str;
+        let aAgi = attackerFinalStat.agi;
+        let dStr = defenderFinalStat.str;
+        let dDef = defenderFinalStat.def;
+        let dAgi = defenderFinalStat.agi;
 
         let hasSuperArmor = false;
         if (attacker.状态效果) {
@@ -7032,13 +7014,11 @@ class BattleUIComponent {
           activeBuffs,
           isLowHealth,
         ) {
-          const pMult = getWoundMult(attacker);
-          const dMult = getWoundMult(defender);
-          const attackerSpeed = attacker.agi * pMult - (playerAction.cast_time || 0) * 10;
+          const attackerSpeed = attacker.agi - (playerAction.cast_time || 0) * 10;
           const isChargingHighThreat = !!behaviorState?.isChargingHighThreat;
           const validSkills = availableSkills.filter(skill => {
             const castTime = getSkillCastTime(skill);
-            const npcSpeed = defender.agi * dMult - castTime * 10;
+            const npcSpeed = defender.agi - castTime * 10;
             const cost = parseSkillCostForChar(skill, defender);
             return cost.canCast && npcSpeed > Math.max(1, attackerSpeed) * 0.8;
           });
@@ -8272,8 +8252,8 @@ class BattleUIComponent {
             let pB = typePriority[b.char.type] || 4;
             if (pA !== pB) return pA - pB;
 
-            let agiA = a.char.agi * getWoundMult(a.char);
-            let agiB = b.char.agi * getWoundMult(b.char);
+            let agiA = a.char.agi;
+            let agiB = b.char.agi;
             return agiB - agiA;
           });
 

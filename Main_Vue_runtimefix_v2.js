@@ -1249,8 +1249,19 @@ const RightPanel = {
     const toggleSettings = () => {
       settingsOpen.value = !settingsOpen.value;
     };
+    const applyDesktopLayoutSelection = mode => {
+      const nextMode = String(mode || '').trim();
+      const result = setDesktopMode(nextMode);
+      if (!mvuLayoutState.isMobileViewport && nextMode !== 'shell') {
+        mvuLayoutState.surfaceMode = 'panel';
+        mvuLayoutState.mobileShellOpen = false;
+        syncLayoutMode();
+        closeShellSurface();
+      }
+      return result;
+    };
     const setLayoutByPanel = mode => {
-      setDesktopMode(mode);
+      applyDesktopLayoutSelection(mode);
       settingsOpen.value = false;
     };
     return {
@@ -1826,7 +1837,7 @@ const SurfaceLauncherShellLayout = {
     };
     const selectLauncherMode = mode => {
       closeLauncherMenu();
-      setDesktopMode(mode);
+      applyDesktopLayoutSelection(mode);
     };
 
     const handleWindowPointerDown = event => {

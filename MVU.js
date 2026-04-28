@@ -3624,6 +3624,16 @@ function getComputedWoundRecoveryRatioFromStat(stat = {}) {
   return 1.0;
 }
 
+function getComputedFatiguePenaltyMultiplierFromStat(stat = {}) {
+  const vitMax = Math.max(1, Number(stat?.体力上限 || 1));
+  const vit = Math.max(0, Math.min(vitMax, Number(stat?.体力 || 0)));
+  const ratio = vit / vitMax;
+  if (ratio > 0.5) return 1.0;
+  if (ratio > 0.3) return 0.9;
+  if (ratio > 0.1) return 0.7;
+  return 0.5;
+}
+
 const GOLDEN_DRAGON_PERMANENT_BONUS_NODES = {
   7: {
     名称: '【第七层·体魄升华I】',
@@ -6492,8 +6502,6 @@ const StatsSchema = z
       .describe('背景阶层标签：顶级势力/一流势力/普通势力/平民'),
     邪魂师: z.boolean().prefault(false).describe('是否为邪魂师'),
     底子波动: z.coerce.number().prefault(0).describe('先天底子波动值'),
-    先天魂力: z.coerce.number().prefault(0).describe('先天魂力'),
-    天赋检定: z.coerce.number().prefault(0).describe('天赋检定最终得分(D100+补正)'),
 
     魂力: z.coerce.number().prefault(10).describe('当前魂力'),
     魂力上限: z.coerce.number().prefault(10).describe('魂力上限'),
@@ -6508,17 +6516,6 @@ const StatsSchema = z
     HP上限: z.coerce.number().prefault(-1).describe('生命值上限'),
     体力: z.coerce.number().prefault(10).describe('当前体力'),
     体力上限: z.coerce.number().prefault(10).describe('体力上限'),
-
-    倍率系数: z
-      .object({
-        修炼: z.coerce.number().prefault(1.0).describe('修炼系数'),
-        力量: z.coerce.number().prefault(1.0),
-        防御: z.coerce.number().prefault(1.0),
-        敏捷: z.coerce.number().prefault(1.0),
-        体力上限: z.coerce.number().prefault(1.0),
-        精神力上限: z.coerce.number().prefault(1.0),
-      })
-      .prefault({}),
 
     训练加成: z
       .object({
@@ -7750,15 +7747,11 @@ const CharacterSchema = z
       else if (char.属性.背景 === '平民') bgBonus = 0;
 
       const currentTier = String(char.属性.天赋梯队 || '').trim();
-      const hasPresetTalent =
-        Number(char.属性.天赋检定 || 0) > 0 ||
-        Number(char.属性.先天魂力 || 0) > 0 ||
-        (currentTier && currentTier !== '正常');
+      const hasPresetTalent = !!(currentTier && currentTier !== '正常');
 
       if (!hasPresetTalent) {
         let roll = Math.floor(Math.random() * 100) + 1;
         let totalScore = roll + bgBonus;
-        char.属性.天赋检定 = totalScore;
 
         let tier = '正常';
         let innate = 3;
@@ -7810,7 +7803,6 @@ const CharacterSchema = z
         }
 
         char.属性.天赋梯队 = tier;
-        char.属性.先天魂力 = innate;
 
         if (char.属性.等级 === 1 && char.属性.年龄 > 6) {
           let calculatedLv = Math.floor(innate + (char.属性.年龄 - 6) * factor);
@@ -8315,18 +8307,6 @@ const CharacterSchema = z
       final_sp_max + (wpnBonus.魂力上限 || 0) + (armorBonus.魂力上限 || 0) + (mechBonus.魂力上限 || 0),
     );
     normalizeStatHpFields(char.属性);
-    if (char.属性.魂力 <= 10 && char.属性.体力 <= 10) {
-      let ratio = getComputedWoundRecoveryRatioFromStat(char.属性);
-      char.属性.魂力 = Math.floor(char.属性.魂力上限 * ratio);
-      char.属性.体力 = Math.floor(char.属性.体力上限 * ratio);
-      char.属性.精神力 = Math.floor(char.属性.精神力上限 * ratio);
-      char.属性.HP = Math.max(0, Math.min(char.属性.HP上限, Math.floor(char.属性.HP上限 * ratio)));
-    } else {
-      char.属性.魂力 = Math.min(char.属性.魂力, char.属性.魂力上限);
-      char.属性.体力 = Math.min(char.属性.体力, char.属性.体力上限);
-      char.属性.精神力 = Math.min(char.属性.精神力, char.属性.精神力上限);
-      char.属性.HP = Math.min(char.属性.HP, char.属性.HP上限);
-    }
 
 
     let rep = char.社交.声望 || 0;
@@ -9813,7 +9793,19 @@ export const Schema = z
       return { age, color, cap, initProvideCap };
     }
 
+    const resourceStateBeforeRecalc = new Map();
+
     _(data.char).forEach((char, charName) => {
+      resourceStateBeforeRecalc.set(charName, {
+        魂力: Math.max(0, Number(char.属性?.魂力 || 0)),
+        魂力上限: Math.max(1, Number(char.属性?.魂力上限 || 1)),
+        精神力: Math.max(0, Number(char.属性?.精神力 || 0)),
+        精神力上限: Math.max(1, Number(char.属性?.精神力上限 || 1)),
+        体力: Math.max(0, Number(char.属性?.体力 || 0)),
+        体力上限: Math.max(1, Number(char.属性?.体力上限 || 1)),
+        HP: Math.max(0, Number(char.属性?.HP || 0)),
+        HP上限: Math.max(1, Number(char.属性?.HP上限 || char.属性?.体力上限 || 1)),
+      });
       let isBeast = isSoulBeastCharacter(char);
       let expectedRings = isBeast ? 0 : Math.floor(char.属性.等级 / 10);
       let currentRings = 0;
@@ -10195,7 +10187,7 @@ export const Schema = z
                 正常: 1.0,
                 劣等: 0.5,
               }[c.属性.天赋梯队] || 1.0;
-            let finalGrowth = baseGrowth * talentCultRate * (c.属性.倍率系数?.修炼 || 1.0);
+            let finalGrowth = baseGrowth * talentCultRate;
 
             if (c.功法?.['玄天功']) finalGrowth = Math.floor(finalGrowth * 1.1);
 
@@ -10223,7 +10215,7 @@ export const Schema = z
               }
             }
             if (actualCycles > 0) {
-              let gain = 0.05 * (c.属性.倍率系数?.修炼 || 1.0) * actualCycles;
+              let gain = 0.05 * actualCycles;
               addNumericStatBonusEntries(trainedBonus, {
                 力量: gain,
                 防御: gain,
@@ -10244,14 +10236,14 @@ export const Schema = z
               }
             }
             if (actualCycles > 0 && c.属性.年龄 <= 40) {
-              let gain = 0.02 * (c.属性.倍率系数?.修炼 || 1.0) * actualCycles;
+              let gain = 0.02 * actualCycles;
               if (c.功法?.['紫极魔瞳']) gain = Math.floor(gain * 1.1);
               addNumericStatBonusValue(trainedBonus, '精神力上限', gain);
             }
           } else {
             let daysPassed = Math.floor(delta / 144);
             if (daysPassed > 0) {
-              let passiveGain = 0.01 * (c.属性.倍率系数?.修炼 || 1.0) * daysPassed;
+              let passiveGain = 0.01 * daysPassed;
               addNumericStatBonusEntries(trainedBonus, {
                 力量: passiveGain,
                 防御: passiveGain,
@@ -10305,6 +10297,61 @@ export const Schema = z
 
     _(data.char).forEach((c, charName) => {
       const trainedBonus = ensureNumericStatBonusMap(c.属性, '训练加成');
+      const previousResourceSnapshot = resourceStateBeforeRecalc.get(charName) || {
+        魂力: Math.max(0, Number(c.属性?.魂力 || 0)),
+        魂力上限: Math.max(1, Number(c.属性?.魂力上限 || 1)),
+        精神力: Math.max(0, Number(c.属性?.精神力 || 0)),
+        精神力上限: Math.max(1, Number(c.属性?.精神力上限 || 1)),
+        体力: Math.max(0, Number(c.属性?.体力 || 0)),
+        体力上限: Math.max(1, Number(c.属性?.体力上限 || 1)),
+        HP: Math.max(0, Number(c.属性?.HP || 0)),
+        HP上限: Math.max(1, Number(c.属性?.HP上限 || c.属性?.体力上限 || 1)),
+      };
+      const previousResourceRatios = {
+        魂力: previousResourceSnapshot.魂力 / previousResourceSnapshot.魂力上限,
+        精神力: previousResourceSnapshot.精神力 / previousResourceSnapshot.精神力上限,
+        体力: previousResourceSnapshot.体力 / previousResourceSnapshot.体力上限,
+        HP: previousResourceSnapshot.HP / previousResourceSnapshot.HP上限,
+      };
+      const isDefaultSeededResourceState =
+        previousResourceSnapshot.魂力上限 <= 10 &&
+        previousResourceSnapshot.精神力上限 <= 10 &&
+        previousResourceSnapshot.体力上限 <= 10 &&
+        previousResourceSnapshot.HP上限 <= 10 &&
+        previousResourceRatios.魂力 >= 0.95 &&
+        previousResourceRatios.精神力 >= 0.95 &&
+        previousResourceRatios.体力 >= 0.95 &&
+        previousResourceRatios.HP >= 0.95;
+      const resourceRatioValues = Object.values(previousResourceRatios).filter(Number.isFinite);
+      const ratioSpread = resourceRatioValues.length
+        ? Math.max(...resourceRatioValues) - Math.min(...resourceRatioValues)
+        : 1;
+      const isKnownBuggedRecoveryRatio = [0.05, 0.3, 0.7].some(value =>
+        Math.abs(previousResourceRatios.HP - value) <= 0.001,
+      );
+      const actionText = String(c.状态?.行动 || '').trim();
+      const hasInjuryMarkers = Object.keys(c.状态?.受伤部位 || {}).length > 0;
+      const looksLikePlaceholderExhaustedPack =
+        previousResourceSnapshot.魂力 <= 10 &&
+        previousResourceSnapshot.精神力 <= 10 &&
+        previousResourceSnapshot.魂力上限 >= 1000 &&
+        previousResourceSnapshot.精神力上限 >= 1000 &&
+        previousResourceSnapshot.体力上限 >= 1000 &&
+        previousResourceSnapshot.HP上限 >= 1000 &&
+        previousResourceSnapshot.体力 <= 20 &&
+        previousResourceSnapshot.HP <= 20 &&
+        Math.abs(previousResourceSnapshot.体力 - previousResourceSnapshot.HP) <= 2 &&
+        !data.world?.战斗?.进行中 &&
+        actionText === '日常' &&
+        !hasInjuryMarkers;
+      const shouldResetBuggedInitializedResources =
+        Math.abs(previousResourceSnapshot.HP上限 - previousResourceSnapshot.体力上限) > 1 &&
+        !data.world?.战斗?.进行中 &&
+        actionText !== '战斗' &&
+        !hasInjuryMarkers &&
+        resourceRatioValues.length === 4 &&
+        ratioSpread <= 0.0015 &&
+        isKnownBuggedRecoveryRatio;
       if (c.私密档案) {
         const age = Number(c.属性?.年龄 || 0);
 
@@ -10522,9 +10569,20 @@ export const Schema = z
         }
       }
 
-      c.属性.体力 = Math.min(c.属性.体力, c.属性.体力上限);
-      c.属性.魂力 = Math.min(c.属性.魂力, c.属性.魂力上限);
-      c.属性.精神力 = Math.min(c.属性.精神力, c.属性.精神力上限);
+      c.属性.HP上限 = Math.max(1, Number(c.属性.体力上限 || c.属性.HP上限 || 1));
+      const resolvePreservedRatio = key => {
+        if (isDefaultSeededResourceState || shouldResetBuggedInitializedResources || looksLikePlaceholderExhaustedPack)
+          return 1.0;
+        return Math.max(0, Math.min(1, Number(previousResourceRatios[key] || 0)));
+      };
+      c.属性.魂力 = Math.max(0, Math.min(c.属性.魂力上限, Math.floor(c.属性.魂力上限 * resolvePreservedRatio('魂力'))));
+      c.属性.精神力 = Math.max(0, Math.min(c.属性.精神力上限, Math.floor(c.属性.精神力上限 * resolvePreservedRatio('精神力'))));
+      c.属性.体力 = Math.max(0, Math.min(c.属性.体力上限, Math.floor(c.属性.体力上限 * resolvePreservedRatio('体力'))));
+      c.属性.HP = Math.max(0, Math.min(c.属性.HP上限, Math.floor(c.属性.HP上限 * resolvePreservedRatio('HP'))));
+      const fatiguePenaltyMult = getComputedFatiguePenaltyMultiplierFromStat(c.属性);
+      c.属性.力量 = Math.max(1, Math.floor(c.属性.力量 * fatiguePenaltyMult));
+      c.属性.防御 = Math.max(1, Math.floor(c.属性.防御 * fatiguePenaltyMult));
+      c.属性.敏捷 = Math.max(1, Math.floor(c.属性.敏捷 * fatiguePenaltyMult));
     });
 
     _(data.char).forEach((c, charName) => {
@@ -11871,9 +11929,6 @@ export const Schema = z
           delete nextChar.属性.上次灵物等级;
           delete nextChar.属性.底子波动;
           delete nextChar.属性.天赋梯队;
-          delete nextChar.属性.先天魂力;
-          delete nextChar.属性.天赋检定;
-          delete nextChar.属性.倍率系数;
           delete nextChar.属性.训练加成;
           delete nextChar.属性.精神境界;
           delete nextChar.属性.魂力上限;
