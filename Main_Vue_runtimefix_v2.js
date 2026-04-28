@@ -691,7 +691,12 @@ function applyDesktopLayoutSelection(mode, options = {}) {
 function applyLayoutBodyClasses() {
   const body = document.body;
   if (!body) return;
+  const unifiedMount = document.getElementById('mvu-unified-mount');
+  if (unifiedMount && mvuLayoutState.unifiedAnchorReady && unifiedMount.dataset?.mvuBooting) {
+    delete unifiedMount.dataset.mvuBooting;
+  }
   const shellSurfaceMode = isShellSurfaceMode();
+  body.classList.toggle('mvu-unified-mount-ready', !!mvuLayoutState.unifiedAnchorReady);
   body.classList.toggle('mvu-layout-split', mvuLayoutState.effectiveMode === 'split');
   body.classList.toggle('mvu-layout-unified', mvuLayoutState.effectiveMode === 'unified');
   body.classList.toggle('mvu-mobile-viewport', !!mvuLayoutState.isMobileViewport);
@@ -1986,11 +1991,6 @@ const DesktopUnifiedLayout = {
               <strong class="mvu-unified-detail-title">{{ detailTitle }}</strong>
             </template>
             <template v-else>
-              <div class="mvu-unified-toolbar-copy">
-                <span class="mvu-unified-eyebrow">{{ activeMeta.eyebrow }}</span>
-                <strong class="mvu-unified-headline">{{ activeMeta.title }}</strong>
-                <span class="mvu-unified-subline">{{ activeMeta.desc }}</span>
-              </div>
               <div class="mvu-unified-toolbar-side">
                 <span class="mvu-unified-mode-badge">{{ modeBadge }}</span>
                 <div class="mvu-unified-layout-toggle" :class="{ locked: splitLocked }">
@@ -2036,29 +2036,10 @@ const DesktopUnifiedLayout = {
           <section class="mvu-unified-page" :class="{ active: tabState.current === 'page-archive' }" data-target="page-archive">
             <div class="mvu-unified-section-stack">
               <section class="mvu-unified-section">
-                <div class="mvu-unified-section-headline">
-                  <div class="mvu-unified-section-copy">
-                    <b class="mvu-unified-section-title">详细档案</b>
-                    <span class="mvu-unified-section-note">状态 / 修为 / 外观</span>
-                  </div>
-                  <div class="mvu-unified-chip-row">
-                    <button type="button" class="mvu-unified-chip clickable" data-preview="角色切换器">角色</button>
-                    <button type="button" class="mvu-unified-chip clickable" data-preview="生命图谱详细页">详细档案</button>
-                  </div>
-                </div>
                 <div class="mvu-unified-card mvu-unified-card--featured clickable" data-preview="生命图谱详细页" data-unified-card="archive-core" data-unified-surface="panel"></div>
               </section>
 
               <section class="mvu-unified-section">
-                <div class="mvu-unified-section-headline">
-                  <div class="mvu-unified-section-copy">
-                    <b class="mvu-unified-section-title">武魂与能力</b>
-                    <span class="mvu-unified-section-note">主武魂 / 第二武魂</span>
-                  </div>
-                  <div class="mvu-unified-chip-row">
-                    <button type="button" class="mvu-unified-chip clickable" data-preview="武魂融合技详细页">融合技</button>
-                  </div>
-                </div>
                 <div class="mvu-unified-grid mvu-unified-grid--two">
                   <div class="mvu-unified-card clickable" data-unified-card="primary-spirit" data-unified-surface="panel"></div>
                   <div class="mvu-unified-card" data-unified-card="secondary-spirit" data-unified-surface="panel"></div>
@@ -2066,12 +2047,6 @@ const DesktopUnifiedLayout = {
               </section>
 
               <section class="mvu-unified-section">
-                <div class="mvu-unified-section-headline">
-                  <div class="mvu-unified-section-copy">
-                    <b class="mvu-unified-section-title">装备与仓储</b>
-                    <span class="mvu-unified-section-note">武装状态、库存与资源</span>
-                  </div>
-                </div>
                 <div class="mvu-unified-grid mvu-unified-grid--two">
                   <div class="mvu-unified-card clickable" data-preview="武装工坊详细页" data-unified-card="armory" data-unified-surface="panel"></div>
                   <div class="mvu-unified-card clickable" data-preview="储物仓库详细页" data-unified-card="vault" data-unified-surface="panel"></div>
@@ -2079,17 +2054,6 @@ const DesktopUnifiedLayout = {
               </section>
 
               <section class="mvu-unified-section">
-                <div class="mvu-unified-section-headline">
-                  <div class="mvu-unified-section-copy">
-                    <b class="mvu-unified-section-title">社交与势力</b>
-                    <span class="mvu-unified-section-note">名望、关系与阵营入口</span>
-                  </div>
-                  <div class="mvu-unified-chip-row">
-                    <button type="button" class="mvu-unified-chip clickable" data-preview="社会档案详细页">社会</button>
-                    <button type="button" class="mvu-unified-chip clickable" data-preview="人物关系详细页">关系</button>
-                    <button type="button" class="mvu-unified-chip clickable" data-preview="所属势力详细页">势力</button>
-                  </div>
-                </div>
                 <div class="mvu-unified-card clickable" data-preview="社会档案详细页" data-unified-card="social" data-unified-surface="panel"></div>
               </section>
             </div>
@@ -2114,16 +2078,6 @@ const DesktopUnifiedLayout = {
           <section class="mvu-unified-page" :class="{ active: tabState.current === 'page-world' }" data-target="page-world">
             <div class="mvu-unified-section-stack">
               <section class="mvu-unified-section">
-                <div class="mvu-unified-section-headline">
-                  <div class="mvu-unified-section-copy">
-                    <b class="mvu-unified-section-title">世界状态</b>
-                    <span class="mvu-unified-section-note">时间线、拍卖与全局警报</span>
-                  </div>
-                  <div class="mvu-unified-chip-row">
-                    <button type="button" class="mvu-unified-chip clickable" data-preview="世界状态总览">总览</button>
-                    <button type="button" class="mvu-unified-chip clickable" data-preview="编年史档案">编年</button>
-                  </div>
-                </div>
                 <div class="mvu-unified-card mvu-unified-card--featured" data-unified-card="world-hero" data-unified-surface="panel"></div>
               </section>
 
@@ -2139,16 +2093,6 @@ const DesktopUnifiedLayout = {
           <section class="mvu-unified-page" :class="{ active: tabState.current === 'page-org' }" data-target="page-org">
             <div class="mvu-unified-section-stack">
               <section class="mvu-unified-section">
-                <div class="mvu-unified-section-headline">
-                  <div class="mvu-unified-section-copy">
-                    <b class="mvu-unified-section-title">阵营总览</b>
-                    <span class="mvu-unified-section-note">势力矩阵、当前阵营与据点信息</span>
-                  </div>
-                  <div class="mvu-unified-chip-row">
-                    <button type="button" class="mvu-unified-chip clickable" data-preview="势力矩阵总览">矩阵</button>
-                    <button type="button" class="mvu-unified-chip clickable" data-preview="我的阵营详情">阵营</button>
-                  </div>
-                </div>
                 <div class="mvu-unified-card mvu-unified-card--featured clickable" data-preview="势力矩阵总览" data-unified-card="org-hero" data-unified-surface="panel"></div>
               </section>
 
@@ -2164,16 +2108,6 @@ const DesktopUnifiedLayout = {
           <section class="mvu-unified-page" :class="{ active: tabState.current === 'page-terminal' }" data-target="page-terminal">
             <div class="mvu-unified-section-stack">
               <section class="mvu-unified-section">
-                <div class="mvu-unified-section-headline">
-                  <div class="mvu-unified-section-copy">
-                    <b class="mvu-unified-section-title">终端总线</b>
-                    <span class="mvu-unified-section-note">系统播报、任务与情报流</span>
-                  </div>
-                  <div class="mvu-unified-chip-row">
-                    <button type="button" class="mvu-unified-chip clickable" data-preview="系统播报与日志">播报</button>
-                    <button type="button" class="mvu-unified-chip clickable" data-preview="任务界面">任务</button>
-                  </div>
-                </div>
                 <div class="mvu-unified-card mvu-unified-card--featured clickable" data-preview="系统播报与日志" data-unified-card="terminal-hero" data-unified-surface="panel"></div>
               </section>
 
@@ -2446,6 +2380,7 @@ function ensureUnifiedMountNode() {
   if (!unifiedMount && document.body) {
     unifiedMount = document.createElement('div');
     unifiedMount.id = 'mvu-unified-mount';
+    unifiedMount.dataset.mvuBooting = '1';
     document.body.appendChild(unifiedMount);
   }
   applyUnifiedMountHostStyle(unifiedMount);
@@ -2521,6 +2456,16 @@ function mountMvuVue() {
   syncSurfaceLauncherPosition({ persist: true });
   refreshViewportState();
   syncLayoutMode();
+  const finishUnifiedBootstrap = () => {
+    if (unifiedMount && unifiedMount.dataset) {
+      delete unifiedMount.dataset.mvuBooting;
+    }
+  };
+  if (typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(() => window.requestAnimationFrame(finishUnifiedBootstrap));
+  } else {
+    window.setTimeout(finishUnifiedBootstrap, 32);
+  }
   if (typeof window.__MVU_SYNC_DETAIL_MODAL_HOST__ === 'function') {
     try { window.__MVU_SYNC_DETAIL_MODAL_HOST__(); } catch (err) {}
   }

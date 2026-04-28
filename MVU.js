@@ -377,6 +377,7 @@ function getRingBonus(age) {
 }
 function getRingColorByAge(age) {
   const safeAge = Math.max(0, Math.floor(Number(age) || 0));
+  if (safeAge >= 200000) return '橙金';
   if (safeAge >= 100000) return '红';
   if (safeAge >= 10000) return '黑';
   if (safeAge >= 1000) return '紫';
@@ -476,7 +477,7 @@ function autoBreakthrough(data) {
     const nextLvStats = getBaseStats(currentLv + 1);
 
     if (c.属性.魂力上限 >= nextLvStats.sp_max) {
-      const coreCount = c.energy?.core?.数量 || 0;
+      const coreCount = c.魂核?.核心?.数量 || 0;
       let maxLv = 69;
       if (coreCount === 1) maxLv = 89;
       else if (coreCount === 2) maxLv = 98;
@@ -847,6 +848,516 @@ function getBaseStats(lv) {
     def: strBase,
     agi: Math.floor(strBase / 2),
     vit_max: strBase,
+  };
+}
+
+function hashBattleSeedValue(seedText = '') {
+  const text = String(seedText || '');
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function createBattleSeedRng(seedText = '') {
+  let state = hashBattleSeedValue(seedText) || 1;
+  return () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+}
+
+function withBattleSeedRandom(seedText, runner) {
+  const nativeRandom = Math.random;
+  const rng = createBattleSeedRng(seedText);
+  Math.random = () => rng();
+  try {
+    return runner(rng);
+  } finally {
+    Math.random = nativeRandom;
+  }
+}
+
+function pickBattleSeedItem(items = [], rng = Math.random) {
+  if (!Array.isArray(items) || !items.length) return '';
+  return items[Math.max(0, Math.min(items.length - 1, Math.floor(rng() * items.length)))] || items[0];
+}
+
+function pickBattleSeedInt(min = 0, max = min, rng = Math.random) {
+  const low = Math.floor(Math.min(min, max));
+  const high = Math.floor(Math.max(min, max));
+  if (high <= low) return low;
+  return low + Math.floor(rng() * (high - low + 1));
+}
+
+function estimateTemporaryHumanSkillCount(level = 1) {
+  const safeLevel = Math.max(1, Math.floor(Number(level || 1)));
+  if (safeLevel >= 80) return 4;
+  if (safeLevel >= 50) return 3;
+  if (safeLevel >= 30) return 2;
+  return 1;
+}
+
+function estimateTemporaryMonsterSkillCount(unitNature = '魂兽', seed = {}) {
+  if (unitNature === '魂兽') {
+    const age = Math.max(0, Math.floor(Number(seed?.年限 || 0)));
+    if (age >= 100000) return 4;
+    if (age >= 10000) return 3;
+    if (age >= 1000) return 2;
+    return 1;
+  }
+  const tier = String(seed?.级别 || '').trim();
+  if (tier === '深渊帝君' || tier === '深渊王者') return 4;
+  if (tier === '高阶生物') return 3;
+  if (tier === '中阶生物') return 2;
+  return 1;
+}
+
+function estimateTemporaryHumanSkillAge(level = 1) {
+  const safeLevel = Math.max(1, Math.floor(Number(level || 1)));
+  if (safeLevel >= 90) return 100000;
+  if (safeLevel >= 70) return 50000;
+  if (safeLevel >= 50) return 10000;
+  if (safeLevel >= 30) return 1000;
+  if (safeLevel >= 20) return 300;
+  return 100;
+}
+
+function buildTemporaryCombatSkillMap(seedText, unitName, combatType, level, skillCount, ageEquivalent, talentTier = '正常') {
+  const total = Math.max(0, Math.min(4, Math.floor(Number(skillCount || 0))));
+  if (total <= 0) return {};
+  const skillMap = {};
+  for (let index = 1; index <= total; index += 1) {
+    skillMap[`魂技${index}`] = createDefaultRingSkillShell();
+  }
+  withBattleSeedRandom(`${seedText}|skills|${unitName}|${combatType}|${level}`, () => {
+    ensureSkillMapGenerated(skillMap, (_, skillName) => ({
+      type: combatType || '强攻系',
+      talentTier: talentTier || '正常',
+      age: Math.max(100, Number(ageEquivalent || 100)),
+      ringIndex: Math.max(1, Number(String(skillName || '').replace(/[^\d]/g, '') || 1)),
+      compatibility: 100,
+      preferredSecondary: [],
+      currentTick: 0,
+      textContext: {
+        spiritName: unitName || skillName,
+        type: combatType || '强攻系',
+      },
+    }));
+  });
+  Object.keys(skillMap).forEach((skillName, index) => {
+    const skill = skillMap[skillName];
+    if (!skill || typeof skill !== 'object') return;
+    skill.魂技名 = `魂技${index + 1}`;
+    skill.画面描述 = '未知';
+    skill.效果描述 = '未知';
+  });
+  return skillMap;
+}
+
+function buildTemporaryCombatEquipmentShell() {
+  return {
+    武器: { 名称: '无', 品阶: '无', 属性加成: { 魂力上限: 0, 精神力上限: 0, 力量: 0, 防御: 0, 敏捷: 0, 体力上限: 0 } },
+    持握部位: '无',
+    斗铠: { 等级: 0, 名称: '无', 领域: '无', 材质: '无', 装备状态: '未装备', 部件: {} },
+    机甲: { 等级: '无', 型号: '无', 材质: '无', 状态: '完好', 装备状态: '未装备', 武装: '无', 品质系数: 1.0 },
+    饰品: {},
+  };
+}
+
+function resolveTemporaryHumanCombatType(identity = '魂师', rng = Math.random) {
+  if (identity === '军人') {
+    return pickBattleSeedItem(['强攻系', '强攻系', '防御系', '敏攻系', '控制系'], rng) || '强攻系';
+  }
+  return pickBattleSeedItem(['强攻系', '敏攻系', '防御系', '控制系', '辅助系', '治疗系', '食物系'], rng) || '强攻系';
+}
+
+function resolveTemporaryHumanMechGrade(level = 1) {
+  if (level >= 90) return '红级';
+  if (level >= 70) return '黑级';
+  if (level >= 50) return '紫级';
+  return '黄级';
+}
+
+function resolveTemporaryHumanArmorLevel(level = 1) {
+  if (level >= 90) return 4;
+  if (level >= 80) return 3;
+  if (level >= 70) return 2;
+  return 1;
+}
+
+function applyTemporaryHumanEquipment(stats, equipment, identity = '魂师', level = 1, rng = Math.random) {
+  const safeStats = stats;
+  if (identity === '普通人') return safeStats;
+
+  const allowMech =
+    identity === '军人'
+      ? level >= 20 && rng() < (level >= 70 ? 0.85 : level >= 50 ? 0.75 : 0.65)
+      : level >= 30 && rng() < (level >= 70 ? 0.65 : level >= 50 ? 0.45 : 0.25);
+  if (allowMech) {
+    const mechGrade = resolveTemporaryHumanMechGrade(level);
+    equipment.机甲.等级 = mechGrade;
+    equipment.机甲.型号 = `${mechGrade}制式机甲`;
+    equipment.机甲.装备状态 = '已装备';
+    const mechMult = mechGrade === '红级' ? 1.35 : mechGrade === '黑级' ? 1.22 : mechGrade === '紫级' ? 1.14 : 1.08;
+    safeStats.sp_max = Math.floor(safeStats.sp_max * mechMult);
+    safeStats.men_max = Math.floor(safeStats.men_max * Math.max(1.02, mechMult - 0.03));
+    safeStats.def = Math.floor(safeStats.def * (mechMult + 0.08));
+    safeStats.agi = Math.floor(safeStats.agi * Math.max(1.02, mechMult - 0.01));
+    safeStats.vit_max = Math.floor(safeStats.vit_max * (mechMult + 0.05));
+  }
+
+  const allowArmor =
+    identity === '军人'
+      ? level >= 60 && rng() < (level >= 90 ? 0.4 : level >= 80 ? 0.28 : 0.15)
+      : level >= 50 && rng() < (level >= 80 ? 0.5 : level >= 70 ? 0.35 : 0.18);
+  if (allowArmor) {
+    const armorLevel = resolveTemporaryHumanArmorLevel(level);
+    equipment.斗铠.等级 = armorLevel;
+    equipment.斗铠.名称 = `${armorLevel}字斗铠`;
+    equipment.斗铠.装备状态 = '已装备';
+    const armorMult = armorLevel === 4 ? 1.42 : armorLevel === 3 ? 1.28 : armorLevel === 2 ? 1.18 : 1.1;
+    safeStats.str = Math.floor(safeStats.str * armorMult);
+    safeStats.def = Math.floor(safeStats.def * (armorMult + 0.1));
+    safeStats.vit_max = Math.floor(safeStats.vit_max * (armorMult + 0.05));
+    safeStats.sp_max = Math.floor(safeStats.sp_max * Math.max(1.03, armorMult - 0.08));
+  }
+  return safeStats;
+}
+
+function inferTemporarySoulBeastCombatType(species = '', stats = {}) {
+  const text = String(species || '').trim();
+  if (/植物|藤|草|花|树/.test(text)) return '控制系';
+  if (/海|鱼|鲸|鲨|章|蚌/.test(text)) return '控制系';
+  if (/蛛|鸟|鹰|雕|蛇|猫|豹|狼|狐|蝠/.test(text)) return '敏攻系';
+  if (/熊|猿|牛|犀|龟|象/.test(text)) return '防御系';
+  if (Number(stats?.men_max || 0) > Number(stats?.str || 0) * 1.3) return '控制系';
+  if (Number(stats?.agi || 0) > Number(stats?.def || 0) * 1.2) return '敏攻系';
+  if (Number(stats?.def || 0) > Number(stats?.agi || 0) * 1.2) return '防御系';
+  return '强攻系';
+}
+
+function inferTemporaryAbyssCombatType(species = '', stats = {}) {
+  const text = String(species || '').trim();
+  if (/蝙蝠|魔魅|恶镰/.test(text)) return '敏攻系';
+  if (/灵帝|智帝|附体魔|黑皇/.test(text)) return '控制系';
+  if (/巴安|天牛|猛犸|魔傀/.test(text)) return '防御系';
+  if (Number(stats?.men_max || 0) > Number(stats?.str || 0) * 1.3) return '控制系';
+  if (Number(stats?.agi || 0) > Number(stats?.def || 0) * 1.2) return '敏攻系';
+  if (Number(stats?.def || 0) > Number(stats?.agi || 0) * 1.2) return '防御系';
+  return '强攻系';
+}
+
+function buildTemporaryCombatSkeleton(name = '未知单位', unitNature = '人类') {
+  return {
+    name,
+    名称: name,
+    来源: '临时单位',
+    单位性质: unitNature,
+    属性: {
+      等级: 0,
+      系别: '未知系',
+      HP: 1,
+      HP上限: 1,
+      体力: 1,
+      体力上限: 1,
+      魂力: 0,
+      魂力上限: 0,
+      精神力: 1,
+      精神力上限: 1,
+      力量: 1,
+      防御: 1,
+      敏捷: 1,
+      状态效果: {},
+    },
+    状态: {
+      存活: true,
+      当前领域: '无',
+    },
+    装备: buildTemporaryCombatEquipmentShell(),
+    持续效果: {},
+    蓄力技能: null,
+    特殊能力: {},
+    社交: { 势力: {} },
+  };
+}
+
+function buildTemporaryHumanCombatant(seed = {}, slotName = 'enemy') {
+  const identity = String(seed?.身份 || '普通人').trim();
+  const quantity = Math.max(1, Math.floor(Number(seed?.数量 || 1)));
+  const level = identity === '普通人' ? 0 : Math.max(1, Math.floor(Number(seed?.等级 || 1)));
+  const unitName = String(seed?.名称 || seed?.name || slotName || '临时单位').trim() || '临时单位';
+  const battleSeedText = `${unitName}|${identity}|${quantity}|${level}|${slotName}`;
+  return withBattleSeedRandom(battleSeedText, rng => {
+    const next = buildTemporaryCombatSkeleton(unitName, '人类');
+    next.身份 = identity;
+    next.数量 = quantity;
+    if (identity === '普通人') {
+      const hpMax = pickBattleSeedInt(48, 82, rng);
+      const menMax = pickBattleSeedInt(8, 16, rng);
+      next.属性.等级 = 0;
+      next.属性.系别 = '普通人';
+      next.属性.HP上限 = hpMax;
+      next.属性.HP = hpMax;
+      next.属性.体力上限 = hpMax;
+      next.属性.体力 = hpMax;
+      next.属性.魂力上限 = 0;
+      next.属性.魂力 = 0;
+      next.属性.精神力上限 = menMax;
+      next.属性.精神力 = menMax;
+      next.属性.力量 = pickBattleSeedInt(6, 10, rng);
+      next.属性.防御 = pickBattleSeedInt(5, 9, rng);
+      next.属性.敏捷 = pickBattleSeedInt(6, 10, rng);
+      return next;
+    }
+
+    const combatType = resolveTemporaryHumanCombatType(identity, rng);
+    const base = getBaseStats(level);
+    const typeMult = TypeMultipliers[combatType] || TypeMultipliers['强攻系'];
+    const variance = 0.92 + rng() * 0.16;
+    const derived = {
+      str: Math.floor(base.str * typeMult.str * variance),
+      def: Math.floor(base.def * typeMult.def * variance),
+      agi: Math.floor(base.agi * typeMult.agi * variance),
+      vit_max: Math.floor(base.vit_max * typeMult.vit_max * variance),
+      men_max: Math.floor(base.men_max * typeMult.men_max * variance),
+      sp_max: Math.floor(base.sp_max * typeMult.sp_max * variance),
+    };
+    applyTemporaryHumanEquipment(derived, next.装备, identity, level, rng);
+    next.属性.等级 = level;
+    next.属性.系别 = combatType;
+    next.属性.HP上限 = Math.max(1, derived.vit_max);
+    next.属性.HP = next.属性.HP上限;
+    next.属性.体力上限 = next.属性.HP上限;
+    next.属性.体力 = next.属性.体力上限;
+    next.属性.魂力上限 = Math.max(1, derived.sp_max);
+    next.属性.魂力 = next.属性.魂力上限;
+    next.属性.精神力上限 = Math.max(1, derived.men_max);
+    next.属性.精神力 = next.属性.精神力上限;
+    next.属性.力量 = Math.max(1, derived.str);
+    next.属性.防御 = Math.max(1, derived.def);
+    next.属性.敏捷 = Math.max(1, derived.agi);
+    next.特殊能力 = buildTemporaryCombatSkillMap(
+      battleSeedText,
+      unitName,
+      combatType,
+      level,
+      estimateTemporaryHumanSkillCount(level),
+      estimateTemporaryHumanSkillAge(level),
+      identity === '军人' ? '优秀' : '正常',
+    );
+    return next;
+  });
+}
+
+function buildTemporarySoulBeastCombatant(seed = {}, slotName = 'enemy') {
+  const unitName = String(seed?.名称 || seed?.name || slotName || '魂兽').trim() || '魂兽';
+  const species = String(seed?.标准物种 || '').trim();
+  const age = Math.max(1, Math.floor(Number(seed?.年限 || 1)));
+  const quantity = Math.max(1, Math.floor(Number(seed?.数量 || 1)));
+  const quality = String(seed?.品质 || '').trim();
+  const stats = getBeastStats(age, species, quality);
+  const combatType = inferTemporarySoulBeastCombatType(species, stats);
+  const next = buildTemporaryCombatSkeleton(unitName, '魂兽');
+  next.数量 = quantity;
+  next.年限 = age;
+  next.标准物种 = species;
+  if (quality) next.品质 = quality;
+  next.属性.年龄 = age;
+  next.属性.等级 = Number(stats.对标等级 || 1);
+  next.属性.系别 = combatType;
+  next.属性.HP上限 = Math.max(1, Number(stats.vit_max || 1));
+  next.属性.HP = next.属性.HP上限;
+  next.属性.体力上限 = next.属性.HP上限;
+  next.属性.体力 = next.属性.体力上限;
+  next.属性.魂力上限 = Math.max(1, Number(stats.sp_max || 1));
+  next.属性.魂力 = next.属性.魂力上限;
+  next.属性.精神力上限 = Math.max(1, Number(stats.men_max || 1));
+  next.属性.精神力 = next.属性.精神力上限;
+  next.属性.力量 = Math.max(1, Number(stats.str || 1));
+  next.属性.防御 = Math.max(1, Number(stats.def || 1));
+  next.属性.敏捷 = Math.max(1, Number(stats.agi || 1));
+  next.社交.势力['魂兽一族'] = { 身份: '敌对', 权限级: 1 };
+  next.特殊能力 = buildTemporaryCombatSkillMap(
+    `${unitName}|魂兽|${species}|${age}|${slotName}`,
+    unitName,
+    combatType,
+    Number(stats.对标等级 || 1),
+    estimateTemporaryMonsterSkillCount('魂兽', seed),
+    age,
+    '正常',
+  );
+  return next;
+}
+
+function buildTemporaryAbyssCombatant(seed = {}, slotName = 'enemy') {
+  const unitName = String(seed?.名称 || seed?.name || slotName || '深渊生物').trim() || '深渊生物';
+  const race = String(seed?.标准种族 || '').trim();
+  const tier = String(seed?.级别 || '').trim();
+  const quantity = Math.max(1, Math.floor(Number(seed?.数量 || 1)));
+  const stats = withBattleSeedRandom(`${unitName}|深渊|${race}|${tier}|${slotName}`, () => getAbyssStats(tier, race));
+  const combatType = inferTemporaryAbyssCombatType(race, stats);
+  const next = buildTemporaryCombatSkeleton(unitName, '深渊');
+  next.数量 = quantity;
+  next.级别 = tier;
+  next.标准种族 = race;
+  next.属性.等级 = Number(stats.对标等级 || 1);
+  next.属性.系别 = combatType;
+  next.属性.HP上限 = Math.max(1, Number(stats.vit_max || 1));
+  next.属性.HP = next.属性.HP上限;
+  next.属性.体力上限 = next.属性.HP上限;
+  next.属性.体力 = next.属性.体力上限;
+  next.属性.魂力上限 = Math.max(1, Number(stats.sp_max || 1));
+  next.属性.魂力 = next.属性.魂力上限;
+  next.属性.精神力上限 = Math.max(1, Number(stats.men_max || 1));
+  next.属性.精神力 = next.属性.精神力上限;
+  next.属性.力量 = Math.max(1, Number(stats.str || 1));
+  next.属性.防御 = Math.max(1, Number(stats.def || 1));
+  next.属性.敏捷 = Math.max(1, Number(stats.agi || 1));
+  next.社交.势力['深渊生物'] = { 身份: '敌对', 权限级: 1 };
+  next.特殊能力 = buildTemporaryCombatSkillMap(
+    `${unitName}|深渊|${race}|${tier}|${slotName}`,
+    unitName,
+    combatType,
+    Number(stats.对标等级 || 1),
+    estimateTemporaryMonsterSkillCount('深渊', seed),
+    Math.max(1000, Number(stats.对标等级 || 1) * 1000),
+    '正常',
+  );
+  return next;
+}
+
+function mergeTemporaryCombatRuntimeState(existing = {}, generated = {}) {
+  const next = _.cloneDeep(generated || {});
+  const existingStat = existing?.属性 && typeof existing.属性 === 'object' ? existing.属性 : {};
+  const existingStatus = existing?.状态 && typeof existing.状态 === 'object' ? existing.状态 : {};
+  if (!next.属性 || typeof next.属性 !== 'object') next.属性 = {};
+  if (!next.状态 || typeof next.状态 !== 'object') next.状态 = {};
+
+  ['HP', 'HP上限', '体力', '体力上限', '魂力', '魂力上限', '精神力', '精神力上限', '力量', '防御', '敏捷', '等级', '系别', '年龄', '状态效果'].forEach(key => {
+    if (existingStat[key] !== undefined) next.属性[key] = _.cloneDeep(existingStat[key]);
+  });
+  ['存活', '当前领域', '行动', '位置', '横坐标', '纵坐标'].forEach(key => {
+    if (existingStatus[key] !== undefined) next.状态[key] = _.cloneDeep(existingStatus[key]);
+  });
+  if (existing?.装备 && typeof existing.装备 === 'object') next.装备 = _.cloneDeep(existing.装备);
+  if (existing?.持续效果 && typeof existing.持续效果 === 'object') next.持续效果 = _.cloneDeep(existing.持续效果);
+  if (existing?.蓄力技能 !== undefined) next.蓄力技能 = _.cloneDeep(existing.蓄力技能);
+  if (existing?.特殊能力 && typeof existing.特殊能力 === 'object') next.特殊能力 = _.cloneDeep(existing.特殊能力);
+  return next;
+}
+
+function findCombatCharKeyByName(data = {}, participantName = '') {
+  const safeName = String(participantName || '').trim();
+  if (!safeName || !data?.char || typeof data.char !== 'object') return '';
+  if (data.char[safeName]) return safeName;
+  const match = Object.keys(data.char).find(charKey => {
+    const charData = data.char[charKey];
+    const displayName = String(charData?.name || charData?.base?.name || '').trim();
+    return displayName && displayName === safeName;
+  });
+  return match || '';
+}
+
+function buildExpandedBattleParticipantFromChar(data = {}, charKey = '', roleName = '敌对') {
+  const sourceChar = data?.char?.[charKey];
+  if (!sourceChar || typeof sourceChar !== 'object') return null;
+  const participant = _.cloneDeep(sourceChar);
+  participant.name = String(participant.name || participant?.base?.name || charKey).trim() || charKey;
+  participant.名称 = participant.name;
+  participant.势力 = roleName;
+  if (!participant.状态 || typeof participant.状态 !== 'object') participant.状态 = {};
+  participant.状态.存活 = participant.状态.存活 !== false;
+  return participant;
+}
+
+function buildExpandedTemporaryBattleParticipant(seed = {}, slotKey = 'enemy') {
+  const unitNature = String(seed?.单位性质 || '').trim();
+  if (unitNature === '人类') return buildTemporaryHumanCombatant(seed, slotKey);
+  if (unitNature === '魂兽') return buildTemporarySoulBeastCombatant(seed, slotKey);
+  if (unitNature === '深渊') return buildTemporaryAbyssCombatant(seed, slotKey);
+  return null;
+}
+
+function expandBattleParticipantEntry(data = {}, participant = null, slotKey = 'enemy') {
+  if (!participant || typeof participant !== 'object' || Array.isArray(participant)) return null;
+  const participantName = String(participant.name || participant.名称 || '').trim();
+  const charKey = findCombatCharKeyByName(data, participantName);
+  if (charKey) return buildExpandedBattleParticipantFromChar(data, charKey, slotKey === 'player' ? '己方' : '敌对');
+
+  const generated = buildExpandedTemporaryBattleParticipant(participant, slotKey);
+  if (!generated) return _.cloneDeep(participant);
+  return mergeTemporaryCombatRuntimeState(participant, generated);
+}
+
+function expandBattleParticipantArray(data = {}, items = [], slotKey = 'team_enemy') {
+  return (Array.isArray(items) ? items : []).flatMap((participant, index) =>
+    explodeBattleParticipantQuantity(data, participant, `${slotKey}_${index + 1}`),
+  ).filter(Boolean);
+}
+
+function explodeBattleParticipantQuantity(data = {}, participant = null, slotKey = 'enemy') {
+  const expanded = expandBattleParticipantEntry(data, participant, slotKey);
+  if (!expanded) return [];
+  const hasExpandedStats = !!(expanded.属性 && typeof expanded.属性 === 'object');
+  if (hasExpandedStats) return [expanded];
+  const quantity = Math.max(1, Math.floor(Number(participant?.数量 || expanded?.数量 || 1)));
+  const results = [];
+  for (let index = 1; index <= quantity; index += 1) {
+    const cloneSeed = _.cloneDeep(participant);
+    const baseName = String(cloneSeed?.名称 || cloneSeed?.name || '').trim() || `临时单位${index}`;
+    const displayName = index === 1 ? baseName : `${baseName}·${index}`;
+    cloneSeed.名称 = displayName;
+    cloneSeed.name = displayName;
+    cloneSeed.数量 = 1;
+    const nextExpanded = expandBattleParticipantEntry(data, cloneSeed, `${slotKey}_${index}`);
+    if (nextExpanded) results.push(nextExpanded);
+  }
+  return results;
+}
+
+function expandWorldBattleParticipants(data = {}) {
+  const battle = data?.world?.战斗;
+  const participants = battle?.参战者;
+  if (!battle || typeof battle !== 'object' || !participants || typeof participants !== 'object') return;
+
+  const nextParticipants = {
+    player: null,
+    enemy: null,
+    team_player: [],
+    team_enemy: [],
+  };
+
+  const playerExpanded = explodeBattleParticipantQuantity(data, participants.player, 'player');
+  nextParticipants.player = playerExpanded[0] || null;
+  if (playerExpanded.length > 1) nextParticipants.team_player.push(...playerExpanded.slice(1));
+
+  const enemyExpanded = explodeBattleParticipantQuantity(data, participants.enemy, 'enemy');
+  nextParticipants.enemy = enemyExpanded[0] || null;
+  if (enemyExpanded.length > 1) nextParticipants.team_enemy.push(...enemyExpanded.slice(1));
+
+  nextParticipants.team_player.push(...expandBattleParticipantArray(data, participants.team_player, 'team_player'));
+  nextParticipants.team_enemy.push(...expandBattleParticipantArray(data, participants.team_enemy, 'team_enemy'));
+
+  if (nextParticipants.player) nextParticipants.player.势力 = '己方';
+  if (nextParticipants.enemy) nextParticipants.enemy.势力 = '敌对';
+  nextParticipants.team_player.forEach(unit => {
+    if (unit && typeof unit === 'object') unit.势力 = '己方';
+  });
+  nextParticipants.team_enemy.forEach(unit => {
+    if (unit && typeof unit === 'object') unit.势力 = '敌对';
+  });
+
+  battle.参战者 = nextParticipants;
+}
+
+if (typeof globalThis !== 'undefined') {
+  globalThis.__MVU_EXPAND_WORLD_BATTLE_PARTICIPANTS__ = function attachExpandedBattleParticipants(rootData = {}) {
+    if (!rootData || typeof rootData !== 'object') return rootData;
+    expandWorldBattleParticipants(rootData);
+    return rootData;
   };
 }
 
@@ -6513,9 +7024,9 @@ const StatsSchema = z
     邪魂师: z.boolean().prefault(false).describe('是否为邪魂师'),
     底子波动: z.coerce.number().prefault(0).describe('先天底子波动值'),
 
-    魂力: z.coerce.number().prefault(10).describe('当前魂力'),
+    魂力: z.coerce.number().prefault(-1).describe('当前魂力'),
     魂力上限: z.coerce.number().prefault(10).describe('魂力上限'),
-    精神力: z.coerce.number().prefault(10).describe('当前精神力'),
+    精神力: z.coerce.number().prefault(-1).describe('当前精神力'),
     精神力上限: z.coerce.number().prefault(10).describe('精神力上限'),
     精神境界: z.string().prefault('灵元境'),
 
@@ -6524,7 +7035,7 @@ const StatsSchema = z
     敏捷: z.coerce.number().prefault(10).describe('敏捷'),
     HP: z.coerce.number().prefault(-1).describe('当前生命值/伤势值'),
     HP上限: z.coerce.number().prefault(-1).describe('生命值上限'),
-    体力: z.coerce.number().prefault(10).describe('当前体力'),
+    体力: z.coerce.number().prefault(-1).describe('当前体力'),
     体力上限: z.coerce.number().prefault(10).describe('体力上限'),
 
     训练加成: z
@@ -6576,6 +7087,9 @@ const StatsSchema = z
       data.底子波动 = 0.95 + Math.random() * 0.1;
     }
 
+    if (data.魂力 < 0) data.魂力 = Math.max(0, Number(data.魂力上限 || 10));
+    if (data.精神力 < 0) data.精神力 = Math.max(0, Number(data.精神力上限 || 10));
+    if (data.体力 < 0) data.体力 = Math.max(0, Number(data.体力上限 || 10));
     if (data.HP上限 < 0) data.HP上限 = Math.max(1, Number(data.体力上限 || 10));
     if (data.HP < 0) data.HP = Math.max(0, Math.min(Number(data.HP上限 || 1), Number(data.体力 || data.HP上限 || 1)));
     data.HP上限 = Math.max(1, Number(data.HP上限 || 1));
@@ -8170,6 +8684,7 @@ const CharacterSchema = z
 
     _(char.血脉之力?.气血魂环 || {}).forEach((ringData, ringIndexStr) => {
       const ringIndex = parseInt(ringIndexStr) || 1;
+      if (ringData && typeof ringData === 'object') ringData.颜色 = '金';
       ensureSkillMapGenerated(ringData?.魂技, (_, skillName) => ({
         type: char.属性.系别,
         talentTier: char.属性.天赋梯队,
@@ -8302,6 +8817,9 @@ const CharacterSchema = z
         let compMult = Math.max(0.1, (ss.契合度 !== undefined ? ss.契合度 : 100) / 100);
 
         _(ss.魂环).forEach(ring => {
+          if (Number(ring?.年限 || 0) > 0) {
+            ring.颜色 = getRingColorByAge(ring.年限);
+          }
           if (ring.年限 > 0) {
             let bonus = getRingBonus(ring.年限);
             ringTotalBonus.str += Math.floor(bonus.str * compMult);
@@ -10248,7 +10766,7 @@ export const Schema = z
             }
           }
 
-          let coreCount = c.energy?.core?.数量 || 0;
+          let coreCount = c.魂核?.核心?.数量 || 0;
           let spRate = 0.01;
           // 日常/未明确动作不自动消耗体力与精神力，避免时间跳跃时把整段剧情硬判为持续消耗
           let vitMenRate = 0;
@@ -10446,6 +10964,16 @@ export const Schema = z
         previousResourceSnapshot.体力 <= 20 &&
         previousResourceSnapshot.HP <= 20 &&
         Math.abs(previousResourceSnapshot.体力 - previousResourceSnapshot.HP) <= 2 &&
+        !data.world?.战斗?.进行中 &&
+        actionText === '日常' &&
+        !hasInjuryMarkers;
+      const looksLikeNewCharacterDefaultLeak =
+        previousResourceSnapshot.魂力 <= 10 &&
+        previousResourceSnapshot.精神力 <= 10 &&
+        previousResourceSnapshot.魂力上限 >= 100 &&
+        previousResourceSnapshot.精神力上限 >= 20 &&
+        previousResourceRatios.体力 >= 0.9 &&
+        previousResourceRatios.HP >= 0.9 &&
         !data.world?.战斗?.进行中 &&
         actionText === '日常' &&
         !hasInjuryMarkers;
@@ -10670,7 +11198,12 @@ export const Schema = z
 
       c.属性.HP上限 = Math.max(1, Number(c.属性.体力上限 || c.属性.HP上限 || 1));
       const resolvePreservedRatio = key => {
-        if (isDefaultSeededResourceState || shouldResetBuggedInitializedResources || looksLikePlaceholderExhaustedPack)
+        if (
+          isDefaultSeededResourceState ||
+          shouldResetBuggedInitializedResources ||
+          looksLikePlaceholderExhaustedPack ||
+          looksLikeNewCharacterDefaultLeak
+        )
           return 1.0;
         return Math.max(0, Math.min(1, Number(previousResourceRatios[key] || 0)));
       };
@@ -11492,6 +12025,9 @@ export const Schema = z
 
     if (data && data.char) {
       if (!data.world) data.world = {};
+      if (data.world?.战斗?.进行中 && data.world?.战斗?.参战者 && typeof data.world.战斗.参战者 === 'object') {
+        expandWorldBattleParticipants(data);
+      }
 
       FLAT_LOCATIONS = {};
       if (data.world.地点) {

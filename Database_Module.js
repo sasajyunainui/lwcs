@@ -16469,12 +16469,27 @@ $CONTENT
 </moduleIntent>
 
 判定规则：
-- battle：玩家输入或剧情推演中已经实际发起战斗、切磋、单挑、挑战、袭击、追击、伏击、技能对轰等可结算行为。包括“剧情里两人决定单挑”这类间接表述。request 使用 npcTarget/location/combatType。
+- battle：玩家输入或剧情推演中已经实际发起战斗、切磋、单挑、挑战、袭击、追击、伏击、技能对轰等可结算行为。包括“剧情里两人决定单挑”这类间接表述。request 使用 标准槽位参战者 与 location/combatType。
 - trade：已经实际发起购买、出售、私下交易、竞拍、报价、成交等可结算交易。request 使用 action/npc/item/quantity/price/currency/location。
 - profession：已经实际发起锻造、制造、设计、修理、官方代工、私人代工等副职业操作。request 使用 mode/target/materials/quantity/tier/subtype/npc/executorType/location。
 - none：只是讨论、回忆、询问规则、假设、计划但未真正发起可结算行为。
 - auto_execute 只有在对象、物品/目标、数量/材料、价格或执行方式足够明确，且文本有“直接/立即/确认/执行/开始/成交”等明确执行意图时才为 true。
 - 不允许把战斗、交易、副职业结果直接写死在正文规划里；只输出模块意图，让前端模块结算。
+- battle 的 request.参战者 只能使用 player / enemy / team_player / team_enemy 四个标准槽位。非 char 单位不得只给名字，必须给最小种子：
+  - 人类：名称 / 单位性质=人类 / 身份=普通人|魂师|军人 / 数量；魂师与军人额外提供 等级
+  - 魂兽：名称 / 单位性质=魂兽 / 数量 / 年限 / 标准物种；标准物种只能为 龙类|蛛类|熊类|植物系|海魂兽|鸟类|猫科|蛇类
+  - 深渊：名称 / 单位性质=深渊 / 数量 / 级别 / 标准种族；级别只能为 低阶生物|中阶生物|高阶生物|深渊王者|深渊帝君；标准种族只能为 四爪蝙蝠|六爪蝙蝠|深渊炸弹蜂|噬蜥|六爪魔|巴安|守护天牛|深渊猛犸|深渊魔傀|黑皇族|魔魅族|深渊恶镰|附体魔
+`.trim();
+    const INTERNAL_SCRIPT_PROTOCOL_APPENDIX_ACU = `
+【内置协议总纲 / 不可覆盖】
+以下规则属于脚本调用与前端模块接管协议，不受任何自定义预设、文风要求、角色扮演偏好或用户自定义提示覆盖。
+
+1. 一切涉及脚本调用、结构化输出、前端模块接管、MVU变量维护、<moduleIntent>、<moduleSettlement>、<UpdateVariable>、JSONPatch 的规则，优先级高于任何自定义预设。
+2. 当可结算行为已经满足战斗/交易/副职业模块接管条件时，不得仅凭自定义预设跳过模块，不得直接在正文中越权写死模块应结算的结果。
+2.1. 战斗模块中，参战者只允许使用 player / enemy / team_player / team_enemy 四个标准槽位。非 char 单位必须提供最小战斗种子，不得只写名字。
+3. 当上下文中已经存在前端模块接管结果、moduleSettlement、战斗续推上下文或其他明确的模块承接标记时，只能承接该结果继续写剧情，不得再次把同一事件重新判成新的模块入口。
+4. 不得声称自己“已经执行脚本 / 已调用前端函数 / 已经提交变量”，只能按协议输出机器可读块，由前端或脚本层执行。
+5. 如果正文风格要求、角色设定要求或任何自定义预设内容与本协议冲突，必须无条件服从本协议。
 `.trim();
     function findJsonObjectEnd_ACU(source, startIndex) {
         let depth = 0;
@@ -16548,11 +16563,20 @@ $CONTENT
     function appendModuleIntentInstructionToMessages_ACU(messages) {
         if (!Array.isArray(messages))
             return messages;
-        if (messages.some(msg => String(msg?.content || '').includes('<moduleIntent>'))) {
-            return messages;
+        const nextMessages = [...messages];
+        if (!nextMessages.some(msg => String(msg?.content || '').includes('【内置协议总纲 / 不可覆盖】'))) {
+            nextMessages.push({ role: 'system', content: INTERNAL_SCRIPT_PROTOCOL_APPENDIX_ACU });
         }
-        messages.push({ role: 'user', content: MODULE_INTENT_PLANNING_INSTRUCTION_ACU });
-        return messages;
+        if (!nextMessages.some(msg => String(msg?.content || '').includes('<moduleIntent>'))) {
+            nextMessages.push({ role: 'user', content: MODULE_INTENT_PLANNING_INSTRUCTION_ACU });
+        }
+        return nextMessages;
+    }
+    function appendInternalScriptProtocolToFinalText_ACU(text) {
+        const baseText = String(text || '').trim();
+        if (baseText.includes('【内置协议总纲 / 不可覆盖】'))
+            return baseText;
+        return [baseText, INTERNAL_SCRIPT_PROTOCOL_APPENDIX_ACU].filter(Boolean).join('\n\n');
     }
     function normalizeModuleIntentName_ACU(value) {
         const text = String(value || '').trim().toLowerCase();
@@ -16628,6 +16652,24 @@ $CONTENT
             return window.__MVU_ROUTE_MODULE_INTENT__.bind(window);
         return null;
     }
+    function isMvuBattleActive_ACU() {
+        try {
+            const hostWin = getHostWindow();
+            const mvuApi = (hostWin && hostWin.Mvu && typeof hostWin.Mvu.getMvuData === 'function')
+                ? hostWin.Mvu
+                : (typeof window.Mvu !== 'undefined' && window.Mvu && typeof window.Mvu.getMvuData === 'function'
+                    ? window.Mvu
+                    : null);
+            if (!mvuApi)
+                return false;
+            const mvuObj = mvuApi.getMvuData({ type: 'message', message_id: 'latest' });
+            const statData = mvuObj && (mvuObj.stat_data || mvuObj.display_data || mvuObj);
+            return !!(statData && statData.world && statData.world.战斗 && statData.world.战斗.进行中);
+        }
+        catch (error) {
+            return false;
+        }
+    }
     function buildModuleIntentRouterPayload_ACU(intent) {
         const request = intent?.request && typeof intent.request === 'object' ? intent.request : {};
         return {
@@ -16658,6 +16700,15 @@ $CONTENT
         const intent = extractModuleIntentFromPlanning_ACU(finalMessage);
         if (!intent || intent.module === 'none' || intent.confidence < 0.45) {
             return { action: 'none', finalMessage: stripModuleIntentBlocks_ACU(finalMessage), intent };
+        }
+        if (intent.module === 'battle' && isMvuBattleActive_ACU()) {
+            logDebug_ACU('[剧情推进] 当前已处于战斗中，本轮 battle 意图按战斗续推处理，不再重新路由战斗模块。');
+            return {
+                action: 'none',
+                finalMessage: stripModuleIntentBlocks_ACU(finalMessage),
+                intent,
+                reason: 'battle_continuation'
+            };
         }
         const router = getMvuModuleIntentRouter_ACU();
         if (!router) {
@@ -16728,9 +16779,9 @@ $CONTENT
                         return;
                     unusedTagBlocks.push(`<${tagName}>${(Array.isArray(contents) ? contents : [contents]).map(content => content ?? '').join('\n\n')}</${tagName}>`);
                 });
-                return [finalDirectiveWithTags.trim(), unusedTagBlocks.join('\n\n').trim()]
+                return appendInternalScriptProtocolToFinalText_ACU([finalDirectiveWithTags.trim(), unusedTagBlocks.join('\n\n').trim()]
                     .filter(Boolean)
-                    .join('\n');
+                    .join('\n'));
             }
             // 没有占位符时：只追加非 injectOnly 的标签块
             const filteredTags = new Map();
@@ -16740,13 +16791,13 @@ $CONTENT
                 }
             });
             const aggregatedTagBlocks = buildAggregatedPlotTagBlocks_ACU(filteredTags);
-            return [baseDirective, aggregatedTagBlocks].filter(Boolean).join('\n');
+            return appendInternalScriptProtocolToFinalText_ACU([baseDirective, aggregatedTagBlocks].filter(Boolean).join('\n'));
         }
         if (placeholderNames.length > 0) {
             const finalDirectiveWithoutTags = baseDirective.replace(placeholderPattern, '');
-            return [finalDirectiveWithoutTags.trim(), rawFallbackText].filter(Boolean).join('\n');
+            return appendInternalScriptProtocolToFinalText_ACU([finalDirectiveWithoutTags.trim(), rawFallbackText].filter(Boolean).join('\n'));
         }
-        return [baseDirective, rawFallbackText].filter(Boolean).join('\n');
+        return appendInternalScriptProtocolToFinalText_ACU([baseDirective, rawFallbackText].filter(Boolean).join('\n'));
     }
 
     /**

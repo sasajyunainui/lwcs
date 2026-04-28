@@ -2250,7 +2250,12 @@
           depth: 0,
           role: 'system',
           content: `【模块接管规则】
-当剧情即将进入实际战斗、切磋、伏击、追击或技能对轰时，不要直接写出最终胜负、掉血、战利品或死亡结算。必须先开启 MVU 变量 /world/战斗/进行中，并写入 /world/战斗/战斗类型、/world/战斗/环境、/world/战斗/参战者；若已明确战斗意图，也可一并写入 /world/战斗/战斗意图。参战者 至少包含 player 与 enemy 两个槽位；如果只知道参战者姓名，也要把姓名写入对应槽位，前端会用角色档案补全战斗数据。
+当剧情即将进入实际战斗、切磋、伏击、追击或技能对轰时，不要直接写出最终胜负、掉血、战利品或死亡结算。必须先开启 MVU 变量 /world/战斗/进行中，并写入 /world/战斗/战斗类型、/world/战斗/环境、/world/战斗/参战者；若已明确战斗意图，也可一并写入 /world/战斗/战斗意图。参战者 只能使用 player、enemy、team_player、team_enemy 四个标准槽位。
+如果参战者是现有角色，可只写姓名，由前端按角色档案补全。
+如果参战者不是现有角色，则必须提供最小战斗种子，不得只写名字：
+- 人类：名称、单位性质=人类、身份=普通人|魂师|军人、数量；魂师与军人额外提供 等级
+- 魂兽：名称、单位性质=魂兽、数量、年限、标准物种；标准物种 只能为 龙类|蛛类|熊类|植物系|海魂兽|鸟类|猫科|蛇类
+- 深渊：名称、单位性质=深渊、数量、级别、标准种族；级别 只能为 低阶生物|中阶生物|高阶生物|深渊王者|深渊帝君；标准种族 只能为 四爪蝙蝠|六爪蝙蝠|深渊炸弹蜂|噬蜥|六爪魔|巴安|守护天牛|深渊猛犸|深渊魔傀|黑皇族|魔魅族|深渊恶镰|附体魔
 当剧情即将进入购买、出售、私下交易、竞拍、讨价还价或物资交换时，不要直接改写金钱/库存并宣布成交。必须写入 /world/交易请求/动作、目标、对象、物品、数量、价格、货币、状态、自动执行；如果剧情已经明确成交意图，可设置 自动执行=true 让交易模块自动提交仲裁。
 当剧情即将进入锻造、制造、设计、修理、官方代工或私人代工时，不要直接改写材料、成品、装备状态或副职业经验。必须先让前端副职业工坊接管；若推演脚本已经得到结构化计划，应调用 window.__MVU_ROUTE_MODULE_INTENT__ 并传入 profession/craft 请求。
 如果只是闲聊中提到战斗、交易或副职业，不需要触发模块；只有玩家或剧情角色真正发起可结算行为时才触发。`,
@@ -3144,14 +3149,41 @@
     function buildEffectiveSd(rawSd) {
       if (!rawSd || typeof rawSd !== 'object') return { rootData: null, rawData: null };
 
+      const rootData = {
+        sys: rawSd.sys || {},
+        world: rawSd.world || {},
+        org: rawSd.org || {},
+        map: rawSd.map || {},
+        char: rawSd.char || {}
+      };
+      const shouldExpandBattleParticipants = !!(
+        rootData.world &&
+        typeof rootData.world === 'object' &&
+        rootData.world.战斗 &&
+        typeof rootData.world.战斗 === 'object' &&
+        rootData.world.战斗.进行中 &&
+        rootData.world.战斗.参战者 &&
+        typeof rootData.world.战斗.参战者 === 'object' &&
+        typeof window.__MVU_EXPAND_WORLD_BATTLE_PARTICIPANTS__ === 'function'
+      );
+      if (shouldExpandBattleParticipants) {
+        const clonedRootData = {
+          sys: rootData.sys,
+          world: cloneJsonValue(rootData.world, {}),
+          org: rootData.org,
+          map: rootData.map,
+          char: rootData.char
+        };
+        try {
+          window.__MVU_EXPAND_WORLD_BATTLE_PARTICIPANTS__(clonedRootData);
+          return { rootData: clonedRootData, rawData: rawSd };
+        } catch (error) {
+          console.warn('[DragonUI] MVU battle participant expansion failed', error);
+        }
+      }
+
       return {
-        rootData: {
-          sys: rawSd.sys || {},
-          world: rawSd.world || {},
-          org: rawSd.org || {},
-          map: rawSd.map || {},
-          char: rawSd.char || {}
-        },
+        rootData,
         rawData: rawSd
       };
     }
@@ -8256,6 +8288,10 @@
       const hpPair = getDisplayHpPair(stat);
       const woundLabel = getDisplayWoundLabel(stat);
       const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '当前角色');
+      const activeDisplayName = toText(
+        deepGet(snapshot, 'activeChar.name', deepGet(snapshot, 'activeChar.base.name', snapshot.activeName)),
+        snapshot.activeName || '当前角色'
+      );
       const nextLevelSoul = getNextLevelSoulRequirement(stat);
       const allowNsfwLongPress = canOpenPrivateArchive(snapshot);
       const mentalRealmText = toText(stat._men_realm, toText(stat.精神力_realm, '灵元境'));
@@ -8268,8 +8304,11 @@
         ? `${shortenText(snapshot.pendingIntelContent, 10)} / +${snapshot.pendingIntelImpact}`
         : (snapshot.unlockedKnowledges.length ? shortenText(snapshot.unlockedKnowledges[snapshot.unlockedKnowledges.length - 1], 12) : '暂无');
       return `
-        <div class="panel-head">
-          <div class="panel-title${allowNsfwLongPress ? ' nsfw-trigger-title' : ''}"${allowNsfwLongPress ? ` data-longpress="${PRIVATE_ARCHIVE_PREVIEW_KEY}" data-longpress-delay="600"` : ''}>详细档案</div>
+        <div class="panel-head panel-head--archive">
+          <div class="panel-title-row">
+            <div class="panel-title${allowNsfwLongPress ? ' nsfw-trigger-title' : ''}"${allowNsfwLongPress ? ` data-longpress="${PRIVATE_ARCHIVE_PREVIEW_KEY}" data-longpress-delay="600"` : ''}>详细档案</div>
+            <button type="button" class="archive-role-chip meta-pill clickable" data-preview="角色切换器">${htmlEscape(activeDisplayName)}</button>
+          </div>
           <span class="meta-pill">${htmlEscape(nextLevelSoul.isMax ? '下级魂力 已满级' : `下级魂力 ${formatNumber(nextLevelSoul.needed)}`)}</span>
         </div>
         <div class="stats-grid stats-grid-top">
@@ -15879,71 +15918,174 @@ ${mvuUpdate}`;
       return participant;
     }
 
-    function mergeCombatParticipant(baseParticipant, overrideParticipant) {
-      const base = baseParticipant && typeof baseParticipant === 'object' ? baseParticipant : {};
-      const override = overrideParticipant && typeof overrideParticipant === 'object' ? overrideParticipant : {};
-      const merged = { ...base, ...override };
-      if (base.属性 || override.属性) merged.属性 = { ...(base.属性 || {}), ...(override.属性 || {}) };
-      if (base.状态 || override.状态) {
-        merged.状态 = {
-          ...(base.状态 && typeof base.状态 === 'object' ? base.状态 : {}),
-          ...(override.状态 && typeof override.状态 === 'object' ? override.状态 : {})
-        };
-      }
-      if (!merged.name) merged.name = base.name || override.name || '';
-      return merged;
+    function normalizeBattleSeedParticipant(seed, fallbackName = '') {
+      if (!seed || typeof seed !== 'object' || Array.isArray(seed)) return null;
+      const normalized = cloneJsonValue(seed, {});
+      const normalizedName = toText(normalized.name || normalized.名称, fallbackName);
+      if (!normalizedName) return null;
+      normalized.name = normalizedName;
+      if (normalized.名称 === undefined) normalized.名称 = normalizedName;
+      return normalized;
     }
 
-    function findCombatOpponentKey(snapshot, combatData = {}) {
-      const participants = combatData && combatData.参战者 && typeof combatData.参战者 === 'object'
-        ? combatData.参战者
-        : {};
-      const explicitEnemy = participants.enemy && typeof participants.enemy === 'object'
-        ? toText(participants.enemy.name, '')
-        : '';
-      if (explicitEnemy) return resolveSnapshotCharKey(snapshot, explicitEnemy);
+    const BATTLE_SOUL_BEAST_STANDARD_SPECIES = Object.freeze([
+      '龙类',
+      '蛛类',
+      '熊类',
+      '植物系',
+      '海魂兽',
+      '鸟类',
+      '猫科',
+      '蛇类',
+    ]);
 
-      const playerKey = resolveSnapshotCharKey(snapshot, deepGet(snapshot, 'rootData.sys.玩家名', '') || toText(snapshot && snapshot.activeName, ''));
-      for (const [key, value] of Object.entries(participants)) {
-        if (['player', 'enemy', 'team_player', 'team_enemy'].includes(key)) continue;
-        const candidateName = toText(value && typeof value === 'object' ? value.name : key, key);
-        const candidateKey = resolveSnapshotCharKey(snapshot, candidateName);
-        if (candidateKey && candidateKey !== playerKey) return candidateKey;
+    const BATTLE_ABYSS_STANDARD_TIERS = Object.freeze([
+      '低阶生物',
+      '中阶生物',
+      '高阶生物',
+      '深渊王者',
+      '深渊帝君',
+    ]);
+
+    const BATTLE_ABYSS_STANDARD_RACES = Object.freeze([
+      '四爪蝙蝠',
+      '六爪蝙蝠',
+      '深渊炸弹蜂',
+      '噬蜥',
+      '六爪魔',
+      '巴安',
+      '守护天牛',
+      '深渊猛犸',
+      '深渊魔傀',
+      '黑皇族',
+      '魔魅族',
+      '深渊恶镰',
+      '附体魔',
+    ]);
+
+    function validateBattleSeedParticipant(snapshot, seed, role = 'enemy') {
+      const normalized = normalizeBattleSeedParticipant(seed);
+      if (!normalized) return { ok: false, reason: `${role}_seed_missing_name` };
+      const charKey = resolveSnapshotCharKey(snapshot, normalized.name);
+      if (charKey) return { ok: true, normalized, charKey, kind: 'char' };
+
+      const unitNature = toText(normalized.单位性质, '');
+      if (!unitNature) return { ok: false, reason: `${role}_seed_missing_unit_nature` };
+      if (!['人类', '魂兽', '深渊'].includes(unitNature)) return { ok: false, reason: `${role}_seed_invalid_unit_nature` };
+
+      if (toNumber(normalized.数量, 0) <= 0) return { ok: false, reason: `${role}_seed_missing_quantity` };
+      const quantity = Math.max(1, Math.floor(toNumber(normalized.数量, 1)));
+      normalized.数量 = quantity;
+
+      if (unitNature === '人类') {
+        const identity = toText(normalized.身份, '');
+        if (!['普通人', '魂师', '军人'].includes(identity)) return { ok: false, reason: `${role}_seed_invalid_identity` };
+        normalized.身份 = identity;
+        if (identity !== '普通人' && toNumber(normalized.等级, 0) <= 0) {
+          return { ok: false, reason: `${role}_seed_missing_level` };
+        }
+        if (identity !== '普通人') normalized.等级 = Math.max(1, Math.floor(toNumber(normalized.等级, 1)));
+      } else if (unitNature === '魂兽') {
+        if (toNumber(normalized.年限, 0) <= 0) return { ok: false, reason: `${role}_seed_missing_age` };
+        const species = toText(normalized.标准物种, '');
+        if (!species) return { ok: false, reason: `${role}_seed_missing_species` };
+        if (!BATTLE_SOUL_BEAST_STANDARD_SPECIES.includes(species)) {
+          return { ok: false, reason: `${role}_seed_invalid_species` };
+        }
+        normalized.年限 = Math.max(1, Math.floor(toNumber(normalized.年限, 1)));
+        normalized.标准物种 = species;
+      } else if (unitNature === '深渊') {
+        const tier = toText(normalized.级别, '');
+        const race = toText(normalized.标准种族, '');
+        if (!tier) return { ok: false, reason: `${role}_seed_missing_tier` };
+        if (!race) return { ok: false, reason: `${role}_seed_missing_race` };
+        if (!BATTLE_ABYSS_STANDARD_TIERS.includes(tier)) return { ok: false, reason: `${role}_seed_invalid_tier` };
+        if (!BATTLE_ABYSS_STANDARD_RACES.includes(race)) return { ok: false, reason: `${role}_seed_invalid_race` };
+        normalized.级别 = tier;
+        normalized.标准种族 = race;
       }
-      return '';
+
+      return { ok: true, normalized, charKey: '', kind: 'seed' };
+    }
+
+    function buildBattleSeedRoster(snapshot, detail = {}) {
+      const detailParticipants = detail.参战者 && typeof detail.参战者 === 'object' ? detail.参战者 : null;
+      const activeKey = resolveSnapshotCharKey(snapshot, toText(snapshot && snapshot.activeName, '') || deepGet(snapshot, 'rootData.sys.玩家名', ''));
+      if (!snapshot || !snapshot.rootData || !activeKey) return { ok: false, reason: 'player_context_unresolved' };
+      const playerChar = buildCombatParticipantFromSnapshotChar(snapshot, activeKey, '己方');
+      if (!playerChar) return { ok: false, reason: 'player_context_unresolved' };
+
+      if (!detailParticipants) {
+        const npcTarget = toText(detail.npcTarget, '');
+        const targetKey = resolveSnapshotCharKey(snapshot, npcTarget);
+        if (!targetKey) return { ok: false, reason: 'combat_context_unresolved' };
+        const enemyChar = buildCombatParticipantFromSnapshotChar(snapshot, targetKey, '敌对');
+        if (!enemyChar) return { ok: false, reason: 'combat_context_unresolved' };
+        return {
+          ok: true,
+          participants: {
+            player: playerChar,
+            enemy: enemyChar,
+            team_player: [],
+            team_enemy: []
+          }
+        };
+      }
+
+      const normalizedRoster = {
+        player: { 名称: playerChar.name },
+        enemy: null,
+        team_player: [],
+        team_enemy: []
+      };
+
+      const enemyCheck = validateBattleSeedParticipant(snapshot, detailParticipants.enemy, 'enemy');
+      if (!enemyCheck.ok) return { ok: false, reason: enemyCheck.reason };
+      normalizedRoster.enemy = enemyCheck.kind === 'char'
+        ? { 名称: enemyCheck.normalized.name }
+        : enemyCheck.normalized;
+
+      const teamPlayerSeeds = Array.isArray(detailParticipants.team_player) ? detailParticipants.team_player : [];
+      for (let index = 0; index < teamPlayerSeeds.length; index += 1) {
+        const itemCheck = validateBattleSeedParticipant(snapshot, teamPlayerSeeds[index], `team_player_${index}`);
+        if (!itemCheck.ok) return { ok: false, reason: itemCheck.reason };
+        normalizedRoster.team_player.push(itemCheck.kind === 'char' ? { 名称: itemCheck.normalized.name } : itemCheck.normalized);
+      }
+
+      const teamEnemySeeds = Array.isArray(detailParticipants.team_enemy) ? detailParticipants.team_enemy : [];
+      for (let index = 0; index < teamEnemySeeds.length; index += 1) {
+        const itemCheck = validateBattleSeedParticipant(snapshot, teamEnemySeeds[index], `team_enemy_${index}`);
+        if (!itemCheck.ok) return { ok: false, reason: itemCheck.reason };
+        normalizedRoster.team_enemy.push(itemCheck.kind === 'char' ? { 名称: itemCheck.normalized.name } : itemCheck.normalized);
+      }
+
+      return { ok: true, participants: normalizedRoster };
+    }
+
+    function isExpandedBattleParticipant(participant) {
+      return !!(
+        participant &&
+        typeof participant === 'object' &&
+        !Array.isArray(participant) &&
+        String(participant.name || participant.名称 || '').trim() &&
+        participant.属性 &&
+        typeof participant.属性 === 'object' &&
+        participant.状态 &&
+        typeof participant.状态 === 'object'
+      );
     }
 
     function normalizeCombatForBattleUI(snapshot) {
       const combatData = deepGet(snapshot, 'rootData.world.战斗', {});
       if (!combatData || typeof combatData !== 'object' || !combatData.进行中) return combatData;
-      if (combatData.参战者?.player?.属性 && combatData.参战者?.enemy?.属性) return combatData;
-
-      const playerKey = resolveSnapshotCharKey(snapshot, combatData.参战者?.player?.name || deepGet(snapshot, 'rootData.sys.玩家名', '') || toText(snapshot && snapshot.activeName, ''));
-      const enemyKey = findCombatOpponentKey(snapshot, combatData);
-      if (!playerKey || !enemyKey) return combatData;
-
-      const nextCombat = cloneJsonValue(combatData, {});
-      const participants = nextCombat.参战者 && typeof nextCombat.参战者 === 'object' ? nextCombat.参战者 : {};
-      participants.player = mergeCombatParticipant(
-        buildCombatParticipantFromSnapshotChar(snapshot, playerKey, '己方'),
-        participants.player
-      );
-      participants.enemy = mergeCombatParticipant(
-        buildCombatParticipantFromSnapshotChar(snapshot, enemyKey, '敌对'),
-        participants.enemy
-      );
-      participants.team_player = Array.isArray(participants.team_player) ? participants.team_player : [];
-      participants.team_enemy = Array.isArray(participants.team_enemy) ? participants.team_enemy : [];
-      nextCombat.参战者 = participants;
-      nextCombat.战斗类型 = toText(nextCombat.战斗类型, '突发遭遇');
-      nextCombat.回合 = Math.max(0, toNumber(nextCombat.回合, 0));
-      const stageValue = toText(nextCombat.阶段, '宣告阶段');
-      nextCombat.阶段 = ['无', '宣告阶段', '对轰判定阶段', '回合结算阶段'].includes(stageValue)
-        ? stageValue
-        : '宣告阶段';
-      nextCombat.环境 = toText(nextCombat.环境, '正常');
-      snapshot.rootData.world.战斗 = nextCombat;
-      return nextCombat;
+      const participants = combatData.参战者 && typeof combatData.参战者 === 'object' ? combatData.参战者 : null;
+      if (!participants) return null;
+      const teamPlayer = Array.isArray(participants.team_player) ? participants.team_player : null;
+      const teamEnemy = Array.isArray(participants.team_enemy) ? participants.team_enemy : null;
+      if (!isExpandedBattleParticipant(participants.player) || !isExpandedBattleParticipant(participants.enemy)) return null;
+      if (!teamPlayer || !teamEnemy) return null;
+      if (!teamPlayer.every(isExpandedBattleParticipant) || !teamEnemy.every(isExpandedBattleParticipant)) return null;
+      return combatData;
     }
 
     function syncBattleUiForSnapshot(snapshot, options = {}) {
@@ -16002,13 +16144,8 @@ ${mvuUpdate}`;
 
     function buildMapBattleCombatData(snapshot, dispatchDetail) {
       const detail = dispatchDetail || {};
-      const npcTarget = toText(detail.npcTarget, '');
-      const activeKey = resolveSnapshotCharKey(snapshot, toText(snapshot && snapshot.activeName, '') || deepGet(snapshot, 'rootData.sys.玩家名', ''));
-      const targetKey = resolveSnapshotCharKey(snapshot, npcTarget);
-      if (!snapshot || !snapshot.rootData || !activeKey || !targetKey) return null;
-      const player = buildCombatParticipantFromSnapshotChar(snapshot, activeKey, '己方');
-      const enemy = buildCombatParticipantFromSnapshotChar(snapshot, targetKey, '敌对');
-      if (!player || !enemy) return null;
+      const rosterResult = buildBattleSeedRoster(snapshot, detail);
+      if (!rosterResult.ok) return { ok: false, reason: rosterResult.reason };
       const arenaName = toText(detail.currentLoc, toText(detail.target, toText(snapshot.currentLoc, '未知地点')));
       return {
         进行中: true,
@@ -16019,26 +16156,21 @@ ${mvuUpdate}`;
         回合: 0,
         环境: arenaName,
         裁断结果: '',
-        参战者: {
-          player,
-          enemy,
-          team_player: [],
-          team_enemy: []
-        },
+        参战者: rosterResult.participants,
         source: 'map_action',
         request: {
           action: '战斗',
           target: arenaName,
-          npcTarget
+          npcTarget: toText(detail.npcTarget, '')
         }
       };
     }
 
     async function openMapBattleModule(snapshot, dispatchDetail) {
       const combatData = buildMapBattleCombatData(snapshot, dispatchDetail);
-      if (!combatData) return { ok: false, reason: 'combat_context_unresolved' };
-      const playerName = toText(combatData.参战者.player.name, '玩家');
-      const enemyName = toText(combatData.参战者.enemy.name, '对手');
+      if (!combatData || combatData.ok === false) return { ok: false, reason: combatData?.reason || 'combat_context_unresolved' };
+      const playerName = toText(combatData.参战者.player.name || combatData.参战者.player.名称, '玩家');
+      const enemyName = toText(combatData.参战者.enemy.name || combatData.参战者.enemy.名称, '对手');
       battleInlineDismissed = false;
       await applyJsonPatchOpsByEditor([
         { op: 'replace', path: '/world/战斗', value: combatData },
@@ -16673,17 +16805,31 @@ ${mvuUpdate}`;
       let request = null;
 
       if (/battle|combat|战斗|切磋|单挑/.test(kind)) {
-        const npcTarget = toText(payload.npcTarget || payload.enemy || payload.targetNpc || payload.npc, '')
-          || findMentionedCharacterName(snapshot, text, { activeName: getSnapshotActiveCharName(snapshot) });
-        request = {
-          action: 'battle',
-          target: toText(payload.location || payload.targetLocation || payload.arena || payload.target, findBracketLocationToken(snapshot, text)),
-          currentLoc: toText(payload.currentLoc || payload.location, toText(snapshot && snapshot.currentLoc, '')),
-          npcTarget,
-          战斗类型: toText(payload.战斗类型, /死战|生死|击杀|袭击|伏击/.test(text) ? '突发遭遇' : '擂台切磋'),
-          source: toText(payload.source, 'module_intent_router')
-        };
-        if (!npcTarget) request = null;
+        const explicitParticipants = payload.参战者 && typeof payload.参战者 === 'object'
+          ? cloneJsonValue(payload.参战者, {})
+          : null;
+        if (explicitParticipants) {
+          request = {
+            action: 'battle',
+            target: toText(payload.location || payload.targetLocation || payload.arena || payload.target, findBracketLocationToken(snapshot, text)),
+            currentLoc: toText(payload.currentLoc || payload.location, toText(snapshot && snapshot.currentLoc, '')),
+            战斗类型: toText(payload.战斗类型, /死战|生死|击杀|袭击|伏击/.test(text) ? '突发遭遇' : '擂台切磋'),
+            source: toText(payload.source, 'module_intent_router'),
+            参战者: explicitParticipants
+          };
+        } else {
+          const npcTarget = toText(payload.npcTarget || payload.enemy || payload.targetNpc || payload.npc, '')
+            || findMentionedCharacterName(snapshot, text, { activeName: getSnapshotActiveCharName(snapshot) });
+          request = {
+            action: 'battle',
+            target: toText(payload.location || payload.targetLocation || payload.arena || payload.target, findBracketLocationToken(snapshot, text)),
+            currentLoc: toText(payload.currentLoc || payload.location, toText(snapshot && snapshot.currentLoc, '')),
+            npcTarget,
+            战斗类型: toText(payload.战斗类型, /死战|生死|击杀|袭击|伏击/.test(text) ? '突发遭遇' : '擂台切磋'),
+            source: toText(payload.source, 'module_intent_router')
+          };
+          if (!npcTarget) request = null;
+        }
         moduleKind = 'battle';
       } else if (/trade|交易|购买|出售|竞拍|拍卖/.test(kind)) {
         request = buildTradeRequestFromObject(snapshot, payload) || buildDirectTradeRequest(snapshot, text);
@@ -16705,6 +16851,14 @@ ${mvuUpdate}`;
       }
 
       if (!request || !moduleKind) return { handled: false, reason: 'no_module_intent' };
+      if (moduleKind === 'battle' && deepGet(snapshot, 'rootData.world.战斗.进行中', false)) {
+        return {
+          handled: false,
+          kind: moduleKind,
+          request,
+          reason: 'battle_already_active'
+        };
+      }
       if (forceAutoExecute && (moduleKind === 'trade' || moduleKind === 'profession')) {
         request.自动执行 = true;
         request.状态 = 'ready';

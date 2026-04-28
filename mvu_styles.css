@@ -469,6 +469,15 @@
       margin-bottom: 6px;
     }
 
+    .panel-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      flex: 1 1 auto;
+      flex-wrap: wrap;
+    }
+
     .panel-title,
     .strip-title,
     .simple-title {
@@ -513,6 +522,21 @@
       background: rgba(0,229,255,0.06);
       color: var(--text-sub);
       font-size: 9px;
+      white-space: nowrap;
+    }
+
+    .archive-role-chip {
+      margin-left: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+      max-width: min(220px, 100%);
+      appearance: none;
+      cursor: pointer;
+      font: inherit;
+      overflow: hidden;
+      text-overflow: ellipsis;
       white-space: nowrap;
     }
 
@@ -2845,6 +2869,20 @@
     .split-archive-stack .right-stack {
       position: relative;
       z-index: 1;
+    }
+
+    .split-archive-stack .mvu-panel:has(.interactive-ring),
+    .split-archive-stack .strip:has(.interactive-ring),
+    .split-archive-stack .dual-spirit-strip:has(.interactive-ring),
+    .split-archive-stack .spirit-side:has(.interactive-ring) {
+      overflow: visible;
+    }
+
+    .split-archive-stack .mvu-panel:has(.interactive-ring:hover),
+    .split-archive-stack .strip:has(.interactive-ring:hover),
+    .split-archive-stack .dual-spirit-strip:has(.interactive-ring:hover),
+    .split-archive-stack .spirit-side:has(.interactive-ring:hover) {
+      z-index: 140;
     }
 
     .split-archive-stack .dual-spirit-strip {
@@ -7130,6 +7168,13 @@ body.mvu-surface-shell #chat {
   margin: 12px 0 16px;
   pointer-events: none;
   z-index: 24;
+}
+
+body #mvu-unified-mount[data-mvu-booting="1"],
+body:not(.mvu-unified-mount-ready) #mvu-unified-mount {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 /* =========================================================================

@@ -531,8 +531,49 @@ class BattleUIComponent {
       return nextSnapshot;
     }
 
+    function isTemporaryCombatParticipant(participant) {
+      return !!(
+        participant &&
+        typeof participant === 'object' &&
+        String(participant.来源 || '').trim() === '临时单位' &&
+        String(participant.单位性质 || '').trim()
+      );
+    }
+
+    function buildTemporaryCombatParticipantPersistenceSnapshot(participant) {
+      if (!participant || typeof participant !== 'object') return undefined;
+      const source = sanitizeCombatPersistenceData(deepClonePlain(participant));
+      const snapshot = {
+        name: String(source.name || '').trim() || String(source.名称 || '').trim() || '未知',
+        来源: '临时单位',
+        单位性质: String(source.单位性质 || '').trim(),
+      };
+      ['身份', '数量', '等级', '年限', '标准物种', '级别', '标准种族'].forEach(key => {
+        if (source[key] !== undefined) snapshot[key] = clonePersistedCombatValue(source[key]);
+      });
+      const canonical = buildCanonicalParticipantPersistenceSnapshot(source) || {};
+      Object.assign(snapshot, canonical);
+      const hpFields = buildCanonicalCombatStatSnapshot(source, ['HP', 'HP上限']) || {};
+      if (Object.keys(hpFields).length) {
+        snapshot.属性 = { ...(snapshot.属性 || {}), ...hpFields };
+      }
+      if (source.状态 && typeof source.状态 === 'object') {
+        snapshot.状态 = {
+          ...(snapshot.状态 || {}),
+          存活: source.状态.存活 !== false,
+          ...(source.状态.受伤部位 !== undefined ? { 受伤部位: clonePersistedCombatValue(source.状态.受伤部位) } : {}),
+        };
+      }
+      if (source.特殊能力 && typeof source.特殊能力 === 'object' && !Array.isArray(source.特殊能力)) {
+        snapshot.特殊能力 = clonePersistedCombatValue(source.特殊能力);
+      }
+      if (source.name === undefined && source.名称 !== undefined) snapshot.名称 = String(source.名称 || '').trim();
+      return snapshot;
+    }
+
     function pushParticipantSyncPatch(ops, participant, options = {}) {
       if (!participant || typeof participant !== 'object') return;
+      if (isTemporaryCombatParticipant(participant)) return;
       const participantName = String(participant.name || '').trim();
       if (!participantName) return;
 
@@ -582,6 +623,9 @@ class BattleUIComponent {
       }
       if (typeof participant !== 'object' || Array.isArray(participant)) return undefined;
       const source = sanitizeCombatPersistenceData(participant);
+      if (isTemporaryCombatParticipant(source)) {
+        return buildTemporaryCombatParticipantPersistenceSnapshot(source);
+      }
       const compact = {};
       const participantName = String(source.name || '').trim();
       if (participantName) compact.name = participantName;
@@ -3997,15 +4041,23 @@ class BattleUIComponent {
       return removed;
     }
     
+    function getCombatSoulCoreCount(char) {
+      return Math.max(0, Math.floor(Number(char?.魂核?.核心?.数量 || 0)));
+    }
+
     function settleConditionsAtRoundEnd(char, label) {
-      if (!char || !char.状态效果) return { log: '', totalDot: 0, expired: [] };
+      if (!char) return { log: '', totalDot: 0, expired: [] };
 
       let totalDot = 0;
       let expired = [];
       let parts = [];
+      const conditionMap =
+        char.状态效果 && typeof char.状态效果 === 'object' && !Array.isArray(char.状态效果)
+          ? char.状态效果
+          : {};
 
-        Object.keys(char.状态效果).forEach(key => {
-          let cond = char.状态效果[key];
+        Object.keys(conditionMap).forEach(key => {
+          let cond = conditionMap[key];
           if (!cond) return;
 
           let combatEffects = cond.战斗效果 || {};
@@ -4030,7 +4082,7 @@ class BattleUIComponent {
         });
 
         expired.forEach(key => {
-          delete char.状态效果[key];
+          delete conditionMap[key];
           if (String(char.当前领域 || '') === String(key)) {
             char.当前领域 = '无';
           }
@@ -4041,6 +4093,37 @@ class BattleUIComponent {
           }
           parts.push(`[状态消散] ${label}的[${key}]已结束`);
         });
+
+        const resourceBlockRatio = Math.min(
+          1,
+          Object.values(conditionMap).reduce((maxVal, cond) => {
+            const value = Number(cond?.战斗效果?.resource_block_ratio || 0);
+            return Math.max(maxVal, value);
+          }, 0),
+        );
+        const coreCount = getCombatSoulCoreCount(char);
+        let naturalSpRatio = 0.005;
+        let naturalMenRatio = 0.005;
+        if (coreCount >= 1) naturalSpRatio += 0.01;
+        if (coreCount >= 2) naturalMenRatio += 0.01;
+        if (coreCount >= 3) naturalSpRatio += 0.01;
+
+        const maxSp = Math.max(0, Number(char.sp_max || 0));
+        const maxMen = Math.max(0, Number(char.men_max || 0));
+        if (maxSp > 0 && naturalSpRatio > 0 && resourceBlockRatio < 1) {
+          const beforeSp = Math.max(0, Number(char.sp || 0));
+          const recoverSp = Math.max(0, Math.floor(maxSp * naturalSpRatio * (1 - resourceBlockRatio)));
+          char.sp = Math.min(maxSp, beforeSp + recoverSp);
+          const actualRecoverSp = Math.max(0, Number(char.sp || 0) - beforeSp);
+          if (actualRecoverSp > 0) parts.push(`[自然恢复] ${label}回合末恢复 ${actualRecoverSp} 点魂力`);
+        }
+        if (maxMen > 0 && naturalMenRatio > 0 && resourceBlockRatio < 1) {
+          const beforeMen = Math.max(0, Number(char.men || 0));
+          const recoverMen = Math.max(0, Math.floor(maxMen * naturalMenRatio * (1 - resourceBlockRatio)));
+          char.men = Math.min(maxMen, beforeMen + recoverMen);
+          const actualRecoverMen = Math.max(0, Number(char.men || 0) - beforeMen);
+          if (actualRecoverMen > 0) parts.push(`[自然恢复] ${label}回合末恢复 ${actualRecoverMen} 点精神力`);
+        }
 
         return { log: parts.join(' '), totalDot, expired };
       }
@@ -9264,7 +9347,7 @@ class BattleUIComponent {
           });
           merged.name = safeUnit.name || stat.name || safeUnit.base?.name || '未知';
           merged.lv = toUiNumber(merged.lv ?? merged.等级, toUiNumber(stat.等级, 0));
-          merged.type = merged.type || stat.type || merged.系别 || stat.系别 || '未知系';
+          merged.type = merged.type || merged.系别 || stat.系别 || '未知系';
           merged.hp_max = Math.max(
             1,
             toUiNumber(merged.hp_max ?? merged.HP上限, toUiNumber(stat.HP上限, toUiNumber(merged.体力上限 ?? stat.体力上限, 1))),
