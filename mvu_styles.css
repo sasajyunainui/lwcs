@@ -536,6 +536,16 @@
       min-height: 28px;
     }
 
+    .stats-grid-top {
+      margin-bottom: 8px;
+    }
+
+    .stats-grid-pairs {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 12px;
+      margin-bottom: 0;
+    }
+
     .stat-item.no-bar .line {
       display: none;
     }
@@ -544,6 +554,9 @@
       font-size: 9px;
       color: var(--text-sub);
       line-height: 1.25;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .stat-value {
@@ -558,6 +571,21 @@
 
     .stat-value.cyan { color: var(--cyan); }
     .stat-value.red { color: #ff6a92; }
+
+    .resource-stat .stat-label {
+      font-size: 8.5px;
+    }
+
+    .resource-stat .stat-value {
+      font-size: 11px;
+      letter-spacing: -0.01em;
+      font-variant-numeric: tabular-nums;
+      text-overflow: clip;
+    }
+
+    .resource-stat .line {
+      width: 100%;
+    }
 
     .line {
       height: 2px;
@@ -2258,7 +2286,7 @@
 
     .split-shell-left {
       left: 10px;
-      width: min(352px, calc(23vw + 8px));
+      width: min(340px, calc(23vw + 8px));
       min-width: 280px;
     }
 
@@ -2589,6 +2617,25 @@
       grid-template-rows: auto minmax(138px, 0.98fr) minmax(124px, 0.78fr) minmax(116px, 0.74fr);
     }
 
+    .split-left-page[data-target="page-archive"] .split-archive-left {
+      height: auto;
+      min-height: max-content;
+      grid-template-rows: auto;
+      grid-auto-rows: max-content;
+      align-content: start;
+    }
+
+    .split-left-page[data-target="page-archive"] .split-archive-left > * {
+      height: auto;
+    }
+
+    .split-left-page[data-target="page-archive"] .split-archive-left .dual-spirit-strip,
+    .split-left-page[data-target="page-archive"] .split-archive-left .spirit-side,
+    .split-left-page[data-target="page-archive"] .split-archive-left .dual-spirit-body {
+      height: auto;
+      min-height: 0;
+    }
+
     .split-archive-right {
       grid-template-rows: minmax(220px, 1.42fr) minmax(150px, 0.86fr);
     }
@@ -2644,7 +2691,12 @@
       overflow: visible;
     }
 
-    .split-shell-left .mvu-panel.core-card .stats-grid {
+    .split-shell-left .mvu-panel.core-card .stats-grid-top {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px 10px;
+    }
+
+    .split-shell-left .mvu-panel.core-card .stats-grid-pairs {
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px 12px;
     }
@@ -2654,10 +2706,15 @@
     }
 
     .split-shell-left .mvu-panel.core-card .stat-value {
-      white-space: normal;
-      overflow: visible;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.25;
+    }
+
+    .split-shell-left .mvu-panel.core-card .resource-stat .stat-value {
+      font-size: 11px;
       text-overflow: clip;
-      line-height: 1.35;
     }
 
     .split-shell-left .dual-spirit-strip,
@@ -5902,7 +5959,7 @@
 
     .split-shell-bg-left {
       left: 10px;
-      width: min(352px, calc(23vw + 8px));
+      width: min(340px, calc(23vw + 8px));
       min-width: 280px;
     }
 
@@ -7048,7 +7105,7 @@ body.mvu-surface-shell #chat {
 
 #mvu-unified-mount {
   position: relative;
-  width: min(1120px, 100%);
+  width: min(1040px, 100%);
   max-width: 100%;
   align-self: stretch;
   margin: 12px 0 16px;
@@ -7060,7 +7117,7 @@ body.mvu-surface-shell #chat {
    Unified Layout Root: dedicated shell
    ========================================================================= */
 body.mvu-surface-panel.mvu-layout-unified #mvu-unified-mount {
-  width: min(1120px, 100%);
+  width: min(1040px, 100%);
   margin: 8px 0 12px;
   z-index: 32;
 }
@@ -8751,8 +8808,6 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-tab-btn:hover {
 
 #detailModal.mvu-modal-display-unified .mvu-modal-panel,
 #detailModal.mvu-modal-display-unified .mvu-modal-panel.archive-mode {
-  width: min(960px, calc(100vw - 48px)) !important;
-  max-width: min(960px, calc(100vw - 48px)) !important;
   min-height: 0 !important;
   max-height: min(72svh, 820px) !important;
   border-radius: 20px;

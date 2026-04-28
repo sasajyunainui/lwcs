@@ -1644,7 +1644,7 @@
       return fallback;
     }
 
-    const TRAINED_BONUS_PREVIEW_FIELDS = Object.freeze(['力量', '防御', '敏捷', '体力上限', '精神力上限', '魂力上限']);
+    const TRAINED_BONUS_PREVIEW_FIELDS = Object.freeze(['力量', '防御', '敏捷', '体力上限', '精神力上限']);
     const trainedBonusPreviewOverrides = new Map();
 
     function createTrackedStatPreviewMap(source = {}) {
@@ -1654,7 +1654,6 @@
         敏捷: Math.floor(toNumber(source && source.敏捷, 0)),
         体力上限: Math.floor(toNumber(source && source.体力上限, 0)),
         精神力上限: Math.floor(toNumber(source && source.精神力上限, 0)),
-        魂力上限: Math.floor(toNumber(source && source.魂力上限, 0)),
       };
     }
 
@@ -1665,7 +1664,6 @@
         敏捷: Math.floor(toNumber(source && source.敏捷, 0)),
         体力上限: Math.floor(toNumber(source && source.体力上限, 0)),
         精神力上限: Math.floor(toNumber(source && source.精神力上限, 0)),
-        魂力上限: Math.floor(toNumber(source && source.魂力上限, 0)),
       };
     }
 
@@ -1731,7 +1729,6 @@
         敏捷: baseStats.敏捷 + deltas.敏捷,
         体力上限: baseStats.体力上限 + deltas.体力上限,
         精神力上限: baseStats.精神力上限 + deltas.精神力上限,
-        魂力上限: baseStats.魂力上限 + deltas.魂力上限,
       };
 
       const allSettled = TRAINED_BONUS_PREVIEW_FIELDS.every(field => rawStats[field] === previewStats[field]);
@@ -7725,7 +7722,8 @@
         }));
       };
       const extraSkills = [];
-        safeRecords(deepGet(activeChar, '功法', {})).forEach(art => {
+      const artSkillNameSet = new Set(safeEntries(deepGet(activeChar, '功法', {})).map(([name]) => toText(name, '').trim()).filter(Boolean));
+      safeRecords(deepGet(activeChar, '功法', {})).forEach(art => {
         extraSkills.push({
           category: '功法绝学',
           name: art.name,
@@ -7788,6 +7786,7 @@
         });
       });
       safeRecords(deepGet(activeChar, '特殊能力', {})).forEach(abi => {
+        if (artSkillNameSet.has(toText(abi.recordKey || abi.name, '').trim())) return;
         extraSkills.push({
           category: '特殊能力',
           name: abi.name,
@@ -7822,7 +7821,7 @@
       const conditionEntries = safeEntries(deepGet(activeChar, '属性.状态效果', {}));
       const soulBoneEntries = safeEntries(deepGet(activeChar, '魂骨', {}));
       const artEntries = safeEntries(deepGet(activeChar, '功法', {})).sort((a, b) => toNumber(deepGet(b[1], 'lv', 0), 0) - toNumber(deepGet(a[1], 'lv', 0), 0));
-      const specialAbilityEntries = safeEntries(deepGet(activeChar, '特殊能力', {}));
+      const specialAbilityEntries = safeEntries(deepGet(activeChar, '特殊能力', {})).filter(([name]) => !artSkillNameSet.has(toText(name, '').trim()));
       const combatHistoryEntries = safeEntries(deepGet(activeChar, '战斗历史', {})).sort((a, b) => toNumber(deepGet(b[1], '最近tick', 0), 0) - toNumber(deepGet(a[1], '最近tick', 0), 0));
       const pendingRequests = collectPendingRequests(activeChar || {}, sd || {});
       const bestiaryEntries = safeEntries(deepGet(sd, 'world.图鉴', {}));
@@ -8264,6 +8263,7 @@
       const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '当前角色');
       const nextLevelSoul = getNextLevelSoulRequirement(stat);
       const allowNsfwLongPress = canOpenPrivateArchive(snapshot);
+      const mentalRealmText = toText(stat._men_realm, toText(stat.精神力_realm, '灵元境'));
       const primaryFactionName = snapshot.primaryFaction ? snapshot.primaryFaction[0] : '无';
       const primaryFactionRole = snapshot.primaryFaction ? toText(deepGet(snapshot.primaryFaction[1], '身份', '无'), '无') : '未加入';
       const topRelationText = snapshot.topRelation
@@ -8277,42 +8277,43 @@
           <div class="panel-title${allowNsfwLongPress ? ' nsfw-trigger-title' : ''}"${allowNsfwLongPress ? ` data-longpress="${PRIVATE_ARCHIVE_PREVIEW_KEY}" data-longpress-delay="600"` : ''}>详细档案</div>
           <span class="meta-pill">${htmlEscape(nextLevelSoul.isMax ? '下级魂力 已满级' : `下级魂力 ${formatNumber(nextLevelSoul.needed)}`)}</span>
         </div>
-        <div class="stats-grid">
+        <div class="stats-grid stats-grid-top">
           <div class="stat-item compact no-bar">
             <div class="stat-label">年龄 / 性别</div>
             <div class="stat-value">${htmlEscape(`${toText(stat.年龄, '0')}岁 / ${toText(stat.性别, '未知')}`)}</div>
           </div>
-          <div class="stat-item">
+          <div class="stat-item compact no-bar">
             <div class="stat-label">修为等级</div>
             <div class="stat-value cyan">${htmlEscape(formatCultivationLevelBadge(stat.等级, '0'))}</div>
-            <div class="line"><div class="fill" style="color: var(--cyan); width: ${ratioPercent(stat.魂力, stat.魂力上限)}%;"></div></div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label">魂力 (SP)</div>
-            <div class="stat-value cyan">${htmlEscape(formatNumber(stat.魂力))} / ${htmlEscape(formatNumber(stat.魂力上限))}</div>
-            <div class="line"><div class="fill" style="color: var(--cyan); width: ${ratioPercent(stat.魂力, stat.魂力上限)}%;"></div></div>
           </div>
           <div class="stat-item compact no-bar">
             <div class="stat-label">状态概览</div>
             <div class="stat-value">${htmlEscape(`${toText(status.行动, '日常')} / ${woundLabel}`)}</div>
           </div>
-          <div class="stat-item">
-            <div class="stat-label">生命 (HP)</div>
-            <div class="stat-value red">${htmlEscape(formatNumber(hpPair.hp))} / ${htmlEscape(formatNumber(hpPair.hpMax))}</div>
-            <div class="line"><div class="fill" style="color: var(--red); width: ${ratioPercent(hpPair.hp, hpPair.hpMax)}%;"></div></div>
+        </div>
+        <div class="stats-grid stats-grid-pairs">
+          <div class="stat-item resource-stat">
+            <div class="stat-label">魂力</div>
+            <div class="stat-value cyan">${htmlEscape(formatNumber(stat.魂力))}/${htmlEscape(formatNumber(stat.魂力上限))}</div>
+            <div class="line"><div class="fill" style="color: var(--cyan); width: ${ratioPercent(stat.魂力, stat.魂力上限)}%;"></div></div>
           </div>
-          <div class="stat-item">
-            <div class="stat-label">体力 (VIT)</div>
-            <div class="stat-value red">${htmlEscape(formatNumber(stat.体力))} / ${htmlEscape(formatNumber(stat.体力上限))}</div>
-            <div class="line"><div class="fill" style="color: var(--red); width: ${ratioPercent(stat.体力, stat.体力上限)}%;"></div></div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label">精神力 (MEN) · ${htmlEscape(toText(stat._men_realm, toText(stat.精神力_realm, '灵元境')))}</div>
-            <div class="stat-value">${htmlEscape(formatNumber(stat.精神力))} / ${htmlEscape(formatNumber(stat.精神力上限))}</div>
+          <div class="stat-item resource-stat">
+            <div class="stat-label">精神力 · ${htmlEscape(mentalRealmText)}</div>
+            <div class="stat-value">${htmlEscape(formatNumber(stat.精神力))}/${htmlEscape(formatNumber(stat.精神力上限))}</div>
             <div class="line"><div class="fill" style="color: var(--white); width: ${ratioPercent(stat.精神力, stat.精神力上限)}%;"></div></div>
           </div>
+          <div class="stat-item resource-stat">
+            <div class="stat-label">生命</div>
+            <div class="stat-value red">${htmlEscape(formatNumber(hpPair.hp))}/${htmlEscape(formatNumber(hpPair.hpMax))}</div>
+            <div class="line"><div class="fill" style="color: var(--red); width: ${ratioPercent(hpPair.hp, hpPair.hpMax)}%;"></div></div>
+          </div>
+          <div class="stat-item resource-stat">
+            <div class="stat-label">体力</div>
+            <div class="stat-value red">${htmlEscape(formatNumber(stat.体力))}/${htmlEscape(formatNumber(stat.体力上限))}</div>
+            <div class="line"><div class="fill" style="color: var(--red); width: ${ratioPercent(stat.体力, stat.体力上限)}%;"></div></div>
+          </div>
         </div>
-      `;
+        `;
     }
 
     function buildArmoryCard(snapshot) {
@@ -8436,6 +8437,10 @@
         .slice(0, max);
     }
 
+    function formatShellPair(current, max) {
+      return `${formatNumber(current)} / ${formatNumber(max)}`;
+    }
+
     function buildShellSummaryCard(options = {}) {
       const kicker = toText(options.kicker, '').trim();
       const title = toText(options.title, '空').trim() || '空';
@@ -8447,9 +8452,15 @@
       const size = requestedSize || 'compact';
       const longPressPreview = toText(options.longPressPreview, '').trim();
       const longPressDelay = Math.max(250, toNumber(options.longPressDelay, 600));
-      const badgeLimit = size === 'hero' ? 2 : 1;
-      const metricLimit = size === 'hero' ? 3 : 1;
-      const rowLimit = size === 'hero' ? 2 : 1;
+      const badgeLimit = options.badgeLimit != null
+        ? Math.max(0, toNumber(options.badgeLimit, size === 'hero' ? 2 : 1))
+        : (size === 'hero' ? 2 : 1);
+      const metricLimit = options.metricLimit != null
+        ? Math.max(0, toNumber(options.metricLimit, size === 'hero' ? 3 : 1))
+        : (size === 'hero' ? 3 : 1);
+      const rowLimit = options.rowLimit != null
+        ? Math.max(0, toNumber(options.rowLimit, size === 'hero' ? 2 : 1))
+        : (size === 'hero' ? 2 : 1);
       const badges = collectShellBadgeItems(options.badges || [], badgeLimit);
       const metrics = collectShellMetricItems(options.metrics || [], metricLimit);
       const rows = collectShellLineItems(options.rows || [], rowLimit);
@@ -8845,18 +8856,21 @@
           fameLevelText && fameLevelText !== '籍籍无名' ? { text: fameLevelText, tone: 'gold' } : '',
         ],
         metrics: [
-          hpPair.hpMax > 0 ? { label: 'HP', value: `${ratioPercent(hpPair.hp, hpPair.hpMax)}%`, tone: 'warn' } : { label: '年龄', value: ageMetric > 0 ? String(ageMetric) : '--' },
-          hasVitalityMeter ? { label: '体力', value: `${ratioPercent(stat.体力, stat.体力上限)}%`, tone: 'gold' } : { label: '天赋', value: talentMetric || '--', tone: 'gold' },
-          hasMentalMeter ? { label: '精神', value: `${ratioPercent(stat.精神力, stat.精神力上限)}%` } : { label: '系别', value: typeMetric || '--' },
-          { label: '状态', value: shortenText(statusSummary, 10) || '--' },
+          hpPair.hpMax > 0 ? { label: 'HP', value: formatShellPair(hpPair.hp, hpPair.hpMax), tone: 'warn' } : { label: '年龄', value: ageMetric > 0 ? String(ageMetric) : '--' },
+          hasVitalityMeter ? { label: '体力', value: formatShellPair(stat.体力, stat.体力上限), tone: 'gold' } : { label: '天赋', value: talentMetric || '--', tone: 'gold' },
+          hasSoulPowerMeter ? { label: '魂力', value: formatShellPair(stat.魂力, stat.魂力上限), tone: 'live' } : { label: '系别', value: typeMetric || '--', tone: 'live' },
+          hasMentalMeter ? { label: '精神', value: formatShellPair(stat.精神力, stat.精神力上限) } : { label: '年龄', value: ageMetric > 0 ? String(ageMetric) : '--' },
         ],
         rows: [
+          { label: '状态', value: statusSummary || '--' },
           { label: factionJoined ? '阵营' : '身份', value: factionSummary },
           { label: '名望', value: social.声望 ? `${fameLevelText} · ${formatNumber(social.声望)}` : fameLevelText },
           { label: '伤处', value: injurySummary },
         ],
         tone: 'hero',
         size: 'hero',
+        metricLimit: 4,
+        rowLimit: 3,
         longPressPreview: allowPrivateArchiveLongPress ? PRIVATE_ARCHIVE_PREVIEW_KEY : '',
         longPressDelay: 600,
       });
@@ -9615,19 +9629,14 @@
                 <strong>${htmlEscape(toText(snapshot && snapshot.activeName, '当前角色'))}</strong>
               </div>
               ${buildShellLiteStats([
-                { label: '等级', value: formatCultivationLevelBadge(stat.等级, '0') },
-                { label: '状态', value: shortenText(toText(status.行动, '日常'), 10) },
-                { label: '伤势', value: woundLabel },
                 { label: '年龄 / 性别', value: `${toText(stat.年龄, '--')} / ${toText(stat.性别, '未知')}` },
-              ])}
-            </section>
-            <section class="mvu-shell-lite-card">
-              <div class="mvu-shell-lite-section-title">资源</div>
-              ${buildShellLiteStats([
-                { label: 'HP', value: `${formatNumber(hpPair.hp)} / ${formatNumber(hpPair.hpMax)}` },
-                { label: '体力', value: `${formatNumber(stat.体力)} / ${formatNumber(stat.体力上限)}` },
-                { label: '魂力', value: `${formatNumber(stat.魂力)} / ${formatNumber(stat.魂力上限)}` },
-                { label: '精神', value: `${formatNumber(stat.精神力)} / ${formatNumber(stat.精神力上限)}` },
+                { label: '修为等级', value: formatCultivationLevelBadge(stat.等级, '0') },
+                { label: 'HP', value: formatShellPair(hpPair.hp, hpPair.hpMax) },
+                { label: '体力', value: formatShellPair(stat.体力, stat.体力上限) },
+                { label: '魂力', value: formatShellPair(stat.魂力, stat.魂力上限) },
+                { label: '精神', value: formatShellPair(stat.精神力, stat.精神力上限) },
+                { label: '状态', value: shortenText(toText(status.行动, '日常'), 16) },
+                { label: '伤势', value: woundLabel },
               ], { className: 'mvu-shell-lite-grid--two' })}
             </section>
             <section class="mvu-shell-lite-card">

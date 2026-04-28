@@ -2927,7 +2927,6 @@ function normalizeSingleRingSkillSlotMap(skillMap = {}, ringIndex = 1) {
 function stripLegacySkillFieldsFromCharacter(char = {}) {
   if (!char || typeof char !== 'object') return char;
   _(char.武魂 || {}).forEach(spiritData => {
-    stripLegacySkillFieldsFromSkillMap(spiritData?.自创魂技 || {});
     _(spiritData?.魂灵 || {}).forEach(soulSpirit => {
       _(soulSpirit?.魂环 || {}).forEach((ringData, ringIndex) => {
         normalizeSingleRingSkillSlotMap(ringData?.魂技 || {}, ringIndex);
@@ -2935,7 +2934,6 @@ function stripLegacySkillFieldsFromCharacter(char = {}) {
       });
     });
   });
-  stripLegacySkillFieldsFromSkillMap(char?.秘技 || {});
   stripLegacySkillFieldsFromSkillMap(char?.特殊能力 || {});
   _(char?.武魂融合技 || {}).forEach(fusionData =>
     stripLegacySkillFieldsFromSkill(fusionData?.技能数据 || {}),
@@ -3533,7 +3531,7 @@ const SKILL_MUTATION_MECHANIC_TYPES_V1 = [
   '阵营错位/锁定',
 ];
 
-const NUMERIC_STAT_BONUS_KEYS = ['力量', '防御', '敏捷', '体力上限', '精神力上限', '魂力上限'];
+const NUMERIC_STAT_BONUS_KEYS = ['力量', '防御', '敏捷', '体力上限', '精神力上限'];
 
 function normalizeDiscreteStatBonusInteger(value = 0) {
   const numeric = Number(value || 0);
@@ -3551,7 +3549,13 @@ function createNumericStatBonusMap(seed = {}) {
     敏捷: normalizeDiscreteStatBonusInteger(source.敏捷),
     体力上限: normalizeDiscreteStatBonusInteger(source.体力上限),
     精神力上限: normalizeDiscreteStatBonusInteger(source.精神力上限),
-    魂力上限: normalizeDiscreteStatBonusInteger(source.魂力上限),
+  };
+}
+
+function createExtendedStatBonusMap(seed = {}) {
+  return {
+    ...createNumericStatBonusMap(seed),
+    魂力上限: normalizeDiscreteStatBonusInteger(seed && seed.魂力上限),
   };
 }
 
@@ -3589,11 +3593,18 @@ function buildNumericStatBonusSummary(bonusMap = {}) {
     魂力上限: '魂力上限',
   };
   const segments = [];
-  Object.entries(createNumericStatBonusMap(bonusMap)).forEach(([key, value]) => {
+  Object.entries(createExtendedStatBonusMap(bonusMap)).forEach(([key, value]) => {
     const amount = Math.floor(Number(value || 0));
     if (amount > 0 && labels[key]) segments.push(`${labels[key]}+${amount}`);
   });
   return segments.join('，') || '无';
+}
+
+function getPersistentSoulPowerBonusFromPermanentRecords(char = {}) {
+  return Object.values(char?.血脉之力?.永久加成 || {}).reduce(
+    (total, record) => total + normalizeDiscreteStatBonusInteger(record?.属性加成?.魂力上限),
+    0,
+  );
 }
 
 function normalizeStatHpFields(stat = {}) {
@@ -3666,13 +3677,13 @@ const GOLDEN_DRAGON_NON_SKILL_NODE_NAMES = new Set(
 
 function applyGoldenDragonPermanentBonusNodes(char, currentStats = {}) {
   if (!char?.血脉之力 || !String(char.血脉之力.血脉 || '').includes('金龙王'))
-    return createNumericStatBonusMap();
-  if (!char.属性 || typeof char.属性 !== 'object') return createNumericStatBonusMap();
+    return createExtendedStatBonusMap();
+  if (!char.属性 || typeof char.属性 !== 'object') return createExtendedStatBonusMap();
   if (!char.血脉之力.永久加成 || typeof char.血脉之力.永久加成 !== 'object')
     char.血脉之力.永久加成 = {};
   const trainedBonus = ensureNumericStatBonusMap(char.属性, '训练加成');
-  const totalAdded = createNumericStatBonusMap();
-  const virtualStats = createNumericStatBonusMap(currentStats);
+  const totalAdded = createExtendedStatBonusMap();
+  const virtualStats = createExtendedStatBonusMap(currentStats);
   Object.entries(GOLDEN_DRAGON_PERMANENT_BONUS_NODES)
     .sort((a, b) => Number(a[0]) - Number(b[0]))
     .forEach(([sealKey, node]) => {
@@ -3680,7 +3691,7 @@ function applyGoldenDragonPermanentBonusNodes(char, currentStats = {}) {
       if (sealLv <= 0 || sealLv > Number(char.血脉之力?.解封层数 || 0)) return;
       const recordKey = String(node?.名称 || `第${sealLv}层永久成长`);
       if (char.血脉之力.永久加成[recordKey]) return;
-      const appliedBonus = createNumericStatBonusMap();
+      const appliedBonus = createExtendedStatBonusMap();
       Object.entries(node?.百分比 || {}).forEach(([statKey, ratio]) => {
         const gain = Math.max(
           0,
@@ -3688,7 +3699,9 @@ function applyGoldenDragonPermanentBonusNodes(char, currentStats = {}) {
         );
         appliedBonus[statKey] = gain;
         totalAdded[statKey] += gain;
-        trainedBonus[statKey] = Number(trainedBonus[statKey] || 0) + gain;
+        if (statKey !== '魂力上限') {
+          trainedBonus[statKey] = Number(trainedBonus[statKey] || 0) + gain;
+        }
         virtualStats[statKey] = Number(virtualStats[statKey] || 0) + gain;
       });
       const effectText = buildNumericStatBonusSummary(appliedBonus);
@@ -4832,8 +4845,6 @@ function createEmptySoulSpiritPowerPanel() {
     vit_max: 0,
     men_max: 0,
     sp_max: 0,
-    _品质快照: '无',
-    _物种快照: '未知',
   };
 }
 
@@ -4903,15 +4914,6 @@ function inferSoulSpiritQuality(武魂 = {}) {
   return SOUL_SPIRIT_QUALITY_VALUES[_.clamp(score, 0, SOUL_SPIRIT_QUALITY_VALUES.length - 1)] || '';
 }
 
-function resolveSoulSpiritQuality(武魂 = {}) {
-  const explicit = normalizeSoulSpiritQuality(武魂?.品质 || '');
-  if (explicit) return explicit;
-  const inferred = inferSoulSpiritQuality(武魂);
-  if (inferred) return inferred;
-  const raw = String(武魂?.品质 || '').trim();
-  return raw || AI_TODO_SOUL_SPIRIT_QUALITY;
-}
-
 function buildSoulSpiritDescriptionTodoText(武魂 = {}) {
   const species = String(武魂?.表象名称 || '').trim();
   const quality = normalizeSoulSpiritQuality(武魂?.品质 || '');
@@ -4928,36 +4930,44 @@ function buildSoulSpiritDescriptionTodoText(武魂 = {}) {
 
 function syncSoulSpiritRuntimeData(武魂 = {}) {
   if (!武魂 || typeof 武魂 !== 'object') return 武魂;
-  const resolvedQuality = resolveSoulSpiritQuality(武魂);
-  武魂.品质 = resolvedQuality;
+  const currentQualityText = String(武魂?.品质 || '').trim();
+  const explicitQuality = normalizeSoulSpiritQuality(currentQualityText);
+  武魂.品质 = explicitQuality || currentQualityText || AI_TODO_SOUL_SPIRIT_QUALITY;
 
   const currentDesc = String(武魂.描述 || '').trim();
   if (!currentDesc || currentDesc === '无' || isAiTodoText(currentDesc) || currentDesc.startsWith('待生成')) {
-    武魂.描述 = buildSoulSpiritDescriptionTodoText({ ...武魂, 品质: resolvedQuality });
-  }
-
-  if (!武魂.战力面板 || typeof 武魂.战力面板 !== 'object') {
-    武魂.战力面板 = createEmptySoulSpiritPowerPanel();
+    武魂.描述 = buildSoulSpiritDescriptionTodoText({
+      ...武魂,
+      品质: explicitQuality || inferSoulSpiritQuality(武魂) || 武魂.品质,
+    });
   }
 
   const visibleSpecies =
     !isAiTodoText(武魂.表象名称) && String(武魂.表象名称 || '').trim() && 武魂.表象名称 !== '未展露'
       ? String(武魂.表象名称).trim()
       : '未知';
-  const normalizedQuality = normalizeSoulSpiritQuality(resolvedQuality);
-  武魂.战力面板._品质快照 = normalizedQuality || '无';
-  武魂.战力面板._物种快照 = visibleSpecies;
-
-  if (Number(武魂.年限 || 0) > 0) {
-    const stats = getBeastStats(武魂.年限, visibleSpecies, resolvedQuality);
-    武魂.战力面板.对标等级 = Number(stats.对标等级 || 0);
-    武魂.战力面板.str = Number(stats.str || 0);
-    武魂.战力面板.def = Number(stats.def || 0);
-    武魂.战力面板.agi = Number(stats.agi || 0);
-    武魂.战力面板.vit_max = Number(stats.vit_max || 0);
-    武魂.战力面板.men_max = Number(stats.men_max || 0);
-    武魂.战力面板.sp_max = Number(stats.sp_max || 0);
+  const hasReadyDescription =
+    currentDesc &&
+    currentDesc !== '无' &&
+    !isAiTodoText(currentDesc) &&
+    !currentDesc.startsWith('待生成');
+  const shouldExposePowerPanel = Number(武魂.年限 || 0) > 0 && visibleSpecies !== '未知' && !!explicitQuality && hasReadyDescription;
+  if (!shouldExposePowerPanel) {
+    delete 武魂.战力面板;
+    return 武魂;
   }
+
+  if (!武魂.战力面板 || typeof 武魂.战力面板 !== 'object') {
+    武魂.战力面板 = createEmptySoulSpiritPowerPanel();
+  }
+  const stats = getBeastStats(武魂.年限, visibleSpecies, explicitQuality);
+  武魂.战力面板.对标等级 = Number(stats.对标等级 || 0);
+  武魂.战力面板.str = Number(stats.str || 0);
+  武魂.战力面板.def = Number(stats.def || 0);
+  武魂.战力面板.agi = Number(stats.agi || 0);
+  武魂.战力面板.vit_max = Number(stats.vit_max || 0);
+  武魂.战力面板.men_max = Number(stats.men_max || 0);
+  武魂.战力面板.sp_max = Number(stats.sp_max || 0);
   return 武魂;
 }
 
@@ -6524,7 +6534,6 @@ const StatsSchema = z
         敏捷: z.coerce.number().prefault(0),
         体力上限: z.coerce.number().prefault(0),
         精神力上限: z.coerce.number().prefault(0),
-        魂力上限: z.coerce.number().prefault(0),
       })
       .prefault({}),
 
@@ -7028,7 +7037,7 @@ const CharacterSchema = z
                         men_max: z.coerce.number().prefault(0),
                         sp_max: z.coerce.number().prefault(0),
                       })
-                      .prefault({})
+                      .optional()
                       .describe('魂灵战力面板'),
                     魂环: z
                       .record(
@@ -7046,10 +7055,6 @@ const CharacterSchema = z
                   .prefault({}),
               )
               .prefault({}),
-            自创魂技: z
-              .record(z.string().describe('自创魂技名称'), SkillStructSchema)
-              .prefault({})
-              .describe('不依赖固定魂环位的武魂自创魂技'),
           })
           .prefault({}),
         第二武魂: z
@@ -7082,7 +7087,7 @@ const CharacterSchema = z
                         men_max: z.coerce.number().prefault(0),
                         sp_max: z.coerce.number().prefault(0),
                       })
-                      .prefault({})
+                      .optional()
                       .describe('魂灵战力面板'),
                     魂环: z
                       .record(
@@ -7100,10 +7105,6 @@ const CharacterSchema = z
                   .prefault({}),
               )
               .prefault({}),
-            自创魂技: z
-              .record(z.string().describe('自创魂技名称'), SkillStructSchema)
-              .prefault({})
-              .describe('不依赖固定魂环位的武魂自创魂技'),
           })
           .optional(),
       })
@@ -7123,14 +7124,10 @@ const CharacterSchema = z
           .prefault({}),
       )
       .prefault({}),
-    秘技: z
-      .record(z.string().describe('秘技名称'), SkillStructSchema)
-      .prefault({})
-      .describe('非魂环类统一技能容器，如唐门绝学、宗门秘技等'),
     特殊能力: z
       .record(z.string().describe('能力名称'), SkillStructSchema)
       .prefault({})
-      .describe('统一特殊能力技能容器'),
+      .describe('统一非魂环技能容器，包含原秘技与其他额外能力'),
     武魂融合技: z
       .record(
         z.string().describe('融合技名称'),
@@ -7351,27 +7348,13 @@ const CharacterSchema = z
         _(社交.关系).forEach((relData, targetName) => {
           const val = Number(relData.好感度 || 0);
           let route = relData.关系路线 || '朋友线';
+          const currentRelationLabel = String(relData.关系 || relData._关系阶段 || '陌生').trim() || '陌生';
           let nextStage = '已达当前路线终点';
           let nextStageThreshold = 999;
           let progressNote = '维持当前关系即可。';
           let recommendedAction = '继续观察';
           let nextUnlockThreshold = 999;
           let nextUnlockBonus = '无';
-
-
-          if (val <= -50) relData.关系 = '仇敌';
-          else if (val <= -10) relData.关系 = '敌视';
-          else if (val <= 10) relData.关系 = '陌生';
-          else if (val <= 30) relData.关系 = '认识';
-          else if (val <= 60) relData.关系 = '朋友';
-          else if (val <= 80) relData.关系 = '亲密';
-          else {
-            if (route === '恋人线') {
-              relData.关系 = val >= 95 ? '恋人' : '暧昧';
-            } else {
-              relData.关系 = val >= 95 ? '生死之交' : '挚友';
-            }
-          }
 
           if (val <= -50) {
             nextStage = '敌视';
@@ -7421,7 +7404,7 @@ const CharacterSchema = z
             recommendedAction = route === '恋人线' ? '维护专属陪伴与排他性事件' : '作为核心盟友长期经营';
           }
 
-          relData._关系阶段 = relData.关系;
+          relData._关系阶段 = currentRelationLabel;
           relData._下一阶段 = nextStage;
           relData._下一阶段阈值 = nextStageThreshold;
           relData._可切线 = route !== '恋人线' && val >= 60;
@@ -7438,7 +7421,7 @@ const CharacterSchema = z
 
           topTargets.push({
             对象: targetName,
-            关系: relData.关系,
+            关系: currentRelationLabel,
             好感度: val,
             路线: route,
             原因: progressNote,
@@ -7641,15 +7624,13 @@ const CharacterSchema = z
       );
       const hasElementSystem = ['元素', '五行'].includes(String(secondaryAttributeState.属性体系 || '').trim());
       const hasSoulSpirits = !!(secondarySpirit.魂灵 && Object.keys(secondarySpirit.魂灵).length);
-      const hasCustomSkills = !!(secondarySpirit.自创魂技 && Object.keys(secondarySpirit.自创魂技).length);
       const hasRealSecondarySpirit =
         (secondaryName && secondaryName !== '未展露' && !isAiTodoText(secondaryName)) ||
         (secondaryDesc && secondaryDesc !== '无' && !isAiTodoText(secondaryDesc)) ||
         hasElementSystem ||
         hasUnlockedAttrs ||
         hasCapacityAttrs ||
-        hasSoulSpirits ||
-        hasCustomSkills;
+        hasSoulSpirits;
 
       if (!hasRealSecondarySpirit) {
         const nextSpirit = { ...(char.武魂 || {}) };
@@ -7686,11 +7667,15 @@ const CharacterSchema = z
         }
       }
     }
-    if (!char.秘技) char.秘技 = {};
-    Object.keys(char.功法 || {}).forEach(artName => {
+    if (!char.特殊能力) char.特殊能力 = {};
+    Object.keys(TANGMEN_SECRET_SKILL_TEMPLATES).forEach(artName => {
+      if (!char.功法?.[artName]) {
+        delete char.特殊能力[artName];
+        return;
+      }
       const template = TANGMEN_SECRET_SKILL_TEMPLATES[artName];
-      if (template && !char.秘技[artName]) {
-        char.秘技[artName] = cloneSkillStructData(template);
+      if (template && !char.特殊能力[artName]) {
+        char.特殊能力[artName] = cloneSkillStructData(template);
       }
     });
 
@@ -7858,7 +7843,7 @@ const CharacterSchema = z
     let final_agi = Math.floor(base.agi * typeMult.agi * hiddenVar) + char.属性.训练加成.敏捷;
     let final_vit_max = Math.floor(base.vit_max * typeMult.vit_max * hiddenVar) + char.属性.训练加成.体力上限;
     let final_men_max = Math.floor(base.men_max * typeMult.men_max * hiddenVar) + char.属性.训练加成.精神力上限;
-    let final_sp_max = Math.floor(base.sp_max * typeMult.sp_max * hiddenVar) + (char.属性.训练加成.魂力上限 || 0);
+    let final_sp_max = Math.floor(base.sp_max * typeMult.sp_max * hiddenVar) + getPersistentSoulPowerBonusFromPermanentRecords(char);
     let bName = char.血脉之力?.血脉 || '无';
 
     if (bName.includes('金龙王')) {
@@ -8023,25 +8008,6 @@ const CharacterSchema = z
         });
       });
 
-      ensureSkillMapGenerated(spiritData?.自创魂技, (_, skillName) => ({
-        type: spiritData?.type || char.属性.系别,
-        talentTier: char.属性.天赋梯队,
-        age: genericSkillAge,
-        ringIndex: Math.max(1, Math.ceil(Number(char.属性.等级 || 1) / 10)),
-        compatibility: 100,
-        elementProfile: runtimeElementProfile,
-        unlockedAttributes: spiritAttributeState.已解锁属性,
-        attributeCapacity: spiritAttributeState.可容纳属性,
-        elementTrigger: '继承武魂',
-        preferredSecondary: [],
-        textContext: {
-          spiritName:
-            !isAiTodoText(spiritData?.表象名称) && spiritData?.表象名称 !== '未展露'
-              ? spiritData.表象名称
-              : spiritKey || skillName,
-          type: spiritData?.type || char.属性.系别,
-        },
-      }));
     });
 
     _(char.魂骨 || {}).forEach((bone, bonePart) => {
@@ -8058,14 +8024,6 @@ const CharacterSchema = z
         },
       }));
     });
-
-    ensureSkillMapGenerated(char.秘技, (_, skillName) => ({
-      enableGenerate: false,
-      textContext: {
-        spiritName: skillName,
-        type: char.属性.系别,
-      },
-    }));
 
     ensureSkillMapGenerated(char.特殊能力, (_, skillName) => ({
       enableGenerate: false,
@@ -8776,6 +8734,28 @@ export const Schema = z
               .prefault({}),
           )
           .prefault({}),
+        事件请求: z
+          .record(
+            z.string(),
+            z
+              .object({
+                类型: z.string().prefault('无'),
+                来源: z.string().prefault('脚本'),
+                触发tick: z.coerce.number().prefault(0),
+                事件: z.string().prefault('无'),
+                描述: z.string().prefault('无'),
+                目标角色: z.string().prefault('无'),
+                目标势力: z.string().prefault('无'),
+                知情对象: z.array(z.string()).prefault([]),
+                更新包: z.any().prefault({}),
+                数值增量: z.record(z.string(), z.coerce.number().prefault(0)).prefault({}),
+                情报内容: z.string().prefault('无'),
+                情报影响: z.coerce.number().prefault(0),
+                状态: z.string().prefault('pending'),
+              })
+              .prefault({}),
+          )
+          .prefault({}),
         拍卖: z
           .object({
             状态: z.string().prefault('休市'),
@@ -9064,6 +9044,7 @@ export const Schema = z
     if (!data.world || typeof data.world !== 'object') data.world = {};
     if (!data.world.时间 || typeof data.world.时间 !== 'object') data.world.时间 = {};
     if (!data.world.标记 || typeof data.world.标记 !== 'object') data.world.标记 = {};
+    if (!data.world.事件请求 || typeof data.world.事件请求 !== 'object') data.world.事件请求 = {};
     if (!data.world.动态地点 || typeof data.world.动态地点 !== 'object')
       data.world.动态地点 = {};
     if (!data.world.地点 || typeof data.world.地点 !== 'object') data.world.地点 = {};
@@ -9099,6 +9080,38 @@ export const Schema = z
     if (typeof data.sys.玩家名 !== 'string' || !data.sys.玩家名.trim()) data.sys.玩家名 = '无名氏';
     if (typeof data.sys.rsn !== 'string' || !data.sys.rsn.trim()) data.sys.rsn = '初始化';
     data.sys.最近检定 = Number(data.sys.最近检定 || 0);
+
+    const appendSystemReasonText = text => {
+      const safeText = String(text || '').trim();
+      if (!safeText) return;
+      if (data.sys.rsn === '初始化' || !data.sys.rsn) data.sys.rsn = '';
+      data.sys.rsn += `${data.sys.rsn ? ' ' : ''}${safeText}`;
+    };
+
+    const queueWorldEventRequest = (requestKey, payload = {}) => {
+      const safeKey = String(requestKey || '').trim();
+      if (!safeKey) return null;
+      const previous = data.world.事件请求?.[safeKey];
+      const next = {
+        类型: '无',
+        来源: '脚本',
+        触发tick: 0,
+        事件: '无',
+        描述: '无',
+        目标角色: '无',
+        目标势力: '无',
+        知情对象: [],
+        更新包: {},
+        数值增量: {},
+        情报内容: '无',
+        情报影响: 0,
+        状态: 'pending',
+        ...(previous && typeof previous === 'object' ? _.cloneDeep(previous) : {}),
+        ...(payload && typeof payload === 'object' ? _.cloneDeep(payload) : {}),
+      };
+      data.world.事件请求[safeKey] = next;
+      return next;
+    };
 
     let currentTick = Number(data.world.时间.tick || 0);
     data.world.时间.tick = currentTick;
@@ -9847,7 +9860,6 @@ export const Schema = z
             type: char.属性.系别,
             魂灵: {},
             领域: {},
-            自创魂技: {},
           };
           spiritKeys = [firstSpiritName];
         }
@@ -9907,7 +9919,6 @@ export const Schema = z
               契合度: calculatedComp,
               附机制候选: buildSoulSpiritSecondaryDefaultValue(char.属性.系别, 1),
               状态: '活跃',
-              战力面板: createEmptySoulSpiritPowerPanel(),
               魂环: {},
             };
 
@@ -10006,17 +10017,6 @@ export const Schema = z
               ...updates
             } = event;
 
-            if (character_name && data.char[character_name]) {
-              _.merge(data.char[character_name], updates);
-            }
-
-            if (faction_name && data.org[faction_name]) {
-              _.merge(data.org[faction_name], updates);
-            }
-            if (event.faction_name && data.org[event.faction_name]) {
-              data.org[event.faction_name].影响力 += 500;
-            }
-
             const eventDesc =
               event.描述 ||
               description ||
@@ -10026,12 +10026,34 @@ export const Schema = z
               event.事件名 ||
               eventKey ||
               '未知事件';
-            let msg = `[编年史推进] ${eventDesc}`;
+            data.world.时间线[eventKey] = {
+              触发tick: actualTick,
+              事件: eventDesc,
+              状态: '待提交',
+            };
+            const targetFactionName = faction_name || event.faction_name || '无';
+            const deltaMap = {};
+            if (event.faction_name && data.org[event.faction_name]) {
+              deltaMap[`org.${event.faction_name}.影响力`] = 500;
+            }
+            queueWorldEventRequest(eventKey, {
+              类型: '编年史事件',
+              来源: '时间线',
+              触发tick: actualTick,
+              事件: event_name || event.事件名 || eventKey || eventDesc,
+              描述: eventDesc,
+              目标角色: character_name || '无',
+              目标势力: targetFactionName,
+              更新包: _.cloneDeep(updates || {}),
+              数值增量: deltaMap,
+              状态: 'pending',
+            });
+            let msg = `[编年史推进待提交] ${eventDesc}。已写入 /world/事件请求/${eventKey}，请 AI 结合当前剧情与同轮改动一起决定最终落盘结果，并在处理完成后将该请求状态改为 handled。`;
 
             if (dev >= 40) {
               msg += ` 🚨[世界线暴走] 当前偏差值高达 ${dev}！该历史节点已受混沌干扰，请 AI 强制魔改该事件的细节或结果！`;
             }
-            data.sys.rsn = msg;
+            appendSystemReasonText(msg);
             data.world.标记[eventKey] = true;
           }
         }
@@ -10051,12 +10073,10 @@ export const Schema = z
 
           if (currentTick >= actualTick) {
             if (intel.knowers) {
+              const queuedTargets = [];
               intel.knowers.forEach(target => {
                 if (data.char[target]) {
-                  data.char[target].待解锁情报 = {
-                    内容: intel.content || intel.trigger_flag,
-                    影响: intel.影响 ?? 0,
-                  };
+                  queuedTargets.push(target);
                 } else {
                   _(data.char).forEach((c, charName) => {
                     let isMatch = false;
@@ -10069,19 +10089,34 @@ export const Schema = z
                     });
 
                     if (isMatch) {
-                      c.待解锁情报 = {
-                        内容: intel.content || intel.trigger_flag,
-                        影响: intel.影响 ?? 0,
-                      };
+                      queuedTargets.push(charName);
                     }
                   });
                 }
               });
+              const uniqueTargets = Array.from(new Set(queuedTargets.filter(Boolean)));
+              queueWorldEventRequest(intelKey, {
+                类型: '情报事件',
+                来源: '情报',
+                触发tick: actualTick,
+                事件: intel.trigger_flag || intel.content || intelKey,
+                描述: intel.content || intel.trigger_flag || '未知情报',
+                知情对象: uniqueTargets,
+                情报内容: intel.content || intel.trigger_flag || '无',
+                情报影响: Number(intel.影响 ?? 0),
+                状态: 'pending',
+              });
+              if (uniqueTargets.length > 0) {
+                appendSystemReasonText(
+                  `[情报事件待提交]【${intel.content || intel.trigger_flag || '未知情报'}】已写入 /world/事件请求/${intelKey}，请 AI 结合当前剧情决定由 ${uniqueTargets.join('、')} 谁在本轮正式获知，并在处理完成后将该请求状态改为 handled。`,
+                );
+              }
             }
 
             if (dev >= 40) {
-              if (data.sys.rsn === '初始化' || !data.sys.rsn) data.sys.rsn = '';
-              data.sys.rsn += ` 🚨[情报异变] 偏差值过高！刚刚解锁的【${intel.content.substring(0, 10)}...】情报可能已被第三方篡改或发生恶性反转，请 AI 自由推演！`;
+              appendSystemReasonText(
+                `🚨[情报异变] 偏差值过高！刚刚解锁的【${String(intel.content || intel.trigger_flag || '未知情报').substring(0, 10)}...】情报可能已被第三方篡改或发生恶性反转，请 AI 自由推演！`,
+              );
             }
 
             data.world.标记[intelKey] = true;
@@ -10089,6 +10124,13 @@ export const Schema = z
         }
       });
     }
+
+    _(data.world.事件请求 || {}).forEach((requestData, requestKey) => {
+      const requestStatus = String(requestData?.状态 || '').trim();
+      if (requestStatus && data.world.时间线?.[requestKey]) {
+        data.world.时间线[requestKey].状态 = requestStatus;
+      }
+    });
 
     if (!data.world.标记) data.world.标记 = {};
     if (!data.world.标记['initial_setup_complete']) {
@@ -10423,13 +10465,7 @@ export const Schema = z
           data.sys.rsn = `[本源修复] ${charName} 吸收高阶灵物，庞大的生机修补了受损的根基！恢复了 ${recoverAmount} 级等级上限。`;
         } else {
           if (c.属性.等级 - c.属性.上次灵物等级 >= 20) {
-              if (!c.属性.训练加成) {
-              c.属性.训练加成 = { 力量: 0, 防御: 0, 敏捷: 0, 体力上限: 0, 精神力上限: 0, 魂力上限: 0 };
-            }
-            if (c.属性.训练加成.魂力上限 === undefined) {
-              c.属性.训练加成.魂力上限 = 0;
-            }
-            addNumericStatBonusValue(trainedBonus, '魂力上限', gain);
+            c.属性.魂力上限 = Math.floor(Number(c.属性.魂力上限 || 0) + gain);
             c.属性.上次灵物等级 = c.属性.等级;
             data.sys.rsn = `[灵物吸收] ${charName} 成功吸收 ${age} 年灵物，魂力成长槽提升 ${gain} 点！`;
           } else {
@@ -11631,16 +11667,6 @@ export const Schema = z
             });
           });
 
-          injectDisplaySkillMapDefaults(spiritData.自创魂技, skillName => ({
-            type: spiritType,
-            textContext: {
-              spiritName:
-                !isAiTodoText(spiritData?.表象名称) && spiritData?.表象名称 !== '未展露'
-                  ? spiritData.表象名称
-                  : spiritKey || skillName,
-              type: spiritType,
-            },
-          }));
         });
 
         _(charData.魂骨 || {}).forEach((boneData, bonePart) => {
@@ -11713,14 +11739,6 @@ export const Schema = z
             type: charData?.属性?.type || '强攻系',
           },
         }));
-        injectDisplaySkillMapDefaults(charData.秘技, skillName => ({
-          type: charData?.属性?.type || '强攻系',
-          textContext: {
-            spiritName: skillName,
-            type: charData?.属性?.type || '强攻系',
-          },
-        }));
-
         _(charData.武魂融合技 || {}).forEach((fusionData, fusionName) => {
           if (!fusionData || typeof fusionData !== 'object') return;
           injectDisplaySkillStructDefaults(fusionData.技能数据, {
@@ -11825,6 +11843,8 @@ export const Schema = z
         _(sourceChar.武魂 || {}).forEach((spiritData, spiritKey) => {
           const visibleSpirit = visibleChar.武魂?.[spiritKey] || spiritData || {};
           _(spiritData?.魂灵 || {}).forEach((soulSpirit, slotName) => {
+            const powerPanel = soulSpirit?.战力面板;
+            if (!powerPanel || typeof powerPanel !== 'object') return;
             const visibleSlot = visibleChar.武魂?.[spiritKey]?.魂灵?.[slotName] || soulSpirit || {};
             spiritCombatSummary.push({
               武魂槽位: spiritKey,
@@ -11833,13 +11853,13 @@ export const Schema = z
               魂灵名称: visibleSlot.表象名称 || soulSpirit.表象名称 || '无',
               描述: String(visibleSlot.描述 || soulSpirit.描述 || '无'),
               品质: String(visibleSlot.品质 || soulSpirit.品质 || '无'),
-              对标等级: formatCultivationLevelText(soulSpirit.战力面板?.对标等级 || 0, '0'),
-              力量: Number(soulSpirit.战力面板?.str || 0),
-              防御: Number(soulSpirit.战力面板?.def || 0),
-              敏捷: Number(soulSpirit.战力面板?.agi || 0),
-              体力上限: Number(soulSpirit.战力面板?.vit_max || 0),
-              精神上限: Number(soulSpirit.战力面板?.men_max || 0),
-              魂力上限: Number(soulSpirit.战力面板?.sp_max || 0),
+              对标等级: formatCultivationLevelText(powerPanel.对标等级 || 0, '0'),
+              力量: Number(powerPanel.str || 0),
+              防御: Number(powerPanel.def || 0),
+              敏捷: Number(powerPanel.agi || 0),
+              体力上限: Number(powerPanel.vit_max || 0),
+              精神上限: Number(powerPanel.men_max || 0),
+              魂力上限: Number(powerPanel.sp_max || 0),
             });
           });
         });
@@ -12167,6 +12187,7 @@ export const Schema = z
         偏差倍率: Number(data.world?.偏差倍率 || 1),
         累计击杀年限: Number(data.world?.累计击杀年限 || 0),
         时间线: cloneValue(data.world?.时间线 || {}, {}),
+        事件请求: cloneValue(data.world?.事件请求 || {}, {}),
         拍卖: cloneValue(data.world?.拍卖 || {}, {}),
         交易请求: cloneValue(data.world?.交易请求 || {}, {}),
         委托板: cloneValue(data.world?.委托板 || {}, {}),

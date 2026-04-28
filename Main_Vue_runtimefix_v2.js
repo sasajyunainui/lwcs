@@ -676,6 +676,18 @@ function setDesktopMode(mode, options = {}) {
   return setLayoutMode(value, options);
 }
 
+function applyDesktopLayoutSelection(mode, options = {}) {
+  const nextMode = String(mode || '').trim();
+  const result = setDesktopMode(nextMode, options);
+  if (!mvuLayoutState.isMobileViewport && nextMode && nextMode !== 'shell') {
+    mvuLayoutState.surfaceMode = 'panel';
+    mvuLayoutState.mobileShellOpen = false;
+    syncLayoutMode();
+    closeShellSurface();
+  }
+  return result;
+}
+
 function applyLayoutBodyClasses() {
   const body = document.body;
   if (!body) return;
@@ -1248,17 +1260,6 @@ const RightPanel = {
     const togglePin = () => { isPinned.value = !isPinned.value; };
     const toggleSettings = () => {
       settingsOpen.value = !settingsOpen.value;
-    };
-    const applyDesktopLayoutSelection = mode => {
-      const nextMode = String(mode || '').trim();
-      const result = setDesktopMode(nextMode);
-      if (!mvuLayoutState.isMobileViewport && nextMode !== 'shell') {
-        mvuLayoutState.surfaceMode = 'panel';
-        mvuLayoutState.mobileShellOpen = false;
-        syncLayoutMode();
-        closeShellSurface();
-      }
-      return result;
     };
     const setLayoutByPanel = mode => {
       applyDesktopLayoutSelection(mode);

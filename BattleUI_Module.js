@@ -1316,11 +1316,7 @@ class BattleUIComponent {
           });
         });
       });
-      Object.entries(char.武魂 || {}).forEach(([, spirit]) => {
-        Object.entries(spirit?.自创魂技 || {}).forEach(([name, skill]) => fallbackPushSkill(actions, skill, name, '自创'));
-      });
-      Object.entries(char.秘技 || {}).forEach(([name, skill]) => fallbackPushSkill(actions, skill, name, '秘技'));
-      Object.entries(char.功法 || {}).forEach(([name, skill]) => fallbackPushSkill(actions, skill, name, '功法'));
+      Object.entries(char.特殊能力 || {}).forEach(([name, skill]) => fallbackPushSkill(actions, skill, name, '特殊能力'));
       Object.entries(char.武魂融合技 || {}).forEach(([name, fusion]) => fallbackPushSkill(actions, fusion?.技能数据 || fusion, `武魂融合技·${name}`, '融合'));
       actions.push(
         { id: 'basic_attack', name: '普通攻击', type: 'tactical', action_type: '常规攻击', category: '战术', cast_time: 10, cost_text: '无', enabled: true, skill: { name: '普通攻击' } },
@@ -3586,7 +3582,6 @@ class BattleUIComponent {
               pushUnifiedSkillMapEntries(skills, ring?.魂技 || {}, spName, collectOptions);
             });
           });
-          pushUnifiedSkillMapEntries(skills, sp?.自创魂技 || {}, `${spName}·自创`, collectOptions);
         });
       }
 
@@ -3602,7 +3597,6 @@ class BattleUIComponent {
         pushUnifiedSkillMapEntries(skills, bone?.附带技能 || {}, '魂骨技能', collectOptions);
       });
 
-      pushUnifiedSkillMapEntries(skills, charData?.秘技 || {}, '秘技', collectOptions);
       pushUnifiedSkillMapEntries(skills, charData?.特殊能力 || {}, '特殊能力', collectOptions);
 
       Object.entries(charData?.武魂融合技 || {}).forEach(([fusionName, fusionSkill]) => {
@@ -9413,11 +9407,7 @@ class BattleUIComponent {
               });
             });
           });
-          Object.entries(char.武魂 || {}).forEach(([, spirit]) => {
-            Object.entries(spirit?.自创魂技 || {}).forEach(([name, skill]) => pushUiSkillAction(actions, skill, name, '自创'));
-          });
-          Object.entries(char.秘技 || {}).forEach(([name, skill]) => pushUiSkillAction(actions, skill, name, '秘技'));
-          Object.entries(char.功法 || {}).forEach(([name, skill]) => pushUiSkillAction(actions, skill, name, '功法'));
+          Object.entries(char.特殊能力 || {}).forEach(([name, skill]) => pushUiSkillAction(actions, skill, name, '特殊能力'));
           Object.entries(char.武魂融合技 || {}).forEach(([name, fusion]) => {
             pushUiSkillAction(actions, fusion?.技能数据 || fusion, `武魂融合技·${name}`, '融合');
           });
