@@ -6984,7 +6984,26 @@
   align-items: center;
   gap: 8px;
 }
-.nsfw-theme-body { padding: 12px 14px; }
+.nsfw-theme-body { 
+  padding: 12px 14px; 
+  max-height: 400px; 
+  overflow-y: auto;  
+}
+
+.nsfw-theme-body::-webkit-scrollbar {
+  width: 6px;
+}
+.nsfw-theme-body::-webkit-scrollbar-track {
+  background: rgba(240, 147, 251, 0.05);
+  border-radius: 3px;
+}
+.nsfw-theme-body::-webkit-scrollbar-thumb {
+  background: rgba(224, 86, 253, 0.3);
+  border-radius: 3px;
+}
+.nsfw-theme-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(224, 86, 253, 0.6);
+}
 
 /* 4. 进度条 (字体调大，告别局促) */
 .nsfw-progress-container { margin-bottom: 14px; }
