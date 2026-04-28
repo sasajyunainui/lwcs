@@ -11940,6 +11940,107 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-tab-btn:hover {
   color: var(--dossier-text);
 }
 
+#detailModal.archive-redesign-mode .archive-redesign-root .injury-crud-panel,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .injury-crud-panel,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .injury-crud-panel {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
+#detailModal.archive-redesign-mode .archive-redesign-root .injury-create-row,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .injury-create-row,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .injury-create-row {
+  display: grid;
+  grid-template-columns: minmax(96px, 0.8fr) 84px minmax(160px, 1.4fr) auto;
+  gap: 8px;
+  align-items: stretch;
+}
+
+#detailModal.archive-redesign-mode .archive-redesign-root .injury-entry,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .injury-entry,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .injury-entry {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid rgba(150, 217, 228, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+#detailModal.archive-redesign-mode .archive-redesign-root .injury-entry-head,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .injury-entry-head,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .injury-entry-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+#detailModal.archive-redesign-mode .archive-redesign-root .injury-entry-name,
+#detailModal.archive-redesign-mode .archive-redesign-root .injury-entry-degree,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .injury-entry-name,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .injury-entry-degree,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .injury-entry-name,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .injury-entry-degree {
+  display: inline-flex;
+  align-items: center;
+}
+
+#detailModal.archive-redesign-mode .archive-redesign-root .injury-entry-name,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .injury-entry-name,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .injury-entry-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dossier-text-strong);
+}
+
+#detailModal.archive-redesign-mode .archive-redesign-root .injury-entry-degree,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .injury-entry-degree,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .injury-entry-degree {
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 206, 150, 0.24);
+  background: rgba(255, 206, 150, 0.08);
+  color: #ffd9a8;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+#detailModal.archive-redesign-mode .archive-redesign-root .injury-entry-desc,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .injury-entry-desc,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .injury-entry-desc {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--dossier-text);
+  overflow-wrap: anywhere;
+}
+
+#detailModal.archive-redesign-mode .archive-redesign-root .injury-empty,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .injury-empty,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .injury-empty {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--dossier-text-soft);
+}
+
+#detailModal.archive-redesign-mode .archive-redesign-root .injury-action-btn,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .injury-action-btn,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .injury-action-btn {
+  align-self: center;
+}
+
+@media (max-width: 720px) {
+  #detailModal.archive-redesign-mode .archive-redesign-root .injury-create-row,
+  body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .injury-create-row,
+  body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .injury-create-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 #detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .dossier-note--dense {
   margin-bottom: 2px;
 }

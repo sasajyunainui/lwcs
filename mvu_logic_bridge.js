@@ -1515,7 +1515,108 @@
       if (ratio <= 0.05 && hp > 0) return '濒死';
       if (ratio <= 0.2) return '重伤';
       if (ratio <= 0.5) return '轻伤';
-      return '无伤';
+      return '无';
+    }
+
+    function normalizeInjurySeverity(value) {
+      const text = toText(value, '轻').trim();
+      if (['轻', '中', '重'].includes(text)) return text;
+      if (/重/.test(text)) return '重';
+      if (/中/.test(text)) return '中';
+      return '轻';
+    }
+
+    function getDisplayInjuryEntries(status = {}) {
+      const injuryMap =
+        status && status.受伤部位 && typeof status.受伤部位 === 'object' && !Array.isArray(status.受伤部位)
+          ? status.受伤部位
+          : {};
+      return Object.entries(injuryMap)
+        .map(([part, injury]) => {
+          const name = toText(part, '').trim();
+          if (!name) return null;
+          const info = injury && typeof injury === 'object' ? injury : {};
+          return [
+            name,
+            {
+              程度: normalizeInjurySeverity(info.程度),
+              描述: toText(info.描述, '').trim(),
+            },
+          ];
+        })
+        .filter(Boolean);
+    }
+
+    function buildInjurySummaryText(status = {}, options = {}) {
+      const entries = getDisplayInjuryEntries(status);
+      const emptyText = toText(options.empty, '无').trim() || '无';
+      if (!entries.length) return emptyText;
+      const limit = Math.max(1, toNumber(options.limit, 2));
+      const parts = entries
+        .slice(0, limit)
+        .map(([name, injury]) => `${shortenText(name, 6)}·${normalizeInjurySeverity(injury.程度)}`);
+      if (entries.length > limit) parts.push(`等${entries.length}处`);
+      return parts.join('、');
+    }
+
+    function buildInjuryCrudHtml(activeCharKey = '', status = {}) {
+      const safeCharKey = toText(activeCharKey, '').trim();
+      const entries = getDisplayInjuryEntries(status);
+      const entryHtml = entries.length
+        ? entries
+          .map(([name, injury]) => {
+            const basePath = ['char', safeCharKey, '状态', '受伤部位', name];
+            const renameMeta = { renameObjectKey: true, parentPath: ['char', safeCharKey, '状态', '受伤部位'], oldKey: name };
+            return `
+              <div class="injury-entry">
+                <div class="injury-entry-head">
+                  <span class="injury-entry-name">${safeCharKey
+                    ? makeInlineEditableValue(name, {
+                      path: [...basePath],
+                      kind: 'string',
+                      rawValue: name,
+                      editorMeta: renameMeta,
+                    })
+                    : htmlEscape(name)}</span>
+                  <span class="injury-entry-degree">${safeCharKey
+                    ? makeInlineEditableValue(normalizeInjurySeverity(injury.程度), {
+                      path: [...basePath, '程度'],
+                      kind: 'enum_select',
+                      rawValue: normalizeInjurySeverity(injury.程度),
+                      editorMeta: { options: ['轻', '中', '重'] },
+                    })
+                    : htmlEscape(normalizeInjurySeverity(injury.程度))}</span>
+                  ${safeCharKey
+                    ? `<button type="button" class="tag-chip injury-action-btn" data-injury-action="delete" data-injury-char="${escapeHtmlAttr(safeCharKey)}" data-injury-key="${escapeHtmlAttr(name)}">删除</button>`
+                    : ''}
+                </div>
+                <div class="injury-entry-desc">${safeCharKey
+                  ? makeInlineEditableValue(injury.描述 || '未填写描述', {
+                    path: [...basePath, '描述'],
+                    kind: 'string',
+                    rawValue: injury.描述 || '',
+                    multiline: true,
+                  })
+                  : htmlEscape(injury.描述 || '未填写描述')}</div>
+              </div>`;
+          })
+          .join('')
+        : `<div class="injury-empty">暂无受伤部位记录</div>`;
+      if (!safeCharKey) return `<div class="injury-crud-panel">${entryHtml}</div>`;
+      return `
+        <div class="injury-crud-panel">
+          <div class="request-console-row injury-create-row" data-injury-panel="create">
+            <input type="text" class="request-console-input injury-create-input" data-injury-input="name" placeholder="部位名" />
+            <select class="request-console-input injury-create-select" data-injury-input="degree">
+              <option value="轻" selected>轻</option>
+              <option value="中">中</option>
+              <option value="重">重</option>
+            </select>
+            <input type="text" class="request-console-input injury-create-input injury-create-desc" data-injury-input="desc" placeholder="描述" />
+            <button type="button" class="tag-chip live injury-action-btn" data-injury-action="add" data-injury-char="${escapeHtmlAttr(safeCharKey)}">新增</button>
+          </div>
+          ${entryHtml}
+        </div>`;
     }
 
     function deepGet(source, path, fallback) {
@@ -2455,6 +2556,31 @@
       }, options);
     }
 
+    async function renameStatObjectKeyByEditor(parentPathValue, previousKey, nextKey, options = {}) {
+      const parentPath = normalizeEditorPath(parentPathValue);
+      const oldKey = toText(previousKey, '').trim();
+      const newKey = toText(nextKey, '').trim();
+      if (!parentPath.length) throw new Error('缺少对象路径，无法重命名。');
+      if (!oldKey) throw new Error('缺少原始字段名。');
+      if (!newKey) throw new Error('字段名不能为空。');
+      if (newKey === oldKey) return;
+      return mutateStatDataByEditor(statData => {
+        const target = deepGet(statData, parentPath, null);
+        if (!target || typeof target !== 'object' || Array.isArray(target)) {
+          throw new Error('目标对象不存在，无法重命名。');
+        }
+        if (!Object.prototype.hasOwnProperty.call(target, oldKey)) {
+          throw new Error('原字段不存在，无法重命名。');
+        }
+        if (Object.prototype.hasOwnProperty.call(target, newKey)) {
+          throw new Error('同名字段已存在，请换一个名称。');
+        }
+        const payload = cloneJsonValue(target[oldKey], {});
+        delete target[oldKey];
+        target[newKey] = payload;
+      }, options);
+    }
+
     function normalizeInlineComparableValue(value, kind = 'string') {
       const safeKind = String(kind || 'string').trim().toLowerCase();
       if (safeKind === 'number') {
@@ -2562,8 +2688,16 @@
       }
       let previewRollback = null;
       try {
-        previewRollback = queueTrainedBonusPreviewOverride(state.path, state.rawValue, nextValue);
-        await replaceStatDataByEditor([{ path: state.path, value: nextValue }]);
+        if (state.editorMeta && state.editorMeta.renameObjectKey === true) {
+          await renameStatObjectKeyByEditor(
+            state.editorMeta.parentPath || state.path.slice(0, -1),
+            state.editorMeta.oldKey || state.path[state.path.length - 1],
+            nextValue,
+          );
+        } else {
+          previewRollback = queueTrainedBonusPreviewOverride(state.path, state.rawValue, nextValue);
+          await replaceStatDataByEditor([{ path: state.path, value: nextValue }]);
+        }
       } catch (error) {
         restoreTrainedBonusPreviewOverride(previewRollback);
         showUiToast(error && error.message ? error.message : '变量写回失败。', 'error', 4200);
@@ -8020,7 +8154,14 @@
 
       const statusChips = getLiveUiElements('.header-status-row .header-status-chip');
       if (statusChips[0]) setLiveNodeText(statusChips[0].querySelector('span'), `${toText(deepGet(snapshot, 'activeChar.状态.行动', '日常'), '日常')} / ${toText(deepGet(snapshot, 'activeChar.状态.当前领域', '无'), '无')}`);
-      if (statusChips[1]) setLiveNodeText(statusChips[1].querySelector('span'), `${getDisplayWoundLabel(deepGet(snapshot, 'activeChar.属性', {}))} / ${deepGet(snapshot, 'activeChar.状态.存活', true) ? '状态稳定' : '已陨落'}`);
+      if (statusChips[1]) {
+        const activeStatus = deepGet(snapshot, 'activeChar.状态', {});
+        const injurySummary = buildInjurySummaryText(activeStatus, { limit: 1, empty: '' });
+        setLiveNodeText(
+          statusChips[1].querySelector('span'),
+          `${getDisplayWoundLabel(deepGet(snapshot, 'activeChar.属性', {}))} / ${injurySummary || (deepGet(snapshot, 'activeChar.状态.存活', true) ? '状态稳定' : '已陨落')}`,
+        );
+      }
       if (statusChips[2]) {
         const shouldShowBloodline = !!(snapshot.bloodline && snapshot.bloodline.valid);
         if (statusChips[2].style.display !== (shouldShowBloodline ? '' : 'none')) {
@@ -8682,7 +8823,8 @@
       const factionJoined = primaryFactionName !== '未加入';
       const nextLevelNeeded = Math.max(0, toNumber(nextLevelSoul && nextLevelSoul.needed, 0));
       const woundText = getDisplayWoundLabel(stat);
-      const statusSummary = !woundText || /^(无|无伤)$/i.test(woundText)
+      const injurySummary = buildInjurySummaryText(status, { limit: 2, empty: '无' });
+      const statusSummary = !woundText || /^(无)$/i.test(woundText)
         ? toText(status.行动, '日常')
         : `${toText(status.行动, '日常')} / ${woundText}`;
       const identitySummary = summarizeShellIdentityText(social.主身份, { limit: 12 }) || shortenText(toText(social.主身份, ''), 14);
@@ -8710,6 +8852,7 @@
         rows: [
           { label: factionJoined ? '阵营' : '身份', value: factionSummary },
           { label: '名望', value: social.声望 ? `${fameLevelText} · ${formatNumber(social.声望)}` : fameLevelText },
+          { label: '伤处', value: injurySummary },
         ],
         tone: 'hero',
         size: 'hero',
@@ -11711,6 +11854,7 @@
                           editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
                         })} 年`
                       : htmlEscape(toNumber(status.吸收灵物年限, 0) > 0 ? `${formatNumber(toNumber(status.吸收灵物年限, 0))} 年` : '当前无吸收') },
+                    { label: '受伤部位', value: buildInjuryCrudHtml(activeCharKey, status), className: 'dossier-row--wide' },
                   ], 'dossier-row-grid--two')}
                 </section>
               </div>
@@ -18023,6 +18167,58 @@ ${mvuUpdate}`;
         }
         if (action === 'unequip') {
           window.EquipmentManager.performUnequip(charKey, kind, targetName);
+          return;
+        }
+      }
+
+      const injuryActionBtn = eventTarget ? eventTarget.closest('[data-injury-action]') : null;
+      if (injuryActionBtn && detailSurfaceHost.contains(injuryActionBtn)) {
+        event.preventDefault();
+        event.stopPropagation();
+        const actionType = injuryActionBtn.getAttribute('data-injury-action') || '';
+        const charKey = injuryActionBtn.getAttribute('data-injury-char') || '';
+        const panel = injuryActionBtn.closest('[data-injury-panel]') || detailSurfaceHost;
+        const readInjuryInput = key => {
+          const input = panel ? panel.querySelector(`[data-injury-input="${key}"]`) : null;
+          return toText(input && 'value' in input ? input.value : '', '').trim();
+        };
+        try {
+          if (actionType === 'add') {
+            const injuryName = readInjuryInput('name');
+            const injuryDegree = normalizeInjurySeverity(readInjuryInput('degree') || '轻');
+            const injuryDesc = readInjuryInput('desc');
+            if (!charKey) throw new Error('缺少角色信息。');
+            if (!injuryName) throw new Error('请输入受伤部位名称。');
+            await mutateStatDataByEditor(statData => {
+              const injuryPath = ['char', charKey, '状态', '受伤部位'];
+              let injuryMap = deepGet(statData, injuryPath, null);
+              if (!injuryMap || typeof injuryMap !== 'object' || Array.isArray(injuryMap)) {
+                deepSetMutable(statData, injuryPath, {});
+                injuryMap = deepGet(statData, injuryPath, null);
+              }
+              if (injuryMap[injuryName] !== undefined) throw new Error('同名受伤部位已存在。');
+              injuryMap[injuryName] = { 程度: injuryDegree, 描述: injuryDesc };
+            });
+            const resetNameInput = panel ? panel.querySelector('[data-injury-input="name"]') : null;
+            const resetDegreeInput = panel ? panel.querySelector('[data-injury-input="degree"]') : null;
+            const resetDescInput = panel ? panel.querySelector('[data-injury-input="desc"]') : null;
+            if (resetNameInput && 'value' in resetNameInput) resetNameInput.value = '';
+            if (resetDegreeInput && 'value' in resetDegreeInput) resetDegreeInput.value = '轻';
+            if (resetDescInput && 'value' in resetDescInput) resetDescInput.value = '';
+            showUiToast('已新增受伤部位。');
+            if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
+            return;
+          }
+          if (actionType === 'delete') {
+            const injuryKey = injuryActionBtn.getAttribute('data-injury-key') || '';
+            if (!charKey || !injuryKey) throw new Error('当前伤处缺少定位信息。');
+            await deleteStatDataPathByEditor(['char', charKey, '状态', '受伤部位', injuryKey]);
+            showUiToast('已删除受伤部位。');
+            if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
+            return;
+          }
+        } catch (error) {
+          showUiToast(error && error.message ? error.message : '伤处操作失败。', 'error');
           return;
         }
       }

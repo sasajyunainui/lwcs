@@ -4323,7 +4323,7 @@ function autoGenerateSkill(
     packedEffects.push({
       机制: '斩杀补伤',
       目标: normalizedTarget,
-      判定属性: 'vit_ratio',
+      判定属性: 'hp_ratio',
       判定阈值: threshold,
       成功参数: { final_damage_mult: mult },
       失败参数: {},
@@ -4480,7 +4480,7 @@ function autoGenerateSkill(
     packedEffects.push({
       机制: '条件触发',
       目标: normalizedTarget,
-      判定属性: 'vit_ratio',
+      判定属性: 'hp_ratio',
       判定阈值: { C: 0.55, B: 0.45, A: 0.35, S: 0.25 }[grade] || 0.45,
       成功参数: {
         final_damage_mult: Number(state.计算层效果?.final_damage_mult || 1.18),

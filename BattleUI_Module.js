@@ -3447,7 +3447,7 @@ class BattleUIComponent {
       }
       const partnerName = String(fusionSkill?.partner || '').trim();
       if (!partnerName || partnerName === '无') return false;
-      return (alliedTeam || []).some(unit => unit.name === partnerName && unit.vit > 0);
+      return (alliedTeam || []).some(unit => unit.name === partnerName && isCombatUnitAbleToFight(unit));
     }
 
     function buildFusionCastNarration(fusionSkill, actorName = '施术者') {
@@ -4015,13 +4015,13 @@ class BattleUIComponent {
           if (dot > 0) {
             char.vit = Math.max(0, char.vit - dot);
             totalDot += dot;
-            parts.push(`[状态结算] ${label}受[${key}]影响，额外损失 ${dot} 点体力`);
+            parts.push(`[状态结算] ${label}受[${key}]影响，额外损失 ${dot} 点HP`);
           }
           if (hotHealRatio > 0) {
             const maxVit = Math.max(1, Number(char.vit_max || char.vit || 1));
             const hotHeal = Math.floor(maxVit * hotHealRatio);
             char.vit = Math.min(maxVit, char.vit + hotHeal);
-            if (hotHeal > 0) parts.push(`[状态结算] ${label}受[${key}]影响，额外恢复 ${hotHeal} 点体力`);
+            if (hotHeal > 0) parts.push(`[状态结算] ${label}受[${key}]影响，额外恢复 ${hotHeal} 点HP`);
           }
 
           if (typeof cond.duration === 'number') {
@@ -4301,7 +4301,7 @@ class BattleUIComponent {
           const memory = ensureActorDecisionMemory(actor);
           if (!memory.关注对象 || Number(memory.focus_ttl || 0) <= 0) return null;
           const target = (candidates || []).find(
-            unit => unit && unit.name === memory.关注对象 && Number(unit.vit || 0) > 0,
+            unit => unit && unit.name === memory.关注对象 && isCombatUnitAbleToFight(unit),
           );
           if (target) return target;
           memory.关注对象 = '';
@@ -4574,8 +4574,8 @@ class BattleUIComponent {
       }
 
       function getBattleDesperationFactor(attacker) {
-        const hpRatio = Math.max(0, Number(attacker?.vit || 0)) / Math.max(1, Number(attacker?.vit_max || 1));
-        const staRatio = Math.max(0, Number(attacker?.sta || attacker?.体力 || 0)) / Math.max(1, Number(attacker?.sta_max || attacker?.体力上限 || 1));
+        const hpRatio = getCombatHpRatio(attacker);
+        const staRatio = getCombatStaminaRatio(attacker);
         const score = ((1 - hpRatio) * 0.45) + ((1 - staRatio) * 0.55);
         return Math.max(0, Math.min(1, score));
       }
@@ -4586,8 +4586,8 @@ class BattleUIComponent {
         const environmentFactor = getBattleEnvironmentSafetyFactor(combatData);
         const powerGapFactor = getBattlePowerGapFactor(attacker, defender);
         const desperationFactor = getBattleDesperationFactor(attacker);
-        const targetHpMax = Math.max(1, Number(defender?.vit_max || 1));
-        const targetHpCurrent = Math.max(0, Number(defender?.vit || 0));
+        const targetHpMax = getCombatHpMaxValue(defender);
+        const targetHpCurrent = getCombatHpValue(defender);
         const controlScore = Math.max(0, Math.min(1, relationFactor * 0.45 + environmentFactor * 0.35 + powerGapFactor * 0.2 - desperationFactor * 0.35));
         let range = [0.01, 0.08];
         let suggestedResult = '重伤压制';
@@ -4693,6 +4693,8 @@ class BattleUIComponent {
         hydrateCombatData(combatData);
         let defender = combatData.参战者.enemy;
         let attacker = combatData.参战者.player;
+        syncCombatActionState(attacker);
+        syncCombatActionState(defender);
         const mode = options.mode === 'multi_round' ? 'multi_round' : 'single_round';
         const modeLabel = mode === 'multi_round' ? '自动续推' : '单回合';
         const maxRounds = mode === 'multi_round' ? 4 : 1;
@@ -4737,7 +4739,12 @@ class BattleUIComponent {
         let continueSimulation = true;
         let visiblePlayerInput = '';
 
-        while (roundCount < maxRounds && continueSimulation && defender.vit > 0) {
+        while (
+          roundCount < maxRounds &&
+          continueSimulation &&
+          isCombatUnitAbleToFight(attacker) &&
+          isCombatUnitAbleToFight(defender)
+        ) {
           roundCount++;
           let roundLog = `[第${roundCount}回合] `;
 
@@ -4887,7 +4894,10 @@ class BattleUIComponent {
                   let defenderRoundEnd = settleConditionsAtRoundEnd(defender, 'NPC');
                   if (attackerRoundEnd.log) roundLog += ` ${attackerRoundEnd.log}`;
                   if (defenderRoundEnd.log) roundLog += ` ${defenderRoundEnd.log}`;
-                  if (attacker.vit <= 0 || defender.vit <= 0) continueSimulation = false;
+                  syncCombatActionState(attacker);
+                  syncCombatActionState(defender);
+                  if (!isCombatUnitAbleToFight(attacker) || !isCombatUnitAbleToFight(defender))
+                    continueSimulation = false;
                   battleLog.push(roundLog);
                   continue;
                 }
@@ -4937,7 +4947,7 @@ class BattleUIComponent {
             if (finalDmg < defender.def * 0.1) {
               defender.vit -= 1;
               appliedDamage = 1;
-              roundLog += ` [未破防] 攻击如同刮痧，NPC仅强制扣除 1 点体力。`;
+              roundLog += ` [未破防] 攻击如同刮痧，NPC仅强制扣除 1 点HP。`;
             } else {
               defender.vit -= finalDmg;
               appliedDamage = finalDmg;
@@ -4978,7 +4988,7 @@ class BattleUIComponent {
             } else if (hasMech || hasArmor) {
               defender.vit = Math.floor(defender.vit_max * 0.1);
               let armorLog = applyArmorDamage(defender);
-              roundLog += ` [装备护主] 致命打击触发替死锁血！NPC体力强制锁定在10%！${armorLog}`;
+              roundLog += ` [装备护主] 致命打击触发替死锁血！NPC HP强制锁定在10%！${armorLog}`;
             } else if (combatType === '升灵台虚拟战斗' || combatType === '魂灵塔冲塔') {
               // 虚拟战斗中，敌方体力归零照常死亡，如果是己方或判定特殊保护，需要锁定体力并标记退出
               let saveLog = triggerDeathSave(defender);
@@ -5007,7 +5017,13 @@ class BattleUIComponent {
           if (attackerRoundEnd.log) roundLog += ` ${attackerRoundEnd.log}`;
           if (defenderRoundEnd.log) roundLog += ` ${defenderRoundEnd.log}`;
 
-          if (attacker.vit <= 0 || defender.vit <= 0) {
+          syncCombatActionState(attacker);
+          syncCombatActionState(defender);
+          if (!isCombatUnitAbleToFight(attacker) || !isCombatUnitAbleToFight(defender)) {
+            if (isCombatUnitAlive(attacker) && !isCombatUnitAbleToFight(attacker))
+              roundLog += ` [体力耗尽] 玩家体力归零，陷入昏迷，无法继续行动。`;
+            if (isCombatUnitAlive(defender) && !isCombatUnitAbleToFight(defender))
+              roundLog += ` [体力耗尽] NPC体力归零，陷入昏迷，无法继续行动。`;
             continueSimulation = false;
           } else if (attacker.蓄力技能 == null) {
             if (mode === 'single_round') {
@@ -5032,17 +5048,21 @@ class BattleUIComponent {
 
         const startingRound = Number(combatData.回合 || 0);
         combatData.回合 = startingRound + roundCount;
-        combatData.阶段 = attacker.vit <= 0 || defender.vit <= 0 ? '回合结算阶段' : '宣告阶段';
-
-        let isWin = defender.vit <= 0;
+        syncCombatActionState(attacker);
+        syncCombatActionState(defender);
+        combatData.阶段 = !isCombatUnitAbleToFight(attacker) || !isCombatUnitAbleToFight(defender) ? '回合结算阶段' : '宣告阶段';
         const unresolvedReason =
-          !isWin && attacker.vit > 0 && defender.vit > 0
+          isCombatUnitAbleToFight(attacker) && isCombatUnitAbleToFight(defender)
             ? mode === 'single_round'
               ? 'single_round_limit'
               : 'simulation_stopped'
             : '';
+        const battleOutcome = buildFrontEndBattleOutcome(attacker, defender, {
+          unresolvedReason,
+          formalEncounter: roundCount > 0,
+        });
         let extraPatchOps = [];
-        let settleResult = settleBattle(attacker, defender, isWin, {
+        let settleResult = settleBattle(attacker, defender, battleOutcome, {
           mode,
           roundCount,
           maxRounds,
@@ -5070,7 +5090,7 @@ class BattleUIComponent {
           起始回合: startingRound + 1,
           结束回合: combatData.回合,
           玩家输入: String(visiblePlayerInput || playerInput || '战斗行动'),
-          结算状态: 'pending_ai_confirm',
+          结算状态: `${battleOutcome.type}/pending_ai_confirm`,
           AI确认结果: '',
         };
         const mvuUpdate =
@@ -5081,8 +5101,17 @@ class BattleUIComponent {
             syncHpRecoveryOnly: true,
           }) || null;
 
+        const defenderFlags = getCombatTargetSpeciesFlags(defender);
+        const defenderPromptStats = defender?.属性 && typeof defender.属性 === 'object' ? defender.属性 : defender || {};
+        const defenderPromptTier = String(defenderPromptStats?.talent_tier || defender?.talent_tier || '炮灰');
+        const defenderPromptAge = Math.max(0, Number(defenderPromptStats?.age || defenderPromptStats?.年龄 || defender?.age || defender?.年龄 || 0));
         let systemPrompt = `[前端暗箱演算完毕][${modeLabel}] 共进行 ${roundCount} 回合。\n战报：\n${battleLog.join('\n')}\n请严格根据战报描写画面！`;
-        systemPrompt += `\n\n[战斗意图]\n${combatData.战斗意图}\n[前端建议结果]\n${combatData.前端建议结果}\n[建议终点HP区间]\n${combatData.建议终点HP区间}\n[前端推荐终点HP]\n${combatData.前端推荐终点HP}\n[预计HP伤害]\n${combatData.预计HP伤害}\n[裁断约束]\n可致死：${combatData.裁断约束?.可致死 ? '是' : '否'}；可外界介入：${combatData.裁断约束?.可外界介入 ? '是' : '否'}；关系收手系数：${combatData.裁断约束?.关系收手系数}；场地安全系数：${combatData.裁断约束?.场地安全系数}；实力差距系数：${combatData.裁断约束?.实力差距系数}；绝境失手系数：${combatData.裁断约束?.绝境失手系数}；失手等级：${combatData.裁断约束?.失手等级}\n请按正常 MVU 变量维护写入：/char/${defender.name}/属性/HP、/char/${defender.name}/状态/存活、/char/${defender.name}/状态/受伤部位，并在 /world/战斗/裁断结果 中写一个简短结论（继续交锋/点到为止/生擒制服/重伤压制/外界中断/强制撤离/致死确认）。治疗或恢复类结算已由前端直接处理，不需要你重复写治疗回复。`;
+        systemPrompt += `\n\n[前端战果类型]\n${battleOutcome.type}\n[前端战果说明]\n${battleOutcome.label}\n[战斗意图]\n${combatData.战斗意图}\n[前端建议结果]\n${combatData.前端建议结果}\n[建议终点HP区间]\n${combatData.建议终点HP区间}\n[前端推荐终点HP]\n${combatData.前端推荐终点HP}\n[预计HP伤害]\n${combatData.预计HP伤害}\n[裁断约束]\n可致死：${combatData.裁断约束?.可致死 ? '是' : '否'}；可外界介入：${combatData.裁断约束?.可外界介入 ? '是' : '否'}；关系收手系数：${combatData.裁断约束?.关系收手系数}；场地安全系数：${combatData.裁断约束?.场地安全系数}；实力差距系数：${combatData.裁断约束?.实力差距系数}；绝境失手系数：${combatData.裁断约束?.绝境失手系数}；失手等级：${combatData.裁断约束?.失手等级}\n前端不会直接判定正式死亡。若战果只是击倒/制服/濒死压制，则不得自行写死；只有在符合战斗意图与剧情裁断时，才允许把目标写为死亡。\n请按正常 MVU 变量维护写入：/char/${defender.name}/属性/HP、/char/${defender.name}/状态/存活、/char/${defender.name}/状态/受伤部位，并在 /world/战斗/裁断结果 中写一个简短结论（继续交锋/点到为止/生擒制服/重伤压制/外界中断/强制撤离/致死确认）。治疗或恢复类结算已由前端直接处理，不需要你重复写治疗回复。`;
+        if (defenderFlags.isAbyss) {
+          systemPrompt += `\n若你最终确认【${defender.name}】已正式死亡，再额外写入：/char/${attacker.name}/深渊击杀请求 = {"击杀级别":"${defenderPromptTier}","数量":1}。`;
+        } else if (defenderFlags.isBeast) {
+          systemPrompt += `\n若你最终确认【${defender.name}】已正式死亡，再额外写入：/char/${attacker.name}/猎魂请求 = {"击杀年限":${defenderPromptAge},"是否凶兽":${defenderPromptAge >= 100000 ? 'true' : 'false'}}。`;
+        }
         sendToAI(visiblePlayerInput || String(playerInput || '战斗行动').split('\n')[0] || '战斗行动', systemPrompt, {
           mvuUpdate,
           requestKind: 'battle_arbitration',
@@ -5313,7 +5342,7 @@ class BattleUIComponent {
         return log;
       }
 
-      function settleBattle(attackerChar, defenderChar, isWin, options = {}) {
+      function settleBattle(attackerChar, defenderChar, battleOutcome = {}, options = {}) {
         let log = '';
         let extraPatchOps = [];
         let attackerStats = attackerChar.属性 || attackerChar;
@@ -5329,10 +5358,32 @@ class BattleUIComponent {
         ).trim();
         const attackerPath = `/char/${escapeJsonPointerSegment(attackerName)}`;
         let inventory = (attackerName ? window.BattleUIBridge?.getMVU(`char.${attackerName}.背包`) : null) || {};
+        const currentTick = Number(window.BattleUIBridge?.getMVU('world.时间.tick') || 0);
+        const defenderFlags = getCombatTargetSpeciesFlags(defenderChar);
+        const isBeast = defenderFlags.isBeast;
+        const isAbyss = defenderFlags.isAbyss;
+        const isBeastOrAbyss = defenderFlags.isBeastOrAbyss;
+        const validDefenderName = !!(defenderName && defenderName !== '敌人' && defenderName !== '未知');
+        const outcome =
+          battleOutcome && typeof battleOutcome === 'object'
+            ? battleOutcome
+            : buildFrontEndBattleOutcome(attackerChar, defenderChar, {
+                unresolvedReason: options.unresolvedReason || '',
+                formalEncounter: true,
+              });
+        const isVictoryOutcome = outcome.isVictory === true;
+        const isDrawOutcome = outcome.isDraw === true;
+        const isUnresolvedOutcome = outcome.isUnresolved === true;
+        const shouldRecordCombatHistory = outcome.formalEncounter !== false && !isBeastOrAbyss && validDefenderName;
+        let historyCountBefore = 0;
+        if (shouldRecordCombatHistory) {
+          const existingHistory = attackerChar?.战斗历史?.[defenderName];
+          historyCountBefore = Math.max(0, Number(existingHistory?.次数 || 0));
+        }
 
         // --- 触发世界战斗图鉴录入 ---
         let bestiary = window.BattleUIBridge?.getMVU('world.图鉴') || {};
-        if (defenderName && defenderName !== '敌人' && defenderName !== '未知') {
+        if (isBeastOrAbyss && validDefenderName) {
           let monsterEntry = bestiary[defenderName];
           if (!monsterEntry) {
             extraPatchOps.push({
@@ -5350,7 +5401,7 @@ class BattleUIComponent {
         }
 
         if (combatType === '升灵台虚拟战斗') {
-          if (isWin) {
+          if (isVictoryOutcome) {
             let killedAge = combatData.killed_age || defenderStats.age || 100;
             let partySize = combatData.party_size || 1;
             let ticket = combatData.ascension_ticket || '初级升灵台门票';
@@ -5371,18 +5422,20 @@ class BattleUIComponent {
                 });
               });
             } else {
-              log = `[升灵台结算] 虚拟魂兽死亡！但玩家尚未拥有魂环，无法吸收升灵能量，能量缓缓消散...`;
+              log = `[升灵台结算] 虚拟魂兽已被击溃！但玩家尚未拥有魂环，无法吸收升灵能量，能量缓缓消散...`;
             }
-          } else {
+          } else if (outcome.isDefeat === true || isDrawOutcome) {
             log = `[升灵台保护] 玩家受到致命创伤，升灵台保护机制触发！一道接引光芒落下，强制将其弹出升灵台。(虚拟战败，无实质损伤，但终止了本次历练)`;
             attackerChar.vit = 1;
+          } else {
+            log = `[升灵台仲裁] 本次交锋暂未分出胜负，升灵台能量回路仍在持续运转。`;
           }
           return { log, extraPatchOps };
         }
 
         if (combatType === '魂灵塔冲塔') {
           let floor = combatData.floor || 1;
-          if (isWin) {
+          if (isVictoryOutcome) {
             let ageDesc = '十年';
             if (floor >= 40) ageDesc = '十万年';
             else if (floor >= 30) ageDesc = '万年';
@@ -5412,21 +5465,17 @@ class BattleUIComponent {
                 value: { 数量: 1, 类型: '魂灵', 品质: '普通', 描述: `魂灵塔第${floor}层战利品` },
               });
             }
-          } else {
+          } else if (outcome.isDefeat === true || isDrawOutcome) {
             log = `💀[冲塔失败] 玩家遭到 ${defenderName} 重创，魂灵塔阵法排斥之力发动，将其强行传送出塔外！(请 AI 描写重伤弹出塔外的虚弱状态)`;
             attackerChar.vit = 1;
+          } else {
+            log = `[冲塔仲裁] 本次交锋尚未形成通关结果，魂灵塔考核仍在继续。`;
           }
           return { log, extraPatchOps };
         }
 
-        if (isWin) {
+        if (isVictoryOutcome) {
           let lvDiff = defenderStats.lv - attackerStats.lv;
-
-          const fList = Object.keys(defenderChar.社交?.势力 || {});
-          const isBeast =
-            fList.includes('魂兽一族') || fList.some(name => name.includes('魂兽')) || defenderStats.age >= 100;
-          const isAbyss = fList.includes('深渊生物') || fList.some(name => name.includes('深渊'));
-          let isBeastOrAbyss = isBeast || isAbyss;
 
           if (lvDiff <= -5) {
             log = `[实战结算] 击败了对手，但因等级碾压(等级差≤-5)，毫无实战感悟，收益为 0。`;
@@ -5451,13 +5500,9 @@ class BattleUIComponent {
 
             let historyMult = 1.0;
             if (!isBeastOrAbyss) {
-              if (!attackerChar.战斗历史) attackerChar.战斗历史 = {};
-              let history = attackerChar.战斗历史[defenderName];
-              if (history) {
-                if (history.次数 === 1) historyMult = 0.5;
-                else if (history.次数 === 2) historyMult = 0.1;
-                else if (history.次数 >= 3) historyMult = 0;
-              }
+              if (historyCountBefore === 1) historyMult = 0.5;
+              else if (historyCountBefore === 2) historyMult = 0.1;
+              else if (historyCountBefore >= 3) historyMult = 0;
             }
 
             let finalMult = talentMult * lvMult * historyMult;
@@ -5482,33 +5527,49 @@ class BattleUIComponent {
               }
             }
           }
-
-          if (!isBeastOrAbyss) {
-            if (!attackerChar.战斗历史) attackerChar.战斗历史 = {};
-            if (!attackerChar.战斗历史[defenderName]) attackerChar.战斗历史[defenderName] = { 次数: 0, 最近tick: 0 };
-            attackerChar.战斗历史[defenderName].次数 += 1;
-            attackerChar.战斗历史[defenderName].最近tick = Number(window.BattleUIBridge?.getMVU('world.时间.tick') || 0);
-          }
           if (combatType === '擂台切磋') {
             log += ` 🏆[擂台结算] 堂堂正正地赢得了比赛！(请 AI 描写观众的欢呼与对手的反应)`;
           } else if (isBeastOrAbyss) {
             if (isAbyss) {
-              attackerChar.深渊击杀请求 = { 击杀级别: defenderStats.talent_tier || '炮灰', 数量: 1 };
-              log += ` 💀[深渊击杀确认] 斩杀深渊生物，正在向战神殿系统发送战功兑换申请！(请 AI 描写深渊能量消散的画面)`;
+              log += outcome.isLethalCandidate
+                ? ` [深渊濒死] 深渊生物已被打入致命区，但正式死亡与战功结算仍待后续裁断。`
+                : ` [深渊压制] 深渊生物已失去继续作战能力，后续生死由剧情与 AI 裁断。`;
             } else {
-              log += ` 💀[魂兽击杀确认] 魂兽死亡！(请 AI 描写魂环浮现与战利品掉落的画面)`;
+              log += outcome.isLethalCandidate
+                ? ` [魂兽濒死] 魂兽已被打入濒死边缘，是否正式死亡与是否形成猎魂结算仍待后续裁断。`
+                : ` [魂兽压制] 魂兽已被重创压制，是否死亡与是否形成猎魂结算仍待后续裁断。`;
             }
           } else {
-            log += ` 💀[生死决断] 敌人已被彻底击溃！(请 AI 描写搜刮战利品或审问的画面)`;
+            log += outcome.isLethalCandidate
+              ? ` [致命压制] 敌人已被打入濒死边缘，生死仍待后续裁断。`
+              : ` [战果确认] 敌人已被彻底制服，暂未触发致死结算。`;
           }
-        } else {
+        } else if (isDrawOutcome) {
+          log = `[实战结算] 双方均已失去继续作战能力，战局以两败俱伤暂告段落。`;
+        } else if (isUnresolvedOutcome) {
           if (options.unresolvedReason === 'single_round_limit') {
             log = `[实战结算] 单回合仲裁结束，当前尚未分出胜负，双方仍在激烈对峙。`;
           } else if (options.unresolvedReason === 'simulation_stopped') {
             log = `[实战结算] 暗箱续推暂告一段落，当前仍未决出胜负，战局进入新的对峙阶段。`;
+          } else if (outcome.label) {
+            log = `[实战结算] ${outcome.label}，本次交锋暂未形成最终战果。`;
           } else {
-            log = `[实战结算] 战斗失败或逃跑，未能获得实战成长。`;
+            log = `[实战结算] 当前仍未决出胜负，战局进入新的对峙阶段。`;
           }
+        } else {
+          log = `[实战结算] 自身失去继续作战能力，本次交锋未能取胜。`;
+        }
+
+        if (shouldRecordCombatHistory) {
+          if (!attackerChar.战斗历史 || typeof attackerChar.战斗历史 !== 'object') attackerChar.战斗历史 = {};
+          if (!attackerChar.战斗历史[defenderName] || typeof attackerChar.战斗历史[defenderName] !== 'object') {
+            attackerChar.战斗历史[defenderName] = { 次数: 0, 最近tick: 0 };
+          }
+          attackerChar.战斗历史[defenderName].次数 = Math.max(
+            0,
+            Number(attackerChar.战斗历史[defenderName].次数 || 0),
+          ) + 1;
+          attackerChar.战斗历史[defenderName].最近tick = currentTick;
         }
 
         return { log, extraPatchOps };
@@ -5660,12 +5721,141 @@ class BattleUIComponent {
       }
 
       // ==========================================
-      // 📍 伤势折损计算
+      // 📍 战斗生存/失能判定
+      // ==========================================
+      function getCombatHpValue(char) {
+        const stats = char?.属性 && typeof char.属性 === 'object' ? char.属性 : char || {};
+        return Math.max(0, Number(char?.vit ?? stats.vit ?? char?.HP ?? stats.HP ?? 0));
+      }
+
+      function getCombatHpMaxValue(char) {
+        const stats = char?.属性 && typeof char.属性 === 'object' ? char.属性 : char || {};
+        return Math.max(1, Number(char?.vit_max ?? stats.vit_max ?? char?.HP上限 ?? stats.HP上限 ?? 1));
+      }
+
+      function getCombatStaminaValue(char) {
+        const stats = char?.属性 && typeof char.属性 === 'object' ? char.属性 : char || {};
+        return Math.max(0, Number(char?.sta ?? stats.sta ?? char?.体力 ?? stats.体力 ?? 0));
+      }
+
+      function getCombatStaminaMaxValue(char) {
+        const stats = char?.属性 && typeof char.属性 === 'object' ? char.属性 : char || {};
+        return Math.max(1, Number(char?.sta_max ?? stats.sta_max ?? char?.体力上限 ?? stats.体力上限 ?? 1));
+      }
+
+      function getCombatHpRatio(char) {
+        return getCombatHpValue(char) / getCombatHpMaxValue(char);
+      }
+
+      function getCombatStaminaRatio(char) {
+        return getCombatStaminaValue(char) / getCombatStaminaMaxValue(char);
+      }
+
+      function isCombatUnitAlive(char) {
+        return getCombatHpValue(char) > 0;
+      }
+
+      function isCombatUnitAbleToFight(char) {
+        return isCombatUnitAlive(char) && getCombatStaminaValue(char) > 0;
+      }
+
+      function syncCombatActionState(char) {
+        if (!char || typeof char !== 'object') return;
+        if (!char.状态 || typeof char.状态 !== 'object') char.状态 = {};
+        if (!isCombatUnitAlive(char)) {
+          char.状态.行动 = '无法行动';
+          return;
+        }
+        if (!isCombatUnitAbleToFight(char)) {
+          char.状态.行动 = '昏迷';
+          return;
+        }
+        char.状态.行动 = '战斗';
+      }
+
+      function getCombatTargetSpeciesFlags(char = {}) {
+        const social = char?.社交 && typeof char.社交 === 'object' ? char.社交 : {};
+        const factionMap = social?.势力 && typeof social.势力 === 'object' ? social.势力 : {};
+        const factionNames = Object.keys(factionMap);
+        const stats = char?.属性 && typeof char.属性 === 'object' ? char.属性 : char || {};
+        const age = Math.max(0, Number(stats?.age ?? stats?.年龄 ?? 0));
+        const isBeast =
+          factionNames.includes('魂兽一族') ||
+          factionNames.some(name => String(name || '').includes('魂兽')) ||
+          age >= 100;
+        const isAbyss =
+          factionNames.includes('深渊生物') ||
+          factionNames.some(name => String(name || '').includes('深渊'));
+        return {
+          isBeast,
+          isAbyss,
+          isBeastOrAbyss: isBeast || isAbyss,
+        };
+      }
+
+      function buildFrontEndBattleOutcome(attacker, defender, options = {}) {
+        const attackerAlive = isCombatUnitAlive(attacker);
+        const defenderAlive = isCombatUnitAlive(defender);
+        const attackerAbleToFight = isCombatUnitAbleToFight(attacker);
+        const defenderAbleToFight = isCombatUnitAbleToFight(defender);
+        const unresolvedReason = String(options.unresolvedReason || '').trim();
+        const formalEncounter = options.formalEncounter !== false;
+        const outcome = {
+          type: '未分胜负',
+          label: '对峙未决',
+          formalEncounter,
+          unresolvedReason,
+          attackerAlive,
+          defenderAlive,
+          attackerAbleToFight,
+          defenderAbleToFight,
+          isVictory: false,
+          isDefeat: false,
+          isDraw: false,
+          isUnresolved: false,
+          isGeneralVictory: false,
+          isLethalCandidate: false,
+        };
+
+        if (!attackerAbleToFight && !defenderAbleToFight) {
+          outcome.type = '两败俱伤';
+          outcome.label = attackerAlive || defenderAlive ? '双方同时失能' : '同归于尽';
+          outcome.isDraw = true;
+          return outcome;
+        }
+
+        if (!defenderAbleToFight) {
+          outcome.type = defenderAlive ? '一般胜利' : '致命压制待裁断';
+          outcome.label = defenderAlive ? '制服取胜' : '致命压制待裁断';
+          outcome.isVictory = true;
+          outcome.isGeneralVictory = defenderAlive;
+          outcome.isLethalCandidate = !defenderAlive;
+          return outcome;
+        }
+
+        if (!attackerAbleToFight) {
+          outcome.type = '失败';
+          outcome.label = attackerAlive ? '力竭落败' : '重创败退';
+          outcome.isDefeat = true;
+          return outcome;
+        }
+
+        outcome.isUnresolved = true;
+        if (unresolvedReason === 'single_round_limit') {
+          outcome.label = '单回合试探';
+        } else if (unresolvedReason === 'simulation_stopped') {
+          outcome.label = '续推中断';
+        } else if (unresolvedReason === 'external_interrupt') {
+          outcome.label = '外界中断';
+        }
+        return outcome;
+      }
+
+      // ==========================================
+      // 📍 疲劳折损计算
       // ==========================================
       function getWoundMult(char) {
-        let currentVit = Math.max(0, char?.vit || 0);
-        let maxVit = Math.max(1, char?.vit_max || 1);
-        let ratio = currentVit / maxVit;
+        let ratio = getCombatStaminaRatio(char);
         if (ratio > 0.5) return 1.0;
         if (ratio > 0.3) return 0.9;
         if (ratio > 0.1) return 0.7;
@@ -6129,8 +6319,8 @@ class BattleUIComponent {
             );
             result.desc +=
               directDamageToHealRatio > 0
-                ? ` [伤转回生] 玩家将部分伤害转化为回复，额外恢复了 ${lifeStealAmount} 点体力。`
-                : ` [吸取反哺] 玩家额外恢复了 ${lifeStealAmount} 点体力。`;
+                ? ` [伤转回生] 玩家将部分伤害转化为回复，额外恢复了 ${lifeStealAmount} 点HP。`
+                : ` [吸取反哺] 玩家额外恢复了 ${lifeStealAmount} 点HP。`;
           }
         }
 
@@ -6379,9 +6569,9 @@ class BattleUIComponent {
         };
 
         if (directHealEffect) {
-          applyImmediateRecoveryEffect(directHealEffect, 'vit', '体力');
+          applyImmediateRecoveryEffect(directHealEffect, 'vit', 'HP');
           if (selfMirrorEffect && !effectTargetsSelf(directHealEffect))
-            applyImmediateRecoveryEffect(mirrorEffectToSelf(directHealEffect), 'vit', '体力');
+            applyImmediateRecoveryEffect(mirrorEffectToSelf(directHealEffect), 'vit', 'HP');
         }
 
         if (directSpEffect) {
@@ -8056,11 +8246,13 @@ class BattleUIComponent {
 
           (combatData.参战者.team_player || []).forEach(p => {
             bindCombatParticipant(p);
-            if (p.vit > 0) allFighters.push({ char: p, side: 'player' });
+            syncCombatActionState(p);
+            if (isCombatUnitAbleToFight(p)) allFighters.push({ char: p, side: 'player' });
           });
           (combatData.参战者.team_enemy || []).forEach(e => {
             bindCombatParticipant(e);
-            if (e.vit > 0) allFighters.push({ char: e, side: 'enemy' });
+            syncCombatActionState(e);
+            if (isCombatUnitAbleToFight(e)) allFighters.push({ char: e, side: 'enemy' });
           });
 
           let typePriority = {
@@ -8092,7 +8284,7 @@ class BattleUIComponent {
         function findTarget(attackerChar, enemyTeam) {
           bindCombatParticipant(attackerChar);
           (enemyTeam || []).forEach(bindCombatParticipant);
-          let validTargets = enemyTeam.filter(t => t.vit > 0);
+          let validTargets = enemyTeam.filter(t => isCombatUnitAbleToFight(t));
           if (validTargets.length === 0) return null;
           if (validTargets.length === 1) return validTargets[0];
 
@@ -8130,7 +8322,7 @@ class BattleUIComponent {
 
         function findAllyTarget(actorChar, allyTeam) {
           if (!allyTeam || allyTeam.length === 0) return actorChar;
-          let validAllies = allyTeam.filter(t => t.vit > 0);
+          let validAllies = allyTeam.filter(t => isCombatUnitAlive(t));
           if (validAllies.length === 0) return actorChar;
 
           let lowestHpRatio = 1.0;
@@ -8201,7 +8393,7 @@ class BattleUIComponent {
         }
 
         function chooseEnemyTargetForSkill(attackerChar, enemyTeam, skill, fallbackTarget = null) {
-          const validTargets = (enemyTeam || []).filter(target => target && Number(target.vit || 0) > 0);
+          const validTargets = (enemyTeam || []).filter(target => target && isCombatUnitAbleToFight(target));
           if (validTargets.length === 0) return fallbackTarget || null;
           const focusTarget = getActorFocusedTarget(attackerChar, validTargets);
           if (!skill) return focusTarget || fallbackTarget || validTargets[0];
@@ -8257,7 +8449,7 @@ class BattleUIComponent {
         }
 
         function chooseAllyTargetForSkill(actorChar, allyTeam, skill, fallbackTarget = null) {
-          const validAllies = (allyTeam || []).filter(target => target && Number(target.vit || 0) > 0);
+          const validAllies = (allyTeam || []).filter(target => target && isCombatUnitAlive(target));
           if (validAllies.length === 0) return actorChar;
           if (!skill) return fallbackTarget || validAllies[0] || actorChar;
           const picked = chooseWeightedOption(
@@ -8452,8 +8644,18 @@ class BattleUIComponent {
           if (!actorEntry || !battleState?.combatData) return null;
           const actor = actorEntry.char;
           bindCombatParticipant(actor);
-          if (actor.vit <= 0) {
+          syncCombatActionState(actor);
+          if (!isCombatUnitAlive(actor)) {
             return { actor: actor.name, side: actorEntry.side, skipped: true, reason: '已失去战斗力' };
+          }
+          if (!isCombatUnitAbleToFight(actor)) {
+            return {
+              actor: actor.name,
+              side: actorEntry.side,
+              skipped: true,
+              reason: '体力耗尽',
+              log: `[团战执行] ${actor.name}体力归零，已陷入昏迷，本回合无法行动。`,
+            };
           }
 
           if (isActorHardControlled(actor)) {
@@ -8706,7 +8908,8 @@ class BattleUIComponent {
         function getTeamLivingCount(team) {
           return (team || []).filter(unit => {
             bindCombatParticipant(unit);
-            return unit.vit > 0;
+            syncCombatActionState(unit);
+            return isCombatUnitAbleToFight(unit);
           }).length;
         }
 
@@ -8718,10 +8921,12 @@ class BattleUIComponent {
 
           allUnits.forEach(unit => {
             bindCombatParticipant(unit);
-            if (unit.vit <= 0) return;
+            syncCombatActionState(unit);
+            if (!isCombatUnitAlive(unit)) return;
 
             const sustainResult = settleSustainEffectsAtRoundEnd(unit, unit.name || '未知单位');
             const conditionResult = settleConditionsAtRoundEnd(unit, unit.name || '未知单位');
+            syncCombatActionState(unit);
             if (sustainResult.log) logs.push(`[团战回合尾] ${sustainResult.log}`);
             if (conditionResult.log) logs.push(`[团战回合尾] ${conditionResult.log}`);
           });
@@ -8777,7 +8982,7 @@ class BattleUIComponent {
               if (combatData.参战者.player && combatData.参战者.player.vit <= 0) {
                 combatData.参战者.player.vit = 1;
               }
-              logs.push(`[虚拟战败保护] 玩家方全员战败，触发安全协议，强制弹出并锁定体力为 1！`);
+              logs.push(`[虚拟战败保护] 玩家方全员战败，触发安全协议，强制弹出并锁定HP为 1！`);
             }
           }
 
