@@ -692,7 +692,11 @@ function applyLayoutBodyClasses() {
   const body = document.body;
   if (!body) return;
   const unifiedMount = document.getElementById('mvu-unified-mount');
-  if (unifiedMount && mvuLayoutState.unifiedAnchorReady && unifiedMount.hasAttribute('data-mvu-booting')) {
+  if (
+    unifiedMount
+    && unifiedMount.hasAttribute('data-mvu-booting')
+    && (mvuLayoutState.unifiedAnchorReady || body.classList.contains('mvu-unified-mount-ready'))
+  ) {
     unifiedMount.removeAttribute('data-mvu-booting');
   }
   const shellSurfaceMode = isShellSurfaceMode();
@@ -2453,6 +2457,13 @@ function ensureUnifiedMountNode() {
     unifiedMount.id = 'mvu-unified-mount';
     unifiedMount.dataset.mvuBooting = '1';
     document.body.appendChild(unifiedMount);
+  }
+  if (
+    unifiedMount
+    && unifiedMount.hasAttribute('data-mvu-booting')
+    && (mvuLayoutState.unifiedAnchorReady || document.body?.classList.contains('mvu-unified-mount-ready'))
+  ) {
+    unifiedMount.removeAttribute('data-mvu-booting');
   }
   applyUnifiedMountHostStyle(unifiedMount);
   return unifiedMount;

@@ -544,7 +544,7 @@ class BattleUIComponent {
       if (!participant || typeof participant !== 'object') return undefined;
       const source = sanitizeCombatPersistenceData(deepClonePlain(participant));
       const snapshot = {
-        name: String(source.name || '').trim() || String(source.名称 || '').trim() || '未知',
+        name: String(source.name || '').trim() || '未知',
         来源: '临时单位',
         单位性质: String(source.单位性质 || '').trim(),
       };
@@ -567,7 +567,6 @@ class BattleUIComponent {
       if (source.特殊能力 && typeof source.特殊能力 === 'object' && !Array.isArray(source.特殊能力)) {
         snapshot.特殊能力 = clonePersistedCombatValue(source.特殊能力);
       }
-      if (source.name === undefined && source.名称 !== undefined) snapshot.名称 = String(source.名称 || '').trim();
       return snapshot;
     }
 
@@ -580,7 +579,8 @@ class BattleUIComponent {
       const participantPath = `/char/${escapeJsonPointerSegment(participantName)}`;
       const currentCharData = getMvuValue(`char.${participantName}`, undefined);
       const previousSnapshot = buildCanonicalParticipantPersistenceSnapshot(currentCharData) || {};
-      const nextSnapshot = buildCanonicalParticipantPersistenceSnapshot(participant) || {};
+      const nextSnapshot = buildCanonicalParticipantPersistenceSnapshot(participant);
+      if (!nextSnapshot || typeof nextSnapshot !== 'object' || Object.keys(nextSnapshot).length === 0) return;
       if (options.syncHpRecoveryOnly) appendParticipantHpRecoverySnapshot(nextSnapshot, previousSnapshot, participant);
       const fieldKeys = new Set([...Object.keys(previousSnapshot), ...Object.keys(nextSnapshot)]);
 
@@ -1939,21 +1939,25 @@ class BattleUIComponent {
     }
 
     function isSpecialSupportMartialSoul(char) {
-      return getSpiritNameList(char).some(name => /^[七九]/.test(String(name || '')));
+      return getSpiritNameList(char).some(name => /^(七宝|九宝)/.test(String(name || '')));
     }
 
     function getSupportEffectScale(caster, target) {
       if (isSpecialSupportMartialSoul(caster)) return 1;
       const casterSp = Math.max(1, caster?.sp_max || 1);
       const targetSp = Math.max(1, target?.sp_max || 1);
-      return Math.min(casterSp / targetSp, 2.0);
+      const ratio = casterSp / targetSp;
+      if (!Number.isFinite(ratio) || ratio <= 0) return 1;
+      if (ratio >= 1) return Math.min(1.35, 1 + (Math.sqrt(ratio) - 1) * 0.35);
+      return Math.max(0.72, 0.72 + 0.28 * Math.sqrt(ratio));
     }
 
     function getSupportCostScale(caster, target) {
-      if (!isSpecialSupportMartialSoul(caster)) return 1;
-      const casterSp = Math.max(1, caster?.sp_max || 1);
-      const targetSp = Math.max(1, target?.sp_max || 1);
-      return Math.min(targetSp / casterSp, 2.0);
+      if (isSpecialSupportMartialSoul(caster)) return 1;
+      const effectScale = getSupportEffectScale(caster, target);
+      if (!(effectScale > 0)) return 1;
+      if (effectScale >= 1) return Math.min(1.05, 1 + (effectScale - 1) * 0.2);
+      return Math.max(0.78, 1 - (1 - effectScale) * 0.65);
     }
 
     function getSoulDriveScale(attacker, defender) {
@@ -2514,6 +2518,36 @@ class BattleUIComponent {
       const num = Number(value);
       if (!Number.isFinite(num)) return value;
       return roundBattleScaledNumber(Number(neutral) - (Number(neutral) - num) * Number(ratio || 1), 4);
+    }
+
+    function scaleBattleSupportBuffCalc(calc = {}, supportScale = 1) {
+      const next = deepClone(calc || {});
+      const ratio = Number(supportScale || 1);
+      if (!Number.isFinite(ratio) || Math.abs(ratio - 1) < 0.0001) return next;
+
+      ['hit_bonus', 'reaction_bonus', 'dodge_bonus', 'attacker_speed_bonus', 'cast_speed_bonus', 'interrupt_bonus'].forEach(
+        key => {
+          if (next[key] !== undefined) next[key] = scaleBattleValue(next[key], ratio, { digits: 4 });
+        },
+      );
+
+      ['damage_reduction', 'counter_attack_ratio', 'bonus_true_damage_ratio', 'life_steal_ratio', 'sp_gain_ratio', 'men_gain_ratio', 'hot_heal_ratio'].forEach(
+        key => {
+          if (next[key] !== undefined) next[key] = scaleBattleValue(next[key], ratio, { min: 0, digits: 4 });
+        },
+      );
+
+      ['final_damage_mult', 'final_heal_mult', 'shield_gain_mult', 'control_resist_mult'].forEach(key => {
+        if (next[key] !== undefined) next[key] = scaleBattleFactor(next[key], ratio, 1);
+      });
+
+      ['final_damage_bonus', 'final_heal_bonus', 'shield_gain_bonus'].forEach(key => {
+        if (next[key] !== undefined) next[key] = scaleBattleValue(next[key], ratio, { min: 0, digits: 2 });
+      });
+
+      if (next.min_hp_floor !== undefined) next.min_hp_floor = Math.max(0, Math.round(Number(next.min_hp_floor || 0) * ratio));
+
+      return next;
     }
 
     function scaleSkillCostText(costText, ratio = 1) {
@@ -3336,6 +3370,53 @@ class BattleUIComponent {
       bindCombatHpAliasField(target, source);
     }
 
+    function expandCombatParticipantFromMvu(participant) {
+      if (!participant || typeof participant !== 'object' || Array.isArray(participant)) return participant;
+      if (isTemporaryCombatParticipant(participant)) return participant;
+      if (participant.属性 && typeof participant.属性 === 'object' && participant.状态 && typeof participant.状态 === 'object') {
+        return participant;
+      }
+
+      const participantName = String(participant.name || '').trim();
+      if (!participantName) return participant;
+      const currentCharData = getMvuValue(`char.${participantName}`, undefined);
+      if (!currentCharData || typeof currentCharData !== 'object') return participant;
+
+      const expanded = deepClonePlain(currentCharData);
+      expanded.name = participantName;
+
+      if (!expanded.属性 || typeof expanded.属性 !== 'object') expanded.属性 = {};
+      if (!expanded.状态 || typeof expanded.状态 !== 'object') expanded.状态 = {};
+
+      COMBAT_STAT_KEYS.forEach(key => {
+        if (participant[key] !== undefined) expanded.属性[key] = deepClonePlain(participant[key]);
+      });
+      COMBAT_STATUS_KEYS.forEach(key => {
+        if (participant[key] !== undefined) expanded.状态[key] = deepClonePlain(participant[key]);
+      });
+
+      if (participant.属性 && typeof participant.属性 === 'object') {
+        expanded.属性 = { ...expanded.属性, ...deepClonePlain(participant.属性) };
+      }
+      if (participant.状态 && typeof participant.状态 === 'object') {
+        expanded.状态 = { ...expanded.状态, ...deepClonePlain(participant.状态) };
+      }
+      if (participant.状态效果 && typeof participant.状态效果 === 'object' && !Array.isArray(participant.状态效果)) {
+        expanded.状态效果 = deepClonePlain(participant.状态效果);
+      }
+      if (participant.持续效果 && typeof participant.持续效果 === 'object' && !Array.isArray(participant.持续效果)) {
+        expanded.持续效果 = deepClonePlain(participant.持续效果);
+      }
+      if (participant.蓄力技能 !== undefined) expanded.蓄力技能 = deepClonePlain(participant.蓄力技能);
+      if (participant.决策记忆 !== undefined) expanded.决策记忆 = deepClonePlain(participant.决策记忆);
+      if (participant.当前领域 !== undefined) expanded.状态.当前领域 = deepClonePlain(participant.当前领域);
+      if (participant.存活 !== undefined) expanded.状态.存活 = participant.存活 !== false;
+      if (participant.势力 !== undefined) expanded.势力 = deepClonePlain(participant.势力);
+
+      delete expanded.__combatMirrorBound;
+      return expanded;
+    }
+
     function bindCombatParticipant(char) {
       if (!char || char.__combatMirrorBound) return char;
 
@@ -3366,6 +3447,14 @@ class BattleUIComponent {
 
     function hydrateCombatData(combatData) {
       if (!combatData || !combatData.参战者) return combatData;
+      combatData.参战者.player = expandCombatParticipantFromMvu(combatData.参战者.player);
+      combatData.参战者.enemy = expandCombatParticipantFromMvu(combatData.参战者.enemy);
+      combatData.参战者.team_player = Array.isArray(combatData.参战者.team_player)
+        ? combatData.参战者.team_player.map(expandCombatParticipantFromMvu)
+        : [];
+      combatData.参战者.team_enemy = Array.isArray(combatData.参战者.team_enemy)
+        ? combatData.参战者.team_enemy.map(expandCombatParticipantFromMvu)
+        : [];
       const playerRoster = [combatData.参战者.player, ...(combatData.参战者.team_player || [])].filter(
         Boolean,
       );
@@ -3520,10 +3609,13 @@ class BattleUIComponent {
     function parseSkillCostForChar(skill, char) {
       const stats = char?.属性 || char || {};
       const costStr = normalizeSkillData(skill).消耗 || getSkillCostText(skill);
+      const presetCostScale = Number(skill?.__battleSupportCostScale);
       const costScale =
-        skill && char && skill.__targetForSupportCost && isSupportLikeSkill(skill)
-          ? getSupportCostScale(char, skill.__targetForSupportCost)
-          : 1;
+        Number.isFinite(presetCostScale) && presetCostScale > 0
+          ? presetCostScale
+          : skill && char && skill.__targetForSupportCost && isSupportLikeSkill(skill)
+            ? getSupportCostScale(char, skill.__targetForSupportCost)
+            : 1;
       const rawReqSp = parseResourceCostValue(
         costStr,
         '魂力',
@@ -3554,6 +3646,7 @@ class BattleUIComponent {
           reqSp,
           reqVit,
           reqMen,
+          costScale,
           canCast:
           ((stats.sp ?? stats.魂力) || 0) >= reqSp &&
           ((stats.sta ?? stats.体力 ?? stats.vit) || 0) >= reqVit &&
@@ -4142,8 +4235,11 @@ class BattleUIComponent {
         };
       }
 
-      function parseCostStringForChar(costStr, char) {
-        return parseSkillCostForChar({ 消耗: costStr || '无' }, char);
+      function parseCostStringForChar(costStr, char, costScale = 1) {
+        return parseSkillCostForChar(
+          { 消耗: costStr || '无', __battleSupportCostScale: Number(costScale || 1) || 1 },
+          char,
+        );
       }
 
       function formatParsedCost(parsed) {
@@ -4238,7 +4334,11 @@ class BattleUIComponent {
               return;
             }
 
-            const parsed = parseCostStringForChar(effect.sustain_cost, char);
+            const parsed = parseCostStringForChar(
+              effect.sustain_cost,
+              char,
+              Number(effect.support_cost_scale || 1) || 1,
+            );
             if (!parsed.canCast) {
               if (effect.effect_type === 'domain') char.当前领域 = '无';
               else if (effect.effect_type === 'life_fire' && char.血脉之力)
@@ -4772,6 +4872,54 @@ class BattleUIComponent {
         return `使用【${name}】。`;
       }
 
+      function resolvePassivePlayerStance(playerAction, npcAction) {
+        const actionName = String(
+          playerAction?.action_type || playerAction?.skill?.name || playerAction?.skill?.魂技名 || '防御',
+        );
+        const npcSkill = npcAction?.skill || null;
+        const npcSkillType = getSkillType(npcSkill);
+        const npcMainType = inferMainTypeFromEffects(npcSkill);
+        const npcIsHostile =
+          npcAction?.type === '强势对轰' ||
+          npcSkillType === '输出' ||
+          npcMainType === '伤害类' ||
+          hasSkillMechanism(npcSkill, ['直接伤害', '多段伤害', '持续伤害', '延迟爆发', '斩杀补伤']);
+
+        if (/防御/.test(actionName)) {
+          return {
+            dmg: 0,
+            desc: npcIsHostile
+              ? '[守势成立] 玩家没有主动出手，而是稳住架势硬接试探，成功守住了这一轮攻势。'
+              : '[守势对峙] 玩家摆出防御姿态，双方短暂拉扯，谁都没有真正打出有效战果。',
+            extraPatchOps: [],
+          };
+        }
+
+        if (/闪避/.test(actionName)) {
+          return {
+            dmg: 0,
+            desc: npcIsHostile
+              ? '[闪避成立] 玩家没有主动出手，而是借身法拉开步点，避开了这次试探性压迫。'
+              : '[游走观察] 玩家保持闪避姿态，双方都在试探彼此的节奏。',
+            extraPatchOps: [],
+          };
+        }
+
+        if (/撤离/.test(actionName)) {
+          return {
+            dmg: 0,
+            desc: '[脱离尝试] 玩家没有继续交锋，而是主动寻找脱离战圈的机会，本回合未形成正面碰撞。',
+            extraPatchOps: [],
+          };
+        }
+
+        return {
+          dmg: 0,
+          desc: '[守势维持] 玩家本回合没有主动出手，战局进入短暂对峙。',
+          extraPatchOps: [],
+        };
+      }
+
       function onPlayerAttack(playerInput, options = {}) {
         let combatData = window.BattleUIBridge?.getMVU('world.战斗');
         hydrateCombatData(combatData);
@@ -4928,7 +5076,10 @@ class BattleUIComponent {
 
           const reactionRatio = calculateReactionRatio(attacker, defender, playerAction, combatData);
           const npcAction = determineNpcAction(combatData, playerAction, reactionRatio);
-          let settleResult = executeClash(playerAction, npcAction, combatData);
+          const isPassivePlayerTurn = ['防御', '闪避', '撤离'].includes(String(playerAction?.action_type || ''));
+          let settleResult = isPassivePlayerTurn
+            ? resolvePassivePlayerStance(playerAction, npcAction)
+            : executeClash(playerAction, npcAction, combatData);
           roundLog += npcAction.log + ' ' + settleResult.desc;
           if (Array.isArray(settleResult.extraPatchOps) && settleResult.extraPatchOps.length)
             clashExtraPatchOps.push(...settleResult.extraPatchOps);
@@ -5223,6 +5374,36 @@ class BattleUIComponent {
       // ==========================================
       // 📍 2. 战前消耗与战后结算区 (彻底净化版)
       // ==========================================
+      function findCombatUnitByName(combatData, rawName = '') {
+        const wanted = String(rawName || '').trim();
+        if (!combatData || !wanted) return null;
+        const roster = [
+          combatData?.参战者?.player,
+          combatData?.参战者?.enemy,
+          ...(combatData?.参战者?.team_player || []),
+          ...(combatData?.参战者?.team_enemy || []),
+        ].filter(Boolean);
+        return roster.find(unit => String(unit?.name || '').trim() === wanted) || null;
+      }
+
+      function resolveSupportCostTarget(attackerChar, playerAction) {
+        const skill = playerAction?.skill;
+        if (!skill || !isSupportLikeSkill(skill)) return null;
+        const targetText = String(getSkillTarget(skill) || '').trim();
+        if (!targetText) return null;
+        if (/自身/.test(targetText)) return attackerChar || null;
+        const battleContext = window.BattleUIBridge?.getBattleContext?.() || window.BattleUIBridge?.getMVU?.('world.战斗') || null;
+        const preferredName = String(playerAction?.target_name || '').trim();
+        if (/己方|友方/.test(targetText)) {
+          const ally = findCombatUnitByName(battleContext, preferredName);
+          return ally || attackerChar || null;
+        }
+        if (/敌/.test(targetText)) {
+          return findCombatUnitByName(battleContext, preferredName) || battleContext?.参战者?.enemy || null;
+        }
+        return attackerChar || null;
+      }
+
       function applyActionCost(attackerChar, playerAction) {
         const stats = attackerChar.属性 || attackerChar;
         const status = attackerChar.状态 || {};
@@ -5230,8 +5411,11 @@ class BattleUIComponent {
 
         // 💥 1. 通用真实面板扣费逻辑 (支持固定值与百分比，绝不硬编码！)
         if (playerAction.skill && playerAction.skill.消耗 !== '无') {
+          const supportCostTarget = resolveSupportCostTarget(attackerChar, playerAction);
+          if (supportCostTarget) playerAction.skill.__targetForSupportCost = supportCostTarget;
           const costParts = splitSkillCostModes(playerAction.skill.消耗);
           const parsedCost = parseCostStringForChar(costParts.upfront, attackerChar);
+          delete playerAction.skill.__targetForSupportCost;
 
           if (parsedCost.canCast) {
             stats.sp -= parsedCost.reqSp;
@@ -5250,6 +5434,7 @@ class BattleUIComponent {
               (sustainConfig?.related_condition || sustainConfig?.name || '').includes('真身');
             if (shouldRegisterSustain && sustainConfig) {
               if (costParts.hasSustain && costParts.sustain) sustainConfig.sustain_cost = costParts.sustain;
+              sustainConfig.support_cost_scale = parsedCost.costScale || 1;
               registerSustainEffect(
                 attackerChar,
                 `${playerAction.action_type || 'skill'}:${playerAction.skill.name}`,
@@ -6733,6 +6918,9 @@ class BattleUIComponent {
                 scaledMods[k] = 1 + (scaledMods[k] - 1) * supportScale;
               }
             });
+            const scaledCalc = isBuff
+              ? scaleBattleSupportBuffCalc(pState.计算层效果 || {}, supportScale)
+              : { ...(pState.计算层效果 || {}) };
             const scaledShield =
               isBuff && pClash.护盾绝对值 > 0 ? Math.floor(pClash.护盾绝对值 * supportScale) : pClash.护盾绝对值;
 
@@ -6758,49 +6946,49 @@ class BattleUIComponent {
                 层数: 1,
                 描述: `由[${playerAction.skill.name}]附加`,
                 duration: pState.持续回合,
-                面板修改比例: pState.面板修改比例,
+                面板修改比例: scaledMods,
                 战斗效果: {
                   ...createEmptyCombatEffectMap(),
-                  silence: pState.计算层效果?.silence ?? false,
-                  disarm: pState.计算层效果?.disarm ?? false,
-                  blind: pState.计算层效果?.blind ?? false,
-                  counter_attack_ratio: pState.计算层效果?.counter_attack_ratio ?? 0,
-                  damage_reduction: pState.计算层效果?.damage_reduction ?? 0,
-                  block_count: pState.计算层效果?.block_count ?? 0,
-                  super_armor: pState.计算层效果?.super_armor ?? false,
-                  death_save_count: pState.计算层效果?.death_save_count ?? 0,
-                  hit_bonus: isBuff ? (pState.计算层效果?.hit_bonus ?? 0) : 0,
-                  dodge_penalty: isBuff ? 0 : (pState.计算层效果?.dodge_penalty ?? 0),
-                  dodge_bonus: isBuff ? (pState.计算层效果?.dodge_bonus ?? 0) : 0,
-                  lock_level: isBuff ? 0 : (pState.计算层效果?.lock_level ?? 0),
-                  control_resist_mult: pState.计算层效果?.control_resist_mult ?? 1.0,
-                  skip_turn: pState.计算层效果?.skip_turn ?? false,
-                  cannot_react: pState.计算层效果?.cannot_react ?? false,
-                  dot_damage: pState.计算层效果?.dot_damage ?? pState.持续真伤dot,
-                  armor_pen: pState.计算层效果?.armor_pen ?? 0,
-                  reaction_bonus: pState.计算层效果?.reaction_bonus ?? 0,
-                  reaction_penalty: pState.计算层效果?.reaction_penalty ?? 0,
-                  attacker_speed_bonus: pState.计算层效果?.attacker_speed_bonus ?? 0,
-                  cast_speed_bonus: pState.计算层效果?.cast_speed_bonus ?? 0,
-                  cast_speed_penalty: pState.计算层效果?.cast_speed_penalty ?? 0,
-                  hit_penalty: pState.计算层效果?.hit_penalty ?? 0,
-                  control_success_bonus: pState.计算层效果?.control_success_bonus ?? 0,
-                  control_success_penalty: pState.计算层效果?.control_success_penalty ?? 0,
-                  control_resist_bonus: pState.计算层效果?.control_resist_bonus ?? 0,
-                  interrupt_bonus: pState.计算层效果?.interrupt_bonus ?? 0,
-                  final_damage_mult: pState.计算层效果?.final_damage_mult ?? 1.0,
-                  final_damage_bonus: pState.计算层效果?.final_damage_bonus ?? 0,
-                  final_heal_mult: pState.计算层效果?.final_heal_mult ?? 1.0,
-                  final_heal_bonus: pState.计算层效果?.final_heal_bonus ?? 0,
-                  shield_gain_mult: pState.计算层效果?.shield_gain_mult ?? 1.0,
-                  shield_gain_bonus: pState.计算层效果?.shield_gain_bonus ?? 0,
-                  sp_gain_ratio: pState.计算层效果?.sp_gain_ratio ?? 0,
-                  men_gain_ratio: pState.计算层效果?.men_gain_ratio ?? 0,
-                  heal_block_ratio: pState.计算层效果?.heal_block_ratio ?? 0,
-                  hot_heal_ratio: pState.计算层效果?.hot_heal_ratio ?? 0,
-                  resource_block_ratio: pState.计算层效果?.resource_block_ratio ?? 0,
-                  min_hp_floor: pState.计算层效果?.min_hp_floor ?? 0,
-                  death_save_count: pState.计算层效果?.death_save_count ?? 0,
+                  silence: scaledCalc?.silence ?? false,
+                  disarm: scaledCalc?.disarm ?? false,
+                  blind: scaledCalc?.blind ?? false,
+                  counter_attack_ratio: scaledCalc?.counter_attack_ratio ?? 0,
+                  damage_reduction: scaledCalc?.damage_reduction ?? 0,
+                  block_count: scaledCalc?.block_count ?? 0,
+                  super_armor: scaledCalc?.super_armor ?? false,
+                  death_save_count: scaledCalc?.death_save_count ?? 0,
+                  hit_bonus: isBuff ? (scaledCalc?.hit_bonus ?? 0) : 0,
+                  dodge_penalty: isBuff ? 0 : (scaledCalc?.dodge_penalty ?? 0),
+                  dodge_bonus: isBuff ? (scaledCalc?.dodge_bonus ?? 0) : 0,
+                  lock_level: isBuff ? 0 : (scaledCalc?.lock_level ?? 0),
+                  control_resist_mult: scaledCalc?.control_resist_mult ?? 1.0,
+                  skip_turn: scaledCalc?.skip_turn ?? false,
+                  cannot_react: scaledCalc?.cannot_react ?? false,
+                  dot_damage: scaledCalc?.dot_damage ?? pState.持续真伤dot,
+                  armor_pen: scaledCalc?.armor_pen ?? 0,
+                  reaction_bonus: scaledCalc?.reaction_bonus ?? 0,
+                  reaction_penalty: scaledCalc?.reaction_penalty ?? 0,
+                  attacker_speed_bonus: scaledCalc?.attacker_speed_bonus ?? 0,
+                  cast_speed_bonus: scaledCalc?.cast_speed_bonus ?? 0,
+                  cast_speed_penalty: scaledCalc?.cast_speed_penalty ?? 0,
+                  hit_penalty: scaledCalc?.hit_penalty ?? 0,
+                  control_success_bonus: scaledCalc?.control_success_bonus ?? 0,
+                  control_success_penalty: scaledCalc?.control_success_penalty ?? 0,
+                  control_resist_bonus: scaledCalc?.control_resist_bonus ?? 0,
+                  interrupt_bonus: scaledCalc?.interrupt_bonus ?? 0,
+                  final_damage_mult: scaledCalc?.final_damage_mult ?? 1.0,
+                  final_damage_bonus: scaledCalc?.final_damage_bonus ?? 0,
+                  final_heal_mult: scaledCalc?.final_heal_mult ?? 1.0,
+                  final_heal_bonus: scaledCalc?.final_heal_bonus ?? 0,
+                  shield_gain_mult: scaledCalc?.shield_gain_mult ?? 1.0,
+                  shield_gain_bonus: scaledCalc?.shield_gain_bonus ?? 0,
+                  sp_gain_ratio: scaledCalc?.sp_gain_ratio ?? 0,
+                  men_gain_ratio: scaledCalc?.men_gain_ratio ?? 0,
+                  heal_block_ratio: scaledCalc?.heal_block_ratio ?? 0,
+                  hot_heal_ratio: scaledCalc?.hot_heal_ratio ?? 0,
+                  resource_block_ratio: scaledCalc?.resource_block_ratio ?? 0,
+                  min_hp_floor: scaledCalc?.min_hp_floor ?? 0,
+                  death_save_count: scaledCalc?.death_save_count ?? 0,
                 },
               };
               let targetNameStr = targetObj === attacker ? '自身' : 'NPC';
@@ -9739,7 +9927,13 @@ class BattleUIComponent {
         }
 
         function buildIntentText(actions) {
-          const queue = (actions || []).map(buildSerializedEntryFromAction).filter(Boolean);
+          const state = window.BattleUI?.state || {};
+          const fallbackActions = [
+            ...(state.selectedPreActions || []),
+            state.selectedSkillActions?.[state.selectedSkillActions.length - 1] || state.selectedAction,
+          ].filter(Boolean);
+          const sourceActions = Array.isArray(actions) && actions.length ? actions : fallbackActions;
+          const queue = sourceActions.map(buildSerializedEntryFromAction).filter(Boolean);
           const parts = [];
           if (queue.length) {
             parts.push(queue.map(action => action.skill?.魂技名 || action.skill?.name || action.type).filter(Boolean).join('，'));

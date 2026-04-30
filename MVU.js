@@ -1051,7 +1051,6 @@ function inferTemporaryAbyssCombatType(species = '', stats = {}) {
 function buildTemporaryCombatSkeleton(name = '未知单位', unitNature = '人类') {
   return {
     name,
-    名称: name,
     来源: '临时单位',
     单位性质: unitNature,
     属性: {
@@ -1264,7 +1263,6 @@ function buildExpandedBattleParticipantFromChar(data = {}, charKey = '', roleNam
   if (!sourceChar || typeof sourceChar !== 'object') return null;
   const participant = _.cloneDeep(sourceChar);
   participant.name = String(participant.name || participant?.base?.name || charKey).trim() || charKey;
-  participant.名称 = participant.name;
   participant.势力 = roleName;
   if (!participant.状态 || typeof participant.状态 !== 'object') participant.状态 = {};
   participant.状态.存活 = participant.状态.存活 !== false;
@@ -1281,7 +1279,7 @@ function buildExpandedTemporaryBattleParticipant(seed = {}, slotKey = 'enemy') {
 
 function expandBattleParticipantEntry(data = {}, participant = null, slotKey = 'enemy') {
   if (!participant || typeof participant !== 'object' || Array.isArray(participant)) return null;
-  const participantName = String(participant.name || participant.名称 || '').trim();
+  const participantName = String(participant.name || '').trim();
   const charKey = findCombatCharKeyByName(data, participantName);
   if (charKey) return buildExpandedBattleParticipantFromChar(data, charKey, slotKey === 'player' ? '己方' : '敌对');
 
@@ -1305,9 +1303,8 @@ function explodeBattleParticipantQuantity(data = {}, participant = null, slotKey
   const results = [];
   for (let index = 1; index <= quantity; index += 1) {
     const cloneSeed = _.cloneDeep(participant);
-    const baseName = String(cloneSeed?.名称 || cloneSeed?.name || '').trim() || `临时单位${index}`;
+    const baseName = String(cloneSeed?.name || '').trim() || `临时单位${index}`;
     const displayName = index === 1 ? baseName : `${baseName}·${index}`;
-    cloneSeed.名称 = displayName;
     cloneSeed.name = displayName;
     cloneSeed.数量 = 1;
     const nextExpanded = expandBattleParticipantEntry(data, cloneSeed, `${slotKey}_${index}`);
@@ -5663,6 +5660,7 @@ function pruneExtendedBloodlineData(charData = null, charName = '') {
 }
 
 const LIFE_FIRE_STATE_CACHE = Object.create(null);
+const COMBAT_DEATH_STATE_CACHE = Object.create(null);
 
 function buildElementProfileFromAttributeState(attributeState = {}, existingProfile = {}) {
   const rawSystem = String(attributeState?.属性体系 || '无').trim();
@@ -5682,6 +5680,142 @@ function buildElementProfileFromAttributeState(attributeState = {}, existingProf
     polarityMode: String(existingProfile?.polarityMode || '无'),
     mastery: Number(existingProfile?.mastery || 0),
   });
+}
+
+function getCombatParticipantName(participant = null) {
+  return String(participant?.name || '').trim();
+}
+
+function collectBattleSideNames(battleData = {}, sideKey = 'enemy') {
+  const participants = battleData?.参战者 && typeof battleData.参战者 === 'object' ? battleData.参战者 : {};
+  const result = [];
+  const mainParticipant = participants[sideKey];
+  const mainName = getCombatParticipantName(mainParticipant);
+  if (mainName) result.push(mainName);
+  const teamKey = sideKey === 'player' ? 'team_player' : sideKey === 'enemy' ? 'team_enemy' : '';
+  const team = teamKey ? participants[teamKey] : null;
+  if (Array.isArray(team)) {
+    team.forEach(member => {
+      const name = getCombatParticipantName(member);
+      if (name) result.push(name);
+    });
+  }
+  return result;
+}
+
+function getBattleRewardRecipientName(data = {}, defeatedName = '') {
+  const targetName = String(defeatedName || '').trim();
+  if (!targetName) return '';
+  const battleData = data?.world?.战斗 && typeof data.world.战斗 === 'object' ? data.world.战斗 : null;
+  if (!battleData) return '';
+  const enemyNames = collectBattleSideNames(battleData, 'enemy');
+  if (!enemyNames.includes(targetName)) return '';
+  const playerNames = collectBattleSideNames(battleData, 'player');
+  return playerNames[0] || '';
+}
+
+function getCombatSpeciesFlags(char = {}) {
+  const social = char?.社交 && typeof char.社交 === 'object' ? char.社交 : {};
+  const factionMap = social?.势力 && typeof social.势力 === 'object' ? social.势力 : {};
+  const factionNames = Object.keys(factionMap);
+  const age = Math.max(0, Math.floor(Number(char?.属性?.年龄 || 0)));
+  const isBeast =
+    factionNames.includes('魂兽一族') ||
+    factionNames.some(name => String(name || '').includes('魂兽')) ||
+    age >= 100;
+  const isAbyss =
+    factionNames.includes('深渊生物') ||
+    factionNames.some(name => String(name || '').includes('深渊'));
+  return { isBeast, isAbyss, age };
+}
+
+function settleInternalAbyssKillReward(data = {}, winner = {}, winnerName = '', defeated = {}, defeatedName = '') {
+  const level = String(defeated?.级别 || defeated?.属性?.级别 || '').trim();
+  let pts = 0;
+  if (level === '低阶生物') pts = 10;
+  else if (level === '中阶生物') pts = 100;
+  else if (level === '高阶生物') pts = 1000;
+  else if (level === '深渊王者') pts = 50000;
+  if (pts <= 0) {
+    data.sys.rsn = `[深渊战功] ${winnerName} 击杀【${defeatedName}】后未能识别深渊级别，未获得战功。`;
+    return;
+  }
+  if (!winner.财富 || typeof winner.财富 !== 'object') winner.财富 = {};
+  winner.财富.战功 = Math.max(0, Number(winner.财富.战功 || 0) + pts);
+  data.sys.rsn = `[深渊战功] ${winnerName} 击杀【${defeatedName}】，获得 ${pts} 点战功！`;
+}
+
+function getDeviationMultiplierValue(data = {}) {
+  const raw = Number(data?.world?.偏差倍率 ?? 1);
+  return Number.isFinite(raw) && raw >= 0 ? raw : 1;
+}
+
+function scaleDeviationDeltaValue(data = {}, rawDelta = 0) {
+  const safeDelta = Number(rawDelta ?? 0);
+  if (!Number.isFinite(safeDelta) || safeDelta === 0) return 0;
+  return Number((safeDelta * getDeviationMultiplierValue(data)).toFixed(4));
+}
+
+function applyDeviationDeltaValue(data = {}, rawDelta = 0) {
+  const scaledDelta = scaleDeviationDeltaValue(data, rawDelta);
+  if (!data.world || typeof data.world !== 'object') data.world = {};
+  const baseValue = Number(data.world.偏差值 || 0);
+  const nextValue = (Number.isFinite(baseValue) ? baseValue : 0) + scaledDelta;
+  data.world.偏差值 = Math.max(0, Number(nextValue.toFixed(4)));
+  return scaledDelta;
+}
+
+function settleInternalSoulBeastReward(data = {}, winner = {}, winnerName = '', defeated = {}, defeatedName = '') {
+  const age = Math.max(0, Math.floor(Number(defeated?.属性?.年龄 || defeated?.年限 || 0)));
+  if (age <= 0) {
+    data.sys.rsn = `[现实狩猎] ${winnerName} 击败了【${defeatedName}】，但未识别到有效年限，未生成猎魂结算。`;
+    return;
+  }
+  if (!winner.背包 || typeof winner.背包 !== 'object') winner.背包 = {};
+
+  const ringName = `${age}年魂环`;
+  if (!winner.背包[ringName]) {
+    winner.背包[ringName] = { 数量: 0, 类型: '魂环', 品质: '标准', 描述: '未吸收的无主魂环' };
+  }
+  winner.背包[ringName].数量 = Math.max(0, Number(winner.背包[ringName].数量 || 0) + 1);
+  let msg = `[现实狩猎] ${winnerName} 击杀了【${defeatedName}】，获得【${ringName}】！`;
+
+  const dropRate = age >= 100000 ? 100 : (age / 100000) * 100;
+  const roll = Math.floor(Math.random() * 100) + 1;
+  data.sys.最近检定 = roll;
+  if (roll <= dropRate) {
+    const boneName = `${age}年魂骨`;
+    if (!winner.背包[boneName]) {
+      winner.背包[boneName] = {
+        数量: 0,
+        类型: '魂骨',
+        品质: age >= 100000 ? '极品' : '常规',
+        描述: '未吸收的无主魂骨',
+      };
+    }
+    winner.背包[boneName].数量 = Math.max(0, Number(winner.背包[boneName].数量 || 0) + 1);
+    msg += `【好运爆发】成功剥离出【${boneName}】！(Roll: ${roll} <= ${dropRate}%)`;
+  }
+
+  if (winner.状态?.位置 && String(winner.状态.位置).includes('星斗大森林')) {
+    data.world.累计击杀年限 = Math.max(0, Number(data.world.累计击杀年限 || 0) + age);
+    if (data.world.累计击杀年限 >= 1000000 && !data.world.兽潮已触发) {
+      msg += `\n🚨 [大区警报] 星斗大森林魂兽死伤惨重(累计超100万年)，血腥气彻底引爆凶兽怒火！【兽潮】开始集结！`;
+      data.world.兽潮已触发 = true;
+    }
+  }
+
+  if (age >= 100000) {
+    if (!winner.属性.状态效果 || typeof winner.属性.状态效果 !== 'object') winner.属性.状态效果 = {};
+    winner.属性.状态效果['魂兽公敌'] = {
+      类型: 'debuff',
+      层数: 1,
+      描述: '击杀顶级魂兽染上的极致怨气，野外魂兽仇恨锁定',
+    };
+    msg += `\n💀 [命运烙印] 击杀十万年/凶兽！烙上【魂兽公敌】印记！`;
+  }
+
+  data.sys.rsn = msg;
 }
 
 function normalizeSkillAttributeCoefficients(value = {}) {
@@ -8214,7 +8348,7 @@ const CharacterSchema = z
       }
     }
 
-    if (char.血脉之力?.血脉 === '金龙王' && shouldKeepExtendedBloodlineData(charName, char)) {
+    if (char.血脉之力?.血脉 === '金龙王' && shouldKeepExtendedBloodlineData('', char)) {
       let currentSealLv = char.血脉之力.解封层数 || 0;
       if (!char.血脉之力.技能) char.血脉之力.技能 = {};
       if (!char.血脉之力.被动) char.血脉之力.被动 = {};
@@ -8242,7 +8376,7 @@ const CharacterSchema = z
         }
       }
     }
-    pruneExtendedBloodlineData(char, charName);
+    pruneExtendedBloodlineData(char, '');
     if (!char.特殊能力) char.特殊能力 = {};
     Object.keys(TANGMEN_SECRET_SKILL_TEMPLATES).forEach(artName => {
       if (!char.功法?.[artName]) {
@@ -9533,7 +9667,7 @@ export const Schema = z
         typeof value.char === 'object');
     const countSchemaRootFields = value => {
       if (!value || typeof value !== 'object' || Array.isArray(value)) return 0;
-      return ['sys', 'world', 'org', 'char', 'map'].filter(key => !!value[key] && typeof value[key] === 'object').length;
+      return ['sys', 'world', 'org', 'char'].filter(key => !!value[key] && typeof value[key] === 'object').length;
     };
     const rootCandidates = [data, data.stat_data, data.display_data];
     let bestRootCandidate = data;
@@ -9572,6 +9706,7 @@ export const Schema = z
 
     if (!data.org || typeof data.org !== 'object') data.org = {};
     if (!data.world || typeof data.world !== 'object') data.world = {};
+    if (data.map && typeof data.map === 'object') delete data.map;
     if (!data.world.时间 || typeof data.world.时间 !== 'object') data.world.时间 = {};
     if (!data.world.时间线 || typeof data.world.时间线 !== 'object') data.world.时间线 = {};
     if (!data.world.机密情报 || typeof data.world.机密情报 !== 'object') data.world.机密情报 = {};
@@ -9589,7 +9724,6 @@ export const Schema = z
       'world',
       'org',
       'char',
-      'map',
       'variables',
       'payload',
       'root',
@@ -10827,8 +10961,8 @@ export const Schema = z
 
         if (!c.已掌握情报.includes(req.内容)) {
           c.已掌握情报.push(req.内容);
-          data.world.偏差值 = (data.world.偏差值 || 0) + finalImpact;
-          data.sys.rsn = `[情报解锁] ${charName} 获知了关键情报：${req.内容}。世界线偏差值增加 ${finalImpact}！`;
+          const scaledImpact = applyDeviationDeltaValue(data, finalImpact);
+          data.sys.rsn = `[情报解锁] ${charName} 获知了关键情报：${req.内容}。世界线偏差值增加 ${scaledImpact}！`;
         }
 
         c.待解锁情报 = { 内容: '无', 影响: 0 };
@@ -10999,6 +11133,23 @@ export const Schema = z
       }
 
       LIFE_FIRE_STATE_CACHE[charName] = c.血脉之力?.生命之火 === true;
+
+      const hasSeenAliveState = Object.prototype.hasOwnProperty.call(COMBAT_DEATH_STATE_CACHE, charName);
+      const isAliveNow = c.状态?.存活 !== false;
+      const wasAlive = hasSeenAliveState ? COMBAT_DEATH_STATE_CACHE[charName] !== false : isAliveNow;
+      if (hasSeenAliveState && wasAlive && !isAliveNow) {
+        const winnerName = getBattleRewardRecipientName(data, charName);
+        const winner = winnerName ? data?.char?.[winnerName] : null;
+        const speciesFlags = getCombatSpeciesFlags(c);
+        if (winner && typeof winner === 'object') {
+          if (speciesFlags.isAbyss) {
+            settleInternalAbyssKillReward(data, winner, winnerName, c, charName);
+          } else if (speciesFlags.isBeast) {
+            settleInternalSoulBeastReward(data, winner, winnerName, c, charName);
+          }
+        }
+      }
+      COMBAT_DEATH_STATE_CACHE[charName] = isAliveNow;
 
       let vitMult = 1.0,
         strMult = 1.0,
@@ -11795,9 +11946,6 @@ export const Schema = z
 
     if (data && data.char) {
       if (!data.world) data.world = {};
-      if (data.world?.战斗?.进行中 && data.world?.战斗?.参战者 && typeof data.world.战斗.参战者 === 'object') {
-        expandWorldBattleParticipants(data);
-      }
 
       FLAT_LOCATIONS = {};
       if (data.world.地点) {
@@ -11918,7 +12066,7 @@ export const Schema = z
           injectDisplaySkillStructDefaults(skill, contextFactory(skillName, skill) || {});
         });
       };
-      const injectDisplayCharacterTodoDefaults = (charData = {}) => {
+      const injectDisplayCharacterTodoDefaults = (charData = {}, charName = '') => {
         if (!charData || typeof charData !== 'object') return charData;
 
         ensureDisplayText(charData, '性格', AI_TODO_PERSONALITY);
@@ -12470,7 +12618,7 @@ export const Schema = z
           if (charName === '古月' && !unlocked.includes('event_ch3_07')) {
             if (fakeCharData.武魂 && fakeCharData.武魂['元素使']) fakeCharData.武魂['元素使'].type = '元素系';
           }
-          injectDisplayCharacterTodoDefaults(fakeCharData);
+          injectDisplayCharacterTodoDefaults(fakeCharData, charName);
           const charSummary = buildCharReadOnlySummary(realCharData, fakeCharData);
           if (charSummary && Object.keys(charSummary).length > 0) fakeCharData._summary = charSummary;
 

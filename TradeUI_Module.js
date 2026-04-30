@@ -582,8 +582,8 @@ class TradeUIComponent {
     this.$('#ui-fedcoin').textContent = fedCoin.toLocaleString();
     this.$('#ui-fame').textContent = fame.toLocaleString();
 
-    const currentCity = this.worldData?.地点?.[loc];
-    this.currentStores = currentCity?.商店 || {};
+    const currentCity = this.resolveTradeLocationNode(loc);
+    this.currentStores = currentCity?.data?.商店 || {};
     this.currentAuction = this.worldData?.拍卖 || { 状态: "休市", 拍品: {} };
 
     this.populateShopData();
@@ -666,6 +666,17 @@ class TradeUIComponent {
     if (!current.raw || !target.raw) return current.raw === target.raw;
     if (current.raw === target.raw || current.leaf === target.leaf) return true;
     return current.segments.some(seg => target.segments.includes(seg));
+  }
+
+  resolveTradeLocationNode(location) {
+    const worldLocations = this.worldData?.鍦扮偣 || {};
+    const raw = String(location || '').trim();
+    const normalized = this.normalizeLocForMatch(raw);
+    const candidates = [raw, normalized.raw, normalized.segments[0] || '', normalized.leaf || ''].filter(Boolean);
+    for (const key of candidates) {
+      if (worldLocations[key]) return { key, data: worldLocations[key] };
+    }
+    return { key: '', data: null };
   }
 
   getPrivateTradeContext(action, targetNpcName, itemName, qty, price) {

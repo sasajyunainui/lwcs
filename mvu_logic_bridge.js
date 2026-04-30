@@ -1285,8 +1285,8 @@
             <div class="intel-layout">
               <div class="archive-card"><div class="archive-card-head"><div class="archive-card-title">可前往试炼</div></div>${makeTileGrid([
                 { label: '升灵台门票', value: '' },
-                { label: '魂灵塔安排', value: '' },
-                { label: '狩猎安排', value: '' },
+                { label: '魂灵塔最高', value: '' },
+                { label: '图鉴条目', value: '' },
                 { label: '风险评估', value: '' }
               ])}</div>
               <div class="archive-card"><div class="archive-card-head"><div class="archive-card-title">已掌握情报</div></div><div class="intel-cabinet"></div></div>
@@ -1353,6 +1353,7 @@
     let battleInlineMountToken = 0;
     let battleReturnEntrySyncToken = 0;
     let pendingBattleInlineMount = null;
+    let playerNameRepairInFlight = '';
     let liveSnapshot = null;
     let lastRenderableSnapshot = null;
     let preferredActiveCharacterName = '';
@@ -1838,6 +1839,15 @@
           }
           return current;
         };
+        const getDeviationDeltaMultiplier = () => {
+          const raw = Number(readMutableValue(['world', '偏差倍率']) ?? 1);
+          return Number.isFinite(raw) && raw >= 0 ? raw : 1;
+        };
+        const isDeviationValuePath = path =>
+          Array.isArray(path) &&
+          path.length === 2 &&
+          String(path[0] || '') === 'world' &&
+          String(path[1] || '') === '偏差值';
         safePatches.forEach(patch => {
           const path = decodeJsonPointerPath(patch.path);
           if (!path.length) return;
@@ -1851,7 +1861,10 @@
           }
           if (patch.op === 'delta') {
             const previousValue = Number(readMutableValue(path) ?? 0);
-            const deltaValue = Number(patch.value ?? 0);
+            const rawDeltaValue = Number(patch.value ?? 0);
+            const deltaValue = isDeviationValuePath(path)
+              ? Number((rawDeltaValue * getDeviationDeltaMultiplier()).toFixed(4))
+              : rawDeltaValue;
             const nextValue = (Number.isFinite(previousValue) ? previousValue : 0) + (Number.isFinite(deltaValue) ? deltaValue : 0);
             deepSetMutable(statData, path, nextValue);
           }
@@ -2187,28 +2200,217 @@
       return `dragon-ui-${normalizedKind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     }
 
-    function setPendingBattlePlanningContext(userInput, hiddenPrompt, requestKind) {
-      if (requestKind !== 'battle_arbitration' || !hiddenPrompt) return;
-      window.__DRAGON_UI_PENDING_BATTLE_CONTEXT__ = {
-        userInput: toText(userInput, '').trim(),
-        hiddenPrompt: toText(hiddenPrompt, '').trim(),
-        requestKind: toText(requestKind, ''),
-        at: Date.now()
+    const pendingUiSystemInjections = new Map();
+
+    function getCurrentUiRequestChatId() {
+      try {
+        const ctx = window.SillyTavern && typeof window.SillyTavern.getContext === 'function'
+          ? window.SillyTavern.getContext()
+          : null;
+        return toText(ctx && ctx.chatId, '').trim();
+      } catch (error) {
+        return '';
+      }
+    }
+
+    function clearPendingUiSystemInjection(injectionId = '') {
+      const safeInjectionId = toText(injectionId, '').trim();
+      if (!safeInjectionId) return;
+      const record = pendingUiSystemInjections.get(safeInjectionId);
+      if (!record) return;
+      pendingUiSystemInjections.delete(safeInjectionId);
+      if (record.timer) {
+        try {
+          window.clearInterval(record.timer);
+        } catch (error) {}
+      }
+      try {
+        if (record.uninject && typeof record.uninject === 'function') {
+          record.uninject();
+        } else if (window.TavernHelper && typeof window.TavernHelper.uninjectPrompts === 'function') {
+          window.TavernHelper.uninjectPrompts([safeInjectionId]);
+        }
+      } catch (error) {
+        console.warn('[DragonUI] Failed to clear pending UI system injection', error);
+      }
+    }
+
+    function registerPersistentUiSystemInjection(helper, requestKind, hiddenPrompt) {
+      const content = toText(hiddenPrompt, '').trim();
+      if (!helper || typeof helper.injectPrompts !== 'function' || !content) return null;
+      const injectionId = buildUiRequestInjectionId(requestKind);
+      const injected = helper.injectPrompts([{
+        id: injectionId,
+        position: 'in_chat',
+        depth: 0,
+        role: 'system',
+        content,
+        should_scan: true
+      }]);
+      const record = {
+        id: injectionId,
+        chatId: getCurrentUiRequestChatId(),
+        createdAt: Date.now(),
+        userIndex: -1,
+        timer: 0,
+        uninject: injected && typeof injected.uninject === 'function' ? injected.uninject : null
       };
+      record.timer = window.setInterval(() => {
+        const ageMs = Date.now() - record.createdAt;
+        if (ageMs >= 180000) {
+          clearPendingUiSystemInjection(record.id);
+          return;
+        }
+        try {
+          const ctx = window.SillyTavern && typeof window.SillyTavern.getContext === 'function'
+            ? window.SillyTavern.getContext()
+            : null;
+          const currentChatId = toText(ctx && ctx.chatId, '').trim();
+          if (record.chatId && currentChatId && record.chatId !== currentChatId) {
+            clearPendingUiSystemInjection(record.id);
+            return;
+          }
+          const chat = Array.isArray(ctx && ctx.chat) ? ctx.chat : [];
+          if (record.userIndex >= 0 && chat.length > record.userIndex + 1) {
+            const assistantMessage = chat.slice(record.userIndex + 1).find(message => message && !message.is_user);
+            if (assistantMessage && !record.processing && record.helper) {
+              record.processing = true;
+              postprocessUiContinuationResult(record.helper, record.userText, record.requestKind, record)
+                .catch(error => {
+                  console.warn('[DragonUI] Failed to postprocess UI continuation result', error);
+                })
+                .finally(() => {
+                  record.processing = false;
+                });
+            }
+          }
+        } catch (error) {}
+      }, 800);
+      pendingUiSystemInjections.set(injectionId, record);
+      return record;
+    }
+
+    function parseUiContinuationLiteral(rawValue = '') {
+      const source = String(rawValue || '').trim();
+      if (!source) return '';
+      if (source === 'true') return true;
+      if (source === 'false') return false;
+      if (source === 'null') return null;
+      if (/^-?\d+(?:\.\d+)?$/.test(source)) return Number(source);
+      try {
+        return JSON.parse(source);
+      } catch (error) {
+        return source;
+      }
+    }
+
+    function extractUiContinuationJsonPatches(text = '') {
+      const source = String(text || '');
+      const patches = [];
+      const jsonPatchMatch = source.match(/<JSONPatch>\s*([\s\S]*?)\s*<\/JSONPatch>/i);
+      if (jsonPatchMatch) {
+        try {
+          const parsed = JSON.parse(String(jsonPatchMatch[1] || '').trim());
+          if (Array.isArray(parsed)) patches.push(...parsed);
+        } catch (error) {
+          console.warn('[DragonUI] Failed to parse UI continuation JSONPatch block', error);
+        }
+      }
+      source.split(/\r?\n/).forEach(line => {
+        const match = String(line || '').trim().match(/^(\/(?:char|world|org|sys)(?:\/[^=\s]+)+)\s*=\s*(.+)$/);
+        if (!match) return;
+        patches.push({
+          op: 'replace',
+          path: match[1],
+          value: parseUiContinuationLiteral(match[2])
+        });
+      });
+      return patches.filter(patch => patch && typeof patch === 'object' && typeof patch.path === 'string');
+    }
+
+    function sanitizeUiContinuationVisibleText(text = '') {
+      let cleaned = String(text || '');
+      const contentMatch = cleaned.match(/<content>\s*([\s\S]*?)\s*<\/content>/i);
+      if (contentMatch) cleaned = String(contentMatch[1] || '');
+      cleaned = cleaned
+        .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+        .replace(/<thought>[\s\S]*?<\/thought>/gi, '')
+        .replace(/<tucao>[\s\S]*?<\/tucao>/gi, '')
+        .replace(/<disclaimer>[\s\S]*?<\/disclaimer>/gi, '')
+        .replace(/<UpdateVariable>[\s\S]*?<\/UpdateVariable>/gi, '')
+        .replace(/<Analysis>[\s\S]*?<\/Analysis>/gi, '')
+        .replace(/<JSONPatch>[\s\S]*?<\/JSONPatch>/gi, '')
+        .replace(/<StatusPlaceHolderImpl\s*\/>/gi, '');
+      cleaned = cleaned
+        .split(/\r?\n/)
+        .filter(line => !/^\s*\/(?:char|world|org|sys)\//.test(String(line || '').trim()))
+        .join('\n')
+        .replace(/^\s*Final:\s*/i, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+      return cleaned;
+    }
+
+    async function waitForUiContinuationAssistantMessage(userIndex = -1, attempts = 25) {
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        try {
+          const ctx = window.SillyTavern && typeof window.SillyTavern.getContext === 'function'
+            ? window.SillyTavern.getContext()
+            : null;
+          const chat = Array.isArray(ctx && ctx.chat) ? ctx.chat : [];
+          if (userIndex >= 0) {
+            const found = chat.slice(userIndex + 1).find(message => message && !message.is_user);
+            if (found) return found;
+          } else {
+            const found = [...chat].reverse().find(message => message && !message.is_user);
+            if (found) return found;
+          }
+        } catch (error) {}
+        await new Promise(resolve => window.setTimeout(resolve, 200));
+      }
+      return null;
+    }
+
+    async function postprocessUiContinuationResult(helper, userText, requestKind, persistentInjection) {
+      const userIndex = Number.isInteger(persistentInjection?.userIndex) ? persistentInjection.userIndex : -1;
+      try {
+        const ctx = window.SillyTavern && typeof window.SillyTavern.getContext === 'function'
+          ? window.SillyTavern.getContext()
+          : null;
+        const chat = Array.isArray(ctx && ctx.chat) ? ctx.chat : [];
+        const userMessage = userIndex >= 0 ? chat[userIndex] : null;
+        if (userMessage && userMessage.is_user && String(userMessage.mes || '') !== userText && typeof helper?.setChatMessages === 'function') {
+          await helper.setChatMessages([{ message_id: userMessage.message_id, mes: userText }], { refresh: 'affected' });
+          userMessage.mes = userText;
+        }
+      } catch (error) {
+        console.warn('[DragonUI] Failed to restore UI continuation user message', error);
+      }
+      const assistantMessage = await waitForUiContinuationAssistantMessage(userIndex, 2);
+      if (!assistantMessage) return;
+      const rawText = String(assistantMessage.mes || '');
+      const patchOps = extractUiContinuationJsonPatches(rawText);
+      if (patchOps.length) {
+        await applyJsonPatchOpsByEditor(patchOps, { force: true });
+        await refreshLiveSnapshot({ force: true, reopenBattle: true });
+      }
+      const visibleText = sanitizeUiContinuationVisibleText(rawText);
+      if (visibleText && visibleText !== rawText && typeof helper?.setChatMessages === 'function') {
+        await helper.setChatMessages([{ message_id: assistantMessage.message_id, mes: visibleText }], { refresh: 'affected' });
+        assistantMessage.mes = visibleText;
+      }
+      if (persistentInjection?.id) {
+        clearPendingUiSystemInjection(persistentInjection.id);
+      }
     }
 
     async function dispatchUiAiRequest(playerInput, systemPrompt, meta = {}) {
       const helper = window.TavernHelper && typeof window.TavernHelper === 'object' ? window.TavernHelper : null;
-      const battleBridge = window.BattleUIBridge && typeof window.BattleUIBridge === 'object' ? window.BattleUIBridge : null;
       const requestKind = toText(meta && meta.requestKind, 'ui_request') || 'ui_request';
       const userText = toText(playerInput, '').trim();
       const hiddenPrompt = toText(systemPrompt, '').trim();
       const patchOps = Array.isArray(meta && meta.patchOps) ? meta.patchOps : [];
-      const useBattlePayloadInjection =
-        requestKind === 'battle_arbitration'
-        && !!hiddenPrompt
-        && battleBridge
-        && typeof battleBridge.setPendingSystemPrompt === 'function';
+      let persistentInjection = null;
 
       if (!userText) {
         showUiToast('请求内容为空，无法提交。', 'error', 4200);
@@ -2228,30 +2430,36 @@
           await applyJsonPatchOpsByEditor(patchOps, { force: true });
           await refreshLiveSnapshot({ force: true });
         }
-        if (hiddenPrompt) {
-          setPendingBattlePlanningContext(userText, hiddenPrompt, requestKind);
-          if (useBattlePayloadInjection) {
-            if (typeof battleBridge.clearPendingSystemPrompt === 'function') {
-              battleBridge.clearPendingSystemPrompt();
-            }
-            battleBridge.setPendingSystemPrompt(hiddenPrompt);
-          } else {
-            helper.injectPrompts([{
-              id: buildUiRequestInjectionId(requestKind),
-              position: 'in_chat',
-              depth: 0,
-              role: 'system',
-              content: hiddenPrompt,
-              should_scan: true
-            }], { once: true });
-          }
-        }
+        Array.from(pendingUiSystemInjections.keys()).forEach(injectionId => {
+          clearPendingUiSystemInjection(injectionId);
+        });
+        persistentInjection = hiddenPrompt
+          ? registerPersistentUiSystemInjection(helper, requestKind, hiddenPrompt)
+          : null;
         await helper.createChatMessages([{ role: 'user', message: userText }], { refresh: 'affected' });
-        await helper.triggerSlash('/trigger');
+        try {
+          const ctx = window.SillyTavern && typeof window.SillyTavern.getContext === 'function'
+            ? window.SillyTavern.getContext()
+            : null;
+          const chat = Array.isArray(ctx && ctx.chat) ? ctx.chat : [];
+          const lastMessage = chat.length ? chat[chat.length - 1] : null;
+          if (lastMessage && lastMessage.is_user && String(lastMessage.mes || '') === userText) {
+            lastMessage._mvu_hidden_system_prompt = hiddenPrompt;
+            lastMessage._mvu_request_kind = requestKind;
+            if (persistentInjection) {
+              lastMessage._mvu_hidden_system_injection_id = persistentInjection.id;
+              persistentInjection.userIndex = chat.length - 1;
+              persistentInjection.helper = helper;
+              persistentInjection.userText = userText;
+              persistentInjection.requestKind = requestKind;
+            }
+          }
+        } catch (error) {}
+        await helper.triggerSlash('/trigger await=true');
         return { ok: true, requestKind };
       } catch (error) {
-        if (useBattlePayloadInjection && battleBridge && typeof battleBridge.clearPendingSystemPrompt === 'function') {
-          battleBridge.clearPendingSystemPrompt();
+        if (persistentInjection && persistentInjection.id) {
+          clearPendingUiSystemInjection(persistentInjection.id);
         }
         console.error('[DragonUI] UI request dispatch failed', error);
         showUiToast(error && error.message ? error.message : '请求提交失败。', 'error', 4200);
@@ -2279,7 +2487,7 @@
     installBattleUiHostSendBridge();
 
     const MVU_EDITOR_STORE_COMMIT_DELAY = 140;
-    const MVU_EDITOR_ROOT_OBJECT_KEYS = ['sys', 'world', 'org', 'char', 'map'];
+    const MVU_EDITOR_ROOT_OBJECT_KEYS = ['sys', 'world', 'org', 'char'];
     const MVU_WRAPPER_ROOT_KEYS = ['display_data', 'delta_data', 'initialized_lorebooks', 'schema', 'stat_data'];
     const MVU_WRAPPER_PREFIX_KEYS = new Set(['stat_data', 'display_data', 'data', 'variables', 'payload', 'root', 'mvu', 'state']);
     const MVU_RECENT_MESSAGE_SCAN_DEPTH = 24;
@@ -3228,7 +3436,7 @@
         if (item.stat_data && typeof item.stat_data === 'object' && (item.stat_data.char || item.stat_data.world || item.stat_data.sys)) {
           return item.stat_data;
         }
-        if (item.char || item.world || item.sys || item.org || item.map) {
+        if (item.char || item.world || item.sys || item.org) {
           return item;
         }
       }
@@ -3242,35 +3450,25 @@
         sys: rawSd.sys || {},
         world: rawSd.world || {},
         org: rawSd.org || {},
-        map: rawSd.map || {},
         char: rawSd.char || {}
       };
-      const shouldExpandBattleParticipants = !!(
-        rootData.world &&
-        typeof rootData.world === 'object' &&
-        rootData.world.战斗 &&
-        typeof rootData.world.战斗 === 'object' &&
-        rootData.world.战斗.进行中 &&
-        rootData.world.战斗.参战者 &&
-        typeof rootData.world.战斗.参战者 === 'object' &&
-        typeof window.__MVU_EXPAND_WORLD_BATTLE_PARTICIPANTS__ === 'function'
-      );
-      if (shouldExpandBattleParticipants) {
-        const clonedRootData = {
-          sys: rootData.sys,
-          world: cloneJsonValue(rootData.world, {}),
-          org: rootData.org,
-          map: rootData.map,
-          char: rootData.char
-        };
-        try {
-          window.__MVU_EXPAND_WORLD_BATTLE_PARTICIPANTS__(clonedRootData);
-          return { rootData: clonedRootData, rawData: rawSd };
-        } catch (error) {
-          console.warn('[DragonUI] MVU battle participant expansion failed', error);
+      const currentPlayerName = toText(deepGet(rootData, 'sys.玩家名', ''), '').trim();
+      if (isInvalidRuntimePlayerName(currentPlayerName)) {
+        const contextMeta = getCurrentChatContextMeta();
+        const preferredName = getPreferredActiveCharacterName();
+        const battlePlayerName = getBattlePlayerNameFromRootData(rootData);
+        const candidates = [
+          battlePlayerName,
+          preferredName,
+          toText(contextMeta.name1, '').trim(),
+          toText(contextMeta.name2, '').trim(),
+        ].filter(Boolean);
+        const repairedPlayerName = candidates.find(name => rootData.char && typeof rootData.char === 'object' && rootData.char[name]);
+        if (repairedPlayerName) {
+          if (!rootData.sys || typeof rootData.sys !== 'object') rootData.sys = {};
+          rootData.sys.玩家名 = repairedPlayerName;
         }
       }
-
       return {
         rootData,
         rawData: rawSd
@@ -3304,8 +3502,6 @@
       if (safeEntries(deepGet(rootData, 'world.时间线', {})).length) return true;
       if (deepGet(rootData, 'world.偏差值', undefined) !== undefined) return true;
       if (toText(deepGet(rootData, 'world.时间._calendar', deepGet(rootData, 'world.时间.calendar', '')), '').trim()) return true;
-      if (safeEntries(deepGet(rootData, 'map.visible_nodes', {})).length) return true;
-      if (safeEntries(deepGet(rootData, 'map.visible_dynamic_locations', {})).length) return true;
       return false;
     }
 
@@ -3333,7 +3529,6 @@
       if (safeEntries(deepGet(rootData, 'sys.seq', {})).length) score += 6;
       if (safeEntries(deepGet(rootData, 'world.时间线', {})).length) score += 5;
       if (deepGet(rootData, 'world.偏差值', undefined) !== undefined) score += 3;
-      if (rootData.map && typeof rootData.map === 'object' && Object.keys(rootData.map).length) score += 3;
       if (safeEntries(chars).length) score += 1;
       if (contextMeta.name1 && chars[contextMeta.name1]) score += 10;
       if (contextMeta.name2 && chars[contextMeta.name2]) score += 4;
@@ -3355,6 +3550,26 @@
       const safeName = toText(name, '').trim();
       const safePlayerName = toText(playerName, '').trim();
       return !!safePlayerName && safeName === safePlayerName;
+    }
+
+    function isInvalidRuntimePlayerName(name = '') {
+      const safeName = toText(name, '').trim();
+      return !safeName || ['无名氏', '玩家', '己方', 'Unknown', '未知'].includes(safeName);
+    }
+
+    function getBattlePlayerNameFromRootData(rootData = {}) {
+      return toText(
+        deepGet(rootData, 'world.战斗.参战者.player.name', ''),
+        ''
+      ).trim();
+    }
+
+    function resolveEffectivePlayerName(rootData = {}, fallbackActiveName = '') {
+      const sysPlayerName = toText(deepGet(rootData, 'sys.玩家名', ''), '').trim();
+      if (!isInvalidRuntimePlayerName(sysPlayerName)) return sysPlayerName;
+      const battlePlayerName = getBattlePlayerNameFromRootData(rootData);
+      if (battlePlayerName) return battlePlayerName;
+      return toText(fallbackActiveName, '').trim();
     }
 
     function isTangWulinCharacter(name = '') {
@@ -3408,7 +3623,7 @@
       const chars = sd && sd.char ? sd.char : {};
       const charEntries = safeEntries(chars);
       const preferredName = getPreferredActiveCharacterName();
-      const sysPlayerName = toText(deepGet(sd, 'sys.玩家名', ''), '').trim();
+      const sysPlayerName = resolveEffectivePlayerName(sd || {}, preferredName);
       const contextMeta = getCurrentChatContextMeta();
       const sortedEntries = sortCharacterEntries(charEntries, { playerName: sysPlayerName, currentName: preferredName });
       const realPlayerEntry = findRealPlayerEntry(charEntries, sysPlayerName);
@@ -3450,7 +3665,7 @@
     }
 
     function isSnapshotPlayerControlled(snapshot) {
-      const playerName = toText(deepGet(snapshot, 'rootData.sys.玩家名', ''), '').trim();
+      const playerName = resolveEffectivePlayerName(deepGet(snapshot, 'rootData', {}), toText(snapshot && snapshot.activeName, ''));
       const activeName = toText(snapshot && snapshot.activeName, '').trim();
       return isPlayerCharacterEntry(activeName, deepGet(snapshot, 'activeChar', {}), playerName);
     }
@@ -8086,9 +8301,7 @@
       renderLiveCards(liveSnapshot, nextDashboardSectionRenderSignatures);
       syncPrivateArchiveLongPressTargets(liveSnapshot);
 
-      if (activeBattleUI && typeof activeBattleUI.updateData === 'function') {
-        activeBattleUI.updateData(liveSnapshot);
-      }
+      syncBattleUiForSnapshot(liveSnapshot, { force: true });
 
       const activeDetailPreviewKey = currentUnifiedPreviewKey || currentModalPreviewKey;
       if ((detailModal.classList.contains('show') || isShellInlinePreviewActive() || isUnifiedInlinePreviewActive()) && activeDetailPreviewKey) {
@@ -14302,15 +14515,24 @@
 
       if (previewKey === '试炼与情报') {
         const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
+        const isPlayerControlled = isSnapshotPlayerControlled(snapshot);
         const towerPath = activeCharKey ? ['char', activeCharKey, '魂灵塔记录'] : [];
         const towerDiscountEntries = safeEntries(deepGet(snapshot, 'activeChar.魂灵塔记录.折扣资格', {})).filter(([, value]) => !!value);
         const ascensionTicketCount = (snapshot.inventoryEntries || [])
           .filter(([name]) => /升灵台/.test(toText(name, '')))
           .reduce((sum, [, item]) => sum + Math.max(0, toNumber(item && item['数量'], 0)), 0);
+        const ascensionTickets = listAscensionTicketNames(snapshot);
+        const soulSpiritTargets = listSoulSpiritTargets(snapshot);
         const trialTickets = (snapshot.inventoryEntries || []).filter(([name]) => /升灵台|魂灵塔/.test(name)).slice(0, 8);
         const ticketCards = trialTickets.length
           ? trialTickets.map(([name, item]) => ({ title: `${name} ×${toNumber(item && item['数量'], 0)}`, desc: toText(item && item['描述'], '可用于对应试炼场景。') }))
           : [{ title: '暂无试炼门票', desc: '当前背包中没有升灵台或魂灵塔相关门票。' }];
+        const ascensionTicketOptionsHtml = ascensionTickets.length
+          ? ascensionTickets.map(name => `<option value="${escapeHtmlAttr(name)}">${htmlEscape(name)}</option>`).join('')
+          : '<option value="">暂无门票</option>';
+        const soulSpiritTargetOptionsHtml = soulSpiritTargets.length
+          ? soulSpiritTargets.map(item => `<option value="${escapeHtmlAttr(item.value)}">${htmlEscape(item.label)}</option>`).join('')
+          : '<option value="">暂无魂灵</option>';
         delete modalFocusState[`${previewKey}::trial-focus`];
         return {
           title: '试炼与情报',
@@ -14345,6 +14567,22 @@
                   ${makeTimelineStack(towerDiscountEntries.length ? towerDiscountEntries.slice(0, 10).map(([floor]) => ({ title: `${floor} 层`, desc: '五折资格未使用' })) : [{ title: '暂无折扣资格', desc: '当前未记录可用五折层。' }])}
                 </div>
               </div>
+
+              ${isPlayerControlled && activeCharKey ? `
+                <div class="archive-card full">
+                  <div class="archive-card-head"><div class="archive-card-title">内部结算</div></div>
+                  <div class="request-console-row" data-collection-panel="trial-ascension" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+                    <select class="request-console-input" data-collection-input="asc-ticket" style="margin:0; flex:1 1 180px;">${ascensionTicketOptionsHtml}</select>
+                    <select class="request-console-input" data-collection-input="asc-target" style="margin:0; flex:1 1 260px;">${soulSpiritTargetOptionsHtml}</select>
+                    <input type="number" min="1" class="request-console-input" data-collection-input="asc-gain" value="100" style="margin:0; width:110px; flex:0 0 110px;" placeholder="提升年限" />
+                    <button type="button" class="tag-chip live" data-collection-action="run-ascension" data-collection-char="${escapeHtmlAttr(activeCharKey)}">执行升灵</button>
+                  </div>
+                  <div class="request-console-row" data-collection-panel="trial-tower" style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <input type="number" min="1" class="request-console-input" data-collection-input="tower-floor" value="${escapeHtmlAttr(String(Math.max(1, toNumber(deepGet(snapshot, 'activeChar.魂灵塔记录.最高层', 0), 0) + 1)))}" style="margin:0; width:110px; flex:0 0 110px;" placeholder="层数" />
+                    <button type="button" class="tag-chip live" data-collection-action="run-soul-tower" data-collection-char="${escapeHtmlAttr(activeCharKey)}">登记冲塔</button>
+                  </div>
+                </div>
+              ` : ''}
 
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">近期情报</div></div>
@@ -14788,6 +15026,19 @@
         }
         liveSnapshot = buildSnapshot(effective.rootData);
         lastRenderableSnapshot = liveSnapshot;
+        const snapshotPlayerName = toText(deepGet(liveSnapshot, 'rootData.sys.玩家名', ''), '').trim();
+        const repairedPlayerName = resolveEffectivePlayerName(
+          deepGet(liveSnapshot, 'rootData', {}),
+          toText(liveSnapshot && liveSnapshot.activeName, '')
+        );
+        if (isInvalidRuntimePlayerName(snapshotPlayerName) && repairedPlayerName) {
+          if (!liveSnapshot.rootData.sys || typeof liveSnapshot.rootData.sys !== 'object') liveSnapshot.rootData.sys = {};
+          liveSnapshot.rootData.sys.玩家名 = repairedPlayerName;
+          if (!effective.rootData.sys || typeof effective.rootData.sys !== 'object') effective.rootData.sys = {};
+          effective.rootData.sys.玩家名 = repairedPlayerName;
+          schedulePlayerNameRepair(liveSnapshot, repairedPlayerName);
+        }
+        schedulePlayerNameRepair(liveSnapshot);
         const nextHeaderRenderSignature = buildHeaderRenderSignature(liveSnapshot);
         const nextDashboardSectionRenderSignatures = buildDashboardSectionRenderSignatures(liveSnapshot);
         const nextDashboardRenderSignature = buildDashboardRenderSignature(liveSnapshot, nextDashboardSectionRenderSignatures);
@@ -14813,6 +15064,12 @@
             return;
           }
           if (activeDetailPreviewKey === BATTLE_INLINE_PREVIEW_KEY) {
+            const battleData = deepGet(liveSnapshot, 'rootData.world.战斗', {});
+            const battleStillActive = !!(battleData && typeof battleData === 'object' && battleData.进行中);
+            if (!battleStillActive) {
+              if (currentUnifiedPreviewKey === BATTLE_INLINE_PREVIEW_KEY) clearUnifiedInlinePreview();
+              if (currentModalPreviewKey === BATTLE_INLINE_PREVIEW_KEY && typeof closeModal === 'function') closeModal();
+            }
             return;
           }
           const liveSubUiKeys = new Set(['武装工坊详细页', '储物仓库详细页', '当前节点详情', '交易模块弹窗', '交易网络']);
@@ -15192,6 +15449,89 @@
         spiritKey: toText(spiritKey, '').trim(),
         soulSpiritKey: toText(soulSpiritKey, '').trim(),
       };
+    }
+
+    function getTrialRingColorByAge(age = 0) {
+      const value = Math.max(0, Math.floor(Number(age) || 0));
+      if (value >= 100000) return '红';
+      if (value >= 10000) return '黑';
+      if (value >= 1000) return '紫';
+      if (value >= 100) return '黄';
+      return '白';
+    }
+
+    async function runInternalAscensionSettlementByEditor(charKey, payload = {}) {
+      const safeCharKey = toText(charKey, '').trim();
+      const ticketName = toText(payload.ticketName, '').trim();
+      const targetValue = toText(payload.targetValue, '').trim();
+      const gainAge = Math.max(0, Math.floor(toNumber(payload.gainAge, 0)));
+      if (!safeCharKey) throw new Error('缺少角色信息。');
+      if (!ticketName) throw new Error('请选择升灵台门票。');
+      if (!targetValue) throw new Error('请选择目标魂灵。');
+      if (gainAge <= 0) throw new Error('请输入有效的提升年限。');
+      const { spiritKey, soulSpiritKey } = splitSoulSpiritTargetValue(targetValue);
+      if (!spiritKey || !soulSpiritKey) throw new Error('目标魂灵格式无效。');
+
+      await mutateStatDataByEditor(statData => {
+        const charData = deepGet(statData, ['char', safeCharKey], null);
+        if (!charData || typeof charData !== 'object') throw new Error(`找不到角色【${safeCharKey}】。`);
+        const inventory = charData.背包 && typeof charData.背包 === 'object' ? charData.背包 : null;
+        if (!inventory || !inventory[ticketName] || toNumber(inventory[ticketName]['数量'], 0) < 1) {
+          throw new Error(`缺少【${ticketName}】门票。`);
+        }
+        const spiritData = deepGet(charData, ['武魂', spiritKey], null);
+        const soulSpirit = deepGet(charData, ['武魂', spiritKey, '魂灵', soulSpiritKey], null);
+        if (!spiritData || !soulSpirit || typeof soulSpirit !== 'object') {
+          throw new Error('未找到可升灵的目标魂灵。');
+        }
+
+        inventory[ticketName]['数量'] = Math.max(0, toNumber(inventory[ticketName]['数量'], 0) - 1);
+        if (inventory[ticketName]['数量'] <= 0) delete inventory[ticketName];
+
+        const oldAge = Math.max(0, Math.floor(toNumber(soulSpirit['年限'], 0)));
+        const newAge = oldAge + gainAge;
+        soulSpirit['年限'] = newAge;
+        if (soulSpirit.魂环 && typeof soulSpirit.魂环 === 'object') {
+          Object.values(soulSpirit.魂环).forEach(ringData => {
+            if (!ringData || typeof ringData !== 'object') return;
+            ringData['年限'] = newAge;
+            ringData['颜色'] = getTrialRingColorByAge(newAge);
+          });
+        }
+
+        if (!statData.sys || typeof statData.sys !== 'object') statData.sys = {};
+        statData.sys.rsn = `[升灵台] ${safeCharKey} 使用【${ticketName}】为【${spiritKey}/${soulSpiritKey}】完成升灵，年限由 ${oldAge} 提升至 ${newAge}（+${gainAge}）。`;
+      });
+    }
+
+    async function runInternalSoulTowerSettlementByEditor(charKey, payload = {}) {
+      const safeCharKey = toText(charKey, '').trim();
+      const clearedFloor = Math.max(0, Math.floor(toNumber(payload.floor, 0)));
+      const actionText = toText(payload.action, '冲塔').trim() || '冲塔';
+      if (!safeCharKey) throw new Error('缺少角色信息。');
+      if (clearedFloor <= 0) throw new Error('请输入有效的通关层数。');
+
+      await mutateStatDataByEditor(statData => {
+        const charData = deepGet(statData, ['char', safeCharKey], null);
+        if (!charData || typeof charData !== 'object') throw new Error(`找不到角色【${safeCharKey}】。`);
+        if (!charData['魂灵塔记录'] || typeof charData['魂灵塔记录'] !== 'object') {
+          deepSetMutable(statData, ['char', safeCharKey, '魂灵塔记录'], { 最高层: 0, 折扣资格: {} });
+        }
+        const towerRecord = deepGet(statData, ['char', safeCharKey, '魂灵塔记录'], {});
+        if (!towerRecord['折扣资格'] || typeof towerRecord['折扣资格'] !== 'object') towerRecord['折扣资格'] = {};
+
+        const oldMaxFloor = Math.max(0, Math.floor(toNumber(towerRecord['最高层'], 0)));
+        const newMaxFloor = Math.max(oldMaxFloor, clearedFloor);
+        towerRecord['最高层'] = newMaxFloor;
+        for (let floor = oldMaxFloor + 1; floor <= clearedFloor; floor += 1) {
+          towerRecord['折扣资格'][String(floor)] = true;
+        }
+
+        if (!statData.sys || typeof statData.sys !== 'object') statData.sys = {};
+        statData.sys.rsn = clearedFloor > oldMaxFloor
+          ? `[魂灵塔] ${safeCharKey} 本次${actionText}达到第 ${clearedFloor} 层，刷新历史最高层数（${oldMaxFloor} -> ${newMaxFloor}），并解锁对应层数的五折资格。`
+          : `[魂灵塔] ${safeCharKey} 本次${actionText}达到第 ${clearedFloor} 层，未刷新历史最高层数（当前最高 ${oldMaxFloor} 层）。`;
+      });
     }
 
     function buildMvuUpdateBlock(analysis, patchOps, leadText = '') {
@@ -15893,12 +16233,15 @@ ${mvuUpdate}`;
     }
 
     function normalizeBattleSeedParticipant(seed, fallbackName = '') {
+      if (typeof seed === 'string' || typeof seed === 'number') {
+        const normalizedName = toText(seed, fallbackName);
+        return normalizedName ? { name: normalizedName } : null;
+      }
       if (!seed || typeof seed !== 'object' || Array.isArray(seed)) return null;
       const normalized = cloneJsonValue(seed, {});
-      const normalizedName = toText(normalized.name || normalized.名称, fallbackName);
+      const normalizedName = toText(normalized.name, fallbackName);
       if (!normalizedName) return null;
       normalized.name = normalizedName;
-      if (normalized.名称 === undefined) normalized.名称 = normalizedName;
       return normalized;
     }
 
@@ -16085,7 +16428,6 @@ ${mvuUpdate}`;
     function buildTemporaryBattleSkeleton(name = '未知单位', unitNature = '人类') {
       return {
         name,
-        名称: name,
         来源: '临时单位',
         单位性质: unitNature,
         属性: {
@@ -16391,7 +16733,7 @@ ${mvuUpdate}`;
     function buildExpandedBattleSeedParticipant(snapshot, participant = null, slotKey = 'enemy') {
       if (!participant || typeof participant !== 'object' || Array.isArray(participant)) return null;
       if (isExpandedBattleParticipant(participant)) return cloneJsonValue(participant, {});
-      const participantName = String(participant.name || participant.名称 || '').trim();
+      const participantName = String(participant.name || '').trim();
       const charKey = resolveSnapshotCharKey(snapshot, participantName);
       if (charKey) return buildCombatParticipantFromSnapshotChar(snapshot, charKey, slotKey === 'player' ? '己方' : '敌对');
       const unitNature = String(participant.单位性质 || '').trim();
@@ -16408,11 +16750,10 @@ ${mvuUpdate}`;
       const quantity = Math.max(1, Math.floor(Number(participant?.数量 || expanded?.数量 || 1)));
       if (quantity <= 1) return [expanded];
       const results = [];
-      const baseName = String(participant?.名称 || participant?.name || expanded?.名称 || expanded?.name || slotKey).trim() || slotKey;
+      const baseName = String(participant?.name || expanded?.name || slotKey).trim() || slotKey;
       for (let index = 1; index <= quantity; index += 1) {
         const cloneSeed = cloneJsonValue(participant, {});
         const displayName = index === 1 ? baseName : `${baseName}·${index}`;
-        cloneSeed.名称 = displayName;
         cloneSeed.name = displayName;
         cloneSeed.数量 = 1;
         const nextExpanded = buildExpandedBattleSeedParticipant(snapshot, cloneSeed, `${slotKey}_${index}`);
@@ -16528,7 +16869,7 @@ ${mvuUpdate}`;
       }
 
       const normalizedRoster = {
-        player: { 名称: playerChar.name },
+        player: { name: playerChar.name },
         enemy: null,
         team_player: [],
         team_enemy: []
@@ -16537,21 +16878,21 @@ ${mvuUpdate}`;
       const enemyCheck = validateBattleSeedParticipant(snapshot, detailParticipants.enemy, 'enemy');
       if (!enemyCheck.ok) return { ok: false, reason: enemyCheck.reason };
       normalizedRoster.enemy = enemyCheck.kind === 'char'
-        ? { 名称: enemyCheck.normalized.name }
+        ? { name: enemyCheck.normalized.name }
         : enemyCheck.normalized;
 
       const teamPlayerSeeds = Array.isArray(detailParticipants.team_player) ? detailParticipants.team_player : [];
       for (let index = 0; index < teamPlayerSeeds.length; index += 1) {
         const itemCheck = validateBattleSeedParticipant(snapshot, teamPlayerSeeds[index], `team_player_${index}`);
         if (!itemCheck.ok) return { ok: false, reason: itemCheck.reason };
-        normalizedRoster.team_player.push(itemCheck.kind === 'char' ? { 名称: itemCheck.normalized.name } : itemCheck.normalized);
+        normalizedRoster.team_player.push(itemCheck.kind === 'char' ? { name: itemCheck.normalized.name } : itemCheck.normalized);
       }
 
       const teamEnemySeeds = Array.isArray(detailParticipants.team_enemy) ? detailParticipants.team_enemy : [];
       for (let index = 0; index < teamEnemySeeds.length; index += 1) {
         const itemCheck = validateBattleSeedParticipant(snapshot, teamEnemySeeds[index], `team_enemy_${index}`);
         if (!itemCheck.ok) return { ok: false, reason: itemCheck.reason };
-        normalizedRoster.team_enemy.push(itemCheck.kind === 'char' ? { 名称: itemCheck.normalized.name } : itemCheck.normalized);
+        normalizedRoster.team_enemy.push(itemCheck.kind === 'char' ? { name: itemCheck.normalized.name } : itemCheck.normalized);
       }
 
       return { ok: true, participants: normalizedRoster };
@@ -16562,7 +16903,7 @@ ${mvuUpdate}`;
         participant &&
         typeof participant === 'object' &&
         !Array.isArray(participant) &&
-        String(participant.name || participant.名称 || '').trim() &&
+        String(participant.name || '').trim() &&
         participant.属性 &&
         typeof participant.属性 === 'object' &&
         participant.状态 &&
@@ -16577,7 +16918,7 @@ ${mvuUpdate}`;
       }
       if (typeof participant !== 'object' || Array.isArray(participant)) return undefined;
       const source = cloneJsonValue(participant, {});
-      const participantName = toText(source.name || source.名称, '');
+      const participantName = toText(source.name, '');
       const resolvedKey = participantName ? resolveSnapshotCharKey(snapshot, participantName) : '';
       if (resolvedKey) {
         const compact = { name: participantName || resolvedKey };
@@ -16595,7 +16936,6 @@ ${mvuUpdate}`;
       const compact = {};
       if (participantName) {
         compact.name = participantName;
-        compact.名称 = participantName;
       }
       [
         '来源',
@@ -16656,20 +16996,37 @@ ${mvuUpdate}`;
         if (!expandedParticipants) return null;
         nextCombat = cloneJsonValue(combatData, {});
         nextCombat.参战者 = expandedParticipants;
-        snapshot.rootData.world.战斗 = nextCombat;
       }
-      const teamPlayer = Array.isArray(nextCombat.参战者?.team_player) ? nextCombat.参战者.team_player : null;
-      const teamEnemy = Array.isArray(nextCombat.参战者?.team_enemy) ? nextCombat.参战者.team_enemy : null;
+      if (!Array.isArray(nextCombat.参战者?.team_player) || !Array.isArray(nextCombat.参战者?.team_enemy)) {
+        nextCombat = nextCombat === combatData ? cloneJsonValue(combatData, {}) : nextCombat;
+        if (!nextCombat.参战者 || typeof nextCombat.参战者 !== 'object') nextCombat.参战者 = {};
+        if (!Array.isArray(nextCombat.参战者.team_player)) nextCombat.参战者.team_player = [];
+        if (!Array.isArray(nextCombat.参战者.team_enemy)) nextCombat.参战者.team_enemy = [];
+      }
+      const teamPlayer = nextCombat.参战者.team_player;
+      const teamEnemy = nextCombat.参战者.team_enemy;
       if (!isExpandedBattleParticipant(nextCombat.参战者?.player) || !isExpandedBattleParticipant(nextCombat.参战者?.enemy)) return null;
-      if (!teamPlayer || !teamEnemy) return null;
       if (!teamPlayer.every(isExpandedBattleParticipant) || !teamEnemy.every(isExpandedBattleParticipant)) return null;
       return nextCombat;
+    }
+
+    function buildBattleUiSnapshot(snapshot, combatData) {
+      if (!snapshot || typeof snapshot !== 'object' || !snapshot.rootData || !combatData || typeof combatData !== 'object') {
+        return snapshot;
+      }
+      if (deepGet(snapshot, 'rootData.world.战斗', null) === combatData) return snapshot;
+      const nextSnapshot = cloneJsonValue(snapshot, {});
+      if (!nextSnapshot.rootData || typeof nextSnapshot.rootData !== 'object') nextSnapshot.rootData = {};
+      if (!nextSnapshot.rootData.world || typeof nextSnapshot.rootData.world !== 'object') nextSnapshot.rootData.world = {};
+      nextSnapshot.rootData.world.战斗 = combatData;
+      return nextSnapshot;
     }
 
     function syncBattleUiForSnapshot(snapshot, options = {}) {
       const liveCombatData = normalizeCombatForBattleUI(snapshot);
       const isCombatActive = !!(liveCombatData && liveCombatData.进行中);
       const canUseBattle = isCombatActive && isSnapshotPlayerControlled(snapshot);
+      const battleUiSnapshot = canUseBattle ? buildBattleUiSnapshot(snapshot, liveCombatData) : snapshot;
       syncBattleReturnEntries(snapshot, canUseBattle && battleInlineDismissed);
       if (canUseBattle && battleInlineDismissed && !options.reopenBattle) {
         if (activeBattleUI && typeof activeBattleUI.destroy === 'function') activeBattleUI.destroy();
@@ -16680,7 +17037,7 @@ ${mvuUpdate}`;
       if (canUseBattle) {
         const currentHost = getBattleInlineHost();
         if (activeBattleUI && currentHost && activeBattleUI.container === currentHost && typeof activeBattleUI.updateData === 'function') {
-          activeBattleUI.updateData(snapshot);
+          activeBattleUI.updateData(battleUiSnapshot);
           return;
         }
         if (activeBattleUI && typeof activeBattleUI.destroy === 'function') activeBattleUI.destroy();
@@ -16693,11 +17050,12 @@ ${mvuUpdate}`;
             const latestSnapshot = liveSnapshot || lastRenderableSnapshot || snapshot;
             const latestCombatData = normalizeCombatForBattleUI(latestSnapshot);
             if (!latestCombatData || !latestCombatData.进行中 || !isSnapshotPlayerControlled(latestSnapshot)) return;
+            const latestBattleUiSnapshot = buildBattleUiSnapshot(latestSnapshot, latestCombatData);
             if (!host || typeof window.mountBattleUI !== 'function') {
               showUiToast('战斗终端嵌入宿主未就绪，战斗模块未打开。', 'error', 4200);
               return;
             }
-            activeBattleUI = window.mountBattleUI(host, latestSnapshot, {
+            activeBattleUI = window.mountBattleUI(host, latestBattleUiSnapshot, {
               onAction: (actionData) => {
                 dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
               }
@@ -16717,6 +17075,12 @@ ${mvuUpdate}`;
         removeBattleReturnEntries();
         if (activeBattleUI && typeof activeBattleUI.destroy === 'function') activeBattleUI.destroy();
         activeBattleUI = null;
+        if (currentUnifiedPreviewKey === BATTLE_INLINE_PREVIEW_KEY) {
+          clearUnifiedInlinePreview();
+        }
+        if (currentModalPreviewKey === BATTLE_INLINE_PREVIEW_KEY && typeof closeModal === 'function') {
+          closeModal();
+        }
       }
     }
 
@@ -16747,14 +17111,22 @@ ${mvuUpdate}`;
     async function openMapBattleModule(snapshot, dispatchDetail) {
       const combatData = buildMapBattleCombatData(snapshot, dispatchDetail);
       if (!combatData || combatData.ok === false) return { ok: false, reason: combatData?.reason || 'combat_context_unresolved' };
-      const playerName = toText(combatData.参战者.player.name || combatData.参战者.player.名称, '玩家');
-      const enemyName = toText(combatData.参战者.enemy.name || combatData.参战者.enemy.名称, '对手');
+      const playerName = toText(combatData.参战者.player.name, '玩家');
+      const enemyName = toText(combatData.参战者.enemy.name, '对手');
       const compactCombatData = compactCombatDataForWorldStorage(snapshot, combatData);
       battleInlineDismissed = false;
       await applyJsonPatchOpsByEditor([
         { op: 'replace', path: '/world/战斗', value: compactCombatData },
         { op: 'replace', path: '/sys/rsn', value: `[战斗模块] ${playerName} 向 ${enemyName} 发起切磋，战斗模块已接管。` }
       ]);
+      await refreshLiveSnapshot({ force: true, reopenBattle: true });
+      try {
+        if (typeof window.__MVU_OPEN_BATTLE_UI__ === 'function') {
+          await window.__MVU_OPEN_BATTLE_UI__();
+        }
+      } catch (error) {
+        console.warn('[DragonUI] 自动打开战斗终端失败。', error);
+      }
       showUiToast('战斗模块已开启。', 'info', 2400);
       return { ok: true, combatData };
     }
@@ -16958,10 +17330,33 @@ ${mvuUpdate}`;
     }
 
     function getSnapshotActiveCharName(snapshot) {
-      return toText(
-        deepGet(snapshot, 'rootData.sys.玩家名', '') || toText(snapshot && snapshot.activeName, ''),
-        ''
+      return resolveEffectivePlayerName(
+        deepGet(snapshot, 'rootData', {}),
+        toText(snapshot && snapshot.activeName, '')
       ).trim();
+    }
+
+    function schedulePlayerNameRepair(snapshot, forcedPlayerName = '') {
+      const rootData = deepGet(snapshot, 'rootData', {});
+      if (!rootData || typeof rootData !== 'object') return;
+      const currentPlayerName = toText(deepGet(rootData, 'sys.玩家名', ''), '').trim();
+      const inferredPlayerName = toText(forcedPlayerName, '').trim()
+        || resolveEffectivePlayerName(rootData, toText(snapshot && snapshot.activeName, ''));
+      if (!isInvalidRuntimePlayerName(currentPlayerName) && !forcedPlayerName) return;
+      if (!inferredPlayerName || isInvalidRuntimePlayerName(inferredPlayerName)) return;
+      const inferredChar = deepGet(rootData, ['char', inferredPlayerName], null);
+      if (!inferredChar || typeof inferredChar !== 'object') return;
+      const repairKey = `${toText(snapshot && snapshot.activeName, '')}::${inferredPlayerName}`;
+      if (playerNameRepairInFlight === repairKey) return;
+      playerNameRepairInFlight = repairKey;
+      Promise.resolve()
+        .then(() => replaceStatDataByEditor([{ path: ['sys', '玩家名'], value: inferredPlayerName }]))
+        .catch(error => {
+          console.warn('[DragonUI] 自动修正玩家名失败。', error);
+        })
+        .finally(() => {
+          if (playerNameRepairInFlight === repairKey) playerNameRepairInFlight = '';
+        });
     }
 
     function resolveDirectIntentCharName(snapshot, rawName) {
@@ -17003,38 +17398,6 @@ ${mvuUpdate}`;
       return currentLoc || normalizedLoc || '未知地点';
     }
 
-    function hasActionableBattleIntent(text) {
-      const raw = toText(text, '').trim();
-      if (!raw || raw.startsWith('/') || /<UpdateVariable|<JSONPatch|\/world\/战斗|\/world\/交易请求/i.test(raw)) return false;
-      if (!/(切磋|单挑|挑战|对决|交手|打一场|打一架|开打|开战|战斗|攻击|袭击|伏击|追击|技能对轰|动手)/.test(raw)) return false;
-      if (/(是什么|为什么|怎么|如何|会不会|能不能|如果|假如|规则|机制|说明|解释|讨论|听说|回忆)/.test(raw)
-        && !/(我想|我要|我准备|我打算|现在|直接|开始|发起|向|与|和|对|找)/.test(raw)) {
-        return false;
-      }
-      return /(我想|我要|我准备|我打算|现在|直接|开始|发起|向|与|和|对|找|挑战|攻击|袭击|伏击|追击|切磋|单挑)/.test(raw);
-    }
-
-    function buildDirectBattleIntent(snapshot, text) {
-      if (!snapshot || !snapshot.rootData || deepGet(snapshot, 'rootData.world.战斗.进行中', false)) return null;
-      if (!hasActionableBattleIntent(text)) return null;
-      const activeName = getSnapshotActiveCharName(snapshot);
-      const targetName = findMentionedCharacterName(snapshot, text, { activeName });
-      if (!targetName) return null;
-      const targetKey = resolveSnapshotCharKey(snapshot, targetName);
-      const activeKey = resolveSnapshotCharKey(snapshot, activeName);
-      if (!targetKey || !activeKey || targetKey === activeKey) return null;
-      const isDeadly = /(死战|生死|击杀|杀死|杀了|下杀手|袭击|伏击|偷袭|追杀)/.test(toText(text, ''));
-      const arenaName = findBracketLocationToken(snapshot, text);
-      return {
-        action: 'battle',
-        target: arenaName,
-        currentLoc: arenaName,
-        npcTarget: targetName,
-        战斗类型: isDeadly ? '突发遭遇' : '擂台切磋',
-        source: 'direct_input_guard'
-      };
-    }
-
     function parseDirectIntentCount(text, fallback = 1) {
       const digitMatch = String(text || '').match(/(?:数量|买|购买|买入|采购|卖|出售|卖出|竞拍|出价)?\s*(\d{1,4})\s*(?:份|个|件|枚|瓶|株|块|包|张|套)?/);
       if (digitMatch) return Math.max(1, toNumber(digitMatch[1], fallback));
@@ -17061,35 +17424,6 @@ ${mvuUpdate}`;
       }
       const match = String(text || '').match(/(?:购买|买入|采购|出售|卖出|竞拍|拍下|出价|交易)\s*([^，。！？\s]{2,24})/);
       return toText(match && match[1], '').replace(/^[一二两三四五六七八九十\d]+(份|个|件|枚|瓶|株|块|包|张|套)?/, '').trim();
-    }
-
-    function buildDirectTradeRequest(snapshot, text) {
-      const raw = toText(text, '').trim();
-      if (!snapshot || !snapshot.rootData || !raw || raw.startsWith('/') || /<UpdateVariable|<JSONPatch/i.test(raw)) return null;
-      if (!/(购买|买入|采购|出售|卖出|交易|竞拍|拍卖|拍下|出价|讨价还价)/.test(raw)) return null;
-      if (/(是什么|为什么|怎么|如何|会不会|能不能|如果|假如|规则|机制|说明|解释|讨论|听说|回忆)/.test(raw)
-        && !/(我想|我要|我准备|我打算|现在|直接|开始|发起|向|与|和|对|找|买|卖|出价)/.test(raw)) {
-        return null;
-      }
-      const npcName = findMentionedCharacterName(snapshot, raw, { activeName: getSnapshotActiveCharName(snapshot) });
-      const itemName = findDirectTradeItemName(snapshot, raw, npcName);
-      if (!itemName) return null;
-      const action = /竞拍|拍卖|拍下|出价/.test(raw)
-        ? '竞拍'
-        : (/出售|卖出/.test(raw) ? '出售' : (/购买|买入|采购/.test(raw) ? '购买' : '交易'));
-      const priceMatch = raw.match(/(?:单价|价格|报价|出价|价钱|花费|支付|用)\s*(\d{1,9})/) || raw.match(/(\d{1,9})\s*(?:联邦币|金魂币|金币)/);
-      return {
-        动作: action,
-        目标: findBracketLocationToken(snapshot, raw),
-        对象: npcName,
-        物品: itemName,
-        数量: parseDirectIntentCount(raw, 1),
-        价格: priceMatch ? Math.max(0, toNumber(priceMatch[1], 0)) : 0,
-        货币: /金魂币|金币/.test(raw) ? 'gold_coin' : 'fed_coin',
-        状态: /直接|立即|确认|成交|买下|拍下|自动/.test(raw) ? 'ready' : 'pending',
-        自动执行: /直接|立即|确认|成交|买下|拍下|自动/.test(raw),
-        来源: 'direct_input_guard'
-      };
     }
 
     function normalizeProfessionMode(rawMode) {
@@ -17218,12 +17552,6 @@ ${mvuUpdate}`;
         services: ['craft'],
         professionRequest: cloneJsonValue(req, {})
       };
-    }
-
-    function openProfessionModuleFromRequest(snapshot, professionRequest) {
-      mapDispatchContext = buildCraftDispatchFromRequest(snapshot, professionRequest);
-      openModal('武装工坊详细页', { preserveMapDispatchContext: true });
-      return { ok: true, professionRequest: cloneJsonValue(professionRequest, {}) };
     }
 
     function normalizeInlineModuleAction(actionData, moduleKind, request) {
@@ -17376,10 +17704,7 @@ ${mvuUpdate}`;
       const { payload, text, kind } = resolveModuleIntentPayload(input);
       if (!snapshot || !snapshot.rootData) return { handled: false, reason: 'snapshot_unavailable' };
 
-      const forceAutoExecute = options.autoExecute === true || payload.自动执行 === true || payload.autoExecute === true;
       const dryRun = options.dryRun === true || payload.dryRun === true;
-      const dispatchMode = toText(options.dispatchMode || payload.dispatchMode, '').toLowerCase();
-      const wantsInline = dispatchMode === 'inline';
       let moduleKind = '';
       let request = null;
 
@@ -17392,41 +17717,32 @@ ${mvuUpdate}`;
             action: 'battle',
             target: toText(payload.location || payload.targetLocation || payload.arena || payload.target, findBracketLocationToken(snapshot, text)),
             currentLoc: toText(payload.currentLoc || payload.location, toText(snapshot && snapshot.currentLoc, '')),
-            战斗类型: toText(payload.战斗类型, /死战|生死|击杀|袭击|伏击/.test(text) ? '突发遭遇' : '擂台切磋'),
+            战斗类型: toText(payload.战斗类型 || payload.combatType, /死战|生死|击杀|袭击|伏击/.test(text) ? '突发遭遇' : '擂台切磋'),
             source: toText(payload.source, 'module_intent_router'),
             参战者: explicitParticipants
           };
         } else {
-          const npcTarget = toText(payload.npcTarget || payload.enemy || payload.targetNpc || payload.npc, '')
-            || findMentionedCharacterName(snapshot, text, { activeName: getSnapshotActiveCharName(snapshot) });
+          const npcTarget = toText(payload.npcTarget || payload.enemy || payload.targetNpc || payload.npc, '');
           request = {
             action: 'battle',
             target: toText(payload.location || payload.targetLocation || payload.arena || payload.target, findBracketLocationToken(snapshot, text)),
             currentLoc: toText(payload.currentLoc || payload.location, toText(snapshot && snapshot.currentLoc, '')),
             npcTarget,
-            战斗类型: toText(payload.战斗类型, /死战|生死|击杀|袭击|伏击/.test(text) ? '突发遭遇' : '擂台切磋'),
+            战斗类型: toText(payload.战斗类型 || payload.combatType, /死战|生死|击杀|袭击|伏击/.test(text) ? '突发遭遇' : '擂台切磋'),
             source: toText(payload.source, 'module_intent_router')
           };
           if (!npcTarget) request = null;
         }
         moduleKind = 'battle';
       } else if (/trade|交易|购买|出售|竞拍|拍卖/.test(kind)) {
-        request = buildTradeRequestFromObject(snapshot, payload) || buildDirectTradeRequest(snapshot, text);
+        request = buildTradeRequestFromObject(snapshot, payload);
         moduleKind = 'trade';
       } else if (/craft|profession|job|副职业|工坊|锻造|制造|设计|修理|维修/.test(kind)) {
-        request = buildDirectProfessionRequest(snapshot, payload) || buildDirectProfessionRequest(snapshot, text);
+        request = buildDirectProfessionRequest(snapshot, payload);
         moduleKind = 'profession';
       } else {
-        request = buildDirectBattleIntent(snapshot, text);
-        moduleKind = request ? 'battle' : '';
-        if (!request) {
-          request = buildDirectTradeRequest(snapshot, text);
-          moduleKind = request ? 'trade' : '';
-        }
-        if (!request) {
-          request = buildDirectProfessionRequest(snapshot, text);
-          moduleKind = request ? 'profession' : '';
-        }
+        request = null;
+        moduleKind = '';
       }
 
       if (!request || !moduleKind) return { handled: false, reason: 'no_module_intent' };
@@ -17438,10 +17754,6 @@ ${mvuUpdate}`;
           reason: 'battle_already_active'
         };
       }
-      if (forceAutoExecute && (moduleKind === 'trade' || moduleKind === 'profession')) {
-        request.自动执行 = true;
-        request.状态 = 'ready';
-      }
       if (dryRun) return { handled: true, dryRun: true, kind: moduleKind, request };
 
       if (moduleKind === 'battle') {
@@ -17450,12 +17762,14 @@ ${mvuUpdate}`;
           await refreshLiveSnapshot({ force: true });
           result = await openMapBattleModule(liveSnapshot || lastRenderableSnapshot || snapshot, request);
         }
+        if (!result?.ok) {
+          return { handled: false, kind: moduleKind, request, result, reason: result?.reason || 'battle_open_failed' };
+        }
         await refreshLiveSnapshot({ force: true });
-        return { handled: !!result?.ok, kind: moduleKind, request, result };
+        return { handled: true, kind: moduleKind, request, result };
       }
 
       if (moduleKind === 'trade') {
-        let inlineResult = null;
         const privateTradeNpc = toText(request && request.对象, '');
         if (privateTradeNpc && !resolveSnapshotCharKey(snapshot, privateTradeNpc)) {
           return {
@@ -17465,81 +17779,84 @@ ${mvuUpdate}`;
             reason: 'trade_target_unresolved'
           };
         }
-        if (wantsInline && request.自动执行 === true) {
-          inlineResult = await buildInlineTradeAction(snapshot, request);
-          if (inlineResult && inlineResult.ok && inlineResult.inlineAction) {
-            return {
-              handled: true,
-              kind: moduleKind,
-              request,
-              dispatchMode: 'inline',
-              playerInput: inlineResult.inlineAction.playerInput,
-              systemPrompt: inlineResult.inlineAction.systemPrompt,
-              requestKind: inlineResult.inlineAction.requestKind,
-              inlineAction: inlineResult.inlineAction,
-              result: inlineResult
-            };
-          }
+        const inlineResult = await buildInlineTradeAction(snapshot, request);
+        if (!inlineResult?.ok || !inlineResult.inlineAction) {
           return {
             handled: false,
             kind: moduleKind,
             request,
             dispatchMode: 'inline',
-            reason: inlineResult && inlineResult.reason ? inlineResult.reason : 'trade_inline_action_unavailable',
+            reason: inlineResult?.reason || 'trade_inline_action_unavailable',
             result: inlineResult || null
           };
         }
-        await applyJsonPatchOpsByEditor([
-          { op: 'replace', path: '/world/交易请求', value: request },
-          { op: 'replace', path: '/sys/rsn', value: `[交易模块] ${request.动作} ${request.物品} 的请求已由前端接管。` }
-        ]);
-        await refreshLiveSnapshot({ force: true });
-        mapDispatchContext = buildTradeDispatchFromRequest(snapshot, request);
-        openModal('交易网络', { preserveMapDispatchContext: true });
-        return {
-          handled: true,
-          kind: moduleKind,
-          request,
-          dispatchMode: wantsInline ? 'inline_fallback_ui' : 'ui',
-          result: inlineResult || { ok: true, uiOpened: true }
-        };
-      }
-
-      if (wantsInline && request.自动执行 === true) {
-        const inlineResult = await buildInlineProfessionAction(snapshot, request);
-        if (inlineResult && inlineResult.ok && inlineResult.inlineAction) {
+        const dispatchResult = await dispatchUiAiRequest(
+          inlineResult.inlineAction.playerInput,
+          inlineResult.inlineAction.systemPrompt,
+          { requestKind: inlineResult.inlineAction.requestKind }
+        );
+        if (!dispatchResult?.ok) {
           return {
-            handled: true,
+            handled: false,
             kind: moduleKind,
             request,
             dispatchMode: 'inline',
-            playerInput: inlineResult.inlineAction.playerInput,
-            systemPrompt: inlineResult.inlineAction.systemPrompt,
-            requestKind: inlineResult.inlineAction.requestKind,
+            reason: dispatchResult?.reason || 'trade_continuation_dispatch_failed',
             inlineAction: inlineResult.inlineAction,
             result: inlineResult
           };
         }
         return {
+          handled: true,
+          kind: moduleKind,
+          request,
+          dispatchMode: 'inline',
+          inlineAction: inlineResult.inlineAction,
+          dispatchResult,
+          result: inlineResult
+        };
+      }
+
+      const inlineResult = await buildInlineProfessionAction(snapshot, request);
+      if (!inlineResult?.ok || !inlineResult.inlineAction) {
+        return {
           handled: false,
           kind: moduleKind,
           request,
           dispatchMode: 'inline',
-          reason: inlineResult && inlineResult.reason ? inlineResult.reason : 'profession_inline_action_unavailable',
+          reason: inlineResult?.reason || 'profession_inline_action_unavailable',
           result: inlineResult || null
         };
       }
-      const result = openProfessionModuleFromRequest(snapshot, request);
-      return { handled: true, kind: moduleKind, request, dispatchMode: 'ui', result };
+      const dispatchResult = await dispatchUiAiRequest(
+        inlineResult.inlineAction.playerInput,
+        inlineResult.inlineAction.systemPrompt,
+        { requestKind: inlineResult.inlineAction.requestKind }
+      );
+      if (!dispatchResult?.ok) {
+        return {
+          handled: false,
+          kind: moduleKind,
+          request,
+          dispatchMode: 'inline',
+          reason: dispatchResult?.reason || 'profession_continuation_dispatch_failed',
+          inlineAction: inlineResult.inlineAction,
+          result: inlineResult
+        };
+      }
+      return {
+        handled: true,
+        kind: moduleKind,
+        request,
+        dispatchMode: 'inline',
+        inlineAction: inlineResult.inlineAction,
+        dispatchResult,
+        result: inlineResult
+      };
     }
 
     function installDirectModuleIntentGuard() {
       window.__MVU_ROUTE_MODULE_INTENT__ = (input, options = {}) => routeModuleIntentPayload(input, options);
-      window.__MVU_TEST_DIRECT_MODULE_INTENT__ = text => ({
-        battle: buildDirectBattleIntent(liveSnapshot || lastRenderableSnapshot, text),
-        trade: buildDirectTradeRequest(liveSnapshot || lastRenderableSnapshot, text),
-        profession: buildDirectProfessionRequest(liveSnapshot || lastRenderableSnapshot, text)
-      });
       if (!window.__MVU_MODULE_INTENT_ROUTER_EVENT_BOUND__) {
         window.addEventListener('mvu-module-intent', event => {
           const detail = event && event.detail && typeof event.detail === 'object' ? event.detail : {};
@@ -17570,7 +17887,8 @@ ${mvuUpdate}`;
       }
 
       if (action === 'ascension' || action === 'tower') {
-        console.warn('[DragonUI] 当前版本已移除前端试炼发起入口。', detail);
+        mapDispatchContext = { ...detail, action, services };
+        openModal('试炼与情报', { preserveMapDispatchContext: true });
         return;
       }
 
@@ -19040,6 +19358,26 @@ ${mvuUpdate}`;
               };
             });
             showUiToast('已新增物品。');
+            if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
+            return;
+          }
+          if (actionType === 'run-ascension') {
+            const charKey = collectionActionBtn.getAttribute('data-collection-char') || '';
+            const ticketName = readCollectionInput('asc-ticket');
+            const targetValue = readCollectionInput('asc-target');
+            const gainAge = Math.max(0, readCollectionNumber('asc-gain', 0));
+            if (!charKey) throw new Error('缺少角色信息。');
+            await runInternalAscensionSettlementByEditor(charKey, { ticketName, targetValue, gainAge });
+            showUiToast('已完成升灵结算。');
+            if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
+            return;
+          }
+          if (actionType === 'run-soul-tower') {
+            const charKey = collectionActionBtn.getAttribute('data-collection-char') || '';
+            const floor = Math.max(0, readCollectionNumber('tower-floor', 0));
+            if (!charKey) throw new Error('缺少角色信息。');
+            await runInternalSoulTowerSettlementByEditor(charKey, { floor, action: '冲塔' });
+            showUiToast('已登记魂灵塔结算。');
             if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
             return;
           }

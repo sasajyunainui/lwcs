@@ -3192,7 +3192,7 @@
       if (item.stat_data && typeof item.stat_data === 'object' && (item.stat_data.char || item.stat_data.world || item.stat_data.sys)) {
         return item.stat_data;
       }
-      if (item.char || item.world || item.sys || item.org || item.map) {
+      if (item.char || item.world || item.sys || item.org) {
         return item;
       }
     }
