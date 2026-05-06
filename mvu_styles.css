@@ -9894,6 +9894,59 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-tab-btn:hover {
   overflow-y: auto;
 }
 
+#mvu-battle-inline-host .tower-settlement-panel[hidden] {
+  display: none !important;
+}
+
+#mvu-battle-inline-host .tower-settlement-panel {
+  flex: 0 0 auto;
+  margin: 0 10px 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(232, 207, 119, 0.18);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(232, 207, 119, 0.08), rgba(255, 255, 255, 0.03));
+}
+
+#mvu-battle-inline-host .tower-settlement-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#mvu-battle-inline-host .tower-settlement-head,
+#mvu-battle-inline-host .tower-settlement-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+#mvu-battle-inline-host .tower-settlement-head b {
+  color: #f7dc8b;
+  font-size: 12px;
+}
+
+#mvu-battle-inline-host .tower-settlement-head span,
+#mvu-battle-inline-host .tower-settlement-body span,
+#mvu-battle-inline-host .tower-settlement-note {
+  color: rgba(232, 244, 248, 0.78);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+#mvu-battle-inline-host .tower-settlement-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#mvu-battle-inline-host .tower-settlement-action.primary {
+  border-color: rgba(232, 207, 119, 0.28);
+  background: rgba(232, 207, 119, 0.10);
+  color: #f7dc8b;
+}
+
 #mvu-battle-inline-host .action-btn {
   min-width: 0;
   min-height: 56px;

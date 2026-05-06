@@ -16513,7 +16513,7 @@
 
     async function runInternalSoulTowerSettlementByEditor(charKey, payload = {}) {
       const safeCharKey = toText(charKey, '').trim();
-      const clearedFloor = Math.max(0, Math.floor(toNumber(payload.floor, 0)));
+      const clearedFloor = Math.min(SOUL_TOWER_TOTAL_FLOORS, Math.max(0, Math.floor(toNumber(payload.floor, 0))));
       const actionText = toText(payload.action, '冲塔').trim() || '冲塔';
       if (!safeCharKey) throw new Error('缺少角色信息。');
       if (clearedFloor <= 0) throw new Error('请输入有效的通关层数。');
@@ -17936,8 +17936,11 @@ ${mvuUpdate}`;
       if (!playerChar) return { ok: false, reason: 'player_context_unresolved' };
       const soulTowerCombat = isSoulTowerCombatType(detail);
       const activeChar = getActiveSnapshotCharacter(snapshot);
-      const defaultSoulTowerFloor = Math.max(1, toNumber(deepGet(activeChar, '魂灵塔记录.最高层', 0), 0) + 1);
-      const soulTowerFloor = soulTowerCombat ? Math.max(1, Math.floor(toNumber(detail.floor, defaultSoulTowerFloor))) : 0;
+      const defaultSoulTowerFloor = Math.min(
+        SOUL_TOWER_TOTAL_FLOORS,
+        Math.max(1, toNumber(deepGet(activeChar, '魂灵塔记录.最高层', 0), 0) + 1),
+      );
+      const soulTowerFloor = soulTowerCombat ? Math.min(SOUL_TOWER_TOTAL_FLOORS, Math.max(1, Math.floor(toNumber(detail.floor, defaultSoulTowerFloor)))) : 0;
 
       if (!detailParticipants) {
         if (soulTowerCombat) {
@@ -18215,8 +18218,11 @@ ${mvuUpdate}`;
       const arenaName = toText(detail.currentLoc, toText(detail.target, toText(snapshot.currentLoc, '未知地点')));
       const soulTowerCombat = isSoulTowerCombatType(detail);
       const activeChar = getActiveSnapshotCharacter(snapshot);
-      const defaultSoulTowerFloor = Math.max(1, toNumber(deepGet(activeChar, '魂灵塔记录.最高层', 0), 0) + 1);
-      const soulTowerFloor = soulTowerCombat ? Math.max(1, Math.floor(toNumber(detail.floor, defaultSoulTowerFloor))) : 0;
+      const defaultSoulTowerFloor = Math.min(
+        SOUL_TOWER_TOTAL_FLOORS,
+        Math.max(1, toNumber(deepGet(activeChar, '魂灵塔记录.最高层', 0), 0) + 1),
+      );
+      const soulTowerFloor = soulTowerCombat ? Math.min(SOUL_TOWER_TOTAL_FLOORS, Math.max(1, Math.floor(toNumber(detail.floor, defaultSoulTowerFloor)))) : 0;
       const soulTowerMeta = soulTowerCombat ? getSoulTowerGateMeta(soulTowerFloor) : null;
       return {
         进行中: true,

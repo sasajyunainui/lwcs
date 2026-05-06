@@ -83,7 +83,120 @@ class BattleUIComponent {
     const SOUL_TOWER_MAX_AGE = 30;
     const SOUL_TOWER_TEAM_LIMIT = 7;
     const SOUL_TOWER_MAX_AGE_GAP = 3;
-    const SOUL_TOWER_GATE_SPAN = 10;
+    const SOUL_TOWER_TOTAL_FLOORS = 108;
+    const SOUL_TOWER_LAYER_RULES = Object.freeze([
+      Object.freeze({
+        key: 'thousand',
+        label: '千年魂灵区',
+        rewardTier: '千年',
+        gateStart: 1,
+        gateEnd: 18,
+        minAge: 1000,
+        maxAge: 9999,
+        qualitySteps: Object.freeze(['C', 'B', 'A']),
+      }),
+      Object.freeze({
+        key: 'ten_thousand',
+        label: '万年魂灵区',
+        rewardTier: '万年',
+        gateStart: 19,
+        gateEnd: 36,
+        minAge: 10000,
+        maxAge: 99999,
+        qualitySteps: Object.freeze(['B', 'A', 'S']),
+      }),
+      Object.freeze({
+        key: 'pre_beast',
+        label: '万年以上魂灵区',
+        rewardTier: '万年以上',
+        gateStart: 37,
+        gateEnd: 99,
+        minAge: 10000,
+        maxAge: 99999,
+        qualitySteps: Object.freeze(['A', 'S']),
+      }),
+      Object.freeze({
+        key: 'beast',
+        label: '凶兽魂灵区',
+        rewardTier: '凶兽级',
+        gateStart: 100,
+        gateEnd: 108,
+        minAge: 100000,
+        maxAge: 200000,
+        qualitySteps: Object.freeze(['S+']),
+      }),
+    ]);
+    const SOUL_TOWER_GUARDIAN_SPECIES_POOL = Object.freeze([
+      '龙类',
+      '蛛类',
+      '熊类',
+      '植物系',
+      '海魂兽',
+      '鸟类',
+      '猫科',
+      '蛇类',
+    ]);
+    const SOUL_SPIRIT_QUALITY_VALUES = Object.freeze(['F', 'D', 'C', 'B', 'A', 'S', 'S+']);
+    const SOUL_SPIRIT_QUALITY_MULTIPLIER_MAP = Object.freeze({
+      F: 0.82,
+      D: 0.9,
+      C: 1.0,
+      B: 1.08,
+      A: 1.18,
+      S: 1.32,
+      'S+': 1.48,
+    });
+    const SOUL_SPIRIT_QUALITY_LEVEL_OFFSET_MAP = Object.freeze({
+      F: -6,
+      D: -3,
+      C: 0,
+      B: 2,
+      A: 5,
+      S: 8,
+      'S+': 12,
+    });
+
+    function normalizeSoulSpiritQuality(value = '') {
+      const text = String(value || '')
+        .trim()
+        .toUpperCase()
+        .replace('＋', '+')
+        .replace(/\s+/g, '');
+      return SOUL_SPIRIT_QUALITY_VALUES.includes(text) ? text : '';
+    }
+
+    function createEmptySoulTowerDiscountSpiritRecord() {
+      return {
+        层数: 0,
+        名称: '',
+        标准物种: '',
+        年限: 0,
+        品质: '',
+        已使用: false,
+      };
+    }
+
+    function normalizeSoulTowerDiscountSpiritRecord(record = {}) {
+      if (!record || typeof record !== 'object' || Array.isArray(record)) return createEmptySoulTowerDiscountSpiritRecord();
+      const next = createEmptySoulTowerDiscountSpiritRecord();
+      next.层数 = Math.max(0, Math.floor(Number(record.层数 || 0)));
+      next.名称 = String(record.名称 || '').trim();
+      next.标准物种 = String(record.标准物种 || '').trim();
+      next.年限 = Math.max(0, Math.floor(Number(record.年限 || 0)));
+      next.品质 = normalizeSoulSpiritQuality(record.品质 || '');
+      next.已使用 = record.已使用 === true;
+      if (!(next.层数 > 0 && next.标准物种 && next.年限 > 0 && next.品质 && next.已使用 === false)) {
+        return createEmptySoulTowerDiscountSpiritRecord();
+      }
+      if (!next.名称) next.名称 = `${next.标准物种}魂灵`;
+      return next;
+    }
+
+    function buildSoulTowerDiscountSpiritDisplay(record = {}) {
+      const normalized = normalizeSoulTowerDiscountSpiritRecord(record);
+      if (!(normalized.层数 > 0)) return '暂无';
+      return `第${normalized.层数}层 · ${normalized.标准物种} · ${normalized.年限}年 · ${normalized.品质}`;
+    }
 
     function getCombatUnitAgeValue(unit = {}) {
       const rawAge = unit?.属性?.年龄 ?? unit?.年龄 ?? unit?.age;
@@ -107,27 +220,86 @@ class BattleUIComponent {
 
     function getSoulTowerGateMeta(floor = 0) {
       const safeFloor = Math.max(1, Math.floor(Number(floor) || 1));
-      const gateIndex = Math.floor((safeFloor - 1) / SOUL_TOWER_GATE_SPAN) + 1;
-      const gateStart = (gateIndex - 1) * SOUL_TOWER_GATE_SPAN + 1;
-      const gateEnd = gateStart + SOUL_TOWER_GATE_SPAN - 1;
-      const layerInGate = safeFloor - gateStart + 1;
-      const isGateBoss = layerInGate === SOUL_TOWER_GATE_SPAN;
-      const rewardTier =
-        gateIndex >= 5 ? '十万年'
-          : gateIndex === 4 ? '万年'
-            : gateIndex === 3 ? '千年'
-              : gateIndex === 2 ? '百年'
-                : '十年';
+      const rule =
+        SOUL_TOWER_LAYER_RULES.find(item => safeFloor >= item.gateStart && safeFloor <= item.gateEnd) ||
+        SOUL_TOWER_LAYER_RULES[SOUL_TOWER_LAYER_RULES.length - 1];
+      const gateIndex = SOUL_TOWER_LAYER_RULES.findIndex(item => item.key === rule.key) + 1;
+      const layerInGate = safeFloor - rule.gateStart + 1;
+      const isGateBoss = safeFloor === rule.gateEnd;
+      const layerProgress = rule.gateEnd > rule.gateStart ? (safeFloor - rule.gateStart) / (rule.gateEnd - rule.gateStart) : 1;
       return {
         floor: safeFloor,
         gateIndex,
-        gateStart,
-        gateEnd,
+        gateStart: rule.gateStart,
+        gateEnd: rule.gateEnd,
         layerInGate,
         isGateBoss,
-        gateLabel: `第${gateIndex}大关`,
-        gateRangeLabel: `${gateStart}-${gateEnd}层`,
-        rewardTier,
+        gateLabel: rule.label,
+        gateRangeLabel: `${rule.gateStart}-${rule.gateEnd}层`,
+        rewardTier: rule.rewardTier,
+        layerProgress,
+        minAge: rule.minAge,
+        maxAge: rule.maxAge,
+        qualitySteps: rule.qualitySteps,
+        isTopNine: safeFloor >= 100,
+        totalFloors: SOUL_TOWER_TOTAL_FLOORS,
+        key: rule.key,
+      };
+    }
+
+    function getSoulTowerGuardianQualityForFloor(floor = 1) {
+      const meta = getSoulTowerGateMeta(floor);
+      const steps = Array.isArray(meta.qualitySteps) && meta.qualitySteps.length ? meta.qualitySteps : ['C'];
+      if (steps.length === 1) return steps[0];
+      const progress = Math.max(0, Math.min(1, Number(meta.layerProgress || 0)));
+      const index = Math.min(steps.length - 1, Math.floor(progress * steps.length));
+      return steps[index] || steps[steps.length - 1];
+    }
+
+    function buildSoulTowerGuardianAgeForFloor(floor = 1) {
+      const meta = getSoulTowerGateMeta(floor);
+      const minAge = Math.max(1, Math.floor(Number(meta.minAge || 1)));
+      const maxAge = Math.max(minAge, Math.floor(Number(meta.maxAge || minAge)));
+      if (meta.isGateBoss) return maxAge;
+      const gateLength = Math.max(1, meta.gateEnd - meta.gateStart);
+      const progress = Math.max(0, Math.min(1, Number(meta.layerProgress || 0)));
+      const anchor = minAge + Math.round((maxAge - minAge) * progress);
+      const bucket = Math.max(1, Math.floor((maxAge - minAge) / Math.max(2, gateLength + 1)));
+      const variance = Math.max(0, Math.floor(bucket * 0.45));
+      const offset = variance > 0 ? pickBattleSeedInt(-variance, variance) : 0;
+      return Math.max(minAge, Math.min(maxAge, anchor + offset));
+    }
+
+    function buildSoulTowerGuardianSeed(floor = 1) {
+      const meta = getSoulTowerGateMeta(floor);
+      const species =
+        SOUL_TOWER_GUARDIAN_SPECIES_POOL[Math.max(0, Math.min(SOUL_TOWER_GUARDIAN_SPECIES_POOL.length - 1, Math.floor(Math.random() * SOUL_TOWER_GUARDIAN_SPECIES_POOL.length)))] ||
+        '龙类';
+      const age = buildSoulTowerGuardianAgeForFloor(meta.floor);
+      const quality = normalizeSoulSpiritQuality(getSoulTowerGuardianQualityForFloor(meta.floor)) || 'C';
+      return {
+        name: `${species}守塔魂兽`,
+        来源: '临时单位',
+        单位性质: '魂兽',
+        数量: 1,
+        标准物种: species,
+        年限: age,
+        品质: quality,
+      };
+    }
+
+    function buildSoulTowerDiscountSpiritRecordFromGuardian(unit = {}, floor = 1) {
+      const species = String(unit?.标准物种 || '').trim();
+      const age = Math.max(0, Math.floor(Number(unit?.年限 || 0)));
+      const quality = normalizeSoulSpiritQuality(unit?.品质 || '');
+      if (!(species && age > 0 && quality)) return createEmptySoulTowerDiscountSpiritRecord();
+      return {
+        层数: Math.max(1, Math.floor(Number(floor) || 1)),
+        名称: `${species}魂灵`,
+        标准物种: species,
+        年限: age,
+        品质: quality,
+        已使用: false,
       };
     }
 
@@ -155,46 +327,6 @@ class BattleUIComponent {
         return { ok: false, message: `魂灵塔队伍成员年龄差不能超过 ${SOUL_TOWER_MAX_AGE_GAP} 岁。` };
       }
       return { ok: true, rosterCount: roster.length, minAge, maxAge };
-    }
-
-    function applySoulTowerGuardianAura(combatData = {}) {
-      if (!combatData || combatData.__soulTowerAuraApplied === true) return;
-      const meta = getSoulTowerGateMeta(combatData.floor || 1);
-      const enemyRoster = [combatData?.参战者?.enemy, ...(combatData?.参战者?.team_enemy || [])].filter(Boolean);
-      const gateScale = 1 + Math.max(0, meta.gateIndex - 1) * 0.2;
-      const layerScale = 1 + Math.max(0, meta.layerInGate - 1) * 0.025;
-      const bossScale = meta.isGateBoss ? 1.16 : 1.0;
-      const panelScale = Number((gateScale * layerScale * bossScale).toFixed(3));
-      const damageScale = Number((1 + Math.max(0, panelScale - 1) * 0.7).toFixed(3));
-      const controlScale = Number((1 + Math.max(0, panelScale - 1) * 0.8).toFixed(3));
-      enemyRoster.forEach(unit => {
-        if (!unit) return;
-        if (!unit.状态效果 || typeof unit.状态效果 !== 'object') unit.状态效果 = {};
-        unit.状态效果['魂灵塔阶压'] = {
-          类型: 'buff',
-          层数: 1,
-          描述: `${meta.gateLabel}守塔威压`,
-          duration: 999,
-          面板修改比例: {
-            str: panelScale,
-            def: panelScale,
-            agi: Number((1 + Math.max(0, panelScale - 1) * 0.6).toFixed(3)),
-            sp_max: panelScale,
-          },
-          战斗效果: {
-            ...createEmptyCombatEffectMap(),
-            final_damage_mult: damageScale,
-            control_resist_mult: controlScale,
-            shield_gain_mult: meta.isGateBoss ? Number((1 + Math.max(0, panelScale - 1) * 0.5).toFixed(3)) : 1.0,
-            interrupt_bonus: meta.isGateBoss ? 0.18 : 0.08,
-          },
-        };
-      });
-      combatData.__soulTowerAuraApplied = true;
-      combatData.大关卡 = meta.gateIndex;
-      combatData.大关标签 = meta.gateLabel;
-      combatData.关卡范围 = meta.gateRangeLabel;
-      combatData.关底战 = meta.isGateBoss;
     }
 
     function hasMvuRuntime() {
@@ -665,7 +797,7 @@ class BattleUIComponent {
         来源: '临时单位',
         单位性质: String(source.单位性质 || '').trim(),
       };
-      ['身份', '数量', '等级', '年限', '标准物种', '级别', '标准种族'].forEach(key => {
+      ['身份', '数量', '等级', '年限', '品质', '标准物种', '级别', '标准种族'].forEach(key => {
         if (source[key] !== undefined) snapshot[key] = clonePersistedCombatValue(source[key]);
       });
       const canonical = buildCanonicalParticipantPersistenceSnapshot(source) || {};
@@ -726,6 +858,7 @@ class BattleUIComponent {
       '大关标签',
       '关卡范围',
       '关底战',
+      '魂灵塔待结算',
     ];
 
     const COMBAT_WORLD_TRANSIENT_KEYS = [
@@ -3588,9 +3721,6 @@ class BattleUIComponent {
       combatData.参战者.team_enemy = Array.isArray(combatData.参战者.team_enemy)
         ? combatData.参战者.team_enemy.map(expandCombatParticipantFromMvu)
         : [];
-      if (isSoulTowerCombatTypeValue(combatData.战斗类型 || '')) {
-        applySoulTowerGuardianAura(combatData);
-      }
       const playerRoster = [combatData.参战者.player, ...(combatData.参战者.team_player || [])].filter(
         Boolean,
       );
@@ -5137,6 +5267,55 @@ class BattleUIComponent {
         return action;
       }
 
+      function clearCombatAdjudicationHints(combatData) {
+        if (!combatData || typeof combatData !== 'object') return;
+        delete combatData.阶段;
+        delete combatData.裁断约束;
+        delete combatData.前端建议结果;
+        delete combatData.建议终点HP区间;
+        delete combatData.前端推荐终点HP;
+        delete combatData.预计HP伤害;
+        delete combatData.本次操作;
+      }
+
+      function normalizeSoulTowerPendingSettlement(settlement = {}) {
+        if (!settlement || typeof settlement !== 'object' || Array.isArray(settlement)) return null;
+        const floor = Math.max(0, Math.floor(Number(settlement.层数 || 0)));
+        const spirit = normalizeSoulTowerDiscountSpiritRecord(settlement.五折魂灵 || {});
+        if (!(floor > 0 && spirit.层数 > 0)) return null;
+        return {
+          状态: '待选择',
+          层数: floor,
+          区域标签: String(settlement.区域标签 || '').trim() || getSoulTowerGateMeta(floor).gateLabel,
+          区间标签: String(settlement.区间标签 || '').trim() || getSoulTowerGateMeta(floor).gateRangeLabel,
+          守塔名称: String(settlement.守塔名称 || '').trim() || spirit.名称 || `${spirit.标准物种}守塔魂兽`,
+          五折魂灵: spirit,
+          下一层: Math.min(SOUL_TOWER_TOTAL_FLOORS, Math.max(floor + 1, Math.floor(Number(settlement.下一层 || floor + 1)))),
+          可继续: settlement.可继续 !== false && floor < SOUL_TOWER_TOTAL_FLOORS,
+        };
+      }
+
+      function hasSoulTowerPendingSettlement(combatData = {}) {
+        return !!normalizeSoulTowerPendingSettlement(combatData?.魂灵塔待结算);
+      }
+
+      function buildSoulTowerPendingSettlement(combatData = {}, defender = null) {
+        const floor = Math.max(1, Math.floor(Number(combatData?.floor || 1)));
+        const meta = getSoulTowerGateMeta(floor);
+        const spiritRecord = buildSoulTowerDiscountSpiritRecordFromGuardian(defender, floor);
+        if (!(spiritRecord.层数 > 0)) return null;
+        return {
+          状态: '待选择',
+          层数: floor,
+          区域标签: meta.gateLabel,
+          区间标签: meta.gateRangeLabel,
+          守塔名称: String(defender?.name || spiritRecord.名称 || '守塔魂兽').trim() || '守塔魂兽',
+          五折魂灵: spiritRecord,
+          下一层: Math.min(SOUL_TOWER_TOTAL_FLOORS, floor + 1),
+          可继续: floor < SOUL_TOWER_TOTAL_FLOORS,
+        };
+      }
+
       function collectCombatSkills(charData, alliedTeam = []) {
         return collectUnifiedSkillEntries(charData, alliedTeam, { includePassive: false, includeActive: true });
       }
@@ -5618,6 +5797,30 @@ class BattleUIComponent {
         if (clashExtraPatchOps.length) extraPatchOps.push(...clashExtraPatchOps);
         if (settleResult.log) battleLog.push(settleResult.log);
         if (settleResult.extraPatchOps) extraPatchOps.push(...settleResult.extraPatchOps);
+        const towerPendingSettlement =
+          isSoulTowerCombatTypeValue(combatData?.战斗类型 || '') && battleOutcome.isVictory === true
+            ? buildSoulTowerPendingSettlement(combatData, defender)
+            : null;
+        if (towerPendingSettlement) {
+          combatData.魂灵塔待结算 = towerPendingSettlement;
+          combatData.进行中 = true;
+          combatData.裁断结果 = '';
+          clearCombatAdjudicationHints(combatData);
+          const pendingUpdate =
+            window.BattleUIBridge?.persistCombatData?.(combatData, {
+              analysis:
+                'Frontend soul tower battle already reached a deterministic win state. Persist the pending settlement choice and wait for the player to choose whether to stop or continue.',
+              extraPatchOps,
+              syncHpRecoveryOnly: false,
+            }) || null;
+          return {
+            intentText: visiblePlayerInput || String(playerInput || '战斗行动'),
+            mode: 'tower_pending_choice',
+            battleMode: mode,
+            pendingSettlement: towerPendingSettlement,
+            mvuUpdate: pendingUpdate,
+          };
+        }
 
         const hpSuggestion = buildHpSuggestionPayload(
           attacker,
@@ -5653,16 +5856,22 @@ class BattleUIComponent {
           mvuUpdate,
           requestKind: 'battle_arbitration',
         });
+        return {
+          intentText: visiblePlayerInput || String(playerInput || '战斗行动'),
+          mode: 'engine_arbitrated',
+          battleMode: mode,
+          aiRequest: root.__lastBattleAIRequest || null,
+        };
       }
 
         root.BattleUIBridge = Object.assign(root.BattleUIBridge || {}, {
         __executePlayerBattleIntentImpl(playerInput, options = {}) {
           const battleMode = options.mode === 'multi_round' ? 'multi_round' : 'single_round';
-          onPlayerAttack(String(playerInput || ''), {
+          const result = onPlayerAttack(String(playerInput || ''), {
             mode: battleMode,
             intentMode: options.intentMode,
           });
-          return {
+          return result || {
             intentText: String(playerInput || ''),
             mode: 'engine_arbitrated',
             battleMode,
@@ -6200,31 +6409,7 @@ class BattleUIComponent {
           let floor = combatData.floor || 1;
           const gateMeta = getSoulTowerGateMeta(floor);
           if (isVictoryOutcome) {
-            const ageDesc = gateMeta.rewardTier;
-
-            log = `🏆[冲塔成功] ${gateMeta.gateLabel}${gateMeta.isGateBoss ? '关底' : ''}镇守第 ${floor} 层的 ${defenderName} 被彻底击溃！玩家成功通关本层，获得了该层魂灵的【五折购买特权】，并获赠【${ageDesc}魂灵(冲塔自选)】！(请 AI 描写通关奖励降落的场景)`;
-            extraPatchOps.push({
-              op: 'replace',
-              path: `${attackerPath}/魂灵塔记录/折扣资格/${floor}`,
-              value: true,
-            });
-
-            let itemName = `${ageDesc}魂灵(冲塔自选)`;
-            const escapedItemName = escapeJsonPointerSegment(itemName);
-            let currentItem = inventory[itemName];
-            if (currentItem) {
-              extraPatchOps.push({
-                op: 'replace',
-              path: `${attackerPath}/背包/${escapedItemName}/数量`,
-                value: (currentItem.数量 || 0) + 1,
-              });
-            } else {
-              extraPatchOps.push({
-                op: 'replace',
-                path: `${attackerPath}/背包/${escapedItemName}`,
-                value: { 数量: 1, 类型: '魂灵', 品质: '普通', 描述: `魂灵塔第${floor}层战利品` },
-              });
-            }
+            log = `🏆[冲塔成功] ${gateMeta.gateLabel}${gateMeta.isGateBoss ? '关底' : ''}镇守第 ${floor} 层的 ${defenderName} 被彻底击溃！当前守塔魂灵已锁定为可选购买目标，请决定是结束冲塔并保留资格，还是继续冲击下一层。`;
           } else if (outcome.isDefeat === true || isDrawOutcome) {
             log = `💀[冲塔失败] 玩家遭到 ${defenderName} 重创，魂灵塔阵法排斥之力发动，将其强行传送出塔外！(请 AI 描写重伤弹出塔外的虚弱状态)`;
             attackerChar.vit = 1;
@@ -10428,6 +10613,7 @@ class BattleUIComponent {
           const previousState = window.BattleUI?.state || {};
           const activeCategory = previousState.activeCategory || '全部';
           const currentIntentMode = previousState.currentIntentMode || combatData.战斗意图 || '点到为止';
+          const pendingTowerSettlement = normalizeSoulTowerPendingSettlement(combatData.魂灵塔待结算);
           const selectedAction = previousState.selectedAction && availableActions.find(action => action.id === previousState.selectedAction.id)
             ? previousState.selectedAction
             : availableActions[0] || null;
@@ -10444,6 +10630,7 @@ class BattleUIComponent {
               selectedPreActions: [],
               currentMode: previousState.currentMode || 'single_round',
               currentIntentMode,
+              pendingTowerSettlement,
             },
           });
           setUiBattleMode(window.BattleUI.state.currentMode);
@@ -10452,6 +10639,7 @@ class BattleUIComponent {
           renderUiActionGrid(availableActions, activeCategory);
           const output = byId('ui-intent-output');
           if (output && selectedAction) output.value = buildIntentText([selectedAction]);
+          renderSoulTowerSettlementPanel(pendingTowerSettlement);
         }
 
         component.syncFromBattleEngine = syncFromBattleEngine;
@@ -10497,8 +10685,149 @@ class BattleUIComponent {
           return parts.join('\n');
         }
 
+        function renderSoulTowerSettlementPanel(pendingSettlement = null) {
+          const node = byId('ui-tower-settlement');
+          const arbitrateBtn = byId('ui-arbitrate');
+          const intentModeInput = byId('ui-intent-mode');
+          const modeButtons = Array.from(document.querySelectorAll('#ui-mode-group .mode-btn'));
+          if (!node) return;
+          if (!pendingSettlement) {
+            node.hidden = true;
+            node.innerHTML = '';
+            if (arbitrateBtn) arbitrateBtn.disabled = false;
+            if (intentModeInput) intentModeInput.disabled = false;
+            modeButtons.forEach(btn => {
+              btn.disabled = false;
+            });
+            return;
+          }
+          node.hidden = false;
+          if (arbitrateBtn) arbitrateBtn.disabled = true;
+          if (intentModeInput) intentModeInput.disabled = true;
+          modeButtons.forEach(btn => {
+            btn.disabled = true;
+          });
+          const spiritText = buildSoulTowerDiscountSpiritDisplay(pendingSettlement.五折魂灵);
+          const continueButton = pendingSettlement.可继续
+            ? `<button class="ghost-btn tower-settlement-action" type="button" data-tower-settlement="continue">继续下一层</button>`
+            : `<span class="tower-settlement-note">已抵达魂灵塔顶层，无法继续上冲。</span>`;
+          node.innerHTML = `
+            <div class="tower-settlement-card">
+              <div class="tower-settlement-head">
+                <b>魂灵塔通关待选择</b>
+                <span>${htmlEscapeText(pendingSettlement.区域标签 || '魂灵塔')}</span>
+              </div>
+              <div class="tower-settlement-body">
+                <span>当前可五折魂灵：${htmlEscapeText(spiritText)}</span>
+                <span>选择结束将保留该资格；选择继续会立即放弃它并进入第${htmlEscapeText(pendingSettlement.下一层 || pendingSettlement.层数 + 1)}层。</span>
+              </div>
+              <div class="tower-settlement-actions">
+                <button class="ghost-btn tower-settlement-action primary" type="button" data-tower-settlement="end">结束并保留资格</button>
+                ${continueButton}
+              </div>
+            </div>
+          `;
+          node.querySelectorAll('[data-tower-settlement]').forEach(button => {
+            button.addEventListener('click', () => {
+              const action = button.getAttribute('data-tower-settlement') || 'end';
+              window.BattleUI?.resolveSoulTowerSettlement?.(action);
+            });
+          });
+        }
+
+        function resolveSoulTowerSettlement(action = 'end') {
+          const choice = action === 'continue' ? 'continue' : 'end';
+          const state = window.BattleUI?.state || {};
+          const combatData = deepClonePlain(getUiCombatData() || state.combatData || {});
+          if (!combatData || !combatData.参战者) return { ok: false, reason: 'combat_missing' };
+          hydrateCombatData(combatData);
+          const pendingSettlement = normalizeSoulTowerPendingSettlement(combatData.魂灵塔待结算);
+          if (!pendingSettlement) return { ok: false, reason: 'tower_settlement_missing' };
+          const playerName = String(combatData?.参战者?.player?.name || state.player?.name || '').trim();
+          if (!playerName) return { ok: false, reason: 'player_missing' };
+          const currentRecord = window.BattleUIBridge?.getMVU(`char.${playerName}.魂灵塔记录`) || {};
+          const nextHighestFloor = Math.max(
+            Math.floor(Number(currentRecord?.最高层 || 0)),
+            Math.floor(Number(pendingSettlement.层数 || 0)),
+          );
+          const nextTowerRecord = {
+            最高层: nextHighestFloor,
+            当前五折魂灵: choice === 'end'
+              ? pendingSettlement.五折魂灵
+              : createEmptySoulTowerDiscountSpiritRecord(),
+          };
+          clearCombatAdjudicationHints(combatData);
+          delete combatData.魂灵塔待结算;
+          combatData.本次操作 = undefined;
+          combatData.前端建议结果 = undefined;
+          combatData.裁断约束 = undefined;
+          combatData.建议终点HP区间 = undefined;
+          combatData.前端推荐终点HP = undefined;
+          combatData.预计HP伤害 = undefined;
+          const extraPatchOps = [
+            {
+              op: 'replace',
+              path: `/char/${escapeJsonPointerSegment(playerName)}/魂灵塔记录`,
+              value: nextTowerRecord,
+            },
+          ];
+
+          if (choice === 'continue' && pendingSettlement.可继续) {
+            const nextFloor = Math.min(SOUL_TOWER_TOTAL_FLOORS, Math.max(1, Math.floor(Number(pendingSettlement.下一层 || pendingSettlement.层数 + 1))));
+            const nextMeta = getSoulTowerGateMeta(nextFloor);
+            combatData.floor = nextFloor;
+            combatData.回合 = 0;
+            combatData.进行中 = true;
+            combatData.裁断结果 = '';
+            combatData.阶段 = '宣告阶段';
+            combatData.大关卡 = nextMeta.gateIndex;
+            combatData.大关标签 = nextMeta.gateLabel;
+            combatData.关卡范围 = nextMeta.gateRangeLabel;
+            combatData.关底战 = nextMeta.isGateBoss;
+            combatData.参战者.enemy = buildSoulTowerGuardianSeed(nextFloor);
+            combatData.参战者.team_enemy = [];
+            extraPatchOps.push({
+              op: 'replace',
+              path: '/sys/系统播报',
+              value: `[魂灵塔] 已放弃第${pendingSettlement.层数}层的五折资格，继续挑战第${nextFloor}层。`,
+            });
+          } else {
+            combatData.进行中 = false;
+            combatData.裁断结果 = `魂灵塔第${pendingSettlement.层数}层通关`;
+            extraPatchOps.push({
+              op: 'replace',
+              path: '/sys/系统播报',
+              value: `[魂灵塔] 已结束本次冲塔，保留当前五折目标：${buildSoulTowerDiscountSpiritDisplay(pendingSettlement.五折魂灵)}。`,
+            });
+          }
+
+          const detail =
+            window.BattleUIBridge?.persistCombatData?.(combatData, {
+              analysis:
+                choice === 'continue'
+                  ? 'Frontend soul tower settlement advanced to the next floor. Apply the patched battle state and latest tower record exactly as given.'
+                  : 'Frontend soul tower settlement ended the run and preserved the latest discount target. Apply the patched tower record and close the battle context.',
+              extraPatchOps,
+              syncHpRecoveryOnly: false,
+            }) || null;
+          return {
+            ok: true,
+            action: choice,
+            floor: pendingSettlement.层数,
+            nextFloor: pendingSettlement.下一层,
+            delivery: detail?.delivery || null,
+          };
+        }
+
         function submitBattleIntent() {
           const state = window.BattleUI?.state || {};
+          if (state.pendingTowerSettlement) {
+            return {
+              ok: false,
+              mode: 'tower_pending_choice',
+              message: '魂灵塔通关后需先选择结束或继续，当前不能直接再次结算。',
+            };
+          }
           const battleMode = state.currentMode === 'multi_round' ? 'multi_round' : 'single_round';
           state.combatData.战斗意图 = state.currentIntentMode || '点到为止';
           const queue = [
@@ -10580,9 +10909,10 @@ class BattleUIComponent {
           initBattleUiFromMvu = async function () {
             await originalInit();
             bindUIEvents();
-            window.BattleUI = Object.assign(window.BattleUI || {}, {
+          window.BattleUI = Object.assign(window.BattleUI || {}, {
               buildIntentText,
               submitBattleIntent,
+              resolveSoulTowerSettlement,
             });
           };
         }

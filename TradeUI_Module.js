@@ -544,7 +544,7 @@ class TradeUIComponent {
     const snapshotActive = String(this.snapshot?.activeName || '').trim();
     if (snapshotActive && chars[snapshotActive]) return snapshotActive;
 
-    const playerName = String(this.snapshot?.sd?.sys?.鐜╁鍚?|| '').trim();
+    const playerName = String(this.snapshot?.sd?.sys?.玩家名 || this.snapshot?.rootData?.sys?.玩家名 || '').trim();
     if (playerName && chars[playerName]) return playerName;
     if (chars['涓昏']) return '涓昏';
 
@@ -558,52 +558,57 @@ class TradeUIComponent {
 
   getCurrencyLabel(currency) {
     return {
-      鑱旈偊甯? '鑱旈偊甯?,
-      鏄熺綏甯? '鏄熺綏甯?,
-      鍞愰棬绉垎: '鍞愰棬绉垎',
-      瀛﹂櫌绉垎: '瀛﹂櫌绉垎',
-      鎴樺姛: '鎴樺姛'
-    }[currency] || '鑱旈偊甯?;
+      联邦币: '联邦币',
+      星罗币: '星罗币',
+      唐门积分: '唐门积分',
+      学院积分: '学院积分',
+      战功: '战功',
+    }[currency] || '联邦币';
   }
 
   getDefaultCurrencyByContext(storeName = '', loc = '', storeData = null) {
     const storeText = String(storeName || '');
-    const locText = String(loc || this.charData?.鐘舵€?.浣嶇疆 || '');
-    const storeFaction = String(storeData?.鎵€灞炲娍鍔?|| '');
+    const locText = String(loc || this.charData?.状态?.位置 || '');
+    const storeFaction = String(storeData?.所属势力 || '');
     const merged = `${storeText}|${locText}|${storeFaction}`;
-    if (/琛€绁瀨鍐涘洟鎴樺|鎴樺姛鍟嗗簵|鍐涢渶澶?.test(merged)) return '鎴樺姛';
-    if (/鍞愰棬/.test(merged)) return '鍞愰棬绉垎';
-    if (/鍙茶幈鍏媩娴风闃亅鍐呴櫌|澶栭櫌/.test(merged)) return '瀛﹂櫌绉垎';
-    if (/鏄熺綏/.test(merged)) return '鏄熺綏甯?;
-    return '鑱旈偊甯?;
+    if (/血神军团战备|战功商店|军需处/.test(merged)) return '战功';
+    if (/唐门/.test(merged)) return '唐门积分';
+    if (/史莱克|海神阁|内院|外院/.test(merged)) return '学院积分';
+    if (/星罗/.test(merged)) return '星罗币';
+    return '联邦币';
   }
 
   resolveTradeCurrency(item = {}, storeName = '', loc = '', storeData = null) {
-    const explicit = String(item?.璐у竵 || '').trim();
+    const explicit = String(item?.货币 || '').trim();
     return explicit || this.getDefaultCurrencyByContext(storeName, loc, storeData);
   }
 
   isCurrencySpendable(currency) {
-    return currency !== '鎴樺姛';
+    return currency !== '战功';
   }
 
   getCurrencyBlockedMessage(currency) {
-    if (currency === '鎴樺姛') return '鎴樺姛涓嶈兘鐩存帴鐢ㄤ簬璐墿锛屽彧鑳界敤浜庡啗鏂规檵鍗囥€佸鎵规垨璧勬牸鐢抽銆?;
-    return '褰撳墠璐у竵涓嶅彲鐩存帴鐢ㄤ簬浜ゆ槗銆?;
+    if (currency === '战功') return '战功不能直接用于购物，只能用于军方晋升、审批或资格申领。';
+    return '当前货币不可直接用于交易。';
   }
 
   syncData() {
-    const loc = this.charData?.鐘舵€?.浣嶇疆 || "鏈煡鍖哄煙";
-    const fedCoin = this.charData?.璐㈠瘜?.鑱旈偊甯?|| 0;
-    const fame = this.charData?.绀句氦?.澹版湜 || 0;
+    const loc = this.charData?.状态?.位置 || "未知区域";
+    const fedCoin = this.charData?.财富?.联邦币 || 0;
+    const fame = this.charData?.社交?.声望 || 0;
 
     this.$('#ui-loc').textContent = loc;
     this.$('#ui-fedcoin').textContent = fedCoin.toLocaleString();
     this.$('#ui-fame').textContent = fame.toLocaleString();
 
     const currentCity = this.resolveTradeLocationNode(loc);
-    this.currentStores = currentCity?.data?.鍟嗗簵 || {};
-    this.currentAuction = this.worldData?.鎷嶅崠 || { 鐘舵€? "浼戝競", 鎷嶅搧: {} };
+    const currentStores = JSON.parse(JSON.stringify(currentCity?.data?.商店 || {}));
+    if (this.canAccessSoulTowerDiscountStore(loc, currentCity)) {
+      const discountStore = this.buildSoulTowerDiscountStoreEntry();
+      if (discountStore) currentStores[SOUL_TOWER_DISCOUNT_STORE_NAME] = discountStore;
+    }
+    this.currentStores = currentStores;
+    this.currentAuction = this.worldData?.拍卖 || { 状态: "休市", 拍品: {} };
 
     this.populateShopData();
     this.populateSellData();
@@ -613,20 +618,20 @@ class TradeUIComponent {
 
   // --- 浼板€间笌涓婁笅鏂?(澶嶅埢鍘熺増) ---
   estimateBasePrice(itemName, itemType = "鐗╁搧") {
-    if (/鏂楅摖/.test(itemName)) return 0;
-    if (/鏈虹敳/.test(itemName)) {
-      if (/绾㈢骇/.test(itemName)) return 5000000000;
-      if (/榛戠骇/.test(itemName)) return 1000000000;
-      if (/绱骇/.test(itemName)) return 80000000;
-      if (/榛勭骇/.test(itemName)) return 6000000;
+    if (/斗铠/.test(itemName)) return 0;
+    if (/机甲/.test(itemName)) {
+      if (/红级/.test(itemName)) return 5000000000;
+      if (/黑级/.test(itemName)) return 1000000000;
+      if (/紫级/.test(itemName)) return 80000000;
+      if (/黄级/.test(itemName)) return 6000000;
       return 6000000;
     }
     let tier = 1;
-    if (/澶╅敾|鍗佷竾骞?.test(itemName)) tier = 5;
-    else if (/榄傞敾|涓囧勾/.test(itemName)) tier = 4;
-    else if (/鐏甸敾|鍗冨勾/.test(itemName)) tier = 3;
-    else if (/鍗冮敾|鐧惧勾/.test(itemName)) tier = 2;
-    else if (/鐧鹃敾/.test(itemName)) tier = 1;
+    if (/天锻|十万年/.test(itemName)) tier = 5;
+    else if (/魂锻|万年/.test(itemName)) tier = 4;
+    else if (/灵锻|千年/.test(itemName)) tier = 3;
+    else if (/千锻|百年/.test(itemName)) tier = 2;
+    else if (/百锻/.test(itemName)) tier = 1;
 
     let metalBasePrice = 10000;
     if (tier === 5) metalBasePrice = 500000000;
@@ -636,14 +641,14 @@ class TradeUIComponent {
     else if (tier === 1) metalBasePrice = 50000;
 
     let metalCount = 1;
-    let match = itemName.match(/(\d+)绉嶉噾灞?);
+    let match = itemName.match(/(\d+)种金属/);
     if (match) metalCount = parseInt(match[1]);
-    else if (/铻嶉敾/.test(itemName)) metalCount = 2;
+    else if (/融锻/.test(itemName)) metalCount = 2;
 
     let totalMetalPrice = metalBasePrice * (1 + (metalCount - 1) * 0.3);
 
-    if (itemType === "鍥剧焊") return Math.floor(totalMetalPrice * 0.2);
-    else if (itemType === "娑堣€楀搧" || itemType === "淇鍖?) return Math.floor(totalMetalPrice * 0.1);
+    if (itemType === "图纸") return Math.floor(totalMetalPrice * 0.2);
+    else if (itemType === "消耗品" || itemType === "修复品") return Math.floor(totalMetalPrice * 0.1);
     else return Math.floor(totalMetalPrice * 1.0);
   }
 
@@ -688,7 +693,7 @@ class TradeUIComponent {
   }
 
   resolveTradeLocationNode(location) {
-    const worldLocations = this.worldData?.閸︽壆鍋?|| {};
+    const worldLocations = this.worldData?.地点 || {};
     const raw = String(location || '').trim();
     const normalized = this.normalizeLocForMatch(raw);
     const candidates = [raw, normalized.raw, normalized.segments[0] || '', normalized.leaf || ''].filter(Boolean);
@@ -824,12 +829,14 @@ class TradeUIComponent {
     if (Array.isArray(safeItem.鏍囩)) nextItem.鏍囩 = safeItem.鏍囩;
     if (safeItem.甯傚満浼板€?&& typeof safeItem.甯傚満浼板€?=== 'object') nextItem.甯傚満浼板€?= safeItem.甯傚満浼板€?
     if (safeItem.鍙氦鏄?!== undefined) nextItem.鍙氦鏄?= safeItem.鍙氦鏄?
+    if (safeItem.年限 !== undefined) nextItem.年限 = safeItem.年限;
+    if (safeItem.标准物种 !== undefined) nextItem.标准物种 = safeItem.标准物种;
     return nextItem;
   }
 
   buildTradeItemMetadataPatches(itemPath, currentItem = {}, nextItem = {}) {
     const patches = [];
-    ['绫诲瀷', '鍝佽川', '鍝侀樁', '鎻忚堪', '瑙﹀彂鏂瑰紡', '鏈夋晥鏈熻嚦', '鏈夋晥鏈熻嚦tick', '鏉ユ簮鎶€鑳?].forEach(field => {
+    ['绫诲瀷', '鍝佽川', '鍝侀樁', '鎻忚堪', '瑙﹀彂鏂瑰紡', '鏈夋晥鏈熻嚦', '鏈夋晥鏈熻嚦tick', '鏉ユ簮鎶€鑳?', '年限', '标准物种'].forEach(field => {
       const nextVal = nextItem[field];
       const curVal = currentItem ? currentItem[field] : undefined;
       if (nextVal === undefined || nextVal === null || nextVal === '') return;
@@ -1060,6 +1067,7 @@ class TradeUIComponent {
     const total = item.浠锋牸 * qty;
     const storeData = this.currentStores[storeName] || {};
     const currency = this.resolveTradeCurrency(item, storeName, this.charData?.鐘舵€?.浣嶇疆 || '', storeData);
+    const isSoulTowerDiscountTrade = item && item._tower_discount_virtual === true;
 
     if (!this.isCurrencySpendable(currency)) return alert(this.getCurrencyBlockedMessage(currency));
 
@@ -1071,13 +1079,15 @@ class TradeUIComponent {
     let isTier1City = economy === '绻佽崳';
     let isTier2_3City = economy === '绻佽崳' || economy === '鏅€?;
 
-    if (isTier4_5 && !isTier1City) return alert("褰撳墠鍩庡競绾у埆涓嶈冻锛?~5闃舵垬鐣ヨ祫婧愯鍓嶅線涓€绾夸富鍩庤喘涔般€?);
-    if (isTier2_3 && !isTier2_3City) return alert("鍋忚繙鍦板尯鐗╄祫鍖箯锛屾棤娉曟彁渚?~3闃惰祫婧愩€?);
+    if (!isSoulTowerDiscountTrade && isTier4_5 && !isTier1City) return alert("褰撳墠鍩庡競绾у埆涓嶈冻锛?~5闃舵垬鐣ヨ祫婧愯鍓嶅線涓€绾夸富鍩庤喘涔般€?);
+    if (!isSoulTowerDiscountTrade && isTier2_3 && !isTier2_3City) return alert("鍋忚繙鍦板尯鐗╄祫鍖箯锛屾棤娉曟彁渚?~3闃惰祫婧愩€?);
 
     let patchOps = [];
     let newWealth = (this.charData.璐㈠瘜?.[currency] || 0) - total;
     patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/璐㈠瘜/${this.escapeJsonPointer(currency)}`, value: newWealth });
-    patchOps.push({ op: "replace", path: `/world/鍦扮偣/${this.escapeJsonPointer(loc)}/鍟嗗簵/${this.escapeJsonPointer(storeName)}/搴撳瓨/${this.escapeJsonPointer(itemName)}/搴撳瓨`, value: item.搴撳瓨 - qty });
+    if (!isSoulTowerDiscountTrade) {
+      patchOps.push({ op: "replace", path: `/world/鍦扮偣/${this.escapeJsonPointer(loc)}/鍟嗗簵/${this.escapeJsonPointer(storeName)}/搴撳瓨/${this.escapeJsonPointer(itemName)}/搴撳瓨`, value: item.搴撳瓨 - qty });
+    }
     
     let invItem = this.charData.鑳屽寘?.[itemName];
     const nextItem = this.buildInventoryItemFromTradeSource(itemName, item, qty, { source: storeName, desc: item.鎻忚堪 || `璐嚜${storeName}` });
@@ -1089,7 +1099,17 @@ class TradeUIComponent {
       patchOps.push({ op: "replace", path: itemPath, value: nextItem });
     }
 
-    const log = `[浜ゆ槗鎴愬姛] ${this.activeName}鍦?${storeName} 鑺辫垂 ${total} ${this.getCurrencyLabel(currency)} 璐拱浜?${qty} 浠姐€?{itemName}銆戙€俙;
+    if (isSoulTowerDiscountTrade) {
+      patchOps.push({
+        op: "replace",
+        path: `${this.activeCharBasePath}/魂灵塔记录/当前五折魂灵`,
+        value: { ...SOUL_TOWER_EMPTY_DISCOUNT_SPIRIT },
+      });
+    }
+
+    const log = isSoulTowerDiscountTrade
+      ? `[魂灵塔兑换] ${this.activeName} 在${storeName}以五折价格兑换了【${itemName}】。`
+      : `[浜ゆ槗鎴愬姛] ${this.activeName}鍦?${storeName} 鑺辫垂 ${total} ${this.getCurrencyLabel(currency)} 璐拱浜?${qty} 浠姐€?{itemName}銆戙€俙;
     patchOps.push(...this.buildTradeSystemPatches(log));
 
     const sysPrompt = this.buildTradeNarrationPrompt(log, [

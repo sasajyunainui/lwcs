@@ -10141,13 +10141,13 @@ export const Schema = z
         nextCoreIndex: 1,
         startLevel: 50,
         bottleneckLevel: 69,
-        baseAttemptChance: 0.011,
+        baseAttemptChance: 0.0107,
         talentRatioMap: Object.freeze({
-          劣等: 0.35,
-          正常: 0.55,
-          优秀: 0.78,
+          劣等: 0.08,
+          正常: 0.20,
+          优秀: 0.55,
           天才: 1.0,
-          顶级天才: 2.9,
+          顶级天才: 2.88,
           绝世妖孽: 3.2,
         }),
       }),
@@ -10156,14 +10156,14 @@ export const Schema = z
         nextCoreIndex: 2,
         startLevel: 80,
         bottleneckLevel: 89,
-        baseAttemptChance: 0.074,
+        baseAttemptChance: 0.0743,
         talentRatioMap: Object.freeze({
-          劣等: 0.2,
-          正常: 0.35,
-          优秀: 0.55,
-          天才: 1.06,
-          顶级天才: 1.4,
-          绝世妖孽: 1.55,
+          劣等: 0.10,
+          正常: 0.20,
+          优秀: 0.35,
+          天才: 0.50,
+          顶级天才: 1.10,
+          绝世妖孽: 1.30,
         }),
       }),
       Object.freeze({
@@ -10171,14 +10171,14 @@ export const Schema = z
         nextCoreIndex: 3,
         startLevel: 95,
         bottleneckLevel: 98,
-        baseAttemptChance: 0.0052,
+        baseAttemptChance: 0.00516,
         talentRatioMap: Object.freeze({
-          劣等: 0.18,
-          正常: 0.32,
-          优秀: 0.5,
-          天才: 0.75,
-          顶级天才: 1.15,
-          绝世妖孽: 1.25,
+          劣等: 0.05,
+          正常: 0.10,
+          优秀: 0.20,
+          天才: 0.35,
+          顶级天才: 0.50,
+          绝世妖孽: 0.80,
         }),
       }),
     ]);
@@ -10244,20 +10244,20 @@ export const Schema = z
         }[talent] || 1.0;
       const realization = ageValue < 12
         ? ({
-            劣等: 0.08,
-            正常: 0.15,
-            优秀: 0.22,
-            天才: 0.28,
-            顶级天才: 0.25,
-            绝世妖孽: 0.3,
+            劣等: 0.02,
+            正常: 0.08,
+            优秀: 0.16,
+            天才: 0.275,
+            顶级天才: 0.248,
+            绝世妖孽: 0.30,
           }[talent] || 0.15)
         : ageValue < 18
           ? ({
-              劣等: 0.3,
-              正常: 0.45,
-              优秀: 0.6,
-              天才: 0.7,
-              顶级天才: 0.9,
+              劣等: 0.10,
+              正常: 0.22,
+              优秀: 0.42,
+              天才: 0.689,
+              顶级天才: 0.894,
               绝世妖孽: 0.95,
             }[talent] || 0.45)
           : 1.0;
@@ -10266,9 +10266,45 @@ export const Schema = z
 
     const getMeditationYouthYieldMultiplier_ACU = char => {
       const ageValue = Math.max(0, Number(char?.属性?.年龄 || 0));
-      if (ageValue < 12) return 0.43;
-      if (ageValue < 18) return 1.1;
-      if (ageValue < 30) return 2.7;
+      if (ageValue < 12) {
+        const talent = String(char?.属性?.天赋梯队 || '').trim();
+        return (
+          {
+            劣等: 0.08,
+            正常: 0.16,
+            优秀: 0.26,
+            天才: 0.428,
+            顶级天才: 0.428,
+            绝世妖孽: 0.45,
+          }[talent] || 0.16
+        );
+      }
+      if (ageValue < 18) {
+        const talent = String(char?.属性?.天赋梯队 || '').trim();
+        return (
+          {
+            劣等: 0.15,
+            正常: 0.28,
+            优秀: 0.52,
+            天才: 1.09,
+            顶级天才: 1.09,
+            绝世妖孽: 1.12,
+          }[talent] || 0.28
+        );
+      }
+      if (ageValue < 30) {
+        const talent = String(char?.属性?.天赋梯队 || '').trim();
+        return (
+          {
+            劣等: 0.20,
+            正常: 0.45,
+            优秀: 1.0,
+            天才: 2.693,
+            顶级天才: 2.693,
+            绝世妖孽: 2.8,
+          }[talent] || 0.45
+        );
+      }
       return 1.0;
     };
 
@@ -10356,7 +10392,7 @@ export const Schema = z
       }
 
       if (normalizedActionMode === '冥想') {
-        const stageBaseRate = coreCount <= 0 ? 0.25 : coreCount === 1 ? 0.9 : coreCount === 2 ? 0.55 : 0.95;
+        const stageBaseRate = coreCount <= 0 ? 0.25 : coreCount === 1 ? 0.915 : coreCount === 2 ? 0.543 : 0.936;
         let baseGrowth = stageBaseRate * (safeDelta / 6);
         const talentCultRate = getMeditationTalentRealizationMultiplier_ACU(c);
         let finalGrowth = baseGrowth * talentCultRate;
@@ -10364,9 +10400,9 @@ export const Schema = z
         if (c.功法?.['玄天功']) finalGrowth *= 1.1;
 
         if (c.属性.等级 >= 20 && c.属性.等级 < 30) {
-          finalGrowth *= 1.0;
+          finalGrowth *= 1.024;
         } else if (c.属性.等级 >= 30 && c.属性.等级 < 40) {
-          finalGrowth *= 1.0;
+          finalGrowth *= 1.014;
         } else if (c.属性.等级 >= 40 && c.属性.等级 < 60) {
           finalGrowth *= 0.865;
         }
