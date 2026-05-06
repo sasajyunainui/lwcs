@@ -80,6 +80,123 @@ class BattleUIComponent {
       return statData ? { ...rawVars, stat_data: statData } : rawVars;
     }
 
+    const SOUL_TOWER_MAX_AGE = 30;
+    const SOUL_TOWER_TEAM_LIMIT = 7;
+    const SOUL_TOWER_MAX_AGE_GAP = 3;
+    const SOUL_TOWER_GATE_SPAN = 10;
+
+    function getCombatUnitAgeValue(unit = {}) {
+      const rawAge = unit?.属性?.年龄 ?? unit?.年龄 ?? unit?.age;
+      if (typeof rawAge === 'number') return Number.isFinite(rawAge) ? rawAge : NaN;
+      const text = String(rawAge == null ? '' : rawAge).trim();
+      if (!text) return NaN;
+      const directNumber = Number(text);
+      if (Number.isFinite(directNumber)) return directNumber;
+      const numericText = text.match(/-?\d+(?:\.\d+)?/);
+      return numericText ? Number(numericText[0]) : NaN;
+    }
+
+    function isSoulTowerEligibleUnit(unit = {}) {
+      const ageValue = getCombatUnitAgeValue(unit);
+      return Number.isFinite(ageValue) && ageValue > 0 && ageValue <= SOUL_TOWER_MAX_AGE;
+    }
+
+    function isSoulTowerCombatTypeValue(combatType = '') {
+      return String(combatType || '').trim() === '魂灵塔冲塔';
+    }
+
+    function getSoulTowerGateMeta(floor = 0) {
+      const safeFloor = Math.max(1, Math.floor(Number(floor) || 1));
+      const gateIndex = Math.floor((safeFloor - 1) / SOUL_TOWER_GATE_SPAN) + 1;
+      const gateStart = (gateIndex - 1) * SOUL_TOWER_GATE_SPAN + 1;
+      const gateEnd = gateStart + SOUL_TOWER_GATE_SPAN - 1;
+      const layerInGate = safeFloor - gateStart + 1;
+      const isGateBoss = layerInGate === SOUL_TOWER_GATE_SPAN;
+      const rewardTier =
+        gateIndex >= 5 ? '十万年'
+          : gateIndex === 4 ? '万年'
+            : gateIndex === 3 ? '千年'
+              : gateIndex === 2 ? '百年'
+                : '十年';
+      return {
+        floor: safeFloor,
+        gateIndex,
+        gateStart,
+        gateEnd,
+        layerInGate,
+        isGateBoss,
+        gateLabel: `第${gateIndex}大关`,
+        gateRangeLabel: `${gateStart}-${gateEnd}层`,
+        rewardTier,
+      };
+    }
+
+    function getSoulTowerPlayerRosterUnits(combatData = {}) {
+      return [combatData?.参战者?.player, ...(combatData?.参战者?.team_player || [])].filter(Boolean);
+    }
+
+    function validateSoulTowerCombatRoster(combatData = {}) {
+      const roster = getSoulTowerPlayerRosterUnits(combatData);
+      if (!roster.length) return { ok: false, message: '魂灵塔队伍为空。' };
+      if (roster.length > SOUL_TOWER_TEAM_LIMIT) {
+        return { ok: false, message: `魂灵塔队伍最多 ${SOUL_TOWER_TEAM_LIMIT} 人。` };
+      }
+      const invalidMember = roster.find(unit => !isSoulTowerEligibleUnit(unit));
+      if (invalidMember) {
+        return {
+          ok: false,
+          message: `${String(invalidMember?.name || invalidMember?.名称 || '队员').trim() || '队员'} 已超过 ${SOUL_TOWER_MAX_AGE} 岁，无法参与魂灵塔试炼。`,
+        };
+      }
+      const ages = roster.map(unit => getCombatUnitAgeValue(unit)).filter(age => Number.isFinite(age) && age > 0);
+      const minAge = Math.min(...ages);
+      const maxAge = Math.max(...ages);
+      if (maxAge - minAge > SOUL_TOWER_MAX_AGE_GAP) {
+        return { ok: false, message: `魂灵塔队伍成员年龄差不能超过 ${SOUL_TOWER_MAX_AGE_GAP} 岁。` };
+      }
+      return { ok: true, rosterCount: roster.length, minAge, maxAge };
+    }
+
+    function applySoulTowerGuardianAura(combatData = {}) {
+      if (!combatData || combatData.__soulTowerAuraApplied === true) return;
+      const meta = getSoulTowerGateMeta(combatData.floor || 1);
+      const enemyRoster = [combatData?.参战者?.enemy, ...(combatData?.参战者?.team_enemy || [])].filter(Boolean);
+      const gateScale = 1 + Math.max(0, meta.gateIndex - 1) * 0.2;
+      const layerScale = 1 + Math.max(0, meta.layerInGate - 1) * 0.025;
+      const bossScale = meta.isGateBoss ? 1.16 : 1.0;
+      const panelScale = Number((gateScale * layerScale * bossScale).toFixed(3));
+      const damageScale = Number((1 + Math.max(0, panelScale - 1) * 0.7).toFixed(3));
+      const controlScale = Number((1 + Math.max(0, panelScale - 1) * 0.8).toFixed(3));
+      enemyRoster.forEach(unit => {
+        if (!unit) return;
+        if (!unit.状态效果 || typeof unit.状态效果 !== 'object') unit.状态效果 = {};
+        unit.状态效果['魂灵塔阶压'] = {
+          类型: 'buff',
+          层数: 1,
+          描述: `${meta.gateLabel}守塔威压`,
+          duration: 999,
+          面板修改比例: {
+            str: panelScale,
+            def: panelScale,
+            agi: Number((1 + Math.max(0, panelScale - 1) * 0.6).toFixed(3)),
+            sp_max: panelScale,
+          },
+          战斗效果: {
+            ...createEmptyCombatEffectMap(),
+            final_damage_mult: damageScale,
+            control_resist_mult: controlScale,
+            shield_gain_mult: meta.isGateBoss ? Number((1 + Math.max(0, panelScale - 1) * 0.5).toFixed(3)) : 1.0,
+            interrupt_bonus: meta.isGateBoss ? 0.18 : 0.08,
+          },
+        };
+      });
+      combatData.__soulTowerAuraApplied = true;
+      combatData.大关卡 = meta.gateIndex;
+      combatData.大关标签 = meta.gateLabel;
+      combatData.关卡范围 = meta.gateRangeLabel;
+      combatData.关底战 = meta.isGateBoss;
+    }
+
     function hasMvuRuntime() {
       return !!getTavernHelperRuntime();
     }
@@ -604,6 +721,11 @@ class BattleUIComponent {
       '允许撤离',
       '环境',
       '裁断结果',
+      'floor',
+      '大关卡',
+      '大关标签',
+      '关卡范围',
+      '关底战',
     ];
 
     const COMBAT_WORLD_TRANSIENT_KEYS = [
@@ -1350,7 +1472,7 @@ class BattleUIComponent {
         skill,
         raw_skill: skill,
         cast_time: fallbackNumber(skill.cast_time ?? systemEffect.cast_time, 10),
-        cost_text: String(skill.消耗 || systemEffect.消耗 || ''),
+        cost_text: skill?.__fusion_display_cost_text ? String(skill.__fusion_display_cost_text) : String(skill.消耗 || systemEffect.消耗 || ''),
         enabled: true,
       });
     }
@@ -1368,7 +1490,9 @@ class BattleUIComponent {
         });
       });
       Object.entries(char.特殊能力 || {}).forEach(([name, skill]) => fallbackPushSkill(actions, skill, name, '特殊能力'));
-      Object.entries(char.武魂融合技 || {}).forEach(([name, fusion]) => fallbackPushSkill(actions, fusion?.技能数据 || fusion, `武魂融合技·${name}`, '融合'));
+      Object.entries(char.武魂融合技 || {}).forEach(([name, fusion]) =>
+        fallbackPushSkill(actions, buildFusionCombatSkill(fusion, name), `武魂融合技·${name}`, '融合'),
+      );
       actions.push(
         { id: 'basic_attack', name: '普通攻击', type: 'tactical', action_type: '常规攻击', category: '战术', cast_time: 10, cost_text: '无', enabled: true, skill: { name: '普通攻击' } },
         { id: 'guard', name: '防御', type: 'tactical', action_type: '防御', category: '战术', cast_time: 10, cost_text: '无', enabled: true, skill: { name: '防御' } },
@@ -1966,7 +2090,7 @@ class BattleUIComponent {
 
     function isSupportLikeSkill(skill) {
       const mainType = inferMainTypeFromEffects(skill) || '';
-      const skillType = normalizeSkillTypeLabel(skill?.技能类型 || inferSkillTypeFromEffects(skill));
+      const skillType = getSkillType(skill);
       return ['增益类', '回复类', '防御类'].includes(mainType) || ['辅助', '防御'].includes(skillType);
     }
 
@@ -2076,15 +2200,14 @@ class BattleUIComponent {
 
     function getSkillEffects(skill) {
       const rawEffects = (Array.isArray(skill?._效果数组) ? skill._效果数组 : []).filter(
-        effect => !isBattleSkillSummaryEffect(effect),
+        effect => effect?.机制 !== '系统基础' && !isBattleSkillSummaryEffect(effect),
       );
       const creationEffects = rawEffects.filter(effect =>
         ['生成造物', '造物生成'].includes(String(effect?.机制 || '')),
       );
       if (!creationEffects.length) return rawEffects;
-      const systemEffects = rawEffects.filter(effect => effect?.机制 === '系统基础');
       const usageEffects = creationEffects.flatMap(effect => (Array.isArray(effect?.使用效果) ? effect.使用效果 : []));
-      return [...systemEffects, ...usageEffects];
+      return usageEffects;
     }
 
     const BATTLE_SKILL_DEFAULT_ATTRIBUTE_COEFF = Object.freeze({
@@ -2563,17 +2686,11 @@ class BattleUIComponent {
     function ensureBattleSkillAttributeBase(skill = {}) {
       if (skill?.__attributeCoeffBase && Array.isArray(skill.__attributeCoeffBase.effects))
         return skill.__attributeCoeffBase;
-      const systemBase = getSystemBaseEffect(skill);
-      const rawCostText =
-        typeof skill?.消耗 === 'object' ? formatCostObjectToString(skill.消耗) : String(skill?.消耗 || '').trim();
-      const systemCostText =
-        typeof systemBase?.消耗 === 'object'
-          ? formatCostObjectToString(systemBase.消耗)
-          : String(systemBase?.消耗 || '').trim();
+      const runtimeMeta = getSkillRuntimeMeta(skill);
       const base = {
         effects: deepClone(skill?._效果数组 || []),
-        cast_time: Number(skill?.cast_time ?? systemBase?.cast_time ?? 0) || 0,
-        cost_text: (rawCostText && rawCostText !== '无' ? rawCostText : systemCostText || rawCostText || '无') || '无',
+        cast_time: Number(runtimeMeta.cast_time ?? 0) || 0,
+        cost_text: runtimeMeta.消耗 || '无',
       };
       skill.__attributeCoeffBase = deepClone(base);
       return skill.__attributeCoeffBase;
@@ -2583,7 +2700,7 @@ class BattleUIComponent {
       if (!Array.isArray(skill._效果数组)) skill._效果数组 = [];
       let stateEffect = skill._效果数组.find(effect => effect?.机制 === '状态挂载');
       if (!stateEffect) {
-        const targetText = String(skill?.对象 || getSystemBaseEffect(skill)?.对象 || '敌方/单体') || '敌方/单体';
+        const targetText = getSkillTarget(skill);
         stateEffect = {
           机制: '状态挂载',
           状态名称: '无',
@@ -2596,8 +2713,7 @@ class BattleUIComponent {
         skill._效果数组.push(stateEffect);
       }
       if (!stateEffect.状态名称 || !String(stateEffect.状态名称).trim()) stateEffect.状态名称 = '无';
-      if (!stateEffect.目标)
-        stateEffect.目标 = String(skill?.对象 || getSystemBaseEffect(skill)?.对象 || '敌方/单体') || '敌方/单体';
+      if (!stateEffect.目标) stateEffect.目标 = getSkillTarget(skill);
       if (!stateEffect.对象) stateEffect.对象 = stateEffect.目标;
       if (
         !stateEffect.面板修改比例 ||
@@ -2861,23 +2977,39 @@ class BattleUIComponent {
     }
 
     function getSystemBaseEffect(skill) {
-      return getSkillEffects(skill).find(effect => effect?.机制 === '系统基础') || {};
+      return (Array.isArray(skill?._效果数组) ? skill._效果数组 : []).find(effect => effect?.机制 === '系统基础') || {};
+    }
+
+    function getSkillRuntimeMeta(skill) {
+      const systemBase = getSystemBaseEffect(skill);
+      const baseType = String(systemBase?.技能类型 || '').trim();
+      const baseTarget = String(systemBase?.对象 || '敌方/单体').trim() || '敌方/单体';
+      const baseCostRaw = systemBase?.消耗 ?? '无';
+      const baseCost =
+        typeof baseCostRaw === 'object' ? formatCostObjectToString(baseCostRaw) : String(baseCostRaw || '无').trim() || '无';
+      const baseCastTime = Number(systemBase?.cast_time ?? 0) || 0;
+      return {
+        技能类型: normalizeSkillTypeLabel(baseType || '无'),
+        对象: baseTarget,
+        消耗: baseCost,
+        cast_time: baseCastTime,
+      };
     }
 
     function getSkillType(skill) {
-      return normalizeSkillTypeLabel(skill?.技能类型 || inferSkillTypeFromEffects(skill));
+      return getSkillRuntimeMeta(skill).技能类型;
     }
 
     function getSkillCastTime(skill) {
-      return Number(skill?.cast_time || getSystemBaseEffect(skill).cast_time || 0);
+      return getSkillRuntimeMeta(skill).cast_time;
     }
 
     function getSkillCostText(skill) {
-      return skill?.消耗 || getSystemBaseEffect(skill).消耗 || '无';
+      return getSkillRuntimeMeta(skill).消耗;
     }
 
     function getSkillTarget(skill) {
-      return skill?.对象 || getSystemBaseEffect(skill).对象 || '敌方/单体';
+      return getSkillRuntimeMeta(skill).对象;
     }
 
     function getPrimaryDamageEffect(skill) {
@@ -3056,10 +3188,11 @@ class BattleUIComponent {
       const defaultSummary = createEmptyBattleSummary();
       const summary = { ...defaultSummary, ...(baseSummary || {}) };
       const systemBase = getSystemBaseEffect(skill);
+      const runtimeMeta = getSkillRuntimeMeta(skill);
       const damage = getPrimaryDamageEffect(skill);
       const state = getPrimaryStateEffect(skill);
       const stateCalc = state?.计算层效果 || {};
-      const targetText = String(systemBase?.对象 || '');
+      const targetText = String(runtimeMeta.对象 || '');
       const power = Number(damage?.威力倍率 || 0);
       const duration = Number(state?.持续回合 || 0);
       const skillName = String(skill?.name || skill?.技能名称 || '');
@@ -3175,7 +3308,7 @@ class BattleUIComponent {
         let reserve = 0;
         if (/真身|武魂融合技|生命之火|第八魂技|第九魂技/.test(skillName)) reserve += 35;
         if (power >= 280) reserve += 20;
-        if (Number(systemBase?.cast_time || 0) >= 25) reserve += 15;
+        if (Number(runtimeMeta.cast_time || 0) >= 25) reserve += 15;
         if (hasSkillMechanism(skill, ['免死', '格挡', '受击反击', '反制', '条件触发', '效果反转', '高波动随机值']))
           reserve += 10;
         if (/维持|启动\)/.test(costText)) reserve += 10;
@@ -3455,6 +3588,9 @@ class BattleUIComponent {
       combatData.参战者.team_enemy = Array.isArray(combatData.参战者.team_enemy)
         ? combatData.参战者.team_enemy.map(expandCombatParticipantFromMvu)
         : [];
+      if (isSoulTowerCombatTypeValue(combatData.战斗类型 || '')) {
+        applySoulTowerGuardianAura(combatData);
+      }
       const playerRoster = [combatData.参战者.player, ...(combatData.参战者.team_player || [])].filter(
         Boolean,
       );
@@ -3523,20 +3659,18 @@ class BattleUIComponent {
       normalized._效果数组 = Array.isArray(normalized._效果数组) ? normalized._效果数组 : [];
       normalized.element = getBattleSkillDisplayElement(normalized);
 
-      const systemBase = getSystemBaseEffect(normalized);
-      if (systemBase && Object.keys(systemBase).length > 0) {
-        if (!normalized.消耗 || normalized.消耗 === '无') {
-          normalized.消耗 = systemBase.消耗 || '无';
-        }
-        if (!normalized.对象 || normalized.对象 === '无') {
-          normalized.对象 = systemBase.对象 || normalized.对象 || '敌方/单体';
-        }
-        if (!normalized.技能类型 || normalized.技能类型 === '无') {
-          normalized.技能类型 = getSkillType(normalized);
-        }
-        if (!(normalized.cast_time > 0)) {
-          normalized.cast_time = Number(systemBase.cast_time ?? 0) || 0;
-        }
+      const runtimeMeta = getSkillRuntimeMeta(normalized);
+      if (!normalized.消耗 || normalized.消耗 === '无') {
+        normalized.消耗 = runtimeMeta.消耗 || '无';
+      }
+      if (!normalized.对象 || normalized.对象 === '无') {
+        normalized.对象 = runtimeMeta.对象 || '敌方/单体';
+      }
+      if (!normalized.技能类型 || normalized.技能类型 === '无') {
+        normalized.技能类型 = runtimeMeta.技能类型 || '无';
+      }
+      if (!(normalized.cast_time > 0)) {
+        normalized.cast_time = Number(runtimeMeta.cast_time ?? 0) || 0;
       }
 
       // 新版本中所有的机制均扁平化存放在 _效果数组 中
@@ -3562,6 +3696,154 @@ class BattleUIComponent {
       return fusionSkill?.融合模式 === 'self' ? 'self' : 'partner';
     }
 
+    function splitFusionPartnerText(rawValue = '') {
+      return String(rawValue || '')
+        .split(/[、,，+\/|｜；;]/)
+        .map(item => String(item || '').trim())
+        .filter(Boolean);
+    }
+
+    function normalizeFusionSkillParticipants(fusionSkill = {}) {
+      const rawParticipants = Array.isArray(fusionSkill?.融合参与者) ? fusionSkill.融合参与者 : [];
+      if (rawParticipants.length) {
+        return rawParticipants
+          .map(participant => {
+            const raw = participant && typeof participant === 'object' ? participant : {};
+            const roleText = String(raw.role || raw.类型 || raw.身份 || '').trim();
+            const role = roleText === 'self' || /自身|自体|本体|自己/.test(roleText) ? 'self' : 'partner';
+            const charName = String(
+              raw.charName || raw.char_name || raw.name || raw.角色 || raw.角色名 || raw.charKey || raw.char_key || raw.key || '',
+            ).trim();
+            const charKey = String(raw.charKey || raw.char_key || raw.key || raw.角色键 || '').trim();
+            const spirit = String(raw.spirit || raw.spiritName || raw.spirit_name || raw.武魂 || raw.来源武魂 || '').trim();
+            return { role, charName, charKey, spirit };
+          })
+          .filter(participant => participant.charName || participant.charKey || participant.spirit);
+      }
+      const mode = getFusionSkillMode(fusionSkill);
+      if (mode === 'self') {
+        return getFusionSkillSourceSpirits(fusionSkill).map(slot => ({ role: 'self', charName: '', charKey: '', spirit: slot }));
+      }
+      return splitFusionPartnerText(fusionSkill?.融合对象 || '').map(name => ({
+        role: 'partner',
+        charName: name,
+        charKey: '',
+        spirit: '',
+      }));
+    }
+
+    function getFusionSkillPartnerNames(fusionSkill = {}) {
+      const names = normalizeFusionSkillParticipants(fusionSkill)
+        .filter(participant => participant.role !== 'self')
+        .map(participant => participant.charName || participant.charKey)
+        .filter(Boolean);
+      return Array.from(new Set(names));
+    }
+
+    function getFusionSkillPartnerName(fusionSkill = {}) {
+      const names = getFusionSkillPartnerNames(fusionSkill);
+      return names.length ? names.join('、') : String(fusionSkill?.融合对象 || '').trim();
+    }
+
+    function buildFusionBattleProfile(mode = 'partner', partnerCount = 1) {
+      const safeMode = mode === 'self' ? 'self' : 'partner';
+      const safePartnerCount = Math.max(1, Math.floor(Number(partnerCount || 1)));
+      const multiPartnerBonus = Math.min(0.12, Math.max(0, safePartnerCount - 1) * 0.05);
+      if (safeMode === 'self') {
+        return {
+          mode: safeMode,
+          partnerCount: 0,
+          actorCostScale: 1.35,
+          partnerPoolScale: 0,
+          castTimeScale: 1.08,
+          damageMult: 1.5,
+          recoverMult: 1.38,
+          shieldMult: 1.38,
+          stateScale: 1.3,
+          controlScale: 1.35,
+          aftermathDuration: 2,
+          aftermathPanelScale: 0.78,
+          aftermathDamageMult: 0.76,
+          aftermathHealMult: 0.78,
+          aftermathShieldMult: 0.78,
+          aftermathCastPenalty: 0.42,
+          aftermathDodgePenalty: 0.15,
+          aftermathReactionPenalty: 0.15,
+          aftermathResourceBlock: 0.28,
+        };
+      }
+      return {
+        mode: safeMode,
+        partnerCount: safePartnerCount,
+        actorCostScale: 1.1,
+        partnerPoolScale: 0.6,
+        castTimeScale: 1.15,
+        damageMult: 1.65 + multiPartnerBonus,
+        recoverMult: 1.5 + multiPartnerBonus * 0.6,
+        shieldMult: 1.5 + multiPartnerBonus * 0.6,
+        stateScale: 1.42 + multiPartnerBonus * 0.5,
+        controlScale: 1.5 + multiPartnerBonus * 0.6,
+        aftermathDuration: 2,
+        aftermathPanelScale: 0.82,
+        aftermathDamageMult: 0.82,
+        aftermathHealMult: 0.82,
+        aftermathShieldMult: 0.82,
+        aftermathCastPenalty: 0.35,
+        aftermathDodgePenalty: 0.12,
+        aftermathReactionPenalty: 0.12,
+        aftermathResourceBlock: 0.22,
+      };
+    }
+
+    function getFusionBattleProfileFromSkill(skill = {}) {
+      return skill?.__fusion_profile && typeof skill.__fusion_profile === 'object' ? skill.__fusion_profile : null;
+    }
+
+    function buildFusionCombatSkill(fusionSkill = {}, fusionName = '武魂融合技') {
+      const skill = normalizeSkillData(fusionSkill?.技能数据, `武魂融合技·${fusionName}`);
+      const mode = getFusionSkillMode(fusionSkill);
+      const partnerNames = getFusionSkillPartnerNames(fusionSkill);
+      const profile = buildFusionBattleProfile(mode, partnerNames.length || 1);
+      const effects = Array.isArray(skill._效果数组) ? skill._效果数组 : [];
+      const systemBase = effects.find(effect => effect?.机制 === '系统基础');
+      const baseCostText = String(systemBase?.消耗 || skill.消耗 || '无').trim() || '无';
+      const actorCostText = scaleSkillCostText(baseCostText, profile.actorCostScale);
+      const partnerCostRatio =
+        mode === 'partner' && partnerNames.length > 0
+          ? Number(profile.partnerPoolScale || 0) / Math.max(1, partnerNames.length)
+          : 0;
+      const partnerCostText = partnerCostRatio > 0 ? scaleSkillCostText(actorCostText, partnerCostRatio) : '无';
+      const baseCastTime = Number(systemBase?.cast_time ?? skill.cast_time ?? 0) || 0;
+      const nextCastTime = Math.max(baseCastTime > 0 ? 1 : 0, Math.round(baseCastTime * Number(profile.castTimeScale || 1)));
+
+      if (systemBase) {
+        systemBase.消耗 = actorCostText;
+        systemBase.cast_time = nextCastTime;
+      }
+      skill.消耗 = actorCostText;
+      skill.cast_time = nextCastTime;
+      skill.source_tag = '武魂融合技';
+      skill.__融合模式 = mode;
+      skill.__融合对象 = partnerNames.length ? partnerNames.join('、') : '无';
+      skill.__fusion_profile = { ...profile, partnerNames: [...partnerNames] };
+      skill.__fusion_partner_names = [...partnerNames];
+      skill.__fusion_partner_cost_text = partnerCostText;
+      skill.__fusion_display_cost_text =
+        partnerCostText !== '无' && partnerNames.length
+          ? `${actorCostText} | 共耗(${partnerNames.join('、')}): ${partnerCostText}`
+          : actorCostText;
+      skill.标签 = Array.isArray(skill.标签) ? skill.标签 : [];
+      if (!skill.标签.includes('武魂融合技')) skill.标签.push('武魂融合技');
+      if (!skill.标签.includes(mode === 'self' ? '自体融合' : '搭档融合')) skill.标签.push(mode === 'self' ? '自体融合' : '搭档融合');
+      return skill;
+    }
+
+    function getFusionSkillDisplayCostText(skill = {}) {
+      const displayText = String(skill?.__fusion_display_cost_text || '').trim();
+      if (displayText) return displayText;
+      return getSkillCostText(skill);
+    }
+
     function getFusionSkillSourceSpirits(fusionSkill = {}) {
       const rawSlots = Array.isArray(fusionSkill?.来源武魂) ? fusionSkill.来源武魂 : [];
       const slots = rawSlots
@@ -3581,9 +3863,11 @@ class BattleUIComponent {
         const slots = getFusionSkillSourceSpirits(fusionSkill);
         return slots.length >= 2 && slots.every(slot => hasUsableSpiritSlot(charData, slot));
       }
-      const partnerName = String(fusionSkill?.partner || '').trim();
-      if (!partnerName || partnerName === '无') return false;
-      return (alliedTeam || []).some(unit => unit.name === partnerName && isCombatUnitAbleToFight(unit));
+      const partnerNames = getFusionSkillPartnerNames(fusionSkill);
+      if (!partnerNames.length) return false;
+      return partnerNames.every(partnerName =>
+        (alliedTeam || []).some(unit => isCombatUnitIdentityMatch(unit, partnerName) && isCombatUnitAbleToFight(unit)),
+      );
     }
 
     function buildFusionCastNarration(fusionSkill, actorName = '施术者') {
@@ -3591,7 +3875,7 @@ class BattleUIComponent {
         const slots = getFusionSkillSourceSpirits(fusionSkill);
         return `${actorName}将${slots.join('与')}同频共振，自体交融，悍然施展了武魂融合技！`;
       }
-      return `${actorName}与${fusionSkill?.partner || '同伴'}气息交融，果断施展了武魂融合技！`;
+      return `${actorName}与${getFusionSkillPartnerName(fusionSkill) || '同伴'}气息交融，果断施展了武魂融合技！`;
     }
 
     function parseResourceCostValue(costStr, label, currentValue, maxValue) {
@@ -3641,18 +3925,47 @@ class BattleUIComponent {
       const staminaCostScale = hpRatio <= 0.2 ? 2 : 1;
       const reqVit = Math.floor(rawReqVit * costScale * staminaCostScale);
       const reqMen = Math.floor(rawReqMen * costScale);
+      const selfCanCast =
+        ((stats.sp ?? stats.魂力) || 0) >= reqSp &&
+        ((stats.sta ?? stats.体力 ?? stats.vit) || 0) >= reqVit &&
+        ((stats.men ?? stats.精神力) || 0) >= reqMen;
+      const fusionProfile = getFusionBattleProfileFromSkill(skill);
+      const result = {
+        reqSp,
+        reqVit,
+        reqMen,
+        costScale,
+        canCast: selfCanCast,
+        failureReason: selfCanCast ? '' : '自身状态不足',
+        partnerCosts: [],
+      };
+      if (!fusionProfile || fusionProfile.mode !== 'partner') return result;
 
-        return {
-          reqSp,
-          reqVit,
-          reqMen,
-          costScale,
-          canCast:
-          ((stats.sp ?? stats.魂力) || 0) >= reqSp &&
-          ((stats.sta ?? stats.体力 ?? stats.vit) || 0) >= reqVit &&
-          ((stats.men ?? stats.精神力) || 0) >= reqMen,
-        };
+      const partnerUnits = resolveFusionPartnerUnitsForSkill(skill, [], null, char);
+      const expectedNames = Array.isArray(skill?.__fusion_partner_names) ? skill.__fusion_partner_names : [];
+      if (partnerUnits.length < Math.max(1, expectedNames.length)) {
+        result.canCast = false;
+        result.failureReason = expectedNames.length ? `搭档[${expectedNames.join('、')}]未到位` : '搭档未到位';
+        return result;
       }
+
+      const partnerCostText = String(skill?.__fusion_partner_cost_text || '无').trim() || '无';
+      const partnerCosts = partnerUnits.map(unit => {
+        const parsed = parseCostStringForChar(partnerCostText, unit, 1);
+        return {
+          ...parsed,
+          unit,
+          name: String(unit?.name || unit?.名称 || '搭档').trim() || '搭档',
+        };
+      });
+      result.partnerCosts = partnerCosts;
+      const failedPartner = partnerCosts.find(item => !item.canCast);
+      if (failedPartner) {
+        result.canCast = false;
+        result.failureReason = `${failedPartner.name}状态不足`;
+      }
+      return result;
+    }
 
     function chooseWeightedOption(options) {
       const valid = (options || []).filter(option => option && option.weight > 0);
@@ -3693,8 +4006,7 @@ class BattleUIComponent {
 
     function isPassiveSkillData(skill) {
       if (!skill || typeof skill !== 'object') return false;
-      const systemBase = getSystemBaseEffect(skill) || {};
-      const rawType = systemBase?.技能类型 || skill?.技能类型 || '无';
+      const rawType = getSkillType(skill);
       return /被动/.test(String(rawType || ''));
     }
 
@@ -3745,12 +4057,10 @@ class BattleUIComponent {
 
       Object.entries(charData?.武魂融合技 || {}).forEach(([fusionName, fusionSkill]) => {
         if (!isFusionSkillAvailable(charData, fusionSkill, alliedTeam)) return;
-        const nSkill = normalizeSkillData(fusionSkill.技能数据, `武魂融合技·${fusionName}`);
+        const nSkill = buildFusionCombatSkill(fusionSkill, fusionName);
         const isPassive = isPassiveSkillData(nSkill);
         if (isPassive && !collectOptions.includePassive) return;
         if (!isPassive && !collectOptions.includeActive) return;
-        nSkill.source_tag = '武魂融合技';
-        nSkill.__融合模式 = getFusionSkillMode(fusionSkill);
         skills.push(nSkill);
       });
 
@@ -5148,8 +5458,9 @@ class BattleUIComponent {
 
           // 简单判断 NPC 是否被打断 (如果玩家伤害极高或带有硬控，视为打断)
           const playerStateCalc = getPrimaryStateCalc(playerAction.skill);
-          const playerInterruptChance = Number(
-            getSkillEffects(playerAction.skill).find(e => e?.机制 === '打断')?.中断概率 || 0,
+          const playerInterruptChance = Math.max(
+            Number(getSkillEffects(playerAction.skill).find(e => e?.机制 === '打断')?.中断概率 || 0),
+            Number(getFusionScaledInterruptChance(playerAction.skill) || 0),
           );
           let isNpcInterrupted =
             settleResult.dmg / defender.vit_max >= 0.15 ||
@@ -5206,6 +5517,8 @@ class BattleUIComponent {
             'NPC',
           );
           if (defenderInterruptLog) roundLog += ` ${defenderInterruptLog}`;
+          const fusionAftermathLog = applyFusionActionAftermath(attacker, playerAction, combatData);
+          if (fusionAftermathLog) roundLog += ` ${fusionAftermathLog}`;
 
           // --- 第五步：装备护主与战损结算 ---
           let combatType = combatData.战斗类型 || '突发遭遇';
@@ -5386,6 +5699,181 @@ class BattleUIComponent {
         return roster.find(unit => String(unit?.name || '').trim() === wanted) || null;
       }
 
+      function isCombatUnitIdentityMatch(unit, rawIdentity = '') {
+        const wanted = String(rawIdentity || '').trim();
+        if (!unit || !wanted) return false;
+        const candidates = [
+          unit.name,
+          unit.名称,
+          unit.charKey,
+          unit.char_key,
+          unit.key,
+        ]
+          .map(value => String(value || '').trim())
+          .filter(Boolean);
+        return candidates.includes(wanted);
+      }
+
+      function getCurrentBattleContextSnapshot() {
+        return window.BattleUIBridge?.getBattleContext?.() || window.BattleUIBridge?.getMVU?.('world.战斗') || null;
+      }
+
+      function getBattleRosterUnits(combatData) {
+        return [
+          combatData?.参战者?.player,
+          combatData?.参战者?.enemy,
+          ...(combatData?.参战者?.team_player || []),
+          ...(combatData?.参战者?.team_enemy || []),
+        ].filter(Boolean);
+      }
+
+      function resolveFusionPartnerUnitsForSkill(skill = {}, alliedTeam = [], battleContext = null, actorRef = null) {
+        const partnerNames = Array.isArray(skill?.__fusion_partner_names) ? skill.__fusion_partner_names : [];
+        if (!partnerNames.length) return [];
+        const roster = [
+          ...(Array.isArray(alliedTeam) ? alliedTeam : []),
+          ...getBattleRosterUnits(battleContext || getCurrentBattleContextSnapshot()),
+        ].filter(Boolean);
+        const actorName = String(actorRef?.name || actorRef?.名称 || actorRef?.charKey || '').trim();
+        const matchedUnits = [];
+        partnerNames.forEach(partnerName => {
+          const unit = roster.find(candidate => {
+            if (!candidate) return false;
+            if (actorName && isCombatUnitIdentityMatch(candidate, actorName)) return false;
+            if (matchedUnits.includes(candidate)) return false;
+            return isCombatUnitIdentityMatch(candidate, partnerName);
+          });
+          if (unit) matchedUnits.push(unit);
+        });
+        return matchedUnits;
+      }
+
+      function deductParsedCostFromUnit(targetUnit, parsed = {}) {
+        if (!targetUnit || !parsed) return;
+        const stats = targetUnit.属性 || targetUnit;
+        stats.sp = Math.max(0, Number(stats.sp ?? stats.魂力 ?? 0) - Number(parsed.reqSp || 0));
+        stats.sta = Math.max(0, Number(stats.sta ?? stats.体力 ?? stats.vit ?? 0) - Number(parsed.reqVit || 0));
+        stats.men = Math.max(0, Number(stats.men ?? stats.精神力 ?? 0) - Number(parsed.reqMen || 0));
+      }
+
+      function scaleFusionPanelModifierMap(panelMods = {}, fusionProfile = null) {
+        if (!fusionProfile) return { ...(panelMods || {}) };
+        const next = { ...(panelMods || {}) };
+        const ratio = Number(fusionProfile.stateScale || 1);
+        Object.keys(next).forEach(key => {
+          const value = Number(next[key]);
+          if (!Number.isFinite(value) || Math.abs(value - 1) < 0.0001) return;
+          next[key] = value >= 1 ? scaleBattleFactor(value, ratio, 1) : scaleBattleDebuffRatio(value, ratio, 1);
+        });
+        return next;
+      }
+
+      function scaleFusionCombatEffectMap(calc = {}, fusionProfile = null) {
+        if (!fusionProfile) return { ...(calc || {}) };
+        const next = mergeCombatEffectMaps(createEmptyCombatEffectMap(), calc || {});
+        const damageScale = Number(fusionProfile.damageMult || 1);
+        const recoverScale = Number(fusionProfile.recoverMult || 1);
+        const shieldScale = Number(fusionProfile.shieldMult || 1);
+        const stateScale = Number(fusionProfile.stateScale || 1);
+        const controlScale = Number(fusionProfile.controlScale || 1);
+
+        ['hit_bonus', 'reaction_bonus', 'dodge_bonus', 'attacker_speed_bonus', 'cast_speed_bonus', 'interrupt_bonus', 'control_success_bonus'].forEach(
+          key => {
+            if (next[key] !== undefined) next[key] = scaleBattleValue(next[key], controlScale, { digits: 4 });
+          },
+        );
+        ['reaction_penalty', 'hit_penalty', 'dodge_penalty', 'cast_speed_penalty', 'control_success_penalty'].forEach(key => {
+          if (next[key] !== undefined) next[key] = scaleBattleValue(next[key], controlScale, { digits: 4 });
+        });
+        ['damage_reduction', 'counter_attack_ratio', 'sp_gain_ratio', 'men_gain_ratio', 'hot_heal_ratio', 'heal_block_ratio', 'resource_block_ratio', 'bonus_true_damage_ratio', 'life_steal_ratio'].forEach(
+          key => {
+            if (next[key] !== undefined) next[key] = scaleBattleValue(next[key], key.includes('heal') || key.includes('gain') ? recoverScale : stateScale, {
+              min: 0,
+              max: key.includes('ratio') || key.includes('reduction') || key.includes('block') ? 1 : undefined,
+              digits: 4,
+            });
+          },
+        );
+        if (next.lock_level !== undefined) next.lock_level = scaleBattleLockLevel(next.lock_level, controlScale);
+        if (next.dot_damage !== undefined) next.dot_damage = scaleBattleValue(next.dot_damage, damageScale, { min: 0, digits: 2 });
+        if (next.final_damage_mult !== undefined) next.final_damage_mult = scaleBattleFactor(next.final_damage_mult, damageScale, 1);
+        if (next.final_damage_bonus !== undefined) next.final_damage_bonus = scaleBattleValue(next.final_damage_bonus, damageScale, { min: 0, digits: 2 });
+        if (next.final_heal_mult !== undefined) next.final_heal_mult = scaleBattleFactor(next.final_heal_mult, recoverScale, 1);
+        if (next.final_heal_bonus !== undefined) next.final_heal_bonus = scaleBattleValue(next.final_heal_bonus, recoverScale, { min: 0, digits: 2 });
+        if (next.shield_gain_mult !== undefined) next.shield_gain_mult = scaleBattleFactor(next.shield_gain_mult, shieldScale, 1);
+        if (next.shield_gain_bonus !== undefined) next.shield_gain_bonus = scaleBattleValue(next.shield_gain_bonus, shieldScale, { min: 0, digits: 2 });
+        if (next.control_resist_mult !== undefined) next.control_resist_mult = scaleBattleFactor(next.control_resist_mult, stateScale, 1);
+        if (next.control_resist_bonus !== undefined) next.control_resist_bonus = scaleBattleValue(next.control_resist_bonus, stateScale, { digits: 4 });
+        if (next.min_hp_floor !== undefined) next.min_hp_floor = Math.max(0, Math.round(Number(next.min_hp_floor || 0) * stateScale));
+        if (next.death_save_count !== undefined) next.death_save_count = Math.max(0, Math.round(Number(next.death_save_count || 0) * stateScale));
+        return next;
+      }
+
+      function getFusionScaledInterruptChance(skill = {}) {
+        const interruptEffect = getSkillEffects(skill).find(effect => effect?.机制 === '打断') || {};
+        const baseChance = Number(interruptEffect?.中断概率 || 0);
+        const fusionProfile = getFusionBattleProfileFromSkill(skill);
+        if (!fusionProfile) return baseChance;
+        return scaleBattleValue(baseChance, Number(fusionProfile.controlScale || 1), { min: 0, max: 1, digits: 4 });
+      }
+
+      function createFusionAftermathCondition(fusionProfile = {}, skillName = '武魂融合技') {
+        return {
+          类型: 'debuff',
+          层数: 1,
+          描述: `施展[${skillName}]后的共鸣透支`,
+          duration: Math.max(1, Math.round(Number(fusionProfile.aftermathDuration || 2))),
+          面板修改比例: {
+            str: Number(fusionProfile.aftermathPanelScale || 0.82),
+            def: Number(fusionProfile.aftermathPanelScale || 0.82),
+            agi: Number(fusionProfile.aftermathPanelScale || 0.82),
+            sp_max: 1.0,
+          },
+          战斗效果: {
+            ...createEmptyCombatEffectMap(),
+            final_damage_mult: Number(fusionProfile.aftermathDamageMult || 0.82),
+            final_heal_mult: Number(fusionProfile.aftermathHealMult || 0.82),
+            shield_gain_mult: Number(fusionProfile.aftermathShieldMult || 0.82),
+            cast_speed_penalty: Number(fusionProfile.aftermathCastPenalty || 0.35),
+            dodge_penalty: Number(fusionProfile.aftermathDodgePenalty || 0.12),
+            reaction_penalty: Number(fusionProfile.aftermathReactionPenalty || 0.12),
+            resource_block_ratio: Number(fusionProfile.aftermathResourceBlock || 0.22),
+          },
+        };
+      }
+
+      function applyFusionAftermathCondition(targetUnit, fusionProfile = {}, skillName = '武魂融合技') {
+        if (!targetUnit) return false;
+        if (!targetUnit.状态效果) targetUnit.状态效果 = {};
+        const nextCondition = createFusionAftermathCondition(fusionProfile, skillName);
+        const existing = targetUnit.状态效果['融合后虚弱'];
+        if (existing && typeof existing === 'object') {
+          existing.duration = Math.max(Number(existing.duration || 0), Number(nextCondition.duration || 0));
+          existing.描述 = nextCondition.描述;
+          existing.面板修改比例 = nextCondition.面板修改比例;
+          existing.战斗效果 = nextCondition.战斗效果;
+        } else {
+          targetUnit.状态效果['融合后虚弱'] = nextCondition;
+        }
+        return true;
+      }
+
+      function applyFusionActionAftermath(attackerChar, playerAction, battleContext = null) {
+        if (!playerAction?.skill || playerAction.__fusion_aftermath_applied) return '';
+        const fusionProfile = getFusionBattleProfileFromSkill(playerAction.skill);
+        if (!fusionProfile) return '';
+        const skillName = String(playerAction.skill?.name || playerAction.skill?.魂技名 || '武魂融合技').trim() || '武魂融合技';
+        const partnerUnits = Array.isArray(playerAction.__fusion_partner_units) && playerAction.__fusion_partner_units.length
+          ? playerAction.__fusion_partner_units
+          : resolveFusionPartnerUnitsForSkill(playerAction.skill, [], battleContext, attackerChar);
+        const affectedUnits = [attackerChar, ...partnerUnits].filter((unit, index, list) => unit && list.indexOf(unit) === index);
+        if (!affectedUnits.length) return '';
+        affectedUnits.forEach(unit => applyFusionAftermathCondition(unit, fusionProfile, skillName));
+        playerAction.__fusion_aftermath_applied = true;
+        const affectedNames = affectedUnits.map(unit => unit?.name || unit?.名称 || '施术者').filter(Boolean);
+        return `[融合反噬] ${affectedNames.join('、')}施展[${skillName}]后经络与精神同步透支，全部陷入[融合后虚弱]。`;
+      }
+
       function resolveSupportCostTarget(attackerChar, playerAction) {
         const skill = playerAction?.skill;
         if (!skill || !isSupportLikeSkill(skill)) return null;
@@ -5414,13 +5902,22 @@ class BattleUIComponent {
           const supportCostTarget = resolveSupportCostTarget(attackerChar, playerAction);
           if (supportCostTarget) playerAction.skill.__targetForSupportCost = supportCostTarget;
           const costParts = splitSkillCostModes(playerAction.skill.消耗);
-          const parsedCost = parseCostStringForChar(costParts.upfront, attackerChar);
+          const parsedCost = parseSkillCostForChar(
+            { ...playerAction.skill, 消耗: costParts.upfront || '无' },
+            attackerChar,
+          );
           delete playerAction.skill.__targetForSupportCost;
 
           if (parsedCost.canCast) {
-            stats.sp -= parsedCost.reqSp;
-            stats.sta -= parsedCost.reqVit;
-            stats.men -= parsedCost.reqMen;
+            deductParsedCostFromUnit(attackerChar, parsedCost);
+            playerAction.__fusion_partner_units = Array.isArray(parsedCost.partnerCosts)
+              ? parsedCost.partnerCosts.map(item => item.unit).filter(Boolean)
+              : [];
+            const partnerCostParts = [];
+            (parsedCost.partnerCosts || []).forEach(partnerCost => {
+              deductParsedCostFromUnit(partnerCost.unit, partnerCost);
+              partnerCostParts.push(`${partnerCost.name}:${formatParsedCost(partnerCost)}`);
+            });
 
             const sustainConfig = resolveActionSustainConfig(
               attackerChar,
@@ -5442,10 +5939,10 @@ class BattleUIComponent {
               );
             }
 
-            log = `[战前消耗] 释放[${playerAction.skill.name}]，扣除 ${parsedCost.reqSp ? '魂力:' + parsedCost.reqSp : ''} ${parsedCost.reqVit ? '体力:' + parsedCost.reqVit : ''} ${parsedCost.reqMen ? '精神力:' + parsedCost.reqMen : ''}。${shouldRegisterSustain ? '(已登记持续维持)' : ''}`;
+            log = `[战前消耗] 释放[${playerAction.skill.name}]，自身扣除 ${formatParsedCost(parsedCost)}${partnerCostParts.length ? `；共鸣分担 ${partnerCostParts.join('；')}` : ''}。${shouldRegisterSustain ? '(已登记持续维持)' : ''}`;
           } else {
             playerAction.action_type = '施法失败';
-            log = `[状态枯竭] 自身状态不足以支撑[${playerAction.skill.name}]的启动消耗，施法失败！`;
+            log = `[状态枯竭] ${parsedCost.failureReason || '自身状态不足'}，无法支撑[${playerAction.skill.name}]的启动消耗，施法失败！`;
             return log;
           }
         }
@@ -5695,15 +6192,17 @@ class BattleUIComponent {
         }
 
         if (combatType === '魂灵塔冲塔') {
+          const rosterCheck = validateSoulTowerCombatRoster(combatData);
+          if (!rosterCheck.ok) {
+            log = `[魂灵塔资格驳回] ${rosterCheck.message}`;
+            return { log, extraPatchOps };
+          }
           let floor = combatData.floor || 1;
+          const gateMeta = getSoulTowerGateMeta(floor);
           if (isVictoryOutcome) {
-            let ageDesc = '十年';
-            if (floor >= 40) ageDesc = '十万年';
-            else if (floor >= 30) ageDesc = '万年';
-            else if (floor >= 20) ageDesc = '千年';
-            else if (floor >= 10) ageDesc = '百年';
+            const ageDesc = gateMeta.rewardTier;
 
-            log = `🏆[冲塔成功] 镇守第 ${floor} 层的 ${defenderName} 被彻底击溃！玩家成功通关本层，获得了该层魂灵的【五折购买特权】，并获赠【${ageDesc}魂灵(冲塔自选)】！(请 AI 描写通关奖励降落的场景)`;
+            log = `🏆[冲塔成功] ${gateMeta.gateLabel}${gateMeta.isGateBoss ? '关底' : ''}镇守第 ${floor} 层的 ${defenderName} 被彻底击溃！玩家成功通关本层，获得了该层魂灵的【五折购买特权】，并获赠【${ageDesc}魂灵(冲塔自选)】！(请 AI 描写通关奖励降落的场景)`;
             extraPatchOps.push({
               op: 'replace',
               path: `${attackerPath}/魂灵塔记录/折扣资格/${floor}`,
@@ -5963,7 +6462,7 @@ class BattleUIComponent {
         const interruptEffect = getSkillEffects(attackAction?.skill).find(effect => effect?.机制 === '打断') || {};
         const interruptChance = Math.max(
           0,
-          Number(interruptEffect?.中断概率 || 0),
+          Math.max(Number(interruptEffect?.中断概率 || 0), Number(getFusionScaledInterruptChance(attackAction?.skill) || 0)),
           Number(settleResult?.interrupt_bonus || 0),
         );
         const hardControl =
@@ -6176,15 +6675,15 @@ class BattleUIComponent {
           const escapedItemName = escapeJsonPointerSegment(itemName);
           const addCount = Math.max(1, Number(effect?.数量 || 1));
           const template = deepClone(effect?.背包模板 || {});
-          const itemType = String(effect?.产物类型 || template?.类型 || '魂技造物');
-          const triggerMode = String(effect?.触发方式 || template?.触发方式 || (itemType === '食物' ? '食用' : '使用'));
+          const itemType = String(effect?.产物类型 || '魂技造物');
+          const triggerMode = String(effect?.触发方式 || (itemType === '食物' ? '食用' : '使用'));
           const relativeExpiryTick = Math.max(0, Number(effect?.有效期tick || 0));
           const nextItem = {
             ...template,
             数量: addCount,
             类型: itemType,
             触发方式: triggerMode,
-            使用效果: deepClone(template?.使用效果 || effect?.使用效果 || []),
+            使用效果: deepClone(Array.isArray(effect?.使用效果) ? effect.使用效果 : []),
             来源技能: String(template?.来源技能 || skill?.魂技名 || effect?.魂技名 || itemName),
           };
           if (relativeExpiryTick > 0) {
@@ -6362,6 +6861,7 @@ class BattleUIComponent {
         const skillName = String(
           playerAction?.skill?.name || playerAction?.skill?.技能名称 || playerAction?.action_type || '',
         );
+        const fusionProfile = getFusionBattleProfileFromSkill(playerAction.skill);
         const isBasicAttack =
           !playerAction?.skill || skillName === '普通攻击' || playerAction?.action_type === '常规攻击';
         const isPhysicalMeleeAction = String(pClash.伤害类型 || '') === '物理近战';
@@ -6542,6 +7042,10 @@ class BattleUIComponent {
             if (executeSuccess) result.desc += ` [斩杀补伤] 目标跌入收割阈值，斩杀补伤生效！`;
           }
         }
+        if (fusionProfile && finalDmg > 0) {
+          finalDmg *= Number(fusionProfile.damageMult || 1);
+          result.desc += ` [融合共鸣] 武魂交叠后的极限共振将杀伤再度推高。`;
+        }
 
         result.dmg = Math.floor(finalDmg);
         result = applyHighTierMechanics(attacker, defender, playerAction, result);
@@ -6631,6 +7135,7 @@ class BattleUIComponent {
               supportScale *
               (resourceKey === 'vit' ? totalFinalHealMult * (1 - totalHealBlockRatio) : 1 - totalResourceBlockRatio),
           );
+          if (fusionProfile) amount = Math.floor(amount * Number(fusionProfile.recoverMult || 1));
           if (resourceKey === 'vit') amount += totalFinalHealBonus;
           amount = Math.max(0, amount);
           if (!amount) return 0;
@@ -6655,6 +7160,7 @@ class BattleUIComponent {
           );
           const baseShield = Number(effect.护盾值 || 0);
           let shieldAmount = Math.floor(baseShield * supportScale * totalShieldGainMult) + totalShieldGainBonus;
+          if (fusionProfile) shieldAmount = Math.floor(shieldAmount * Number(fusionProfile.shieldMult || 1));
           shieldAmount = Math.max(0, shieldAmount);
           if (!shieldAmount) return 0;
           applyShieldToCharacter(
@@ -6912,17 +7418,27 @@ class BattleUIComponent {
               Number(pState.计算层效果?.min_hp_floor || 0) > 0 ||
               Number(pState.计算层效果?.hot_heal_ratio || 0) > 0;
             const supportScale = isBuff ? getSupportEffectScale(attacker, targetObj) : 1;
-            const scaledMods = { ...(pState.面板修改比例 || {}) };
+            let scaledMods = { ...(pState.面板修改比例 || {}) };
             ['str', 'def', 'agi', 'men_max', 'sp_max'].forEach(k => {
               if (scaledMods[k] !== undefined && scaledMods[k] !== 1.0) {
                 scaledMods[k] = 1 + (scaledMods[k] - 1) * supportScale;
               }
             });
-            const scaledCalc = isBuff
+            let scaledCalc = isBuff
               ? scaleBattleSupportBuffCalc(pState.计算层效果 || {}, supportScale)
               : { ...(pState.计算层效果 || {}) };
+            if (fusionProfile) {
+              scaledMods = scaleFusionPanelModifierMap(scaledMods, fusionProfile);
+              scaledCalc = scaleFusionCombatEffectMap(scaledCalc, fusionProfile);
+            }
             const scaledShield =
-              isBuff && pClash.护盾绝对值 > 0 ? Math.floor(pClash.护盾绝对值 * supportScale) : pClash.护盾绝对值;
+              isBuff && pClash.护盾绝对值 > 0
+                ? Math.floor(
+                    pClash.护盾绝对值 *
+                      supportScale *
+                      Number(fusionProfile ? fusionProfile.shieldMult || 1 : 1),
+                  )
+                : pClash.护盾绝对值;
 
             let isImmune = false;
             const isControlLike =
@@ -7053,7 +7569,7 @@ class BattleUIComponent {
                 name: '武魂融合技',
                 weight: adjustBehaviorWeight('武魂融合技', weight, defender, attacker, behaviorState),
                 build() {
-                  const skill = normalizeSkillData(fusionSkill.技能数据, `武魂融合技·${fusionName}`);
+                  const skill = buildFusionCombatSkill(fusionSkill, fusionName);
                   skill.name = `武魂融合技·${skill.name}`;
                   return makeNpcAction(
                     '武魂融合技',
@@ -8479,7 +8995,7 @@ class BattleUIComponent {
               if (!isFusionSkillAvailable(charData, fusionSkill, combatData.参战者.team_player || [])) return;
               hasFusion = true;
               action.action_type = '武魂融合技';
-              action.skill = normalizeSkillData(fusionSkill.技能数据, `武魂融合技·${fusionName}`);
+              action.skill = buildFusionCombatSkill(fusionSkill, fusionName);
               action.skill.name = `武魂融合技·${action.skill.name}`;
               action.cast_time = getSkillCastTime(action.skill) || 30;
             });
@@ -9145,11 +9661,14 @@ class BattleUIComponent {
             finalTarget.name || '目标',
           );
           if (targetInterruptLog) turnLog += ` ${targetInterruptLog}`;
+          const fusionAftermathLog = applyFusionActionAftermath(actor, action, actorTurnCombatData);
+          if (fusionAftermathLog) turnLog += ` ${fusionAftermathLog}`;
 
           if (reactionAction.type === '穿戴装备') {
             const actorStateCalc = getPrimaryStateCalc(action.skill);
-            const actorInterruptChance = Number(
-              getSkillEffects(action.skill).find(e => e?.机制 === '打断')?.中断概率 || 0,
+            const actorInterruptChance = Math.max(
+              Number(getSkillEffects(action.skill).find(e => e?.机制 === '打断')?.中断概率 || 0),
+              Number(getFusionScaledInterruptChance(action.skill) || 0),
             );
             const isTargetInterrupted =
               settleResult.dmg / Math.max(1, finalTarget.vit_max) >= 0.15 ||
@@ -9245,6 +9764,21 @@ class BattleUIComponent {
 
         function runTeamBattleSimulation(combatData, maxRounds = 3) {
           hydrateCombatData(combatData);
+          if (isSoulTowerCombatTypeValue(combatData?.战斗类型 || '')) {
+            const rosterCheck = validateSoulTowerCombatRoster(combatData);
+            if (!rosterCheck.ok) {
+              return {
+                rounds: 0,
+                roundStart: Number(combatData?.回合 || 0),
+                roundEnd: Number(combatData?.回合 || 0),
+                winner: 'unfinished',
+                playerAlive: getTeamLivingCount(combatData?.参战者?.team_player || []),
+                enemyAlive: getTeamLivingCount(combatData?.参战者?.team_enemy || []),
+                logs: [`[魂灵塔资格驳回] ${rosterCheck.message}`],
+                extraPatchOps: [],
+              };
+            }
+          }
           let logs = [];
           let extraPatchOps = [];
           let rounds = 0;
@@ -9311,6 +9845,21 @@ class BattleUIComponent {
 
         function runTeamBattleRound(combatData) {
           hydrateCombatData(combatData);
+          if (isSoulTowerCombatTypeValue(combatData?.战斗类型 || '')) {
+            const rosterCheck = validateSoulTowerCombatRoster(combatData);
+            if (!rosterCheck.ok) {
+              return {
+                rounds: 0,
+                roundStart: Number(combatData?.回合 || 0),
+                roundEnd: Number(combatData?.回合 || 0),
+                winner: 'unfinished',
+                playerAlive: getTeamLivingCount(combatData?.参战者?.team_player || []),
+                enemyAlive: getTeamLivingCount(combatData?.参战者?.team_enemy || []),
+                logs: [`[魂灵塔资格驳回] ${rosterCheck.message}`],
+                extraPatchOps: [],
+              };
+            }
+          }
           const currentRound = Number(combatData.回合 || 0) + 1;
           combatData.回合 = currentRound;
           let logs = [`[团战第${currentRound}回合开始]`];
@@ -9426,6 +9975,9 @@ class BattleUIComponent {
           return {
             round: Number(combatData.回合 || 0),
             战斗类型: combatData.战斗类型 || '突发遭遇',
+            floor: Number(combatData.floor || 0),
+            大关卡: Number(combatData.大关卡 || 0),
+            大关标签: combatData.大关标签 || '',
             先攻: combatData.先攻 || '无',
             player: buildUnitSnapshot(combatData.参战者.player),
             enemy: buildUnitSnapshot(combatData.参战者.enemy),
@@ -9452,9 +10004,9 @@ class BattleUIComponent {
               semantic_role: getSkillType(skill) || '输出',
               tags: skill.标签 || [],
               cast_time: getSkillCastTime(skill),
-              cost_text: getSkillCostText(skill),
+              cost_text: getFusionSkillDisplayCostText(skill),
               enabled: costParsed.canCast,
-              reason: costParsed.canCast ? '' : '状态不足',
+              reason: costParsed.canCast ? '' : (costParsed.failureReason || '状态不足'),
               raw_skill: skill,
             });
           });
@@ -9698,6 +10250,7 @@ class BattleUIComponent {
         }
 
         function findUiSkillCost(skill = {}) {
+          if (skill?.__fusion_display_cost_text) return String(skill.__fusion_display_cost_text);
           const direct = skill.消耗 || skill.cost || skill.cost_text || '';
           if (direct) return String(direct);
           const effects = Array.isArray(skill._效果数组) ? skill._效果数组 : [];
@@ -9746,7 +10299,7 @@ class BattleUIComponent {
           });
           Object.entries(char.特殊能力 || {}).forEach(([name, skill]) => pushUiSkillAction(actions, skill, name, '特殊能力'));
           Object.entries(char.武魂融合技 || {}).forEach(([name, fusion]) => {
-            pushUiSkillAction(actions, fusion?.技能数据 || fusion, `武魂融合技·${name}`, '融合');
+            pushUiSkillAction(actions, buildFusionCombatSkill(fusion, name), `武魂融合技·${name}`, '融合');
           });
           actions.push(
             { id: 'basic_attack', type: 'tactical', action_type: '常规攻击', name: '普通攻击', category: '战术', cast_time: 10, cost_text: '无', enabled: true, skill: { name: '普通攻击' } },

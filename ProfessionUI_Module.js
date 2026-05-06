@@ -1,4 +1,4 @@
-/* ProfessionUI_Module.js - 武装工坊组件 (JS 模块版) */
+﻿/* ProfessionUI_Module.js - 姝﹁宸ュ潑缁勪欢 (JS 妯″潡鐗? */
 
 const ProfessionStyles = `
   .prof-module-scope {
@@ -103,7 +103,7 @@ const ProfessionStyles = `
   }
 
   .prof-module-scope .section-title::before {
-    content: '◈';
+    content: '鈼?;
     font-size: 10px;
     color: var(--cyan);
     flex: 0 0 auto;
@@ -257,120 +257,120 @@ const ProfessionTemplate = `
 <div class="prof-module-scope">
   <div class="top-status">
     <div class="status-chip">
-      <div class="chip-label">体力 / 魂力</div>
+      <div class="chip-label">浣撳姏 / 榄傚姏</div>
       <div class="chip-value" id="chip-vs">0 / 0</div>
     </div>
     <div class="status-chip">
-      <div class="chip-label">精神力</div>
+      <div class="chip-label">绮剧鍔?/div>
       <div class="chip-value" id="chip-men">0</div>
     </div>
     <div class="status-chip">
-      <div class="chip-label">精神境界</div>
-      <div class="chip-value" id="chip-men-realm">未知</div>
+      <div class="chip-label">绮剧澧冪晫</div>
+      <div class="chip-value" id="chip-men-realm">鏈煡</div>
     </div>
   </div>
 
   <div class="tabs">
-    <button class="tab-btn active" data-mode="forge">锻造</button>
-    <button class="tab-btn" data-mode="manufacture">制造</button>
-    <button class="tab-btn" data-mode="design">设计</button>
-    <button class="tab-btn" data-mode="repair">修理</button>
+    <button class="tab-btn active" data-mode="forge">閿婚€?/button>
+    <button class="tab-btn" data-mode="manufacture">鍒堕€?/button>
+    <button class="tab-btn" data-mode="design">璁捐</button>
+    <button class="tab-btn" data-mode="repair">淇悊</button>
   </div>
 
   <div class="section-card">
-    <div class="section-title" id="prof-ui-title">副职业工坊</div>
+    <div class="section-title" id="prof-ui-title">鍓亴涓氬伐鍧?/div>
     <div class="hint" id="prof-ui-subtitle" style="margin-top:-6px;margin-bottom:12px;">-</div>
 
     <div class="inline-grid">
       <div class="form-group">
-        <label id="tier-label">操作阶位</label>
+        <label id="tier-label">鎿嶄綔闃朵綅</label>
         <select id="prof-tier" class="tech-select">
-          <option value="1">1阶</option>
-          <option value="2">2阶</option>
-          <option value="3">3阶</option>
-          <option value="4">4阶</option>
-          <option value="5">5阶</option>
+          <option value="1">1闃?/option>
+          <option value="2">2闃?/option>
+          <option value="3">3闃?/option>
+          <option value="4">4闃?/option>
+          <option value="5">5闃?/option>
         </select>
       </div>
       <div class="form-group">
-        <label id="qty-label">每种材料消耗</label>
+        <label id="qty-label">姣忕鏉愭枡娑堣€?/label>
         <input id="prof-cost" class="tech-input" type="number" min="1" value="1" />
-        <div class="hint" id="qty-hint">锻造默认会按“每种材料消耗量”扣除材料，并同步扣除职业资源。</div>
+        <div class="hint" id="qty-hint">閿婚€犻粯璁や細鎸夆€滄瘡绉嶆潗鏂欐秷鑰楅噺鈥濇墸闄ゆ潗鏂欙紝骞跺悓姝ユ墸闄よ亴涓氳祫婧愩€?/div>
       </div>
     </div>
 
     <div class="form-group">
-      <label id="target-label">目标产物 / 目标对象</label>
-      <input id="prof-target" class="tech-input" type="text" placeholder="自动生成或手动输入..." />
-      <div class="hint" id="target-hint">锻造会尝试根据所选材料自动生成产物名；修理模式下这里填待修对象名。</div>
+      <label id="target-label">鐩爣浜х墿 / 鐩爣瀵硅薄</label>
+      <input id="prof-target" class="tech-input" type="text" placeholder="鑷姩鐢熸垚鎴栨墜鍔ㄨ緭鍏?.." />
+      <div class="hint" id="target-hint">閿婚€犱細灏濊瘯鏍规嵁鎵€閫夋潗鏂欒嚜鍔ㄧ敓鎴愪骇鐗╁悕锛涗慨鐞嗘ā寮忎笅杩欓噷濉緟淇璞″悕銆?/div>
     </div>
 
 
     <div class="form-group">
-      <label id="materials-label">材料选择</label>
+      <label id="materials-label">鏉愭枡閫夋嫨</label>
       <div id="prof-materials-list" class="metal-list-container">
-        <div style="color: var(--text-dim);">[读取库存中...]</div>
+        <div style="color: var(--text-dim);">[璇诲彇搴撳瓨涓?..]</div>
       </div>
-      <div class="hint" id="materials-hint">锻造支持多选融锻；其余职业按材料协同处理。</div>
+      <div class="hint" id="materials-hint">閿婚€犳敮鎸佸閫夎瀺閿伙紱鍏朵綑鑱屼笟鎸夋潗鏂欏崗鍚屽鐞嗐€?/div>
     </div>
   </div>
 
   <div class="section-card">
-    <div class="section-title">职业预演</div>
+    <div class="section-title">鑱屼笟棰勬紨</div>
     <div class="info-panel">
-      <div class="info-row"><span class="info-key">当前职业</span><span class="info-val" id="prev-job">-</span></div>
-      <div class="info-row"><span class="info-key">累计经验</span><span class="info-val" id="prev-exp">-</span></div>
-      <div class="info-row"><span class="info-key">当前资源</span><span class="info-val" id="prev-res">-</span></div>
-      <div class="info-row"><span class="info-key">本次消耗</span><span class="info-val" id="prev-costs">-</span></div>
-      <div class="info-row"><span class="info-key">执行来源</span><span class="info-val" id="prev-executor">-</span></div>
-      <div class="info-row"><span class="info-key">代工费用</span><span class="info-val" id="prev-fee">-</span></div>
-      <div class="info-row"><span class="info-key">成功率</span><span class="info-val" id="prev-rate">-%</span></div>
-      <div class="info-row"><span class="info-key">模式 / 融合率</span><span class="info-val" id="prev-fusion">-</span></div>
-      <div class="info-row"><span class="info-key">最大复合数</span><span class="info-val" id="prev-maxfusion">-</span></div>
-      <div class="info-row"><span class="info-key">品质极限</span><span class="info-val" id="prev-maxq">-</span></div>
-      <div class="info-row"><span class="info-key">规则提示</span><span class="info-val" id="prev-note">-</span></div>
+      <div class="info-row"><span class="info-key">褰撳墠鑱屼笟</span><span class="info-val" id="prev-job">-</span></div>
+      <div class="info-row"><span class="info-key">绱缁忛獙</span><span class="info-val" id="prev-exp">-</span></div>
+      <div class="info-row"><span class="info-key">褰撳墠璧勬簮</span><span class="info-val" id="prev-res">-</span></div>
+      <div class="info-row"><span class="info-key">鏈娑堣€?/span><span class="info-val" id="prev-costs">-</span></div>
+      <div class="info-row"><span class="info-key">鎵ц鏉ユ簮</span><span class="info-val" id="prev-executor">-</span></div>
+      <div class="info-row"><span class="info-key">浠ｅ伐璐圭敤</span><span class="info-val" id="prev-fee">-</span></div>
+      <div class="info-row"><span class="info-key">鎴愬姛鐜?/span><span class="info-val" id="prev-rate">-%</span></div>
+      <div class="info-row"><span class="info-key">妯″紡 / 铻嶅悎鐜?/span><span class="info-val" id="prev-fusion">-</span></div>
+      <div class="info-row"><span class="info-key">鏈€澶у鍚堟暟</span><span class="info-val" id="prev-maxfusion">-</span></div>
+      <div class="info-row"><span class="info-key">鍝佽川鏋侀檺</span><span class="info-val" id="prev-maxq">-</span></div>
+      <div class="info-row"><span class="info-key">瑙勫垯鎻愮ず</span><span class="info-val" id="prev-note">-</span></div>
     </div>
   </div>
 
-  <button class="action-btn" id="prof-submit">执行操作</button>
+  <button class="action-btn" id="prof-submit">鎵ц鎿嶄綔</button>
 </div>
 `;
 
 const JOB_EXP_THRESHOLDS = [0, 1000, 5000, 12000, 60000, 80000, 400000, 500000, 3000000, 99999999];
-const TIER_LABELS = ['', '1阶', '2阶', '3阶', '4阶', '5阶'];
+const TIER_LABELS = ['', '1闃?, '2闃?, '3闃?, '4闃?, '5闃?];
 
 const PROFESSION_CONFIG = {
   forge: {
-    mode: 'forge', jobName: '锻造师', title: '锻造工序', displayName: '锻造', actionLabel: '开始锻造',
+    mode: 'forge', jobName: '閿婚€犲笀', title: '閿婚€犲伐搴?, displayName: '閿婚€?, actionLabel: '寮€濮嬮敾閫?,
     requiresMaterials: true, supportsFusion: true,
     costs: { 1: [100, 100, 0], 2: [200, 1500, 20], 3: [500, 5000, 50], 4: [15000, 15000, 5000], 5: [80000, 80000, 18000] },
     expGain: { 1: 50, 2: 400, 3: 2000, 4: 10000, 5: 50000 },
-    targetHint: '锻造支持自动命名；多选同阶材料会触发融锻。',
-    materialHint: '多选材料 = 融锻。千锻融锻要求所有材料达到 1.15 以上（一品）。'
+    targetHint: '閿婚€犳敮鎸佽嚜鍔ㄥ懡鍚嶏紱澶氶€夊悓闃舵潗鏂欎細瑙﹀彂铻嶉敾銆?,
+    materialHint: '澶氶€夋潗鏂?= 铻嶉敾銆傚崈閿昏瀺閿昏姹傛墍鏈夋潗鏂欒揪鍒?1.15 浠ヤ笂锛堜竴鍝侊級銆?
   },
   manufacture: {
-    mode: 'manufacture', jobName: '制造师', title: '制造工序', displayName: '制造', actionLabel: '开始制造',
+    mode: 'manufacture', jobName: '鍒堕€犲笀', title: '鍒堕€犲伐搴?, displayName: '鍒堕€?, actionLabel: '寮€濮嬪埗閫?,
     requiresMaterials: true, supportsFusion: false,
     costs: { 1: [20, 35, 20], 2: [160, 280, 160], 3: [700, 1225, 600], 4: [3000, 5250, 2000], 5: [16000, 28000, 7200] },
     expGain: { 1: 50, 2: 400, 3: 2000, 4: 10000, 5: 50000 },
-    targetHint: '填写你想制造的成品名称。',
-    materialHint: '可选择金属、图纸、模块、回路等作为制造材料。'
+    targetHint: '濉啓浣犳兂鍒堕€犵殑鎴愬搧鍚嶇О銆?,
+    materialHint: '鍙€夋嫨閲戝睘銆佸浘绾搞€佹ā鍧椼€佸洖璺瓑浣滀负鍒堕€犳潗鏂欍€?
   },
   design: {
-    mode: 'design', jobName: '设计师', title: '设计工序', displayName: '设计', actionLabel: '开始设计',
+    mode: 'design', jobName: '璁捐甯?, title: '璁捐宸ュ簭', displayName: '璁捐', actionLabel: '寮€濮嬭璁?,
     requiresMaterials: false, supportsFusion: false,
     costs: { 1: [5, 10, 25], 2: [20, 40, 200], 3: [80, 150, 750], 4: [300, 600, 2500], 5: [1000, 2000, 9000] },
     expGain: { 1: 50, 2: 400, 3: 2000, 4: 10000, 5: 50000 },
-    targetHint: '这里填写设计图名称，例如：二字斗铠设计图。',
-    materialHint: '设计职业允许无材料起草，但选入模板/旧图纸会被视作协同设计材料。'
+    targetHint: '杩欓噷濉啓璁捐鍥惧悕绉帮紝渚嬪锛氫簩瀛楁枟閾犺璁″浘銆?,
+    materialHint: '璁捐鑱屼笟鍏佽鏃犳潗鏂欒捣鑽夛紝浣嗛€夊叆妯℃澘/鏃у浘绾镐細琚浣滃崗鍚岃璁℃潗鏂欍€?
   },
   repair: {
-    mode: 'repair', jobName: '修理师', title: '修理工序', displayName: '修理', actionLabel: '开始修理',
+    mode: 'repair', jobName: '淇悊甯?, title: '淇悊宸ュ簭', displayName: '淇悊', actionLabel: '寮€濮嬩慨鐞?,
     requiresMaterials: false, supportsFusion: false,
     costs: { 1: [5, 10, 5], 2: [40, 80, 40], 3: [175, 350, 150], 4: [750, 1500, 500], 5: [4000, 8000, 2700] },
     expGain: { 1: 50, 2: 400, 3: 2000, 4: 10000, 5: 50000 },
-    targetHint: '这里填写待修对象名称，建议填写背包中的现有装备/零件。',
-    materialHint: '可选维护套件、修复包、金属或零件作为修理耗材；不选也允许纯资源抢修。'
+    targetHint: '杩欓噷濉啓寰呬慨瀵硅薄鍚嶇О锛屽缓璁～鍐欒儗鍖呬腑鐨勭幇鏈夎澶?闆朵欢銆?,
+    materialHint: '鍙€夌淮鎶ゅ浠躲€佷慨澶嶅寘銆侀噾灞炴垨闆朵欢浣滀负淇悊鑰楁潗锛涗笉閫変篃鍏佽绾祫婧愭姠淇€?
   }
 };
 
@@ -378,10 +378,10 @@ const OFFICIAL_COMMISSION_FEES = { 1: 150000, 2: 1500000, 3: 15000000, 4: 100000
 const PRIVATE_COMMISSION_FEES = { 1: 100000, 2: 1000000, 3: 10000000, 4: 80000000, 5: 300000000 };
 
 const PROF_HIDDEN_ARBITRATION_NARRATION_RULES = `
-[前端仲裁器说明]
-以下内容属于隐藏仲裁结果，不要在正文中直接复述“成功率 / Roll / 仲裁结束 / JSONPatch / 系统分析”等字样。
-请将仲裁结论转写成自然剧情，只描写人物操作、工艺过程、制造过程、设计过程或修理过程，以及成功或失败带来的自然结果。
-玩家应当看到的是经过修饰后的剧情文本，而不是系统裁定日志。
+[鍓嶇浠茶鍣ㄨ鏄嶿
+浠ヤ笅鍐呭灞炰簬闅愯棌浠茶缁撴灉锛屼笉瑕佸湪姝ｆ枃涓洿鎺ュ杩扳€滄垚鍔熺巼 / Roll / 浠茶缁撴潫 / JSONPatch / 绯荤粺鍒嗘瀽鈥濈瓑瀛楁牱銆?
+璇峰皢浠茶缁撹杞啓鎴愯嚜鐒跺墽鎯咃紝鍙弿鍐欎汉鐗╂搷浣溿€佸伐鑹鸿繃绋嬨€佸埗閫犺繃绋嬨€佽璁¤繃绋嬫垨淇悊杩囩▼锛屼互鍙婃垚鍔熸垨澶辫触甯︽潵鐨勮嚜鐒剁粨鏋溿€?
+鐜╁搴斿綋鐪嬪埌鐨勬槸缁忚繃淇グ鍚庣殑鍓ф儏鏂囨湰锛岃€屼笉鏄郴缁熻瀹氭棩蹇椼€?
 `.trim();
 
 class ProfessionUIComponent {
@@ -445,10 +445,10 @@ class ProfessionUIComponent {
     const state = this.getCurrentUiState();
     if (state.subtype === 'mech' || state.subtype === 'armor') {
       costInput.disabled = true;
-      costInput.value = '自动锁定';
+      costInput.value = '鑷姩閿佸畾';
     } else {
       costInput.disabled = false;
-      if (costInput.value === '自动锁定') costInput.value = '1';
+      if (costInput.value === '鑷姩閿佸畾') costInput.value = '1';
     }
   }
 
@@ -502,10 +502,10 @@ class ProfessionUIComponent {
 
   normalizeInitialMode(rawMode) {
     const value = String(rawMode || '').trim().toLowerCase();
-    if (/manufacture|制造|组装|总装|封装/.test(value)) return 'manufacture';
-    if (/design|设计|图纸|蓝图/.test(value)) return 'design';
-    if (/repair|修理|维修|维护|修复|整备/.test(value)) return 'repair';
-    if (/forge|锻造|锻打|融锻|百锻|千锻|灵锻|魂锻|天锻/.test(value)) return 'forge';
+    if (/manufacture|鍒堕€爘缁勮|鎬昏|灏佽/.test(value)) return 'manufacture';
+    if (/design|璁捐|鍥剧焊|钃濆浘/.test(value)) return 'design';
+    if (/repair|淇悊|缁翠慨|缁存姢|淇|鏁村/.test(value)) return 'repair';
+    if (/forge|閿婚€爘閿绘墦|铻嶉敾|鐧鹃敾|鍗冮敾|鐏甸敾|榄傞敾|澶╅敾/.test(value)) return 'forge';
     return '';
   }
 
@@ -513,7 +513,7 @@ class ProfessionUIComponent {
     if (Array.isArray(value)) return value.map(item => String(item || '').trim()).filter(Boolean);
     if (value && typeof value === 'object') return Object.keys(value).filter(Boolean);
     return String(value || '')
-      .split(/[、,，|/]+/)
+      .split(/[銆?锛寍/]+/)
       .map(item => item.trim())
       .filter(Boolean);
   }
@@ -521,12 +521,12 @@ class ProfessionUIComponent {
   setInitialTier(req) {
     const tierSel = this.$('#prof-tier');
     if (!tierSel) return;
-    const subtype = String(req.子类型 || req.目标类型 || '').trim().toLowerCase();
-    const tier = Number(req.阶级 || req.等级 || 0);
+    const subtype = String(req.瀛愮被鍨?|| req.鐩爣绫诲瀷 || '').trim().toLowerCase();
+    const tier = Number(req.闃剁骇 || req.绛夌骇 || 0);
     let value = '';
     if (this.activeMode !== 'forge') {
-      if (/armor|斗铠/.test(subtype) && tier) value = `armor-${tier}`;
-      else if (/mech|机甲/.test(subtype) && tier) value = `mech-${tier}`;
+      if (/armor|鏂楅摖/.test(subtype) && tier) value = `armor-${tier}`;
+      else if (/mech|鏈虹敳/.test(subtype) && tier) value = `mech-${tier}`;
     } else if (tier) {
       value = String(tier);
     }
@@ -538,20 +538,20 @@ class ProfessionUIComponent {
 
   applyInitialContext() {
     const req = this.getInitialRequest();
-    const mode = this.normalizeInitialMode(this.options.prefillMode || req.模式 || req.动作 || req.副职业 || req.职业);
+    const mode = this.normalizeInitialMode(this.options.prefillMode || req.妯″紡 || req.鍔ㄤ綔 || req.鍓亴涓?|| req.鑱屼笟);
     if (mode) this.setActiveMode(mode);
 
     this.setInitialTier(req);
 
-    const qty = Math.max(1, Number(this.options.prefillQty || req.数量 || 0));
+    const qty = Math.max(1, Number(this.options.prefillQty || req.鏁伴噺 || 0));
     const costInput = this.$('#prof-cost');
     if (qty > 0 && costInput && !costInput.disabled) costInput.value = String(qty);
 
-    const target = String(this.options.prefillTarget || req.目标 || req.物品 || req.产物 || '').trim();
+    const target = String(this.options.prefillTarget || req.鐩爣 || req.鐗╁搧 || req.浜х墿 || '').trim();
     if (target && this.$('#prof-target')) this.$('#prof-target').value = target;
 
     const materials = this.parseInitialMaterials(
-      this.options.prefillMaterials || req.材料 || ''
+      this.options.prefillMaterials || req.鏉愭枡 || ''
     );
     if (materials.length) {
       const materialSet = new Set(materials);
@@ -564,8 +564,8 @@ class ProfessionUIComponent {
     this.updatePreview();
 
     const autoExecute = this.options.autoExecute === true
-      || req.自动执行 === true
-      || /auto|ready|执行|确认|开始|直接/.test(String(req.状态 || ''));
+      || req.鑷姩鎵ц === true
+      || /auto|ready|鎵ц|纭|寮€濮媩鐩存帴/.test(String(req.鐘舵€?|| ''));
     if (autoExecute) {
       window.setTimeout(() => this.runInitialAutoExecute(), 100);
     }
@@ -583,15 +583,15 @@ class ProfessionUIComponent {
     const snapshotActive = String(this.snapshot?.activeName || '').trim();
     if (snapshotActive && chars[snapshotActive]) return snapshotActive;
 
-    const playerName = String(this.snapshot?.sd?.sys?.玩家名 || '').trim();
+    const playerName = String(this.snapshot?.sd?.sys?.鐜╁鍚?|| '').trim();
     if (playerName && chars[playerName]) return playerName;
-    if (chars['主角']) return '主角';
+    if (chars['涓昏']) return '涓昏';
 
     const firstName = Object.keys(chars)[0];
-    return firstName || '主角';
+    return firstName || '涓昏';
   }
   get activeCharBasePath() { return `/char/${this.escapeJsonPointer(this.activeName)}`; }
-  get currentInventory() { return this.charData.背包 || {}; }
+  get currentInventory() { return this.charData.鑳屽寘 || {}; }
 
   syncData() {
     this.updateHeaderStatus();
@@ -602,10 +602,10 @@ class ProfessionUIComponent {
   }
 
   updateHeaderStatus() {
-    const stat = this.charData.属性 || {};
-    this.$('#chip-vs').textContent = `${Number(stat.体力 || 0).toLocaleString()} / ${Number(stat.魂力 || 0).toLocaleString()}`;
-    this.$('#chip-men').textContent = Number(stat.精神力 || 0).toLocaleString();
-    this.$('#chip-men-realm').textContent = stat.精神境界 || '未知';
+    const stat = this.charData.灞炴€?|| {};
+    this.$('#chip-vs').textContent = `${Number(stat.浣撳姏 || 0).toLocaleString()} / ${Number(stat.榄傚姏 || 0).toLocaleString()}`;
+    this.$('#chip-men').textContent = Number(stat.绮剧鍔?|| 0).toLocaleString();
+    this.$('#chip-men-realm').textContent = stat.绮剧澧冪晫 || '鏈煡';
   }
 
   updateModeChrome() {
@@ -617,27 +617,27 @@ class ProfessionUIComponent {
     this.$('#prof-submit').textContent = cfg.actionLabel;
     this.updateTierOptions();
     this.$('#qty-hint').textContent = this.activeMode === 'forge'
-      ? '锻造会按“每种材料消耗量”扣除材料，并同步扣除职业资源。'
-      : '副职业会按输入数量同步扩大基础资源消耗；材料按勾选项扣除。';
+      ? '閿婚€犱細鎸夆€滄瘡绉嶆潗鏂欐秷鑰楅噺鈥濇墸闄ゆ潗鏂欙紝骞跺悓姝ユ墸闄よ亴涓氳祫婧愩€?
+      : '鍓亴涓氫細鎸夎緭鍏ユ暟閲忓悓姝ユ墿澶у熀纭€璧勬簮娑堣€楋紱鏉愭枡鎸夊嬀閫夐」鎵ｉ櫎銆?;
   }
 
   getForgeTierLabel(tier) {
-    return ({ 1: '百锻', 2: '千锻', 3: '灵锻', 4: '魂锻', 5: '天锻' })[Number(tier) || 1] || `${Number(tier) || 0}阶`;
+    return ({ 1: '鐧鹃敾', 2: '鍗冮敾', 3: '鐏甸敾', 4: '榄傞敾', 5: '澶╅敾' })[Number(tier) || 1] || `${Number(tier) || 0}闃禶;
   }
 
   getGearTierFamilyLabel(tier) {
     return ({
-      1: '黄级机甲',
-      2: '紫级机甲 / 一字斗铠',
-      3: '黑级机甲 / 二字斗铠',
-      4: '红级机甲 / 三字斗铠',
-      5: '四字斗铠'
-    })[Number(tier) || 1] || `${Number(tier) || 0}阶装备`;
+      1: '榛勭骇鏈虹敳',
+      2: '绱骇鏈虹敳 / 涓€瀛楁枟閾?,
+      3: '榛戠骇鏈虹敳 / 浜屽瓧鏂楅摖',
+      4: '绾㈢骇鏈虹敳 / 涓夊瓧鏂楅摖',
+      5: '鍥涘瓧鏂楅摖'
+    })[Number(tier) || 1] || `${Number(tier) || 0}闃惰澶嘸;
   }
 
   getTierDisplayName(mode, tier) {
     if (mode === 'forge') return this.getForgeTierLabel(tier);
-    const suffix = ({ manufacture: '制造', design: '设计', repair: '修理' })[mode] || '处理';
+    const suffix = ({ manufacture: '鍒堕€?, design: '璁捐', repair: '淇悊' })[mode] || '澶勭悊';
     return `${this.getGearTierFamilyLabel(tier)}${suffix}`;
   }
 
@@ -651,16 +651,16 @@ class ProfessionUIComponent {
     const currentVal = tierSel.value;
     tierSel.innerHTML = '';
     if (this.activeMode !== 'forge') {
-      const suffix = ({ manufacture: '制造', design: '设计', repair: '修理' })[this.activeMode] || '处理';
+      const suffix = ({ manufacture: '鍒堕€?, design: '璁捐', repair: '淇悊' })[this.activeMode] || '澶勭悊';
       tierSel.innerHTML = `
-        <option value="mech-1">黄级机甲${suffix}</option>
-        <option value="armor-2">一字斗铠${suffix}</option>
-        <option value="mech-2">紫级机甲${suffix}</option>
-        <option value="armor-3">二字斗铠${suffix}</option>
-        <option value="mech-3">黑级机甲${suffix}</option>
-        <option value="armor-4">三字斗铠${suffix}</option>
-        <option value="mech-4">红级机甲${suffix}</option>
-        <option value="armor-5">四字斗铠${suffix}</option>
+        <option value="mech-1">榛勭骇鏈虹敳${suffix}</option>
+        <option value="armor-2">涓€瀛楁枟閾?{suffix}</option>
+        <option value="mech-2">绱骇鏈虹敳${suffix}</option>
+        <option value="armor-3">浜屽瓧鏂楅摖${suffix}</option>
+        <option value="mech-3">榛戠骇鏈虹敳${suffix}</option>
+        <option value="armor-4">涓夊瓧鏂楅摖${suffix}</option>
+        <option value="mech-4">绾㈢骇鏈虹敳${suffix}</option>
+        <option value="armor-5">鍥涘瓧鏂楅摖${suffix}</option>
       `;
     } else {
       for (let i = 1; i <= 5; i++) {
@@ -694,21 +694,21 @@ class ProfessionUIComponent {
     if (!targetInput) return;
 
     if (mode === 'forge') {
-      const mat = Array.from(this.el.querySelectorAll('.material-checkbox:checked')).map(cb => cb.value)[0] || '未知金属';
+      const mat = Array.from(this.el.querySelectorAll('.material-checkbox:checked')).map(cb => cb.value)[0] || '鏈煡閲戝睘';
       targetInput.value = `${mat}(${this.getForgeTierLabel(state.tier)})`;
     } else {
       const opt = this.$('#prof-tier').selectedOptions?.[0];
-      const text = opt ? opt.textContent.replace(/制造|设计|修理|处理/, '') : '';
-      if (state.subtype === 'armor') targetInput.value = `${text}胸铠`;
+      const text = opt ? opt.textContent.replace(/鍒堕€爘璁捐|淇悊|澶勭悊/, '') : '';
+      if (state.subtype === 'armor') targetInput.value = `${text}鑳搁摖`;
       else if (state.subtype === 'mech') targetInput.value = text;
-      else targetInput.value = `${this.getGearTierFamilyLabel(state.tier)}部件`;
+      else targetInput.value = `${this.getGearTierFamilyLabel(state.tier)}閮ㄤ欢`;
     }
     this.syncCostInputState();
   }
 
-  // --- 职业算法核心 (移植原代码) ---
+  // --- 鑱屼笟绠楁硶鏍稿績 (绉绘鍘熶唬鐮? ---
   clamp(num, min, max) { return Math.max(min, Math.min(max, num)); }
-  formatFedCoin(amount) { return `${Number(amount || 0).toLocaleString()} 联邦币`; }
+  formatFedCoin(amount) { return `${Number(amount || 0).toLocaleString()} 鑱旈偊甯乣; }
   escapeJsonPointer(str) { return String(str).replace(/~/g, '~0').replace(/\//g, '~1'); }
 
   getLevelFromTotalExp(exp) {
@@ -731,15 +731,15 @@ class ProfessionUIComponent {
   }
 
   getJobRuntime(jobName, charObj = this.charData) {
-    const job = charObj?.职业?.[jobName] || {};
-    const totalExp = Number(job.经验 || 0);
-    let lv = Math.max(Number(job.等级 || 0), this.getLevelFromTotalExp(totalExp));
+    const job = charObj?.鑱屼笟?.[jobName] || {};
+    const totalExp = Number(job.缁忛獙 || 0);
+    let lv = Math.max(Number(job.绛夌骇 || 0), this.getLevelFromTotalExp(totalExp));
     lv = this.clamp(lv, 0, 9);
     const cExp = JOB_EXP_THRESHOLDS[Math.max(0, lv - 1)] || 0;
     const nExp = JOB_EXP_THRESHOLDS[Math.min(lv, 9)] || JOB_EXP_THRESHOLDS[9];
     const expRatio = lv >= 9 ? 0 : this.clamp((totalExp - cExp) / Math.max(1, (nExp - cExp)), 0, 0.999);
-    const limitSuccessRate = Number(job?.限制?.成功率 ?? this.deriveLimitSuccessRate(lv, totalExp));
-    const maxFusion = Number(job?.限制?.最大融合数 ?? Math.max(1, Math.floor(lv / 2)));
+    const limitSuccessRate = Number(job?.闄愬埗?.鎴愬姛鐜??? this.deriveLimitSuccessRate(lv, totalExp));
+    const maxFusion = Number(job?.闄愬埗?.鏈€澶ц瀺鍚堟暟 ?? Math.max(1, Math.floor(lv / 2)));
 
     return { jobName, job, lv, exp: totalExp, expRatio, limitSuccessRate, maxFusion, currentBaseExp: cExp, nextLevelExp: nExp };
   }
@@ -750,14 +750,14 @@ class ProfessionUIComponent {
 
   deriveJobLimitsFromExp(exp) {
     const lv = this.getLevelFromTotalExp(exp);
-    return { lv, 最大融合数: Math.max(1, Math.floor(lv / 2)), 成功率: this.deriveLimitSuccessRate(lv, exp) };
+    return { lv, 鏈€澶ц瀺鍚堟暟: Math.max(1, Math.floor(lv / 2)), 鎴愬姛鐜? this.deriveLimitSuccessRate(lv, exp) };
   }
 
   getItemTier(itemName) {
-    if (/天锻|四字|十万年/.test(itemName)) return 5;
-    if (/魂锻|三字|红级/.test(itemName)) return 4;
-    if (/灵锻|二字|黑级/.test(itemName)) return 3;
-    if (/千锻|一字|紫级/.test(itemName)) return 2;
+    if (/澶╅敾|鍥涘瓧|鍗佷竾骞?.test(itemName)) return 5;
+    if (/榄傞敾|涓夊瓧|绾㈢骇/.test(itemName)) return 4;
+    if (/鐏甸敾|浜屽瓧|榛戠骇/.test(itemName)) return 3;
+    if (/鍗冮敾|涓€瀛梶绱骇/.test(itemName)) return 2;
     return 1;
   }
 
@@ -784,38 +784,38 @@ class ProfessionUIComponent {
   getGenericSingleRate(runtime) { return this.clamp(runtime.limitSuccessRate, 0, 100); }
 
   hasBlueprintMaterial(materialNames) {
-    return materialNames.some(name => /设计图|蓝图|模板/.test(name) || this.currentInventory[name]?.类型 === '图纸');
+    return materialNames.some(name => /璁捐鍥緗钃濆浘|妯℃澘/.test(name) || this.currentInventory[name]?.绫诲瀷 === '鍥剧焊');
   }
 
-  getArmorBlueprintNameByTier(tier) { return { 2: '一字斗铠设计图', 3: '二字斗铠设计图', 4: '三字斗铠设计图', 5: '四字斗铠设计图' }[tier] || `${this.getGearTierFamilyLabel(tier)}设计图`; }
-  getArmorTierFromName(name) { return /一字/.test(name) ? 2 : (/二字/.test(name) ? 3 : (/三字/.test(name) ? 4 : (/四字/.test(name) ? 5 : 0))); }
-  getTierMetalLabel(tier) { return { 1: '百锻金属', 2: '千锻金属', 3: '灵锻金属', 4: '魂锻金属', 5: '天锻金属' }[tier] || `${this.getForgeTierLabel(tier)}金属`; }
+  getArmorBlueprintNameByTier(tier) { return { 2: '涓€瀛楁枟閾犺璁″浘', 3: '浜屽瓧鏂楅摖璁捐鍥?, 4: '涓夊瓧鏂楅摖璁捐鍥?, 5: '鍥涘瓧鏂楅摖璁捐鍥? }[tier] || `${this.getGearTierFamilyLabel(tier)}璁捐鍥綻; }
+  getArmorTierFromName(name) { return /涓€瀛?.test(name) ? 2 : (/浜屽瓧/.test(name) ? 3 : (/涓夊瓧/.test(name) ? 4 : (/鍥涘瓧/.test(name) ? 5 : 0))); }
+  getTierMetalLabel(tier) { return { 1: '鐧鹃敾閲戝睘', 2: '鍗冮敾閲戝睘', 3: '鐏甸敾閲戝睘', 4: '榄傞敾閲戝睘', 5: '澶╅敾閲戝睘' }[tier] || `${this.getForgeTierLabel(tier)}閲戝睘`; }
 
   getSelectedTierStock(materialNames) {
     const totals = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     for (const name of materialNames) {
-      totals[this.getItemTier(name)] += Number(this.currentInventory[name]?.数量 || 0);
+      totals[this.getItemTier(name)] += Number(this.currentInventory[name]?.鏁伴噺 || 0);
     }
     return totals;
   }
 
   getManufactureRecipe(targetName, materialNames, tier, qty = 1) {
     const state = this.currentFormState;
-    const isMech = state.subtype === 'mech' || /机甲/.test(targetName);
-    const isArmor = state.subtype === 'armor' || /斗铠|一字|二字|三字|四字/.test(targetName) || materialNames.some(name => /斗铠设计图/.test(name));
+    const isMech = state.subtype === 'mech' || /鏈虹敳/.test(targetName);
+    const isArmor = state.subtype === 'armor' || /鏂楅摖|涓€瀛梶浜屽瓧|涓夊瓧|鍥涘瓧/.test(targetName) || materialNames.some(name => /鏂楅摖璁捐鍥?.test(name));
 
     if (isMech) {
-      if (tier === 1 || /黄级/.test(targetName)) return { mode: 'mech', fixedTierNeeds: { 2: 1, 1: 50 }, expectedTier: 1, note: '固定配方：1份千锻金属 + 50份百锻金属' };
-      if (tier === 2 || /紫级/.test(targetName)) return { mode: 'mech', fixedTierNeeds: { 3: 1, 1: 40 }, expectedTier: 2, note: '固定配方：1份灵锻金属 + 40份百锻金属' };
-      if (tier === 3 || /黑级/.test(targetName)) return { mode: 'mech', fixedTierNeeds: { 4: 1, 2: 30 }, expectedTier: 3, note: '固定配方：1份魂锻金属 + 30份千锻金属' };
-      if (tier === 4 || /红级/.test(targetName)) return { mode: 'mech', fixedTierNeeds: { 5: 1, 4: 10, 3: 10 }, expectedTier: 4, note: '固定配方：1份天锻金属 + 10份魂锻 + 10份灵锻' };
+      if (tier === 1 || /榛勭骇/.test(targetName)) return { mode: 'mech', fixedTierNeeds: { 2: 1, 1: 50 }, expectedTier: 1, note: '鍥哄畾閰嶆柟锛?浠藉崈閿婚噾灞?+ 50浠界櫨閿婚噾灞? };
+      if (tier === 2 || /绱骇/.test(targetName)) return { mode: 'mech', fixedTierNeeds: { 3: 1, 1: 40 }, expectedTier: 2, note: '鍥哄畾閰嶆柟锛?浠界伒閿婚噾灞?+ 40浠界櫨閿婚噾灞? };
+      if (tier === 3 || /榛戠骇/.test(targetName)) return { mode: 'mech', fixedTierNeeds: { 4: 1, 2: 30 }, expectedTier: 3, note: '鍥哄畾閰嶆柟锛?浠介瓊閿婚噾灞?+ 30浠藉崈閿婚噾灞? };
+      if (tier === 4 || /绾㈢骇/.test(targetName)) return { mode: 'mech', fixedTierNeeds: { 5: 1, 4: 10, 3: 10 }, expectedTier: 4, note: '鍥哄畾閰嶆柟锛?浠藉ぉ閿婚噾灞?+ 10浠介瓊閿?+ 10浠界伒閿? };
     }
     
     if (isArmor) {
       const blueprint = this.getArmorBlueprintNameByTier(tier);
-      const isChest = /胸/.test(targetName);
+      const isChest = /鑳?.test(targetName);
       const metalCount = isChest ? 3 : 2;
-      return { mode: 'armor', blueprint, blueprintCost: 1, variableQty: metalCount, note: `斗铠制造：固定消耗【${blueprint}】1张 + ${metalCount}块同阶金属 (胸铠3块，其余2块)` };
+      return { mode: 'armor', blueprint, blueprintCost: 1, variableQty: metalCount, note: `鏂楅摖鍒堕€狅細鍥哄畾娑堣€椼€?{blueprint}銆?寮?+ ${metalCount}鍧楀悓闃堕噾灞?(鑳搁摖3鍧楋紝鍏朵綑2鍧?` };
     }
     return null;
   }
@@ -828,7 +828,7 @@ class ProfessionUIComponent {
       for (const name of materialNames) {
         if (remaining <= 0) break;
         if (this.getItemTier(name) !== tier) continue;
-        const available = Number(this.currentInventory[name]?.数量 || 0) - Number(plan[name] || 0);
+        const available = Number(this.currentInventory[name]?.鏁伴噺 || 0) - Number(plan[name] || 0);
         const take = Math.min(available, remaining);
         if (take > 0) { plan[name] = Number(plan[name] || 0) + take; remaining -= take; }
       }
@@ -838,35 +838,35 @@ class ProfessionUIComponent {
   }
 
   getManufactureOutputMeta(targetName, materialNames, tier) {
-    const armorBlueprint = materialNames.find(name => /(一字|二字|三字|四字)斗铠设计图/.test(name));
-    if (armorBlueprint) return { name: armorBlueprint.replace('设计图', ''), type: '斗铠部件' };
-    if (/机甲/.test(targetName)) return { name: /黄级|紫级|黑级|红级/.test(targetName) ? targetName : ({ 1: '黄级机甲组件', 2: '紫级机甲组件', 3: '黑级机甲组件', 4: '红级机甲组件' }[tier] || targetName), type: '机甲部件' };
-    if (/魂导/.test(targetName)) return { name: targetName, type: '魂导器' };
-    return { name: targetName, type: '制造产物' };
+    const armorBlueprint = materialNames.find(name => /(涓€瀛梶浜屽瓧|涓夊瓧|鍥涘瓧)鏂楅摖璁捐鍥?.test(name));
+    if (armorBlueprint) return { name: armorBlueprint.replace('璁捐鍥?, ''), type: '鏂楅摖閮ㄤ欢' };
+    if (/鏈虹敳/.test(targetName)) return { name: /榛勭骇|绱骇|榛戠骇|绾㈢骇/.test(targetName) ? targetName : ({ 1: '榛勭骇鏈虹敳缁勪欢', 2: '绱骇鏈虹敳缁勪欢', 3: '榛戠骇鏈虹敳缁勪欢', 4: '绾㈢骇鏈虹敳缁勪欢' }[tier] || targetName), type: '鏈虹敳閮ㄤ欢' };
+    if (/榄傚/.test(targetName)) return { name: targetName, type: '榄傚鍣? };
+    return { name: targetName, type: '鍒堕€犱骇鐗? };
   }
 
   getDesignOutputName(targetName, tier, materialNames = []) {
-    if (/(一字|二字|三字|四字)斗铠设计图/.test(targetName)) return targetName;
-    if (/斗铠|护铠/.test(targetName) || materialNames.some(name => /斗铠/.test(name))) return this.getArmorBlueprintNameByTier(tier);
-    return /设计图|蓝图/.test(targetName) ? targetName : `${targetName}设计图`;
+    if (/(涓€瀛梶浜屽瓧|涓夊瓧|鍥涘瓧)鏂楅摖璁捐鍥?.test(targetName)) return targetName;
+    if (/鏂楅摖|鎶ら摖/.test(targetName) || materialNames.some(name => /鏂楅摖/.test(name))) return this.getArmorBlueprintNameByTier(tier);
+    return /璁捐鍥緗钃濆浘/.test(targetName) ? targetName : `${targetName}璁捐鍥綻;
   }
 
   getRepairDescriptor(materialNames) {
-    if (materialNames.some(name => /神级重塑核心/.test(name))) return { status: '神级重塑完成', desc: '借助神级重塑核心完成了整体重塑' };
-    if (materialNames.some(name => /斗铠本源蕴养液/.test(name))) return { status: '本源修复', desc: '斗铠本源已得到充分蕴养与修复' };
-    if (materialNames.some(name => /精密修复模块/.test(name))) return { status: '精密修复完成', desc: '关键结构已完成精密级修复与校准' };
-    if (materialNames.some(name => /基础维护套件/.test(name))) return { status: '基础维护完成', desc: '已完成日常维护、除错与常规校准' };
-    return { status: '已检修', desc: '已完成标准检修' };
+    if (materialNames.some(name => /绁炵骇閲嶅鏍稿績/.test(name))) return { status: '绁炵骇閲嶅瀹屾垚', desc: '鍊熷姪绁炵骇閲嶅鏍稿績瀹屾垚浜嗘暣浣撻噸濉? };
+    if (materialNames.some(name => /鏂楅摖鏈簮钑村吇娑?.test(name))) return { status: '鏈簮淇', desc: '鏂楅摖鏈簮宸插緱鍒板厖鍒嗚暣鍏讳笌淇' };
+    if (materialNames.some(name => /绮惧瘑淇妯″潡/.test(name))) return { status: '绮惧瘑淇瀹屾垚', desc: '鍏抽敭缁撴瀯宸插畬鎴愮簿瀵嗙骇淇涓庢牎鍑? };
+    if (materialNames.some(name => /鍩虹缁存姢濂椾欢/.test(name))) return { status: '鍩虹缁存姢瀹屾垚', desc: '宸插畬鎴愭棩甯哥淮鎶ゃ€侀櫎閿欎笌甯歌鏍″噯' };
+    return { status: '宸叉淇?, desc: '宸插畬鎴愭爣鍑嗘淇? };
   }
 
   getRepairRequirement(targetName) {
     const item = this.currentInventory[targetName] || {};
-    const durability = Number(item?.耐久 ?? item?.完整度 ?? 100);
-    const statusText = `${targetName} ${item?.状态 || ''} ${item?.描述 || ''}`;
-    if (/彻底损毁|完全损毁|报废|粉碎|崩毁|重塑/.test(statusText) || durability <= 0) return { label: '彻底损毁', required: '神级重塑核心', allows: [/神级重塑核心/] };
-    if (/斗铠/.test(targetName) && (/本源|根基|核心受损|灵性流失/.test(statusText) || (durability > 0 && durability < 30))) return { label: '斗铠本源伤', required: '斗铠本源蕴养液', allows: [/斗铠本源蕴养液/, /神级重塑核心/] };
-    if (/严重|中度|重伤|裂纹|断裂|破损|损坏|失衡/.test(statusText) || durability < 60) return { label: '中重度损伤', required: '精密修复模块', allows: [/精密修复模块/, /斗铠本源蕴养液/, /神级重塑核心/] };
-    return { label: '轻度磨损', required: '基础维护套件', allows: [/基础维护套件/, /精密修复模块/, /斗铠本源蕴养液/, /神级重塑核心/] };
+    const durability = Number(item?.鑰愪箙 ?? item?.瀹屾暣搴??? 100);
+    const statusText = `${targetName} ${item?.鐘舵€?|| ''} ${item?.鎻忚堪 || ''}`;
+    if (/褰诲簳鎹熸瘉|瀹屽叏鎹熸瘉|鎶ュ簾|绮夌|宕╂瘉|閲嶅/.test(statusText) || durability <= 0) return { label: '褰诲簳鎹熸瘉', required: '绁炵骇閲嶅鏍稿績', allows: [/绁炵骇閲嶅鏍稿績/] };
+    if (/鏂楅摖/.test(targetName) && (/鏈簮|鏍瑰熀|鏍稿績鍙楁崯|鐏垫€ф祦澶?.test(statusText) || (durability > 0 && durability < 30))) return { label: '鏂楅摖鏈簮浼?, required: '鏂楅摖鏈簮钑村吇娑?, allows: [/鏂楅摖鏈簮钑村吇娑?, /绁炵骇閲嶅鏍稿績/] };
+    if (/涓ラ噸|涓害|閲嶄激|瑁傜汗|鏂|鐮存崯|鎹熷潖|澶辫　/.test(statusText) || durability < 60) return { label: '涓噸搴︽崯浼?, required: '绮惧瘑淇妯″潡', allows: [/绮惧瘑淇妯″潡/, /鏂楅摖鏈簮钑村吇娑?, /绁炵骇閲嶅鏍稿績/] };
+    return { label: '杞诲害纾ㄦ崯', required: '鍩虹缁存姢濂椾欢', allows: [/鍩虹缁存姢濂椾欢/, /绮惧瘑淇妯″潡/, /鏂楅摖鏈簮钑村吇娑?, /绁炵骇閲嶅鏍稿績/] };
   }
 
   getRepairRequirementSatisfied(materialNames, requirement) {
@@ -881,9 +881,9 @@ class ProfessionUIComponent {
     return { vit: base[0] * m, sp: base[1] * m, men: base[2] * m };
   }
 
-  formatResourceCost(costs) { return `体:${costs.vit.toLocaleString()} / 魂:${costs.sp.toLocaleString()} / 精:${costs.men.toLocaleString()}`; }
-  formatCurrentResources() { const s = this.charData.属性 || {}; return `体:${Number(s.vit || 0).toLocaleString()} / 魂:${Number(s.sp || 0).toLocaleString()} / 精:${Number(s.men || 0).toLocaleString()}`; }
-  hasEnoughResources(costs) { const s = this.charData.属性 || {}; return Number(s.vit || 0) >= costs.vit && Number(s.sp || 0) >= costs.sp && Number(s.men || 0) >= costs.men; }
+  formatResourceCost(costs) { return `浣?${costs.vit.toLocaleString()} / 榄?${costs.sp.toLocaleString()} / 绮?${costs.men.toLocaleString()}`; }
+  formatCurrentResources() { const s = this.charData.灞炴€?|| {}; return `浣?${Number(s.vit || 0).toLocaleString()} / 榄?${Number(s.sp || 0).toLocaleString()} / 绮?${Number(s.men || 0).toLocaleString()}`; }
+  hasEnoughResources(costs) { const s = this.charData.灞炴€?|| {}; return Number(s.vit || 0) >= costs.vit && Number(s.sp || 0) >= costs.sp && Number(s.men || 0) >= costs.men; }
 
   resolveDispatchNpcTarget() {
     const detail = this.options?.dispatchContext || {};
@@ -922,13 +922,13 @@ class ProfessionUIComponent {
   getRelationScore(name) {
     const resolved = this.resolveCharacterByName(name);
     const relationName = resolved.displayName || String(name || '').trim();
-    return Number(this.charData?.社交?.关系?.[name]?.好感度 || this.charData?.社交?.关系?.[relationName]?.好感度 || 0);
+    return Number(this.charData?.绀句氦?.鍏崇郴?.[name]?.濂芥劅搴?|| this.charData?.绀句氦?.鍏崇郴?.[relationName]?.濂芥劅搴?|| 0);
   }
 
   getFusionContext(runtime, materialNames) {
     if (materialNames.length === 1) {
-      const fMeta = this.currentInventory[materialNames[0]]?.融合参数 || {};
-      return { fusionCount: Math.max(1, Number(fMeta.数量 || 1)), fusionSync: Number(fMeta.融合率 ?? fMeta.契合度 ?? 100) };
+      const fMeta = this.currentInventory[materialNames[0]]?.铻嶅悎鍙傛暟 || {};
+      return { fusionCount: Math.max(1, Number(fMeta.鏁伴噺 || 1)), fusionSync: Number(fMeta.铻嶅悎鐜??? fMeta.濂戝悎搴??? 100) };
     }
     if (materialNames.length > 1) return { fusionCount: materialNames.length, fusionSync: this.activeMode === 'forge' ? this.getForgeFusionRate(runtime, materialNames) : 0 };
     return { fusionCount: 1, fusionSync: 0 };
@@ -942,32 +942,32 @@ class ProfessionUIComponent {
 
   buildCommissionFeePatches(fee) {
     const amount = Math.max(0, Number(fee || 0));
-    return amount <= 0 ? [] : [{ op: 'replace', path: `${this.activeCharBasePath}/财富/联邦币`, value: Math.max(0, Number(this.charData.财富?.联邦币 || 0) - amount) }];
+    return amount <= 0 ? [] : [{ op: 'replace', path: `${this.activeCharBasePath}/璐㈠瘜/鑱旈偊甯乣, value: Math.max(0, Number(this.charData.璐㈠瘜?.鑱旈偊甯?|| 0) - amount) }];
   }
 
   toggleCommissionFields() {
     const type = this.getCommissionType();
     const targetNpcName = this.getTargetNpcName();
     const sourcePanel = this.$('#commission-source-panel');
-    if (sourcePanel) sourcePanel.textContent = type === 'official' ? '地图工坊委托 / 协会代工' : (type === 'private' ? `地图工坊委托 / ${targetNpcName || '未指定对象'} 代工` : `当前角色自行操作 / ${this.activeName}`);
+    if (sourcePanel) sourcePanel.textContent = type === 'official' ? '鍦板浘宸ュ潑濮旀墭 / 鍗忎細浠ｅ伐' : (type === 'private' ? `鍦板浘宸ュ潑濮旀墭 / ${targetNpcName || '鏈寚瀹氬璞?} 浠ｅ伐` : `褰撳墠瑙掕壊鑷鎿嶄綔 / ${this.activeName}`);
     const hint = this.$('#commission-hint');
     if (hint) {
-      hint.textContent = type === 'official' ? '此面板作为协会工坊接口打开，委托流程受标准规章保护。'
-        : (type === 'private' ? `此面板由 ${targetNpcName || '未指定对象'} 的接单行动触发。`
-        : '使用角色本身能力进行工艺操作。');
+      hint.textContent = type === 'official' ? '姝ら潰鏉夸綔涓哄崗浼氬伐鍧婃帴鍙ｆ墦寮€锛屽鎵樻祦绋嬪彈鏍囧噯瑙勭珷淇濇姢銆?
+        : (type === 'private' ? `姝ら潰鏉跨敱 ${targetNpcName || '鏈寚瀹氬璞?} 鐨勬帴鍗曡鍔ㄨЕ鍙戙€俙
+        : '浣跨敤瑙掕壊鏈韩鑳藉姏杩涜宸ヨ壓鎿嶄綔銆?);
     }
   }
 
   getOfficialCommissionLocation(jobName) {
     const name = String(jobName || '').trim();
-    if (name === '锻造师') return '锻造师协会';
-    if (name === '设计师') return '设计师协会';
-    if (name === '修理师') return '修理师协会';
-    return '制造师协会';
+    if (name === '閿婚€犲笀') return '閿婚€犲笀鍗忎細';
+    if (name === '璁捐甯?) return '璁捐甯堝崗浼?;
+    if (name === '淇悊甯?) return '淇悊甯堝崗浼?;
+    return '鍒堕€犲笀鍗忎細';
   }
 
   normalizeLocForMatch(location) {
-    const raw = String(location || '').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '').trim();
+    const raw = String(location || '').replace(/^鏂楃綏澶ч檰-/, '').replace(/^鏂楃伒澶ч檰-/, '').trim();
     const segments = raw.split('-').filter(Boolean);
     return {
       raw,
@@ -987,40 +987,40 @@ class ProfessionUIComponent {
   getCommissionContext(cfg, runtime, tier, materialNames, targetName) {
     const type = this.getCommissionType();
     const targetNpcName = this.getTargetNpcName();
-    const currentLoc = String(this.charData?.状态?.位置 || '');
-    const wealth = Number(this.charData?.财富?.联邦币 || 0);
+    const currentLoc = String(this.charData?.鐘舵€?.浣嶇疆 || '');
+    const wealth = Number(this.charData?.璐㈠瘜?.鑱旈偊甯?|| 0);
     const fusion = this.getFusionContext(runtime, materialNames);
     const ctx = {
       type, isCommission: type !== 'self', isOfficial: type === 'official', isPrivate: type === 'private',
       targetNpcName, targetName, fusionCount: fusion.fusionCount, fusionSync: fusion.fusionSync,
       relScore: 0, commissionFee: 0, successRate: null, executorName: this.activeName, executorRuntime: runtime, validationRuntime: runtime,
-      note: `由${this.activeName}亲自执行，按当前角色职业熟练度仲裁。`, error: null, targetChar: null, hasEnoughFunds: true
+      note: `鐢?{this.activeName}浜茶嚜鎵ц锛屾寜褰撳墠瑙掕壊鑱屼笟鐔熺粌搴︿徊瑁併€俙, error: null, targetChar: null, hasEnoughFunds: true
     };
 
-    if (!this.charData?.职业?.[cfg.jobName]) { ctx.error = `${this.activeName}未掌握【${cfg.jobName}】副职业，无法发起该类操作。`; return ctx; }
+    if (!this.charData?.鑱屼笟?.[cfg.jobName]) { ctx.error = `${this.activeName}鏈帉鎻°€?{cfg.jobName}銆戝壇鑱屼笟锛屾棤娉曞彂璧疯绫绘搷浣溿€俙; return ctx; }
 
     if (ctx.isOfficial) {
-      ctx.executorName = `${cfg.jobName}协会`; ctx.executorRuntime = this.buildOfficialCommissionRuntime(cfg.jobName); ctx.validationRuntime = ctx.executorRuntime;
+      ctx.executorName = `${cfg.jobName}鍗忎細`; ctx.executorRuntime = this.buildOfficialCommissionRuntime(cfg.jobName); ctx.validationRuntime = ctx.executorRuntime;
       ctx.successRate = 85; ctx.commissionFee = Number(OFFICIAL_COMMISSION_FEES[tier] || 0);
       const officialLocationName = this.getOfficialCommissionLocation(cfg.jobName);
-      ctx.note = `官方代工固定成功率 85%，最多承接 3 级复合工序。当前代工费 ${this.formatFedCoin(ctx.commissionFee)}。`;
-      if (!currentLoc.includes(officialLocationName)) ctx.error = `必须前往【${officialLocationName}】大厅才能办理官方代工委托。`;
-      else if (ctx.fusionCount > 3) ctx.error = `官方流水线拒收 ${ctx.fusionCount} 级复合工序，当前超出协会工艺上限。`;
+      ctx.note = `瀹樻柟浠ｅ伐鍥哄畾鎴愬姛鐜?85%锛屾渶澶氭壙鎺?3 绾у鍚堝伐搴忋€傚綋鍓嶄唬宸ヨ垂 ${this.formatFedCoin(ctx.commissionFee)}銆俙;
+      if (!currentLoc.includes(officialLocationName)) ctx.error = `蹇呴』鍓嶅線銆?{officialLocationName}銆戝ぇ鍘呮墠鑳藉姙鐞嗗畼鏂逛唬宸ュ鎵樸€俙;
+      else if (ctx.fusionCount > 3) ctx.error = `瀹樻柟娴佹按绾挎嫆鏀?${ctx.fusionCount} 绾у鍚堝伐搴忥紝褰撳墠瓒呭嚭鍗忎細宸ヨ壓涓婇檺銆俙;
     } else if (ctx.isPrivate) {
-      if (!targetNpcName) ctx.error = '请选择或填写私人代工目标 NPC。';
+      if (!targetNpcName) ctx.error = '璇烽€夋嫨鎴栧～鍐欑浜轰唬宸ョ洰鏍?NPC銆?;
       else {
         const resolvedTarget = this.resolveCharacterByName(targetNpcName);
         const targetChar = resolvedTarget.char;
         const relationName = resolvedTarget.displayName || targetNpcName;
         ctx.targetChar = targetChar || null;
-        if (!targetChar) ctx.error = `找不到代工目标【${targetNpcName}】。`;
-        else if (!this.isLocationCompatible(currentLoc, String(targetChar?.状态?.位置 || ''))) ctx.error = `【${targetNpcName}】当前不在你身边，无法进行当面代工交接。`;
-        else if (!targetChar?.职业?.[cfg.jobName]) ctx.error = `【${targetNpcName}】并未掌握【${cfg.jobName}】副职业。`;
+        if (!targetChar) ctx.error = `鎵句笉鍒颁唬宸ョ洰鏍囥€?{targetNpcName}銆戙€俙;
+        else if (!this.isLocationCompatible(currentLoc, String(targetChar?.鐘舵€?.浣嶇疆 || ''))) ctx.error = `銆?{targetNpcName}銆戝綋鍓嶄笉鍦ㄤ綘韬竟锛屾棤娉曡繘琛屽綋闈唬宸ヤ氦鎺ャ€俙;
+        else if (!targetChar?.鑱屼笟?.[cfg.jobName]) ctx.error = `銆?{targetNpcName}銆戝苟鏈帉鎻°€?{cfg.jobName}銆戝壇鑱屼笟銆俙;
         else {
           const npcRuntime = this.getJobRuntime(cfg.jobName, targetChar);
           ctx.executorName = relationName; ctx.executorRuntime = npcRuntime; ctx.validationRuntime = npcRuntime;
           ctx.relScore = this.getRelationScore(relationName);
-          if (ctx.fusionCount > npcRuntime.maxFusion) ctx.error = `目标 NPC【${targetNpcName}】的${cfg.jobName}等级不足，无法承接 ${ctx.fusionCount} 级复合工序。`;
+          if (ctx.fusionCount > npcRuntime.maxFusion) ctx.error = `鐩爣 NPC銆?{targetNpcName}銆戠殑${cfg.jobName}绛夌骇涓嶈冻锛屾棤娉曟壙鎺?${ctx.fusionCount} 绾у鍚堝伐搴忋€俙;
           else {
             const baseFee = Number(PRIVATE_COMMISSION_FEES[tier] || 100000);
             ctx.commissionFee = baseFee * Math.max(1, ctx.fusionCount);
@@ -1028,21 +1028,21 @@ class ProfessionUIComponent {
             else if (ctx.relScore >= 50) ctx.commissionFee = Math.floor(ctx.commissionFee * 0.5);
             const baseRate = this.getModeSuccessRateForRuntime(cfg.mode, npcRuntime, tier, materialNames, ctx.fusionCount);
             ctx.successRate = this.clamp(baseRate + Math.floor(ctx.relScore / 10), 0, 100);
-            ctx.note = `私人代工由【${targetNpcName}】执行，好感度 ${ctx.relScore}，代工费 ${this.formatFedCoin(ctx.commissionFee)}，成功率已按目标 NPC 能力与关系修正重算。`;
+            ctx.note = `绉佷汉浠ｅ伐鐢便€?{targetNpcName}銆戞墽琛岋紝濂芥劅搴?${ctx.relScore}锛屼唬宸ヨ垂 ${this.formatFedCoin(ctx.commissionFee)}锛屾垚鍔熺巼宸叉寜鐩爣 NPC 鑳藉姏涓庡叧绯讳慨姝ｉ噸绠椼€俙;
           }
         }
       }
     }
     ctx.hasEnoughFunds = wealth >= ctx.commissionFee;
-    if (ctx.isCommission && !ctx.error && !ctx.hasEnoughFunds) ctx.error = `资金不足，当前委托需要 ${this.formatFedCoin(ctx.commissionFee)}。`;
+    if (ctx.isCommission && !ctx.error && !ctx.hasEnoughFunds) ctx.error = `璧勯噾涓嶈冻锛屽綋鍓嶅鎵橀渶瑕?${this.formatFedCoin(ctx.commissionFee)}銆俙;
     return ctx;
   }
 
   getMaterialFilter(mode) {
-    if (mode === 'forge') return (name, item) => /金属|铁|银|金|铜|矿|锻|合金|玉银/.test(name) || item?.类型 === '材料' || /百锻|千锻|灵锻|魂锻|天锻/.test(item?.品质);
-    if (mode === 'manufacture') return (name, item) => /金属|锻|合金|玉银|设计图|蓝图|核心|回路|模块|零件|骨架|外壳|装甲|引擎|炮/.test(name) || ['材料', '图纸'].includes(item?.类型);
-    if (mode === 'design') return (name, item) => /图纸|蓝图|模板|回路|模块|核心|设计/.test(name) || ['图纸', '材料'].includes(item?.类型);
-    if (mode === 'repair') return (name, item) => /维护|修复|套件|金属|锻|零件|回路|模块|外壳|装甲|引擎|炮/.test(name) || ['消耗品', '材料'].includes(item?.类型);
+    if (mode === 'forge') return (name, item) => /閲戝睘|閾亅閾秥閲憒閾渱鐭縷閿粅鍚堥噾|鐜夐摱/.test(name) || item?.绫诲瀷 === '鏉愭枡' || /鐧鹃敾|鍗冮敾|鐏甸敾|榄傞敾|澶╅敾/.test(item?.鍝佽川);
+    if (mode === 'manufacture') return (name, item) => /閲戝睘|閿粅鍚堥噾|鐜夐摱|璁捐鍥緗钃濆浘|鏍稿績|鍥炶矾|妯″潡|闆朵欢|楠ㄦ灦|澶栧３|瑁呯敳|寮曟搸|鐐?.test(name) || ['鏉愭枡', '鍥剧焊'].includes(item?.绫诲瀷);
+    if (mode === 'design') return (name, item) => /鍥剧焊|钃濆浘|妯℃澘|鍥炶矾|妯″潡|鏍稿績|璁捐/.test(name) || ['鍥剧焊', '鏉愭枡'].includes(item?.绫诲瀷);
+    if (mode === 'repair') return (name, item) => /缁存姢|淇|濂椾欢|閲戝睘|閿粅闆朵欢|鍥炶矾|妯″潡|澶栧３|瑁呯敳|寮曟搸|鐐?.test(name) || ['娑堣€楀搧', '鏉愭枡'].includes(item?.绫诲瀷);
     return () => false;
   }
 
@@ -1063,22 +1063,22 @@ class ProfessionUIComponent {
     let count = 0;
     Object.keys(this.currentInventory).forEach(itemName => {
       const item = this.currentInventory[itemName];
-      if ((item?.数量 || 0) > 0 && filter(itemName, item)) {
+      if ((item?.鏁伴噺 || 0) > 0 && filter(itemName, item)) {
         const label = document.createElement('label');
         label.className = 'material-item';
         const cb = document.createElement('input');
         cb.type = 'checkbox'; cb.className = 'material-cb'; cb.value = itemName;
         cb.addEventListener('change', () => { this.autoGenerateTargetName(); this.updatePreview(); });
-        const detail = [`剩${item.数量}`];
-        if (item.品质系数) detail.push(`Q${Number(item.品质系数).toFixed(2)}`);
-        const fusionRate = item?.融合参数?.融合率 ?? item?.融合参数?.契合度;
-        if (fusionRate !== undefined) detail.push(`融合率${fusionRate}%`);
+        const detail = [`鍓?{item.鏁伴噺}`];
+        if (item.鍝佽川绯绘暟) detail.push(`Q${Number(item.鍝佽川绯绘暟).toFixed(2)}`);
+        const fusionRate = item?.铻嶅悎鍙傛暟?.铻嶅悎鐜??? item?.铻嶅悎鍙傛暟?.濂戝悎搴?
+        if (fusionRate !== undefined) detail.push(`铻嶅悎鐜?{fusionRate}%`);
         label.appendChild(cb); label.appendChild(document.createTextNode(`${itemName} (${detail.join(' / ')})`));
         container.appendChild(label);
         count++;
       }
     });
-    if (count === 0) container.innerHTML = `<div style="color: var(--text-dim);">${cfg.requiresMaterials ? '[当前背包无可用材料]' : '[当前模式材料可选为空]'}</div>`;
+    if (count === 0) container.innerHTML = `<div style="color: var(--text-dim);">${cfg.requiresMaterials ? '[褰撳墠鑳屽寘鏃犲彲鐢ㄦ潗鏂橾' : '[褰撳墠妯″紡鏉愭枡鍙€変负绌篯'}</div>`;
   }
 
   autoGenerateTargetName() {
@@ -1088,19 +1088,19 @@ class ProfessionUIComponent {
     const tierLabel = this.activeMode === 'forge' ? this.getForgeTierLabel(tier) : this.getTierDisplayName(this.activeMode, tier);
     if (materials.length === 0) return;
 
-    const rawNames = materials.map(name => name.replace(/百锻|千锻|灵锻|魂锻|天锻|极品·/g, '').trim());
+    const rawNames = materials.map(name => name.replace(/鐧鹃敾|鍗冮敾|鐏甸敾|榄傞敾|澶╅敾|鏋佸搧路/g, '').trim());
     let baseName = '';
 
     if (this.activeMode === 'forge') {
       if (rawNames.length === 1) baseName = rawNames[0];
-      else if (rawNames.length === 2 && rawNames.some(m => m.includes('沉银')) && rawNames.some(m => m.includes('魔银'))) baseName = '玉银';
-      else if (rawNames.length === 2) baseName = `${rawNames.join('')}合金`;
-      else baseName = `${rawNames.length}系融锻合金`;
+      else if (rawNames.length === 2 && rawNames.some(m => m.includes('娌夐摱')) && rawNames.some(m => m.includes('榄旈摱'))) baseName = '鐜夐摱';
+      else if (rawNames.length === 2) baseName = `${rawNames.join('')}鍚堥噾`;
+      else baseName = `${rawNames.length}绯昏瀺閿诲悎閲慲;
       this.$('#prof-target').value = `${tierLabel}${baseName}`;
       return;
     }
     if (this.activeMode === 'manufacture') {
-      this.$('#prof-target').value = this.getManufactureOutputMeta(this.$('#prof-target').value.trim() || rawNames[0] || '标准制件', materials, tier).name;
+      this.$('#prof-target').value = this.getManufactureOutputMeta(this.$('#prof-target').value.trim() || rawNames[0] || '鏍囧噯鍒朵欢', materials, tier).name;
       return;
     }
     if (this.activeMode === 'design') {
@@ -1115,7 +1115,7 @@ class ProfessionUIComponent {
   getForgeFusionRate(runtime, materialNames) {
     if (materialNames.length <= 1) {
       const single = this.currentInventory[materialNames[0]];
-      return Number(single?.融合参数?.融合率 ?? single?.融合参数?.契合度 ?? 100);
+      return Number(single?.铻嶅悎鍙傛暟?.铻嶅悎鐜??? single?.铻嶅悎鍙傛暟?.濂戝悎搴??? 100);
     }
     const rand = Math.floor(Math.random() * 13);
     const base = 20 + Math.floor(runtime.limitSuccessRate * 0.8) + Math.floor(runtime.expRatio * 10);
@@ -1132,63 +1132,63 @@ class ProfessionUIComponent {
   }
 
   validateForgeRules(runtime, tier, materialNames, targetName, options = {}) {
-    if (!targetName.trim()) return '请先填写目标产物名称。';
-    if (materialNames.length === 0) return '锻造至少需要选择一种材料。';
-    if (tier === 5 && !options.isCommission && !['灵域境', '神元境'].includes(this.charData.属性?.精神境界 || '')) return '天锻需要精神力达到【灵域境】。';
+    if (!targetName.trim()) return '璇峰厛濉啓鐩爣浜х墿鍚嶇О銆?;
+    if (materialNames.length === 0) return '閿婚€犺嚦灏戦渶瑕侀€夋嫨涓€绉嶆潗鏂欍€?;
+    if (tier === 5 && !options.isCommission && !['鐏靛煙澧?, '绁炲厓澧?].includes(this.charData.灞炴€?.绮剧澧冪晫 || '')) return '澶╅敾闇€瑕佺簿绁炲姏杈惧埌銆愮伒鍩熷銆戙€?;
     if (materialNames.length === 1) {
-      if (runtime.lv < this.getForgeUnlockLevel(tier)) return `${this.getForgeTierLabel(tier)}单金属锻造尚未解锁，需要 Lv.${this.getForgeUnlockLevel(tier)} 锻造师。`;
+      if (runtime.lv < this.getForgeUnlockLevel(tier)) return `${this.getForgeTierLabel(tier)}鍗曢噾灞為敾閫犲皻鏈В閿侊紝闇€瑕?Lv.${this.getForgeUnlockLevel(tier)} 閿婚€犲笀銆俙;
       const mTier = this.getItemTier(materialNames[0]);
       const mItem = this.currentInventory[materialNames[0]];
-      if (Boolean((mItem?.融合参数?.数量 || 0) > 1 || /合金|玉银/.test(materialNames[0])) && tier > mTier && !(mTier === 4 && tier === 5)) return '融锻合金定型后无法常规升阶；仅允许【魂锻合金 → 天锻】特例。';
+      if (Boolean((mItem?.铻嶅悎鍙傛暟?.鏁伴噺 || 0) > 1 || /鍚堥噾|鐜夐摱/.test(materialNames[0])) && tier > mTier && !(mTier === 4 && tier === 5)) return '铻嶉敾鍚堥噾瀹氬瀷鍚庢棤娉曞父瑙勫崌闃讹紱浠呭厑璁搞€愰瓊閿诲悎閲?鈫?澶╅敾銆戠壒渚嬨€?;
       return null;
     }
     const fusionUnlockLv = this.getForgeFusionUnlockLevel(tier);
-    if (runtime.lv < fusionUnlockLv) return `${this.getForgeTierLabel(tier)}融锻尚未解锁，需要 Lv.${fusionUnlockLv} 锻造师。`;
-    if (materialNames.length > runtime.maxFusion) return `当前锻造师最多只能处理 ${runtime.maxFusion} 种金属。`;
+    if (runtime.lv < fusionUnlockLv) return `${this.getForgeTierLabel(tier)}铻嶉敾灏氭湭瑙ｉ攣锛岄渶瑕?Lv.${fusionUnlockLv} 閿婚€犲笀銆俙;
+    if (materialNames.length > runtime.maxFusion) return `褰撳墠閿婚€犲笀鏈€澶氬彧鑳藉鐞?${runtime.maxFusion} 绉嶉噾灞炪€俙;
     for (const mName of materialNames) {
-      if (this.getItemTier(mName) !== tier) return `融锻要求材料阶位与目标完全一致：当前目标 ${this.getForgeTierLabel(tier)}，材料【${mName}】是 ${this.getForgeTierLabel(this.getItemTier(mName))}。`;
-      if (tier === 2 && Number(this.currentInventory[mName]?.品质系数 || 1) < 1.15) return `千锻融锻要求所有材料达到“一品”(品质系数≥1.15)。`;
+      if (this.getItemTier(mName) !== tier) return `铻嶉敾瑕佹眰鏉愭枡闃朵綅涓庣洰鏍囧畬鍏ㄤ竴鑷达細褰撳墠鐩爣 ${this.getForgeTierLabel(tier)}锛屾潗鏂欍€?{mName}銆戞槸 ${this.getForgeTierLabel(this.getItemTier(mName))}銆俙;
+      if (tier === 2 && Number(this.currentInventory[mName]?.鍝佽川绯绘暟 || 1) < 1.15) return `鍗冮敾铻嶉敾瑕佹眰鎵€鏈夋潗鏂欒揪鍒扳€滀竴鍝佲€?鍝佽川绯绘暟鈮?.15)銆俙;
     }
     return null;
   }
 
   validateGenericRules(cfg, runtime, tier, materialNames, targetName) {
-    if (!targetName.trim()) return '请先填写目标产物/对象名称。';
+    if (!targetName.trim()) return '璇峰厛濉啓鐩爣浜х墿/瀵硅薄鍚嶇О銆?;
     const uLv = this.getForgeUnlockLevel(tier);
-    if (runtime.lv < uLv) return `${this.getTierDisplayName(cfg.mode, tier)}尚未解锁，需要 Lv.${uLv} ${cfg.jobName}。`;
-    if (cfg.requiresMaterials && materialNames.length === 0) return `${cfg.displayName}至少需要选择一种材料。`;
-    if (materialNames.length > runtime.maxFusion) return `最多协同 ${runtime.maxFusion} 种材料。`;
+    if (runtime.lv < uLv) return `${this.getTierDisplayName(cfg.mode, tier)}灏氭湭瑙ｉ攣锛岄渶瑕?Lv.${uLv} ${cfg.jobName}銆俙;
+    if (cfg.requiresMaterials && materialNames.length === 0) return `${cfg.displayName}鑷冲皯闇€瑕侀€夋嫨涓€绉嶆潗鏂欍€俙;
+    if (materialNames.length > runtime.maxFusion) return `鏈€澶氬崗鍚?${runtime.maxFusion} 绉嶆潗鏂欍€俙;
     if (cfg.mode === 'manufacture') {
-      if (/斗铠|机甲/.test(targetName) && !this.hasBlueprintMaterial(materialNames)) return '制造斗铠/机甲至少需要对应设计图或蓝图。';
+      if (/鏂楅摖|鏈虹敳/.test(targetName) && !this.hasBlueprintMaterial(materialNames)) return '鍒堕€犳枟閾?鏈虹敳鑷冲皯闇€瑕佸搴旇璁″浘鎴栬摑鍥俱€?;
       const armorTier = this.getArmorTierFromName(targetName);
-      if (armorTier && armorTier !== tier) return `目标【${targetName}】属 ${this.getTierDisplayName(cfg.mode, armorTier)}，阶位不匹配。`;
+      if (armorTier && armorTier !== tier) return `鐩爣銆?{targetName}銆戝睘 ${this.getTierDisplayName(cfg.mode, armorTier)}锛岄樁浣嶄笉鍖归厤銆俙;
       const recipe = this.getManufactureRecipe(targetName, materialNames, tier, 1);
-      if (/斗铠/.test(targetName) && !materialNames.includes(this.getArmorBlueprintNameByTier(tier))) return `需要对应的【${this.getArmorBlueprintNameByTier(tier)}】。`;
+      if (/鏂楅摖/.test(targetName) && !materialNames.includes(this.getArmorBlueprintNameByTier(tier))) return `闇€瑕佸搴旂殑銆?{this.getArmorBlueprintNameByTier(tier)}銆戙€俙;
       if (recipe?.mode === 'armor') {
         const armorMaterials = materialNames.filter(name => name !== recipe.blueprint);
-        if (armorMaterials.length === 0) return `制造【${targetName}】至少需要勾选对应位阶的金属材料。`;
+        if (armorMaterials.length === 0) return `鍒堕€犮€?{targetName}銆戣嚦灏戦渶瑕佸嬀閫夊搴斾綅闃剁殑閲戝睘鏉愭枡銆俙;
         const wrongArmorMaterial = armorMaterials.find(name => this.getItemTier(name) !== tier);
-        if (wrongArmorMaterial) return `当前斗铠制造要求使用${this.getTierMetalLabel(tier)}，材料【${wrongArmorMaterial}】阶位不匹配。`;
+        if (wrongArmorMaterial) return `褰撳墠鏂楅摖鍒堕€犺姹備娇鐢?{this.getTierMetalLabel(tier)}锛屾潗鏂欍€?{wrongArmorMaterial}銆戦樁浣嶄笉鍖归厤銆俙;
       }
       if (recipe?.mode === 'mech') {
-        if (tier !== recipe.expectedTier) return `固定阶位应为 ${this.getTierDisplayName(cfg.mode, recipe.expectedTier)}。`;
+        if (tier !== recipe.expectedTier) return `鍥哄畾闃朵綅搴斾负 ${this.getTierDisplayName(cfg.mode, recipe.expectedTier)}銆俙;
         const stocks = this.getSelectedTierStock(materialNames);
         for (const tierKey in recipe.fixedTierNeeds) {
-          if (Number(stocks[tierKey] || 0) < Number(recipe.fixedTierNeeds[tierKey])) return `制造材料不足：缺少${this.getTierMetalLabel(Number(tierKey))}。`;
+          if (Number(stocks[tierKey] || 0) < Number(recipe.fixedTierNeeds[tierKey])) return `鍒堕€犳潗鏂欎笉瓒筹細缂哄皯${this.getTierMetalLabel(Number(tierKey))}銆俙;
         }
       }
     }
     if (cfg.mode === 'design') {
-      if (!/设计图|蓝图/.test(targetName)) return '目标名称应包含“设计图”或“蓝图”。';
-      if (/斗铠/.test(targetName) && tier < 2) return '斗铠设计图至少 2 阶。';
+      if (!/璁捐鍥緗钃濆浘/.test(targetName)) return '鐩爣鍚嶇О搴斿寘鍚€滆璁″浘鈥濇垨鈥滆摑鍥锯€濄€?;
+      if (/鏂楅摖/.test(targetName) && tier < 2) return '鏂楅摖璁捐鍥捐嚦灏?2 闃躲€?;
       const armorTier = this.getArmorTierFromName(targetName);
-      if (armorTier && armorTier !== tier) return `目标阶位不匹配。`;
+      if (armorTier && armorTier !== tier) return `鐩爣闃朵綅涓嶅尮閰嶃€俙;
     }
     if (cfg.mode === 'repair') {
-      if (targetName.trim() && !this.currentInventory[targetName.trim()]) return '修现存物品必须在背包中。';
+      if (targetName.trim() && !this.currentInventory[targetName.trim()]) return '淇幇瀛樼墿鍝佸繀椤诲湪鑳屽寘涓€?;
       const req = this.getRepairRequirement(targetName.trim());
-      if (materialNames.length === 0) return `至少需要【${req.required}】。`;
-      if (!this.getRepairRequirementSatisfied(materialNames, req)) return `当前损伤为【${req.label}】，至少需要【${req.required}】。`;
+      if (materialNames.length === 0) return `鑷冲皯闇€瑕併€?{req.required}銆戙€俙;
+      if (!this.getRepairRequirementSatisfied(materialNames, req)) return `褰撳墠鎹熶激涓恒€?{req.label}銆戯紝鑷冲皯闇€瑕併€?{req.required}銆戙€俙;
     }
     return null;
   }
@@ -1207,20 +1207,20 @@ class ProfessionUIComponent {
 
     let ruleError = commissionCtx.error || null;
     let rateText = '-', fusionText = '-', maxQText = '-', noteText = '-';
-    let costText = commissionCtx.isCommission ? `<span class="val-cyan">委托模式不扣职业资源</span>` : this.formatResourceCost(costs);
-    let feeText = commissionCtx.isCommission ? (commissionCtx.commissionFee > 0 ? `<span class="val-highlight">${this.formatFedCoin(commissionCtx.commissionFee)}</span>` : `<span class="val-green">免单</span>`) : `<span class="val-cyan">无</span>`;
+    let costText = commissionCtx.isCommission ? `<span class="val-cyan">濮旀墭妯″紡涓嶆墸鑱屼笟璧勬簮</span>` : this.formatResourceCost(costs);
+    let feeText = commissionCtx.isCommission ? (commissionCtx.commissionFee > 0 ? `<span class="val-highlight">${this.formatFedCoin(commissionCtx.commissionFee)}</span>` : `<span class="val-green">鍏嶅崟</span>`) : `<span class="val-cyan">鏃?/span>`;
 
     if (this.activeMode === 'forge') {
       if (!ruleError) ruleError = this.validateForgeRules(effectiveRuntime, tier, materialNames, targetName, { isCommission: commissionCtx.isCommission });
       if (!ruleError) {
         const efc = Math.max(commissionCtx.fusionCount || 1, materialNames.length || 1);
         const isFusion = efc > 1;
-        const rate = commissionCtx.isCommission ? Number(commissionCtx.successRate || 0) : (isFusion ? this.getForgeFusionSuccessRate(runtime, efc, !!this.charData.功法?.['暗器百解']) : this.getSingleTierSuccessRate(tier, runtime));
-        const dfr = isFusion ? Number(commissionCtx.fusionSync || (materialNames.length > 1 ? this.getForgeFusionRate(effectiveRuntime, materialNames) : 100)) : Number(this.currentInventory[materialNames[0]]?.融合参数?.融合率 ?? this.currentInventory[materialNames[0]]?.融合参数?.契合度 ?? 100);
+        const rate = commissionCtx.isCommission ? Number(commissionCtx.successRate || 0) : (isFusion ? this.getForgeFusionSuccessRate(runtime, efc, !!this.charData.鍔熸硶?.['鏆楀櫒鐧捐В']) : this.getSingleTierSuccessRate(tier, runtime));
+        const dfr = isFusion ? Number(commissionCtx.fusionSync || (materialNames.length > 1 ? this.getForgeFusionRate(effectiveRuntime, materialNames) : 100)) : Number(this.currentInventory[materialNames[0]]?.铻嶅悎鍙傛暟?.铻嶅悎鐜??? this.currentInventory[materialNames[0]]?.铻嶅悎鍙傛暟?.濂戝悎搴??? 100);
         rateText = `<span class="val-highlight">${rate}%</span>`;
-        fusionText = isFusion ? `<span class="val-cyan">${efc}级复合 / 融合率${dfr}%</span>` : `<span class="val-cyan">单金属 / 融合率${dfr}%</span>`;
+        fusionText = isFusion ? `<span class="val-cyan">${efc}绾у鍚?/ 铻嶅悎鐜?{dfr}%</span>` : `<span class="val-cyan">鍗曢噾灞?/ 铻嶅悎鐜?{dfr}%</span>`;
         maxQText = `<span class="val-highlight">${this.getForgeMaxQ(tier, efc).toFixed(1)}</span>`;
-        noteText = commissionCtx.isCommission ? commissionCtx.note : (isFusion ? `融锻走公式成功率；当前最大可处理 ${effectiveRuntime.maxFusion} 种金属。` : `单金属成功率按等级表 + 经验区间计算。`);
+        noteText = commissionCtx.isCommission ? commissionCtx.note : (isFusion ? `铻嶉敾璧板叕寮忔垚鍔熺巼锛涘綋鍓嶆渶澶у彲澶勭悊 ${effectiveRuntime.maxFusion} 绉嶉噾灞炪€俙 : `鍗曢噾灞炴垚鍔熺巼鎸夌瓑绾ц〃 + 缁忛獙鍖洪棿璁＄畻銆俙);
       }
     } else {
       if (!ruleError) ruleError = this.validateGenericRules(cfg, effectiveRuntime, tier, materialNames, targetName);
@@ -1229,28 +1229,28 @@ class ProfessionUIComponent {
         const isComp = efc > 1;
         const rate = commissionCtx.isCommission ? Number(commissionCtx.successRate || 0) : (isComp ? this.getGenericCompositeRate(runtime, efc) : this.getGenericSingleRate(runtime));
         rateText = `<span class="val-highlight">${rate}%</span>`;
-        fusionText = isComp ? `<span class="val-cyan">复合工序 ${efc} 材</span>` : `<span class="val-cyan">单工序</span>`;
+        fusionText = isComp ? `<span class="val-cyan">澶嶅悎宸ュ簭 ${efc} 鏉?/span>` : `<span class="val-cyan">鍗曞伐搴?/span>`;
         maxQText = `<span class="val-highlight">${(isComp ? 1.25 : 1.15).toFixed(2)}</span>`;
-        noteText = commissionCtx.isCommission ? commissionCtx.note : (isComp ? `${cfg.displayName}的多材料协同成功率按职业公式推导。` : `${cfg.displayName}单工序成功率直接读取当前职业熟练度。`);
+        noteText = commissionCtx.isCommission ? commissionCtx.note : (isComp ? `${cfg.displayName}鐨勫鏉愭枡鍗忓悓鎴愬姛鐜囨寜鑱屼笟鍏紡鎺ㄥ銆俙 : `${cfg.displayName}鍗曞伐搴忔垚鍔熺巼鐩存帴璇诲彇褰撳墠鑱屼笟鐔熺粌搴︺€俙);
         if (cfg.mode === 'manufacture') {
           const recipe = this.getManufactureRecipe(targetName, materialNames, tier, qty);
           if (recipe?.mode === 'mech' || recipe?.mode === 'armor') noteText = recipe.note;
         }
         if (cfg.mode === 'repair') {
           const req = this.getRepairRequirement(targetName);
-          noteText = isComp ? `目标判定：${req.label} / 已选${materialNames.length}种修理耗材 / 要求：${req.required}` : `目标判定：${req.label} / 要求：${req.required}`;
+          noteText = isComp ? `鐩爣鍒ゅ畾锛?{req.label} / 宸查€?{materialNames.length}绉嶄慨鐞嗚€楁潗 / 瑕佹眰锛?{req.required}` : `鐩爣鍒ゅ畾锛?{req.label} / 瑕佹眰锛?{req.required}`;
         }
       }
     }
 
-    if (!commissionCtx.isCommission && !enoughResources) ruleError = ruleError || '职业资源不足。';
+    if (!commissionCtx.isCommission && !enoughResources) ruleError = ruleError || '鑱屼笟璧勬簮涓嶈冻銆?;
 
     this.$('#prof-submit').disabled = Boolean(ruleError);
-    this.setPreviewField('prev-job', `<span class="val-cyan">${cfg.jobName} Lv.${effectiveRuntime.lv}</span>${commissionCtx.isCommission ? ` / 执行者 ${commissionCtx.executorName}` : ''}`);
-    this.setPreviewField('prev-exp', commissionCtx.isCommission ? `<span class="val-highlight">${Number(effectiveRuntime.exp || 0).toLocaleString()}</span> / 执行者熟练度` : `<span class="val-highlight">${runtime.exp.toLocaleString()}</span> / 本级进度 <span class="val-cyan">${Math.floor(runtime.expRatio * 100)}%</span>`);
+    this.setPreviewField('prev-job', `<span class="val-cyan">${cfg.jobName} Lv.${effectiveRuntime.lv}</span>${commissionCtx.isCommission ? ` / 鎵ц鑰?${commissionCtx.executorName}` : ''}`);
+    this.setPreviewField('prev-exp', commissionCtx.isCommission ? `<span class="val-highlight">${Number(effectiveRuntime.exp || 0).toLocaleString()}</span> / 鎵ц鑰呯啛缁冨害` : `<span class="val-highlight">${runtime.exp.toLocaleString()}</span> / 鏈骇杩涘害 <span class="val-cyan">${Math.floor(runtime.expRatio * 100)}%</span>`);
     this.setPreviewField('prev-res', this.formatCurrentResources());
     this.setPreviewField('prev-costs', enoughResources ? costText : `<span class="val-red">${costText}</span>`);
-    this.setPreviewField('prev-executor', `<span class="val-cyan">${commissionCtx.executorName}</span>${commissionCtx.isPrivate ? ` / 好感 ${commissionCtx.relScore}` : (commissionCtx.isOfficial ? ' / 官方代工' : ' / 自行操作')}`);
+    this.setPreviewField('prev-executor', `<span class="val-cyan">${commissionCtx.executorName}</span>${commissionCtx.isPrivate ? ` / 濂芥劅 ${commissionCtx.relScore}` : (commissionCtx.isOfficial ? ' / 瀹樻柟浠ｅ伐' : ' / 鑷鎿嶄綔')}`);
     this.setPreviewField('prev-fee', feeText);
     this.setPreviewField('prev-rate', ruleError ? `<span class="val-red">-</span>` : rateText);
     this.setPreviewField('prev-fusion', ruleError ? `<span class="val-red">-</span>` : fusionText);
@@ -1259,35 +1259,35 @@ class ProfessionUIComponent {
     this.setPreviewField('prev-note', ruleError ? `<span class="val-red">${ruleError}</span>` : noteText);
   }
 
-  // --- 提交操作相关补丁生成 --- 
+  // --- 鎻愪氦鎿嶄綔鐩稿叧琛ヤ竵鐢熸垚 --- 
   buildResourcePatches(costs) {
     return [
-      { op: 'replace', path: `${this.activeCharBasePath}/属性/vit`, value: Math.max(0, Number(this.charData.属性?.vit || 0) - costs.vit) },
-      { op: 'replace', path: `${this.activeCharBasePath}/属性/sp`, value: Math.max(0, Number(this.charData.属性?.sp || 0) - costs.sp) },
-      { op: 'replace', path: `${this.activeCharBasePath}/属性/men`, value: Math.max(0, Number(this.charData.属性?.men || 0) - costs.men) }
+      { op: 'replace', path: `${this.activeCharBasePath}/灞炴€?vit`, value: Math.max(0, Number(this.charData.灞炴€?.vit || 0) - costs.vit) },
+      { op: 'replace', path: `${this.activeCharBasePath}/灞炴€?sp`, value: Math.max(0, Number(this.charData.灞炴€?.sp || 0) - costs.sp) },
+      { op: 'replace', path: `${this.activeCharBasePath}/灞炴€?men`, value: Math.max(0, Number(this.charData.灞炴€?.men || 0) - costs.men) }
     ];
   }
   buildMaterialConsumePatches(materialNames, qty) {
     return materialNames.map(mName => {
-      const nextQty = Number(this.currentInventory[mName]?.数量 || 0) - qty;
+      const nextQty = Number(this.currentInventory[mName]?.鏁伴噺 || 0) - qty;
       return nextQty <= 0 
-        ? { op: 'remove', path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(mName)}` } 
-        : { op: 'replace', path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(mName)}/数量`, value: nextQty };
+        ? { op: 'remove', path: `${this.activeCharBasePath}/鑳屽寘/${this.escapeJsonPointer(mName)}` } 
+        : { op: 'replace', path: `${this.activeCharBasePath}/鑳屽寘/${this.escapeJsonPointer(mName)}/鏁伴噺`, value: nextQty };
     });
   }
   buildConsumePlanPatches(plan) {
     return Object.entries(plan || {}).filter(([_, q]) => Number(q) > 0).map(([name, consumeQty]) => {
-      const nextQty = Number(this.currentInventory[name]?.数量 || 0) - Number(consumeQty);
+      const nextQty = Number(this.currentInventory[name]?.鏁伴噺 || 0) - Number(consumeQty);
       return nextQty <= 0 
-        ? { op: 'remove', path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(name)}` } 
-        : { op: 'replace', path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(name)}/数量`, value: nextQty };
+        ? { op: 'remove', path: `${this.activeCharBasePath}/鑳屽寘/${this.escapeJsonPointer(name)}` } 
+        : { op: 'replace', path: `${this.activeCharBasePath}/鑳屽寘/${this.escapeJsonPointer(name)}/鏁伴噺`, value: nextQty };
     });
   }
   buildInventoryAddPatches(itemName, itemData, amount = 1) {
     if (this.currentInventory[itemName]) {
-      return [{ op: 'replace', path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(itemName)}/数量`, value: Number(this.currentInventory[itemName].数量 || 0) + amount }];
+      return [{ op: 'replace', path: `${this.activeCharBasePath}/鑳屽寘/${this.escapeJsonPointer(itemName)}/鏁伴噺`, value: Number(this.currentInventory[itemName].鏁伴噺 || 0) + amount }];
     }
-    return [{ op: 'replace', path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(itemName)}`, value: Object.assign({}, itemData, { 数量: amount }) }];
+    return [{ op: 'replace', path: `${this.activeCharBasePath}/鑳屽寘/${this.escapeJsonPointer(itemName)}`, value: Object.assign({}, itemData, { 鏁伴噺: amount }) }];
   }
   buildJobProgressPatches(jobName, expGain) {
     const runtime = this.getJobRuntime(jobName);
@@ -1295,24 +1295,32 @@ class ProfessionUIComponent {
     const derived = this.deriveJobLimitsFromExp(nextExp);
     return {
       patches: [
-        { op: 'replace', path: `${this.activeCharBasePath}/职业/${this.escapeJsonPointer(jobName)}/经验`, value: nextExp },
-        { op: 'replace', path: `${this.activeCharBasePath}/职业/${this.escapeJsonPointer(jobName)}/等级`, value: derived.lv },
-        { op: 'replace', path: `${this.activeCharBasePath}/职业/${this.escapeJsonPointer(jobName)}/限制/最大融合数`, value: derived.最大融合数 },
-        { op: 'replace', path: `${this.activeCharBasePath}/职业/${this.escapeJsonPointer(jobName)}/限制/成功率`, value: derived.成功率 }
+        { op: 'replace', path: `${this.activeCharBasePath}/鑱屼笟/${this.escapeJsonPointer(jobName)}/缁忛獙`, value: nextExp },
+        { op: 'replace', path: `${this.activeCharBasePath}/鑱屼笟/${this.escapeJsonPointer(jobName)}/绛夌骇`, value: derived.lv },
+        { op: 'replace', path: `${this.activeCharBasePath}/鑱屼笟/${this.escapeJsonPointer(jobName)}/闄愬埗/鏈€澶ц瀺鍚堟暟`, value: derived.鏈€澶ц瀺鍚堟暟 },
+        { op: 'replace', path: `${this.activeCharBasePath}/鑱屼笟/${this.escapeJsonPointer(jobName)}/闄愬埗/鎴愬姛鐜嘸, value: derived.鎴愬姛鐜?}
       ],
       oldLv: runtime.lv, newLv: derived.lv
     };
   }
   buildSystemResultPatches(resultLog, roll, successRate) {
     return [
-      { op: 'replace', path: '/sys/rsn', value: String(resultLog || '') },
-      { op: 'replace', path: '/sys/最近检定', value: Number.isFinite(Number(roll)) ? Number(roll) : 0 },
-      { op: 'replace', path: '/sys/最终成功率', value: Number.isFinite(Number(successRate)) ? Number(successRate) : 0 }
+      { op: 'replace', path: '/sys/系统播报', value: String(resultLog || '') },
+      { op: 'replace', path: '/sys/鏈€杩戞瀹?, value: Number.isFinite(Number(roll)) ? Number(roll) : 0 },
+      { op: 'replace', path: '/sys/鏈€缁堟垚鍔熺巼', value: Number.isFinite(Number(successRate)) ? Number(successRate) : 0 }
     ];
   }
-  buildFrontEndStateBlock(analysis, patchOps) {
-    const safeAnalysis = String(analysis || 'Profession action prepared.').trim();
-    return `<UpdateVariable>\n<Analysis>${safeAnalysis}</Analysis>\n<JSONPatch>\n${JSON.stringify(patchOps || [], null, 2)}\n</JSONPatch>\n</UpdateVariable>`;
+  buildProfessionNarrationPrompt(resultLog, sections = []) {
+    const safeSections = Array.isArray(sections)
+      ? sections.map(section => String(section || '').trim()).filter(Boolean)
+      : [];
+    return [
+      PROF_HIDDEN_ARBITRATION_NARRATION_RULES,
+      '[鍓嶇缁撶畻宸插畬鎴怾',
+      '鏈鍓亴涓氭秹鍙婄殑璧勬簮鎵ｉ櫎銆佹潗鏂欐秷鑰椼€佷骇鐗╁鍑忋€佽亴涓氳繘搴︿笌绯荤粺鎾姤宸茬粡鍐欏叆 MVU锛屼笉瑕侀噸澶嶆墸璧勬簮锛屼篃涓嶈鍐嶆浠茶鍚屼竴娆″埗浣溿€?,
+      String(resultLog || '').trim(),
+      ...safeSections,
+    ].filter(Boolean).join('\n\n');
   }
   getForgeSingleQuality(tier, runtime) {
     const unlockLv = this.getForgeUnlockLevel(tier);
@@ -1339,9 +1347,14 @@ class ProfessionUIComponent {
     return this.clamp(Number((base + runtime.expRatio * 0.12 + (isGreatSuccess ? 0.15 : 0) + Math.random() * 0.05).toFixed(2)), 0.8, 1.25);
   }
 
-  submitAction(playerInput, sysPrompt, requestKind) {
+  submitAction(playerInput, sysPrompt, requestKind, patchOps = []) {
     if (this.options.onAction) {
-      this.options.onAction({ playerInput, systemPrompt: sysPrompt, requestKind });
+      this.options.onAction({
+        playerInput,
+        systemPrompt: sysPrompt,
+        requestKind,
+        patchOps: Array.isArray(patchOps) ? patchOps : []
+      });
     }
   }
 
@@ -1362,8 +1375,8 @@ class ProfessionUIComponent {
     
     const efc = Math.max(Number(commissionCtx.fusionCount || 1), materialNames.length || 1);
     const isFusion = efc > 1;
-    const successRate = commissionCtx.isCommission ? Number(commissionCtx.successRate || 0) : (isFusion ? this.getForgeFusionSuccessRate(runtime, efc, !!this.charData.功法?.['暗器百解']) : this.getSingleTierSuccessRate(tier, runtime));
-    const fusionRate = isFusion ? Number(commissionCtx.fusionSync || this.getForgeFusionRate(commissionCtx.executorRuntime || runtime, materialNames)) : Number(this.currentInventory[materialNames[0]]?.融合参数?.融合率 ?? 100);
+    const successRate = commissionCtx.isCommission ? Number(commissionCtx.successRate || 0) : (isFusion ? this.getForgeFusionSuccessRate(runtime, efc, !!this.charData.鍔熸硶?.['鏆楀櫒鐧捐В']) : this.getSingleTierSuccessRate(tier, runtime));
+    const fusionRate = isFusion ? Number(commissionCtx.fusionSync || this.getForgeFusionRate(commissionCtx.executorRuntime || runtime, materialNames)) : Number(this.currentInventory[materialNames[0]]?.铻嶅悎鍙傛暟?.铻嶅悎鐜??? 100);
     const maxQ = this.getForgeMaxQ(tier, efc);
     
     const roll = Math.floor(Math.random() * 100) + 1;
@@ -1377,15 +1390,15 @@ class ProfessionUIComponent {
       else finalQ = this.clamp(isGreatSuccess ? 1.2 : this.getForgeSingleQuality(tier, commissionCtx.executorRuntime || runtime), 0.8, 1.2);
       
       if (isGreatSuccess) {
-        productName = `极品·${targetName}`;
+        productName = `鏋佸搧路${targetName}`;
         if (!commissionCtx.isCommission) expGain *= 2;
-        resultLog = `[大成功] ${commissionCtx.executorName}触发极限锻压，成功打造出【${targetName}】。品质系数 ${finalQ.toFixed(2)}。`;
+        resultLog = `[澶ф垚鍔焆 ${commissionCtx.executorName}瑙﹀彂鏋侀檺閿诲帇锛屾垚鍔熸墦閫犲嚭銆?{targetName}銆戙€傚搧璐ㄧ郴鏁?${finalQ.toFixed(2)}銆俙;
       } else {
-        const feeMsg = commissionCtx.isCommission ? (commissionCtx.commissionFee > 0 ? ` 已支付代工费 ${this.formatFedCoin(commissionCtx.commissionFee)}。` : ' 本次代工因好感度优惠免单。') : '';
-        resultLog = `${commissionCtx.isCommission ? '[委托成功]' : '[打造成功]'} ${commissionCtx.executorName}成功完成【${targetName}】的锻造，品质系数 ${finalQ.toFixed(2)}。${feeMsg}`;
+        const feeMsg = commissionCtx.isCommission ? (commissionCtx.commissionFee > 0 ? ` 宸叉敮浠樹唬宸ヨ垂 ${this.formatFedCoin(commissionCtx.commissionFee)}銆俙 : ' 鏈浠ｅ伐鍥犲ソ鎰熷害浼樻儬鍏嶅崟銆?) : '';
+        resultLog = `${commissionCtx.isCommission ? '[濮旀墭鎴愬姛]' : '[鎵撻€犳垚鍔焆'} ${commissionCtx.executorName}鎴愬姛瀹屾垚銆?{targetName}銆戠殑閿婚€狅紝鍝佽川绯绘暟 ${finalQ.toFixed(2)}銆?{feeMsg}`;
       }
     } else {
-      resultLog = `${commissionCtx.isCommission ? '[委托失败]' : '[打造失败]'} ${commissionCtx.executorName}尝试打造【${targetName}】失败。Roll ${roll} > 成功率 ${successRate}。`;
+      resultLog = `${commissionCtx.isCommission ? '[濮旀墭澶辫触]' : '[鎵撻€犲け璐'} ${commissionCtx.executorName}灏濊瘯鎵撻€犮€?{targetName}銆戝け璐ャ€俁oll ${roll} > 鎴愬姛鐜?${successRate}銆俙;
     }
 
     let patchOps = [];
@@ -1394,23 +1407,28 @@ class ProfessionUIComponent {
     patchOps.push(...this.buildMaterialConsumePatches(materialNames, qty));
 
     if (isSuccess) {
-      const newItem = { 数量: 1, 类型: '副职业产物', 品质: isGreatSuccess ? '极品' : '标准', 品质系数: Number(finalQ.toFixed(2)), 描述: `由${commissionCtx.executorName}完成的${cfg.jobName}产物` };
-      if (isFusion) { newItem.融合参数 = { 数量: efc, 融合率: Math.floor(fusionRate) }; newItem.描述 += ` (${efc}种金属融锻)`; }
+      const newItem = { 鏁伴噺: 1, 绫诲瀷: '鍓亴涓氫骇鐗?, 鍝佽川: isGreatSuccess ? '鏋佸搧' : '鏍囧噯', 鍝佽川绯绘暟: Number(finalQ.toFixed(2)), 鎻忚堪: `鐢?{commissionCtx.executorName}瀹屾垚鐨?{cfg.jobName}浜х墿` };
+      if (isFusion) { newItem.铻嶅悎鍙傛暟 = { 鏁伴噺: efc, 铻嶅悎鐜? Math.floor(fusionRate) }; newItem.鎻忚堪 += ` (${efc}绉嶉噾灞炶瀺閿?`; }
       patchOps.push(...this.buildInventoryAddPatches(productName, newItem, 1));
       if (!commissionCtx.isCommission) {
         const progress = this.buildJobProgressPatches(cfg.jobName, expGain);
         patchOps.push(...progress.patches);
-        if (progress.newLv > progress.oldLv) resultLog += `\n\n[职业突破] ${cfg.jobName}等级提升至 Lv.${progress.newLv}。`;
+        if (progress.newLv > progress.oldLv) resultLog += `\n\n[鑱屼笟绐佺牬] ${cfg.jobName}绛夌骇鎻愬崌鑷?Lv.${progress.newLv}銆俙;
       }
     }
     patchOps.push(...this.buildSystemResultPatches(resultLog, roll, successRate));
 
-    const materialText = materialNames.map(name => `${qty}份${name}`).join('、');
+    const materialText = materialNames.map(name => `${qty}浠?{name}`).join('銆?);
     const officialLocationName = this.getOfficialCommissionLocation(cfg.jobName);
-    const actionLead = commissionCtx.isOfficial ? `我要在${officialLocationName}办理官方代工，委托完成【${targetName}】的${cfg.displayName}` : (commissionCtx.isPrivate ? `我要委托【${commissionCtx.executorName}】代工${cfg.displayName}，目标是【${targetName}】` : `我要进行${cfg.displayName}，目标是【${targetName}】`);
-    const consumptionText = commissionCtx.isCommission ? `本次代工费：${this.formatFedCoin(commissionCtx.commissionFee)}。材料仍由委托人提供。` : `本次消耗：${this.formatResourceCost(costs)}。`;
-    const sysPrompt = `${PROF_HIDDEN_ARBITRATION_NARRATION_RULES}\n\n[执行来源]\n本次执行者：${commissionCtx.executorName}。${commissionCtx.note}\n\n${resultLog}\n\n[副职业资源消耗]\n${consumptionText}\n${this.buildFrontEndStateBlock('Forge executed.', patchOps)}`;
-    this.submitAction(`${actionLead}，材料为：${materialText}。`, sysPrompt, 'prof_forge');
+    const actionLead = commissionCtx.isOfficial ? `鎴戣鍦?{officialLocationName}鍔炵悊瀹樻柟浠ｅ伐锛屽鎵樺畬鎴愩€?{targetName}銆戠殑${cfg.displayName}` : (commissionCtx.isPrivate ? `鎴戣濮旀墭銆?{commissionCtx.executorName}銆戜唬宸?{cfg.displayName}锛岀洰鏍囨槸銆?{targetName}銆慲 : `鎴戣杩涜${cfg.displayName}锛岀洰鏍囨槸銆?{targetName}銆慲);
+    const consumptionText = commissionCtx.isCommission ? `鏈浠ｅ伐璐癸細${this.formatFedCoin(commissionCtx.commissionFee)}銆傛潗鏂欎粛鐢卞鎵樹汉鎻愪緵銆俙 : `鏈娑堣€楋細${this.formatResourceCost(costs)}銆俙;
+    const sysPrompt = this.buildProfessionNarrationPrompt(resultLog, [
+      `[鎵ц鏉ユ簮]\n鏈鎵ц鑰咃細${commissionCtx.executorName}銆?{commissionCtx.note}`,
+      `[鍓亴涓氱被鍨媇\n${cfg.displayName}`,
+      `[鍓亴涓氳祫婧愭秷鑰梋\n${consumptionText}`,
+      `[缁撶畻鎽樿]\n鐩爣涓恒€?{targetName}銆戯紱鏉愭枡涓猴細${materialText}銆俙
+    ]);
+    this.submitAction(`${actionLead}锛屾潗鏂欎负锛?{materialText}銆俙, sysPrompt, 'prof_forge', patchOps);
   }
 
   executeGenericProfession() {
@@ -1453,44 +1471,50 @@ class ProfessionUIComponent {
     if (isSuccess) {
       if (this.activeMode === 'design') {
         const outputName = this.getDesignOutputName(targetName, tier, materialNames);
-        patchOps.push(...this.buildInventoryAddPatches(outputName, { 类型: '图纸', 品质: this.getTierQualityLabel(cfg.mode, tier), 品质系数: finalQ, 描述: `由${commissionCtx.executorName}完成的${cfg.jobName}绘制` }, 1));
-        resultLog = `[${commissionCtx.isCommission ? '委托成功' : cfg.displayName + '成功'}] ${commissionCtx.executorName}完成了【${outputName}】的设计绘制，完成度系数 ${finalQ.toFixed(2)}。`;
+        patchOps.push(...this.buildInventoryAddPatches(outputName, { 绫诲瀷: '鍥剧焊', 鍝佽川: this.getTierQualityLabel(cfg.mode, tier), 鍝佽川绯绘暟: finalQ, 鎻忚堪: `鐢?{commissionCtx.executorName}瀹屾垚鐨?{cfg.jobName}缁樺埗` }, 1));
+        resultLog = `[${commissionCtx.isCommission ? '濮旀墭鎴愬姛' : cfg.displayName + '鎴愬姛'}] ${commissionCtx.executorName}瀹屾垚浜嗐€?{outputName}銆戠殑璁捐缁樺埗锛屽畬鎴愬害绯绘暟 ${finalQ.toFixed(2)}銆俙;
       } else if (this.activeMode === 'manufacture') {
         const mMeta = this.getManufactureOutputMeta(targetName, materialNames, tier);
-        patchOps.push(...this.buildInventoryAddPatches(mMeta.name, { 类型: mMeta.type, 品质: this.getTierQualityLabel(cfg.mode, tier), 品质系数: finalQ, 描述: `由${commissionCtx.executorName}完成的${cfg.jobName}制造` }, 1));
-        resultLog = `[${commissionCtx.isCommission ? '委托成功' : cfg.displayName + '成功'}] ${commissionCtx.executorName}完成了【${mMeta.name}】的制造，完成度系数 ${finalQ.toFixed(2)}。`;
+        patchOps.push(...this.buildInventoryAddPatches(mMeta.name, { 绫诲瀷: mMeta.type, 鍝佽川: this.getTierQualityLabel(cfg.mode, tier), 鍝佽川绯绘暟: finalQ, 鎻忚堪: `鐢?{commissionCtx.executorName}瀹屾垚鐨?{cfg.jobName}鍒堕€燻 }, 1));
+        resultLog = `[${commissionCtx.isCommission ? '濮旀墭鎴愬姛' : cfg.displayName + '鎴愬姛'}] ${commissionCtx.executorName}瀹屾垚浜嗐€?{mMeta.name}銆戠殑鍒堕€狅紝瀹屾垚搴︾郴鏁?${finalQ.toFixed(2)}銆俙;
       } else if (this.activeMode === 'repair') {
         const existing = this.currentInventory[targetName];
         const repairDesc = this.getRepairDescriptor(materialNames);
-        const nextItem = Object.assign({}, existing, { 描述: `${existing?.描述 ? existing.描述 + ' | ' : ''}${repairDesc.desc}`, 状态: repairDesc.status });
-        if ('耐久' in (existing || {})) nextItem.耐久 = 100;
-        if ('完整度' in (existing || {})) nextItem.完整度 = 100;
-        if (!('耐久' in (existing || {})) && !('完整度' in (existing || {}))) nextItem.完整度 = 100;
-        patchOps.push({ op: 'replace', path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(targetName)}`, value: nextItem });
-        resultLog = `[${commissionCtx.isCommission ? '委托成功' : cfg.displayName + '成功'}] ${commissionCtx.executorName}完成了对【${targetName}】的整备修理。当前状态：${repairDesc.status}。`;
+        const nextItem = Object.assign({}, existing, { 鎻忚堪: `${existing?.鎻忚堪 ? existing.鎻忚堪 + ' | ' : ''}${repairDesc.desc}`, 鐘舵€? repairDesc.status });
+        if ('鑰愪箙' in (existing || {})) nextItem.鑰愪箙 = 100;
+        if ('瀹屾暣搴? in (existing || {})) nextItem.瀹屾暣搴?= 100;
+        if (!('鑰愪箙' in (existing || {})) && !('瀹屾暣搴? in (existing || {}))) nextItem.瀹屾暣搴?= 100;
+        patchOps.push({ op: 'replace', path: `${this.activeCharBasePath}/鑳屽寘/${this.escapeJsonPointer(targetName)}`, value: nextItem });
+        resultLog = `[${commissionCtx.isCommission ? '濮旀墭鎴愬姛' : cfg.displayName + '鎴愬姛'}] ${commissionCtx.executorName}瀹屾垚浜嗗銆?{targetName}銆戠殑鏁村淇悊銆傚綋鍓嶇姸鎬侊細${repairDesc.status}銆俙;
       }
       if (!commissionCtx.isCommission) {
         const progress = this.buildJobProgressPatches(cfg.jobName, expGain);
         patchOps.push(...progress.patches);
-        if (progress.newLv > progress.oldLv) resultLog += `\n\n[职业突破] ${cfg.jobName}等级提升至 Lv.${progress.newLv}。`;
+        if (progress.newLv > progress.oldLv) resultLog += `\n\n[鑱屼笟绐佺牬] ${cfg.jobName}绛夌骇鎻愬崌鑷?Lv.${progress.newLv}銆俙;
       }
-      if (isGreatSuccess) resultLog = `[大成功] ${commissionCtx.executorName}以极高完成度完成了【${targetName}】的${cfg.displayName}操作，品质系数 ${finalQ.toFixed(2)}。`;
-      else if (commissionCtx.isCommission) resultLog += (commissionCtx.commissionFee > 0 ? ` 已支付代工费 ${this.formatFedCoin(commissionCtx.commissionFee)}。` : ' 本次代工因好感度优惠免单。');
+      if (isGreatSuccess) resultLog = `[澶ф垚鍔焆 ${commissionCtx.executorName}浠ユ瀬楂樺畬鎴愬害瀹屾垚浜嗐€?{targetName}銆戠殑${cfg.displayName}鎿嶄綔锛屽搧璐ㄧ郴鏁?${finalQ.toFixed(2)}銆俙;
+      else if (commissionCtx.isCommission) resultLog += (commissionCtx.commissionFee > 0 ? ` 宸叉敮浠樹唬宸ヨ垂 ${this.formatFedCoin(commissionCtx.commissionFee)}銆俙 : ' 鏈浠ｅ伐鍥犲ソ鎰熷害浼樻儬鍏嶅崟銆?);
     } else {
-      resultLog = `[${commissionCtx.isCommission ? '委托失败' : cfg.displayName + '失败'}] ${commissionCtx.executorName}尝试处理【${targetName}】失败。Roll ${roll} > 成功率 ${successRate}。`;
+      resultLog = `[${commissionCtx.isCommission ? '濮旀墭澶辫触' : cfg.displayName + '澶辫触'}] ${commissionCtx.executorName}灏濊瘯澶勭悊銆?{targetName}銆戝け璐ャ€俁oll ${roll} > 鎴愬姛鐜?${successRate}銆俙;
     }
 
     patchOps.push(...this.buildSystemResultPatches(resultLog, roll, successRate));
 
-    const materialText = materialNames.length > 0 ? materialNames.map(name => `${qty}份${name}`).join('、') : '无显式材料';
+    const materialText = materialNames.length > 0 ? materialNames.map(name => `${qty}浠?{name}`).join('銆?) : '鏃犳樉寮忔潗鏂?;
     const officialLocationName = this.getOfficialCommissionLocation(cfg.jobName);
-    const actionLead = commissionCtx.isOfficial ? `我要在${officialLocationName}办理官方代工，委托执行${cfg.displayName}，目标是【${targetName}】` : (commissionCtx.isPrivate ? `我要委托【${commissionCtx.executorName}】代工${cfg.displayName}，目标是【${targetName}】` : `我要进行${cfg.displayName}，目标是【${targetName}】`);
-    const consumptionText = commissionCtx.isCommission ? `本次代工费：${this.formatFedCoin(commissionCtx.commissionFee)}。材料与目标物仍由委托人提供。` : `本次消耗：${this.formatResourceCost(costs)}。`;
-    const sysPrompt = `${PROF_HIDDEN_ARBITRATION_NARRATION_RULES}\n\n[执行来源]\n本次执行者：${commissionCtx.executorName}。${commissionCtx.note}\n\n${resultLog}\n\n[副职业资源消耗]\n${consumptionText}\n${this.buildFrontEndStateBlock('Generic profession executed.', patchOps)}`;
-    this.submitAction(`${actionLead}，材料：${materialText}。`, sysPrompt, `prof_${cfg.mode}`);
+    const actionLead = commissionCtx.isOfficial ? `鎴戣鍦?{officialLocationName}鍔炵悊瀹樻柟浠ｅ伐锛屽鎵樻墽琛?{cfg.displayName}锛岀洰鏍囨槸銆?{targetName}銆慲 : (commissionCtx.isPrivate ? `鎴戣濮旀墭銆?{commissionCtx.executorName}銆戜唬宸?{cfg.displayName}锛岀洰鏍囨槸銆?{targetName}銆慲 : `鎴戣杩涜${cfg.displayName}锛岀洰鏍囨槸銆?{targetName}銆慲);
+    const consumptionText = commissionCtx.isCommission ? `鏈浠ｅ伐璐癸細${this.formatFedCoin(commissionCtx.commissionFee)}銆傛潗鏂欎笌鐩爣鐗╀粛鐢卞鎵樹汉鎻愪緵銆俙 : `鏈娑堣€楋細${this.formatResourceCost(costs)}銆俙;
+    const sysPrompt = this.buildProfessionNarrationPrompt(resultLog, [
+      `[鎵ц鏉ユ簮]\n鏈鎵ц鑰咃細${commissionCtx.executorName}銆?{commissionCtx.note}`,
+      `[鍓亴涓氱被鍨媇\n${cfg.displayName}`,
+      `[鍓亴涓氳祫婧愭秷鑰梋\n${consumptionText}`,
+      `[缁撶畻鎽樿]\n鐩爣涓恒€?{targetName}銆戯紱鏉愭枡锛?{materialText}銆俙
+    ]);
+    this.submitAction(`${actionLead}锛屾潗鏂欙細${materialText}銆俙, sysPrompt, `prof_${cfg.mode}`, patchOps);
   }
 }
 
 window.mountProfessionUI = function(containerElement, snapshot, options = {}) {
   return new ProfessionUIComponent(containerElement, snapshot, options);
 };
+

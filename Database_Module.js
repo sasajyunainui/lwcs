@@ -3369,6 +3369,29 @@ $CONTENT
         const helper = window.TavernHelper;
         return !!(helper && typeof helper.generate === 'function' && typeof helper.createChatMessages === 'function');
     }
+    async function persistUserMessageWithoutGeneration_ACU(userMessage) {
+        const helper = window.TavernHelper;
+        const text = String(userMessage || '').trim();
+        if (!helper || typeof helper.createChatMessages !== 'function' || !text) {
+            return false;
+        }
+        try {
+            const chat = getChatArray_ACU();
+            const lastMessage = Array.isArray(chat) && chat.length > 0 ? chat[chat.length - 1] : null;
+            if (lastMessage && lastMessage.is_user && String(lastMessage.mes || '').trim() === text) {
+                return true;
+            }
+        }
+        catch (error) { }
+        try {
+            await helper.createChatMessages([{ role: 'user', message: text }], { refresh: 'affected' });
+            return true;
+        }
+        catch (error) {
+            logWarn_ACU('[剧情推进] Failed to persist user message without generation:', error);
+            return false;
+        }
+    }
     async function handleCapturedUserSend_ACU(userMessage) {
         const helper = window.TavernHelper;
         const text = String(userMessage || '').trim();
@@ -3381,14 +3404,6 @@ $CONTENT
             hasExistingUserMessage: false,
             moduleSettlementContext,
         });
-        if (preflight.action === 'block') {
-            await helper.createChatMessages([{ role: 'user', message: text }], { refresh: 'affected' });
-            try {
-                setSendTextareaValue_ACU('');
-            }
-            catch (e) { }
-            return true;
-        }
         await helper.generate({
             user_input: text,
             _acu_skip_preflight: true,
@@ -3469,10 +3484,7 @@ $CONTENT
             return false;
         if (params?.automatic_trigger)
             return false;
-        const gate = getFreshUserSendGate_ACU();
-        const result = gate.isFreshUserSend;
-        logDebug_ACU(`[状态管理] shouldProcessPlot: type=${type}, dryRun=${dryRun}, freshMsg=${gate.hasFreshUserMessage}, freshIntent=${gate.hasFreshIntent}, result=${result}`);
-        return result;
+        return true;
     }
     function shouldProcessAutoTableUpdateForGenerationEnded_ACU() {
         const g = generationGate_ACU.lastGeneration;
@@ -16541,62 +16553,77 @@ $CONTENT
         return stripModuleIntentBlocks_ACU(buildPlotRawFallbackText_ACU(taskResults));
     }
     const MODULE_INTENT_PLANNING_INSTRUCTION_ACU = `
-【MVU模块意图判定】
-你必须在原有输出最后追加一个机器可读块，用于前端接管可结算行为。不要输出 JS，不要声称你已经执行脚本。
+【模块路由判定】
+你只能输出一个机器可读块，不要输出正文、解释、思维链、补充说明，也不要声称自己已经执行了脚本。
 格式必须严格为：
-<moduleIntent>
-{"module":"battle|trade|profession|none","confidence":0.0,"request":{},"auto_execute":false}
-</moduleIntent>
+<模块路由>
+{"模块":"无|战斗|交易|副职业","请求":{}}
+</模块路由>
+
+格式铁律：
+- 只能输出且只允许输出 1 个中文标签块：<模块路由>...</模块路由>。
+- 禁止输出 <moduleRoute>、<moduleSettlement>、<content>、<thinking>、Markdown 代码块、JSON 代码块或任何额外叙事。
+- 如果你一度想输出其他标签、解释、正文或多余 JSON，请立刻放弃，并改为输出 {"模块":"无","请求":{}}。
 
 判定规则：
-- battle：玩家输入或剧情推演中已经实际发起战斗、切磋、单挑、挑战、袭击、追击、伏击、技能对轰等可结算行为。包括“剧情里两人决定单挑”这类间接表述。request 使用 标准槽位参战者 与 location/combatType。
-- trade：已经实际发起购买、出售、私下交易、竞拍、报价、成交等可结算交易。request 使用 action/npc/item/quantity/price/currency/location。
-- profession：已经实际发起锻造、制造、设计、修理、官方代工、私人代工等副职业操作。request 使用 mode/target/materials/quantity/tier/subtype/npc/executorType/location。
-- none：只是讨论、回忆、询问规则、假设、计划但未真正发起可结算行为。
-- auto_execute 只有在对象、物品/目标、数量/材料、价格或执行方式足够明确，且文本有“直接/立即/确认/执行/开始/成交”等明确执行意图时才为 true。
-- 不允许把战斗、交易、副职业结果直接写死在正文规划里；只输出模块意图，让前端模块结算。
-- battle 的 request.参战者 只能使用 player / enemy / team_player / team_enemy 四个标准槽位。非 char 单位不得只给名字，必须给最小种子：
+- 模块=战斗：当前用户输入已经实际发起战斗、切磋、单挑、挑战、袭击、追击、伏击、技能对轰等可结算行为。
+- 模块=交易：当前用户输入已经实际发起购买、出售、私下交易、竞拍、报价、成交等可结算交易。
+- 模块=副职业：当前用户输入已经实际发起锻造、制造、设计、修理、官方代工、私人代工等副职业操作。
+- 模块=无：只是讨论、回忆、询问规则、假设、计划，但未真正发起可结算行为。
+- 只在模块被触发时填写对应请求；未触发时必须输出 {"模块":"无","请求":{}}。
+- 不允许把战斗、交易、副职业结果直接写死在正文规划里；这里只负责判断是否接管，以及补全首次接管所需的最小请求数据。
+- 若当前上下文已经存在明确的模块承接结果或结算上下文，本轮不得再次补新的初始化请求，应输出 {"模块":"无","请求":{}}。
+- 战斗请求里，参战者只能使用 player / enemy / team_player / team_enemy 四个标准槽位。
+- 如果参战者是已存在 char 角色，player / enemy 优先直接写字符串名字，如 "唐凌雪"、"谢邂"。
+- player / enemy 绝对禁止写成数组；只有 team_player / team_enemy 可以是数组。
+- team_player / team_enemy 若出现，数组元素只能是字符串名字或对象种子，禁止数组里再包数组。
+- 非 char 战斗单位不得只给名字，必须给最小种子：
   - 人类：name / 单位性质=人类 / 身份=普通人|魂师|军人 / 数量；魂师与军人额外提供 等级
   - 魂兽：name / 单位性质=魂兽 / 数量 / 年限 / 标准物种；标准物种只能为 龙类|蛛类|熊类|植物系|海魂兽|鸟类|猫科|蛇类
   - 深渊：name / 单位性质=深渊 / 数量 / 级别 / 标准种族；级别只能为 低阶生物|中阶生物|高阶生物|深渊王者|深渊帝君；标准种族只能为 四爪蝙蝠|六爪蝙蝠|深渊炸弹蜂|噬蜥|六爪魔|巴安|守护天牛|深渊猛犸|深渊魔傀|黑皇族|魔魅族|深渊恶镰|附体魔
-- 非 char 战斗种子示例：
-  - 人类：{"module":"battle","request":{"location":"东海城偏僻小巷","战斗类型":"突发遭遇","参战者":{"enemy":{"name":"街头混混","单位性质":"人类","身份":"普通人","数量":1}}}}
-  - 魂兽：{"module":"battle","request":{"location":"星斗大森林外围","战斗类型":"遭遇战","参战者":{"enemy":{"name":"风狒狒","单位性质":"魂兽","数量":1,"年限":120,"标准物种":"猫科"}}}}
-  - 深渊：{"module":"battle","request":{"location":"深渊通道前线","战斗类型":"遭遇战","参战者":{"enemy":{"name":"深渊蝙蝠","单位性质":"深渊","数量":2,"级别":"低阶生物","标准种族":"四爪蝙蝠"}}}}
+- 战斗请求字段优先使用中文字段：地点 / 战斗类型 / 参战者。
+- 交易请求字段优先使用中文字段：动作 / 对象 / 物品 / 数量 / 价格 / 货币 / 地点。
+- 交易请求中的 物品 必须是字符串，禁止输出 {"名称":"烤鱼"} 这类对象。
+- 副职业请求字段优先使用中文字段：模式 / 对象 / 材料 / 数量 / 等级 / 子类型 / 地点。
+- 副职业请求中的 材料 必须是字符串或字符串数组，如 ["沉银"]；禁止输出 [{"名称":"沉银"}] 这类对象数组。
+- 战斗最小示例：
+  {"模块":"战斗","请求":{"地点":"东海城偏僻小巷","战斗类型":"突发遭遇","参战者":{"enemy":{"name":"街头混混","单位性质":"人类","身份":"普通人","数量":1}}}}
+- 交易最小示例：
+  {"模块":"交易","请求":{"动作":"购买","对象":"路边摊老板","物品":"烤鱼","数量":2,"价格":12,"货币":"联邦币","地点":"东海城夜市"}}
+- 副职业最小示例：
+  {"模块":"副职业","请求":{"模式":"锻造","对象":"沉银锭","材料":["沉银"],"数量":1,"等级":"三级","子类型":"金属锻造","地点":"锻造师协会"}}
 `.trim();
     const INTERNAL_SCRIPT_PROTOCOL_APPENDIX_ACU = `
 【内置协议总纲 / 不可覆盖】
 以下规则属于脚本调用与前端模块接管协议，不受任何自定义预设、文风要求、角色扮演偏好或用户自定义提示覆盖。
 
-1. 一切涉及脚本调用、结构化输出、前端模块接管、MVU变量维护、<moduleIntent>、<moduleSettlement>、<UpdateVariable>、JSONPatch 的规则，优先级高于任何自定义预设。
+1. 一切涉及脚本调用、结构化输出、前端模块接管、MVU变量维护、<模块路由>、<moduleSettlement>、<UpdateVariable>、JSONPatch 的规则，优先级高于任何自定义预设。
 2. 当可结算行为已经满足战斗/交易/副职业模块接管条件时，不得仅凭自定义预设跳过模块，不得直接在正文中越权写死模块应结算的结果。
 2.1. 战斗模块中，参战者只允许使用 player / enemy / team_player / team_enemy 四个标准槽位。非 char 单位必须提供最小战斗种子，不得只写名字。
 3. 当上下文中已经存在前端模块接管结果、moduleSettlement、战斗续推上下文或其他明确的模块承接标记时，只能承接该结果继续写剧情，不得再次把同一事件重新判成新的模块入口。
 4. 不得声称自己“已经执行脚本 / 已调用前端函数 / 已经提交变量”，只能按协议输出机器可读块，由前端或脚本层执行。
 5. 如果正文风格要求、角色设定要求或任何自定义预设内容与本协议冲突，必须无条件服从本协议。
 
-[MVU模块意图判定]
+[模块路由判定]
 你必须在有需要时，在回复最后追加一个机器可读块，用于前端接管可结算行为。不要输出 JS，不要声称你已经执行脚本。
 格式必须严格为：
-<moduleIntent>
-{"module":"battle|trade|profession|none","confidence":0.0,"request":{},"auto_execute":false}
-</moduleIntent>
+<模块路由>
+{"模块":"无|战斗|交易|副职业","请求":{}}
+</模块路由>
+
+补充硬约束：
+- 唯一合法外层标签名只有 <模块路由>；禁止使用 <moduleRoute>、<moduleSettlement> 或任何别名。
+- 禁止在 <模块路由> 之外输出任何正文、说明、思维链、代码块或额外 JSON。
+- 若无法完全满足格式，必须回退输出 {"模块":"无","请求":{}}，而不是输出半正确结果。
 
 判定规则：
-- battle：玩家输入或剧情推演中已经实际发起战斗、切磋、单挑、挑战、袭击、追击、伏击、技能对轰等可结算行为。包括“剧情里两人决定单挑”这类间接表述。request 使用 标准槽位参战者 与 location/combatType。
-- trade：已经实际发起购买、出售、私下交易、竞拍、报价、成交等可结算交易。request 使用 action/npc/item/quantity/price/currency/location。
-- profession：已经实际发起锻造、制造、设计、修理、官方代工、私人代工等副职业操作。request 使用 mode/target/materials/quantity/tier/subtype/npc/executorType/location。
-- none：只是讨论、回忆、询问规则、假设、计划但未真正发起可结算行为。
-- auto_execute 只有在对象、物品/目标、数量/材料、价格或执行方式足够明确，且文本有“直接/立即/确认/执行/开始/成交”等明确执行意图时才为 true。
-- 不允许把战斗、交易、副职业结果直接写死在正文规划里；只输出模块意图，让前端模块结算。
-- battle 的 request.参战者 只能使用 player / enemy / team_player / team_enemy 四个标准槽位。非 char 单位不得只给名字，必须给最小种子：
-  - 人类：name / 单位性质=人类 / 身份=普通人|魂师|军人 / 数量；魂师与军人额外提供 等级
-  - 魂兽：name / 单位性质=魂兽 / 数量 / 年限 / 标准物种；标准物种只能为 龙类|蛛类|熊类|植物系|海魂兽|鸟类|猫科|蛇类
-  - 深渊：name / 单位性质=深渊 / 数量 / 级别 / 标准种族；级别只能为 低阶生物|中阶生物|高阶生物|深渊王者|深渊帝君；标准种族只能为 四爪蝙蝠|六爪蝙蝠|深渊炸弹蜂|噬蜥|六爪魔|巴安|守护天牛|深渊猛犸|深渊魔傀|黑皇族|魔魅族|深渊恶镰|附体魔
-- 非 char 战斗种子示例：
-  - 人类：{"module":"battle","request":{"location":"东海城偏僻小巷","战斗类型":"突发遭遇","参战者":{"enemy":{"name":"街头混混","单位性质":"人类","身份":"普通人","数量":1}}}}
-  - 魂兽：{"module":"battle","request":{"location":"星斗大森林外围","战斗类型":"遭遇战","参战者":{"enemy":{"name":"风狒狒","单位性质":"魂兽","数量":1,"年限":120,"标准物种":"猫科"}}}}
-  - 深渊：{"module":"battle","request":{"location":"深渊通道前线","战斗类型":"遭遇战","参战者":{"enemy":{"name":"深渊蝙蝠","单位性质":"深渊","数量":2,"级别":"低阶生物","标准种族":"四爪蝙蝠"}}}}
+- 战斗：玩家输入或剧情推演中已经实际发起战斗、切磋、单挑、挑战、袭击、追击、伏击、技能对轰等可结算行为。
+- 交易：已经实际发起购买、出售、私下交易、竞拍、报价、成交等可结算交易。
+- 副职业：已经实际发起锻造、制造、设计、修理、官方代工、私人代工等副职业操作。
+- 无：只是讨论、回忆、询问规则、假设、计划但未真正发起可结算行为。
+- 只在模块被触发时填写对应请求；未触发时必须输出 {"模块":"无","请求":{}}。
+- 战斗请求里，参战者只能使用 player / enemy / team_player / team_enemy 四个标准槽位。非 char 单位不得只给名字，必须给最小种子。
+- player / enemy 禁止输出数组；交易的 物品 禁止输出对象；副职业的 材料 禁止输出对象数组。
 `.trim();
     function findJsonObjectEnd_ACU(source, startIndex) {
         let depth = 0;
@@ -16633,7 +16660,7 @@ $CONTENT
     function collectBareModuleIntentCandidates_ACU(text) {
         const source = String(text || '');
         const matches = [];
-        const moduleKeyPattern = /"module"\s*:/g;
+        const moduleKeyPattern = /"模块"\s*:/g;
         let match;
         while ((match = moduleKeyPattern.exec(source)) !== null) {
             const start = source.lastIndexOf('{', match.index);
@@ -16646,10 +16673,8 @@ $CONTENT
             const parsed = safeJsonParse_ACU(jsonText, null);
             if (!parsed || typeof parsed !== 'object')
                 continue;
-            const hasIntentShape = Object.prototype.hasOwnProperty.call(parsed, 'module')
-                && (Object.prototype.hasOwnProperty.call(parsed, 'request')
-                    || Object.prototype.hasOwnProperty.call(parsed, 'auto_execute')
-                    || Object.prototype.hasOwnProperty.call(parsed, 'confidence'));
+            const hasIntentShape = Object.prototype.hasOwnProperty.call(parsed, '模块')
+                && Object.prototype.hasOwnProperty.call(parsed, '请求');
             if (!hasIntentShape)
                 continue;
             const intent = normalizeModuleIntent_ACU(parsed);
@@ -16660,7 +16685,7 @@ $CONTENT
         return matches;
     }
     function stripModuleIntentBlocks_ACU(text) {
-        let cleaned = String(text || '').replace(/<moduleIntent>[\s\S]*?<\/moduleIntent>/gi, '');
+        let cleaned = String(text || '').replace(/<模块路由>[\s\S]*?<\/模块路由>/gi, '');
         const bareMatches = collectBareModuleIntentCandidates_ACU(cleaned);
         for (const item of bareMatches.sort((a, b) => b.start - a.start)) {
             cleaned = `${cleaned.slice(0, item.start)}${cleaned.slice(item.end)}`;
@@ -16675,6 +16700,9 @@ $CONTENT
         if (contentMatch)
             cleaned = String(contentMatch[1] || '').trim();
         cleaned = cleaned
+            .replace(/<moduleSettlement>[\s\S]*?<\/moduleSettlement>/gi, '')
+            .replace(/<moduleRoute>[\s\S]*?<\/moduleRoute>/gi, '')
+            .replace(/<模块路由>[\s\S]*?<\/模块路由>/gi, '')
             .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
             .replace(/<thought>[\s\S]*?<\/thought>/gi, '')
             .replace(/<tucao>[\s\S]*?<\/tucao>/gi, '')
@@ -16700,22 +16728,22 @@ $CONTENT
     function normalizeModuleIntent_ACU(rawIntent) {
         if (!rawIntent || typeof rawIntent !== 'object')
             return null;
-        const moduleName = normalizeModuleIntentName_ACU(rawIntent.module || rawIntent.kind || rawIntent.type);
-        const confidenceRaw = Number(rawIntent.confidence);
-        const confidence = Number.isFinite(confidenceRaw) ? Math.max(0, Math.min(1, confidenceRaw)) : (moduleName === 'none' ? 0 : 1);
-        const request = rawIntent.request && typeof rawIntent.request === 'object'
-            ? rawIntent.request
-            : {};
+        const moduleName = normalizeModuleIntentName_ACU(rawIntent.模块 || rawIntent.module || rawIntent.kind || rawIntent.type);
+        const request = rawIntent.请求 && typeof rawIntent.请求 === 'object'
+            ? rawIntent.请求
+            : (rawIntent.request && typeof rawIntent.request === 'object'
+                ? rawIntent.request
+                : {});
         return {
             module: moduleName,
-            confidence,
+            confidence: moduleName === 'none' ? 0 : 1,
             request,
-            auto_execute: rawIntent.auto_execute === true || rawIntent.autoExecute === true,
+            auto_execute: false,
         };
     }
     function extractModuleIntentFromText_ACU(text) {
         const source = String(text || '');
-        const match = source.match(/<moduleIntent>\s*([\s\S]*?)\s*<\/moduleIntent>/i);
+        const match = source.match(/<模块路由>\s*([\s\S]*?)\s*<\/模块路由>/i);
         if (match) {
             const parsed = safeJsonParse_ACU(match[1], null);
             return normalizeModuleIntent_ACU(parsed);
@@ -16767,36 +16795,59 @@ $CONTENT
     }
     async function processModuleIntentFromPlanning_ACU(intent) {
         if (!intent || typeof intent !== 'object') {
-            showToastr_ACU('error', '模块意图判定失败，已中止本轮正文生成。');
-            return { action: 'block', intent: null, reason: 'intent_pass_invalid' };
+            logWarn_ACU('[剧情推进] 模块意图判定结果为空，本轮按普通正文流程继续。');
+            return { action: 'none', intent: null, reason: 'intent_pass_invalid' };
         }
         if (intent.module === 'none') {
             return { action: 'none', intent };
         }
         if (!['battle', 'trade', 'profession'].includes(intent.module) || intent.confidence < 0.45) {
-            showToastr_ACU('error', '模块意图结构非法，已中止本轮正文生成。');
-            return { action: 'block', intent, reason: 'intent_invalid' };
+            logWarn_ACU('[剧情推进] 模块意图结构非法，本轮按普通正文流程继续。', intent);
+            return { action: 'none', intent, reason: 'intent_invalid' };
         }
         if (intent.module === 'battle' && isMvuBattleActive_ACU()) {
             logDebug_ACU('[剧情推进] 当前已处于战斗中，本轮 battle 意图按战斗续推处理，不再重新路由战斗模块。');
             return { action: 'none', intent, reason: 'battle_continuation' };
         }
-        const router = getMvuModuleIntentRouter_ACU();
-        if (!router) {
-            showToastr_ACU('error', 'MVU模块路由未就绪，已中止本轮正文生成。');
-            return { action: 'block', intent, reason: 'router_unavailable' };
-        }
         const payload = buildModuleIntentRouterPayload_ACU(intent);
         const routeOptions = intent.module === 'battle'
             ? { source: 'database_intent_pass' }
             : { source: 'database_intent_pass', dispatchMode: 'inline', autoExecute: true };
-        const routeResult = await router(payload, routeOptions);
-        if (routeResult?.handled) {
-            showToastr_ACU('info', `${intent.module === 'battle' ? '战斗' : intent.module === 'trade' ? '交易' : '副职业'}模块已接管，本轮正文生成已中止。`);
-            return { action: 'block', intent, routeResult, reason: `${intent.module}_routed` };
+        return {
+            action: 'switch_body',
+            intent,
+            payload,
+            routeOptions,
+            reason: `${intent.module}_pending_switch`,
+        };
+    }
+    async function finalizeModuleSwitchAfterPlanning_ACU(moduleDecision) {
+        if (!moduleDecision || moduleDecision.action !== 'switch_body') {
+            return { action: 'continue', moduleDecision };
         }
-        showToastr_ACU('error', `${intent.module === 'battle' ? '战斗' : intent.module === 'trade' ? '交易' : '副职业'}模块接管失败，已中止本轮正文生成。`);
-        return { action: 'block', intent, routeResult, reason: `${intent.module}_route_failed` };
+        const router = getMvuModuleIntentRouter_ACU();
+        if (!router) {
+            showToastr_ACU('error', 'MVU模块路由未就绪，正文生成已中止。');
+            return { action: 'failed', moduleDecision, reason: 'router_unavailable' };
+        }
+        const routeResult = await router(moduleDecision.payload, moduleDecision.routeOptions);
+        const moduleName = moduleDecision.intent?.module || 'none';
+        if (routeResult?.handled) {
+            showToastr_ACU('info', `${moduleName === 'battle' ? '战斗' : moduleName === 'trade' ? '交易' : '副职业'}模块已接管，本轮正文生成已中止。`);
+            return {
+                action: 'switched',
+                moduleDecision: { ...moduleDecision, routeResult },
+                routeResult,
+                reason: `${moduleName}_routed`
+            };
+        }
+        showToastr_ACU('error', `${moduleName === 'battle' ? '战斗' : moduleName === 'trade' ? '交易' : '副职业'}模块接管失败，已中止本轮正文生成。`);
+        return {
+            action: 'failed',
+            moduleDecision: { ...moduleDecision, routeResult },
+            routeResult,
+            reason: `${moduleName}_route_failed`
+        };
     }
     function buildFinalPlotInjectionMessage_ACU(finalSystemDirectiveContent, taskResults, aggregatedTags, injectOnlyTagNames = new Set()) {
         const defaultDirective = '[SYSTEM_DIRECTIVE: You are a storyteller. The following <plot> block is your absolute script for this turn. You MUST follow the <directive> within it to generate the story.]';
@@ -17533,13 +17584,12 @@ $CONTENT
         if (runOptimizationLogic_ACU.__inFlight) {
             const inflightText = String(runOptimizationLogic_ACU.__inFlightText || '');
             const t = String(userMessage || '');
-            if (t && inflightText && t === inflightText) {
-                logDebug_ACU('[剧情推进] Duplicate planning call skipped (same text, in-flight).');
+            logDebug_ACU(`[剧情推进] 当前已有规划进行中，排队等待完成后继续。incoming="${t}" inflight="${inflightText}"`);
+            let guard = 0;
+            while (runOptimizationLogic_ACU.__inFlight && guard < 600) {
+                await new Promise(resolve => setTimeout(resolve, 50));
+                guard += 1;
             }
-            else {
-                logDebug_ACU('[剧情推进] Planning skipped (another planning in-flight).');
-            }
-            return { success: false, skipped: true, reason: 'inflight' };
         }
         runOptimizationLogic_ACU.__inFlight = true;
         runOptimizationLogic_ACU.__inFlightText = String(userMessage || '');
@@ -44915,7 +44965,12 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
      * 纯业务逻辑
      */
     function shouldProcessTavernHelperHook_ACU(options) {
-        if (!settings_ACU.plotSettings.enabled || isProcessing_Plot_ACU || loopState_ACU.isRetrying || options.should_stream) {
+        if (!settings_ACU.plotSettings.enabled || isProcessing_Plot_ACU || loopState_ACU.isRetrying) {
+            return false;
+        }
+        // 普通聊天框直发常常走流式 helper.generate；只要带有明确用户负载，就不应因 should_stream 被排除。
+        const hasExplicitUserPayload = !!extractUserMessageFromOptions_ACU(options);
+        if (options.should_stream && !hasExplicitUserPayload) {
             return false;
         }
         return true;
@@ -45059,12 +45114,13 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
             : {};
         const lastPlotContent = getPlotFromHistory_ACU(historyLookupOptions);
         const systemPrompt = [
-            '你是模块意图判定器。',
+            '你是模块路由判定器。',
             '你的任务是判断当前用户输入是否需要由前端模块接管。',
-            '你只能输出一个 <moduleIntent>...</moduleIntent> 机器可读块，除此之外禁止输出任何正文、解释、思维链、补充说明。',
+            '你只能输出一个 <模块路由>...</模块路由> 机器可读块，除此之外禁止输出任何正文、解释、思维链、补充说明。',
+            '如果你输出了 <moduleRoute>、<moduleSettlement>、多个块、参战者数组、交易物品对象或副职业材料对象数组，都视为失败；失败时必须改为 {"模块":"无","请求":{}}。',
             INTERNAL_SCRIPT_PROTOCOL_APPENDIX_ACU,
             MODULE_INTENT_PLANNING_INSTRUCTION_ACU,
-            '如果没有模块需要接管，也必须输出 module=none 的合法 <moduleIntent> 块。'
+            '如果没有模块需要接管，也必须输出 {"模块":"无","请求":{}} 这个合法 <模块路由> 块。'
         ].join('\n\n');
         const userPrompt = [
             '最近剧情上下文（仅供判定）:',
@@ -45101,13 +45157,6 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
         }
         const intentPass = await runModuleIntentPass_ACU(userMessage, runtimeOptions);
         const moduleDecision = await processModuleIntentFromPlanning_ACU(intentPass.intent);
-        if (moduleDecision.action === 'block') {
-            return {
-                action: 'block',
-                moduleDecision,
-                systemMessages: []
-            };
-        }
         return {
             action: 'continue',
             moduleDecision,
@@ -45191,9 +45240,6 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
             hasExistingUserMessage: false,
             moduleSettlementContext,
         });
-        if (preflight.action === 'block') {
-            return { action: 'module_blocked', moduleDecision: preflight.moduleDecision };
-        }
         // 4. 调用规划
         _set_isProcessing_Plot_ACU(true);
         try {
@@ -45219,6 +45265,31 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
             }
             // 8. 规划成功，决定写回位置
             if (finalMessage && typeof finalMessage === 'string') {
+                let hookUserMessagePersisted = false;
+                if (preflight.moduleDecision?.action === 'switch_body') {
+                    hookUserMessagePersisted = await persistUserMessageWithoutGeneration_ACU(userMessage);
+                }
+                const moduleSwitchResult = await finalizeModuleSwitchAfterPlanning_ACU(preflight.moduleDecision);
+                if (moduleSwitchResult.action === 'switched') {
+                    stripInternalUiSystemInjectsFromOptions_ACU(options);
+                    return {
+                        action: 'module_switched',
+                        moduleDecision: moduleSwitchResult.moduleDecision,
+                        routeResult: moduleSwitchResult.routeResult,
+                        userMessage,
+                        persistUserMessage: !hookUserMessagePersisted,
+                    };
+                }
+                if (moduleSwitchResult.action === 'failed') {
+                    stripInternalUiSystemInjectsFromOptions_ACU(options);
+                    return {
+                        action: 'module_switch_failed',
+                        moduleDecision: moduleSwitchResult.moduleDecision,
+                        routeResult: moduleSwitchResult.routeResult,
+                        userMessage,
+                        persistUserMessage: !hookUserMessagePersisted,
+                    };
+                }
                 const finalMessageForGeneration = sanitizePlanningVisibleOutput_ACU(stripModuleIntentBlocks_ACU(finalMessage));
                 stripInternalUiSystemInjectsFromOptions_ACU(options);
                 const writeBack = applyPlanningResultToOptions_ACU(options, finalMessageForGeneration);
@@ -45263,14 +45334,6 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
             hasExistingUserMessage: true,
             moduleSettlementContext,
         });
-        if (preflight.action === 'block') {
-            return {
-                action: 'module_blocked',
-                moduleDecision: preflight.moduleDecision,
-                originalMessage: messageToProcess,
-                lastMessageIndex,
-            };
-        }
         // 3. 调用规划
         _set_isProcessing_Plot_ACU(true);
         try {
@@ -45302,6 +45365,25 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
             }
             // 7. 规划成功
             if (finalMessage && typeof finalMessage === 'string') {
+                const moduleSwitchResult = await finalizeModuleSwitchAfterPlanning_ACU(preflight.moduleDecision);
+                if (moduleSwitchResult.action === 'switched') {
+                    return {
+                        action: 'module_switched',
+                        moduleDecision: moduleSwitchResult.moduleDecision,
+                        routeResult: moduleSwitchResult.routeResult,
+                        originalMessage: messageToProcess,
+                        lastMessageIndex,
+                    };
+                }
+                if (moduleSwitchResult.action === 'failed') {
+                    return {
+                        action: 'module_switch_failed',
+                        moduleDecision: moduleSwitchResult.moduleDecision,
+                        routeResult: moduleSwitchResult.routeResult,
+                        originalMessage: messageToProcess,
+                        lastMessageIndex,
+                    };
+                }
                 const finalMessageForGeneration = sanitizePlanningVisibleOutput_ACU(stripModuleIntentBlocks_ACU(finalMessage));
                 return {
                     action: 'planned',
@@ -45344,9 +45426,6 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
             hasExistingUserMessage: false,
             moduleSettlementContext,
         });
-        if (preflight.action === 'block') {
-            return { action: 'module_blocked', moduleDecision: preflight.moduleDecision };
-        }
         _set_isProcessing_Plot_ACU(true);
         try {
             const finalMessage = await runPlanning(originalInputText, {
@@ -45366,6 +45445,29 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
             }
             // 规划成功
             if (finalMessage && typeof finalMessage === 'string') {
+                let strategy2UserMessagePersisted = false;
+                if (preflight.moduleDecision?.action === 'switch_body') {
+                    strategy2UserMessagePersisted = await persistUserMessageWithoutGeneration_ACU(originalInputText);
+                }
+                const moduleSwitchResult = await finalizeModuleSwitchAfterPlanning_ACU(preflight.moduleDecision);
+                if (moduleSwitchResult.action === 'switched') {
+                    return {
+                        action: 'module_switched',
+                        moduleDecision: moduleSwitchResult.moduleDecision,
+                        routeResult: moduleSwitchResult.routeResult,
+                        originalMessage: originalInputText,
+                        persistUserMessage: !strategy2UserMessagePersisted,
+                    };
+                }
+                if (moduleSwitchResult.action === 'failed') {
+                    return {
+                        action: 'module_switch_failed',
+                        moduleDecision: moduleSwitchResult.moduleDecision,
+                        routeResult: moduleSwitchResult.routeResult,
+                        originalMessage: originalInputText,
+                        persistUserMessage: !strategy2UserMessagePersisted,
+                    };
+                }
                 const finalMessageForGeneration = sanitizePlanningVisibleOutput_ACU(stripModuleIntentBlocks_ACU(finalMessage));
                 return { action: 'planned', finalMessage: finalMessageForGeneration, moduleDecision: preflight.moduleDecision };
             }
@@ -45499,40 +45601,64 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
     // [从 state-manager.ts 搬入 presentation 层] 安装发送意图捕捉钩子（DOM 事件绑定）
     function installSendIntentCaptureHooks_ACU() {
         try {
-            const parentDoc = (window.parent || window).document;
-            const doc = parentDoc || document;
-            if (!window.__ACU_sendIntentHooksInstalled) {
-                window.__ACU_sendIntentHooksInstalled = { send: false, enter: false };
+            const hostWin = getHostWindow();
+            const stateHolder = hostWin || window;
+            const doc = stateHolder?.document || document;
+            if (!doc)
+                return;
+            if (!stateHolder.__ACU_sendIntentHooksInstalled) {
+                stateHolder.__ACU_sendIntentHooksInstalled = { delegatedClick: false, delegatedEnter: false };
             }
-            const sendBtn = doc.getElementById('send_but');
-            if (sendBtn && !window.__ACU_sendIntentHooksInstalled.send) {
-                sendBtn.addEventListener('click', (event) => {
+            if (!stateHolder.__ACU_sendIntentHookHandlers) {
+                stateHolder.__ACU_sendIntentHookHandlers = {};
+            }
+            const isSendButtonTarget = (target) => {
+                if (!(target instanceof Element) || typeof target.closest !== 'function')
+                    return false;
+                return !!target.closest('#send_but, #send-button, button[data-testid="send-button"], button[title*="Send"], button[aria-label*="Send"], button[aria-label*="发送"], button[title*="发送"], form button[type="submit"]');
+            };
+            const isSendTextareaTarget = (target) => {
+                if (!(target instanceof Element))
+                    return false;
+                if (target.id === 'send_textarea')
+                    return true;
+                return typeof target.closest === 'function' && !!target.closest('#send_textarea');
+            };
+            if (!stateHolder.__ACU_sendIntentHooksInstalled.delegatedClick) {
+                const clickHandler = (event) => {
+                    const target = event?.target instanceof Element
+                        ? event.target
+                        : (event?.target?.parentElement instanceof Element ? event.target.parentElement : null);
+                    if (!isSendButtonTarget(target))
+                        return;
                     tryInterceptCapturedUserSendEvent_ACU(event);
-                }, true);
-                window.__ACU_sendIntentHooksInstalled.send = true;
+                };
+                doc.addEventListener('click', clickHandler, true);
+                stateHolder.__ACU_sendIntentHookHandlers.click = clickHandler;
+                stateHolder.__ACU_sendIntentHooksInstalled.delegatedClick = true;
             }
-            const ta = doc.getElementById('send_textarea');
-            if (ta && !window.__ACU_sendIntentHooksInstalled.enter) {
-                ta.addEventListener('keydown', (e) => {
+            if (!stateHolder.__ACU_sendIntentHooksInstalled.delegatedEnter) {
+                const keydownHandler = (event) => {
+                    const target = event?.target instanceof Element
+                        ? event.target
+                        : (event?.target?.parentElement instanceof Element ? event.target.parentElement : null);
+                    if (!isSendTextareaTarget(target))
+                        return;
                     try {
-                        tryInterceptCapturedUserSendEvent_ACU(e);
+                        tryInterceptCapturedUserSendEvent_ACU(event);
                     }
                     catch (err) { }
-                }, true);
-                window.__ACU_sendIntentHooksInstalled.enter = true;
-            }
-            if ((!sendBtn || !ta) && !window.__ACU_sendIntentHooksRetryScheduled) {
-                window.__ACU_sendIntentHooksRetryScheduled = true;
-                setTimeout(() => {
-                    window.__ACU_sendIntentHooksRetryScheduled = false;
-                    installSendIntentCaptureHooks_ACU();
-                }, 1200);
+                };
+                doc.addEventListener('keydown', keydownHandler, true);
+                stateHolder.__ACU_sendIntentHookHandlers.keydown = keydownHandler;
+                stateHolder.__ACU_sendIntentHooksInstalled.delegatedEnter = true;
             }
         }
         catch (e) {
             // ignore
         }
     }
+    installSendIntentCaptureHooks_ACU();
     const MVU_DATABASE_GENERATE_HOOK_KEY_ACU = '__ACU_MVU_DATABASE_GENERATE_HOOK__';
     function installTavernHelperGenerateHook_ACU() {
         try {
@@ -45596,8 +45722,16 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                         options._qrf_processed_by_hook = true;
                         break;
                     }
-                    case 'module_blocked': {
+                    case 'module_switched':
+                    case 'module_switch_failed': {
                         options._qrf_processed_by_hook = true;
+                        if (result.persistUserMessage) {
+                            await persistUserMessageWithoutGeneration_ACU(result.userMessage || extractUserMessageFromOptions_ACU(options));
+                        }
+                        try {
+                            setSendTextareaValue_ACU('');
+                        }
+                        catch (e) { }
                         return;
                     }
                     // 'passthrough', 'skipped', 'aborted' — 不做额外操作，直接透传
@@ -45726,7 +45860,8 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                     }
                     await resetScriptStateForNewChat_ACU(chatFileName);
                     // [触发门控] generationGate 重置已搬到 service 层的 resetScriptStateForNewChat_ACU 中
-                    // [触发门控] 每次切换聊天都尝试安装一次 capture 钩子（防止 DOM 重新渲染导致丢失）          installSendIntentCaptureHooks_ACU();
+                    // [触发门控] 每次切换聊天都尝试安装一次 capture 钩子（防止 DOM 重新渲染导致丢失）
+                    installSendIntentCaptureHooks_ACU();
                     // [剧情推进] 切换聊天时停止循环并加载预设
                     if (loopState_ACU.isLooping) {
                         stopAutoLoop_ACU();
@@ -45876,19 +46011,6 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                             }
                         } // end if (vectorInputText && isRecentUserSendIntent_ACU)
                         // ── 阶段2：剧情推进（仅当启用时执行） ──
-                        // [去重] 若同一文本刚被 TavernHelper.generate 钩子处理过，跳过剧情推进
-                        try {
-                            const lastMsgText = (SillyTavern_API_ACU.chat?.length && SillyTavern_API_ACU.chat[SillyTavern_API_ACU.chat.length - 1]?.is_user)
-                                ? (SillyTavern_API_ACU.chat[SillyTavern_API_ACU.chat.length - 1].mes || '')
-                                : '';
-                            const boxText = String(getSendTextareaValue_ACU() || '');
-                            if (shouldSkipPlotIntercept_ACU(String(lastMsgText)) || shouldSkipPlotIntercept_ACU(boxText)) {
-                                logDebug_ACU('[剧情推进] Skip GENERATION_AFTER_COMMANDS due to recent TavernHelper.generate interception.');
-                                generationGate_ACU.lastUserSendIntentAt = 0;
-                                return;
-                            }
-                        }
-                        catch (e) { }
                         const shouldRunPlot = shouldProcessPlotForGeneration_ACU(type, params, dryRun);
                         if (!shouldRunPlot) {
                             generationGate_ACU.lastUserSendIntentAt = 0;
@@ -45939,7 +46061,8 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                                     if (getSendTextareaValue_ACU() === s1.originalMessage)
                                         setSendTextareaValue_ACU('');
                                     break;
-                                case 'module_blocked':
+                                case 'module_switched':
+                                case 'module_switch_failed':
                                     try {
                                         if (SillyTavern_API_ACU && typeof SillyTavern_API_ACU.stopGeneration === 'function')
                                             SillyTavern_API_ACU.stopGeneration();
@@ -45983,12 +46106,20 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                                 }
                                 catch (e) { }
                                 break;
-                            case 'module_blocked':
+                            case 'module_switched':
+                            case 'module_switch_failed':
                                 try {
                                     if (SillyTavern_API_ACU && typeof SillyTavern_API_ACU.stopGeneration === 'function')
                                         SillyTavern_API_ACU.stopGeneration();
                                     else if (window.SillyTavern?.stopGeneration)
                                         window.SillyTavern.stopGeneration();
+                                }
+                                catch (e) { }
+                                if (s2.persistUserMessage !== false) {
+                                    await persistUserMessageWithoutGeneration_ACU(s2.originalMessage || String(textInBox || ''));
+                                }
+                                try {
+                                    setSendTextareaValue_ACU('');
                                 }
                                 catch (e) { }
                                 break;
@@ -46044,6 +46175,7 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                 logDebug_ACU(`ACU: Initializing with current chat on load: ${chatId}`);
                 await resetScriptStateForNewChat_ACU(chatId);
                 await loadPresetAndCleanCharacterData_ACU();
+                installSendIntentCaptureHooks_ACU();
                 installTavernHelperGenerateHook_ACU();
                 // 再次强制刷新数据和UI，确保初始加载时表格显示正确
                 await loadAllChatMessages_ACU();

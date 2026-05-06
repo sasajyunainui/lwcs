@@ -3306,6 +3306,52 @@
     return String(value || '').replace(/~/g, '~0').replace(/\//g, '~1');
   }
 
+  function getMapNodeChildren(rawNode) {
+    if (!rawNode || typeof rawNode !== 'object') return null;
+    const children = rawNode.children || rawNode['子节点'] || rawNode.child_nodes || rawNode.childNodes || null;
+    return children && typeof children === 'object' ? children : null;
+  }
+
+  function collectInlineChildMapIndex(visibleNodes = {}, visibleDynamics = {}) {
+    const next = {};
+    [...Object.entries(visibleNodes || {}), ...Object.entries(visibleDynamics || {})].forEach(([name, rawNode]) => {
+      const children = getMapNodeChildren(rawNode);
+      if (children && Object.keys(children).length) next[name] = `preview_${name}`;
+    });
+    return next;
+  }
+
+  function getMapNodeTextField(rawNode, keys = [], fallback = '') {
+    if (!rawNode || typeof rawNode !== 'object') return fallback;
+    for (const key of keys) {
+      if (rawNode[key] !== undefined && rawNode[key] !== null && rawNode[key] !== '') {
+        return toText(rawNode[key], fallback);
+      }
+    }
+    return fallback;
+  }
+
+  function getMapNodeNumberField(rawNode, keys = [], fallback = NaN) {
+    if (!rawNode || typeof rawNode !== 'object') return fallback;
+    for (const key of keys) {
+      if (rawNode[key] !== undefined && rawNode[key] !== null && rawNode[key] !== '') {
+        return toNumber(rawNode[key], fallback);
+      }
+    }
+    return fallback;
+  }
+
+  function getMapNodeListField(rawNode, keys = []) {
+    if (!rawNode || typeof rawNode !== 'object') return [];
+    for (const key of keys) {
+      const value = rawNode[key];
+      if (value === undefined || value === null || value === '') continue;
+      if (Array.isArray(value)) return value.map(entry => toText(entry, '')).filter(Boolean);
+      return toTextList(value);
+    }
+    return [];
+  }
+
   function toSafeNodeToken(value = 'node') {
     return toText(value, 'node')
       .replace(/[^\w\u4e00-\u9fa5]+/g, '_')
@@ -3597,15 +3643,28 @@
     const type = toText(extra.type || (rawItem && rawItem.type) || (icon || '节点'), '节点');
     const faction = toText(extra.faction || (rawItem && rawItem.faction) || deepGet(rawItem, 'metadata.faction', '未知'), '未知');
     const importance = toNumber(extra.importance !== undefined ? extra.importance : (rawItem && rawItem.importance !== undefined ? rawItem.importance : deepGet(rawItem, 'metadata.importance', NaN)), NaN);
+    const resolvedIcon = getMapNodeTextField(rawItem, ['icon', '图标'], icon) || icon;
+    const resolvedState = getMapNodeTextField(rawItem, ['state', '状态'], state) || state;
+    const resolvedType = getMapNodeTextField(rawItem, ['type', 'node_type', '类型'], type) || type;
+    const resolvedFaction = getMapNodeTextField(rawItem, ['faction', 'default_faction', '掌控势力'], faction) || faction;
+    const resolvedImportanceCandidate = getMapNodeNumberField(rawItem, ['importance', '重要度'], NaN);
+    const resolvedImportance = Number.isFinite(resolvedImportanceCandidate) ? resolvedImportanceCandidate : importance;
+    const resolvedDesc = getMapNodeTextField(rawItem, ['desc', '描述'], extra.desc !== undefined ? toText(extra.desc, '无') : '无');
+    const resolvedNodeKind = getMapNodeTextField(rawItem, ['node_kind', 'nodeKind', '节点类别', '节点类型'], extra.nodeKind || '') || extra.nodeKind || '';
+    const resolvedInteractions = getMapNodeListField(rawItem, ['interactions', '交互']).length ? getMapNodeListField(rawItem, ['interactions', '交互']) : (extra.interactions || []);
+    const resolvedServices = getMapNodeListField(rawItem, ['services', '服务']).length ? getMapNodeListField(rawItem, ['services', '服务']) : (extra.services || []);
+    const resolvedActionSlots = getMapNodeListField(rawItem, ['action_slots', 'actionSlots', '行动槽']).length ? getMapNodeListField(rawItem, ['action_slots', 'actionSlots', '行动槽']) : (extra.actionSlots || []);
+    const resolvedEventId = getMapNodeTextField(rawItem, ['event_id', 'eventId', '事件ID'], extra.eventId || '') || extra.eventId || '';
+    const resolvedLevel = getMapNodeNumberField(rawItem, ['level', '等级'], toNumber(rawItem && rawItem.level, 0));
     const canEnter = !!extra.canEnter;
-    const pointKind = toText(extra.pointKind || inferPointKind(displayName, source, type, icon), 'node');
+    const pointKind = toText(extra.pointKind || inferPointKind(displayName, source, resolvedType, resolvedIcon), 'node');
     const behaviorMeta = deriveNodeBehaviorMeta(displayName, rawItem || {}, {
-      type,
+      type: resolvedType,
       canEnter,
-      nodeKind: extra.nodeKind,
-      interactions: extra.interactions,
-      services: extra.services,
-      eventId: extra.eventId
+      nodeKind: resolvedNodeKind,
+      interactions: resolvedInteractions,
+      services: resolvedServices,
+      eventId: resolvedEventId
     });
     const validCoord = Number.isFinite(x) && Number.isFinite(y) && x >= 0 && y >= 0;
     return {
@@ -3631,6 +3690,18 @@
       eventId: behaviorMeta.eventId,
       major: !!extra.major || canEnter || source === 'settlement',
       level: toNumber(rawItem && rawItem.level, 0),
+      type: resolvedType,
+      desc: resolvedDesc,
+      state: resolvedState,
+      icon: resolvedIcon,
+      faction: resolvedFaction,
+      importance: resolvedImportance,
+      nodeKind: resolvedNodeKind || behaviorMeta.nodeKind,
+      interactions: resolvedInteractions.length ? resolvedInteractions : behaviorMeta.interactions,
+      services: resolvedServices.length ? resolvedServices : behaviorMeta.services,
+      actionSlots: resolvedActionSlots.length ? resolvedActionSlots : behaviorMeta.actionSlots,
+      eventId: resolvedEventId || behaviorMeta.eventId,
+      level: resolvedLevel,
       current: !!extra.current
     };
   }
@@ -3647,6 +3718,17 @@
 
     snapshot.visibleNodes.forEach(([name, item]) => {
       const hasChildPreview = !!(snapshot.availableChildMaps && snapshot.availableChildMaps[name]);
+      const itemChildren = getMapNodeChildren(item);
+      const normalizedNodeType = getMapNodeTextField(item, ['type', '类型'], '地图节点');
+      const normalizedNodeIcon = getMapNodeTextField(item, ['icon', '图标'], '');
+      const normalizedNodeState = getMapNodeTextField(item, ['state', '状态'], item && item.level ? `Lv.${item.level}` : '可见');
+      const normalizedNodeDesc = getMapNodeTextField(item, ['desc', '描述'], '无');
+      const normalizedNodeFaction = getMapNodeTextField(item, ['faction', '掌控势力'], '未知');
+      const normalizedNodeImportance = getMapNodeNumberField(item, ['importance', '重要度'], NaN);
+      const normalizedNodeInteractions = getMapNodeListField(item, ['interactions', '交互']);
+      const normalizedNodeServices = getMapNodeListField(item, ['services', '服务']);
+      const normalizedNodeActionSlots = getMapNodeListField(item, ['action_slots', 'actionSlots', '行动槽']);
+      const normalizedNodeEventId = getMapNodeTextField(item, ['event_id', 'eventId', '事件ID'], '');
       pushUnique(createRenderItem(name, item || {}, {
         id: name,
         baseName: name,
@@ -3654,8 +3736,8 @@
         type: toText(item && item.type, '地图节点'),
         icon: toText(item && item.icon, ''),
         state: toText(item && item.state, item && item.level ? `Lv.${item.level}` : '可见'),
-        canEnter: !!(item && item.children && Object.keys(item.children).length > 0) || hasChildPreview,
-        major: !!(item && item.children && Object.keys(item.children).length > 0) || hasChildPreview || toNumber(item && item.level, 0) <= 2,
+        canEnter: !!(itemChildren && Object.keys(itemChildren).length > 0) || hasChildPreview,
+        major: !!(itemChildren && Object.keys(itemChildren).length > 0) || hasChildPreview || toNumber(item && item.level, 0) <= 2,
         desc: toText(item && item.desc, '无'),
         faction: toText(item && item.faction, '未知'),
         importance: toNumber(item && item.importance, NaN),
@@ -3668,6 +3750,7 @@
 
     snapshot.visibleDynamics.forEach(([name, item]) => {
       const hasChildPreview = !!(snapshot.availableChildMaps && snapshot.availableChildMaps[name]);
+      const itemChildren = getMapNodeChildren(item);
       pushUnique(createRenderItem(name, item || {}, {
         id: name,
         baseName: name,
@@ -3675,8 +3758,8 @@
         type: toText(item && item.type, '动态地点'),
         state: toText(item && item.state, '动态'),
         pointKind: 'dynamic',
-        canEnter: !!(item && item.children && Object.keys(item.children).length > 0) || hasChildPreview,
-        major: !!(item && item.children && Object.keys(item.children).length > 0) || hasChildPreview,
+        canEnter: !!(itemChildren && Object.keys(itemChildren).length > 0) || hasChildPreview,
+        major: !!(itemChildren && Object.keys(itemChildren).length > 0) || hasChildPreview,
         desc: toText(item && item.desc, '无'),
         faction: toText(item && item.faction, '未知'),
         importance: toNumber(item && item.importance, NaN),
@@ -3888,7 +3971,9 @@
       coordSystem: resolveSnapshotCoordSystem(currentMapId, 'world'),
       currentMapId,
       currentZoomHint: 0,
-      availableChildMaps: isPreview && payload.available_child_maps && typeof payload.available_child_maps === 'object' ? payload.available_child_maps : {},
+      availableChildMaps: isPreview && payload.available_child_maps && typeof payload.available_child_maps === 'object'
+        ? payload.available_child_maps
+        : collectInlineChildMapIndex(visibleNodes, visibleDynamics),
       previewChildMaps: isPreview && payload.preview_child_maps && typeof payload.preview_child_maps === 'object' ? payload.preview_child_maps : {},
       travelCandidates: Array.from(new Set([...Object.keys(visibleNodes), ...Object.keys(visibleDynamics)])),
       visibleNodes: safeEntries(visibleNodes),
@@ -4012,7 +4097,7 @@
         const displayName = toText(rawName, toText(rawNode && rawNode.name, ''));
         const nodeLabel = toText(rawNode && rawNode.name, displayName);
         if (displayName === key || nodeLabel === key) return { name: displayName || nodeLabel || key, node: rawNode || {} };
-        const children = rawNode && rawNode.children && typeof rawNode.children === 'object' ? rawNode.children : null;
+        const children = getMapNodeChildren(rawNode);
         const nested = children ? visit(children) : null;
         if (nested) return nested;
       }
@@ -4032,11 +4117,16 @@
     const source = dynamicSource && typeof dynamicSource === 'object' ? dynamicSource : {};
     const target = toText(parentName, '').trim();
     if (!target) return [];
+    const normalizedEntries = Object.entries(source).filter(([, dynData]) => {
+      if (!dynData || typeof dynData !== 'object') return false;
+      return getMapNodeTextField(dynData, ['归属父节点', 'parent_node', 'parentNode'], '') === target;
+    });
+    if (normalizedEntries.length) return normalizedEntries;
     return Object.entries(source).filter(([, dynData]) => dynData && dynData['归属父节点'] === target);
   }
 
   function buildPreviewPayloadFromRawLocation(nodeName, rawLocation, container = mapState.snapshot, parentMapId = '') {
-    const children = rawLocation && rawLocation.children && typeof rawLocation.children === 'object' ? rawLocation.children : null;
+    const children = getMapNodeChildren(rawLocation);
     const childEntries = children ? Object.entries(children) : [];
     const dynamicSource = deepGet(
       (mapState.baseSnapshot && mapState.baseSnapshot.rootData) || (mapState.snapshot && mapState.snapshot.rootData) || {},
@@ -4054,7 +4144,8 @@
 
     childEntries.forEach(([childName, childValue]) => {
       const child = childValue && typeof childValue === 'object' ? childValue : {};
-      const hasChildren = !!(child.children && typeof child.children === 'object' && Object.keys(child.children).length);
+      const nestedChildren = getMapNodeChildren(child);
+      const hasChildren = !!(nestedChildren && Object.keys(nestedChildren).length);
       const hasDynamicChildren = getDynamicEntriesByParent(dynamicSource, childName).length > 0;
       const x = toNumber(child.x, NaN);
       const y = toNumber(child.y, NaN);
@@ -4062,7 +4153,7 @@
       if (Number.isFinite(x) && Number.isFinite(y)) validCoords.push({ x, y });
 
       visibleNodeEntries.push([childName, {
-        children: child.children || null,
+        children: nestedChildren,
         x: Number.isFinite(x) ? x : toNumber(rawLocation && rawLocation.x, NaN),
         y: Number.isFinite(y) ? y : toNumber(rawLocation && rawLocation.y, NaN),
         type: toText(child.type || child.node_type, '地图节点'),
@@ -4076,7 +4167,17 @@
         interactions: Array.isArray(child.interactions) ? child.interactions : toTextList(child.interactions),
         services: Array.isArray(child.services) ? child.services : toTextList(child.services),
         action_slots: Array.isArray(child.action_slots) ? child.action_slots : toTextList(child.action_slots || child.actionSlots),
-        event_id: toText(child.event_id || child.eventId, '')
+        event_id: toText(child.event_id || child.eventId, ''),
+        类型: getMapNodeTextField(child, ['type', 'node_type', '类型'], ''),
+        图标: getMapNodeTextField(child, ['icon', '图标'], ''),
+        描述: getMapNodeTextField(child, ['desc', '描述'], ''),
+        状态: getMapNodeTextField(child, ['state', '状态'], ''),
+        掌控势力: getMapNodeTextField(child, ['faction', 'default_faction', '掌控势力'], ''),
+        重要度: getMapNodeNumberField(child, ['importance', '重要度'], NaN),
+        交互: getMapNodeListField(child, ['interactions', '交互']),
+        服务: getMapNodeListField(child, ['services', '服务']),
+        行动槽: getMapNodeListField(child, ['action_slots', 'actionSlots', '行动槽']),
+        事件ID: getMapNodeTextField(child, ['event_id', 'eventId', '事件ID'], '')
       }]);
 
       if (hasChildren || hasDynamicChildren) {

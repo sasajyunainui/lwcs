@@ -102,6 +102,7 @@
         '\u6211\u7684\u9635\u8425\u8be6\u60c5': '\u6211\u7684\u9635\u8425',
         '\u672c\u5730\u636e\u70b9\u8be6\u60c5': '\u672c\u5730\u636e\u70b9',
         '\u7cfb\u7edf\u64ad\u62a5\u4e0e\u65e5\u5fd7': '\u64ad\u62a5',
+        '\u9b42\u73af\u751f\u6210\u786e\u8ba4': '\u9b42\u73af',
         '\u8bd5\u70bc\u4e0e\u60c5\u62a5': '\u60c5\u62a5',
         '\u8fd1\u671f\u89c1\u95fb': '\u89c1\u95fb',
         '\u602a\u7269\u56fe\u9274': '\u56fe\u9274',
@@ -214,9 +215,9 @@
       },
       '情报库详细页': {
         title: '情报库弹窗',
-        summary: '由“已解锁情报”芯片进入，统一展开已知信息、待解锁线索与战斗记录。',
-        fields: ['activeChar.已掌握情报', 'activeChar.待解锁情报', 'activeChar.记录', 'activeChar.战斗历史'],
-        duties: ['展示已解锁情报', '显示待解锁线索', '聚合近期记录与战斗摘要'],
+        summary: '由“已解锁情报”芯片进入，统一展开已知信息、任务记录与战斗记录。',
+        fields: ['activeChar.已掌握情报', 'activeChar.记录', 'activeChar.战斗历史'],
+        duties: ['展示已解锁情报', '聚合任务记录', '聚合近期记录与战斗摘要'],
         actions: ['按情报筛选', '跳转关联节点']
       },
       '武装工坊详细页': {
@@ -306,8 +307,8 @@
       '系统播报与日志': {
         title: '系统播报 / 日志弹窗',
         summary: '终端页左侧主模块，集中展示系统广播与最近日志。',
-        fields: ['sd.sys.rsn', 'sd.sys.seq', 'sd.sys.最近检定', 'sd.sys.最终成功率'],
-        duties: ['显示最新播报', '显示事件序列', '显示检定结果'],
+        fields: ['sd.sys.系统播报', 'sd.sys.最近检定', 'sd.sys.最终成功率', 'sd.world.时间线'],
+        duties: ['显示最新播报', '显示最近全局事件', '显示检定结果'],
         actions: ['按时间倒序', '保留日志筛选与复制能力']
       },
       '操作总线': {
@@ -638,6 +639,53 @@
       '创造', '毁灭',
     ]);
     const WUXING_ATTRIBUTE_TOKEN_OPTIONS = Object.freeze(['金', '木', '水', '火', '土']);
+    const STATUS_ACTION_RUNTIME_OPTIONS = Object.freeze([
+      '日常',
+      '冥想',
+      '睡眠',
+      '战斗',
+      '肉体训练',
+      '精神训练',
+    ]);
+    const RING_COLOR_META = Object.freeze({
+      white: Object.freeze({ label: '白', glyph: '白', aliases: ['白色'] }),
+      yellow: Object.freeze({ label: '黄', glyph: '黄', aliases: ['黄色'] }),
+      purple: Object.freeze({ label: '紫', glyph: '紫', aliases: ['紫色'] }),
+      black: Object.freeze({ label: '黑', glyph: '黑', aliases: ['黑色'] }),
+      red: Object.freeze({ label: '红', glyph: '红', aliases: ['红色'] }),
+      gold: Object.freeze({ label: '金', glyph: '金', aliases: ['金色'] }),
+      orangegold: Object.freeze({ label: '橙金', glyph: '橙', aliases: ['橙', '橙色', '橙金色'] }),
+      whitegold: Object.freeze({ label: '白金', glyph: '铂', aliases: ['白金色', '铂金'] }),
+      silver: Object.freeze({ label: '银', glyph: '银', aliases: ['银色', '白银'] }),
+      frostsilver: Object.freeze({ label: '霜银', glyph: '霜', aliases: ['霜银色'] }),
+      moonwhite: Object.freeze({ label: '月白', glyph: '月', aliases: ['月白色'] }),
+      iceblue: Object.freeze({ label: '冰蓝', glyph: '冰', aliases: ['冰蓝色', '冰青'] }),
+      starblue: Object.freeze({ label: '星蓝', glyph: '星', aliases: ['星蓝色', '湛蓝'] }),
+      cyan: Object.freeze({ label: '青', glyph: '青', aliases: ['青色', '天青'] }),
+      teal: Object.freeze({ label: '海青', glyph: '海', aliases: ['海青色', '青碧'] }),
+      jade: Object.freeze({ label: '碧玉', glyph: '碧', aliases: ['碧', '玉色', '青玉'] }),
+      emerald: Object.freeze({ label: '翡翠', glyph: '翠', aliases: ['翡翠色', '翠绿', '翠色'] }),
+      'green-gold': Object.freeze({ label: '绿金', glyph: '绿', aliases: ['绿金色', '翠金', '苍翠金'] }),
+      'blue-gold': Object.freeze({ label: '蓝金', glyph: '蓝', aliases: ['蓝金色', '青金', '海金'] }),
+      'purple-gold': Object.freeze({ label: '紫金', glyph: '鎏', aliases: ['紫金色'] }),
+      'scarlet-gold': Object.freeze({ label: '赤金', glyph: '赤', aliases: ['赤金色', '绯金'] }),
+      'rose-gold': Object.freeze({ label: '玫金', glyph: '玫', aliases: ['玫金色', '玫瑰金'] }),
+      'amber-gold': Object.freeze({ label: '琥珀金', glyph: '琥', aliases: ['琥珀金色', '蜜金'] }),
+      'obsidian-gold': Object.freeze({ label: '曜黑金', glyph: '曜', aliases: ['曜黑金色', '黑金', '玄金'] }),
+      aurora: Object.freeze({ label: '极光', glyph: '极', aliases: ['极光色'] }),
+      rainbow: Object.freeze({ label: '虹彩', glyph: '虹', aliases: ['虹彩色', '七彩', '幻彩'] }),
+      crimson: Object.freeze({ label: '绯红', glyph: '绯', aliases: ['绯红色', '猩红', '血红'] }),
+    });
+    const RING_COLOR_OPTIONS = Object.freeze(Object.values(RING_COLOR_META).map(meta => meta.label));
+    const RING_COLOR_ALIAS_MAP = Object.freeze(
+      Object.entries(RING_COLOR_META).reduce((bucket, [key, meta]) => {
+        [meta.label, ...(Array.isArray(meta.aliases) ? meta.aliases : [])].forEach(alias => {
+          const label = toText(alias, '').trim();
+          if (label) bucket[label] = key;
+        });
+        return bucket;
+      }, {})
+    );
 
     function normalizeSpiritAttributeTokenList(value = []) {
       return normalizeEditorStringList(value).filter(token => SPIRIT_ATTRIBUTE_TOKEN_OPTIONS.includes(token));
@@ -716,6 +764,47 @@
       };
     }
 
+    function buildInventoryUseRequest(snapshot, meta = {}) {
+      if (!snapshot || !snapshot.rootData) return null;
+      if (!isSnapshotPlayerControlled(snapshot)) return null;
+      const charKey = toText(meta && meta.charKey, '').trim() || resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
+      if (!charKey) return null;
+      const chars = deepGet(snapshot, 'rootData.char', {});
+      const activeChar = chars && typeof chars === 'object' ? (chars[charKey] || {}) : {};
+      const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, charKey));
+      const currentLoc = toText(deepGet(activeChar, '状态.位置', snapshot.currentLoc || '当前位置'), '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
+      const itemName = toText(meta && meta.itemName, '未知物品');
+      const actionLabel = toText(meta && meta.actionLabel, '使用');
+      const summaryText = toText(meta && meta.summaryText, '已触发物品效果');
+      const systemPrompt = `以下内容属于前端已经完成的背包${actionLabel}结算，不要在正文直接复述“系统提示 / JSONPatch / 变量更新 / 剧情推进请求”等术语。\n\n[背包${actionLabel}]\n角色：${activeName}\n地点：${currentLoc}\n动作：${actionLabel}\n物品：${itemName}\n已结算效果：${summaryText}\n\n请直接承接这次${actionLabel}后的自然剧情反馈，写出角色的即时体感、周围人的可见反应、局部环境变化与接下来的可推进空间。除非剧情上确有新增变化，不要重复结算同一批变量。`;
+      return {
+        playerInput: `我${actionLabel}了【${itemName}】。`,
+        systemPrompt,
+        requestKind: 'inventory_use',
+      };
+    }
+
+    function buildConstructSkillUseRequest(snapshot, meta = {}) {
+      if (!snapshot || !snapshot.rootData) return null;
+      if (!isSnapshotPlayerControlled(snapshot)) return null;
+      const charKey = toText(meta && meta.charKey, '').trim() || resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
+      if (!charKey) return null;
+      const chars = deepGet(snapshot, 'rootData.char', {});
+      const activeChar = chars && typeof chars === 'object' ? (chars[charKey] || {}) : {};
+      const activeName = toText(activeChar && (activeChar.name || deepGet(activeChar, 'base.name', '')), toText(snapshot.activeName, charKey));
+      const currentLoc = toText(deepGet(activeChar, '状态.位置', snapshot.currentLoc || '当前位置'), '当前位置').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
+      const skillName = toText(meta && meta.skillName, '造物技能');
+      const producedItems = Array.isArray(meta && meta.producedItems) ? meta.producedItems : [];
+      const costText = toText(meta && meta.costText, '无');
+      const itemSummary = producedItems.length ? producedItems.join('、') : '临时造物';
+      const systemPrompt = `以下内容属于前端已经完成的日常造物施展结算，不要在正文直接复述“系统提示 / JSONPatch / 变量更新 / 剧情推进请求”等术语。\n\n[日常造物施展]\n角色：${activeName}\n地点：${currentLoc}\n技能：${skillName}\n生成结果：${itemSummary}\n资源消耗：${costText}\n\n请直接承接这次日常施展后的自然剧情反馈，写出施法表现、产物落成状态、周围环境或旁观者反应，以及它为后续剧情带来的可继续推进点。除非剧情上确有新增变化，不要重复结算同一批变量。`;
+      return {
+        playerInput: `我在【${currentLoc}】日常施展了【${skillName}】。`,
+        systemPrompt,
+        requestKind: 'daily_construct_cast',
+      };
+    }
+
     function makeInventoryGrid(items) {
       const attr = (value) => String(value ?? '')
         .replace(/&/g, '&amp;')
@@ -738,6 +827,8 @@
               data-hover-expiry="${attr(item.expiry || '--')}"
               data-hover-usage="${attr(item.usage || item.meta || '--')}"
               data-hover-equip="${attr(item.canEquip ? 'true' : '')}"
+              data-hover-usable="${attr(item.canUse ? 'true' : '')}"
+              data-hover-action-label="${attr(item.actionLabel || '使用')}"
               data-hover-tags="${attr((item.tags || []).join('|'))}">
               <div class="cell-top">
                 <b>${item.name}</b>
@@ -1087,7 +1178,7 @@
                 <div class="archive-card-head"><div class="archive-card-title">情报概览</div></div>
                 <div class="intel-progress-slots" style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px;">
                   <div class="intel-slot" style="min-height:0; padding:12px 14px;"><div class="intel-slot-name">已解锁情报</div><div class="intel-slot-bar-wrap" style="height:6px; margin:8px 0 10px;"><div class="intel-slot-bar" style="width:0%;"></div></div><div class="intel-slot-value">0</div></div>
-                  <div class="intel-slot" style="min-height:0; padding:12px 14px;"><div class="intel-slot-name">待解锁线索</div><div class="intel-slot-bar-wrap" style="height:6px; margin:8px 0 10px;"><div class="intel-slot-bar gold" style="width:0%;"></div></div><div class="intel-slot-value" style="color:var(--gold);">0</div></div>
+                  <div class="intel-slot" style="min-height:0; padding:12px 14px;"><div class="intel-slot-name">最新情报</div><div class="intel-slot-bar-wrap" style="height:6px; margin:8px 0 10px;"><div class="intel-slot-bar gold" style="width:0%;"></div></div><div class="intel-slot-value" style="color:var(--gold);">0</div></div>
                   <div class="intel-slot" style="min-height:0; padding:12px 14px;"><div class="intel-slot-name">任务记录</div><div class="intel-slot-bar-wrap" style="height:6px; margin:8px 0 10px;"><div class="intel-slot-bar" style="width:0%; background:var(--red); box-shadow:0 0 8px var(--red);"></div></div><div class="intel-slot-value" style="color:var(--red);">0</div></div>
                 </div>
               </div>
@@ -1160,15 +1251,15 @@
         const badge = key === '第一武魂详细页' ? '第一武魂' : '第二武魂';
         const badgeClass = key === '第一武魂详细页' ? 'live' : 'warn';
         return {
-          title: `${badge}弹窗`,
+          title: '武魂',
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">武魂本体</div></div>
+                <div class="archive-card-head"><div class="archive-card-title">武魂</div></div>
                 <div class="spirit-main-card"><h4></h4><div class="spirit-head-tags"><span class="tag-chip ${key === '第一武魂详细页' ? 'live' : 'warn'}">${badge}</span></div></div>
               </div>
               <div class="archive-card full spirit-flow-card">
-                <div class="archive-card-head"><div class="archive-card-title">魂灵展开层级</div></div>
+                <div class="archive-card-head"><div class="archive-card-title">魂灵</div></div>
                 <div class="rings soul-ring-lane">${buildEmptyRingLane(key === '第一武魂详细页' ? 'ring-white' : 'ring-gold')}</div>
               </div>
             </div>
@@ -1349,6 +1440,7 @@
 
     let activeBattleUI = null;
     const BATTLE_INLINE_PREVIEW_KEY = '战斗终端';
+    const PENDING_SOUL_RING_PREVIEW_KEY = '魂环生成确认';
     let battleInlineDismissed = false;
     let battleInlineMountToken = 0;
     let battleReturnEntrySyncToken = 0;
@@ -1364,6 +1456,7 @@
     let activeSubUI = null;
     let lastAutoTradeRequestSignature = '';
     let hasHydratedAutoTradeRequestSignature = false;
+    let lastAutoOpenedPendingSoulRingSignature = '';
     let lastRenderedShellPreviewKey = '';
     let activeInlineEditState = null;
     let inlineEditSessionToken = 0;
@@ -1456,6 +1549,49 @@
       return `斗罗历${20000 + years}年${months}月${currentDay}日 ${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
     }
 
+    function getSnapshotWorldTimeText(snapshot) {
+      const explicit = toText(
+        deepGet(snapshot, 'rootData.world.时间._calendar', deepGet(snapshot, 'rootData.world.时间.calendar', '')),
+        '',
+      ).trim();
+      if (explicit) return explicit;
+      return formatTickToCalendarDateText(deepGet(snapshot, 'rootData.world.时间.tick', 0));
+    }
+
+    function getLatestUnlockedIntelText(snapshot, limit = 12, fallback = '暂无') {
+      const list = Array.isArray(snapshot && snapshot.unlockedKnowledges) ? snapshot.unlockedKnowledges : [];
+      if (!list.length) return fallback;
+      return shortenText(toText(list[list.length - 1], fallback), limit) || fallback;
+    }
+
+    function sanitizeVisibleSystemBroadcastText(rawText, fallback = '暂无播报') {
+      const source = String(rawText || '').trim();
+      if (!source) return fallback;
+      const timelineMatches = Array.from(source.matchAll(/\[编年史待处理\]\s*([^\[]+)/g)).map(match => String(match[1] || '').trim()).filter(Boolean);
+      const intelMatches = Array.from(source.matchAll(/\[机密情报待处理\]\s*([^\[]+)/g)).map(match => String(match[1] || '').trim()).filter(Boolean);
+      let cleaned = source
+        .replace(/\[编年史推进待提交\][\s\S]*?(?=(?:\[[^\]]+\])|$)/g, ' ')
+        .replace(/\[机密情报待提交\][\s\S]*?(?=(?:\[[^\]]+\])|$)/g, ' ')
+        .replace(/\[编年史待处理\][\s\S]*?(?=(?:\[[^\]]+\])|$)/g, ' ')
+        .replace(/\[机密情报待处理\][\s\S]*?(?=(?:\[[^\]]+\])|$)/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const summaryParts = [];
+      if (timelineMatches.length) summaryParts.push(`编年史待处理 ${timelineMatches[0]}`);
+      if (intelMatches.length) summaryParts.push(`机密情报待处理 ${intelMatches[0]}`);
+      const finalText = [cleaned, ...summaryParts].filter(Boolean).join(' ｜ ').trim();
+      return finalText || fallback;
+    }
+
+    function getStatusActionEditorOptions(currentValue = '') {
+      const current = toText(currentValue, '').trim();
+      if (current === '凝聚魂核') return [...STATUS_ACTION_RUNTIME_OPTIONS];
+      if (current && !STATUS_ACTION_RUNTIME_OPTIONS.includes(current)) {
+        return [current, ...STATUS_ACTION_RUNTIME_OPTIONS];
+      }
+      return [...STATUS_ACTION_RUNTIME_OPTIONS];
+    }
+
     function formatNumber(value) {
       return new Intl.NumberFormat('zh-CN').format(toNumber(value, 0));
     }
@@ -1477,18 +1613,119 @@
       return Math.floor(spBase);
     }
 
-    function getNextLevelSoulRequirement(stat) {
+    function getCharacterBaseSoulPowerTypeMultiplierForUi(charData = {}) {
+      let maxTypeMult = 0;
+      const typeMap = {
+        强攻系: 1.0,
+        防御系: 1.0,
+        敏攻系: 1.0,
+        控制系: 1.0,
+        辅助系: 1.2,
+        食物系: 1.2,
+        治疗系: 1.2,
+        精神系: 1.0,
+        元素系: 1.0,
+      };
+      Object.values(charData && charData.武魂 && typeof charData.武魂 === 'object' ? charData.武魂 : {}).forEach(spiritData => {
+        if (!spiritData || typeof spiritData !== 'object') return;
+        const spiritType = toText(spiritData.type, '');
+        maxTypeMult = Math.max(maxTypeMult, toNumber(typeMap[spiritType], 0));
+      });
+      if (maxTypeMult <= 0) {
+        const selfType = toText(charData && deepGet(charData, '属性.系别', ''), '');
+        maxTypeMult = toNumber(typeMap[selfType], 1.0);
+      }
+      return Math.max(0.1, maxTypeMult || 1.0);
+    }
+
+    function getCharacterDualSpiritSoulPowerCoeffForUi(charData = {}) {
+      const spiritEntries = Object.entries(charData && charData.武魂 && typeof charData.武魂 === 'object' ? charData.武魂 : {})
+        .filter(([, spiritData]) => spiritData && typeof spiritData === 'object');
+      return spiritEntries.length >= 2 ? 1.2 : 1.0;
+    }
+
+    function getNextLevelSoulRequirement(stat, charData = null) {
       const currentLv = toNumber(stat && stat.等级, 0);
       if (currentLv >= 100) {
         return { needed: 0, nextLevel: currentLv, isMax: true };
       }
-      const currentSpMax = toNumber(stat && stat.魂力上限, 0);
+      const currentSpMax = toNumber(
+        stat && (stat.突破魂力上限 ?? stat.基础魂力上限 ?? stat.魂力上限),
+        0
+      );
+      const safeCharData = charData && typeof charData === 'object' ? charData : {};
       const nextLevel = currentLv + 1;
-      const nextSpMax = getBaseSpMaxForLevel(nextLevel);
+      const hiddenVar = Math.max(0.1, toNumber(deepGet(safeCharData, '属性.底子波动', 1), 1));
+      const nextSpMax = Math.floor(
+        getBaseSpMaxForLevel(nextLevel) *
+        getCharacterBaseSoulPowerTypeMultiplierForUi(safeCharData) *
+        getCharacterDualSpiritSoulPowerCoeffForUi(safeCharData) *
+        hiddenVar
+      );
       return {
         needed: Math.max(0, nextSpMax - currentSpMax),
         nextLevel,
         isMax: false
+      };
+    }
+
+    function getCharacterActualSoulRingCountForUi(charData = {}) {
+      let total = 0;
+      Object.values(charData && charData.武魂 && typeof charData.武魂 === 'object' ? charData.武魂 : {}).forEach(spiritData => {
+        if (!spiritData || typeof spiritData !== 'object') return;
+        Object.values(spiritData.魂灵 && typeof spiritData.魂灵 === 'object' ? spiritData.魂灵 : {}).forEach(soulSpirit => {
+          if (!soulSpirit || typeof soulSpirit !== 'object') return;
+          Object.values(soulSpirit.魂环 && typeof soulSpirit.魂环 === 'object' ? soulSpirit.魂环 : {}).forEach(ringData => {
+            if (!ringData || typeof ringData !== 'object') return;
+            const hasAge = toNumber(ringData.年限, 0) > 0;
+            const hasSkill = Object.keys(ringData.魂技 && typeof ringData.魂技 === 'object' ? ringData.魂技 : {}).length > 0;
+            if (hasAge || hasSkill) total += 1;
+          });
+        });
+        Object.values(spiritData.独立魂环 && typeof spiritData.独立魂环 === 'object' ? spiritData.独立魂环 : {}).forEach(ringData => {
+          if (!ringData || typeof ringData !== 'object') return;
+          const hasAge = toNumber(ringData.年限, 0) > 0;
+          const hasSkill = Object.keys(ringData.魂技 && typeof ringData.魂技 === 'object' ? ringData.魂技 : {}).length > 0;
+          if (hasAge || hasSkill) total += 1;
+        });
+      });
+      return Math.max(0, total);
+    }
+
+    function getCharacterSoulRingLevelCapForUi(charData = {}) {
+      const ringCount = getCharacterActualSoulRingCountForUi(charData);
+      return Math.min(100, Math.max(10, (ringCount + 1) * 10));
+    }
+
+    function getCharacterCoreLevelCapForUi(charData = {}) {
+      const coreCount = toNumber(deepGet(charData, '魂核.核心.数量', 0), 0);
+      if (coreCount >= 3) return 150;
+      if (coreCount === 2) return 98;
+      if (coreCount === 1) return 89;
+      return 69;
+    }
+
+    function getNextLevelSoulRequirementWithCap(stat, charData = null) {
+      const currentLv = toNumber(stat && stat.等级, 0);
+      const safeCharData = charData && typeof charData === 'object' ? charData : {};
+      const baseResult = getNextLevelSoulRequirement(stat, safeCharData);
+      const ringCap = getCharacterSoulRingLevelCapForUi(safeCharData);
+      const coreCap = getCharacterCoreLevelCapForUi(safeCharData);
+      const levelCap = Math.min(ringCap, coreCap);
+      if (currentLv >= levelCap) {
+        const blockedByRing = ringCap <= coreCap;
+        return {
+          ...baseResult,
+          levelCap,
+          blocked: true,
+          blockedBy: blockedByRing ? 'ring' : 'core',
+        };
+      }
+      return {
+        ...baseResult,
+        levelCap,
+        blocked: false,
+        blockedBy: '',
       };
     }
 
@@ -2333,6 +2570,9 @@
       const contentMatch = cleaned.match(/<content>\s*([\s\S]*?)\s*<\/content>/i);
       if (contentMatch) cleaned = String(contentMatch[1] || '');
       cleaned = cleaned
+        .replace(/<moduleSettlement>[\s\S]*?<\/moduleSettlement>/gi, '')
+        .replace(/<moduleRoute>[\s\S]*?<\/moduleRoute>/gi, '')
+        .replace(/<模块路由>[\s\S]*?<\/模块路由>/gi, '')
         .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
         .replace(/<thought>[\s\S]*?<\/thought>/gi, '')
         .replace(/<tucao>[\s\S]*?<\/tucao>/gi, '')
@@ -3081,20 +3321,17 @@
       return text.length > max ? `${text.slice(0, Math.max(1, max - 1))}…` : text;
     }
 
+    function getRingColorKey(color = '') {
+      return RING_COLOR_ALIAS_MAP[toText(color, '').trim()] || '';
+    }
+
     function resolveRingTier(color, age, options = {}) {
-      const key = toText(color, '').trim();
+      const key = getRingColorKey(color);
       const years = toNumber(age, NaN);
       const forceGold = !!(options && options.forceGold);
 
       if (forceGold) return 'gold';
-
-      if (key === '橙' || key === '橙色' || key === '橙金' || key === '橙金色') return 'orangegold';
-      if (key === '金' || key === '金色') return 'gold';
-      if (key === '红' || key === '红色') return 'red';
-      if (key === '黑' || key === '黑色') return 'black';
-      if (key === '紫' || key === '紫色') return 'purple';
-      if (key === '黄' || key === '黄色') return 'yellow';
-      if (key === '白' || key === '白色') return 'white';
+      if (key) return key;
 
       if (Number.isFinite(years) && years > 0) {
         if (years >= 200000) return 'orangegold';
@@ -3111,20 +3348,18 @@
       return `ring-${resolveRingTier(color, age, options)}`;
     }
 
+    function getRingDisplayColorLabel(color, age, options = {}) {
+      const directKey = getRingColorKey(color);
+      if (directKey && RING_COLOR_META[directKey]) return RING_COLOR_META[directKey].label;
+      const tier = resolveRingTier(color, age, options);
+      return RING_COLOR_META[tier] ? RING_COLOR_META[tier].label : normalizeSkillUiText(color, '未定');
+    }
+
     function ringGlyph(color, index, age, options = {}) {
       const tier = resolveRingTier(color, age, options);
-      const tierGlyphMap = {
-        white: '白',
-        yellow: '黄',
-        purple: '紫',
-        black: '黑',
-        red: '红',
-        gold: '金',
-        orangegold: '橙'
-      };
-      const map = { 白: '白', 黄: '黄', 紫: '紫', 黑: '黑', 红: '红', 金: '金', 橙金: '橙' };
-      const key = toText(color, '').trim();
-      return map[key] || tierGlyphMap[tier] || String(index || '环');
+      const directKey = getRingColorKey(color);
+      const resolvedKey = directKey || tier;
+      return (RING_COLOR_META[resolvedKey] && RING_COLOR_META[resolvedKey].glyph) || String(index || '环');
     }
 
     function getMvuHost() {
@@ -3352,15 +3587,18 @@
             } catch (err) {}
           }
 
-          if (!window[POLL_KEY]) {
+          const shouldEnableFallbackPoll = !bound;
+          if (shouldEnableFallbackPoll && !window[POLL_KEY]) {
             window[POLL_KEY] = window.setInterval(() => {
+              if (document.visibilityState === 'hidden') return;
               hub.trigger({ source: 'poll' });
-            }, 1500);
+            }, 4000);
           }
 
           lastChatContextSignature = getChatContextSignature();
           if (!window[CHAT_CONTEXT_POLL_KEY]) {
             window[CHAT_CONTEXT_POLL_KEY] = window.setInterval(() => {
+              if (document.visibilityState === 'hidden') return;
               const nextSignature = getChatContextSignature();
               if (nextSignature === lastChatContextSignature) return;
               lastChatContextSignature = nextSignature;
@@ -3370,7 +3608,7 @@
                 }
               } catch (err) {}
               hub.trigger({ source: 'chat_context', signature: nextSignature });
-            }, 250);
+            }, 1000);
           }
 
           if (!window[POLL_VIS_KEY]) {
@@ -3498,7 +3736,6 @@
     function hasRootRuntimeSignals(rootData) {
       if (!rootData || typeof rootData !== 'object') return false;
       if (toText(deepGet(rootData, 'sys.玩家名', ''), '').trim()) return true;
-      if (safeEntries(deepGet(rootData, 'sys.seq', {})).length) return true;
       if (safeEntries(deepGet(rootData, 'world.时间线', {})).length) return true;
       if (deepGet(rootData, 'world.偏差值', undefined) !== undefined) return true;
       if (toText(deepGet(rootData, 'world.时间._calendar', deepGet(rootData, 'world.时间.calendar', '')), '').trim()) return true;
@@ -3526,7 +3763,6 @@
       let score = 0;
       if (rootData.sys && typeof rootData.sys === 'object') score += 6;
       if (toText(deepGet(rootData, 'sys.玩家名', ''), '').trim()) score += 12;
-      if (safeEntries(deepGet(rootData, 'sys.seq', {})).length) score += 6;
       if (safeEntries(deepGet(rootData, 'world.时间线', {})).length) score += 5;
       if (deepGet(rootData, 'world.偏差值', undefined) !== undefined) score += 3;
       if (safeEntries(chars).length) score += 1;
@@ -4174,9 +4410,6 @@
       if (Array.isArray(source.effects)) {
         appendSkillDesignerEffectEntries(source.effects, bucket, seen, { target: resolvedTarget || fallbackTarget });
       }
-      if (source['背包模板'] && typeof source['背包模板'] === 'object') {
-        appendSkillDesignerEffectEntries(source['背包模板'], bucket, seen, { target: resolvedTarget || fallbackTarget });
-      }
       return bucket;
     }
 
@@ -4285,6 +4518,15 @@
           analysis.primaryHints.push({ main: '回复类', sub: '持续恢复' });
           analysis.overtimeRecovers.push({ property, valueText, durationText });
           pushParamHint('持续恢复', { recoverRatio: valueText, duration: durationText });
+          return;
+        }
+
+        if (mechanism === '解控' || mechanism === '净化') {
+          pushParamHint('净化/解控', {
+            cleanseCount: formatSkillDesignerNumericInput(effect && effect['清除层级'], 1),
+            cleansePriority: normalizeSkillUiText(effect && effect['清除优先级'], ''),
+            extraGain: normalizeSkillUiText(effect && effect['附带收益'], ''),
+          });
           return;
         }
 
@@ -4570,6 +4812,15 @@
       ).slice(0, 8);
     }
 
+    function compactSkillDesignerStoredTags(tags = []) {
+      const genericTags = new Set([
+        ...Object.keys(SKILL_DESIGNER_MAIN_MECHANIC_POOL || {}),
+        ...(Array.isArray(SKILL_DESIGNER_DELIVERY_FORM_POOL) ? SKILL_DESIGNER_DELIVERY_FORM_POOL : []),
+        ...(Array.isArray(SKILL_DESIGNER_SKILL_TYPES) ? SKILL_DESIGNER_SKILL_TYPES : []),
+      ].map(label => normalizeSkillUiText(label, '')).filter(Boolean));
+      return normalizeSkillDesignerArray(tags).filter(label => !genericTags.has(normalizeSkillUiText(label, '')));
+    }
+
     function getSkillSummaryEffectByMechanism(effectArray, mechanism = '') {
       const targetMechanism = toText(mechanism, '').trim();
       if (!targetMechanism) return null;
@@ -4799,11 +5050,11 @@
       const coeffSummary = getSkillSummaryEffectByMechanism(effectArray, '属性系数摘要') || {};
       const mechanicParamSummary = getSkillSummaryEffectByMechanism(effectArray, '机制参数摘要') || {};
       const resolvedType = normalizeSkillUiText(
-        systemBase['技能类型'] || safeSkill['技能类型'] || designDraft['技能类型'],
+        designDraft['技能类型'] || systemBase['技能类型'],
         '未知',
       );
       const resolvedTarget = normalizeSkillUiText(
-        systemBase['对象'] || safeSkill['对象'] || designDraft['对象'],
+        designDraft['对象'] || systemBase['对象'],
         '未知',
       );
       const explicitSecondaryMechanics = normalizeSkillDesignerArray(designDraft['附加机制']);
@@ -4831,7 +5082,7 @@
         designDraft['机制参数'],
       );
       const costConfig = parseSkillDesignerCostConfig(
-        systemBase['消耗'] || safeSkill['消耗'] || designDraft['消耗'],
+        designDraft['消耗'] || systemBase['消耗'],
         designDraft['消耗资源'],
         designDraft['消耗数值'],
       );
@@ -5696,7 +5947,7 @@
         case '净化':
         case '解控':
           return [
-            createSkillDesignerNumberParam('cleanseCount', '净化层数', '2', '1'),
+            createSkillDesignerNumberParam('cleanseCount', '清除条目数', '2', '1'),
             createSkillDesignerSelectParam('cleansePriority', '净化优先级', SKILL_DESIGNER_PARAM_CLEANSE_PRIORITY_OPTIONS),
             createSkillDesignerSelectParam('extraGain', '附带收益', SKILL_DESIGNER_PARAM_CLEANSE_GAIN_OPTIONS),
           ];
@@ -6456,13 +6707,11 @@
         return baseType || '技能';
       })();
       return buildSkillDesignerRuntimeObject({
-        ...cloneJsonValue(existing),
         '机制': '系统基础',
         '技能类型': skillTypeText,
         '对象': systemTarget,
         '消耗': isPassive ? '无' : (draft && draft.cost) || '无',
         'cast_time': isPassive ? 0 : (Number.isFinite(existingCastTime) ? existingCastTime : fallbackCastTime),
-        '标签': normalizeSkillDesignerArray(draft && draft.tags),
       });
     }
 
@@ -7334,8 +7583,6 @@
           '类型': itemType,
           '描述': buildSkillDesignerCompactSummary(draft) || '使用后触发对应魂技效果',
           '来源技能': normalizeSkillUiText(draft && draft.name, '未命名技能'),
-          '使用效果': usageEffects,
-          '触发方式': triggerMode,
         },
       });
     }
@@ -7377,7 +7624,7 @@
       safeSkill['消耗'] = normalized.cost;
       delete safeSkill['加成属性'];
       safeSkill['主定位'] = normalized.mainRole;
-      safeSkill['标签'] = [...normalized.tags];
+      safeSkill['标签'] = compactSkillDesignerStoredTags(normalized.tags);
       safeSkill['画面描述'] = normalized.visualDesc;
       safeSkill['效果描述'] = normalized.effectDesc;
       if ('描述' in safeSkill || (previewMeta && ['art', 'fusion_skill'].includes(previewMeta.scope))) safeSkill['描述'] = normalized.effectDesc;
@@ -7401,7 +7648,7 @@
         '附加机制': [...normalized.secondaryMechanics],
         '机制参数': cloneJsonValue(normalizeSkillDesignerMechanicParamMap(normalized.mechanicParams, normalized)),
         '附带属性': [...normalized.attachedAttributes],
-        '标签': [...normalized.tags],
+        '标签': compactSkillDesignerStoredTags(normalized.tags),
         '技能类型': normalized.type,
         '对象': normalized.target,
         '消耗': normalized.cost,
@@ -7421,10 +7668,7 @@
       };
       const systemBase = buildSkillDesignerSystemBaseEffect(skillSource, normalized, previewMeta);
       const runtimeEffects = buildSkillDesignerRuntimeEffects(normalized, skillSource, previewMeta);
-      safeSkill['_效果数组'] = [
-        systemBase,
-        ...replaceSkillDesignerSummaryEffects(runtimeEffects, buildSkillDesignerRuntimeSummaryEffects(normalized)),
-      ];
+      safeSkill['_效果数组'] = [cloneJsonValue(systemBase), ...cloneJsonValue(runtimeEffects)];
       return safeSkill;
     }
 
@@ -7490,6 +7734,22 @@
       return fallback;
     }
 
+    function extractConstructCreateEffects(effectArray = []) {
+      return (Array.isArray(effectArray) ? effectArray : []).filter(effect =>
+        ['生成造物', '造物生成'].includes(toText(effect && effect['机制'], '').trim())
+      );
+    }
+
+    function buildConstructSkillActionHtml(skillPath = [], itemType = '') {
+      if (!Array.isArray(skillPath) || !skillPath.length) return '';
+      const actionLabel = /食物/.test(toText(itemType, '')) ? '日常制作' : '日常施展';
+      return `
+        <div class="tag-cloud armory-quick-actions" style="margin-top:8px;justify-content:flex-end;">
+          <button type="button" class="tag-chip live skill-inline-action-btn" data-skill-action="cast-construct" data-skill-path="${escapeHtmlAttr(JSON.stringify(skillPath))}">${actionLabel}</button>
+        </div>
+      `;
+    }
+
     function buildSkillList(skillObj, options = {}) {
       const basePath = Array.isArray(options && options.basePath) ? options.basePath : [];
       const category = normalizeSkillUiText(options && options.category, '技能');
@@ -7512,9 +7772,9 @@
         const effectSummary = effectSummaryCore === '未知'
           ? '未知'
           : (effectCount > 0 ? `${effectSummaryCore} (${effectCount}项)` : effectSummaryCore);
-        const type = normalizeSkillUiText(systemBase['技能类型'] || (skill && skill['技能类型']), '未知');
-        const target = normalizeSkillUiText(systemBase['对象'] || (skill && skill['对象']), '未知');
-        const cost = normalizeSkillUiText(systemBase['消耗'] || (skill && skill['消耗']), '未知');
+        const type = normalizeSkillUiText(systemBase['技能类型'], '未知');
+        const target = normalizeSkillUiText(systemBase['对象'], '未知');
+        const cost = normalizeSkillUiText(systemBase['消耗'], '未知');
         const mainRole = normalizeSkillUiText((draft && draft.mainRole) || (skill && skill['主定位']), '未知');
         const compatParamDesc = normalizeSkillUiText(skill && skill['特效量化参数'], '');
         const descSegments = [];
@@ -7560,6 +7820,11 @@
           category,
           scope,
         });
+        const constructCreateEffects = extractConstructCreateEffects(effectArray);
+        const constructItemType = toText(constructCreateEffects[0] && constructCreateEffects[0]['产物类型'], '');
+        const canDailyCastConstruct = skillPath.length > 0 && skillPath[0] === 'char' && constructCreateEffects.length > 0;
+        const constructActionHtml = canDailyCastConstruct ? buildConstructSkillActionHtml(skillPath, constructItemType) : '';
+        if (constructActionHtml) desc += constructActionHtml;
 
         return {
           name: cleanSkillName,
@@ -7577,7 +7842,8 @@
           path: skillPath,
           category,
           scope,
-          designDraft: draft
+          designDraft: draft,
+          constructActionHtml
         };
       });
 
@@ -7640,12 +7906,75 @@
       });
     }
 
+    function buildSpiritRingInfo(ringIndex, ring, skills, options = {}) {
+      const ringPath = Array.isArray(options.path) ? options.path : [];
+      const forceGold = !!(options && options.forceGold);
+      const colorText = getRingDisplayColorLabel(ring && ring['颜色'], ring && ring['年限'], { forceGold });
+      const ageText = formatAge(ring && ring['年限']);
+      return {
+        glyph: ringGlyph(ring && ring['颜色'], ringIndex, ring && ring['年限'], { forceGold }),
+        ringClass: mapRingClass(ring && ring['颜色'], ring && ring['年限'], { forceGold }),
+        title: toText(options && options.title, `第${ringIndex}魂环`),
+        desc: [colorText, ageText].filter(Boolean).join(' / '),
+        skills,
+        path: ringPath,
+        colorText,
+        colorValue: colorText,
+        ageText,
+        sourceText: normalizeSkillUiText(options && options.sourceText, ''),
+        sourceValue: toText(options && options.sourceValue, ''),
+        sourcePath: Array.isArray(options && options.sourcePath) ? options.sourcePath : [],
+        carrierText: normalizeSkillUiText(options && options.carrierText, ''),
+      };
+    }
+
+    function buildRingHoverMetaMarkup(ring) {
+      const rows = [];
+      const colorMarkup = ring && Array.isArray(ring.path) && ring.path.length
+        ? makeInlineEditableValue(toText(ring.colorText, '未定'), {
+            path: [...ring.path, '颜色'],
+            kind: 'enum_select',
+            rawValue: toText(ring.colorValue, toText(ring.colorText, '未定')),
+            editorMeta: { options: RING_COLOR_OPTIONS }
+          })
+        : htmlEscape(toText(ring && ring.colorText, '未定'));
+      rows.push(`<div class="ring-hover-meta-row"><em>颜色</em><strong>${colorMarkup}</strong></div>`);
+      rows.push(`<div class="ring-hover-meta-row"><em>年限</em><strong>${htmlEscape(toText(ring && ring.ageText, '未定'))}</strong></div>`);
+      if (ring && ring.carrierText) {
+        rows.push(`<div class="ring-hover-meta-row"><em>承载</em><strong>${htmlEscape(toText(ring.carrierText, '未定'))}</strong></div>`);
+      }
+      if ((ring && ring.sourcePath && ring.sourcePath.length) || (ring && ring.sourceText)) {
+        const sourceMarkup = ring && ring.sourcePath && ring.sourcePath.length
+          ? makeInlineEditableValue(toText(ring.sourceText, '未记录'), {
+              path: ring.sourcePath,
+              kind: 'string',
+              rawValue: toText(ring.sourceValue, toText(ring.sourceText, '未记录')),
+            })
+          : htmlEscape(toText(ring && ring.sourceText, '未记录'));
+        rows.push(`<div class="ring-hover-meta-row"><em>来源</em><strong>${sourceMarkup}</strong></div>`);
+      }
+      return rows.length ? `<div class="ring-hover-meta">${rows.join('')}</div>` : '';
+    }
+
+    function buildRingHoverCardMarkup(ring) {
+      const skills = (ring && Array.isArray(ring.skills) ? ring.skills : []).map(skill => `
+        <div class=\"ring-hover-skill ${skill && skill.preview ? 'clickable' : ''}\"${skill && skill.preview ? ` data-preview=\"${escapeHtmlAttr(skill.preview)}\"` : ''}>
+          <b>${htmlEscape(skill && skill.name ? skill.name : '未命名技能')}</b>
+          <div class=\"ring-hover-copy\"><em>画面描述</em><span>${htmlEscape(skill && skill.visualDesc ? skill.visualDesc : '未知')}</span></div>
+          <div class=\"ring-hover-copy\"><em>效果描述</em><span>${htmlEscape(skill && skill.effectDesc ? skill.effectDesc : '未知')}</span></div>
+          ${skill && skill.constructActionHtml ? skill.constructActionHtml : ''}
+        </div>
+      `).join('');
+      return `<div class=\"ring-hover-card\"><div class=\"ring-hover-title\">${htmlEscape(toText(ring && ring.title, '魂环技能'))}</div><div class=\"ring-hover-desc\">${htmlEscape(toText(ring && ring.desc, ''))}</div>${buildRingHoverMetaMarkup(ring)}${skills}</div>`;
+    }
+
     function buildSpiritConfig(slotName, spiritData, previewKey, badgeText, badgeClass, spiritBasePath = []) {
       const spiritPath = Array.isArray(spiritBasePath) ? spiritBasePath : [];
       const soulEntries = safeEntries(spiritData && spiritData.魂灵);
       const summaryRings = [];
       const souls = soulEntries.map(([soulName, soulData]) => {
         const soulPath = [...spiritPath, '魂灵', soulName];
+        const soulDisplayName = normalizeSkillUiText(soulData && soulData['表象名称'], soulName);
         const ringEntries = safeEntries(soulData && soulData.魂环)
           .sort((a, b) => toNumber(a[0], 0) - toNumber(b[0], 0))
           .map(([ringIndex, ring]) => {
@@ -7654,18 +7983,17 @@
               category: '魂环魂技',
               scope: 'spirit_skill',
             });
-            const ringInfo = {
-              glyph: ringGlyph(ring && ring['颜色'], ringIndex, ring && ring['年限']),
-              ringClass: mapRingClass(ring && ring['颜色'], ring && ring['年限']),
-              title: `第${ringIndex}魂环 · ${skills[0] ? skills[0].name : soulName}`,
-              desc: `${toText(ring && ring['颜色'], '未定')} / ${formatAge(ring && ring['年限'])}`,
-              skills
-            };
+            const ringInfo = buildSpiritRingInfo(ringIndex, ring, skills, {
+              path: [...soulPath, '魂环', ringIndex],
+              title: `第${ringIndex}魂环 · ${skills[0] ? skills[0].name : soulDisplayName}`,
+              sourceText: soulDisplayName,
+              carrierText: `魂灵 · ${soulDisplayName}`,
+            });
             summaryRings.push(ringInfo);
             return ringInfo;
           });
 
-        const spiritName = normalizeSkillUiText(soulData && soulData['表象名称'], '未设置');
+        const spiritName = soulDisplayName;
         const description = normalizeSkillUiText(soulData && soulData['描述'], '未设置');
         const quality = normalizeSkillUiText(soulData && soulData['品质'], '未设置');
         const state = normalizeSkillUiText(soulData && soulData['状态'], '未知');
@@ -7686,6 +8014,26 @@
           魂环: ringEntries
         };
       });
+      const independentRings = safeEntries(spiritData && spiritData['独立魂环'])
+        .sort((a, b) => toNumber(a[0], 0) - toNumber(b[0], 0))
+        .map(([ringIndex, ring]) => {
+          const ringPath = [...spiritPath, '独立魂环', ringIndex];
+          const skills = buildSkillList(ring && ring['魂技'], {
+            basePath: [...ringPath, '魂技'],
+            category: '独立魂环魂技',
+            scope: 'independent_ring_skill',
+          });
+          const ringInfo = buildSpiritRingInfo(ringIndex, ring, skills, {
+            path: ringPath,
+            title: `独立魂环 · 第${ringIndex}环`,
+            sourceText: normalizeSkillUiText(ring && ring['来源'], '未记录'),
+            sourceValue: toText(ring && ring['来源'], ''),
+            sourcePath: [...ringPath, '来源'],
+            carrierText: '独立魂环',
+          });
+          summaryRings.push(ringInfo);
+          return ringInfo;
+        });
 
       if (!souls.length) {
         souls.push({
@@ -7705,6 +8053,7 @@
       }
 
       const soulCount = soulEntries.length;
+      const independentRingCount = independentRings.length;
       const displayName = normalizeSkillUiText(spiritData && spiritData['表象名称'], slotName);
       const spiritType = normalizeSkillUiText(spiritData && spiritData['type'], '未知系');
       const spiritDesc = normalizeSkillUiText(spiritData && spiritData['描述'], '未设置');
@@ -7715,10 +8064,12 @@
         badge: badgeText,
         badgeClass,
         name: `${displayName}（${spiritType}）`,
-        desc: `属性体系：${attributeState.attributeSystem} / 魂灵：${soulCount}`,
-        魂环: (summaryRings.length ? summaryRings : souls[0].魂环).slice(0, 10),
+        desc: `属性体系：${attributeState.attributeSystem} / 魂灵：${soulCount} / 独立环：${independentRingCount}`,
+        魂环: summaryRings.slice(0, 10),
         souls,
+        independentRings,
         soulCount,
+        independentRingCount,
         slotName,
         spiritPath,
         spiritName: displayName,
@@ -7727,6 +8078,102 @@
         spiritElement: attributeState.attributeSystem,
         spiritUnlockedAttrs: attributeState.unlockedAttrs,
         spiritCapacityAttrs: attributeState.capacityAttrs
+      };
+    }
+
+    function createDefaultRingSkillShellForUi() {
+      return {
+        魂技名: '待补全',
+        画面描述: '未知',
+        效果描述: '未知',
+        _效果数组: [],
+      };
+    }
+
+    function buildDefaultRingSkillMapForUi(ringIndex = 1, ringAge = 0) {
+      const safeRingIndex = Math.max(1, Math.floor(Number(ringIndex) || 1));
+      const baseSkillKey = `第${safeRingIndex}魂技`;
+      const skillMap = {
+        [baseSkillKey]: createDefaultRingSkillShellForUi(),
+      };
+      if (Math.floor(Number(ringAge) || 0) >= 100000) {
+        skillMap[`${baseSkillKey}·其二`] = createDefaultRingSkillShellForUi();
+      }
+      return skillMap;
+    }
+
+    function getSoulSpiritRingCapacityForUi(ageValue = 0) {
+      const years = Math.max(0, toNumber(ageValue, 0));
+      if (years >= 10000) return 4;
+      if (years >= 1000) return 3;
+      if (years >= 100) return 2;
+      return 1;
+    }
+
+    function buildPendingSoulRingState(snapshot) {
+      const safeSnapshot = snapshot && typeof snapshot === 'object' ? snapshot : null;
+      if (!safeSnapshot || !safeSnapshot.rootData) return null;
+      const activeChar = safeSnapshot.activeChar && typeof safeSnapshot.activeChar === 'object' ? safeSnapshot.activeChar : null;
+      const pending = activeChar && activeChar.状态 && typeof activeChar.状态.待选魂环 === 'object'
+        ? activeChar.状态.待选魂环
+        : null;
+      if (!pending) return null;
+      const status = toText(pending.状态, '').trim();
+      const spiritSlot = toText(pending.武魂槽位, '').trim();
+      const ringIndex = Math.max(1, toNumber(pending.待生成魂环位, 1));
+      if (!status || !spiritSlot || !ringIndex) return null;
+      const charKey = resolveSnapshotCharKey(safeSnapshot, toText(safeSnapshot.activeName, '')) || toText(safeSnapshot.activeName, '');
+      if (!charKey) return null;
+      const spiritData = deepGet(safeSnapshot, ['rootData', 'char', charKey, '武魂', spiritSlot], {});
+      const spiritPreviewKey = spiritSlot === '第一武魂'
+        ? '第一武魂详细页'
+        : (spiritSlot === '第二武魂' ? '第二武魂详细页' : '第一武魂详细页');
+      const candidateNames = Array.isArray(pending.候选魂灵)
+        ? pending.候选魂灵.map(name => toText(name, '').trim()).filter(Boolean)
+        : [];
+      const candidates = candidateNames.map(name => {
+        const soulData = deepGet(spiritData, ['魂灵', name], {});
+        const ageValue = toNumber(soulData && soulData.年限, 0);
+        const displayName = normalizeSkillUiText(soulData && soulData.表象名称, name || '候选魂灵');
+        const ringCount = safeEntries(soulData && soulData.魂环).length;
+        const ringCapacity = getSoulSpiritRingCapacityForUi(ageValue);
+        const nextRingColorLabel = getRingDisplayColorLabel('', ageValue);
+        return {
+          soulName: name,
+          displayName,
+          ageValue,
+          ageText: formatAge(ageValue),
+          quality: normalizeSkillUiText(soulData && soulData.品质, '未设置'),
+          state: normalizeSkillUiText(soulData && soulData.状态, '未知'),
+          compValue: toNumber(soulData && soulData.契合度, 100),
+          description: normalizeSkillUiText(soulData && soulData.描述, '暂无描述'),
+          ringCount,
+          ringCapacity,
+          remainingSlots: Math.max(0, ringCapacity - ringCount),
+          remainingAfterGenerate: Math.max(0, ringCapacity - ringCount - 1),
+          nextRingColorLabel,
+          nextRingClass: mapRingClass('', ageValue),
+          sourcePath: ['char', charKey, '武魂', spiritSlot, '魂灵', name],
+        };
+      });
+      const signature = [
+        charKey,
+        spiritSlot,
+        ringIndex,
+        status,
+        candidates.map(item => item.soulName).join('|'),
+      ].join('::');
+      return {
+        charKey,
+        charName: toText(safeSnapshot.activeName, charKey),
+        spiritSlot,
+        spiritName: normalizeSkillUiText(spiritData && spiritData.表象名称, spiritSlot),
+        spiritPreviewKey,
+        ringIndex,
+        status,
+        source: toText(pending.来源, ''),
+        candidates,
+        signature,
       };
     }
 
@@ -7770,17 +8217,16 @@
         || safeEntries(rawPermanentBonuses).length > 0;
       const ringEntries = safeEntries(deepGet(activeChar, '血脉之力.气血魂环', {}))
         .sort((a, b) => toNumber(a[0], 0) - toNumber(b[0], 0))
-        .map(([index, ring]) => ({
-          glyph: ringGlyph(ring && ring['颜色'], index, ring && ring['年限'], { forceGold: true }),
-          ringClass: mapRingClass(ring && ring['颜色'], ring && ring['年限'], { forceGold: true }),
-          title: `血脉环位 · ${index}`,
-          desc: `${toText(ring && ring['颜色'], '未形成')} / ${safeEntries(ring && ring['魂技']).length || 0}项能力`,
-          skills: buildSkillList(ring && ring['魂技'], {
+        .map(([index, ring]) => buildSpiritRingInfo(index, ring, buildSkillList(ring && ring['魂技'], {
             basePath: [...bloodlineBasePath, '气血魂环', index, '魂技'],
             category: '血脉魂环',
             scope: 'blood_ring_skill',
-          })
-        }));
+          }), {
+            path: [...bloodlineBasePath, '气血魂环', index],
+            title: `血脉环位 · ${index}`,
+            sourceText: toText(activeChar && activeChar['血脉之力'] && activeChar['血脉之力']['血脉'], '血脉本体'),
+            carrierText: '血脉魂环',
+          }));
       const normalizedRingEntries = ringEntries.slice(0, 10);
 
       return {
@@ -7956,7 +8402,7 @@
 
     function buildRecentNewsSummary(snapshot, options = {}) {
       const { seqLimit = 2, intelLimit = 2 } = options || {};
-      const globalNews = (snapshot.seqEntries || []).slice(0, Math.max(1, seqLimit)).map(([key, item]) => ({
+      const globalNews = (snapshot.timelineEntries || []).slice(0, Math.max(1, seqLimit)).map(([key, item]) => ({
         title: `全局 / ${key}`,
         desc: toText(deepGet(item, '事件', '暂无记录'), '暂无记录')
       }));
@@ -8002,7 +8448,6 @@
       const storeNames = safeEntries(locationData && locationData.商店).map(([name]) => name);
       const dynamicLocationNames = safeEntries(deepGet(sd, 'world.动态地点', {})).map(([name]) => name);
       const timelineEntries = safeEntries(deepGet(sd, 'world.时间线', {})).sort((a, b) => toNumber(deepGet(b[1], '触发tick', 0), 0) - toNumber(deepGet(a[1], '触发tick', 0), 0));
-      const seqEntries = safeEntries(deepGet(sd, 'sys.seq', {})).sort((a, b) => toNumber(b[0], 0) - toNumber(a[0], 0));
       const factions = safeEntries(deepGet(activeChar, '社交.势力', {}));
       const relations = safeEntries(deepGet(activeChar, '社交.关系', {})).sort((a, b) => toNumber(deepGet(b[1], '好感度', 0), 0) - toNumber(deepGet(a[1], '好感度', 0), 0));
       const unlockedKnowledges = Array.isArray(activeChar && activeChar.已掌握情报) ? activeChar.已掌握情报 : [];
@@ -8139,6 +8584,7 @@
       const pendingRequests = collectPendingRequests(activeChar || {}, sd || {});
       const bestiaryEntries = safeEntries(deepGet(sd, 'world.图鉴', {}));
       const forestKilledAge = toNumber(deepGet(sd, 'world.累计击杀年限', 0), 0);
+      const pendingSoulRing = buildPendingSoulRingState({ rootData: sd, activeChar, activeName });
       const mapData = sd && sd.map && typeof sd.map === 'object' ? sd.map : {};
       const sheepSnapshot = window.__sheepMapSnapshot && typeof window.__sheepMapSnapshot === 'object'
         ? window.__sheepMapSnapshot
@@ -8204,9 +8650,6 @@
         deepGet(mapData, 'current_zoom_hint', sheepSnapshot && Number.isFinite(Number(sheepSnapshot.currentZoomHint)) ? Number(sheepSnapshot.currentZoomHint) : 0),
         0
       );
-      const pendingIntelContent = toText(deepGet(activeChar, '待解锁情报.内容', '无'), '无');
-      const pendingIntelImpact = toNumber(deepGet(activeChar, '待解锁情报.影响', 0), 0);
-      const pendingIntel = pendingIntelContent !== '无';
       const primaryFaction = factions[0] || null;
       const topRelation = relations[0] || null;
       const questRecordCount = recordEntries.filter(([, item]) => toText(item && item['状态'], '进行中') !== '已放弃').length;
@@ -8236,7 +8679,6 @@
         dynamicLocationNames,
         timelineEntries,
         latestTimeline: timelineEntries[0] || null,
-        seqEntries,
         势力: factions,
         relations,
         unlockedKnowledges,
@@ -8256,11 +8698,9 @@
         bloodline,
         mapNodeLabels: mapNodeLabels.slice(0, 4),
         pendingRequests,
-        pendingIntelCount: pendingIntel ? 1 : 0,
-        pendingIntelContent,
-        pendingIntelImpact,
         primaryFaction,
         topRelation,
+        pendingSoulRing,
         关系分析: deepGet(activeChar, '社交.关系分析', {}),
 
         questRecordCount,
@@ -8283,6 +8723,89 @@
       };
     }
 
+    function getPendingSoulRingSignature(snapshot) {
+      const pending = buildPendingSoulRingState(snapshot);
+      return pending ? pending.signature : '';
+    }
+
+    function maybeAutoOpenPendingSoulRingPreview(snapshot, options = {}) {
+      const pending = buildPendingSoulRingState(snapshot);
+      if (!pending || pending.status !== '待选择') {
+        if (!pending) lastAutoOpenedPendingSoulRingSignature = '';
+        return;
+      }
+      if (!pending.signature || pending.signature === lastAutoOpenedPendingSoulRingSignature) return;
+      lastAutoOpenedPendingSoulRingSignature = pending.signature;
+      const shouldPreferFloating = options && options.force !== false;
+      openModal(PENDING_SOUL_RING_PREVIEW_KEY, {
+        preserveMapDispatchContext: true,
+        displayMode: shouldPreferFloating ? 'floating' : undefined,
+      });
+    }
+
+    async function handlePendingSoulRingGenerate(snapshot, candidateSoulName = '') {
+      const pending = buildPendingSoulRingState(snapshot);
+      if (!pending) throw new Error('当前没有待处理的魂环生成请求。');
+      const wantedSoulName = toText(candidateSoulName, '').trim() || toText(deepGet(pending, 'candidates.0.soulName', ''), '').trim();
+      if (!wantedSoulName) throw new Error('当前待选魂灵为空。');
+      await mutateStatDataByEditor(statData => {
+        const charData = deepGet(statData, ['char', pending.charKey], null);
+        if (!charData || typeof charData !== 'object') throw new Error('未找到对应角色。');
+        const currentPending = deepGet(charData, ['状态', '待选魂环'], null);
+        if (!currentPending || typeof currentPending !== 'object') throw new Error('当前待选魂环状态已失效。');
+        const spiritSlot = toText(currentPending.武魂槽位, pending.spiritSlot).trim();
+        const ringIndex = Math.max(1, toNumber(currentPending.待生成魂环位, pending.ringIndex));
+        const spiritData = deepGet(charData, ['武魂', spiritSlot], null);
+        if (!spiritData || typeof spiritData !== 'object') throw new Error('未找到目标武魂槽位。');
+        const soulData = deepGet(spiritData, ['魂灵', wantedSoulName], null);
+        if (!soulData || typeof soulData !== 'object') throw new Error(`未找到候选魂灵【${wantedSoulName}】。`);
+        if (!soulData.魂环 || typeof soulData.魂环 !== 'object') soulData.魂环 = {};
+        const ringKey = String(ringIndex);
+        if (soulData.魂环[ringKey] && typeof soulData.魂环[ringKey] === 'object' && (toNumber(soulData.魂环[ringKey].年限, 0) > 0 || safeEntries(soulData.魂环[ringKey].魂技).length > 0)) {
+          throw new Error(`第${ringIndex}魂环已存在。`);
+        }
+        const ringAge = Math.max(0, toNumber(soulData.年限, 0));
+        soulData.魂环[ringKey] = {
+          年限: ringAge,
+          颜色: getRingDisplayColorLabel('', ringAge),
+          魂技: buildDefaultRingSkillMapForUi(ringIndex, ringAge),
+        };
+        if (!charData.状态 || typeof charData.状态 !== 'object') charData.状态 = {};
+        delete charData.状态.待选魂环;
+        if (!statData.sys || typeof statData.sys !== 'object') statData.sys = {};
+        statData.sys.系统播报 = `[魂环生成] ${pending.charName} 选择由【${wantedSoulName}】为【${pending.spiritName}】衍生第 ${ringIndex} 魂环。`;
+      }, { force: true });
+      lastAutoOpenedPendingSoulRingSignature = '';
+      await refreshLiveSnapshot({ force: true });
+      const shouldJumpPreview = pending.spiritPreviewKey || '';
+      if ((currentModalPreviewKey || currentUnifiedPreviewKey) === PENDING_SOUL_RING_PREVIEW_KEY) closeModal();
+      if (shouldJumpPreview) openModal(shouldJumpPreview, { preserveMapDispatchContext: true });
+      if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') {
+        window.MVU_Toast.show('已生成对应魂环。', 'info');
+      }
+    }
+
+    async function handlePendingSoulRingDefer(snapshot) {
+      const pending = buildPendingSoulRingState(snapshot);
+      if (!pending) throw new Error('当前没有待处理的魂环生成请求。');
+      await mutateStatDataByEditor(statData => {
+        const charData = deepGet(statData, ['char', pending.charKey], null);
+        if (!charData || typeof charData !== 'object') throw new Error('未找到对应角色。');
+        if (!charData.状态 || typeof charData.状态 !== 'object') charData.状态 = {};
+        if (!charData.状态.待选魂环 || typeof charData.状态.待选魂环 !== 'object') throw new Error('待选魂环状态已失效。');
+        charData.状态.待选魂环.状态 = '已暂缓';
+        if (!statData.sys || typeof statData.sys !== 'object') statData.sys = {};
+        statData.sys.系统播报 = `[魂环生成] ${pending.charName} 暂缓处理【${pending.spiritName}】的第 ${pending.ringIndex} 魂环。`;
+      }, { force: true });
+      await refreshLiveSnapshot({ force: true });
+      if ((currentModalPreviewKey || currentUnifiedPreviewKey) === PENDING_SOUL_RING_PREVIEW_KEY) {
+        closeModal();
+      }
+      if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') {
+        window.MVU_Toast.show('已暂缓本次魂环生成。', 'info');
+      }
+    }
+
     function applyActiveCharacterSelection(nextName, options = {}) {
       cancelActiveInlineEdit();
       const targetName = toText(nextName, '').trim();
@@ -8300,16 +8823,17 @@
       renderHeader(liveSnapshot);
       renderLiveCards(liveSnapshot, nextDashboardSectionRenderSignatures);
       syncPrivateArchiveLongPressTargets(liveSnapshot);
+      maybeAutoOpenPendingSoulRingPreview(liveSnapshot, { force: true });
 
       syncBattleUiForSnapshot(liveSnapshot, { force: true });
 
-      const activeDetailPreviewKey = currentUnifiedPreviewKey || currentModalPreviewKey;
+      const activeDetailPreviewKey = getEffectiveUnifiedPreviewKey() || currentModalPreviewKey;
       if ((detailModal.classList.contains('show') || isShellInlinePreviewActive() || isUnifiedInlinePreviewActive()) && activeDetailPreviewKey) {
         if (options.closeModal !== false) {
-          if (isUnifiedInlinePreviewActive() && currentUnifiedPreviewKey) closeDetailSurface({ surface: 'unified' });
+          if (isUnifiedInlinePreviewActive() && getEffectiveUnifiedPreviewKey()) closeDetailSurface({ surface: 'unified' });
           else closeModal();
         } else {
-          rerenderDetailSurface(activeDetailPreviewKey, { surface: currentUnifiedPreviewKey ? 'unified' : 'modal' });
+          rerenderDetailSurface(activeDetailPreviewKey, { surface: getEffectiveUnifiedPreviewKey() ? 'unified' : 'modal' });
         }
       }
 
@@ -8363,7 +8887,9 @@
           mapNodeLabels: Array.isArray(snapshot && snapshot.mapNodeLabels) ? snapshot.mapNodeLabels : [],
           mapVisibleNodeEntries: Array.isArray(snapshot && snapshot.mapVisibleNodeEntries) ? snapshot.mapVisibleNodeEntries : [],
           mapVisibleDynamicEntries: Array.isArray(snapshot && snapshot.mapVisibleDynamicEntries) ? snapshot.mapVisibleDynamicEntries : [],
-          mapAvailableChildMaps: Array.isArray(snapshot && snapshot.mapAvailableChildMaps) ? snapshot.mapAvailableChildMaps : [],
+          mapAvailableChildMaps: snapshot && snapshot.mapAvailableChildMaps && typeof snapshot.mapAvailableChildMaps === 'object'
+            ? snapshot.mapAvailableChildMaps
+            : {},
           latestTimeline: snapshot && snapshot.latestTimeline ? snapshot.latestTimeline : null,
           timelineEntries: Array.isArray(snapshot && snapshot.timelineEntries) ? snapshot.timelineEntries : []
         }),
@@ -8372,10 +8898,7 @@
           primaryFaction: snapshot && snapshot.primaryFaction ? snapshot.primaryFaction : null,
           topRelation: snapshot && snapshot.topRelation ? snapshot.topRelation : null,
           relations: Array.isArray(snapshot && snapshot.relations) ? snapshot.relations : [],
-          unlockedKnowledges: Array.isArray(snapshot && snapshot.unlockedKnowledges) ? snapshot.unlockedKnowledges : [],
-          pendingIntelCount: toNumber(snapshot && snapshot.pendingIntelCount, 0),
-          pendingIntelContent: toText(snapshot && snapshot.pendingIntelContent, ''),
-          pendingIntelImpact: toText(snapshot && snapshot.pendingIntelImpact, '')
+          unlockedKnowledges: Array.isArray(snapshot && snapshot.unlockedKnowledges) ? snapshot.unlockedKnowledges : []
         }),
         world: buildRenderSignature({
           rootWorld: deepGet(snapshot, 'rootData.world', {}),
@@ -8389,9 +8912,6 @@
           rootWorld: deepGet(snapshot, 'rootData.world', {}),
           activeChar: deepGet(snapshot, 'activeChar', {}),
           worldAlert: toText(snapshot && snapshot.worldAlert, ''),
-          pendingIntelCount: toNumber(snapshot && snapshot.pendingIntelCount, 0),
-          pendingIntelContent: toText(snapshot && snapshot.pendingIntelContent, ''),
-          pendingIntelImpact: toText(snapshot && snapshot.pendingIntelImpact, ''),
           inventoryEntries: Array.isArray(snapshot && snapshot.inventoryEntries) ? snapshot.inventoryEntries : [],
           bestiaryEntries: Array.isArray(snapshot && snapshot.bestiaryEntries) ? snapshot.bestiaryEntries : [],
           recordEntries: Array.isArray(snapshot && snapshot.recordEntries) ? snapshot.recordEntries : [],
@@ -8509,6 +9029,143 @@
       return numericText ? Number(numericText[0]) : NaN;
     }
 
+    const SOUL_TOWER_MAX_AGE = 30;
+    const SOUL_TOWER_TEAM_LIMIT = 7;
+    const SOUL_TOWER_MAX_AGE_GAP = 3;
+    const SOUL_TOWER_GATE_SPAN = 10;
+
+    function getSoulTowerAgeValueFromCharacter(charData = {}) {
+      return getPrivateArchiveAgeValue(deepGet(charData, '属性.年龄', null));
+    }
+
+    function isSoulTowerEligibleCharacterData(charData = {}) {
+      const ageValue = getSoulTowerAgeValueFromCharacter(charData);
+      return Number.isFinite(ageValue) && ageValue > 0 && ageValue <= SOUL_TOWER_MAX_AGE;
+    }
+
+    function isSoulTowerCombatType(detail = {}) {
+      const battleType = toText(detail && (detail['战斗类型'] || detail.combatType || detail.type), '');
+      return battleType === '魂灵塔冲塔';
+    }
+
+    function getSoulTowerGateMeta(floor = 0) {
+      const safeFloor = Math.max(1, Math.floor(Number(floor) || 1));
+      const gateIndex = Math.floor((safeFloor - 1) / SOUL_TOWER_GATE_SPAN) + 1;
+      const gateStart = (gateIndex - 1) * SOUL_TOWER_GATE_SPAN + 1;
+      const gateEnd = gateStart + SOUL_TOWER_GATE_SPAN - 1;
+      const layerInGate = safeFloor - gateStart + 1;
+      const isGateBoss = layerInGate === SOUL_TOWER_GATE_SPAN;
+      const nextGateBossFloor = gateEnd;
+      const rewardTier =
+        gateIndex >= 5 ? '十万年'
+          : gateIndex === 4 ? '万年'
+            : gateIndex === 3 ? '千年'
+              : gateIndex === 2 ? '百年'
+                : '十年';
+      return {
+        floor: safeFloor,
+        gateIndex,
+        gateStart,
+        gateEnd,
+        layerInGate,
+        isGateBoss,
+        gateLabel: `第${gateIndex}大关`,
+        gateRangeLabel: `${gateStart}-${gateEnd}层`,
+        nextGateBossFloor,
+        rewardTier,
+      };
+    }
+
+    function getSoulTowerStageTextByHighestFloor(highestFloor = 0) {
+      const safeHighestFloor = Math.max(0, Math.floor(Number(highestFloor) || 0));
+      const nextFloor = Math.max(1, safeHighestFloor + 1);
+      const meta = getSoulTowerGateMeta(nextFloor);
+      return `${meta.gateLabel} · ${meta.gateRangeLabel}`;
+    }
+
+    function getSoulTowerNextBossFloorText(highestFloor = 0) {
+      const safeHighestFloor = Math.max(0, Math.floor(Number(highestFloor) || 0));
+      const nextFloor = Math.max(1, safeHighestFloor + 1);
+      const meta = getSoulTowerGateMeta(nextFloor);
+      return `${meta.nextGateBossFloor}层`;
+    }
+
+    function buildSoulTowerTeamValidationResult(members = []) {
+      const safeMembers = Array.isArray(members) ? members.filter(member => member && typeof member === 'object') : [];
+      if (!safeMembers.length) return { ok: false, message: '魂灵塔队伍为空。' };
+      if (safeMembers.length > SOUL_TOWER_TEAM_LIMIT) {
+        return { ok: false, message: `魂灵塔队伍最多 ${SOUL_TOWER_TEAM_LIMIT} 人。` };
+      }
+      const invalidAgeMember = safeMembers.find(member => !(member.age > 0) || member.age > SOUL_TOWER_MAX_AGE);
+      if (invalidAgeMember) {
+        return { ok: false, message: `${toText(invalidAgeMember.name, '队员')} 已超过 ${SOUL_TOWER_MAX_AGE} 岁，不能参与魂灵塔。` };
+      }
+      const ages = safeMembers.map(member => Number(member.age || 0)).filter(age => age > 0);
+      const minAge = Math.min(...ages);
+      const maxAge = Math.max(...ages);
+      if (maxAge - minAge > SOUL_TOWER_MAX_AGE_GAP) {
+        return { ok: false, message: `魂灵塔队伍成员年龄差不能超过 ${SOUL_TOWER_MAX_AGE_GAP} 岁。` };
+      }
+      return {
+        ok: true,
+        count: safeMembers.length,
+        minAge,
+        maxAge,
+        gateSpan: SOUL_TOWER_GATE_SPAN,
+      };
+    }
+
+    function resolveSoulTowerStatCharKeyByName(statData, rawName = '') {
+      const wanted = toText(rawName, '').trim();
+      if (!wanted) return '';
+      const charMap = statData && statData.char && typeof statData.char === 'object' ? statData.char : {};
+      const direct = charMap[wanted];
+      if (direct && typeof direct === 'object') return wanted;
+      const foundEntry = Object.entries(charMap).find(([charKey, charData]) => {
+        const displayName = toText(charData && charData.name, charKey);
+        return displayName === wanted || charKey === wanted;
+      });
+      return foundEntry ? toText(foundEntry[0], '') : '';
+    }
+
+    function buildSoulTowerTeamMembersFromStatBattle(statData, charKey = '') {
+      const safeCharKey = toText(charKey, '').trim();
+      const battleData = deepGet(statData, 'world.战斗', null);
+      if (!safeCharKey || !battleData || toText(battleData && battleData['战斗类型'], '') !== '魂灵塔冲塔') return null;
+      const participantMap = battleData && battleData['参战者'] && typeof battleData['参战者'] === 'object' ? battleData['参战者'] : null;
+      if (!participantMap) return null;
+      const playerName = toText(deepGet(participantMap, 'player.name', ''), '');
+      const selfNames = new Set([
+        safeCharKey,
+        toText(deepGet(statData, ['char', safeCharKey, 'name'], ''), safeCharKey),
+      ].filter(Boolean));
+      if (playerName && !selfNames.has(playerName)) return null;
+      const seeds = [participantMap.player, ...(Array.isArray(participantMap.team_player) ? participantMap.team_player : [])].filter(Boolean);
+      return seeds.map(seed => {
+        const memberName = toText(seed && seed.name, '');
+        const memberKey = resolveSoulTowerStatCharKeyByName(statData, memberName);
+        const charData = memberKey ? deepGet(statData, ['char', memberKey], null) : null;
+        return {
+          key: memberKey,
+          name: toText(charData && charData.name, memberName || memberKey || '队员'),
+          age: getSoulTowerAgeValueFromCharacter(charData || {}),
+        };
+      });
+    }
+
+    function getTrialEntranceText(snapshot) {
+      const soulTowerEligible = isSoulTowerEligibleCharacterData(getActiveSnapshotCharacter(snapshot));
+      const inventoryEntries = Array.isArray(snapshot && snapshot.inventoryEntries) ? snapshot.inventoryEntries : [];
+      const hasSoulTowerTicket = soulTowerEligible && inventoryEntries.some(([name]) => /魂灵塔/.test(toText(name, '')));
+      const hasAscensionTicket = inventoryEntries.some(([name]) => {
+        const safeName = toText(name, '');
+        return /升灵台|门票/.test(safeName) && !/魂灵塔/.test(safeName);
+      });
+      if (hasSoulTowerTicket) return '升灵台 / 魂灵塔 / 狩猎';
+      if (hasAscensionTicket) return '升灵台 / 狩猎';
+      return '当前无门票，仅常规狩猎';
+    }
+
     function canOpenPrivateArchive(snapshot) {
       const activeChar = getActiveSnapshotCharacter(snapshot);
       const genderText = toText(deepGet(activeChar, '属性.性别', ''), '');
@@ -8571,24 +9228,46 @@
         deepGet(snapshot, 'activeChar.name', deepGet(snapshot, 'activeChar.base.name', snapshot.activeName)),
         snapshot.activeName || '当前角色'
       );
-      const nextLevelSoul = getNextLevelSoulRequirement(stat);
+      const nextLevelSoul = getNextLevelSoulRequirementWithCap(stat, deepGet(snapshot, 'activeChar', {}));
       const allowNsfwLongPress = canOpenPrivateArchive(snapshot);
       const mentalRealmText = toText(stat._men_realm, toText(stat.精神力_realm, '灵元境'));
+      const currentLocText = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc), snapshot.currentLoc || '未知');
+      const worldTimeText = getSnapshotWorldTimeText(snapshot);
+      const actionText = toText(status.行动, '日常');
+      const actionDisplay = activeCharKey
+        ? makeInlineEditableValue(actionText, {
+            path: ['char', activeCharKey, '状态', '行动'],
+            kind: 'enum_select',
+            rawValue: actionText,
+            editorMeta: { options: getStatusActionEditorOptions(actionText) },
+          })
+        : htmlEscape(actionText);
       const primaryFactionName = snapshot.primaryFaction ? snapshot.primaryFaction[0] : '无';
       const primaryFactionRole = snapshot.primaryFaction ? toText(deepGet(snapshot.primaryFaction[1], '身份', '无'), '无') : '未加入';
       const topRelationText = snapshot.topRelation
         ? `${shortenText(snapshot.topRelation[0], 8)} / ${toText(deepGet(snapshot.topRelation[1], '关系', '陌生'), '陌生')} · ${toNumber(deepGet(snapshot.topRelation[1], '好感度', 0), 0)}`
         : `${snapshot.relations.length} 条`;
-      const latestIntelText = snapshot.pendingIntelCount
-        ? `${shortenText(snapshot.pendingIntelContent, 10)} / +${snapshot.pendingIntelImpact}`
-        : (snapshot.unlockedKnowledges.length ? shortenText(snapshot.unlockedKnowledges[snapshot.unlockedKnowledges.length - 1], 12) : '暂无');
+      const latestIntelText = getLatestUnlockedIntelText(snapshot, 12, '暂无');
+      const nextSoulDisplayText = nextLevelSoul.isMax
+        ? '下级魂力 已满级'
+        : nextLevelSoul.blocked
+          ? (nextLevelSoul.blockedBy === 'ring'
+            ? `下级魂力 受魂环限制`
+            : `下级魂力 受魂核限制`)
+        : (toNumber(nextLevelSoul.needed, 0) <= 0
+          ? `下级魂力 已达${formatNumber(nextLevelSoul.nextLevel)}级门槛`
+          : `下级魂力 ${formatNumber(nextLevelSoul.needed)}`);
       return `
         <div class="panel-head panel-head--archive">
           <div class="panel-title-row">
             <div class="panel-title${allowNsfwLongPress ? ' nsfw-trigger-title' : ''}"${allowNsfwLongPress ? ` data-longpress="${PRIVATE_ARCHIVE_PREVIEW_KEY}" data-longpress-delay="600"` : ''}>详细档案</div>
             <button type="button" class="archive-role-chip meta-pill clickable" data-preview="角色切换器">${htmlEscape(activeDisplayName)}</button>
           </div>
-          <span class="meta-pill">${htmlEscape(nextLevelSoul.isMax ? '下级魂力 已满级' : `下级魂力 ${formatNumber(nextLevelSoul.needed)}`)}</span>
+          <span class="meta-pill">${htmlEscape(nextSoulDisplayText)}</span>
+        </div>
+        <div class="archive-context-strip">
+          <span class="split-bottom-chip">${htmlEscape(shortenText(worldTimeText, 26))}</span>
+          <span class="split-bottom-chip live">${htmlEscape(shortenText(currentLocText.replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, ''), 28))}</span>
         </div>
         <div class="stats-grid stats-grid-top">
           <div class="stat-item compact no-bar">
@@ -8601,7 +9280,7 @@
           </div>
           <div class="stat-item compact no-bar">
             <div class="stat-label">状态概览</div>
-            <div class="stat-value">${htmlEscape(`${toText(status.行动, '日常')} / ${woundLabel}`)}</div>
+            <div class="stat-value">${actionDisplay} / ${htmlEscape(woundLabel)}</div>
           </div>
         </div>
         <div class="stats-grid stats-grid-pairs">
@@ -8673,19 +9352,25 @@
       const topRelationText = snapshot.topRelation
         ? `${shortenText(snapshot.topRelation[0], 8)} / ${toText(deepGet(snapshot.topRelation[1], '关系', '陌生'), '陌生')} / ${toNumber(deepGet(snapshot.topRelation[1], '好感度', 0), 0)}`
         : `${snapshot.relations.length} 条`;
-      const latestIntelText = snapshot.pendingIntelCount
-        ? `${shortenText(snapshot.pendingIntelContent, 10)} / +${snapshot.pendingIntelImpact}`
-        : (snapshot.unlockedKnowledges.length ? shortenText(snapshot.unlockedKnowledges[snapshot.unlockedKnowledges.length - 1], 12) : '暂无');
+      const latestIntelText = getLatestUnlockedIntelText(snapshot, 12, '暂无');
       return `
         <div class="mvu-unified-card-head">
           <div class="mvu-unified-card-title">社交摘要</div>
           <span class="mvu-unified-card-pill">${htmlEscape(toText(social.名望等级, toText(social.名望等级, '籍籍无名')))}</span>
         </div>
         <div class="mvu-unified-row-list">
-          <div class="mvu-unified-row"><b>名望</b><span>${htmlEscape(`${toText(social.名望等级, toText(social.名望等级, '籍籍无名'))} / ${formatNumber(social.声望)}`)}</span></div>
-          <div class="mvu-unified-row"><b>所属势力</b><span>${htmlEscape(`${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}`)}</span></div>
-          <div class="mvu-unified-row"><b>关系摘要</b><span>${htmlEscape(topRelationText)}</span></div>
-          <div class="mvu-unified-row"><b>已解锁情报</b><span>${htmlEscape(`${snapshot.unlockedKnowledges.length} / ${latestIntelText}`)}</span></div>
+          <button type="button" class="mvu-unified-row mvu-unified-row--nav clickable" data-preview="社会档案详细页">
+            <b>名望</b><span>${htmlEscape(`${toText(social.名望等级, toText(social.名望等级, '籍籍无名'))} / ${formatNumber(social.声望)}`)}</span>
+          </button>
+          <button type="button" class="mvu-unified-row mvu-unified-row--nav clickable" data-preview="所属势力详细页">
+            <b>所属势力</b><span>${htmlEscape(`${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}`)}</span>
+          </button>
+          <button type="button" class="mvu-unified-row mvu-unified-row--nav clickable" data-preview="人物关系详细页">
+            <b>关系摘要</b><span>${htmlEscape(topRelationText)}</span>
+          </button>
+          <button type="button" class="mvu-unified-row mvu-unified-row--nav clickable" data-preview="情报库详细页">
+            <b>已解锁情报</b><span>${htmlEscape(`${snapshot.unlockedKnowledges.length} / ${latestIntelText}`)}</span>
+          </button>
         </div>
       `;
     }
@@ -9098,12 +9783,13 @@
           note: '当前聊天',
         });
       }
-      const latestRequest = resolveShellText((snapshot.pendingRequests || [])[0], resolveShellText(deepGet(snapshot, 'rootData.sys.rsn', ''), '待命中'));
+      const latestRequest = resolveShellText((snapshot.pendingRequests || [])[0], resolveShellText(deepGet(snapshot, 'rootData.sys.系统播报', ''), '待命中'));
+      const intelCount = (snapshot.unlockedKnowledges || []).length || 0;
       return buildShellAppPeek({
-        value: snapshot.pendingIntelCount ? `${snapshot.pendingIntelCount} 条情报` : (snapshot.questRecordCount ? `${snapshot.questRecordCount} 项任务` : '系统在线'),
+        value: intelCount ? `${intelCount} 条情报` : (snapshot.questRecordCount ? `${snapshot.questRecordCount} 项任务` : '系统在线'),
         meta: `${snapshot.questRecordCount || 0} 项任务 · ${(snapshot.bestiaryEntries || []).length || 0} 条图鉴`,
         note: shortenText(latestRequest || '待命中', 18),
-        tone: snapshot.pendingIntelCount ? 'warn' : (snapshot.questRecordCount ? 'gold' : 'live'),
+        tone: intelCount ? 'gold' : (snapshot.questRecordCount ? 'gold' : 'live'),
       });
     }
 
@@ -9134,7 +9820,7 @@
       const primaryFactionName = snapshot.primaryFaction ? snapshot.primaryFaction[0] : '未加入';
       const primaryFactionRole = snapshot.primaryFaction ? toText(deepGet(snapshot.primaryFaction[1], '身份', '未加入'), '未加入') : '未加入';
       const titleText = Array.isArray(snapshot.recentTitles) && snapshot.recentTitles.length ? snapshot.recentTitles[0] : '';
-      const nextLevelSoul = getNextLevelSoulRequirement(stat);
+      const nextLevelSoul = getNextLevelSoulRequirementWithCap(stat, deepGet(snapshot, 'activeChar', {}));
       const placeText = buildShellLocationLabel(snapshot, { fullLimit: 18, trailLimit: 8 });
       const hasSoulPowerMeter = toNumber(stat.魂力上限, 0) > 0;
       const hasVitalityMeter = toNumber(stat.体力上限, 0) > 0;
@@ -9309,9 +9995,7 @@
       const topRelationText = snapshot.topRelation
         ? `${shortenText(snapshot.topRelation[0], 8)} / ${toText(deepGet(snapshot.topRelation[1], '关系', '陌生'), '陌生')}`
         : '暂无高亮关系';
-      const latestIntelText = snapshot.pendingIntelCount
-        ? `${shortenText(snapshot.pendingIntelContent, 10)} / +${snapshot.pendingIntelImpact}`
-        : ((snapshot.unlockedKnowledges || []).length ? shortenText(snapshot.unlockedKnowledges[(snapshot.unlockedKnowledges || []).length - 1], 12) : '暂无');
+      const latestIntelText = getLatestUnlockedIntelText(snapshot, 12, '暂无');
       const currentTitle = Array.isArray(snapshot.recentTitles) && snapshot.recentTitles.length ? snapshot.recentTitles[0] : '';
       const fameLevel = shortenText(toText(social.名望等级, toText(social.名望等级, '籍籍无名')), 12);
       const reputationText = formatNumber(social.声望);
@@ -9319,6 +10003,7 @@
       const factionSummary = primaryFactionName === '未加入'
         ? (mainIdentity || '未结盟')
         : `${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}`;
+      const intelCount = (snapshot.unlockedKnowledges || []).length || 0;
       return buildShellSummaryCard({
         kicker: '社交',
         title: '社交',
@@ -9327,7 +10012,7 @@
         badges: [
           currentTitle ? { text: shortenText(currentTitle, 10), tone: 'gold' } : '',
           snapshot.publicIntel ? { text: '公开情报', tone: 'live' } : '',
-          snapshot.pendingIntelCount ? `新线索 ${snapshot.pendingIntelCount}` : '',
+          intelCount ? `已录 ${intelCount}` : '',
         ],
         metrics: [
           { label: '关系', value: String((snapshot.relations || []).length || 0), tone: 'live' },
@@ -9676,17 +10361,18 @@
       const recentNews = buildRecentNewsSummary(snapshot, { seqLimit: 2, intelLimit: 2 });
       const pendingRequestText = resolveShellText((snapshot.pendingRequests || [])[0], resolveShellText(recentNews.summary, '待命中'));
       const worldAlertText = resolveShellText(snapshot.worldAlert, '');
+      const intelCount = (snapshot.unlockedKnowledges || []).length || 0;
       return buildShellSummaryCard({
         kicker: '终端',
         title: '终端',
-        value: snapshot.pendingIntelCount ? `${snapshot.pendingIntelCount} 情报` : (snapshot.questRecordCount ? `${snapshot.questRecordCount} 任务` : '在线'),
-        meta: shortenText(resolveShellText(sys.rsn, '待命中') || '待命中', 26),
+        value: intelCount ? `${intelCount} 情报` : (snapshot.questRecordCount ? `${snapshot.questRecordCount} 任务` : '在线'),
+        meta: shortenText(resolveShellText(sys.系统播报, '待命中') || '待命中', 26),
         badges: [
           worldAlertText ? { text: shortenText(worldAlertText, 10), tone: 'warn' } : '',
-          snapshot.pendingIntelCount ? { text: `新线索 ${snapshot.pendingIntelCount}`, tone: 'gold' } : (snapshot.questRecordCount ? '任务待跟进' : '待命中'),
+          intelCount ? { text: `已录 ${intelCount}`, tone: 'gold' } : (snapshot.questRecordCount ? '任务待跟进' : '待命中'),
         ],
         metrics: [
-          { label: '情报', value: String(snapshot.pendingIntelCount || 0), tone: 'gold' },
+          { label: '情报', value: String(intelCount), tone: 'gold' },
           { label: '任务', value: String(snapshot.questRecordCount || 0), tone: 'live' },
           { label: '收录', value: String((snapshot.bestiaryEntries || []).length || 0) },
         ],
@@ -9697,22 +10383,20 @@
     }
 
     function buildShellTerminalIntelCard(snapshot) {
-      if (!snapshot.pendingIntelCount && !(snapshot.unlockedKnowledges || []).length && !(snapshot.pendingRequests || []).length) {
+      if (!(snapshot.unlockedKnowledges || []).length && !(snapshot.pendingRequests || []).length) {
         return buildShellSummaryCard({
           title: '情报',
           value: '0',
-          meta: '无线索',
+          meta: '无情报',
         });
       }
-      const latestIntelText = snapshot.pendingIntelCount
-        ? `${shortenText(snapshot.pendingIntelContent, 12)} / +${snapshot.pendingIntelImpact}`
-        : resolveShellText((snapshot.unlockedKnowledges || []).slice(-1)[0], '等待新线索');
+      const latestIntelText = getLatestUnlockedIntelText(snapshot, 12, '暂无情报');
       const pendingRequestText = resolveShellText((snapshot.pendingRequests || [])[0], '');
       return buildShellSummaryCard({
         kicker: '情报',
         title: '情报',
-        value: snapshot.pendingIntelCount ? `${snapshot.pendingIntelCount} 待读` : ((snapshot.unlockedKnowledges || []).length ? `${(snapshot.unlockedKnowledges || []).length} 已录` : '待命中'),
-        meta: shortenText(latestIntelText || '等待新线索', 20),
+        value: (snapshot.unlockedKnowledges || []).length ? `${(snapshot.unlockedKnowledges || []).length} 已录` : '待命中',
+        meta: shortenText(latestIntelText || '暂无情报', 20),
         note: shortenText(pendingRequestText || '', 24),
       });
     }
@@ -10011,7 +10695,7 @@
         : (snapshot && snapshot.primarySpirit);
       if (!config) {
         return {
-          title: previewKey === '第二武魂详细页' ? '第二武魂' : '主武魂',
+          title: '武魂',
           body: `<div class="mvu-shell-lite-root"><section class="mvu-shell-lite-card"><div class="mvu-shell-lite-empty">暂无武魂</div></section></div>`,
         };
       }
@@ -10023,7 +10707,7 @@
         note: shortenText(toText(skill && skill.effectSummary, toText(skill && skill.effectDesc, '')), 30),
       }))).slice(0, 5);
       return {
-        title: previewKey === '第二武魂详细页' ? '第二武魂' : '主武魂',
+        title: '武魂',
         body: `
           <div class="mvu-shell-lite-root" data-shell-light-view="spirit">
             <section class="mvu-shell-lite-card mvu-shell-lite-card--hero">
@@ -10155,7 +10839,7 @@
               ${buildShellLiteTags([snapshot.worldAlert])}
             </section>
             <section class="mvu-shell-lite-card">
-              <div class="mvu-shell-lite-section-title">记录</div>
+              <div class="mvu-shell-lite-section-title">任务记录</div>
               <div class="mvu-shell-lite-list">${buildShellLiteItemList([
                 { title: '生态', meta: toText(snapshot.worldAlert, '无') },
                 { title: '拍卖', meta: `${toText(auction.状态, '休市')} · ${toText(auction.地点, '无')}` },
@@ -10232,7 +10916,7 @@
     }
 
     function buildShellTerminalView(snapshot) {
-      const requestText = resolveShellText((snapshot.pendingRequests || [])[0], resolveShellText(deepGet(snapshot, 'rootData.sys.rsn', ''), '待命中'));
+      const requestText = resolveShellText((snapshot.pendingRequests || [])[0], resolveShellText(deepGet(snapshot, 'rootData.sys.系统播报', ''), '待命中'));
       return {
         title: '终端',
         body: `
@@ -10244,7 +10928,7 @@
               </div>
               ${buildShellLiteStats([
                 { label: '任务', value: String(snapshot.questRecordCount || 0) },
-                { label: '情报', value: String(snapshot.pendingIntelCount || 0) },
+                { label: '情报', value: String((snapshot.unlockedKnowledges || []).length || 0) },
                 { label: '图鉴', value: String((snapshot.bestiaryEntries || []).length || 0) },
               ])}
             </section>
@@ -10254,9 +10938,6 @@
     }
 
     function buildShellIntelView(snapshot) {
-      const pending = snapshot.pendingIntelCount
-        ? [{ title: '待办', meta: `${snapshot.pendingIntelCount} 条`, note: snapshot.pendingIntelContent }]
-        : [];
       const unlocked = (snapshot.unlockedKnowledges || []).slice(-5).reverse().map(item => ({
         title: item,
         meta: '已掌握',
@@ -10272,13 +10953,13 @@
                 <strong>${htmlEscape(`${(snapshot.unlockedKnowledges || []).length || 0} 条`)}</strong>
               </div>
               ${buildShellLiteStats([
-                { label: '待办', value: String(snapshot.pendingIntelCount || 0) },
+                { label: '最新', value: getLatestUnlockedIntelText(snapshot, 8, '暂无') },
                 { label: '试炼', value: String((snapshot.trialEntries || []).length || 0) },
               ])}
             </section>
             <section class="mvu-shell-lite-card">
               <div class="mvu-shell-lite-section-title">条目</div>
-              <div class="mvu-shell-lite-list">${buildShellLiteItemList([...pending, ...unlocked], '暂无情报')}</div>
+              <div class="mvu-shell-lite-list">${buildShellLiteItemList(unlocked, '暂无情报')}</div>
             </section>
           </div>
         `,
@@ -10321,7 +11002,7 @@
               </div>
             </section>
             <section class="mvu-shell-lite-card">
-              <div class="mvu-shell-lite-section-title">记录</div>
+              <div class="mvu-shell-lite-section-title">任务记录</div>
               <div class="mvu-shell-lite-list">${buildShellLiteItemList(entries, '暂无记录')}</div>
             </section>
           </div>
@@ -10605,7 +11286,7 @@
           setUnifiedCardMarkup('terminal-intel', `
             <div class="simple-head"><div class="simple-title">试炼与情报</div></div>
             <div class="simple-list">
-              <div class="simple-row"><b>线索</b><span>${htmlEscape(`${snapshot.pendingIntelCount} 条`)}</span></div>
+              <div class="simple-row"><b>情报</b><span>${htmlEscape(`${snapshot.unlockedKnowledges.length} 条`)}</span></div>
               <div class="simple-row"><b>已掌握</b><span>${htmlEscape(`${snapshot.unlockedKnowledges.length} 条`)}</span></div>
               <div class="simple-row"><b>入口</b><span>打开情报与试炼</span></div>
             </div>
@@ -10628,7 +11309,7 @@
           setUnifiedCardMarkup('terminal-quest', `
             <div class="simple-head"><div class="simple-title">任务界面</div></div>
             <div class="simple-list">
-              <div class="simple-row"><b>我的任务</b><span>${htmlEscape(`${(snapshot.recordEntries || []).length} 条记录`)}</span></div>
+              <div class="simple-row"><b>我的任务</b><span>${htmlEscape(`${(snapshot.recordEntries || []).length} 项任务`)}</span></div>
               <div class="simple-row"><b>委托板</b><span>${htmlEscape(`${safeEntries(deepGet(snapshot, 'rootData.world.委托板', {})).length} 条委托`)}</span></div>
             </div>
           `, { preview: '任务界面', surface: normalizedSurface });
@@ -10761,7 +11442,7 @@
         setUnifiedCardMarkup('terminal-intel', `
           <div class="simple-head"><div class="simple-title">试炼与情报</div></div>
           <div class="simple-list">
-            <div class="simple-row"><b>线索</b><span>${htmlEscape(`${snapshot.pendingIntelCount} 条`)}</span></div>
+            <div class="simple-row"><b>情报</b><span>${htmlEscape(`${snapshot.unlockedKnowledges.length} 条`)}</span></div>
             <div class="simple-row"><b>已掌握</b><span>${htmlEscape(`${snapshot.unlockedKnowledges.length} 条`)}</span></div>
             <div class="simple-row"><b>入口</b><span>打开情报与试炼</span></div>
           </div>
@@ -10784,7 +11465,7 @@
         setUnifiedCardMarkup('terminal-quest', `
           <div class="simple-head"><div class="simple-title">任务界面</div></div>
           <div class="simple-list">
-            <div class="simple-row"><b>我的任务</b><span>${htmlEscape(`${(snapshot.recordEntries || []).length} 条记录`)}</span></div>
+            <div class="simple-row"><b>我的任务</b><span>${htmlEscape(`${(snapshot.recordEntries || []).length} 项任务`)}</span></div>
             <div class="simple-row"><b>委托板</b><span>${htmlEscape(`${safeEntries(deepGet(snapshot, 'rootData.world.委托板', {})).length} 条委托`)}</span></div>
           </div>
         `, { preview: '任务界面' });
@@ -10904,9 +11585,37 @@
 
     function resolveDisplayMapNode(snapshot, nodeName) {
       const node = snapshot.mapVisibleNodeEntries.find(([name]) => name === nodeName);
-      if (node) return { name: nodeName, source: toText(node[1] && node[1].source, 'static'), type: toText(node[1] && node[1].type, '地图节点'), state: node[1] && node[1].level ? `Lv.${node[1].level}` : '可见', childMapId: toText(node[1] && node[1].child_map_id, '无'), x: node[1] && node[1].x, y: node[1] && node[1].y, desc: toText(node[1] && node[1].desc, '无') };
+      if (node) {
+        const data = node[1] && typeof node[1] === 'object' ? node[1] : {};
+        const childMapValue = data.child_map_id || data['child_map_id'] || data['子图ID'] || (snapshot.mapAvailableChildMaps && snapshot.mapAvailableChildMaps[nodeName]);
+        return {
+          name: nodeName,
+          source: toText(data.source, 'static'),
+          type: toText(data.type || data['类型'], '地图节点'),
+          state: data.level ? `Lv.${data.level}` : toText(data.state || data['状态'], '可见'),
+          childMapId: toText(childMapValue, '无'),
+          x: data.x,
+          y: data.y,
+          desc: toText(data.desc || data['描述'], '无'),
+          faction: toText(data.faction || data['掌控势力'], '未知')
+        };
+      }
       const dynamicNode = snapshot.mapVisibleDynamicEntries.find(([name]) => name === nodeName);
-      if (dynamicNode) return { name: nodeName, source: 'dynamic', type: '动态地点', state: '动态', childMapId: '无', x: dynamicNode[1] && dynamicNode[1].x, y: dynamicNode[1] && dynamicNode[1].y, desc: toText(dynamicNode[1] && dynamicNode[1].desc, '无') };
+      if (dynamicNode) {
+        const data = dynamicNode[1] && typeof dynamicNode[1] === 'object' ? dynamicNode[1] : {};
+        const childMapValue = data.child_map_id || data['child_map_id'] || data['子图ID'] || (snapshot.mapAvailableChildMaps && snapshot.mapAvailableChildMaps[nodeName]);
+        return {
+          name: nodeName,
+          source: 'dynamic',
+          type: toText(data.type || data['类型'], '动态地点'),
+          state: toText(data.state || data['状态'], '动态'),
+          childMapId: toText(childMapValue, '无'),
+          x: data.x,
+          y: data.y,
+          desc: toText(data.desc || data['描述'], '无'),
+          faction: toText(data.faction || data['掌控势力'], '未知')
+        };
+      }
       return null;
     }
 
@@ -10994,19 +11703,20 @@
       const sys = deepGet(snapshot, 'rootData.sys', {});
       const recentNews = buildRecentNewsSummary(snapshot, { seqLimit: 2, intelLimit: 1 });
       const recentPlans = buildRecentPlanSummary(snapshot, { worldLimit: 2, recordLimit: 1 });
-      const latestBroadcast = toText(sys.rsn, '暂无播报');
+      const latestBroadcast = toText(sys.系统播报, '暂无播报');
       const latestEvent = recentNews.cards[0] ? recentNews.cards[0].desc : '暂无事件';
       const pendingRequestText = recentPlans.cards[0] ? recentPlans.cards[0].desc : '暂无安排';
-      const intelText = snapshot.pendingIntelCount
-        ? `${snapshot.pendingIntelContent} / 新线索 ${snapshot.pendingIntelCount} 条`
-        : (recentNews.personalNews[0] ? recentNews.personalNews[0].desc : '暂无新情报');
+      const intelText = recentNews.personalNews[0]
+        ? recentNews.personalNews[0].desc
+        : getLatestUnlockedIntelText(snapshot, 20, '暂无新情报');
+      const intelCount = (snapshot.unlockedKnowledges || []).length || 0;
       return `
         <div class="module-name">系统播报</div>
         <div class="terminal-overview">
           <div class="terminal-metric live clickable" data-preview="近期见闻"><b>系统状态</b><span>${htmlEscape(snapshot.worldAlert.includes('高危') ? '高压同步' : '稳定')}</span></div>
           <div class="terminal-metric clickable" data-preview="系统播报与日志"><b>最近播报</b><span>${htmlEscape(shortenText(latestBroadcast, 14))}</span></div>
           <div class="terminal-metric clickable" data-preview="操作总线"><b>当前安排</b><span>${htmlEscape(recentPlans.cards.length ? `${recentPlans.cards.length} 项` : '暂无')}</span></div>
-          <div class="terminal-metric gold clickable" data-preview="试炼与情报"><b>新线索</b><span>${htmlEscape(snapshot.pendingIntelCount ? `${snapshot.pendingIntelCount} 条` : '暂无')}</span></div>
+          <div class="terminal-metric gold clickable" data-preview="试炼与情报"><b>情报库</b><span>${htmlEscape(intelCount ? `${intelCount} 条` : '暂无')}</span></div>
         </div>
         <div class="terminal-log">
           <div class="terminal-log-head"><span>近期播报</span><b>终端在线</b></div>
@@ -11022,7 +11732,7 @@
           <div class="log-line intel"><b>[情报]</b> ${htmlEscape(intelText)}</div>
         </div>
         <div class="module-foot">
-          <span class="foot-hint">最近播报：${htmlEscape(toText(sys.rsn, '无'))}</span>
+          <span class="foot-hint">最近播报：${htmlEscape(toText(sys.系统播报, '无'))}</span>
           <span class="enter-chip">展开日志</span>
         </div>
       `;
@@ -11118,9 +11828,7 @@
       const topRelationText = snapshot.topRelation
         ? `${shortenText(snapshot.topRelation[0], 8)} / ${toText(deepGet(snapshot.topRelation[1], '关系', '陌生'), '陌生')} · ${toNumber(deepGet(snapshot.topRelation[1], '好感度', 0), 0)}`
         : `${snapshot.relations.length} 条`;
-      const latestIntelText = snapshot.pendingIntelCount
-        ? `${shortenText(snapshot.pendingIntelContent, 10)} / +${snapshot.pendingIntelImpact}`
-        : (snapshot.unlockedKnowledges.length ? shortenText(snapshot.unlockedKnowledges[snapshot.unlockedKnowledges.length - 1], 12) : '暂无');
+      const latestIntelText = getLatestUnlockedIntelText(snapshot, 12, '暂无');
       const sectionSignatures = precomputedSectionSignatures || buildDashboardSectionRenderSignatures(snapshot);
       const previousSectionSignatures = lastDashboardSectionRenderSignatures || Object.create(null);
       lastDashboardSectionRenderSignatures = sectionSignatures;
@@ -11196,8 +11904,8 @@
         setLiveHtml('[data-preview="试炼与情报"].terminal-side-card, [data-preview="试炼与情报"].mvu-simple-card, [data-preview="试炼与情报"].simple-card', `
         <div class="simple-head"><div class="simple-title">试炼与情报</div></div>
         <div class="simple-list">
-          <div class="simple-row"><b>试炼入口</b><span>${htmlEscape(snapshot.inventoryEntries.some(([name]) => /门票|魂灵塔/.test(name)) ? '升灵台 / 魂灵塔 / 狩猎' : '当前无门票，仅常规狩猎')}</span></div>
-          <div class="simple-row"><b>情报状态</b><span>${htmlEscape(`已掌握 ${snapshot.unlockedKnowledges.length} 条 / 新线索 ${snapshot.pendingIntelCount} 条`)}</span></div>
+          <div class="simple-row"><b>试炼入口</b><span>${htmlEscape(getTrialEntranceText(snapshot))}</span></div>
+          <div class="simple-row"><b>情报状态</b><span>${htmlEscape(`已掌握 ${snapshot.unlockedKnowledges.length} 条`)}</span></div>
           <div class="simple-row"><b>累计猎杀</b><span>${htmlEscape(formatNumber(snapshot.forestKilledAge || 0))} 年</span></div>
         </div>
       `);
@@ -11227,7 +11935,7 @@
         setLiveHtml('[data-preview="任务界面"].terminal-side-card, [data-preview="任务界面"].mvu-simple-card, [data-preview="任务界面"].simple-card', `
           <div class="simple-head"><div class="simple-title">任务界面</div></div>
           <div class="simple-list">
-            <div class="simple-row"><b>我的任务</b><span>${htmlEscape(questRecords.length ? `${questRecords.length} 条 / 当前 ${activeQuestName || '已归档'}` : '暂无任务')}</span></div>
+            <div class="simple-row"><b>我的任务</b><span>${htmlEscape(questRecords.length ? `${questRecords.length} 项 / 当前 ${activeQuestName || '已归档'}` : '暂无任务')}</span></div>
             <div class="simple-row"><b>委托板</b><span>${htmlEscape(questBoardEntries.length ? `${questBoardEntries.length} 条 / 待接取 ${openBoardCount}` : '暂无委托')}</span></div>
             <div class="simple-row"><b>当前状态</b><span>${htmlEscape(activeQuestState)}</span></div>
           </div>
@@ -12082,7 +12790,10 @@
         const trainedBonusPath = activeCharKey ? ['char', activeCharKey, '属性', '训练加成'] : [];
         const trainedBonusItems = buildEditableStatBonusItems(trainedBonusPath, deepGet(snapshot, 'activeChar.属性.训练加成', {}), { includeSoulPower: false });
         const lifePreviewStats = activeCharKey ? resolveTrackedStatPreview(activeCharKey, stat) : createTrackedStatPreviewMap(stat);
-      const activeWardrobeKey = toText(穿搭数据.着装, '').trim();
+        const currentLocText = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc), snapshot.currentLoc || '未知');
+        const worldTimeText = getSnapshotWorldTimeText(snapshot);
+        const actionText = toText(status.行动, '日常');
+        const activeWardrobeKey = toText(穿搭数据.着装, '').trim();
         const activeWardrobePath = activeWardrobeKey && activeWardrobeKey !== '无'
           ? ['char', activeCharKey, '穿搭', '衣柜', activeWardrobeKey]
           : null;
@@ -12155,12 +12866,21 @@
                   <div class="dossier-section-title">当前状态</div>
                   ${makeDossierRows([
                     { label: '行动状态', value: activeCharKey
-                      ? makeInlineEditableValue(toText(status.行动, '日常'), {
+                      ? makeInlineEditableValue(actionText, {
                           path: ['char', activeCharKey, '状态', '行动'],
-                          kind: 'string',
-                          rawValue: toText(status.行动, '日常'),
+                          kind: 'enum_select',
+                          rawValue: actionText,
+                          editorMeta: { options: getStatusActionEditorOptions(actionText) },
                         })
-                      : htmlEscape(toText(status.行动, '日常')) },
+                      : htmlEscape(actionText) },
+                    { label: '当前地点', value: activeCharKey
+                      ? makeInlineEditableValue(currentLocText, {
+                          path: ['char', activeCharKey, '状态', '位置'],
+                          kind: 'string',
+                          rawValue: currentLocText,
+                        })
+                      : htmlEscape(currentLocText) },
+                    { label: '当前时间', value: htmlEscape(worldTimeText) },
                     { label: '伤势', value: htmlEscape(getDisplayWoundLabel(stat)) },
                     { label: '魂核状态', value: activeCharKey
                       ? `${makeInlineEditableValue(String(toNumber(deepGet(snapshot, 'activeChar.魂核.核心.数量', 0), 0)), {
@@ -12456,7 +13176,11 @@
 
         const sameLocationTargets = Array.isArray(deepGet(snapshot, '关系分析.同地对象', [])) ? deepGet(snapshot, '关系分析.同地对象', []) : [];
         const trustTargets = Array.isArray(deepGet(snapshot, '关系分析.信任对象', [])) ? deepGet(snapshot, '关系分析.信任对象', []) : [];
-        const recommendedActions = Array.isArray(deepGet(snapshot, '关系分析.建议行动', [])) ? deepGet(snapshot, '关系分析.建议行动', []) : [];
+        const recommendedActions = Array.from(new Set(
+          relationFocusTargets
+            .map(item => toText(item && item.recommended_action, ''))
+            .filter(Boolean),
+        )).slice(0, 3);
         const relationSummaryText = relationFocusTargets.length
           ? `当前重点关系对象：${relationFocusTargets.slice(0, 2).map(item => `${toText(item && item.target, '无')}(${toText(item && item.relation, '陌生')}/${toNumber(item && item.favor, 0)})`).join('、')}`
           : sameLocationTargets.length
@@ -12631,22 +13355,16 @@
 
       if (previewKey === '情报库详细页') {
         const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
-        const knowledgeRequestPath = activeCharKey ? ['char', activeCharKey, '待解锁情报'] : [];
-        const intelNodes = [toText(deepGet(snapshot, 'activeChar.待解锁情报.内容', '无'), '无'), ...snapshot.unlockedKnowledges.slice(-4).reverse()].filter(item => item && item !== '无');
+        const intelNodes = snapshot.unlockedKnowledges.slice(-5).reverse().filter(item => item && item !== '无');
         const coreIntel = intelNodes[0] || '暂无核心情报';
         const sideIntels = intelNodes.slice(1, 5);
         const unlockedIntelEntries = (snapshot.unlockedKnowledges || []).map((text, index) => ({ text, index })).slice().reverse();
         const unlockedIntelPageSize = 6;
         const unlockedIntelPage = paginateModalItems(unlockedIntelEntries, previewKey, 'intel-records', unlockedIntelPageSize);
-        const pendingIntelDefault = snapshot.pendingIntelCount ? snapshot.pendingIntelContent : '';
-        const pendingIntelImpactDefault = snapshot.pendingIntelCount ? snapshot.pendingIntelImpact : 0;
-        const pendingIntelContentValue = toText(deepGet(snapshot, 'activeChar.待解锁情报.内容', pendingIntelDefault || '未知'), pendingIntelDefault || '未知');
-        const pendingIntelImpactValue = toNumber(deepGet(snapshot, 'activeChar.待解锁情报.影响', pendingIntelImpactDefault), pendingIntelImpactDefault);
-        const hasPendingIntel = snapshot.pendingIntelCount > 0;
         const latestUnlockedIntel = snapshot.unlockedKnowledges.length
           ? toText(snapshot.unlockedKnowledges[snapshot.unlockedKnowledges.length - 1], '鏆傛棤')
           : '鏆傛棤';
-        const intelOverviewText = snapshot.pendingIntelCount ? pendingIntelContentValue : latestUnlockedIntel;
+        const intelOverviewText = latestUnlockedIntel;
         const combatHistoryTotalCount = snapshot.combatHistoryEntries.reduce((total, [, info]) => total + Math.max(0, toNumber(info && info.次数, 0)), 0);
         const latestCombatEntry = snapshot.combatHistoryEntries.length ? snapshot.combatHistoryEntries[0] : null;
         const latestCombatTarget = latestCombatEntry ? toText(latestCombatEntry[0], '暂无') : '暂无';
@@ -12692,47 +13410,22 @@
           : '<div class="intel-card" style="min-height:132px;"><b>暂无情报</b></div>';
         return {
           title: '情报库弹窗',
-          summary: '当前已解锁情报、待处理线索与交战档案概览。',
+          summary: '当前已解锁情报、任务记录与交战档案概览。',
           body: `
-            <div class="intel-layout-dashboard ${hasPendingIntel ? 'has-pending' : 'is-empty'}">
-              <div class="archive-card intel-pending-card ${hasPendingIntel ? 'intel-pending-card--active' : 'intel-pending-card--empty'}">
+            <div class="intel-layout-dashboard is-empty">
+              <div class="archive-card intel-pending-card intel-pending-card--empty">
                 <div class="archive-card-head">
-                  <div class="archive-card-title">待解锁线索</div>
-                  ${hasPendingIntel
-                    ? `<span class="state-tag warn">待解析 / +${snapshot.pendingIntelImpact}</span>`
-                    : `<span class="state-tag" style="opacity: 0.5;">暂无</span>`}
-                  ${knowledgeRequestPath.length && hasPendingIntel
-                    ? `<button type="button" class="tag-chip" data-collection-action="clear-intel-pending" data-collection-char="${escapeHtmlAttr(activeCharKey)}">清空</button>`
-                    : ''}
+                  <div class="archive-card-title">最新情报</div>
+                  <span class="state-tag" style="opacity: 0.5;">已整理</span>
                 </div>
 
-                <div class="intel-pending-shell ${hasPendingIntel ? 'has-pending' : 'is-empty'}">
-                  ${hasPendingIntel ? `
-                    <div class="intel-pending-editor">
-                      ${makeInlineEditableValue(pendingIntelContentValue, {
-                          path: [...knowledgeRequestPath, 'content'],
-                          kind: 'string',
-                          rawValue: pendingIntelContentValue,
-                          multiline: true,
-                      })}
-                    </div>
-                    <div class="intel-pending-impact">
-                      <b>影响权重</b>
-                      <span>
-                        ${knowledgeRequestPath.length
-                          ? makeInlineEditableValue(String(pendingIntelImpactValue), {
-                              path: [...knowledgeRequestPath, 'impact'],
-                              kind: 'number',
-                              rawValue: pendingIntelImpactValue,
-                              editorMeta: { min: 0, max: 10, integer: true, hint: '范围 0 - 10 · 整数' },
-                            })
-                          : htmlEscape(String(snapshot.pendingIntelImpact))}
-                      </span>
-                    </div>
+                <div class="intel-pending-shell is-empty">
+                  ${snapshot.unlockedKnowledges.length ? `
+                    <div class="intel-pending-editor">${htmlEscape(intelOverviewText)}</div>
                   ` : `
                     <div class="intel-empty-state">
                       <div class="intel-empty-state-mark">◈</div>
-                      <div class="intel-empty-state-copy">当前没有等待解锁的线索</div>
+                      <div class="intel-empty-state-copy">当前还没有已收录情报</div>
                     </div>
                   `}
                 </div>
@@ -12742,7 +13435,7 @@
                 <div class="archive-card-head"><div class="archive-card-title">情报概览</div></div>
                 ${makeTileGrid([
                   { label: '已解锁', value: String(snapshot.unlockedKnowledges.length) },
-                  { label: '待解锁', value: hasPendingIntel ? `1 / +${snapshot.pendingIntelImpact}` : '0' },
+                  { label: '最新', value: htmlEscape(shortenText(intelOverviewText, 10) || '暂无') },
                   { label: '任务记录', value: String(snapshot.questRecordCount) },
                   { label: '交战目标', value: String(snapshot.combatHistoryEntries.length) }
                 ], 'two')}
@@ -13196,7 +13889,10 @@
               return window.mountProfessionUI(professionMount, snapshot, {
                 dispatchContext: mapDispatchContext,
                 onAction: (actionData) => {
-                  dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
+                  dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, {
+                    requestKind: actionData.requestKind,
+                    patchOps: actionData.patchOps
+                  });
                 }
               });
             }
@@ -13223,6 +13919,8 @@
             source: toText(item && item['来源技能'], toText(item && item['绑定者'], '背包持有')),
             usage: toText(item && item['描述'], '暂无说明'),
             canEquip: !!(window.EquipmentManager && window.EquipmentManager.parseEquipSlot(name, item)),
+            canUse: Array.isArray(item && item['使用效果']) && item['使用效果'].length > 0,
+            actionLabel: /食物/.test(toText(item && item['类型'], '')) || /食用/.test(toText(item && item['触发方式'], '')) ? '食用' : '使用',
             tags: [
               toText(item && item['类型'], ''),
               toText(item && item['品质'], ''),
@@ -13292,9 +13990,14 @@
                 multiline: true,
               })
             : htmlEscape(descValue)}`;
+          const canUseItem = Array.isArray(item && item['使用效果']) && item['使用效果'].length > 0;
+          const useActionLabel = /食物/.test(typeValue) || /食用/.test(triggerValue) ? '食用' : '使用';
           const actionLine = itemPath.length
             ? `
               <div class="request-console-row" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+                ${canUseItem
+                  ? `<button type="button" class="tag-chip live inventory-hover-action-btn" data-inventory-action="use" data-inventory-char="${escapeHtmlAttr(activeCharKey)}" data-inventory-item="${escapeHtmlAttr(name)}">${useActionLabel}</button>`
+                  : ''}
                 ${canEquipItem
                   ? `<button type="button" class="tag-chip live inventory-hover-action-btn" data-inventory-action="equip" data-inventory-char="${escapeHtmlAttr(activeCharKey)}" data-inventory-item="${escapeHtmlAttr(name)}">装备</button>`
                   : ''}
@@ -13360,6 +14063,84 @@
         };
       }
 
+      if (previewKey === PENDING_SOUL_RING_PREVIEW_KEY) {
+        const pendingSoulRing = buildPendingSoulRingState(snapshot);
+        if (!pendingSoulRing) {
+          return {
+            title: '魂环生成',
+            summary: '当前没有待处理的魂环生成请求。',
+            body: `
+              <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
+                <div class="archive-card full">
+                  <div class="archive-card-head"><div class="archive-card-title">暂无待处理请求</div></div>
+                  <div class="dossier-empty-note">当前没有待处理的魂环生成选择。</div>
+                </div>
+              </div>
+            `
+          };
+        }
+        const candidateCards = pendingSoulRing.candidates.length
+          ? pendingSoulRing.candidates.map(candidate => `
+              <div class="soul-expand-card">
+                <div class="soul-expand-head">
+                  <div>
+                    <div class="soul-expand-title">${htmlEscape(candidate.displayName)}</div>
+                  </div>
+                </div>
+                <div class="soul-meta">
+                  <div class="meta-item"><b>年限</b><span>${htmlEscape(candidate.ageText)}</span></div>
+                  <div class="meta-item"><b>品质</b><span>${htmlEscape(candidate.quality)}</span></div>
+                  <div class="meta-item"><b>状态</b><span>${htmlEscape(candidate.state)}</span></div>
+                  <div class="meta-item"><b>契合度</b><span>${htmlEscape(`${candidate.compValue}%`)}</span></div>
+                  <div class="meta-item"><b>当前魂环</b><span>${htmlEscape(String(candidate.ringCount))}</span></div>
+                  <div class="meta-item"><b>上限</b><span>${htmlEscape(String(candidate.ringCapacity))}</span></div>
+                  <div class="meta-item"><b>本次颜色</b><span>${htmlEscape(candidate.nextRingColorLabel)}</span></div>
+                  <div class="meta-item"><b>生成后剩余</b><span>${htmlEscape(String(candidate.remainingAfterGenerate))}</span></div>
+                </div>
+                <div style="margin-top:12px;font-size:12px;line-height:1.8;color:var(--color-text-secondary);">
+                  <b style="display:block;margin-bottom:6px;color:var(--white);font-size:12px;">魂灵描述</b>
+                  ${htmlEscape(candidate.description)}
+                </div>
+                <div class="ring-hover-actions" style="margin-top:14px;">
+                  <button type="button" class="tag-chip live" data-soul-ring-action="generate" data-soul-ring-candidate="${escapeHtmlAttr(candidate.soulName)}">使用该魂灵生成</button>
+                </div>
+              </div>
+            `).join('')
+          : '<div class="dossier-empty-note">当前没有可选魂灵，请先通过剧情补足候选魂灵。</div>';
+        return {
+          title: '魂环生成',
+          summary: '检测到修为突破后的魂环生成选择。',
+          body: `
+            <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">待处理魂环</div></div>
+                ${makeDossierRows([
+                  { label: '角色', value: htmlEscape(pendingSoulRing.charName) },
+                  { label: '武魂', value: htmlEscape(pendingSoulRing.spiritName) },
+                  { label: '魂环位', value: htmlEscape(`第 ${pendingSoulRing.ringIndex} 魂环`) },
+                  { label: '状态', value: htmlEscape(pendingSoulRing.status) },
+                ], 'dossier-row-grid--two')}
+                <div style="margin-top:12px;font-size:12px;line-height:1.8;color:var(--color-text-secondary);">
+                  当前已达到魂环门槛。请选择是否使用现有魂灵衍生这一枚魂环；若暂缓处理，系统会保持挂起，不会继续自动突破。
+                </div>
+                <div style="margin-top:10px;font-size:12px;line-height:1.7;color:var(--color-text-secondary);">
+                  确认生成后会自动跳转回【${htmlEscape(pendingSoulRing.spiritName)}】对应武魂详情页。
+                </div>
+              </div>
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">候选魂灵</div></div>
+                <div class="soul-expand-stack">
+                  ${candidateCards}
+                </div>
+                <div class="ring-hover-actions" style="margin-top:14px;">
+                  <button type="button" class="tag-chip" data-soul-ring-action="defer">暂不生成</button>
+                </div>
+              </div>
+            </div>
+          `
+        };
+      }
+
       if (previewKey === '第一武魂详细页' || previewKey === '第二武魂详细页') {
         const secondaryTrack = snapshot.secondaryTrack || null;
         const config = previewKey === '第一武魂详细页'
@@ -13367,13 +14148,15 @@
           : (secondaryTrack && secondaryTrack.kind === 'bloodline' ? null : secondaryTrack);
 
         if (!config) return null;
+        const pendingSoulRing = buildPendingSoulRingState(snapshot);
+        const hasPendingSoulRingForCurrentSpirit = !!(pendingSoulRing && pendingSoulRing.spiritSlot === config.slotName);
         return {
-          title: `${config.badge}弹窗`,
+          title: '武魂',
           summary: '武魂、魂灵、魂环与魂技的实时展开。',
           body: `
             <div class="archive-modal-grid">
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">武魂本体</div></div>
+                <div class="archive-card-head"><div class="archive-card-title">武魂</div></div>
                 <div class="spirit-main-card">
                   <h4>${config.spiritPath && config.spiritPath.length
                     ? makeInlineEditableValue(config.spiritName, { path: [...config.spiritPath, '表象名称'], kind: 'string', rawValue: config.spiritName })
@@ -13392,6 +14175,8 @@
                       })
                       : htmlEscape(`属性：${config.spiritElement}`)}</span>
                     <span class="tag-chip">${htmlEscape(`魂灵：${toNumber(config.soulCount, 0)}`)}</span>
+                    <span class="tag-chip">${htmlEscape(`独立环：${toNumber(config.independentRingCount, 0)}`)}</span>
+                    ${hasPendingSoulRingForCurrentSpirit ? `<button type="button" class="tag-chip warn clickable" data-preview="${escapeHtmlAttr(PENDING_SOUL_RING_PREVIEW_KEY)}">待生成魂环</button>` : ''}
                   </div>
                   <div style="margin-top:12px;font-size:12px;line-height:1.8;color:var(--color-text-secondary);">
                     <b style="display:block;margin-bottom:6px;color:var(--white);font-size:12px;">武魂描述</b>
@@ -13420,7 +14205,7 @@
                 </div>
               </div>
               <div class="archive-card full spirit-flow-card">
-                <div class="archive-card-head"><div class="archive-card-title">魂灵展开层级</div></div>
+                <div class="archive-card-head"><div class="archive-card-title">魂灵</div></div>
                 <div class="soul-expand-stack">
                   ${config.souls.map(soul => `
                     <div class="soul-expand-card">
@@ -13461,6 +14246,24 @@
                       ` : ''}
                     </div>
                   `).join('')}
+                  ${config.independentRings && config.independentRings.length ? `
+                    <div class="soul-expand-card">
+                      <div class="soul-expand-head">
+                        <div>
+                          <div class="soul-expand-title">独立魂环</div>
+                        </div>
+                      </div>
+                      <div class="soul-meta">
+                        <div class="meta-item"><b>数量</b><span>${htmlEscape(String(config.independentRings.length))}</span></div>
+                        <div class="meta-item"><b>说明</b><span>独立承载，不绑定魂灵槽位</span></div>
+                      </div>
+                      <div class="soul-ring-section">
+                        <div class="rings soul-ring-lane">
+                          ${config.independentRings.map(ring => `<div class="ring ${ring.ringClass} interactive-ring">${htmlEscape(ring.glyph)}${buildRingHoverMarkup(ring)}</div>`).join('')}
+                        </div>
+                      </div>
+                    </div>
+                  ` : ''}
                 </div>
               </div>
             </div>
@@ -14445,7 +15248,10 @@
                 prefillPrice: tradeLaunchOptions.prefillPrice,
                 autoExecute: tradeLaunchOptions.autoExecute,
                 onTradeAction: (actionData) => {
-                  dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
+                  dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, {
+                    requestKind: actionData.requestKind,
+                    patchOps: actionData.patchOps
+                  });
                 }
               });
             }
@@ -14455,10 +15261,10 @@
 
       if (previewKey === '系统播报与日志') {
         const terminalItems = [
-          { title: '最近播报', desc: resolveShellText(deepGet(snapshot, 'rootData.sys.rsn', ''), '') },
+          { title: '最近播报', desc: resolveShellText(deepGet(snapshot, 'rootData.sys.系统播报', ''), '') },
           { title: '最近事件', desc: snapshot.latestTimeline ? snapshot.latestTimeline[0] : '' },
           { title: '安排摘要', desc: resolveShellText(snapshot.pendingRequests[0], '') },
-          { title: '情报摘要', desc: snapshot.pendingIntelCount ? `${snapshot.pendingIntelContent} / 新线索 ${snapshot.pendingIntelCount} 条` : '' },
+          { title: '情报摘要', desc: getLatestUnlockedIntelText(snapshot, 24, '') },
           ...snapshot.timelineEntries.slice(0, 4).map(([name, item]) => ({
             title: name,
             desc: toText(item && (item['event'] || item['事件']), '')
@@ -14516,17 +15322,26 @@
       if (previewKey === '试炼与情报') {
         const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
         const isPlayerControlled = isSnapshotPlayerControlled(snapshot);
-        const towerPath = activeCharKey ? ['char', activeCharKey, '魂灵塔记录'] : [];
-        const towerDiscountEntries = safeEntries(deepGet(snapshot, 'activeChar.魂灵塔记录.折扣资格', {})).filter(([, value]) => !!value);
+        const activeChar = getActiveSnapshotCharacter(snapshot);
+        const soulTowerEligible = isSoulTowerEligibleCharacterData(activeChar);
+        const towerPath = soulTowerEligible && activeCharKey ? ['char', activeCharKey, '魂灵塔记录'] : [];
+        const towerDiscountEntries = soulTowerEligible
+          ? safeEntries(deepGet(snapshot, 'activeChar.魂灵塔记录.折扣资格', {})).filter(([, value]) => !!value)
+          : [];
         const ascensionTicketCount = (snapshot.inventoryEntries || [])
           .filter(([name]) => /升灵台/.test(toText(name, '')))
           .reduce((sum, [, item]) => sum + Math.max(0, toNumber(item && item['数量'], 0)), 0);
         const ascensionTickets = listAscensionTicketNames(snapshot);
         const soulSpiritTargets = listSoulSpiritTargets(snapshot);
-        const trialTickets = (snapshot.inventoryEntries || []).filter(([name]) => /升灵台|魂灵塔/.test(name)).slice(0, 8);
+        const trialTickets = (snapshot.inventoryEntries || [])
+          .filter(([name]) => (soulTowerEligible ? /升灵台|魂灵塔/.test(toText(name, '')) : /升灵台/.test(toText(name, ''))))
+          .slice(0, 8);
+        const towerHighestFloor = toNumber(deepGet(snapshot, 'activeChar.魂灵塔记录.最高层', 0), 0);
+        const towerGateText = getSoulTowerStageTextByHighestFloor(towerHighestFloor);
+        const towerNextBossText = getSoulTowerNextBossFloorText(towerHighestFloor);
         const ticketCards = trialTickets.length
           ? trialTickets.map(([name, item]) => ({ title: `${name} ×${toNumber(item && item['数量'], 0)}`, desc: toText(item && item['描述'], '可用于对应试炼场景。') }))
-          : [{ title: '暂无试炼门票', desc: '当前背包中没有升灵台或魂灵塔相关门票。' }];
+          : [{ title: '暂无试炼门票', desc: '当前背包中没有可用试炼门票。' }];
         const ascensionTicketOptionsHtml = ascensionTickets.length
           ? ascensionTickets.map(name => `<option value="${escapeHtmlAttr(name)}">${htmlEscape(name)}</option>`).join('')
           : '<option value="">暂无门票</option>';
@@ -14543,15 +15358,28 @@
                 <div class="archive-card-head"><div class="archive-card-title">试炼总览</div></div>
                 ${makeTileGrid([
                   { label: '升灵台门票', value: String(ascensionTicketCount) },
-                  { label: '魂灵塔最高', value: towerPath.length
-                    ? makeInlineEditableValue(String(toNumber(deepGet(snapshot, 'activeChar.魂灵塔记录.最高层', 0), 0)), {
-                        path: [...towerPath, '最高层'],
-                        kind: 'number',
-                        rawValue: toNumber(deepGet(snapshot, 'activeChar.魂灵塔记录.最高层', 0), 0),
-                        editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
-                      })
-                    : htmlEscape(String(toNumber(deepGet(snapshot, 'activeChar.魂灵塔记录.最高层', 0), 0))) },
-                  { label: '可用折扣层', value: towerDiscountEntries.length ? `${towerDiscountEntries.length}` : '0' },
+                  ...(soulTowerEligible
+                    ? [{
+                        label: '魂灵塔最高',
+                        value: towerPath.length
+                          ? makeInlineEditableValue(String(toNumber(deepGet(snapshot, 'activeChar.魂灵塔记录.最高层', 0), 0)), {
+                              path: [...towerPath, '最高层'],
+                              kind: 'number',
+                              rawValue: toNumber(deepGet(snapshot, 'activeChar.魂灵塔记录.最高层', 0), 0),
+                              editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                            })
+                          : htmlEscape(String(toNumber(deepGet(snapshot, 'activeChar.魂灵塔记录.最高层', 0), 0))),
+                      }, {
+                        label: '可用折扣层',
+                        value: towerDiscountEntries.length ? `${towerDiscountEntries.length}` : '0',
+                      }, {
+                        label: '当前大关',
+                        value: towerGateText,
+                      }, {
+                        label: '下一关底',
+                        value: towerNextBossText,
+                      }]
+                    : []),
                   { label: '累计猎杀年限', value: formatNumber(snapshot.forestKilledAge || 0) },
                   { label: '图鉴条目', value: String((snapshot.bestiaryEntries || []).length || 0) },
                   { label: '当前战功', value: formatNumber(deepGet(snapshot, 'activeChar.财富.战功', 0)) }
@@ -14559,13 +15387,15 @@
               </div>
 
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">试炼票据与折扣</div></div>
+                <div class="archive-card-head"><div class="archive-card-title">${soulTowerEligible ? '试炼票据与折扣' : '试炼票据'}</div></div>
                 <div class="intel-layout" style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px;">
                   ${ticketCards.map(item => `<div class="intel-card" style="min-height:116px;"><b>${htmlEscape(item.title)}</b><span>${htmlEscape(item.desc)}</span></div>`).join('')}
                 </div>
-                <div style="margin-top:12px;">
-                  ${makeTimelineStack(towerDiscountEntries.length ? towerDiscountEntries.slice(0, 10).map(([floor]) => ({ title: `${floor} 层`, desc: '五折资格未使用' })) : [{ title: '暂无折扣资格', desc: '当前未记录可用五折层。' }])}
-                </div>
+                ${soulTowerEligible ? `
+                  <div style="margin-top:12px;">
+                    ${makeTimelineStack(towerDiscountEntries.length ? towerDiscountEntries.slice(0, 10).map(([floor]) => ({ title: `${floor} 层`, desc: '五折资格未使用' })) : [{ title: '暂无折扣资格', desc: '当前未记录可用五折层。' }])}
+                  </div>
+                ` : ''}
               </div>
 
               ${isPlayerControlled && activeCharKey ? `
@@ -14577,10 +15407,12 @@
                     <input type="number" min="1" class="request-console-input" data-collection-input="asc-gain" value="100" style="margin:0; width:110px; flex:0 0 110px;" placeholder="提升年限" />
                     <button type="button" class="tag-chip live" data-collection-action="run-ascension" data-collection-char="${escapeHtmlAttr(activeCharKey)}">执行升灵</button>
                   </div>
-                  <div class="request-console-row" data-collection-panel="trial-tower" style="display:flex; gap:8px; flex-wrap:wrap;">
-                    <input type="number" min="1" class="request-console-input" data-collection-input="tower-floor" value="${escapeHtmlAttr(String(Math.max(1, toNumber(deepGet(snapshot, 'activeChar.魂灵塔记录.最高层', 0), 0) + 1)))}" style="margin:0; width:110px; flex:0 0 110px;" placeholder="层数" />
-                    <button type="button" class="tag-chip live" data-collection-action="run-soul-tower" data-collection-char="${escapeHtmlAttr(activeCharKey)}">登记冲塔</button>
-                  </div>
+                  ${soulTowerEligible ? `
+                    <div class="request-console-row" data-collection-panel="trial-tower" style="display:flex; gap:8px; flex-wrap:wrap;">
+                      <input type="number" min="1" class="request-console-input" data-collection-input="tower-floor" value="${escapeHtmlAttr(String(Math.max(1, toNumber(deepGet(snapshot, 'activeChar.魂灵塔记录.最高层', 0), 0) + 1)))}" style="margin:0; width:110px; flex:0 0 110px;" placeholder="层数" />
+                      <button type="button" class="tag-chip live" data-collection-action="run-soul-tower" data-collection-char="${escapeHtmlAttr(activeCharKey)}">登记冲塔</button>
+                    </div>
+                  ` : ''}
                 </div>
               ` : ''}
 
@@ -14851,7 +15683,7 @@
           body: `
             <div class="archive-modal-grid">
                 <div class="archive-card">
-                  <div class="archive-card-head"><div class="archive-card-title">我的任务</div><span class="state-tag ${questRecords.length ? 'live' : 'warn'}">${questRecords.length ? `共 ${questRecords.length} 条` : '空'}</span></div>
+                  <div class="archive-card-head"><div class="archive-card-title">我的任务</div><span class="state-tag ${questRecords.length ? 'live' : 'warn'}">${questRecords.length ? `共 ${questRecords.length} 项` : '空'}</span></div>
                   ${questCreateFormHtml}
                   <div class="relation-directory-grid">${questListHtml}</div>
                   ${makeModalPaginationControls('quest-records', questPage.page, questPage.totalPages, questPage.total)}
@@ -14908,7 +15740,7 @@
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">全局见闻</div></div>
-                ${makeTimelineStack(newsSummary.globalNews.length ? newsSummary.globalNews : [{ title: '暂无全局见闻', desc: 'sys.seq 当前未记录新的剧情备忘。' }])}
+                ${makeTimelineStack(newsSummary.globalNews.length ? newsSummary.globalNews : [{ title: '暂无全局见闻', desc: '当前未记录新的世界事件。' }])}
               </div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">个人见闻</div></div>
@@ -15055,10 +15887,12 @@
         }
         syncPrivateArchiveLongPressTargets(liveSnapshot);
         maybeOpenTradeRequestFromAI(liveSnapshot);
+        maybeAutoOpenPendingSoulRingPreview(liveSnapshot, options);
         
         syncBattleUiForSnapshot(liveSnapshot, options);
 
-        const activeDetailPreviewKey = currentUnifiedPreviewKey || currentModalPreviewKey;
+        const effectiveUnifiedPreviewKey = getEffectiveUnifiedPreviewKey();
+        const activeDetailPreviewKey = effectiveUnifiedPreviewKey || currentModalPreviewKey;
         if ((shouldRenderDashboard || !!options.force) && (detailModal.classList.contains('show') || isShellInlinePreviewActive() || isUnifiedInlinePreviewActive()) && activeDetailPreviewKey) {
           if (activeDetailPreviewKey === '角色切换器') {
             return;
@@ -15067,7 +15901,7 @@
             const battleData = deepGet(liveSnapshot, 'rootData.world.战斗', {});
             const battleStillActive = !!(battleData && typeof battleData === 'object' && battleData.进行中);
             if (!battleStillActive) {
-              if (currentUnifiedPreviewKey === BATTLE_INLINE_PREVIEW_KEY) clearUnifiedInlinePreview();
+              if (effectiveUnifiedPreviewKey === BATTLE_INLINE_PREVIEW_KEY) clearUnifiedInlinePreview();
               if (currentModalPreviewKey === BATTLE_INLINE_PREVIEW_KEY && typeof closeModal === 'function') closeModal();
             }
             return;
@@ -15080,7 +15914,7 @@
           ) {
             activeSubUI.updateData(liveSnapshot);
           } else {
-            rerenderDetailSurface(activeDetailPreviewKey, { surface: currentUnifiedPreviewKey ? 'unified' : 'modal', force: !!options.force });
+            rerenderDetailSurface(activeDetailPreviewKey, { surface: effectiveUnifiedPreviewKey ? 'unified' : 'modal', force: !!options.force });
           }
         }
       } catch (error) {
@@ -15108,15 +15942,7 @@
     window.__MVU_APPLY_PATCHES__ = (patches, options = {}) => applyJsonPatchOpsByEditor(patches, options);
 
     function buildRingHoverMarkup(ring) {
-      const skills = (ring.skills || []).map(skill => `
-        <div class="ring-hover-skill">
-          <b>${htmlEscape(skill.name || '未命名技能')}</b>
-          <div class="ring-hover-copy"><em>画面描述</em><span>${skill.visualDesc || '未知'}</span></div>
-          <div class="ring-hover-copy"><em>效果描述</em><span>${skill.effectDesc || '未知'}</span></div>
-        </div>
-      `).join('');
-
-      return `<div class="ring-hover-card"><div class="ring-hover-title">${ring.title}</div><div class="ring-hover-desc">${ring.desc}</div>${skills}</div>`;
+      return buildRingHoverCardMarkup(ring);
     }
 
     function buildSpiritRingGrid(rings, fallbackClass = 'ring-white') {
@@ -15128,15 +15954,7 @@
     }
 
     function buildRingHoverMarkup(ring) {
-      const skills = (ring && Array.isArray(ring.skills) ? ring.skills : []).map(skill => `
-        <div class=\"ring-hover-skill ${skill && skill.preview ? 'clickable' : ''}\"${skill && skill.preview ? ` data-preview=\"${escapeHtmlAttr(skill.preview)}\"` : ''}>
-          <b>${htmlEscape(skill && skill.name ? skill.name : '未命名技能')}</b>
-          <div class=\"ring-hover-copy\"><em>画面描述</em><span>${htmlEscape(skill && skill.visualDesc ? skill.visualDesc : '未知')}</span></div>
-          <div class=\"ring-hover-copy\"><em>效果描述</em><span>${htmlEscape(skill && skill.effectDesc ? skill.effectDesc : '未知')}</span></div>
-        </div>
-      `).join('');
-
-      return `<div class=\"ring-hover-card\"><div class=\"ring-hover-title\">${htmlEscape(toText(ring && ring.title, '魂环技能'))}</div><div class=\"ring-hover-desc\">${htmlEscape(toText(ring && ring.desc, ''))}</div>${skills}</div>`;
+      return buildRingHoverCardMarkup(ring);
     }
 
     function renderArchiveSpiritEntry(config, isPrimary = false) {
@@ -15253,16 +16071,25 @@
     var inventoryHoverPanel = null;
     var activeInventoryHoverCell = null;
     var inventoryHoverFlipY = false;
+    var inventoryHoverPinned = false;
 
     function ensureInventoryHoverPanel() {
       if (inventoryHoverPanel) return inventoryHoverPanel;
       inventoryHoverPanel = document.createElement('div');
       inventoryHoverPanel.className = 'inventory-hover-panel';
+      inventoryHoverPanel.addEventListener('mouseenter', () => {
+        inventoryHoverPinned = true;
+      });
+      inventoryHoverPanel.addEventListener('mouseleave', () => {
+        inventoryHoverPinned = false;
+        hideInventoryHoverPanel();
+      });
       document.body.appendChild(inventoryHoverPanel);
       return inventoryHoverPanel;
     }
 
     function hideInventoryHoverPanel() {
+      if (inventoryHoverPinned) return;
       if (!inventoryHoverPanel) return;
       inventoryHoverPanel.classList.remove('show');
       inventoryHoverPanel.classList.remove('flip-y');
@@ -15311,6 +16138,11 @@
             <div class="meta-item"><b>说明</b><span>${cell.dataset.hoverUsage || '--'}</span></div>
           </div>
           <div class="inventory-hover-tags">${tags.filter(Boolean).map(tag => `<span class="tag-chip">${tag}</span>`).join('')}</div>
+          ${cell.dataset.hoverUsable === 'true' ? `
+          <button type="button" class="inventory-hover-action-btn" data-inventory-action="use" data-inventory-char="${escapeHtmlAttr(cell.dataset.hoverChar || '')}" data-inventory-item="${escapeHtmlAttr(cell.dataset.hoverTitle || '')}">
+            ${htmlEscape(cell.dataset.hoverActionLabel || '使用')}
+          </button>
+          ` : ''}
           ${cell.dataset.hoverEquip === 'true' ? `
           <button type="button" class="inventory-hover-action-btn" data-inventory-action="equip" data-inventory-char="${escapeHtmlAttr(cell.dataset.hoverChar || '')}" data-inventory-item="${escapeHtmlAttr(cell.dataset.hoverTitle || '')}">
             穿戴装备 / 装载
@@ -15331,6 +16163,7 @@
 
     document.addEventListener('mousemove', (event) => {
       const eventTarget = event.target instanceof Element ? event.target : (event.target && event.target.parentElement ? event.target.parentElement : null);
+      if (inventoryHoverPanel && eventTarget && inventoryHoverPanel.contains(eventTarget)) return;
       const cell = eventTarget ? eventTarget.closest('.inventory-cell[data-hover-title]') : null;
       const shellInlineHost = getShellInlineHost();
       const isShellInlineCell = !!(cell && isShellInlinePreviewActive() && shellInlineHost && shellInlineHost.contains(cell));
@@ -15338,10 +16171,14 @@
         hideInventoryHoverPanel();
         return;
       }
+      inventoryHoverPinned = false;
       showInventoryHoverPanel(cell, event);
     });
 
-    document.addEventListener('mouseleave', hideInventoryHoverPanel, true);
+    document.addEventListener('mouseleave', () => {
+      inventoryHoverPinned = false;
+      hideInventoryHoverPanel();
+    }, true);
     document.addEventListener('scroll', hideInventoryHoverPanel, true);
 
     function escapeJsonPointerValue(text) {
@@ -15495,12 +16332,12 @@
           Object.values(soulSpirit.魂环).forEach(ringData => {
             if (!ringData || typeof ringData !== 'object') return;
             ringData['年限'] = newAge;
-            ringData['颜色'] = getTrialRingColorByAge(newAge);
+            if (!String(ringData['颜色'] || '').trim()) ringData['颜色'] = getTrialRingColorByAge(newAge);
           });
         }
 
         if (!statData.sys || typeof statData.sys !== 'object') statData.sys = {};
-        statData.sys.rsn = `[升灵台] ${safeCharKey} 使用【${ticketName}】为【${spiritKey}/${soulSpiritKey}】完成升灵，年限由 ${oldAge} 提升至 ${newAge}（+${gainAge}）。`;
+        statData.sys.系统播报 = `[升灵台] ${safeCharKey} 使用【${ticketName}】为【${spiritKey}/${soulSpiritKey}】完成升灵，年限由 ${oldAge} 提升至 ${newAge}（+${gainAge}）。`;
       });
     }
 
@@ -15510,10 +16347,32 @@
       const actionText = toText(payload.action, '冲塔').trim() || '冲塔';
       if (!safeCharKey) throw new Error('缺少角色信息。');
       if (clearedFloor <= 0) throw new Error('请输入有效的通关层数。');
+      let blockedMessage = '';
+      const gateMeta = getSoulTowerGateMeta(clearedFloor);
 
       await mutateStatDataByEditor(statData => {
         const charData = deepGet(statData, ['char', safeCharKey], null);
         if (!charData || typeof charData !== 'object') throw new Error(`找不到角色【${safeCharKey}】。`);
+        if (!isSoulTowerEligibleCharacterData(charData)) {
+          delete charData['魂灵塔记录'];
+          const ageValue = getSoulTowerAgeValueFromCharacter(charData);
+          blockedMessage = Number.isFinite(ageValue)
+            ? `${safeCharKey} 已超过 ${SOUL_TOWER_MAX_AGE} 岁，不能登记魂灵塔。`
+            : `${safeCharKey} 年龄未记录，不能登记魂灵塔。`;
+          if (!statData.sys || typeof statData.sys !== 'object') statData.sys = {};
+          statData.sys.系统播报 = `[魂灵塔] ${blockedMessage.replace('不能登记魂灵塔。', '魂灵塔记录已移除。')}`;
+          return;
+        }
+        const activeBattleTeam = buildSoulTowerTeamMembersFromStatBattle(statData, safeCharKey);
+        if (Array.isArray(activeBattleTeam) && activeBattleTeam.length) {
+          const teamCheck = buildSoulTowerTeamValidationResult(activeBattleTeam);
+          if (!teamCheck.ok) {
+            blockedMessage = teamCheck.message;
+            if (!statData.sys || typeof statData.sys !== 'object') statData.sys = {};
+            statData.sys.系统播报 = `[魂灵塔] ${blockedMessage}`;
+            return;
+          }
+        }
         if (!charData['魂灵塔记录'] || typeof charData['魂灵塔记录'] !== 'object') {
           deepSetMutable(statData, ['char', safeCharKey, '魂灵塔记录'], { 最高层: 0, 折扣资格: {} });
         }
@@ -15528,10 +16387,11 @@
         }
 
         if (!statData.sys || typeof statData.sys !== 'object') statData.sys = {};
-        statData.sys.rsn = clearedFloor > oldMaxFloor
-          ? `[魂灵塔] ${safeCharKey} 本次${actionText}达到第 ${clearedFloor} 层，刷新历史最高层数（${oldMaxFloor} -> ${newMaxFloor}），并解锁对应层数的五折资格。`
-          : `[魂灵塔] ${safeCharKey} 本次${actionText}达到第 ${clearedFloor} 层，未刷新历史最高层数（当前最高 ${oldMaxFloor} 层）。`;
+        statData.sys.系统播报 = clearedFloor > oldMaxFloor
+          ? `[魂灵塔] ${safeCharKey} 本次${actionText}达到${gateMeta.gateLabel}第 ${clearedFloor} 层，刷新历史最高层数（${oldMaxFloor} -> ${newMaxFloor}），并解锁对应层数的五折资格。`
+          : `[魂灵塔] ${safeCharKey} 本次${actionText}达到${gateMeta.gateLabel}第 ${clearedFloor} 层，未刷新历史最高层数（当前最高 ${oldMaxFloor} 层）。`;
       });
+      if (blockedMessage) throw new Error(blockedMessage);
     }
 
     function buildMvuUpdateBlock(analysis, patchOps, leadText = '') {
@@ -15699,7 +16559,7 @@
       const patchOps = [
         { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/任务请求`, value: { 动作: questAction, 任务名称: questName, 任务描述: questDesc, 进度增量: progressAdd, 目标进度: requiredCount, 奖励币: rewardCoin, 奖励声望: rewardRep } },
         { op: 'replace', path: `/char/${escapeJsonPointerValue(activeKey)}/状态/行动`, value: statusAction },
-        { op: 'replace', path: '/sys/rsn', value: requestLabel }
+        { op: 'replace', path: '/sys/系统播报', value: requestLabel }
       ];
       const mvuUpdate = buildMvuUpdateBlock(
         analysisLabel,
@@ -16233,6 +17093,10 @@ ${mvuUpdate}`;
     }
 
     function normalizeBattleSeedParticipant(seed, fallbackName = '') {
+      if (Array.isArray(seed)) {
+        const firstValid = seed.find(item => item !== undefined && item !== null && item !== '');
+        return firstValid === undefined ? null : normalizeBattleSeedParticipant(firstValid, fallbackName);
+      }
       if (typeof seed === 'string' || typeof seed === 'number') {
         const normalizedName = toText(seed, fallbackName);
         return normalizedName ? { name: normalizedName } : null;
@@ -16844,14 +17708,46 @@ ${mvuUpdate}`;
       return { ok: true, normalized, charKey: '', kind: 'seed' };
     }
 
+    function buildSoulTowerTeamMemberEntry(snapshot, charKey = '', fallbackName = '') {
+      const safeKey = toText(charKey, '').trim();
+      const charData = safeKey ? deepGet(snapshot, ['rootData', 'char', safeKey], null) : null;
+      const ageValue = getSoulTowerAgeValueFromCharacter(charData || {});
+      return {
+        key: safeKey,
+        name: toText(deepGet(charData, 'name', ''), fallbackName || safeKey || '队员'),
+        age: ageValue,
+      };
+    }
+
+    function validateSoulTowerRosterFromBattleSeeds(snapshot, activeKey, teamPlayerChecks = []) {
+      const memberEntries = [buildSoulTowerTeamMemberEntry(snapshot, activeKey, toText(snapshot && snapshot.activeName, '玩家'))];
+      if (!memberEntries[0].key) return { ok: false, message: '当前角色未绑定有效档案，无法参与魂灵塔。' };
+      for (const itemCheck of Array.isArray(teamPlayerChecks) ? teamPlayerChecks : []) {
+        if (!itemCheck || itemCheck.kind !== 'char' || !toText(itemCheck.charKey, '').trim()) {
+          return { ok: false, message: '魂灵塔队友必须是已建档角色。' };
+        }
+        memberEntries.push(buildSoulTowerTeamMemberEntry(snapshot, itemCheck.charKey, toText(itemCheck.normalized && itemCheck.normalized.name, '队友')));
+      }
+      const unresolvedMember = memberEntries.find(member => !Number.isFinite(member.age) || !(member.age > 0));
+      if (unresolvedMember) {
+        return { ok: false, message: `${toText(unresolvedMember.name, '队员')} 年龄未记录，无法校验魂灵塔资格。` };
+      }
+      return buildSoulTowerTeamValidationResult(memberEntries);
+    }
+
     function buildBattleSeedRoster(snapshot, detail = {}) {
       const detailParticipants = detail.参战者 && typeof detail.参战者 === 'object' ? detail.参战者 : null;
       const activeKey = resolveSnapshotCharKey(snapshot, toText(snapshot && snapshot.activeName, '') || deepGet(snapshot, 'rootData.sys.玩家名', ''));
       if (!snapshot || !snapshot.rootData || !activeKey) return { ok: false, reason: 'player_context_unresolved' };
       const playerChar = buildCombatParticipantFromSnapshotChar(snapshot, activeKey, '己方');
       if (!playerChar) return { ok: false, reason: 'player_context_unresolved' };
+      const soulTowerCombat = isSoulTowerCombatType(detail);
 
       if (!detailParticipants) {
+        if (soulTowerCombat) {
+          const soloCheck = validateSoulTowerRosterFromBattleSeeds(snapshot, activeKey, []);
+          if (!soloCheck.ok) return { ok: false, reason: soloCheck.message };
+        }
         const npcTarget = toText(detail.npcTarget, '');
         const targetKey = resolveSnapshotCharKey(snapshot, npcTarget);
         if (!targetKey) return { ok: false, reason: 'combat_context_unresolved' };
@@ -16886,6 +17782,13 @@ ${mvuUpdate}`;
         const itemCheck = validateBattleSeedParticipant(snapshot, teamPlayerSeeds[index], `team_player_${index}`);
         if (!itemCheck.ok) return { ok: false, reason: itemCheck.reason };
         normalizedRoster.team_player.push(itemCheck.kind === 'char' ? { name: itemCheck.normalized.name } : itemCheck.normalized);
+      }
+      if (soulTowerCombat) {
+        const towerRosterCheck = validateSoulTowerRosterFromBattleSeeds(snapshot, activeKey, teamPlayerSeeds.map((seed, index) => {
+          const itemCheck = validateBattleSeedParticipant(snapshot, seed, `team_player_${index}`);
+          return itemCheck.ok ? itemCheck : null;
+        }).filter(Boolean));
+        if (!towerRosterCheck.ok) return { ok: false, reason: towerRosterCheck.message };
       }
 
       const teamEnemySeeds = Array.isArray(detailParticipants.team_enemy) ? detailParticipants.team_enemy : [];
@@ -17057,7 +17960,10 @@ ${mvuUpdate}`;
             }
             activeBattleUI = window.mountBattleUI(host, latestBattleUiSnapshot, {
               onAction: (actionData) => {
-                dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
+                dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, {
+                  requestKind: actionData.requestKind,
+                  patchOps: actionData.patchOps
+                });
               }
             });
           })
@@ -17075,8 +17981,17 @@ ${mvuUpdate}`;
         removeBattleReturnEntries();
         if (activeBattleUI && typeof activeBattleUI.destroy === 'function') activeBattleUI.destroy();
         activeBattleUI = null;
-        if (currentUnifiedPreviewKey === BATTLE_INLINE_PREVIEW_KEY) {
+        const effectiveUnifiedPreviewKey = getEffectiveUnifiedPreviewKey();
+        const shellHost = getShellInlineHost();
+        const effectiveShellPreviewKey = shellHost
+          ? toText(shellHost.dataset.shellPreview, '').trim()
+          : toText(lastRenderedShellPreviewKey, '').trim();
+        if (effectiveUnifiedPreviewKey === BATTLE_INLINE_PREVIEW_KEY) {
           clearUnifiedInlinePreview();
+        }
+        if (effectiveShellPreviewKey === BATTLE_INLINE_PREVIEW_KEY) {
+          clearShellInlinePreview();
+          notifyShellPreviewClosed();
         }
         if (currentModalPreviewKey === BATTLE_INLINE_PREVIEW_KEY && typeof closeModal === 'function') {
           closeModal();
@@ -17089,6 +18004,11 @@ ${mvuUpdate}`;
       const rosterResult = buildBattleSeedRoster(snapshot, detail);
       if (!rosterResult.ok) return { ok: false, reason: rosterResult.reason };
       const arenaName = toText(detail.currentLoc, toText(detail.target, toText(snapshot.currentLoc, '未知地点')));
+      const soulTowerCombat = isSoulTowerCombatType(detail);
+      const activeChar = getActiveSnapshotCharacter(snapshot);
+      const defaultSoulTowerFloor = Math.max(1, toNumber(deepGet(activeChar, '魂灵塔记录.最高层', 0), 0) + 1);
+      const soulTowerFloor = soulTowerCombat ? Math.max(1, Math.floor(toNumber(detail.floor, defaultSoulTowerFloor))) : 0;
+      const soulTowerMeta = soulTowerCombat ? getSoulTowerGateMeta(soulTowerFloor) : null;
       return {
         进行中: true,
         战斗类型: toText(detail.战斗类型, '擂台切磋'),
@@ -17100,6 +18020,15 @@ ${mvuUpdate}`;
         裁断结果: '',
         参战者: rosterResult.participants,
         source: 'map_action',
+        ...(soulTowerCombat
+          ? {
+              floor: soulTowerFloor,
+              大关卡: soulTowerMeta.gateIndex,
+              大关标签: soulTowerMeta.gateLabel,
+              关卡范围: soulTowerMeta.gateRangeLabel,
+              关底战: soulTowerMeta.isGateBoss,
+            }
+          : {}),
         request: {
           action: '战斗',
           target: arenaName,
@@ -17114,10 +18043,13 @@ ${mvuUpdate}`;
       const playerName = toText(combatData.参战者.player.name, '玩家');
       const enemyName = toText(combatData.参战者.enemy.name, '对手');
       const compactCombatData = compactCombatDataForWorldStorage(snapshot, combatData);
+      const soulTowerText = combatData.战斗类型 === '魂灵塔冲塔'
+        ? ` ${toText(combatData.大关标签, '魂灵塔')} 第${toNumber(combatData.floor, 1)}层`
+        : '';
       battleInlineDismissed = false;
       await applyJsonPatchOpsByEditor([
         { op: 'replace', path: '/world/战斗', value: compactCombatData },
-        { op: 'replace', path: '/sys/rsn', value: `[战斗模块] ${playerName} 向 ${enemyName} 发起切磋，战斗模块已接管。` }
+        { op: 'replace', path: '/sys/系统播报', value: `[战斗模块] ${playerName} 向 ${enemyName} 发起${combatData.战斗类型 === '魂灵塔冲塔' ? `魂灵塔挑战${soulTowerText}` : '切磋'}，战斗模块已接管。` }
       ]);
       await refreshLiveSnapshot({ force: true, reopenBattle: true });
       try {
@@ -17490,7 +18422,12 @@ ${mvuUpdate}`;
         动作: normalizeProfessionActionLabel(mode),
         目标: toText(req.目标 || req.产物 || req.物品, ''),
         材料: Array.isArray(req.材料)
-          ? req.材料.map(item => toText(item, '')).filter(Boolean)
+          ? req.材料.map(item => {
+            if (item && typeof item === 'object') {
+              return toText(item.名称 || item.name || item.材料 || item.物品, '');
+            }
+            return toText(item, '');
+          }).filter(Boolean)
           : (req.材料 && typeof req.材料 === 'object'
             ? Object.keys(req.材料).filter(Boolean)
             : toText(req.材料, '')
@@ -17559,11 +18496,13 @@ ${mvuUpdate}`;
       const playerInput = toText(data.playerInput, '').trim();
       const systemPrompt = toText(data.systemPrompt, '').trim();
       const requestKind = toText(data.requestKind, moduleKind ? `module_${moduleKind}` : 'module_inline');
+      const patchOps = Array.isArray(data.patchOps) ? cloneJsonValue(data.patchOps, []) : [];
       if (!playerInput || !systemPrompt) return null;
       return {
         playerInput,
         systemPrompt,
         requestKind,
+        patchOps,
         moduleKind: toText(moduleKind, ''),
         request: cloneJsonValue(request, {})
       };
@@ -17659,7 +18598,10 @@ ${mvuUpdate}`;
       const req = source && typeof source === 'object' ? source : {};
       const action = toText(req.动作 || req.模式 || req.类型, '交易');
       const npc = toText(req.对象 || req.目标对象, '');
-      const item = toText(req.物品 || req.目标物品 || req.目标, '');
+      const rawItem = req.物品 || req.目标物品 || req.目标;
+      const item = rawItem && typeof rawItem === 'object'
+        ? toText(rawItem.名称 || rawItem.name || rawItem.物品, '')
+        : toText(rawItem, '');
       if (!item) return null;
       return {
         动作: action,
@@ -17793,7 +18735,10 @@ ${mvuUpdate}`;
         const dispatchResult = await dispatchUiAiRequest(
           inlineResult.inlineAction.playerInput,
           inlineResult.inlineAction.systemPrompt,
-          { requestKind: inlineResult.inlineAction.requestKind }
+          {
+            requestKind: inlineResult.inlineAction.requestKind,
+            patchOps: inlineResult.inlineAction.patchOps
+          }
         );
         if (!dispatchResult?.ok) {
           return {
@@ -17831,7 +18776,10 @@ ${mvuUpdate}`;
       const dispatchResult = await dispatchUiAiRequest(
         inlineResult.inlineAction.playerInput,
         inlineResult.inlineAction.systemPrompt,
-        { requestKind: inlineResult.inlineAction.requestKind }
+        {
+          requestKind: inlineResult.inlineAction.requestKind,
+          patchOps: inlineResult.inlineAction.patchOps
+        }
       );
       if (!dispatchResult?.ok) {
         return {
@@ -18441,6 +19389,21 @@ ${mvuUpdate}`;
       return host instanceof Element && host.isConnected ? host : null;
     }
 
+    function getDomUnifiedPreviewKey() {
+      const host = getUnifiedInlineHost();
+      return host ? toText(host.dataset.unifiedPreview, '').trim() : '';
+    }
+
+    function getEffectiveUnifiedPreviewKey() {
+      const domPreviewKey = getDomUnifiedPreviewKey();
+      if (domPreviewKey && domPreviewKey !== currentUnifiedPreviewKey) {
+        currentUnifiedPreviewKey = domPreviewKey;
+      } else if (!domPreviewKey && currentUnifiedPreviewKey) {
+        currentUnifiedPreviewKey = '';
+      }
+      return currentUnifiedPreviewKey;
+    }
+
     function isUnifiedInlinePreviewActive() {
       const host = getUnifiedInlineHost();
       return !!(host && toText(host.dataset.unifiedPreview, '') && document.body && document.body.classList.contains('mvu-layout-unified'));
@@ -18461,7 +19424,8 @@ ${mvuUpdate}`;
 
     function clearUnifiedInlinePreview() {
       const host = getUnifiedInlineHost();
-      if (currentUnifiedPreviewKey === BATTLE_INLINE_PREVIEW_KEY && activeBattleUI && typeof activeBattleUI.destroy === 'function') {
+      const effectivePreviewKey = getEffectiveUnifiedPreviewKey();
+      if (effectivePreviewKey === BATTLE_INLINE_PREVIEW_KEY && activeBattleUI && typeof activeBattleUI.destroy === 'function') {
         if (isCombatActiveForBattleInline(liveSnapshot || lastRenderableSnapshot)) {
           battleInlineDismissed = true;
           scheduleBattleReturnEntrySync(liveSnapshot || lastRenderableSnapshot, true);
@@ -18469,7 +19433,7 @@ ${mvuUpdate}`;
         activeBattleUI.destroy();
         activeBattleUI = null;
       }
-      if (currentUnifiedPreviewKey && activeSubUI && typeof activeSubUI.destroy === 'function') {
+      if (effectivePreviewKey && activeSubUI && typeof activeSubUI.destroy === 'function') {
         activeSubUI.destroy();
         activeSubUI = null;
       }
@@ -19132,7 +20096,10 @@ ${mvuUpdate}`;
           return;
         }
         const actionData = buildArmoryActionRequest(liveSnapshot, actionBtn.dataset.armoryAction || '');
-        if (actionData) dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
+        if (actionData) dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, {
+          requestKind: actionData.requestKind,
+          patchOps: actionData.patchOps
+        });
         return;
       }
 
@@ -19195,12 +20162,37 @@ ${mvuUpdate}`;
           return;
         }
         hideInventoryHoverPanel();
+        if (action === 'use') {
+          window.EquipmentManager.performUse(charKey, itemName);
+          return;
+        }
         if (action === 'equip') {
           window.EquipmentManager.performEquip(charKey, itemName);
           return;
         }
         if (action === 'discard') {
           window.EquipmentManager.performDiscard(charKey, itemName, mode);
+          return;
+        }
+      }
+
+      const skillActionBtn = eventTarget ? eventTarget.closest('.skill-inline-action-btn[data-skill-action]') : null;
+      if (skillActionBtn && detailSurfaceHost.contains(skillActionBtn)) {
+        event.preventDefault();
+        event.stopPropagation();
+        const action = skillActionBtn.getAttribute('data-skill-action') || '';
+        const skillPathRaw = skillActionBtn.getAttribute('data-skill-path') || '[]';
+        let skillPath = [];
+        try {
+          const parsed = JSON.parse(skillPathRaw);
+          if (Array.isArray(parsed)) skillPath = parsed;
+        } catch (error) {}
+        if (!skillPath.length) {
+          showUiToast('当前技能缺少定位信息，无法施展。', 'error');
+          return;
+        }
+        if (action === 'cast-construct') {
+          await window.EquipmentManager.performConstructSkillUse(skillPath);
           return;
         }
       }
@@ -19220,6 +20212,27 @@ ${mvuUpdate}`;
         }
         if (action === 'unequip') {
           window.EquipmentManager.performUnequip(charKey, kind, targetName);
+          return;
+        }
+      }
+
+      const pendingSoulRingActionBtn = eventTarget ? eventTarget.closest('[data-soul-ring-action]') : null;
+      if (pendingSoulRingActionBtn && detailSurfaceHost.contains(pendingSoulRingActionBtn)) {
+        event.preventDefault();
+        event.stopPropagation();
+        const actionType = pendingSoulRingActionBtn.getAttribute('data-soul-ring-action') || '';
+        const candidateSoulName = pendingSoulRingActionBtn.getAttribute('data-soul-ring-candidate') || '';
+        try {
+          if (actionType === 'generate') {
+            await handlePendingSoulRingGenerate(liveSnapshot || lastRenderableSnapshot, candidateSoulName);
+            return;
+          }
+          if (actionType === 'defer') {
+            await handlePendingSoulRingDefer(liveSnapshot || lastRenderableSnapshot);
+            return;
+          }
+        } catch (error) {
+          showUiToast(error && error.message ? error.message : '魂环生成处理失败。', 'error');
           return;
         }
       }
@@ -19318,14 +20331,6 @@ ${mvuUpdate}`;
             if (!charKey || index < 0) throw new Error('当前情报缺少定位信息。');
             await deleteStatDataPathByEditor(['char', charKey, '已掌握情报', index]);
             showUiToast('已删除情报。');
-            if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
-            return;
-          }
-          if (actionType === 'clear-intel-pending') {
-            const charKey = collectionActionBtn.getAttribute('data-collection-char') || '';
-            if (!charKey) throw new Error('缺少角色信息。');
-            await deleteStatDataPathByEditor(['char', charKey, '待解锁情报']);
-            showUiToast('已清空待解锁线索。');
             if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
             return;
           }
@@ -19503,7 +20508,10 @@ ${mvuUpdate}`;
           else if (typeof window.alert === 'function') window.alert('任务请求参数不完整，请检查任务名称与说明。');
           return;
         }
-        dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
+        dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, {
+          requestKind: actionData.requestKind,
+          patchOps: actionData.patchOps
+        });
         return;
       }
 
@@ -19575,7 +20583,10 @@ ${mvuUpdate}`;
           actionData = buildRelationInteractRequest(liveSnapshot, actionType, targetName, { itemUsed });
         }
 
-        if (actionData) dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
+        if (actionData) dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, {
+          requestKind: actionData.requestKind,
+          patchOps: actionData.patchOps
+        });
         return;
       }
 
@@ -19630,7 +20641,10 @@ ${mvuUpdate}`;
             return;
           }
         }
-        if (actionData) dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, { requestKind: actionData.requestKind });
+        if (actionData) dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, {
+          requestKind: actionData.requestKind,
+          patchOps: actionData.patchOps
+        });
         return;
       }
 
@@ -19658,12 +20672,20 @@ ${mvuUpdate}`;
       return trigger;
     }
 
+    let activeFloatingHoverTrigger = null;
+
     function clearFloatingHoverCard(trigger) {
       if (!trigger || !trigger.classList) return;
       trigger.classList.remove('mvu-hover-floating-active');
       const card = trigger.querySelector('.ring-hover-card, .relation-hover-card');
+      if (card) {
+        card.classList.remove('mvu-hover-card-floating');
+        card.style.opacity = '0';
+        card.style.visibility = 'hidden';
+        card.style.pointerEvents = 'none';
+      }
+      if (activeFloatingHoverTrigger === trigger) activeFloatingHoverTrigger = null;
       if (!card) return;
-      card.classList.remove('mvu-hover-card-floating');
       [
         'position',
         'left',
@@ -19679,7 +20701,50 @@ ${mvuUpdate}`;
     }
 
     function clearAllFloatingHoverCards() {
+      cancelFloatingHoverClearTimer();
+      cancelFloatingHoverAutoHideTimer();
       document.querySelectorAll('.interactive-ring.mvu-hover-floating-active').forEach(clearFloatingHoverCard);
+    }
+
+    let floatingHoverClearTimer = 0;
+    let floatingHoverAutoHideTimer = 0;
+    const FLOATING_HOVER_AUTO_HIDE_MS = 1000;
+
+    function cancelFloatingHoverClearTimer() {
+      if (!floatingHoverClearTimer) return;
+      window.clearTimeout(floatingHoverClearTimer);
+      floatingHoverClearTimer = 0;
+    }
+
+    function cancelFloatingHoverAutoHideTimer() {
+      if (!floatingHoverAutoHideTimer) return;
+      window.clearTimeout(floatingHoverAutoHideTimer);
+      floatingHoverAutoHideTimer = 0;
+    }
+
+    function scheduleClearFloatingHoverCard(trigger) {
+      cancelFloatingHoverClearTimer();
+      floatingHoverClearTimer = window.setTimeout(() => {
+        floatingHoverClearTimer = 0;
+        clearFloatingHoverCard(trigger);
+      }, 80);
+    }
+
+    function scheduleFloatingHoverAutoHide(trigger) {
+      cancelFloatingHoverAutoHideTimer();
+      floatingHoverAutoHideTimer = window.setTimeout(() => {
+        floatingHoverAutoHideTimer = 0;
+        clearFloatingHoverCard(trigger);
+      }, FLOATING_HOVER_AUTO_HIDE_MS);
+    }
+
+    function isPointerStillWithinFloatingHover(trigger, event) {
+      if (!(trigger instanceof Element) || !(event instanceof PointerEvent)) return false;
+      const card = trigger.querySelector('.ring-hover-card.mvu-hover-card-floating, .relation-hover-card.mvu-hover-card-floating');
+      const pointTarget = document.elementFromPoint(event.clientX, event.clientY);
+      if (!(pointTarget instanceof Element)) return false;
+      if (card && card.contains(pointTarget)) return true;
+      return trigger.contains(pointTarget);
     }
 
     function clampHoverValue(value, min, max) {
@@ -19690,8 +20755,12 @@ ${mvuUpdate}`;
 
     function positionFloatingHoverCard(trigger) {
       if (!(trigger instanceof Element)) return;
+      if (activeFloatingHoverTrigger && activeFloatingHoverTrigger !== trigger) {
+        clearFloatingHoverCard(activeFloatingHoverTrigger);
+      }
       const card = trigger.querySelector('.ring-hover-card, .relation-hover-card');
       if (!(card instanceof HTMLElement)) return;
+      const preferSidePlacement = card.classList.contains('ring-hover-card');
       const triggerRect = trigger.getBoundingClientRect();
       const viewportWidth = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
       const viewportHeight = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
@@ -19699,11 +20768,15 @@ ${mvuUpdate}`;
 
       const margin = 12;
       const gap = 8;
-      const maxWidth = Math.max(180, viewportWidth - margin * 2);
-      const maxHeight = Math.max(150, viewportHeight - margin * 2);
+      const maxWidth = Math.max(180, Math.min(220, viewportWidth - margin * 2));
+      const maxHeight = Math.max(150, Math.min(244, viewportHeight - margin * 2));
 
       trigger.classList.add('mvu-hover-floating-active');
+      activeFloatingHoverTrigger = trigger;
       card.classList.add('mvu-hover-card-floating');
+      card.style.opacity = '';
+      card.style.visibility = '';
+      card.style.pointerEvents = '';
       card.style.position = 'fixed';
       card.style.right = 'auto';
       card.style.bottom = 'auto';
@@ -19715,18 +20788,44 @@ ${mvuUpdate}`;
       card.style.top = '0px';
 
       const cardRect = card.getBoundingClientRect();
-      const width = Math.min(Math.ceil(cardRect.width || 220), maxWidth);
+      let width = Math.min(Math.ceil(cardRect.width || 204), maxWidth);
       const height = Math.min(Math.ceil(cardRect.height || 220), maxHeight);
-      const left = clampHoverValue(
-        triggerRect.left + triggerRect.width / 2 - width / 2,
+      let left = 0;
+      let top = 0;
+      const centeredTop = clampHoverValue(
+        triggerRect.top + triggerRect.height / 2 - height / 2,
         margin,
-        viewportWidth - width - margin
+        viewportHeight - height - margin
       );
-      const belowTop = triggerRect.bottom + gap;
-      const aboveTop = triggerRect.top - height - gap;
-      const top = belowTop + height <= viewportHeight - margin
-        ? belowTop
-        : (aboveTop >= margin ? aboveTop : clampHoverValue(belowTop, margin, viewportHeight - height - margin));
+
+      if (preferSidePlacement) {
+        const minSideWidth = Math.min(176, maxWidth);
+        const rightSpace = Math.max(0, viewportWidth - triggerRect.right - margin - gap);
+        const leftSpace = Math.max(0, triggerRect.left - margin - gap);
+        const canUseRight = rightSpace >= minSideWidth;
+        const canUseLeft = leftSpace >= minSideWidth;
+
+        if (canUseRight || canUseLeft) {
+          const useRight = canUseRight && (!canUseLeft || rightSpace >= leftSpace);
+          const sideSpace = useRight ? rightSpace : leftSpace;
+          width = Math.min(width, sideSpace);
+          left = useRight ? triggerRect.right + gap : triggerRect.left - width - gap;
+          top = centeredTop;
+        }
+      }
+
+      if (!(left || top)) {
+        left = clampHoverValue(
+          triggerRect.left + triggerRect.width / 2 - width / 2,
+          margin,
+          viewportWidth - width - margin
+        );
+        const belowTop = triggerRect.bottom + gap;
+        const aboveTop = triggerRect.top - height - gap;
+        top = belowTop + height <= viewportHeight - margin
+          ? belowTop
+          : (aboveTop >= margin ? aboveTop : clampHoverValue(belowTop, margin, viewportHeight - height - margin));
+      }
 
       card.style.width = `${width}px`;
       card.style.left = `${Math.round(left)}px`;
@@ -19734,22 +20833,27 @@ ${mvuUpdate}`;
     }
 
     document.addEventListener('pointerover', event => {
+      cancelFloatingHoverClearTimer();
       const trigger = getFloatingHoverTrigger(event.target);
       if (!trigger) return;
       positionFloatingHoverCard(trigger);
+      scheduleFloatingHoverAutoHide(trigger);
     }, true);
 
     document.addEventListener('pointerout', event => {
       const trigger = getFloatingHoverTrigger(event.target);
       if (!trigger) return;
-      const related = event.relatedTarget instanceof Node ? event.relatedTarget : null;
-      if (related && trigger.contains(related)) return;
-      clearFloatingHoverCard(trigger);
+      if (isPointerStillWithinFloatingHover(trigger, event)) return;
+      scheduleClearFloatingHoverCard(trigger);
     }, true);
 
     document.addEventListener('focusin', event => {
+      cancelFloatingHoverClearTimer();
       const trigger = getFloatingHoverTrigger(event.target);
-      if (trigger) positionFloatingHoverCard(trigger);
+      if (trigger) {
+        positionFloatingHoverCard(trigger);
+        scheduleFloatingHoverAutoHide(trigger);
+      }
     }, true);
 
     document.addEventListener('focusout', event => {
@@ -19757,11 +20861,16 @@ ${mvuUpdate}`;
       if (!trigger) return;
       const related = event.relatedTarget instanceof Node ? event.relatedTarget : null;
       if (related && trigger.contains(related)) return;
-      clearFloatingHoverCard(trigger);
+      if (related instanceof Element && related.closest('.ring-hover-card.mvu-hover-card-floating, .relation-hover-card.mvu-hover-card-floating')) return;
+      scheduleClearFloatingHoverCard(trigger);
     }, true);
 
     window.addEventListener('resize', clearAllFloatingHoverCards);
-    document.addEventListener('scroll', clearAllFloatingHoverCards, true);
+    document.addEventListener('scroll', event => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target && target.closest('.ring-hover-card.mvu-hover-card-floating, .relation-hover-card.mvu-hover-card-floating')) return;
+      clearAllFloatingHoverCards();
+    }, true);
 
 let activeLongPressState = null;
     let suppressedLongPressClickState = null;
@@ -20192,6 +21301,309 @@ window.EquipmentManager = {
     }
   },
 
+  isUsableInventoryItem(itemData = {}) {
+    return Array.isArray(itemData?.使用效果) && itemData.使用效果.length > 0;
+  },
+
+  getInventoryUseActionLabel(itemData = {}) {
+    return /食物/.test(String(itemData?.类型 || '')) || /食用/.test(String(itemData?.触发方式 || '')) ? '食用' : '使用';
+  },
+
+  isSelfResolvableUsageTarget(target = '') {
+    const text = String(target || '').trim();
+    if (!text) return true;
+    return /自身|食用者|使用者|友方单体|友方群体/.test(text);
+  },
+
+  mapUsagePropertyKey(property = '') {
+    const key = String(property || '').trim();
+    const map = {
+      vit: { current: '体力', max: '体力上限', statMod: 'vit_max', label: '体力' },
+      sp: { current: '魂力', max: '魂力上限', statMod: 'sp_max', label: '魂力' },
+      men: { current: '精神力', max: '精神力上限', statMod: 'men_max', label: '精神力' },
+      str: { current: '力量', max: '', statMod: 'str', label: '力量' },
+      def: { current: '防御', max: '', statMod: 'def', label: '防御' },
+      agi: { current: '敏捷', max: '', statMod: 'agi', label: '敏捷' },
+      '体力': { current: '体力', max: '体力上限', statMod: 'vit_max', label: '体力' },
+      '魂力': { current: '魂力', max: '魂力上限', statMod: 'sp_max', label: '魂力' },
+      '精神力': { current: '精神力', max: '精神力上限', statMod: 'men_max', label: '精神力' },
+      '力量': { current: '力量', max: '', statMod: 'str', label: '力量' },
+      '防御': { current: '防御', max: '', statMod: 'def', label: '防御' },
+      '敏捷': { current: '敏捷', max: '', statMod: 'agi', label: '敏捷' },
+      '体力上限': { current: '体力', max: '体力上限', statMod: 'vit_max', label: '体力上限' },
+      '魂力上限': { current: '魂力', max: '魂力上限', statMod: 'sp_max', label: '魂力上限' },
+      '精神力上限': { current: '精神力', max: '精神力上限', statMod: 'men_max', label: '精神力上限' },
+      '速度': { current: '敏捷', max: '', statMod: 'agi', label: '敏捷' },
+    };
+    return map[key] || null;
+  },
+
+    createInventoryStatusRecord(itemName, effect = {}, statusName = '') {
+      const value = effect && typeof effect === 'object' ? effect.value || {} : {};
+      const duration = Math.max(1, toNumber(value.持续, toNumber(value.durationRounds, 1)));
+      return {
+        类型: effect?.type === 'debuff' ? 'debuff' : 'buff',
+      层数: 1,
+      描述: toText(effect?.description, `${itemName}触发效果`),
+      持续回合: duration,
+    };
+  },
+
+  applyInventoryHealEffect(stat = {}, effect = {}, logs = []) {
+    const value = effect && typeof effect === 'object' ? effect.value || {} : {};
+    const propertyMeta = this.mapUsagePropertyKey(value.属性);
+    if (!propertyMeta || !propertyMeta.current) return false;
+    const currentKey = propertyMeta.current;
+    const maxKey = propertyMeta.max || currentKey;
+    const maxValue = Math.max(1, toNumber(stat[maxKey], toNumber(stat[currentKey], 1)));
+    const rawValue = Number(value.数值 || 0);
+    if (!(rawValue > 0)) return false;
+    const delta = rawValue <= 1 ? Math.max(1, Math.round(maxValue * rawValue)) : Math.round(rawValue);
+    const currentValue = Math.max(0, toNumber(stat[currentKey], 0));
+    stat[currentKey] = Math.min(maxValue, currentValue + delta);
+    logs.push(`${propertyMeta.label}+${formatNumber(delta)}`);
+    return true;
+  },
+
+  appendInventoryStatusEffect(statusMap = {}, itemName, effect = {}, index = 0, logs = []) {
+    const key = `${itemName}#${index + 1}`;
+    const value = effect && typeof effect === 'object' ? effect.value || {} : {};
+    const record = this.createInventoryStatusRecord(itemName, effect, key);
+    if (value && value.statMods && typeof value.statMods === 'object') {
+      record.stat_mods = cloneJsonValue(value.statMods, {});
+    } else {
+      const propertyMeta = this.mapUsagePropertyKey(value.属性);
+      const numericValue = Number(value.数值 || 0);
+      const action = String(value.动作 || '').trim();
+      if (propertyMeta && propertyMeta.statMod && Number.isFinite(numericValue) && numericValue > 0) {
+        if (/倍率压制|消耗提高|前摇拉长/.test(action)) {
+          record.stat_mods = { [propertyMeta.statMod]: Math.max(0.1, Number((1 - numericValue).toFixed(4))) };
+        } else if (/倍率提升|消耗降低|前摇缩短|加速|加值/.test(action)) {
+          record.stat_mods = { [propertyMeta.statMod]: Number((1 + numericValue).toFixed(4)) };
+        }
+      }
+    }
+    if (value && value.combatEffects && typeof value.combatEffects === 'object') {
+      record.战斗效果 = cloneJsonValue(value.combatEffects, {});
+    }
+    if (effect?.type === 'shield') {
+      record.护盾值 = Math.max(0, toNumber(value, 0));
+    }
+    const cleanseLevel = Math.max(0, toNumber(value && value.cleanseLevel, 0));
+    if (cleanseLevel > 0) {
+      const debuffKeys = Object.keys(statusMap).filter(name => String(statusMap[name]?.类型 || '') === 'debuff').slice(0, cleanseLevel);
+      debuffKeys.forEach(name => delete statusMap[name]);
+      if (debuffKeys.length) logs.push(`清除${debuffKeys.length}项减益`);
+    }
+    statusMap[key] = record;
+    logs.push(toText(effect?.description, key));
+    return true;
+  },
+
+  getSkillSystemBase(skill = {}) {
+    const effectArray = Array.isArray(skill?._效果数组) ? skill._效果数组 : [];
+    return effectArray.find(effect => toText(effect && effect['机制'], '').trim() === '系统基础') || {};
+  },
+
+  getConstructCreateEffects(skill = {}) {
+    return (Array.isArray(skill?._效果数组) ? skill._效果数组 : []).filter(effect =>
+      ['生成造物', '造物生成'].includes(toText(effect && effect['机制'], '').trim())
+    );
+  },
+
+  splitSkillCostModes(costText = '无') {
+    const raw = String(costText || '无').trim();
+    if (!raw || raw === '无') return { upfront: '无', sustain: '', hasSustain: false };
+    const parts = raw.split(/维持[:：]?/);
+    return {
+      upfront: (parts[0] || '无').trim() || '无',
+      sustain: (parts[1] || '').trim(),
+      hasSustain: parts.length > 1,
+    };
+  },
+
+  parseDailyResourceCostUnit(rawValue, currentValue, maxValue) {
+    const text = String(rawValue || '').trim();
+    if (!text || text === '无') return 0;
+    const currentPercentMatch = text.match(/当前\s*(\d+(?:\.\d+)?)%/);
+    if (currentPercentMatch) {
+      return Math.max(1, Math.floor(Math.max(0, Number(currentValue || 0)) * Number(currentPercentMatch[1]) / 100));
+    }
+    const percentMatch = text.match(/(\d+(?:\.\d+)?)%/);
+    if (percentMatch) {
+      return Math.max(1, Math.floor(Math.max(0, Number(maxValue || 0)) * Number(percentMatch[1]) / 100));
+    }
+    const numericMatch = text.match(/-?\d+(?:\.\d+)?/);
+    const numeric = Number(numericMatch ? numericMatch[0] : text);
+    return Number.isFinite(numeric) ? Math.max(0, Math.round(numeric)) : 0;
+  },
+
+  parseDailySkillCost(costText = '无', stat = {}) {
+    const mode = this.splitSkillCostModes(costText);
+    const result = { reqSp: 0, reqVit: 0, reqMen: 0, canCast: true, text: mode.upfront || '无' };
+    if (!mode.upfront || mode.upfront === '无') return result;
+    const matches = String(mode.upfront).matchAll(/(魂力|体力|精神力)\s*[:：]\s*([^|+＋]+?)(?=\s*(?:魂力|体力|精神力)\s*[:：]|[|+＋]|$)/g);
+    Array.from(matches).forEach(match => {
+      const label = match[1];
+      const valueText = String(match[2] || '').trim();
+      if (label === '魂力') result.reqSp += this.parseDailyResourceCostUnit(valueText, stat.魂力, stat.魂力上限);
+      if (label === '体力') result.reqVit += this.parseDailyResourceCostUnit(valueText, stat.体力, stat.体力上限);
+      if (label === '精神力') result.reqMen += this.parseDailyResourceCostUnit(valueText, stat.精神力, stat.精神力上限);
+    });
+    result.canCast =
+      toNumber(stat.魂力, 0) >= result.reqSp &&
+      toNumber(stat.体力, 0) >= result.reqVit &&
+      toNumber(stat.精神力, 0) >= result.reqMen;
+    return result;
+  },
+
+  buildConstructInventoryValue(skill = {}, effect = {}, currentTick = 0) {
+    const template = cloneJsonValue(effect?.背包模板 || {}, {});
+    const itemName = toText(skill?.魂技名 || effect?.魂技名 || skill?.name, '临时造物');
+    const itemType = toText(effect?.产物类型, toText(template?.类型, '魂技造物'));
+    const triggerMode = toText(effect?.触发方式, itemType === '食物' ? '食用' : '使用');
+    const relativeExpiryTick = Math.max(0, toNumber(effect?.有效期tick, 0));
+    const nextItem = {
+      ...template,
+      数量: Math.max(1, toNumber(effect?.数量, 1)),
+      类型: itemType,
+      触发方式: triggerMode,
+      使用效果: cloneJsonValue(Array.isArray(effect?.使用效果) ? effect.使用效果 : [], []),
+      来源技能: toText(template?.来源技能, itemName) || itemName,
+    };
+    if (relativeExpiryTick > 0) {
+      nextItem.有效期至tick = currentTick + relativeExpiryTick;
+      nextItem.有效期至 = formatTickToCalendarDateText(nextItem.有效期至tick);
+    } else {
+      nextItem.有效期至tick = 0;
+      nextItem.有效期至 = '无';
+    }
+    if (!toText(nextItem.描述, '').trim()) nextItem.描述 = toText(skill?.效果描述, '使用后触发对应魂技效果');
+    return { itemName, itemValue: nextItem };
+  },
+
+  async performUse(charRef, itemName) {
+    try {
+      const { charKey } = await this.resolveCharContext(charRef);
+      let actionLabel = '使用';
+      let summaryText = '';
+      await mutateStatDataByEditor(statData => {
+        const charData = deepGet(statData, ['char', charKey], null);
+        if (!charData || typeof charData !== 'object') throw new Error('未找到目标角色信息。');
+        const inventory = charData.背包 && typeof charData.背包 === 'object' ? charData.背包 : null;
+        if (!inventory) throw new Error('当前角色没有背包数据。');
+        const itemData = inventory[itemName];
+        if (!itemData || typeof itemData !== 'object') throw new Error(`背包中未找到物品: ${itemName}`);
+        if (!this.isUsableInventoryItem(itemData)) throw new Error('当前物品没有可执行的使用效果。');
+        actionLabel = this.getInventoryUseActionLabel(itemData);
+        if (!charData.属性 || typeof charData.属性 !== 'object') charData.属性 = {};
+        if (!charData.属性.状态效果 || typeof charData.属性.状态效果 !== 'object' || Array.isArray(charData.属性.状态效果)) {
+          charData.属性.状态效果 = {};
+        }
+
+        const logs = [];
+        let appliedCount = 0;
+        (Array.isArray(itemData.使用效果) ? itemData.使用效果 : []).forEach((effect, index) => {
+          if (!effect || typeof effect !== 'object') return;
+          if (!this.isSelfResolvableUsageTarget(effect.target)) return;
+          if (effect.type === 'heal') {
+            if (this.applyInventoryHealEffect(charData.属性, effect, logs)) appliedCount += 1;
+            return;
+          }
+          if (['buff', 'debuff', 'shield', 'custom'].includes(String(effect.type || ''))) {
+            if (this.appendInventoryStatusEffect(charData.属性.状态效果, itemName, effect, index, logs)) appliedCount += 1;
+            return;
+          }
+        });
+
+        if (appliedCount <= 0) {
+          throw new Error('当前物品的使用效果无法在背包场景中结算。');
+        }
+
+        const currentQty = Math.max(1, toNumber(itemData.数量, 1));
+        if (currentQty <= 1) delete inventory[itemName];
+        else itemData.数量 = currentQty - 1;
+
+        if (!statData.sys || typeof statData.sys !== 'object') statData.sys = {};
+        summaryText = logs.join('；') || '已触发物品效果';
+        statData.sys.系统播报 = `[物品${actionLabel}] ${charKey}${actionLabel}了【${itemName}】。${summaryText}`;
+      }, { force: true });
+      window.MVU_Toast.show(`已${actionLabel}【${itemName}】`, 'info');
+      await refreshLiveSnapshot({ force: true });
+      const request = buildInventoryUseRequest(liveSnapshot, { charKey, itemName, actionLabel, summaryText });
+      if (request) {
+        await dispatchUiAiRequest(request.playerInput, request.systemPrompt, { requestKind: request.requestKind });
+      }
+    } catch (error) {
+      window.MVU_Toast.show(error && error.message ? error.message : '使用物品失败。', 'error');
+    }
+  },
+
+  async performConstructSkillUse(skillPath = []) {
+    try {
+      const safePath = Array.isArray(skillPath) ? skillPath : [];
+      if (safePath.length < 2 || safePath[0] !== 'char') throw new Error('当前技能缺少角色归属信息。');
+      const charKey = toText(safePath[1], '').trim();
+      if (!charKey) throw new Error('当前技能缺少角色归属信息。');
+      let skillName = '造物技能';
+      let producedItems = [];
+      let costText = '无';
+      await mutateStatDataByEditor(statData => {
+        if (deepGet(statData, 'world.战斗.进行中', false)) throw new Error('战斗进行中，请在战斗模块内施展该技能。');
+        const charData = deepGet(statData, ['char', charKey], null);
+        if (!charData || typeof charData !== 'object') throw new Error('未找到施法角色。');
+        const skill = deepGet(statData, safePath, null);
+        if (!skill || typeof skill !== 'object') throw new Error('未找到目标技能。');
+        skillName = toText(skill['魂技名'] || skill.name || safePath[safePath.length - 1], '造物技能');
+        const createEffects = this.getConstructCreateEffects(skill);
+        if (!createEffects.length) throw new Error('当前技能不是可日常施展的造物类技能。');
+        if (!charData.属性 || typeof charData.属性 !== 'object') charData.属性 = {};
+        if (!charData.背包 || typeof charData.背包 !== 'object' || Array.isArray(charData.背包)) charData.背包 = {};
+        const systemBase = this.getSkillSystemBase(skill);
+        costText = toText(systemBase['消耗'], '无');
+        const parsedCost = this.parseDailySkillCost(costText, charData.属性);
+        if (!parsedCost.canCast) {
+          throw new Error(`资源不足，施展【${skillName}】需要 ${parsedCost.reqSp ? `魂力:${parsedCost.reqSp} ` : ''}${parsedCost.reqVit ? `体力:${parsedCost.reqVit} ` : ''}${parsedCost.reqMen ? `精神力:${parsedCost.reqMen}` : ''}`.trim());
+        }
+        charData.属性.魂力 = Math.max(0, toNumber(charData.属性.魂力, 0) - parsedCost.reqSp);
+        charData.属性.体力 = Math.max(0, toNumber(charData.属性.体力, 0) - parsedCost.reqVit);
+        charData.属性.精神力 = Math.max(0, toNumber(charData.属性.精神力, 0) - parsedCost.reqMen);
+
+        const currentTick = Math.max(0, toNumber(deepGet(statData, 'world.时间.tick', 0), 0));
+        producedItems = [];
+        createEffects.forEach(effect => {
+          const { itemName, itemValue } = this.buildConstructInventoryValue(skill, effect, currentTick);
+          const existing = charData.背包[itemName] && typeof charData.背包[itemName] === 'object'
+            ? charData.背包[itemName]
+            : null;
+          if (existing) {
+            existing.数量 = Math.max(1, toNumber(existing.数量, 1) + toNumber(itemValue.数量, 1));
+            Object.assign(existing, { ...itemValue, 数量: existing.数量 });
+          } else {
+            charData.背包[itemName] = cloneJsonValue(itemValue, {});
+          }
+          producedItems.push(`${itemName}×${toNumber(itemValue.数量, 1)}`);
+        });
+
+        if (!statData.sys || typeof statData.sys !== 'object') statData.sys = {};
+        const costParts = [
+          parsedCost.reqSp ? `魂力:${parsedCost.reqSp}` : '',
+          parsedCost.reqVit ? `体力:${parsedCost.reqVit}` : '',
+          parsedCost.reqMen ? `精神力:${parsedCost.reqMen}` : '',
+        ].filter(Boolean).join(' ');
+        statData.sys.系统播报 = `[日常施展] ${charKey}施展【${skillName}】并生成 ${producedItems.join('，')}。${costParts ? ` 扣除 ${costParts}。` : ''}`;
+      }, { force: true });
+      window.MVU_Toast.show(`已施展【${skillName}】`, 'info');
+      await refreshLiveSnapshot({ force: true });
+      const request = buildConstructSkillUseRequest(liveSnapshot, { charKey, skillName, producedItems, costText });
+      if (request) {
+        await dispatchUiAiRequest(request.playerInput, request.systemPrompt, { requestKind: request.requestKind });
+      }
+    } catch (error) {
+      window.MVU_Toast.show(error && error.message ? error.message : '施展造物技能失败。', 'error');
+    }
+  },
+
   parseEquipSlot(name, data) {
     const tName = name || '';
     // 匹配斗铠部件
@@ -20298,4 +21710,5 @@ window.EquipmentManager = {
   
 window.mvuSetMainTabExternal = setMainTab;
 window.mvuSetMainTab = setMainTab;
+
 
