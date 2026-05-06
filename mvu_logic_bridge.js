@@ -9032,7 +9032,114 @@
     const SOUL_TOWER_MAX_AGE = 30;
     const SOUL_TOWER_TEAM_LIMIT = 7;
     const SOUL_TOWER_MAX_AGE_GAP = 3;
-    const SOUL_TOWER_GATE_SPAN = 10;
+    const SOUL_TOWER_TOTAL_FLOORS = 108;
+    const SOUL_TOWER_DISCOUNT_STORE_NAME = '魂灵塔特许兑换';
+    const SOUL_TOWER_LAYER_RULES = Object.freeze([
+      Object.freeze({
+        key: 'thousand',
+        label: '千年魂灵区',
+        rewardTier: '千年',
+        gateStart: 1,
+        gateEnd: 18,
+        minAge: 1000,
+        maxAge: 9999,
+        qualitySteps: Object.freeze(['C', 'B', 'A']),
+      }),
+      Object.freeze({
+        key: 'ten_thousand',
+        label: '万年魂灵区',
+        rewardTier: '万年',
+        gateStart: 19,
+        gateEnd: 36,
+        minAge: 10000,
+        maxAge: 99999,
+        qualitySteps: Object.freeze(['B', 'A', 'S']),
+      }),
+      Object.freeze({
+        key: 'pre_beast',
+        label: '万年以上魂灵区',
+        rewardTier: '万年以上',
+        gateStart: 37,
+        gateEnd: 99,
+        minAge: 10000,
+        maxAge: 99999,
+        qualitySteps: Object.freeze(['A', 'S']),
+      }),
+      Object.freeze({
+        key: 'beast',
+        label: '凶兽魂灵区',
+        rewardTier: '凶兽级',
+        gateStart: 100,
+        gateEnd: 108,
+        minAge: 100000,
+        maxAge: 200000,
+        qualitySteps: Object.freeze(['S+']),
+      }),
+    ]);
+    const SOUL_SPIRIT_QUALITY_VALUES = Object.freeze(['F', 'D', 'C', 'B', 'A', 'S', 'S+']);
+    const SOUL_SPIRIT_QUALITY_MULTIPLIER_MAP = Object.freeze({
+      F: 0.82,
+      D: 0.9,
+      C: 1.0,
+      B: 1.08,
+      A: 1.18,
+      S: 1.32,
+      'S+': 1.48,
+    });
+    const SOUL_SPIRIT_QUALITY_LEVEL_OFFSET_MAP = Object.freeze({
+      F: -6,
+      D: -3,
+      C: 0,
+      B: 2,
+      A: 5,
+      S: 8,
+      'S+': 12,
+    });
+
+    function normalizeSoulSpiritQuality(value = '') {
+      const text = toText(value, '')
+        .toUpperCase()
+        .replace('＋', '+')
+        .replace(/\s+/g, '');
+      return SOUL_SPIRIT_QUALITY_VALUES.includes(text) ? text : '';
+    }
+
+    function createEmptySoulTowerDiscountSpiritRecord() {
+      return {
+        层数: 0,
+        名称: '',
+        标准物种: '',
+        年限: 0,
+        品质: '',
+        已使用: false,
+      };
+    }
+
+    function normalizeSoulTowerDiscountSpiritRecord(record = {}) {
+      if (!record || typeof record !== 'object' || Array.isArray(record)) return createEmptySoulTowerDiscountSpiritRecord();
+      const next = createEmptySoulTowerDiscountSpiritRecord();
+      next.层数 = Math.max(0, Math.floor(toNumber(record.层数, 0)));
+      next.名称 = toText(record.名称, '');
+      next.标准物种 = toText(record.标准物种, '');
+      next.年限 = Math.max(0, Math.floor(toNumber(record.年限, 0)));
+      next.品质 = normalizeSoulSpiritQuality(record.品质 || '');
+      next.已使用 = record.已使用 === true;
+      if (!(next.层数 > 0 && next.标准物种 && next.年限 > 0 && next.品质 && next.已使用 === false)) {
+        return createEmptySoulTowerDiscountSpiritRecord();
+      }
+      if (!next.名称) next.名称 = `${next.标准物种}魂灵`;
+      return next;
+    }
+
+    function hasActiveSoulTowerDiscountSpirit(record = {}) {
+      return normalizeSoulTowerDiscountSpiritRecord(record).层数 > 0;
+    }
+
+    function buildSoulTowerDiscountSpiritDisplay(record = {}) {
+      const normalized = normalizeSoulTowerDiscountSpiritRecord(record);
+      if (!(normalized.层数 > 0)) return '暂无';
+      return `第${normalized.层数}层 · ${normalized.标准物种} · ${formatAge(normalized.年限)} · ${normalized.品质}`;
+    }
 
     function getSoulTowerAgeValueFromCharacter(charData = {}) {
       return getPrivateArchiveAgeValue(deepGet(charData, '属性.年龄', null));
@@ -9050,29 +9157,32 @@
 
     function getSoulTowerGateMeta(floor = 0) {
       const safeFloor = Math.max(1, Math.floor(Number(floor) || 1));
-      const gateIndex = Math.floor((safeFloor - 1) / SOUL_TOWER_GATE_SPAN) + 1;
-      const gateStart = (gateIndex - 1) * SOUL_TOWER_GATE_SPAN + 1;
-      const gateEnd = gateStart + SOUL_TOWER_GATE_SPAN - 1;
-      const layerInGate = safeFloor - gateStart + 1;
-      const isGateBoss = layerInGate === SOUL_TOWER_GATE_SPAN;
-      const nextGateBossFloor = gateEnd;
-      const rewardTier =
-        gateIndex >= 5 ? '十万年'
-          : gateIndex === 4 ? '万年'
-            : gateIndex === 3 ? '千年'
-              : gateIndex === 2 ? '百年'
-                : '十年';
+      const rule =
+        SOUL_TOWER_LAYER_RULES.find(item => safeFloor >= item.gateStart && safeFloor <= item.gateEnd) ||
+        SOUL_TOWER_LAYER_RULES[SOUL_TOWER_LAYER_RULES.length - 1];
+      const layerInGate = safeFloor - rule.gateStart + 1;
+      const gateIndex = SOUL_TOWER_LAYER_RULES.findIndex(item => item.key === rule.key) + 1;
+      const isGateBoss = safeFloor === rule.gateEnd;
+      const nextGateBossFloor = rule.gateEnd;
+      const layerProgress = rule.gateEnd > rule.gateStart ? (safeFloor - rule.gateStart) / (rule.gateEnd - rule.gateStart) : 1;
       return {
         floor: safeFloor,
         gateIndex,
-        gateStart,
-        gateEnd,
+        gateStart: rule.gateStart,
+        gateEnd: rule.gateEnd,
         layerInGate,
         isGateBoss,
-        gateLabel: `第${gateIndex}大关`,
-        gateRangeLabel: `${gateStart}-${gateEnd}层`,
+        gateLabel: rule.label,
+        gateRangeLabel: `${rule.gateStart}-${rule.gateEnd}层`,
         nextGateBossFloor,
-        rewardTier,
+        rewardTier: rule.rewardTier,
+        layerProgress,
+        minAge: rule.minAge,
+        maxAge: rule.maxAge,
+        qualitySteps: rule.qualitySteps,
+        isTopNine: safeFloor >= 100,
+        totalFloors: SOUL_TOWER_TOTAL_FLOORS,
+        key: rule.key,
       };
     }
 
@@ -9087,7 +9197,68 @@
       const safeHighestFloor = Math.max(0, Math.floor(Number(highestFloor) || 0));
       const nextFloor = Math.max(1, safeHighestFloor + 1);
       const meta = getSoulTowerGateMeta(nextFloor);
+      if (safeHighestFloor >= SOUL_TOWER_TOTAL_FLOORS) return '已登顶';
       return `${meta.nextGateBossFloor}层`;
+    }
+
+    function getSoulTowerGuardianQualityForFloor(floor = 1) {
+      const meta = getSoulTowerGateMeta(floor);
+      const steps = Array.isArray(meta.qualitySteps) && meta.qualitySteps.length ? meta.qualitySteps : ['C'];
+      if (steps.length === 1) return steps[0];
+      const progress = Math.max(0, Math.min(1, Number(meta.layerProgress || 0)));
+      const index = Math.min(steps.length - 1, Math.floor(progress * steps.length));
+      return steps[index] || steps[steps.length - 1];
+    }
+
+    function buildSoulTowerGuardianAgeForFloor(floor = 1, rng = Math.random) {
+      const meta = getSoulTowerGateMeta(floor);
+      const minAge = Math.max(1, Math.floor(Number(meta.minAge || 1)));
+      const maxAge = Math.max(minAge, Math.floor(Number(meta.maxAge || minAge)));
+      if (meta.isGateBoss) return maxAge;
+      const gateLength = Math.max(1, meta.gateEnd - meta.gateStart);
+      const progress = Math.max(0, Math.min(1, Number(meta.layerProgress || 0)));
+      const anchor = minAge + Math.round((maxAge - minAge) * progress);
+      const bucket = Math.max(1, Math.floor((maxAge - minAge) / Math.max(2, gateLength + 1)));
+      const variance = Math.max(0, Math.floor(bucket * 0.45));
+      const offset = variance > 0 ? pickTemporaryBattleInt(-variance, variance, rng) : 0;
+      return Math.max(minAge, Math.min(maxAge, anchor + offset));
+    }
+
+    function buildSoulTowerGuardianSeed(floor = 1, options = {}) {
+      const safeFloor = Math.max(1, Math.floor(toNumber(floor, 1)));
+      const rng = typeof options.rng === 'function' ? options.rng : Math.random;
+      const speciesPool =
+        Array.isArray(options.speciesPool) && options.speciesPool.length ? options.speciesPool : BATTLE_SOUL_BEAST_STANDARD_SPECIES;
+      const species = toText(options.species, pickTemporaryBattleItem(speciesPool, rng) || '龙类') || '龙类';
+      const age = Math.max(1, Math.floor(toNumber(options.age, buildSoulTowerGuardianAgeForFloor(safeFloor, rng))));
+      const quality = normalizeSoulSpiritQuality(options.品质 || options.quality || getSoulTowerGuardianQualityForFloor(safeFloor)) || 'C';
+      const name = toText(options.name, `${species}守塔魂兽`) || `${species}守塔魂兽`;
+      return {
+        name,
+        名称: name,
+        来源: '临时单位',
+        单位性质: '魂兽',
+        数量: 1,
+        标准物种: species,
+        年限: age,
+        品质: quality,
+      };
+    }
+
+    function buildSoulTowerDiscountSpiritRecordFromSeed(floor = 1, seed = {}) {
+      const safeFloor = Math.max(1, Math.floor(toNumber(floor, 1)));
+      const species = toText(seed.标准物种, '');
+      const age = Math.max(0, Math.floor(toNumber(seed.年限, 0)));
+      const quality = normalizeSoulSpiritQuality(seed.品质 || '');
+      if (!(species && age > 0 && quality)) return createEmptySoulTowerDiscountSpiritRecord();
+      return {
+        层数: safeFloor,
+        名称: `${species}魂灵`,
+        标准物种: species,
+        年限: age,
+        品质: quality,
+        已使用: false,
+      };
     }
 
     function buildSoulTowerTeamValidationResult(members = []) {
@@ -9111,7 +9282,7 @@
         count: safeMembers.length,
         minAge,
         maxAge,
-        gateSpan: SOUL_TOWER_GATE_SPAN,
+        totalFloors: SOUL_TOWER_TOTAL_FLOORS,
       };
     }
 
@@ -15325,9 +15496,9 @@
         const activeChar = getActiveSnapshotCharacter(snapshot);
         const soulTowerEligible = isSoulTowerEligibleCharacterData(activeChar);
         const towerPath = soulTowerEligible && activeCharKey ? ['char', activeCharKey, '魂灵塔记录'] : [];
-        const towerDiscountEntries = soulTowerEligible
-          ? safeEntries(deepGet(snapshot, 'activeChar.魂灵塔记录.折扣资格', {})).filter(([, value]) => !!value)
-          : [];
+        const towerDiscountSpirit = soulTowerEligible
+          ? normalizeSoulTowerDiscountSpiritRecord(deepGet(snapshot, 'activeChar.魂灵塔记录.当前五折魂灵', {}))
+          : createEmptySoulTowerDiscountSpiritRecord();
         const ascensionTicketCount = (snapshot.inventoryEntries || [])
           .filter(([name]) => /升灵台/.test(toText(name, '')))
           .reduce((sum, [, item]) => sum + Math.max(0, toNumber(item && item['数量'], 0)), 0);
@@ -15370,13 +15541,10 @@
                             })
                           : htmlEscape(String(toNumber(deepGet(snapshot, 'activeChar.魂灵塔记录.最高层', 0), 0))),
                       }, {
-                        label: '可用折扣层',
-                        value: towerDiscountEntries.length ? `${towerDiscountEntries.length}` : '0',
+                        label: '当前分区',
+                        value: towerStageText,
                       }, {
-                        label: '当前大关',
-                        value: towerGateText,
-                      }, {
-                        label: '下一关底',
+                        label: '下个区间上限',
                         value: towerNextBossText,
                       }]
                     : []),
@@ -15387,13 +15555,15 @@
               </div>
 
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">${soulTowerEligible ? '试炼票据与折扣' : '试炼票据'}</div></div>
+                <div class="archive-card-head"><div class="archive-card-title">${soulTowerEligible ? '试炼票据与当前资格' : '试炼票据'}</div></div>
                 <div class="intel-layout" style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px;">
                   ${ticketCards.map(item => `<div class="intel-card" style="min-height:116px;"><b>${htmlEscape(item.title)}</b><span>${htmlEscape(item.desc)}</span></div>`).join('')}
                 </div>
                 ${soulTowerEligible ? `
                   <div style="margin-top:12px;">
-                    ${makeTimelineStack(towerDiscountEntries.length ? towerDiscountEntries.slice(0, 10).map(([floor]) => ({ title: `${floor} 层`, desc: '五折资格未使用' })) : [{ title: '暂无折扣资格', desc: '当前未记录可用五折层。' }])}
+                    ${makeTimelineStack(hasActiveSoulTowerDiscountSpirit(towerDiscountSpirit)
+                      ? [{ title: '当前可五折魂灵', desc: `${buildSoulTowerDiscountSpiritDisplay(towerDiscountSpirit)} · 前往传灵塔后可半价购买` }]
+                      : [{ title: '暂无折扣资格', desc: '当前未记录可用的魂灵塔五折目标。' }])}
                   </div>
                 ` : ''}
               </div>
@@ -16374,22 +16544,26 @@
           }
         }
         if (!charData['魂灵塔记录'] || typeof charData['魂灵塔记录'] !== 'object') {
-          deepSetMutable(statData, ['char', safeCharKey, '魂灵塔记录'], { 最高层: 0, 折扣资格: {} });
+          deepSetMutable(statData, ['char', safeCharKey, '魂灵塔记录'], {
+            最高层: 0,
+            当前五折魂灵: createEmptySoulTowerDiscountSpiritRecord(),
+          });
         }
         const towerRecord = deepGet(statData, ['char', safeCharKey, '魂灵塔记录'], {});
-        if (!towerRecord['折扣资格'] || typeof towerRecord['折扣资格'] !== 'object') towerRecord['折扣资格'] = {};
+        towerRecord['当前五折魂灵'] = normalizeSoulTowerDiscountSpiritRecord(towerRecord['当前五折魂灵']);
 
         const oldMaxFloor = Math.max(0, Math.floor(toNumber(towerRecord['最高层'], 0)));
         const newMaxFloor = Math.max(oldMaxFloor, clearedFloor);
         towerRecord['最高层'] = newMaxFloor;
-        for (let floor = oldMaxFloor + 1; floor <= clearedFloor; floor += 1) {
-          towerRecord['折扣资格'][String(floor)] = true;
-        }
+        towerRecord['当前五折魂灵'] = buildSoulTowerDiscountSpiritRecordFromSeed(
+          clearedFloor,
+          buildSoulTowerGuardianSeed(clearedFloor),
+        );
 
         if (!statData.sys || typeof statData.sys !== 'object') statData.sys = {};
         statData.sys.系统播报 = clearedFloor > oldMaxFloor
-          ? `[魂灵塔] ${safeCharKey} 本次${actionText}达到${gateMeta.gateLabel}第 ${clearedFloor} 层，刷新历史最高层数（${oldMaxFloor} -> ${newMaxFloor}），并解锁对应层数的五折资格。`
-          : `[魂灵塔] ${safeCharKey} 本次${actionText}达到${gateMeta.gateLabel}第 ${clearedFloor} 层，未刷新历史最高层数（当前最高 ${oldMaxFloor} 层）。`;
+          ? `[魂灵塔] ${safeCharKey} 本次${actionText}达到${gateMeta.gateLabel}第 ${clearedFloor} 层，刷新历史最高层数（${oldMaxFloor} -> ${newMaxFloor}），并更新当前五折目标为 ${buildSoulTowerDiscountSpiritDisplay(towerRecord['当前五折魂灵'])}。`
+          : `[魂灵塔] ${safeCharKey} 本次${actionText}达到${gateMeta.gateLabel}第 ${clearedFloor} 层，未刷新历史最高层数（当前最高 ${oldMaxFloor} 层），当前五折目标更新为 ${buildSoulTowerDiscountSpiritDisplay(towerRecord['当前五折魂灵'])}。`;
       });
       if (blockedMessage) throw new Error(blockedMessage);
     }
@@ -16829,6 +17003,16 @@ ${mvuUpdate}`;
         const storeNames = Object.keys(storeMap || {});
         if (storeNames.length === 1) preferredStore = storeNames[0];
       }
+      const currentDiscountSpirit = normalizeSoulTowerDiscountSpiritRecord(
+        deepGet(snapshot, 'activeChar.魂灵塔记录.当前五折魂灵', {}),
+      );
+      if (
+        initialTab === 'tab-shop' &&
+        !preferredStore &&
+        hasActiveSoulTowerDiscountSpirit(currentDiscountSpirit)
+      ) {
+        preferredStore = SOUL_TOWER_DISCOUNT_STORE_NAME;
+      }
 
       return {
         initialTab,
@@ -16909,6 +17093,7 @@ ${mvuUpdate}`;
                     </div>
                     <div class="action-filters" id="ui-action-filters"></div>
                     <div class="action-grid" id="ui-action-grid"></div>
+                    <div class="tower-settlement-panel" id="ui-tower-settlement" hidden></div>
                     <textarea id="ui-intent-output" hidden></textarea>
                   </div>
                 </div>
@@ -17381,13 +17566,15 @@ ${mvuUpdate}`;
       return safeStats;
     }
 
-    function getTemporarySoulBeastStats(age = 1, species = '') {
+    function getTemporarySoulBeastStats(age = 1, species = '', quality = '') {
       let level = 1;
       if (age >= 100000) level = 90 + Math.floor((age - 100000) / 100000);
       else if (age >= 10000) level = 50 + Math.floor((age - 10000) / 2250);
       else if (age >= 1000) level = 30 + Math.floor((age - 1000) / 450);
       else if (age >= 100) level = 10 + Math.floor((age - 100) / 45);
       else level = Math.max(1, Math.floor(age / 10));
+      const qualityKey = normalizeSoulSpiritQuality(quality);
+      level = Math.max(1, level + Number(SOUL_SPIRIT_QUALITY_LEVEL_OFFSET_MAP[qualityKey] || 0));
       const base = getTemporaryBattleBaseStats(level);
       const mult = {
         龙类: { str: 1.5, vit_max: 1.5, def: 1.3, agi: 0.9 },
@@ -17399,14 +17586,15 @@ ${mvuUpdate}`;
         猫科: { agi: 1.5, str: 1.2, def: 0.9 },
         蛇类: { agi: 1.4, str: 1.0, def: 0.9, men_max: 1.1 },
       }[species] || { str: 1.0, def: 1.0, agi: 1.0, vit_max: 1.0, men_max: 1.0, sp_max: 1.0 };
+      const qualityMult = Number(SOUL_SPIRIT_QUALITY_MULTIPLIER_MAP[qualityKey] || 1);
       return {
         对标等级: level,
-        str: Math.floor(base.str * (mult.str || 1)),
-        def: Math.floor(base.def * (mult.def || 1)),
-        agi: Math.floor(base.agi * (mult.agi || 1)),
-        vit_max: Math.floor(base.vit_max * (mult.vit_max || 1)),
-        men_max: Math.floor(base.men_max * (mult.men_max || 1)),
-        sp_max: Math.floor(base.sp_max * (mult.sp_max || 1)),
+        str: Math.floor(base.str * (mult.str || 1) * qualityMult),
+        def: Math.floor(base.def * (mult.def || 1) * qualityMult),
+        agi: Math.floor(base.agi * (mult.agi || 1) * qualityMult),
+        vit_max: Math.floor(base.vit_max * (mult.vit_max || 1) * qualityMult),
+        men_max: Math.floor(base.men_max * (mult.men_max || 1) * qualityMult),
+        sp_max: Math.floor(base.sp_max * (mult.sp_max || 1) * qualityMult),
       };
     }
 
@@ -17540,12 +17728,14 @@ ${mvuUpdate}`;
       const species = String(seed?.标准物种 || '').trim();
       const age = Math.max(1, Math.floor(Number(seed?.年限 || 1)));
       const quantity = Math.max(1, Math.floor(Number(seed?.数量 || 1)));
-      const stats = getTemporarySoulBeastStats(age, species);
+      const quality = normalizeSoulSpiritQuality(seed?.品质 || '');
+      const stats = getTemporarySoulBeastStats(age, species, quality);
       const combatType = inferTemporarySoulBeastCombatType(species, stats);
       const next = buildTemporaryBattleSkeleton(unitName, '魂兽');
       next.数量 = quantity;
       next.年限 = age;
       next.标准物种 = species;
+      if (quality) next.品质 = quality;
       next.属性.年龄 = age;
       next.属性.等级 = Number(stats.对标等级 || 1);
       next.属性.系别 = combatType;
@@ -17694,6 +17884,9 @@ ${mvuUpdate}`;
         }
         normalized.年限 = Math.max(1, Math.floor(toNumber(normalized.年限, 1)));
         normalized.标准物种 = species;
+        const quality = normalizeSoulSpiritQuality(normalized.品质 || '');
+        if (normalized.品质 !== undefined && !quality) return { ok: false, reason: `${role}_seed_invalid_quality` };
+        if (quality) normalized.品质 = quality;
       } else if (unitNature === '深渊') {
         const tier = toText(normalized.级别, '');
         const race = toText(normalized.标准种族, '');
@@ -17742,6 +17935,9 @@ ${mvuUpdate}`;
       const playerChar = buildCombatParticipantFromSnapshotChar(snapshot, activeKey, '己方');
       if (!playerChar) return { ok: false, reason: 'player_context_unresolved' };
       const soulTowerCombat = isSoulTowerCombatType(detail);
+      const activeChar = getActiveSnapshotCharacter(snapshot);
+      const defaultSoulTowerFloor = Math.max(1, toNumber(deepGet(activeChar, '魂灵塔记录.最高层', 0), 0) + 1);
+      const soulTowerFloor = soulTowerCombat ? Math.max(1, Math.floor(toNumber(detail.floor, defaultSoulTowerFloor))) : 0;
 
       if (!detailParticipants) {
         if (soulTowerCombat) {
@@ -17750,14 +17946,26 @@ ${mvuUpdate}`;
         }
         const npcTarget = toText(detail.npcTarget, '');
         const targetKey = resolveSnapshotCharKey(snapshot, npcTarget);
-        if (!targetKey) return { ok: false, reason: 'combat_context_unresolved' };
-        const enemyChar = buildCombatParticipantFromSnapshotChar(snapshot, targetKey, '敌对');
-        if (!enemyChar) return { ok: false, reason: 'combat_context_unresolved' };
+        if (targetKey) {
+          const enemyChar = buildCombatParticipantFromSnapshotChar(snapshot, targetKey, '敌对');
+          if (!enemyChar) return { ok: false, reason: 'combat_context_unresolved' };
+          return {
+            ok: true,
+            participants: {
+              player: playerChar,
+              enemy: enemyChar,
+              team_player: [],
+              team_enemy: []
+            }
+          };
+        }
+        if (!soulTowerCombat) return { ok: false, reason: 'combat_context_unresolved' };
+        const guardianSeed = buildSoulTowerGuardianSeed(soulTowerFloor);
         return {
           ok: true,
           participants: {
             player: playerChar,
-            enemy: enemyChar,
+            enemy: guardianSeed,
             team_player: [],
             team_enemy: []
           }
@@ -17847,6 +18055,7 @@ ${mvuUpdate}`;
         '数量',
         '等级',
         '年限',
+        '品质',
         '标准物种',
         '级别',
         '标准种族',
@@ -18043,11 +18252,24 @@ ${mvuUpdate}`;
       const playerName = toText(combatData.参战者.player.name, '玩家');
       const enemyName = toText(combatData.参战者.enemy.name, '对手');
       const compactCombatData = compactCombatDataForWorldStorage(snapshot, combatData);
+      const towerResetPatches = [];
+      if (combatData.战斗类型 === '魂灵塔冲塔') {
+        const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
+        const currentDiscount = normalizeSoulTowerDiscountSpiritRecord(deepGet(snapshot, 'activeChar.魂灵塔记录.当前五折魂灵', {}));
+        if (activeCharKey && currentDiscount.层数 > 0) {
+          towerResetPatches.push({
+            op: 'replace',
+            path: `/char/${escapeJsonPointerSegment(activeCharKey)}/魂灵塔记录/当前五折魂灵`,
+            value: createEmptySoulTowerDiscountSpiritRecord(),
+          });
+        }
+      }
       const soulTowerText = combatData.战斗类型 === '魂灵塔冲塔'
         ? ` ${toText(combatData.大关标签, '魂灵塔')} 第${toNumber(combatData.floor, 1)}层`
         : '';
       battleInlineDismissed = false;
       await applyJsonPatchOpsByEditor([
+        ...towerResetPatches,
         { op: 'replace', path: '/world/战斗', value: compactCombatData },
         { op: 'replace', path: '/sys/系统播报', value: `[战斗模块] ${playerName} 向 ${enemyName} 发起${combatData.战斗类型 === '魂灵塔冲塔' ? `魂灵塔挑战${soulTowerText}` : '切磋'}，战斗模块已接管。` }
       ]);

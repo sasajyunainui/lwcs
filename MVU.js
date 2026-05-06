@@ -387,6 +387,41 @@ function getRingColorByAge(age) {
 
 const SOUL_TOWER_MAX_AGE = 30;
 
+function createEmptySoulTowerDiscountSpiritRecord() {
+  return {
+    层数: 0,
+    名称: '',
+    标准物种: '',
+    年限: 0,
+    品质: '',
+    已使用: false,
+  };
+}
+
+function normalizeSoulTowerDiscountSpiritRecord(record = {}) {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) {
+    return createEmptySoulTowerDiscountSpiritRecord();
+  }
+  const next = createEmptySoulTowerDiscountSpiritRecord();
+  next.层数 = Math.max(0, Math.floor(Number(record.层数 || 0)));
+  next.名称 = String(record.名称 || '').trim();
+  next.标准物种 = String(record.标准物种 || '').trim();
+  next.年限 = Math.max(0, Math.floor(Number(record.年限 || 0)));
+  next.品质 = normalizeSoulSpiritQuality(record.品质 || '');
+  next.已使用 = record.已使用 === true;
+  if (!(next.层数 > 0 && next.标准物种 && next.年限 > 0 && next.品质 && next.已使用 === false)) {
+    return createEmptySoulTowerDiscountSpiritRecord();
+  }
+  if (!next.名称) next.名称 = `${next.标准物种}魂灵`;
+  return next;
+}
+
+function formatSoulTowerDiscountSpiritSummary(record = {}) {
+  const normalized = normalizeSoulTowerDiscountSpiritRecord(record);
+  if (!(normalized.层数 > 0)) return '无';
+  return `第${normalized.层数}层 ${normalized.标准物种} ${normalized.年限}年 ${normalized.品质}`;
+}
+
 function getCharacterAgeNumber(char = {}) {
   const rawAge = char?.属性?.年龄;
   if (typeof rawAge === 'number') return Number.isFinite(rawAge) ? rawAge : NaN;
@@ -410,13 +445,11 @@ function syncSoulTowerRecordEligibility(char = {}) {
     return;
   }
   if (!char.魂灵塔记录 || typeof char.魂灵塔记录 !== 'object' || Array.isArray(char.魂灵塔记录)) {
-    char.魂灵塔记录 = { 最高层: 0, 折扣资格: {} };
+    char.魂灵塔记录 = { 最高层: 0, 当前五折魂灵: createEmptySoulTowerDiscountSpiritRecord() };
     return;
   }
-  if (!char.魂灵塔记录.折扣资格 || typeof char.魂灵塔记录.折扣资格 !== 'object' || Array.isArray(char.魂灵塔记录.折扣资格)) {
-    char.魂灵塔记录.折扣资格 = {};
-  }
   char.魂灵塔记录.最高层 = Math.max(0, Math.floor(Number(char.魂灵塔记录.最高层 || 0)));
+  char.魂灵塔记录.当前五折魂灵 = normalizeSoulTowerDiscountSpiritRecord(char.魂灵塔记录.当前五折魂灵);
 }
 
 function createDefaultRingSkillShell() {
@@ -7665,10 +7698,17 @@ const CharacterSchema = z
     魂灵塔记录: z
       .object({
         最高层: z.coerce.number().prefault(0).describe('历史最高通关层数'),
-        折扣资格: z
-          .record(z.string(), z.boolean().prefault(true))
+        当前五折魂灵: z
+          .object({
+            层数: z.coerce.number().prefault(0),
+            名称: z.string().prefault(''),
+            标准物种: z.string().prefault(''),
+            年限: z.coerce.number().prefault(0),
+            品质: z.string().prefault(''),
+            已使用: z.boolean().prefault(false),
+          })
           .prefault({})
-          .describe('各层五折购买资格，key为层数，true表示未使用'),
+          .describe('当前可用的魂灵塔五折购买资格，仅保留最新层的目标魂灵'),
       })
       .prefault({}),
 
@@ -10101,14 +10141,14 @@ export const Schema = z
         nextCoreIndex: 1,
         startLevel: 50,
         bottleneckLevel: 69,
-        baseAttemptChance: 0.01,
+        baseAttemptChance: 0.011,
         talentRatioMap: Object.freeze({
           劣等: 0.35,
           正常: 0.55,
           优秀: 0.78,
           天才: 1.0,
-          顶级天才: 3.0,
-          绝世妖孽: 3.4,
+          顶级天才: 2.9,
+          绝世妖孽: 3.2,
         }),
       }),
       Object.freeze({
@@ -10116,14 +10156,14 @@ export const Schema = z
         nextCoreIndex: 2,
         startLevel: 80,
         bottleneckLevel: 89,
-        baseAttemptChance: 0.03,
+        baseAttemptChance: 0.074,
         talentRatioMap: Object.freeze({
           劣等: 0.2,
           正常: 0.35,
           优秀: 0.55,
-          天才: 0.78,
-          顶级天才: 1.8,
-          绝世妖孽: 2.0,
+          天才: 1.06,
+          顶级天才: 1.4,
+          绝世妖孽: 1.55,
         }),
       }),
       Object.freeze({
@@ -10131,14 +10171,14 @@ export const Schema = z
         nextCoreIndex: 3,
         startLevel: 95,
         bottleneckLevel: 98,
-        baseAttemptChance: 0.007,
+        baseAttemptChance: 0.0052,
         talentRatioMap: Object.freeze({
           劣等: 0.18,
           正常: 0.32,
           优秀: 0.5,
           天才: 0.75,
-          顶级天才: 1.0,
-          绝世妖孽: 1.12,
+          顶级天才: 1.15,
+          绝世妖孽: 1.25,
         }),
       }),
     ]);
@@ -10202,15 +10242,33 @@ export const Schema = z
           正常: 1.0,
           劣等: 0.5,
         }[talent] || 1.0;
-      const realization = ageValue < 12 ? 0.25 : ageValue < 18 ? 0.65 : 1.0;
+      const realization = ageValue < 12
+        ? ({
+            劣等: 0.08,
+            正常: 0.15,
+            优秀: 0.22,
+            天才: 0.28,
+            顶级天才: 0.25,
+            绝世妖孽: 0.3,
+          }[talent] || 0.15)
+        : ageValue < 18
+          ? ({
+              劣等: 0.3,
+              正常: 0.45,
+              优秀: 0.6,
+              天才: 0.7,
+              顶级天才: 0.9,
+              绝世妖孽: 0.95,
+            }[talent] || 0.45)
+          : 1.0;
       return 1 + (rawTalentRate - 1) * realization;
     };
 
     const getMeditationYouthYieldMultiplier_ACU = char => {
       const ageValue = Math.max(0, Number(char?.属性?.年龄 || 0));
-      if (ageValue < 12) return 0.45;
-      if (ageValue < 18) return 0.95;
-      if (ageValue < 30) return 2.6;
+      if (ageValue < 12) return 0.43;
+      if (ageValue < 18) return 1.1;
+      if (ageValue < 30) return 2.7;
       return 1.0;
     };
 
@@ -10298,7 +10356,7 @@ export const Schema = z
       }
 
       if (normalizedActionMode === '冥想') {
-        const stageBaseRate = coreCount <= 0 ? 0.2 : coreCount === 1 ? 0.75 : coreCount === 2 ? 0.55 : 0.75;
+        const stageBaseRate = coreCount <= 0 ? 0.25 : coreCount === 1 ? 0.9 : coreCount === 2 ? 0.55 : 0.95;
         let baseGrowth = stageBaseRate * (safeDelta / 6);
         const talentCultRate = getMeditationTalentRealizationMultiplier_ACU(c);
         let finalGrowth = baseGrowth * talentCultRate;
@@ -10306,11 +10364,11 @@ export const Schema = z
         if (c.功法?.['玄天功']) finalGrowth *= 1.1;
 
         if (c.属性.等级 >= 20 && c.属性.等级 < 30) {
-          finalGrowth *= 0.8;
+          finalGrowth *= 1.0;
         } else if (c.属性.等级 >= 30 && c.属性.等级 < 40) {
           finalGrowth *= 1.0;
         } else if (c.属性.等级 >= 40 && c.属性.等级 < 60) {
-          finalGrowth *= 0.9;
+          finalGrowth *= 0.865;
         }
         finalGrowth *= getMeditationYouthYieldMultiplier_ACU(c);
         finalGrowth *= getMeditationAgeDecayMultiplier_ACU(c);
@@ -12964,9 +13022,7 @@ export const Schema = z
           ...(isSoulTowerEligibleCharacter(sourceChar)
             ? {
                 试炼最高层: Number(sourceChar.魂灵塔记录?.最高层 || 0),
-                试炼五折资格: Object.keys(sourceChar.魂灵塔记录?.折扣资格 || {}).filter(
-                  key => sourceChar.魂灵塔记录?.折扣资格?.[key],
-                ),
+                试炼当前五折魂灵: formatSoulTowerDiscountSpiritSummary(sourceChar.魂灵塔记录?.当前五折魂灵),
               }
             : {}),
           战斗记录摘要: battleHistorySummary,

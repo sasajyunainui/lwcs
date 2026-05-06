@@ -305,6 +305,25 @@ const HIDDEN_ARBITRATION_NARRATION_RULES = `
 鐜╁搴斿綋鐪嬪埌鐨勬槸缁忚繃淇グ鍚庣殑鍓ф儏鏂囨湰锛岃€屼笉鏄郴缁熻瀹氭棩蹇椼€?
 `.trim();
 
+const SOUL_TOWER_DISCOUNT_STORE_NAME = '魂灵塔特许兑换';
+const SOUL_TOWER_EMPTY_DISCOUNT_SPIRIT = Object.freeze({
+  层数: 0,
+  名称: '',
+  标准物种: '',
+  年限: 0,
+  品质: '',
+  已使用: false,
+});
+const SOUL_TOWER_QUALITY_PRICE_MULTIPLIER = Object.freeze({
+  F: 0.75,
+  D: 0.9,
+  C: 1.0,
+  B: 1.15,
+  A: 1.35,
+  S: 1.65,
+  'S+': 1.95,
+});
+
 class TradeUIComponent {
   constructor(container, snapshot, options = {}) {
     this.container = container;
@@ -852,6 +871,81 @@ class TradeUIComponent {
       String(logText || '').trim(),
       ...safeSections,
     ].filter(Boolean).join('\n\n');
+  }
+
+  normalizeSoulTowerDiscountSpiritRecord(record = {}) {
+    if (!record || typeof record !== 'object' || Array.isArray(record)) return { ...SOUL_TOWER_EMPTY_DISCOUNT_SPIRIT };
+    const next = { ...SOUL_TOWER_EMPTY_DISCOUNT_SPIRIT };
+    next.层数 = Math.max(0, Number(record.层数 || 0) | 0);
+    next.名称 = String(record.名称 || '').trim();
+    next.标准物种 = String(record.标准物种 || '').trim();
+    next.年限 = Math.max(0, Number(record.年限 || 0) | 0);
+    next.品质 = String(record.品质 || '').trim().toUpperCase().replace('＋', '+');
+    next.已使用 = record.已使用 === true;
+    if (!(next.层数 > 0 && next.标准物种 && next.年限 > 0 && next.品质 && next.已使用 === false)) {
+      return { ...SOUL_TOWER_EMPTY_DISCOUNT_SPIRIT };
+    }
+    if (!next.名称) next.名称 = `${next.标准物种}魂灵`;
+    return next;
+  }
+
+  hasActiveSoulTowerDiscountSpirit(record = {}) {
+    return this.normalizeSoulTowerDiscountSpiritRecord(record).层数 > 0;
+  }
+
+  getActiveSoulTowerDiscountSpirit() {
+    return this.normalizeSoulTowerDiscountSpiritRecord(this.charData?.魂灵塔记录?.当前五折魂灵 || {});
+  }
+
+  canAccessSoulTowerDiscountStore(location = '', currentCity = null) {
+    if (/传灵塔/.test(String(location || ''))) return true;
+    const stores = currentCity?.data?.商店;
+    return !!stores && Object.keys(stores).some(name => /传灵塔/.test(String(name || '')));
+  }
+
+  getSoulTowerDiscountBasePrice(age = 0) {
+    const safeAge = Math.max(0, Number(age || 0));
+    if (safeAge >= 100000) return 500000000;
+    if (safeAge >= 10000) return 100000000;
+    if (safeAge >= 1000) return this.worldData?.传灵塔千年魂灵开放 ? 6000000 : 20000000;
+    if (safeAge >= 100) return 1000000;
+    return 50000;
+  }
+
+  buildSoulTowerDiscountItemName(record = {}) {
+    const normalized = this.normalizeSoulTowerDiscountSpiritRecord(record);
+    if (!(normalized.层数 > 0)) return '';
+    return `${normalized.标准物种}魂灵·${normalized.年限}年·${normalized.品质}`;
+  }
+
+  buildSoulTowerDiscountStoreEntry() {
+    const record = this.getActiveSoulTowerDiscountSpirit();
+    if (!(record.层数 > 0)) return null;
+    const itemName = this.buildSoulTowerDiscountItemName(record);
+    if (!itemName) return null;
+    const basePrice = this.getSoulTowerDiscountBasePrice(record.年限);
+    const qualityMult = Number(SOUL_TOWER_QUALITY_PRICE_MULTIPLIER[record.品质] || 1);
+    const fullPrice = Math.max(1, Math.floor(basePrice * qualityMult));
+    const discountPrice = Math.max(1, Math.floor(fullPrice * 0.5));
+    return {
+      库存: {
+        [itemName]: {
+          价格: discountPrice,
+          原价: fullPrice,
+          货币: '联邦币',
+          类型: '魂灵',
+          库存: 1,
+          需求声望: 0,
+          触发方式: '购买',
+          描述: `魂灵塔第${record.层数}层守塔魂灵特许兑换，当前为五折价格。`,
+          标准物种: record.标准物种,
+          年限: record.年限,
+          品质: record.品质,
+          来源技能: SOUL_TOWER_DISCOUNT_STORE_NAME,
+          _tower_discount_virtual: true,
+        },
+      },
+    };
   }
 
   submitAction(playerInput, sysPrompt, requestKind, patchOps = []) {
