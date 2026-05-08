@@ -5103,7 +5103,7 @@
         path,
         label: toText(meta.label, '技能'),
         category: toText(meta.category, '技能'),
-        scope: toText(meta.scope, 'skill'),
+        scope: toText(meta.scope, '魂技'),
       };
       return `${SKILL_DESIGNER_PREVIEW_PREFIX}${encodeURIComponent(JSON.stringify(payload))}`;
     }
@@ -5117,7 +5117,7 @@
           path: Array.isArray(payload && payload.path) ? payload.path : [],
           label: toText(payload && payload.label, '技能'),
           category: toText(payload && payload.category, '技能'),
-          scope: toText(payload && payload.scope, 'skill'),
+          scope: toText(payload && payload.scope, '魂技'),
         };
       } catch (error) {
         return null;
@@ -5155,7 +5155,7 @@
 
     function formatSkillDesignerWritebackLabel(previewMeta = {}) {
       const path = Array.isArray(previewMeta && previewMeta.path) ? previewMeta.path : [];
-      const scope = toText(previewMeta && previewMeta.scope, 'skill');
+      const scope = toText(previewMeta && previewMeta.scope, '魂技');
       const label = toText(previewMeta && previewMeta.label, '').trim();
       if (scope === '魂技') {
         const ringMarkerIndex = path.findIndex(part => toText(part, '') === '魂环');
@@ -5172,7 +5172,7 @@
     }
 
     function resolveSkillDesignerTypeMeta(previewMeta = {}, fallbackType = '') {
-      const scope = toText(previewMeta && previewMeta.scope, 'skill');
+      const scope = toText(previewMeta && previewMeta.scope, '魂技');
       const category = toText(previewMeta && previewMeta.category, '技能');
       const normalizedFallback = normalizeSkillUiText(fallbackType, '');
       const path = Array.isArray(previewMeta && previewMeta.path) ? previewMeta.path : [];
@@ -5201,7 +5201,7 @@
     }
 
     function resolveSkillDesignerSourceCategory(previewMeta = {}) {
-      const scope = toText(previewMeta && previewMeta.scope, 'skill');
+      const scope = toText(previewMeta && previewMeta.scope, '魂技');
       if (scope === '武魂融合技') return '武魂融合技';
       if (scope === '自创魂技') return '自创魂技';
       if (scope === 'art') return '功法';
@@ -5210,7 +5210,7 @@
     }
 
     function getSkillDesignerScopeLabels(previewMeta = {}) {
-      const scope = toText(previewMeta && previewMeta.scope, 'skill');
+      const scope = toText(previewMeta && previewMeta.scope, '魂技');
       if (scope === 'art') {
         return {
           studioTitle: '功法设计台',
@@ -13007,7 +13007,7 @@
         };
       }
       if (String(previewKey || '').startsWith(SKILL_DESIGNER_PREVIEW_PREFIX)) {
-        const previewMeta = parseSkillDesignerPreviewKey(previewKey) || { path: [], label: '技能', category: '技能', scope: 'skill' };
+        const previewMeta = parseSkillDesignerPreviewKey(previewKey) || { path: [], label: '技能', category: '技能', scope: '魂技' };
         const skillSource = previewMeta.path.length ? (deepGet(snapshot.rootData, previewMeta.path, {}) || {}) : {};
         const cachedDesignerDraft = readCachedSkillDesignerDraft(previewKey);
         const rawDesignerDraft = cachedDesignerDraft || readSkillDesignerDraft(skillSource, previewMeta.label);
@@ -13855,12 +13855,28 @@
           : '';
         const fusionArchiveMeta = getFusionArchiveMeta(snapshot);
         const fusionArchiveEntry = buildFusionArchiveListItem(fusionArchiveMeta);
-        const archiveSkillEntries = (Array.isArray(snapshot.extraSkills) ? snapshot.extraSkills : [])
-          .filter(skill => toText(skill && skill.category, '') !== '武魂融合技')
+        const nonFusionSkillEntries = (Array.isArray(snapshot.extraSkills) ? snapshot.extraSkills : [])
+          .filter(skill => toText(skill && skill.category, '') !== '武魂融合技');
+        const artArchiveEntries = nonFusionSkillEntries
+          .filter(skill => /功法/.test(toText(skill && skill.category, '')))
           .map(skill => ({
             title: `${skill.category} - ${skill.name}`,
             desc: `${skill.level} ｜ ${skill.desc}`,
-            preview: /功法/.test(toText(skill.category, '')) ? '' : (skill.preview || '')
+            preview: ''
+          }));
+        const customSkillArchiveEntries = nonFusionSkillEntries
+          .filter(skill => toText(skill && skill.category, '') === '自创魂技')
+          .map(skill => ({
+            title: `${skill.category} - ${skill.name}`,
+            desc: `${skill.level} ｜ ${skill.desc}`,
+            preview: skill.preview || ''
+          }));
+        const bloodlineArchiveEntries = nonFusionSkillEntries
+          .filter(skill => /^血脉/.test(toText(skill && skill.category, '')))
+          .map(skill => ({
+            title: `${skill.category} - ${skill.name}`,
+            desc: `${skill.level} ｜ ${skill.desc}`,
+            preview: skill.preview || ''
           }));
         return {
           title: '详细档案',
@@ -14010,8 +14026,16 @@
                     ${makeDossierRows(trainedBonusItems, 'dossier-row-grid--three')}
                   </section>
                   <section class="dossier-section">
-                    <div class="dossier-section-title">功法与自创魂技</div>
-                    ${makeDossierList([fusionArchiveEntry, ...archiveSkillEntries], 'dossier-list--compact')}
+                    <div class="dossier-section-title">功法</div>
+                    ${makeDossierList(artArchiveEntries, 'dossier-list--compact') || '<div class="dossier-empty-note">暂无功法记录。</div>'}
+                  </section>
+                  <section class="dossier-section">
+                    <div class="dossier-section-title">自创魂技</div>
+                    ${makeDossierList(customSkillArchiveEntries, 'dossier-list--compact') || '<div class="dossier-empty-note">暂无自创魂技。</div>'}
+                  </section>
+                  <section class="dossier-section">
+                    <div class="dossier-section-title">血脉能力</div>
+                    ${makeDossierList(bloodlineArchiveEntries, 'dossier-list--compact') || '<div class="dossier-empty-note">暂无血脉能力。</div>'}
                   </section>
                 </div>
               </div>

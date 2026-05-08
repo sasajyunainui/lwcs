@@ -1617,12 +1617,14 @@ class BattleUIComponent {
       if (!name) return;
       const effects = Array.isArray(skill._效果数组) ? skill._效果数组 : [];
       const systemEffect = effects.find(effect => effect && typeof effect === 'object' && effect.cast_time !== undefined) || {};
+      const 技能来源 = String(systemEffect?.技能来源 || skill?.技能来源 || '').trim() || (category || '魂技');
       actions.push({
         id: `skill_${actions.length}_${name}`,
         name,
         type: 'skill',
         action_type: '释放魂技',
-        category: category || '魂技',
+        category: 技能来源,
+        source_detail: category || 技能来源,
         skill,
         raw_skill: skill,
         cast_time: fallbackNumber(skill.cast_time ?? systemEffect.cast_time, 10),
@@ -3430,6 +3432,10 @@ class BattleUIComponent {
       return getSkillRuntimeMeta(skill).目标模型;
     }
 
+    function getBattleSkillSourceCategory(skill) {
+      return String(getSkillRuntimeMeta(skill).技能来源 || '魂技').trim() || '魂技';
+    }
+
     function getPrimaryDamageEffect(skill) {
       return (
         getSkillEffects(skill).find(effect =>
@@ -3738,6 +3744,7 @@ class BattleUIComponent {
       const summary = { ...defaultSummary, ...(baseSummary || {}) };
       const systemBase = getSystemBaseEffect(skill);
       const runtimeMeta = getSkillRuntimeMeta(skill);
+      const 技能来源 = String(runtimeMeta.技能来源 || '魂技').trim() || '魂技';
       const damage = getPrimaryDamageEffect(skill);
       const state = getPrimaryStateEffect(skill);
       const stateCalc = state?.计算层效果 || {};
@@ -3766,6 +3773,9 @@ class BattleUIComponent {
           structureMode === '阴阳合璧' ||
           (structureMode === '元素硬控' && normalizeBattleSkillAttributeTokens(skill?.附带属性).length >= 3))
       )
+        summary.风险等级 = '高';
+      if (技能来源 === '武魂融合技') summary.风险等级 = '高';
+      else if (技能来源 === '自创魂技' && ['逆演归一', '阴阳合璧', '元素硬控'].includes(structureMode))
         summary.风险等级 = '高';
 
       if (!baseSummary?.目标规模 || baseSummary.目标规模 === defaultSummary.目标规模) {
@@ -3855,6 +3865,7 @@ class BattleUIComponent {
           summary.协同性 = '中';
         else summary.协同性 = '低';
       }
+      if (技能来源 === '武魂融合技' && summary.协同性 === '低') summary.协同性 = '高';
       if (!baseSummary?.生效方式 || baseSummary.生效方式 === defaultSummary.生效方式 || baseSummary.生效方式 === '无') {
         if (hintedEffectMode) summary.生效方式 = hintedEffectMode;
         else if (hasSkillMechanism(skill, ['受击反击', '格挡', '反制', '条件触发'])) summary.生效方式 = '触发';
@@ -3890,6 +3901,8 @@ class BattleUIComponent {
         if (/维持|启动\)/.test(costText)) reserve += 10;
         summary.保留倾向 = Math.min(90, reserve);
       }
+      if (技能来源 === '武魂融合技') summary.保留倾向 = Math.max(summary.保留倾向, 75);
+      else if (技能来源 === '自创魂技') summary.保留倾向 = Math.max(summary.保留倾向, 28);
       return summary;
     }
 
@@ -4288,6 +4301,7 @@ class BattleUIComponent {
       const normalized = deepClone(skill || {});
       normalized.name = normalized.name || normalized.技能名称 || fallbackName;
       normalized.魂技名 = normalized.魂技名 || normalized.name || normalized.技能名称 || fallbackName;
+      normalized.技能来源 = String(normalized.技能来源 || normalized.source_tag || '魂技').trim() || '魂技';
       normalized.战斗摘要 = { ...createEmptyBattleSummary(), ...(normalized.战斗摘要 || {}) };
       normalized.主定位 = normalized.主定位 || normalized.战斗语义?.主定位 || normalized.技能类型 || '无';
       normalized.标签 = Array.isArray(normalized.标签) ? normalized.标签 : [];
@@ -4318,6 +4332,7 @@ class BattleUIComponent {
 
       const existingSystemBase = getSystemBaseEffect(normalized);
       if (existingSystemBase && typeof existingSystemBase === 'object') {
+        existingSystemBase.技能来源 = String(existingSystemBase.技能来源 || normalized.技能来源 || normalized.source_tag || '魂技').trim() || '魂技';
         const runtimeTargetModel = normalizeBattleSkillTargetModel(
           existingSystemBase.目标模型 || existingSystemBase.对象 || normalized.对象 || explicitSemanticTarget || '敌方单体',
           '敌方单体',
@@ -4352,6 +4367,7 @@ class BattleUIComponent {
       if (!hasSystemBaseEffect) {
         normalized._效果数组.unshift({
           机制: '系统基础',
+          技能来源: normalized.技能来源 || normalized.source_tag || '魂技',
           消耗: '无',
           目标模型: normalizeBattleSkillTargetModel(normalized.对象 || explicitSemanticTarget || '敌方单体', '敌方单体'),
           目标修饰: deriveBattleSkillTargetModifiers(normalized, normalizeBattleSkillTargetModel(normalized.对象 || explicitSemanticTarget || '敌方单体', '敌方单体')),
@@ -4494,9 +4510,11 @@ class BattleUIComponent {
       const nextCastTime = Math.max(baseCastTime > 0 ? 1 : 0, Math.round(baseCastTime * Number(profile.castTimeScale || 1)));
 
       if (systemBase) {
+        systemBase.技能来源 = '武魂融合技';
         systemBase.消耗 = actorCostText;
         systemBase.cast_time = nextCastTime;
       }
+      skill.技能来源 = '武魂融合技';
       skill.消耗 = actorCostText;
       skill.cast_time = nextCastTime;
       skill.source_tag = '武魂融合技';
@@ -9794,22 +9812,27 @@ class BattleUIComponent {
           const defSkills = validSkills.filter(skill => {
             const skillType = getSkillType(skill);
             const mainType = inferMainTypeFromEffects(skill);
+            const summary = deriveBattleSummaryFromEffects(skill);
+            const 技能来源 = getBattleSkillSourceCategory(skill);
             return (
               skillType === '防御' ||
               mainType === '防御类' ||
               hasSkillAiRoleTag(skill, '保命型') ||
               hasSkillAiRoleTag(skill, '团队保护型') ||
-              hasSkillMechanism(skill, ['护盾', '减伤', '格挡', '霸体', '免死', '分身', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏']) ||
+              summary.防御性质 !== '无' ||
+              summary.回复性质 === '复苏' ||
+              (技能来源 === '武魂融合技' && ['防御', '辅助'].includes(skillType)) ||
               skillType === '控制'
             );
           });
           const atkSkills = validSkills.filter(skill => {
             const skillType = getSkillType(skill);
             const mainType = inferMainTypeFromEffects(skill);
+            const summary = deriveBattleSummaryFromEffects(skill);
             return (
               skillType === '输出' ||
               mainType === '伤害类' ||
-              hasSkillMechanism(skill, ['直接伤害', '多段伤害', '持续伤害', '延迟爆发', '斩杀补伤'])
+              summary.爆发级别 !== '无'
             );
           });
           const controlSkills = validSkills.filter(skill => {
@@ -9824,21 +9847,6 @@ class BattleUIComponent {
               summary.控制强度 === '硬控' ||
               summary.控制强度 === '软控' ||
               (skillTargetsEnemySide(skill) && hasSkillMechanismSemantic(skill, '敌对')) ||
-              hasSkillMechanism(skill, [
-                '硬控',
-                '催眠',
-                '幻境',
-                '标记锁定',
-                '打断',
-                '沉默',
-                '禁疗',
-                '减速',
-                '软控',
-                '位移限制',
-                '强制位移',
-                '位移交换',
-                '强制绑定/锁定',
-              ]) ||
               Number(calc.lock_level || 0) > 0 ||
               Number(calc.reaction_penalty || 0) > 0 ||
               Number(calc.cast_speed_penalty || 0) > 0 ||
@@ -11942,11 +11950,13 @@ class BattleUIComponent {
 
           availableSkills.forEach(skill => {
             const costParsed = parseSkillCostForChar(skill, charData);
+            const 技能来源 = String(getBattleSkillSourceCategory(skill) || skill.技能来源 || skill.source_tag || '魂技').trim() || '魂技';
             actions.push({
               id: `skill_${skill.name}`,
               type: 'skill',
               name: skill.name,
-              category: skill.source_tag || '魂技', // 核心修改：按来源分类
+              category: 技能来源,
+              source_detail: skill.source_tag || 技能来源,
               semantic_role: getSkillType(skill) || '输出',
               tags: skill.标签 || [],
               cast_time: getSkillCastTime(skill),
@@ -12216,12 +12226,14 @@ class BattleUIComponent {
           if (!skill || typeof skill !== 'object') return;
           const name = String(skill.魂技名 || skill.name || fallbackName || '').trim();
           if (!name) return;
+          const 技能来源 = String(getBattleSkillSourceCategory(skill) || skill?.技能来源 || source || '魂技').trim() || '魂技';
           actions.push({
             id: `skill_${source}_${name}_${actions.length}`,
             type: 'skill',
             action_type: '释放魂技',
             name,
-            category: source || '魂技',
+            category: 技能来源,
+            source_detail: source || 技能来源,
             cast_time: findUiSkillCastTime(skill),
             cost_text: findUiSkillCost(skill),
             enabled: true,
@@ -12289,7 +12301,16 @@ class BattleUIComponent {
         function renderUiActionFilters(actions, activeCategory) {
           const node = byId('ui-action-filters');
           if (!node) return;
-          const categories = ['全部', ...Array.from(new Set(actions.map(action => action.category || '战术')))];
+          const categoryOrder = ['魂技', '自创魂技', '武魂融合技', '血脉技能', '战术', '特殊动作', '纯操控'];
+          const categories = ['全部', ...Array.from(new Set(actions.map(action => action.category || '战术')))]
+            .sort((left, right) => {
+              if (left === '全部') return -1;
+              if (right === '全部') return 1;
+              const leftIndex = categoryOrder.includes(left) ? categoryOrder.indexOf(left) : Number.MAX_SAFE_INTEGER;
+              const rightIndex = categoryOrder.includes(right) ? categoryOrder.indexOf(right) : Number.MAX_SAFE_INTEGER;
+              if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+              return String(left).localeCompare(String(right), 'zh-Hans-CN');
+            });
           node.innerHTML = categories
             .map(category => `<button class="filter-btn${category === activeCategory ? ' active' : ''}" type="button" data-category="${htmlEscapeText(category)}">${htmlEscapeText(category)}</button>`)
             .join('');
@@ -12316,7 +12337,13 @@ class BattleUIComponent {
               const selected = action.id === selectedId ? ' is-selected' : '';
               const disabled = action.enabled === false ? ' disabled' : '';
               const meta = [action.cost_text, action.cast_time ? `${action.cast_time}` : ''].filter(Boolean).join(' / ');
-              return `<button class="action-btn${selected}" type="button" data-action-id="${htmlEscapeText(action.id)}"${disabled}><span class="action-name">${htmlEscapeText(action.name)}</span><span class="action-meta"><span>${htmlEscapeText(action.category || '战术')}</span><span class="action-cost">${htmlEscapeText(meta)}</span></span></button>`;
+              const categoryText = String(action.category || '战术').trim() || '战术';
+              const sourceDetail = String(action.source_detail || '').trim();
+              const categoryHtml =
+                sourceDetail && sourceDetail !== categoryText
+                  ? `${htmlEscapeText(categoryText)} · ${htmlEscapeText(sourceDetail)}`
+                  : htmlEscapeText(categoryText);
+              return `<button class="action-btn${selected}" type="button" data-action-id="${htmlEscapeText(action.id)}"${disabled}><span class="action-name">${htmlEscapeText(action.name)}</span><span class="action-meta"><span>${categoryHtml}</span><span class="action-cost">${htmlEscapeText(meta)}</span></span></button>`;
             })
             .join('');
           node.querySelectorAll('[data-action-id]').forEach(button => {
