@@ -86,6 +86,13 @@
         }
         return window;
     }
+    function hasBootstrappedInstance_ACU() {
+        const hostWin = getHostWindow();
+        const api = hostWin?.AutoCardUpdaterAPI;
+        return !!hostWin?.[ACU_INSTANCE_FLAG]
+            && !!api
+            && typeof api.exportTableAsJson === 'function';
+    }
     /**
      * 检查是否已有另一个实例在运行（互斥检测）。
      * 如果已有实例，返回 true（应跳过初始化）。
@@ -50514,7 +50521,9 @@ $CONTENT
     // 将最终组装的 api 赋给 apiRef，使 ctx.getApi() 返回完整对象
     apiRef = api;
     // --- 挂载到全局 ---
-    topLevelWindow_ACU.AutoCardUpdaterAPI = api;
+    if (!hasBootstrappedInstance_ACU()) {
+        topLevelWindow_ACU.AutoCardUpdaterAPI = api;
+    }
 
     function clone_ACU$2(value) {
         if (value === undefined)
@@ -53384,7 +53393,7 @@ $CONTENT
         startLifecyclePoll_ACU();
         syncVisualizerTemplateAssistantAddon_ACU(true);
     }
-    if (!globalThis[DISABLE_AUTO_INIT_FLAG_ACU]) {
+    if (!globalThis[DISABLE_AUTO_INIT_FLAG_ACU] && !hasBootstrappedInstance_ACU()) {
         initVisualizerTemplateAssistantAddon_ACU();
     }
 

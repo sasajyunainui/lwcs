@@ -3537,6 +3537,146 @@ class BattleUIComponent {
       return new Set();
     }
 
+    const BATTLE_OUTPUT_RUNTIME_CONSUMERS = new Set([
+      'direct_damage',
+      'multi_damage',
+      'delay_burst',
+      'dot_damage',
+      'dot_detonate',
+      'shield_break',
+      'armor_penetration',
+      'lifesteal',
+    ]);
+    const BATTLE_CONTROL_RUNTIME_CONSUMERS = new Set([
+      'hard_control',
+      'soft_control',
+      'position_lock',
+      'interrupt',
+      'skill_seal',
+      'anti_heal',
+      'heal_inversion',
+      'cost_increase',
+      'windup_increase',
+      'mastery_reduce',
+      'speed_reduce',
+      'perception_disturb',
+      'judge_effect',
+      'target_lock',
+      'hostile_shift',
+      'position_exchange',
+      'hard_lock',
+      'status_transfer',
+      'effect_reverse',
+      'dispel_buff',
+      'steal_buff',
+      'resource_drain',
+      'taunt',
+      'reveal',
+      'slow',
+      'blind',
+      'silence',
+      'disarm',
+      'expose_weakness',
+    ]);
+    const BATTLE_DEFENSE_RUNTIME_CONSUMERS = new Set([
+      'shield',
+      'damage_reduce',
+      'block',
+      'super_armor',
+      'death_save',
+      'invincible',
+      'damage_reflect',
+      'damage_share',
+      'substitute',
+      'revive',
+      'guard',
+      'clone',
+      'counter',
+      'on_hit_counter',
+    ]);
+    const BATTLE_SUPPORT_RUNTIME_CONSUMERS = new Set([
+      'attribute_buff',
+      'cost_reduce',
+      'windup_reduce',
+      'mastery_raise',
+      'speed_raise',
+      'recover_vit',
+      'recover_sp',
+      'recover_men',
+      'recover_over_time',
+      'cleanse',
+      'shared_vision',
+      'self_shift',
+      'pursuit_shift',
+      'disengage_shift',
+      'damage_to_heal',
+      'resource_refeed',
+      'stealth',
+    ]);
+    const BATTLE_MOBILITY_RUNTIME_CONSUMERS = new Set([
+      'self_shift',
+      'hostile_shift',
+      'position_exchange',
+      'pursuit_shift',
+      'disengage_shift',
+      'pursuit_mark',
+      'stealth',
+    ]);
+    const BATTLE_SPECIAL_RULE_RUNTIME_CONSUMERS = new Set([
+      'clone',
+      'copy_status',
+      'counter',
+      'damage_to_heal',
+      'heal_to_damage',
+      'status_exchange',
+      'status_transfer',
+      'hard_lock',
+      'judge_effect',
+      'self_rule_rewrite',
+      'self_random_variance',
+      'self_mirror',
+      'random_target_shift',
+      'self_sacrifice_gain',
+      'dot_detonate',
+      'shield_break',
+      'shield_steal',
+      'resource_drain',
+      'resource_refeed',
+      'effect_reverse',
+      'construct_create',
+    ]);
+    const BATTLE_SUSTAIN_RUNTIME_CONSUMERS = new Set([
+      'dot_damage',
+      'recover_over_time',
+      'shield',
+      'damage_reduce',
+      'super_armor',
+      'shared_vision',
+      'clone',
+      'guard',
+      'stealth',
+      'taunt',
+      'slow',
+      'blind',
+      'silence',
+      'disarm',
+      'target_lock',
+      'perception_disturb',
+    ]);
+    const BATTLE_TRIGGER_RUNTIME_CONSUMERS = new Set([
+      'block',
+      'death_save',
+      'invincible',
+      'damage_reflect',
+      'damage_share',
+      'substitute',
+      'revive',
+      'counter',
+      'on_hit_counter',
+      'construct_create',
+      'self_rule_rewrite',
+    ]);
+
     function hasSkillMechanismSemantic(skill, semanticKey = '') {
       const semanticSet = getBattleMechanismSemanticSet(semanticKey);
       if (!(semanticSet.size > 0)) return false;
@@ -3553,6 +3693,27 @@ class BattleUIComponent {
 
     function skillCanGrantFriendlyMechanism(skill) {
       return skillTargetsFriendlySide(skill) && hasSkillMechanismSemantic(skill, '可赋予');
+    }
+
+    function getSkillRuntimeConsumerKeys(skill) {
+      return Array.from(
+        new Set(
+          getSkillMechanismLabels(skill)
+            .map(label => String(getBattleSkillMechanismMeta(label)?.运行时消费器 || '').trim())
+            .filter(Boolean),
+        ),
+      );
+    }
+
+    function hasBattleSkillRuntimeConsumer(skill, consumerKeys = []) {
+      const targetKeys = Array.isArray(consumerKeys) ? consumerKeys : [consumerKeys];
+      const keySet = new Set(
+        targetKeys
+          .map(key => String(key || '').trim())
+          .filter(Boolean),
+      );
+      if (!(keySet.size > 0)) return false;
+      return getSkillRuntimeConsumerKeys(skill).some(key => keySet.has(key));
     }
 
     function getSkillAiRoleTags(skill) {
@@ -3585,6 +3746,155 @@ class BattleUIComponent {
         if (value) return value;
       }
       return fallback;
+    }
+
+    function isBattleSkillDefensiveProfile(skill, context = {}) {
+      const skillType = context.skillType || getSkillType(skill);
+      const mainType = context.mainType || inferMainTypeFromEffects(skill);
+      const summary = context.summary || deriveBattleSummaryFromEffects(skill);
+      const 技能来源 = context.技能来源 || getBattleSkillSourceCategory(skill);
+      return (
+        skillType === '防御' ||
+        mainType === '防御类' ||
+        summary.防御性质 !== '无' ||
+        summary.回复性质 === '复苏' ||
+        hasSkillAiRoleTag(skill, '保命型') ||
+        hasSkillAiRoleTag(skill, '团队保护型') ||
+        (技能来源 === '武魂融合技' && ['防御', '辅助'].includes(skillType))
+      );
+    }
+
+    function isBattleSkillOffensiveProfile(skill, context = {}) {
+      const skillType = context.skillType || getSkillType(skill);
+      const mainType = context.mainType || inferMainTypeFromEffects(skill);
+      const summary = context.summary || deriveBattleSummaryFromEffects(skill);
+      return (
+        skillType === '输出' ||
+        mainType === '伤害类' ||
+        summary.爆发级别 !== '无' ||
+        Number(getPrimaryDamageEffect(skill)?.威力倍率 || 0) > 0
+      );
+    }
+
+    function isBattleSkillControlProfile(skill, context = {}) {
+      const mainType = context.mainType || inferMainTypeFromEffects(skill);
+      const calc = context.calc || getPrimaryStateCalc(skill);
+      const flags = context.flags || getPrimaryStateFlags(skill);
+      const summary = context.summary || deriveBattleSummaryFromEffects(skill);
+      return (
+        mainType === '控制类' ||
+        mainType === '削弱类' ||
+        hasSkillAiRoleTag(skill, '规则压制型') ||
+        summary.控制强度 === '硬控' ||
+        summary.控制强度 === '软控' ||
+        (skillTargetsEnemySide(skill) && hasSkillMechanismSemantic(skill, '敌对')) ||
+        Number(calc.lock_level || 0) > 0 ||
+        Number(calc.reaction_penalty || 0) > 0 ||
+        Number(calc.cast_speed_penalty || 0) > 0 ||
+        Number(calc.dodge_penalty || 0) > 0 ||
+        Number(calc.resource_block_ratio || 0) > 0 ||
+        flags.includes('硬控')
+      );
+    }
+
+    function isBattleSkillTeamSupportProfile(skill, context = {}) {
+      const skillType = context.skillType || getSkillType(skill);
+      const summary = context.summary || deriveBattleSummaryFromEffects(skill);
+      const 技能来源 = context.技能来源 || getBattleSkillSourceCategory(skill);
+      return (
+        skillCanGrantFriendlyMechanism(skill) ||
+        summary.协同性 === '高' ||
+        summary.回复性质 !== '无' ||
+        hasSkillAiRoleTag(skill, '团队保护型') ||
+        (技能来源 === '武魂融合技' && ['辅助', '防御'].includes(skillType))
+      );
+    }
+
+    function isBattleSkillAntiHealProfile(skill, context = {}) {
+      const summary = context.summary || deriveBattleSummaryFromEffects(skill);
+      const calc = context.calc || getPrimaryStateCalc(skill);
+      return (
+        hasBattleSkillRuntimeConsumer(skill, ['anti_heal', 'heal_inversion']) ||
+        summary.控制强度 === '软控' && Number(calc.heal_block_ratio || 0) > 0 ||
+        Number(calc.heal_inversion_ratio || 0) > 0
+      );
+    }
+
+    function isBattleSkillExecuteProfile(skill, context = {}) {
+      const summary = context.summary || deriveBattleSummaryFromEffects(skill);
+      const damage = context.damage || getPrimaryDamageEffect(skill);
+      return (
+        hasBattleSkillRuntimeConsumer(skill, ['judge_effect']) ||
+        (summary.爆发级别 === '高' && Number(damage?.威力倍率 || 0) >= 180)
+      );
+    }
+
+    function isBattleSkillShieldBreakProfile(skill, context = {}) {
+      const damage = context.damage || getPrimaryDamageEffect(skill);
+      return (
+        hasBattleSkillRuntimeConsumer(skill, ['shield_break']) ||
+        Number(damage?.穿透修饰 || 0) >= 15 ||
+        /破甲|穿透|粉碎|斩盾/.test(String(skill?.name || ''))
+      );
+    }
+
+    function isBattleSkillShieldStealProfile(skill) {
+      return hasBattleSkillRuntimeConsumer(skill, ['shield_steal']);
+    }
+
+    function isBattleSkillDotDetonateProfile(skill) {
+      return hasBattleSkillRuntimeConsumer(skill, ['dot_detonate']);
+    }
+
+    function isBattleSkillSealProfile(skill, context = {}) {
+      const calc = context.calc || getPrimaryStateCalc(skill);
+      return hasBattleSkillRuntimeConsumer(skill, ['skill_seal']) || calc.skill_seal === true;
+    }
+
+    function isBattleSkillTransferProfile(skill) {
+      return hasBattleSkillRuntimeConsumer(skill, ['status_transfer']);
+    }
+
+    function isBattleSkillSharedVisionProfile(skill) {
+      return hasBattleSkillRuntimeConsumer(skill, ['shared_vision']);
+    }
+
+    function isBattleSkillHealInvertProfile(skill, context = {}) {
+      const calc = context.calc || getPrimaryStateCalc(skill);
+      return hasBattleSkillRuntimeConsumer(skill, ['heal_inversion']) || Number(calc.heal_inversion_ratio || 0) > 0;
+    }
+
+    function isBattleSkillDotPressureProfile(skill) {
+      return hasBattleSkillRuntimeConsumer(skill, ['dot_damage']);
+    }
+
+    function isBattleSkillRevealProfile(skill) {
+      return hasBattleSkillRuntimeConsumer(skill, ['reveal']);
+    }
+
+    function isBattleSkillBuffStealProfile(skill) {
+      return hasBattleSkillRuntimeConsumer(skill, ['steal_buff']);
+    }
+
+    function isBattleSkillTauntProfile(skill) {
+      return hasBattleSkillRuntimeConsumer(skill, ['taunt']);
+    }
+
+    function isBattleSkillResourceDrainProfile(skill) {
+      return hasBattleSkillRuntimeConsumer(skill, ['resource_drain']);
+    }
+
+    function isBattleSkillResourceRefeedProfile(skill) {
+      return hasBattleSkillRuntimeConsumer(skill, ['resource_refeed']);
+    }
+
+    function isBattleSkillReactiveDefenseProfile(skill, context = {}) {
+      const summary = context.summary || deriveBattleSummaryFromEffects(skill);
+      return (
+        isBattleSkillDefensiveProfile(skill, context) ||
+        hasSkillAiRoleTag(skill, '保命型') ||
+        ['护盾', '减伤', '格挡', '霸体', '免死', '无敌', '复苏', '替身', '分摊', '反射', '护卫'].includes(summary.防御性质)
+      );
     }
 
     function findBattleSkillEffect(skill, matcher) {
@@ -3637,105 +3947,45 @@ class BattleUIComponent {
       if (fromSystem !== '无') return fromSystem;
       const summarySkillType = getSkillSummaryHint(skill, 'skillType', '');
       if (summarySkillType) return normalizeSkillTypeLabel(summarySkillType);
-      if (
-        hasSkillMechanism(skill, [
-          '感知干扰',
-          '破隐',
-          '硬控',
-          '催眠',
-          '幻境',
-          '标记锁定',
-          '目标锁定',
-          '禁疗',
-          '打断',
-          '缴械',
-          '认知扭曲',
-          '沉默',
-          '减速',
-          '软控',
-          '位移限制',
-          '强制位移',
-          '位移交换',
-          '强制绑定/锁定',
-          '嘲讽',
-          '封技',
-          '治疗反转',
-        ])
-      )
+      if (hasBattleSkillRuntimeConsumer(skill, [...BATTLE_CONTROL_RUNTIME_CONSUMERS]) || getSkillEffects(skill).some(effect => isBattleDebuffAttributeEffect(effect)))
         return '控制';
-      if (hasSkillMechanism(skill, ['护盾', '减伤', '格挡', '霸体', '免死', '反制', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏'])) return '防御';
+      if (hasBattleSkillRuntimeConsumer(skill, [...BATTLE_DEFENSE_RUNTIME_CONSUMERS])) return '防御';
       if (
-        hasSkillMechanism(skill, [
-          '共享视野',
-          '隐身',
-          '目标锁定',
-          '自身位移',
-          '护卫',
-          '追击',
-          '追击位移',
-          '脱离位移',
-          '分身',
-          '复制',
-          '状态交换',
-          '状态转移',
-          '条件触发',
-          '转化',
-          '引爆持续伤害',
-          '斩盾',
-          '窃取护盾',
-        ]) ||
+        skillCanGrantFriendlyMechanism(skill) ||
+        hasBattleSkillRuntimeConsumer(skill, [...BATTLE_SUPPORT_RUNTIME_CONSUMERS, ...BATTLE_SPECIAL_RULE_RUNTIME_CONSUMERS]) ||
         getSkillEffects(skill).some(effect => isBattleAttributeSupportEffect(effect))
       )
         return '辅助';
-      if (hasSkillMechanism(skill, ['直接伤害', '多段伤害', '持续伤害', '延迟爆发', '斩杀补伤'])) return '输出';
+      if (hasBattleSkillRuntimeConsumer(skill, [...BATTLE_OUTPUT_RUNTIME_CONSUMERS]) || Number(getPrimaryDamageEffect(skill)?.威力倍率 || 0) > 0)
+        return '输出';
       if (skillTargetsEnemySide(skill) && hasSkillMechanismSemantic(skill, '敌对')) return '控制';
       if (hasSkillAiRoleTag(skill, '团队保护型')) return '辅助';
       if (hasSkillAiRoleTag(skill, '保命型')) return '防御';
       if (hasSkillAiRoleTag(skill, '规则压制型')) return '控制';
-      if (skillCanGrantFriendlyMechanism(skill)) return '辅助';
       return '无';
     }
 
     function inferMainTypeFromEffects(skill) {
       const hintedMainType = getSkillSummaryHint(skill, 'mainType', '');
       if (hintedMainType) return hintedMainType;
-      if (hasSkillMechanism(skill, ['自身位移', '强制位移', '位移交换', '隐身', '追击', '追击位移', '脱离位移'])) return '位移类';
-      if (hasSkillMechanism(skill, ['分身', '复制', '状态交换', '状态转移', '引爆持续伤害', '斩盾', '窃取护盾'])) return '特殊规则类';
+      if (hasBattleSkillRuntimeConsumer(skill, [...BATTLE_MOBILITY_RUNTIME_CONSUMERS])) return '位移类';
+      if (hasBattleSkillRuntimeConsumer(skill, [...BATTLE_SPECIAL_RULE_RUNTIME_CONSUMERS])) return '特殊规则类';
       if (
-        hasSkillMechanism(skill, [
-          '感知干扰',
-          '破隐',
-          '硬控',
-          '催眠',
-          '幻境',
-          '标记锁定',
-          '目标锁定',
-          '禁疗',
-          '打断',
-          '缴械',
-          '认知扭曲',
-          '沉默',
-          '减速',
-          '软控',
-          '位移限制',
-          '强制绑定/锁定',
-          '嘲讽',
-          '封技',
-          '治疗反转',
-        ]) ||
+        hasBattleSkillRuntimeConsumer(skill, [...BATTLE_CONTROL_RUNTIME_CONSUMERS]) ||
         getSkillEffects(skill).some(effect => isBattleDebuffAttributeEffect(effect))
       )
         return '控制类';
-      if (hasSkillMechanism(skill, ['护盾', '减伤', '格挡', '霸体', '免死', '反制', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏'])) return '防御类';
+      if (hasBattleSkillRuntimeConsumer(skill, [...BATTLE_DEFENSE_RUNTIME_CONSUMERS])) return '防御类';
       if (getSkillEffects(skill).some(effect => isBattleRecoverEffect(effect))) return '回复类';
       if (
-        hasSkillMechanism(skill, ['共享视野', '驱散增益', '隐身', '护卫', '复苏']) ||
+        skillCanGrantFriendlyMechanism(skill) ||
+        hasBattleSkillRuntimeConsumer(skill, [...BATTLE_SUPPORT_RUNTIME_CONSUMERS]) ||
         getSkillEffects(skill).some(effect => isBattleAttributeSupportEffect(effect))
       )
         return '增益类';
-      if (hasSkillMechanism(skill, ['直接伤害', '多段伤害', '持续伤害', '延迟爆发', '斩杀补伤'])) return '伤害类';
+      if (hasBattleSkillRuntimeConsumer(skill, [...BATTLE_OUTPUT_RUNTIME_CONSUMERS]) || Number(getPrimaryDamageEffect(skill)?.威力倍率 || 0) > 0)
+        return '伤害类';
       if (skillTargetsEnemySide(skill) && hasSkillMechanismSemantic(skill, '敌对')) return '控制类';
-      if (skillCanGrantFriendlyMechanism(skill)) return '增益类';
       return '无';
     }
 
@@ -3793,18 +4043,19 @@ class BattleUIComponent {
 
       if (!summary.防御性质 || summary.防御性质 === '无') {
         if (hintedDefenseNature) summary.防御性质 = hintedDefenseNature;
-        else if (hasSkillMechanism(skill, ['反制'])) summary.防御性质 = '反制';
-        else if (hasSkillMechanism(skill, ['免死'])) summary.防御性质 = '免死';
-        else if (hasSkillMechanism(skill, ['无敌金身'])) summary.防御性质 = '无敌';
-        else if (hasSkillMechanism(skill, ['复苏'])) summary.防御性质 = '复苏';
-        else if (hasSkillMechanism(skill, ['替身抵消'])) summary.防御性质 = '替身';
-        else if (hasSkillMechanism(skill, ['伤害分摊'])) summary.防御性质 = '分摊';
-        else if (hasSkillMechanism(skill, ['伤害反射'])) summary.防御性质 = '反射';
-        else if (hasSkillMechanism(skill, ['霸体'])) summary.防御性质 = '霸体';
-        else if (hasSkillMechanism(skill, ['分身'])) summary.防御性质 = '分身';
-        else if (hasSkillMechanism(skill, ['格挡'])) summary.防御性质 = '格挡';
-        else if (hasSkillMechanism(skill, ['减伤'])) summary.防御性质 = '减伤';
-        else if (hasSkillMechanism(skill, ['护盾'])) summary.防御性质 = '护盾';
+        else if (hasBattleSkillRuntimeConsumer(skill, ['counter', 'on_hit_counter'])) summary.防御性质 = '反制';
+        else if (hasBattleSkillRuntimeConsumer(skill, ['death_save'])) summary.防御性质 = '免死';
+        else if (hasBattleSkillRuntimeConsumer(skill, ['invincible'])) summary.防御性质 = '无敌';
+        else if (hasBattleSkillRuntimeConsumer(skill, ['revive'])) summary.防御性质 = '复苏';
+        else if (hasBattleSkillRuntimeConsumer(skill, ['substitute'])) summary.防御性质 = '替身';
+        else if (hasBattleSkillRuntimeConsumer(skill, ['damage_share'])) summary.防御性质 = '分摊';
+        else if (hasBattleSkillRuntimeConsumer(skill, ['damage_reflect'])) summary.防御性质 = '反射';
+        else if (hasBattleSkillRuntimeConsumer(skill, ['super_armor'])) summary.防御性质 = '霸体';
+        else if (hasBattleSkillRuntimeConsumer(skill, ['guard'])) summary.防御性质 = '护卫';
+        else if (hasBattleSkillRuntimeConsumer(skill, ['clone', 'stealth'])) summary.防御性质 = '分身';
+        else if (hasBattleSkillRuntimeConsumer(skill, ['block'])) summary.防御性质 = '格挡';
+        else if (hasBattleSkillRuntimeConsumer(skill, ['damage_reduce'])) summary.防御性质 = '减伤';
+        else if (hasBattleSkillRuntimeConsumer(skill, ['shield'])) summary.防御性质 = '护盾';
       }
       if (!summary.回复性质 || summary.回复性质 === '无') {
         if (hintedRecoverNature) summary.回复性质 = hintedRecoverNature;
@@ -3812,37 +4063,15 @@ class BattleUIComponent {
           summary.回复性质 = '体力恢复';
         else if (getSkillEffects(skill).some(effect => isBattleRecoverEffect(effect, ['sp', 'men'])))
           summary.回复性质 = '资源回复';
-        else if (hasSkillMechanism(skill, ['复苏'])) summary.回复性质 = '复苏';
+        else if (hasBattleSkillRuntimeConsumer(skill, ['revive'])) summary.回复性质 = '复苏';
       }
       if (!summary.控制强度 || summary.控制强度 === '无') {
         if (hintedControlStrength) summary.控制强度 = hintedControlStrength;
-        else if (hasSkillMechanism(skill, ['硬控', '催眠']) || stateCalc.skip_turn === true) summary.控制强度 = '硬控';
+        else if (hasBattleSkillRuntimeConsumer(skill, ['hard_control']) || stateCalc.skip_turn === true) summary.控制强度 = '硬控';
         else if (
-          hasSkillMechanism(skill, [
-            '感知干扰',
-            '破隐',
-            '幻境',
-            '标记锁定',
-            '目标锁定',
-            '认知扭曲',
-            '沉默',
-            '禁疗',
-            '缴械',
-            '嘲讽',
-            '减速',
-            '打断',
-            '软控',
-            '位移限制',
-            '强制位移',
-            '位移交换',
-            '强制绑定/锁定',
-          ]) ||
+          isBattleSkillControlProfile(skill, { calc: stateCalc, summary }) ||
           getSkillEffects(skill).some(effect => isBattleDebuffAttributeEffect(effect)) ||
-          Number(stateCalc.lock_level || 0) > 0 ||
-          Number(stateCalc.reaction_penalty || 0) > 0 ||
-          Number(stateCalc.cast_speed_penalty || 0) > 0 ||
-          Number(stateCalc.dodge_penalty || 0) > 0 ||
-          Number(stateCalc.resource_block_ratio || 0) > 0
+          hasBattleSkillRuntimeConsumer(skill, ['soft_control', 'position_lock', 'interrupt', 'skill_seal', 'anti_heal', 'heal_inversion'])
         )
           summary.控制强度 = '软控';
       }
@@ -3851,7 +4080,8 @@ class BattleUIComponent {
         else if (
           targetText === '全场' ||
           targetText.includes('群体') ||
-          hasSkillMechanism(skill, ['共享视野', '目标锁定', '召唤与场地', '驱散增益']) ||
+          isBattleSkillSharedVisionProfile(skill) ||
+          hasBattleSkillRuntimeConsumer(skill, ['target_lock', 'construct_create', 'dispel_buff']) ||
           (hasFriendlyGrantable && summary.目标规模 !== '单体')
         )
           summary.协同性 = '高';
@@ -3860,7 +4090,8 @@ class BattleUIComponent {
           targetText.includes('友方') ||
           hasFriendlyGrantable ||
           getSkillEffects(skill).some(effect => isBattleRecoverEffect(effect)) ||
-          hasSkillMechanism(skill, ['分身', '隐身', '护卫'])
+          ['分身', '护卫'].includes(summary.防御性质) ||
+          hasBattleSkillRuntimeConsumer(skill, ['stealth'])
         )
           summary.协同性 = '中';
         else summary.协同性 = '低';
@@ -3868,11 +4099,11 @@ class BattleUIComponent {
       if (技能来源 === '武魂融合技' && summary.协同性 === '低') summary.协同性 = '高';
       if (!baseSummary?.生效方式 || baseSummary.生效方式 === defaultSummary.生效方式 || baseSummary.生效方式 === '无') {
         if (hintedEffectMode) summary.生效方式 = hintedEffectMode;
-        else if (hasSkillMechanism(skill, ['受击反击', '格挡', '反制', '条件触发'])) summary.生效方式 = '触发';
-        else if (hasSkillMechanism(skill, ['延迟爆发'])) summary.生效方式 = '延迟';
+        else if (hasBattleSkillRuntimeConsumer(skill, [...BATTLE_TRIGGER_RUNTIME_CONSUMERS])) summary.生效方式 = '触发';
+        else if (hasBattleSkillRuntimeConsumer(skill, ['delay_burst'])) summary.生效方式 = '延迟';
         else if (
           duration > 1 ||
-          hasSkillMechanism(skill, ['持续伤害', '护盾', '减伤', '霸体', '免死', '共享视野', '目标锁定', '召唤与场地', '分身', '感知干扰', '认知扭曲', '缴械', '追击', '隐身', '护卫', '嘲讽'])
+          hasBattleSkillRuntimeConsumer(skill, [...BATTLE_SUSTAIN_RUNTIME_CONSUMERS])
         )
           summary.生效方式 = '持续';
         else summary.生效方式 = '瞬发';
@@ -3887,7 +4118,7 @@ class BattleUIComponent {
         if (duration >= 3) summary.持续性 = '长';
         else if (duration >= 2) summary.持续性 = '中';
         else if (duration > 0) summary.持续性 = '短';
-        else if (hasSkillMechanism(skill, ['召唤与场地', '共享视野', '目标锁定', '护盾', '减伤', '格挡', '霸体', '免死', '分身', '感知干扰', '认知扭曲', '缴械', '追击', '隐身', '护卫', '嘲讽']))
+        else if (hasBattleSkillRuntimeConsumer(skill, [...BATTLE_SUSTAIN_RUNTIME_CONSUMERS, 'construct_create']))
           summary.持续性 = '中';
         else summary.持续性 = '无';
       }
@@ -3896,7 +4127,10 @@ class BattleUIComponent {
         if (/真身|武魂融合技|生命之火|第八魂技|第九魂技/.test(skillName)) reserve += 35;
         if (power >= 280) reserve += 20;
         if (Number(runtimeMeta.cast_time || 0) >= 25) reserve += 15;
-        if (hasSkillMechanism(skill, ['免死', '格挡', '受击反击', '反制', '条件触发', '效果反转', '高波动随机值']))
+        if (
+          hasBattleSkillRuntimeConsumer(skill, ['death_save', 'block', 'counter', 'on_hit_counter', 'effect_reverse', 'self_random_variance']) ||
+          summary.生效方式 === '触发'
+        )
           reserve += 10;
         if (/维持|启动\)/.test(costText)) reserve += 10;
         summary.保留倾向 = Math.min(90, reserve);
@@ -4034,7 +4268,7 @@ class BattleUIComponent {
       return (
         attackerSnapshot.hasSharedVision ||
         attackerSnapshot.hasTargetLock ||
-        hasSkillMechanism(skill, ['共享视野', '标记锁定', '目标锁定', '破隐'])
+        hasBattleSkillRuntimeConsumer(skill, ['shared_vision', 'target_lock', 'reveal'])
       );
     }
 
@@ -5805,7 +6039,7 @@ class BattleUIComponent {
 
           if (targetMode.includes('己方') || targetMode.includes('友方')) {
             if (
-              hasSkillMechanism(skill, ['共享视野']) &&
+              isBattleSkillSharedVisionProfile(skill) &&
               fallbackEnemyTarget &&
               Number(fallbackEnemyTarget.vit || 0) > 0
             ) {
@@ -5824,18 +6058,7 @@ class BattleUIComponent {
             focusTarget = finalTarget;
             if (
               snapshot.isLockedOrControlled &&
-              (hasSkillMechanism(skill, [
-                '硬控',
-                '催眠',
-                '幻境',
-                '标记锁定',
-                '打断',
-                '软控',
-                '位移限制',
-                '强制位移',
-                '位移交换',
-                '强制绑定/锁定',
-              ]) ||
+              (isBattleSkillControlProfile(skill, { calc: getPrimaryStateCalc(skill) }) ||
                 Number(getPrimaryStateCalc(skill)?.lock_level || 0) > 0 ||
                 Number(getPrimaryStateCalc(skill)?.reaction_penalty || 0) > 0 ||
                 Number(getPrimaryStateCalc(skill)?.cast_speed_penalty || 0) > 0 ||
@@ -5845,7 +6068,7 @@ class BattleUIComponent {
               focusReason = 'control_window';
               ttl = 3;
             } else if (
-              hasSkillMechanism(skill, ['禁疗']) &&
+              isBattleSkillAntiHealProfile(skill, { calc: getPrimaryStateCalc(skill) }) &&
               (snapshot.hasAntiHeal || Number(getPrimaryStateCalc(skill)?.heal_block_ratio || 0) > 0)
             ) {
               focusReason = 'anti_heal_window';
@@ -5858,12 +6081,12 @@ class BattleUIComponent {
               ttl = 2;
             } else if (
               snapshot.hasDotPressure ||
-              hasSkillMechanism(skill, ['持续伤害']) ||
+              isBattleSkillDotPressureProfile(skill) ||
               Number(settleResult?.dmg || 0) >= Math.max(1, Number(finalTarget.vit_max || 1)) * 0.22
             )
               focusReason = 'dot_pressure';
             ttl = 2;
-          } else if (hasSkillMechanism(skill, ['斩杀补伤']) || hpRatio < 0.45) {
+          } else if (isBattleSkillExecuteProfile(skill, { damage: getPrimaryDamageEffect(skill) }) || hpRatio < 0.45) {
             focusReason = 'finisher';
             ttl = hpRatio < 0.35 ? 3 : 2;
           }
@@ -7983,19 +8206,14 @@ class BattleUIComponent {
           Number(pStateCalc.lock_level || 0) >= 2 ||
           Number(pStateCalc.reaction_penalty || 0) >= 0.2 ||
           Number(pStateCalc.cast_speed_penalty || 0) >= 0.2 ||
-          hasSkillMechanism(skill, ['硬控', '催眠', '幻境', '封技']);
+          isBattleSkillControlProfile(skill, { calc: pStateCalc, summary: deriveBattleSummaryFromEffects(skill) });
         const enemySnapshot = buildConditionTacticalSnapshot(defender);
         const shieldBreakThreat =
           enemySnapshot.hasShielded &&
-          (hasSkillMechanism(skill, ['斩盾']) ||
-            Number(pClash?.穿透修饰 || 0) >= 20 ||
-            /破甲|穿透|粉碎|斩盾/.test(String(skill?.name || '')));
-        const antiHealThreat =
-          hasSkillMechanism(skill, ['禁疗', '治疗反转']) ||
-          Number(pStateCalc.heal_block_ratio || 0) > 0 ||
-          Number(pStateCalc.heal_inversion_ratio || 0) > 0;
-        const dotDetonateThreat = hasSkillMechanism(skill, ['引爆持续伤害']) && enemySnapshot.debuffCount > 0;
-        const skillSealThreat = hasSkillMechanism(skill, ['封技']) || pStateCalc.skill_seal === true;
+          isBattleSkillShieldBreakProfile(skill, { damage: pClash });
+        const antiHealThreat = isBattleSkillAntiHealProfile(skill, { calc: pStateCalc });
+        const dotDetonateThreat = isBattleSkillDotDetonateProfile(skill) && enemySnapshot.debuffCount > 0;
+        const skillSealThreat = isBattleSkillSealProfile(skill, { calc: pStateCalc });
         const lethalRisk =
           projectedDamageAfterShield >= currentHp * 0.95 ||
           projectedRemainingHp <= 0 ||
@@ -8889,11 +9107,73 @@ class BattleUIComponent {
           return totalShield;
         };
 
+        const resolveTransferResourceKeys = rawType => {
+          const text = String(rawType || '').trim();
+          if (/双|混合|全部/.test(text)) return ['sp', 'men'];
+          if (/精神/.test(text)) return ['men'];
+          return ['sp'];
+        };
+
+        const getTransferResourceLabel = resourceKey => {
+          if (resourceKey === 'men') return '精神力';
+          return '魂力';
+        };
+
+        const applyResourceDrainEffect = effect => {
+          if (!effect) return 0;
+          const targetUnits = resolveSkillEffectTargetCharacters(playerAction.skill, effect, attacker, defender, combatData);
+          const ratio = Math.max(0, Number(effect?.夺取比例 || effect?.drain_ratio || 0.18));
+          const convertRatio = Math.max(0, Number(effect?.转化比例 || effect?.convert_ratio || 1));
+          const resourceKeys = resolveTransferResourceKeys(effect?.资源类型 || effect?.resource_type || '');
+          let totalRecovered = 0;
+          targetUnits.forEach(targetObj => {
+            resourceKeys.forEach(resourceKey => {
+              const maxKey = resourceKey === 'sp' ? 'sp_max' : 'men_max';
+              const targetCurrent = Math.max(0, Number(targetObj?.[resourceKey] || 0));
+              const targetMax = Math.max(1, Number(targetObj?.[maxKey] || 0));
+              const attackerMax = Math.max(1, Number(attacker?.[maxKey] || 0));
+              const drainAmount = Math.min(targetCurrent, Math.max(1, Math.floor(targetMax * ratio)));
+              if (!(drainAmount > 0)) return;
+              targetObj[resourceKey] = Math.max(0, targetCurrent - drainAmount);
+              const recoverAmount = Math.max(0, Math.floor(drainAmount * convertRatio));
+              if (recoverAmount > 0) attacker[resourceKey] = Math.min(attackerMax, Number(attacker?.[resourceKey] || 0) + recoverAmount);
+              totalRecovered += recoverAmount;
+              result.desc += ` [资源夺取] 从${targetObj === attacker ? '自身' : targetObj.name}抽离 ${drainAmount} 点${getTransferResourceLabel(resourceKey)}，施术者回收 ${recoverAmount} 点。`;
+            });
+          });
+          return totalRecovered;
+        };
+
+        const applyResourceRefeedEffect = effect => {
+          if (!effect) return 0;
+          const targetUnits = resolveSkillEffectTargetCharacters(playerAction.skill, effect, attacker, defender, combatData);
+          const ratio = Math.max(0, Number(effect?.反灌比例 || effect?.refeed_ratio || 0.2));
+          const resourceKeys = resolveTransferResourceKeys(effect?.资源类型 || effect?.resource_type || '');
+          let totalRecovered = 0;
+          targetUnits.forEach(targetObj => {
+            resourceKeys.forEach(resourceKey => {
+              const maxKey = resourceKey === 'sp' ? 'sp_max' : 'men_max';
+              const targetMax = Math.max(1, Number(targetObj?.[maxKey] || 0));
+              const gainAmount = Math.max(1, Math.floor(targetMax * ratio));
+              const beforeValue = Math.max(0, Number(targetObj?.[resourceKey] || 0));
+              const afterValue = Math.min(targetMax, beforeValue + gainAmount);
+              const actualGain = Math.max(0, afterValue - beforeValue);
+              if (!(actualGain > 0)) return;
+              targetObj[resourceKey] = afterValue;
+              totalRecovered += actualGain;
+              result.desc += ` [资源反灌] 向${targetObj === attacker ? '自身' : targetObj.name}灌注 ${actualGain} 点${getTransferResourceLabel(resourceKey)}。`;
+            });
+          });
+          return totalRecovered;
+        };
+
         const directMechanismConsumerMap = {
           status_transfer: applyStatusTransferEffect,
           dot_detonate: applyDotDetonateEffect,
           shield_break: applyShieldBreakEffect,
           shield_steal: applyStealShieldEffect,
+          resource_drain: applyResourceDrainEffect,
+          resource_refeed: applyResourceRefeedEffect,
         };
 
         const runDirectMechanismConsumer = effect => {
@@ -9602,6 +9882,8 @@ class BattleUIComponent {
               const 技能来源 = String(getSkillRuntimeMeta(skill).技能来源 || '魂技').trim() || '魂技';
               const enemyHpRatio = attacker.vit / Math.max(1, attacker.vit_max);
               const selfHpRatio = defender.vit / Math.max(1, defender.vit_max);
+              const enemySpRatio = Math.max(0, Number(attacker.sp || 0)) / Math.max(1, Number(attacker.sp_max || 1));
+              const enemyMenRatio = Math.max(0, Number(attacker.men || 0)) / Math.max(1, Number(attacker.men_max || 1));
               const fieldActive = Object.keys(defender.状态效果 || {}).some(k => /领域|场地|结界|召唤/.test(k));
               const enemySnapshot = buildConditionTacticalSnapshot(attacker);
               const selfSnapshot = buildConditionTacticalSnapshot(defender);
@@ -9610,32 +9892,35 @@ class BattleUIComponent {
               const selfMenRatio = Math.max(0, Number(defender.men || 0)) / Math.max(1, Number(defender.men_max || 1));
               const hasFriendlyGrantable = skillCanGrantFriendlyMechanism(skill);
               const hasHostileSemantic = skillTargetsEnemySide(skill) && hasSkillMechanismSemantic(skill, '敌对');
-              const hasAntiHeal = hasSkillMechanism(skill, ['禁疗']);
-              const hasSharedVision = hasSkillMechanism(skill, ['共享视野']);
-              const hasCounter = hasSkillMechanism(skill, ['受击反击', '反制']);
-              const hasBlock = hasSkillMechanism(skill, ['格挡']);
-              const hasShield = hasSkillMechanism(skill, ['护盾']);
-              const hasDeathSave = hasSkillMechanism(skill, ['免死']);
-              const hasClone = hasSkillMechanism(skill, ['分身']);
-              const hasInvincible = hasSkillMechanism(skill, ['无敌金身']);
-              const hasReflect = hasSkillMechanism(skill, ['伤害反射']);
-              const hasDamageShare = hasSkillMechanism(skill, ['伤害分摊']);
-              const hasSubstitute = hasSkillMechanism(skill, ['替身抵消']);
-              const hasRevive = hasSkillMechanism(skill, ['复苏']);
-              const hasSkillSeal = hasSkillMechanism(skill, ['封技']);
-              const hasHealInvert = hasSkillMechanism(skill, ['治疗反转']);
-              const hasDotDetonate = hasSkillMechanism(skill, ['引爆持续伤害']);
-              const hasShieldBreak = hasSkillMechanism(skill, ['斩盾']);
-              const hasShieldSteal = hasSkillMechanism(skill, ['窃取护盾']);
-              const hasExecute = hasSkillMechanism(skill, ['斩杀补伤']);
+              const hasAntiHeal = isBattleSkillAntiHealProfile(skill, { summary });
+              const defenseNature = String(summary.防御性质 || '无');
+              const hasSharedVision = isBattleSkillSharedVisionProfile(skill);
+              const hasCounter = defenseNature === '反制';
+              const hasBlock = defenseNature === '格挡';
+              const hasShield = defenseNature === '护盾';
+              const hasDeathSave = defenseNature === '免死';
+              const hasClone = defenseNature === '分身';
+              const hasInvincible = defenseNature === '无敌';
+              const hasReflect = defenseNature === '反射';
+              const hasDamageShare = defenseNature === '分摊';
+              const hasSubstitute = defenseNature === '替身';
+              const hasRevive = defenseNature === '复苏';
+              const hasSkillSeal = isBattleSkillSealProfile(skill);
+              const hasHealInvert = isBattleSkillHealInvertProfile(skill);
+              const hasDotDetonate = isBattleSkillDotDetonateProfile(skill);
+              const hasShieldBreak = isBattleSkillShieldBreakProfile(skill);
+              const hasShieldSteal = isBattleSkillShieldStealProfile(skill);
+              const hasResourceDrain = isBattleSkillResourceDrainProfile(skill);
+              const hasResourceRefeed = isBattleSkillResourceRefeedProfile(skill);
+              const hasExecute = isBattleSkillExecuteProfile(skill, { summary });
               const hasResourceRecover = getSkillEffects(skill).some(effect =>
                 isBattleRecoverEffect(effect, ['sp', 'men']),
-              );
+              ) || hasResourceRefeed;
               const hasHeal = getSkillEffects(skill).some(effect => isBattleRecoverEffect(effect, ['vit']));
-              const hasDotPressure = hasSkillMechanism(skill, ['持续伤害']);
-              const hasDelayBurst = hasSkillMechanism(skill, ['延迟爆发']);
-              const hasVolatile = hasSkillMechanism(skill, ['高波动随机值']);
-              const hasReflectiveConvert = hasSkillMechanism(skill, ['伤害转回复', '回复转伤害', '效果反转']);
+              const hasDotPressure = isBattleSkillDotPressureProfile(skill);
+              const hasDelayBurst = hasBattleSkillRuntimeConsumer(skill, ['delay_burst']);
+              const hasVolatile = hasBattleSkillRuntimeConsumer(skill, ['self_random_variance']);
+              const hasReflectiveConvert = hasBattleSkillRuntimeConsumer(skill, ['damage_to_heal', 'heal_to_damage', 'effect_reverse']);
               const penetrationValue = Number(getPrimaryDamageEffect(skill)?.穿透修饰 || 0);
               const actorMemory = ensureActorDecisionMemory(defender);
               const counterPenalty = getActorSkillCounterPenalty(defender, skill.name || skill.技能名称 || '');
@@ -9721,6 +10006,11 @@ class BattleUIComponent {
               if (hasDotDetonate && enemySnapshot.debuffCount > 0) weight += 38 + enemySnapshot.debuffCount * 6;
               if (hasShieldBreak && enemySnapshot.hasShielded) weight += 44;
               if (hasShieldSteal && enemySnapshot.hasShielded && selfHpRatio < 0.7) weight += 32;
+              if (hasResourceDrain) {
+                if (enemySpRatio > 0.45 || enemyMenRatio > 0.45) weight += 28;
+                if (selfSpRatio < 0.5 || selfMenRatio < 0.5) weight += 12;
+                if (isChargingHighThreat) weight += 10;
+              }
               if (hasResourceRecover && (selfSpRatio < 0.4 || selfMenRatio < 0.4))
                 weight += selfSnapshot.hasHealingTrend ? 10 : 30;
               if (hasHeal && selfHpRatio < 0.45) weight += selfSnapshot.hasHealingTrend ? 8 : 28;
@@ -9814,53 +10104,27 @@ class BattleUIComponent {
             const mainType = inferMainTypeFromEffects(skill);
             const summary = deriveBattleSummaryFromEffects(skill);
             const 技能来源 = getBattleSkillSourceCategory(skill);
-            return (
-              skillType === '防御' ||
-              mainType === '防御类' ||
-              hasSkillAiRoleTag(skill, '保命型') ||
-              hasSkillAiRoleTag(skill, '团队保护型') ||
-              summary.防御性质 !== '无' ||
-              summary.回复性质 === '复苏' ||
-              (技能来源 === '武魂融合技' && ['防御', '辅助'].includes(skillType)) ||
-              skillType === '控制'
-            );
+            return isBattleSkillDefensiveProfile(skill, { skillType, mainType, summary, 技能来源 }) || skillType === '控制';
           });
           const atkSkills = validSkills.filter(skill => {
             const skillType = getSkillType(skill);
             const mainType = inferMainTypeFromEffects(skill);
             const summary = deriveBattleSummaryFromEffects(skill);
-            return (
-              skillType === '输出' ||
-              mainType === '伤害类' ||
-              summary.爆发级别 !== '无'
-            );
+            return isBattleSkillOffensiveProfile(skill, { skillType, mainType, summary });
           });
           const controlSkills = validSkills.filter(skill => {
             const mainType = inferMainTypeFromEffects(skill);
             const calc = getPrimaryStateCalc(skill);
             const flags = getPrimaryStateFlags(skill);
             const summary = deriveBattleSummaryFromEffects(skill);
-            return (
-              mainType === '控制类' ||
-              mainType === '削弱类' ||
-              hasSkillAiRoleTag(skill, '规则压制型') ||
-              summary.控制强度 === '硬控' ||
-              summary.控制强度 === '软控' ||
-              (skillTargetsEnemySide(skill) && hasSkillMechanismSemantic(skill, '敌对')) ||
-              Number(calc.lock_level || 0) > 0 ||
-              Number(calc.reaction_penalty || 0) > 0 ||
-              Number(calc.cast_speed_penalty || 0) > 0 ||
-              Number(calc.dodge_penalty || 0) > 0 ||
-              Number(calc.resource_block_ratio || 0) > 0 ||
-              flags.includes('硬控')
-            );
+            return isBattleSkillControlProfile(skill, { mainType, calc, flags, summary });
           });
 
           const defSkillPick = pickSkillWithWeight(defSkills);
           const atkSkillPick = pickSkillWithWeight(atkSkills);
           const controlSkillPick = pickSkillWithWeight(controlSkills);
           const antiHealSkillPick = pickSkillWithWeight(
-            validSkills.filter(skill => hasSkillMechanism(skill, ['禁疗'])),
+            validSkills.filter(skill => isBattleSkillAntiHealProfile(skill)),
           );
           const pierceSkillPick = pickSkillWithWeight(
             validSkills.filter(skill => {
@@ -9871,10 +10135,7 @@ class BattleUIComponent {
           const executeSkillPick = pickSkillWithWeight(
             validSkills.filter(skill => {
               const dmg = getPrimaryDamageEffect(skill);
-              return (
-                hasSkillMechanism(skill, ['斩杀补伤']) ||
-                (inferMainTypeFromEffects(skill) === '伤害类' && Number(dmg?.威力倍率 || 0) >= 220)
-              );
+              return isBattleSkillExecuteProfile(skill, { damage: dmg, summary: deriveBattleSummaryFromEffects(skill) });
             }),
           );
           const recoverSkillPick = pickSkillWithWeight(
@@ -9882,37 +10143,37 @@ class BattleUIComponent {
           );
           const teamSupportSkillPick = pickSkillWithWeight(
             validSkills.filter(
-              skill =>
-                hasSkillMechanism(skill, ['共享视野']) ||
-                skillCanGrantFriendlyMechanism(skill) ||
-                (getSkillType(skill) === '辅助' && deriveBattleSummaryFromEffects(skill).协同性 === '高'),
+              skill => {
+                const skillType = getSkillType(skill);
+                const summary = deriveBattleSummaryFromEffects(skill);
+                const 技能来源 = getBattleSkillSourceCategory(skill);
+                return isBattleSkillTeamSupportProfile(skill, { skillType, summary, 技能来源 });
+              },
             ),
           );
           const invincibleSkillPick = pickSkillWithWeight(
-            validSkills.filter(skill => hasSkillMechanism(skill, ['无敌金身'])),
+            validSkills.filter(skill => deriveBattleSummaryFromEffects(skill).防御性质 === '无敌'),
           );
           const shieldBreakSkillPick = pickSkillWithWeight(
-            validSkills.filter(skill => hasSkillMechanism(skill, ['斩盾'])),
+            validSkills.filter(skill => isBattleSkillShieldBreakProfile(skill)),
           );
           const shieldStealSkillPick = pickSkillWithWeight(
-            validSkills.filter(skill => hasSkillMechanism(skill, ['窃取护盾'])),
+            validSkills.filter(skill => isBattleSkillShieldStealProfile(skill)),
           );
           const dotDetonateSkillPick = pickSkillWithWeight(
-            validSkills.filter(skill => hasSkillMechanism(skill, ['引爆持续伤害'])),
+            validSkills.filter(skill => isBattleSkillDotDetonateProfile(skill)),
           );
           const skillSealSkillPick = pickSkillWithWeight(
-            validSkills.filter(skill => hasSkillMechanism(skill, ['封技'])),
+            validSkills.filter(skill => isBattleSkillSealProfile(skill)),
           );
           const healInvertSkillPick = pickSkillWithWeight(
-            validSkills.filter(skill => hasSkillMechanism(skill, ['治疗反转'])),
+            validSkills.filter(skill => isBattleSkillHealInvertProfile(skill)),
           );
           const statusTransferSkillPick = pickSkillWithWeight(
-            validSkills.filter(skill => hasSkillMechanism(skill, ['状态转移'])),
+            validSkills.filter(skill => isBattleSkillTransferProfile(skill)),
           );
           const reactiveDefenseSkillPick = pickSkillWithWeight(
-            validSkills.filter(skill =>
-              hasSkillMechanism(skill, ['受击反击', '反制', '格挡', '护盾', '免死', '霸体', '分身', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏']),
-            ),
+            validSkills.filter(skill => isBattleSkillReactiveDefenseProfile(skill, { summary: deriveBattleSummaryFromEffects(skill) })),
           );
 
           const defSkill = defSkillPick.skill;
@@ -11110,6 +11371,8 @@ class BattleUIComponent {
           const 技能来源 = String(getSkillRuntimeMeta(skill).技能来源 || '魂技').trim() || '魂技';
           const dmg = getPrimaryDamageEffect(skill);
           const hpRatio = Math.max(0, Number(target.vit || 0)) / Math.max(1, Number(target.vit_max || 1));
+          const spRatio = Math.max(0, Number(target.sp || 0)) / Math.max(1, Number(target.sp_max || 1));
+          const menRatio = Math.max(0, Number(target.men || 0)) / Math.max(1, Number(target.men_max || 1));
           const power = Number(dmg?.威力倍率 || 0);
           const penetration = Number(dmg?.穿透修饰 || 0);
           const isSupport = ['辅助系', '治疗系', '食物系', '控制系'].includes(target.type);
@@ -11129,17 +11392,17 @@ class BattleUIComponent {
             if (hpRatio < 0.5) weight += 25;
           }
 
-          if (hasSkillMechanism(skill, ['禁疗'])) {
+          if (isBattleSkillAntiHealProfile(skill, { summary })) {
             if (snapshot.hasAntiHeal) weight -= 40;
             if (snapshot.hasHealingTrend || isSupport) weight += 70;
           }
-          if (hasSkillMechanism(skill, ['斩杀补伤']) || (summary.爆发级别 === '高' && power >= 180)) {
+          if (isBattleSkillExecuteProfile(skill, { summary, damage: dmg })) {
             if (hpRatio < 0.35) weight += 80;
             else if (hpRatio < 0.55) weight += 25;
             if (snapshot.isLockedOrControlled) weight += 20;
             if (snapshot.hasDotPressure) weight += 15;
           }
-          if (penetration >= 15 || /破甲|穿透|粉碎/.test(String(skill?.name || ''))) {
+          if (isBattleSkillShieldBreakProfile(skill, { damage: dmg })) {
             if (snapshot.hasShielded) weight += 60;
             if (snapshot.hasDefenseBuffed || isTank) weight += 35;
           }
@@ -11148,23 +11411,27 @@ class BattleUIComponent {
             else weight -= 25;
             if (target.蓄力技能) weight += 35;
           }
-          if (hasSkillMechanism(skill, ['持续伤害'])) {
+          if (isBattleSkillDotPressureProfile(skill)) {
             if (hpRatio > 0.55) weight += 20;
             if (snapshot.debuffCount > 0) weight += 15;
             if (hpRatio < 0.25) weight -= 15;
           }
-          if (hasSkillMechanism(skill, ['引爆持续伤害']) && snapshot.debuffCount > 0) {
+          if (isBattleSkillDotDetonateProfile(skill) && snapshot.debuffCount > 0) {
             weight += 40 + snapshot.debuffCount * 6;
           }
-          if (hasSkillMechanism(skill, ['破隐']) && snapshot.hasStealthed) weight += 75;
-          if (hasSkillMechanism(skill, ['窃取增益']) && snapshot.buffCount > 0) weight += 60 + snapshot.buffCount * 8;
-          if (hasSkillMechanism(skill, ['窃取护盾', '斩盾']) && snapshot.hasShielded) weight += 55;
-          if (hasSkillMechanism(skill, ['治疗反转']) && snapshot.hasHealingTrend) weight += 48;
-          if (hasSkillMechanism(skill, ['封技']) && target.蓄力技能) weight += 65;
-          if (hasSkillMechanism(skill, ['嘲讽'])) {
+          if (isBattleSkillRevealProfile(skill) && snapshot.hasStealthed) weight += 75;
+          if (isBattleSkillBuffStealProfile(skill) && snapshot.buffCount > 0) weight += 60 + snapshot.buffCount * 8;
+          if ((isBattleSkillShieldStealProfile(skill) || isBattleSkillShieldBreakProfile(skill, { damage: dmg })) && snapshot.hasShielded) weight += 55;
+          if (isBattleSkillHealInvertProfile(skill) && snapshot.hasHealingTrend) weight += 48;
+          if (isBattleSkillSealProfile(skill) && target.蓄力技能) weight += 65;
+          if (isBattleSkillTauntProfile(skill)) {
             const offenseScore = Math.max(Number(target.str || 0), Number(target.men_max || 0));
             if (isSupport) weight += 20;
             weight += Math.min(45, Math.floor(offenseScore / 250));
+          }
+          if (isBattleSkillResourceDrainProfile(skill)) {
+            if (spRatio > 0.45 || menRatio > 0.45) weight += 45;
+            if (isSupport || target.蓄力技能) weight += 18;
           }
           if (决策标签.includes('规则压制型')) {
             if (snapshot.hasShielded || snapshot.hasHealingTrend || target.蓄力技能) weight += 12;
@@ -11207,20 +11474,20 @@ class BattleUIComponent {
               if (focusTarget && target.name === focusTarget.name) {
                 weight += 18 + Number(memory.focus_ttl || 0) * 6;
                 if (memory.focus_reason === 'control_window') {
-                  if (summary.爆发级别 === '高' || hasSkillMechanism(skill, ['斩杀补伤'])) weight += 18;
-                  if (summary.控制强度 !== '无') weight -= 12;
-                } else if (memory.focus_reason === 'anti_heal_window') {
-                  if (hasSkillMechanism(skill, ['持续伤害', '斩杀补伤']) || summary.爆发级别 !== '无') weight += 12;
-                } else if (memory.focus_reason === 'armor_break_window') {
+                if (summary.爆发级别 === '高' || isBattleSkillExecuteProfile(skill, { summary, damage: getPrimaryDamageEffect(skill) })) weight += 18;
+                if (summary.控制强度 !== '无') weight -= 12;
+              } else if (memory.focus_reason === 'anti_heal_window') {
+                  if (isBattleSkillDotPressureProfile(skill) || isBattleSkillExecuteProfile(skill, { summary, damage: getPrimaryDamageEffect(skill) }) || summary.爆发级别 !== '无') weight += 12;
+              } else if (memory.focus_reason === 'armor_break_window') {
                   if (Number(getPrimaryDamageEffect(skill)?.穿透修饰 || 0) >= 15 || summary.爆发级别 === '高')
                     weight += 14;
-                } else if (memory.focus_reason === 'shared_vision_focus') {
+              } else if (memory.focus_reason === 'shared_vision_focus') {
                   if (summary.目标规模 === '单体') weight += 18;
-                } else if (memory.focus_reason === 'dot_pressure') {
-                  if (hasSkillMechanism(skill, ['斩杀补伤', '持续伤害']) || summary.爆发级别 === '高') weight += 16;
-                } else if (memory.focus_reason === 'finisher') {
-                  if (hasSkillMechanism(skill, ['斩杀补伤']) || summary.爆发级别 !== '无') weight += 22;
-                }
+              } else if (memory.focus_reason === 'dot_pressure') {
+                  if (isBattleSkillExecuteProfile(skill, { summary, damage: getPrimaryDamageEffect(skill) }) || isBattleSkillDotPressureProfile(skill) || summary.爆发级别 === '高') weight += 16;
+              } else if (memory.focus_reason === 'finisher') {
+                  if (isBattleSkillExecuteProfile(skill, { summary, damage: getPrimaryDamageEffect(skill) }) || summary.爆发级别 !== '无') weight += 22;
+              }
               }
               return { target, weight: Math.max(1, weight) };
             }),
@@ -11232,6 +11499,8 @@ class BattleUIComponent {
           bindCombatParticipant(actorChar);
           bindCombatParticipant(ally);
           const snapshot = buildConditionTacticalSnapshot(ally);
+          const summary = deriveBattleSummaryFromEffects(skill);
+          const 技能来源 = getBattleSkillSourceCategory(skill);
           const hpRatio = Math.max(0, Number(ally.vit || 0)) / Math.max(1, Number(ally.vit_max || 1));
           const spRatio = Math.max(0, Number(ally.sp || 0)) / Math.max(1, Number(ally.sp_max || 1));
           const menRatio = Math.max(0, Number(ally.men || 0)) / Math.max(1, Number(ally.men_max || 1));
@@ -11239,18 +11508,21 @@ class BattleUIComponent {
           let weight = ally.name === actorChar.name ? 12 : 10;
           if (
             getSkillEffects(skill).some(effect => isBattleRecoverEffect(effect, ['vit'])) ||
-            hasSkillMechanism(skill, ['护盾', '免死', '护卫'])
+            ['护盾', '免死', '护卫', '复苏', '减伤', '格挡', '霸体', '无敌', '替身', '分摊', '反射'].includes(summary.防御性质)
           )
             weight += Math.floor((1 - hpRatio) * 120) + (snapshot.hasBadCondition ? 15 : 0);
           if (getSkillEffects(skill).some(effect => isBattleRecoverEffect(effect, ['sp', 'men'])))
             weight += Math.floor((1 - spRatio) * 40) + Math.floor((1 - menRatio) * 40);
-          if (hasSkillMechanism(skill, ['共享视野'])) weight += Math.min(40, Math.floor(attackScore / 500));
-          if (hasSkillMechanism(skill, ['护卫']) && ally.name !== actorChar.name) weight += Math.floor((1 - hpRatio) * 90) + 20;
-          if (hasSkillMechanism(skill, ['嘲讽']) && ally.name === actorChar.name) weight += 35;
-          if (hasSkillMechanism(skill, ['隐身'])) {
+          if (isBattleSkillResourceRefeedProfile(skill))
+            weight += Math.floor((1 - spRatio) * 55) + Math.floor((1 - menRatio) * 55);
+          if (summary.协同性 === '高') weight += Math.min(40, Math.floor(attackScore / 500));
+          if (summary.防御性质 === '护卫' && ally.name !== actorChar.name) weight += Math.floor((1 - hpRatio) * 90) + 20;
+          if (isBattleSkillTauntProfile(skill) && ally.name === actorChar.name) weight += 35;
+          if (summary.防御性质 === '分身' || hasBattleSkillRuntimeConsumer(skill, ['stealth'])) {
             if (ally.name === actorChar.name) weight += 18;
             if (hpRatio < 0.5) weight += 20;
           }
+          if (技能来源 === '武魂融合技' && ally.name !== actorChar.name) weight += 12;
           if (['辅助系', '治疗系', '食物系', '控制系'].includes(ally.type)) weight += 10;
           return Math.max(1, weight);
         }
