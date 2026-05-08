@@ -67,10 +67,10 @@
           const scope = String(payload && payload.scope || '').trim();
           const label = String(payload && payload.label || '').trim();
           const scopeTitleMap = {
-            fusion_skill: '融合技设计',
+            武魂融合技: '武魂融合技设计',
             art: '功法设计',
-            special_ability: '特殊技能设计',
-            spirit_skill: '魂技设计',
+            自创魂技: '自创魂技设计',
+            魂技: '魂技设计',
             soul_bone_skill: '魂骨技能设计',
             blood_skill: '血脉技能设计',
             blood_passive: '血脉被动设计'
@@ -252,7 +252,7 @@
       '血脉封印详细页': {
         title: '血脉封印弹窗',
         summary: '承接血脉体系的状态模块，在 1 个页面内汇总封印层级与当前能力。',
-        fields: ['activeChar.武魂', 'activeChar.魂骨', 'activeChar.血脉之力.技能', 'activeChar.血脉之力.气血魂环', 'activeChar.功法 / 特殊能力'],
+        fields: ['activeChar.武魂', 'activeChar.魂骨', 'activeChar.血脉之力.技能', 'activeChar.血脉之力.气血魂环', 'activeChar.功法 / 自创魂技'],
         duties: ['展示血脉本体', '展示封印/魂环/魂技', '展示当前已固化能力'],
         actions: ['按页签查看魂环 / 能力 / 魂骨 / 血脉', '悬浮魂环查看技能说明', '查看封印层级']
       },
@@ -4045,7 +4045,7 @@
         ? __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__
         : null;
     const SKILL_DESIGNER_MECHANISM_META = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.机制定义 || {});
-    const SKILL_DESIGNER_SKILL_TYPES = Object.freeze(['强攻系', '控制系', '食物系', '精神系', '防御系', '敏攻系', '元素系', '辅助系', '治疗系', '被动', '融合技', '功法', '特殊能力']);
+    const SKILL_DESIGNER_SKILL_TYPES = Object.freeze(['强攻系', '控制系', '食物系', '精神系', '防御系', '敏攻系', '元素系', '辅助系', '治疗系', '被动', '武魂融合技', '功法', '自创魂技']);
     const SKILL_DESIGNER_TARGET_OPTIONS = Object.freeze(['自身', '友方单体', '友方群体', '敌方单体', '敌方群体', '全场', '食用者', '使用者', '召唤物', '造物']);
     const SKILL_DESIGNER_MAIN_MECHANIC_POOL = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.mainArchetypes || {
       '伤害类': Object.freeze(['单体伤害', '群体伤害', '多段伤害', '延迟爆发', '持续伤害']),
@@ -4071,7 +4071,7 @@
       '治疗系': Object.freeze(['直接生效', '范围展开', '标记触发']),
       '被动': Object.freeze(['自身附体', '直接生效']),
       '功法': Object.freeze(['自身附体', '直接生效', '范围展开', '延迟触发']),
-      '特殊能力': Object.freeze(['直接生效', '自身附体', '范围展开', '延迟触发', '标记触发']),
+      '自创魂技': Object.freeze(['直接生效', '自身附体', '范围展开', '延迟触发', '标记触发']),
     });
     const SKILL_DESIGNER_ATTRIBUTE_HINTS_BY_TYPE = Object.freeze({
       '强攻系': Object.freeze(['力量', '魂力', '防御']),
@@ -5157,16 +5157,16 @@
       const path = Array.isArray(previewMeta && previewMeta.path) ? previewMeta.path : [];
       const scope = toText(previewMeta && previewMeta.scope, 'skill');
       const label = toText(previewMeta && previewMeta.label, '').trim();
-      if (scope === 'spirit_skill') {
+      if (scope === '魂技') {
         const ringMarkerIndex = path.findIndex(part => toText(part, '') === '魂环');
         const ringIndex = ringMarkerIndex >= 0 ? path[ringMarkerIndex + 1] : '';
         const ringLabel = formatSkillDesignerChineseOrdinal(ringIndex, '魂环');
         const skillLabel = formatSkillDesignerSpiritSkillLabel(label || path[path.length - 1], ringIndex);
         return [ringLabel, skillLabel].filter(Boolean).join(' / ') || '魂环魂技';
       }
-      if (scope === 'fusion_skill') return `融合技 / ${label || '未命名技能'}`;
+      if (scope === '武魂融合技') return `武魂融合技 / ${label || '未命名技能'}`;
       if (scope === 'art') return `功法 / ${label || '未命名技能'}`;
-      if (scope === 'special_ability') return `特殊能力 / ${label || '未命名技能'}`;
+      if (scope === '自创魂技') return `自创魂技 / ${label || '未命名技能'}`;
       if (scope === 'blood_passive') return `血脉能力 / ${label || '未命名技能'}`;
       return path.length ? path.slice(-4).join(' / ') : (label || '未识别路径');
     }
@@ -5178,7 +5178,7 @@
       const path = Array.isArray(previewMeta && previewMeta.path) ? previewMeta.path : [];
       const rootData = (liveSnapshot && liveSnapshot.rootData) || readLatestMvuDataByEditor() || {};
 
-      if (scope === 'spirit_skill') {
+      if (scope === '魂技') {
         const spiritBasePath = path.length >= 4 ? path.slice(0, 4) : [];
         const spiritSlot = normalizeSkillUiText(spiritBasePath[3], '');
         const spiritType = normalizeSkillUiText(
@@ -5190,14 +5190,23 @@
           display: spiritSlot && spiritType ? `${spiritSlot} / ${spiritType}` : (spiritType || spiritSlot || '未设置')
         };
       }
-      if (scope === 'fusion_skill') return { value: '融合技', display: '融合技' };
+      if (scope === '武魂融合技') return { value: '武魂融合技', display: '武魂融合技' };
       if (scope === 'art') return { value: '功法', display: '功法' };
-      if (scope === 'special_ability') return { value: '特殊能力', display: '特殊能力' };
+      if (scope === '自创魂技') return { value: '自创魂技', display: '自创魂技' };
       if (scope === 'blood_passive') return { value: '被动', display: '被动' };
       return {
         value: normalizedFallback || '未设置',
         display: normalizedFallback || category || '未设置'
       };
+    }
+
+    function resolveSkillDesignerSourceCategory(previewMeta = {}) {
+      const scope = toText(previewMeta && previewMeta.scope, 'skill');
+      if (scope === '武魂融合技') return '武魂融合技';
+      if (scope === '自创魂技') return '自创魂技';
+      if (scope === 'art') return '功法';
+      if (scope === 'blood_passive') return '血脉技能';
+      return '魂技';
     }
 
     function getSkillDesignerScopeLabels(previewMeta = {}) {
@@ -5218,31 +5227,31 @@
           effectLabel: '功法描述',
         };
       }
-      if (scope === 'special_ability') {
+      if (scope === '自创魂技') {
         return {
-          studioTitle: '特殊能力设计台',
-          anchorTitle: '能力锚点',
-          parameterTitle: '能力参数',
-          summaryTitle: '能力速览',
-          nameCardLabel: '能力名称',
-          typeCardLabel: '能力类别',
-          nameFieldLabel: '能力名',
+          studioTitle: '自创魂技设计台',
+          anchorTitle: '自创魂技锚点',
+          parameterTitle: '自创魂技参数',
+          summaryTitle: '自创魂技速览',
+          nameCardLabel: '自创魂技名称',
+          typeCardLabel: '自创魂技类别',
+          nameFieldLabel: '自创魂技名',
           targetLabel: '作用对象',
           deliveryLabel: '施展方式',
-          roleLabel: '能力定位',
+          roleLabel: '魂技定位',
           visualLabel: '表现描述',
-          effectLabel: '能力描述',
+          effectLabel: '魂技描述',
         };
       }
-      if (scope === 'fusion_skill') {
+      if (scope === '武魂融合技') {
         return {
-          studioTitle: '融合技设计台',
-          anchorTitle: '融合锚点',
-          parameterTitle: '融合结构',
-          summaryTitle: '融合速览',
-          nameCardLabel: '融合技名称',
+          studioTitle: '武魂融合技设计台',
+          anchorTitle: '武魂融合锚点',
+          parameterTitle: '武魂融合结构',
+          summaryTitle: '武魂融合速览',
+          nameCardLabel: '武魂融合技名称',
           typeCardLabel: '技能归属',
-          nameFieldLabel: '融合技名',
+          nameFieldLabel: '武魂融合技名',
           targetLabel: '作用对象',
           deliveryLabel: '施放形式',
           roleLabel: '战斗定位',
@@ -5292,7 +5301,7 @@
       let source = '无';
       if (attachedAttributes.length) {
         if (allWuxing) source = '魂技调用';
-        else if (scope === 'art' || scope === 'special_ability' || /元素|精神|功法|特殊/.test(type)) source = '自身操控';
+        else if (scope === 'art' || scope === '自创魂技' || /元素|精神|功法|自创/.test(type)) source = '自身操控';
       }
       return {
         source,
@@ -5420,6 +5429,20 @@
       return summary;
     }
 
+    function buildSkillDesignerConstructSummary(draft = {}) {
+      const deliveryForm = normalizeSkillUiText(draft && draft.deliveryForm, '');
+      if (deliveryForm !== '造物承载') return '';
+      const type = normalizeSkillUiText(draft && draft.type, '');
+      const isFood = type === '食物系';
+      const itemType = isFood ? '食物' : '魂技造物';
+      const triggerMode = isFood ? '食用' : '使用';
+      const effectTarget = isFood
+        ? '食用者'
+        : normalizeSkillUiText(draft && draft.target, '') || '使用者';
+      const itemName = normalizeSkillUiText(draft && draft.name, '未命名技能');
+      return `造物：${itemType} / ${itemName}；触发：${triggerMode}；生效对象：${effectTarget}`;
+    }
+
     function summarizeSkillDesignerMechanismGrantContext(draft = {}) {
       const labels = collectSkillDesignerMechanicLabels(draft);
       if (!labels.length) return { grantTarget: '', triggerOwner: '' };
@@ -5457,8 +5480,10 @@
       const target = normalizeSkillUiText(draft.target, '');
       const cost = formatSkillDesignerCostText(draft.costType, draft.costValue);
       const mechanismContext = summarizeSkillDesignerMechanismGrantContext(draft);
+      const constructSummary = buildSkillDesignerConstructSummary(draft);
       if (target) parts.push(`对象：${target}`);
       if (cost && cost !== '无') parts.push(`消耗：${cost}`);
+      if (constructSummary) parts.push(constructSummary);
       if (mechanismContext.grantTarget) parts.push(`赋予对象：${mechanismContext.grantTarget}`);
       if (mechanismContext.triggerOwner) parts.push(`触发归属：${mechanismContext.triggerOwner}`);
       return parts.join('；');
@@ -5661,7 +5686,7 @@
 
     function getSkillDesignerFusionRecord(rootData = {}, previewMeta = {}) {
       const path = Array.isArray(previewMeta && previewMeta.path) ? previewMeta.path : [];
-      if (toText(previewMeta && previewMeta.scope, '') !== 'fusion_skill') return {};
+      if (toText(previewMeta && previewMeta.scope, '') !== '武魂融合技') return {};
       if (toText(path[path.length - 1], '') !== '技能数据') return {};
       const record = deepGet(rootData, path.slice(0, -1), {});
       return record && typeof record === 'object' ? record : {};
@@ -5791,7 +5816,7 @@
     }
 
     function buildSkillDesignerFusionParticipants(snapshot = {}, previewMeta = {}, baseDraft = {}, fusionRecord = {}) {
-      if (toText(previewMeta && previewMeta.scope, '') !== 'fusion_skill') return [];
+      if (toText(previewMeta && previewMeta.scope, '') !== '武魂融合技') return [];
       const rootData = snapshot && snapshot.rootData ? snapshot.rootData : {};
       const selfEntry = getSkillDesignerFusionSelfEntry(rootData, previewMeta, snapshot);
       const selfSpiritOptions = selfEntry.spirits;
@@ -5946,7 +5971,7 @@
     }
 
     function getSkillDesignerFusionDraftSeed(snapshot = {}, previewMeta = {}, baseDraft = {}) {
-      if (toText(previewMeta && previewMeta.scope, '') !== 'fusion_skill') return {};
+      if (toText(previewMeta && previewMeta.scope, '') !== '武魂融合技') return {};
       const rootData = snapshot && snapshot.rootData ? snapshot.rootData : {};
       const fusionRecord = getSkillDesignerFusionRecord(rootData, previewMeta);
       const selfEntry = getSkillDesignerFusionSelfEntry(rootData, previewMeta, snapshot);
@@ -6677,7 +6702,7 @@
       const resolvedPrimaryMain = normalizeSkillUiText(baseDraft.primaryMain, '');
       let resolvedTarget = normalizeSkillDesignerTargetForForm(baseDraft.target, getSkillDesignerDefaultTarget(previewMeta, typeMeta.value));
       if (/^(未知|未设置|无)$/.test(resolvedTarget)) resolvedTarget = getSkillDesignerDefaultTarget(previewMeta, typeMeta.value);
-      const isFusionScope = toText(previewMeta && previewMeta.scope, '') === 'fusion_skill';
+      const isFusionScope = toText(previewMeta && previewMeta.scope, '') === '武魂融合技';
       const rawFusionMode = isFusionScope ? normalizeSkillDesignerFusionMode(baseDraft.fusionMode || baseDraft['融合模式']) : '';
       const rawFusionPartner = isFusionScope ? normalizeSkillUiText(baseDraft.fusionPartner || baseDraft['融合对象'], '') : '';
       const rawFusionParticipants = isFusionScope ? normalizeSkillDesignerFusionParticipantList(getSkillDesignerRawFusionParticipants(baseDraft)) : [];
@@ -6763,7 +6788,7 @@
       const resolvedPrimaryMain = readField('primaryMain');
       const resolvedPrimarySub = readField('primarySub');
       const resolvedTarget = normalizeSkillDesignerTargetForForm(readField('target'), getSkillDesignerDefaultTarget(previewMeta, typeMeta.value));
-      const isFusionScope = toText(previewMeta && previewMeta.scope, '') === 'fusion_skill';
+      const isFusionScope = toText(previewMeta && previewMeta.scope, '') === '武魂融合技';
       const fusionMode = isFusionScope ? normalizeSkillDesignerFusionMode(readField('fusionMode')) : '';
       const fusionParticipants = isFusionScope ? readFusionParticipants() : [];
       const derivedFusionFields = isFusionScope
@@ -7234,6 +7259,7 @@
       })();
       return buildSkillDesignerRuntimeObject({
         '机制': '系统基础',
+        '技能来源': resolveSkillDesignerSourceCategory(previewMeta),
         '技能类型': skillTypeText,
         '对象': systemTarget,
         '消耗': isPassive ? '无' : (draft && draft.cost) || '无',
@@ -8421,12 +8447,14 @@
     function buildSkillDesignerUpdatedSkill(skillSource = {}, formState = {}, previewMeta = {}) {
       const safeSkill = skillSource && typeof skillSource === 'object' ? cloneJsonValue(skillSource) : {};
       const normalized = buildSkillDesignerFormStateFromDraft(formState, previewMeta);
-      const normalizedFusionFields = previewMeta && previewMeta.scope === 'fusion_skill'
+      const normalizedFusionFields = previewMeta && previewMeta.scope === '武魂融合技'
         ? assertSkillDesignerFusionState(normalized)
         : null;
       const designSummary = buildSkillDesignerCompactSummary(normalized);
+      const skillSourceCategory = resolveSkillDesignerSourceCategory(previewMeta);
       safeSkill['魂技名'] = normalized.name;
       safeSkill['name'] = normalized.name;
+      safeSkill['技能来源'] = skillSourceCategory;
       safeSkill['技能类型'] = normalized.type;
       safeSkill['对象'] = normalized.target;
       safeSkill['消耗'] = normalized.cost;
@@ -8435,13 +8463,13 @@
       safeSkill['标签'] = compactSkillDesignerStoredTags(normalized.tags);
       safeSkill['画面描述'] = normalized.visualDesc;
       safeSkill['效果描述'] = normalized.effectDesc;
-      if ('描述' in safeSkill || (previewMeta && ['art', 'fusion_skill'].includes(previewMeta.scope))) safeSkill['描述'] = normalized.effectDesc;
+      if ('描述' in safeSkill || (previewMeta && ['art', '武魂融合技'].includes(previewMeta.scope))) safeSkill['描述'] = normalized.effectDesc;
       if (previewMeta && previewMeta.scope === 'art') {
         safeSkill['境界'] = normalizeSkillUiText(normalized.artStage, '未入门');
         safeSkill['lv'] = Math.max(0, toNumber(normalized.artLevel, 0));
         safeSkill['exp'] = Math.max(0, toNumber(normalized.artExp, 0));
       }
-      if (previewMeta && previewMeta.scope === 'fusion_skill') {
+      if (previewMeta && previewMeta.scope === '武魂融合技') {
         safeSkill['融合模式'] = normalizedFusionFields.fusionMode;
         safeSkill['融合对象'] = normalizedFusionFields.fusionPartner;
         safeSkill['来源武魂'] = [...normalizedFusionFields.fusionSourceSpirits];
@@ -8450,6 +8478,7 @@
       safeSkill['附带属性'] = [...normalized.attachedAttributes];
       safeSkill['特效量化参数'] = designSummary;
       safeSkill['设计稿'] = {
+        '技能来源': skillSourceCategory,
         '主机制': normalized.primaryMain,
         '细分机制': normalized.primarySub,
         '释放形式': normalized.deliveryForm,
@@ -8466,7 +8495,7 @@
         '境界': normalizeSkillUiText(normalized.artStage, '未入门'),
         'lv': Math.max(0, toNumber(normalized.artLevel, 0)),
         'exp': Math.max(0, toNumber(normalized.artExp, 0)),
-        ...(previewMeta && previewMeta.scope === 'fusion_skill' ? {
+        ...(previewMeta && previewMeta.scope === '武魂融合技' ? {
           '融合模式': normalizedFusionFields.fusionMode,
           '融合对象': normalizedFusionFields.fusionPartner,
           '来源武魂': [...normalizedFusionFields.fusionSourceSpirits],
@@ -8484,7 +8513,7 @@
       const path = Array.isArray(previewMeta && previewMeta.path) ? previewMeta.path : [];
       if (!path.length) return [];
       const updates = [{ path, value: nextSkill }];
-      if (toText(previewMeta && previewMeta.scope, '') === 'fusion_skill' && toText(path[path.length - 1], '') === '技能数据') {
+      if (toText(previewMeta && previewMeta.scope, '') === '武魂融合技' && toText(path[path.length - 1], '') === '技能数据') {
         const fusionRecordPath = path.slice(0, -1);
         const existingFusion = deepGet(rootData, fusionRecordPath, {});
         const fusionName = normalizeSkillUiText(nextSkill && (nextSkill['魂技名'] || nextSkill.name), toText(previewMeta && previewMeta.label, '未命名融合技'));
@@ -8789,7 +8818,7 @@
             const skills = buildSkillList(ring && ring['魂技'], {
               basePath: [...soulPath, '魂环', ringIndex, '魂技'],
               category: '魂环魂技',
-              scope: 'spirit_skill',
+            scope: '魂技',
             });
             const ringInfo = buildSpiritRingInfo(ringIndex, ring, skills, {
               path: [...soulPath, '魂环', ringIndex],
@@ -9350,22 +9379,22 @@
             path: ['char', activeName, '武魂融合技', fusion.recordKey || fusionName, '技能数据'],
             label: toText(fusionName, fusion.recordKey || '武魂融合技'),
             category: '武魂融合技',
-            scope: 'fusion_skill',
+            scope: '武魂融合技',
           })
         });
       });
-      safeRecords(deepGet(activeChar, '特殊能力', {})).forEach(abi => {
+      safeRecords(deepGet(activeChar, '自创魂技', {})).forEach(abi => {
         if (artSkillNameSet.has(toText(abi.recordKey || abi.name, '').trim())) return;
         extraSkills.push({
-          category: '特殊能力',
+          category: '自创魂技',
           name: abi.name,
           level: toText(abi.技能类型 || abi.主定位, '被动'),
           desc: toText(abi.效果描述 || abi.战斗摘要?.一句话定位, '暂无描述'),
           preview: buildSkillDesignerPreviewKey({
-            path: ['char', activeName, '特殊能力', abi.recordKey || abi.name],
-            label: toText(abi.name, abi.recordKey || '特殊能力'),
-            category: '特殊能力',
-            scope: 'special_ability',
+            path: ['char', activeName, '自创魂技', abi.recordKey || abi.name],
+            label: toText(abi.name, abi.recordKey || '自创魂技'),
+            category: '自创魂技',
+            scope: '自创魂技',
           })
         });
       });
@@ -9390,7 +9419,7 @@
       const conditionEntries = safeEntries(deepGet(activeChar, '属性.状态效果', {}));
       const soulBoneEntries = safeEntries(deepGet(activeChar, '魂骨', {}));
       const artEntries = safeEntries(deepGet(activeChar, '功法', {})).sort((a, b) => toNumber(deepGet(b[1], 'lv', 0), 0) - toNumber(deepGet(a[1], 'lv', 0), 0));
-      const specialAbilityEntries = safeEntries(deepGet(activeChar, '特殊能力', {})).filter(([name]) => !artSkillNameSet.has(toText(name, '').trim()));
+      const customSkillEntries = safeEntries(deepGet(activeChar, '自创魂技', {})).filter(([name]) => !artSkillNameSet.has(toText(name, '').trim()));
       const combatHistoryEntries = safeEntries(deepGet(activeChar, '战斗历史', {})).sort((a, b) => toNumber(deepGet(b[1], '最近tick', 0), 0) - toNumber(deepGet(a[1], '最近tick', 0), 0));
       const pendingRequests = collectPendingRequests(activeChar || {}, sd || {});
       const bestiaryEntries = safeEntries(deepGet(sd, 'world.图鉴', {}));
@@ -9502,7 +9531,7 @@
         conditionEntries,
         soulBoneEntries,
         artEntries,
-        specialAbilityEntries,
+        customSkillEntries,
         combatHistoryEntries,
         primarySpirit,
         secondaryTrack: secondarySpirit || (bloodline.valid ? bloodline : null),
@@ -11731,12 +11760,12 @@
         note: toText(deepGet(item, '技能数据.效果描述', deepGet(item, '技能数据.effectDesc', '')), ''),
       }));
       return {
-        title: '融合技',
+        title: '武魂融合技',
         body: `
           <div class="mvu-shell-lite-root" data-shell-light-view="fusion">
             <section class="mvu-shell-lite-card mvu-shell-lite-card--hero">
               <div class="mvu-shell-lite-head">
-                <span>融合技</span>
+                <span>武魂融合技</span>
                 <strong>${htmlEscape(`${fusionMeta.fusionEntries.length || 0} 项`)}</strong>
               </div>
               ${buildShellLiteStats([
@@ -11746,7 +11775,7 @@
             </section>
             <section class="mvu-shell-lite-card">
               <div class="mvu-shell-lite-section-title">条目</div>
-              <div class="mvu-shell-lite-list">${buildShellLiteItemList(entries, '暂无融合技')}</div>
+              <div class="mvu-shell-lite-list">${buildShellLiteItemList(entries, '暂无武魂融合技')}</div>
             </section>
           </div>
         `,
@@ -12990,7 +13019,7 @@
         const pathTail = formatSkillDesignerWritebackLabel(previewMeta);
         const scopeLabels = getSkillDesignerScopeLabels(previewMeta);
         const recommendedAttrs = new Set(normalizeSkillDesignerArray(SKILL_DESIGNER_ATTRIBUTE_HINTS_BY_TYPE[designerDraft.type] || []));
-        const isFusionDesigner = previewMeta.scope === 'fusion_skill';
+        const isFusionDesigner = previewMeta.scope === '武魂融合技';
         const { charData: fusionCharData } = getSkillDesignerCharByPreviewPath(snapshot.rootData, previewMeta);
         const fusionSpiritOptions = isFusionDesigner ? getSkillDesignerSpiritNameOptions(fusionCharData) : [];
         const fusionModeOptions = isFusionDesigner
@@ -13130,6 +13159,7 @@
                 fusion: buildSkillDesignerFusionSummary(formState) || '未设置',
                 mechanic: buildSkillDesignerMechanicSummary(formState) || '未设置',
                 mechanicParams: buildSkillDesignerMechanicParamSummary(formState) || '未设置',
+                construct: buildSkillDesignerConstructSummary(formState) || '未设置',
                 execution: buildSkillDesignerExecutionSummary(formState) || '未设置',
                 progress: buildSkillDesignerArtProgressSummary(formState) || '未设置',
                 attribute: buildSkillDesignerAttributeSummary(formState) || '未设置',
@@ -13139,6 +13169,9 @@
               mountEl.querySelectorAll('[data-skill-designer-preview]').forEach(node => {
                 const key = node.getAttribute('data-skill-designer-preview') || '';
                 node.textContent = previewMap[key] || '未设置';
+              });
+              mountEl.querySelectorAll('[data-skill-designer-construct-row]').forEach(node => {
+                node.hidden = normalizeSkillUiText(formState.deliveryForm, '') !== '造物承载';
               });
             };
 
@@ -13471,6 +13504,9 @@
                     : ''}
                   <div class=\"skill-designer-summary-row\"><em>机制组合</em><span data-skill-designer-preview=\"mechanic\">${htmlEscape(buildSkillDesignerMechanicSummary(designerDraft) || '未设置')}</span></div>
                   <div class=\"skill-designer-summary-row\"><em>机制参数</em><span data-skill-designer-preview=\"mechanicParams\">${htmlEscape(buildSkillDesignerMechanicParamSummary(designerDraft) || '未设置')}</span></div>
+                  <div class=\"skill-designer-summary-row\" data-skill-designer-construct-row ${normalizeSkillUiText(designerDraft.deliveryForm, '') === '造物承载' ? '' : 'hidden'}>
+                    <em>造物规则</em><span data-skill-designer-preview=\"construct\">${htmlEscape(buildSkillDesignerConstructSummary(designerDraft) || '未设置')}</span>
+                  </div>
                   <div class=\"skill-designer-summary-row\"><em>执行摘要</em><span data-skill-designer-preview=\"execution\">${htmlEscape(buildSkillDesignerExecutionSummary(designerDraft) || '未设置')}</span></div>
                   ${previewMeta.scope === 'art'
                     ? `<div class=\"skill-designer-summary-row\"><em>功法进度</em><span data-skill-designer-preview=\"progress\">${htmlEscape(buildSkillDesignerArtProgressSummary(designerDraft) || '未设置')}</span></div>`
@@ -13811,10 +13847,10 @@
           : null;
         const createAbilityPreview = activeCharKey
           ? buildSkillDesignerPreviewKey({
-            path: ['char', activeCharKey, '特殊能力', `自建特殊能力_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`],
-            label: '新建特殊能力',
-            category: '特殊能力',
-            scope: 'special_ability',
+            path: ['char', activeCharKey, '自创魂技', `自创魂技_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`],
+            label: '新建自创魂技',
+            category: '自创魂技',
+            scope: '自创魂技',
           })
           : '';
         const fusionArchiveMeta = getFusionArchiveMeta(snapshot);
@@ -13965,7 +14001,7 @@
                   <div class="archive-card-title">能力与成长记录</div>
                   <div class="dossier-tag-row dossier-head-actions">
                     <button type="button" class="dossier-pill ${fusionArchiveMeta.fusionEntries.length ? 'live' : 'warn'} clickable" data-preview="武魂融合技详细页">武魂融合技</button>
-                    ${createAbilityPreview ? `<button type="button" class="dossier-pill live clickable" data-preview="${escapeHtmlAttr(createAbilityPreview)}">自建特殊能力</button>` : ''}
+                    ${createAbilityPreview ? `<button type="button" class="dossier-pill live clickable" data-preview="${escapeHtmlAttr(createAbilityPreview)}">新建自创魂技</button>` : ''}
                   </div>
                 </div>
                 <div class="dossier-columns dossier-columns--life-record">
@@ -13974,7 +14010,7 @@
                     ${makeDossierRows(trainedBonusItems, 'dossier-row-grid--three')}
                   </section>
                   <section class="dossier-section">
-                    <div class="dossier-section-title">功法与特殊能力</div>
+                    <div class="dossier-section-title">功法与自创魂技</div>
                     ${makeDossierList([fusionArchiveEntry, ...archiveSkillEntries], 'dossier-list--compact')}
                   </section>
                 </div>
@@ -15322,7 +15358,7 @@
               path: ['char', activeCharKey, '武魂融合技', `武魂融合技_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`, '技能数据'],
               label: '新建武魂融合技',
               category: '武魂融合技',
-              scope: 'fusion_skill',
+              scope: '武魂融合技',
             })
           : '';
         const leadFusionEntry = fusionEntries[0] || null;
@@ -15343,7 +15379,7 @@
               path: ['char', activeCharKey, '武魂融合技', leadRecordKey, '技能数据'],
               label: leadFusionName,
               category: '武魂融合技',
-              scope: 'fusion_skill',
+              scope: '武魂融合技',
             })
           : '';
         const fusionList = fusionEntries.map(([recordKey, fusion]) => {
@@ -15361,7 +15397,7 @@
                 path: ['char', activeCharKey, '武魂融合技', recordKey, '技能数据'],
                 label: fusionName,
                 category: '武魂融合技',
-                scope: 'fusion_skill',
+                scope: '武魂融合技',
               })
             : '';
           const descParts = [
@@ -15384,14 +15420,14 @@
             <div class="archive-modal-grid dossier-shell">
               <div class="archive-card dossier-card">
                 <div class="archive-card-head">
-                  <div class="archive-card-title">融合技概览</div>
+                  <div class="archive-card-title">武魂融合技概览</div>
                   <span class="dossier-pill ${fusionEntries.length ? 'live' : 'warn'}">${fusionEntries.length ? `${fusionEntries.length} 项` : '未收录'}</span>
                 </div>
                 <section class="dossier-section">
                   <div class="dossier-section-title">基础统计</div>
                   ${makeDossierRows([
                     { label: '当前角色', value: htmlEscape(snapshot.activeName) },
-                    { label: '融合技总数', value: htmlEscape(String(fusionEntries.length)) },
+                    { label: '武魂融合技总数', value: htmlEscape(String(fusionEntries.length)) },
                     { label: '外部融合', value: htmlEscape(String(partnerCount)) },
                     { label: '自体融合', value: htmlEscape(String(selfCount)) }
                   ], 'dossier-row-grid--two')}
@@ -15424,23 +15460,23 @@
                     : `
                       ${makeDossierRows([
                         { label: '主档记录', value: '未收录' },
-                        { label: '编辑入口', value: createFusionPreview ? `<button type="button" class="dossier-pill live clickable" data-preview="${escapeHtmlAttr(createFusionPreview)}">新建融合技</button>` : '暂无可编辑对象' }
+                        { label: '编辑入口', value: createFusionPreview ? `<button type="button" class="dossier-pill live clickable" data-preview="${escapeHtmlAttr(createFusionPreview)}">新建武魂融合技</button>` : '暂无可编辑对象' }
                       ])}
                     `}
                 </section>
               </div>
               <div class="archive-card dossier-card">
                 <div class="archive-card-head">
-                  <div class="archive-card-title">融合技清单</div>
+                  <div class="archive-card-title">武魂融合技清单</div>
                   <div class="dossier-tag-row dossier-head-actions">
-                    ${createFusionPreview ? `<button type="button" class="dossier-pill live clickable" data-preview="${escapeHtmlAttr(createFusionPreview)}">新建融合技</button>` : ''}
+                    ${createFusionPreview ? `<button type="button" class="dossier-pill live clickable" data-preview="${escapeHtmlAttr(createFusionPreview)}">新建武魂融合技</button>` : ''}
                   </div>
                 </div>
                 <section class="dossier-section">
                   <div class="dossier-section-title">已收录条目</div>
                   ${fusionList.length
                     ? makeDossierList(fusionList, 'dossier-list--fusion')
-                    : '<div class="dossier-empty-note">未收录融合技。</div>'}
+                    : '<div class="dossier-empty-note">未收录武魂融合技。</div>'}
                 </section>
               </div>
             </div>
@@ -18424,7 +18460,7 @@ ${mvuUpdate}`;
         装备: buildTemporaryBattleEquipmentShell(),
         持续效果: {},
         蓄力技能: null,
-        特殊能力: {},
+        自创魂技: {},
         社交: { 势力: {} },
       };
     }
@@ -18640,7 +18676,7 @@ ${mvuUpdate}`;
         next.属性.力量 = Math.max(1, derived.str);
         next.属性.防御 = Math.max(1, derived.def);
         next.属性.敏捷 = Math.max(1, derived.agi);
-        next.特殊能力 = buildTemporaryBattleSkillMap(estimateTemporaryHumanSkillCount(level));
+        next.自创魂技 = buildTemporaryBattleSkillMap(estimateTemporaryHumanSkillCount(level));
         return next;
       });
     }
@@ -18673,7 +18709,7 @@ ${mvuUpdate}`;
       next.属性.防御 = Math.max(1, Number(stats.def || 1));
       next.属性.敏捷 = Math.max(1, Number(stats.agi || 1));
       next.社交.势力['魂兽一族'] = { 身份: '敌对', 权限级: 1 };
-      next.特殊能力 = buildTemporaryBattleSkillMap(estimateTemporaryMonsterSkillCount('魂兽', seed));
+      next.自创魂技 = buildTemporaryBattleSkillMap(estimateTemporaryMonsterSkillCount('魂兽', seed));
       return next;
     }
 
@@ -18702,7 +18738,7 @@ ${mvuUpdate}`;
       next.属性.防御 = Math.max(1, Number(stats.def || 1));
       next.属性.敏捷 = Math.max(1, Number(stats.agi || 1));
       next.社交.势力['深渊生物'] = { 身份: '敌对', 权限级: 1 };
-      next.特殊能力 = buildTemporaryBattleSkillMap(estimateTemporaryMonsterSkillCount('深渊', seed));
+      next.自创魂技 = buildTemporaryBattleSkillMap(estimateTemporaryMonsterSkillCount('深渊', seed));
       return next;
     }
 

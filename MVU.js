@@ -1255,7 +1255,7 @@ function buildTemporaryCombatSkeleton(name = '未知单位', unitNature = '人�
     装备: buildTemporaryCombatEquipmentShell(),
     持续效果: {},
     蓄力技能: null,
-    特殊能力: {},
+    自创魂技: {},
     社交: { 势力: {} },
   };
 }
@@ -1315,7 +1315,7 @@ function buildTemporaryHumanCombatant(seed = {}, slotName = 'enemy') {
     next.属性.力量 = Math.max(1, derived.str);
     next.属性.防御 = Math.max(1, derived.def);
     next.属性.敏捷 = Math.max(1, derived.agi);
-    next.特殊能力 = buildTemporaryCombatSkillMap(
+    next.自创魂技 = buildTemporaryCombatSkillMap(
       battleSeedText,
       unitName,
       combatType,
@@ -1356,7 +1356,7 @@ function buildTemporarySoulBeastCombatant(seed = {}, slotName = 'enemy') {
   next.属性.防御 = Math.max(1, Number(stats.def || 1));
   next.属性.敏捷 = Math.max(1, Number(stats.agi || 1));
   next.社交.势力['魂兽一族'] = { 身份: '敌对', 权限级: 1 };
-  next.特殊能力 = buildTemporaryCombatSkillMap(
+  next.自创魂技 = buildTemporaryCombatSkillMap(
     `${unitName}|魂兽|${species}|${age}|${slotName}`,
     unitName,
     combatType,
@@ -1393,7 +1393,7 @@ function buildTemporaryAbyssCombatant(seed = {}, slotName = 'enemy') {
   next.属性.防御 = Math.max(1, Number(stats.def || 1));
   next.属性.敏捷 = Math.max(1, Number(stats.agi || 1));
   next.社交.势力['深渊生物'] = { 身份: '敌对', 权限级: 1 };
-  next.特殊能力 = buildTemporaryCombatSkillMap(
+  next.自创魂技 = buildTemporaryCombatSkillMap(
     `${unitName}|深渊|${race}|${tier}|${slotName}`,
     unitName,
     combatType,
@@ -1421,7 +1421,7 @@ function mergeTemporaryCombatRuntimeState(existing = {}, generated = {}) {
   if (existing?.装备 && typeof existing.装备 === 'object') next.装备 = _.cloneDeep(existing.装备);
   if (existing?.持续效果 && typeof existing.持续效果 === 'object') next.持续效果 = _.cloneDeep(existing.持续效果);
   if (existing?.蓄力技能 !== undefined) next.蓄力技能 = _.cloneDeep(existing.蓄力技能);
-  if (existing?.特殊能力 && typeof existing.特殊能力 === 'object') next.特殊能力 = _.cloneDeep(existing.特殊能力);
+  if (existing?.自创魂技 && typeof existing.自创魂技 === 'object') next.自创魂技 = _.cloneDeep(existing.自创魂技);
   return next;
 }
 
@@ -5255,7 +5255,7 @@ function stripLegacySkillFieldsFromCharacter(char = {}) {
       stripLegacySkillFieldsFromSkillMap(ringData?.魂技 || {});
     });
   });
-  stripLegacySkillFieldsFromSkillMap(char?.特殊能力 || {});
+  stripLegacySkillFieldsFromSkillMap(char?.自创魂技 || {});
   _(char?.武魂融合技 || {}).forEach(fusionData =>
     stripLegacySkillFieldsFromSkill(fusionData?.技能数据 || {}),
   );
@@ -6583,6 +6583,7 @@ function autoGenerateSkill(
   const grade = gradeInfo.grade;
   const quality = gradeInfo.quality;
   const roll = gradeInfo.scoreRoll;
+  const skillSourceCategory = String(options?.sourceCategory || options?.技能来源 || '魂技').trim() || '魂技';
 
   const blueprint = rollSkillBlueprint(type, grade, ringIndex, preferredSecondary, {
     spiritName: String(options?.textContext?.spiritName || '').trim(),
@@ -7597,6 +7598,7 @@ function autoGenerateSkill(
   }
 
   const systemBaseEffect = buildMinimalSkillRuntimeSystemBaseEffect({
+    技能来源: skillSourceCategory,
     技能类型: 战斗.技能类型 || '无',
     目标模型: 战斗.目标模型 || targetModel,
     目标修饰: 战斗.目标修饰 || [],
@@ -7610,6 +7612,7 @@ function autoGenerateSkill(
     魂技名: AI_TODO_SKILL_NAME,
     画面描述: AI_TODO_SKILL_VISUAL,
     效果描述: AI_TODO_SKILL_EFFECT,
+    技能来源: skillSourceCategory,
     技能类型: 战斗.技能类型 || '无',
     目标模型: 战斗.目标模型 || normalizeSkillTargetModel(targetModel, '敌方单体'),
     目标修饰: normalizeSkillTargetModifierList(战斗.目标修饰 || []),
@@ -8027,6 +8030,32 @@ function buildElementProfileFromAttributeState(attributeState = {}, existingProf
     polarityMode: String(existingProfile?.polarityMode || '无'),
     mastery: Number(existingProfile?.mastery || 0),
   });
+}
+
+function mergeSpiritAttributeStates(attributeStates = []) {
+  const states = (Array.isArray(attributeStates) ? attributeStates : []).filter(state => state && typeof state === 'object');
+  const unlocked = normalizeAttributeTokenArray(states.flatMap(state => state.已解锁属性 || []));
+  const capacity = normalizeAttributeTokenArray(states.flatMap(state => state.可容纳属性 || []));
+  const hasWuxingSystem =
+    states.some(state => String(state.属性体系 || '').trim() === '五行') ||
+    unlocked.some(attr => WUXING_ELEMENT_SEQUENCE.includes(attr)) ||
+    capacity.some(attr => WUXING_ELEMENT_SEQUENCE.includes(attr));
+  const hasElementSystem =
+    states.some(state => ['元素', '五行'].includes(String(state.属性体系 || '').trim())) ||
+    unlocked.length > 0 ||
+    capacity.length > 0;
+  return {
+    属性体系: hasWuxingSystem ? '五行' : hasElementSystem ? '元素' : '无',
+    已解锁属性: unlocked,
+    可容纳属性: capacity.length ? capacity : [...unlocked],
+  };
+}
+
+function buildCharacterCustomSkillAttributeState(char = {}) {
+  const spiritStates = safeEntries(char?.武魂 || {}).map(([spiritKey, spiritData]) =>
+    normalizeSpiritAttributeState(spiritData, spiritKey, char),
+  );
+  return mergeSpiritAttributeStates(spiritStates);
 }
 
 function getCombatParticipantName(participant = null) {
@@ -8993,15 +9022,77 @@ function applySkillElementInheritance(skill = {}, context = {}) {
   return skill;
 }
 
-function getFusionSkillElementProfile(fusionSkill = {}, char = {}) {
-  const slots = getNormalizedFusionSourceSpirits(fusionSkill, char);
-  for (const slot of slots) {
-    const spiritData = char?.武魂?.[slot];
-    if (!spiritData || typeof spiritData !== 'object') continue;
-    const profile = buildElementProfileFromAttributeState(normalizeSpiritAttributeState(spiritData, slot, char));
-    if (profile.system !== '无属性') return profile;
+function normalizeFusionRuntimeParticipants(participants = []) {
+  if (!Array.isArray(participants)) return [];
+  return participants
+    .map(participant => {
+      const safeParticipant = participant && typeof participant === 'object' ? participant : {};
+      return {
+        role: safeParticipant.role === 'self' ? 'self' : 'partner',
+        charKey: String(safeParticipant.charKey || '').trim(),
+        charName: String(safeParticipant.charName || '').trim(),
+        spirit: String(safeParticipant.spirit || '').trim(),
+      };
+    })
+    .filter(participant => participant.charKey || participant.charName || participant.spirit);
+}
+
+function findFusionSpiritDataByReference(charData = {}, spiritRef = '') {
+  const safeRef = String(spiritRef || '').trim();
+  if (!safeRef || !charData?.武魂 || typeof charData.武魂 !== 'object') return null;
+  if (charData.武魂[safeRef] && typeof charData.武魂[safeRef] === 'object') {
+    return { spiritKey: safeRef, spiritData: charData.武魂[safeRef] };
   }
-  return buildElementProfileFromAttributeState({ 属性体系: '无', 已解锁属性: [], 可容纳属性: [] });
+  const matchedEntry = Object.entries(charData.武魂).find(([spiritKey, spiritData]) => {
+    if (!spiritData || typeof spiritData !== 'object') return false;
+    return spiritKey === safeRef || String(spiritData.表象名称 || '').trim() === safeRef;
+  });
+  return matchedEntry ? { spiritKey: matchedEntry[0], spiritData: matchedEntry[1] } : null;
+}
+
+function resolveFusionParticipantCharData(rootData = {}, ownerCharKey = '', ownerChar = {}, participant = {}) {
+  const safeParticipant = participant && typeof participant === 'object' ? participant : {};
+  if (safeParticipant.role === 'self') return ownerChar;
+  if (safeParticipant.charKey && rootData?.char?.[safeParticipant.charKey]) return rootData.char[safeParticipant.charKey];
+  const byNameKey = findCombatCharKeyByName(rootData, safeParticipant.charName || safeParticipant.charKey || '');
+  return byNameKey && rootData?.char?.[byNameKey] ? rootData.char[byNameKey] : null;
+}
+
+function buildFusionSkillAttributeStateFromData(fusionSkill = {}, ownerCharKey = '', rootData = {}) {
+  const ownerChar = rootData?.char?.[ownerCharKey] || {};
+  const normalizedParticipants = normalizeFusionRuntimeParticipants(fusionSkill?.融合参与者 || []);
+  const mergedStates = [];
+  if (normalizedParticipants.length > 0) {
+    normalizedParticipants.forEach(participant => {
+      const charData = resolveFusionParticipantCharData(rootData, ownerCharKey, ownerChar, participant);
+      const spiritMatch = findFusionSpiritDataByReference(charData, participant.spirit);
+      if (!spiritMatch) return;
+      mergedStates.push(normalizeSpiritAttributeState(spiritMatch.spiritData, spiritMatch.spiritKey, charData));
+    });
+  }
+  if (!mergedStates.length) {
+    const slots = getNormalizedFusionSourceSpirits(fusionSkill, ownerChar);
+    slots.forEach(slot => {
+      const spiritData = ownerChar?.武魂?.[slot];
+      if (!spiritData || typeof spiritData !== 'object') return;
+      mergedStates.push(normalizeSpiritAttributeState(spiritData, slot, ownerChar));
+    });
+  }
+  return mergeSpiritAttributeStates(mergedStates);
+}
+
+function getFusionSkillElementProfile(fusionSkill = {}, char = {}, ownerCharKey = '', rootData = null) {
+  if (rootData && typeof rootData === 'object' && ownerCharKey) {
+    return buildElementProfileFromAttributeState(buildFusionSkillAttributeStateFromData(fusionSkill, ownerCharKey, rootData));
+  }
+  const slots = getNormalizedFusionSourceSpirits(fusionSkill, char);
+  const mergedStates = [];
+  slots.forEach(slot => {
+    const spiritData = char?.武魂?.[slot];
+    if (!spiritData || typeof spiritData !== 'object') return;
+    mergedStates.push(normalizeSpiritAttributeState(spiritData, slot, char));
+  });
+  return buildElementProfileFromAttributeState(mergeSpiritAttributeStates(mergedStates));
 }
 
 function cloneSkillStructData(skill = {}) {
@@ -9093,6 +9184,7 @@ function buildMinimalSkillRuntimeSystemBaseEffect(source = {}) {
   const targetModel = normalizeSkillTargetModel(raw?.目标模型 || raw?.对象 || '敌方单体', '敌方单体');
   return {
     机制: '系统基础',
+    技能来源: String(raw?.技能来源 || '魂技').trim() || '魂技',
     技能类型: String(raw?.技能类型 || '无').trim() || '无',
     目标模型: targetModel,
     目标修饰: normalizeSkillTargetModifierList(raw?.目标修饰 || []),
@@ -10189,10 +10281,10 @@ const CharacterSchema = z
           .prefault({}),
       )
       .prefault({}),
-    特殊能力: z
+    自创魂技: z
       .record(z.string().describe('能力名称'), SkillStructSchema)
       .prefault({})
-      .describe('统一非魂环技能容器，包含原秘技与其他额外能力'),
+      .describe('统一自创魂技容器，承载魂环、血脉与武魂融合技以外的原创技能'),
     武魂融合技: z
       .record(
         z.string().describe('融合技名称'),
@@ -10725,15 +10817,15 @@ const CharacterSchema = z
       }
     }
     pruneExtendedBloodlineData(char, '');
-    if (!char.特殊能力) char.特殊能力 = {};
+    if (!char.自创魂技) char.自创魂技 = {};
     Object.keys(TANGMEN_SECRET_SKILL_TEMPLATES).forEach(artName => {
       if (!char.功法?.[artName]) {
-        delete char.特殊能力[artName];
+        delete char.自创魂技[artName];
         return;
       }
       const template = TANGMEN_SECRET_SKILL_TEMPLATES[artName];
-      if (template && !char.特殊能力[artName]) {
-        char.特殊能力[artName] = cloneSkillStructData(template);
+      if (template && !char.自创魂技[artName]) {
+        char.自创魂技[artName] = cloneSkillStructData(template);
       }
     });
 
@@ -11109,6 +11201,7 @@ const CharacterSchema = z
             unlockedAttributes: spiritAttributeState.已解锁属性,
             attributeCapacity: spiritAttributeState.可容纳属性,
             elementTrigger: '继承武魂',
+            sourceCategory: '魂技',
             forceTrueBody: ringIndex === 7,
             textContext: {
               spiritName:
@@ -11135,6 +11228,7 @@ const CharacterSchema = z
           unlockedAttributes: spiritAttributeState.已解锁属性,
           attributeCapacity: spiritAttributeState.可容纳属性,
           elementTrigger: '继承武魂',
+          sourceCategory: '魂技',
           forceTrueBody: ringIndex === 7,
           textContext: {
             spiritName: spiritData?.表象名称 || skillName,
@@ -11160,8 +11254,20 @@ const CharacterSchema = z
       }));
     });
 
-    ensureSkillMapGenerated(char.特殊能力, (_, skillName) => ({
-      enableGenerate: false,
+    const customSkillAttributeState = buildCharacterCustomSkillAttributeState(char);
+    const customSkillElementProfile = buildElementProfileFromAttributeState(customSkillAttributeState);
+    ensureSkillMapGenerated(char.自创魂技, (_, skillName) => ({
+      type: char.属性.系别,
+      talentTier: char.属性.天赋梯队,
+      age: Math.max(1000, genericSkillAge),
+      ringIndex: Math.max(1, Math.ceil(Number(char.属性.等级 || 1) / 10)),
+      compatibility: 100,
+      preferredSecondary: [],
+      elementProfile: customSkillElementProfile,
+      unlockedAttributes: customSkillAttributeState.已解锁属性,
+      attributeCapacity: customSkillAttributeState.可容纳属性,
+      elementTrigger: '自创',
+      sourceCategory: '自创魂技',
       textContext: {
         spiritName: skillName,
         type: char.属性.系别,
@@ -11234,6 +11340,7 @@ const CharacterSchema = z
         unlockedAttributes: fusionElementProfile?.elements || [],
         attributeCapacity: fusionElementProfile?.elements || [],
         elementTrigger: '融合',
+        sourceCategory: '武魂融合技',
         textContext: {
           spiritName: fusionName,
           type: char.属性.系别,
@@ -15058,6 +15165,36 @@ export const Schema = z
         }
       });
 
+      _(data.char).forEach((charData, charName) => {
+        if (!charData || typeof charData !== 'object') return;
+        const genericSkillAge = Math.max(1000, Number(charData.属性?.等级 || 1) * 200);
+        _(charData.武魂融合技 || {}).forEach((fusionData, fusionName) => {
+          if (!fusionData || typeof fusionData !== 'object') return;
+          fusionData.融合模式 = getNormalizedFusionMode(fusionData);
+          if (fusionData.融合模式 === 'self') fusionData.融合对象 = '无';
+          const fusionAttributeState = buildFusionSkillAttributeStateFromData(fusionData, charName, data);
+          const fusionElementProfile = buildElementProfileFromAttributeState(fusionAttributeState);
+          ensureSkillStructGenerated(fusionData?.技能数据, {
+            type: charData.属性?.系别 || '强攻系',
+            talentTier: charData.属性?.天赋梯队 || '正常',
+            age: Math.max(10000, genericSkillAge),
+            ringIndex: Math.max(1, Math.ceil(Number(charData.属性?.等级 || 1) / 10)),
+            compatibility: 100,
+            preferredSecondary: [],
+            elementProfile: fusionElementProfile,
+            unlockedAttributes: fusionAttributeState.已解锁属性,
+            attributeCapacity: fusionAttributeState.可容纳属性,
+            elementTrigger: '融合',
+            sourceCategory: '武魂融合技',
+            textContext: {
+              spiritName: fusionName,
+              type: charData.属性?.系别 || '强攻系',
+            },
+          });
+          ensureFusionSkillMentalCost(fusionData?.技能数据, 0.5);
+        });
+      });
+
       const visibleChars = {};
       const protagonist = data.char[PLAYER_NAME];
       const unlocked = protagonist?.已掌握情报 || [];
@@ -15328,7 +15465,7 @@ export const Schema = z
           }
         }
 
-        injectDisplaySkillMapDefaults(charData.特殊能力, skillName => ({
+        injectDisplaySkillMapDefaults(charData.自创魂技, skillName => ({
           type: charData?.属性?.系别 || '强攻系',
           textContext: {
             spiritName: skillName,

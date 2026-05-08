@@ -834,8 +834,8 @@ class BattleUIComponent {
           ...(source.状态.受伤部位 !== undefined ? { 受伤部位: clonePersistedCombatValue(source.状态.受伤部位) } : {}),
         };
       }
-      if (source.特殊能力 && typeof source.特殊能力 === 'object' && !Array.isArray(source.特殊能力)) {
-        snapshot.特殊能力 = clonePersistedCombatValue(source.特殊能力);
+      if (source.自创魂技 && typeof source.自创魂技 === 'object' && !Array.isArray(source.自创魂技)) {
+        snapshot.自创魂技 = clonePersistedCombatValue(source.自创魂技);
       }
       return snapshot;
     }
@@ -1643,9 +1643,9 @@ class BattleUIComponent {
           });
         });
       });
-      Object.entries(char.特殊能力 || {}).forEach(([name, skill]) => fallbackPushSkill(actions, skill, name, '特殊能力'));
+      Object.entries(char.自创魂技 || {}).forEach(([name, skill]) => fallbackPushSkill(actions, skill, name, '自创魂技'));
       Object.entries(char.武魂融合技 || {}).forEach(([name, fusion]) =>
-        fallbackPushSkill(actions, buildFusionCombatSkill(fusion, name), `武魂融合技·${name}`, '融合'),
+        fallbackPushSkill(actions, buildFusionCombatSkill(fusion, name), `武魂融合技·${name}`, '武魂融合技'),
       );
       actions.push(
         { id: 'basic_attack', name: '普通攻击', type: 'tactical', action_type: '常规攻击', category: '战术', cast_time: 10, cost_text: '无', enabled: true, skill: { name: '普通攻击' } },
@@ -3399,6 +3399,7 @@ class BattleUIComponent {
         typeof baseCostRaw === 'object' ? formatCostObjectToString(baseCostRaw) : String(baseCostRaw || '无').trim() || '无';
       const baseCastTime = Number(systemBase?.cast_time ?? 0) || 0;
       return {
+        技能来源: String(systemBase?.技能来源 || '魂技').trim() || '魂技',
         技能类型: normalizeSkillTypeLabel(baseType || '无'),
         目标模型: baseTargetModel,
         目标修饰: baseTargetModifiers,
@@ -4729,7 +4730,7 @@ class BattleUIComponent {
         pushUnifiedSkillMapEntries(skills, bone?.附带技能 || {}, '魂骨技能', collectOptions);
       });
 
-      pushUnifiedSkillMapEntries(skills, charData?.特殊能力 || {}, '特殊能力', collectOptions);
+      pushUnifiedSkillMapEntries(skills, charData?.自创魂技 || {}, '自创魂技', collectOptions);
 
       Object.entries(charData?.武魂融合技 || {}).forEach(([fusionName, fusionSkill]) => {
         if (!isFusionSkillAvailable(charData, fusionSkill, alliedTeam)) return;
@@ -9580,6 +9581,7 @@ class BattleUIComponent {
               const summary = deriveBattleSummaryFromEffects(skill);
               const mainType = inferMainTypeFromEffects(skill) || '无';
               const 决策标签 = getSkillAiRoleTags(skill);
+              const 技能来源 = String(getSkillRuntimeMeta(skill).技能来源 || '魂技').trim() || '魂技';
               const enemyHpRatio = attacker.vit / Math.max(1, attacker.vit_max);
               const selfHpRatio = defender.vit / Math.max(1, defender.vit_max);
               const fieldActive = Object.keys(defender.状态效果 || {}).some(k => /领域|场地|结界|召唤/.test(k));
@@ -9627,6 +9629,13 @@ class BattleUIComponent {
               if (决策标签.includes('团队保护型') && allyCount > 1) weight += 10;
               if (决策标签.includes('规则压制型') && (isChargingHighThreat || enemySnapshot.hasShielded || enemySnapshot.hasHealingTrend))
                 weight += 10;
+              if (技能来源 === '武魂融合技') {
+                if (isChargingHighThreat || enemyHpRatio < 0.42 || selfHpRatio < 0.42) weight += 36;
+                else weight -= 18;
+              } else if (技能来源 === '自创魂技') {
+                if (决策标签.includes('规则压制型') || hasHostileSemantic) weight += 12;
+                if (hasFriendlyGrantable && allyCount > 1) weight += 8;
+              }
 
               if (summary.控制强度 === '硬控' && isChargingHighThreat) weight += 60;
               else if (summary.控制强度 === '软控' && isChargingHighThreat) weight += 35;
@@ -11090,6 +11099,7 @@ class BattleUIComponent {
           const attackerSnapshot = buildConditionTacticalSnapshot(attackerChar);
           const summary = deriveBattleSummaryFromEffects(skill);
           const 决策标签 = getSkillAiRoleTags(skill);
+          const 技能来源 = String(getSkillRuntimeMeta(skill).技能来源 || '魂技').trim() || '魂技';
           const dmg = getPrimaryDamageEffect(skill);
           const hpRatio = Math.max(0, Number(target.vit || 0)) / Math.max(1, Number(target.vit_max || 1));
           const power = Number(dmg?.威力倍率 || 0);
@@ -11150,6 +11160,11 @@ class BattleUIComponent {
           }
           if (决策标签.includes('规则压制型')) {
             if (snapshot.hasShielded || snapshot.hasHealingTrend || target.蓄力技能) weight += 12;
+          }
+          if (技能来源 === '自创魂技') {
+            if (snapshot.hasShielded || snapshot.hasHealingTrend || snapshot.hasStealthed) weight += 10;
+          } else if (技能来源 === '武魂融合技') {
+            if (hpRatio < 0.45 || snapshot.isLockedOrControlled) weight += 18;
           }
           if (snapshot.hasStealthed && !canBypassStealth(attackerChar, skill) && !attackerSnapshot.hasSharedVision) {
             weight = Math.max(1, Math.floor(weight * 0.18));
@@ -12228,9 +12243,9 @@ class BattleUIComponent {
               });
             });
           });
-          Object.entries(char.特殊能力 || {}).forEach(([name, skill]) => pushUiSkillAction(actions, skill, name, '特殊能力'));
+          Object.entries(char.自创魂技 || {}).forEach(([name, skill]) => pushUiSkillAction(actions, skill, name, '自创魂技'));
           Object.entries(char.武魂融合技 || {}).forEach(([name, fusion]) => {
-            pushUiSkillAction(actions, buildFusionCombatSkill(fusion, name), `武魂融合技·${name}`, '融合');
+            pushUiSkillAction(actions, buildFusionCombatSkill(fusion, name), `武魂融合技·${name}`, '武魂融合技');
           });
           actions.push(
             { id: 'basic_attack', type: 'tactical', action_type: '常规攻击', name: '普通攻击', category: '战术', cast_time: 10, cost_text: '无', enabled: true, skill: { name: '普通攻击' } },
