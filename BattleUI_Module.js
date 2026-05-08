@@ -1658,15 +1658,42 @@ class BattleUIComponent {
       return actions;
     }
 
+    function resolveIntentTargetNameFromAction(action, combatData) {
+      const safeAction = action || {};
+      const skill = safeAction.raw_skill || safeAction.skill || {};
+      if (safeAction.target_name) return String(safeAction.target_name || '').trim() || null;
+      const playerName = String(combatData?.参战者?.player?.name || '').trim() || null;
+      const enemyName = String(combatData?.参战者?.enemy?.name || '').trim() || null;
+      const baseTargetText =
+        String(skill?.对象 || '').trim() ||
+        String(
+          Array.isArray(skill?._效果数组)
+            ? (skill._效果数组.find(effect => effect && effect.机制 === '系统基础')?.对象 || '')
+            : '',
+        ).trim();
+      const effectTargetText =
+        Array.isArray(skill?._效果数组)
+          ? skill._效果数组
+              .map(effect => String(effect?.目标 || effect?.对象 || '').trim())
+              .find(Boolean) || ''
+          : '';
+      const targetText = baseTargetText || effectTargetText;
+      if (/自身/.test(targetText)) return playerName;
+      if (/友方单体|己方\/单体/.test(targetText)) return playerName;
+      if (/友方群体|己方\/群体|全场/.test(targetText)) return playerName || enemyName;
+      return enemyName || playerName;
+    }
+
     function fallbackBuildIntent(action, combatData) {
       const safeAction = action || {};
+      const resolvedTargetName = resolveIntentTargetNameFromAction(safeAction, combatData);
       const queue = [{
         type: safeAction.action_type || safeAction.type || '常规攻击',
         skill: safeAction.raw_skill || safeAction.skill || { name: safeAction.name || '普通攻击' },
         cast_time: fallbackNumber(safeAction.cast_time, 10),
-        target_name: combatData?.参战者?.enemy?.name || null,
+        target_name: resolvedTargetName,
       }];
-      return `${safeAction.name || '普通攻击'}\n[动作队列]${JSON.stringify(queue)}[/动作队列]\n[目标]${combatData?.参战者?.enemy?.name || '对手'}[/目标]`;
+      return `${safeAction.name || '普通攻击'}\n[动作队列]${JSON.stringify(queue)}[/动作队列]\n[目标]${resolvedTargetName || '对手'}[/目标]`;
     }
 
     function fallbackRenderActions(actions, selectedId) {
@@ -3525,7 +3552,8 @@ class BattleUIComponent {
       const normalizedLabel = String(label || '').trim();
       if (!normalizedLabel) return null;
       const meta = BATTLE_SKILL_MECHANISM_META[normalizedLabel];
-      return meta && typeof meta === 'object' ? meta : null;
+      if (meta && typeof meta === 'object') return meta;
+      return buildFallbackBattleMechanismMeta(normalizedLabel);
     }
 
     function getBattleMechanismSemanticSet(semanticKey = '') {
@@ -3677,10 +3705,215 @@ class BattleUIComponent {
       'self_rule_rewrite',
     ]);
 
+    const LOCAL_BATTLE_GROUP_GRANTABLE_CONSUMERS = new Set([
+      'attribute_buff',
+      'shield',
+      'damage_reduce',
+      'shared_vision',
+      'recover_vit',
+      'recover_sp',
+      'recover_men',
+      'recover_over_time',
+      'cleanse',
+      'damage_share',
+      'resource_refeed',
+    ]);
+    const LOCAL_BATTLE_SELF_ONLY_CONSUMERS = new Set([
+      'self_rule_rewrite',
+      'self_random_variance',
+      'self_mirror',
+      'random_target_shift',
+      'self_sacrifice_gain',
+      'construct_create',
+    ]);
+    const LOCAL_BATTLE_MECHANISM_CONSUMER_BY_LABEL = Object.freeze({
+      直接伤害: 'direct_damage',
+      多段伤害: 'multi_damage',
+      延迟爆发: 'delay_burst',
+      持续伤害: 'dot_damage',
+      硬控: 'hard_control',
+      软控: 'soft_control',
+      位移限制: 'position_lock',
+      打断: 'interrupt',
+      封技: 'skill_seal',
+      单属性削弱: 'attribute_debuff',
+      多属性削弱: 'attribute_debuff',
+      禁疗: 'anti_heal',
+      治疗反转: 'heal_inversion',
+      消耗提高: 'cost_increase',
+      前摇拉长: 'windup_increase',
+      掌控压制: 'mastery_reduce',
+      速度压制: 'speed_reduce',
+      单属性增益: 'attribute_buff',
+      多属性增益: 'attribute_buff',
+      全属性增益: 'attribute_buff',
+      消耗降低: 'cost_reduce',
+      前摇缩短: 'windup_reduce',
+      掌控提升: 'mastery_raise',
+      速度提升: 'speed_raise',
+      护盾: 'shield',
+      减伤: 'damage_reduce',
+      格挡: 'block',
+      霸体: 'super_armor',
+      免死: 'death_save',
+      '免死/锁血': 'death_save',
+      无敌金身: 'invincible',
+      伤害反射: 'damage_reflect',
+      伤害分摊: 'damage_share',
+      替身抵消: 'substitute',
+      复苏: 'revive',
+      体力恢复: 'recover_vit',
+      魂力恢复: 'recover_sp',
+      精神恢复: 'recover_men',
+      持续恢复: 'recover_over_time',
+      解控: 'cleanse',
+      净化: 'cleanse',
+      感知干扰: 'perception_disturb',
+      标记锁定: 'judge_effect',
+      共享视野: 'shared_vision',
+      幻境: 'judge_effect',
+      催眠: 'judge_effect',
+      认知扭曲: 'judge_effect',
+      目标锁定: 'target_lock',
+      自身位移: 'self_shift',
+      强制位移: 'hostile_shift',
+      位移交换: 'position_exchange',
+      追击位移: 'pursuit_shift',
+      脱离位移: 'disengage_shift',
+      追击: 'pursuit_mark',
+      分身: 'clone',
+      复制: 'copy_status',
+      反制: 'counter',
+      受击反击: 'on_hit_counter',
+      伤害转回复: 'damage_to_heal',
+      回复转伤害: 'heal_to_damage',
+      状态交换: 'status_exchange',
+      状态转移: 'status_transfer',
+      '强制绑定/锁定': 'hard_lock',
+      条件触发: 'judge_effect',
+      高波动随机值: 'self_random_variance',
+      随机目标: 'random_target_shift',
+      引爆持续伤害: 'dot_detonate',
+      斩盾: 'shield_break',
+      窃取护盾: 'shield_steal',
+      效果反转: 'effect_reverse',
+      驱散增益: 'dispel_buff',
+      窃取增益: 'steal_buff',
+      隐身: 'stealth',
+      护卫: 'guard',
+      嘲讽: 'taunt',
+      破隐: 'reveal',
+      减速: 'slow',
+      迟缓: 'slow',
+      致盲: 'blind',
+      沉默: 'silence',
+      缴械: 'disarm',
+      标记弱点: 'expose_weakness',
+      斩杀补伤: 'judge_effect',
+      穿透: 'armor_penetration',
+      吸血: 'lifesteal',
+      流血DOT: 'dot_damage',
+      召唤与场地: 'construct_create',
+      资源夺取: 'resource_drain',
+      资源反灌: 'resource_refeed',
+    });
+    const LOCAL_BATTLE_DEFENSE_NATURE_BY_LABEL = Object.freeze({
+      反制: '反制',
+      受击反击: '反制',
+      免死: '免死',
+      '免死/锁血': '免死',
+      无敌金身: '无敌',
+      复苏: '复苏',
+      替身抵消: '替身',
+      伤害分摊: '分摊',
+      伤害反射: '反射',
+      霸体: '霸体',
+      护卫: '护卫',
+      分身: '分身',
+      隐身: '分身',
+      格挡: '格挡',
+      减伤: '减伤',
+      护盾: '护盾',
+    });
+    const LOCAL_BATTLE_RECOVER_NATURE_BY_LABEL = Object.freeze({
+      体力恢复: '体力恢复',
+      魂力恢复: '资源回复',
+      精神恢复: '资源回复',
+      持续恢复: '持续恢复',
+      净化: '净化',
+      解控: '净化',
+      复苏: '复苏',
+      资源反灌: '资源回复',
+    });
+
+    function getFallbackBattleMechanismConsumer(label = '') {
+      return String(LOCAL_BATTLE_MECHANISM_CONSUMER_BY_LABEL[String(label || '').trim()] || '').trim();
+    }
+
+    function inferFallbackBattleMechanismSemantic(label = '') {
+      const consumer = getFallbackBattleMechanismConsumer(label);
+      if (!consumer) return '';
+      if (LOCAL_BATTLE_SELF_ONLY_CONSUMERS.has(consumer)) return '仅自身';
+      if (BATTLE_SUPPORT_RUNTIME_CONSUMERS.has(consumer) || BATTLE_DEFENSE_RUNTIME_CONSUMERS.has(consumer)) return '可赋予';
+      if (BATTLE_OUTPUT_RUNTIME_CONSUMERS.has(consumer) || BATTLE_CONTROL_RUNTIME_CONSUMERS.has(consumer)) return '敌对';
+      return '上下文';
+    }
+
+    function buildFallbackBattleMechanismMeta(label = '') {
+      const normalizedLabel = String(label || '').trim();
+      const consumer = getFallbackBattleMechanismConsumer(normalizedLabel);
+      if (!consumer) return null;
+      const summaryHints = {};
+      const aiRoleTags = [];
+      if (BATTLE_OUTPUT_RUNTIME_CONSUMERS.has(consumer)) {
+        summaryHints.skillType = '输出';
+        summaryHints.mainType = BATTLE_SPECIAL_RULE_RUNTIME_CONSUMERS.has(consumer) ? '特殊规则类' : '伤害类';
+        aiRoleTags.push('规则压制型');
+      } else if (BATTLE_CONTROL_RUNTIME_CONSUMERS.has(consumer)) {
+        summaryHints.skillType = '控制';
+        summaryHints.mainType = BATTLE_MOBILITY_RUNTIME_CONSUMERS.has(consumer) ? '位移类' : BATTLE_SPECIAL_RULE_RUNTIME_CONSUMERS.has(consumer) ? '特殊规则类' : '控制类';
+        summaryHints.controlStrength = ['hard_control', 'judge_effect'].includes(consumer) && ['硬控', '催眠'].includes(normalizedLabel) ? '硬控' : '软控';
+        aiRoleTags.push('规则压制型');
+      } else if (BATTLE_DEFENSE_RUNTIME_CONSUMERS.has(consumer)) {
+        summaryHints.skillType = '防御';
+        summaryHints.mainType = BATTLE_SPECIAL_RULE_RUNTIME_CONSUMERS.has(consumer) ? '特殊规则类' : '防御类';
+        aiRoleTags.push('保命型');
+      } else if (BATTLE_SUPPORT_RUNTIME_CONSUMERS.has(consumer)) {
+        summaryHints.skillType = ['recover_vit', 'recover_sp', 'recover_men', 'recover_over_time', 'cleanse', 'resource_refeed'].includes(consumer) ? '辅助' : '辅助';
+        summaryHints.mainType = BATTLE_MOBILITY_RUNTIME_CONSUMERS.has(consumer) ? '位移类' : BATTLE_SPECIAL_RULE_RUNTIME_CONSUMERS.has(consumer) ? '特殊规则类' : ['recover_vit', 'recover_sp', 'recover_men', 'recover_over_time', 'cleanse', 'resource_refeed'].includes(consumer) ? '回复类' : '增益类';
+        aiRoleTags.push('团队保护型');
+      }
+      if (LOCAL_BATTLE_DEFENSE_NATURE_BY_LABEL[normalizedLabel]) summaryHints.defenseNature = LOCAL_BATTLE_DEFENSE_NATURE_BY_LABEL[normalizedLabel];
+      if (LOCAL_BATTLE_RECOVER_NATURE_BY_LABEL[normalizedLabel]) summaryHints.recoverNature = LOCAL_BATTLE_RECOVER_NATURE_BY_LABEL[normalizedLabel];
+      if (LOCAL_BATTLE_GROUP_GRANTABLE_CONSUMERS.has(consumer) || ['共享视野', '护卫', '伤害分摊'].includes(normalizedLabel))
+        summaryHints.cooperation = '高';
+      if (BATTLE_TRIGGER_RUNTIME_CONSUMERS.has(consumer)) summaryHints.effectMode = '触发';
+      else if (consumer === 'delay_burst') summaryHints.effectMode = '延迟';
+      else if (BATTLE_SUSTAIN_RUNTIME_CONSUMERS.has(consumer)) summaryHints.effectMode = '持续';
+      else summaryHints.effectMode = '瞬发';
+      return {
+        运行时消费器: consumer,
+        目标语义: inferFallbackBattleMechanismSemantic(normalizedLabel),
+        群体赋予: LOCAL_BATTLE_GROUP_GRANTABLE_CONSUMERS.has(consumer),
+        仅自身: LOCAL_BATTLE_SELF_ONLY_CONSUMERS.has(consumer),
+        决策标签: aiRoleTags,
+        摘要提示: summaryHints,
+      };
+    }
+
     function hasSkillMechanismSemantic(skill, semanticKey = '') {
+      const labels = getSkillMechanismLabels(skill);
       const semanticSet = getBattleMechanismSemanticSet(semanticKey);
-      if (!(semanticSet.size > 0)) return false;
-      return getSkillMechanismLabels(skill).some(label => semanticSet.has(label));
+      if (semanticSet.size > 0 && labels.some(label => semanticSet.has(label))) return true;
+      return labels.some(label => {
+        const inferred = inferFallbackBattleMechanismSemantic(label);
+        if (!inferred) return false;
+        if (semanticKey === '群体赋予') {
+          const consumer = getFallbackBattleMechanismConsumer(label);
+          return LOCAL_BATTLE_GROUP_GRANTABLE_CONSUMERS.has(consumer);
+        }
+        return inferred === semanticKey;
+      });
     }
 
     function skillTargetsFriendlySide(skill) {
@@ -8451,6 +8684,8 @@ class BattleUIComponent {
         const directGuardEffect = actionEffects.find(effect => effect?.机制 === '护卫') || null;
         const directShieldBreakEffect = actionEffects.find(effect => effect?.机制 === '斩盾') || null;
         const directShieldStealEffect = actionEffects.find(effect => effect?.机制 === '窃取护盾') || null;
+        const directResourceDrainEffect = actionEffects.find(effect => effect?.机制 === '资源夺取') || null;
+        const directResourceRefeedEffect = actionEffects.find(effect => effect?.机制 === '资源反灌') || null;
         const directDotDetonateEffect = actionEffects.find(effect => effect?.机制 === '引爆持续伤害') || null;
         const directStatusTransferEffect = actionEffects.find(effect => effect?.机制 === '状态转移') || null;
         const directVolatileEffect = actionEffects.find(effect => effect?.机制 === '高波动随机值') || null;
@@ -9136,9 +9371,12 @@ class BattleUIComponent {
               if (!(drainAmount > 0)) return;
               targetObj[resourceKey] = Math.max(0, targetCurrent - drainAmount);
               const recoverAmount = Math.max(0, Math.floor(drainAmount * convertRatio));
-              if (recoverAmount > 0) attacker[resourceKey] = Math.min(attackerMax, Number(attacker?.[resourceKey] || 0) + recoverAmount);
-              totalRecovered += recoverAmount;
-              result.desc += ` [资源夺取] 从${targetObj === attacker ? '自身' : targetObj.name}抽离 ${drainAmount} 点${getTransferResourceLabel(resourceKey)}，施术者回收 ${recoverAmount} 点。`;
+              const attackerBefore = Math.max(0, Number(attacker?.[resourceKey] || 0));
+              const attackerAfter = recoverAmount > 0 ? Math.min(attackerMax, attackerBefore + recoverAmount) : attackerBefore;
+              const actualRecover = Math.max(0, attackerAfter - attackerBefore);
+              attacker[resourceKey] = attackerAfter;
+              totalRecovered += actualRecover;
+              result.desc += ` [资源夺取] 从${targetObj === attacker ? '自身' : targetObj.name}抽离 ${drainAmount} 点${getTransferResourceLabel(resourceKey)}，施术者回收 ${actualRecover} 点。`;
             });
           });
           return totalRecovered;
@@ -9371,7 +9609,14 @@ class BattleUIComponent {
           if (directStateExchangeEffect) {
             applyStateExchangeEffect(directStateExchangeEffect);
           }
-          [directStatusTransferEffect, directDotDetonateEffect, directShieldBreakEffect, directShieldStealEffect]
+          [
+            directStatusTransferEffect,
+            directDotDetonateEffect,
+            directShieldBreakEffect,
+            directShieldStealEffect,
+            directResourceDrainEffect,
+            directResourceRefeedEffect,
+          ]
             .filter(Boolean)
             .forEach(effect => {
               runDirectMechanismConsumer(effect);
@@ -12709,11 +12954,12 @@ class BattleUIComponent {
           const skill = action.raw_skill || action.skill || {};
           const type = action.action_type || action.type || skill.技能类型 || '输出';
           const name = action.name || skill.name || '';
+          const resolvedTargetName = resolveIntentTargetNameFromAction(action, window.BattleUI?.state?.combatData || {});
           const actionObj = {
             type,
             skill,
             cast_time: Number(action.cast_time ?? skill.cast_time ?? 0) || 0,
-            target_name: window.BattleUIBridge?.getMVU('world.战斗.参战者.enemy.name') || null,
+            target_name: resolvedTargetName,
           };
           if (type === '穿戴装备') actionObj.equip_target = /机甲/.test(name) ? 'mech' : 'armor';
           if (type === '吸血反哺') actionObj.heal_ratio = action.heal_ratio || 0.3;
@@ -12740,7 +12986,9 @@ class BattleUIComponent {
             parts.push(queue.map(action => action.skill?.魂技名 || action.skill?.name || action.type).filter(Boolean).join('，'));
             parts.push(`[动作队列]${JSON.stringify(queue)}[/动作队列]`);
           }
-          const target = window.BattleUIBridge?.getMVU('world.战斗.参战者.enemy.name');
+          const target =
+            queue.find(action => String(action?.target_name || '').trim())?.target_name ||
+            resolveIntentTargetNameFromAction(sourceActions[0], state.combatData);
           if (target) parts.push(`[目标]${target}[/目标]`);
           return parts.join('\n');
         }

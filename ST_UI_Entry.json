@@ -33,19 +33,11 @@
   function ensureHostNodes() {
     if (!hostDoc.body) return;
 
-    let left = hostDoc.getElementById('mvu-left-mount');
-    if (!left) {
-      left = hostDoc.createElement('div');
-      left.id = 'mvu-left-mount';
-      hostDoc.body.appendChild(left);
-    }
+    const legacyLeft = hostDoc.getElementById('mvu-left-mount');
+    if (legacyLeft) legacyLeft.remove();
 
-    let right = hostDoc.getElementById('mvu-right-mount');
-    if (!right) {
-      right = hostDoc.createElement('div');
-      right.id = 'mvu-right-mount';
-      hostDoc.body.appendChild(right);
-    }
+    const legacyRight = hostDoc.getElementById('mvu-right-mount');
+    if (legacyRight) legacyRight.remove();
 
     let unified = hostDoc.getElementById('mvu-unified-mount');
     if (!unified) {
@@ -53,22 +45,6 @@
       unified.id = 'mvu-unified-mount';
       hostDoc.body.appendChild(unified);
     }
-
-    left.style.position = 'fixed';
-    left.style.top = '0';
-    left.style.bottom = '0';
-    left.style.left = '0';
-    left.style.width = '380px';
-    left.style.pointerEvents = 'none';
-    left.style.zIndex = '1000';
-
-    right.style.position = 'fixed';
-    right.style.top = '0';
-    right.style.bottom = '0';
-    right.style.right = '0';
-    right.style.width = '360px';
-    right.style.pointerEvents = 'none';
-    right.style.zIndex = '1000';
 
     unified.style.position = 'relative';
     unified.style.width = '100%';
@@ -232,11 +208,9 @@
 
     while (Date.now() - start < limit) {
       ensureHostNodes();
-      const left = hostDoc.getElementById('mvu-left-mount');
-      const right = hostDoc.getElementById('mvu-right-mount');
       const unified = hostDoc.getElementById('mvu-unified-mount');
       const modal = hostDoc.getElementById('detailModal');
-      if (left && right && unified && modal) return true;
+      if (unified && modal) return true;
       await new Promise(resolve => setTimeout(resolve, 100));
     }
 
@@ -249,12 +223,8 @@
 
     while (Date.now() - start < limit) {
       ensureHostNodes();
-      const leftMount = hostDoc.getElementById('mvu-left-mount');
-      const rightMount = hostDoc.getElementById('mvu-right-mount');
       const unifiedMount = hostDoc.getElementById('mvu-unified-mount');
-      const leftStage = hostDoc.getElementById('splitLeftStage');
-      const rightStage = hostDoc.getElementById('splitRightStage');
-      if ((leftMount && leftMount.innerHTML.trim()) || (rightMount && rightMount.innerHTML.trim()) || (unifiedMount && unifiedMount.innerHTML.trim()) || leftStage || rightStage) {
+      if (unifiedMount && unifiedMount.innerHTML.trim()) {
         return true;
       }
       await new Promise(resolve => setTimeout(resolve, 150));

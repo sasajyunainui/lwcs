@@ -122,7 +122,7 @@ const SURFACE_MODE_STORAGE_KEY = 'mvu_surface_mode_v1';
 const SURFACE_LAUNCHER_STORAGE_KEY = 'mvu_surface_launcher_pos_v2';
 const MOBILE_LAST_TAB_STORAGE_KEY = 'mvu_mobile_shell_last_tab_v1';
 const MOBILE_VIEWPORT_MEDIA = '(max-width: 860px)';
-const VALID_LAYOUT_MODES = new Set(['split', 'unified']);
+const VALID_LAYOUT_MODES = new Set(['unified']);
 const VALID_SURFACE_MODES = new Set(['panel', 'shell']);
 const SURFACE_LAUNCHER_GAP = 12;
 const SURFACE_LAUNCHER_DRAG_THRESHOLD = 8;
@@ -347,8 +347,8 @@ const persistedLayoutMode = readLayoutModeStorage();
 const persistedSurfaceMode = readSurfaceModeStorage();
 const initialIsMobileViewport = detectMobileViewport();
 const mvuLayoutState = window.__MVU_LAYOUT_STATE__ || (window.__MVU_LAYOUT_STATE__ = reactive({
-  preferredMode: persistedLayoutMode || 'split',
-  effectiveMode: 'split',
+  preferredMode: persistedLayoutMode || 'unified',
+  effectiveMode: 'unified',
   unifiedAnchorReady: false,
   isMobileViewport: initialIsMobileViewport,
   hasManualOverride: !!persistedLayoutMode,
@@ -381,10 +381,10 @@ if (!('surfaceLauncherDragging' in mvuLayoutState)) {
   mvuLayoutState.surfaceLauncherDragging = false;
 }
 if (!normalizeLayoutMode(mvuLayoutState.preferredMode)) {
-  mvuLayoutState.preferredMode = persistedLayoutMode || (mvuLayoutState.isMobileViewport ? 'unified' : 'split');
+  mvuLayoutState.preferredMode = persistedLayoutMode || 'unified';
 }
 if (!mvuLayoutState.hasManualOverride) {
-  mvuLayoutState.preferredMode = mvuLayoutState.isMobileViewport ? 'unified' : 'split';
+  mvuLayoutState.preferredMode = 'unified';
 }
 if (!normalizeSurfaceMode(mvuLayoutState.surfaceMode)) {
   mvuLayoutState.surfaceMode = mvuLayoutState.isMobileViewport ? 'shell' : (persistedSurfaceMode || 'panel');
@@ -544,7 +544,7 @@ function isDesktopShellMode() {
 
 function getDesktopModeSelection() {
   if (mvuLayoutState.isMobileViewport) return 'shell';
-  return mvuLayoutState.surfaceMode === 'shell' ? 'shell' : mvuLayoutState.preferredMode;
+  return mvuLayoutState.surfaceMode === 'shell' ? 'shell' : 'unified';
 }
 
 function setMobileShellOpen(nextOpen) {
@@ -673,13 +673,13 @@ function setDesktopMode(mode, options = {}) {
     return setSurfaceMode('shell', { ...options, open: false });
   }
   setSurfaceMode('panel', options);
-  return setLayoutMode(value, options);
+  return setLayoutMode('unified', options);
 }
 
 function applyDesktopLayoutSelection(mode, options = {}) {
   const nextMode = String(mode || '').trim();
   const result = setDesktopMode(nextMode, options);
-  if (!mvuLayoutState.isMobileViewport && nextMode && nextMode !== 'shell') {
+  if (!mvuLayoutState.isMobileViewport && nextMode === 'unified') {
     mvuLayoutState.surfaceMode = 'panel';
     mvuLayoutState.mobileShellOpen = false;
     syncLayoutMode();
@@ -701,8 +701,8 @@ function applyLayoutBodyClasses() {
   }
   const shellSurfaceMode = isShellSurfaceMode();
   body.classList.toggle('mvu-unified-mount-ready', !!mvuLayoutState.unifiedAnchorReady);
-  body.classList.toggle('mvu-layout-split', mvuLayoutState.effectiveMode === 'split');
-  body.classList.toggle('mvu-layout-unified', mvuLayoutState.effectiveMode === 'unified');
+  body.classList.toggle('mvu-layout-split', false);
+  body.classList.toggle('mvu-layout-unified', true);
   body.classList.toggle('mvu-mobile-viewport', !!mvuLayoutState.isMobileViewport);
   body.classList.toggle('mvu-shell-overlay-enabled', true);
   body.classList.toggle('mvu-surface-panel', !shellSurfaceMode);
@@ -715,17 +715,11 @@ function applyLayoutBodyClasses() {
 }
 
 function isSplitLayoutAllowed() {
-  return !mvuLayoutState.isMobileViewport;
+  return false;
 }
 
 function resolveEffectiveLayoutMode() {
-  if (mvuLayoutState.isMobileViewport) {
-    return mvuLayoutState.unifiedAnchorReady ? 'unified' : 'split';
-  }
-  if (mvuLayoutState.preferredMode === 'unified' && mvuLayoutState.unifiedAnchorReady) {
-    return 'unified';
-  }
-  return 'split';
+  return 'unified';
 }
 
 function syncLayoutMode() {
@@ -774,7 +768,7 @@ function refreshViewportState() {
     mvuLayoutState.isMobileViewport = nextMobileState;
   }
   if (!mvuLayoutState.hasManualOverride) {
-    mvuLayoutState.preferredMode = nextMobileState ? 'unified' : 'split';
+    mvuLayoutState.preferredMode = 'unified';
   }
   if (nextMobileState) {
     mvuLayoutState.surfaceMode = 'shell';
@@ -875,7 +869,7 @@ function requestTabChange(target) {
 
 function applyUnifiedMountHostStyle(mountEl) {
   if (!mountEl) return;
-  const shouldUseOverlayHost = isShellSurfaceMode() || mvuLayoutState.effectiveMode !== 'unified';
+  const shouldUseOverlayHost = isShellSurfaceMode();
   if (shouldUseOverlayHost) {
     mountEl.style.position = 'fixed';
     mountEl.style.inset = '0';
@@ -947,7 +941,7 @@ function createUnifiedAnchorManager(options = {}) {
       return;
     }
     applyUnifiedMountHostStyle(mountEl);
-    const shouldUseOverlayHost = isShellSurfaceMode() || mvuLayoutState.effectiveMode !== 'unified';
+    const shouldUseOverlayHost = isShellSurfaceMode();
     if (shouldUseOverlayHost) {
       if (document.body && mountEl.parentElement !== document.body) {
         document.body.appendChild(mountEl);
@@ -1378,7 +1372,6 @@ const UnifiedDock = {
       tabs: TAB_ITEMS,
       quickActions,
       activeMeta,
-      splitLocked,
       modeBadge,
       quickActionHint,
       tabState: mvuTabState,
@@ -2007,28 +2000,19 @@ const DesktopUnifiedLayout = {
             <template v-else>
               <div class="mvu-unified-toolbar-side">
                 <span class="mvu-unified-mode-badge">{{ modeBadge }}</span>
-                <div class="mvu-unified-layout-toggle" :class="{ locked: splitLocked }">
-                  <template v-if="!splitLocked">
-                    <button
-                      type="button"
-                      class="mvu-unified-layout-btn"
-                      :class="{ active: layoutState.surfaceMode !== 'shell' && layoutState.preferredMode === 'split' }"
-                      @click="setDesktopMode('split')"
-                    >分栏</button>
-                    <button
-                      type="button"
-                      class="mvu-unified-layout-btn"
-                      :class="{ active: layoutState.surfaceMode !== 'shell' && layoutState.preferredMode === 'unified' }"
-                      @click="setDesktopMode('unified')"
-                    >一体</button>
-                    <button
-                      type="button"
-                      class="mvu-unified-layout-btn"
-                      :class="{ active: layoutState.surfaceMode === 'shell' }"
-                      @click="setDesktopMode('shell')"
-                    >手机</button>
-                  </template>
-                  <span v-else class="mvu-unified-lock-note">移动端锁定一体栏</span>
+                <div class="mvu-unified-layout-toggle">
+                  <button
+                    type="button"
+                    class="mvu-unified-layout-btn"
+                    :class="{ active: layoutState.surfaceMode !== 'shell' }"
+                    @click="setDesktopMode('unified')"
+                  >一体</button>
+                  <button
+                    type="button"
+                    class="mvu-unified-layout-btn"
+                    :class="{ active: layoutState.surfaceMode === 'shell' }"
+                    @click="setDesktopMode('shell')"
+                  >手机</button>
                 </div>
               </div>
             </template>
@@ -2145,7 +2129,6 @@ const DesktopUnifiedLayout = {
   `,
   setup() {
     const activeMeta = computed(() => resolveUnifiedTabMeta(mvuTabState.current));
-    const splitLocked = computed(() => !isSplitLayoutAllowed());
     const modeBadge = computed(() => (mvuLayoutState.isMobileViewport ? '移动端一体栏' : '桌面一体栏'));
     const detailHostRef = ref(null);
     const detailState = mvuUnifiedDetailState;
@@ -2241,14 +2224,14 @@ const DesktopUnifiedLayout = {
         ? sendRect.top - 10
         : viewportHeight - 10;
       const topLimit = 42;
-      const frameMaxHeight = Math.max(360, Math.min(760, bottomLimit - topLimit));
+      const frameMaxHeight = Math.max(340, Math.min(700, bottomLimit - topLimit - 18));
       frame.style.setProperty('--mvu-unified-frame-max-height', `${Math.floor(frameMaxHeight)}px`);
 
       const detailHost = detailHostRef.value;
       if (detailHost && detailHost.isConnected) {
         const toolbar = frame.querySelector('.mvu-unified-toolbar');
         const toolbarHeight = toolbar ? toolbar.getBoundingClientRect().height : 64;
-        const detailMaxHeight = Math.max(260, frameMaxHeight - toolbarHeight - 28);
+        const detailMaxHeight = Math.max(236, frameMaxHeight - toolbarHeight - 24);
         detailHost.style.setProperty('--mvu-unified-detail-max-height', `${Math.floor(detailMaxHeight)}px`);
       }
 
@@ -2403,7 +2386,6 @@ const DesktopUnifiedLayout = {
       detailHostRef,
       detailState,
       detailTitle,
-      splitLocked,
       modeBadge,
       tabState: mvuTabState,
       layoutState: mvuLayoutState,
@@ -2507,20 +2489,8 @@ function removeLayoutRescueMountNode() {
 }
 
 function mountMvuVue() {
-  const leftMount = document.getElementById('mvu-left-mount');
-  const rightMount = document.getElementById('mvu-right-mount');
   const unifiedMount = ensureUnifiedDockMounted();
   removeLayoutRescueMountNode();
-
-  if (leftMount && !leftMount.__mvuVueMounted) {
-    createApp(LeftPanel).mount(leftMount);
-    leftMount.__mvuVueMounted = true;
-  }
-
-  if (rightMount && !rightMount.__mvuVueMounted) {
-    createApp(RightPanel).mount(rightMount);
-    rightMount.__mvuVueMounted = true;
-  }
 
   if (window.__MVU_UNIFIED_ANCHOR_MANAGER__ && typeof window.__MVU_UNIFIED_ANCHOR_MANAGER__.stop === 'function') {
     try { window.__MVU_UNIFIED_ANCHOR_MANAGER__.stop(); } catch (err) {}

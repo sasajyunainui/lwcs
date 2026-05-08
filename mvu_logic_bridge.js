@@ -20351,32 +20351,13 @@ ${mvuUpdate}`;
     }
 
     function isUnifiedLayoutActive() {
-      const body = document.body;
-      if (!body) return false;
-      if (body.classList.contains('mvu-layout-unified')) return true;
-      try {
-        return !!(window.__MVU_LAYOUT_STATE__ && window.__MVU_LAYOUT_STATE__.effectiveMode === 'unified');
-      } catch (err) {
-        return false;
-      }
+      return true;
     }
 
     function shouldUseUnifiedFloatMode(options = {}) {
       const explicitMode = String(options.displayMode || '').trim();
       if (explicitMode === 'floating' || explicitMode === 'unified') return true;
-      if (explicitMode === 'split') return false;
-      if (isUnifiedLayoutActive()) return true;
-      // Only follow the currently effective layout, not persisted preference.
-      // Otherwise split fallback can accidentally render unified float modal.
-      try {
-        const layoutState = window.__MVU_LAYOUT_STATE__;
-        if (layoutState && layoutState.effectiveMode === 'unified') return true;
-      } catch (err) {}
-      const triggerEl = options.triggerEl instanceof Element ? options.triggerEl : null;
-      if (triggerEl && triggerEl.closest('#mvu-unified-mount')) {
-        return true;
-      }
-      return false;
+      return isUnifiedLayoutActive();
     }
 
     function applyModalDisplayMode(refs = getModalRefs(), options = {}) {
@@ -20388,13 +20369,13 @@ ${mvuUpdate}`;
       currentDetailModal.classList.remove('drawer-left');
       currentModalPanel.classList.remove('drawer-left');
       currentDetailModal.classList.toggle('mvu-modal-display-unified', unifiedMode && !shellMode);
-      currentDetailModal.classList.toggle('mvu-modal-display-split', !unifiedMode);
+      currentDetailModal.classList.toggle('mvu-modal-display-split', false);
       currentModalPanel.classList.toggle('mvu-modal-display-unified', unifiedMode && !shellMode);
-      currentModalPanel.classList.toggle('mvu-modal-display-split', !unifiedMode);
+      currentModalPanel.classList.toggle('mvu-modal-display-split', false);
       currentDetailModal.classList.toggle('mvu-modal-display-shell', shellMode);
       currentModalPanel.classList.toggle('mvu-modal-display-shell', shellMode);
-      currentDetailModal.dataset.modalDisplayMode = shellMode ? 'shell' : (unifiedMode ? 'unified' : 'split');
-      currentModalPanel.dataset.modalDisplayMode = shellMode ? 'shell' : (unifiedMode ? 'unified' : 'split');
+      currentDetailModal.dataset.modalDisplayMode = shellMode ? 'shell' : 'unified';
+      currentModalPanel.dataset.modalDisplayMode = shellMode ? 'shell' : 'unified';
       applyUnifiedFloatMetrics(currentDetailModal, unifiedMode && !shellMode);
     }
 
@@ -20416,8 +20397,8 @@ ${mvuUpdate}`;
         }
       }
       currentModalPreviewKey = modalStack[modalStack.length - 1] || '';
-      currentModalDisplayMode = shouldUseUnifiedFloatMode(options) ? 'floating' : 'split';
-      const shellMode = currentModalPreviewKey && isMobileShellModalActive({ ...options, unifiedMode: currentModalDisplayMode !== 'split' });
+      currentModalDisplayMode = 'floating';
+      const shellMode = currentModalPreviewKey && isMobileShellModalActive({ ...options, unifiedMode: true });
       if (shellMode) {
         notifyShellPreviewChange(currentModalPreviewKey);
       }
@@ -20488,11 +20469,7 @@ ${mvuUpdate}`;
     function isUnifiedModalDisplayRequested(options = {}) {
       if (options && (options.displayMode === 'floating' || options.displayMode === 'unified')) return true;
       if (currentModalDisplayMode === 'floating') return true;
-      try {
-        const layoutState = window.__MVU_LAYOUT_STATE__;
-        if (layoutState && layoutState.effectiveMode === 'unified') return true;
-      } catch (err) {}
-      return false;
+      return true;
     }
 
     /*
@@ -21342,8 +21319,6 @@ ${mvuUpdate}`;
     }
 
     function bindAllVueModalDelegations() {
-      bindVueModalDelegation(document.getElementById('mvu-left-mount'));
-      bindVueModalDelegation(document.getElementById('mvu-right-mount'));
       bindVueModalDelegation(document.getElementById('mvu-unified-mount'));
     }
 
@@ -21364,16 +21339,11 @@ ${mvuUpdate}`;
       const eventTarget = event.target instanceof Element ? event.target : (event.target && event.target.parentElement ? event.target.parentElement : null);
       if (isInlineEditInteractionTarget(eventTarget)) return;
       const clickable = eventTarget ? eventTarget.closest('.clickable') : null;
-      const leftMount = document.getElementById('mvu-left-mount');
-      const rightMount = document.getElementById('mvu-right-mount');
       const unifiedMount = document.getElementById('mvu-unified-mount');
-      const inClassicShell = (canvas && canvas.contains(clickable)) || (splitOverlay && splitOverlay.contains(clickable));
-      const inVueShell = (leftMount && leftMount.contains(clickable))
-        || (rightMount && rightMount.contains(clickable))
-        || (unifiedMount && unifiedMount.contains(clickable))
-        || !!(clickable && clickable.closest('.mvu-vue-wrapper'));
+      const inUnifiedSurface = (unifiedMount && unifiedMount.contains(clickable))
+        || !!(clickable && clickable.closest('.mvu-mobile-shell'));
 
-      if (!clickable || !(inClassicShell || inVueShell)) return;
+      if (!clickable || !inUnifiedSurface) return;
       const previewKey = clickable.dataset.preview;
       if (!previewKey) return;
       if (unifiedMount && unifiedMount.contains(clickable) && !clickable.closest('.mvu-mobile-shell') && typeof window.__MVU_OPEN_UNIFIED_PREVIEW__ === 'function') {
@@ -21382,7 +21352,7 @@ ${mvuUpdate}`;
         window.__MVU_OPEN_UNIFIED_PREVIEW__(previewKey, { triggerEl: clickable, preserveMapDispatchContext: true });
         return;
       }
-      const displayMode = unifiedMount && unifiedMount.contains(clickable) ? 'floating' : 'auto';
+      const displayMode = 'floating';
       toggleModal(previewKey, { triggerEl: clickable, displayMode });
     });
 
