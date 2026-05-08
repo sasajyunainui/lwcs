@@ -4790,6 +4790,34 @@ $CONTENT
     function hasAnySheetKey(obj) {
         return obj && typeof obj === 'object' && Object.keys(obj).some(k => k.startsWith('sheet_'));
     }
+    function getFrontendCompatibleTableData_ACU() {
+        if (currentJsonTableData_ACU && hasAnySheetKey(currentJsonTableData_ACU)) {
+            return currentJsonTableData_ACU;
+        }
+        try {
+            const guideData = getChatSheetGuideDataForIsolationKey_ACU(getCurrentIsolationKey_ACU());
+            const guideMaterialized = materializeDataFromSheetGuide_ACU(guideData, { includeSeedRows: false });
+            if (guideMaterialized && hasAnySheetKey(guideMaterialized)) {
+                return guideMaterialized;
+            }
+        }
+        catch (error) { }
+        try {
+            const templateData = parseTableTemplateJson_ACU({ stripSeedRows: true });
+            if (templateData && hasAnySheetKey(templateData)) {
+                return templateData;
+            }
+        }
+        catch (error) { }
+        try {
+            const builtDefault = buildDefaultTableTemplateObject_ACU();
+            if (builtDefault && hasAnySheetKey(builtDefault)) {
+                return builtDefault;
+            }
+        }
+        catch (error) { }
+        return null;
+    }
     /**
      * 安全深拷贝。
      */
@@ -18430,9 +18458,12 @@ $CONTENT
                     _set_currentJsonTableData_ACU(templateData);
                 }
                 else {
-                    // 极端兜底：模板也解析失败，设为空对象
-                    _set_currentJsonTableData_ACU({ mate: { type: 'chatSheets', version: 1 } });
-                    logWarn_ACU('[回溯空数据] 模板解析失败，currentJsonTableData_ACU 设为最小空结构。');
+                    // 极端兜底：模板解析失败时也给前端一份可用的最小默认表结构，避免第三方前端因 mate-only 崩溃。
+                    const builtDefault = buildDefaultTableTemplateObject_ACU();
+                    _set_currentJsonTableData_ACU(builtDefault && hasAnySheetKey(builtDefault)
+                        ? builtDefault
+                        : { mate: { type: 'chatSheets', version: 1 } });
+                    logWarn_ACU('[回溯空数据] 模板解析失败，currentJsonTableData_ACU 回退到本地默认表结构。');
                 }
             }
             // UI 选择器刷新由 presentation 层调用方负责
@@ -46317,11 +46348,9 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
             // 内部使用：通知更新
             _notifyTableUpdate: function () {
                 logDebug_ACU(`Notifying ${ctx.tableUpdateCallbacks.length} callbacks about table update.`);
-                // 修复：确保回调函数永远不会收到 null，而是收到一个空对象，增加稳健性。
-                const dataToSend = currentJsonTableData_ACU || {};
+                const dataToSend = getFrontendCompatibleTableData_ACU() || {};
                 ctx.tableUpdateCallbacks.forEach(callback => {
                     try {
-                        // 将最新的数据作为参数传给回调
                         callback(dataToSend);
                     }
                     catch (e) {
@@ -46359,7 +46388,7 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
         return {
             // 导出当前表格数据
             exportTableAsJson: function () {
-                return currentJsonTableData_ACU || {};
+                return getFrontendCompatibleTableData_ACU();
             },
             // 导入并覆盖当前表格数据
             importTableAsJson: async function (jsonInput) {

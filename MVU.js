@@ -1744,13 +1744,13 @@ const SKILL_SECONDARY_TYPE_BIAS_V1 = {
 const SKILL_MECHANISM_DEFAULT_META_V1 = Object.freeze({
   可主机制: false,
   可副机制: false,
-  targetSemantic: 'contextual',
-  groupGrantable: false,
-  selfOnly: false,
-  runtimeConsumerKey: '',
-  aiRoleTags: Object.freeze([]),
-  summaryHints: Object.freeze({}),
-  designerParamSchema: Object.freeze([]),
+  目标语义: '上下文',
+  群体赋予: false,
+  仅自身: false,
+  运行时消费器: '',
+  决策标签: Object.freeze([]),
+  摘要提示: Object.freeze({}),
+  设计台参数定义: Object.freeze([]),
   designerMainHint: '',
   designerSubHint: '',
   designerSecondaryHint: '',
@@ -1770,9 +1770,9 @@ function createSkillMechanismMetaV1(meta = {}) {
   return Object.freeze({
     ...SKILL_MECHANISM_DEFAULT_META_V1,
     ...meta,
-    aiRoleTags: Object.freeze(Array.from(new Set(Array.isArray(meta.aiRoleTags) ? meta.aiRoleTags.filter(Boolean) : []))),
-    summaryHints: Object.freeze(meta.summaryHints && typeof meta.summaryHints === 'object' ? meta.summaryHints : {}),
-    designerParamSchema: Object.freeze(Array.isArray(meta.designerParamSchema) ? meta.designerParamSchema.filter(Boolean) : []),
+    决策标签: Object.freeze(Array.from(new Set(Array.isArray(meta.决策标签) ? meta.决策标签.filter(Boolean) : []))),
+    摘要提示: Object.freeze(meta.摘要提示 && typeof meta.摘要提示 === 'object' ? meta.摘要提示 : {}),
+    设计台参数定义: Object.freeze(Array.isArray(meta.设计台参数定义) ? meta.设计台参数定义.filter(Boolean) : []),
   });
 }
 
@@ -1794,7 +1794,7 @@ const SKILL_MECHANISM_META_V1 = (() => {
           designerMainHint: label,
           designerSubHint: label,
           designerSecondaryHint: label,
-          runtimeConsumerKey: label,
+          运行时消费器: label,
           ...meta,
         });
       });
@@ -1802,33 +1802,33 @@ const SKILL_MECHANISM_META_V1 = (() => {
 
   register(['直接伤害', '单体伤害'], {
     可主机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'direct_damage',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '输出', mainType: '伤害类', effectMode: '瞬发' },
+    目标语义: '敌对',
+    运行时消费器: 'direct_damage',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '输出', mainType: '伤害类', effectMode: '瞬发' },
     designerMainHint: '伤害类',
     designerSubHint: '单体伤害',
-    designerParamSchema: [num('powerRatio', '威力倍率', '1.25'), num('hitCount', '命中次数', '1', '1')],
+    设计台参数定义: [num('powerRatio', '威力倍率', '1.25'), num('hitCount', '命中次数', '1', '1')],
   });
   register('群体伤害', {
     可主机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'direct_damage',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '输出', mainType: '伤害类', cooperation: '高', effectMode: '瞬发' },
+    目标语义: '敌对',
+    运行时消费器: 'direct_damage',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '输出', mainType: '伤害类', cooperation: '高', effectMode: '瞬发' },
     designerMainHint: '伤害类',
     designerSubHint: '群体伤害',
-    designerParamSchema: [num('powerRatio', '威力倍率', '1.05'), text('range', '作用范围', '前方扇形 / 半径8米')],
+    设计台参数定义: [num('powerRatio', '威力倍率', '1.05'), text('range', '作用范围', '前方扇形 / 半径8米')],
   });
   register('多段伤害', {
     可主机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'multi_damage',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '输出', mainType: '伤害类', effectMode: '持续' },
+    目标语义: '敌对',
+    运行时消费器: 'multi_damage',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '输出', mainType: '伤害类', effectMode: '持续' },
     designerMainHint: '伤害类',
     designerSubHint: '多段伤害',
-    designerParamSchema: [
+    设计台参数定义: [
       num('segmentRatio', '每段倍率', '0.45'),
       num('segmentCount', '段数', '3', '1'),
       text('segmentInterval', '段间间隔', '短促连击'),
@@ -1836,13 +1836,13 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('延迟爆发', {
     可主机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'delay_burst',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '输出', mainType: '伤害类', effectMode: '延迟' },
+    目标语义: '敌对',
+    运行时消费器: 'delay_burst',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '输出', mainType: '伤害类', effectMode: '延迟' },
     designerMainHint: '伤害类',
     designerSubHint: '延迟爆发',
-    designerParamSchema: [
+    设计台参数定义: [
       num('burstRatio', '爆发倍率', '1.8'),
       text('delayWindow', '延迟时长', '1回合 / 3秒'),
       text('triggerRule', '触发条件', '计时结束 / 再次命中'),
@@ -1850,13 +1850,13 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('持续伤害', {
     可主机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'dot_damage',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '输出', mainType: '伤害类', effectMode: '持续' },
+    目标语义: '敌对',
+    运行时消费器: 'dot_damage',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '输出', mainType: '伤害类', effectMode: '持续' },
     designerMainHint: '伤害类',
     designerSubHint: '持续伤害',
-    designerParamSchema: [
+    设计台参数定义: [
       num('dotRatio', '每跳倍率', '0.35'),
       num('duration', '持续回合', '3', '1'),
       num('stackLimit', '叠层上限', '1', '1'),
@@ -1864,13 +1864,13 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('硬控', {
     可主机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'hard_control',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '控制类', controlStrength: '硬控' },
+    目标语义: '敌对',
+    运行时消费器: 'hard_control',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '控制类', controlStrength: '硬控' },
     designerMainHint: '控制类',
     designerSubHint: '硬控',
-    designerParamSchema: [
+    设计台参数定义: [
       num('duration', '持续回合', '2', '1'),
       num('controlPower', '控制强度', '1.0'),
       text('breakRule', '解除条件', '受击 / 净化'),
@@ -1878,23 +1878,23 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('软控', {
     可主机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'soft_control',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
+    目标语义: '敌对',
+    运行时消费器: 'soft_control',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
     designerMainHint: '控制类',
     designerSubHint: '软控',
-    designerParamSchema: [num('slowRatio', '控制幅度', '0.3'), num('duration', '持续回合', '2', '1')],
+    设计台参数定义: [num('slowRatio', '控制幅度', '0.3'), num('duration', '持续回合', '2', '1')],
   });
   register('位移限制', {
     可主机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'position_lock',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
+    目标语义: '敌对',
+    运行时消费器: 'position_lock',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
     designerMainHint: '控制类',
     designerSubHint: '位移限制',
-    designerParamSchema: [
+    设计台参数定义: [
       num('limitPower', '限制强度', '0.2'),
       num('duration', '持续回合', '2', '1'),
       text('lockRange', '封锁范围', '半径5米'),
@@ -1903,36 +1903,36 @@ const SKILL_MECHANISM_META_V1 = (() => {
   register(['节奏打断', '打断'], {
     可主机制: true,
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'interrupt',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '控制类', effectMode: '瞬发' },
+    目标语义: '敌对',
+    运行时消费器: 'interrupt',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '控制类', effectMode: '瞬发' },
     designerMainHint: '控制类',
     designerSubHint: '节奏打断',
     designerSecondaryHint: '打断',
-    designerParamSchema: [select('interruptWindow', '打断时机', 'INTERRUPT_WINDOW'), num('extraDelay', '追加僵直', '0.5')],
+    设计台参数定义: [select('interruptWindow', '打断时机', 'INTERRUPT_WINDOW'), num('extraDelay', '追加僵直', '0.5')],
   });
   register('封技', {
     可主机制: true,
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'skill_seal',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
+    目标语义: '敌对',
+    运行时消费器: 'skill_seal',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
     designerMainHint: '控制类',
     designerSubHint: '封技',
     designerSecondaryHint: '封技',
-    designerParamSchema: [num('duration', '持续回合', '2', '1'), select('muteScope', '限制范围', 'MUTE_SCOPE')],
+    设计台参数定义: [num('duration', '持续回合', '2', '1'), select('muteScope', '限制范围', 'MUTE_SCOPE')],
   });
   register('单属性削弱', {
     可主机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'attribute_debuff',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '削弱类' },
+    目标语义: '敌对',
+    运行时消费器: 'attribute_debuff',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '削弱类' },
     designerMainHint: '削弱类',
     designerSubHint: '单属性削弱',
-    designerParamSchema: [
+    设计台参数定义: [
       select('debuffAttr', '削弱属性', 'ATTRIBUTE'),
       num('reduceRatio', '压制倍率', '0.8'),
       num('duration', '持续回合', '2', '1'),
@@ -1940,13 +1940,13 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('多属性削弱', {
     可主机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'attribute_debuff',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '削弱类' },
+    目标语义: '敌对',
+    运行时消费器: 'attribute_debuff',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '削弱类' },
     designerMainHint: '削弱类',
     designerSubHint: '多属性削弱',
-    designerParamSchema: [
+    设计台参数定义: [
       select('debuffAttrGroup', '属性组', 'ATTRIBUTE_GROUP'),
       num('reduceRatio', '压制倍率', '0.8'),
       num('duration', '持续回合', '2', '1'),
@@ -1955,75 +1955,75 @@ const SKILL_MECHANISM_META_V1 = (() => {
   register('禁疗', {
     可主机制: true,
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'anti_heal',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '削弱类', controlStrength: '软控' },
+    目标语义: '敌对',
+    运行时消费器: 'anti_heal',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '削弱类', controlStrength: '软控' },
     designerMainHint: '削弱类',
     designerSubHint: '禁疗',
     designerSecondaryHint: '禁疗',
-    designerParamSchema: [num('banHealRatio', '禁疗幅度', '1.0'), num('duration', '持续回合', '2', '1')],
+    设计台参数定义: [num('banHealRatio', '禁疗幅度', '1.0'), num('duration', '持续回合', '2', '1')],
   });
   register('治疗反转', {
     可主机制: true,
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'heal_inversion',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '削弱类', controlStrength: '软控' },
+    目标语义: '敌对',
+    运行时消费器: 'heal_inversion',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '削弱类', controlStrength: '软控' },
     designerMainHint: '削弱类',
     designerSubHint: '治疗反转',
     designerSecondaryHint: '治疗反转',
-    designerParamSchema: [num('invertRatio', '反转倍率', '1.0'), num('duration', '持续回合', '2', '1')],
+    设计台参数定义: [num('invertRatio', '反转倍率', '1.0'), num('duration', '持续回合', '2', '1')],
   });
   register('消耗提高', {
     可主机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'cost_increase',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '削弱类' },
+    目标语义: '敌对',
+    运行时消费器: 'cost_increase',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '削弱类' },
     designerMainHint: '削弱类',
     designerSubHint: '消耗提高',
-    designerParamSchema: [num('gainRatio', '提高倍率', '1.2'), num('duration', '持续回合', '2', '1')],
+    设计台参数定义: [num('gainRatio', '提高倍率', '1.2'), num('duration', '持续回合', '2', '1')],
   });
   register('前摇拉长', {
     可主机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'windup_increase',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '削弱类' },
+    目标语义: '敌对',
+    运行时消费器: 'windup_increase',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '削弱类' },
     designerMainHint: '削弱类',
     designerSubHint: '前摇拉长',
-    designerParamSchema: [num('gainRatio', '拉长倍率', '1.2'), num('duration', '持续回合', '2', '1')],
+    设计台参数定义: [num('gainRatio', '拉长倍率', '1.2'), num('duration', '持续回合', '2', '1')],
   });
   register('掌控压制', {
     可主机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'mastery_reduce',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '削弱类' },
+    目标语义: '敌对',
+    运行时消费器: 'mastery_reduce',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '削弱类' },
     designerMainHint: '削弱类',
     designerSubHint: '掌控压制',
-    designerParamSchema: [num('reduceRatio', '压制倍率', '0.85'), num('duration', '持续回合', '2', '1')],
+    设计台参数定义: [num('reduceRatio', '压制倍率', '0.85'), num('duration', '持续回合', '2', '1')],
   });
   register('速度压制', {
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'speed_reduce',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '削弱类' },
+    目标语义: '敌对',
+    运行时消费器: 'speed_reduce',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '削弱类' },
     designerSecondaryHint: '减速',
-    designerParamSchema: [num('slowRatio', '压制幅度', '0.3'), num('duration', '持续回合', '2', '1')],
+    设计台参数定义: [num('slowRatio', '压制幅度', '0.3'), num('duration', '持续回合', '2', '1')],
   });
   register('单属性增益', {
     可主机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'attribute_buff',
-    aiRoleTags: ['团队保护型'],
-    summaryHints: { skillType: '辅助', mainType: '增益类', cooperation: '中' },
+    目标语义: '可赋予',
+    运行时消费器: 'attribute_buff',
+    决策标签: ['团队保护型'],
+    摘要提示: { skillType: '辅助', mainType: '增益类', cooperation: '中' },
     designerMainHint: '增益类',
     designerSubHint: '单属性增益',
-    designerParamSchema: [
+    设计台参数定义: [
       select('buffAttr', '增幅对象', 'ATTRIBUTE'),
       num('gainRatio', '增幅倍率', '1.3'),
       num('duration', '持续回合', '3', '1'),
@@ -2031,13 +2031,13 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('多属性增益', {
     可主机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'attribute_buff',
-    aiRoleTags: ['团队保护型'],
-    summaryHints: { skillType: '辅助', mainType: '增益类', cooperation: '高' },
+    目标语义: '可赋予',
+    运行时消费器: 'attribute_buff',
+    决策标签: ['团队保护型'],
+    摘要提示: { skillType: '辅助', mainType: '增益类', cooperation: '高' },
     designerMainHint: '增益类',
     designerSubHint: '多属性增益',
-    designerParamSchema: [
+    设计台参数定义: [
       select('buffAttrGroup', '属性组', 'ATTRIBUTE_GROUP'),
       num('gainRatio', '增幅倍率', '1.2'),
       num('duration', '持续回合', '3', '1'),
@@ -2045,65 +2045,65 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('全属性增益', {
     可主机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'attribute_buff',
-    aiRoleTags: ['团队保护型'],
-    summaryHints: { skillType: '辅助', mainType: '增益类', cooperation: '高' },
+    目标语义: '可赋予',
+    运行时消费器: 'attribute_buff',
+    决策标签: ['团队保护型'],
+    摘要提示: { skillType: '辅助', mainType: '增益类', cooperation: '高' },
     designerMainHint: '增益类',
     designerSubHint: '全属性增益',
-    designerParamSchema: [num('allGainRatio', '全属性倍率', '1.15'), num('duration', '持续回合', '2', '1')],
+    设计台参数定义: [num('allGainRatio', '全属性倍率', '1.15'), num('duration', '持续回合', '2', '1')],
   });
   register('消耗降低', {
     可主机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'cost_reduce',
-    aiRoleTags: ['团队保护型'],
-    summaryHints: { skillType: '辅助', mainType: '增益类' },
+    目标语义: '可赋予',
+    运行时消费器: 'cost_reduce',
+    决策标签: ['团队保护型'],
+    摘要提示: { skillType: '辅助', mainType: '增益类' },
     designerMainHint: '增益类',
     designerSubHint: '消耗降低',
-    designerParamSchema: [num('gainRatio', '降低倍率', '0.85'), num('duration', '持续回合', '3', '1')],
+    设计台参数定义: [num('gainRatio', '降低倍率', '0.85'), num('duration', '持续回合', '3', '1')],
   });
   register('前摇缩短', {
     可主机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'windup_reduce',
-    aiRoleTags: ['团队保护型'],
-    summaryHints: { skillType: '辅助', mainType: '增益类' },
+    目标语义: '可赋予',
+    运行时消费器: 'windup_reduce',
+    决策标签: ['团队保护型'],
+    摘要提示: { skillType: '辅助', mainType: '增益类' },
     designerMainHint: '增益类',
     designerSubHint: '前摇缩短',
-    designerParamSchema: [num('gainRatio', '缩短倍率', '0.85'), num('duration', '持续回合', '2', '1')],
+    设计台参数定义: [num('gainRatio', '缩短倍率', '0.85'), num('duration', '持续回合', '2', '1')],
   });
   register('掌控提升', {
     可主机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'mastery_raise',
-    aiRoleTags: ['团队保护型'],
-    summaryHints: { skillType: '辅助', mainType: '增益类' },
+    目标语义: '可赋予',
+    运行时消费器: 'mastery_raise',
+    决策标签: ['团队保护型'],
+    摘要提示: { skillType: '辅助', mainType: '增益类' },
     designerMainHint: '增益类',
     designerSubHint: '掌控提升',
-    designerParamSchema: [num('gainRatio', '提升倍率', '1.2'), num('duration', '持续回合', '3', '1')],
+    设计台参数定义: [num('gainRatio', '提升倍率', '1.2'), num('duration', '持续回合', '3', '1')],
   });
   register('速度提升', {
     可主机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'speed_raise',
-    aiRoleTags: ['团队保护型'],
-    summaryHints: { skillType: '辅助', mainType: '增益类' },
+    目标语义: '可赋予',
+    运行时消费器: 'speed_raise',
+    决策标签: ['团队保护型'],
+    摘要提示: { skillType: '辅助', mainType: '增益类' },
     designerMainHint: '增益类',
     designerSubHint: '速度提升',
-    designerParamSchema: [num('gainRatio', '提升倍率', '1.15'), num('duration', '持续回合', '2', '1')],
+    设计台参数定义: [num('gainRatio', '提升倍率', '1.15'), num('duration', '持续回合', '2', '1')],
   });
   register(['护盾', '小护盾'], {
     可主机制: true,
     可副机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'shield',
-    aiRoleTags: ['团队保护型'],
-    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '护盾', effectMode: '持续' },
+    目标语义: '可赋予',
+    运行时消费器: 'shield',
+    决策标签: ['团队保护型'],
+    摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '护盾', effectMode: '持续' },
     designerMainHint: '防御类',
     designerSubHint: '护盾',
     designerSecondaryHint: '小护盾',
-    designerParamSchema: [
+    设计台参数定义: [
       num('shieldRatio', '护盾倍率', '0.8'),
       num('duration', '持续回合', '2', '1'),
       select('shieldCap', '护盾上限', 'SHIELD_CAP'),
@@ -2111,13 +2111,13 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('减伤', {
     可主机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'damage_reduce',
-    aiRoleTags: ['团队保护型', '保命型'],
-    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '减伤', effectMode: '持续' },
+    目标语义: '可赋予',
+    运行时消费器: 'damage_reduce',
+    决策标签: ['团队保护型', '保命型'],
+    摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '减伤', effectMode: '持续' },
     designerMainHint: '防御类',
     designerSubHint: '减伤',
-    designerParamSchema: [
+    设计台参数定义: [
       num('reduceRatio', '减伤比例', '0.35'),
       num('duration', '持续回合', '2', '1'),
       text('damageType', '覆盖类型', '物理 / 元素 / 全伤'),
@@ -2125,13 +2125,13 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register(['格挡', '格挡/抵消'], {
     可主机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'block',
-    aiRoleTags: ['保命型'],
-    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '格挡', effectMode: '触发' },
+    目标语义: '可赋予',
+    运行时消费器: 'block',
+    决策标签: ['保命型'],
+    摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '格挡', effectMode: '触发' },
     designerMainHint: '防御类',
     designerSubHint: '格挡/抵消',
-    designerParamSchema: [
+    设计台参数定义: [
       num('blockCount', '格挡次数', '1', '1'),
       text('blockCap', '单次上限', '最多抵消一次大招'),
       text('triggerRule', '触发条件', '受击瞬间'),
@@ -2139,13 +2139,13 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('霸体', {
     可主机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'super_armor',
-    aiRoleTags: ['保命型'],
-    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '霸体', effectMode: '持续' },
+    目标语义: '可赋予',
+    运行时消费器: 'super_armor',
+    决策标签: ['保命型'],
+    摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '霸体', effectMode: '持续' },
     designerMainHint: '防御类',
     designerSubHint: '霸体',
-    designerParamSchema: [
+    设计台参数定义: [
       num('duration', '持续回合', '2', '1'),
       select('immuneLevel', '免控级别', 'IMMUNE_LEVEL'),
       num('reduceRatio', '额外减伤', '0.2'),
@@ -2153,13 +2153,13 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register(['免死', '免死/锁血'], {
     可主机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'death_save',
-    aiRoleTags: ['保命型'],
-    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '免死', effectMode: '触发' },
+    目标语义: '可赋予',
+    运行时消费器: 'death_save',
+    决策标签: ['保命型'],
+    摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '免死', effectMode: '触发' },
     designerMainHint: '防御类',
     designerSubHint: '免死/锁血',
-    designerParamSchema: [
+    设计台参数定义: [
       text('triggerThreshold', '触发阈值', '低于20%生命'),
       text('lockBloodFloor', '锁血下限', '保留1点 / 10%'),
       text('cooldown', '冷却/次数', '每战1次'),
@@ -2168,14 +2168,14 @@ const SKILL_MECHANISM_META_V1 = (() => {
   register('无敌金身', {
     可主机制: true,
     可副机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'invincible',
-    aiRoleTags: ['保命型', '团队保护型'],
-    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '无敌', effectMode: '触发' },
+    目标语义: '可赋予',
+    运行时消费器: 'invincible',
+    决策标签: ['保命型', '团队保护型'],
+    摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '无敌', effectMode: '触发' },
     designerMainHint: '防御类',
     designerSubHint: '无敌金身',
     designerSecondaryHint: '无敌金身',
-    designerParamSchema: [
+    设计台参数定义: [
       num('duration', '持续回合', '2', '1'),
       num('dailyLimit', '每日触发', '3', '1'),
       num('tierThreshold', '免疫位阶', '100', '0.5'),
@@ -2185,14 +2185,14 @@ const SKILL_MECHANISM_META_V1 = (() => {
   register('伤害反射', {
     可主机制: true,
     可副机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'damage_reflect',
-    aiRoleTags: ['保命型', '团队保护型'],
-    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '反射', effectMode: '触发' },
+    目标语义: '可赋予',
+    运行时消费器: 'damage_reflect',
+    决策标签: ['保命型', '团队保护型'],
+    摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '反射', effectMode: '触发' },
     designerMainHint: '防御类',
     designerSubHint: '伤害反射',
     designerSecondaryHint: '伤害反射',
-    designerParamSchema: [
+    设计台参数定义: [
       num('reflectRatio', '反射比例', '0.25'),
       num('duration', '持续回合', '2', '1'),
       text('reflectRule', '触发条件', '受击后'),
@@ -2201,15 +2201,15 @@ const SKILL_MECHANISM_META_V1 = (() => {
   register('伤害分摊', {
     可主机制: true,
     可副机制: true,
-    targetSemantic: 'grantable',
-    groupGrantable: true,
-    runtimeConsumerKey: 'damage_share',
-    aiRoleTags: ['团队保护型'],
-    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '分摊', cooperation: '高', effectMode: '触发' },
+    目标语义: '可赋予',
+    群体赋予: true,
+    运行时消费器: 'damage_share',
+    决策标签: ['团队保护型'],
+    摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '分摊', cooperation: '高', effectMode: '触发' },
     designerMainHint: '防御类',
     designerSubHint: '伤害分摊',
     designerSecondaryHint: '伤害分摊',
-    designerParamSchema: [
+    设计台参数定义: [
       num('shareRatio', '分摊比例', '0.35'),
       num('shareCount', '分摊人数', '1', '1'),
       num('duration', '持续回合', '2', '1'),
@@ -2218,14 +2218,14 @@ const SKILL_MECHANISM_META_V1 = (() => {
   register('替身抵消', {
     可主机制: true,
     可副机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'substitute',
-    aiRoleTags: ['保命型', '团队保护型'],
-    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '替身', effectMode: '触发' },
+    目标语义: '可赋予',
+    运行时消费器: 'substitute',
+    决策标签: ['保命型', '团队保护型'],
+    摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '替身', effectMode: '触发' },
     designerMainHint: '防御类',
     designerSubHint: '替身抵消',
     designerSecondaryHint: '替身抵消',
-    designerParamSchema: [
+    设计台参数定义: [
       num('substituteCount', '抵消次数', '1', '1'),
       num('duration', '持续回合', '2', '1'),
       text('substituteRule', '触发条件', '受击时'),
@@ -2234,14 +2234,14 @@ const SKILL_MECHANISM_META_V1 = (() => {
   register('复苏', {
     可主机制: true,
     可副机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'revive',
-    aiRoleTags: ['保命型', '团队保护型'],
-    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '复苏', recoverNature: '复苏', effectMode: '触发' },
+    目标语义: '可赋予',
+    运行时消费器: 'revive',
+    决策标签: ['保命型', '团队保护型'],
+    摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '复苏', recoverNature: '复苏', effectMode: '触发' },
     designerMainHint: '防御类',
     designerSubHint: '复苏',
     designerSecondaryHint: '复苏',
-    designerParamSchema: [
+    设计台参数定义: [
       num('reviveCount', '复苏次数', '1', '1'),
       num('reviveHealRatio', '复苏回血', '0.25'),
       num('duration', '持续回合', '3', '1'),
@@ -2249,47 +2249,47 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('体力恢复', {
     可主机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'recover_vit',
-    aiRoleTags: ['团队保护型'],
-    summaryHints: { skillType: '辅助', mainType: '回复类', recoverNature: '体力恢复' },
+    目标语义: '可赋予',
+    运行时消费器: 'recover_vit',
+    决策标签: ['团队保护型'],
+    摘要提示: { skillType: '辅助', mainType: '回复类', recoverNature: '体力恢复' },
     designerMainHint: '回复类',
     designerSubHint: '体力恢复',
-    designerParamSchema: [num('recoverRatio', '回复倍率', '0.35'), num('repeatCount', '生效次数', '1', '1')],
+    设计台参数定义: [num('recoverRatio', '回复倍率', '0.35'), num('repeatCount', '生效次数', '1', '1')],
   });
   register('魂力恢复', {
     可主机制: true,
     可副机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'recover_sp',
-    aiRoleTags: ['团队保护型'],
-    summaryHints: { skillType: '辅助', mainType: '回复类', recoverNature: '资源回复' },
+    目标语义: '可赋予',
+    运行时消费器: 'recover_sp',
+    决策标签: ['团队保护型'],
+    摘要提示: { skillType: '辅助', mainType: '回复类', recoverNature: '资源回复' },
     designerMainHint: '回复类',
     designerSubHint: '魂力恢复',
     designerSecondaryHint: '魂力恢复',
-    designerParamSchema: [num('recoverRatio', '回复倍率', '0.35'), num('repeatCount', '生效次数', '1', '1')],
+    设计台参数定义: [num('recoverRatio', '回复倍率', '0.35'), num('repeatCount', '生效次数', '1', '1')],
   });
   register('精神恢复', {
     可主机制: true,
     可副机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'recover_men',
-    aiRoleTags: ['团队保护型'],
-    summaryHints: { skillType: '辅助', mainType: '回复类', recoverNature: '资源回复' },
+    目标语义: '可赋予',
+    运行时消费器: 'recover_men',
+    决策标签: ['团队保护型'],
+    摘要提示: { skillType: '辅助', mainType: '回复类', recoverNature: '资源回复' },
     designerMainHint: '回复类',
     designerSubHint: '精神恢复',
     designerSecondaryHint: '精神恢复',
-    designerParamSchema: [num('recoverRatio', '回复倍率', '0.35'), num('repeatCount', '生效次数', '1', '1')],
+    设计台参数定义: [num('recoverRatio', '回复倍率', '0.35'), num('repeatCount', '生效次数', '1', '1')],
   });
   register('持续恢复', {
     可主机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'recover_over_time',
-    aiRoleTags: ['团队保护型'],
-    summaryHints: { skillType: '辅助', mainType: '回复类', recoverNature: '持续恢复', effectMode: '持续' },
+    目标语义: '可赋予',
+    运行时消费器: 'recover_over_time',
+    决策标签: ['团队保护型'],
+    摘要提示: { skillType: '辅助', mainType: '回复类', recoverNature: '持续恢复', effectMode: '持续' },
     designerMainHint: '回复类',
     designerSubHint: '持续恢复',
-    designerParamSchema: [
+    设计台参数定义: [
       num('recoverRatio', '每回合倍率', '0.2'),
       num('duration', '持续回合', '3', '1'),
       num('stackLimit', '叠层上限', '2', '1'),
@@ -2298,14 +2298,14 @@ const SKILL_MECHANISM_META_V1 = (() => {
   register(['净化/解控', '净化', '解控'], {
     可主机制: true,
     可副机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'cleanse',
-    aiRoleTags: ['团队保护型'],
-    summaryHints: { skillType: '辅助', mainType: '回复类', recoverNature: '净化' },
+    目标语义: '可赋予',
+    运行时消费器: 'cleanse',
+    决策标签: ['团队保护型'],
+    摘要提示: { skillType: '辅助', mainType: '回复类', recoverNature: '净化' },
     designerMainHint: '回复类',
     designerSubHint: '净化/解控',
     designerSecondaryHint: '解控',
-    designerParamSchema: [
+    设计台参数定义: [
       num('cleanseCount', '清除条目数', '2', '1'),
       select('cleansePriority', '净化优先级', 'CLEANSE_PRIORITY'),
       select('extraGain', '附带收益', 'CLEANSE_GAIN'),
@@ -2313,23 +2313,23 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('感知干扰', {
     可主机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'perception_disturb',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '感知/认知类', controlStrength: '软控' },
+    目标语义: '敌对',
+    运行时消费器: 'perception_disturb',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '感知/认知类', controlStrength: '软控' },
     designerMainHint: '感知/认知类',
     designerSubHint: '感知干扰',
-    designerParamSchema: [num('disturbPower', '干扰强度', '0.12'), num('duration', '持续回合', '2', '1')],
+    设计台参数定义: [num('disturbPower', '干扰强度', '0.12'), num('duration', '持续回合', '2', '1')],
   });
   register('标记锁定', {
     可主机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'judge_effect',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '感知/认知类', controlStrength: '软控' },
+    目标语义: '敌对',
+    运行时消费器: 'judge_effect',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '感知/认知类', controlStrength: '软控' },
     designerMainHint: '感知/认知类',
     designerSubHint: '标记锁定',
-    designerParamSchema: [
+    设计台参数定义: [
       num('markDuration', '标记时长', '2', '1'),
       num('targetCap', '锁定目标数', '1', '1'),
       select('trackingRule', '追踪规则', 'TRACKING_RULE'),
@@ -2338,14 +2338,14 @@ const SKILL_MECHANISM_META_V1 = (() => {
   register('共享视野', {
     可主机制: true,
     可副机制: true,
-    targetSemantic: 'contextual',
-    runtimeConsumerKey: 'shared_vision',
-    aiRoleTags: ['团队保护型', '规则压制型'],
-    summaryHints: { skillType: '辅助', mainType: '感知/认知类', cooperation: '高', effectMode: '持续' },
+    目标语义: '上下文',
+    运行时消费器: 'shared_vision',
+    决策标签: ['团队保护型', '规则压制型'],
+    摘要提示: { skillType: '辅助', mainType: '感知/认知类', cooperation: '高', effectMode: '持续' },
     designerMainHint: '感知/认知类',
     designerSubHint: '共享视野',
     designerSecondaryHint: '共享视野',
-    designerParamSchema: [
+    设计台参数定义: [
       text('shareRange', '共享范围', '队伍 / 半径30米'),
       num('duration', '持续回合', '3', '1'),
       select('infoDepth', '共享深度', 'INFO_DEPTH'),
@@ -2353,13 +2353,13 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('幻境', {
     可主机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'judge_effect',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '感知/认知类', controlStrength: '硬控' },
+    目标语义: '敌对',
+    运行时消费器: 'judge_effect',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '感知/认知类', controlStrength: '硬控' },
     designerMainHint: '感知/认知类',
     designerSubHint: '幻境',
-    designerParamSchema: [
+    设计台参数定义: [
       text('illusionRange', '幻境范围', '半径8米'),
       num('duration', '持续回合', '2', '1'),
       num('illusionPower', '幻术强度', '1.1'),
@@ -2367,13 +2367,13 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('催眠', {
     可主机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'judge_effect',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '感知/认知类', controlStrength: '硬控' },
+    目标语义: '敌对',
+    运行时消费器: 'judge_effect',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '感知/认知类', controlStrength: '硬控' },
     designerMainHint: '感知/认知类',
     designerSubHint: '催眠',
-    designerParamSchema: [
+    设计台参数定义: [
       num('duration', '睡眠回合', '2', '1'),
       select('wakeRule', '唤醒条件', 'WAKE_RULE'),
       text('hitRule', '命中条件', '视线锁定 / 声波接触'),
@@ -2381,24 +2381,24 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('认知扭曲', {
     可主机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'judge_effect',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '感知/认知类', controlStrength: '软控' },
+    目标语义: '敌对',
+    运行时消费器: 'judge_effect',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '感知/认知类', controlStrength: '软控' },
     designerMainHint: '感知/认知类',
     designerSubHint: '认知扭曲',
-    designerParamSchema: [num('twistPower', '扭曲强度', '0.18'), num('duration', '持续回合', '2', '1')],
+    设计台参数定义: [num('twistPower', '扭曲强度', '0.18'), num('duration', '持续回合', '2', '1')],
   });
   register('目标锁定', {
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'target_lock',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '感知/认知类', controlStrength: '软控' },
+    目标语义: '敌对',
+    运行时消费器: 'target_lock',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '感知/认知类', controlStrength: '软控' },
     designerMainHint: '感知/认知类',
     designerSubHint: '标记锁定',
     designerSecondaryHint: '目标锁定',
-    designerParamSchema: [
+    设计台参数定义: [
       num('duration', '持续回合', '2', '1'),
       num('hitBonus', '命中增益', '0.1'),
       num('lockLevel', '锁定层级', '1', '1'),
@@ -2406,33 +2406,33 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('自身位移', {
     可主机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'self_shift',
-    aiRoleTags: ['保命型', '团队保护型'],
-    summaryHints: { skillType: '辅助', mainType: '位移类', effectMode: '持续' },
+    目标语义: '可赋予',
+    运行时消费器: 'self_shift',
+    决策标签: ['保命型', '团队保护型'],
+    摘要提示: { skillType: '辅助', mainType: '位移类', effectMode: '持续' },
     designerMainHint: '位移类',
     designerSubHint: '自身位移',
-    designerParamSchema: [text('moveDistance', '位移距离', '5米')],
+    设计台参数定义: [text('moveDistance', '位移距离', '5米')],
   });
   register('强制位移', {
     可主机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'hostile_shift',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '位移类', controlStrength: '软控' },
+    目标语义: '敌对',
+    运行时消费器: 'hostile_shift',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '位移类', controlStrength: '软控' },
     designerMainHint: '位移类',
     designerSubHint: '强制位移',
-    designerParamSchema: [text('moveDistance', '位移距离', '4米'), num('repeatCount', '触发次数', '1', '1')],
+    设计台参数定义: [text('moveDistance', '位移距离', '4米'), num('repeatCount', '触发次数', '1', '1')],
   });
   register('位移交换', {
     可主机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'position_exchange',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '位移类', controlStrength: '软控' },
+    目标语义: '敌对',
+    运行时消费器: 'position_exchange',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '位移类', controlStrength: '软控' },
     designerMainHint: '位移类',
     designerSubHint: '位移交换',
-    designerParamSchema: [
+    设计台参数定义: [
       text('exchangeRange', '交换范围', '8米'),
       num('duration', '持续回合', '2', '1'),
       text('triggerRule', '交换条件', '命中标记目标'),
@@ -2440,13 +2440,13 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('追击位移', {
     可主机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'pursuit_shift',
-    aiRoleTags: ['规则压制型', '团队保护型'],
-    summaryHints: { skillType: '辅助', mainType: '位移类', effectMode: '持续' },
+    目标语义: '可赋予',
+    运行时消费器: 'pursuit_shift',
+    决策标签: ['规则压制型', '团队保护型'],
+    摘要提示: { skillType: '辅助', mainType: '位移类', effectMode: '持续' },
     designerMainHint: '位移类',
     designerSubHint: '追击位移',
-    designerParamSchema: [
+    设计台参数定义: [
       text('moveDistance', '追击距离', '6米'),
       text('followWindow', '追击窗口', '命中后1秒'),
       num('extraRatio', '追加倍率', '0.3'),
@@ -2454,13 +2454,13 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('脱离位移', {
     可主机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'disengage_shift',
-    aiRoleTags: ['保命型', '团队保护型'],
-    summaryHints: { skillType: '辅助', mainType: '位移类', effectMode: '持续' },
+    目标语义: '可赋予',
+    运行时消费器: 'disengage_shift',
+    决策标签: ['保命型', '团队保护型'],
+    摘要提示: { skillType: '辅助', mainType: '位移类', effectMode: '持续' },
     designerMainHint: '位移类',
     designerSubHint: '脱离位移',
-    designerParamSchema: [
+    设计台参数定义: [
       text('moveDistance', '脱离距离', '7米'),
       text('escapeRule', '脱离条件', '生命低于50%'),
       select('extraGain', '脱离收益', 'ESCAPE_GAIN'),
@@ -2468,14 +2468,14 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register(['追击'], {
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'pursuit_mark',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '辅助', mainType: '位移类', effectMode: '持续' },
+    目标语义: '敌对',
+    运行时消费器: 'pursuit_mark',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '辅助', mainType: '位移类', effectMode: '持续' },
     designerMainHint: '位移类',
     designerSubHint: '追击位移',
     designerSecondaryHint: '追击',
-    designerParamSchema: [
+    设计台参数定义: [
       text('followWindow', '追击窗口', '命中后1秒'),
       num('bonusRatio', '追击倍率', '1.2'),
       num('duration', '持续回合', '2', '1'),
@@ -2483,13 +2483,13 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('分身', {
     可主机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'clone',
-    aiRoleTags: ['保命型', '团队保护型'],
-    summaryHints: { skillType: '防御', mainType: '特殊规则类', defenseNature: '分身', effectMode: '持续' },
+    目标语义: '可赋予',
+    运行时消费器: 'clone',
+    决策标签: ['保命型', '团队保护型'],
+    摘要提示: { skillType: '防御', mainType: '特殊规则类', defenseNature: '分身', effectMode: '持续' },
     designerMainHint: '特殊规则类',
     designerSubHint: '分身',
-    designerParamSchema: [
+    设计台参数定义: [
       select('cloneType', '分身类型', 'CLONE_TYPE'),
       num('cloneCount', '分身数量', '2', '1'),
       num('stealthRatio', '隐蔽度', '0.45'),
@@ -2500,13 +2500,13 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('复制', {
     可主机制: true,
-    targetSemantic: 'contextual',
-    runtimeConsumerKey: 'copy_status',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '辅助', mainType: '特殊规则类' },
+    目标语义: '上下文',
+    运行时消费器: 'copy_status',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '辅助', mainType: '特殊规则类' },
     designerMainHint: '特殊规则类',
     designerSubHint: '复制',
-    designerParamSchema: [
+    设计台参数定义: [
       select('copyTarget', '复制对象', 'COPY_TARGET'),
       num('fidelity', '保真度', '0.8'),
       text('duration', '维持时长', '2回合'),
@@ -2514,13 +2514,13 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('反制', {
     可主机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'counter',
-    aiRoleTags: ['保命型', '团队保护型'],
-    summaryHints: { skillType: '防御', mainType: '特殊规则类', defenseNature: '反制', effectMode: '触发' },
+    目标语义: '可赋予',
+    运行时消费器: 'counter',
+    决策标签: ['保命型', '团队保护型'],
+    摘要提示: { skillType: '防御', mainType: '特殊规则类', defenseNature: '反制', effectMode: '触发' },
     designerMainHint: '特殊规则类',
     designerSubHint: '反制',
-    designerParamSchema: [
+    设计台参数定义: [
       select('counterTarget', '反制对象', 'COUNTER_TARGET'),
       text('triggerRule', '触发条件', '被锁定时 / 命中前'),
       num('duration', '持续回合', '2', '1'),
@@ -2529,33 +2529,33 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register(['转化', '伤害转回复'], {
     可主机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'damage_to_heal',
-    aiRoleTags: ['团队保护型'],
-    summaryHints: { skillType: '辅助', mainType: '特殊规则类' },
+    目标语义: '可赋予',
+    运行时消费器: 'damage_to_heal',
+    决策标签: ['团队保护型'],
+    摘要提示: { skillType: '辅助', mainType: '特殊规则类' },
     designerMainHint: '特殊规则类',
     designerSubHint: '转化',
-    designerParamSchema: [text('convertPath', '转化方向', '伤害→回复'), num('convertRatio', '转化比率', '0.6')],
+    设计台参数定义: [text('convertPath', '转化方向', '伤害→回复'), num('convertRatio', '转化比率', '0.6')],
   });
   register('回复转伤害', {
     可主机制: false,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'heal_to_damage',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '特殊规则类' },
+    目标语义: '敌对',
+    运行时消费器: 'heal_to_damage',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '特殊规则类' },
     designerMainHint: '特殊规则类',
     designerSubHint: '转化',
-    designerParamSchema: [text('convertPath', '转化方向', '回复→伤害'), num('convertRatio', '转化比率', '0.6')],
+    设计台参数定义: [text('convertPath', '转化方向', '回复→伤害'), num('convertRatio', '转化比率', '0.6')],
   });
   register('状态交换', {
     可主机制: true,
-    targetSemantic: 'contextual',
-    runtimeConsumerKey: 'status_exchange',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '辅助', mainType: '特殊规则类' },
+    目标语义: '上下文',
+    运行时消费器: 'status_exchange',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '辅助', mainType: '特殊规则类' },
     designerMainHint: '特殊规则类',
     designerSubHint: '状态交换',
-    designerParamSchema: [
+    设计台参数定义: [
       select('exchangeTarget', '交换对象', 'EXCHANGE_TARGET'),
       num('exchangeCount', '交换层数', '1', '1'),
       text('triggerRule', '交换条件', '双方同时命中'),
@@ -2564,24 +2564,24 @@ const SKILL_MECHANISM_META_V1 = (() => {
   register('状态转移', {
     可主机制: true,
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'status_transfer',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '特殊规则类' },
+    目标语义: '敌对',
+    运行时消费器: 'status_transfer',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '特殊规则类' },
     designerMainHint: '特殊规则类',
     designerSubHint: '状态转移',
     designerSecondaryHint: '状态转移',
-    designerParamSchema: [text('transferMode', '转移模式', '自身负面->目标'), text('triggerRule', '转移条件', '命中后')],
+    设计台参数定义: [text('transferMode', '转移模式', '自身负面->目标'), text('triggerRule', '转移条件', '命中后')],
   });
   register('强制绑定/锁定', {
     可主机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'hard_lock',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '特殊规则类', controlStrength: '软控' },
+    目标语义: '敌对',
+    运行时消费器: 'hard_lock',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '特殊规则类', controlStrength: '软控' },
     designerMainHint: '特殊规则类',
     designerSubHint: '强制绑定/锁定',
-    designerParamSchema: [
+    设计台参数定义: [
       num('bindDuration', '绑定回合', '2', '1'),
       num('targetCap', '绑定目标数', '1', '1'),
       text('releaseRule', '解除条件', '超距离 / 净化'),
@@ -2589,13 +2589,13 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('条件触发', {
     可主机制: true,
-    targetSemantic: 'contextual',
-    runtimeConsumerKey: 'judge_effect',
-    aiRoleTags: ['保命型', '规则压制型'],
-    summaryHints: { skillType: '辅助', mainType: '特殊规则类', effectMode: '触发' },
+    目标语义: '上下文',
+    运行时消费器: 'judge_effect',
+    决策标签: ['保命型', '规则压制型'],
+    摘要提示: { skillType: '辅助', mainType: '特殊规则类', effectMode: '触发' },
     designerMainHint: '特殊规则类',
     designerSubHint: '条件触发',
-    designerParamSchema: [
+    设计台参数定义: [
       text('triggerRule', '触发条件', '受击 / 低血 / 计时结束'),
       num('triggerCount', '触发次数', '1', '1'),
       select('triggerResult', '触发结果', 'TRIGGER_RESULT'),
@@ -2603,117 +2603,117 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('规则改写', {
     可主机制: true,
-    targetSemantic: 'selfOnly',
-    selfOnly: true,
-    runtimeConsumerKey: 'self_rule_rewrite',
-    aiRoleTags: ['保命型', '规则压制型'],
-    summaryHints: { skillType: '辅助', mainType: '特殊规则类', effectMode: '触发' },
+    目标语义: '仅自身',
+    仅自身: true,
+    运行时消费器: 'self_rule_rewrite',
+    决策标签: ['保命型', '规则压制型'],
+    摘要提示: { skillType: '辅助', mainType: '特殊规则类', effectMode: '触发' },
     designerMainHint: '特殊规则类',
     designerSubHint: '规则改写',
-    designerParamSchema: [select('rewriteDepth', '改写幅度', 'REWRITE_DEPTH')],
+    设计台参数定义: [select('rewriteDepth', '改写幅度', 'REWRITE_DEPTH')],
   });
   register('高波动随机值', {
-    targetSemantic: 'selfOnly',
-    selfOnly: true,
-    runtimeConsumerKey: 'self_random_variance',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '辅助', mainType: '特殊规则类' },
+    目标语义: '仅自身',
+    仅自身: true,
+    运行时消费器: 'self_random_variance',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '辅助', mainType: '特殊规则类' },
   });
   register('自身也受影响', {
-    targetSemantic: 'selfOnly',
-    selfOnly: true,
-    runtimeConsumerKey: 'self_mirror',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '辅助', mainType: '特殊规则类' },
+    目标语义: '仅自身',
+    仅自身: true,
+    运行时消费器: 'self_mirror',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '辅助', mainType: '特殊规则类' },
   });
   register('随机目标', {
-    targetSemantic: 'selfOnly',
-    selfOnly: true,
-    runtimeConsumerKey: 'random_target_shift',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '特殊规则类' },
+    目标语义: '仅自身',
+    仅自身: true,
+    运行时消费器: 'random_target_shift',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '特殊规则类' },
   });
   register('自残换收益', {
-    targetSemantic: 'selfOnly',
-    selfOnly: true,
-    runtimeConsumerKey: 'self_sacrifice_gain',
-    aiRoleTags: ['保命型', '规则压制型'],
-    summaryHints: { skillType: '辅助', mainType: '特殊规则类' },
+    目标语义: '仅自身',
+    仅自身: true,
+    运行时消费器: 'self_sacrifice_gain',
+    决策标签: ['保命型', '规则压制型'],
+    摘要提示: { skillType: '辅助', mainType: '特殊规则类' },
   });
   register('引爆持续伤害', {
     可主机制: true,
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'dot_detonate',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '输出', mainType: '特殊规则类', effectMode: '瞬发' },
+    目标语义: '敌对',
+    运行时消费器: 'dot_detonate',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '输出', mainType: '特殊规则类', effectMode: '瞬发' },
     designerMainHint: '特殊规则类',
     designerSubHint: '引爆持续伤害',
     designerSecondaryHint: '引爆持续伤害',
-    designerParamSchema: [num('detonateRatio', '引爆倍率', '1.2'), text('consumeMode', '消耗规则', '消耗全部持续伤害')],
+    设计台参数定义: [num('detonateRatio', '引爆倍率', '1.2'), text('consumeMode', '消耗规则', '消耗全部持续伤害')],
   });
   register('斩盾', {
     可主机制: true,
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'shield_break',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '输出', mainType: '特殊规则类' },
+    目标语义: '敌对',
+    运行时消费器: 'shield_break',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '输出', mainType: '特殊规则类' },
     designerMainHint: '特殊规则类',
     designerSubHint: '斩盾',
     designerSecondaryHint: '斩盾',
-    designerParamSchema: [num('shieldBreakRatio', '斩盾倍率', '0.6')],
+    设计台参数定义: [num('shieldBreakRatio', '斩盾倍率', '0.6')],
   });
   register('窃取护盾', {
     可主机制: true,
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'shield_steal',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '特殊规则类' },
+    目标语义: '敌对',
+    运行时消费器: 'shield_steal',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '特殊规则类' },
     designerMainHint: '特殊规则类',
     designerSubHint: '窃取护盾',
     designerSecondaryHint: '窃取护盾',
-    designerParamSchema: [num('shieldStealRatio', '窃盾比例', '0.45'), num('duration', '持续回合', '2', '1')],
+    设计台参数定义: [num('shieldStealRatio', '窃盾比例', '0.45'), num('duration', '持续回合', '2', '1')],
   });
   register('效果反转', {
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'effect_reverse',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '特殊规则类' },
+    目标语义: '敌对',
+    运行时消费器: 'effect_reverse',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '特殊规则类' },
   });
   register('驱散增益', {
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'dispel_buff',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '削弱类' },
+    目标语义: '敌对',
+    运行时消费器: 'dispel_buff',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '削弱类' },
     designerMainHint: '削弱类',
     designerSubHint: '单属性削弱',
     designerSecondaryHint: '驱散增益',
-    designerParamSchema: [num('dispelCount', '驱散数量', '1', '1')],
+    设计台参数定义: [num('dispelCount', '驱散数量', '1', '1')],
   });
   register('窃取增益', {
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'steal_buff',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '特殊规则类' },
+    目标语义: '敌对',
+    运行时消费器: 'steal_buff',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '特殊规则类' },
     designerMainHint: '特殊规则类',
     designerSubHint: '复制',
     designerSecondaryHint: '窃取增益',
-    designerParamSchema: [num('stealCount', '窃取数量', '1', '1')],
+    设计台参数定义: [num('stealCount', '窃取数量', '1', '1')],
   });
   register('隐身', {
     可副机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'stealth',
-    aiRoleTags: ['保命型', '团队保护型'],
-    summaryHints: { skillType: '辅助', mainType: '增益类', effectMode: '持续' },
+    目标语义: '可赋予',
+    运行时消费器: 'stealth',
+    决策标签: ['保命型', '团队保护型'],
+    摘要提示: { skillType: '辅助', mainType: '增益类', effectMode: '持续' },
     designerMainHint: '增益类',
     designerSubHint: '单属性增益',
     designerSecondaryHint: '隐身',
-    designerParamSchema: [
+    设计台参数定义: [
       num('duration', '持续回合', '2', '1'),
       num('stealthRatio', '隐蔽度', '0.3'),
       num('dodgeBonus', '闪避增益', '0.1'),
@@ -2722,170 +2722,198 @@ const SKILL_MECHANISM_META_V1 = (() => {
   });
   register('护卫', {
     可副机制: true,
-    targetSemantic: 'grantable',
-    groupGrantable: true,
-    runtimeConsumerKey: 'guard',
-    aiRoleTags: ['团队保护型'],
-    summaryHints: { skillType: '防御', mainType: '防御类', cooperation: '高', effectMode: '持续' },
+    目标语义: '可赋予',
+    群体赋予: true,
+    运行时消费器: 'guard',
+    决策标签: ['团队保护型'],
+    摘要提示: { skillType: '防御', mainType: '防御类', cooperation: '高', effectMode: '持续' },
     designerMainHint: '防御类',
     designerSubHint: '伤害分摊',
     designerSecondaryHint: '护卫',
-    designerParamSchema: [num('duration', '持续回合', '2', '1'), num('reduceRatio', '护卫减伤', '0.1')],
+    设计台参数定义: [num('duration', '持续回合', '2', '1'), num('reduceRatio', '护卫减伤', '0.1')],
   });
   register('嘲讽', {
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'taunt',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
+    目标语义: '敌对',
+    运行时消费器: 'taunt',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
     designerMainHint: '控制类',
     designerSubHint: '软控',
     designerSecondaryHint: '嘲讽',
-    designerParamSchema: [num('duration', '持续回合', '2', '1'), text('focusRule', '聚火规则', '强制优先自身')],
+    设计台参数定义: [num('duration', '持续回合', '2', '1'), text('focusRule', '聚火规则', '强制优先自身')],
   });
   register('破隐', {
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'reveal',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '控制类' },
+    目标语义: '敌对',
+    运行时消费器: 'reveal',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '控制类' },
     designerMainHint: '控制类',
     designerSubHint: '节奏打断',
     designerSecondaryHint: '破隐',
-    designerParamSchema: [num('hitBonus', '命中增益', '0.1'), num('lockLevel', '锁定层级', '1', '1')],
+    设计台参数定义: [num('hitBonus', '命中增益', '0.1'), num('lockLevel', '锁定层级', '1', '1')],
   });
   register(['减速', '迟缓'], {
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'slow',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
+    目标语义: '敌对',
+    运行时消费器: 'slow',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
     designerMainHint: '控制类',
     designerSubHint: '软控',
     designerSecondaryHint: '减速',
-    designerParamSchema: [num('slowRatio', '减速幅度', '0.3'), num('duration', '持续回合', '2', '1')],
+    设计台参数定义: [num('slowRatio', '减速幅度', '0.3'), num('duration', '持续回合', '2', '1')],
   });
   register('致盲', {
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'blind',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
+    目标语义: '敌对',
+    运行时消费器: 'blind',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
     designerMainHint: '控制类',
     designerSubHint: '软控',
     designerSecondaryHint: '致盲',
-    designerParamSchema: [num('duration', '致盲回合', '2', '1'), select('blindEffect', '影响内容', 'BLIND_EFFECT')],
+    设计台参数定义: [num('duration', '致盲回合', '2', '1'), select('blindEffect', '影响内容', 'BLIND_EFFECT')],
   });
   register('沉默', {
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'silence',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
+    目标语义: '敌对',
+    运行时消费器: 'silence',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
     designerMainHint: '控制类',
     designerSubHint: '软控',
     designerSecondaryHint: '沉默',
-    designerParamSchema: [num('duration', '沉默回合', '2', '1'), select('muteScope', '限制范围', 'MUTE_SCOPE')],
+    设计台参数定义: [num('duration', '沉默回合', '2', '1'), select('muteScope', '限制范围', 'MUTE_SCOPE')],
   });
   register('缴械', {
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'disarm',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
+    目标语义: '敌对',
+    运行时消费器: 'disarm',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
     designerMainHint: '控制类',
     designerSubHint: '软控',
     designerSecondaryHint: '缴械',
-    designerParamSchema: [num('duration', '缴械回合', '2', '1'), text('disarmScope', '限制范围', '近战 / 武器技')],
+    设计台参数定义: [num('duration', '缴械回合', '2', '1'), text('disarmScope', '限制范围', '近战 / 武器技')],
   });
   register('标记弱点', {
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'expose_weakness',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '控制', mainType: '削弱类' },
+    目标语义: '敌对',
+    运行时消费器: 'expose_weakness',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '削弱类' },
     designerMainHint: '削弱类',
     designerSubHint: '单属性削弱',
     designerSecondaryHint: '标记弱点',
-    designerParamSchema: [select('weakPointType', '弱点类型', 'WEAK_POINT_TYPE'), num('duration', '持续回合', '2', '1')],
+    设计台参数定义: [select('weakPointType', '弱点类型', 'WEAK_POINT_TYPE'), num('duration', '持续回合', '2', '1')],
   });
   register('斩杀补伤', {
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'judge_effect',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '输出', mainType: '伤害类' },
+    目标语义: '敌对',
+    运行时消费器: 'judge_effect',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '输出', mainType: '伤害类' },
     designerMainHint: '伤害类',
     designerSubHint: '单体伤害',
     designerSecondaryHint: '斩杀补伤',
-    designerParamSchema: [text('executeLine', '触发血线', '低于25%'), num('bonusRatio', '补伤倍率', '0.5')],
+    设计台参数定义: [text('executeLine', '触发血线', '低于25%'), num('bonusRatio', '补伤倍率', '0.5')],
+  });
+  register('穿透', {
+    可副机制: true,
+    目标语义: '敌对',
+    运行时消费器: 'armor_penetration',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '输出', mainType: '伤害类' },
+    designerMainHint: '伤害类',
+    designerSubHint: '单体伤害',
+    designerSecondaryHint: '穿透',
+    设计台参数定义: [
+      num('penetrationRatio', '穿透比例', '0.25'),
+      select('penetrationTarget', '穿透对象', 'PENETRATION_TARGET'),
+    ],
+  });
+  register('吸血', {
+    可副机制: true,
+    目标语义: '上下文',
+    运行时消费器: 'lifesteal',
+    决策标签: ['保命型', '规则压制型'],
+    摘要提示: { skillType: '输出', mainType: '伤害类' },
+    designerMainHint: '伤害类',
+    designerSubHint: '单体伤害',
+    designerSecondaryHint: '吸血',
+    设计台参数定义: [
+      num('lifestealRatio', '吸取比例', '0.2'),
+      select('resourceType', '吸取资源', 'LIFESTEAL_RESOURCE'),
+    ],
   });
   register('流血DOT', {
     可副机制: true,
-    targetSemantic: 'hostile',
-    runtimeConsumerKey: 'dot_damage',
-    aiRoleTags: ['规则压制型'],
-    summaryHints: { skillType: '输出', mainType: '伤害类', effectMode: '持续' },
+    目标语义: '敌对',
+    运行时消费器: 'dot_damage',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '输出', mainType: '伤害类', effectMode: '持续' },
     designerMainHint: '伤害类',
     designerSubHint: '持续伤害',
     designerSecondaryHint: '流血DOT',
-    designerParamSchema: [num('dotRatio', '每跳倍率', '0.2'), num('duration', '持续回合', '3', '1')],
+    设计台参数定义: [num('dotRatio', '每跳倍率', '0.2'), num('duration', '持续回合', '3', '1')],
   });
   register(['反击', '受击反击'], {
     可副机制: true,
-    targetSemantic: 'grantable',
-    runtimeConsumerKey: 'on_hit_counter',
-    aiRoleTags: ['保命型', '团队保护型'],
-    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '反制', effectMode: '触发' },
+    目标语义: '可赋予',
+    运行时消费器: 'on_hit_counter',
+    决策标签: ['保命型', '团队保护型'],
+    摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '反制', effectMode: '触发' },
     designerMainHint: '防御类',
     designerSubHint: '伤害反射',
     designerSecondaryHint: '反击',
-    designerParamSchema: [select('counterRule', '反击条件', 'COUNTER_RULE'), num('counterRatio', '反击倍率', '0.8')],
+    设计台参数定义: [select('counterRule', '反击条件', 'COUNTER_RULE'), num('counterRatio', '反击倍率', '0.8')],
   });
   register('造物生成', {
-    targetSemantic: 'selfOnly',
-    selfOnly: true,
-    runtimeConsumerKey: 'construct_create',
-    aiRoleTags: ['团队保护型'],
-    summaryHints: { skillType: '辅助', mainType: '特殊规则类' },
+    目标语义: '仅自身',
+    仅自身: true,
+    运行时消费器: 'construct_create',
+    决策标签: ['团队保护型'],
+    摘要提示: { skillType: '辅助', mainType: '特殊规则类' },
   });
 
   return Object.freeze(map);
 })();
 
 function buildSkillMechanismTargetSemanticsV1(metaMap = {}) {
-  const grantable = [];
-  const groupGrantable = [];
-  const hostile = [];
-  const contextual = [];
-  const selfOnly = [];
+  const 可赋予 = [];
+  const 群体赋予 = [];
+  const 敌对 = [];
+  const 上下文 = [];
+  const 仅自身 = [];
   Object.entries(metaMap || {}).forEach(([label, meta]) => {
     if (!meta || typeof meta !== 'object') return;
-    if (meta.selfOnly === true || meta.targetSemantic === 'selfOnly') selfOnly.push(label);
-    if (meta.groupGrantable === true) groupGrantable.push(label);
-    if (meta.targetSemantic === 'grantable') grantable.push(label);
-    else if (meta.targetSemantic === 'hostile') hostile.push(label);
-    else if (meta.targetSemantic === 'contextual') contextual.push(label);
+    if (meta.仅自身 === true || meta.目标语义 === '仅自身') 仅自身.push(label);
+    if (meta.群体赋予 === true) 群体赋予.push(label);
+    if (meta.目标语义 === '可赋予') 可赋予.push(label);
+    else if (meta.目标语义 === '敌对') 敌对.push(label);
+    else if (meta.目标语义 === '上下文') 上下文.push(label);
   });
   return Object.freeze({
-    grantable: Object.freeze(Array.from(new Set(grantable)).sort()),
-    groupGrantable: Object.freeze(Array.from(new Set(groupGrantable)).sort()),
-    hostile: Object.freeze(Array.from(new Set(hostile)).sort()),
-    contextual: Object.freeze(Array.from(new Set(contextual)).sort()),
-    selfOnly: Object.freeze(Array.from(new Set(selfOnly)).sort()),
+    可赋予: Object.freeze(Array.from(new Set(可赋予)).sort()),
+    群体赋予: Object.freeze(Array.from(new Set(群体赋予)).sort()),
+    敌对: Object.freeze(Array.from(new Set(敌对)).sort()),
+    上下文: Object.freeze(Array.from(new Set(上下文)).sort()),
+    仅自身: Object.freeze(Array.from(new Set(仅自身)).sort()),
   });
 }
 
 const SKILL_MECHANISM_TARGET_SEMANTICS_V1 = buildSkillMechanismTargetSemanticsV1(SKILL_MECHANISM_META_V1);
-const SKILL_MECHANISM_SELF_ONLY_V1 = SKILL_MECHANISM_TARGET_SEMANTICS_V1.selfOnly;
+const SKILL_MECHANISM_SELF_ONLY_V1 = SKILL_MECHANISM_TARGET_SEMANTICS_V1.仅自身;
 
 const SKILL_MECHANISM_REGISTRY_V1 = Object.freeze({
   mainArchetypes: Object.freeze(SKILL_ARCHETYPE_POOL_V1),
   secondaryByMain: Object.freeze(SKILL_SECONDARY_BY_MAIN_V1),
   secondaryTypeBias: Object.freeze(SKILL_SECONDARY_TYPE_BIAS_V1),
-  mechanisms: Object.freeze(SKILL_MECHANISM_META_V1),
-  selfOnly: SKILL_MECHANISM_SELF_ONLY_V1,
-  targetSemantics: SKILL_MECHANISM_TARGET_SEMANTICS_V1,
+  机制定义: Object.freeze(SKILL_MECHANISM_META_V1),
+  仅自身: SKILL_MECHANISM_SELF_ONLY_V1,
+  目标语义表: SKILL_MECHANISM_TARGET_SEMANTICS_V1,
 });
 
 if (typeof globalThis !== 'undefined') {
@@ -6595,15 +6623,15 @@ function autoGenerateSkill(
     typeof globalThis.__LWCS_SKILL_MECHANISM_REGISTRY__ === 'object'
       ? globalThis.__LWCS_SKILL_MECHANISM_REGISTRY__
       : SKILL_MECHANISM_REGISTRY_V1;
-  const mechanismTargetSemantics = sharedMechanismRegistry?.targetSemantics || {};
+  const mechanismTargetSemantics = sharedMechanismRegistry?.目标语义表 || {};
   const grantableMechanismSet = new Set(
-    Array.isArray(mechanismTargetSemantics.grantable) ? mechanismTargetSemantics.grantable : [],
+    Array.isArray(mechanismTargetSemantics.可赋予) ? mechanismTargetSemantics.可赋予 : [],
   );
   const groupGrantableMechanismSet = new Set(
-    Array.isArray(mechanismTargetSemantics.groupGrantable) ? mechanismTargetSemantics.groupGrantable : [],
+    Array.isArray(mechanismTargetSemantics.群体赋予) ? mechanismTargetSemantics.群体赋予 : [],
   );
   const selfOnlyMechanismSet = new Set(
-    Array.isArray(mechanismTargetSemantics.selfOnly) ? mechanismTargetSemantics.selfOnly : [],
+    Array.isArray(mechanismTargetSemantics.仅自身) ? mechanismTargetSemantics.仅自身 : [],
   );
   const resolveSupportableBuffTarget = (fallback = '自身') => {
     if (normalizedTarget === '全场') return '友方群体';
@@ -15802,6 +15830,7 @@ export const Schema = z
   });
 
 $(() => { registerMvuSchema(Schema); });
+
 
 
 

@@ -4044,7 +4044,7 @@
       __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__ && typeof __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__ === 'object'
         ? __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__
         : null;
-    const SKILL_DESIGNER_MECHANISM_META = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.mechanisms || {});
+    const SKILL_DESIGNER_MECHANISM_META = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.机制定义 || {});
     const SKILL_DESIGNER_SKILL_TYPES = Object.freeze(['强攻系', '控制系', '食物系', '精神系', '防御系', '敏攻系', '元素系', '辅助系', '治疗系', '被动', '融合技', '功法', '特殊能力']);
     const SKILL_DESIGNER_TARGET_OPTIONS = Object.freeze(['自身', '友方单体', '友方群体', '敌方单体', '敌方群体', '全场', '食用者', '使用者', '召唤物', '造物']);
     const SKILL_DESIGNER_MAIN_MECHANIC_POOL = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.mainArchetypes || {
@@ -4106,7 +4106,7 @@
       '治疗系': Object.freeze(['复苏', '护卫', '驱散增益', '共享视野', '无敌金身', '窃取护盾', '伤害分摊']),
       '食物系': Object.freeze(['复苏', '驱散增益', '共享视野', '窃取护盾', '治疗反转', '护卫']),
     });
-    const SKILL_DESIGNER_TARGET_SEMANTICS = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.targetSemantics || {});
+    const SKILL_DESIGNER_TARGET_SEMANTICS = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.目标语义表 || {});
     const SKILL_DESIGNER_ALL_SECONDARY_OPTIONS = Object.freeze(
       Array.from(new Set(Object.values(SKILL_DESIGNER_SECONDARY_BY_MAIN).flat())).sort(),
     );
@@ -5033,10 +5033,10 @@
       const explicitTargets = effectEntries
         .map(effect => normalizeSkillUiText(effect && (effect['目标'] || effect['对象']), ''))
         .filter(Boolean);
-      const selfOnly =
+      const 仅自身 =
         explicitTargets.length > 0
         && explicitTargets.every(value => /自身|使用者|食用者/.test(value));
-      if (selfOnly) return '自身附体';
+      if (仅自身) return '自身附体';
 
       const hasRangedDamage = effectEntries.some(effect => /远程/.test(normalizeSkillUiText(effect && effect['伤害类型'], '')));
       if (hasRangedDamage) return '远程命中';
@@ -5440,7 +5440,7 @@
       }
       const hostileLabels = labels.filter(label => {
         const meta = getSkillDesignerMechanismRegistryMeta(label);
-        return meta && normalizeSkillUiText(meta.targetSemantic, '') === 'hostile';
+        return meta && normalizeSkillUiText(meta.目标语义, '') === '敌对';
       });
       if (hostileLabels.length > 0) {
         const hostileTarget = resolveSkillDesignerMechanismTargetForRuntime(draft && draft.target, hostileLabels[0]);
@@ -6983,8 +6983,8 @@
 
     function isSkillDesignerSelfOnlyMechanism(label = '') {
       const normalizedLabel = normalizeSkillUiText(label, '');
-      return Array.isArray(SKILL_DESIGNER_TARGET_SEMANTICS.selfOnly)
-        ? SKILL_DESIGNER_TARGET_SEMANTICS.selfOnly.includes(normalizedLabel)
+      return Array.isArray(SKILL_DESIGNER_TARGET_SEMANTICS.仅自身)
+        ? SKILL_DESIGNER_TARGET_SEMANTICS.仅自身.includes(normalizedLabel)
         : false;
     }
 
@@ -7018,7 +7018,7 @@
 
     function resolveSkillDesignerMechanismParamDefsFromRegistry(label = '') {
       const meta = getSkillDesignerMechanismRegistryMeta(label);
-      const schema = Array.isArray(meta && meta.designerParamSchema) ? meta.designerParamSchema : [];
+      const schema = Array.isArray(meta && meta.设计台参数定义) ? meta.设计台参数定义 : [];
       if (!schema.length) return [];
       return schema
         .map(def => {
@@ -7046,7 +7046,7 @@
       const normalizedTarget = normalizeSkillDesignerTargetForRuntime(target, 'effect');
       if (isSkillDesignerSelfOnlyMechanism(normalizedLabel)) return '自身';
       const meta = getSkillDesignerMechanismRegistryMeta(normalizedLabel);
-      if (meta && meta.groupGrantable === true) {
+      if (meta && meta.群体赋予 === true) {
         if (/敌方/.test(normalizedTarget)) return '自身';
         if (normalizedTarget === '全场') return '友方群体';
         if (normalizedTarget === '友方群体' || normalizedTarget === '友方单体') return normalizedTarget;
@@ -22941,4 +22941,5 @@ window.mvuSetMainTab = setMainTab;
 
 
 })();
+
 
