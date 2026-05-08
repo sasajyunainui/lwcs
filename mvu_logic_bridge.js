@@ -6976,8 +6976,8 @@
 
     function isSkillDesignerGrantableMechanism(label = '') {
       const normalizedLabel = normalizeSkillUiText(label, '');
-      return Array.isArray(SKILL_DESIGNER_TARGET_SEMANTICS.grantable)
-        ? SKILL_DESIGNER_TARGET_SEMANTICS.grantable.includes(normalizedLabel)
+      return Array.isArray(SKILL_DESIGNER_TARGET_SEMANTICS.可赋予)
+        ? SKILL_DESIGNER_TARGET_SEMANTICS.可赋予.includes(normalizedLabel)
         : false;
     }
 
