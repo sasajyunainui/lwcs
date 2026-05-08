@@ -706,51 +706,51 @@ class TradeUIComponent {
   getPrivateTradeContext(action, targetNpcName, itemName, qty, price) {
     const ctx = {
       action, targetNpcName, targetChar: null, relationScore: 0, successRate: 0,
-      basePrice: Math.max(0, this.estimateBasePrice(itemName, "鐗╁搧")),
+      basePrice: Math.max(0, this.estimateBasePrice(itemName, "物品")),
       total: Math.max(0, Number(price || 0) * Math.max(1, Number(qty || 1))),
       error: null, note: '', npcItem: null, playerItem: null
     };
-    if (!itemName) { ctx.error = '璇疯緭鍏ヤ氦鏄撶墿鍝佸悕绉般€?; return ctx; }
-    if (!targetNpcName) { ctx.error = '璇疯緭鍏ヤ氦鏄撳璞?NPC銆?; return ctx; }
+    if (!itemName) { ctx.error = '请输入交易物品名称。'; return ctx; }
+    if (!targetNpcName) { ctx.error = '请输入交易对象 NPC。'; return ctx; }
 
     const resolvedTarget = this.resolveCharacterByName(targetNpcName);
     const targetChar = resolvedTarget.char;
     const relationName = resolvedTarget.displayName || targetNpcName;
     ctx.targetChar = targetChar || null;
-    if (!targetChar) { ctx.error = `鎵句笉鍒颁氦鏄撳璞°€?{targetNpcName}銆戙€俙; return ctx; }
+    if (!targetChar) { ctx.error = `找不到交易对象【${targetNpcName}】。`; return ctx; }
 
-    const currentLoc = String(this.charData?.鐘舵€?.浣嶇疆 || '');
-    const targetLoc = String(targetChar?.鐘舵€?.浣嶇疆 || '');
+    const currentLoc = String(this.charData?.状态?.位置 || '');
+    const targetLoc = String(targetChar?.状态?.位置 || '');
     if (currentLoc && targetLoc && !this.isLocationCompatible(currentLoc, targetLoc)) {
-      ctx.error = `銆?{targetNpcName}銆戝綋鍓嶄笉鍦ㄤ綘韬竟锛屾棤娉曡繘琛岀涓嬩氦鏄撱€俙; return ctx;
+      ctx.error = `【${targetNpcName}】当前不在你身边，无法进行私下交易。`; return ctx;
     }
     if (ctx.basePrice <= 0) {
-      ctx.error = `銆?{itemName}銆戝綋鍓嶆棤娉曡繘琛屽彲闈犱及鍊硷紝绉佷笅浜ゆ槗鏃犳硶鍙戣捣銆俙; return ctx;
+      ctx.error = `【${itemName}】当前无法进行可靠估值，私下交易无法发起。`; return ctx;
     }
     
-    ctx.relationScore = Number(this.charData?.绀句氦?.鍏崇郴?.[targetNpcName]?.濂芥劅搴?|| this.charData?.绀句氦?.鍏崇郴?.[relationName]?.濂芥劅搴?|| 0);
+    ctx.relationScore = Number(this.charData?.社交?.关系?.[targetNpcName]?.好感度 || this.charData?.社交?.关系?.[relationName]?.好感度 || 0);
     const priceDeltaRatio = (Number(price || 0) - ctx.basePrice) / Math.max(1, ctx.basePrice);
 
-    if (action === "绉佷笅涔板叆") {
-      ctx.npcItem = targetChar?.鑳屽寘?.[itemName] || null;
-      if ((this.charData?.璐㈠瘜?.鑱旈偊甯?|| 0) < ctx.total) {
-        ctx.error = `鑱旈偊甯佷笉瓒筹紝瀹屾垚璇ヤ氦鏄撻渶瑕?${ctx.total.toLocaleString()}銆俙; return ctx;
+    if (action === "私下买入") {
+      ctx.npcItem = targetChar?.背包?.[itemName] || null;
+      if ((this.charData?.财富?.联邦币 || 0) < ctx.total) {
+        ctx.error = `联邦币不足，完成该交易需要 ${ctx.total.toLocaleString()}。`; return ctx;
       }
-      if (!ctx.npcItem || Number(ctx.npcItem.鏁伴噺 || 0) < qty) {
-        ctx.error = `銆?{targetNpcName}銆戝綋鍓嶅苟娌℃湁瓒冲鐨勩€?{itemName}銆戝彲渚涘嚭鍞€俙; return ctx;
+      if (!ctx.npcItem || Number(ctx.npcItem.数量 || 0) < qty) {
+        ctx.error = `【${targetNpcName}】当前并没有足够的【${itemName}】可供出售。`; return ctx;
       }
       ctx.successRate = this.clampTrade(60 + Math.floor(ctx.relationScore * 0.25) + Math.floor(priceDeltaRatio * 50), 5, 95);
-      ctx.note = `濂芥劅 ${ctx.relationScore} / 瀵规柟鎸佹湁 ${Number(ctx.npcItem?.鏁伴噺 || 0)} / 棰勮鎴愪氦鐜?${ctx.successRate}%`;
+      ctx.note = `好感 ${ctx.relationScore} / 对方持有 ${Number(ctx.npcItem?.数量 || 0)} / 预计成交率 ${ctx.successRate}%`;
     } else {
-      ctx.playerItem = this.charData?.鑳屽寘?.[itemName] || null;
-      if (!ctx.playerItem || Number(ctx.playerItem.鏁伴噺 || 0) < qty) {
-        ctx.error = '鑳屽寘鏁伴噺涓嶈冻锛?; return ctx;
+      ctx.playerItem = this.charData?.背包?.[itemName] || null;
+      if (!ctx.playerItem || Number(ctx.playerItem.数量 || 0) < qty) {
+        ctx.error = '背包数量不足。'; return ctx;
       }
-      if ((targetChar?.璐㈠瘜?.鑱旈偊甯?|| 0) < ctx.total) {
-        ctx.error = `銆?{targetNpcName}銆戠殑鑱旈偊甯佷笉瓒筹紝鏃犳硶瀹屾垚杩欑瑪鏀惰喘銆俙; return ctx;
+      if ((targetChar?.财富?.联邦币 || 0) < ctx.total) {
+        ctx.error = `【${targetNpcName}】的联邦币不足，无法完成这笔收购。`; return ctx;
       }
       ctx.successRate = this.clampTrade(60 + Math.floor(ctx.relationScore * 0.25) - Math.floor(priceDeltaRatio * 55), 5, 95);
-      ctx.note = `濂芥劅 ${ctx.relationScore} / 瀵规柟鐜伴噾 ${(Number(targetChar?.璐㈠瘜?.鑱旈偊甯?|| 0)).toLocaleString()} / 棰勮鎴愪氦鐜?${ctx.successRate}%`;
+      ctx.note = `好感 ${ctx.relationScore} / 对方现金 ${(Number(targetChar?.财富?.联邦币 || 0)).toLocaleString()} / 预计成交率 ${ctx.successRate}%`;
     }
     return ctx;
   }
@@ -765,18 +765,18 @@ class TradeUIComponent {
     const remainderMinutes = totalMinutes % (24 * 60);
     const hours = Math.floor(remainderMinutes / 60);
     const mins = remainderMinutes % 60;
-    return `鏂楃綏鍘?{20000 + years}骞?{months}鏈?{currentDay}鏃?${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+    return `斗罗历${20000 + years}年${months}月${currentDay}日 ${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
   }
 
   resolveTradeItemInfo(itemName, item = {}, fallback = {}) {
     const safeItem = item && typeof item === 'object' ? item : {};
-    const type = String(safeItem.绫诲瀷 || fallback.type || '鐗╁搧');
-    const rarity = String(safeItem.鍝佽川 || safeItem.鍝侀樁 || fallback.rarity || '鏍囧噯');
-    const expiryTick = Number(safeItem.鏈夋晥鏈熻嚦tick ?? fallback.expiryTick ?? 0);
-    const expiry = expiryTick > 0 ? this.formatTickToCalendarDateText(expiryTick) : (String(safeItem.鏈夋晥鏈熻嚦 || fallback.expiry || '').trim() || '鏃犳湡闄?);
-    const trigger = String(safeItem.瑙﹀彂鏂瑰紡 || fallback.trigger || (/椋熺墿/.test(type) ? '椋熺敤' : '甯歌'));
-    const source = String(safeItem.鏉ユ簮鎶€鑳?|| safeItem.缁戝畾鑰?|| fallback.source || '甯歌娴侀€?);
-    const desc = String(safeItem.鎻忚堪 || fallback.desc || '鏆傛棤璇存槑');
+    const type = String(safeItem.类型 || fallback.type || '物品');
+    const rarity = String(safeItem.品质 || safeItem.品阶 || fallback.rarity || '标准');
+    const expiryTick = Number(safeItem.有效期至tick ?? fallback.expiryTick ?? 0);
+    const expiry = expiryTick > 0 ? this.formatTickToCalendarDateText(expiryTick) : (String(safeItem.有效期至 || fallback.expiry || '').trim() || '无期限');
+    const trigger = String(safeItem.触发方式 || fallback.trigger || (/食物/.test(type) ? '食用' : '常规'));
+    const source = String(safeItem.来源技能 || safeItem.绑定者 || fallback.source || '常规流通');
+    const desc = String(safeItem.描述 || fallback.desc || '暂无说明');
     return {
       name: itemName,
       type,
@@ -786,7 +786,7 @@ class TradeUIComponent {
       source,
       desc,
       expiryTick,
-      temporary: expiryTick > 0 || expiry !== '鏃犳湡闄?
+      temporary: expiryTick > 0 || expiry !== '无期限'
     };
   }
 
@@ -812,23 +812,23 @@ class TradeUIComponent {
   buildInventoryItemFromTradeSource(itemName, sourceItem = {}, qty = 1, fallback = {}) {
     const safeItem = sourceItem && typeof sourceItem === 'object' ? JSON.parse(JSON.stringify(sourceItem)) : {};
     const nextItem = {
-      鏁伴噺: qty,
-      绫诲瀷: safeItem.绫诲瀷 || fallback.type || '鐗╁搧',
-      鍝佽川: safeItem.鍝佽川 || safeItem.鍝侀樁 || fallback.rarity || '鏍囧噯',
-      鎻忚堪: safeItem.鎻忚堪 || fallback.desc || `鑾峰緱浜嗐€?{itemName}銆慲
+      数量: qty,
+      类型: safeItem.类型 || fallback.type || '物品',
+      品质: safeItem.品质 || safeItem.品阶 || fallback.rarity || '标准',
+      描述: safeItem.描述 || fallback.desc || `获得了【${itemName}】。`
     };
-    const resolvedExpiryTick = Number(safeItem.鏈夋晥鏈熻嚦tick ?? fallback.expiryTick ?? 0);
-    const resolvedExpiry = resolvedExpiryTick > 0 ? this.formatTickToCalendarDateText(resolvedExpiryTick) : String(safeItem.鏈夋晥鏈熻嚦 || fallback.expiry || '').trim();
-    if (safeItem.鍝侀樁 !== undefined) nextItem.鍝侀樁 = safeItem.鍝侀樁;
-    if (safeItem.瑙﹀彂鏂瑰紡 !== undefined || fallback.trigger !== undefined) nextItem.瑙﹀彂鏂瑰紡 = safeItem.瑙﹀彂鏂瑰紡 || fallback.trigger || (/椋熺墿/.test(String(nextItem.绫诲瀷 || '')) ? '椋熺敤' : '甯歌');
-    if (resolvedExpiry) nextItem.鏈夋晥鏈熻嚦 = resolvedExpiry;
-    if (resolvedExpiryTick > 0) nextItem.鏈夋晥鏈熻嚦tick = resolvedExpiryTick;
-    if (safeItem.鏉ユ簮鎶€鑳?!== undefined || safeItem.缁戝畾鑰?!== undefined || fallback.source !== undefined) nextItem.鏉ユ簮鎶€鑳?= safeItem.鏉ユ簮鎶€鑳?|| safeItem.缁戝畾鑰?|| fallback.source;
-    if (Array.isArray(safeItem.浣跨敤鏁堟灉)) nextItem.浣跨敤鏁堟灉 = safeItem.浣跨敤鏁堟灉;
-    else if (Array.isArray(safeItem.鏁堟灉)) nextItem.浣跨敤鏁堟灉 = safeItem.鏁堟灉;
-    if (Array.isArray(safeItem.鏍囩)) nextItem.鏍囩 = safeItem.鏍囩;
-    if (safeItem.甯傚満浼板€?&& typeof safeItem.甯傚満浼板€?=== 'object') nextItem.甯傚満浼板€?= safeItem.甯傚満浼板€?
-    if (safeItem.鍙氦鏄?!== undefined) nextItem.鍙氦鏄?= safeItem.鍙氦鏄?
+    const resolvedExpiryTick = Number(safeItem.有效期至tick ?? fallback.expiryTick ?? 0);
+    const resolvedExpiry = resolvedExpiryTick > 0 ? this.formatTickToCalendarDateText(resolvedExpiryTick) : String(safeItem.有效期至 || fallback.expiry || '').trim();
+    if (safeItem.品阶 !== undefined) nextItem.品阶 = safeItem.品阶;
+    if (safeItem.触发方式 !== undefined || fallback.trigger !== undefined) nextItem.触发方式 = safeItem.触发方式 || fallback.trigger || (/食物/.test(String(nextItem.类型 || '')) ? '食用' : '常规');
+    if (resolvedExpiry) nextItem.有效期至 = resolvedExpiry;
+    if (resolvedExpiryTick > 0) nextItem.有效期至tick = resolvedExpiryTick;
+    if (safeItem.来源技能 !== undefined || safeItem.绑定者 !== undefined || fallback.source !== undefined) nextItem.来源技能 = safeItem.来源技能 || safeItem.绑定者 || fallback.source;
+    if (Array.isArray(safeItem.使用效果)) nextItem.使用效果 = safeItem.使用效果;
+    else if (Array.isArray(safeItem.效果)) nextItem.使用效果 = safeItem.效果;
+    if (Array.isArray(safeItem.标签)) nextItem.标签 = safeItem.标签;
+    if (safeItem.市场估值 && typeof safeItem.市场估值 === 'object') nextItem.市场估值 = safeItem.市场估值;
+    if (safeItem.可交易 !== undefined) nextItem.可交易 = safeItem.可交易;
     if (safeItem.年限 !== undefined) nextItem.年限 = safeItem.年限;
     if (safeItem.标准物种 !== undefined) nextItem.标准物种 = safeItem.标准物种;
     return nextItem;
@@ -836,16 +836,16 @@ class TradeUIComponent {
 
   buildTradeItemMetadataPatches(itemPath, currentItem = {}, nextItem = {}) {
     const patches = [];
-    ['绫诲瀷', '鍝佽川', '鍝侀樁', '鎻忚堪', '瑙﹀彂鏂瑰紡', '鏈夋晥鏈熻嚦', '鏈夋晥鏈熻嚦tick', '鏉ユ簮鎶€鑳?', '年限', '标准物种'].forEach(field => {
+    ['类型', '品质', '品阶', '描述', '触发方式', '有效期至', '有效期至tick', '来源技能', '年限', '标准物种'].forEach(field => {
       const nextVal = nextItem[field];
       const curVal = currentItem ? currentItem[field] : undefined;
       if (nextVal === undefined || nextVal === null || nextVal === '') return;
-      if (curVal === undefined || curVal === null || curVal === '' || curVal === '鏃?) {
+      if (curVal === undefined || curVal === null || curVal === '' || curVal === '无') {
         patches.push({ op: 'replace', path: `${itemPath}/${this.escapeJsonPointer(field)}`, value: nextVal });
       }
     });
-    if (Array.isArray(nextItem.浣跨敤鏁堟灉) && (!Array.isArray(currentItem?.浣跨敤鏁堟灉) || currentItem.浣跨敤鏁堟灉.length === 0)) {
-      patches.push({ op: 'replace', path: `${itemPath}/${this.escapeJsonPointer('浣跨敤鏁堟灉')}`, value: nextItem.浣跨敤鏁堟灉 });
+    if (Array.isArray(nextItem.使用效果) && (!Array.isArray(currentItem?.使用效果) || currentItem.使用效果.length === 0)) {
+      patches.push({ op: 'replace', path: `${itemPath}/${this.escapeJsonPointer('使用效果')}`, value: nextItem.使用效果 });
     }
     return patches;
   }
@@ -859,10 +859,10 @@ class TradeUIComponent {
       { op: "replace", path: `/sys/系统播报`, value: String(logText || '') }
     ];
     if (Number.isFinite(Number(options.roll))) {
-      patches.push({ op: "replace", path: `/sys/鏈€杩戞瀹歚, value: Number(options.roll) });
+      patches.push({ op: "replace", path: `/sys/最近检定`, value: Number(options.roll) });
     }
     if (Number.isFinite(Number(options.successRate))) {
-      patches.push({ op: "replace", path: `/sys/鏈€缁堟垚鍔熺巼`, value: Number(options.successRate) });
+      patches.push({ op: "replace", path: `/sys/最终成功率`, value: Number(options.successRate) });
     }
     return patches;
   }
@@ -873,8 +873,8 @@ class TradeUIComponent {
       : [];
     return [
       HIDDEN_ARBITRATION_NARRATION_RULES,
-      '[鍓嶇缁撶畻宸插畬鎴怾',
-      '鏈浜ゆ槗娑夊強鐨勮揣甯併€佸簱瀛樸€佽儗鍖呬笌绯荤粺鎾姤宸茬粡鍐欏叆 MVU锛屼笉瑕侀噸澶嶆敼璐︺€佹敼搴撳瓨锛屼篃涓嶈鍐嶆浠茶鍚屼竴绗斾氦鏄撱€?,
+      '[前端结算已完成]',
+      '本次交易涉及的货币、库存、背包与系统播报已经写入 MVU，不要重复改账、改库存，也不要再次仲裁同一笔交易。',
       String(logText || '').trim(),
       ...safeSections,
     ].filter(Boolean).join('\n\n');
@@ -1016,7 +1016,7 @@ class TradeUIComponent {
     const qty = parseInt(this.$('#shop-qty').value) || 1;
     const btn = this.$('#btn-buy');
 
-    if (!storeName || !itemName || !this.currentStores[storeName]?.搴撳瓨?.[itemName]) {
+    if (!storeName || !itemName || !this.currentStores[storeName]?.库存?.[itemName]) {
       this.$('#shop-price').textContent = '-';
       this.$('#shop-total').textContent = '-';
       this.$('#shop-fame').textContent = '-';
@@ -1026,28 +1026,28 @@ class TradeUIComponent {
       return;
     }
 
-    const item = this.currentStores[storeName].搴撳瓨[itemName];
-    const total = item.浠锋牸 * qty;
-    const userFame = this.charData?.绀句氦?.澹版湜 || 0;
+    const item = this.currentStores[storeName].库存[itemName];
+    const total = Number(item.价格 || 0) * qty;
+    const userFame = Number(this.charData?.社交?.声望 || 0);
     const storeData = this.currentStores[storeName] || {};
-    const currency = this.resolveTradeCurrency(item, storeName, this.charData?.鐘舵€?.浣嶇疆 || '', storeData);
-    const userCoin = this.charData?.璐㈠瘜?.[currency] || 0;
+    const currency = this.resolveTradeCurrency(item, storeName, this.charData?.状态?.位置 || '', storeData);
+    const userCoin = Number(this.charData?.财富?.[currency] || 0);
 
-    this.$('#shop-price').textContent = `${item.浠锋牸.toLocaleString()} ${this.getCurrencyLabel(currency)}`;
+    this.$('#shop-price').textContent = `${Number(item.价格 || 0).toLocaleString()} ${this.getCurrencyLabel(currency)}`;
     
     const totalEl = this.$('#shop-total');
     totalEl.textContent = `${total.toLocaleString()} ${this.getCurrencyLabel(currency)}`;
     totalEl.className = (userCoin >= total) ? "val-highlight" : "val-warn";
 
     const fameEl = this.$('#shop-fame');
-    fameEl.textContent = item.闇€姹傚０鏈?|| 0;
-    fameEl.className = (userFame >= (item.闇€姹傚０鏈?|| 0)) ? "val-highlight" : "val-warn";
+    fameEl.textContent = Number(item.需求声望 || 0);
+    fameEl.className = (userFame >= Number(item.需求声望 || 0)) ? "val-highlight" : "val-warn";
 
     const stockEl = this.$('#shop-stock');
-    stockEl.textContent = item.搴撳瓨;
-    stockEl.className = (item.搴撳瓨 >= qty) ? "val-highlight" : "val-warn";
+    stockEl.textContent = Number(item.库存 || 0);
+    stockEl.className = (Number(item.库存 || 0) >= qty) ? "val-highlight" : "val-warn";
 
-    this.updateTradeMetaPanel('shop', this.resolveTradeItemInfo(itemName, item, { source: storeName, desc: item.鎻忚堪 || `鍙湪 ${storeName} 璐緱` }));
+    this.updateTradeMetaPanel('shop', this.resolveTradeItemInfo(itemName, item, { source: storeName, desc: item.描述 || `可在 ${storeName} 购得` }));
 
     if (!this.isCurrencySpendable(currency)) {
       totalEl.className = "val-warn";
@@ -1056,44 +1056,44 @@ class TradeUIComponent {
       return;
     }
 
-    btn.disabled = (userCoin < total || userFame < (item.闇€姹傚０鏈?|| 0) || item.搴撳瓨 < qty);
+    btn.disabled = (userCoin < total || userFame < Number(item.需求声望 || 0) || Number(item.库存 || 0) < qty);
   }
 
   executeShopBuy() {
     const storeName = this.$('#shop-store-sel').value;
     const itemName = this.$('#shop-item-sel').value;
     const qty = parseInt(this.$('#shop-qty').value) || 1;
-    const item = this.currentStores[storeName].搴撳瓨[itemName];
-    const total = item.浠锋牸 * qty;
+    const item = this.currentStores[storeName].库存[itemName];
+    const total = Number(item.价格 || 0) * qty;
     const storeData = this.currentStores[storeName] || {};
-    const currency = this.resolveTradeCurrency(item, storeName, this.charData?.鐘舵€?.浣嶇疆 || '', storeData);
+    const currency = this.resolveTradeCurrency(item, storeName, this.charData?.状态?.位置 || '', storeData);
     const isSoulTowerDiscountTrade = item && item._tower_discount_virtual === true;
 
     if (!this.isCurrencySpendable(currency)) return alert(this.getCurrencyBlockedMessage(currency));
 
-    let loc = this.charData?.鐘舵€?.浣嶇疆 || "";
+    let loc = this.charData?.状态?.位置 || "";
     let isTier4_5 = /澶╅敾|鍥涘瓧|绾㈢骇|鍗佷竾骞磡榄傞敾|涓夊瓧|榛戠骇|涓囧勾/.test(itemName);
     let isTier2_3 = /鐏甸敾|浜屽瓧|绱骇|鍗冨勾|鍗冮敾|涓€瀛梶榛勭骇|鐧惧勾/.test(itemName);
-    const locMeta = this.worldData?.鍦扮偣?.[loc] || {};
-    const economy = String(locMeta['缁忔祹鐘跺喌'] || '鏈煡');
-    let isTier1City = economy === '绻佽崳';
-    let isTier2_3City = economy === '绻佽崳' || economy === '鏅€?;
+    const locMeta = this.worldData?.地点?.[loc] || {};
+    const economy = String(locMeta['经济状况'] || '未知');
+    let isTier1City = economy === '繁荣';
+    let isTier2_3City = economy === '繁荣' || economy === '普通';
 
-    if (!isSoulTowerDiscountTrade && isTier4_5 && !isTier1City) return alert("褰撳墠鍩庡競绾у埆涓嶈冻锛?~5闃舵垬鐣ヨ祫婧愯鍓嶅線涓€绾夸富鍩庤喘涔般€?);
-    if (!isSoulTowerDiscountTrade && isTier2_3 && !isTier2_3City) return alert("鍋忚繙鍦板尯鐗╄祫鍖箯锛屾棤娉曟彁渚?~3闃惰祫婧愩€?);
+    if (!isSoulTowerDiscountTrade && isTier4_5 && !isTier1City) return alert('当前城市级别不足，4-5阶战略资源请前往一线主城购买。');
+    if (!isSoulTowerDiscountTrade && isTier2_3 && !isTier2_3City) return alert('偏远地区物资匮乏，无法提供 2-3 阶资源。');
 
     let patchOps = [];
-    let newWealth = (this.charData.璐㈠瘜?.[currency] || 0) - total;
-    patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/璐㈠瘜/${this.escapeJsonPointer(currency)}`, value: newWealth });
+    let newWealth = (this.charData.财富?.[currency] || 0) - total;
+    patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/财富/${this.escapeJsonPointer(currency)}`, value: newWealth });
     if (!isSoulTowerDiscountTrade) {
-      patchOps.push({ op: "replace", path: `/world/鍦扮偣/${this.escapeJsonPointer(loc)}/鍟嗗簵/${this.escapeJsonPointer(storeName)}/搴撳瓨/${this.escapeJsonPointer(itemName)}/搴撳瓨`, value: item.搴撳瓨 - qty });
+      patchOps.push({ op: "replace", path: `/world/地点/${this.escapeJsonPointer(loc)}/商店/${this.escapeJsonPointer(storeName)}/库存/${this.escapeJsonPointer(itemName)}/库存`, value: Number(item.库存 || 0) - qty });
     }
     
-    let invItem = this.charData.鑳屽寘?.[itemName];
-    const nextItem = this.buildInventoryItemFromTradeSource(itemName, item, qty, { source: storeName, desc: item.鎻忚堪 || `璐嚜${storeName}` });
-    const itemPath = `${this.activeCharBasePath}/鑳屽寘/${this.escapeJsonPointer(itemName)}`;
+    let invItem = this.charData.背包?.[itemName];
+    const nextItem = this.buildInventoryItemFromTradeSource(itemName, item, qty, { source: storeName, desc: item.描述 || `购自${storeName}` });
+    const itemPath = `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(itemName)}`;
     if (invItem) {
-      patchOps.push({ op: "replace", path: `${itemPath}/鏁伴噺`, value: (invItem.鏁伴噺 || 0) + qty });
+      patchOps.push({ op: "replace", path: `${itemPath}/数量`, value: (invItem.数量 || 0) + qty });
       patchOps.push(...this.buildTradeItemMetadataPatches(itemPath, invItem, nextItem));
     } else {
       patchOps.push({ op: "replace", path: itemPath, value: nextItem });
@@ -1109,16 +1109,16 @@ class TradeUIComponent {
 
     const log = isSoulTowerDiscountTrade
       ? `[魂灵塔兑换] ${this.activeName} 在${storeName}以五折价格兑换了【${itemName}】。`
-      : `[浜ゆ槗鎴愬姛] ${this.activeName}鍦?${storeName} 鑺辫垂 ${total} ${this.getCurrencyLabel(currency)} 璐拱浜?${qty} 浠姐€?{itemName}銆戙€俙;
+      : `[交易成功] ${this.activeName} 在${storeName} 花费 ${total} ${this.getCurrencyLabel(currency)} 购买了 ${qty} 份【${itemName}】。`;
     patchOps.push(...this.buildTradeSystemPatches(log));
 
     const sysPrompt = this.buildTradeNarrationPrompt(log, [
-      `[浜ゆ槗鍦扮偣]\n${storeName}`,
-      `[浜ゆ槗绫诲瀷]\n鍟嗗簵璐拱`,
-      `[缁撶畻鎽樿]\n宸叉敮浠?${total} ${this.getCurrencyLabel(currency)}锛涘凡鑾峰緱 ${qty} 浠姐€?{itemName}銆戙€俙
+      `[交易地点]\n${storeName}`,
+      `[交易类型]\n商店购买`,
+      `[结算摘要]\n已支付 ${total} ${this.getCurrencyLabel(currency)}；已获得 ${qty} 份【${itemName}】。`,
     ]);
 
-    this.submitAction(`鎴戣鍦ㄣ€?{storeName}銆戣喘涔?${qty} 浠姐€?{itemName}銆戙€俙, sysPrompt, 'trade_shop_buy', patchOps);
+    this.submitAction(`我要在【${storeName}】购买 ${qty} 份【${itemName}】。`, sysPrompt, 'trade_shop_buy', patchOps);
   }
 
   // --- 璧勪骇鍑哄敭妯″潡 ---
@@ -1126,17 +1126,17 @@ class TradeUIComponent {
     const invSel = this.$('#sell-item-sel');
     invSel.innerHTML = '';
     let hasItem = false;
-    for (const iName in (this.charData?.鑳屽寘 || {})) {
-      const item = this.charData.鑳屽寘[iName];
-      if (item.鏁伴噺 > 0) {
+    for (const iName in (this.charData?.背包 || {})) {
+      const item = this.charData.背包[iName];
+      if (item.数量 > 0) {
         const opt = document.createElement('option');
         opt.value = iName;
-        opt.textContent = `${iName} (鎷ユ湁: ${item.鏁伴噺})`;
+        opt.textContent = `${iName} (拥有: ${item.数量})`;
         invSel.appendChild(opt);
         hasItem = true;
       }
     }
-    if (!hasItem) invSel.innerHTML = '<option value="">[鑳屽寘绌虹┖濡備篃]</option>';
+    if (!hasItem) invSel.innerHTML = '<option value="">[背包空空如也]</option>';
     this.updateSellPreview();
   }
 
@@ -1145,7 +1145,7 @@ class TradeUIComponent {
     const qty = parseInt(this.$('#sell-qty').value) || 1;
     const btn = this.$('#btn-sell');
 
-    if (!itemName || !this.charData.鑳屽寘?.[itemName]) {
+    if (!itemName || !this.charData.背包?.[itemName]) {
       this.$('#sell-base-price').textContent = '-';
       this.$('#sell-total').textContent = '-';
       btn.disabled = true;
@@ -1153,49 +1153,49 @@ class TradeUIComponent {
       return;
     }
 
-    const item = this.charData.鑳屽寘[itemName];
-    const basePrice = this.estimateBasePrice(itemName, item.绫诲瀷);
+    const item = this.charData.背包[itemName];
+    const basePrice = this.estimateBasePrice(itemName, item.类型);
     const sellPrice = Math.floor(basePrice * 0.5);
     const total = sellPrice * qty;
 
-    this.updateTradeMetaPanel('sell', this.resolveTradeItemInfo(itemName, item, { source: item?.鏉ユ簮鎶€鑳?|| item?.缁戝畾鑰?|| '鑳屽寘鎸佹湁' }));
+    this.updateTradeMetaPanel('sell', this.resolveTradeItemInfo(itemName, item, { source: item?.来源技能 || item?.绑定者 || '背包持有' }));
 
     if (basePrice === 0) {
-      this.$('#sell-base-price').textContent = "绂佸敭鐗╁搧";
-      this.$('#sell-total').textContent = "鏃犳硶浜ゆ槗";
+      this.$('#sell-base-price').textContent = "禁售物品";
+      this.$('#sell-total').textContent = "无法交易";
       btn.disabled = true;
     } else {
-      this.$('#sell-base-price').textContent = `${sellPrice.toLocaleString()} ${this.getCurrencyLabel('鑱旈偊甯?)}`;
-      this.$('#sell-total').textContent = `${total.toLocaleString()} ${this.getCurrencyLabel('鑱旈偊甯?)}`;
-      btn.disabled = (item.鏁伴噺 < qty);
+      this.$('#sell-base-price').textContent = `${sellPrice.toLocaleString()} ${this.getCurrencyLabel('联邦币')}`;
+      this.$('#sell-total').textContent = `${total.toLocaleString()} ${this.getCurrencyLabel('联邦币')}`;
+      btn.disabled = (item.数量 < qty);
     }
   }
 
   executeSell() {
     const itemName = this.$('#sell-item-sel').value;
     const qty = parseInt(this.$('#sell-qty').value) || 1;
-    const itemType = this.charData.鑳屽寘[itemName].绫诲瀷;
+    const itemType = this.charData.背包[itemName].类型;
     const basePrice = this.estimateBasePrice(itemName, itemType);
     const totalEarn = Math.floor(basePrice * 0.5) * qty;
 
     let patchOps = [];
-    let newQty = this.charData.鑳屽寘[itemName].鏁伴噺 - qty;
+    let newQty = this.charData.背包[itemName].数量 - qty;
     if (newQty <= 0) {
-      patchOps.push({ op: "remove", path: `${this.activeCharBasePath}/鑳屽寘/${this.escapeJsonPointer(itemName)}` });
+      patchOps.push({ op: "remove", path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(itemName)}` });
     } else {
-      patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/鑳屽寘/${this.escapeJsonPointer(itemName)}/鏁伴噺`, value: newQty });
+      patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(itemName)}/数量`, value: newQty });
     }
-    patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/璐㈠瘜/鑱旈偊甯乣, value: (this.charData.璐㈠瘜?.鑱旈偊甯?|| 0) + totalEarn });
+    patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/财富/联邦币`, value: (this.charData.财富?.联邦币 || 0) + totalEarn });
 
-    const log = `[浜ゆ槗鎴愬姛] ${this.activeName}鍚戠郴缁熷晢搴楀嚭鍞簡 ${qty} 浠姐€?{itemName}銆戯紝鑾峰緱 ${totalEarn} 鑱旈偊甯併€俙;
+    const log = `[交易成功] ${this.activeName} 向系统商店出售了 ${qty} 份【${itemName}】，获得 ${totalEarn} 联邦币。`;
     patchOps.push(...this.buildTradeSystemPatches(log));
 
     const sysPrompt = this.buildTradeNarrationPrompt(log, [
-      `[浜ゆ槗绫诲瀷]\n绯荤粺鍑哄敭`,
-      `[缁撶畻鎽樿]\n宸插崠鍑?${qty} 浠姐€?{itemName}銆戯紱宸茶幏寰?${totalEarn} 鑱旈偊甯併€俙
+      `[交易类型]\n系统出售`,
+      `[结算摘要]\n已卖出 ${qty} 份【${itemName}】；已获得 ${totalEarn} 联邦币。`,
     ]);
 
-    this.submitAction(`鎴戣鍗栧嚭 ${qty} 浠姐€?{itemName}銆戞崲閽便€俙, sysPrompt, 'trade_system_sell', patchOps);
+    this.submitAction(`我要卖出 ${qty} 份【${itemName}】换钱。`, sysPrompt, 'trade_system_sell', patchOps);
   }
 
   // --- 绉佷笅浜ゆ槗妯″潡 ---
@@ -1211,11 +1211,11 @@ class TradeUIComponent {
     
     const ctx = this.getPrivateTradeContext(action, targetNpc, itemName, qty, price);
 
-    this.$('#priv-base-price').textContent = ctx.basePrice > 0 ? `${ctx.basePrice.toLocaleString()} ${this.getCurrencyLabel('鑱旈偊甯?)}` : '鏈煡/绂佸敭';
-    this.$('#priv-total').textContent = `${total.toLocaleString()} ${this.getCurrencyLabel('鑱旈偊甯?)}`;
+    this.$('#priv-base-price').textContent = ctx.basePrice > 0 ? `${ctx.basePrice.toLocaleString()} ${this.getCurrencyLabel('联邦币')}` : '未知/禁售';
+    this.$('#priv-total').textContent = `${total.toLocaleString()} ${this.getCurrencyLabel('联邦币')}`;
 
-    const previewItem = action === '绉佷笅涔板叆' ? ctx.npcItem : ctx.playerItem;
-    this.updateTradeMetaPanel('priv', previewItem ? this.resolveTradeItemInfo(itemName, previewItem, { source: action === '绉佷笅涔板叆' ? targetNpc : this.activeName }) : null);
+    const previewItem = action === '私下买入' ? ctx.npcItem : ctx.playerItem;
+    this.updateTradeMetaPanel('priv', previewItem ? this.resolveTradeItemInfo(itemName, previewItem, { source: action === '私下买入' ? targetNpc : this.activeName }) : null);
 
     btn.disabled = false;
     attEl.className = "";
@@ -1227,13 +1227,13 @@ class TradeUIComponent {
       return;
     }
 
-    attEl.textContent = `${action === "绉佷笅涔板叆" ? '鍙皾璇曟垚浜? : '鍙皾璇曞嚭鎵?}锝?{ctx.note}`;
+    attEl.textContent = `${action === "私下买入" ? '可尝试成交' : '可尝试出手'} · ${ctx.note}`;
     attEl.className = ctx.successRate >= 60 ? "val-highlight" : "val-warn";
   }
 
   executePrivateTrade() {
     const action = this.$('#priv-action').value;
-    const targetNpc = this.$('#priv-npc').value || "绁炵鍟嗕汉";
+    const targetNpc = this.$('#priv-npc').value || "神秘商人";
     const itemName = this.$('#priv-item').value;
     const qty = parseInt(this.$('#priv-qty').value) || 1;
     const price = parseInt(this.$('#priv-price').value) || 1;
@@ -1245,65 +1245,65 @@ class TradeUIComponent {
     const roll = Math.floor(Math.random() * 100) + 1;
     const isSuccess = roll <= ctx.successRate;
 
-    if (action === "绉佷笅涔板叆") {
+    if (action === "私下买入") {
       if (!isSuccess) {
-        log = `[绉佷笅浜ゆ槗澶辫触] ${this.activeName}鍚?${targetNpc} 寮€浠?${price}锛堜及鍊肩害 ${ctx.basePrice}锛夛紝瀵规柟娌℃湁鎺ュ彈銆傚ソ鎰?${ctx.relationScore}锛孯oll ${roll} > 鎴愬姛鐜?${ctx.successRate}銆俙;
+        log = `[私下交易失败] ${this.activeName} 向 ${targetNpc} 报价 ${price} 联邦币，但对方没有接受。`;
       } else {
-        patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/璐㈠瘜/鑱旈偊甯乣, value: (this.charData.璐㈠瘜?.鑱旈偊甯?|| 0) - ctx.total });
-        let invItem = this.charData.鑳屽寘?.[itemName];
-        const nextItem = this.buildInventoryItemFromTradeSource(itemName, ctx.npcItem, qty, { source: targetNpc, desc: `浠?${targetNpc} 澶勭涓嬭喘寰梎 });
-        const itemPath = `${this.activeCharBasePath}/鑳屽寘/${this.escapeJsonPointer(itemName)}`;
+        patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/财富/联邦币`, value: (this.charData.财富?.联邦币 || 0) - ctx.total });
+        let invItem = this.charData.背包?.[itemName];
+        const nextItem = this.buildInventoryItemFromTradeSource(itemName, ctx.npcItem, qty, { source: targetNpc, desc: `从 ${targetNpc} 处私下购得` });
+        const itemPath = `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(itemName)}`;
         if (invItem) {
-          patchOps.push({ op: "replace", path: `${itemPath}/鏁伴噺`, value: (invItem.鏁伴噺 || 0) + qty });
+          patchOps.push({ op: "replace", path: `${itemPath}/数量`, value: (invItem.数量 || 0) + qty });
           patchOps.push(...this.buildTradeItemMetadataPatches(itemPath, invItem, nextItem));
         } else patchOps.push({ op: "replace", path: itemPath, value: nextItem });
-        const npcNextQty = Number(ctx.npcItem?.鏁伴噺 || 0) - qty;
-        if (npcNextQty <= 0) patchOps.push({ op: "remove", path: `/char/${this.escapeJsonPointer(targetNpc)}/鑳屽寘/${this.escapeJsonPointer(itemName)}` });
-        else patchOps.push({ op: "replace", path: `/char/${this.escapeJsonPointer(targetNpc)}/鑳屽寘/${this.escapeJsonPointer(itemName)}/鏁伴噺`, value: npcNextQty });
-        patchOps.push({ op: "replace", path: `/char/${this.escapeJsonPointer(targetNpc)}/璐㈠瘜/鑱旈偊甯乣, value: (ctx.targetChar?.璐㈠瘜?.鑱旈偊甯?|| 0) + ctx.total });
-        log = `[绉佷笅浜ゆ槗鎴愬姛] ${this.activeName}浠ユ€讳环 ${ctx.total} 鑱旈偊甯佷粠 ${targetNpc} 澶勪拱鍏?${qty} 浠姐€?{itemName}銆戙€傚ソ鎰?${ctx.relationScore}锛孯oll ${roll} 鈮?鎴愬姛鐜?${ctx.successRate}銆俙;
+        const npcNextQty = Number(ctx.npcItem?.数量 || 0) - qty;
+        if (npcNextQty <= 0) patchOps.push({ op: "remove", path: `/char/${this.escapeJsonPointer(targetNpc)}/背包/${this.escapeJsonPointer(itemName)}` });
+        else patchOps.push({ op: "replace", path: `/char/${this.escapeJsonPointer(targetNpc)}/背包/${this.escapeJsonPointer(itemName)}/数量`, value: npcNextQty });
+        patchOps.push({ op: "replace", path: `/char/${this.escapeJsonPointer(targetNpc)}/财富/联邦币`, value: (ctx.targetChar?.财富?.联邦币 || 0) + ctx.total });
+        log = `[私下交易成功] ${this.activeName} 以总价 ${ctx.total} 联邦币从 ${targetNpc} 处买入了 ${qty} 份【${itemName}】。`;
       }
     } else {
       if (!isSuccess) {
-        log = `[绉佷笅浜ゆ槗澶辫触] ${this.activeName}鍚?${targetNpc} 鎶ヤ环 ${price}锛堜及鍊肩害 ${ctx.basePrice}锛夛紝瀵规柟鏈効鎺ユ墜銆傚ソ鎰?${ctx.relationScore}锛孯oll ${roll} > 鎴愬姛鐜?${ctx.successRate}銆俙;
+        log = `[私下交易失败] ${this.activeName} 向 ${targetNpc} 报价 ${price} 联邦币，但对方没有接手。`;
       } else {
-        let newQty = this.charData.鑳屽寘[itemName].鏁伴噺 - qty;
-        if (newQty <= 0) patchOps.push({ op: "remove", path: `${this.activeCharBasePath}/鑳屽寘/${this.escapeJsonPointer(itemName)}` });
-        else patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/鑳屽寘/${this.escapeJsonPointer(itemName)}/鏁伴噺`, value: newQty });
-        patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/璐㈠瘜/鑱旈偊甯乣, value: (this.charData.璐㈠瘜?.鑱旈偊甯?|| 0) + ctx.total });
-        const npcInv = ctx.targetChar?.鑳屽寘?.[itemName];
-        const npcItem = this.buildInventoryItemFromTradeSource(itemName, this.charData.鑳屽寘[itemName], qty, { source: this.activeName, desc: `浠?{this.activeName}澶勭涓嬫敹璐璥 });
-        const npcItemPath = `/char/${this.escapeJsonPointer(targetNpc)}/鑳屽寘/${this.escapeJsonPointer(itemName)}`;
+        let newQty = this.charData.背包[itemName].数量 - qty;
+        if (newQty <= 0) patchOps.push({ op: "remove", path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(itemName)}` });
+        else patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(itemName)}/数量`, value: newQty });
+        patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/财富/联邦币`, value: (this.charData.财富?.联邦币 || 0) + ctx.total });
+        const npcInv = ctx.targetChar?.背包?.[itemName];
+        const npcItem = this.buildInventoryItemFromTradeSource(itemName, this.charData.背包[itemName], qty, { source: this.activeName, desc: `从 ${this.activeName} 处私下收购` });
+        const npcItemPath = `/char/${this.escapeJsonPointer(targetNpc)}/背包/${this.escapeJsonPointer(itemName)}`;
         if (npcInv) {
-          patchOps.push({ op: "replace", path: `${npcItemPath}/鏁伴噺`, value: (npcInv.鏁伴噺 || 0) + qty });
+          patchOps.push({ op: "replace", path: `${npcItemPath}/数量`, value: (npcInv.数量 || 0) + qty });
           patchOps.push(...this.buildTradeItemMetadataPatches(npcItemPath, npcInv, npcItem));
         } else patchOps.push({ op: "replace", path: npcItemPath, value: npcItem });
-        patchOps.push({ op: "replace", path: `/char/${this.escapeJsonPointer(targetNpc)}/璐㈠瘜/鑱旈偊甯乣, value: (ctx.targetChar?.璐㈠瘜?.鑱旈偊甯?|| 0) - ctx.total });
-        log = `[绉佷笅浜ゆ槗鎴愬姛] ${this.activeName}浠ュ崟浠?${price} 鍚?${targetNpc} 鍗栧嚭 ${qty} 浠姐€?{itemName}銆戯紝鑾峰緱 ${ctx.total} 鑱旈偊甯併€傚ソ鎰?${ctx.relationScore}锛孯oll ${roll} 鈮?鎴愬姛鐜?${ctx.successRate}銆俙;
+        patchOps.push({ op: "replace", path: `/char/${this.escapeJsonPointer(targetNpc)}/财富/联邦币`, value: (ctx.targetChar?.财富?.联邦币 || 0) - ctx.total });
+        log = `[私下交易成功] ${this.activeName} 以单价 ${price} 联邦币向 ${targetNpc} 卖出 ${qty} 份【${itemName}】，获得 ${ctx.total} 联邦币。`;
       }
     }
 
     patchOps.push(...this.buildTradeSystemPatches(log, { roll, successRate: ctx.successRate }));
 
     const sysPrompt = this.buildTradeNarrationPrompt(log, [
-      `[浜ゆ槗瀵硅薄]\n${targetNpc}`,
-      `[浜ゆ槗绫诲瀷]\n${action}`,
-      `[缁撶畻鎽樿]\n${isSuccess ? `鏈鎴愪氦 ${qty} 浠姐€?{itemName}銆戯紝鎬讳环 ${ctx.total} 鑱旈偊甯併€俙 : `鏈鏈垚浜わ紝鎶ヤ环涓哄崟浠?${price} 鑱旈偊甯併€俙}`
+      `[交易对象]\n${targetNpc}`,
+      `[交易类型]\n${action}`,
+      `[结算摘要]\n${isSuccess ? `本次成交 ${qty} 份【${itemName}】，总价 ${ctx.total} 联邦币。` : `本次未成交，报价为单价 ${price} 联邦币。`}`
     ]);
 
-    this.submitAction(`鎴戣鍜屻€?{targetNpc}銆?{action} ${qty} 浠姐€?{itemName}銆戯紝鍗曚环鍑?${price} 鑱旈偊甯併€俙, sysPrompt, 'trade_private', patchOps);
+    this.submitAction(`我要和【${targetNpc}】${action} ${qty} 份【${itemName}】，单价 ${price} 联邦币。`, sysPrompt, 'trade_private', patchOps);
   }
 
   // --- 鎷嶅崠琛屾ā鍧?---
   populateAuctionData() {
     const sel = this.$('#auc-item-sel');
     sel.innerHTML = '';
-    if (this.currentAuction.鐘舵€?=== "浼戝競" || !this.currentAuction.鎷嶅搧 || Object.keys(this.currentAuction.鎷嶅搧).length === 0) {
-      sel.innerHTML = '<option value="">[鎷嶅崠琛屼紤甯傛垨鏃犳媿鍝乚</option>';
+    if (this.currentAuction.状态 === "休市" || !this.currentAuction.拍品 || Object.keys(this.currentAuction.拍品).length === 0) {
+      sel.innerHTML = '<option value="">[拍卖行休市或无拍品]</option>';
       this.updateAucPreview();
       return;
     }
-    for (const iName in this.currentAuction.鎷嶅搧) {
+    for (const iName in this.currentAuction.拍品) {
       const opt = document.createElement('option');
       opt.value = iName;
       opt.textContent = iName;
@@ -1317,55 +1317,55 @@ class TradeUIComponent {
     const bid = parseInt(this.$('#auc-bid').value) || 0;
     const btn = this.$('#btn-auc');
 
-    if (!itemName || !this.currentAuction.鎷嶅搧?.[itemName]) {
+    if (!itemName || !this.currentAuction.拍品?.[itemName]) {
       this.$('#auc-current-price').textContent = '-';
       this.$('#auc-desc').textContent = '-';
       btn.disabled = true;
       return;
     }
 
-    const item = this.currentAuction.鎷嶅搧[itemName];
-    const currency = this.resolveTradeCurrency(item, '鎷嶅崠琛?, this.charData?.鐘舵€?.浣嶇疆 || '', this.currentAuction || {});
-    this.$('#auc-current-price').textContent = `${item.浠锋牸.toLocaleString()} ${this.getCurrencyLabel(currency)}`;
-    this.$('#auc-desc').textContent = `[${item.鍝佺骇}] ${item.鑳屾櫙}`;
+    const item = this.currentAuction.拍品[itemName];
+    const currency = this.resolveTradeCurrency(item, '拍卖行', this.charData?.状态?.位置 || '', this.currentAuction || {});
+    this.$('#auc-current-price').textContent = `${Number(item.价格 || 0).toLocaleString()} ${this.getCurrencyLabel(currency)}`;
+    this.$('#auc-desc').textContent = `[${item.品级 || '标准'}] ${item.背景 || item.描述 || '暂无说明'}`;
 
-    const userCoin = this.charData?.璐㈠瘜?.[currency] || 0;
+    const userCoin = this.charData?.财富?.[currency] || 0;
     if (!this.isCurrencySpendable(currency)) {
       btn.disabled = true;
       return;
     }
-    btn.disabled = (bid <= item.浠锋牸 || userCoin < bid);
+    btn.disabled = (bid <= Number(item.价格 || 0) || userCoin < bid);
   }
 
   executeAuction() {
     const itemName = this.$('#auc-item-sel').value;
     const bid = parseInt(this.$('#auc-bid').value) || 0;
-    const item = this.currentAuction.鎷嶅搧[itemName];
-    const currency = this.resolveTradeCurrency(item, '鎷嶅崠琛?, this.charData?.鐘舵€?.浣嶇疆 || '', this.currentAuction || {});
+    const item = this.currentAuction.拍品[itemName];
+    const currency = this.resolveTradeCurrency(item, '拍卖行', this.charData?.状态?.位置 || '', this.currentAuction || {});
 
     if (!this.isCurrencySpendable(currency)) return alert(this.getCurrencyBlockedMessage(currency));
 
     let patchOps = [];
-    patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/璐㈠瘜/${this.escapeJsonPointer(currency)}`, value: (this.charData.璐㈠瘜?.[currency] || 0) - bid });
+    patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/财富/${this.escapeJsonPointer(currency)}`, value: (this.charData.财富?.[currency] || 0) - bid });
     
-    let invItem = this.charData.鑳屽寘?.[itemName];
+    let invItem = this.charData.背包?.[itemName];
     if (invItem) {
-      patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/鑳屽寘/${this.escapeJsonPointer(itemName)}/鏁伴噺`, value: (invItem.鏁伴噺 || 0) + 1 });
+      patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(itemName)}/数量`, value: (invItem.数量 || 0) + 1 });
     } else {
-      patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/鑳屽寘/${this.escapeJsonPointer(itemName)}`, value: { 鏁伴噺: 1, 绫诲瀷: "鏋佸搧", 鍝佽川: item.鍝佺骇, 鎻忚堪: item.鑳屾櫙 } });
+      patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(itemName)}`, value: { 数量: 1, 类型: "拍品", 品质: item.品级 || '标准', 描述: item.背景 || item.描述 || '拍卖所得' } });
     }
-    patchOps.push({ op: "remove", path: `/world/鎷嶅崠/鎷嶅搧/${this.escapeJsonPointer(itemName)}` });
+    patchOps.push({ op: "remove", path: `/world/拍卖/拍品/${this.escapeJsonPointer(itemName)}` });
 
-    const log = `[绔炴媿鎴愬姛] ${this.activeName}璞幏 ${bid} ${this.getCurrencyLabel(currency)} 鎷嶄笅浜嗘瀬鍝併€?{itemName}銆戯紒`;
+    const log = `[竞拍成功] ${this.activeName} 豪掷 ${bid} ${this.getCurrencyLabel(currency)} 拍下了【${itemName}】。`;
     patchOps.push(...this.buildTradeSystemPatches(log));
 
     const sysPrompt = this.buildTradeNarrationPrompt(log, [
-      `[浜ゆ槗鍦扮偣]\n鎷嶅崠琛宍,
-      `[浜ゆ槗绫诲瀷]\n绔炴媿鎴愪氦`,
-      `[缁撶畻鎽樿]\n宸叉敮浠?${bid} ${this.getCurrencyLabel(currency)}锛涘凡鎷嶅緱銆?{itemName}銆戙€俙
+      `[交易地点]\n拍卖行`,
+      `[交易类型]\n竞拍成交`,
+      `[结算摘要]\n已支付 ${bid} ${this.getCurrencyLabel(currency)}；已拍得【${itemName}】。`,
     ]);
 
-    this.submitAction(`銆愪妇鐗岀珵鎷嶃€戞垜鍑轰环 ${bid} 绔炴媿銆?{itemName}銆戯紒`, sysPrompt, 'trade_auction', patchOps);
+    this.submitAction(`【举牌竞拍】我出价 ${bid} 竞拍【${itemName}】！`, sysPrompt, 'trade_auction', patchOps);
   }
 }
 

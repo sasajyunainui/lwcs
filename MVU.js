@@ -532,6 +532,27 @@ function formatCultivationLevelText(level, fallback = '未知') {
   return text || fallback;
 }
 
+function getNextCultivationLevelStep(currentLevel = 0) {
+  const safeLevel = Math.max(0, Number(currentLevel) || 0);
+  if (safeLevel >= 100) return null;
+  if (safeLevel >= 99.5) return 100;
+  if (safeLevel >= 99) return 99.5;
+  return Math.floor(safeLevel) + 1;
+}
+
+function isSoulRingGateLevel(level) {
+  const numericLevel = Number(level);
+  if (!Number.isFinite(numericLevel) || numericLevel >= 100) return false;
+  if (Math.abs(numericLevel - Math.round(numericLevel)) > 0.001) return false;
+  return Math.round(numericLevel) % 10 === 0;
+}
+
+function formatBreakthroughLevelText(level) {
+  const numericLevel = Number(level);
+  const text = formatCultivationLevelText(level, '未知');
+  return Number.isFinite(numericLevel) && Math.abs(numericLevel - 99.5) < 0.001 ? text : `${text}级`;
+}
+
 function autoBreakthrough(data) {
   _(data.char).forEach((c, charName) => {
     if (!c.状态?.存活) return;
@@ -552,14 +573,16 @@ function autoBreakthrough(data) {
     };
 
     while (true) {
-      const currentLv = Math.floor(Number(c.属性?.等级 || 0));
+      const currentLv = Math.max(0, Number(c.属性?.等级 || 0));
       if (currentLv >= 100) return;
+      const nextLevelStep = getNextCultivationLevelStep(currentLv);
+      if (nextLevelStep === null) return;
 
       const baseSoulPowerForBreakthrough = Math.max(
         0,
         Math.floor(Number(c.属性?.突破魂力上限 ?? c.属性?.基础魂力上限 ?? 0))
       );
-      const nextLevelSoulRequirement = getCharacterBaseSoulPowerRequirementAtLevel(c, currentLv + 1);
+      const nextLevelSoulRequirement = getCharacterBaseSoulPowerRequirementAtLevel(c, nextLevelStep);
       if (baseSoulPowerForBreakthrough < nextLevelSoulRequirement) return;
 
       const coreCount = c.魂核?.核心?.数量 || 0;
@@ -570,11 +593,12 @@ function autoBreakthrough(data) {
       maxLv = Math.min(maxLv, getCharacterSoulRingLevelCap(c));
       if (currentLv >= maxLv) return;
 
-      c.属性.等级 += 1;
-      const newLv = c.属性.等级;
+      c.属性.等级 = nextLevelStep;
+      const newLv = Number(c.属性.等级 || nextLevelStep);
+      const newLvText = formatBreakthroughLevelText(newLv);
       let shouldStopAfterThisBreak = false;
-      if (newLv % 10 === 0) {
-        const ringIndex = newLv / 10;
+      if (isSoulRingGateLevel(newLv)) {
+        const ringIndex = Math.round(newLv / 10);
         const spiritKeys = Object.keys(c.武魂 || {});
         if (spiritKeys.length === 0) return;
 
@@ -618,12 +642,12 @@ function autoBreakthrough(data) {
               ringAssigned = true;
               shouldStopAfterThisBreak = true;
               if (data.sys.系统播报 === '初始化' || !data.sys.系统播报) data.sys.系统播报 = '';
-              data.sys.系统播报 += ` [修为突破] ${charName} 踏入 ${newLv} 级！已达到第 ${ringIndex} 魂环门槛，当前魂灵【${ssName}】可继续衍生魂环，请决定是否立即生成。`;
+              data.sys.系统播报 += ` [修为突破] ${charName} 踏入 ${newLvText}！已达到第 ${ringIndex} 魂环门槛，当前魂灵【${ssName}】可继续衍生魂环，请决定是否立即生成。`;
             } else if (isNearPlayer && data.sys?.系统播报 !== '初始化') {
               ringAssigned = true;
               shouldStopAfterThisBreak = true;
               if (data.sys.系统播报 === '初始化' || !data.sys.系统播报) data.sys.系统播报 = '';
-              data.sys.系统播报 += ` [修为突破] ${charName} 踏入 ${newLv} 级！已达到第 ${ringIndex} 魂环门槛，但当前场景内请通过剧情决定其【${ssName}】是否为【${spiritKey}】衍生新魂环。`;
+              data.sys.系统播报 += ` [修为突破] ${charName} 踏入 ${newLvText}！已达到第 ${ringIndex} 魂环门槛，但当前场景内请通过剧情决定其【${ssName}】是否为【${spiritKey}】衍生新魂环。`;
             } else {
               const newRingColor = getRingColorByAge(ss.年限);
               ss.魂环[ringIndex.toString()] = {
@@ -641,7 +665,7 @@ function autoBreakthrough(data) {
               ss.魂环[ringIndex.toString()].魂技 = buildDefaultRingSkillMap(ringIndex, ss.年限);
               ringAssigned = true;
               if (data.sys.系统播报 === '初始化' || !data.sys.系统播报) data.sys.系统播报 = '';
-              data.sys.系统播报 += ` [修为突破] ${charName} 踏入 ${newLv} 级！其【${ssName}】底蕴深厚，自动为【${spiritKey}】衍生出第 ${ringIndex} 个魂环！`;
+              data.sys.系统播报 += ` [修为突破] ${charName} 踏入 ${newLvText}！其【${ssName}】底蕴深厚，自动为【${spiritKey}】衍生出第 ${ringIndex} 个魂环！`;
             }
           }
 
@@ -657,11 +681,11 @@ function autoBreakthrough(data) {
 
             if (data.sys.系统播报 === '初始化' || !data.sys.系统播报) data.sys.系统播报 = '';
             if (currentSpiritsCount >= realmLimit) {
-              data.sys.系统播报 += ` [修为突破] ${charName} 踏入 ${newLv} 级！但精神力仅为【${c.属性.精神境界 || c.属性.精神力_realm}】，无法承载更多魂灵，【${spiritKey}】暂缓附加魂环！`;
+              data.sys.系统播报 += ` [修为突破] ${charName} 踏入 ${newLvText}！但精神力仅为【${c.属性.精神境界 || c.属性.精神力_realm}】，无法承载更多魂灵，【${spiritKey}】暂缓附加魂环！`;
             } else if (isPlayer) {
-              data.sys.系统播报 += ` [修为突破] ${charName} 踏入 ${newLv} 级！达到魂环门槛，但当前未有可继续产环的魂灵，需通过剧情吸收新魂灵后方可附环。`;
+              data.sys.系统播报 += ` [修为突破] ${charName} 踏入 ${newLvText}！达到魂环门槛，但当前未有可继续产环的魂灵，需通过剧情吸收新魂灵后方可附环。`;
             } else if (isNearPlayer) {
-              data.sys.系统播报 += ` [修为突破] ${charName} 踏入 ${newLv} 级！达到魂环门槛，但当前场景内禁止后台立即生成新魂灵，请通过剧情处理。`;
+              data.sys.系统播报 += ` [修为突破] ${charName} 踏入 ${newLvText}！达到魂环门槛，但当前场景内禁止后台立即生成新魂灵，请通过剧情处理。`;
             }
             shouldStopAfterThisBreak = true;
           }
@@ -670,7 +694,7 @@ function autoBreakthrough(data) {
         }
       } else {
         if (data.sys.系统播报 === '初始化' || !data.sys.系统播报) data.sys.系统播报 = '';
-        data.sys.系统播报 += ` [修为突破] ${charName} 踏入 ${newLv} 级！`;
+        data.sys.系统播报 += ` [修为突破] ${charName} 踏入 ${newLvText}！`;
       }
 
       if (shouldStopAfterThisBreak) return;
@@ -699,6 +723,34 @@ function getCharacterBaseSoulPowerRequirementAtLevel(char = {}, level = 1) {
   const dualSpiritSoulCoeff = getDualSpiritSoulPowerCoeff(char);
   const hiddenVar = Math.max(0.1, Number(char?.属性?.底子波动 || 1));
   return Math.floor(getBaseStats(safeLevel).sp_max * typeMultiplier * dualSpiritSoulCoeff * hiddenVar);
+}
+
+function getCharacterCurrentRingAndBoneSoulPowerBonus_ACU(char = {}) {
+  let boneBonus = 0;
+  _(char?.魂骨 || {}).forEach((bone, part) => {
+    if (Number(bone?.年限 || 0) <= 0) return;
+    const ringBonus = getRingBonus(Number(bone.年限 || 0));
+    if (part === '躯干魂骨') boneBonus += ringBonus.sp_max * 2;
+    else boneBonus += ringBonus.sp_max;
+  });
+
+  let ringBonusTotal = 0;
+  _(char?.武魂 || {}).forEach(spiritData => {
+    _(spiritData?.魂灵 || {}).forEach(ss => {
+      const compMult = Math.max(0.1, (ss?.契合度 !== undefined ? ss.契合度 : 100) / 100);
+      _(ss?.魂环 || {}).forEach(ring => {
+        if (Number(ring?.年限 || 0) > 0) {
+          ringBonusTotal += Math.floor(getRingBonus(Number(ring.年限 || 0)).sp_max * compMult);
+        }
+      });
+    });
+    _(spiritData?.独立魂环 || {}).forEach(ring => {
+      if (Number(ring?.年限 || 0) > 0) {
+        ringBonusTotal += Math.floor(getRingBonus(Number(ring.年限 || 0)).sp_max);
+      }
+    });
+  });
+  return Math.max(0, Math.floor(ringBonusTotal + boneBonus));
 }
 
 function getCharacterActualSoulRingCount(char = {}) {
@@ -1629,11 +1681,11 @@ const SKILL_ARCHETYPE_POOL_V1 = {
   控制类: ['硬控', '软控', '位移限制', '节奏打断'],
   削弱类: ['单属性削弱', '多属性削弱', '禁疗', '消耗提高', '前摇拉长', '掌控压制'],
   增益类: ['单属性增益', '多属性增益', '全属性增益', '消耗降低', '前摇缩短', '掌控提升', '速度提升'],
-  防御类: ['护盾', '减伤', '格挡/抵消', '霸体', '免死/锁血'],
+  防御类: ['护盾', '减伤', '格挡/抵消', '霸体', '免死/锁血', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏'],
   回复类: ['体力恢复', '魂力恢复', '精神恢复', '持续恢复', '净化/解控'],
   '感知/认知类': ['感知干扰', '标记锁定', '共享视野', '幻境', '催眠', '认知扭曲'],
   位移类: ['自身位移', '强制位移', '位移交换', '追击位移', '脱离位移'],
-  特殊规则类: ['分身', '复制', '反制', '转化', '状态交换', '强制绑定/锁定', '条件触发', '规则改写'],
+  特殊规则类: ['分身', '复制', '反制', '转化', '状态交换', '状态转移', '强制绑定/锁定', '条件触发', '规则改写', '引爆持续伤害', '斩盾', '窃取护盾'],
 };
 
 const SKILL_DELIVERY_FORM_BY_TYPE_V1 = {
@@ -1666,18 +1718,1183 @@ function pickRandom(list = []) {
 }
 
 const SKILL_SECONDARY_BY_MAIN_V1 = {
-  伤害类: ['穿透', '吸血', '斩杀补伤', '流血DOT', '打断', '反击'],
-  控制类: ['打断', '沉默', '减速', '致盲', '迟缓', '禁疗'],
-  削弱类: ['禁疗', '减速', '迟缓', '标记弱点'],
-  增益类: ['小护盾', '净化', '解控', '共享视野'],
-  防御类: ['小护盾', '反击', '净化', '解控'],
-  回复类: ['净化', '解控', '小护盾', '魂力恢复', '精神恢复'],
-  '感知/认知类': ['标记弱点', '共享视野', '打断', '沉默'],
-  位移类: ['打断', '反击', '标记弱点'],
-  特殊规则类: ['共享视野', '标记弱点', '净化'],
+  伤害类: ['穿透', '吸血', '斩杀补伤', '流血DOT', '打断', '反击', '追击', '引爆持续伤害', '斩盾'],
+  控制类: ['打断', '沉默', '减速', '致盲', '迟缓', '禁疗', '缴械', '嘲讽', '破隐', '封技'],
+  削弱类: ['禁疗', '减速', '迟缓', '标记弱点', '缴械', '驱散增益', '破隐', '治疗反转', '封技', '斩盾'],
+  增益类: ['小护盾', '净化', '解控', '共享视野', '隐身', '护卫', '无敌金身', '复苏'],
+  防御类: ['小护盾', '反击', '净化', '解控', '护卫', '嘲讽', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏'],
+  回复类: ['净化', '解控', '小护盾', '魂力恢复', '精神恢复', '驱散增益', '护卫', '复苏'],
+  '感知/认知类': ['标记弱点', '共享视野', '目标锁定', '打断', '沉默', '缴械', '驱散增益', '窃取增益', '破隐'],
+  位移类: ['打断', '反击', '标记弱点', '缴械', '隐身', '破隐'],
+  特殊规则类: ['共享视野', '标记弱点', '净化', '驱散增益', '窃取增益', '隐身', '护卫', '状态转移', '引爆持续伤害', '斩盾', '窃取护盾', '治疗反转', '封技', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏'],
 };
 
-const SOUL_SPIRIT_SECONDARY_OPTIONS_V1 = Array.from(new Set(Object.values(SKILL_SECONDARY_BY_MAIN_V1).flat())).sort();
+const SKILL_SECONDARY_TYPE_BIAS_V1 = {
+  强攻系: ['斩盾', '引爆持续伤害', '无敌金身', '伤害反射', '反击', '追击'],
+  防御系: ['伤害反射', '复苏', '护卫'],
+  敏攻系: ['隐身', '追击', '破隐', '替身抵消', '无敌金身', '斩盾'],
+  控制系: ['封技', '治疗反转', '目标锁定', '缴械', '驱散增益', '嘲讽', '伤害分摊'],
+  精神系: ['状态转移', '封技', '治疗反转', '窃取增益', '目标锁定', '隐身'],
+  元素系: ['引爆持续伤害', '斩盾', '封技', '治疗反转', '驱散增益', '破隐'],
+  辅助系: ['护卫', '复苏', '共享视野', '驱散增益', '窃取护盾', '无敌金身', '伤害分摊'],
+  治疗系: ['复苏', '护卫', '驱散增益', '共享视野', '无敌金身', '窃取护盾', '伤害分摊'],
+  食物系: ['复苏', '驱散增益', '共享视野', '窃取护盾', '治疗反转', '护卫'],
+};
+
+const SKILL_MECHANISM_DEFAULT_META_V1 = Object.freeze({
+  可主机制: false,
+  可副机制: false,
+  targetSemantic: 'contextual',
+  groupGrantable: false,
+  selfOnly: false,
+  runtimeConsumerKey: '',
+  aiRoleTags: Object.freeze([]),
+  summaryHints: Object.freeze({}),
+  designerParamSchema: Object.freeze([]),
+  designerMainHint: '',
+  designerSubHint: '',
+  designerSecondaryHint: '',
+});
+
+function createSkillMechanismParamDefV1(type = 'text', key = '', label = '', placeholder = '', extra = {}) {
+  return Object.freeze({
+    type,
+    key: String(key || '').trim(),
+    label: String(label || '').trim(),
+    placeholder: String(placeholder || '').trim(),
+    ...extra,
+  });
+}
+
+function createSkillMechanismMetaV1(meta = {}) {
+  return Object.freeze({
+    ...SKILL_MECHANISM_DEFAULT_META_V1,
+    ...meta,
+    aiRoleTags: Object.freeze(Array.from(new Set(Array.isArray(meta.aiRoleTags) ? meta.aiRoleTags.filter(Boolean) : []))),
+    summaryHints: Object.freeze(meta.summaryHints && typeof meta.summaryHints === 'object' ? meta.summaryHints : {}),
+    designerParamSchema: Object.freeze(Array.isArray(meta.designerParamSchema) ? meta.designerParamSchema.filter(Boolean) : []),
+  });
+}
+
+const SKILL_MECHANISM_META_V1 = (() => {
+  const map = {};
+  const num = (key, label, placeholder = '', step = '0.1', extra = {}) =>
+    createSkillMechanismParamDefV1('number', key, label, placeholder, { step, ...extra });
+  const text = (key, label, placeholder = '', extra = {}) =>
+    createSkillMechanismParamDefV1('text', key, label, placeholder, extra);
+  const select = (key, label, optionsKey = '', placeholder = '未设置', extra = {}) =>
+    createSkillMechanismParamDefV1('select', key, label, placeholder, { optionsKey, ...extra });
+  const register = (labels, meta = {}) => {
+    const normalizedLabels = Array.isArray(labels) ? labels : [labels];
+    normalizedLabels
+      .map(label => String(label || '').trim())
+      .filter(Boolean)
+      .forEach(label => {
+        map[label] = createSkillMechanismMetaV1({
+          designerMainHint: label,
+          designerSubHint: label,
+          designerSecondaryHint: label,
+          runtimeConsumerKey: label,
+          ...meta,
+        });
+      });
+  };
+
+  register(['直接伤害', '单体伤害'], {
+    可主机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'direct_damage',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '输出', mainType: '伤害类', effectMode: '瞬发' },
+    designerMainHint: '伤害类',
+    designerSubHint: '单体伤害',
+    designerParamSchema: [num('powerRatio', '威力倍率', '1.25'), num('hitCount', '命中次数', '1', '1')],
+  });
+  register('群体伤害', {
+    可主机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'direct_damage',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '输出', mainType: '伤害类', cooperation: '高', effectMode: '瞬发' },
+    designerMainHint: '伤害类',
+    designerSubHint: '群体伤害',
+    designerParamSchema: [num('powerRatio', '威力倍率', '1.05'), text('range', '作用范围', '前方扇形 / 半径8米')],
+  });
+  register('多段伤害', {
+    可主机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'multi_damage',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '输出', mainType: '伤害类', effectMode: '持续' },
+    designerMainHint: '伤害类',
+    designerSubHint: '多段伤害',
+    designerParamSchema: [
+      num('segmentRatio', '每段倍率', '0.45'),
+      num('segmentCount', '段数', '3', '1'),
+      text('segmentInterval', '段间间隔', '短促连击'),
+    ],
+  });
+  register('延迟爆发', {
+    可主机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'delay_burst',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '输出', mainType: '伤害类', effectMode: '延迟' },
+    designerMainHint: '伤害类',
+    designerSubHint: '延迟爆发',
+    designerParamSchema: [
+      num('burstRatio', '爆发倍率', '1.8'),
+      text('delayWindow', '延迟时长', '1回合 / 3秒'),
+      text('triggerRule', '触发条件', '计时结束 / 再次命中'),
+    ],
+  });
+  register('持续伤害', {
+    可主机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'dot_damage',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '输出', mainType: '伤害类', effectMode: '持续' },
+    designerMainHint: '伤害类',
+    designerSubHint: '持续伤害',
+    designerParamSchema: [
+      num('dotRatio', '每跳倍率', '0.35'),
+      num('duration', '持续回合', '3', '1'),
+      num('stackLimit', '叠层上限', '1', '1'),
+    ],
+  });
+  register('硬控', {
+    可主机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'hard_control',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '控制类', controlStrength: '硬控' },
+    designerMainHint: '控制类',
+    designerSubHint: '硬控',
+    designerParamSchema: [
+      num('duration', '持续回合', '2', '1'),
+      num('controlPower', '控制强度', '1.0'),
+      text('breakRule', '解除条件', '受击 / 净化'),
+    ],
+  });
+  register('软控', {
+    可主机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'soft_control',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
+    designerMainHint: '控制类',
+    designerSubHint: '软控',
+    designerParamSchema: [num('slowRatio', '控制幅度', '0.3'), num('duration', '持续回合', '2', '1')],
+  });
+  register('位移限制', {
+    可主机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'position_lock',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
+    designerMainHint: '控制类',
+    designerSubHint: '位移限制',
+    designerParamSchema: [
+      num('limitPower', '限制强度', '0.2'),
+      num('duration', '持续回合', '2', '1'),
+      text('lockRange', '封锁范围', '半径5米'),
+    ],
+  });
+  register(['节奏打断', '打断'], {
+    可主机制: true,
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'interrupt',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '控制类', effectMode: '瞬发' },
+    designerMainHint: '控制类',
+    designerSubHint: '节奏打断',
+    designerSecondaryHint: '打断',
+    designerParamSchema: [select('interruptWindow', '打断时机', 'INTERRUPT_WINDOW'), num('extraDelay', '追加僵直', '0.5')],
+  });
+  register('封技', {
+    可主机制: true,
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'skill_seal',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
+    designerMainHint: '控制类',
+    designerSubHint: '封技',
+    designerSecondaryHint: '封技',
+    designerParamSchema: [num('duration', '持续回合', '2', '1'), select('muteScope', '限制范围', 'MUTE_SCOPE')],
+  });
+  register('单属性削弱', {
+    可主机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'attribute_debuff',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '削弱类' },
+    designerMainHint: '削弱类',
+    designerSubHint: '单属性削弱',
+    designerParamSchema: [
+      select('debuffAttr', '削弱属性', 'ATTRIBUTE'),
+      num('reduceRatio', '压制倍率', '0.8'),
+      num('duration', '持续回合', '2', '1'),
+    ],
+  });
+  register('多属性削弱', {
+    可主机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'attribute_debuff',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '削弱类' },
+    designerMainHint: '削弱类',
+    designerSubHint: '多属性削弱',
+    designerParamSchema: [
+      select('debuffAttrGroup', '属性组', 'ATTRIBUTE_GROUP'),
+      num('reduceRatio', '压制倍率', '0.8'),
+      num('duration', '持续回合', '2', '1'),
+    ],
+  });
+  register('禁疗', {
+    可主机制: true,
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'anti_heal',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '削弱类', controlStrength: '软控' },
+    designerMainHint: '削弱类',
+    designerSubHint: '禁疗',
+    designerSecondaryHint: '禁疗',
+    designerParamSchema: [num('banHealRatio', '禁疗幅度', '1.0'), num('duration', '持续回合', '2', '1')],
+  });
+  register('治疗反转', {
+    可主机制: true,
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'heal_inversion',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '削弱类', controlStrength: '软控' },
+    designerMainHint: '削弱类',
+    designerSubHint: '治疗反转',
+    designerSecondaryHint: '治疗反转',
+    designerParamSchema: [num('invertRatio', '反转倍率', '1.0'), num('duration', '持续回合', '2', '1')],
+  });
+  register('消耗提高', {
+    可主机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'cost_increase',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '削弱类' },
+    designerMainHint: '削弱类',
+    designerSubHint: '消耗提高',
+    designerParamSchema: [num('gainRatio', '提高倍率', '1.2'), num('duration', '持续回合', '2', '1')],
+  });
+  register('前摇拉长', {
+    可主机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'windup_increase',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '削弱类' },
+    designerMainHint: '削弱类',
+    designerSubHint: '前摇拉长',
+    designerParamSchema: [num('gainRatio', '拉长倍率', '1.2'), num('duration', '持续回合', '2', '1')],
+  });
+  register('掌控压制', {
+    可主机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'mastery_reduce',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '削弱类' },
+    designerMainHint: '削弱类',
+    designerSubHint: '掌控压制',
+    designerParamSchema: [num('reduceRatio', '压制倍率', '0.85'), num('duration', '持续回合', '2', '1')],
+  });
+  register('速度压制', {
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'speed_reduce',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '削弱类' },
+    designerSecondaryHint: '减速',
+    designerParamSchema: [num('slowRatio', '压制幅度', '0.3'), num('duration', '持续回合', '2', '1')],
+  });
+  register('单属性增益', {
+    可主机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'attribute_buff',
+    aiRoleTags: ['团队保护型'],
+    summaryHints: { skillType: '辅助', mainType: '增益类', cooperation: '中' },
+    designerMainHint: '增益类',
+    designerSubHint: '单属性增益',
+    designerParamSchema: [
+      select('buffAttr', '增幅对象', 'ATTRIBUTE'),
+      num('gainRatio', '增幅倍率', '1.3'),
+      num('duration', '持续回合', '3', '1'),
+    ],
+  });
+  register('多属性增益', {
+    可主机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'attribute_buff',
+    aiRoleTags: ['团队保护型'],
+    summaryHints: { skillType: '辅助', mainType: '增益类', cooperation: '高' },
+    designerMainHint: '增益类',
+    designerSubHint: '多属性增益',
+    designerParamSchema: [
+      select('buffAttrGroup', '属性组', 'ATTRIBUTE_GROUP'),
+      num('gainRatio', '增幅倍率', '1.2'),
+      num('duration', '持续回合', '3', '1'),
+    ],
+  });
+  register('全属性增益', {
+    可主机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'attribute_buff',
+    aiRoleTags: ['团队保护型'],
+    summaryHints: { skillType: '辅助', mainType: '增益类', cooperation: '高' },
+    designerMainHint: '增益类',
+    designerSubHint: '全属性增益',
+    designerParamSchema: [num('allGainRatio', '全属性倍率', '1.15'), num('duration', '持续回合', '2', '1')],
+  });
+  register('消耗降低', {
+    可主机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'cost_reduce',
+    aiRoleTags: ['团队保护型'],
+    summaryHints: { skillType: '辅助', mainType: '增益类' },
+    designerMainHint: '增益类',
+    designerSubHint: '消耗降低',
+    designerParamSchema: [num('gainRatio', '降低倍率', '0.85'), num('duration', '持续回合', '3', '1')],
+  });
+  register('前摇缩短', {
+    可主机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'windup_reduce',
+    aiRoleTags: ['团队保护型'],
+    summaryHints: { skillType: '辅助', mainType: '增益类' },
+    designerMainHint: '增益类',
+    designerSubHint: '前摇缩短',
+    designerParamSchema: [num('gainRatio', '缩短倍率', '0.85'), num('duration', '持续回合', '2', '1')],
+  });
+  register('掌控提升', {
+    可主机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'mastery_raise',
+    aiRoleTags: ['团队保护型'],
+    summaryHints: { skillType: '辅助', mainType: '增益类' },
+    designerMainHint: '增益类',
+    designerSubHint: '掌控提升',
+    designerParamSchema: [num('gainRatio', '提升倍率', '1.2'), num('duration', '持续回合', '3', '1')],
+  });
+  register('速度提升', {
+    可主机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'speed_raise',
+    aiRoleTags: ['团队保护型'],
+    summaryHints: { skillType: '辅助', mainType: '增益类' },
+    designerMainHint: '增益类',
+    designerSubHint: '速度提升',
+    designerParamSchema: [num('gainRatio', '提升倍率', '1.15'), num('duration', '持续回合', '2', '1')],
+  });
+  register(['护盾', '小护盾'], {
+    可主机制: true,
+    可副机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'shield',
+    aiRoleTags: ['团队保护型'],
+    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '护盾', effectMode: '持续' },
+    designerMainHint: '防御类',
+    designerSubHint: '护盾',
+    designerSecondaryHint: '小护盾',
+    designerParamSchema: [
+      num('shieldRatio', '护盾倍率', '0.8'),
+      num('duration', '持续回合', '2', '1'),
+      select('shieldCap', '护盾上限', 'SHIELD_CAP'),
+    ],
+  });
+  register('减伤', {
+    可主机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'damage_reduce',
+    aiRoleTags: ['团队保护型', '保命型'],
+    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '减伤', effectMode: '持续' },
+    designerMainHint: '防御类',
+    designerSubHint: '减伤',
+    designerParamSchema: [
+      num('reduceRatio', '减伤比例', '0.35'),
+      num('duration', '持续回合', '2', '1'),
+      text('damageType', '覆盖类型', '物理 / 元素 / 全伤'),
+    ],
+  });
+  register(['格挡', '格挡/抵消'], {
+    可主机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'block',
+    aiRoleTags: ['保命型'],
+    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '格挡', effectMode: '触发' },
+    designerMainHint: '防御类',
+    designerSubHint: '格挡/抵消',
+    designerParamSchema: [
+      num('blockCount', '格挡次数', '1', '1'),
+      text('blockCap', '单次上限', '最多抵消一次大招'),
+      text('triggerRule', '触发条件', '受击瞬间'),
+    ],
+  });
+  register('霸体', {
+    可主机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'super_armor',
+    aiRoleTags: ['保命型'],
+    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '霸体', effectMode: '持续' },
+    designerMainHint: '防御类',
+    designerSubHint: '霸体',
+    designerParamSchema: [
+      num('duration', '持续回合', '2', '1'),
+      select('immuneLevel', '免控级别', 'IMMUNE_LEVEL'),
+      num('reduceRatio', '额外减伤', '0.2'),
+    ],
+  });
+  register(['免死', '免死/锁血'], {
+    可主机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'death_save',
+    aiRoleTags: ['保命型'],
+    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '免死', effectMode: '触发' },
+    designerMainHint: '防御类',
+    designerSubHint: '免死/锁血',
+    designerParamSchema: [
+      text('triggerThreshold', '触发阈值', '低于20%生命'),
+      text('lockBloodFloor', '锁血下限', '保留1点 / 10%'),
+      text('cooldown', '冷却/次数', '每战1次'),
+    ],
+  });
+  register('无敌金身', {
+    可主机制: true,
+    可副机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'invincible',
+    aiRoleTags: ['保命型', '团队保护型'],
+    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '无敌', effectMode: '触发' },
+    designerMainHint: '防御类',
+    designerSubHint: '无敌金身',
+    designerSecondaryHint: '无敌金身',
+    designerParamSchema: [
+      num('duration', '持续回合', '2', '1'),
+      num('dailyLimit', '每日触发', '3', '1'),
+      num('tierThreshold', '免疫位阶', '100', '0.5'),
+      num('reduceRatio', '附带减伤', '0.18'),
+    ],
+  });
+  register('伤害反射', {
+    可主机制: true,
+    可副机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'damage_reflect',
+    aiRoleTags: ['保命型', '团队保护型'],
+    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '反射', effectMode: '触发' },
+    designerMainHint: '防御类',
+    designerSubHint: '伤害反射',
+    designerSecondaryHint: '伤害反射',
+    designerParamSchema: [
+      num('reflectRatio', '反射比例', '0.25'),
+      num('duration', '持续回合', '2', '1'),
+      text('reflectRule', '触发条件', '受击后'),
+    ],
+  });
+  register('伤害分摊', {
+    可主机制: true,
+    可副机制: true,
+    targetSemantic: 'grantable',
+    groupGrantable: true,
+    runtimeConsumerKey: 'damage_share',
+    aiRoleTags: ['团队保护型'],
+    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '分摊', cooperation: '高', effectMode: '触发' },
+    designerMainHint: '防御类',
+    designerSubHint: '伤害分摊',
+    designerSecondaryHint: '伤害分摊',
+    designerParamSchema: [
+      num('shareRatio', '分摊比例', '0.35'),
+      num('shareCount', '分摊人数', '1', '1'),
+      num('duration', '持续回合', '2', '1'),
+    ],
+  });
+  register('替身抵消', {
+    可主机制: true,
+    可副机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'substitute',
+    aiRoleTags: ['保命型', '团队保护型'],
+    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '替身', effectMode: '触发' },
+    designerMainHint: '防御类',
+    designerSubHint: '替身抵消',
+    designerSecondaryHint: '替身抵消',
+    designerParamSchema: [
+      num('substituteCount', '抵消次数', '1', '1'),
+      num('duration', '持续回合', '2', '1'),
+      text('substituteRule', '触发条件', '受击时'),
+    ],
+  });
+  register('复苏', {
+    可主机制: true,
+    可副机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'revive',
+    aiRoleTags: ['保命型', '团队保护型'],
+    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '复苏', recoverNature: '复苏', effectMode: '触发' },
+    designerMainHint: '防御类',
+    designerSubHint: '复苏',
+    designerSecondaryHint: '复苏',
+    designerParamSchema: [
+      num('reviveCount', '复苏次数', '1', '1'),
+      num('reviveHealRatio', '复苏回血', '0.25'),
+      num('duration', '持续回合', '3', '1'),
+    ],
+  });
+  register('体力恢复', {
+    可主机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'recover_vit',
+    aiRoleTags: ['团队保护型'],
+    summaryHints: { skillType: '辅助', mainType: '回复类', recoverNature: '体力恢复' },
+    designerMainHint: '回复类',
+    designerSubHint: '体力恢复',
+    designerParamSchema: [num('recoverRatio', '回复倍率', '0.35'), num('repeatCount', '生效次数', '1', '1')],
+  });
+  register('魂力恢复', {
+    可主机制: true,
+    可副机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'recover_sp',
+    aiRoleTags: ['团队保护型'],
+    summaryHints: { skillType: '辅助', mainType: '回复类', recoverNature: '资源回复' },
+    designerMainHint: '回复类',
+    designerSubHint: '魂力恢复',
+    designerSecondaryHint: '魂力恢复',
+    designerParamSchema: [num('recoverRatio', '回复倍率', '0.35'), num('repeatCount', '生效次数', '1', '1')],
+  });
+  register('精神恢复', {
+    可主机制: true,
+    可副机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'recover_men',
+    aiRoleTags: ['团队保护型'],
+    summaryHints: { skillType: '辅助', mainType: '回复类', recoverNature: '资源回复' },
+    designerMainHint: '回复类',
+    designerSubHint: '精神恢复',
+    designerSecondaryHint: '精神恢复',
+    designerParamSchema: [num('recoverRatio', '回复倍率', '0.35'), num('repeatCount', '生效次数', '1', '1')],
+  });
+  register('持续恢复', {
+    可主机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'recover_over_time',
+    aiRoleTags: ['团队保护型'],
+    summaryHints: { skillType: '辅助', mainType: '回复类', recoverNature: '持续恢复', effectMode: '持续' },
+    designerMainHint: '回复类',
+    designerSubHint: '持续恢复',
+    designerParamSchema: [
+      num('recoverRatio', '每回合倍率', '0.2'),
+      num('duration', '持续回合', '3', '1'),
+      num('stackLimit', '叠层上限', '2', '1'),
+    ],
+  });
+  register(['净化/解控', '净化', '解控'], {
+    可主机制: true,
+    可副机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'cleanse',
+    aiRoleTags: ['团队保护型'],
+    summaryHints: { skillType: '辅助', mainType: '回复类', recoverNature: '净化' },
+    designerMainHint: '回复类',
+    designerSubHint: '净化/解控',
+    designerSecondaryHint: '解控',
+    designerParamSchema: [
+      num('cleanseCount', '清除条目数', '2', '1'),
+      select('cleansePriority', '净化优先级', 'CLEANSE_PRIORITY'),
+      select('extraGain', '附带收益', 'CLEANSE_GAIN'),
+    ],
+  });
+  register('感知干扰', {
+    可主机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'perception_disturb',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '感知/认知类', controlStrength: '软控' },
+    designerMainHint: '感知/认知类',
+    designerSubHint: '感知干扰',
+    designerParamSchema: [num('disturbPower', '干扰强度', '0.12'), num('duration', '持续回合', '2', '1')],
+  });
+  register('标记锁定', {
+    可主机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'judge_effect',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '感知/认知类', controlStrength: '软控' },
+    designerMainHint: '感知/认知类',
+    designerSubHint: '标记锁定',
+    designerParamSchema: [
+      num('markDuration', '标记时长', '2', '1'),
+      num('targetCap', '锁定目标数', '1', '1'),
+      select('trackingRule', '追踪规则', 'TRACKING_RULE'),
+    ],
+  });
+  register('共享视野', {
+    可主机制: true,
+    可副机制: true,
+    targetSemantic: 'contextual',
+    runtimeConsumerKey: 'shared_vision',
+    aiRoleTags: ['团队保护型', '规则压制型'],
+    summaryHints: { skillType: '辅助', mainType: '感知/认知类', cooperation: '高', effectMode: '持续' },
+    designerMainHint: '感知/认知类',
+    designerSubHint: '共享视野',
+    designerSecondaryHint: '共享视野',
+    designerParamSchema: [
+      text('shareRange', '共享范围', '队伍 / 半径30米'),
+      num('duration', '持续回合', '3', '1'),
+      select('infoDepth', '共享深度', 'INFO_DEPTH'),
+    ],
+  });
+  register('幻境', {
+    可主机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'judge_effect',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '感知/认知类', controlStrength: '硬控' },
+    designerMainHint: '感知/认知类',
+    designerSubHint: '幻境',
+    designerParamSchema: [
+      text('illusionRange', '幻境范围', '半径8米'),
+      num('duration', '持续回合', '2', '1'),
+      num('illusionPower', '幻术强度', '1.1'),
+    ],
+  });
+  register('催眠', {
+    可主机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'judge_effect',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '感知/认知类', controlStrength: '硬控' },
+    designerMainHint: '感知/认知类',
+    designerSubHint: '催眠',
+    designerParamSchema: [
+      num('duration', '睡眠回合', '2', '1'),
+      select('wakeRule', '唤醒条件', 'WAKE_RULE'),
+      text('hitRule', '命中条件', '视线锁定 / 声波接触'),
+    ],
+  });
+  register('认知扭曲', {
+    可主机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'judge_effect',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '感知/认知类', controlStrength: '软控' },
+    designerMainHint: '感知/认知类',
+    designerSubHint: '认知扭曲',
+    designerParamSchema: [num('twistPower', '扭曲强度', '0.18'), num('duration', '持续回合', '2', '1')],
+  });
+  register('目标锁定', {
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'target_lock',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '感知/认知类', controlStrength: '软控' },
+    designerMainHint: '感知/认知类',
+    designerSubHint: '标记锁定',
+    designerSecondaryHint: '目标锁定',
+    designerParamSchema: [
+      num('duration', '持续回合', '2', '1'),
+      num('hitBonus', '命中增益', '0.1'),
+      num('lockLevel', '锁定层级', '1', '1'),
+    ],
+  });
+  register('自身位移', {
+    可主机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'self_shift',
+    aiRoleTags: ['保命型', '团队保护型'],
+    summaryHints: { skillType: '辅助', mainType: '位移类', effectMode: '持续' },
+    designerMainHint: '位移类',
+    designerSubHint: '自身位移',
+    designerParamSchema: [text('moveDistance', '位移距离', '5米')],
+  });
+  register('强制位移', {
+    可主机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'hostile_shift',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '位移类', controlStrength: '软控' },
+    designerMainHint: '位移类',
+    designerSubHint: '强制位移',
+    designerParamSchema: [text('moveDistance', '位移距离', '4米'), num('repeatCount', '触发次数', '1', '1')],
+  });
+  register('位移交换', {
+    可主机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'position_exchange',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '位移类', controlStrength: '软控' },
+    designerMainHint: '位移类',
+    designerSubHint: '位移交换',
+    designerParamSchema: [
+      text('exchangeRange', '交换范围', '8米'),
+      num('duration', '持续回合', '2', '1'),
+      text('triggerRule', '交换条件', '命中标记目标'),
+    ],
+  });
+  register('追击位移', {
+    可主机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'pursuit_shift',
+    aiRoleTags: ['规则压制型', '团队保护型'],
+    summaryHints: { skillType: '辅助', mainType: '位移类', effectMode: '持续' },
+    designerMainHint: '位移类',
+    designerSubHint: '追击位移',
+    designerParamSchema: [
+      text('moveDistance', '追击距离', '6米'),
+      text('followWindow', '追击窗口', '命中后1秒'),
+      num('extraRatio', '追加倍率', '0.3'),
+    ],
+  });
+  register('脱离位移', {
+    可主机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'disengage_shift',
+    aiRoleTags: ['保命型', '团队保护型'],
+    summaryHints: { skillType: '辅助', mainType: '位移类', effectMode: '持续' },
+    designerMainHint: '位移类',
+    designerSubHint: '脱离位移',
+    designerParamSchema: [
+      text('moveDistance', '脱离距离', '7米'),
+      text('escapeRule', '脱离条件', '生命低于50%'),
+      select('extraGain', '脱离收益', 'ESCAPE_GAIN'),
+    ],
+  });
+  register(['追击'], {
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'pursuit_mark',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '辅助', mainType: '位移类', effectMode: '持续' },
+    designerMainHint: '位移类',
+    designerSubHint: '追击位移',
+    designerSecondaryHint: '追击',
+    designerParamSchema: [
+      text('followWindow', '追击窗口', '命中后1秒'),
+      num('bonusRatio', '追击倍率', '1.2'),
+      num('duration', '持续回合', '2', '1'),
+    ],
+  });
+  register('分身', {
+    可主机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'clone',
+    aiRoleTags: ['保命型', '团队保护型'],
+    summaryHints: { skillType: '防御', mainType: '特殊规则类', defenseNature: '分身', effectMode: '持续' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '分身',
+    designerParamSchema: [
+      select('cloneType', '分身类型', 'CLONE_TYPE'),
+      num('cloneCount', '分身数量', '2', '1'),
+      num('stealthRatio', '隐蔽度', '0.45'),
+      num('inheritRatio', '实力继承', '0.55'),
+      num('duration', '持续回合', '2', '1'),
+      text('cloneName', '分身称谓', '影分身 / 心像'),
+    ],
+  });
+  register('复制', {
+    可主机制: true,
+    targetSemantic: 'contextual',
+    runtimeConsumerKey: 'copy_status',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '辅助', mainType: '特殊规则类' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '复制',
+    designerParamSchema: [
+      select('copyTarget', '复制对象', 'COPY_TARGET'),
+      num('fidelity', '保真度', '0.8'),
+      text('duration', '维持时长', '2回合'),
+    ],
+  });
+  register('反制', {
+    可主机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'counter',
+    aiRoleTags: ['保命型', '团队保护型'],
+    summaryHints: { skillType: '防御', mainType: '特殊规则类', defenseNature: '反制', effectMode: '触发' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '反制',
+    designerParamSchema: [
+      select('counterTarget', '反制对象', 'COUNTER_TARGET'),
+      text('triggerRule', '触发条件', '被锁定时 / 命中前'),
+      num('duration', '持续回合', '2', '1'),
+      num('counterRatio', '反制倍率', '1.0'),
+    ],
+  });
+  register(['转化', '伤害转回复'], {
+    可主机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'damage_to_heal',
+    aiRoleTags: ['团队保护型'],
+    summaryHints: { skillType: '辅助', mainType: '特殊规则类' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '转化',
+    designerParamSchema: [text('convertPath', '转化方向', '伤害→回复'), num('convertRatio', '转化比率', '0.6')],
+  });
+  register('回复转伤害', {
+    可主机制: false,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'heal_to_damage',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '特殊规则类' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '转化',
+    designerParamSchema: [text('convertPath', '转化方向', '回复→伤害'), num('convertRatio', '转化比率', '0.6')],
+  });
+  register('状态交换', {
+    可主机制: true,
+    targetSemantic: 'contextual',
+    runtimeConsumerKey: 'status_exchange',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '辅助', mainType: '特殊规则类' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '状态交换',
+    designerParamSchema: [
+      select('exchangeTarget', '交换对象', 'EXCHANGE_TARGET'),
+      num('exchangeCount', '交换层数', '1', '1'),
+      text('triggerRule', '交换条件', '双方同时命中'),
+    ],
+  });
+  register('状态转移', {
+    可主机制: true,
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'status_transfer',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '特殊规则类' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '状态转移',
+    designerSecondaryHint: '状态转移',
+    designerParamSchema: [text('transferMode', '转移模式', '自身负面->目标'), text('triggerRule', '转移条件', '命中后')],
+  });
+  register('强制绑定/锁定', {
+    可主机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'hard_lock',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '特殊规则类', controlStrength: '软控' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '强制绑定/锁定',
+    designerParamSchema: [
+      num('bindDuration', '绑定回合', '2', '1'),
+      num('targetCap', '绑定目标数', '1', '1'),
+      text('releaseRule', '解除条件', '超距离 / 净化'),
+    ],
+  });
+  register('条件触发', {
+    可主机制: true,
+    targetSemantic: 'contextual',
+    runtimeConsumerKey: 'judge_effect',
+    aiRoleTags: ['保命型', '规则压制型'],
+    summaryHints: { skillType: '辅助', mainType: '特殊规则类', effectMode: '触发' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '条件触发',
+    designerParamSchema: [
+      text('triggerRule', '触发条件', '受击 / 低血 / 计时结束'),
+      num('triggerCount', '触发次数', '1', '1'),
+      select('triggerResult', '触发结果', 'TRIGGER_RESULT'),
+    ],
+  });
+  register('规则改写', {
+    可主机制: true,
+    targetSemantic: 'selfOnly',
+    selfOnly: true,
+    runtimeConsumerKey: 'self_rule_rewrite',
+    aiRoleTags: ['保命型', '规则压制型'],
+    summaryHints: { skillType: '辅助', mainType: '特殊规则类', effectMode: '触发' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '规则改写',
+    designerParamSchema: [select('rewriteDepth', '改写幅度', 'REWRITE_DEPTH')],
+  });
+  register('高波动随机值', {
+    targetSemantic: 'selfOnly',
+    selfOnly: true,
+    runtimeConsumerKey: 'self_random_variance',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '辅助', mainType: '特殊规则类' },
+  });
+  register('自身也受影响', {
+    targetSemantic: 'selfOnly',
+    selfOnly: true,
+    runtimeConsumerKey: 'self_mirror',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '辅助', mainType: '特殊规则类' },
+  });
+  register('随机目标', {
+    targetSemantic: 'selfOnly',
+    selfOnly: true,
+    runtimeConsumerKey: 'random_target_shift',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '特殊规则类' },
+  });
+  register('自残换收益', {
+    targetSemantic: 'selfOnly',
+    selfOnly: true,
+    runtimeConsumerKey: 'self_sacrifice_gain',
+    aiRoleTags: ['保命型', '规则压制型'],
+    summaryHints: { skillType: '辅助', mainType: '特殊规则类' },
+  });
+  register('引爆持续伤害', {
+    可主机制: true,
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'dot_detonate',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '输出', mainType: '特殊规则类', effectMode: '瞬发' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '引爆持续伤害',
+    designerSecondaryHint: '引爆持续伤害',
+    designerParamSchema: [num('detonateRatio', '引爆倍率', '1.2'), text('consumeMode', '消耗规则', '消耗全部持续伤害')],
+  });
+  register('斩盾', {
+    可主机制: true,
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'shield_break',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '输出', mainType: '特殊规则类' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '斩盾',
+    designerSecondaryHint: '斩盾',
+    designerParamSchema: [num('shieldBreakRatio', '斩盾倍率', '0.6')],
+  });
+  register('窃取护盾', {
+    可主机制: true,
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'shield_steal',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '特殊规则类' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '窃取护盾',
+    designerSecondaryHint: '窃取护盾',
+    designerParamSchema: [num('shieldStealRatio', '窃盾比例', '0.45'), num('duration', '持续回合', '2', '1')],
+  });
+  register('效果反转', {
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'effect_reverse',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '特殊规则类' },
+  });
+  register('驱散增益', {
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'dispel_buff',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '削弱类' },
+    designerMainHint: '削弱类',
+    designerSubHint: '单属性削弱',
+    designerSecondaryHint: '驱散增益',
+    designerParamSchema: [num('dispelCount', '驱散数量', '1', '1')],
+  });
+  register('窃取增益', {
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'steal_buff',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '特殊规则类' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '复制',
+    designerSecondaryHint: '窃取增益',
+    designerParamSchema: [num('stealCount', '窃取数量', '1', '1')],
+  });
+  register('隐身', {
+    可副机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'stealth',
+    aiRoleTags: ['保命型', '团队保护型'],
+    summaryHints: { skillType: '辅助', mainType: '增益类', effectMode: '持续' },
+    designerMainHint: '增益类',
+    designerSubHint: '单属性增益',
+    designerSecondaryHint: '隐身',
+    designerParamSchema: [
+      num('duration', '持续回合', '2', '1'),
+      num('stealthRatio', '隐蔽度', '0.3'),
+      num('dodgeBonus', '闪避增益', '0.1'),
+      num('reactionBonus', '反应增益', '0.08'),
+    ],
+  });
+  register('护卫', {
+    可副机制: true,
+    targetSemantic: 'grantable',
+    groupGrantable: true,
+    runtimeConsumerKey: 'guard',
+    aiRoleTags: ['团队保护型'],
+    summaryHints: { skillType: '防御', mainType: '防御类', cooperation: '高', effectMode: '持续' },
+    designerMainHint: '防御类',
+    designerSubHint: '伤害分摊',
+    designerSecondaryHint: '护卫',
+    designerParamSchema: [num('duration', '持续回合', '2', '1'), num('reduceRatio', '护卫减伤', '0.1')],
+  });
+  register('嘲讽', {
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'taunt',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
+    designerMainHint: '控制类',
+    designerSubHint: '软控',
+    designerSecondaryHint: '嘲讽',
+    designerParamSchema: [num('duration', '持续回合', '2', '1'), text('focusRule', '聚火规则', '强制优先自身')],
+  });
+  register('破隐', {
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'reveal',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '控制类' },
+    designerMainHint: '控制类',
+    designerSubHint: '节奏打断',
+    designerSecondaryHint: '破隐',
+    designerParamSchema: [num('hitBonus', '命中增益', '0.1'), num('lockLevel', '锁定层级', '1', '1')],
+  });
+  register(['减速', '迟缓'], {
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'slow',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
+    designerMainHint: '控制类',
+    designerSubHint: '软控',
+    designerSecondaryHint: '减速',
+    designerParamSchema: [num('slowRatio', '减速幅度', '0.3'), num('duration', '持续回合', '2', '1')],
+  });
+  register('致盲', {
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'blind',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
+    designerMainHint: '控制类',
+    designerSubHint: '软控',
+    designerSecondaryHint: '致盲',
+    designerParamSchema: [num('duration', '致盲回合', '2', '1'), select('blindEffect', '影响内容', 'BLIND_EFFECT')],
+  });
+  register('沉默', {
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'silence',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
+    designerMainHint: '控制类',
+    designerSubHint: '软控',
+    designerSecondaryHint: '沉默',
+    designerParamSchema: [num('duration', '沉默回合', '2', '1'), select('muteScope', '限制范围', 'MUTE_SCOPE')],
+  });
+  register('缴械', {
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'disarm',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
+    designerMainHint: '控制类',
+    designerSubHint: '软控',
+    designerSecondaryHint: '缴械',
+    designerParamSchema: [num('duration', '缴械回合', '2', '1'), text('disarmScope', '限制范围', '近战 / 武器技')],
+  });
+  register('标记弱点', {
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'expose_weakness',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '控制', mainType: '削弱类' },
+    designerMainHint: '削弱类',
+    designerSubHint: '单属性削弱',
+    designerSecondaryHint: '标记弱点',
+    designerParamSchema: [select('weakPointType', '弱点类型', 'WEAK_POINT_TYPE'), num('duration', '持续回合', '2', '1')],
+  });
+  register('斩杀补伤', {
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'judge_effect',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '输出', mainType: '伤害类' },
+    designerMainHint: '伤害类',
+    designerSubHint: '单体伤害',
+    designerSecondaryHint: '斩杀补伤',
+    designerParamSchema: [text('executeLine', '触发血线', '低于25%'), num('bonusRatio', '补伤倍率', '0.5')],
+  });
+  register('流血DOT', {
+    可副机制: true,
+    targetSemantic: 'hostile',
+    runtimeConsumerKey: 'dot_damage',
+    aiRoleTags: ['规则压制型'],
+    summaryHints: { skillType: '输出', mainType: '伤害类', effectMode: '持续' },
+    designerMainHint: '伤害类',
+    designerSubHint: '持续伤害',
+    designerSecondaryHint: '流血DOT',
+    designerParamSchema: [num('dotRatio', '每跳倍率', '0.2'), num('duration', '持续回合', '3', '1')],
+  });
+  register(['反击', '受击反击'], {
+    可副机制: true,
+    targetSemantic: 'grantable',
+    runtimeConsumerKey: 'on_hit_counter',
+    aiRoleTags: ['保命型', '团队保护型'],
+    summaryHints: { skillType: '防御', mainType: '防御类', defenseNature: '反制', effectMode: '触发' },
+    designerMainHint: '防御类',
+    designerSubHint: '伤害反射',
+    designerSecondaryHint: '反击',
+    designerParamSchema: [select('counterRule', '反击条件', 'COUNTER_RULE'), num('counterRatio', '反击倍率', '0.8')],
+  });
+  register('造物生成', {
+    targetSemantic: 'selfOnly',
+    selfOnly: true,
+    runtimeConsumerKey: 'construct_create',
+    aiRoleTags: ['团队保护型'],
+    summaryHints: { skillType: '辅助', mainType: '特殊规则类' },
+  });
+
+  return Object.freeze(map);
+})();
+
+function buildSkillMechanismTargetSemanticsV1(metaMap = {}) {
+  const grantable = [];
+  const groupGrantable = [];
+  const hostile = [];
+  const contextual = [];
+  const selfOnly = [];
+  Object.entries(metaMap || {}).forEach(([label, meta]) => {
+    if (!meta || typeof meta !== 'object') return;
+    if (meta.selfOnly === true || meta.targetSemantic === 'selfOnly') selfOnly.push(label);
+    if (meta.groupGrantable === true) groupGrantable.push(label);
+    if (meta.targetSemantic === 'grantable') grantable.push(label);
+    else if (meta.targetSemantic === 'hostile') hostile.push(label);
+    else if (meta.targetSemantic === 'contextual') contextual.push(label);
+  });
+  return Object.freeze({
+    grantable: Object.freeze(Array.from(new Set(grantable)).sort()),
+    groupGrantable: Object.freeze(Array.from(new Set(groupGrantable)).sort()),
+    hostile: Object.freeze(Array.from(new Set(hostile)).sort()),
+    contextual: Object.freeze(Array.from(new Set(contextual)).sort()),
+    selfOnly: Object.freeze(Array.from(new Set(selfOnly)).sort()),
+  });
+}
+
+const SKILL_MECHANISM_TARGET_SEMANTICS_V1 = buildSkillMechanismTargetSemanticsV1(SKILL_MECHANISM_META_V1);
+const SKILL_MECHANISM_SELF_ONLY_V1 = SKILL_MECHANISM_TARGET_SEMANTICS_V1.selfOnly;
+
+const SKILL_MECHANISM_REGISTRY_V1 = Object.freeze({
+  mainArchetypes: Object.freeze(SKILL_ARCHETYPE_POOL_V1),
+  secondaryByMain: Object.freeze(SKILL_SECONDARY_BY_MAIN_V1),
+  secondaryTypeBias: Object.freeze(SKILL_SECONDARY_TYPE_BIAS_V1),
+  mechanisms: Object.freeze(SKILL_MECHANISM_META_V1),
+  selfOnly: SKILL_MECHANISM_SELF_ONLY_V1,
+  targetSemantics: SKILL_MECHANISM_TARGET_SEMANTICS_V1,
+});
+
+if (typeof globalThis !== 'undefined') {
+  globalThis.__LWCS_SKILL_MECHANISM_REGISTRY__ = SKILL_MECHANISM_REGISTRY_V1;
+}
+
+const SOUL_SPIRIT_SECONDARY_OPTIONS_V1 = Array.from(
+  new Set(Object.values(SKILL_SECONDARY_BY_MAIN_V1).flat().filter(label => !!SKILL_MECHANISM_META_V1[String(label || '').trim()])),
+).sort();
 
 function getSecondaryGenerationChance(grade = 'B', ringIndex = 1) {
   const ring = Math.max(1, Number(ringIndex || 1));
@@ -1733,12 +2950,13 @@ function getSecondaryRingScale(ringIndex = 1) {
 function getPotentialSecondaryOptionsByType(type = '强攻系') {
   const mainTable = SKILL_MAIN_MECHANIC_DISTRIBUTION_V1[type] || SKILL_MAIN_MECHANIC_DISTRIBUTION_V1['强攻系'] || [];
   const mains = Array.from(new Set(mainTable.map(item => item?.main).filter(Boolean)));
-  return Array.from(new Set(mains.flatMap(main => SKILL_SECONDARY_BY_MAIN_V1[main] || []))).sort();
+  const typeBias = SKILL_SECONDARY_TYPE_BIAS_V1[type] || [];
+  return Array.from(new Set([...typeBias, ...mains.flatMap(main => SKILL_SECONDARY_BY_MAIN_V1[main] || [])]));
 }
 
 function buildSoulSpiritSecondaryDefaultValue(type = '强攻系', ringIndex = 1) {
   if (getSecondaryGenerationChance('S', ringIndex) <= 0) return ['无'];
-  const options = getPotentialSecondaryOptionsByType(type);
+  const options = getPotentialSecondaryOptionsByType(type).slice(0, 14);
   if (!options.length) return [AI_TODO_SOUL_SPIRIT_SECONDARY];
   return [AI_TODO_SOUL_SPIRIT_SECONDARY.replace('）', `：${options.join(' / ')}）`)];
 }
@@ -1793,7 +3011,7 @@ function rollWeightedBucket(table = [], roll = 1) {
 
 function judgeSkillGrade(talentTier, ringAge, ringIndex, compatibility = 100) {
   const roll = Math.floor(Math.random() * 100) + 1;
-  const talentScore = { 绝世妖孽: 100, 顶级天才: 80, 天才: 60, 优秀: 40, 正常: 20, 劣等: 0 }[talentTier] || 20;
+  const talentScore = { 绝世妖孽: 100, 顶级天才: 80, 天才: 60, 优秀: 40, 正常: 20, 劣等: 0, 天赋极差: -100 }[talentTier] || 20;
   const ageScore = ringAge >= 100000 ? 100 : ringAge >= 10000 ? 50 : ringAge >= 1000 ? 20 : ringAge >= 100 ? 0 : -20;
   let compScore = 0;
   if (compatibility >= 90) compScore = 20;
@@ -1817,7 +3035,188 @@ function rollMainMechanicByGrade(type, grade, roll) {
   return table.find(item => effectiveRoll >= item.min && effectiveRoll <= item.max)?.main || '伤害类';
 }
 
-function rollSubModelByGrade(mainMechanic, grade, roll) {
+function isRouguRabbitFlavorSource(text = '') {
+  const safeText = String(text || '').trim();
+  if (!safeText) return false;
+  return /(柔骨兔|柔骨|骨兔|月兔|玉兔|魅兔|兔)/.test(safeText);
+}
+
+function rebalanceWeightedTableWithPreferredValue(table = [], preferredValue = '', preferredWeight = 0) {
+  const source = Array.isArray(table) ? table.map(item => ({ ...item })) : [];
+  const target = source.find(item => item?.value === preferredValue);
+  if (!target || !(preferredWeight > 0)) return source;
+  const remainingWeight = Math.max(0, 100 - preferredWeight);
+  const otherItems = source.filter(item => item?.value !== preferredValue);
+  const otherTotal = otherItems.reduce((sum, item) => sum + Math.max(0, Number(item?.weight || 0)), 0);
+  target.weight = preferredWeight;
+  if (!(otherTotal > 0)) return source;
+  let assigned = 0;
+  otherItems.forEach((item, index) => {
+    if (index === otherItems.length - 1) {
+      item.weight = Math.max(0, remainingWeight - assigned);
+      return;
+    }
+    const scaled = Math.max(0, Math.round((Math.max(0, Number(item.weight || 0)) / otherTotal) * remainingWeight));
+    item.weight = scaled;
+    assigned += scaled;
+  });
+  return source;
+}
+
+function buildDefenseArchetypeWeightedTableByContext(grade, type = '强攻系', sourceName = '') {
+  const baseTables = {
+    C: [
+      { value: '护盾', weight: 48 },
+      { value: '减伤', weight: 23 },
+      { value: '格挡/抵消', weight: 10 },
+      { value: '无敌金身', weight: 5 },
+      { value: '伤害反射', weight: 4 },
+      { value: '伤害分摊', weight: 4 },
+      { value: '替身抵消', weight: 4 },
+      { value: '复苏', weight: 2 },
+    ],
+    B: [
+      { value: '护盾', weight: 30 },
+      { value: '减伤', weight: 18 },
+      { value: '格挡/抵消', weight: 15 },
+      { value: '霸体', weight: 15 },
+      { value: '免死/锁血', weight: 5 },
+      { value: '无敌金身', weight: 6 },
+      { value: '伤害反射', weight: 4 },
+      { value: '伤害分摊', weight: 4 },
+      { value: '替身抵消', weight: 2 },
+      { value: '复苏', weight: 1 },
+    ],
+    A: [
+      { value: '护盾', weight: 20 },
+      { value: '减伤', weight: 18 },
+      { value: '格挡/抵消', weight: 15 },
+      { value: '霸体', weight: 12 },
+      { value: '免死/锁血', weight: 8 },
+      { value: '无敌金身', weight: 9 },
+      { value: '伤害反射', weight: 6 },
+      { value: '伤害分摊', weight: 5 },
+      { value: '替身抵消', weight: 4 },
+      { value: '复苏', weight: 3 },
+    ],
+    S: [
+      { value: '护盾', weight: 12 },
+      { value: '减伤', weight: 13 },
+      { value: '格挡/抵消', weight: 12 },
+      { value: '霸体', weight: 10 },
+      { value: '免死/锁血', weight: 16 },
+      { value: '无敌金身', weight: 15 },
+      { value: '伤害反射', weight: 8 },
+      { value: '伤害分摊', weight: 6 },
+      { value: '替身抵消', weight: 4 },
+      { value: '复苏', weight: 4 },
+    ],
+  };
+  let table = (baseTables[grade] || baseTables.B).map(item => ({ ...item }));
+  if (type === '防御系') {
+    table = rebalanceWeightedTableWithPreferredValue(table, '无敌金身', { C: 2, B: 3, A: 4, S: 6 }[grade] || 3);
+    table = rebalanceWeightedTableWithPreferredValue(table, '替身抵消', { C: 1, B: 1, A: 2, S: 2 }[grade] || 1);
+    table = rebalanceWeightedTableWithPreferredValue(table, '伤害反射', { C: 12, B: 15, A: 20, S: 26 }[grade] || 15);
+    table = rebalanceWeightedTableWithPreferredValue(table, '伤害分摊', { C: 4, B: 5, A: 6, S: 8 }[grade] || 5);
+  } else if (type === '敏攻系') {
+    table = rebalanceWeightedTableWithPreferredValue(table, '无敌金身', { C: 16, B: 24, A: 34, S: 45 }[grade] || 24);
+    table = rebalanceWeightedTableWithPreferredValue(table, '替身抵消', { C: 24, B: 34, A: 44, S: 56 }[grade] || 34);
+  } else if (type === '强攻系') {
+    table = rebalanceWeightedTableWithPreferredValue(table, '无敌金身', { C: 8, B: 12, A: 18, S: 24 }[grade] || 12);
+    table = rebalanceWeightedTableWithPreferredValue(table, '伤害反射', { C: 10, B: 16, A: 24, S: 32 }[grade] || 16);
+  } else if (type === '控制系') {
+    table = rebalanceWeightedTableWithPreferredValue(table, '伤害分摊', { C: 14, B: 22, A: 30, S: 40 }[grade] || 22);
+  } else if (type === '辅助系') {
+    table = rebalanceWeightedTableWithPreferredValue(table, '伤害分摊', { C: 18, B: 28, A: 38, S: 48 }[grade] || 28);
+    table = rebalanceWeightedTableWithPreferredValue(table, '复苏', { C: 16, B: 24, A: 34, S: 44 }[grade] || 24);
+  } else if (type === '治疗系') {
+    table = rebalanceWeightedTableWithPreferredValue(table, '伤害分摊', { C: 12, B: 20, A: 28, S: 36 }[grade] || 20);
+    table = rebalanceWeightedTableWithPreferredValue(table, '复苏', { C: 20, B: 30, A: 42, S: 54 }[grade] || 30);
+  }
+  if (isRouguRabbitFlavorSource(sourceName)) {
+    table = rebalanceWeightedTableWithPreferredValue(table, '无敌金身', { C: 30, B: 45, A: 58, S: 72 }[grade] || 45);
+  }
+  return table;
+}
+
+function buildSpecialRuleArchetypeWeightedTableByContext(grade, type = '强攻系') {
+  const baseTables = {
+    C: [
+      { value: '条件触发', weight: 39 },
+      { value: '分身', weight: 21 },
+      { value: '强制绑定/锁定', weight: 10 },
+      { value: '反制', weight: 10 },
+      { value: '转化', weight: 8 },
+      { value: '状态交换', weight: 3 },
+      { value: '复制', weight: 2 },
+      { value: '规则改写', weight: 2 },
+      { value: '状态转移', weight: 1 },
+      { value: '引爆持续伤害', weight: 1 },
+      { value: '斩盾', weight: 1 },
+      { value: '窃取护盾', weight: 2 },
+    ],
+    B: [
+      { value: '条件触发', weight: 25 },
+      { value: '分身', weight: 18 },
+      { value: '强制绑定/锁定', weight: 16 },
+      { value: '反制', weight: 12 },
+      { value: '转化', weight: 10 },
+      { value: '状态交换', weight: 6 },
+      { value: '复制', weight: 4 },
+      { value: '规则改写', weight: 3 },
+      { value: '状态转移', weight: 2 },
+      { value: '引爆持续伤害', weight: 2 },
+      { value: '斩盾', weight: 1 },
+      { value: '窃取护盾', weight: 1 },
+    ],
+    A: [
+      { value: '分身', weight: 12 },
+      { value: '复制', weight: 10 },
+      { value: '反制', weight: 16 },
+      { value: '转化', weight: 9 },
+      { value: '状态交换', weight: 12 },
+      { value: '强制绑定/锁定', weight: 10 },
+      { value: '条件触发', weight: 7 },
+      { value: '规则改写', weight: 10 },
+      { value: '状态转移', weight: 5 },
+      { value: '引爆持续伤害', weight: 4 },
+      { value: '斩盾', weight: 3 },
+      { value: '窃取护盾', weight: 2 },
+    ],
+    S: [
+      { value: '分身', weight: 10 },
+      { value: '复制', weight: 9 },
+      { value: '反制', weight: 15 },
+      { value: '转化', weight: 8 },
+      { value: '状态交换', weight: 10 },
+      { value: '强制绑定/锁定', weight: 9 },
+      { value: '条件触发', weight: 6 },
+      { value: '规则改写', weight: 12 },
+      { value: '状态转移', weight: 8 },
+      { value: '引爆持续伤害', weight: 5 },
+      { value: '斩盾', weight: 5 },
+      { value: '窃取护盾', weight: 3 },
+    ],
+  };
+  let table = (baseTables[grade] || baseTables.B).map(item => ({ ...item }));
+  if (type === '精神系') {
+    table = rebalanceWeightedTableWithPreferredValue(table, '状态转移', { C: 18, B: 28, A: 38, S: 50 }[grade] || 28);
+  } else if (type === '控制系') {
+    table = rebalanceWeightedTableWithPreferredValue(table, '状态转移', { C: 12, B: 20, A: 28, S: 36 }[grade] || 20);
+  } else if (type === '强攻系') {
+    table = rebalanceWeightedTableWithPreferredValue(table, '斩盾', { C: 10, B: 16, A: 24, S: 32 }[grade] || 16);
+  } else if (type === '敏攻系') {
+    table = rebalanceWeightedTableWithPreferredValue(table, '斩盾', { C: 14, B: 22, A: 30, S: 38 }[grade] || 22);
+  } else if (type === '元素系') {
+    table = rebalanceWeightedTableWithPreferredValue(table, '斩盾', { C: 12, B: 20, A: 30, S: 40 }[grade] || 20);
+    table = rebalanceWeightedTableWithPreferredValue(table, '引爆持续伤害', { C: 16, B: 24, A: 34, S: 46 }[grade] || 24);
+  } else if (type === '辅助系' || type === '治疗系') {
+    table = rebalanceWeightedTableWithPreferredValue(table, '窃取护盾', { C: 10, B: 16, A: 24, S: 30 }[grade] || 16);
+  }
+  return table;
+}
+
+function rollSubModelByGrade(mainMechanic, grade, roll, context = {}) {
   const tables = {
     伤害类: {
       C: [
@@ -1938,32 +3337,10 @@ function rollSubModelByGrade(mainMechanic, grade, roll) {
       ],
     },
     防御类: {
-      C: [
-        { value: '护盾', weight: 60 },
-        { value: '减伤', weight: 30 },
-        { value: '格挡/抵消', weight: 10 },
-      ],
-      B: [
-        { value: '护盾', weight: 40 },
-        { value: '减伤', weight: 25 },
-        { value: '格挡/抵消', weight: 15 },
-        { value: '霸体', weight: 15 },
-        { value: '免死/锁血', weight: 5 },
-      ],
-      A: [
-        { value: '护盾', weight: 30 },
-        { value: '减伤', weight: 25 },
-        { value: '格挡/抵消', weight: 20 },
-        { value: '霸体', weight: 15 },
-        { value: '免死/锁血', weight: 10 },
-      ],
-      S: [
-        { value: '护盾', weight: 20 },
-        { value: '减伤', weight: 20 },
-        { value: '格挡/抵消', weight: 20 },
-        { value: '霸体', weight: 15 },
-        { value: '免死/锁血', weight: 25 },
-      ],
+      C: buildDefenseArchetypeWeightedTableByContext('C', context?.type || '强攻系', context?.sourceName || ''),
+      B: buildDefenseArchetypeWeightedTableByContext('B', context?.type || '强攻系', context?.sourceName || ''),
+      A: buildDefenseArchetypeWeightedTableByContext('A', context?.type || '强攻系', context?.sourceName || ''),
+      S: buildDefenseArchetypeWeightedTableByContext('S', context?.type || '强攻系', context?.sourceName || ''),
     },
     回复类: {
       C: [
@@ -2027,37 +3404,10 @@ function rollSubModelByGrade(mainMechanic, grade, roll) {
       ],
     },
     特殊规则类: {
-      C: [
-        { value: '条件触发', weight: 70 },
-        { value: '分身', weight: 30 },
-      ],
-      B: [
-        { value: '分身', weight: 20 },
-        { value: '条件触发', weight: 30 },
-        { value: '强制绑定/锁定', weight: 20 },
-        { value: '反制', weight: 15 },
-        { value: '转化', weight: 15 },
-      ],
-      A: [
-        { value: '分身', weight: 15 },
-        { value: '复制', weight: 12 },
-        { value: '反制', weight: 18 },
-        { value: '转化', weight: 12 },
-        { value: '状态交换', weight: 12 },
-        { value: '强制绑定/锁定', weight: 12 },
-        { value: '条件触发', weight: 9 },
-        { value: '规则改写', weight: 10 },
-      ],
-      S: [
-        { value: '分身', weight: 15 },
-        { value: '复制', weight: 12 },
-        { value: '反制', weight: 18 },
-        { value: '转化', weight: 10 },
-        { value: '状态交换', weight: 13 },
-        { value: '强制绑定/锁定', weight: 10 },
-        { value: '条件触发', weight: 7 },
-        { value: '规则改写', weight: 15 },
-      ],
+      C: buildSpecialRuleArchetypeWeightedTableByContext('C', context?.type || '强攻系'),
+      B: buildSpecialRuleArchetypeWeightedTableByContext('B', context?.type || '强攻系'),
+      A: buildSpecialRuleArchetypeWeightedTableByContext('A', context?.type || '强攻系'),
+      S: buildSpecialRuleArchetypeWeightedTableByContext('S', context?.type || '强攻系'),
     },
     位移类: {
       C: [
@@ -2245,6 +3595,7 @@ function rollTargetModelByGrade(mainMechanic, grade, roll, subModel = '', type =
   let tableSet = offensive;
   if (type === '食物系' && ['增益类', '防御类', '回复类', '特殊规则类'].includes(mainMechanic)) tableSet = foodSupport;
   else if (['增益类', '防御类', '回复类'].includes(mainMechanic)) tableSet = support;
+  else if (['辅助系', '治疗系'].includes(type) && mainMechanic === '特殊规则类') tableSet = support;
   else if (mainMechanic === '感知/认知类') tableSet = subModel === '共享视野' ? cognitiveShared : cognitiveHostile;
   else if (mainMechanic === '特殊规则类' && subModel === '分身') tableSet = support;
   else if (mainMechanic === '特殊规则类') tableSet = special;
@@ -2266,34 +3617,37 @@ function rollAttributeDirectionByType(type, subModel, roll) {
   return pickUniqueRandom(hints, 1);
 }
 
-function rollExtraMechanics(main, grade, ringIndex, preferredSecondary = []) {
-  const secondaryPool = SKILL_SECONDARY_BY_MAIN_V1[main] || [];
-  const preferredPool = (preferredSecondary || []).filter(item => secondaryPool.includes(item));
-  const effectivePool = preferredPool.length > 0 ? preferredPool : secondaryPool;
+function rollExtraMechanics(main, grade, ringIndex, preferredSecondary = [], type = '强攻系') {
+  const weightedPool = buildSecondaryWeightedPool(main, type, preferredSecondary);
   let secondary = [];
   let mutation = [];
   const secondaryChance = getSecondaryGenerationChance(grade, ringIndex);
   const doubleChance = getSecondaryDoubleChance(grade, ringIndex);
   const mutationChance = getSecondaryMutationChance(grade, ringIndex);
-  if (effectivePool.length > 0 && Math.random() * 100 < secondaryChance) {
+  if (weightedPool.length > 0 && Math.random() * 100 < secondaryChance) {
     const count = Math.random() * 100 < doubleChance ? 2 : 1;
-    secondary = pickUniqueRandom(effectivePool, count);
+    secondary = pickUniqueWeightedRandom(weightedPool, count);
   }
   if (secondary.length > 0 && Math.random() * 100 < mutationChance)
     mutation = pickUniqueRandom(SKILL_MUTATION_MECHANIC_TYPES_V1, 1);
   return { secondary, mutation };
 }
 
-function rollSkillBlueprint(type, grade, ringIndex, preferredSecondary = []) {
+function rollSkillBlueprint(type, grade, ringIndex, preferredSecondary = [], options = {}) {
   const mainRoll = Math.floor(Math.random() * 100) + 1;
   const main = rollMainMechanicByGrade(type, grade, mainRoll);
   const subRoll = Math.floor(Math.random() * 100) + 1;
-  const subModel = rollSubModelByGrade(main, grade, subRoll);
+  const sourceName =
+    String(options?.sourceName || options?.spiritName || options?.speciesName || options?.martialSoulName || '').trim();
+  const subModel = rollSubModelByGrade(main, grade, subRoll, {
+    type,
+    sourceName,
+  });
   const targetRoll = Math.floor(Math.random() * 100) + 1;
   const targetModel = rollTargetModelByGrade(main, grade, targetRoll, subModel, type);
   const attrRoll = Math.floor(Math.random() * 100) + 1;
   const attrHints = rollAttributeDirectionByType(type, subModel, attrRoll);
-  const extra = rollExtraMechanics(main, grade, ringIndex, preferredSecondary);
+  const extra = rollExtraMechanics(main, grade, ringIndex, preferredSecondary, type);
   const deliveryPool = SKILL_DELIVERY_FORM_BY_TYPE_V1[type] || ['直接生效'];
   const delivery = type === '食物系' ? '造物承载' : subModel === '分身' ? '召唤承载' : pickRandom(deliveryPool) || '直接生效';
 
@@ -2366,7 +3720,7 @@ function buildSkillBattleSummary(blueprint) {
     ['软控', '位移限制', '节奏打断', '前摇拉长', '掌控压制', '感知干扰', '幻境', '催眠', '认知扭曲'].includes(
       archetype,
     ) ||
-    secondary.some(s => ['打断', '沉默', '减速', '致盲', '迟缓', '禁疗'].includes(s))
+    secondary.some(s => ['打断', '沉默', '减速', '致盲', '迟缓', '禁疗', '缴械', '嘲讽', '破隐'].includes(s))
   )
     summary.控制强度 = '软控';
 
@@ -2378,17 +3732,18 @@ function buildSkillBattleSummary(blueprint) {
   if (['护盾'].includes(archetype) || secondary.includes('小护盾')) summary.防御性质 = '护盾';
   else if (['减伤'].includes(archetype)) summary.防御性质 = '减伤';
   else if (['霸体'].includes(archetype)) summary.防御性质 = '霸体';
-  else if (['分身'].includes(archetype)) summary.防御性质 = '分身';
+  else if (['分身', '隐身'].includes(archetype) || secondary.includes('隐身')) summary.防御性质 = '分身';
+  else if (secondary.includes('护卫')) summary.防御性质 = '护卫';
   else if (['免死/锁血'].includes(archetype)) summary.防御性质 = '免死';
 
   if (
     ['共享视野', '标记锁定', '多属性增益', '全属性增益', '掌控提升', '速度提升', '消耗降低'].includes(
       archetype,
     ) ||
-    secondary.some(s => ['标记弱点', '共享视野'].includes(s))
+    secondary.some(s => ['标记弱点', '共享视野', '目标锁定', '护卫'].includes(s))
   )
     summary.协同性 = '高';
-  else if (['单属性增益', '感知干扰', '反制', '分身'].includes(archetype)) summary.协同性 = '中';
+  else if (['单属性增益', '感知干扰', '反制', '分身', '隐身'].includes(archetype) || secondary.some(s => ['窃取增益', '隐身'].includes(s))) summary.协同性 = '中';
 
   if (['延迟爆发', '条件触发', '规则改写', '复制', '反制'].includes(archetype)) summary.保留倾向 = 50;
   if (['免死/锁血', '格挡/抵消'].includes(archetype)) summary.保留倾向 = 65;
@@ -2411,6 +3766,71 @@ function normalizeConstructTarget(target, fallback = '自身') {
   if (/敌方单体/.test(text)) return '敌方单体';
   if (/全场/.test(text)) return '全场';
   return '自身';
+}
+
+const SKILL_TARGET_MODEL_VALUES_V1 = Object.freeze(['自身', '友方单体', '友方群体', '敌方单体', '敌方群体', '全场']);
+const SKILL_TARGET_MODIFIER_VALUES_V1 = Object.freeze([
+  '受隐身筛选',
+  '可被破隐',
+  '可被嘲讽',
+  '可被护卫重定向',
+  '可被随机偏转',
+  '可被锁定强化',
+]);
+
+function normalizeSkillTargetModel(value = '', fallback = '敌方单体') {
+  const text = String(value || '').trim();
+  if (SKILL_TARGET_MODEL_VALUES_V1.includes(text)) return text;
+  const derived = normalizeConstructTarget(text, fallback);
+  return SKILL_TARGET_MODEL_VALUES_V1.includes(derived) ? derived : fallback;
+}
+
+function mapSkillTargetModelToCombatTarget(targetModel = '敌方单体') {
+  return {
+    自身: '自身',
+    友方单体: '己方/单体',
+    友方群体: '己方/群体',
+    敌方单体: '敌方/单体',
+    敌方群体: '敌方/群体',
+    全场: '全场',
+  }[normalizeSkillTargetModel(targetModel)] || '敌方/单体';
+}
+
+function normalizeSkillTargetModifierList(value = []) {
+  const source = Array.isArray(value) ? value : [value];
+  return Array.from(
+    new Set(
+      source
+        .map(item => String(item || '').trim())
+        .filter(item => SKILL_TARGET_MODIFIER_VALUES_V1.includes(item)),
+    ),
+  );
+}
+
+function buildGeneratedSkillTargetModifiers(targetModel = '敌方单体', archetype = '', secondary = [], mutation = []) {
+  const normalizedTargetModel = normalizeSkillTargetModel(targetModel);
+  const normalizedSecondary = Array.isArray(secondary) ? secondary.map(item => String(item || '').trim()) : [];
+  const normalizedMutation = Array.isArray(mutation) ? mutation.map(item => String(item || '').trim()) : [];
+  const modifiers = [];
+  if (['敌方单体', '敌方群体'].includes(normalizedTargetModel)) {
+    modifiers.push('受隐身筛选', '可被嘲讽', '可被护卫重定向', '可被锁定强化');
+  }
+  if (['敌方单体', '敌方群体', '全场'].includes(normalizedTargetModel) && normalizedSecondary.includes('破隐')) {
+    modifiers.push('可被破隐');
+  }
+  if (
+    ['敌方单体', '敌方群体'].includes(normalizedTargetModel) &&
+    (normalizedMutation.includes('随机目标') || String(archetype || '').trim() === '认知扭曲')
+  ) {
+    modifiers.push('可被随机偏转');
+  }
+  return normalizeSkillTargetModifierList(modifiers);
+}
+
+function getSkillTargetResolutionStrategy(targetModel = '敌方单体') {
+  return ['敌方群体', '友方群体', '全场'].includes(normalizeSkillTargetModel(targetModel))
+    ? '全目标独立'
+    : '单目标独立';
 }
 
 function buildConstructUsableEffects(baseEffects, defaultTarget, skillType = '') {
@@ -2564,6 +3984,9 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
 
   const 战斗 = {
     技能类型: '输出',
+    目标模型: normalizeSkillTargetModel(targetModel, '敌方单体'),
+    目标修饰: [],
+    结算策略: '单目标独立',
     对象: targetMap[targetModel] || '敌方/单体',
     cast_time: randInt(castRange[0], castRange[1]),
     消耗: '无',
@@ -2578,6 +4001,8 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
         计算层效果: {
           skip_turn: false,
           cannot_react: false,
+          invincible: false,
+          skill_seal: false,
           dot_damage: 0,
           armor_pen: 0,
           reaction_bonus: 0,
@@ -2604,9 +4029,22 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
           sp_gain_ratio: 0,
           men_gain_ratio: 0,
           heal_block_ratio: 0,
+          hot_heal_ratio: 0,
           resource_block_ratio: 0,
           min_hp_floor: 0,
           death_save_count: 0,
+          revive_count: 0,
+          revive_heal_ratio: 0,
+          substitute_count: 0,
+          damage_reflect_ratio: 0,
+          damage_share_ratio: 0,
+          damage_share_count: 0,
+          heal_inversion_ratio: 0,
+          invincible_tier_threshold: 0,
+          daily_trigger_limit: 0,
+          stealth_level: 0,
+          bonus_true_damage_ratio: 0,
+          life_steal_ratio: 0,
           cost_ratio: 1.0,
           windup_ratio: 1.0,
           mastery_ratio: 1.0,
@@ -2620,6 +4058,10 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
   const clash = 战斗.仲裁逻辑.瞬间交锋模块;
   const state = 战斗.仲裁逻辑.状态挂载模块;
   const field = 战斗.仲裁逻辑.召唤与场地模块;
+  战斗.目标模型 = normalizeSkillTargetModel(targetModel, '敌方单体');
+  战斗.目标修饰 = buildGeneratedSkillTargetModifiers(战斗.目标模型, archetype, secondary, mutation);
+  战斗.结算策略 = getSkillTargetResolutionStrategy(战斗.目标模型);
+  战斗.对象 = mapSkillTargetModelToCombatTarget(战斗.目标模型);
   const scaleStatMods = factor => {
     ['str', 'def', 'agi', 'men_max', 'sp_max'].forEach(k => {
       const value = state.面板修改比例[k];
@@ -2815,6 +4257,46 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
       state.计算层效果.min_hp_floor = 1;
       state.计算层效果.death_save_count = gradeFactor >= 4 ? 2 : 1;
     }
+    if (archetype === '无敌金身') {
+      const reduce = randomInRange({ C: [0.08, 0.12], B: [0.12, 0.18], A: [0.18, 0.28], S: [0.28, 0.38] });
+      state.特殊机制标识 = '无敌金身/每日3次/神级以下免疫';
+      state.计算层效果.invincible = true;
+      state.计算层效果.super_armor = true;
+      state.计算层效果.invincible_tier_threshold = 100;
+      state.计算层效果.daily_trigger_limit = 3;
+      state.计算层效果.damage_reduction = Number((reduce * Math.max(0.9, targetFactor)).toFixed(2));
+    }
+    if (archetype === '伤害反射') {
+      const reflect = randomInRange({ C: [0.12, 0.18], B: [0.18, 0.26], A: [0.26, 0.36], S: [0.36, 0.5] });
+      state.特殊机制标识 = `伤害反射:${Math.round(reflect * 100)}%`;
+      state.计算层效果.damage_reflect_ratio = Number((reflect * Math.max(0.9, targetFactor)).toFixed(2));
+      state.计算层效果.damage_reduction = Math.max(
+        Number(state.计算层效果.damage_reduction || 0),
+        Number((reflect * 0.35).toFixed(2)),
+      );
+    }
+    if (archetype === '伤害分摊') {
+      const share = randomInRange({ C: [0.18, 0.24], B: [0.24, 0.32], A: [0.32, 0.42], S: [0.42, 0.55] });
+      const shareCount = gradeFactor >= 4 ? 2 : 1;
+      state.特殊机制标识 = `伤害分摊:${Math.round(share * 100)}%/${shareCount}人`;
+      state.计算层效果.damage_share_ratio = Number((share * Math.max(0.9, targetFactor)).toFixed(2));
+      state.计算层效果.damage_share_count = shareCount;
+    }
+    if (archetype === '替身抵消') {
+      const substituteCount = gradeFactor >= 4 ? 2 : 1;
+      state.特殊机制标识 = `替身抵消:${substituteCount}次`;
+      state.计算层效果.substitute_count = substituteCount;
+      state.计算层效果.dodge_bonus = Math.max(
+        Number(state.计算层效果.dodge_bonus || 0),
+        Number(randomInRange({ C: [0.06, 0.1], B: [0.1, 0.14], A: [0.14, 0.2], S: [0.2, 0.28] }).toFixed(2)),
+      );
+    }
+    if (archetype === '复苏') {
+      const reviveRatio = randomInRange({ C: [0.15, 0.22], B: [0.22, 0.3], A: [0.3, 0.4], S: [0.4, 0.5] });
+      state.特殊机制标识 = `复苏:${Math.round(reviveRatio * 100)}%`;
+      state.计算层效果.revive_count = 1;
+      state.计算层效果.revive_heal_ratio = Number((reviveRatio * Math.max(0.9, targetFactor)).toFixed(2));
+    }
     if (targetFactor < 1) state.持续回合 = Math.max(1, Math.round(state.持续回合 * Math.max(0.8, targetFactor)));
   } else if (main === '回复类') {
     战斗.技能类型 = '辅助';
@@ -2852,6 +4334,20 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
     战斗.技能类型 = '辅助';
     state.状态名称 = archetype;
     state.持续回合 = 2;
+    if (archetype === '感知干扰') {
+      state.特殊机制标识 = '感知干扰';
+      state.计算层效果.hit_penalty = Number(
+        randomInRange({ C: [0.05, 0.1], B: [0.1, 0.16], A: [0.16, 0.24], S: [0.24, 0.35] }).toFixed(2),
+      );
+      state.计算层效果.reaction_penalty = Number(
+        randomInRange({ C: [0.04, 0.08], B: [0.08, 0.12], A: [0.12, 0.2], S: [0.2, 0.28] }).toFixed(2),
+      );
+      if (gradeFactor >= 3) {
+        state.计算层效果.cast_speed_penalty = Number(
+          randomInRange({ A: [0.08, 0.14], S: [0.14, 0.22] }).toFixed(2),
+        );
+      }
+    }
     if (archetype === '标记锁定') {
       state.特殊机制标识 = '锁定';
       state.计算层效果.lock_level = { C: 1, B: 1, A: 2, S: 3 }[grade] || 1;
@@ -2893,7 +4389,21 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
       state.计算层效果.skip_turn = true;
       state.计算层效果.cannot_react = true;
     }
-    if (archetype === '认知扭曲') state.特殊机制标识 = '认知扭曲';
+    if (archetype === '认知扭曲') {
+      state.特殊机制标识 = '认知扭曲';
+      state.计算层效果.hit_penalty = Number(
+        randomInRange({ C: [0.08, 0.12], B: [0.12, 0.18], A: [0.18, 0.26], S: [0.26, 0.36] }).toFixed(2),
+      );
+      state.计算层效果.control_success_penalty = Number(
+        randomInRange({ C: [0.05, 0.08], B: [0.08, 0.12], A: [0.12, 0.18], S: [0.18, 0.26] }).toFixed(2),
+      );
+      state.计算层效果.cast_speed_penalty = Number(
+        randomInRange({ C: [0.04, 0.08], B: [0.08, 0.12], A: [0.12, 0.18], S: [0.18, 0.24] }).toFixed(2),
+      );
+      state.计算层效果.random_target_rate = Number(
+        randomInRange({ C: [0.12, 0.2], B: [0.2, 0.3], A: [0.3, 0.42], S: [0.42, 0.56] }).toFixed(2),
+      );
+    }
   } else if (main === '位移类') {
     战斗.技能类型 = '辅助';
     state.状态名称 = archetype;
@@ -3161,10 +4671,156 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
     state.特殊机制标识 = [state.特殊机制标识, `共享视野:${{ C: 1, B: 2, A: 3, S: 4 }[grade] || 1}回合`]
       .filter(v => v && v !== '无')
       .join('/');
-  if (secondary.includes('目标锁定'))
+  if (secondary.includes('目标锁定')) {
+    const lockDuration = Math.max(1, Math.round(({ C: 1, B: 2, A: 2, S: 3 }[grade] || 1) * secondaryDurationScale));
+    const lockHitBonus = Number(
+      (({ C: 0.04, B: 0.07, A: 0.1, S: 0.14 }[grade] || 0.07) * secondaryEffectScale).toFixed(2),
+    );
+    const lockLevel = Math.max(1, Math.round(({ C: 1, B: 1, A: 2, S: 2 }[grade] || 1) * secondaryDurationScale));
+    state.状态名称 = state.状态名称 === '无' ? '目标锁定' : state.状态名称;
+    state.持续回合 = Math.max(state.持续回合, lockDuration);
     state.特殊机制标识 = [state.特殊机制标识, `目标锁定:${{ C: 1, B: 2, A: 2, S: 3 }[grade] || 1}回合`]
       .filter(v => v && v !== '无')
       .join('/');
+    state.计算层效果.hit_bonus = Math.max(Number(state.计算层效果.hit_bonus || 0), lockHitBonus);
+    state.计算层效果.lock_level = Math.max(Number(state.计算层效果.lock_level || 0), lockLevel);
+  }
+  if (secondary.includes('隐身')) {
+    const stealthDuration = Math.max(1, Math.round(({ C: 1, B: 2, A: 2, S: 3 }[grade] || 1) * secondaryDurationScale));
+    const stealthLevel = Number(
+      (({ C: 0.18, B: 0.28, A: 0.4, S: 0.55 }[grade] || 0.28) * secondaryEffectScale).toFixed(2),
+    );
+    const dodgeBonus = Number(
+      (({ C: 0.06, B: 0.1, A: 0.14, S: 0.2 }[grade] || 0.1) * secondaryEffectScale).toFixed(2),
+    );
+    const reactionBonus = Number(
+      (({ C: 0.04, B: 0.07, A: 0.1, S: 0.14 }[grade] || 0.07) * secondaryEffectScale).toFixed(2),
+    );
+    state.状态名称 = state.状态名称 === '无' ? '隐身' : state.状态名称;
+    state.持续回合 = Math.max(state.持续回合, stealthDuration);
+    state.特殊机制标识 = [state.特殊机制标识, `隐身:${stealthDuration}回合`]
+      .filter(v => v && v !== '无')
+      .join('/');
+    state.计算层效果.stealth_level = Math.max(Number(state.计算层效果.stealth_level || 0), stealthLevel);
+    state.计算层效果.dodge_bonus = Math.max(Number(state.计算层效果.dodge_bonus || 0), dodgeBonus);
+    state.计算层效果.reaction_bonus = Math.max(Number(state.计算层效果.reaction_bonus || 0), reactionBonus);
+  }
+  if (secondary.includes('护卫')) {
+    const guardDuration = Math.max(1, Math.round(({ C: 1, B: 2, A: 2, S: 3 }[grade] || 1) * secondaryDurationScale));
+    const guardReduction = Number(
+      (({ C: 0.06, B: 0.1, A: 0.14, S: 0.18 }[grade] || 0.1) * secondaryEffectScale).toFixed(2),
+    );
+    state.状态名称 = state.状态名称 === '无' ? '护卫' : state.状态名称;
+    state.持续回合 = Math.max(state.持续回合, guardDuration);
+    state.特殊机制标识 = [state.特殊机制标识, `护卫:${guardDuration}回合`]
+      .filter(v => v && v !== '无')
+      .join('/');
+    state.计算层效果.damage_reduction = Math.max(Number(state.计算层效果.damage_reduction || 0), guardReduction);
+  }
+  if (secondary.includes('嘲讽')) {
+    const tauntDuration = Math.max(1, Math.round(({ C: 1, B: 1, A: 2, S: 2 }[grade] || 1) * secondaryDurationScale));
+    state.状态名称 = state.状态名称 === '无' ? '嘲讽' : state.状态名称;
+    state.持续回合 = Math.max(state.持续回合, tauntDuration);
+    state.特殊机制标识 = [state.特殊机制标识, `嘲讽:${tauntDuration}回合`]
+      .filter(v => v && v !== '无')
+      .join('/');
+  }
+  if (secondary.includes('窃取增益'))
+    state.特殊机制标识 = [state.特殊机制标识, '窃取增益'].filter(v => v && v !== '无').join('/');
+  if (secondary.includes('破隐'))
+    state.特殊机制标识 = [state.特殊机制标识, '破隐'].filter(v => v && v !== '无').join('/');
+  if (secondary.includes('追击')) {
+    const chaseDuration = Math.max(1, Math.round(({ C: 1, B: 1, A: 2, S: 2 }[grade] || 1) * secondaryDurationScale));
+    const chaseHitBonus = Number(
+      (({ C: 0.03, B: 0.06, A: 0.09, S: 0.12 }[grade] || 0.06) * secondaryEffectScale).toFixed(2),
+    );
+    const chaseSpeedBonus = Number(
+      (({ C: 0.03, B: 0.05, A: 0.08, S: 0.1 }[grade] || 0.05) * secondaryEffectScale).toFixed(2),
+    );
+    const chaseDamageMult = Number(
+      (1 + ({ C: 0.04, B: 0.06, A: 0.1, S: 0.14 }[grade] || 0.06) * secondaryEffectScale).toFixed(2),
+    );
+    state.状态名称 = state.状态名称 === '无' ? '追击' : state.状态名称;
+    state.持续回合 = Math.max(state.持续回合, chaseDuration);
+    state.特殊机制标识 = [state.特殊机制标识, `追击:${chaseDuration}回合`]
+      .filter(v => v && v !== '无')
+      .join('/');
+    state.计算层效果.hit_bonus = Math.max(Number(state.计算层效果.hit_bonus || 0), chaseHitBonus);
+    state.计算层效果.attacker_speed_bonus = Math.max(Number(state.计算层效果.attacker_speed_bonus || 0), chaseSpeedBonus);
+    state.计算层效果.final_damage_mult = Math.max(Number(state.计算层效果.final_damage_mult || 1), chaseDamageMult);
+  }
+  if (secondary.includes('无敌金身')) {
+    const goldenDuration = Math.max(1, Math.round(({ C: 1, B: 1, A: 2, S: 2 }[grade] || 1) * secondaryDurationScale));
+    state.状态名称 = state.状态名称 === '无' ? '无敌金身' : state.状态名称;
+    state.持续回合 = Math.max(state.持续回合, goldenDuration);
+    state.特殊机制标识 = [state.特殊机制标识, `无敌金身:${goldenDuration}回合/每日3次/神级以下免疫`]
+      .filter(v => v && v !== '无')
+      .join('/');
+    state.计算层效果.invincible = true;
+    state.计算层效果.super_armor = true;
+    state.计算层效果.invincible_tier_threshold = Math.max(Number(state.计算层效果.invincible_tier_threshold || 0), 100);
+    state.计算层效果.daily_trigger_limit = Math.max(Number(state.计算层效果.daily_trigger_limit || 0), 3);
+    state.计算层效果.damage_reduction = Math.max(Number(state.计算层效果.damage_reduction || 0), Number(({ C: 0.08, B: 0.12, A: 0.18, S: 0.25 }[grade] || 0.12)));
+  }
+  if (secondary.includes('伤害反射')) {
+    const reflectDuration = Math.max(1, Math.round(({ C: 1, B: 2, A: 2, S: 3 }[grade] || 1) * secondaryDurationScale));
+    const reflectRatio = Number((({ C: 0.12, B: 0.2, A: 0.3, S: 0.45 }[grade] || 0.2) * secondaryEffectScale).toFixed(2));
+    state.状态名称 = state.状态名称 === '无' ? '伤害反射' : state.状态名称;
+    state.持续回合 = Math.max(state.持续回合, reflectDuration);
+    state.特殊机制标识 = [state.特殊机制标识, `伤害反射:${reflectDuration}回合`].filter(v => v && v !== '无').join('/');
+    state.计算层效果.damage_reflect_ratio = Math.max(Number(state.计算层效果.damage_reflect_ratio || 0), reflectRatio);
+  }
+  if (secondary.includes('伤害分摊')) {
+    const shareDuration = Math.max(1, Math.round(({ C: 1, B: 2, A: 2, S: 3 }[grade] || 1) * secondaryDurationScale));
+    const shareRatio = Number((({ C: 0.2, B: 0.3, A: 0.4, S: 0.5 }[grade] || 0.3) * secondaryEffectScale).toFixed(2));
+    const shareCount = Math.max(1, Math.round(({ C: 1, B: 1, A: 2, S: 2 }[grade] || 1) * secondaryDurationScale));
+    state.状态名称 = state.状态名称 === '无' ? '伤害分摊' : state.状态名称;
+    state.持续回合 = Math.max(state.持续回合, shareDuration);
+    state.特殊机制标识 = [state.特殊机制标识, `伤害分摊:${shareDuration}回合`].filter(v => v && v !== '无').join('/');
+    state.计算层效果.damage_share_ratio = Math.max(Number(state.计算层效果.damage_share_ratio || 0), shareRatio);
+    state.计算层效果.damage_share_count = Math.max(Number(state.计算层效果.damage_share_count || 0), shareCount);
+  }
+  if (secondary.includes('替身抵消')) {
+    const substituteDuration = Math.max(1, Math.round(({ C: 1, B: 1, A: 2, S: 2 }[grade] || 1) * secondaryDurationScale));
+    const substituteCount = Math.max(1, Math.round(({ C: 1, B: 1, A: 2, S: 2 }[grade] || 1)));
+    state.状态名称 = state.状态名称 === '无' ? '替身抵消' : state.状态名称;
+    state.持续回合 = Math.max(state.持续回合, substituteDuration);
+    state.特殊机制标识 = [state.特殊机制标识, `替身抵消:${substituteCount}次`].filter(v => v && v !== '无').join('/');
+    state.计算层效果.substitute_count = Math.max(Number(state.计算层效果.substitute_count || 0), substituteCount);
+    state.计算层效果.dodge_bonus = Math.max(Number(state.计算层效果.dodge_bonus || 0), Number(({ C: 0.04, B: 0.06, A: 0.09, S: 0.12 }[grade] || 0.06)));
+  }
+  if (secondary.includes('治疗反转')) {
+    const invertDuration = Math.max(1, Math.round(({ C: 1, B: 1, A: 2, S: 2 }[grade] || 1) * secondaryDurationScale));
+    const invertRatio = Number((({ C: 1.0, B: 1.0, A: 1.15, S: 1.3 }[grade] || 1.0) * secondaryEffectScale).toFixed(2));
+    state.状态名称 = state.状态名称 === '无' ? '治疗反转' : state.状态名称;
+    state.持续回合 = Math.max(state.持续回合, invertDuration);
+    state.特殊机制标识 = [state.特殊机制标识, `治疗反转:${invertDuration}回合`].filter(v => v && v !== '无').join('/');
+    state.计算层效果.heal_inversion_ratio = Math.max(Number(state.计算层效果.heal_inversion_ratio || 0), invertRatio);
+  }
+  if (secondary.includes('封技')) {
+    const sealDuration = Math.max(1, Math.round(({ C: 1, B: 1, A: 2, S: 2 }[grade] || 1) * secondaryDurationScale));
+    state.状态名称 = state.状态名称 === '无' ? '封技' : state.状态名称;
+    state.持续回合 = Math.max(state.持续回合, sealDuration);
+    state.特殊机制标识 = [state.特殊机制标识, `封技:${sealDuration}回合`].filter(v => v && v !== '无').join('/');
+    state.计算层效果.skill_seal = true;
+  }
+  if (secondary.includes('复苏')) {
+    const reviveDuration = Math.max(1, Math.round(({ C: 2, B: 2, A: 3, S: 3 }[grade] || 2) * secondaryDurationScale));
+    const reviveHealRatio = Number((({ C: 0.18, B: 0.25, A: 0.35, S: 0.45 }[grade] || 0.25) * secondaryEffectScale).toFixed(2));
+    state.状态名称 = state.状态名称 === '无' ? '复苏' : state.状态名称;
+    state.持续回合 = Math.max(state.持续回合, reviveDuration);
+    state.特殊机制标识 = [state.特殊机制标识, `复苏:${reviveDuration}回合`].filter(v => v && v !== '无').join('/');
+    state.计算层效果.revive_count = Math.max(Number(state.计算层效果.revive_count || 0), 1);
+    state.计算层效果.revive_heal_ratio = Math.max(Number(state.计算层效果.revive_heal_ratio || 0), reviveHealRatio);
+  }
+  if (secondary.includes('状态转移'))
+    state.特殊机制标识 = [state.特殊机制标识, '状态转移'].filter(v => v && v !== '无').join('/');
+  if (secondary.includes('引爆持续伤害'))
+    state.特殊机制标识 = [state.特殊机制标识, '引爆持续伤害'].filter(v => v && v !== '无').join('/');
+  if (secondary.includes('斩盾'))
+    state.特殊机制标识 = [state.特殊机制标识, '斩盾'].filter(v => v && v !== '无').join('/');
+  if (secondary.includes('窃取护盾'))
+    state.特殊机制标识 = [state.特殊机制标识, '窃取护盾'].filter(v => v && v !== '无').join('/');
   if (secondary.includes('魂力恢复'))
     state.特殊机制标识 = [
       state.特殊机制标识,
@@ -3871,20 +5527,64 @@ function buildSingleSkillEffectSummary(effect) {
         '清除负面状态' +
         (Number(effect.清除层级 || 0) > 0 ? '（层级' + formatSkillNumber(effect.清除层级) + '）' : '')
       );
+    case '驱散增益':
+      return '驱散' + target + '的增益状态' + (Number(effect.驱散数量 || 0) > 0 ? '（数量' + formatSkillNumber(effect.驱散数量) + '）' : '');
+    case '窃取增益':
+      return '窃取' + target + '的增益状态' + (Number(effect.窃取数量 || 0) > 0 ? '（数量' + formatSkillNumber(effect.窃取数量) + '）' : '');
+    case '窃取护盾':
+      return '窃取' + target + '当前护盾并转移给自身';
+    case '感知干扰':
+      return '扰乱' + target + '的感知判断，持续' + formatSkillNumber(effect.持续回合) + '回合';
     case '标记锁定':
       return '锁定' + target + '，持续' + formatSkillNumber(effect.持续回合) + '回合，并提高命中与锁定强度';
+    case '目标锁定':
+      return '锁定' + target + '的行动轨迹，持续' + formatSkillNumber(effect.持续回合) + '回合，提高追踪命中';
+    case '隐身':
+      return '使' + target + '进入隐身状态，持续' + formatSkillNumber(effect.持续回合) + '回合';
+    case '破隐':
+      return '强制拆除' + target + '的隐身伪装，并提高后续命中';
     case '共享视野':
       return '与' + target + '共享视野，持续' + formatSkillNumber(effect.持续回合) + '回合，提高反应与命中';
     case '幻境':
       return '对' + target + '施加幻境干扰，持续' + formatSkillNumber(effect.持续回合) + '回合';
     case '催眠':
       return '尝试催眠' + target + '，成功后持续' + formatSkillNumber(effect.持续回合) + '回合';
+    case '认知扭曲':
+      return '扭曲' + target + '的认知与判断，持续' + formatSkillNumber(effect.持续回合) + '回合';
     case '禁疗':
       return '对' + target + '施加禁疗，持续' + formatSkillNumber(effect.持续回合) + '回合';
+    case '缴械':
+      return '使' + target + '缴械，持续' + formatSkillNumber(effect.持续回合) + '回合';
     case '沉默':
       return '使' + target + '沉默' + formatSkillNumber(effect.持续回合) + '回合';
     case '减速':
       return '使' + target + '减速，持续' + formatSkillNumber(effect.持续回合) + '回合';
+    case '追击':
+      return '对' + target + '建立追击节奏，持续' + formatSkillNumber(effect.持续回合) + '回合，提高速度、命中与追击伤害';
+    case '引爆持续伤害':
+      return '引爆' + target + '身上的持续伤害效果，转化为即时伤害';
+    case '护卫':
+      return '为' + target + '提供护卫拦截，持续' + formatSkillNumber(effect.持续回合) + '回合';
+    case '嘲讽':
+      return '迫使' + target + '优先把火力集中到施术者身上，持续' + formatSkillNumber(effect.持续回合) + '回合';
+    case '无敌金身':
+      return '使' + target + '进入无敌金身，神级以下攻击每日最多豁免' + formatSkillNumber(effect.每日触发上限 || 3) + '次';
+    case '伤害反射':
+      return '使' + target + '在受击后反弹部分伤害，持续' + formatSkillNumber(effect.持续回合) + '回合';
+    case '伤害分摊':
+      return '使' + target + '将部分伤害分摊给友军，持续' + formatSkillNumber(effect.持续回合) + '回合';
+    case '替身抵消':
+      return '使' + target + '获得替身抵消层数，抵消' + formatSkillNumber(effect.抵消次数 || 1) + '次伤害';
+    case '状态转移':
+      return '将自身异常或目标状态进行单向转移';
+    case '斩盾':
+      return '直接斩碎' + target + '的护盾并转化为额外伤害';
+    case '治疗反转':
+      return '使' + target + '受到的治疗在持续期间反转为伤害';
+    case '封技':
+      return '封锁' + target + '的技能回路，持续' + formatSkillNumber(effect.持续回合) + '回合';
+    case '复苏':
+      return '为' + target + '附加一次复苏机会，濒死后恢复部分HP';
     case '硬控':
       return '强行控制' + target + '，持续' + formatSkillNumber(effect.持续回合) + '回合';
     case '打断':
@@ -3984,6 +5684,13 @@ function buildSingleSkillEffectSummary(effect) {
       if (Number(calc.control_resist_mult || 1) > 1) segments.push('抗控制提高');
       if (Number(calc.death_save_count || 0) > 0)
         segments.push('获得' + formatSkillNumber(calc.death_save_count) + '次濒死保护');
+      if (Number(calc.revive_count || 0) > 0) segments.push('附带' + formatSkillNumber(calc.revive_count) + '次复苏');
+      if (Number(calc.substitute_count || 0) > 0) segments.push('拥有' + formatSkillNumber(calc.substitute_count) + '次替身抵消');
+      if (Number(calc.damage_reflect_ratio || 0) > 0) segments.push('反弹' + formatSkillPercent(Number(calc.damage_reflect_ratio || 0)) + '伤害');
+      if (Number(calc.damage_share_ratio || 0) > 0) segments.push('分摊' + formatSkillPercent(Number(calc.damage_share_ratio || 0)) + '承伤');
+      if (Number(calc.heal_inversion_ratio || 0) > 0) segments.push('治疗反转');
+      if (calc.skill_seal === true) segments.push('封锁技能回路');
+      if (calc.invincible === true) segments.push('无敌金身护体');
       const stateHint = String(effect.特殊机制标识 || '').trim();
       if (stateHint && stateHint !== '无' && !segments.includes(stateHint)) segments.push(stateHint);
       let text = '进入【' + stateName + '】状态';
@@ -4147,11 +5854,12 @@ function hydrateSkillTextByPackedEffects(skill, context = {}, options = {}) {
 }
 
 const SKILL_SECONDARY_MECHANIC_TYPES_V1 = {
-  伤害附加: ['穿透', '吸血', '斩杀补伤', '流血DOT', '追击', '反击'],
-  控制附加: ['打断', '沉默', '减速', '致盲', '迟缓', '禁疗'],
-  防御附加: ['小护盾', '短减伤', '反伤', '霸体短附加'],
-  回复附加: ['魂力恢复', '精神恢复', '净化', '解控'],
-  情报附加: ['标记弱点', '共享视野', '目标锁定'],
+  伤害附加: ['穿透', '吸血', '斩杀补伤', '流血DOT', '追击', '反击', '引爆持续伤害', '斩盾'],
+  控制附加: ['打断', '沉默', '减速', '致盲', '迟缓', '禁疗', '缴械', '封技'],
+  防御附加: ['小护盾', '短减伤', '反伤', '霸体短附加', '护卫', '嘲讽', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏'],
+  回复附加: ['魂力恢复', '精神恢复', '净化', '解控', '驱散增益', '护卫', '复苏', '治疗反转'],
+  情报附加: ['标记弱点', '共享视野', '目标锁定', '感知干扰', '认知扭曲', '破隐'],
+  特殊附加: ['窃取增益', '隐身', '嘲讽', '护卫', '状态转移', '窃取护盾'],
   代价附加: ['自损', '异常耗蓝', '随机副作用'],
 };
 
@@ -4241,6 +5949,192 @@ function getPersistentSoulPowerBonusFromPermanentRecords(char = {}) {
   return Object.values(char?.血脉之力?.永久加成 || {}).reduce(
     (total, record) => total + normalizeDiscreteStatBonusInteger(record?.属性加成?.魂力上限),
     0,
+  );
+}
+
+function isNoSoulPowerTalentTier(talentTier = '') {
+  return String(talentTier || '').trim() === '天赋极差';
+}
+
+const TOP_TALENT_LATE_BLOOM_THRESHOLD_ACU = 1.03;
+const TOP_TALENT_LATE_BLOOM_GROWTH_MULTIPLIER_ACU = 3.0;
+const TOP_TALENT_LATE_BLOOM_STAGE3_CHANCE_MULTIPLIER_ACU = 2.5 / 0.9;
+const TOP_TALENT_LATE_BLOOM_STAGE3_BOTTLENECK_MULTIPLIER_ACU = 8.0;
+const TALENT_BACKGROUND_SCORE_BONUS_ACU = Object.freeze({
+  平民: 0,
+  普通势力: 20,
+  一流势力: 50,
+  顶级势力: 80,
+});
+const TALENT_BACKGROUND_RARE_BONUS_ODDS_ACU = Object.freeze({
+  平民: Object.freeze({ 顶级天才: 0.001, 绝世妖孽: 0.0002 }),
+  普通势力: Object.freeze({ 顶级天才: 0.003, 绝世妖孽: 0.0005 }),
+  一流势力: Object.freeze({ 顶级天才: 0.008, 绝世妖孽: 0.001 }),
+  顶级势力: Object.freeze({ 顶级天才: 0, 绝世妖孽: 0 }),
+});
+const TALENT_SCORE_THRESHOLDS_ACU = Object.freeze({
+  正常: 450,
+  优秀: 750,
+  天才: 950,
+  顶级天才: 1051,
+  绝世妖孽: 1071,
+});
+const GOOD_TALENT_LATE_BLOOM_THRESHOLD_ACU = 1.0456;
+const GOOD_TALENT_LATE_BLOOM_GROWTH_MULTIPLIER_ACU = 11.1174;
+const GOOD_TALENT_LATE_BLOOM_STAGE12_CHANCE_MULTIPLIER_ACU = 4.8226;
+const GOOD_TALENT_LATE_BLOOM_STAGE1_BOTTLENECK_MULTIPLIER_ACU = 3.3162;
+const GOOD_TALENT_LATE_BLOOM_STAGE2_BOTTLENECK_MULTIPLIER_ACU = 3.3910;
+const GOOD_TALENT_STAGE1_GROWTH_MULTIPLIER_ACU = 1.5632;
+const GOOD_TALENT_STAGE2_GROWTH_MULTIPLIER_ACU = 1.7770;
+const GOOD_TALENT_STAGE3_GROWTH_MULTIPLIER_ACU = 1.1850;
+const GOOD_TALENT_LATE_BLOOM_START_AGE_ACU = 33;
+function isTopTalentLateBloom_ACU(char = {}) {
+  return (
+    String(char?.属性?.天赋梯队 || '').trim() === '顶级天才' &&
+    Number(char?.属性?.底子波动 || 0) >= TOP_TALENT_LATE_BLOOM_THRESHOLD_ACU
+  );
+}
+
+function isGoodTalentLateBloom_ACU(char = {}) {
+  return (
+    String(char?.属性?.天赋梯队 || '').trim() === '优秀' &&
+    Number(char?.属性?.底子波动 || 0) >= GOOD_TALENT_LATE_BLOOM_THRESHOLD_ACU
+  );
+}
+
+function getSpiritHerbSoulPowerGain_ACU(age = 0) {
+  return Math.max(10, Math.floor(Math.max(0, Number(age || 0)) * 0.1));
+}
+
+function getUpgradedTalentTier_ACU(currentTier = '') {
+  const talentOrder = ['天赋极差', '劣等', '正常', '优秀', '天才', '顶级天才', '绝世妖孽'];
+  const normalizedTier = String(currentTier || '').trim();
+  const index = talentOrder.indexOf(normalizedTier);
+  if (index < 0) return normalizedTier || '正常';
+  if (index >= talentOrder.length - 1) return talentOrder[index];
+  return talentOrder[index + 1];
+}
+
+function applyHundredThousandSpiritHerbBonus_ACU(char = {}) {
+  if (!char?.属性 || Number(char?.状态?.吸收灵物年限 || 0) < 100000) return [];
+  const messages = [];
+  const originalHiddenVar = Math.max(0.1, Number(char.属性?.底子波动 || 1));
+  char.属性.底子波动 = Number((originalHiddenVar + 0.03).toFixed(4));
+  messages.push(`底子提升至 ${char.属性.底子波动.toFixed(4)}`);
+
+  if (originalHiddenVar > 1.02) {
+    const currentTier = String(char.属性?.天赋梯队 || '').trim() || '正常';
+    const nextTier = getUpgradedTalentTier_ACU(currentTier);
+    if (nextTier && nextTier !== currentTier) {
+      char.属性.天赋梯队 = nextTier;
+      messages.push(`天赋由【${currentTier}】提升为【${nextTier}】`);
+    }
+  }
+  return messages;
+}
+
+function getTalentCultivationStopAge_ACU(talentTier = '') {
+  return (
+    {
+      劣等: 40,
+      正常: 50,
+      优秀: 60,
+      天才: 90,
+      顶级天才: 100,
+      绝世妖孽: 120,
+    }[String(talentTier || '').trim()] ?? null
+  );
+}
+
+function canTalentContinueCultivating_ACU(char = {}) {
+  const stopAge = getTalentCultivationStopAge_ACU(char?.属性?.天赋梯队);
+  if (!Number.isFinite(Number(stopAge))) return true;
+  return Number(char?.属性?.年龄 || 0) < Number(stopAge);
+}
+
+function normalizeNoSoulPowerCharacterData(char = {}) {
+  if (!char || typeof char !== 'object') return char;
+  if (!char.属性 || typeof char.属性 !== 'object') char.属性 = {};
+  if (!char.武魂 || typeof char.武魂 !== 'object') char.武魂 = {};
+  if (!char.装备 || typeof char.装备 !== 'object') char.装备 = {};
+  if (!char.装备.斗铠 || typeof char.装备.斗铠 !== 'object') char.装备.斗铠 = {};
+  if (!char.装备.机甲 || typeof char.装备.机甲 !== 'object') char.装备.机甲 = {};
+  if (!char.装备.武器 || typeof char.装备.武器 !== 'object') char.装备.武器 = {};
+
+  char.属性.等级 = 0;
+  char.属性.系别 = '普通人';
+  char.属性.等级惩罚 = 0;
+  char.属性.魂力 = 0;
+  char.属性.魂力上限 = 0;
+  char.属性.基础魂力上限 = 0;
+  char.属性.突破魂力上限 = 0;
+  char.属性.永久魂力加成 = 0;
+  char.属性.精神境界 = '无';
+  char.属性.上次灵物等级 = -20;
+
+  if (char.状态 && typeof char.状态 === 'object') delete char.状态.待选魂环;
+
+  const trimmedSpirits = {};
+  Object.keys(char.武魂 || {}).forEach(spiritKey => {
+    const spiritData = char.武魂?.[spiritKey];
+    const spiritName = String(spiritData?.表象名称 || spiritData?.名称 || spiritKey || '无').trim() || '无';
+    trimmedSpirits[spiritKey] = {
+      名称: spiritName,
+      表象名称: spiritName,
+    };
+  });
+  char.武魂 = trimmedSpirits;
+
+  char.魂核 = {};
+  char.魂骨 = {};
+  char.武魂融合技 = {};
+
+  if (char.血脉之力 && typeof char.血脉之力 === 'object') {
+    char.血脉之力.核心 = '未凝聚';
+    char.血脉之力.解封层数 = 0;
+    char.血脉之力.skills = {};
+    char.血脉之力.被动 = {};
+    char.血脉之力.气血魂环 = {};
+    char.血脉之力.永久加成 = {};
+  }
+
+  char.装备.斗铠.等级 = 0;
+  char.装备.斗铠.名称 = '无';
+  char.装备.斗铠.装备状态 = '未装备';
+  char.装备.斗铠.领域 = '无';
+  char.装备.斗铠.材质 = '无';
+  char.装备.斗铠.部件 = {};
+  char.装备.斗铠._属性加成 = { 等效等级: 0, 魂力上限: 0, 精神力上限: 0, 力量: 0, 防御: 0, 敏捷: 0, 体力上限: 0 };
+
+  char.装备.机甲.等级 = '无';
+  char.装备.机甲.型号 = '无';
+  char.装备.机甲.材质 = '无';
+  char.装备.机甲.状态 = '完好';
+  char.装备.机甲.装备状态 = '未装备';
+  char.装备.机甲.武装 = '无';
+  char.装备.机甲.品质系数 = 1.0;
+  char.装备.机甲._属性加成 = { 魂力上限: 0, 精神力上限: 0, 力量: 0, 防御: 0, 敏捷: 0, 体力上限: 0 };
+
+  return char;
+}
+
+function shouldIgnoreStaticRingBoneSoulPowerByFormula(char = {}, context = {}) {
+  const playerName = String(context?.playerName || '').trim();
+  const charName = String(context?.charName || '').trim();
+  const explicitLevel = Math.max(0, Math.floor(Number(context?.explicitLevel || 0)));
+  const breakthroughSeed = Math.max(0, Math.floor(Number(context?.breakthroughSoulPowerSeed || 0)));
+  const baseWithoutRingBone = Math.max(0, Math.floor(Number(context?.baseWithoutRingBoneSoulPower || 0)));
+  const ringBoneSoulPowerBonus = Math.max(0, Math.floor(Number(context?.ringBoneSoulPowerBonus || 0)));
+
+  if (!char || typeof char !== 'object') return false;
+  if (!playerName || !charName || charName === playerName) return false;
+  if (explicitLevel <= 1) return false;
+  if (!(ringBoneSoulPowerBonus > 0)) return false;
+
+  const tolerance = Math.max(3, Math.ceil(ringBoneSoulPowerBonus * 0.02));
+  return (
+    breakthroughSeed <= baseWithoutRingBone + tolerance &&
+    breakthroughSeed < baseWithoutRingBone + ringBoneSoulPowerBonus - tolerance
   );
 }
 
@@ -4662,7 +6556,10 @@ function autoGenerateSkill(
   const quality = gradeInfo.quality;
   const roll = gradeInfo.scoreRoll;
 
-  const blueprint = rollSkillBlueprint(type, grade, ringIndex, preferredSecondary);
+  const blueprint = rollSkillBlueprint(type, grade, ringIndex, preferredSecondary, {
+    spiritName: String(options?.textContext?.spiritName || '').trim(),
+    sourceName: String(options?.textContext?.spiritName || '').trim(),
+  });
   const summary = buildSkillBattleSummary(blueprint);
   const 战斗 = buildSkillCombatProfile(blueprint, { quality, ringIndex, type });
   const main = blueprint.主机制大类;
@@ -4692,6 +6589,42 @@ function autoGenerateSkill(
     全场: '全场',
   };
   const normalizedTarget = blueprint.目标模型 || reverseTargetMap[战斗.对象] || '敌方单体';
+  const sharedMechanismRegistry =
+    typeof globalThis !== 'undefined' &&
+    globalThis.__LWCS_SKILL_MECHANISM_REGISTRY__ &&
+    typeof globalThis.__LWCS_SKILL_MECHANISM_REGISTRY__ === 'object'
+      ? globalThis.__LWCS_SKILL_MECHANISM_REGISTRY__
+      : SKILL_MECHANISM_REGISTRY_V1;
+  const mechanismTargetSemantics = sharedMechanismRegistry?.targetSemantics || {};
+  const grantableMechanismSet = new Set(
+    Array.isArray(mechanismTargetSemantics.grantable) ? mechanismTargetSemantics.grantable : [],
+  );
+  const groupGrantableMechanismSet = new Set(
+    Array.isArray(mechanismTargetSemantics.groupGrantable) ? mechanismTargetSemantics.groupGrantable : [],
+  );
+  const selfOnlyMechanismSet = new Set(
+    Array.isArray(mechanismTargetSemantics.selfOnly) ? mechanismTargetSemantics.selfOnly : [],
+  );
+  const resolveSupportableBuffTarget = (fallback = '自身') => {
+    if (normalizedTarget === '全场') return '友方群体';
+    if (normalizedTarget.includes('敌方')) return fallback;
+    return normalizedTarget || fallback;
+  };
+  const supportableBuffTarget = resolveSupportableBuffTarget('自身');
+  const supportableGroupTarget = normalizedTarget === '全场' ? '友方群体' : normalizedTarget;
+  const resolvePackedSemanticTarget = (mechanismLabel = '', fallbackTarget = normalizedTarget) => {
+    const normalizedLabel = String(mechanismLabel || '').trim();
+    if (!normalizedLabel) return fallbackTarget || normalizedTarget;
+    if (selfOnlyMechanismSet.has(normalizedLabel)) return '自身';
+    if (grantableMechanismSet.has(normalizedLabel)) {
+      if (groupGrantableMechanismSet.has(normalizedLabel)) {
+        if (normalizedTarget === '全场' || normalizedTarget === '友方群体') return '友方群体';
+        if (normalizedTarget === '友方单体') return '友方单体';
+      }
+      return supportableBuffTarget;
+    }
+    return fallbackTarget || normalizedTarget;
+  };
 
   const randomInRange = table => {
     const [min, max] = table?.[grade] || table?.B || [1, 1];
@@ -4730,9 +6663,24 @@ function autoGenerateSkill(
     sp_gain_ratio: 0,
     men_gain_ratio: 0,
     heal_block_ratio: 0,
+    hot_heal_ratio: 0,
     resource_block_ratio: 0,
     min_hp_floor: 0,
     death_save_count: 0,
+    revive_count: 0,
+    revive_heal_ratio: 0,
+    substitute_count: 0,
+    damage_reflect_ratio: 0,
+    damage_share_ratio: 0,
+    damage_share_count: 0,
+    heal_inversion_ratio: 0,
+    invincible: false,
+    skill_seal: false,
+    invincible_tier_threshold: 0,
+    daily_trigger_limit: 0,
+    stealth_level: 0,
+    bonus_true_damage_ratio: 0,
+    life_steal_ratio: 0,
     cost_ratio: 1.0,
     windup_ratio: 1.0,
     mastery_ratio: 1.0,
@@ -4847,6 +6795,15 @@ function autoGenerateSkill(
     );
     if (effect) packedEffects.push(effect);
   }
+  if (main === '感知/认知类' && archetype === '感知干扰')
+    packedEffects.push({
+      机制: '感知干扰',
+      目标: normalizedTarget,
+      持续回合: state.持续回合 || 2,
+      hit_penalty: Number(stateCalc.hit_penalty || 0),
+      reaction_penalty: Number(stateCalc.reaction_penalty || 0),
+      cast_speed_penalty: Number(stateCalc.cast_speed_penalty || 0),
+    });
   if (main === '感知/认知类' && archetype === '标记锁定')
     packedEffects.push({
       机制: '标记锁定',
@@ -4888,6 +6845,24 @@ function autoGenerateSkill(
       成功参数: { skip_turn: true, cannot_react: true },
       失败参数: {},
     });
+  if (main === '感知/认知类' && archetype === '认知扭曲')
+    packedEffects.push({
+      机制: '认知扭曲',
+      目标: normalizedTarget,
+      持续回合: state.持续回合 || 0,
+      判定属性: 'men_max',
+      判定阈值: { C: 1.0, B: 1.05, A: 1.1, S: 1.15 }[grade] || 1.05,
+      成功参数: {
+        random_target_rate: Number(stateCalc.random_target_rate || 0),
+        hit_penalty: Number(stateCalc.hit_penalty || 0),
+        control_success_penalty: Number(stateCalc.control_success_penalty || 0),
+        cast_speed_penalty: Number(stateCalc.cast_speed_penalty || 0),
+      },
+      失败参数: {
+        hit_penalty: Number(((stateCalc.hit_penalty || 0) * 0.45).toFixed(2)),
+        control_success_penalty: Number(((stateCalc.control_success_penalty || 0) * 0.45).toFixed(2)),
+      },
+    });
   if ((main === '感知/认知类' && archetype === '共享视野') || secondary.includes('共享视野')) {
     const secondaryOnly = !(main === '感知/认知类' && archetype === '共享视野');
     const baseDuration = state.持续回合 || { C: 1, B: 2, A: 3, S: 4 }[grade] || 2;
@@ -4922,7 +6897,11 @@ function autoGenerateSkill(
     });
   }
   if (main === '回复类' && archetype === '净化/解控')
-    packedEffects.push({ 机制: '解控', 目标: normalizedTarget, 清除层级: { C: 1, B: 2, A: 3, S: 4 }[grade] || 1 });
+    packedEffects.push({
+      机制: '解控',
+      目标: resolvePackedSemanticTarget('解控'),
+      清除层级: { C: 1, B: 2, A: 3, S: 4 }[grade] || 1,
+    });
   if (
     (main === '伤害类' || secondary.includes('流血DOT')) &&
     Math.max(Number(state.持续真伤dot || 0), Number(stateCalc.dot_damage || 0)) > 0
@@ -4943,7 +6922,7 @@ function autoGenerateSkill(
   if ((secondary.includes('净化') || secondary.includes('解控')) && !packedEffects.some(e => e.机制 === '解控')) {
     packedEffects.push({
       机制: '解控',
-      目标: normalizedTarget.includes('敌方') ? '自身' : normalizedTarget,
+      目标: resolvePackedSemanticTarget('解控'),
       清除层级: Math.max(1, Math.round(({ C: 1, B: 1, A: 2, S: 2 }[grade] || 1) * secondaryDurationScale)),
     });
   }
@@ -5001,6 +6980,12 @@ function autoGenerateSkill(
       目标: normalizedTarget,
       持续回合: Math.max(1, Math.round((state.持续回合 || 1) * secondaryDurationScale)),
     });
+  if (secondary.includes('缴械'))
+    packedEffects.push({
+      机制: '缴械',
+      目标: normalizedTarget,
+      持续回合: Math.max(1, Math.round((state.持续回合 || 1) * secondaryDurationScale)),
+    });
   if (secondary.includes('减速') || secondary.includes('迟缓'))
     packedEffects.push({
       机制: '减速',
@@ -5019,10 +7004,124 @@ function autoGenerateSkill(
       dodge_penalty: Number(state.计算层效果?.dodge_penalty || 0),
       lock_level: Number(state.计算层效果?.lock_level || 0),
     });
+  if (secondary.includes('驱散增益'))
+    packedEffects.push({
+      机制: '驱散增益',
+      目标: normalizedTarget,
+      驱散数量: Math.max(1, Math.round(({ C: 1, B: 1, A: 2, S: 2 }[grade] || 1) * secondaryDurationScale)),
+    });
+  if (secondary.includes('窃取增益'))
+    packedEffects.push({
+      机制: '窃取增益',
+      目标: normalizedTarget,
+      窃取数量: Math.max(1, Math.round(({ C: 1, B: 1, A: 2, S: 2 }[grade] || 1) * secondaryDurationScale)),
+    });
+  if (secondary.includes('隐身'))
+    packedEffects.push({
+      机制: '隐身',
+      目标: resolvePackedSemanticTarget('隐身'),
+      持续回合: Math.max(1, Number(state.持续回合 || 1)),
+      隐蔽度: Number(state.计算层效果?.stealth_level || 0),
+      dodge_bonus: Number(state.计算层效果?.dodge_bonus || 0),
+      reaction_bonus: Number(state.计算层效果?.reaction_bonus || 0),
+    });
+  if (secondary.includes('破隐'))
+    packedEffects.push({
+      机制: '破隐',
+      目标: normalizedTarget,
+      破隐层级: 99,
+      hit_bonus: Number(
+        (({ C: 0.05, B: 0.08, A: 0.12, S: 0.16 }[grade] || 0.08) * secondaryEffectScale).toFixed(2),
+      ),
+      lock_level: Math.max(1, Math.round(({ C: 1, B: 1, A: 2, S: 2 }[grade] || 1) * secondaryDurationScale)),
+    });
+  if (secondary.includes('护卫'))
+    packedEffects.push({
+      机制: '护卫',
+      目标: resolvePackedSemanticTarget('护卫', supportableGroupTarget),
+      持续回合: Math.max(1, Number(state.持续回合 || 1)),
+      damage_reduction: Number(state.计算层效果?.damage_reduction || 0),
+    });
+  if (secondary.includes('嘲讽'))
+    packedEffects.push({
+      机制: '嘲讽',
+      目标: normalizedTarget,
+      持续回合: Math.max(1, Number(state.持续回合 || 1)),
+    });
+  if (secondary.includes('目标锁定'))
+    packedEffects.push({
+      机制: '目标锁定',
+      目标: normalizedTarget,
+      持续回合: Math.max(1, Number(state.持续回合 || 1)),
+      hit_bonus: Number(state.计算层效果?.hit_bonus || 0),
+      lock_level: Number(state.计算层效果?.lock_level || 0),
+    });
+  if (secondary.includes('追击'))
+    packedEffects.push({
+      机制: '追击',
+      目标: normalizedTarget,
+      持续回合: Math.max(1, Number(state.持续回合 || 1)),
+      attacker_speed_bonus: Number(state.计算层效果?.attacker_speed_bonus || 0),
+      hit_bonus: Number(state.计算层效果?.hit_bonus || 0),
+      final_damage_mult: Number(state.计算层效果?.final_damage_mult || 1),
+    });
+  if (secondary.includes('无敌金身'))
+    packedEffects.push({
+      机制: '无敌金身',
+      目标: resolvePackedSemanticTarget('无敌金身'),
+      持续回合: Math.max(1, Number(state.持续回合 || 1)),
+      每日触发上限: Math.max(1, Number(state.计算层效果?.daily_trigger_limit || 3)),
+      免疫位阶阈值: Math.max(100, Number(state.计算层效果?.invincible_tier_threshold || 100)),
+      damage_reduction: Number(state.计算层效果?.damage_reduction || 0),
+    });
+  if (secondary.includes('伤害反射'))
+    packedEffects.push({
+      机制: '伤害反射',
+      目标: resolvePackedSemanticTarget('伤害反射'),
+      持续回合: Math.max(1, Number(state.持续回合 || 1)),
+      反射比例: Number(state.计算层效果?.damage_reflect_ratio || 0),
+    });
+  if (secondary.includes('伤害分摊'))
+    packedEffects.push({
+      机制: '伤害分摊',
+      目标: resolvePackedSemanticTarget('伤害分摊', supportableGroupTarget),
+      持续回合: Math.max(1, Number(state.持续回合 || 1)),
+      分摊比例: Number(state.计算层效果?.damage_share_ratio || 0),
+      分摊人数: Math.max(1, Number(state.计算层效果?.damage_share_count || 1)),
+    });
+  if (secondary.includes('替身抵消'))
+    packedEffects.push({
+      机制: '替身抵消',
+      目标: resolvePackedSemanticTarget('替身抵消'),
+      持续回合: Math.max(1, Number(state.持续回合 || 1)),
+      抵消次数: Math.max(1, Number(state.计算层效果?.substitute_count || 1)),
+      dodge_bonus: Number(state.计算层效果?.dodge_bonus || 0),
+    });
+  if (secondary.includes('治疗反转'))
+    packedEffects.push({
+      机制: '治疗反转',
+      目标: normalizedTarget,
+      持续回合: Math.max(1, Number(state.持续回合 || 1)),
+      反转比例: Number(state.计算层效果?.heal_inversion_ratio || 1),
+    });
+  if (secondary.includes('封技'))
+    packedEffects.push({
+      机制: '封技',
+      目标: normalizedTarget,
+      持续回合: Math.max(1, Number(state.持续回合 || 1)),
+    });
+  if (secondary.includes('复苏'))
+    packedEffects.push({
+      机制: '复苏',
+      目标: resolvePackedSemanticTarget('复苏'),
+      持续回合: Math.max(1, Number(state.持续回合 || 1)),
+      复苏次数: Math.max(1, Number(state.计算层效果?.revive_count || 1)),
+      复苏回血比例: Number(state.计算层效果?.revive_heal_ratio || 0.25),
+    });
   if (secondary.includes('反击'))
     packedEffects.push({
       机制: '受击反击',
-      目标: '自身',
+      目标: resolvePackedSemanticTarget('受击反击'),
       持续回合: Math.max(1, Math.round((state.持续回合 || 1) * secondaryDurationScale)),
       反击倍率: Number(((gradeFactor >= 3 ? 1.0 : 0.5) * secondaryEffectScale).toFixed(2)),
     });
@@ -5054,6 +7153,47 @@ function autoGenerateSkill(
       持续回合: state.持续回合 || 1,
       触发次数: state.计算层效果?.death_save_count || 1,
     });
+  if (main === '防御类' && archetype === '无敌金身')
+    packedEffects.push({
+      机制: '无敌金身',
+      目标: resolvePackedSemanticTarget('无敌金身'),
+      持续回合: state.持续回合 || 1,
+      每日触发上限: Math.max(1, Number(state.计算层效果?.daily_trigger_limit || 3)),
+      免疫位阶阈值: Math.max(100, Number(state.计算层效果?.invincible_tier_threshold || 100)),
+      damage_reduction: Number(state.计算层效果?.damage_reduction || 0),
+    });
+  if (main === '防御类' && archetype === '伤害反射')
+    packedEffects.push({
+      机制: '伤害反射',
+      目标: resolvePackedSemanticTarget('伤害反射'),
+      持续回合: state.持续回合 || 1,
+      反射比例: Number(state.计算层效果?.damage_reflect_ratio || 0),
+      damage_reduction: Number(state.计算层效果?.damage_reduction || 0),
+    });
+  if (main === '防御类' && archetype === '伤害分摊')
+    packedEffects.push({
+      机制: '伤害分摊',
+      目标: resolvePackedSemanticTarget('伤害分摊', supportableGroupTarget),
+      持续回合: state.持续回合 || 1,
+      分摊比例: Number(state.计算层效果?.damage_share_ratio || 0),
+      分摊人数: Math.max(1, Number(state.计算层效果?.damage_share_count || 1)),
+    });
+  if (main === '防御类' && archetype === '替身抵消')
+    packedEffects.push({
+      机制: '替身抵消',
+      目标: resolvePackedSemanticTarget('替身抵消'),
+      持续回合: state.持续回合 || 1,
+      抵消次数: Math.max(1, Number(state.计算层效果?.substitute_count || 1)),
+      dodge_bonus: Number(state.计算层效果?.dodge_bonus || 0),
+    });
+  if (main === '防御类' && archetype === '复苏')
+    packedEffects.push({
+      机制: '复苏',
+      目标: resolvePackedSemanticTarget('复苏'),
+      持续回合: state.持续回合 || 1,
+      复苏次数: Math.max(1, Number(state.计算层效果?.revive_count || 1)),
+      复苏回血比例: Number(state.计算层效果?.revive_heal_ratio || 0.25),
+    });
   if (archetype === '硬控') packedEffects.push({ 机制: '硬控', 目标: normalizedTarget, 持续回合: state.持续回合 || 1 });
   if (main === '控制类' && archetype === '软控')
     packedEffects.push({
@@ -5082,7 +7222,7 @@ function autoGenerateSkill(
   if (main === '位移类' && archetype === '自身位移')
     packedEffects.push({
       机制: '自身位移',
-      目标: '自身',
+      目标: resolvePackedSemanticTarget('自身位移'),
       持续回合: state.持续回合 || 1,
       dodge_bonus: Number(state.计算层效果?.dodge_bonus || 0),
       attacker_speed_bonus: Number(state.计算层效果?.attacker_speed_bonus || 0),
@@ -5109,7 +7249,7 @@ function autoGenerateSkill(
   if (main === '位移类' && archetype === '追击位移')
     packedEffects.push({
       机制: '追击位移',
-      目标: '自身',
+      目标: resolvePackedSemanticTarget('追击位移'),
       持续回合: state.持续回合 || 1,
       attacker_speed_bonus: Number(state.计算层效果?.attacker_speed_bonus || 0),
       hit_bonus: Number(state.计算层效果?.hit_bonus || 0),
@@ -5118,7 +7258,7 @@ function autoGenerateSkill(
   if (main === '位移类' && archetype === '脱离位移')
     packedEffects.push({
       机制: '脱离位移',
-      目标: '自身',
+      目标: resolvePackedSemanticTarget('脱离位移'),
       持续回合: state.持续回合 || 1,
       dodge_bonus: Number(state.计算层效果?.dodge_bonus || 0),
       cast_speed_bonus: Number(state.计算层效果?.cast_speed_bonus || 0),
@@ -5136,7 +7276,7 @@ function autoGenerateSkill(
   if (main === '特殊规则类' && archetype === '反制')
     packedEffects.push({
       机制: '反制',
-      目标: '自身',
+      目标: resolvePackedSemanticTarget('反制'),
       持续回合: state.持续回合 || 2,
       反击倍率: Number(state.计算层效果?.counter_attack_ratio || 0),
       damage_reduction: Number(state.计算层效果?.damage_reduction || 0),
@@ -5154,11 +7294,15 @@ function autoGenerateSkill(
       失败参数: { hit_bonus: Number(((state.计算层效果?.hit_bonus || 0) * 0.5).toFixed(2)) },
     });
   if (main === '特殊规则类' && archetype === '转化')
-    packedEffects.push({ 机制: '伤害转回复', 目标: '自身', 转换比例: Number(state.计算层效果?.life_steal_ratio || 0) });
+    packedEffects.push({
+      机制: '伤害转回复',
+      目标: resolvePackedSemanticTarget('伤害转回复'),
+      转换比例: Number(state.计算层效果?.life_steal_ratio || 0),
+    });
   if (main === '特殊规则类' && archetype === '分身')
     packedEffects.push({
       机制: '分身',
-      目标: '自身',
+      目标: resolvePackedSemanticTarget('分身'),
       状态名称: state.状态名称 || '分身',
       持续回合: state.持续回合 || 2,
       分身类型: state.分身元数据?.分身类型 || state.状态名称 || '分身',
@@ -5183,6 +7327,32 @@ function autoGenerateSkill(
     });
   if (main === '特殊规则类' && archetype === '状态交换')
     packedEffects.push({ 机制: '状态交换', 目标: normalizedTarget, 交换数量: 1, 优先策略: '自身负面换目标正面' });
+  if (secondary.includes('状态转移'))
+    packedEffects.push({
+      机制: '状态转移',
+      目标: normalizedTarget,
+      转移类型: '自身负面->目标',
+    });
+  if (secondary.includes('引爆持续伤害'))
+    packedEffects.push({
+      机制: '引爆持续伤害',
+      目标: normalizedTarget,
+      引爆倍率: Number((({ C: 1.0, B: 1.2, A: 1.35, S: 1.5 }[grade] || 1.2) * secondaryEffectScale).toFixed(2)),
+      消耗持续伤害: true,
+    });
+  if (secondary.includes('斩盾'))
+    packedEffects.push({
+      机制: '斩盾',
+      目标: normalizedTarget,
+      斩盾倍率: Number((({ C: 0.45, B: 0.6, A: 0.8, S: 1.0 }[grade] || 0.6) * secondaryEffectScale).toFixed(2)),
+    });
+  if (secondary.includes('窃取护盾'))
+    packedEffects.push({
+      机制: '窃取护盾',
+      目标: normalizedTarget,
+      窃盾比例: Number((({ C: 0.3, B: 0.45, A: 0.6, S: 0.8 }[grade] || 0.45) * secondaryEffectScale).toFixed(2)),
+      持续回合: Math.max(1, Number(state.持续回合 || 1)),
+    });
   if (main === '特殊规则类' && archetype === '规则改写') {
     packedEffects.push({
       机制: '高波动随机值',
@@ -5215,7 +7385,7 @@ function autoGenerateSkill(
   if (mutation.includes('伤害转回复'))
     packedEffects.push({
       机制: '伤害转回复',
-      目标: '自身',
+      目标: resolvePackedSemanticTarget('伤害转回复'),
       转换比例: Number(((clash.瞬间恢复比例 || 0) / 100).toFixed(2)),
     });
   if (mutation.includes('效果反转'))
@@ -5252,8 +7422,9 @@ function autoGenerateSkill(
   const shouldPackGenericState = (() => {
     if (main === '伤害类') return false;
     if (['增益类', '削弱类', '回复类'].includes(main)) return false;
-    if (main === '防御类') return !['护盾', '减伤', '格挡/抵消', '霸体', '免死/锁血'].includes(archetype);
-    if (main === '感知/认知类') return !['标记锁定', '共享视野', '幻境', '催眠'].includes(archetype);
+    if (main === '防御类')
+      return !['护盾', '减伤', '格挡/抵消', '霸体', '免死/锁血', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏'].includes(archetype);
+    if (main === '感知/认知类') return !['感知干扰', '标记锁定', '共享视野', '幻境', '催眠', '认知扭曲'].includes(archetype);
     if (main === '控制类' && archetype === '硬控') return false;
     if (main === '特殊规则类' && ['条件触发', '转化', '复制', '状态交换', '规则改写'].includes(archetype)) return false;
     return (
@@ -5264,13 +7435,14 @@ function autoGenerateSkill(
     );
   })();
   if (shouldPackGenericState) {
+    const genericStateTarget =
+      (main === '位移类' && ['自身位移', '追击位移', '脱离位移'].includes(archetype)) ||
+      (main === '特殊规则类' && ['反制', '分身'].includes(archetype))
+        ? resolvePackedSemanticTarget(archetype, normalizedTarget)
+        : normalizedTarget;
     packedEffects.push({
       机制: '状态挂载',
-      目标:
-        (main === '位移类' && ['自身位移', '追击位移', '脱离位移'].includes(archetype)) ||
-        (main === '特殊规则类' && ['反制', '分身'].includes(archetype))
-          ? '自身'
-          : normalizedTarget,
+      目标: genericStateTarget,
       状态名称: state.状态名称,
       持续回合: state.持续回合 || 0,
       面板修改比例: state.面板修改比例,
@@ -5280,6 +7452,9 @@ function autoGenerateSkill(
   }
 
   if (passiveMode) {
+    战斗.目标模型 = '自身';
+    战斗.目标修饰 = [];
+    战斗.结算策略 = '单目标独立';
     战斗.对象 = '自身';
     战斗.技能类型 = String(战斗.技能类型 || '').includes('被动')
       ? String(战斗.技能类型 || '被动')
@@ -5395,6 +7570,9 @@ function autoGenerateSkill(
 
   const systemBaseEffect = buildMinimalSkillRuntimeSystemBaseEffect({
     技能类型: 战斗.技能类型 || '无',
+    目标模型: 战斗.目标模型 || targetModel,
+    目标修饰: 战斗.目标修饰 || [],
+    结算策略: 战斗.结算策略 || getSkillTargetResolutionStrategy(战斗.目标模型 || targetModel),
     对象: 战斗.对象 || normalizedTarget,
     消耗: 战斗.消耗 || '无',
     cast_time: 战斗.cast_time || 0,
@@ -5405,6 +7583,9 @@ function autoGenerateSkill(
     画面描述: AI_TODO_SKILL_VISUAL,
     效果描述: AI_TODO_SKILL_EFFECT,
     技能类型: 战斗.技能类型 || '无',
+    目标模型: 战斗.目标模型 || normalizeSkillTargetModel(targetModel, '敌方单体'),
+    目标修饰: normalizeSkillTargetModifierList(战斗.目标修饰 || []),
+    结算策略: String(战斗.结算策略 || getSkillTargetResolutionStrategy(战斗.目标模型 || targetModel)).trim() || '单目标独立',
     对象: 战斗.对象 || normalizedTarget,
     消耗: 战斗.消耗 || '无',
     cast_time: 战斗.cast_time || 0,
@@ -5432,6 +7613,8 @@ const AI_TODO_SOUL_SPIRIT_SECONDARY = '待补全（可选副机制）';
 const AI_TODO_MAIN_IDENTITY = '待补全(填写当前主要公开身份)';
 const AI_TODO_PERSONALITY = '待补全(根据角色设定补全性格特征)';
 const AI_TODO_STATUS_LOC = '斗罗大陆-待补全(按大陆-城市-地点完整路径填写，禁止只填单一地名)';
+const AI_TODO_BACKGROUND = '待生成(请结合角色的家庭出身、成长环境、资源条件、父母来历与所属圈层，补全其家世或出身背景描述)';
+const AI_TODO_TALENT_RATING = '待生成(请根据角色的武魂潜力、血脉资质、悟性、心性、成长环境与资源条件，给出1-100的天赋评级分数，仅填写数字)';
 function isAiTodoText(value) {
   const text = String(value || '').trim();
   return text.startsWith(AI_TODO_TEXT_PREFIX) || text.startsWith('待补充');
@@ -5837,6 +8020,51 @@ function collectBattleSideNames(battleData = {}, sideKey = 'enemy') {
     });
   }
   return result;
+}
+
+function pickUniqueWeightedRandom(entries = [], count = 1) {
+  const pool = (Array.isArray(entries) ? entries : [])
+    .map(entry => ({
+      value: entry?.value,
+      weight: Math.max(0, Number(entry?.weight || 0)),
+    }))
+    .filter(entry => entry.value && entry.weight > 0);
+  const result = [];
+  while (pool.length > 0 && result.length < count) {
+    const totalWeight = pool.reduce((sum, entry) => sum + entry.weight, 0);
+    if (!(totalWeight > 0)) break;
+    let roll = Math.random() * totalWeight;
+    let pickedIndex = 0;
+    for (let index = 0; index < pool.length; index += 1) {
+      roll -= pool[index].weight;
+      if (roll <= 0) {
+        pickedIndex = index;
+        break;
+      }
+    }
+    result.push(pool[pickedIndex].value);
+    pool.splice(pickedIndex, 1);
+  }
+  return result;
+}
+
+function buildSecondaryWeightedPool(main = '', type = '强攻系', preferredSecondary = []) {
+  const mainSet = new Set(SKILL_SECONDARY_BY_MAIN_V1[main] || []);
+  const typePotentialSet = new Set(getPotentialSecondaryOptionsByType(type));
+  const typeBiasSet = new Set(SKILL_SECONDARY_TYPE_BIAS_V1[type] || []);
+  const preferredSet = new Set(
+    (Array.isArray(preferredSecondary) ? preferredSecondary : [])
+      .map(item => String(item || '').trim())
+      .filter(item => SOUL_SPIRIT_SECONDARY_OPTIONS_V1.includes(item)),
+  );
+  return SOUL_SPIRIT_SECONDARY_OPTIONS_V1.map(option => {
+    let weight = 1;
+    if (mainSet.has(option)) weight += 7;
+    if (typePotentialSet.has(option)) weight += 2;
+    if (typeBiasSet.has(option)) weight += 4;
+    if (preferredSet.has(option)) weight += 10;
+    return { value: option, weight };
+  }).filter(entry => entry.weight > 0);
 }
 
 function getBattleRewardRecipientName(data = {}, defeatedName = '') {
@@ -6834,10 +9062,14 @@ function getNormalizedFusionSourceSpirits(fusionSkill = {}, char = {}) {
 
 function buildMinimalSkillRuntimeSystemBaseEffect(source = {}) {
   const raw = source && typeof source === 'object' ? source : {};
+  const targetModel = normalizeSkillTargetModel(raw?.目标模型 || raw?.对象 || '敌方单体', '敌方单体');
   return {
     机制: '系统基础',
     技能类型: String(raw?.技能类型 || '无').trim() || '无',
-    对象: String(raw?.对象 || '敌方/单体').trim() || '敌方/单体',
+    目标模型: targetModel,
+    目标修饰: normalizeSkillTargetModifierList(raw?.目标修饰 || []),
+    结算策略: String(raw?.结算策略 || getSkillTargetResolutionStrategy(targetModel)).trim() || '单目标独立',
+    对象: mapSkillTargetModelToCombatTarget(targetModel),
     消耗: String(raw?.消耗 || '无').trim() || '无',
     cast_time: Number(raw?.cast_time ?? 0) || 0,
   };
@@ -7297,14 +9529,11 @@ const StatsSchema = z
     等级惩罚: z.coerce.number().prefault(0).describe('违规吸收导致的等级上限永久扣除'),
     系别: z.string().prefault('强攻系').describe('魂师系别'),
     天赋梯队: z.string().prefault('正常').describe('天赋梯队'),
-    背景: z
-      .string()
-      .prefault('待补全(填写背景阶层：顶级势力/一流势力/普通势力/平民)')
-      .describe('背景阶层标签：顶级势力/一流势力/普通势力/平民'),
+    天赋评级: z.union([z.coerce.number(), z.string()]).optional().describe('AI输出的1-100天赋评分，仅用于初始化天赋判定，判定后删除'),
+    背景: z.string().prefault(AI_TODO_BACKGROUND).describe('家世或出身背景描述'),
+    背景阶层: z.enum(['顶级势力', '一流势力', '普通势力', '平民']).optional().describe('用于初始天赋推演的背景阶层标签'),
     邪魂师: z.boolean().prefault(false).describe('是否为邪魂师'),
     底子波动: z.coerce.number().prefault(0).describe('先天底子波动值'),
-    _静态免环骨魂力: z.boolean().prefault(false).describe('静态初始角色是否忽略环骨带来的魂力上限加成，不对外展示'),
-
     魂力: z.coerce.number().prefault(-1).describe('当前魂力'),
     魂力上限: z.coerce.number().prefault(10).describe('魂力上限'),
     基础魂力上限: z.coerce.number().prefault(10).describe('仅用于修为成长判定的基础魂力上限(等级基础值×系别倍率×底子波动，不含装备/魂环/状态等加成)'),
@@ -7381,7 +9610,7 @@ const StatsSchema = z
 
     if (data.等级 > 10 && data.训练加成.力量 === 0 && data.训练加成.精神力上限 === 0) {
       const hardWorkFactor =
-        { 绝世妖孽: 1.6, 顶级天才: 1.2, 天才: 1.0, 优秀: 0.8, 正常: 0.5, 劣等: 0.2 }[data.天赋梯队] || 0.5;
+        { 绝世妖孽: 1.6, 顶级天才: 1.2, 天才: 1.0, 优秀: 0.8, 正常: 0.5, 劣等: 0.2, 天赋极差: 0 }[data.天赋梯队] || 0.5;
       const baseForTrace = getBaseStats(data.等级);
       const traceMultiplier = 0.005 * (data.等级 - 10) * hardWorkFactor;
       data.训练加成.力量 = Math.floor(baseForTrace.str * traceMultiplier);
@@ -8407,9 +10636,12 @@ const CharacterSchema = z
         奖励声望: z.coerce.number().prefault(0).describe('奖励声望'),
       })
       .prefault({}),
+    __mvu_isPlayer: z.boolean().optional().prefault(false),
   })
   .prefault({})
   .transform(char => {
+    const normalizedCharName = String(char?.name || char?.属性?.name || char?.base?.name || '').trim();
+    const isPlayerCharacter = char.__mvu_isPlayer === true;
     const secondarySpirit = char.武魂 && char.武魂['第二武魂'];
     if (secondarySpirit && typeof secondarySpirit === 'object') {
       const secondaryName = String(secondarySpirit['表象名称'] || '').trim();
@@ -8522,65 +10754,97 @@ const CharacterSchema = z
       }
     }
 
-    if (char.属性.背景 !== '无' && char.属性.背景 !== '已推演') {
-      let bgBonus = 0;
-      if (char.属性.背景 === '顶级势力') bgBonus = 80;
-      else if (char.属性.背景 === '一流势力') bgBonus = 50;
-      else if (char.属性.背景 === '普通势力') bgBonus = 20;
-      else if (char.属性.背景 === '平民') bgBonus = 0;
-
+    {
       const currentTier = String(char.属性.天赋梯队 || '').trim();
       const hasPresetTalent = !!(currentTier && currentTier !== '正常');
+      const backgroundTier = ['顶级势力', '一流势力', '普通势力', '平民'].includes(String(char.属性?.背景阶层 || '').trim())
+        ? String(char.属性.背景阶层).trim()
+        : '平民';
+      const ageValue = Math.max(0, Number(char.属性?.年龄 || 0));
+      const isEvilSoulMaster = char.属性?.邪魂师 === true;
+      const shouldIgnoreFactionBackgroundForTalent = !isEvilSoulMaster && ageValue < 13;
+      const effectiveBackgroundTier = isEvilSoulMaster
+        ? '顶级势力'
+        : shouldIgnoreFactionBackgroundForTalent
+          ? '平民'
+          : backgroundTier;
 
       if (!hasPresetTalent) {
-        let roll = Math.floor(Math.random() * 100) + 1;
-        let totalScore = roll + bgBonus;
+        const rawTalentRating = Number(char.属性?.天赋评级);
+        const talentRatingValue = Number.isFinite(rawTalentRating)
+          ? Math.max(1, Math.min(100, Math.floor(rawTalentRating)))
+          : null;
+        const backgroundScoreBonus = TALENT_BACKGROUND_SCORE_BONUS_ACU[effectiveBackgroundTier] || 0;
+        const talentRatingScore = Number.isFinite(talentRatingValue)
+          ? Math.round((talentRatingValue - 50) * 0.1)
+          : 0;
+        const totalScore = Math.floor(Math.random() * 1000) + 1 + backgroundScoreBonus + talentRatingScore;
+        const rareBonusOdds = TALENT_BACKGROUND_RARE_BONUS_ODDS_ACU[effectiveBackgroundTier] || TALENT_BACKGROUND_RARE_BONUS_ODDS_ACU.平民;
+        const baseNoSoulPowerChance =
+          {
+            平民: 0.70,
+            普通势力: 0.40,
+            一流势力: 0.20,
+            顶级势力: 0.10,
+          }[effectiveBackgroundTier] ?? 0.70;
+        let noSoulPowerChance = baseNoSoulPowerChance;
+        if (Number.isFinite(talentRatingValue)) {
+          const normalizedTalentRating = (talentRatingValue - 50) / 50;
+          if (normalizedTalentRating >= 0) {
+            noSoulPowerChance = noSoulPowerChance * Math.max(0.02, 1 - normalizedTalentRating * 0.9);
+          } else {
+            noSoulPowerChance = Math.min(0.98, noSoulPowerChance * (1 + Math.abs(normalizedTalentRating) * 0.8));
+          }
+        }
 
-        let tier = '正常';
+        let tier = '劣等';
+        if (Math.random() < noSoulPowerChance) {
+          tier = '天赋极差';
+        } else if (rareBonusOdds.绝世妖孽 > 0 && Math.random() < rareBonusOdds.绝世妖孽) {
+          tier = '绝世妖孽';
+        } else if (rareBonusOdds.顶级天才 > 0 && Math.random() < rareBonusOdds.顶级天才) {
+          tier = '顶级天才';
+        } else if (totalScore >= TALENT_SCORE_THRESHOLDS_ACU.绝世妖孽) {
+          tier = '绝世妖孽';
+        } else if (totalScore >= TALENT_SCORE_THRESHOLDS_ACU.顶级天才) {
+          tier = '顶级天才';
+        } else if (totalScore >= TALENT_SCORE_THRESHOLDS_ACU.天才) {
+          tier = '天才';
+        } else if (totalScore >= TALENT_SCORE_THRESHOLDS_ACU.优秀) {
+          tier = '优秀';
+        } else if (totalScore >= TALENT_SCORE_THRESHOLDS_ACU.正常) {
+          tier = '正常';
+        }
         let innate = 3;
         let factor = 1.0;
         let maxLimit = 69;
 
-        if (totalScore >= 150) {
-          tier = '绝世妖孽';
+        if (tier === '天赋极差') {
+          innate = 0;
+          factor = 0;
+          maxLimit = 0;
+        } else if (tier === '绝世妖孽') {
           innate = 10;
           factor = 4.5;
           maxLimit = 100;
-        } else if (totalScore >= 120) {
-          tier = '顶级天才';
-          if (totalScore >= 135) {
-            innate = 10;
-            factor = 3.8;
-            maxLimit = 99;
-          } else {
-            innate = 9;
-            factor = 3.8;
-            maxLimit = 98;
-          }
-        } else if (totalScore >= 90) {
-          tier = '天才';
-          if (totalScore >= 105) {
-            innate = 9;
-            factor = 3.0;
-            maxLimit = 94;
-          } else {
-            innate = 8;
-            factor = 2.5;
-            maxLimit = 89;
-          }
-        } else if (totalScore >= 50) {
-          tier = '优秀';
-          innate = totalScore >= 70 ? 7 : 6;
+        } else if (tier === '顶级天才') {
+          innate = 10;
+          factor = 3.8;
+          maxLimit = 99;
+        } else if (tier === '天才') {
+          innate = 8;
+          factor = 2.5;
+          maxLimit = 89;
+        } else if (tier === '优秀') {
+          innate = 6;
           factor = 1.8;
           maxLimit = 79;
-        } else if (totalScore >= 20) {
-          tier = '正常';
-          innate = 3 + Math.floor((totalScore - 20) / 10);
+        } else if (tier === '正常') {
+          innate = 3;
           factor = 1.0;
           maxLimit = 49;
-        } else {
-          tier = '劣等';
-          innate = totalScore >= 10 ? 2 : 1;
+        } else if (tier === '劣等') {
+          innate = 1;
           factor = 0.5;
           maxLimit = 29;
         }
@@ -8593,22 +10857,23 @@ const CharacterSchema = z
         }
       }
 
-      char.属性.背景 = '已推演';
+      delete char.属性.背景阶层;
+      delete char.属性.天赋评级;
+      if (isNoSoulPowerTalentTier(char.属性.天赋梯队)) {
+        normalizeNoSoulPowerCharacterData(char);
+        return;
+      }
     }
 
     const explicitLevel = Math.max(0, Math.floor(Number(char.属性?.等级 || 0)));
     const baseSoulPowerSeed = Math.max(0, Math.floor(Number(char.属性?.基础魂力上限 || 0)));
     const breakthroughSoulPowerSeed = Math.max(0, Math.floor(Number(char.属性?.突破魂力上限 || 0)));
-    const shouldIgnoreStaticRingBoneSoulPower =
-      charName !== data.sys?.玩家名 &&
+    const shouldApplyStaticHighLevelBootstrap =
+      !isPlayerCharacter &&
       explicitLevel > 1 &&
-      Math.max(baseSoulPowerSeed, breakthroughSoulPowerSeed) <= 10 &&
-      char.属性?._静态免环骨魂力 !== true;
-    if (shouldIgnoreStaticRingBoneSoulPower) {
-      char.属性._静态免环骨魂力 = true;
-    }
+      Math.max(baseSoulPowerSeed, breakthroughSoulPowerSeed) <= 10;
 
-    if (shouldIgnoreStaticRingBoneSoulPower) {
+    if (shouldApplyStaticHighLevelBootstrap) {
       if (!char.魂核) char.魂核 = {};
       if (!char.魂核.核心 || typeof char.魂核.核心 !== 'object') char.魂核.核心 = { 数量: 0, 进度: 0 };
       if (explicitLevel >= 99 && Number(char.魂核.核心.数量 || 0) < 3) {
@@ -9068,7 +11333,19 @@ const CharacterSchema = z
       });
     });
 
-    const ignoreStaticRingBoneSoulPower = char.属性?._静态免环骨魂力 === true;
+    const ringBoneSoulPowerBonus = Math.floor(ringTotalBonus.sp_max + boneBonus.sp_max);
+    const baseSoulPowerWithoutRingBone =
+      Math.floor(cultivatedBaseSpMax * dualSpiritSoulCoeff) +
+      getPersistentSoulPowerBonusFromPermanentRecords(char) +
+      externalPermanentSoulPowerBonus;
+    const ignoreStaticRingBoneSoulPower = shouldIgnoreStaticRingBoneSoulPowerByFormula(char, {
+      charName: normalizedCharName,
+      playerName: isPlayerCharacter ? normalizedCharName : '__MVU_PLAYER__',
+      explicitLevel,
+      breakthroughSoulPowerSeed,
+      baseWithoutRingBoneSoulPower: baseSoulPowerWithoutRingBone,
+      ringBoneSoulPowerBonus,
+    });
     final_str = Math.floor(final_str + ringTotalBonus.str + boneBonus.str);
     final_def = Math.floor(final_def + ringTotalBonus.def + boneBonus.def);
     final_agi = Math.floor(final_agi + ringTotalBonus.agi + boneBonus.agi);
@@ -9076,7 +11353,7 @@ const CharacterSchema = z
     final_men_max = Math.floor(final_men_max + ringTotalBonus.men_max + boneBonus.men_max);
     final_sp_max = Math.floor(
       final_sp_max +
-      (ignoreStaticRingBoneSoulPower ? 0 : (ringTotalBonus.sp_max + boneBonus.sp_max)),
+      (ignoreStaticRingBoneSoulPower ? 0 : ringBoneSoulPowerBonus),
     );
 
     const goldenDragonPermanentBonus = applyGoldenDragonPermanentBonusNodes(char, {
@@ -9536,7 +11813,39 @@ const AssociationShopProducts = {
     },
   },
 };
-export const Schema = z
+
+function markPlayerCharacterInSchemaInput(rawInput) {
+  if (!rawInput || typeof rawInput !== 'object' || Array.isArray(rawInput)) return rawInput;
+  const clonedInput = _.cloneDeep(rawInput);
+  const markCandidate = candidate => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return;
+    const playerName = String(candidate?.sys?.玩家名 || '').trim();
+    const charMap = candidate?.char;
+    if (!playerName || !charMap || typeof charMap !== 'object' || Array.isArray(charMap)) return;
+    Object.values(charMap).forEach(charData => {
+      if (charData && typeof charData === 'object' && !Array.isArray(charData)) {
+        delete charData.__mvu_isPlayer;
+      }
+    });
+    if (charMap[playerName] && typeof charMap[playerName] === 'object' && !Array.isArray(charMap[playerName])) {
+      charMap[playerName].__mvu_isPlayer = true;
+      return;
+    }
+    const matchedKey = Object.keys(charMap).find(charKey => {
+      const charData = charMap[charKey];
+      if (!charData || typeof charData !== 'object' || Array.isArray(charData)) return false;
+      const displayName = String(charData?.name || charData?.属性?.name || charData?.base?.name || charKey || '').trim();
+      return displayName === playerName;
+    });
+    if (matchedKey) {
+      charMap[matchedKey].__mvu_isPlayer = true;
+    }
+  };
+  [clonedInput, clonedInput.stat_data, clonedInput.display_data].forEach(markCandidate);
+  return clonedInput;
+}
+
+const SchemaRootObject = z
   .object({
     sys: z
       .object({
@@ -9791,7 +12100,10 @@ export const Schema = z
       })
       .prefault({}),
   })
-  .prefault({})
+  .prefault({});
+
+export const Schema = z
+  .preprocess(markPlayerCharacterInSchemaInput, SchemaRootObject)
   .transform(data => {
     if (!data || typeof data !== 'object') data = {};
 
@@ -9875,6 +12187,11 @@ export const Schema = z
       const charData = data.char[charKey];
       if (!charData || typeof charData !== 'object' || Array.isArray(charData)) {
         delete data.char[charKey];
+      }
+    });
+    Object.values(data.char).forEach(charData => {
+      if (charData && typeof charData === 'object' && !Array.isArray(charData)) {
+        delete charData.__mvu_isPlayer;
       }
     });
 
@@ -10141,13 +12458,13 @@ export const Schema = z
         nextCoreIndex: 1,
         startLevel: 50,
         bottleneckLevel: 69,
-        baseAttemptChance: 0.0107,
+        baseAttemptChance: 0.0125,
         talentRatioMap: Object.freeze({
           劣等: 0.08,
           正常: 0.20,
-          优秀: 0.55,
-          天才: 1.0,
-          顶级天才: 2.88,
+          优秀: 1.1077,
+          天才: 1.12,
+          顶级天才: 2.18,
           绝世妖孽: 3.2,
         }),
       }),
@@ -10156,13 +12473,13 @@ export const Schema = z
         nextCoreIndex: 2,
         startLevel: 80,
         bottleneckLevel: 89,
-        baseAttemptChance: 0.0743,
+        baseAttemptChance: 0.054,
         talentRatioMap: Object.freeze({
           劣等: 0.10,
           正常: 0.20,
-          优秀: 0.35,
+          优秀: 0.7635,
           天才: 0.50,
-          顶级天才: 1.10,
+          顶级天才: 0.90,
           绝世妖孽: 1.30,
         }),
       }),
@@ -10171,14 +12488,14 @@ export const Schema = z
         nextCoreIndex: 3,
         startLevel: 95,
         bottleneckLevel: 98,
-        baseAttemptChance: 0.00516,
+        baseAttemptChance: 0.0045,
         talentRatioMap: Object.freeze({
           劣等: 0.05,
           正常: 0.10,
           优秀: 0.20,
-          天才: 0.35,
-          顶级天才: 0.50,
-          绝世妖孽: 0.80,
+          天才: 0.22,
+          顶级天才: 0.90,
+          绝世妖孽: 4.00,
         }),
       }),
     ]);
@@ -10202,32 +12519,65 @@ export const Schema = z
     };
 
     const getSoulCoreMeditationSuccessChance_ACU = char => {
+      if (!canTalentContinueCultivating_ACU(char)) return 0;
       const stageInfo = getSoulCoreMeditationStageInfo_ACU(char);
       if (!stageInfo) return 0;
       const talent = String(char?.属性?.天赋梯队 || '').trim();
       const talentRatio = stageInfo.talentRatioMap[talent] || stageInfo.talentRatioMap['正常'] || 0.55;
       const proximityRatio = 0.3 + 0.7 * Math.pow(Number(stageInfo.proximity || 0), 1.2);
+      const lateBloomStage3Multiplier =
+        isTopTalentLateBloom_ACU(char) &&
+        Number(char?.属性?.年龄 || 0) >= 35 &&
+        stageInfo.coreCount >= 2
+          ? TOP_TALENT_LATE_BLOOM_STAGE3_CHANCE_MULTIPLIER_ACU
+          : 1;
+      const goodLateBloomStage12Multiplier =
+        isGoodTalentLateBloom_ACU(char) &&
+        Number(char?.属性?.年龄 || 0) >= GOOD_TALENT_LATE_BLOOM_START_AGE_ACU &&
+        stageInfo.coreCount <= 1
+          ? GOOD_TALENT_LATE_BLOOM_STAGE12_CHANCE_MULTIPLIER_ACU
+          : 1;
       return Math.max(
         0.0001,
         Math.min(
           0.35,
-          Number(stageInfo.baseAttemptChance || 0) * talentRatio * proximityRatio,
+          Number(stageInfo.baseAttemptChance || 0) * talentRatio * proximityRatio * lateBloomStage3Multiplier * goodLateBloomStage12Multiplier,
         ),
       );
     };
 
+    const getSoulCoreLevelCapByCount_ACU = coreCount => {
+      const safeCoreCount = Math.max(0, Math.floor(Number(coreCount || 0)));
+      if (safeCoreCount <= 0) return 69;
+      if (safeCoreCount === 1) return 89;
+      if (safeCoreCount === 2) return 98;
+      return 150;
+    };
+
+    const SOUL_CORE_BOTTLENECK_ATTEMPT_MULTIPLIER_ACU = 2.45;
+    const SOUL_CORE_BOTTLENECK_PREBREAKTHROUGH_STORAGE_RATIO_ACU = 0.7;
+
     const getMeditationAgeDecayMultiplier_ACU = char => {
       const ageValue = Math.max(0, Number(char?.属性?.年龄 || 0));
+      if (!canTalentContinueCultivating_ACU(char)) return 0;
       if (ageValue < 30) return 1.0;
       const baseDecay = ageValue < 40 ? 0.35 : 0.10;
       const talent = String(char?.属性?.天赋梯队 || '').trim();
       const talentBonus =
         talent === '天才'
           ? 0.15
-          : talent === '顶级天才' || talent === '绝世妖孽'
-            ? 0.30
+          : talent === '优秀'
+            ? ageValue < 40
+              ? 0.069
+              : 0.0493
+          : talent === '顶级天才'
+            ? 0.32
+            : talent === '绝世妖孽'
+              ? 0.30
             : 0;
-      return Math.max(0, baseDecay + talentBonus);
+      const ageDecay = Math.max(0, baseDecay + talentBonus);
+      if (ageValue >= 100) return Math.max(0.01, ageDecay * 0.1);
+      return ageDecay;
     };
 
     const getMeditationTalentRealizationMultiplier_ACU = char => {
@@ -10284,8 +12634,8 @@ export const Schema = z
         return (
           {
             劣等: 0.15,
-            正常: 0.28,
-            优秀: 0.52,
+            正常: 0.22,
+            优秀: 0.7986,
             天才: 1.09,
             顶级天才: 1.09,
             绝世妖孽: 1.12,
@@ -10297,10 +12647,10 @@ export const Schema = z
         return (
           {
             劣等: 0.20,
-            正常: 0.45,
-            优秀: 1.0,
-            天才: 2.693,
-            顶级天才: 2.693,
+            正常: 0.32,
+            优秀: 1.4936,
+            天才: 2.76,
+            顶级天才: 2.65,
             绝世妖孽: 2.8,
           }[talent] || 0.45
         );
@@ -10331,6 +12681,7 @@ export const Schema = z
     };
 
     const maybeAdvanceSoulCoreProgressByMeditation_ACU = (char, delta) => {
+      if (!canTalentContinueCultivating_ACU(char)) return 0;
       const safeDelta = Math.max(0, Number(delta || 0));
       if (!(safeDelta > 0)) return 0;
       const stageInfo = getSoulCoreMeditationStageInfo_ACU(char);
@@ -10361,6 +12712,7 @@ export const Schema = z
       const safeDelta = Math.max(0, Number(segmentDelta || 0));
       if (!(safeDelta > 0) || !c?.属性) return;
       const normalizedActionMode = normalizeCharacterActionMode_ACU(actionMode);
+      const hasNoSoulPowerTalent = isNoSoulPowerTalentTier(c?.属性?.天赋梯队);
       const coreCount = c.魂核?.核心?.数量 || 0;
       let spRate = 0.01;
       let vitMenRate = 0;
@@ -10384,6 +12736,7 @@ export const Schema = z
         c.属性.体力 = Math.min(c.属性.体力上限, roundRuntimeGrowthValue_ACU(c.属性.体力 + c.属性.体力上限 * vitMenRate * safeDelta));
       }
 
+      if (hasNoSoulPowerTalent) spRate = 0;
       c.属性.魂力 = Math.min(c.属性.魂力上限, roundRuntimeGrowthValue_ACU(c.属性.魂力 + c.属性.魂力上限 * spRate * safeDelta));
 
       const bloodCore = c.血脉之力?.core || '未凝聚';
@@ -10391,8 +12744,8 @@ export const Schema = z
         c.属性.体力 = Math.min(c.属性.体力上限, roundRuntimeGrowthValue_ACU(c.属性.体力 + c.属性.体力上限 * 0.05 * safeDelta));
       }
 
-      if (normalizedActionMode === '冥想') {
-        const stageBaseRate = coreCount <= 0 ? 0.25 : coreCount === 1 ? 0.915 : coreCount === 2 ? 0.543 : 0.936;
+      if (normalizedActionMode === '冥想' && !hasNoSoulPowerTalent) {
+        const stageBaseRate = coreCount <= 0 ? 0.25 : coreCount === 1 ? 0.46 : coreCount === 2 ? 0.46 : 0.96;
         let baseGrowth = stageBaseRate * (safeDelta / 6);
         const talentCultRate = getMeditationTalentRealizationMultiplier_ACU(c);
         let finalGrowth = baseGrowth * talentCultRate;
@@ -10406,17 +12759,72 @@ export const Schema = z
         } else if (c.属性.等级 >= 40 && c.属性.等级 < 60) {
           finalGrowth *= 0.865;
         }
+        if (String(c?.属性?.天赋梯队 || '').trim() === '优秀') {
+          if (coreCount === 1) finalGrowth *= GOOD_TALENT_STAGE1_GROWTH_MULTIPLIER_ACU;
+          else if (coreCount === 2) finalGrowth *= GOOD_TALENT_STAGE2_GROWTH_MULTIPLIER_ACU;
+          else if (coreCount >= 3) finalGrowth *= GOOD_TALENT_STAGE3_GROWTH_MULTIPLIER_ACU;
+        }
         finalGrowth *= getMeditationYouthYieldMultiplier_ACU(c);
         finalGrowth *= getMeditationAgeDecayMultiplier_ACU(c);
+        if (isTopTalentLateBloom_ACU(c) && Number(c.属性?.年龄 || 0) >= 35 && coreCount >= 2) {
+          finalGrowth *= TOP_TALENT_LATE_BLOOM_GROWTH_MULTIPLIER_ACU;
+        }
+        if (isGoodTalentLateBloom_ACU(c) && Number(c.属性?.年龄 || 0) >= GOOD_TALENT_LATE_BLOOM_START_AGE_ACU && coreCount >= 0) {
+          finalGrowth *= GOOD_TALENT_LATE_BLOOM_GROWTH_MULTIPLIER_ACU;
+        }
         finalGrowth = roundRuntimeGrowthValue_ACU(finalGrowth);
+        const currentLevel = Math.max(0, Number(c.属性?.等级 || 0));
+        const isSoulCoreBottlenecked = currentLevel >= getSoulCoreLevelCapByCount_ACU(coreCount) && coreCount < 3;
+        const nextLevelStep = getNextCultivationLevelStep(currentLevel);
+        const dualSpiritSoulCoeff = getDualSpiritSoulPowerCoeff(c);
+        const currentLevelRequirement = getCharacterBaseSoulPowerRequirementAtLevel(c, currentLevel);
+        const fixedSoulPowerBonusAtBottleneck =
+          getPersistentSoulPowerBonusFromPermanentRecords(c) +
+          Math.max(0, Math.floor(Number(c.属性?.永久魂力加成 || 0))) +
+          getCharacterCurrentRingAndBoneSoulPowerBonus_ACU(c);
+        const bottleneckBreakthroughCap =
+          isSoulCoreBottlenecked && nextLevelStep != null
+            ? Math.floor(
+                currentLevelRequirement +
+                  Math.max(0, getCharacterBaseSoulPowerRequirementAtLevel(c, nextLevelStep) - currentLevelRequirement) *
+                    SOUL_CORE_BOTTLENECK_PREBREAKTHROUGH_STORAGE_RATIO_ACU,
+              )
+            : null;
+        const bottleneckBaseCap =
+          bottleneckBreakthroughCap != null
+            ? Math.max(
+                Number(c.属性?.基础魂力上限 || 0),
+                Math.floor(
+                  Math.max(0, bottleneckBreakthroughCap - fixedSoulPowerBonusAtBottleneck) /
+                    Math.max(0.1, dualSpiritSoulCoeff),
+                ),
+              )
+            : null;
+        let soulCoreAttemptDelta = isSoulCoreBottlenecked
+          ? safeDelta * SOUL_CORE_BOTTLENECK_ATTEMPT_MULTIPLIER_ACU
+          : safeDelta;
+        if (isSoulCoreBottlenecked && isTopTalentLateBloom_ACU(c) && Number(c.属性?.年龄 || 0) >= 35 && coreCount >= 2) {
+          soulCoreAttemptDelta = safeDelta * TOP_TALENT_LATE_BLOOM_STAGE3_BOTTLENECK_MULTIPLIER_ACU;
+        }
+        if (isSoulCoreBottlenecked && isGoodTalentLateBloom_ACU(c) && Number(c.属性?.年龄 || 0) >= GOOD_TALENT_LATE_BLOOM_START_AGE_ACU && coreCount === 0) {
+          soulCoreAttemptDelta = safeDelta * GOOD_TALENT_LATE_BLOOM_STAGE1_BOTTLENECK_MULTIPLIER_ACU;
+        } else if (isSoulCoreBottlenecked && isGoodTalentLateBloom_ACU(c) && Number(c.属性?.年龄 || 0) >= GOOD_TALENT_LATE_BLOOM_START_AGE_ACU && coreCount === 1) {
+          soulCoreAttemptDelta = safeDelta * GOOD_TALENT_LATE_BLOOM_STAGE2_BOTTLENECK_MULTIPLIER_ACU;
+        }
 
         if (finalGrowth > 0) {
-          c.属性.基础魂力上限 = roundRuntimeGrowthValue_ACU(Number(c.属性.基础魂力上限 || 0) + finalGrowth);
-          c.属性.突破魂力上限 = roundRuntimeGrowthValue_ACU(
-            Number(c.属性.突破魂力上限 || c.属性.魂力上限 || 0) + finalGrowth * getDualSpiritSoulPowerCoeff(c),
-          );
+          const nextBaseSoulPower = Number(c.属性.基础魂力上限 || 0) + finalGrowth;
+          const nextBreakthroughSoulPower =
+            Number(c.属性.突破魂力上限 || c.属性.魂力上限 || 0) + finalGrowth * dualSpiritSoulCoeff;
+          if (isSoulCoreBottlenecked && bottleneckBreakthroughCap != null) {
+            c.属性.基础魂力上限 = roundRuntimeGrowthValue_ACU(Math.min(nextBaseSoulPower, bottleneckBaseCap));
+            c.属性.突破魂力上限 = roundRuntimeGrowthValue_ACU(Math.min(nextBreakthroughSoulPower, bottleneckBreakthroughCap));
+          } else {
+            c.属性.基础魂力上限 = roundRuntimeGrowthValue_ACU(nextBaseSoulPower);
+            c.属性.突破魂力上限 = roundRuntimeGrowthValue_ACU(nextBreakthroughSoulPower);
+          }
         }
-        maybeAdvanceSoulCoreProgressByMeditation_ACU(c, safeDelta);
+        maybeAdvanceSoulCoreProgressByMeditation_ACU(c, soulCoreAttemptDelta);
       }
 
       if (normalizedActionMode === '肉体训练') {
@@ -11085,7 +13493,7 @@ export const Schema = z
 
     function rollSpirit(talentTier, lv, spiritIndex, realm) {
       const roll = Math.floor(Math.random() * 100) + 1;
-      const talentScore = { 绝世妖孽: 100, 顶级天才: 80, 天才: 60, 优秀: 40, 正常: 20, 劣等: 0 }[talentTier] || 20;
+      const talentScore = { 绝世妖孽: 100, 顶级天才: 80, 天才: 60, 优秀: 40, 正常: 20, 劣等: 0, 天赋极差: -100 }[talentTier] || 20;
       const sequenceScore = [0, 40, 90, 150, 220, 300, 400, 500, 600][spiritIndex] || spiritIndex * 80;
       let extraLvScore = lv > 95 ? Math.floor(lv - 95) * 50 : 0;
       const totalScore = roll + talentScore + lv * 2 + sequenceScore + extraLvScore;
@@ -11248,7 +13656,7 @@ export const Schema = z
 
             let spiritName = spiritIndex === 0 ? '第1魂灵' : `第${spiritIndex + 1}魂灵`;
             let talentBonus =
-              { 绝世妖孽: 30, 顶级天才: 20, 天才: 10, 优秀: 0, 正常: -10, 劣等: -20 }[char.属性.天赋梯队] || 0;
+              { 绝世妖孽: 30, 顶级天才: 20, 天才: 10, 优秀: 0, 正常: -10, 劣等: -20, 天赋极差: -40 }[char.属性.天赋梯队] || 0;
             let indexBonus = spiritIndex * 5;
             let calculatedComp = Math.min(100, Math.max(0, 60 + talentBonus + indexBonus));
 
@@ -11699,6 +14107,7 @@ export const Schema = z
       }
       if (c.状态.吸收灵物年限 > 0) {
         let age = c.状态.吸收灵物年限;
+        const spiritHerbGain = getSpiritHerbSoulPowerGain_ACU(age);
         if (c.属性.等级惩罚 > 0 && age >= 10000) {
           let recoverAmount = age >= 100000 ? 3 : 1;
           c.属性.等级惩罚 = Math.max(0, c.属性.等级惩罚 - recoverAmount);
@@ -11706,13 +14115,21 @@ export const Schema = z
             c.属性.HP = Math.max(Math.ceil(c.属性.HP上限 * 0.1), Number(c.属性.HP || 0));
           }
           data.sys.系统播报 = `[本源修复] ${charName} 吸收高阶灵物，庞大的生机修补了受损的根基！恢复了 ${recoverAmount} 级等级上限。`;
+          const extraHerbMessages = applyHundredThousandSpiritHerbBonus_ACU(c);
+          if (extraHerbMessages.length) {
+            data.sys.系统播报 += ` 同时${extraHerbMessages.join('，')}。`;
+          }
         } else {
           if (c.属性.等级 - c.属性.上次灵物等级 >= 20) {
-            c.属性.永久魂力加成 = Math.floor(Number(c.属性.永久魂力加成 || 0) + gain);
-            c.属性.魂力上限 = Math.floor(Number(c.属性.魂力上限 || 0) + gain);
-            c.属性.突破魂力上限 = Math.floor(Number(c.属性.突破魂力上限 || 0) + gain);
+            c.属性.永久魂力加成 = Math.floor(Number(c.属性.永久魂力加成 || 0) + spiritHerbGain);
+            c.属性.魂力上限 = Math.floor(Number(c.属性.魂力上限 || 0) + spiritHerbGain);
+            c.属性.突破魂力上限 = Math.floor(Number(c.属性.突破魂力上限 || 0) + spiritHerbGain);
             c.属性.上次灵物等级 = c.属性.等级;
-            data.sys.系统播报 = `[灵物吸收] ${charName} 成功吸收 ${age} 年灵物，魂力成长槽提升 ${gain} 点！`;
+            data.sys.系统播报 = `[灵物吸收] ${charName} 成功吸收 ${age} 年灵物，魂力成长槽提升 ${spiritHerbGain} 点！`;
+            const extraHerbMessages = applyHundredThousandSpiritHerbBonus_ACU(c);
+            if (extraHerbMessages.length) {
+              data.sys.系统播报 += ` 同时${extraHerbMessages.join('，')}。`;
+            }
           } else {
             c.属性.等级惩罚 += 1;
             c.属性.状态效果['灵物反噬'] = {
@@ -12278,7 +14695,7 @@ export const Schema = z
           else if (/千锻|一字|黄级|百年/.test(itemName)) basePrice = 100000;
 
           let talentMult =
-            { 绝世妖孽: 2.0, 顶级天才: 1.8, 天才: 1.5, 优秀: 1.2, 正常: 1.0, 劣等: 0.5 }[c.属性.天赋梯队] || 1.0;
+            { 绝世妖孽: 2.0, 顶级天才: 1.8, 天才: 1.5, 优秀: 1.2, 正常: 1.0, 劣等: 0.5, 天赋极差: 0.1 }[c.属性.天赋梯队] || 1.0;
 
           let totalValue = basePrice * req.数量;
           let pointsEarned = Math.floor((totalValue / 1000) * talentMult);
@@ -12347,10 +14764,15 @@ export const Schema = z
     });
 
     _(FactionDistribution).forEach((dist, factionName) => {
-      (dist.branches || []).forEach(cityName => {
+      const branchCities = Array.isArray(dist?.branches) ? dist.branches : [];
+      const storeCityNames = factionName === '传灵塔'
+        ? Array.from(new Set([String(dist?.hq || '').trim(), ...branchCities].filter(Boolean)))
+        : branchCities;
+      storeCityNames.forEach(cityName => {
         if (data.world.地点[cityName]) {
           const cityData = data.world.地点[cityName];
-          const storeName = `${factionName}分店`;
+          const isHeadquartersStore = factionName === '传灵塔' && String(cityName || '').trim() === String(dist?.hq || '').trim();
+          const storeName = isHeadquartersStore ? `${factionName}总部` : `${factionName}分店`;
           if (!cityData.商店[storeName]) {
             cityData.商店[storeName] = { 库存: {}, 下次刷新tick: 0 };
           }
@@ -12481,6 +14903,17 @@ export const Schema = z
                   库存: 1,
                   需求声望: 5000,
                   描述: '可进入高级升灵台，最高遭遇10万年以下虚拟魂兽。',
+                  效果: [],
+                };
+              }
+              if (isHeadquartersStore) {
+                store.库存['魂灵塔门票'] = {
+                  价格: 20000000,
+                  货币: '联邦币',
+                  类型: '门票',
+                  库存: 1,
+                  需求声望: 2000,
+                  描述: '仅限史莱克城传灵塔总部核发，可进入魂灵塔挑战当前可冲击的下一层。',
                   效果: [],
                 };
               }
@@ -12669,10 +15102,23 @@ export const Schema = z
           injectDisplaySkillStructDefaults(skill, contextFactory(skillName, skill) || {});
         });
       };
-      const injectDisplayCharacterTodoDefaults = (charData = {}, charName = '') => {
+      const injectDisplayCharacterTodoDefaults = (charData = {}, charName = '', sourceChar = null) => {
         if (!charData || typeof charData !== 'object') return charData;
+        const sourceAttr = sourceChar?.属性 && typeof sourceChar.属性 === 'object' ? sourceChar.属性 : null;
 
         ensureDisplayText(charData, '性格', AI_TODO_PERSONALITY);
+        if (charData.属性 && typeof charData.属性 === 'object') {
+          const currentBackground = String(charData.属性.背景 ?? '').trim();
+          if (!currentBackground || currentBackground === '无' || isAiTodoText(currentBackground)) {
+            charData.属性.背景 = AI_TODO_BACKGROUND;
+          }
+          const shouldDisplayTalentRatingTodo =
+            !!sourceAttr && Object.prototype.hasOwnProperty.call(sourceAttr, '天赋评级');
+          const currentTalentRating = String(charData.属性.天赋评级 ?? '').trim();
+          if (shouldDisplayTalentRatingTodo && (!currentTalentRating || currentTalentRating === '无' || isAiTodoText(currentTalentRating))) {
+            charData.属性.天赋评级 = AI_TODO_TALENT_RATING;
+          }
+        }
         if (charData.社交 && typeof charData.社交 === 'object') {
           ensureDisplayText(charData.社交, '主身份', AI_TODO_MAIN_IDENTITY);
         }
@@ -13074,7 +15520,6 @@ export const Schema = z
         if (nextChar.属性) {
           delete nextChar.属性.上次灵物等级;
           delete nextChar.属性.底子波动;
-          delete nextChar.属性._静态免环骨魂力;
           delete nextChar.属性.天赋梯队;
           delete nextChar.属性.训练加成;
           delete nextChar.属性.精神境界;
@@ -13239,7 +15684,7 @@ export const Schema = z
           if (charName === '古月' && !unlocked.includes('event_ch3_07')) {
             if (fakeCharData.武魂 && fakeCharData.武魂['元素使']) fakeCharData.武魂['元素使'].type = '元素系';
           }
-          injectDisplayCharacterTodoDefaults(fakeCharData, charName);
+          injectDisplayCharacterTodoDefaults(fakeCharData, charName, realCharData);
           const charSummary = buildCharReadOnlySummary(realCharData, fakeCharData);
           if (charSummary && Object.keys(charSummary).length > 0) fakeCharData._summary = charSummary;
 

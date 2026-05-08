@@ -1,4 +1,12 @@
 ﻿
+(() => {
+  const __mvuBridgeRoot = typeof globalThis !== 'undefined' ? globalThis : window;
+  if (__mvuBridgeRoot.__MVU_LOGIC_BRIDGE_LOADED__ === true) {
+    console.warn('[DragonUI] mvu_logic_bridge duplicate load skipped.');
+    return;
+  }
+  __mvuBridgeRoot.__MVU_LOGIC_BRIDGE_LOADED__ = true;
+
     const tabs = [];
     const pages = document.querySelectorAll(".split-page");
     const viewport = document.getElementById('mvuViewport');
@@ -4032,18 +4040,23 @@
     const SKILL_DESIGNER_PREVIEW_PREFIX = '技能设计台：';
     const SKILL_SUMMARY_EFFECT_MECHANISM_SET = new Set(['属性摘要', '构型摘要', '术式摘要', '极性摘要', '属性系数摘要', '机制参数摘要']);
     const SKILL_DESIGNER_SELF_FUSION_PARTNER = '自身双武魂';
+    const SHARED_SKILL_MECHANISM_REGISTRY =
+      __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__ && typeof __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__ === 'object'
+        ? __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__
+        : null;
+    const SKILL_DESIGNER_MECHANISM_META = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.mechanisms || {});
     const SKILL_DESIGNER_SKILL_TYPES = Object.freeze(['强攻系', '控制系', '食物系', '精神系', '防御系', '敏攻系', '元素系', '辅助系', '治疗系', '被动', '融合技', '功法', '特殊能力']);
     const SKILL_DESIGNER_TARGET_OPTIONS = Object.freeze(['自身', '友方单体', '友方群体', '敌方单体', '敌方群体', '全场', '食用者', '使用者', '召唤物', '造物']);
-    const SKILL_DESIGNER_MAIN_MECHANIC_POOL = Object.freeze({
+    const SKILL_DESIGNER_MAIN_MECHANIC_POOL = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.mainArchetypes || {
       '伤害类': Object.freeze(['单体伤害', '群体伤害', '多段伤害', '延迟爆发', '持续伤害']),
-      '控制类': Object.freeze(['硬控', '软控', '位移限制', '节奏打断']),
-      '削弱类': Object.freeze(['单属性削弱', '多属性削弱', '禁疗', '消耗提高', '前摇拉长', '掌控压制', '速度压制']),
+      '控制类': Object.freeze(['硬控', '软控', '位移限制', '节奏打断', '封技']),
+      '削弱类': Object.freeze(['单属性削弱', '多属性削弱', '禁疗', '消耗提高', '前摇拉长', '掌控压制', '速度压制', '治疗反转']),
       '增益类': Object.freeze(['单属性增益', '多属性增益', '全属性增益', '消耗降低', '前摇缩短', '掌控提升', '速度提升']),
-      '防御类': Object.freeze(['护盾', '减伤', '格挡/抵消', '霸体', '免死/锁血']),
+      '防御类': Object.freeze(['护盾', '减伤', '格挡/抵消', '霸体', '免死/锁血', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏']),
       '回复类': Object.freeze(['体力恢复', '魂力恢复', '精神恢复', '持续恢复', '净化/解控']),
       '感知/认知类': Object.freeze(['感知干扰', '标记锁定', '共享视野', '幻境', '催眠', '认知扭曲']),
       '位移类': Object.freeze(['自身位移', '强制位移', '位移交换', '追击位移', '脱离位移']),
-      '特殊规则类': Object.freeze(['分身', '复制', '反制', '转化', '状态交换', '强制绑定/锁定', '条件触发', '规则改写']),
+      '特殊规则类': Object.freeze(['分身', '复制', '反制', '转化', '状态交换', '状态转移', '强制绑定/锁定', '条件触发', '规则改写', '引爆持续伤害', '斩盾', '窃取护盾']),
     });
     const SKILL_DESIGNER_DELIVERY_FORM_POOL = Object.freeze(['直接生效', '自身附体', '远程命中', '范围展开', '召唤承载', '造物承载', '标记触发', '延迟触发']);
     const SKILL_DESIGNER_DELIVERY_FORM_BY_TYPE = Object.freeze({
@@ -4071,17 +4084,32 @@
       '辅助系': Object.freeze(['魂力', '精神力', '防御']),
       '治疗系': Object.freeze(['魂力', '精神力']),
     });
-    const SKILL_DESIGNER_SECONDARY_BY_MAIN = Object.freeze({
-      '伤害类': Object.freeze(['穿透', '吸血', '斩杀补伤', '流血DOT', '打断', '反击']),
-      '控制类': Object.freeze(['打断', '沉默', '减速', '致盲', '迟缓', '禁疗']),
-      '削弱类': Object.freeze(['禁疗', '减速', '迟缓', '标记弱点']),
-      '增益类': Object.freeze(['小护盾', '净化', '解控', '共享视野']),
-      '防御类': Object.freeze(['小护盾', '反击', '净化', '解控']),
-      '回复类': Object.freeze(['净化', '解控', '小护盾', '魂力恢复', '精神恢复']),
-      '感知/认知类': Object.freeze(['标记弱点', '共享视野', '打断', '沉默']),
-      '位移类': Object.freeze(['打断', '反击', '标记弱点']),
-      '特殊规则类': Object.freeze(['共享视野', '标记弱点', '净化']),
+    const SKILL_DESIGNER_SECONDARY_BY_MAIN = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.secondaryByMain || {
+      '伤害类': Object.freeze(['穿透', '吸血', '斩杀补伤', '流血DOT', '打断', '反击', '追击', '引爆持续伤害', '斩盾']),
+      '控制类': Object.freeze(['打断', '沉默', '减速', '致盲', '迟缓', '禁疗', '缴械', '嘲讽', '破隐', '封技']),
+      '削弱类': Object.freeze(['禁疗', '减速', '迟缓', '标记弱点', '缴械', '驱散增益', '破隐', '治疗反转', '封技', '斩盾']),
+      '增益类': Object.freeze(['小护盾', '净化', '解控', '共享视野', '隐身', '护卫', '无敌金身', '复苏']),
+      '防御类': Object.freeze(['小护盾', '反击', '净化', '解控', '护卫', '嘲讽', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏']),
+      '回复类': Object.freeze(['净化', '解控', '小护盾', '魂力恢复', '精神恢复', '驱散增益', '护卫', '复苏']),
+      '感知/认知类': Object.freeze(['标记弱点', '共享视野', '目标锁定', '打断', '沉默', '缴械', '驱散增益', '窃取增益', '破隐']),
+      '位移类': Object.freeze(['打断', '反击', '标记弱点', '缴械', '隐身', '破隐']),
+      '特殊规则类': Object.freeze(['共享视野', '标记弱点', '净化', '驱散增益', '窃取增益', '隐身', '护卫', '状态转移', '引爆持续伤害', '斩盾', '窃取护盾', '治疗反转', '封技', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏']),
     });
+    const SKILL_DESIGNER_SECONDARY_TYPE_BIAS = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.secondaryTypeBias || {
+      '强攻系': Object.freeze(['斩盾', '引爆持续伤害', '无敌金身', '伤害反射', '反击', '追击']),
+      '防御系': Object.freeze(['伤害反射', '复苏', '护卫']),
+      '敏攻系': Object.freeze(['隐身', '追击', '破隐', '替身抵消', '无敌金身', '斩盾']),
+      '控制系': Object.freeze(['封技', '治疗反转', '目标锁定', '缴械', '驱散增益', '嘲讽', '伤害分摊', '状态转移']),
+      '精神系': Object.freeze(['状态转移', '封技', '治疗反转', '窃取增益', '目标锁定', '隐身']),
+      '元素系': Object.freeze(['引爆持续伤害', '斩盾', '封技', '治疗反转', '驱散增益', '破隐']),
+      '辅助系': Object.freeze(['护卫', '复苏', '共享视野', '驱散增益', '窃取护盾', '无敌金身', '伤害分摊']),
+      '治疗系': Object.freeze(['复苏', '护卫', '驱散增益', '共享视野', '无敌金身', '窃取护盾', '伤害分摊']),
+      '食物系': Object.freeze(['复苏', '驱散增益', '共享视野', '窃取护盾', '治疗反转', '护卫']),
+    });
+    const SKILL_DESIGNER_TARGET_SEMANTICS = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.targetSemantics || {});
+    const SKILL_DESIGNER_ALL_SECONDARY_OPTIONS = Object.freeze(
+      Array.from(new Set(Object.values(SKILL_DESIGNER_SECONDARY_BY_MAIN).flat())).sort(),
+    );
     const SKILL_DESIGNER_ATTRIBUTE_OPTIONS = Object.freeze([
       '金', '木', '水', '火', '土', '风', '雷', '冰',
       '光', '暗', '精神',
@@ -4120,6 +4148,11 @@
       '格挡': Object.freeze({ main: '防御类', sub: '格挡/抵消' }),
       '霸体': Object.freeze({ main: '防御类', sub: '霸体' }),
       '免死': Object.freeze({ main: '防御类', sub: '免死/锁血' }),
+      '无敌金身': Object.freeze({ main: '防御类', sub: '无敌金身', secondary: '无敌金身' }),
+      '伤害反射': Object.freeze({ main: '防御类', sub: '伤害反射', secondary: '伤害反射' }),
+      '伤害分摊': Object.freeze({ main: '防御类', sub: '伤害分摊', secondary: '伤害分摊' }),
+      '替身抵消': Object.freeze({ main: '防御类', sub: '替身抵消', secondary: '替身抵消' }),
+      '复苏': Object.freeze({ main: '防御类', sub: '复苏', secondary: '复苏' }),
       '体力恢复': Object.freeze({ main: '回复类', sub: '体力恢复' }),
       '魂力恢复': Object.freeze({ main: '回复类', sub: '魂力恢复' }),
       '精神恢复': Object.freeze({ main: '回复类', sub: '精神恢复' }),
@@ -4132,20 +4165,35 @@
       '催眠': Object.freeze({ main: '感知/认知类', sub: '催眠' }),
       '感知干扰': Object.freeze({ main: '感知/认知类', sub: '感知干扰' }),
       '认知扭曲': Object.freeze({ main: '感知/认知类', sub: '认知扭曲' }),
+      '目标锁定': Object.freeze({ main: '感知/认知类', sub: '标记锁定', secondary: '目标锁定' }),
       '自身位移': Object.freeze({ main: '位移类', sub: '自身位移' }),
       '强制位移': Object.freeze({ main: '位移类', sub: '强制位移' }),
       '位移交换': Object.freeze({ main: '位移类', sub: '位移交换' }),
       '追击位移': Object.freeze({ main: '位移类', sub: '追击位移' }),
       '脱离位移': Object.freeze({ main: '位移类', sub: '脱离位移' }),
+      '追击': Object.freeze({ main: '位移类', sub: '追击位移', secondary: '追击' }),
       '分身': Object.freeze({ main: '特殊规则类', sub: '分身' }),
       '复制': Object.freeze({ main: '特殊规则类', sub: '复制' }),
       '反制': Object.freeze({ main: '特殊规则类', sub: '反制' }),
       '状态交换': Object.freeze({ main: '特殊规则类', sub: '状态交换' }),
+      '状态转移': Object.freeze({ main: '特殊规则类', sub: '状态转移', secondary: '状态转移' }),
       '强制绑定/锁定': Object.freeze({ main: '特殊规则类', sub: '强制绑定/锁定' }),
       '条件触发': Object.freeze({ main: '特殊规则类', sub: '条件触发' }),
+      '引爆持续伤害': Object.freeze({ main: '特殊规则类', sub: '引爆持续伤害', secondary: '引爆持续伤害' }),
+      '斩盾': Object.freeze({ main: '特殊规则类', sub: '斩盾', secondary: '斩盾' }),
+      '窃取护盾': Object.freeze({ main: '特殊规则类', sub: '窃取护盾', secondary: '窃取护盾' }),
       '效果反转': Object.freeze({ main: '特殊规则类', sub: '规则改写' }),
       '伤害转回复': Object.freeze({ main: '特殊规则类', sub: '转化' }),
       '回复转伤害': Object.freeze({ main: '特殊规则类', sub: '转化' }),
+      '治疗反转': Object.freeze({ main: '削弱类', sub: '治疗反转', secondary: '治疗反转' }),
+      '封技': Object.freeze({ main: '控制类', sub: '封技', secondary: '封技' }),
+      '驱散增益': Object.freeze({ main: '削弱类', sub: '单属性削弱', secondary: '驱散增益' }),
+      '窃取增益': Object.freeze({ main: '特殊规则类', sub: '复制', secondary: '窃取增益' }),
+      '隐身': Object.freeze({ main: '增益类', sub: '单属性增益', secondary: '隐身' }),
+      '护卫': Object.freeze({ main: '防御类', sub: '伤害分摊', secondary: '护卫' }),
+      '嘲讽': Object.freeze({ main: '控制类', sub: '软控', secondary: '嘲讽' }),
+      '破隐': Object.freeze({ main: '控制类', sub: '节奏打断', secondary: '破隐' }),
+      '缴械': Object.freeze({ main: '控制类', sub: '软控', secondary: '缴械' }),
     });
     const SKILL_DESIGNER_SECONDARY_MECHANISM_HINTS = Object.freeze({
       '打断': Object.freeze(['打断']),
@@ -4163,6 +4211,26 @@
       '精神恢复': Object.freeze(['精神恢复']),
       '受击反击': Object.freeze(['反击']),
       '反击': Object.freeze(['反击']),
+      '驱散增益': Object.freeze(['驱散增益']),
+      '窃取增益': Object.freeze(['窃取增益']),
+      '隐身': Object.freeze(['隐身']),
+      '护卫': Object.freeze(['护卫']),
+      '嘲讽': Object.freeze(['嘲讽']),
+      '破隐': Object.freeze(['破隐']),
+      '目标锁定': Object.freeze(['目标锁定']),
+      '追击': Object.freeze(['追击']),
+      '缴械': Object.freeze(['缴械']),
+      '封技': Object.freeze(['封技']),
+      '无敌金身': Object.freeze(['无敌金身']),
+      '伤害反射': Object.freeze(['伤害反射']),
+      '伤害分摊': Object.freeze(['伤害分摊']),
+      '替身抵消': Object.freeze(['替身抵消']),
+      '复苏': Object.freeze(['复苏']),
+      '治疗反转': Object.freeze(['治疗反转']),
+      '状态转移': Object.freeze(['状态转移']),
+      '引爆持续伤害': Object.freeze(['引爆持续伤害']),
+      '斩盾': Object.freeze(['斩盾']),
+      '窃取护盾': Object.freeze(['窃取护盾']),
     });
     const SKILL_DESIGNER_PACKED_PROPERTY_LABELS = Object.freeze({
       str: '力量',
@@ -4229,6 +4297,31 @@
     const SKILL_DESIGNER_PARAM_MUTE_SCOPE_OPTIONS = Object.freeze(['主动技', '咏唱技', '造物技', '全部技能']);
     const SKILL_DESIGNER_PARAM_BLIND_EFFECT_OPTIONS = Object.freeze(['命中', '视野', '锁定']);
     const SKILL_DESIGNER_PARAM_WEAK_POINT_TYPE_OPTIONS = Object.freeze(['破甲', '暴击', '属性克制']);
+    const SKILL_DESIGNER_PARAM_OPTION_REGISTRY = Object.freeze({
+      ATTRIBUTE: SKILL_DESIGNER_PARAM_ATTRIBUTE_OPTIONS,
+      ATTRIBUTE_GROUP: SKILL_DESIGNER_PARAM_ATTRIBUTE_GROUP_OPTIONS,
+      SHIELD_CAP: SKILL_DESIGNER_PARAM_SHIELD_CAP_OPTIONS,
+      IMMUNE_LEVEL: SKILL_DESIGNER_PARAM_IMMUNE_LEVEL_OPTIONS,
+      CLEANSE_PRIORITY: SKILL_DESIGNER_PARAM_CLEANSE_PRIORITY_OPTIONS,
+      CLEANSE_GAIN: SKILL_DESIGNER_PARAM_CLEANSE_GAIN_OPTIONS,
+      TRACKING_RULE: SKILL_DESIGNER_PARAM_TRACKING_RULE_OPTIONS,
+      INFO_DEPTH: SKILL_DESIGNER_PARAM_INFO_DEPTH_OPTIONS,
+      WAKE_RULE: SKILL_DESIGNER_PARAM_WAKE_RULE_OPTIONS,
+      ESCAPE_GAIN: SKILL_DESIGNER_PARAM_ESCAPE_GAIN_OPTIONS,
+      COPY_TARGET: SKILL_DESIGNER_PARAM_COPY_TARGET_OPTIONS,
+      COUNTER_TARGET: SKILL_DESIGNER_PARAM_COUNTER_TARGET_OPTIONS,
+      EXCHANGE_TARGET: SKILL_DESIGNER_PARAM_EXCHANGE_TARGET_OPTIONS,
+      TRIGGER_RESULT: SKILL_DESIGNER_PARAM_TRIGGER_RESULT_OPTIONS,
+      REWRITE_DEPTH: SKILL_DESIGNER_PARAM_REWRITE_DEPTH_OPTIONS,
+      CLONE_TYPE: SKILL_DESIGNER_PARAM_CLONE_TYPE_OPTIONS,
+      PENETRATION_TARGET: SKILL_DESIGNER_PARAM_PENETRATION_TARGET_OPTIONS,
+      LIFESTEAL_RESOURCE: SKILL_DESIGNER_PARAM_LIFESTEAL_RESOURCE_OPTIONS,
+      INTERRUPT_WINDOW: SKILL_DESIGNER_PARAM_INTERRUPT_WINDOW_OPTIONS,
+      COUNTER_RULE: SKILL_DESIGNER_PARAM_COUNTER_RULE_OPTIONS,
+      MUTE_SCOPE: SKILL_DESIGNER_PARAM_MUTE_SCOPE_OPTIONS,
+      BLIND_EFFECT: SKILL_DESIGNER_PARAM_BLIND_EFFECT_OPTIONS,
+      WEAK_POINT_TYPE: SKILL_DESIGNER_PARAM_WEAK_POINT_TYPE_OPTIONS,
+    });
     const SKILL_DESIGNER_FULL_ATTRIBUTE_KEYS = Object.freeze(['str', 'def', 'agi', 'sp_max', 'men_max']);
 
     function isSkillSummaryEffect(effect) {
@@ -4448,12 +4541,15 @@
         const valueText = formatSkillDesignerNumericInput(effect && effect['数值']);
         const duration = getSkillDesignerEffectDuration(effect);
         const durationText = duration > 0 ? formatSkillDesignerNumericInput(duration, 0) : '';
-        const baseHint = SKILL_DESIGNER_PRIMARY_MECHANISM_HINTS[mechanism];
+        const baseHint = buildSkillDesignerPrimaryHintFromRegistry(mechanism) || SKILL_DESIGNER_PRIMARY_MECHANISM_HINTS[mechanism];
         if (baseHint) {
           analysis.primaryHints.push(baseHint);
           if (baseHint.secondary) analysis.secondaryHints.push(baseHint.secondary);
         }
-        normalizeSkillDesignerArray(SKILL_DESIGNER_SECONDARY_MECHANISM_HINTS[mechanism] || []).forEach(label => {
+        normalizeSkillDesignerArray([
+          ...buildSkillDesignerSecondaryHintsFromRegistry(mechanism),
+          ...(SKILL_DESIGNER_SECONDARY_MECHANISM_HINTS[mechanism] || []),
+        ]).forEach(label => {
           analysis.secondaryHints.push(label);
         });
 
@@ -4491,6 +4587,170 @@
             stealthRatio: formatSkillDesignerNumericInput(effect && effect['隐蔽度']),
             inheritRatio: formatSkillDesignerNumericInput(effect && effect['实力继承比例']),
             cloneName: normalizeSkillUiText(effect && effect['分身名称'], ''),
+          });
+          return;
+        }
+
+        if (mechanism === '无敌金身') {
+          pushParamHint('无敌金身', {
+            duration: durationText,
+            dailyLimit: formatSkillDesignerNumericInput(effect && effect['每日触发上限'], 3),
+            tierThreshold: formatSkillDesignerNumericInput(effect && effect['免疫位阶阈值'], 100),
+            reduceRatio: formatSkillDesignerNumericInput(effect && effect['damage_reduction']),
+          });
+          return;
+        }
+
+        if (mechanism === '伤害反射') {
+          pushParamHint('伤害反射', {
+            duration: durationText,
+            reflectRatio: formatSkillDesignerNumericInput(effect && (effect['反射比例'] ?? effect['damage_reflect_ratio'])),
+          });
+          return;
+        }
+
+        if (mechanism === '伤害分摊') {
+          pushParamHint('伤害分摊', {
+            duration: durationText,
+            shareRatio: formatSkillDesignerNumericInput(effect && (effect['分摊比例'] ?? effect['damage_share_ratio'])),
+            shareCount: formatSkillDesignerNumericInput(effect && (effect['分摊人数'] ?? effect['damage_share_count']), 1),
+          });
+          return;
+        }
+
+        if (mechanism === '替身抵消') {
+          pushParamHint('替身抵消', {
+            duration: durationText,
+            substituteCount: formatSkillDesignerNumericInput(effect && (effect['抵消次数'] ?? effect['substitute_count']), 1),
+          });
+          return;
+        }
+
+        if (mechanism === '复苏') {
+          pushParamHint('复苏', {
+            duration: durationText,
+            reviveCount: formatSkillDesignerNumericInput(effect && (effect['复苏次数'] ?? effect['revive_count']), 1),
+            reviveHealRatio: formatSkillDesignerNumericInput(effect && (effect['复苏回血比例'] ?? effect['revive_heal_ratio']), 0.25),
+          });
+          return;
+        }
+
+        if (mechanism === '治疗反转') {
+          pushParamHint('治疗反转', {
+            duration: durationText,
+            invertRatio: formatSkillDesignerNumericInput(effect && (effect['反转比例'] ?? effect['heal_inversion_ratio']), 1),
+          });
+          return;
+        }
+
+        if (mechanism === '封技') {
+          pushParamHint('封技', {
+            duration: durationText,
+            muteScope: normalizeSkillUiText(effect && effect['限制范围'], ''),
+          });
+          return;
+        }
+
+        if (mechanism === '状态转移') {
+          pushParamHint('状态转移', {
+            transferMode: normalizeSkillUiText(effect && effect['转移类型'], ''),
+          });
+          return;
+        }
+
+        if (mechanism === '引爆持续伤害') {
+          pushParamHint('引爆持续伤害', {
+            detonateRatio: formatSkillDesignerNumericInput(effect && (effect['引爆倍率'] ?? effect['detonate_ratio']), 1.2),
+            consumeMode: normalizeSkillUiText(effect && effect['消耗持续伤害'], ''),
+          });
+          return;
+        }
+
+        if (mechanism === '斩盾') {
+          pushParamHint('斩盾', {
+            shieldBreakRatio: formatSkillDesignerNumericInput(effect && (effect['斩盾倍率'] ?? effect['shield_break_ratio']), 0.6),
+          });
+          return;
+        }
+
+        if (mechanism === '窃取护盾') {
+          pushParamHint('窃取护盾', {
+            shieldStealRatio: formatSkillDesignerNumericInput(effect && (effect['窃盾比例'] ?? effect['shield_steal_ratio']), 0.45),
+            duration: durationText,
+          });
+          return;
+        }
+
+        if (mechanism === '驱散增益') {
+          pushParamHint('驱散增益', {
+            dispelCount: formatSkillDesignerNumericInput(effect && effect['驱散数量'], 1),
+          });
+          return;
+        }
+
+        if (mechanism === '窃取增益') {
+          pushParamHint('窃取增益', {
+            stealCount: formatSkillDesignerNumericInput(effect && effect['窃取数量'], 1),
+          });
+          return;
+        }
+
+        if (mechanism === '隐身') {
+          pushParamHint('隐身', {
+            duration: durationText,
+            stealthRatio: formatSkillDesignerNumericInput(effect && (effect['隐蔽度'] ?? effect['stealth_level']), 0.3),
+            dodgeBonus: formatSkillDesignerNumericInput(effect && effect['dodge_bonus'], 0.1),
+            reactionBonus: formatSkillDesignerNumericInput(effect && effect['reaction_bonus'], 0.08),
+          });
+          return;
+        }
+
+        if (mechanism === '护卫') {
+          pushParamHint('护卫', {
+            duration: durationText,
+            reduceRatio: formatSkillDesignerNumericInput(effect && (effect['damage_reduction'] ?? effect['减伤比例']), 0.1),
+          });
+          return;
+        }
+
+        if (mechanism === '嘲讽') {
+          pushParamHint('嘲讽', {
+            duration: durationText,
+            focusRule: normalizeSkillUiText(effect && effect['聚火规则'], ''),
+          });
+          return;
+        }
+
+        if (mechanism === '破隐') {
+          pushParamHint('破隐', {
+            hitBonus: formatSkillDesignerNumericInput(effect && effect['hit_bonus'], 0.1),
+            lockLevel: formatSkillDesignerNumericInput(effect && effect['lock_level'], 1),
+          });
+          return;
+        }
+
+        if (mechanism === '目标锁定') {
+          pushParamHint('目标锁定', {
+            duration: durationText,
+            hitBonus: formatSkillDesignerNumericInput(effect && effect['hit_bonus'], 0.1),
+            lockLevel: formatSkillDesignerNumericInput(effect && effect['lock_level'], 1),
+          });
+          return;
+        }
+
+        if (mechanism === '追击') {
+          pushParamHint('追击', {
+            duration: durationText,
+            bonusRatio: formatSkillDesignerNumericInput(effect && effect['final_damage_mult'], 1.2),
+            followWindow: normalizeSkillUiText(effect && effect['追击窗口'], ''),
+          });
+          return;
+        }
+
+        if (mechanism === '缴械') {
+          pushParamHint('缴械', {
+            duration: durationText,
+            disarmScope: normalizeSkillUiText(effect && effect['限制范围'], ''),
           });
           return;
         }
@@ -5149,7 +5409,7 @@
       const primaryMain = normalizeSkillUiText(draft.primaryMain, '');
       const primarySub = getSkillDesignerEffectivePrimaryLabel(draft);
       const deliveryForm = normalizeSkillUiText(draft.deliveryForm, '');
-      const secondaryMechanics = normalizeSkillDesignerSecondarySelection(primaryMain, draft.secondaryMechanics);
+      const secondaryMechanics = normalizeSkillDesignerSecondarySelection(primaryMain, draft.secondaryMechanics, draft.type);
       if (primaryMain) parts.push(primaryMain);
       if (primarySub && primarySub !== primaryMain) parts.push(primarySub);
       if (deliveryForm) parts.push(deliveryForm);
@@ -5160,12 +5420,47 @@
       return summary;
     }
 
+    function summarizeSkillDesignerMechanismGrantContext(draft = {}) {
+      const labels = collectSkillDesignerMechanicLabels(draft);
+      if (!labels.length) return { grantTarget: '', triggerOwner: '' };
+      const grantableLabels = labels.filter(label => isSkillDesignerGrantableMechanism(label));
+      const selfOnlyLabels = labels.filter(label => isSkillDesignerSelfOnlyMechanism(label));
+      if (grantableLabels.length > 0) {
+        const grantTarget = resolveSkillDesignerMechanismTargetForRuntime(draft && draft.target, grantableLabels[0]);
+        return {
+          grantTarget,
+          triggerOwner: /友方|食用者|使用者/.test(grantTarget) ? '被赋予对象' : grantTarget === '自身' ? '施术者自身' : '被赋予对象',
+        };
+      }
+      if (selfOnlyLabels.length > 0) {
+        return {
+          grantTarget: '自身',
+          triggerOwner: '施术者自身',
+        };
+      }
+      const hostileLabels = labels.filter(label => {
+        const meta = getSkillDesignerMechanismRegistryMeta(label);
+        return meta && normalizeSkillUiText(meta.targetSemantic, '') === 'hostile';
+      });
+      if (hostileLabels.length > 0) {
+        const hostileTarget = resolveSkillDesignerMechanismTargetForRuntime(draft && draft.target, hostileLabels[0]);
+        return {
+          grantTarget: hostileTarget,
+          triggerOwner: /敌方/.test(hostileTarget) ? '受术目标' : '目标对象',
+        };
+      }
+      return { grantTarget: '', triggerOwner: '上下文决定' };
+    }
+
     function buildSkillDesignerExecutionSummary(draft = {}) {
       const parts = [];
       const target = normalizeSkillUiText(draft.target, '');
       const cost = formatSkillDesignerCostText(draft.costType, draft.costValue);
+      const mechanismContext = summarizeSkillDesignerMechanismGrantContext(draft);
       if (target) parts.push(`对象：${target}`);
       if (cost && cost !== '无') parts.push(`消耗：${cost}`);
+      if (mechanismContext.grantTarget) parts.push(`赋予对象：${mechanismContext.grantTarget}`);
+      if (mechanismContext.triggerOwner) parts.push(`触发归属：${mechanismContext.triggerOwner}`);
       return parts.join('；');
     }
 
@@ -5237,16 +5532,45 @@
       return SKILL_DESIGNER_SECONDARY_BY_MAIN[normalizeSkillUiText(primaryMain, '')] || [];
     }
 
-    function normalizeSkillDesignerSecondarySelection(primaryMain = '', values = []) {
-      const optionSet = new Set(getSkillDesignerSecondaryOptions(primaryMain));
-      return normalizeSkillDesignerArray(values).filter(label => optionSet.has(label));
-    }
-
-    function getSkillDesignerSecondaryOptionList(primaryMain = '', extraValues = []) {
+    function getSkillDesignerRecommendedSecondaryOptions(primaryMain = '', type = '') {
       return normalizeSkillDesignerArray([
         ...getSkillDesignerSecondaryOptions(primaryMain),
-        ...normalizeSkillDesignerSecondarySelection(primaryMain, extraValues),
+        ...(SKILL_DESIGNER_SECONDARY_TYPE_BIAS[normalizeSkillUiText(type, '')] || []),
       ]);
+    }
+
+    function isSkillDesignerRecommendedSecondaryOption(label = '', primaryMain = '', type = '') {
+      const normalizedLabel = normalizeSkillUiText(label, '');
+      if (!normalizedLabel) return false;
+      return getSkillDesignerRecommendedSecondaryOptions(primaryMain, type).includes(normalizedLabel);
+    }
+
+    function normalizeSkillDesignerSecondarySelection(primaryMain = '', values = [], type = '') {
+      const knownSet = new Set([
+        ...SKILL_DESIGNER_ALL_SECONDARY_OPTIONS,
+        ...getSkillDesignerRecommendedSecondaryOptions(primaryMain, type),
+      ]);
+      return normalizeSkillDesignerArray(values).filter(label => {
+        if (!knownSet.has(label)) return false;
+        const meta = getSkillDesignerMechanismRegistryMeta(label);
+        return !meta || meta.可副机制 === true || normalizeSkillUiText(meta.designerSecondaryHint, '') === label;
+      });
+    }
+
+    function getSkillDesignerSecondaryOptionList(primaryMain = '', extraValues = [], type = '') {
+      const selected = normalizeSkillDesignerSecondarySelection(primaryMain, extraValues, type);
+      const recommendedSet = new Set(getSkillDesignerRecommendedSecondaryOptions(primaryMain, type));
+      const selectedSet = new Set(selected);
+      return [...SKILL_DESIGNER_ALL_SECONDARY_OPTIONS]
+        .sort((left, right) => {
+          const leftSelected = selectedSet.has(left) ? 1 : 0;
+          const rightSelected = selectedSet.has(right) ? 1 : 0;
+          if (leftSelected !== rightSelected) return rightSelected - leftSelected;
+          const leftRecommended = recommendedSet.has(left) ? 1 : 0;
+          const rightRecommended = recommendedSet.has(right) ? 1 : 0;
+          if (leftRecommended !== rightRecommended) return rightRecommended - leftRecommended;
+          return left.localeCompare(right, 'zh-Hans-CN');
+        });
     }
 
     function buildSkillDesignerSelectOptions(options = [], selected = '', blankLabel = '未设置') {
@@ -5721,6 +6045,8 @@
 
     function getSkillDesignerMechanicParamDefs(mechanicLabel = '') {
       const label = normalizeSkillUiText(mechanicLabel, '');
+      const registryDefs = resolveSkillDesignerMechanismParamDefsFromRegistry(label);
+      if (registryDefs.length) return registryDefs;
       switch (label) {
         case '伤害类':
           return [
@@ -5930,6 +6256,37 @@
             createSkillDesignerTextParam('lockBloodFloor', '锁血下限', '保留1点 / 10%'),
             createSkillDesignerTextParam('cooldown', '冷却/次数', '每战1次'),
           ];
+        case '无敌金身':
+          return [
+            createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
+            createSkillDesignerNumberParam('dailyLimit', '每日触发', '3', '1'),
+            createSkillDesignerNumberParam('tierThreshold', '免疫位阶', '100', '0.5'),
+            createSkillDesignerNumberParam('reduceRatio', '附带减伤', '0.18'),
+          ];
+        case '伤害反射':
+          return [
+            createSkillDesignerNumberParam('reflectRatio', '反射比例', '0.25'),
+            createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
+            createSkillDesignerTextParam('reflectRule', '触发条件', '受击后'),
+          ];
+        case '伤害分摊':
+          return [
+            createSkillDesignerNumberParam('shareRatio', '分摊比例', '0.35'),
+            createSkillDesignerNumberParam('shareCount', '分摊人数', '1', '1'),
+            createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
+          ];
+        case '替身抵消':
+          return [
+            createSkillDesignerNumberParam('substituteCount', '抵消次数', '1', '1'),
+            createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
+            createSkillDesignerTextParam('substituteRule', '触发条件', '受击时'),
+          ];
+        case '复苏':
+          return [
+            createSkillDesignerNumberParam('reviveCount', '复苏次数', '1', '1'),
+            createSkillDesignerNumberParam('reviveHealRatio', '复苏回血', '0.25'),
+            createSkillDesignerNumberParam('duration', '持续回合', '3', '1'),
+          ];
         case '体力恢复':
         case '魂力恢复':
         case '精神恢复':
@@ -5984,6 +6341,12 @@
           return [
             createSkillDesignerNumberParam('twistPower', '扭曲强度', '0.18'),
             createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
+          ];
+        case '目标锁定':
+          return [
+            createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
+            createSkillDesignerNumberParam('hitBonus', '命中增益', '0.1'),
+            createSkillDesignerNumberParam('lockLevel', '锁定层级', '1', '1'),
           ];
         case '自身位移':
           return [
@@ -6045,6 +6408,11 @@
             createSkillDesignerNumberParam('exchangeCount', '交换层数', '1', '1'),
             createSkillDesignerTextParam('triggerRule', '交换条件', '双方同时命中'),
           ];
+        case '状态转移':
+          return [
+            createSkillDesignerTextParam('transferMode', '转移模式', '自身负面->目标'),
+            createSkillDesignerTextParam('triggerRule', '转移条件', '命中后'),
+          ];
         case '强制绑定/锁定':
           return [
             createSkillDesignerNumberParam('bindDuration', '绑定回合', '2', '1'),
@@ -6060,6 +6428,20 @@
         case '规则改写':
           return [
             createSkillDesignerSelectParam('rewriteDepth', '改写幅度', SKILL_DESIGNER_PARAM_REWRITE_DEPTH_OPTIONS),
+          ];
+        case '引爆持续伤害':
+          return [
+            createSkillDesignerNumberParam('detonateRatio', '引爆倍率', '1.2'),
+            createSkillDesignerTextParam('consumeMode', '消耗规则', '消耗全部持续伤害'),
+          ];
+        case '斩盾':
+          return [
+            createSkillDesignerNumberParam('shieldBreakRatio', '斩盾倍率', '0.6'),
+          ];
+        case '窃取护盾':
+          return [
+            createSkillDesignerNumberParam('shieldStealRatio', '窃盾比例', '0.45'),
+            createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
           ];
         case '穿透':
           return [
@@ -6091,10 +6473,21 @@
             createSkillDesignerSelectParam('counterRule', '反击条件', SKILL_DESIGNER_PARAM_COUNTER_RULE_OPTIONS),
             createSkillDesignerNumberParam('counterRatio', '反击倍率', '0.8'),
           ];
+        case '追击':
+          return [
+            createSkillDesignerTextParam('followWindow', '追击窗口', '命中后1秒'),
+            createSkillDesignerNumberParam('bonusRatio', '追击倍率', '1.2'),
+            createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
+          ];
         case '沉默':
           return [
             createSkillDesignerNumberParam('duration', '沉默回合', '2', '1'),
             createSkillDesignerSelectParam('muteScope', '限制范围', SKILL_DESIGNER_PARAM_MUTE_SCOPE_OPTIONS),
+          ];
+        case '缴械':
+          return [
+            createSkillDesignerNumberParam('duration', '缴械回合', '2', '1'),
+            createSkillDesignerTextParam('disarmScope', '限制范围', '近战 / 武器技'),
           ];
         case '减速':
         case '迟缓':
@@ -6112,10 +6505,50 @@
             createSkillDesignerNumberParam('banHealRatio', '禁疗幅度', '1.0'),
             createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
           ];
+        case '治疗反转':
+          return [
+            createSkillDesignerNumberParam('invertRatio', '反转倍率', '1.0'),
+            createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
+          ];
         case '标记弱点':
           return [
             createSkillDesignerSelectParam('weakPointType', '弱点类型', SKILL_DESIGNER_PARAM_WEAK_POINT_TYPE_OPTIONS),
             createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
+          ];
+        case '驱散增益':
+          return [
+            createSkillDesignerNumberParam('dispelCount', '驱散数量', '1', '1'),
+          ];
+        case '窃取增益':
+          return [
+            createSkillDesignerNumberParam('stealCount', '窃取数量', '1', '1'),
+          ];
+        case '隐身':
+          return [
+            createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
+            createSkillDesignerNumberParam('stealthRatio', '隐蔽度', '0.3'),
+            createSkillDesignerNumberParam('dodgeBonus', '闪避增益', '0.1'),
+            createSkillDesignerNumberParam('reactionBonus', '反应增益', '0.08'),
+          ];
+        case '护卫':
+          return [
+            createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
+            createSkillDesignerNumberParam('reduceRatio', '护卫减伤', '0.1'),
+          ];
+        case '嘲讽':
+          return [
+            createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
+            createSkillDesignerTextParam('focusRule', '聚火规则', '强制优先自身'),
+          ];
+        case '破隐':
+          return [
+            createSkillDesignerNumberParam('hitBonus', '命中增益', '0.1'),
+            createSkillDesignerNumberParam('lockLevel', '锁定层级', '1', '1'),
+          ];
+        case '封技':
+          return [
+            createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
+            createSkillDesignerSelectParam('muteScope', '限制范围', SKILL_DESIGNER_PARAM_MUTE_SCOPE_OPTIONS),
           ];
         default:
           return [];
@@ -6131,7 +6564,7 @@
       } else if (primaryMain && getSkillDesignerMechanicParamDefs(primaryMain).length) {
         sections.push({ kind: 'primary', label: primaryMain });
       }
-      normalizeSkillDesignerSecondarySelection(primaryMain, draft.secondaryMechanics).forEach(label => {
+      normalizeSkillDesignerSecondarySelection(primaryMain, draft.secondaryMechanics, draft.type).forEach(label => {
         sections.push({ kind: 'secondary', label });
       });
       return sections;
@@ -6274,7 +6707,7 @@
         primaryMain: resolvedPrimaryMain,
         primarySub: resolvedPrimarySub,
         deliveryForm: normalizeSkillUiText(baseDraft.deliveryForm, ''),
-        secondaryMechanics: normalizeSkillDesignerSecondarySelection(resolvedPrimaryMain, baseDraft.secondaryMechanics),
+        secondaryMechanics: normalizeSkillDesignerSecondarySelection(resolvedPrimaryMain, baseDraft.secondaryMechanics, typeMeta.value),
         attachedAttributes: normalizeSkillDesignerArray(baseDraft.attachedAttributes),
         attributeSource: '无',
         attributeRole: '无',
@@ -6354,7 +6787,7 @@
         primaryMain: resolvedPrimaryMain,
         primarySub: resolvedPrimarySub,
         deliveryForm: readField('deliveryForm'),
-        secondaryMechanics: readCheckedValues('skill-secondary'),
+        secondaryMechanics: normalizeSkillDesignerSecondarySelection(readField('primaryMain'), readCheckedValues('skill-secondary'), readField('type')),
         attachedAttributes: readCheckedValues('skill-attribute'),
         attributeSource: '无',
         attributeRole: '无',
@@ -6536,7 +6969,100 @@
 
     function resolveSkillDesignerSupportTargetForRuntime(target = '') {
       const normalizedTarget = normalizeSkillDesignerTargetForRuntime(target, 'effect');
-      if (/敌方/.test(normalizedTarget) || normalizedTarget === '全场') return '自身';
+      if (/敌方/.test(normalizedTarget)) return '自身';
+      if (normalizedTarget === '全场') return '友方群体';
+      return normalizedTarget || '自身';
+    }
+
+    function isSkillDesignerGrantableMechanism(label = '') {
+      const normalizedLabel = normalizeSkillUiText(label, '');
+      return Array.isArray(SKILL_DESIGNER_TARGET_SEMANTICS.grantable)
+        ? SKILL_DESIGNER_TARGET_SEMANTICS.grantable.includes(normalizedLabel)
+        : false;
+    }
+
+    function isSkillDesignerSelfOnlyMechanism(label = '') {
+      const normalizedLabel = normalizeSkillUiText(label, '');
+      return Array.isArray(SKILL_DESIGNER_TARGET_SEMANTICS.selfOnly)
+        ? SKILL_DESIGNER_TARGET_SEMANTICS.selfOnly.includes(normalizedLabel)
+        : false;
+    }
+
+    function getSkillDesignerMechanismRegistryMeta(label = '') {
+      const normalizedLabel = normalizeSkillUiText(label, '');
+      if (!normalizedLabel) return null;
+      const meta = SKILL_DESIGNER_MECHANISM_META[normalizedLabel];
+      return meta && typeof meta === 'object' ? meta : null;
+    }
+
+    function buildSkillDesignerPrimaryHintFromRegistry(label = '') {
+      const meta = getSkillDesignerMechanismRegistryMeta(label);
+      if (!meta) return null;
+      const main = normalizeSkillUiText(meta.designerMainHint, '');
+      const sub = normalizeSkillUiText(meta.designerSubHint, '');
+      const secondary = normalizeSkillUiText(meta.designerSecondaryHint, '');
+      if (!main && !sub) return null;
+      return {
+        main: main || sub,
+        sub: sub || main,
+        secondary: secondary || undefined,
+      };
+    }
+
+    function buildSkillDesignerSecondaryHintsFromRegistry(label = '') {
+      const meta = getSkillDesignerMechanismRegistryMeta(label);
+      if (!meta) return [];
+      const hint = normalizeSkillUiText(meta.designerSecondaryHint, '');
+      return hint ? [hint] : [];
+    }
+
+    function resolveSkillDesignerMechanismParamDefsFromRegistry(label = '') {
+      const meta = getSkillDesignerMechanismRegistryMeta(label);
+      const schema = Array.isArray(meta && meta.designerParamSchema) ? meta.designerParamSchema : [];
+      if (!schema.length) return [];
+      return schema
+        .map(def => {
+          if (!def || typeof def !== 'object') return null;
+          const type = normalizeSkillUiText(def.type, 'text');
+          const key = normalizeSkillUiText(def.key, '');
+          const title = normalizeSkillUiText(def.label, '');
+          if (!key || !title) return null;
+          const placeholder = normalizeSkillUiText(def.placeholder, '');
+          if (type === 'select') {
+            const optionKey = normalizeSkillUiText(def.optionsKey, '');
+            const options = optionKey ? SKILL_DESIGNER_PARAM_OPTION_REGISTRY[optionKey] || [] : (Array.isArray(def.options) ? def.options : []);
+            return createSkillDesignerSelectParam(key, title, options, placeholder || '未设置');
+          }
+          if (type === 'number') {
+            return createSkillDesignerNumberParam(key, title, placeholder, normalizeSkillUiText(def.step, '0.1'));
+          }
+          return createSkillDesignerTextParam(key, title, placeholder);
+        })
+        .filter(Boolean);
+    }
+
+    function resolveSkillDesignerMechanismTargetForRuntime(target = '', mechanismLabel = '') {
+      const normalizedLabel = normalizeSkillUiText(mechanismLabel, '');
+      const normalizedTarget = normalizeSkillDesignerTargetForRuntime(target, 'effect');
+      if (isSkillDesignerSelfOnlyMechanism(normalizedLabel)) return '自身';
+      const meta = getSkillDesignerMechanismRegistryMeta(normalizedLabel);
+      if (meta && meta.groupGrantable === true) {
+        if (/敌方/.test(normalizedTarget)) return '自身';
+        if (normalizedTarget === '全场') return '友方群体';
+        if (normalizedTarget === '友方群体' || normalizedTarget === '友方单体') return normalizedTarget;
+        return '自身';
+      }
+      if (normalizedLabel === '共享视野') return resolveSkillDesignerSharedVisionTargetForRuntime(target);
+      if (normalizedLabel && isSkillDesignerGrantableMechanism(normalizedLabel))
+        return resolveSkillDesignerGrantableMechanismTargetForRuntime(target, normalizedLabel);
+      return normalizedTarget || '自身';
+    }
+
+    function resolveSkillDesignerGrantableMechanismTargetForRuntime(target = '', mechanismLabel = '') {
+      const normalizedTarget = normalizeSkillDesignerTargetForRuntime(target, 'effect');
+      if (mechanismLabel && !isSkillDesignerGrantableMechanism(mechanismLabel)) return normalizedTarget || '自身';
+      if (/敌方/.test(normalizedTarget)) return '自身';
+      if (normalizedTarget === '全场') return '友方群体';
       return normalizedTarget || '自身';
     }
 
@@ -6718,6 +7244,12 @@
     function buildSkillDesignerPrimaryEffects(draft = {}, runtimeState = {}) {
       const primaryLabel = getSkillDesignerEffectivePrimaryLabel(draft);
       const target = runtimeState && runtimeState.target ? runtimeState.target : normalizeSkillDesignerTargetForRuntime(draft && draft.target, 'effect');
+      const supportTarget = runtimeState && runtimeState.supportTarget ? runtimeState.supportTarget : resolveSkillDesignerSupportTargetForRuntime(draft && draft.target);
+      const sharedVisionTarget =
+        runtimeState && runtimeState.sharedVisionTarget
+          ? runtimeState.sharedVisionTarget
+          : resolveSkillDesignerSharedVisionTargetForRuntime(draft && draft.target);
+      const grantableTarget = runtimeState && runtimeState.grantableTarget ? runtimeState.grantableTarget : resolveSkillDesignerGrantableMechanismTargetForRuntime(draft && draft.target, primaryLabel);
       const params = getSkillDesignerMechanicParamsForRuntime(draft, primaryLabel);
       const duration = parseSkillDesignerIntegerInputValue(
         params['duration']
@@ -6813,6 +7345,15 @@
               '追加僵直': parseSkillDesignerNumericInputValue(params['extraDelay'], 0.5, 4),
             }),
           ].filter(effect => safeEntries(effect).length);
+        case '封技':
+          return [
+            buildSkillDesignerRuntimeObject({
+              '机制': '封技',
+              '目标': target,
+              '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+              '限制范围': normalizeSkillUiText(params['muteScope'], ''),
+            }),
+          ].filter(effect => safeEntries(effect).length);
         case '单属性削弱':
         case '多属性削弱': {
           const properties = resolveSkillDesignerPropertyKeysFromText(
@@ -6834,6 +7375,15 @@
               '目标': target,
               '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
               'heal_block_ratio': parseSkillDesignerPercentRatio(params['banHealRatio'], 1.0),
+            }),
+          ].filter(effect => safeEntries(effect).length);
+        case '治疗反转':
+          return [
+            buildSkillDesignerRuntimeObject({
+              '机制': '治疗反转',
+              '目标': target,
+              '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+              '反转比例': parseSkillDesignerFactorInputValue(params['invertRatio'], 1.0),
             }),
           ].filter(effect => safeEntries(effect).length);
         case '消耗提高':
@@ -7007,6 +7557,57 @@
               '锁血下限': normalizeSkillUiText(params['lockBloodFloor'], ''),
             }),
           ].filter(effect => safeEntries(effect).length);
+        case '无敌金身':
+          return [
+            buildSkillDesignerRuntimeObject({
+              '机制': '无敌金身',
+              '目标': grantableTarget,
+              '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+              '每日触发上限': parseSkillDesignerIntegerInputValue(params['dailyLimit'], 3, 1),
+              '免疫位阶阈值': parseSkillDesignerNumericInputValue(params['tierThreshold'], 100, 1),
+              'damage_reduction': parseSkillDesignerPercentRatio(params['reduceRatio'], 0.18),
+            }),
+          ].filter(effect => safeEntries(effect).length);
+        case '伤害反射':
+          return [
+            buildSkillDesignerRuntimeObject({
+              '机制': '伤害反射',
+              '目标': grantableTarget,
+              '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+              '反射比例': parseSkillDesignerPercentRatio(params['reflectRatio'], 0.25),
+              '触发条件': normalizeSkillUiText(params['reflectRule'], ''),
+            }),
+          ].filter(effect => safeEntries(effect).length);
+        case '伤害分摊':
+          return [
+            buildSkillDesignerRuntimeObject({
+              '机制': '伤害分摊',
+              '目标': resolveSkillDesignerMechanismTargetForRuntime(draft && draft.target, '伤害分摊'),
+              '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+              '分摊比例': parseSkillDesignerPercentRatio(params['shareRatio'], 0.35),
+              '分摊人数': parseSkillDesignerIntegerInputValue(params['shareCount'], 1, 1),
+            }),
+          ].filter(effect => safeEntries(effect).length);
+        case '替身抵消':
+          return [
+            buildSkillDesignerRuntimeObject({
+              '机制': '替身抵消',
+              '目标': grantableTarget,
+              '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+              '抵消次数': parseSkillDesignerIntegerInputValue(params['substituteCount'], 1, 1),
+              '触发条件': normalizeSkillUiText(params['substituteRule'], ''),
+            }),
+          ].filter(effect => safeEntries(effect).length);
+        case '复苏':
+          return [
+            buildSkillDesignerRuntimeObject({
+              '机制': '复苏',
+              '目标': resolveSkillDesignerMechanismTargetForRuntime(draft && draft.target, '复苏'),
+              '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 3, 1),
+              '复苏次数': parseSkillDesignerIntegerInputValue(params['reviveCount'], 1, 1),
+              '复苏回血比例': parseSkillDesignerPercentRatio(params['reviveHealRatio'], 0.25),
+            }),
+          ].filter(effect => safeEntries(effect).length);
         case '体力恢复':
           return [
             buildSkillDesignerPackedRecoverAttributeEffect(
@@ -7051,7 +7652,7 @@
           return [
             buildSkillDesignerRuntimeObject({
               '机制': '解控',
-              '目标': target,
+              '目标': grantableTarget,
               '清除层级': parseSkillDesignerIntegerInputValue(params['cleanseCount'], 2, 1),
               '清除优先级': normalizeSkillUiText(params['cleansePriority'], ''),
               '附带收益': normalizeSkillUiText(params['extraGain'], ''),
@@ -7095,7 +7696,7 @@
           return [
             buildSkillDesignerRuntimeObject({
               '机制': '共享视野',
-              '目标': target,
+              '目标': sharedVisionTarget,
               '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 3, 1),
               'reaction_bonus': 0.1,
               'hit_bonus': 0.1,
@@ -7163,7 +7764,7 @@
           return [
             buildSkillDesignerRuntimeObject({
               '机制': '自身位移',
-              '目标': '自身',
+              '目标': grantableTarget,
               '持续回合': 1,
               'dodge_bonus': 0.12,
               'attacker_speed_bonus': 0.08,
@@ -7201,7 +7802,7 @@
           return [
             buildSkillDesignerRuntimeObject({
               '机制': '追击位移',
-              '目标': '自身',
+              '目标': grantableTarget,
               '持续回合': 1,
               'attacker_speed_bonus': 0.12,
               'hit_bonus': 0.1,
@@ -7214,7 +7815,7 @@
           return [
             buildSkillDesignerRuntimeObject({
               '机制': '脱离位移',
-              '目标': '自身',
+              '目标': grantableTarget,
               '持续回合': 1,
               'dodge_bonus': 0.15,
               'cast_speed_bonus': 0.12,
@@ -7231,7 +7832,7 @@
           const inheritRatio = parseSkillDesignerPercentRatio(params['inheritRatio'], 0.55);
           const duration = parseSkillDesignerIntegerInputValue(params['duration'], 2, 1);
           const cloneName = normalizeSkillUiText(params['cloneName'], '');
-          const safeTarget = /敌/.test(target) ? '自身' : target;
+          const safeTarget = resolveSkillDesignerMechanismTargetForRuntime(draft && draft.target, '分身');
           const statusName = cloneName ? `${cloneType}·${cloneName}` : cloneType;
           if (cloneType === '精神力分身') {
             return [
@@ -7285,7 +7886,7 @@
           return [
             buildSkillDesignerRuntimeObject({
               '机制': '反制',
-              '目标': '自身',
+              '目标': grantableTarget,
               '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
               '反击倍率': parseSkillDesignerFactorInputValue(params['counterRatio'], 1.0),
               'damage_reduction': 0.15,
@@ -7299,7 +7900,7 @@
           return [
             buildSkillDesignerRuntimeObject({
               '机制': mechanism,
-              '目标': mechanism === '伤害转回复' ? '自身' : target,
+              '目标': resolveSkillDesignerMechanismTargetForRuntime(draft && draft.target, mechanism),
               '转换比例': parseSkillDesignerPercentRatio(params['convertRatio'], 0.6),
               '转化方向': convertPath,
             }),
@@ -7313,6 +7914,15 @@
               '交换数量': parseSkillDesignerIntegerInputValue(params['exchangeCount'], 1, 1),
               '优先策略': normalizeSkillUiText(params['exchangeTarget'], '自身负面换目标正面'),
               '交换条件': normalizeSkillUiText(params['triggerRule'], ''),
+            }),
+          ].filter(effect => safeEntries(effect).length);
+        case '状态转移':
+          return [
+            buildSkillDesignerRuntimeObject({
+              '机制': '状态转移',
+              '目标': target,
+              '转移类型': normalizeSkillUiText(params['transferMode'], '自身负面->目标'),
+              '触发条件': normalizeSkillUiText(params['triggerRule'], ''),
             }),
           ].filter(effect => safeEntries(effect).length);
         case '强制绑定/锁定':
@@ -7366,6 +7976,32 @@
           }
           return effects.filter(effect => safeEntries(effect).length);
         }
+        case '引爆持续伤害':
+          return [
+            buildSkillDesignerRuntimeObject({
+              '机制': '引爆持续伤害',
+              '目标': target,
+              '引爆倍率': parseSkillDesignerFactorInputValue(params['detonateRatio'], 1.2),
+              '消耗持续伤害': !/不消耗|保留/.test(normalizeSkillUiText(params['consumeMode'], '')),
+            }),
+          ].filter(effect => safeEntries(effect).length);
+        case '斩盾':
+          return [
+            buildSkillDesignerRuntimeObject({
+              '机制': '斩盾',
+              '目标': target,
+              '斩盾倍率': parseSkillDesignerFactorInputValue(params['shieldBreakRatio'], 0.6),
+            }),
+          ].filter(effect => safeEntries(effect).length);
+        case '窃取护盾':
+          return [
+            buildSkillDesignerRuntimeObject({
+              '机制': '窃取护盾',
+              '目标': target,
+              '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+              '窃盾比例': parseSkillDesignerPercentRatio(params['shieldStealRatio'], 0.45),
+            }),
+          ].filter(effect => safeEntries(effect).length);
         default:
           return [];
       }
@@ -7377,6 +8013,7 @@
       const offensiveTarget = runtimeState && runtimeState.target ? runtimeState.target : normalizeSkillDesignerTargetForRuntime(draft && draft.target, 'effect');
       const supportTarget = runtimeState && runtimeState.supportTarget ? runtimeState.supportTarget : resolveSkillDesignerSupportTargetForRuntime(draft && draft.target);
       const sharedVisionTarget = runtimeState && runtimeState.sharedVisionTarget ? runtimeState.sharedVisionTarget : resolveSkillDesignerSharedVisionTargetForRuntime(draft && draft.target);
+      const grantableTarget = runtimeState && runtimeState.grantableTarget ? runtimeState.grantableTarget : resolveSkillDesignerGrantableMechanismTargetForRuntime(draft && draft.target, label);
       const primaryDamageEffect =
         runtimeState && runtimeState.primaryDamageEffect && typeof runtimeState.primaryDamageEffect === 'object'
           ? runtimeState.primaryDamageEffect
@@ -7425,7 +8062,7 @@
         case '反击':
           effects.push(buildSkillDesignerRuntimeObject({
             '机制': '受击反击',
-            '目标': '自身',
+            '目标': grantableTarget,
             '持续回合': 2,
             '反击倍率': parseSkillDesignerFactorInputValue(params['counterRatio'], 0.8),
             '反击条件': normalizeSkillUiText(params['counterRule'], ''),
@@ -7466,6 +8103,20 @@
             }));
           }
           break;
+        case '驱散增益':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '机制': '驱散增益',
+            '目标': offensiveTarget,
+            '驱散数量': parseSkillDesignerIntegerInputValue(params['dispelCount'], 1, 1),
+          }));
+          break;
+        case '窃取增益':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '机制': '窃取增益',
+            '目标': offensiveTarget,
+            '窃取数量': parseSkillDesignerIntegerInputValue(params['stealCount'], 1, 1),
+          }));
+          break;
         case '小护盾':
           effects.push(buildSkillDesignerRuntimeObject({
             '机制': '护盾',
@@ -7501,6 +8152,32 @@
             }));
           }
           break;
+        case '隐身':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '机制': '隐身',
+            '目标': grantableTarget,
+            '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+            '隐蔽度': parseSkillDesignerPercentRatio(params['stealthRatio'], 0.3),
+            'dodge_bonus': parseSkillDesignerPercentRatio(params['dodgeBonus'], 0.1),
+            'reaction_bonus': parseSkillDesignerPercentRatio(params['reactionBonus'], 0.08),
+          }));
+          break;
+        case '护卫':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '机制': '护卫',
+            '目标': resolveSkillDesignerMechanismTargetForRuntime(draft && draft.target, '护卫'),
+            '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+            'damage_reduction': parseSkillDesignerPercentRatio(params['reduceRatio'], 0.1),
+          }));
+          break;
+        case '嘲讽':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '机制': '嘲讽',
+            '目标': offensiveTarget,
+            '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+            '聚火规则': normalizeSkillUiText(params['focusRule'], ''),
+          }));
+          break;
         case '魂力恢复':
           effects.push(buildSkillDesignerPackedRecoverAttributeEffect(
             supportTarget,
@@ -7530,6 +8207,136 @@
             '弱点类型': normalizeSkillUiText(params['weakPointType'], ''),
           }));
           break;
+        case '破隐':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '机制': '破隐',
+            '目标': offensiveTarget,
+            '破隐层级': 99,
+            'hit_bonus': parseSkillDesignerPercentRatio(params['hitBonus'], 0.1),
+            'lock_level': parseSkillDesignerIntegerInputValue(params['lockLevel'], 1, 1),
+          }));
+          break;
+        case '目标锁定':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '机制': '目标锁定',
+            '目标': offensiveTarget,
+            '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+            'hit_bonus': parseSkillDesignerPercentRatio(params['hitBonus'], 0.1),
+            'lock_level': parseSkillDesignerIntegerInputValue(params['lockLevel'], 1, 1),
+          }));
+          break;
+        case '追击':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '机制': '追击',
+            '目标': offensiveTarget,
+            '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+            'attacker_speed_bonus': 0.08,
+            'hit_bonus': 0.08,
+            'final_damage_mult': parseSkillDesignerFactorInputValue(params['bonusRatio'], 1.2, { plusBase: true }),
+            '追击窗口': normalizeSkillUiText(params['followWindow'], ''),
+          }));
+          break;
+        case '缴械':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '机制': '缴械',
+            '目标': offensiveTarget,
+            '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+            '限制范围': normalizeSkillUiText(params['disarmScope'], ''),
+          }));
+          break;
+        case '无敌金身':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '机制': '无敌金身',
+            '目标': grantableTarget,
+            '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+            '每日触发上限': parseSkillDesignerIntegerInputValue(params['dailyLimit'], 3, 1),
+            '免疫位阶阈值': parseSkillDesignerNumericInputValue(params['tierThreshold'], 100, 1),
+            'damage_reduction': parseSkillDesignerPercentRatio(params['reduceRatio'], 0.18),
+          }));
+          break;
+        case '伤害反射':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '机制': '伤害反射',
+            '目标': grantableTarget,
+            '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+            '反射比例': parseSkillDesignerPercentRatio(params['reflectRatio'], 0.25),
+            '触发条件': normalizeSkillUiText(params['reflectRule'], ''),
+          }));
+          break;
+        case '伤害分摊':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '机制': '伤害分摊',
+            '目标': resolveSkillDesignerMechanismTargetForRuntime(draft && draft.target, '伤害分摊'),
+            '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+            '分摊比例': parseSkillDesignerPercentRatio(params['shareRatio'], 0.35),
+            '分摊人数': parseSkillDesignerIntegerInputValue(params['shareCount'], 1, 1),
+          }));
+          break;
+        case '替身抵消':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '机制': '替身抵消',
+            '目标': grantableTarget,
+            '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+            '抵消次数': parseSkillDesignerIntegerInputValue(params['substituteCount'], 1, 1),
+            '触发条件': normalizeSkillUiText(params['substituteRule'], ''),
+          }));
+          break;
+        case '复苏':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '机制': '复苏',
+            '目标': resolveSkillDesignerMechanismTargetForRuntime(draft && draft.target, '复苏'),
+            '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 3, 1),
+            '复苏次数': parseSkillDesignerIntegerInputValue(params['reviveCount'], 1, 1),
+            '复苏回血比例': parseSkillDesignerPercentRatio(params['reviveHealRatio'], 0.25),
+          }));
+          break;
+        case '治疗反转':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '机制': '治疗反转',
+            '目标': offensiveTarget,
+            '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+            '反转比例': parseSkillDesignerFactorInputValue(params['invertRatio'], 1.0),
+          }));
+          break;
+        case '封技':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '机制': '封技',
+            '目标': offensiveTarget,
+            '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+            '限制范围': normalizeSkillUiText(params['muteScope'], ''),
+          }));
+          break;
+        case '状态转移':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '机制': '状态转移',
+            '目标': offensiveTarget,
+            '转移类型': normalizeSkillUiText(params['transferMode'], '自身负面->目标'),
+            '触发条件': normalizeSkillUiText(params['triggerRule'], ''),
+          }));
+          break;
+        case '引爆持续伤害':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '机制': '引爆持续伤害',
+            '目标': offensiveTarget,
+            '引爆倍率': parseSkillDesignerFactorInputValue(params['detonateRatio'], 1.2),
+            '消耗持续伤害': !/不消耗|保留/.test(normalizeSkillUiText(params['consumeMode'], '')),
+          }));
+          break;
+        case '斩盾':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '机制': '斩盾',
+            '目标': offensiveTarget,
+            '斩盾倍率': parseSkillDesignerFactorInputValue(params['shieldBreakRatio'], 0.6),
+          }));
+          break;
+        case '窃取护盾':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '机制': '窃取护盾',
+            '目标': offensiveTarget,
+            '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+            '窃盾比例': parseSkillDesignerPercentRatio(params['shieldStealRatio'], 0.45),
+          }));
+          break;
         default:
           break;
       }
@@ -7549,7 +8356,7 @@
           if (mechanism === '持续恢复') cloned['触发'] = '每回合';
           else if (!toText(cloned['触发'], '').trim() || cloned['触发'] === '立即生效') cloned['触发'] = '常驻';
         }
-        if (['护盾', '减伤', '格挡', '霸体', '免死', '共享视野', '受击反击', '反制', '分身'].includes(mechanism)) {
+        if (['护盾', '减伤', '格挡', '霸体', '免死', '共享视野', '受击反击', '反制', '分身', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏', '隐身', '护卫', '追击'].includes(mechanism)) {
           cloned['目标'] = cloned['目标'] || '自身';
           if (cloned['持续回合'] === undefined || Number(cloned['持续回合'] || 0) <= 0) cloned['持续回合'] = 999;
         }
@@ -7591,6 +8398,7 @@
       const runtimeState = {
         target: normalizeSkillDesignerTargetForRuntime(draft && draft.target, 'effect'),
         supportTarget: resolveSkillDesignerSupportTargetForRuntime(draft && draft.target),
+        grantableTarget: resolveSkillDesignerGrantableMechanismTargetForRuntime(draft && draft.target),
         sharedVisionTarget: resolveSkillDesignerSharedVisionTargetForRuntime(draft && draft.target),
         effects: [],
         primaryDamageEffect: null,
@@ -8402,7 +9210,10 @@
 
     function buildRecentNewsSummary(snapshot, options = {}) {
       const { seqLimit = 2, intelLimit = 2 } = options || {};
-      const globalNews = (snapshot.timelineEntries || []).slice(0, Math.max(1, seqLimit)).map(([key, item]) => ({
+      const globalNews = (snapshot.timelineEntries || [])
+        .filter(([, item]) => /done|handled|完成|已处理/.test(toText(deepGet(item, '状态', ''), '')))
+        .slice(0, Math.max(1, seqLimit))
+        .map(([key, item]) => ({
         title: `全局 / ${key}`,
         desc: toText(deepGet(item, '事件', '暂无记录'), '暂无记录')
       }));
@@ -9150,6 +9961,21 @@
       return Number.isFinite(ageValue) && ageValue > 0 && ageValue <= SOUL_TOWER_MAX_AGE;
     }
 
+    function isTransmissionTowerEntryLocation(location = '') {
+      const normalized = normalizeLocForMatch(location);
+      if (!normalized.raw) return false;
+      return normalized.segments.some(seg => /传灵塔/.test(seg));
+    }
+
+    function isSoulTowerHeadquartersLocation(location = '') {
+      const normalized = normalizeLocForMatch(location);
+      if (!normalized.raw) return false;
+      if (/传灵塔总部/.test(normalized.raw)) return true;
+      const hasSpiritPagoda = isTransmissionTowerEntryLocation(normalized.raw);
+      const hasShrekCity = normalized.segments.some(seg => /史莱克城/.test(seg));
+      return hasSpiritPagoda && hasShrekCity;
+    }
+
     function isSoulTowerCombatType(detail = {}) {
       const battleType = toText(detail && (detail['战斗类型'] || detail.combatType || detail.type), '');
       return battleType === '魂灵塔冲塔';
@@ -9326,12 +10152,8 @@
 
     function getTrialEntranceText(snapshot) {
       const soulTowerEligible = isSoulTowerEligibleCharacterData(getActiveSnapshotCharacter(snapshot));
-      const inventoryEntries = Array.isArray(snapshot && snapshot.inventoryEntries) ? snapshot.inventoryEntries : [];
-      const hasSoulTowerTicket = soulTowerEligible && inventoryEntries.some(([name]) => /魂灵塔/.test(toText(name, '')));
-      const hasAscensionTicket = inventoryEntries.some(([name]) => {
-        const safeName = toText(name, '');
-        return /升灵台|门票/.test(safeName) && !/魂灵塔/.test(safeName);
-      });
+      const hasSoulTowerTicket = soulTowerEligible && listSoulTowerTicketNames(snapshot).length > 0;
+      const hasAscensionTicket = listAscensionTicketNames(snapshot).length > 0;
       if (hasSoulTowerTicket) return '升灵台 / 魂灵塔 / 狩猎';
       if (hasAscensionTicket) return '升灵台 / 狩猎';
       return '当前无门票，仅常规狩猎';
@@ -11815,6 +12637,9 @@
       const forestRatio = Math.max(0, Math.min(100, Number(((toNumber(snapshot.forestKilledAge, 0) / 1000000) * 100).toFixed(1))));
       const forestStage = forestRatio >= 100 ? '兽潮临界' : (forestRatio >= 70 ? '高度紧张' : (forestRatio >= 30 ? '持续升温' : '相对安全'));
       const latest = snapshot.latestTimeline;
+      const stageLabel = latest
+        ? toText(deepGet(latest[1], '事件', latest[0]), latest[0])
+        : snapshot.currentLoc;
       const planSummary = buildRecentPlanSummary(snapshot, { worldLimit: 1, recordLimit: 1 });
       const newsSummary = buildRecentNewsSummary(snapshot, { seqLimit: 1, intelLimit: 1 });
 
@@ -11823,7 +12648,7 @@
         <div class="hero-metrics">
           <div class="hero-row"><b>当前时间</b><span>${htmlEscape(worldTime)}</span></div>
           <div class="hero-row"><b>世界偏差</b><span>${htmlEscape(`${deviation} / ${deviation >= 40 ? '高危' : deviation >= 10 ? '波动' : '平稳'}`)}</span></div>
-          <div class="hero-row"><b>当前阶段</b><span>${htmlEscape(latest ? latest[0] : snapshot.currentLoc)}</span></div>
+          <div class="hero-row"><b>当前阶段</b><span>${htmlEscape(stageLabel)}</span></div>
         </div>
         <div class="hero-list">
           <div class="hero-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
@@ -12356,9 +13181,20 @@
               if (!secondaryGrid || !primaryMainInput) return;
               const selectedValues = readCheckedValues('skill-secondary');
               secondaryGrid.innerHTML = buildSkillDesignerCheckChipList(
-                getSkillDesignerSecondaryOptionList(primaryMainInput.value, selectedValues),
+                getSkillDesignerSecondaryOptionList(
+                  primaryMainInput.value,
+                  selectedValues,
+                  typeInput ? typeInput.value : '',
+                ),
                 selectedValues,
-                'skill-secondary'
+                'skill-secondary',
+                label => isSkillDesignerRecommendedSecondaryOption(
+                  label,
+                  primaryMainInput.value,
+                  typeInput ? typeInput.value : '',
+                )
+                  ? 'recommended'
+                  : '',
               ) || '<span class=\"tag-chip\">暂无附加机制</span>';
               syncChipState();
             };
@@ -12568,7 +13404,12 @@
                     <div class=\"skill-designer-subsection\">
                       <div class=\"mvu-editor-label\">附加机制（可多选）</div>
                       <div class=\"skill-designer-chip-grid\" data-skill-designer-secondary-grid>
-                        ${buildSkillDesignerCheckChipList(getSkillDesignerSecondaryOptionList(designerDraft.primaryMain, designerDraft.secondaryMechanics), designerDraft.secondaryMechanics, 'skill-secondary') || '<span class=\"tag-chip\">暂无附加机制</span>'}
+                        ${buildSkillDesignerCheckChipList(
+                          getSkillDesignerSecondaryOptionList(designerDraft.primaryMain, designerDraft.secondaryMechanics, designerDraft.type),
+                          designerDraft.secondaryMechanics,
+                          'skill-secondary',
+                          option => isSkillDesignerRecommendedSecondaryOption(option, designerDraft.primaryMain, designerDraft.type) ? 'recommended' : '',
+                        ) || '<span class=\"tag-chip\">暂无附加机制</span>'}
                       </div>
                     </div>
                   </section>
@@ -15081,22 +15922,45 @@
           .find(locationName => isLocationCompatible(nodeName, locationName) || isLocationCompatible(locationName, nodeName)) || '';
         const currentNodeLocFull = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc), snapshot.currentLoc);
         const canDispatchHere = !!toText(currentNodeLocFull, '') && isLocationCompatible(nodeName, currentNodeLocFull);
-        const isTransmissionTowerNode =
-          /传灵塔|升灵台|魂灵塔/.test(nodeName)
-          || nodeStores.some(([name]) => /传灵塔|升灵台|魂灵塔/.test(toText(name, '')));
+        const isPlayerControlled = isSnapshotPlayerControlled(snapshot);
+        const isTransmissionTowerNode = isTransmissionTowerEntryLocation(nodeName);
+        const isSoulTowerHeadquartersNode = isSoulTowerHeadquartersLocation(nodeName);
+        const ascensionTickets = listAscensionTicketNames(snapshot);
+        const soulTowerTickets = listSoulTowerTicketNames(snapshot);
+        const soulTowerEligible = isSoulTowerEligibleCharacterData(getActiveSnapshotCharacter(snapshot));
+        const preferredLocalStoreName = isTransmissionTowerNode
+          ? toText((nodeStores.find(([name]) => /传灵塔/.test(toText(name, ''))) || nodeStores[0] || [])[0], '')
+          : toText((nodeStores[0] || [])[0], '');
 
         const localNpcCards = localNpcEntries.map(([name, char]) => ({
           title: toText(deepGet(char, 'name', deepGet(char, 'base.name', name)), name),
           desc: `${toText(deepGet(char, '社交.主身份', '未知身份'), '未知身份')} / ${toText(deepGet(char, '状态.位置', '未知地点'), '未知地点')}`
         }));
         const availableActionButtons = [
-          ...(nodeStores.length ? [{ text: '前往商店', action: 'shop', target: nodeStores[0][0], className: 'live' }] : []),
+          ...(isTransmissionTowerNode ? [{
+            text: '进入升灵台',
+            action: 'ascension',
+            className: 'live',
+            disabled: ascensionTickets.length <= 0,
+            desc: ascensionTickets.length > 0 ? `可用门票 ${ascensionTickets.length} 种` : '缺少升灵台门票',
+          }] : []),
+          ...(isSoulTowerHeadquartersNode ? [{
+            text: '进入魂灵塔',
+            action: 'tower',
+            className: 'live',
+            disabled: !soulTowerEligible || soulTowerTickets.length <= 0,
+            desc: !soulTowerEligible
+              ? '当前角色不满足入塔条件'
+              : soulTowerTickets.length > 0
+                ? '默认挑战下一层'
+                : '缺少魂灵塔门票',
+          }] : []),
+          ...(preferredLocalStoreName ? [{ text: '前往商店', action: 'shop', target: preferredLocalStoreName, className: 'live' }] : []),
           ...(officialCommissionLocationName ? [{ text: `进入${officialCommissionLocationName}官方工坊`, action: 'craft', executorType: 'official', className: 'live' }] : []),
           ...(primaryNpc ? [{ text: `与${primaryNpc}交易`, action: 'trade', npcTarget: primaryNpc, className: 'warn' }, { text: `委托${primaryNpc}工坊`, action: 'craft', npcTarget: primaryNpc, executorType: 'private', className: 'warn' }, { text: `与${primaryNpc}对话`, action: 'talk', npcTarget: primaryNpc, className: 'live' }, { text: `向${primaryNpc}请教`, action: 'intel', npcTarget: primaryNpc, className: '' }, { text: `向${primaryNpc}切磋`, action: 'battle', npcTarget: primaryNpc, className: 'warn' }] : []),
           ...(!primaryNpc ? [{ text: '打开工坊', action: 'craft', executorType: 'self', className: 'live' }] : [])
         ];
         const actionButtons = canDispatchHere ? availableActionButtons : [];
-        const isPlayerControlled = isSnapshotPlayerControlled(snapshot);
         const actionSummaryText = availableActionButtons.map(btn => btn.text).join(' / ');
         const actionCardTitle = isPlayerControlled ? '可执行操作' : '驻地操作概览';
         const travelPlan = !canDispatchHere && isPlayerControlled && window.__sheepMapBridge && typeof window.__sheepMapBridge.describeTravelToNode === 'function'
@@ -15111,13 +15975,13 @@
           if (btn.executorType === 'self') metaParts.push('自营工坊');
           return {
             title: btn.text,
-            desc: metaParts.length ? metaParts.join(' / ') : '抵达后可直接发起'
+            desc: toText(btn.desc, '') || (metaParts.length ? metaParts.join(' / ') : '抵达后可直接发起')
           };
         });
         const actionButtonsHtml = isPlayerControlled
           ? (canDispatchHere
             ? (actionButtons.length
-              ? `<div class="map-action-grid">${actionButtons.map(btn => `<button type="button" class="map-dispatch-action-btn ${htmlEscape(btn.className || '')}" data-action="${htmlEscape(btn.action || '')}" data-target="${htmlEscape(btn.target || nodeName)}" data-current-loc="${htmlEscape(nodeName)}" data-npc-target="${htmlEscape(btn.npcTarget || '')}" data-executor-type="${htmlEscape(btn.executorType || '')}" data-services="${htmlEscape(Array.isArray(btn.services) ? btn.services.join('|') : '')}">${htmlEscape(btn.text || '执行操作')}</button>`).join('')}</div>`
+              ? `<div class="map-action-grid">${actionButtons.map(btn => `<button type="button" class="map-dispatch-action-btn ${htmlEscape(btn.className || '')}" data-action="${htmlEscape(btn.action || '')}" data-target="${htmlEscape(btn.target || nodeName)}" data-current-loc="${htmlEscape(nodeName)}" data-npc-target="${htmlEscape(btn.npcTarget || '')}" data-executor-type="${htmlEscape(btn.executorType || '')}" data-services="${htmlEscape(Array.isArray(btn.services) ? btn.services.join('|') : '')}" ${btn.disabled ? 'disabled' : ''}>${htmlEscape(btn.text || '执行操作')}</button>`).join('')}</div>`
               : `<div class="relation-card"><b>暂无可执行操作</b><span>这里暂时没有能立刻发起的交易或互动。</span></div>`)
             : `
               <section class="dossier-section">
@@ -15495,6 +16359,18 @@
         const isPlayerControlled = isSnapshotPlayerControlled(snapshot);
         const activeChar = getActiveSnapshotCharacter(snapshot);
         const soulTowerEligible = isSoulTowerEligibleCharacterData(activeChar);
+        const soulTowerEntryLocation = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc), snapshot.currentLoc);
+        const ascensionTickets = listAscensionTicketNames(snapshot);
+        const soulTowerTickets = listSoulTowerTicketNames(snapshot);
+        const soulSpiritTargets = listSoulSpiritTargets(snapshot);
+        const canRunAscensionAtCurrentLocation =
+          isTransmissionTowerEntryLocation(soulTowerEntryLocation) &&
+          ascensionTickets.length > 0 &&
+          soulSpiritTargets.length > 0;
+        const canStartSoulTowerAtCurrentLocation =
+          soulTowerEligible &&
+          isSoulTowerHeadquartersLocation(soulTowerEntryLocation) &&
+          soulTowerTickets.length > 0;
         const towerPath = soulTowerEligible && activeCharKey ? ['char', activeCharKey, '魂灵塔记录'] : [];
         const towerDiscountSpirit = soulTowerEligible
           ? normalizeSoulTowerDiscountSpiritRecord(deepGet(snapshot, 'activeChar.魂灵塔记录.当前五折魂灵', {}))
@@ -15502,8 +16378,6 @@
         const ascensionTicketCount = (snapshot.inventoryEntries || [])
           .filter(([name]) => /升灵台/.test(toText(name, '')))
           .reduce((sum, [, item]) => sum + Math.max(0, toNumber(item && item['数量'], 0)), 0);
-        const ascensionTickets = listAscensionTicketNames(snapshot);
-        const soulSpiritTargets = listSoulSpiritTargets(snapshot);
         const trialTickets = (snapshot.inventoryEntries || [])
           .filter(([name]) => (soulTowerEligible ? /升灵台|魂灵塔/.test(toText(name, '')) : /升灵台/.test(toText(name, ''))))
           .slice(0, 8);
@@ -15570,17 +16444,17 @@
 
               ${isPlayerControlled && activeCharKey ? `
                 <div class="archive-card full">
-                  <div class="archive-card-head"><div class="archive-card-title">内部结算</div></div>
+                  <div class="archive-card-head"><div class="archive-card-title">试炼操作</div></div>
                   <div class="request-console-row" data-collection-panel="trial-ascension" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
                     <select class="request-console-input" data-collection-input="asc-ticket" style="margin:0; flex:1 1 180px;">${ascensionTicketOptionsHtml}</select>
                     <select class="request-console-input" data-collection-input="asc-target" style="margin:0; flex:1 1 260px;">${soulSpiritTargetOptionsHtml}</select>
                     <input type="number" min="1" class="request-console-input" data-collection-input="asc-gain" value="100" style="margin:0; width:110px; flex:0 0 110px;" placeholder="提升年限" />
-                    <button type="button" class="tag-chip live" data-collection-action="run-ascension" data-collection-char="${escapeHtmlAttr(activeCharKey)}">执行升灵</button>
+                    <button type="button" class="tag-chip live" data-collection-action="run-ascension" data-collection-char="${escapeHtmlAttr(activeCharKey)}" ${canRunAscensionAtCurrentLocation ? '' : 'disabled'}>执行升灵</button>
                   </div>
                   ${soulTowerEligible ? `
                     <div class="request-console-row" data-collection-panel="trial-tower" style="display:flex; gap:8px; flex-wrap:wrap;">
                       <input type="number" min="1" class="request-console-input" data-collection-input="tower-floor" value="${escapeHtmlAttr(String(Math.max(1, toNumber(deepGet(snapshot, 'activeChar.魂灵塔记录.最高层', 0), 0) + 1)))}" style="margin:0; width:110px; flex:0 0 110px;" placeholder="层数" />
-                      <button type="button" class="tag-chip live" data-collection-action="run-soul-tower" data-collection-char="${escapeHtmlAttr(activeCharKey)}">登记冲塔</button>
+                      <button type="button" class="tag-chip live" data-collection-action="run-soul-tower" data-collection-char="${escapeHtmlAttr(activeCharKey)}" ${canStartSoulTowerAtCurrentLocation ? '' : 'disabled'}>开始冲塔</button>
                     </div>
                   ` : ''}
                 </div>
@@ -16424,6 +17298,54 @@
         .filter(([name, item]) => /升灵台/.test(toText(name, '')) && toNumber(item && item['数量'], 0) > 0)
         .map(([name]) => toText(name, ''))
         .filter(Boolean);
+    }
+
+    function listSoulTowerTicketNames(snapshot) {
+      return (snapshot && Array.isArray(snapshot.inventoryEntries) ? snapshot.inventoryEntries : [])
+        .filter(([name, item]) => {
+          const safeName = toText(name, '');
+          const itemType = toText(item && item['类型'], '');
+          return (
+            /魂灵塔/.test(safeName) &&
+            (/(票|券|令|凭证)/.test(safeName) || itemType === '门票') &&
+            toNumber(item && item['数量'], 0) > 0
+          );
+        })
+        .map(([name]) => toText(name, ''))
+        .filter(Boolean);
+    }
+
+    function buildInventoryConsumePatches(snapshot, charKey = '', itemName = '', quantity = 1) {
+      const safeCharKey = toText(charKey, '').trim();
+      const safeItemName = toText(itemName, '').trim();
+      const consumeCount = Math.max(1, Math.floor(toNumber(quantity, 1)));
+      if (!snapshot || !snapshot.rootData || !safeCharKey || !safeItemName) {
+        return { ok: false, reason: 'inventory_consume_context_invalid', patchOps: [] };
+      }
+      const inventoryItem = deepGet(snapshot, ['rootData', 'char', safeCharKey, '背包', safeItemName], null);
+      const currentQty = Math.max(0, Math.floor(toNumber(inventoryItem && inventoryItem['数量'], 0)));
+      if (currentQty < consumeCount) {
+        return { ok: false, reason: `缺少【${safeItemName}】。`, patchOps: [] };
+      }
+      const itemPath = `/char/${escapeJsonPointerValue(safeCharKey)}/背包/${escapeJsonPointerValue(safeItemName)}`;
+      if (currentQty === consumeCount) {
+        return {
+          ok: true,
+          patchOps: [{ op: 'remove', path: itemPath }],
+        };
+      }
+      return {
+        ok: true,
+        patchOps: [{ op: 'replace', path: `${itemPath}/数量`, value: currentQty - consumeCount }],
+      };
+    }
+
+    function getDefaultSoulTowerChallengeFloor(snapshot) {
+      const activeChar = getActiveSnapshotCharacter(snapshot);
+      return Math.min(
+        SOUL_TOWER_TOTAL_FLOORS,
+        Math.max(1, toNumber(deepGet(activeChar, '魂灵塔记录.最高层', 0), 0) + 1),
+      );
     }
 
     function listSoulSpiritTargets(snapshot) {
@@ -18258,23 +19180,30 @@ ${mvuUpdate}`;
       const playerName = toText(combatData.参战者.player.name, '玩家');
       const enemyName = toText(combatData.参战者.enemy.name, '对手');
       const compactCombatData = compactCombatDataForWorldStorage(snapshot, combatData);
+      const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
       const towerResetPatches = [];
+      const towerEntryTicketPatches = [];
       if (combatData.战斗类型 === '魂灵塔冲塔') {
-        const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
         const currentDiscount = normalizeSoulTowerDiscountSpiritRecord(deepGet(snapshot, 'activeChar.魂灵塔记录.当前五折魂灵', {}));
         if (activeCharKey && currentDiscount.层数 > 0) {
           towerResetPatches.push({
             op: 'replace',
-            path: `/char/${escapeJsonPointerSegment(activeCharKey)}/魂灵塔记录/当前五折魂灵`,
+            path: `/char/${escapeJsonPointerValue(activeCharKey)}/魂灵塔记录/当前五折魂灵`,
             value: createEmptySoulTowerDiscountSpiritRecord(),
           });
         }
+        const towerTicketName = toText(dispatchDetail && (dispatchDetail.soulTowerTicket || dispatchDetail.ticketName), '').trim();
+        if (!towerTicketName) return { ok: false, reason: '缺少魂灵塔门票。' };
+        const ticketConsumeResult = buildInventoryConsumePatches(snapshot, activeCharKey, towerTicketName, 1);
+        if (!ticketConsumeResult.ok) return { ok: false, reason: ticketConsumeResult.reason || '魂灵塔门票不足。' };
+        towerEntryTicketPatches.push(...ticketConsumeResult.patchOps);
       }
       const soulTowerText = combatData.战斗类型 === '魂灵塔冲塔'
         ? ` ${toText(combatData.大关标签, '魂灵塔')} 第${toNumber(combatData.floor, 1)}层`
         : '';
       battleInlineDismissed = false;
       await applyJsonPatchOpsByEditor([
+        ...towerEntryTicketPatches,
         ...towerResetPatches,
         { op: 'replace', path: '/world/战斗', value: compactCombatData },
         { op: 'replace', path: '/sys/系统播报', value: `[战斗模块] ${playerName} 向 ${enemyName} 发起${combatData.战斗类型 === '魂灵塔冲塔' ? `魂灵塔挑战${soulTowerText}` : '切磋'}，战斗模块已接管。` }
@@ -18289,6 +19218,39 @@ ${mvuUpdate}`;
       }
       showUiToast('战斗模块已开启。', 'info', 2400);
       return { ok: true, combatData };
+    }
+
+    async function openSoulTowerChallengeFromSnapshot(snapshot, options = {}) {
+      const sourceSnapshot = snapshot && snapshot.rootData ? snapshot : (liveSnapshot || lastRenderableSnapshot);
+      if (!sourceSnapshot || !sourceSnapshot.rootData) return { ok: false, reason: '当前快照未就绪，无法开启魂灵塔。' };
+      const entryLocation = toText(
+        options.entryLocation,
+        toText(deepGet(sourceSnapshot, 'activeChar.状态.位置', sourceSnapshot.currentLoc), sourceSnapshot.currentLoc),
+      );
+      if (!isSoulTowerHeadquartersLocation(entryLocation)) {
+        return { ok: false, reason: '魂灵塔只能从史莱克城传灵塔总部进入。' };
+      }
+      const activeChar = getActiveSnapshotCharacter(sourceSnapshot);
+      if (!isSoulTowerEligibleCharacterData(activeChar)) {
+        return { ok: false, reason: '当前角色不满足魂灵塔入塔条件。' };
+      }
+      const soulTowerTickets = listSoulTowerTicketNames(sourceSnapshot);
+      const selectedTicket = toText(options.ticketName, soulTowerTickets[0] || '').trim();
+      if (!selectedTicket) {
+        return { ok: false, reason: '缺少魂灵塔门票。' };
+      }
+      const requestedFloor = Math.floor(toNumber(options.floor, getDefaultSoulTowerChallengeFloor(sourceSnapshot)));
+      const floor = Math.min(SOUL_TOWER_TOTAL_FLOORS, Math.max(1, requestedFloor));
+      const soulTowerArena = `${entryLocation}-魂灵塔`;
+      return openMapBattleModule(sourceSnapshot, {
+        action: 'battle',
+        战斗类型: '魂灵塔冲塔',
+        target: soulTowerArena,
+        currentLoc: soulTowerArena,
+        floor,
+        source: toText(options.source, 'soul_tower_entry'),
+        soulTowerTicket: selectedTicket,
+      });
     }
 
     function buildTradeDispatchFromRequest(snapshot, tradeRequest) {
@@ -19062,9 +20024,35 @@ ${mvuUpdate}`;
         return;
       }
 
-      if (action === 'ascension' || action === 'tower') {
+      if (action === 'ascension') {
         mapDispatchContext = { ...detail, action, services };
+        const currentLoc = toText(
+          detail.currentLoc,
+          toText(deepGet(liveSnapshot, 'activeChar.状态.位置', liveSnapshot && liveSnapshot.currentLoc), liveSnapshot && liveSnapshot.currentLoc),
+        );
+        if (!isTransmissionTowerEntryLocation(currentLoc)) {
+          showUiToast('升灵台只能从传灵塔入口进入。', 'error', 4200);
+          return;
+        }
+        if (!listAscensionTicketNames(liveSnapshot).length) {
+          showUiToast('缺少升灵台门票。', 'error', 4200);
+          return;
+        }
         openModal('试炼与情报', { preserveMapDispatchContext: true });
+        return;
+      }
+
+      if (action === 'tower') {
+        mapDispatchContext = { ...detail, action, services };
+        const towerOpenResult = await openSoulTowerChallengeFromSnapshot(liveSnapshot, {
+          source: 'map_action_tower',
+          entryLocation: toText(
+            detail.currentLoc,
+            toText(deepGet(liveSnapshot, 'activeChar.状态.位置', liveSnapshot && liveSnapshot.currentLoc), liveSnapshot && liveSnapshot.currentLoc),
+          ),
+        });
+        if (towerOpenResult && towerOpenResult.ok) return;
+        showUiToast(`魂灵塔开启失败：${towerOpenResult && towerOpenResult.reason ? towerOpenResult.reason : 'entry_invalid'}`, 'error', 4200);
         return;
       }
 
@@ -20600,6 +21588,12 @@ ${mvuUpdate}`;
             const targetValue = readCollectionInput('asc-target');
             const gainAge = Math.max(0, readCollectionNumber('asc-gain', 0));
             if (!charKey) throw new Error('缺少角色信息。');
+            const currentSnapshot = liveSnapshot || lastRenderableSnapshot;
+            if (!currentSnapshot) throw new Error('当前快照未就绪，无法进入升灵台。');
+            const entryLocation = toText(deepGet(currentSnapshot, 'activeChar.状态.位置', currentSnapshot.currentLoc), currentSnapshot.currentLoc);
+            if (!isTransmissionTowerEntryLocation(entryLocation)) {
+              throw new Error('升灵台只能从传灵塔入口进入。');
+            }
             await runInternalAscensionSettlementByEditor(charKey, { ticketName, targetValue, gainAge });
             showUiToast('已完成升灵结算。');
             if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
@@ -20609,9 +21603,15 @@ ${mvuUpdate}`;
             const charKey = collectionActionBtn.getAttribute('data-collection-char') || '';
             const floor = Math.max(0, readCollectionNumber('tower-floor', 0));
             if (!charKey) throw new Error('缺少角色信息。');
-            await runInternalSoulTowerSettlementByEditor(charKey, { floor, action: '冲塔' });
-            showUiToast('已登记魂灵塔结算。');
-            if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
+            const currentSnapshot = liveSnapshot || lastRenderableSnapshot;
+            if (!currentSnapshot) throw new Error('当前快照未就绪，无法开启魂灵塔。');
+            const battleOpenResult = await openSoulTowerChallengeFromSnapshot(currentSnapshot, {
+              floor,
+              source: 'trial_console',
+            });
+            if (!battleOpenResult?.ok) {
+              throw new Error(battleOpenResult?.reason || '魂灵塔开启失败');
+            }
             return;
           }
           if (actionType === 'add-record') {
@@ -21939,4 +22939,6 @@ window.EquipmentManager = {
 window.mvuSetMainTabExternal = setMainTab;
 window.mvuSetMainTab = setMainTab;
 
+
+})();
 

@@ -34,6 +34,27 @@ class BattleUIComponent {
     const byId = id => wrapperElement.querySelector(`#${id}`);
 
     const root = typeof globalThis !== 'undefined' ? globalThis : window;
+    const SHARED_SKILL_MECHANISM_REGISTRY =
+      root.__LWCS_SKILL_MECHANISM_REGISTRY__ && typeof root.__LWCS_SKILL_MECHANISM_REGISTRY__ === 'object'
+        ? root.__LWCS_SKILL_MECHANISM_REGISTRY__
+        : null;
+    const BATTLE_SKILL_MECHANISM_META = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.mechanisms || {});
+    const BATTLE_SKILL_TARGET_SEMANTICS = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.targetSemantics || {});
+    const BATTLE_GRANTABLE_MECHANISM_SET = new Set(
+      Array.isArray(BATTLE_SKILL_TARGET_SEMANTICS.grantable) ? BATTLE_SKILL_TARGET_SEMANTICS.grantable : [],
+    );
+    const BATTLE_GROUP_GRANTABLE_MECHANISM_SET = new Set(
+      Array.isArray(BATTLE_SKILL_TARGET_SEMANTICS.groupGrantable) ? BATTLE_SKILL_TARGET_SEMANTICS.groupGrantable : [],
+    );
+    const BATTLE_HOSTILE_MECHANISM_SET = new Set(
+      Array.isArray(BATTLE_SKILL_TARGET_SEMANTICS.hostile) ? BATTLE_SKILL_TARGET_SEMANTICS.hostile : [],
+    );
+    const BATTLE_CONTEXTUAL_MECHANISM_SET = new Set(
+      Array.isArray(BATTLE_SKILL_TARGET_SEMANTICS.contextual) ? BATTLE_SKILL_TARGET_SEMANTICS.contextual : [],
+    );
+    const BATTLE_SELF_ONLY_MECHANISM_SET = new Set(
+      Array.isArray(BATTLE_SKILL_TARGET_SEMANTICS.selfOnly) ? BATTLE_SKILL_TARGET_SEMANTICS.selfOnly : [],
+    );
     const lodashGet =
       root._ && typeof root._.get === 'function'
         ? root._.get.bind(root._)
@@ -1814,6 +1835,76 @@ class BattleUIComponent {
       return mapping[target] || target || '敌方/单体';
     }
 
+    const BATTLE_SKILL_TARGET_MODELS = new Set(['自身', '友方单体', '友方群体', '敌方单体', '敌方群体', '全场']);
+    const BATTLE_SKILL_TARGET_MODIFIERS = new Set([
+      '受隐身筛选',
+      '可被破隐',
+      '可被嘲讽',
+      '可被护卫重定向',
+      '可被随机偏转',
+      '可被锁定强化',
+    ]);
+
+    function normalizeBattleSkillTargetModel(value = '', fallback = '敌方单体') {
+      const text = String(value || '').trim();
+      if (BATTLE_SKILL_TARGET_MODELS.has(text)) return text;
+      const derived = (() => {
+        if (/友方群体|己方\/群体|全员/.test(text)) return '友方群体';
+        if (/友方单体|己方\/单体/.test(text)) return '友方单体';
+        if (/敌方群体/.test(text)) return '敌方群体';
+        if (/敌方单体/.test(text)) return '敌方单体';
+        if (/全场/.test(text)) return '全场';
+        if (/自身/.test(text)) return '自身';
+        return '';
+      })();
+      return BATTLE_SKILL_TARGET_MODELS.has(derived) ? derived : fallback;
+    }
+
+    function mapBattleTargetModelToCombatTarget(targetModel = '敌方单体') {
+      return {
+        自身: '自身',
+        友方单体: '己方/单体',
+        友方群体: '己方/群体',
+        敌方单体: '敌方/单体',
+        敌方群体: '敌方/群体',
+        全场: '全场',
+      }[normalizeBattleSkillTargetModel(targetModel)] || '敌方/单体';
+    }
+
+    function normalizeBattleSkillTargetModifiers(value = []) {
+      const source = Array.isArray(value) ? value : [value];
+      return Array.from(
+        new Set(
+          source
+            .map(item => String(item || '').trim())
+            .filter(item => BATTLE_SKILL_TARGET_MODIFIERS.has(item)),
+        ),
+      );
+    }
+
+    function inferBattleTargetModelFromLegacyTarget(text = '') {
+      return normalizeBattleSkillTargetModel(text, '敌方单体');
+    }
+
+    function deriveBattleTargetResolutionStrategy(targetModel = '敌方单体') {
+      return ['敌方群体', '友方群体', '全场'].includes(normalizeBattleSkillTargetModel(targetModel))
+        ? '全目标独立'
+        : '单目标独立';
+    }
+
+    function deriveBattleSkillTargetModifiers(skill = {}, targetModel = '敌方单体') {
+      const normalizedTargetModel = normalizeBattleSkillTargetModel(targetModel, '敌方单体');
+      const effects = Array.isArray(skill?._效果数组) ? skill._效果数组 : [];
+      const mechanisms = effects.map(effect => String(effect?.机制 || '').trim()).filter(Boolean);
+      const modifiers = [];
+      if (['敌方单体', '敌方群体'].includes(normalizedTargetModel)) {
+        modifiers.push('受隐身筛选', '可被嘲讽', '可被护卫重定向', '可被锁定强化');
+      }
+      if (mechanisms.includes('破隐')) modifiers.push('可被破隐');
+      if (mechanisms.includes('随机目标') || mechanisms.includes('认知扭曲')) modifiers.push('可被随机偏转');
+      return normalizeBattleSkillTargetModifiers(modifiers);
+    }
+
     function getMechanismJudgeValue(entity, finalEntity, judgeKey) {
       const stats = finalEntity || entity || {};
       switch (judgeKey) {
@@ -1864,11 +1955,18 @@ class BattleUIComponent {
         'silence',
         'disarm',
         'blind',
+        'invincible',
+        'skill_seal',
         'counter_attack_ratio',
+        'damage_reflect_ratio',
+        'damage_share_ratio',
         'damage_reduction',
         'block_count',
+        'substitute_count',
         'super_armor',
         'death_save_count',
+        'revive_count',
+        'revive_heal_ratio',
         'armor_pen',
         'reaction_bonus',
         'reaction_penalty',
@@ -1895,8 +1993,12 @@ class BattleUIComponent {
         'men_gain_ratio',
         'heal_block_ratio',
         'resource_block_ratio',
+        'heal_inversion_ratio',
         'min_hp_floor',
         'hot_heal_ratio',
+        'damage_share_count',
+        'invincible_tier_threshold',
+        'daily_trigger_limit',
         'bonus_true_damage_ratio',
         'life_steal_ratio',
       ].forEach(k => {
@@ -1921,7 +2023,7 @@ class BattleUIComponent {
           if (duration > 0) pState.持续回合 = Math.max(Number(pState.持续回合 || 0), duration);
           pState.特殊机制标识 = mergeSpecialFlags(pState.特殊机制标识 || '无', extraFlags);
         };
-        if (['标记锁定', '幻境', '催眠', '斩杀补伤', '条件触发'].includes(mechanism)) {
+        if (['标记锁定', '目标锁定', '幻境', '催眠', '认知扭曲', '斩杀补伤', '条件触发'].includes(mechanism)) {
           const judgeKey = effect.判定属性;
           const threshold = Number(effect.判定阈值 ?? 1.0);
           let success = true;
@@ -1936,7 +2038,7 @@ class BattleUIComponent {
           }
           const payload = success ? effect.成功参数 || {} : effect.失败参数 || {};
           mergeRuntimePayloadToState(payload, pState);
-          if (['标记锁定', '幻境', '催眠'].includes(mechanism)) ensureStateShell(mechanism, [mechanism]);
+          if (['标记锁定', '目标锁定', '幻境', '催眠', '认知扭曲'].includes(mechanism)) ensureStateShell(mechanism, [mechanism]);
         } else {
           const directPayload = {};
           if (mechanism === '属性变化') {
@@ -1998,6 +2100,21 @@ class BattleUIComponent {
             ensureStateShell(effect?.状态名称 || '速度修正', ['速度修正']);
           }
           if (mechanism === '打断') directPayload.interrupt_bonus = effect.中断概率 || 1.0;
+          if (mechanism === '感知干扰') {
+            directPayload.hit_penalty = Number(effect.hit_penalty || 0);
+            directPayload.reaction_penalty = Number(effect.reaction_penalty || 0);
+            directPayload.cast_speed_penalty = Number(effect.cast_speed_penalty || 0);
+          }
+          if (mechanism === '隐身') {
+            directPayload.stealth_level = Number(effect.隐蔽度 || effect.stealth_level || 0);
+            directPayload.dodge_bonus = Number(effect.dodge_bonus || 0);
+            directPayload.reaction_bonus = Number(effect.reaction_bonus || 0);
+          }
+          if (mechanism === '破隐') {
+            directPayload.hit_bonus = Number(effect.hit_bonus || 0);
+            directPayload.lock_level = Number(effect.lock_level || 0);
+          }
+          if (mechanism === '缴械') directPayload.disarm = true;
           if (mechanism === '沉默') directPayload.silence = true;
           if (mechanism === '减速') directPayload.面板修改比例 = { agi: effect.agi_ratio || 0.8 };
           if (['流血DOT', '持续伤害DOT'].includes(mechanism))
@@ -2028,10 +2145,46 @@ class BattleUIComponent {
             directPayload.reaction_penalty = Number(effect.reaction_penalty || 0);
             directPayload.lock_level = Number(effect.lock_level || 0);
           }
+          if (mechanism === '护卫') {
+            directPayload.damage_reduction = Number(effect.damage_reduction || 0);
+          }
+          if (mechanism === '无敌金身') {
+            directPayload.invincible = true;
+            directPayload.super_armor = true;
+            directPayload.damage_reduction = Math.max(Number(directPayload.damage_reduction || 0), Number(effect.damage_reduction || 0));
+            directPayload.invincible_tier_threshold = Number(effect.免疫位阶阈值 || effect.invincible_tier_threshold || 100);
+            directPayload.daily_trigger_limit = Math.max(0, Number(effect.每日触发上限 || effect.daily_trigger_limit || 0));
+          }
+          if (mechanism === '伤害反射') {
+            directPayload.damage_reflect_ratio = Number(effect.反射比例 || effect.damage_reflect_ratio || 0);
+          }
+          if (mechanism === '伤害分摊') {
+            directPayload.damage_share_ratio = Number(effect.分摊比例 || effect.damage_share_ratio || 0);
+            directPayload.damage_share_count = Math.max(1, Number(effect.分摊人数 || effect.damage_share_count || 1));
+          }
+          if (mechanism === '替身抵消') {
+            directPayload.substitute_count = Math.max(1, Number(effect.抵消次数 || effect.substitute_count || 1));
+            directPayload.dodge_bonus = Math.max(Number(directPayload.dodge_bonus || 0), Number(effect.dodge_bonus || 0));
+          }
+          if (mechanism === '封技') directPayload.skill_seal = true;
+          if (mechanism === '治疗反转') directPayload.heal_inversion_ratio = Number(effect.反转比例 || effect.heal_inversion_ratio || 0);
+          if (mechanism === '复苏') {
+            directPayload.revive_count = Math.max(1, Number(effect.复苏次数 || effect.revive_count || 1));
+            directPayload.revive_heal_ratio = Number(effect.复苏回血比例 || effect.revive_heal_ratio || 0.3);
+          }
+          if (mechanism === '目标锁定') {
+            directPayload.hit_bonus = Number(effect.hit_bonus || 0);
+            directPayload.lock_level = Number(effect.lock_level || 0);
+          }
           if (mechanism === '标记弱点') {
             directPayload.final_damage_mult = Number(effect.final_damage_mult || 1.1);
             directPayload.dodge_penalty = Number(effect.dodge_penalty || 0);
             directPayload.lock_level = Number(effect.lock_level || 0);
+          }
+          if (mechanism === '追击') {
+            directPayload.attacker_speed_bonus = Number(effect.attacker_speed_bonus || 0);
+            directPayload.hit_bonus = Number(effect.hit_bonus || 0);
+            directPayload.final_damage_mult = Number(effect.final_damage_mult || 1.0);
           }
           if (mechanism === '追击位移') {
             directPayload.attacker_speed_bonus = Number(effect.attacker_speed_bonus || 0);
@@ -2103,6 +2256,10 @@ class BattleUIComponent {
             directPayload.skip_turn = true;
             directPayload.cannot_react = true;
           }
+          if (mechanism === '感知干扰') ensureStateShell(effect?.状态名称 || '感知干扰', ['感知干扰']);
+          if (mechanism === '隐身') ensureStateShell(effect?.状态名称 || '隐身', ['隐身']);
+          if (mechanism === '破隐') ensureStateShell(effect?.状态名称 || '破隐', ['破隐']);
+          if (mechanism === '缴械') ensureStateShell('缴械', ['缴械']);
           if (mechanism === '沉默') ensureStateShell('沉默', ['沉默']);
           if (mechanism === '减速') ensureStateShell('减速', ['减速']);
           if (['流血DOT', '持续伤害DOT'].includes(mechanism))
@@ -2120,6 +2277,17 @@ class BattleUIComponent {
           if (mechanism === '脱离位移') ensureStateShell(effect?.状态名称 || '脱离位移', ['脱离位移']);
           if (mechanism === '反制') ensureStateShell(effect?.状态名称 || '反制', ['反制']);
           if (mechanism === '标记弱点') ensureStateShell('标记弱点', ['标记弱点']);
+          if (mechanism === '护卫') ensureStateShell(effect?.状态名称 || '护卫', ['护卫']);
+          if (mechanism === '嘲讽') ensureStateShell(effect?.状态名称 || '嘲讽', ['嘲讽']);
+          if (mechanism === '无敌金身') ensureStateShell(effect?.状态名称 || '无敌金身', ['无敌金身']);
+          if (mechanism === '伤害反射') ensureStateShell(effect?.状态名称 || '伤害反射', ['伤害反射']);
+          if (mechanism === '伤害分摊') ensureStateShell(effect?.状态名称 || '伤害分摊', ['伤害分摊']);
+          if (mechanism === '替身抵消') ensureStateShell(effect?.状态名称 || '替身抵消', ['替身抵消']);
+          if (mechanism === '封技') ensureStateShell(effect?.状态名称 || '封技', ['封技']);
+          if (mechanism === '治疗反转') ensureStateShell(effect?.状态名称 || '治疗反转', ['治疗反转']);
+          if (mechanism === '复苏') ensureStateShell(effect?.状态名称 || '复苏', ['复苏']);
+          if (mechanism === '目标锁定') ensureStateShell('目标锁定', ['目标锁定']);
+          if (mechanism === '追击') ensureStateShell('追击', ['追击']);
           if (mechanism === '减伤') ensureStateShell('减伤', ['减伤']);
           if (mechanism === '格挡') ensureStateShell('格挡', ['格挡']);
           if (mechanism === '霸体') ensureStateShell('霸体', ['霸体']);
@@ -2224,13 +2392,24 @@ class BattleUIComponent {
     function isSupportLikeSkill(skill) {
       const mainType = inferMainTypeFromEffects(skill) || '';
       const skillType = getSkillType(skill);
-      return ['增益类', '回复类', '防御类'].includes(mainType) || ['辅助', '防御'].includes(skillType);
+      const hasFriendlyGrantable = skillCanGrantFriendlyMechanism(skill);
+      const hasFriendlySupportPayload =
+        skillTargetsFriendlySide(skill) &&
+        getSkillEffects(skill).some(effect => isBattleAttributeSupportEffect(effect) || isBattleRecoverEffect(effect));
+      return (
+        ['增益类', '回复类', '防御类'].includes(mainType) ||
+        ['辅助', '防御'].includes(skillType) ||
+        hasFriendlyGrantable ||
+        hasFriendlySupportPayload
+      );
     }
 
     function createEmptyCombatEffectMap() {
       return {
         skip_turn: false,
         cannot_react: false,
+        invincible: false,
+        skill_seal: false,
         dot_damage: 0,
         armor_pen: 0,
         reaction_bonus: 0,
@@ -2259,8 +2438,19 @@ class BattleUIComponent {
         heal_block_ratio: 0,
         hot_heal_ratio: 0,
         resource_block_ratio: 0,
+        random_target_rate: 0,
+        stealth_level: 0,
         min_hp_floor: 0,
         death_save_count: 0,
+        revive_count: 0,
+        revive_heal_ratio: 0,
+        substitute_count: 0,
+        damage_reflect_ratio: 0,
+        damage_share_ratio: 0,
+        damage_share_count: 0,
+        heal_inversion_ratio: 0,
+        invincible_tier_threshold: 0,
+        daily_trigger_limit: 0,
         bonus_true_damage_ratio: 0,
         life_steal_ratio: 0,
         silence: false,
@@ -2278,7 +2468,7 @@ class BattleUIComponent {
       const result = { ...seed, ...(base || {}) };
       Object.entries(incoming || {}).forEach(([key, value]) => {
         if (!(key in seed) || value === undefined) return;
-        if (['skip_turn', 'cannot_react', 'silence', 'disarm', 'blind', 'super_armor'].includes(key)) {
+        if (['skip_turn', 'cannot_react', 'silence', 'disarm', 'blind', 'super_armor', 'invincible', 'skill_seal'].includes(key)) {
           result[key] = !!result[key] || !!value;
           return;
         }
@@ -2286,7 +2476,19 @@ class BattleUIComponent {
           result[key] = Number(result[key] ?? 1) * Number(value ?? 1);
           return;
         }
-        if (['lock_level', 'death_save_count', 'block_count', 'min_hp_floor'].includes(key)) {
+        if (
+          [
+            'lock_level',
+            'death_save_count',
+            'revive_count',
+            'block_count',
+            'substitute_count',
+            'min_hp_floor',
+            'damage_share_count',
+            'invincible_tier_threshold',
+            'daily_trigger_limit',
+          ].includes(key)
+        ) {
           result[key] = Math.max(Number(result[key] ?? 0), Number(value ?? 0));
           return;
         }
@@ -2298,7 +2500,7 @@ class BattleUIComponent {
     function hasMeaningfulCombatEffect(effectMap = {}) {
       const seed = createEmptyCombatEffectMap();
       return Object.keys(seed).some(key => {
-        if (['skip_turn', 'cannot_react', 'silence', 'disarm', 'blind', 'super_armor'].includes(key)) {
+        if (['skip_turn', 'cannot_react', 'silence', 'disarm', 'blind', 'super_armor', 'invincible', 'skill_seal'].includes(key)) {
           return !!effectMap[key];
         }
         const baseValue = Number(seed[key] ?? 0);
@@ -2787,7 +2989,7 @@ class BattleUIComponent {
         },
       );
 
-      ['damage_reduction', 'counter_attack_ratio', 'bonus_true_damage_ratio', 'life_steal_ratio', 'sp_gain_ratio', 'men_gain_ratio', 'hot_heal_ratio'].forEach(
+      ['damage_reduction', 'counter_attack_ratio', 'damage_reflect_ratio', 'damage_share_ratio', 'bonus_true_damage_ratio', 'life_steal_ratio', 'sp_gain_ratio', 'men_gain_ratio', 'hot_heal_ratio', 'heal_inversion_ratio', 'revive_heal_ratio'].forEach(
         key => {
           if (next[key] !== undefined) next[key] = scaleBattleValue(next[key], ratio, { min: 0, digits: 4 });
         },
@@ -2802,6 +3004,11 @@ class BattleUIComponent {
       });
 
       if (next.min_hp_floor !== undefined) next.min_hp_floor = Math.max(0, Math.round(Number(next.min_hp_floor || 0) * ratio));
+      ['death_save_count', 'revive_count', 'substitute_count', 'damage_share_count', 'daily_trigger_limit'].forEach(key => {
+        if (next[key] !== undefined) next[key] = Math.max(0, Math.round(Number(next[key] || 0) * ratio));
+      });
+      if (next.invincible_tier_threshold !== undefined)
+        next.invincible_tier_threshold = Math.max(0, Number(next.invincible_tier_threshold || 0));
 
       return next;
     }
@@ -3026,6 +3233,28 @@ class BattleUIComponent {
           if (effect.final_damage_mult !== undefined)
             effect.final_damage_mult = scaleBattleFactor(effect.final_damage_mult, coeff.威力, 1);
         }
+        if (mechanism === '无敌金身') {
+          if (effect.damage_reduction !== undefined)
+            effect.damage_reduction = scaleBattleValue(effect.damage_reduction, coeff.防御 || coeff.威力, { min: 0, max: 1, digits: 4 });
+        }
+        if (mechanism === '伤害反射' && effect.反射比例 !== undefined) {
+          effect.反射比例 = scaleBattleValue(effect.反射比例, coeff.防御 || coeff.威力, { min: 0, max: 1, digits: 4 });
+        }
+        if (mechanism === '伤害分摊' && effect.分摊比例 !== undefined) {
+          effect.分摊比例 = scaleBattleValue(effect.分摊比例, coeff.防御 || coeff.威力, { min: 0, max: 1, digits: 4 });
+        }
+        if (mechanism === '治疗反转' && effect.反转比例 !== undefined) {
+          effect.反转比例 = scaleBattleValue(effect.反转比例, coeff.控制 || coeff.威力, { min: 0, digits: 4 });
+        }
+        if (mechanism === '斩盾' && effect.斩盾倍率 !== undefined) {
+          effect.斩盾倍率 = scaleBattleValue(effect.斩盾倍率, coeff.威力, { min: 0, digits: 4 });
+        }
+        if (mechanism === '窃取护盾' && effect.窃盾比例 !== undefined) {
+          effect.窃盾比例 = scaleBattleValue(effect.窃盾比例, coeff.掌控 || coeff.威力, { min: 0, max: 1, digits: 4 });
+        }
+        if (mechanism === '引爆持续伤害' && effect.引爆倍率 !== undefined) {
+          effect.引爆倍率 = scaleBattleValue(effect.引爆倍率, coeff.威力, { min: 0, digits: 4 });
+        }
         if (mechanism === '自身位移') {
           if (effect.dodge_bonus !== undefined)
             effect.dodge_bonus = scaleBattleValue(effect.dodge_bonus, coeff.速度, { digits: 4 });
@@ -3086,6 +3315,12 @@ class BattleUIComponent {
               max: 1,
               digits: 4,
             });
+          if (calc.random_target_rate !== undefined)
+            calc.random_target_rate = scaleBattleValue(calc.random_target_rate, coeff.控制, {
+              min: 0,
+              max: 1,
+              digits: 4,
+            });
           if (calc.control_success_bonus !== undefined)
             calc.control_success_bonus = scaleBattleValue(calc.control_success_bonus, coeff.控制, { digits: 4 });
           if (calc.reaction_bonus !== undefined)
@@ -3116,13 +3351,28 @@ class BattleUIComponent {
     function getSkillRuntimeMeta(skill) {
       const systemBase = getSystemBaseEffect(skill);
       const baseType = String(systemBase?.技能类型 || '').trim();
-      const baseTarget = String(systemBase?.对象 || '敌方/单体').trim() || '敌方/单体';
+      const baseTargetModel = normalizeBattleSkillTargetModel(
+        systemBase?.目标模型 || systemBase?.对象 || '敌方单体',
+        '敌方单体',
+      );
+      const baseTarget = mapBattleTargetModelToCombatTarget(baseTargetModel);
+      const baseTargetModifiers = normalizeBattleSkillTargetModifiers(
+        Array.isArray(systemBase?.目标修饰) && systemBase.目标修饰.length
+          ? systemBase.目标修饰
+          : deriveBattleSkillTargetModifiers(skill, baseTargetModel),
+      );
+      const baseResolutionStrategy = String(
+        systemBase?.结算策略 || deriveBattleTargetResolutionStrategy(baseTargetModel),
+      ).trim() || '单目标独立';
       const baseCostRaw = systemBase?.消耗 ?? '无';
       const baseCost =
         typeof baseCostRaw === 'object' ? formatCostObjectToString(baseCostRaw) : String(baseCostRaw || '无').trim() || '无';
       const baseCastTime = Number(systemBase?.cast_time ?? 0) || 0;
       return {
         技能类型: normalizeSkillTypeLabel(baseType || '无'),
+        目标模型: baseTargetModel,
+        目标修饰: baseTargetModifiers,
+        结算策略: baseResolutionStrategy,
         对象: baseTarget,
         消耗: baseCost,
         cast_time: baseCastTime,
@@ -3143,6 +3393,10 @@ class BattleUIComponent {
 
     function getSkillTarget(skill) {
       return getSkillRuntimeMeta(skill).对象;
+    }
+
+    function getSkillTargetModel(skill) {
+      return getSkillRuntimeMeta(skill).目标模型;
     }
 
     function getPrimaryDamageEffect(skill) {
@@ -3166,10 +3420,18 @@ class BattleUIComponent {
       if (state?.状态名称 && state.状态名称 !== '无') return state.状态名称;
       const fallback = getSkillEffects(skill).find(effect =>
         [
+          '感知干扰',
+          '隐身',
+          '破隐',
           '标记锁定',
+          '目标锁定',
           '幻境',
           '催眠',
+          '认知扭曲',
           '禁疗',
+          '缴械',
+          '嘲讽',
+          '护卫',
           '减速',
           '软控',
           '位移限制',
@@ -3177,6 +3439,7 @@ class BattleUIComponent {
           '自身位移',
           '强制位移',
           '位移交换',
+          '追击',
           '追击位移',
           '脱离位移',
           '反制',
@@ -3184,6 +3447,17 @@ class BattleUIComponent {
           '转化',
           '复制',
           '状态交换',
+          '状态转移',
+          '引爆持续伤害',
+          '斩盾',
+          '窃取护盾',
+          '治疗反转',
+          '封技',
+          '无敌金身',
+          '伤害反射',
+          '伤害分摊',
+          '替身抵消',
+          '复苏',
           '硬控',
           '霸体',
           '护盾',
@@ -3198,6 +3472,69 @@ class BattleUIComponent {
 
     function hasSkillMechanism(skill, mechanismList = []) {
       return getSkillEffects(skill).some(effect => mechanismList.includes(effect?.机制));
+    }
+
+    function getSkillMechanismLabels(skill) {
+      return Array.from(
+        new Set(
+          getSkillEffects(skill)
+            .map(effect => String(effect?.机制 || effect?.名称 || effect?.类型 || '').trim())
+            .filter(Boolean),
+        ),
+      );
+    }
+
+    function getBattleSkillMechanismMeta(label = '') {
+      const normalizedLabel = String(label || '').trim();
+      if (!normalizedLabel) return null;
+      const meta = BATTLE_SKILL_MECHANISM_META[normalizedLabel];
+      return meta && typeof meta === 'object' ? meta : null;
+    }
+
+    function getBattleMechanismSemanticSet(semanticKey = '') {
+      if (semanticKey === 'grantable') return BATTLE_GRANTABLE_MECHANISM_SET;
+      if (semanticKey === 'groupGrantable') return BATTLE_GROUP_GRANTABLE_MECHANISM_SET;
+      if (semanticKey === 'hostile') return BATTLE_HOSTILE_MECHANISM_SET;
+      if (semanticKey === 'contextual') return BATTLE_CONTEXTUAL_MECHANISM_SET;
+      if (semanticKey === 'selfOnly') return BATTLE_SELF_ONLY_MECHANISM_SET;
+      return new Set();
+    }
+
+    function hasSkillMechanismSemantic(skill, semanticKey = '') {
+      const semanticSet = getBattleMechanismSemanticSet(semanticKey);
+      if (!(semanticSet.size > 0)) return false;
+      return getSkillMechanismLabels(skill).some(label => semanticSet.has(label));
+    }
+
+    function skillTargetsFriendlySide(skill) {
+      return ['自身', '友方单体', '友方群体', '全场'].includes(getSkillTargetModel(skill));
+    }
+
+    function skillTargetsEnemySide(skill) {
+      return ['敌方单体', '敌方群体', '全场'].includes(getSkillTargetModel(skill));
+    }
+
+    function skillCanGrantFriendlyMechanism(skill) {
+      return skillTargetsFriendlySide(skill) && hasSkillMechanismSemantic(skill, 'grantable');
+    }
+
+    function getSkillAiRoleTags(skill) {
+      return Array.from(
+        new Set(
+          getSkillMechanismLabels(skill)
+            .map(label => getBattleSkillMechanismMeta(label))
+            .filter(meta => meta && Array.isArray(meta.aiRoleTags))
+            .flatMap(meta => meta.aiRoleTags)
+            .map(tag => String(tag || '').trim())
+            .filter(Boolean),
+        ),
+      );
+    }
+
+    function hasSkillAiRoleTag(skill, tag = '') {
+      const normalizedTag = String(tag || '').trim();
+      if (!normalizedTag) return false;
+      return getSkillAiRoleTags(skill).includes(normalizedTag);
     }
 
     function findBattleSkillEffect(skill, matcher) {
@@ -3237,9 +3574,9 @@ class BattleUIComponent {
       const text = String(raw || '无');
       if (!text || text === '无') return '无';
       if (/输出|伤害|爆发|破甲|斩杀/.test(text)) return '输出';
-      if (/控制|削弱|打断|沉默|禁疗|减速|软控|位移限制|锁定|束缚/.test(text)) return '控制';
-      if (/防御|护盾|格挡|霸体|免死|反制/.test(text)) return '防御';
-      if (/位移|机动|追击|脱离/.test(text)) return '辅助';
+      if (/控制|削弱|打断|沉默|禁疗|减速|软控|位移限制|锁定|束缚|缴械|驱散|干扰|扭曲|嘲讽|破隐|封技|治疗反转/.test(text)) return '控制';
+      if (/防御|护盾|格挡|霸体|免死|反制|无敌|复苏|替身|分摊|反射/.test(text)) return '防御';
+      if (/位移|机动|追击|脱离|隐身|护卫/.test(text)) return '辅助';
       if (/辅助|增益|回复|治疗/.test(text)) return '辅助';
       return text.split(/[\/|｜]/)[0] || text;
     }
@@ -3250,12 +3587,17 @@ class BattleUIComponent {
       if (fromSystem !== '无') return fromSystem;
       if (
         hasSkillMechanism(skill, [
+          '感知干扰',
+          '破隐',
           '硬控',
           '催眠',
           '幻境',
           '标记锁定',
+          '目标锁定',
           '禁疗',
           '打断',
+          '缴械',
+          '认知扭曲',
           '沉默',
           '减速',
           '软控',
@@ -3263,57 +3605,80 @@ class BattleUIComponent {
           '强制位移',
           '位移交换',
           '强制绑定/锁定',
+          '嘲讽',
+          '封技',
+          '治疗反转',
         ])
       )
         return '控制';
-      if (hasSkillMechanism(skill, ['护盾', '减伤', '格挡', '霸体', '免死', '反制'])) return '防御';
+      if (hasSkillMechanism(skill, ['护盾', '减伤', '格挡', '霸体', '免死', '反制', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏'])) return '防御';
       if (
         hasSkillMechanism(skill, [
           '共享视野',
+          '隐身',
+          '目标锁定',
           '自身位移',
+          '护卫',
+          '追击',
           '追击位移',
           '脱离位移',
           '分身',
           '复制',
           '状态交换',
+          '状态转移',
           '条件触发',
           '转化',
+          '引爆持续伤害',
+          '斩盾',
+          '窃取护盾',
         ]) ||
         getSkillEffects(skill).some(effect => isBattleAttributeSupportEffect(effect))
       )
         return '辅助';
       if (hasSkillMechanism(skill, ['直接伤害', '多段伤害', '持续伤害', '延迟爆发', '斩杀补伤'])) return '输出';
+      if (skillTargetsEnemySide(skill) && hasSkillMechanismSemantic(skill, 'hostile')) return '控制';
+      if (skillCanGrantFriendlyMechanism(skill)) return '辅助';
       return '无';
     }
 
     function inferMainTypeFromEffects(skill) {
-      if (hasSkillMechanism(skill, ['自身位移', '强制位移', '位移交换', '追击位移', '脱离位移'])) return '位移类';
-      if (hasSkillMechanism(skill, ['分身', '复制', '状态交换'])) return '特殊规则类';
+      if (hasSkillMechanism(skill, ['自身位移', '强制位移', '位移交换', '隐身', '追击', '追击位移', '脱离位移'])) return '位移类';
+      if (hasSkillMechanism(skill, ['分身', '复制', '状态交换', '状态转移', '引爆持续伤害', '斩盾', '窃取护盾'])) return '特殊规则类';
       if (
         hasSkillMechanism(skill, [
+          '感知干扰',
+          '破隐',
           '硬控',
           '催眠',
           '幻境',
           '标记锁定',
+          '目标锁定',
           '禁疗',
           '打断',
+          '缴械',
+          '认知扭曲',
           '沉默',
           '减速',
           '软控',
           '位移限制',
           '强制绑定/锁定',
+          '嘲讽',
+          '封技',
+          '治疗反转',
         ]) ||
         getSkillEffects(skill).some(effect => isBattleDebuffAttributeEffect(effect))
       )
         return '控制类';
-      if (hasSkillMechanism(skill, ['护盾', '减伤', '格挡', '霸体', '免死', '反制'])) return '防御类';
+      if (hasSkillMechanism(skill, ['护盾', '减伤', '格挡', '霸体', '免死', '反制', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏'])) return '防御类';
       if (getSkillEffects(skill).some(effect => isBattleRecoverEffect(effect))) return '回复类';
       if (
-        hasSkillMechanism(skill, ['共享视野']) ||
+        hasSkillMechanism(skill, ['共享视野', '驱散增益', '隐身', '护卫', '复苏']) ||
         getSkillEffects(skill).some(effect => isBattleAttributeSupportEffect(effect))
       )
         return '增益类';
       if (hasSkillMechanism(skill, ['直接伤害', '多段伤害', '持续伤害', '延迟爆发', '斩杀补伤'])) return '伤害类';
+      if (skillTargetsEnemySide(skill) && hasSkillMechanismSemantic(skill, 'hostile')) return '控制类';
+      if (skillCanGrantFriendlyMechanism(skill)) return '增益类';
       return '无';
     }
 
@@ -3358,9 +3723,16 @@ class BattleUIComponent {
         else summary.目标规模 = '单体';
       }
 
+      const hasFriendlyGrantable = skillCanGrantFriendlyMechanism(skill);
+
       if (!summary.防御性质 || summary.防御性质 === '无') {
         if (hasSkillMechanism(skill, ['反制'])) summary.防御性质 = '反制';
         else if (hasSkillMechanism(skill, ['免死'])) summary.防御性质 = '免死';
+        else if (hasSkillMechanism(skill, ['无敌金身'])) summary.防御性质 = '无敌';
+        else if (hasSkillMechanism(skill, ['复苏'])) summary.防御性质 = '复苏';
+        else if (hasSkillMechanism(skill, ['替身抵消'])) summary.防御性质 = '替身';
+        else if (hasSkillMechanism(skill, ['伤害分摊'])) summary.防御性质 = '分摊';
+        else if (hasSkillMechanism(skill, ['伤害反射'])) summary.防御性质 = '反射';
         else if (hasSkillMechanism(skill, ['霸体'])) summary.防御性质 = '霸体';
         else if (hasSkillMechanism(skill, ['分身'])) summary.防御性质 = '分身';
         else if (hasSkillMechanism(skill, ['格挡'])) summary.防御性质 = '格挡';
@@ -3372,15 +3744,22 @@ class BattleUIComponent {
           summary.回复性质 = '体力恢复';
         else if (getSkillEffects(skill).some(effect => isBattleRecoverEffect(effect, ['sp', 'men'])))
           summary.回复性质 = '资源回复';
+        else if (hasSkillMechanism(skill, ['复苏'])) summary.回复性质 = '复苏';
       }
       if (!summary.控制强度 || summary.控制强度 === '无') {
         if (hasSkillMechanism(skill, ['硬控', '催眠']) || stateCalc.skip_turn === true) summary.控制强度 = '硬控';
         else if (
           hasSkillMechanism(skill, [
+            '感知干扰',
+            '破隐',
             '幻境',
             '标记锁定',
+            '目标锁定',
+            '认知扭曲',
             '沉默',
             '禁疗',
+            '缴械',
+            '嘲讽',
             '减速',
             '打断',
             '软控',
@@ -3402,13 +3781,16 @@ class BattleUIComponent {
         if (
           targetText === '全场' ||
           targetText.includes('群体') ||
-          hasSkillMechanism(skill, ['共享视野', '召唤与场地'])
+          hasSkillMechanism(skill, ['共享视野', '目标锁定', '召唤与场地', '驱散增益']) ||
+          (hasFriendlyGrantable && summary.目标规模 !== '单体')
         )
           summary.协同性 = '高';
         else if (
           targetText.includes('己方') ||
+          targetText.includes('友方') ||
+          hasFriendlyGrantable ||
           getSkillEffects(skill).some(effect => isBattleRecoverEffect(effect)) ||
-          hasSkillMechanism(skill, ['分身'])
+          hasSkillMechanism(skill, ['分身', '隐身', '护卫'])
         )
           summary.协同性 = '中';
         else summary.协同性 = '低';
@@ -3418,7 +3800,7 @@ class BattleUIComponent {
         else if (hasSkillMechanism(skill, ['延迟爆发'])) summary.生效方式 = '延迟';
         else if (
           duration > 1 ||
-          hasSkillMechanism(skill, ['持续伤害', '护盾', '减伤', '霸体', '免死', '共享视野', '召唤与场地', '分身'])
+          hasSkillMechanism(skill, ['持续伤害', '护盾', '减伤', '霸体', '免死', '共享视野', '目标锁定', '召唤与场地', '分身', '感知干扰', '认知扭曲', '缴械', '追击', '隐身', '护卫', '嘲讽'])
         )
           summary.生效方式 = '持续';
         else summary.生效方式 = '瞬发';
@@ -3433,7 +3815,7 @@ class BattleUIComponent {
         if (duration >= 3) summary.持续性 = '长';
         else if (duration >= 2) summary.持续性 = '中';
         else if (duration > 0) summary.持续性 = '短';
-        else if (hasSkillMechanism(skill, ['召唤与场地', '共享视野', '护盾', '减伤', '格挡', '霸体', '免死', '分身']))
+        else if (hasSkillMechanism(skill, ['召唤与场地', '共享视野', '目标锁定', '护盾', '减伤', '格挡', '霸体', '免死', '分身', '感知干扰', '认知扭曲', '缴械', '追击', '隐身', '护卫', '嘲讽']))
           summary.持续性 = '中';
         else summary.持续性 = '无';
       }
@@ -3489,17 +3871,32 @@ class BattleUIComponent {
         ([name, cond]) => cond?.类型 === 'debuff' && !/霸体|真身|增益|护盾/.test(name),
       );
       const hasSharedVision = entries.some(([name]) => /共享视野/.test(name));
+      const hasTargetLock = entries.some(
+        ([name, cond]) => /目标锁定|标记锁定/.test(name) || Number(cond?.战斗效果?.lock_level || 0) > 0,
+      );
+      const hasStealthed = entries.some(
+        ([name, cond]) =>
+          Number(cond?.战斗效果?.stealth_level || 0) > 0 || /隐身|潜行/.test(String(name || '')),
+      );
       const hasReactiveDefense = entries.some(
         ([name, cond]) =>
+          cond?.战斗效果?.invincible === true ||
           cond?.战斗效果?.super_armor === true ||
           Number(cond?.战斗效果?.block_count || 0) > 0 ||
           Number(cond?.战斗效果?.death_save_count || 0) > 0 ||
+          Number(cond?.战斗效果?.revive_count || 0) > 0 ||
+          Number(cond?.战斗效果?.substitute_count || 0) > 0 ||
           Number(cond?.战斗效果?.counter_attack_ratio || 0) > 0 ||
+          Number(cond?.战斗效果?.damage_reflect_ratio || 0) > 0 ||
+          Number(cond?.战斗效果?.damage_share_ratio || 0) > 0 ||
           Number(cond?.战斗效果?.damage_reduction || 0) > 0 ||
-          /护盾|格挡|霸体|免死|反击|反制/.test(name),
+          /护盾|格挡|霸体|免死|反击|反制|无敌|复苏|替身|分摊|反射/.test(name),
       );
       const hasAntiHeal = entries.some(
-        ([name, cond]) => Number(cond?.战斗效果?.heal_block_ratio || 0) > 0 || /禁疗/.test(name),
+        ([name, cond]) =>
+          Number(cond?.战斗效果?.heal_block_ratio || 0) > 0 ||
+          Number(cond?.战斗效果?.heal_inversion_ratio || 0) > 0 ||
+          /禁疗|治疗反转/.test(name),
       );
       return {
         entries,
@@ -3512,9 +3909,78 @@ class BattleUIComponent {
         hasDotPressure,
         hasBadCondition,
         hasSharedVision,
+        hasTargetLock,
+        hasStealthed,
         hasReactiveDefense,
         hasAntiHeal,
       };
+    }
+
+    function getStealthConditionEntries(targetChar) {
+      if (!targetChar?.状态效果) return [];
+      return Object.entries(targetChar.状态效果).filter(
+        ([key, cond]) =>
+          cond?.类型 === 'buff' &&
+          !String(key || '').startsWith(AUTO_PROJECTED_CONDITION_PREFIX) &&
+          (Number(cond?.战斗效果?.stealth_level || 0) > 0 || /隐身|潜行/.test(String(key || ''))),
+      );
+    }
+
+    function removeStealthConditions(targetChar, maxCount = 99) {
+      if (!targetChar?.状态效果) return [];
+      const removed = [];
+      getStealthConditionEntries(targetChar)
+        .slice(0, Math.max(1, Number(maxCount || 99)))
+        .forEach(([key]) => {
+          delete targetChar.状态效果[key];
+          removed.push(key);
+          if (targetChar.持续效果) {
+            Object.keys(targetChar.持续效果).forEach(sustainKey => {
+              if (targetChar.持续效果[sustainKey]?.related_condition === key)
+                delete targetChar.持续效果[sustainKey];
+            });
+          }
+        });
+      return removed;
+    }
+
+    function getForcedTauntTargetName(actorChar) {
+      if (!actorChar?.状态效果) return '';
+      const tauntEntry = Object.values(actorChar.状态效果).find(cond =>
+        cond &&
+        typeof cond === 'object' &&
+        String(cond?.类型 || '') === 'debuff' &&
+        String(cond?.强制目标名 || '').trim(),
+      );
+      return String(tauntEntry?.强制目标名 || '').trim();
+    }
+
+    function canBypassStealth(attackerChar, skill = null) {
+      const attackerSnapshot = buildConditionTacticalSnapshot(attackerChar);
+      return (
+        attackerSnapshot.hasSharedVision ||
+        attackerSnapshot.hasTargetLock ||
+        hasSkillMechanism(skill, ['共享视野', '标记锁定', '目标锁定', '破隐'])
+      );
+    }
+
+    function resolveGuardRedirectTarget(initialTarget, allyTeam = []) {
+      if (!initialTarget?.状态效果) return null;
+      const guardEntry = Object.values(initialTarget.状态效果).find(cond =>
+        cond &&
+        typeof cond === 'object' &&
+        String(cond?.类型 || '') === 'buff' &&
+        String(cond?.护卫者名 || '').trim(),
+      );
+      const guarderName = String(guardEntry?.护卫者名 || '').trim();
+      if (!guarderName) return null;
+      return (allyTeam || []).find(
+        unit =>
+          unit &&
+          unit.name !== initialTarget.name &&
+          isCombatUnitAbleToFight(unit) &&
+          isCombatUnitIdentityMatch(unit, guarderName),
+      ) || null;
     }
 
     function bindCombatMirrorField(target, source, key, options = {}) {
@@ -3789,6 +4255,24 @@ class BattleUIComponent {
       normalized._效果数组 = Array.isArray(normalized._效果数组) ? normalized._效果数组 : [];
       normalized.element = getBattleSkillDisplayElement(normalized);
 
+      const existingSystemBase = getSystemBaseEffect(normalized);
+      if (existingSystemBase && typeof existingSystemBase === 'object') {
+        const runtimeTargetModel = normalizeBattleSkillTargetModel(
+          existingSystemBase.目标模型 || existingSystemBase.对象 || normalized.对象 || explicitSemanticTarget || '敌方单体',
+          '敌方单体',
+        );
+        existingSystemBase.目标模型 = runtimeTargetModel;
+        existingSystemBase.目标修饰 = normalizeBattleSkillTargetModifiers(
+          Array.isArray(existingSystemBase.目标修饰) && existingSystemBase.目标修饰.length
+            ? existingSystemBase.目标修饰
+            : deriveBattleSkillTargetModifiers(normalized, runtimeTargetModel),
+        );
+        existingSystemBase.结算策略 = String(
+          existingSystemBase.结算策略 || deriveBattleTargetResolutionStrategy(runtimeTargetModel),
+        ).trim() || '单目标独立';
+        existingSystemBase.对象 = mapBattleTargetModelToCombatTarget(runtimeTargetModel);
+      }
+
       const runtimeMeta = getSkillRuntimeMeta(normalized);
       if (!normalized.消耗 || normalized.消耗 === '无') {
         normalized.消耗 = runtimeMeta.消耗 || '无';
@@ -3803,12 +4287,14 @@ class BattleUIComponent {
         normalized.cast_time = Number(runtimeMeta.cast_time ?? 0) || 0;
       }
 
-      // 新版本中所有的机制均扁平化存放在 _效果数组 中
-      if (normalized._效果数组.length === 0) {
-        // 如果连 _效果数组 都没有，说明是极老的空白技能，默认塞入一个系统基础保证不报错
-        normalized._效果数组.push({
+      const hasSystemBaseEffect = normalized._效果数组.some(effect => effect?.机制 === '系统基础');
+      if (!hasSystemBaseEffect) {
+        normalized._效果数组.unshift({
           机制: '系统基础',
           消耗: '无',
+          目标模型: normalizeBattleSkillTargetModel(normalized.对象 || explicitSemanticTarget || '敌方单体', '敌方单体'),
+          目标修饰: deriveBattleSkillTargetModifiers(normalized, normalizeBattleSkillTargetModel(normalized.对象 || explicitSemanticTarget || '敌方单体', '敌方单体')),
+          结算策略: deriveBattleTargetResolutionStrategy(normalizeBattleSkillTargetModel(normalized.对象 || explicitSemanticTarget || '敌方单体', '敌方单体')),
           对象: normalized.对象,
           技能类型: normalized.技能类型,
           cast_time: normalized.cast_time,
@@ -4480,8 +4966,11 @@ class BattleUIComponent {
         Number(calc.final_heal_mult || 1.0) > 1.0 ||
         Number(calc.shield_gain_mult || 1.0) > 1.0 ||
         Number(calc.hot_heal_ratio || 0) > 0 ||
+        calc.invincible === true ||
         calc.super_armor === true ||
-        Number(calc.min_hp_floor || 0) > 0;
+        Number(calc.min_hp_floor || 0) > 0 ||
+        Number(calc.revive_count || 0) > 0 ||
+        Number(calc.substitute_count || 0) > 0;
       const isBuff =
         forceBuff === true || hasPositiveCalc || specialFlag.includes('增益') || specialFlag.includes('真身');
 
@@ -4495,6 +4984,8 @@ class BattleUIComponent {
           ...createEmptyCombatEffectMap(),
           skip_turn: stateModule.计算层效果?.skip_turn ?? false,
           cannot_react: stateModule.计算层效果?.cannot_react ?? false,
+          invincible: stateModule.计算层效果?.invincible ?? false,
+          skill_seal: stateModule.计算层效果?.skill_seal ?? false,
           dot_damage: (stateModule.计算层效果?.dot_damage ?? stateModule.持续真伤dot) || 0,
           armor_pen: stateModule.计算层效果?.armor_pen ?? 0,
           reaction_bonus: stateModule.计算层效果?.reaction_bonus ?? 0,
@@ -4523,8 +5014,18 @@ class BattleUIComponent {
           heal_block_ratio: stateModule.计算层效果?.heal_block_ratio ?? 0,
           hot_heal_ratio: stateModule.计算层效果?.hot_heal_ratio ?? 0,
           resource_block_ratio: stateModule.计算层效果?.resource_block_ratio ?? 0,
+          stealth_level: stateModule.计算层效果?.stealth_level ?? 0,
           min_hp_floor: stateModule.计算层效果?.min_hp_floor ?? 0,
           death_save_count: stateModule.计算层效果?.death_save_count ?? 0,
+          revive_count: stateModule.计算层效果?.revive_count ?? 0,
+          revive_heal_ratio: stateModule.计算层效果?.revive_heal_ratio ?? 0,
+          substitute_count: stateModule.计算层效果?.substitute_count ?? 0,
+          damage_reflect_ratio: stateModule.计算层效果?.damage_reflect_ratio ?? 0,
+          damage_share_ratio: stateModule.计算层效果?.damage_share_ratio ?? 0,
+          damage_share_count: stateModule.计算层效果?.damage_share_count ?? 0,
+          heal_inversion_ratio: stateModule.计算层效果?.heal_inversion_ratio ?? 0,
+          invincible_tier_threshold: stateModule.计算层效果?.invincible_tier_threshold ?? 0,
+          daily_trigger_limit: stateModule.计算层效果?.daily_trigger_limit ?? 0,
           bonus_true_damage_ratio: stateModule.计算层效果?.bonus_true_damage_ratio ?? 0,
           life_steal_ratio: stateModule.计算层效果?.life_steal_ratio ?? 0,
         },
@@ -4532,17 +5033,128 @@ class BattleUIComponent {
       return true;
     }
 
-    function resolveSkillEffectTargetCharacter(skill, effect, attacker, defender) {
-      const baseTargetText = String(effect?.目标 || effect?.对象 || getSkillTarget(skill) || '敌方/单体');
+    function dedupeCombatTargetList(units = []) {
+      const seen = new Set();
+      const result = [];
+      (Array.isArray(units) ? units : []).forEach(unit => {
+        if (!unit) return;
+        const identity = String(unit?.name || unit?.名称 || '').trim() || JSON.stringify([unit?.type, unit?.vit_max, unit?.str]);
+        if (!identity || seen.has(identity)) return;
+        seen.add(identity);
+        result.push(unit);
+      });
+      return result;
+    }
+
+    function findCombatTargetInSet(targetSet = [], expectedTarget = null) {
+      if (!expectedTarget) return null;
+      return (
+        (Array.isArray(targetSet) ? targetSet : []).find(target =>
+          isCombatUnitIdentityMatch(target, expectedTarget?.name || expectedTarget),
+        ) || null
+      );
+    }
+
+    function resolveSkillTargetContext(skill, attacker, defender, combatData, effect = null) {
+      const runtimeMeta = getSkillRuntimeMeta(skill);
+      const explicitTargetText = String(effect?.目标覆盖 || effect?.目标 || effect?.对象 || '').trim();
+      const baseTargetModel = explicitTargetText
+        ? inferBattleTargetModelFromLegacyTarget(explicitTargetText)
+        : normalizeBattleSkillTargetModel(effect?.目标模型 || runtimeMeta.目标模型 || '敌方单体', '敌方单体');
+      const targetModifiers = normalizeBattleSkillTargetModifiers(
+        Array.isArray(effect?.目标修饰) && effect.目标修饰.length
+          ? effect.目标修饰
+          : runtimeMeta.目标修饰 || [],
+      );
+      const resolutionStrategy = String(
+        effect?.结算策略 || runtimeMeta.结算策略 || deriveBattleTargetResolutionStrategy(baseTargetModel),
+      ).trim() || '单目标独立';
+      const baseTargetText = explicitTargetText || mapBattleTargetModelToCombatTarget(baseTargetModel);
       const randomTargetText = String(skill?._runtime_random_target || '');
       const shouldUseRandomTarget =
         !!randomTargetText &&
         (baseTargetText.includes('随机') ||
-          (!/自身|己方|友方/.test(baseTargetText) && /敌|单体|群体|全场/.test(baseTargetText)));
-      const targetText = shouldUseRandomTarget ? randomTargetText : baseTargetText;
-      if (targetText.includes('自身')) return attacker;
-      if (targetText.includes('己方') || targetText.includes('友方')) return defender || attacker;
-      return defender || attacker;
+          (targetModifiers.includes('可被随机偏转') &&
+            !/自身|己方|友方/.test(baseTargetText) &&
+            /敌|单体|群体|全场/.test(baseTargetText)));
+      const effectiveTargetModel = shouldUseRandomTarget
+        ? inferBattleTargetModelFromLegacyTarget(randomTargetText)
+        : baseTargetModel;
+      const targetText = shouldUseRandomTarget ? randomTargetText : mapBattleTargetModelToCombatTarget(effectiveTargetModel);
+      const alliedUnits = dedupeCombatTargetList([
+        attacker,
+        ...((combatData?.参战者?.team_player || []).filter(Boolean)),
+      ]).filter(isCombatUnitAlive);
+      const hostileUnits = dedupeCombatTargetList([
+        defender,
+        ...((combatData?.参战者?.team_enemy || []).filter(Boolean)),
+      ]).filter(isCombatUnitAlive);
+      const allUnits = dedupeCombatTargetList([...alliedUnits, ...hostileUnits]).filter(isCombatUnitAlive);
+      let targetSet = [];
+      switch (effectiveTargetModel) {
+        case '全场': {
+          const prioritizedTarget = findCombatTargetInSet(allUnits, defender);
+          targetSet = prioritizedTarget
+            ? [prioritizedTarget, ...allUnits.filter(target => !isCombatUnitIdentityMatch(target, prioritizedTarget.name))]
+            : allUnits;
+          break;
+        }
+        case '自身':
+          targetSet = attacker ? [attacker] : [];
+          break;
+        case '友方群体':
+          targetSet = alliedUnits;
+          break;
+        case '友方单体': {
+          const alliedTarget = findCombatTargetInSet(alliedUnits, defender) || findCombatTargetInSet(alliedUnits, attacker) || attacker;
+          targetSet = alliedTarget ? [alliedTarget] : [];
+          break;
+        }
+        case '敌方群体':
+          targetSet = hostileUnits;
+          break;
+        case '敌方单体':
+        default: {
+          const hostileTarget = findCombatTargetInSet(hostileUnits, defender) || hostileUnits[0] || null;
+          targetSet = hostileTarget ? [hostileTarget] : [];
+          break;
+        }
+      }
+      if (targetModifiers.includes('受隐身筛选') && !canBypassStealth(attacker, skill)) {
+        const visibleTargets = targetSet.filter(target => !buildConditionTacticalSnapshot(target).hasStealthed);
+        if (visibleTargets.length > 0) targetSet = visibleTargets;
+      }
+      if (targetModifiers.includes('可被嘲讽') && ['敌方单体', '敌方群体'].includes(effectiveTargetModel)) {
+        const forcedTargetName = getForcedTauntTargetName(attacker);
+        if (forcedTargetName) {
+          const forcedTarget = hostileUnits.find(target => isCombatUnitIdentityMatch(target, forcedTargetName));
+          if (forcedTarget) {
+            targetSet =
+              effectiveTargetModel === '敌方单体'
+                ? [forcedTarget]
+                : [forcedTarget, ...targetSet.filter(target => !isCombatUnitIdentityMatch(target, forcedTarget.name))];
+          }
+        }
+      }
+      const primaryTarget = targetSet[0] || null;
+      return {
+        targetModel: effectiveTargetModel,
+        targetModifiers,
+        resolutionStrategy,
+        targetText,
+        alliedSet: alliedUnits,
+        hostileSet: hostileUnits,
+        targetSet,
+        primaryTarget,
+      };
+    }
+
+    function resolveSkillEffectTargetCharacter(skill, effect, attacker, defender, combatData = null) {
+      return resolveSkillTargetContext(skill, attacker, defender, combatData, effect).primaryTarget;
+    }
+
+    function resolveSkillEffectTargetCharacters(skill, effect, attacker, defender, combatData) {
+      return resolveSkillTargetContext(skill, attacker, defender, combatData, effect).targetSet;
     }
 
     function removeNegativeConditionsByCleanse(targetChar, maxCount = 1) {
@@ -4561,6 +5173,40 @@ class BattleUIComponent {
       const removable = Object.entries(targetChar.状态效果)
         .filter(
           ([key, cond]) => cond?.类型 === 'debuff' && !String(key || '').startsWith(AUTO_PROJECTED_CONDITION_PREFIX),
+        )
+        .sort((a, b) => scoreCondition(b[1]) - scoreCondition(a[1]));
+      removable.slice(0, Math.max(1, Number(maxCount || 1))).forEach(([key]) => {
+        delete targetChar.状态效果[key];
+        removed.push(key);
+        if (targetChar.持续效果) {
+          Object.keys(targetChar.持续效果).forEach(sustainKey => {
+            if (targetChar.持续效果[sustainKey]?.related_condition === key)
+              delete targetChar.持续效果[sustainKey];
+          });
+        }
+      });
+      return removed;
+    }
+
+    function removePositiveConditionsByDispel(targetChar, maxCount = 1) {
+      if (!targetChar?.状态效果) return [];
+      const removed = [];
+      const scoreCondition = (cond = {}) => {
+        const ce = cond?.战斗效果 || {};
+        return (
+          Number(cond?.shield_value || 0) +
+          Number(ce.death_save_count || 0) * 800 +
+          Number(ce.block_count || 0) * 300 +
+          Number(ce.damage_reduction || 0) * 500 +
+          Math.max(0, Number(ce.final_damage_mult || 1) - 1) * 300 +
+          Math.max(0, Number(ce.final_heal_mult || 1) - 1) * 260 +
+          Math.max(0, Number(ce.shield_gain_mult || 1) - 1) * 220 +
+          Number(cond?.duration || 0)
+        );
+      };
+      const removable = Object.entries(targetChar.状态效果)
+        .filter(
+          ([key, cond]) => cond?.类型 === 'buff' && !String(key || '').startsWith(AUTO_PROJECTED_CONDITION_PREFIX),
         )
         .sort((a, b) => scoreCondition(b[1]) - scoreCondition(a[1]));
       removable.slice(0, Math.max(1, Number(maxCount || 1))).forEach(([key]) => {
@@ -4606,8 +5252,19 @@ class BattleUIComponent {
           if (hotHealRatio > 0) {
             const maxVit = Math.max(1, Number(char.vit_max || char.vit || 1));
             const hotHeal = Math.floor(maxVit * hotHealRatio);
-            char.vit = Math.min(maxVit, char.vit + hotHeal);
-            if (hotHeal > 0) parts.push(`[状态结算] ${label}受[${key}]影响，额外恢复 ${hotHeal} 点HP`);
+            const healInvertRatio = Math.max(0, Number(combatEffects.heal_inversion_ratio || 0));
+            if (healInvertRatio > 0) {
+              const invertedDamage = Math.max(1, Math.floor(hotHeal * Math.max(1, healInvertRatio)));
+              char.vit = Math.max(0, char.vit - invertedDamage);
+              if (invertedDamage > 0) parts.push(`[状态结算] ${label}的[${key}]治疗被反转，反而损失 ${invertedDamage} 点HP`);
+            } else {
+              char.vit = Math.min(maxVit, char.vit + hotHeal);
+              if (hotHeal > 0) parts.push(`[状态结算] ${label}受[${key}]影响，额外恢复 ${hotHeal} 点HP`);
+            }
+          }
+          if (char.vit <= 0) {
+            const reviveLog = triggerReviveEffect(char, label);
+            if (reviveLog) parts.push(reviveLog);
           }
 
           if (typeof cond.duration === 'number') {
@@ -5574,7 +6231,7 @@ class BattleUIComponent {
             clashExtraPatchOps.push(...settleResult.extraPatchOps);
 
           if (attacker.蓄力技能 != null) {
-            let damageRatio = settleResult.dmg / attacker.vit_max;
+            let damageRatio = Number(settleResult.totalProjectedDamage || settleResult.dmg || 0) / attacker.vit_max;
             let isControlled = attacker.状态效果 && attacker.状态效果['眩晕'];
 
             let hasSuperArmor = false;
@@ -5642,13 +6299,20 @@ class BattleUIComponent {
             Number(getFusionScaledInterruptChance(playerAction.skill) || 0),
           );
           let isNpcInterrupted =
-            settleResult.dmg / defender.vit_max >= 0.15 ||
             playerStateCalc.skip_turn === true ||
             getPrimaryStateFlags(playerAction.skill).includes('硬控') ||
             (playerInterruptChance > 0 && Math.random() <= Math.min(1, playerInterruptChance)) ||
             (Number(settleResult.interrupt_bonus || 0) > 0 &&
               Math.random() <= Math.min(1, Number(settleResult.interrupt_bonus || 0)));
 
+          // --- 第四步：打击烈度与破防标尺 ---
+          const damagePackage = applyResolvedDamagePackage(attacker, playerAction, settleResult, {
+            primaryTarget: defender,
+            combatData,
+          });
+          let appliedDamage = damagePackage.primaryAppliedDamage;
+          if (damagePackage.log) roundLog += ` ${damagePackage.log}`;
+          isNpcInterrupted = isNpcInterrupted || appliedDamage / Math.max(1, defender.vit_max) >= 0.15;
           if (npcAction.type === '穿戴装备') {
             if (!isNpcInterrupted) {
               defender.装备[npcAction.skill.equip_target === 'armor' ? '斗铠' : '机甲'].装备状态 = '已装备';
@@ -5657,45 +6321,6 @@ class BattleUIComponent {
               roundLog += ` [穿戴失败] 玩家的猛烈攻击强行打断了NPC的装备穿戴过程！`;
             }
           }
-
-          // --- 第四步：打击烈度与破防标尺 ---
-          let finalDmg = settleResult.dmg;
-          const reactiveDefense = resolveReactiveDefenseOnDamage(attacker, defender, finalDmg);
-          let appliedDamage = 0;
-          finalDmg = reactiveDefense.damage;
-          if (reactiveDefense.counterDamage > 0)
-            attacker.vit = Math.max(0, Number(attacker.vit || 0) - reactiveDefense.counterDamage);
-          if (reactiveDefense.log) roundLog += ` ${reactiveDefense.log}`;
-          if (finalDmg > 0) {
-            if (finalDmg < defender.def * 0.1) {
-              defender.vit -= 1;
-              appliedDamage = 1;
-              roundLog += ` [未破防] 攻击如同刮痧，NPC仅强制扣除 1 点HP。`;
-            } else {
-              defender.vit -= finalDmg;
-              appliedDamage = finalDmg;
-              if (finalDmg > defender.sp_max * 0.5) {
-                if (!defender.状态效果) defender.状态效果 = {};
-                defender.状态效果['重度流血'] = {
-                  类型: 'debuff',
-                  层数: 1,
-                  描述: '重创导致的流血',
-                  duration: 3,
-                  面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, sp_max: 1.0 },
-                  战斗效果: { skip_turn: false, dot_damage: Math.floor(defender.vit_max * 0.05), armor_pen: 0 },
-                };
-                roundLog += ` [重创打击] 伤害极高！NPC遭到重创，被附加[重度流血]状态！`;
-              }
-            }
-          }
-          const defenderInterruptLog = resolveCastInterruptOnDamage(
-            defender,
-            playerAction,
-            appliedDamage,
-            settleResult,
-            'NPC',
-          );
-          if (defenderInterruptLog) roundLog += ` ${defenderInterruptLog}`;
           const fusionAftermathLog = applyFusionActionAftermath(attacker, playerAction, combatData);
           if (fusionAftermathLog) roundLog += ` ${fusionAftermathLog}`;
 
@@ -5755,7 +6380,7 @@ class BattleUIComponent {
               continueSimulation = false;
               roundLog += ` [单回合仲裁] 当前模式为单回合，本次暗箱演算到此结束。`;
             } else {
-              const continueThresholdReached = settleResult.dmg / Math.max(1, attacker.vit_max) >= 0.05;
+              const continueThresholdReached = Number(settleResult.totalProjectedDamage || settleResult.dmg || 0) / Math.max(1, attacker.vit_max) >= 0.05;
               if (continueThresholdReached) {
                 continueSimulation = false;
                 roundLog += ` [续推终止] 本回合攻防烈度已达阈值，暗箱续推停止。`;
@@ -5994,7 +6619,7 @@ class BattleUIComponent {
         ['reaction_penalty', 'hit_penalty', 'dodge_penalty', 'cast_speed_penalty', 'control_success_penalty'].forEach(key => {
           if (next[key] !== undefined) next[key] = scaleBattleValue(next[key], controlScale, { digits: 4 });
         });
-        ['damage_reduction', 'counter_attack_ratio', 'sp_gain_ratio', 'men_gain_ratio', 'hot_heal_ratio', 'heal_block_ratio', 'resource_block_ratio', 'bonus_true_damage_ratio', 'life_steal_ratio'].forEach(
+        ['damage_reduction', 'counter_attack_ratio', 'damage_reflect_ratio', 'damage_share_ratio', 'sp_gain_ratio', 'men_gain_ratio', 'hot_heal_ratio', 'heal_block_ratio', 'resource_block_ratio', 'random_target_rate', 'stealth_level', 'bonus_true_damage_ratio', 'life_steal_ratio', 'heal_inversion_ratio', 'revive_heal_ratio'].forEach(
           key => {
             if (next[key] !== undefined) next[key] = scaleBattleValue(next[key], key.includes('heal') || key.includes('gain') ? recoverScale : stateScale, {
               min: 0,
@@ -6005,6 +6630,10 @@ class BattleUIComponent {
         );
         if (next.lock_level !== undefined) next.lock_level = scaleBattleLockLevel(next.lock_level, controlScale);
         if (next.dot_damage !== undefined) next.dot_damage = scaleBattleValue(next.dot_damage, damageScale, { min: 0, digits: 2 });
+        ['death_save_count', 'revive_count', 'substitute_count', 'damage_share_count', 'daily_trigger_limit'].forEach(key => {
+          if (next[key] !== undefined) next[key] = Math.max(0, Math.round(Number(next[key] || 0) * stateScale));
+        });
+        if (next.invincible_tier_threshold !== undefined) next.invincible_tier_threshold = Math.max(0, Number(next.invincible_tier_threshold || 0));
         if (next.final_damage_mult !== undefined) next.final_damage_mult = scaleBattleFactor(next.final_damage_mult, damageScale, 1);
         if (next.final_damage_bonus !== undefined) next.final_damage_bonus = scaleBattleValue(next.final_damage_bonus, damageScale, { min: 0, digits: 2 });
         if (next.final_heal_mult !== undefined) next.final_heal_mult = scaleBattleFactor(next.final_heal_mult, recoverScale, 1);
@@ -6560,6 +7189,121 @@ class BattleUIComponent {
         return `[濒死守护] ${defender.name || '目标'}触发[${candidate.key}]，强行保住最后一口气！剩余保护次数:${nextCount}`;
       }
 
+      function formatBattleDayKeyFromTick(tickValue) {
+        const safeTick = Math.max(0, Number(tickValue || 0));
+        const totalMinutes = safeTick * 10;
+        const days = Math.floor(totalMinutes / (24 * 60));
+        const years = Math.floor(days / 360);
+        const months = Math.floor((days % 360) / 30) + 1;
+        const currentDay = (days % 30) + 1;
+        return `${20000 + years}-${months}-${currentDay}`;
+      }
+
+      function getCombatUnitTierNumber(entity = {}) {
+        const candidates = [
+          entity?.final?.lv,
+          entity?.lv,
+          entity?.等级,
+          entity?.对标等级,
+          entity?.属性?.对标等级,
+          entity?.属性?.等级,
+        ];
+        for (const candidate of candidates) {
+          const parsed = Number(candidate);
+          if (Number.isFinite(parsed)) return parsed;
+        }
+        const text = [
+          entity?.境界,
+          entity?.属性?.境界,
+          entity?.战力对标,
+          entity?.属性?.战力对标,
+          entity?.称号,
+          entity?.属性?.称号,
+        ]
+          .map(value => String(value || '').trim())
+          .filter(Boolean)
+          .join(' ');
+        if (/准神/.test(text)) return 99.5;
+        if (/神级|百级|真神|一级神|二级神|三级神/.test(text)) return 100;
+        return 0;
+      }
+
+      function ensureMechanismTriggerLedger(char) {
+        if (!char || typeof char !== 'object') return {};
+        if (!char.机制触发记录 || typeof char.机制触发记录 !== 'object') char.机制触发记录 = {};
+        return char.机制触发记录;
+      }
+
+      function consumeDailyMechanismTrigger(char, mechanismKey = '', limitPerDay = 0, currentTick = null) {
+        const safeLimit = Math.max(0, Number(limitPerDay || 0));
+        if (!(safeLimit > 0)) return { allowed: true, remaining: Infinity, used: 0, dayKey: '' };
+        const ledger = ensureMechanismTriggerLedger(char);
+        const dayKey = formatBattleDayKeyFromTick(
+          currentTick == null ? Number(window.BattleUIBridge?.getMVU('world.时间.tick') || 0) : currentTick,
+        );
+        const key = String(mechanismKey || '未命名机制').trim() || '未命名机制';
+        let entry = ledger[key];
+        if (!entry || typeof entry !== 'object' || String(entry.日期 || '') !== dayKey) {
+          entry = { 日期: dayKey, 次数: 0 };
+          ledger[key] = entry;
+        }
+        if (Number(entry.次数 || 0) >= safeLimit) {
+          return {
+            allowed: false,
+            remaining: 0,
+            used: Number(entry.次数 || 0),
+            dayKey,
+          };
+        }
+        entry.次数 = Math.max(0, Number(entry.次数 || 0)) + 1;
+        return {
+          allowed: true,
+          remaining: Math.max(0, safeLimit - Number(entry.次数 || 0)),
+          used: Number(entry.次数 || 0),
+          dayKey,
+        };
+      }
+
+      function getCombatAlliesForUnit(combatData, unit) {
+        if (!combatData || !unit) return [];
+        const playerSide = [combatData?.参战者?.player, ...(combatData?.参战者?.team_player || [])].filter(Boolean);
+        const enemySide = [combatData?.参战者?.enemy, ...(combatData?.参战者?.team_enemy || [])].filter(Boolean);
+        if (playerSide.some(member => isCombatUnitIdentityMatch(member, unit?.name || unit))) {
+          return playerSide.filter(member => member && !isCombatUnitIdentityMatch(member, unit?.name || unit));
+        }
+        if (enemySide.some(member => isCombatUnitIdentityMatch(member, unit?.name || unit))) {
+          return enemySide.filter(member => member && !isCombatUnitIdentityMatch(member, unit?.name || unit));
+        }
+        return [];
+      }
+
+      function collectShieldConditionEntries(char) {
+        if (!char?.状态效果) return [];
+        return Object.entries(char.状态效果)
+          .map(([key, cond]) => ({ key, cond, shieldValue: Math.max(0, Number(cond?.shield_value || 0)) }))
+          .filter(entry => entry.shieldValue > 0)
+          .sort((a, b) => b.shieldValue - a.shieldValue);
+      }
+
+      function triggerReviveEffect(targetChar, label = '目标') {
+        if (!targetChar?.状态效果) return null;
+        const candidate = Object.entries(targetChar.状态效果)
+          .map(([key, cond]) => ({ key, cond, ce: cond?.战斗效果 || {} }))
+          .filter(entry => Number(entry.ce.revive_count || 0) > 0)
+          .sort((a, b) => Number(b.ce.revive_count || 0) - Number(a.ce.revive_count || 0))[0];
+        if (!candidate) return null;
+        if (!candidate.cond.战斗效果) candidate.cond.战斗效果 = {};
+        const nextCount = Math.max(0, Number(candidate.cond.战斗效果.revive_count || 0) - 1);
+        candidate.cond.战斗效果.revive_count = nextCount;
+        const healRatio = Math.max(0.05, Number(candidate.cond.战斗效果.revive_heal_ratio || 0.25));
+        const maxVit = Math.max(1, Number(targetChar.vit_max || 1));
+        const restoreAmount = Math.max(1, Math.floor(maxVit * healRatio));
+        targetChar.vit = Math.min(maxVit, Math.max(restoreAmount, Number(targetChar.vit || 0) + restoreAmount));
+        if (!targetChar.状态 || typeof targetChar.状态 !== 'object') targetChar.状态 = {};
+        targetChar.状态.行动 = '战斗';
+        return `[复苏触发] ${label}借[${candidate.key}]重燃战意，恢复 ${restoreAmount} 点HP！剩余复苏次数:${nextCount}`;
+      }
+
       function applyShieldToCharacter(targetChar, shieldAmount, duration = 1, sourceName = '护盾') {
         const amount = Math.max(0, Math.floor(Number(shieldAmount || 0)));
         if (!targetChar || amount <= 0) return 0;
@@ -6585,18 +7329,52 @@ class BattleUIComponent {
         return amount;
       }
 
-      function resolveReactiveDefenseOnDamage(attacker, defender, incomingDamage) {
+      function resolveReactiveDefenseOnDamage(attacker, defender, incomingDamage, options = {}) {
         let damage = Math.max(0, Math.floor(Number(incomingDamage || 0)));
-        if (!defender?.状态效果 || damage <= 0) return { damage, counterDamage: 0, log: '' };
+        if (!defender?.状态效果 || damage <= 0) return { damage, counterDamage: 0, log: '', sharedDamageEntries: [] };
         const parts = [];
         let counterDamage = 0;
+        const sharedDamageEntries = [];
+        const attackerTier = getCombatUnitTierNumber(attacker);
+        const currentTick = Number(options?.currentTick ?? (window.BattleUIBridge?.getMVU('world.时间.tick') || 0));
+        for (const [key, cond] of Object.entries(defender.状态效果)) {
+          const ce = cond?.战斗效果 || {};
+          if (!ce.invincible) continue;
+          const tierThreshold = Math.max(0, Number(ce.invincible_tier_threshold || 100));
+          const belowThreshold = tierThreshold > 0 ? attackerTier < tierThreshold : true;
+          if (!belowThreshold) continue;
+          const quota = consumeDailyMechanismTrigger(
+            defender,
+            `${defender.name || '目标'}:${key}:无敌金身`,
+            Number(ce.daily_trigger_limit || 0),
+            currentTick,
+          );
+          if (!quota.allowed) {
+            parts.push(`[无敌金身耗尽] ${defender.name || '目标'}的[${key}]今日触发次数已满，无法继续豁免。`);
+            continue;
+          }
+          damage = 0;
+          parts.push(
+            `[无敌金身] ${defender.name || '目标'}以[${key}]强行豁免了神级以下攻击，本日剩余触发:${quota.remaining === Infinity ? '∞' : quota.remaining}。`,
+          );
+          return { damage, counterDamage, log: parts.join(' '), sharedDamageEntries };
+        }
+        for (const [key, cond] of Object.entries(defender.状态效果)) {
+          const ce = cond?.战斗效果 || {};
+          if (Number(ce.substitute_count || 0) > 0) {
+            if (cond.战斗效果) cond.战斗效果.substitute_count = Math.max(0, Number(ce.substitute_count || 0) - 1);
+            damage = 0;
+            parts.push(`[替身抵消] ${defender.name || '目标'}以[${key}]替掉了本次伤害。`);
+            return { damage, counterDamage, log: parts.join(' '), sharedDamageEntries };
+          }
+        }
         for (const [key, cond] of Object.entries(defender.状态效果)) {
           const ce = cond?.战斗效果 || {};
           if (Number(ce.block_count || 0) > 0) {
             if (cond.战斗效果) cond.战斗效果.block_count = Math.max(0, Number(ce.block_count || 0) - 1);
             damage = 0;
             parts.push(`[格挡触发] ${defender.name || '目标'}以[${key}]抵消了本次攻击！`);
-            break;
+            return { damage, counterDamage, log: parts.join(' '), sharedDamageEntries };
           }
         }
         if (damage > 0) {
@@ -6615,6 +7393,41 @@ class BattleUIComponent {
           }
         }
         if (damage > 0) {
+          const allies = getCombatAlliesForUnit(options?.combatData || getCurrentBattleContextSnapshot(), defender).filter(
+            ally => isCombatUnitAlive(ally),
+          );
+          for (const [key, cond] of Object.entries(defender.状态效果)) {
+            const ce = cond?.战斗效果 || {};
+            const shareRatio = Math.max(0, Math.min(1, Number(ce.damage_share_ratio || 0)));
+            const shareCount = Math.max(0, Math.round(Number(ce.damage_share_count || 0)));
+            if (!(shareRatio > 0) || !(shareCount > 0) || !allies.length) continue;
+            const selectedAllies = allies.slice(0, shareCount);
+            if (!selectedAllies.length) continue;
+            const sharedTotal = Math.max(1, Math.floor(damage * shareRatio));
+            const selfRemain = Math.max(0, damage - sharedTotal);
+            const perTargetDamage = Math.max(1, Math.floor(sharedTotal / selectedAllies.length));
+            damage = selfRemain;
+            selectedAllies.forEach((ally, index) => {
+              const finalSharedDamage =
+                index === selectedAllies.length - 1
+                  ? Math.max(1, sharedTotal - perTargetDamage * Math.max(0, selectedAllies.length - 1))
+                  : perTargetDamage;
+              sharedDamageEntries.push({
+                target: ally,
+                damage: Math.max(1, finalSharedDamage),
+                kind: 'shared',
+                from: defender,
+              });
+            });
+            parts.push(
+              `[伤害分摊] ${defender.name || '目标'}借[${key}]将 ${sharedTotal} 点伤害分摊给${selectedAllies
+                .map(ally => ally?.name || '队友')
+                .join('、')}。`,
+            );
+            break;
+          }
+        }
+        if (damage > 0) {
           for (const [key, cond] of Object.entries(defender.状态效果)) {
             const ce = cond?.战斗效果 || {};
             const ratio = Number(ce.counter_attack_ratio || 0);
@@ -6622,9 +7435,15 @@ class BattleUIComponent {
               counterDamage = Math.max(counterDamage, Math.max(1, Math.floor(damage * ratio)));
               parts.push(`[反击触发] ${defender.name || '目标'}借[${key}]展开反击，回震 ${counterDamage} 点伤害！`);
             }
+            const reflectRatio = Number(ce.damage_reflect_ratio || 0);
+            if (reflectRatio > 0) {
+              const reflectDamage = Math.max(1, Math.floor(damage * reflectRatio));
+              counterDamage = Math.max(counterDamage, reflectDamage);
+              parts.push(`[伤害反射] ${defender.name || '目标'}借[${key}]反弹了 ${reflectDamage} 点伤害！`);
+            }
           }
         }
-        return { damage, counterDamage, log: parts.join(' ') };
+        return { damage, counterDamage, log: parts.join(' '), sharedDamageEntries };
       }
 
       function resolveCastInterruptOnDamage(
@@ -6663,6 +7482,165 @@ class BattleUIComponent {
             : `[蓄力打断] ${label}受到重创或控制，蓄力被强制打断！`;
         }
         return '';
+      }
+
+      function summarizeProjectedDamageEntries(targetResults = []) {
+        const entries = Array.isArray(targetResults)
+          ? targetResults
+              .map((entry, index) => {
+                if (!entry?.target) return null;
+                return {
+                  ...entry,
+                  damage: Math.max(0, Math.floor(Number(entry?.damage || 0))),
+                  kind: entry?.kind || (index === 0 ? 'primary' : 'secondary'),
+                };
+              })
+              .filter(Boolean)
+          : [];
+        const primaryEntry = entries.find(entry => entry.kind === 'primary') || entries[0] || null;
+        const primaryDamage = Math.max(0, Number(primaryEntry?.damage || 0));
+        const totalDamage = entries.reduce((sum, entry) => sum + Math.max(0, Number(entry?.damage || 0)), 0);
+        return {
+          entries,
+          primaryEntry,
+          primaryDamage,
+          totalDamage,
+        };
+      }
+
+      function refreshSettleResultProjectedDamage(settleResult = {}) {
+        const summary = summarizeProjectedDamageEntries(settleResult?.targetResults || []);
+        if (summary.entries.length > 0) {
+          settleResult.targetResults = summary.entries;
+          settleResult.dmg = summary.primaryDamage;
+          settleResult.totalProjectedDamage = summary.totalDamage;
+        } else {
+          settleResult.dmg = Math.max(0, Math.floor(Number(settleResult?.dmg || 0)));
+          settleResult.totalProjectedDamage = settleResult.dmg;
+          settleResult.targetResults = [];
+        }
+        return settleResult;
+      }
+
+      function appendProjectedDamageToSettleResult(settleResult = {}, targetChar, damage = 0, kind = 'secondary') {
+        if (!settleResult || !targetChar) return settleResult;
+        const normalizedDamage = Math.max(0, Math.floor(Number(damage || 0)));
+        if (!(normalizedDamage > 0)) return settleResult;
+        const targetName = targetChar?.name || targetChar?.名称 || '目标';
+        if (!Array.isArray(settleResult.targetResults)) settleResult.targetResults = [];
+        const existing = settleResult.targetResults.find(entry => entry?.target && isCombatUnitIdentityMatch(entry.target, targetName));
+        if (existing) {
+          existing.damage = Math.max(0, Number(existing.damage || 0)) + normalizedDamage;
+          if (existing.kind !== 'primary' && kind === 'primary') existing.kind = 'primary';
+        } else {
+          settleResult.targetResults.push({
+            target: targetChar,
+            targetName,
+            damage: normalizedDamage,
+            kind,
+          });
+        }
+        return refreshSettleResultProjectedDamage(settleResult);
+      }
+
+      function applyResolvedDamagePackage(attacker, attackAction, settleResult = {}, options = {}) {
+        const primaryTarget = options.primaryTarget || null;
+        const targetResults =
+          Array.isArray(settleResult?.targetResults) && settleResult.targetResults.length
+            ? settleResult.targetResults
+            : primaryTarget
+              ? [{ target: primaryTarget, targetName: primaryTarget?.name || '目标', damage: Number(settleResult?.dmg || 0), kind: 'primary' }]
+              : [];
+        const logParts = [];
+        let primaryAppliedDamage = 0;
+        let totalAppliedDamage = 0;
+        targetResults.forEach((targetEntry, index) => {
+          const targetChar = targetEntry?.target;
+          if (!targetChar) return;
+          bindCombatParticipant(targetChar);
+          const targetFinalStat = targetChar.final || buildCombatFinalStats(targetChar);
+          const incomingDamage = Math.max(0, Math.floor(Number(targetEntry?.damage || 0)));
+          if (!(incomingDamage > 0)) return;
+          const reactiveDefense = resolveReactiveDefenseOnDamage(attacker, targetChar, incomingDamage, options);
+          let finalDamage = reactiveDefense.damage;
+          if (reactiveDefense.counterDamage > 0) {
+            attacker.vit = Math.max(0, Number(attacker.vit || 0) - reactiveDefense.counterDamage);
+          }
+          if (reactiveDefense.log) logParts.push(reactiveDefense.log);
+          let appliedDamage = 0;
+          if (finalDamage > 0) {
+            const defThreshold = Math.max(1, Number(targetFinalStat.def || targetChar.def || 0)) * 0.1;
+            if (finalDamage < defThreshold) {
+              targetChar.vit = Math.max(0, Number(targetChar.vit || 0) - 1);
+              appliedDamage = 1;
+              logParts.push(
+                targetEntry?.kind === 'primary'
+                  ? `[未破防] 对${targetChar.name || '目标'}仅造成 1 点强制伤害。`
+                  : `[群体擦伤] ${targetChar.name || '目标'}仅承受 1 点擦伤伤害。`,
+              );
+            } else {
+              targetChar.vit = Math.max(0, Number(targetChar.vit || 0) - finalDamage);
+              appliedDamage = finalDamage;
+              logParts.push(
+                targetEntry?.kind === 'primary'
+                  ? `[命中结算] 对${targetChar.name || '目标'}造成 ${finalDamage} 点最终伤害。`
+                  : `[群体命中] ${targetChar.name || '目标'}承受 ${finalDamage} 点伤害。`,
+              );
+              if (finalDamage > Number(targetFinalStat.sp_max || targetChar.sp_max || 0) * 0.5) {
+                if (!targetChar.状态效果) targetChar.状态效果 = {};
+                targetChar.状态效果['重度流血'] = {
+                  类型: 'debuff',
+                  层数: 1,
+                  描述: '重创导致的流血',
+                  duration: 3,
+                  面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, sp_max: 1.0 },
+                  战斗效果: {
+                    ...createEmptyCombatEffectMap(),
+                    dot_damage: Math.floor(Number(targetFinalStat.vit_max || targetChar.vit_max || 0) * 0.05),
+                  },
+                };
+                logParts.push(`[重创打击] ${targetChar.name || '目标'}被附加[重度流血]状态！`);
+              }
+            }
+          }
+          if (Array.isArray(reactiveDefense.sharedDamageEntries) && reactiveDefense.sharedDamageEntries.length) {
+            reactiveDefense.sharedDamageEntries.forEach(sharedEntry => {
+              const sharedTarget = sharedEntry?.target;
+              const sharedDamage = Math.max(0, Math.floor(Number(sharedEntry?.damage || 0)));
+              if (!sharedTarget || !(sharedDamage > 0)) return;
+              bindCombatParticipant(sharedTarget);
+              sharedTarget.vit = Math.max(0, Number(sharedTarget.vit || 0) - sharedDamage);
+              logParts.push(
+                `[分摊结算] ${sharedTarget.name || '队友'}替${targetChar.name || '目标'}承受了 ${sharedDamage} 点伤害。`,
+              );
+              if (sharedTarget.vit <= 0) {
+                const reviveLog = triggerReviveEffect(sharedTarget, sharedTarget.name || '队友');
+                if (reviveLog) logParts.push(reviveLog);
+              }
+            });
+          }
+          const interruptLog = resolveCastInterruptOnDamage(
+            targetChar,
+            attackAction,
+            appliedDamage,
+            settleResult,
+            targetChar.name || `目标${index + 1}`,
+          );
+          if (interruptLog) logParts.push(interruptLog);
+          if (targetChar.vit <= 0) {
+            const reviveLog = triggerReviveEffect(targetChar, targetChar.name || `目标${index + 1}`);
+            if (reviveLog) logParts.push(reviveLog);
+          }
+          if (targetEntry?.kind === 'primary' || (index === 0 && !primaryAppliedDamage)) {
+            primaryAppliedDamage = appliedDamage;
+          }
+          totalAppliedDamage += appliedDamage;
+        });
+        return {
+          log: logParts.join(' '),
+          primaryAppliedDamage,
+          totalAppliedDamage,
+        };
       }
 
       // ==========================================
@@ -6829,6 +7807,147 @@ class BattleUIComponent {
         return ratio;
       }
 
+      function estimateIncomingActionThreat(attacker, defender, playerAction, combatData) {
+        const skill = playerAction?.skill && typeof playerAction.skill === 'object' ? playerAction.skill : null;
+        const defaultThreat = {
+          targetHitsDefender: false,
+          projectedDamage: 0,
+          projectedDamageRatio: 0,
+          projectedRemainingHp: Math.max(0, Number(defender?.vit || 0)),
+          lethalRisk: false,
+          severeDamage: false,
+          moderateDamage: false,
+          severeControl: false,
+          shieldBreakThreat: false,
+          antiHealThreat: false,
+          skillSealThreat: false,
+          dotDetonateThreat: false,
+          attackerTier: getCombatUnitTierNumber(attacker),
+          bypassesInvincible: getCombatUnitTierNumber(attacker) >= 100,
+        };
+        if (!attacker || !defender || !skill) return defaultThreat;
+
+        const runtimeMeta = getSkillRuntimeMeta(skill);
+        const targetContext = resolveSkillTargetContext(skill, attacker, defender, combatData, getPrimaryDamageEffect(skill));
+        const targetHitsDefender = targetContext.targetSet.some(target => isCombatUnitIdentityMatch(target, defender?.name || defender));
+        if (!targetHitsDefender) return defaultThreat;
+
+        const attackerFinalStat = attacker.final || buildCombatFinalStats(attacker);
+        const defenderFinalStat = defender.final || buildCombatFinalStats(defender);
+        const pClash = getPrimaryDamageEffect(skill);
+        const pStateCalc = getPrimaryStateCalc(skill);
+        const pStateFlags = getPrimaryStateFlags(skill);
+        const attackerConditionEffects = attacker.状态效果
+          ? Object.values(attacker.状态效果).map(c => c?.战斗效果 || {})
+          : [];
+        const defenderConditionEffects = defender.状态效果
+          ? Object.values(defender.状态效果).map(c => c?.战斗效果 || {})
+          : [];
+        const skillPower = Math.max(0, Number(pClash?.威力倍率 || 0));
+        const dmgType = String(pClash?.伤害类型 || '物理近战');
+        const conditionArmorPen = attackerConditionEffects.reduce((sum, ce) => {
+          const raw = Number(ce.armor_pen || 0);
+          return sum + (Math.abs(raw) <= 1 ? raw * 100 : raw);
+        }, 0);
+        let projectedDamage = 0;
+        let actualDef = Number(defenderFinalStat.def || defender.def || 1) * (1 - ((pClash?.穿透修饰 || 0) + conditionArmorPen) / 100);
+        actualDef = Math.max(1, actualDef);
+        const soulDriveScale = getSoulDriveScale(attacker, defender);
+        if (dmgType === '物理近战') {
+          projectedDamage = skillPower * (Number(attackerFinalStat.str || attacker.str || 0) / actualDef) * soulDriveScale;
+        } else if (dmgType === '能量AOE') {
+          projectedDamage = skillPower * (Number(attackerFinalStat.men_max || attacker.men_max || 0) / actualDef) * soulDriveScale;
+        } else if (dmgType === '纯精神冲击') {
+          projectedDamage =
+            skillPower *
+            (Number(attackerFinalStat.men_max || attacker.men_max || 0) /
+              Math.max(1, Number(defenderFinalStat.men_max || defender.men_max || 1)));
+        }
+        const attackerFinalDamageMult = attackerConditionEffects.reduce(
+          (mult, ce) => mult * Number(ce.final_damage_mult || 1.0),
+          1.0,
+        );
+        const attackerFinalDamageBonus = attackerConditionEffects.reduce(
+          (sum, ce) => sum + Number(ce.final_damage_bonus || 0),
+          0,
+        );
+        const defenderReduction = Math.min(
+          0.9,
+          defenderConditionEffects.reduce((maxVal, ce) => Math.max(maxVal, Number(ce.damage_reduction || 0)), 0),
+        );
+        const extraTrueDamage = attackerConditionEffects.reduce(
+          (sum, ce) =>
+            sum + Math.floor((Number(attackerFinalStat.men_max || attacker.men_max || 0) || 0) * Number(ce.bonus_true_damage_ratio || 0)),
+          0,
+        );
+        projectedDamage = projectedDamage * (1 - defenderReduction) * attackerFinalDamageMult + attackerFinalDamageBonus + extraTrueDamage;
+        const shieldPressure = collectShieldConditionEntries(defender).reduce((sum, entry) => sum + Number(entry.shieldValue || 0), 0);
+        const projectedDamageAfterShield = Math.max(0, Math.floor(projectedDamage - shieldPressure));
+        const currentHp = Math.max(0, Number(defender.vit || 0));
+        const maxHp = Math.max(1, Number(defender.vit_max || 1));
+        const projectedDamageRatio = projectedDamageAfterShield / maxHp;
+        const projectedRemainingHp = Math.max(0, currentHp - projectedDamageAfterShield);
+        const executeEffect = getSkillEffects(skill).find(effect => effect?.机制 === '斩杀补伤') || null;
+        let executeThreat = false;
+        if (executeEffect) {
+          const judgeKey = String(executeEffect.判定属性 || 'hp_ratio');
+          const threshold = Number(executeEffect.判定阈值 ?? 0.2);
+          const attackerValue = getMechanismJudgeValue(attacker, attackerFinalStat, judgeKey);
+          const defenderValue = getMechanismJudgeValue(defender, defenderFinalStat, judgeKey);
+          if (['vit_ratio', 'hp_ratio', 'sp_ratio', 'men_ratio'].includes(judgeKey)) executeThreat = defenderValue <= Math.max(threshold, 0.35);
+          else executeThreat = attackerValue / Math.max(1, defenderValue) >= threshold;
+        }
+        const severeControl =
+          pStateCalc.skip_turn === true ||
+          pStateCalc.cannot_react === true ||
+          pStateCalc.skill_seal === true ||
+          Number(pStateCalc.lock_level || 0) >= 2 ||
+          Number(pStateCalc.reaction_penalty || 0) >= 0.2 ||
+          Number(pStateCalc.cast_speed_penalty || 0) >= 0.2 ||
+          hasSkillMechanism(skill, ['硬控', '催眠', '幻境', '封技']);
+        const enemySnapshot = buildConditionTacticalSnapshot(defender);
+        const shieldBreakThreat =
+          enemySnapshot.hasShielded &&
+          (hasSkillMechanism(skill, ['斩盾']) ||
+            Number(pClash?.穿透修饰 || 0) >= 20 ||
+            /破甲|穿透|粉碎|斩盾/.test(String(skill?.name || '')));
+        const antiHealThreat =
+          hasSkillMechanism(skill, ['禁疗', '治疗反转']) ||
+          Number(pStateCalc.heal_block_ratio || 0) > 0 ||
+          Number(pStateCalc.heal_inversion_ratio || 0) > 0;
+        const dotDetonateThreat = hasSkillMechanism(skill, ['引爆持续伤害']) && enemySnapshot.debuffCount > 0;
+        const skillSealThreat = hasSkillMechanism(skill, ['封技']) || pStateCalc.skill_seal === true;
+        const lethalRisk =
+          projectedDamageAfterShield >= currentHp * 0.95 ||
+          projectedRemainingHp <= 0 ||
+          (executeThreat && currentHp / maxHp <= 0.45);
+        const severeDamage =
+          lethalRisk ||
+          projectedDamageRatio >= 0.3 ||
+          projectedDamageAfterShield >= currentHp * 0.5 ||
+          skillPower >= 260;
+        const moderateDamage =
+          severeDamage ||
+          projectedDamageRatio >= 0.18 ||
+          projectedDamageAfterShield >= currentHp * 0.28 ||
+          skillPower >= 180;
+        return {
+          ...defaultThreat,
+          targetHitsDefender,
+          projectedDamage: projectedDamageAfterShield,
+          projectedDamageRatio: Number(projectedDamageRatio.toFixed(4)),
+          projectedRemainingHp,
+          lethalRisk,
+          severeDamage,
+          moderateDamage,
+          severeControl,
+          shieldBreakThreat,
+          antiHealThreat,
+          skillSealThreat,
+          dotDetonateThreat,
+        };
+      }
+
       function formatBattleTickToCalendarDateText(tickValue) {
         const safeTick = Math.max(0, Number(tickValue || 0));
         const totalMinutes = safeTick * 10;
@@ -6908,7 +8027,7 @@ class BattleUIComponent {
         let attackerFinalStat = attacker.final || attacker;
         let defender = combatData.参战者.enemy;
         let defenderFinalStat = defender.final || defender;
-        let result = { dmg: 0, desc: '', extraPatchOps: [] };
+        let result = { dmg: 0, desc: '', extraPatchOps: [], targetResults: [] };
 
         playerAction.skill = normalizeSkillData(
           playerAction.skill || {
@@ -6961,8 +8080,6 @@ class BattleUIComponent {
 
         let aStr = attackerFinalStat.str;
         let aAgi = attackerFinalStat.agi;
-        let dStr = defenderFinalStat.str;
-        let dDef = defenderFinalStat.def;
         let dAgi = defenderFinalStat.agi;
 
         let hasSuperArmor = false;
@@ -7006,8 +8123,7 @@ class BattleUIComponent {
           if (!hasDirectClash && !hasStateApply) return result;
         }
 
-        const playerTargetMode = String(getSkillTarget(playerAction.skill));
-        let isAOE = /群体|全场/.test(playerTargetMode) || pClash.伤害类型 === '纯精神冲击';
+        const skillRuntimeMeta = getSkillRuntimeMeta(playerAction.skill);
         let grazeMultiplier = 1.0;
 
         const pCalc = pState.计算层效果 || {};
@@ -7015,15 +8131,13 @@ class BattleUIComponent {
         const currentSkillHitPenalty = Number(pCalc.hit_penalty || 0);
         const currentSkillDodgePenalty = Number(pCalc.dodge_penalty || 0);
         const currentSkillLockLevel = Number(pCalc.lock_level || 0);
-        const attackerConditionEffects = attacker.状态效果
+        let attackerConditionEffects = attacker.状态效果
           ? Object.values(attacker.状态效果).map(c => c?.战斗效果 || {})
-          : [];
-        const defenderConditionEffects = defender.状态效果
-          ? Object.values(defender.状态效果).map(c => c?.战斗效果 || {})
           : [];
         const attackerIsSilenced = attackerConditionEffects.some(ce => ce?.silence === true);
         const attackerIsDisarmed = attackerConditionEffects.some(ce => ce?.disarm === true);
         const attackerIsBlinded = attackerConditionEffects.some(ce => ce?.blind === true);
+        const attackerIsSkillSealed = attackerConditionEffects.some(ce => ce?.skill_seal === true);
         const attackerInterruptBonus = attackerConditionEffects.reduce(
           (sum, ce) => sum + Number(ce?.interrupt_bonus || 0),
           0,
@@ -7033,6 +8147,15 @@ class BattleUIComponent {
         const directSpEffect = actionEffects.find(effect => isBattleRecoverEffect(effect, ['sp'])) || null;
         const directMenEffect = actionEffects.find(effect => isBattleRecoverEffect(effect, ['men'])) || null;
         const directCleanseEffect = actionEffects.find(effect => ['解控', '净化'].includes(effect?.机制)) || null;
+        const directDispelEffect = actionEffects.find(effect => effect?.机制 === '驱散增益') || null;
+        const directStealBuffEffect = actionEffects.find(effect => effect?.机制 === '窃取增益') || null;
+        const directRevealEffect = actionEffects.find(effect => effect?.机制 === '破隐') || null;
+        const directTauntEffect = actionEffects.find(effect => effect?.机制 === '嘲讽') || null;
+        const directGuardEffect = actionEffects.find(effect => effect?.机制 === '护卫') || null;
+        const directShieldBreakEffect = actionEffects.find(effect => effect?.机制 === '斩盾') || null;
+        const directShieldStealEffect = actionEffects.find(effect => effect?.机制 === '窃取护盾') || null;
+        const directDotDetonateEffect = actionEffects.find(effect => effect?.机制 === '引爆持续伤害') || null;
+        const directStatusTransferEffect = actionEffects.find(effect => effect?.机制 === '状态转移') || null;
         const directVolatileEffect = actionEffects.find(effect => effect?.机制 === '高波动随机值') || null;
         const directExecuteEffect = actionEffects.find(effect => effect?.机制 === '斩杀补伤') || null;
         const directDamageToHealEffect = actionEffects.find(effect => effect?.机制 === '伤害转回复') || null;
@@ -7047,33 +8170,62 @@ class BattleUIComponent {
           playerAction?.skill?.name || playerAction?.skill?.技能名称 || playerAction?.action_type || '',
         );
         const fusionProfile = getFusionBattleProfileFromSkill(playerAction.skill);
+        if (directRevealEffect) {
+          const revealTargets = resolveSkillEffectTargetCharacters(
+            playerAction.skill,
+            directRevealEffect,
+            attacker,
+            defender,
+            combatData,
+          );
+          const revealLogs = [];
+          revealTargets.forEach(revealTarget => {
+            const removedStealth = removeStealthConditions(revealTarget, Number(directRevealEffect.破隐层级 || 99));
+            if (removedStealth.length > 0) {
+              revealLogs.push(`${revealTarget === attacker ? '自身' : revealTarget.name}现出身形，失去了[${removedStealth.join('/')}]`);
+            }
+          });
+          if (revealLogs.length > 0) {
+            result.desc += ` [破隐生效] ${revealLogs.join('；')}。`;
+            attackerConditionEffects = attacker.状态效果
+              ? Object.values(attacker.状态效果).map(c => c?.战斗效果 || {})
+              : [];
+          }
+        }
         const isBasicAttack =
           !playerAction?.skill || skillName === '普通攻击' || playerAction?.action_type === '常规攻击';
         const isPhysicalMeleeAction = String(pClash.伤害类型 || '') === '物理近战';
         const mirrorEffectToSelf = effect => (effect ? { ...effect, 目标: '自身', 对象: '自身' } : null);
         if (playerAction?.skill) delete playerAction.skill._runtime_random_target;
-        if (directRandomTargetEffect) {
-          const originalTargetText = String(getSkillTarget(playerAction.skill) || '敌方/单体');
-          if (!/自身|己方|友方/.test(originalTargetText)) {
-            const redirectChance = Math.max(0, Math.min(1, Number(directRandomTargetEffect.偏移概率 || 0.5)));
+        const conditionRandomTargetRate = Math.max(
+          0,
+          ...attackerConditionEffects.map(ce => Number(ce?.random_target_rate || 0)),
+        );
+        const directRandomTargetRate = Number(directRandomTargetEffect?.偏移概率 || 0);
+        const effectiveRandomTargetRate = Math.max(directRandomTargetRate, conditionRandomTargetRate);
+        if (effectiveRandomTargetRate > 0) {
+          const originalTargetModel = normalizeBattleSkillTargetModel(skillRuntimeMeta.目标模型 || '敌方单体', '敌方单体');
+          if (!['自身', '友方单体', '友方群体'].includes(originalTargetModel)) {
+            const redirectChance = Math.max(0, Math.min(1, effectiveRandomTargetRate));
             const redirectedToSelf = Math.random() < redirectChance;
-            playerAction.skill._runtime_random_target = redirectedToSelf ? '自身' : originalTargetText;
+            playerAction.skill._runtime_random_target = redirectedToSelf
+              ? '自身'
+              : mapBattleTargetModelToCombatTarget(originalTargetModel);
+            const sourceTag = directRandomTargetRate >= conditionRandomTargetRate ? '随机目标' : '认知扭曲';
             result.desc += redirectedToSelf
-              ? ` [随机目标] 技能轨迹紊乱，本次目标偏转为自身。`
-              : ` [随机目标] 技能轨迹紊乱，但仍锁定原目标。`;
+              ? ` [${sourceTag}] 技能轨迹紊乱，本次目标偏转为自身。`
+              : ` [${sourceTag}] 技能轨迹紊乱，但仍锁定原目标。`;
           }
         }
         const effectTargetsSelf = effect =>
           !!effect && resolveSkillEffectTargetCharacter(playerAction.skill, effect, attacker, defender) === attacker;
-        const primaryResolvedTarget = resolveSkillEffectTargetCharacter(
-          playerAction.skill,
-          { 目标: getSkillTarget(playerAction.skill), 对象: getSkillTarget(playerAction.skill) },
-          attacker,
-          defender,
-        );
+        const damageTargetContext = resolveSkillTargetContext(playerAction.skill, attacker, defender, combatData, pClash);
+        const resolvedDamageTargets = dedupeCombatTargetList(damageTargetContext.targetSet).filter(Boolean);
+        const primaryResolvedTarget = damageTargetContext.primaryTarget || null;
+        const targetsFriendlySkill = ['自身', '友方单体', '友方群体'].includes(damageTargetContext.targetModel);
         const hostileTargetRedirectedToSelf =
           String(playerAction?.skill?._runtime_random_target || '') === '自身' &&
-          /敌/.test(String(getSkillTarget(playerAction.skill) || ''));
+          ['敌方单体', '敌方群体', '全场'].includes(normalizeBattleSkillTargetModel(skillRuntimeMeta.目标模型, '敌方单体'));
         if (attackerIsSilenced && !isBasicAttack) {
           result.desc = `[沉默压制] ${attacker.name || '攻击方'}被沉默，无法顺利释放[${skillName || '技能'}]！`;
           result.interrupt_bonus = attackerInterruptBonus;
@@ -7084,40 +8236,17 @@ class BattleUIComponent {
           result.interrupt_bonus = attackerInterruptBonus;
           return result;
         }
+        if (attackerIsSkillSealed && !isBasicAttack) {
+          result.desc = `[封技压制] ${attacker.name || '攻击方'}的技能回路被封死，当前无法施展[${skillName || '技能'}]！`;
+          result.interrupt_bonus = attackerInterruptBonus;
+          return result;
+        }
         const attackerHitBonus = attackerConditionEffects.reduce((sum, ce) => sum + Number(ce.hit_bonus || 0), 0);
         const attackerHitPenalty =
           attackerConditionEffects.reduce((sum, ce) => sum + Number(ce.hit_penalty || 0), 0) +
           (attackerIsBlinded ? 0.35 : 0);
 
-        if (!isAOE && npcAction.type === '伺机闪避') {
-          let absoluteDodgeThreshold = (aAgi + attackerFinalStat.men_max) * 1.5;
-          const effectiveDAgi = dAgi * (defender.temp_agi_mult || 1.0);
-          if (effectiveDAgi + (defender.temp_dodge_bonus || 0) > absoluteDodgeThreshold) {
-            result.desc = 'NPC触发绝对闪避，残影规避了所有伤害！';
-            return result;
-          }
-
-          let dodgeRate = (effectiveDAgi / (aAgi + attackerFinalStat.men_max)) * 50;
-          dodgeRate +=
-            (defender.temp_dodge_bonus || 0) * 100 -
-            ((defender.temp_dodge_penalty || 0) + currentSkillDodgePenalty) * 100;
-          dodgeRate -= (currentSkillHitBonus + attackerHitBonus - (currentSkillHitPenalty + attackerHitPenalty)) * 100;
-          dodgeRate -= ((defender.temp_lock_level || 0) + currentSkillLockLevel) * 8;
-          let roll = Math.random() * 100;
-
-          if (roll < dodgeRate) {
-            result.desc = `NPC凭借敏捷优势惊险躲过了攻击！`;
-            return result;
-          } else if (roll < dodgeRate + 30) {
-            let grazePercent = (roll - dodgeRate) / 30;
-            grazeMultiplier = 0.3 + 0.5 * grazePercent;
-            result.desc = `NPC未能完全闪避，被攻击擦伤！(承受 ${(grazeMultiplier * 100).toFixed(0)}% 伤害)`;
-            if (attackerIsBlinded) result.desc += ` [目盲干扰] 攻击轨迹受视觉偏差影响。`;
-          }
-        }
-
         let remainPower = pClash.威力倍率 || 0;
-        let npcShield = nClash.护盾值 || 0;
 
         if (npcAction.type === '强势对轰') {
           remainPower -= nClash.威力倍率 || 0;
@@ -7135,37 +8264,14 @@ class BattleUIComponent {
           result.desc = `攻击突破了NPC的防御技能阻碍。`;
         }
 
-        let finalDmg = 0;
         let dmgType = pClash.伤害类型 || '物理近战';
 
         const conditionArmorPen = attackerConditionEffects.reduce((sum, ce) => {
           const raw = Number(ce.armor_pen || 0);
           return sum + (Math.abs(raw) <= 1 ? raw * 100 : raw);
         }, 0);
-        let actualDef = dDef * (1 - ((pClash.穿透修饰 || 0) + conditionArmorPen) / 100);
-        actualDef = Math.max(1, actualDef);
-        const soulDriveScale = getSoulDriveScale(attacker, defender);
-
-        if (dmgType === '物理近战') finalDmg = remainPower * (aStr / actualDef) * soulDriveScale;
-        else if (dmgType === '能量AOE')
-          finalDmg = remainPower * (attackerFinalStat.men_max / actualDef) * soulDriveScale;
-        else if (dmgType === '纯精神冲击')
-          finalDmg = remainPower * (attackerFinalStat.men_max / defenderFinalStat.men_max);
-
-        if (npcAction.type === '肉体兜底') {
-          finalDmg = finalDmg / 1.2;
-          result.desc = 'NPC收缩防御，用纯肉体硬抗了这一击。';
-        }
-
-        if (npcShield > 0) {
-          finalDmg = Math.max(0, finalDmg - npcShield);
-          if (finalDmg === 0) {
-            result.desc += ` 但被NPC的 ${npcShield} 点绝对护盾完全吸收！`;
-          } else {
-            result.desc += ` 击碎了NPC的 ${npcShield} 点护盾后，剩余威力命中本体。`;
-          }
-        }
-
+        const isAOE =
+          resolvedDamageTargets.length > 1 || damageTargetContext.targetModel === '全场' || pClash.伤害类型 === '纯精神冲击';
         let fluctuation = 0.9 + Math.random() * 0.2;
         if (directVolatileEffect) {
           const low = Number(directVolatileEffect.波动下限 ?? 0.5);
@@ -7175,12 +8281,6 @@ class BattleUIComponent {
             result.desc += ` [高波动] 技能威力剧烈波动，本次倍率:${fluctuation.toFixed(2)}。`;
           }
         }
-        finalDmg = finalDmg * fluctuation * grazeMultiplier;
-
-        const totalDamageReduction = Math.min(
-          0.9,
-          defenderConditionEffects.reduce((maxVal, ce) => Math.max(maxVal, Number(ce.damage_reduction || 0)), 0),
-        );
         const totalFinalDamageMult = attackerConditionEffects.reduce(
           (mult, ce) => mult * Number(ce.final_damage_mult || 1.0),
           1.0,
@@ -7198,54 +8298,178 @@ class BattleUIComponent {
           attackerConditionEffects.reduce((sum, ce) => sum + Number(ce.life_steal_ratio || 0), 0) +
           Number(pClash.吸血比例 || 0) +
           directDamageToHealRatio;
-        finalDmg = finalDmg * (1 - totalDamageReduction) * totalFinalDamageMult + totalFinalDamageBonus;
-        if (totalTrueDamageRatio > 0) {
-          const extraTrueDamage = Math.floor(
-            (attackerFinalStat.men_max || attacker.men_max || 0) * totalTrueDamageRatio,
-          );
-          if (extraTrueDamage > 0) {
-            finalDmg += extraTrueDamage;
-            result.desc += ` [法则追伤] 额外附加 ${extraTrueDamage} 点真实伤害。`;
-          }
+        const extraTrueDamagePerTarget =
+          totalTrueDamageRatio > 0
+            ? Math.floor((attackerFinalStat.men_max || attacker.men_max || 0) * totalTrueDamageRatio)
+            : 0;
+        if (extraTrueDamagePerTarget > 0) {
+          result.desc += ` [法则追伤] 每个命中目标额外附加 ${extraTrueDamagePerTarget} 点真实伤害。`;
         }
-        if (directExecuteEffect) {
-          const judgeKey = String(directExecuteEffect.判定属性 || 'vit_ratio');
-          const threshold = Number(directExecuteEffect.判定阈值 ?? 0.2);
-          let executeSuccess = true;
-          if (judgeKey) {
-            const attackerValue = getMechanismJudgeValue(attacker, attackerFinalStat, judgeKey);
-            const defenderValue = getMechanismJudgeValue(defender, defenderFinalStat, judgeKey);
-            if (['vit_ratio', 'hp_ratio', 'sp_ratio', 'men_ratio'].includes(judgeKey))
-              executeSuccess = defenderValue <= threshold;
-            else executeSuccess = attackerValue / Math.max(1, defenderValue) >= threshold;
-          }
-          const execPayload = executeSuccess ? directExecuteEffect.成功参数 || {} : directExecuteEffect.失败参数 || {};
-          const execMult = Number(execPayload.final_damage_mult || 1);
-          const execBonus = Number(execPayload.final_damage_bonus || 0);
-          if (execMult !== 1 || execBonus !== 0) {
-            finalDmg = finalDmg * execMult + execBonus;
-            if (executeSuccess) result.desc += ` [斩杀补伤] 目标跌入收割阈值，斩杀补伤生效！`;
-          }
-        }
-        if (fusionProfile && finalDmg > 0) {
-          finalDmg *= Number(fusionProfile.damageMult || 1);
-          result.desc += ` [融合共鸣] 武魂交叠后的极限共振将杀伤再度推高。`;
+        if (Number(pClash.威力倍率 || 0) > 0 && !resolvedDamageTargets.length) {
+          result.desc += ` [索敌失败] 当前没有可被命中的有效目标。`;
         }
 
-        result.dmg = Math.floor(finalDmg);
+        const resolveProjectedDamageAgainstTarget = (targetObj, index) => {
+          if (!targetObj) return null;
+          bindCombatParticipant(targetObj);
+          const targetFinalStat = targetObj.final || buildCombatFinalStats(targetObj);
+          const targetConditionEffects = targetObj.状态效果
+            ? Object.values(targetObj.状态效果).map(c => c?.战斗效果 || {})
+            : [];
+          const targetName = targetObj === attacker ? '自身' : targetObj.name || `目标${index + 1}`;
+          const targetUsesReactionAction =
+            targetObj === primaryResolvedTarget && !targetsFriendlySkill && targetObj !== attacker;
+          const targetEffectiveAgi = Number(targetFinalStat.agi || targetObj.agi || 0) * Number(targetObj.temp_agi_mult || 1);
+          const targetDodgeBonus = Number(targetObj.temp_dodge_bonus || 0);
+          const targetDodgePenalty = Number(targetObj.temp_dodge_penalty || 0) + currentSkillDodgePenalty;
+          const targetLockLevel = Number(targetObj.temp_lock_level || 0) + currentSkillLockLevel;
+          const localLogParts = [];
+          let localGrazeMultiplier = grazeMultiplier;
+          const allowEvasion = !targetsFriendlySkill || (hostileTargetRedirectedToSelf && targetObj === attacker);
+          if (allowEvasion && remainPower > 0) {
+            const hitDelta = currentSkillHitBonus + attackerHitBonus - (currentSkillHitPenalty + attackerHitPenalty);
+            if (targetUsesReactionAction && !isAOE && npcAction.type === '伺机闪避') {
+              const absoluteDodgeThreshold = (aAgi + attackerFinalStat.men_max) * 1.5;
+              if (targetEffectiveAgi + targetDodgeBonus > absoluteDodgeThreshold) {
+                localLogParts.push(`[绝对闪避] ${targetName}残影一晃，完全躲过了攻击。`);
+                return {
+                  target: targetObj,
+                  targetName,
+                  damage: 0,
+                  kind: index === 0 ? 'primary' : 'secondary',
+                  logs: localLogParts,
+                };
+              }
+            }
+            const dodgeScale = targetUsesReactionAction && !isAOE && npcAction.type === '伺机闪避' ? 50 : 24;
+            const grazeWindow = targetUsesReactionAction && !isAOE && npcAction.type === '伺机闪避' ? 30 : 14;
+            let dodgeRate = (targetEffectiveAgi / Math.max(1, aAgi + attackerFinalStat.men_max)) * dodgeScale;
+            dodgeRate += targetDodgeBonus * 100 - targetDodgePenalty * 100;
+            dodgeRate -= hitDelta * 100;
+            dodgeRate -= targetLockLevel * 8;
+            dodgeRate = Math.max(0, Math.min(targetUsesReactionAction ? 95 : 72, dodgeRate));
+            const dodgeRoll = Math.random() * 100;
+            if (dodgeRoll < dodgeRate) {
+              localLogParts.push(
+                targetUsesReactionAction && !isAOE && npcAction.type === '伺机闪避'
+                  ? `[主动闪避] ${targetName}凭借敏捷优势惊险躲过了攻击。`
+                  : `[闪避判定] ${targetName}提前预判轨迹，规避了本次攻击。`,
+              );
+              return {
+                target: targetObj,
+                targetName,
+                damage: 0,
+                kind: index === 0 ? 'primary' : 'secondary',
+                logs: localLogParts,
+              };
+            }
+            if (dodgeRoll < dodgeRate + grazeWindow) {
+              const grazePercent = (dodgeRoll - dodgeRate) / Math.max(1, grazeWindow);
+              if (targetUsesReactionAction && !isAOE && npcAction.type === '伺机闪避') {
+                localGrazeMultiplier = 0.3 + 0.5 * grazePercent;
+              } else {
+                localGrazeMultiplier = 0.45 + 0.35 * grazePercent;
+              }
+              localLogParts.push(
+                `[擦伤命中] ${targetName}未能完全避开，只承受 ${(localGrazeMultiplier * 100).toFixed(0)}% 伤害。`,
+              );
+              if (attackerIsBlinded) localLogParts.push(`[目盲干扰] 攻击轨迹受到视觉偏差影响。`);
+            }
+          }
+
+          let actualDef = Number(targetFinalStat.def || targetObj.def || 1) * (1 - ((pClash.穿透修饰 || 0) + conditionArmorPen) / 100);
+          actualDef = Math.max(1, actualDef);
+          const soulDriveScale = getSoulDriveScale(attacker, targetObj);
+          let projectedDamage = 0;
+          if (dmgType === '物理近战') projectedDamage = remainPower * (aStr / actualDef) * soulDriveScale;
+          else if (dmgType === '能量AOE')
+            projectedDamage = remainPower * (attackerFinalStat.men_max / actualDef) * soulDriveScale;
+          else if (dmgType === '纯精神冲击')
+            projectedDamage =
+              remainPower * ((attackerFinalStat.men_max || attacker.men_max || 0) / Math.max(1, Number(targetFinalStat.men_max || targetObj.men_max || 1)));
+
+          if (targetUsesReactionAction && npcAction.type === '肉体兜底') {
+            projectedDamage /= 1.2;
+            localLogParts.push(`[肉体兜底] ${targetName}强行收缩防御，用肉身硬抗了这一击。`);
+          }
+
+          const activeReactionShield = targetUsesReactionAction ? Math.max(0, Number(nClash.护盾值 || 0)) : 0;
+          if (activeReactionShield > 0) {
+            projectedDamage = Math.max(0, projectedDamage - activeReactionShield);
+            if (projectedDamage === 0) {
+              localLogParts.push(`[主动护盾] ${targetName}借临时护盾完全吃下了本次冲击。`);
+            } else {
+              localLogParts.push(`[主动护盾] ${targetName}先被护盾吸收一部分冲击，余威继续压入本体。`);
+            }
+          }
+
+          projectedDamage *= fluctuation * localGrazeMultiplier;
+          const targetDamageReduction = Math.min(
+            0.9,
+            targetConditionEffects.reduce((maxVal, ce) => Math.max(maxVal, Number(ce.damage_reduction || 0)), 0),
+          );
+          projectedDamage = projectedDamage * (1 - targetDamageReduction) * totalFinalDamageMult + totalFinalDamageBonus;
+          if (extraTrueDamagePerTarget > 0) projectedDamage += extraTrueDamagePerTarget;
+
+          if (directExecuteEffect) {
+            const judgeKey = String(directExecuteEffect.判定属性 || 'vit_ratio');
+            const threshold = Number(directExecuteEffect.判定阈值 ?? 0.2);
+            let executeSuccess = true;
+            if (judgeKey) {
+              const attackerValue = getMechanismJudgeValue(attacker, attackerFinalStat, judgeKey);
+              const defenderValue = getMechanismJudgeValue(targetObj, targetFinalStat, judgeKey);
+              if (['vit_ratio', 'hp_ratio', 'sp_ratio', 'men_ratio'].includes(judgeKey))
+                executeSuccess = defenderValue <= threshold;
+              else executeSuccess = attackerValue / Math.max(1, defenderValue) >= threshold;
+            }
+            const execPayload = executeSuccess ? directExecuteEffect.成功参数 || {} : directExecuteEffect.失败参数 || {};
+            const execMult = Number(execPayload.final_damage_mult || 1);
+            const execBonus = Number(execPayload.final_damage_bonus || 0);
+            if (execMult !== 1 || execBonus !== 0) {
+              projectedDamage = projectedDamage * execMult + execBonus;
+              if (executeSuccess) localLogParts.push(`[斩杀补伤] ${targetName}跌入收割阈值，追加杀伤生效。`);
+            }
+          }
+
+          if (fusionProfile && projectedDamage > 0) {
+            projectedDamage *= Number(fusionProfile.damageMult || 1);
+          }
+
+          return {
+            target: targetObj,
+            targetName,
+            damage: Math.max(0, Math.floor(projectedDamage)),
+            kind: index === 0 ? 'primary' : 'secondary',
+            logs: localLogParts,
+          };
+        };
+
+        const projectedTargetEntries = resolvedDamageTargets
+          .map((targetObj, index) => resolveProjectedDamageAgainstTarget(targetObj, index))
+          .filter(Boolean);
+        result.targetResults = projectedTargetEntries.map(entry => ({
+          target: entry.target,
+          targetName: entry.targetName,
+          damage: entry.damage,
+          kind: entry.kind,
+        }));
+        const projectedLogs = projectedTargetEntries.flatMap(entry => entry.logs || []).filter(Boolean);
+        if (projectedLogs.length > 0) result.desc += ` ${projectedLogs.join(' ')}`;
+        if (fusionProfile && projectedTargetEntries.some(entry => Number(entry.damage || 0) > 0)) {
+          result.desc += ` [融合共鸣] 武魂交叠后的极限共振将杀伤再度推高。`;
+        }
+        refreshSettleResultProjectedDamage(result);
         result = applyHighTierMechanics(attacker, defender, playerAction, result);
 
         if (directSelfSacrificeEffect && Number(directSelfSacrificeEffect.体力代价 || 0) > 0) {
           result.desc += ` [自残换收益] 额外献祭 ${Number(directSelfSacrificeEffect.体力代价 || 0)} 点体力，换取 x${Number(directSelfSacrificeEffect.增伤倍率 || 1.25).toFixed(2)} 威力。`;
         }
-        if (hostileTargetRedirectedToSelf && Number(result.dmg || 0) > 0) {
-          result.backlash_dmg = Number(result.backlash_dmg || 0) + Number(result.dmg || 0);
-          result.desc += ` [目标偏转] 本次伤害改为命中自身。`;
-          result.dmg = 0;
+        if (isAOE && Array.isArray(result.targetResults) && result.targetResults.length > 1) {
+          result.desc += ` [群体索敌] 共锁定 ${result.targetResults.length} 个目标，逐个独立结算。`;
         }
 
-        if (result.dmg > 0 && totalLifeStealRatio > 0 && !Number(result.backlash_dmg || 0)) {
-          const lifeStealAmount = Math.floor(result.dmg * totalLifeStealRatio);
+        if (Number(result.totalProjectedDamage || 0) > 0 && totalLifeStealRatio > 0 && !Number(result.backlash_dmg || 0)) {
+          const lifeStealAmount = Math.floor(Number(result.totalProjectedDamage || 0) * totalLifeStealRatio);
           if (lifeStealAmount > 0) {
             attacker.vit = Math.min(
               attackerFinalStat.vit_max || attacker.vit_max || attacker.vit,
@@ -7263,105 +8487,138 @@ class BattleUIComponent {
           attacker.vit = Math.max(0, Number(attacker.vit || 0) - backlashDamage);
           result.desc += ` [反噬结算] 玩家额外承受了 ${backlashDamage} 点反噬伤害。`;
         }
-        if (result.dmg > 0) {
-          result.desc += ` 造成了 ${result.dmg} 点最终伤害。`;
+        if (Number(result.totalProjectedDamage || 0) > 0) {
+          result.desc += isAOE
+            ? ` 本次共投射 ${Number(result.totalProjectedDamage || 0)} 点伤害。`
+            : ` 造成了 ${Number(result.dmg || 0)} 点最终伤害。`;
           if (selfMirrorEffect && primaryResolvedTarget !== attacker) {
-            const selfEchoDamage = Math.max(1, Math.floor(result.dmg));
+            const selfEchoDamage = Math.max(1, Math.floor(Number(result.dmg || 0)));
             attacker.vit = Math.max(0, Number(attacker.vit || 0) - selfEchoDamage);
             result.desc += ` [自身反馈] 技能余波同步反噬自身，额外承受 ${selfEchoDamage} 点伤害。`;
           }
         }
+        const isHostileSkillTarget =
+          !targetsFriendlySkill || hostileTargetRedirectedToSelf;
+        if (isHostileSkillTarget) {
+          const brokenStealth = removeStealthConditions(attacker, 99);
+          if (brokenStealth.length > 0) {
+            result.desc += ` [破隐结算] ${attacker.name || '施术者'}出手后现出身形，失去了[${brokenStealth.join('/')}]。`;
+          }
+        }
+        const getEffectTargetContext = effect =>
+          resolveSkillTargetContext(playerAction.skill, attacker, defender, combatData, effect);
 
         const applyImmediateRecoveryEffect = (effect, resourceKey, labelText) => {
           if (!effect || Number(result.backlash_dmg || 0) > 0) return 0;
-          const targetObj = resolveSkillEffectTargetCharacter(playerAction.skill, effect, attacker, defender);
-          const targetFinalStat = targetObj === attacker ? attackerFinalStat : defenderFinalStat;
-          const targetText = String(effect?.目标 || effect?.对象 || getSkillTarget(playerAction.skill) || '敌方/单体');
+          const effectTargetContext = getEffectTargetContext(effect);
+          const targetUnits = effectTargetContext.targetSet;
           const ratio = Number(effect.数值 || 0);
-          if (!(ratio > 0)) return 0;
-          const isFriendly = /自身|己方|友方/.test(targetText);
-          const supportScale = isFriendly ? getSupportEffectScale(attacker, targetObj) : 1;
-          const targetConditionEffects = targetObj.状态效果
-            ? Object.values(targetObj.状态效果).map(c => c?.战斗效果 || {})
-            : [];
-          let maxResource = 0;
-          if (resourceKey === 'vit') maxResource = Number(targetFinalStat.vit_max || targetObj.vit_max || 0);
-          else if (resourceKey === 'sp') maxResource = Number(targetFinalStat.sp_max || targetObj.sp_max || 0);
-          else maxResource = Number(targetFinalStat.men_max || targetObj.men_max || 0);
-          if (!(maxResource > 0)) return 0;
-          const totalHealBlockRatio =
-            resourceKey === 'vit'
-              ? Math.min(
-                  1,
-                  targetConditionEffects.reduce((maxVal, ce) => Math.max(maxVal, Number(ce.heal_block_ratio || 0)), 0),
-                )
-              : 0;
-          const totalFinalHealMult =
-            resourceKey === 'vit'
-              ? attackerConditionEffects.reduce((mult, ce) => mult * Number(ce.final_heal_mult || 1.0), 1.0)
-              : 1.0;
-          const totalFinalHealBonus =
-            resourceKey === 'vit'
-              ? attackerConditionEffects.reduce((sum, ce) => sum + Number(ce.final_heal_bonus || 0), 0)
-              : 0;
-          const totalResourceBlockRatio =
-            resourceKey === 'vit'
-              ? 0
-              : Math.min(
-                  1,
-                  targetConditionEffects.reduce(
-                    (maxVal, ce) => Math.max(maxVal, Number(ce.resource_block_ratio || 0)),
-                    0,
-                  ),
-                );
-          let amount = Math.floor(
-            maxResource *
-              ratio *
-              supportScale *
-              (resourceKey === 'vit' ? totalFinalHealMult * (1 - totalHealBlockRatio) : 1 - totalResourceBlockRatio),
-          );
-          if (fusionProfile) amount = Math.floor(amount * Number(fusionProfile.recoverMult || 1));
-          if (resourceKey === 'vit') amount += totalFinalHealBonus;
-          amount = Math.max(0, amount);
-          if (!amount) return 0;
-          targetObj[resourceKey] = Math.min(maxResource, Number(targetObj[resourceKey] || 0) + amount);
-          result.desc += ` [机制触发] ${targetObj === attacker ? '自身' : targetObj.name}恢复了 ${amount} 点${labelText}。`;
-          return amount;
+          if (!(ratio > 0) || !targetUnits.length) return 0;
+          const isFriendly = ['自身', '友方单体', '友方群体'].includes(effectTargetContext.targetModel);
+          let totalRecovered = 0;
+          targetUnits.forEach(targetObj => {
+            const targetFinalStat = targetObj?.final || buildCombatFinalStats(targetObj);
+            const supportScale = isFriendly ? getSupportEffectScale(attacker, targetObj) : 1;
+            const targetConditionEffects = targetObj.状态效果
+              ? Object.values(targetObj.状态效果).map(c => c?.战斗效果 || {})
+              : [];
+            let maxResource = 0;
+            if (resourceKey === 'vit') maxResource = Number(targetFinalStat.vit_max || targetObj.vit_max || 0);
+            else if (resourceKey === 'sp') maxResource = Number(targetFinalStat.sp_max || targetObj.sp_max || 0);
+            else maxResource = Number(targetFinalStat.men_max || targetObj.men_max || 0);
+            if (!(maxResource > 0)) return;
+            const totalHealBlockRatio =
+              resourceKey === 'vit'
+                ? Math.min(
+                    1,
+                    targetConditionEffects.reduce((maxVal, ce) => Math.max(maxVal, Number(ce.heal_block_ratio || 0)), 0),
+                  )
+                : 0;
+            const totalFinalHealMult =
+              resourceKey === 'vit'
+                ? attackerConditionEffects.reduce((mult, ce) => mult * Number(ce.final_heal_mult || 1.0), 1.0)
+                : 1.0;
+            const totalFinalHealBonus =
+              resourceKey === 'vit'
+                ? attackerConditionEffects.reduce((sum, ce) => sum + Number(ce.final_heal_bonus || 0), 0)
+                : 0;
+            const totalResourceBlockRatio =
+              resourceKey === 'vit'
+                ? 0
+                : Math.min(
+                    1,
+                    targetConditionEffects.reduce(
+                      (maxVal, ce) => Math.max(maxVal, Number(ce.resource_block_ratio || 0)),
+                      0,
+                    ),
+                  );
+            let amount = Math.floor(
+              maxResource *
+                ratio *
+                supportScale *
+                (resourceKey === 'vit' ? totalFinalHealMult * (1 - totalHealBlockRatio) : 1 - totalResourceBlockRatio),
+            );
+            if (fusionProfile) amount = Math.floor(amount * Number(fusionProfile.recoverMult || 1));
+            if (resourceKey === 'vit') amount += totalFinalHealBonus;
+            amount = Math.max(0, amount);
+            if (!amount) return;
+            const healInvertRatio =
+              resourceKey === 'vit'
+                ? Math.max(0, targetConditionEffects.reduce((maxVal, ce) => Math.max(maxVal, Number(ce.heal_inversion_ratio || 0)), 0))
+                : 0;
+            if (resourceKey === 'vit' && healInvertRatio > 0) {
+              const invertedDamage = Math.max(1, Math.floor(amount * Math.max(1, healInvertRatio)));
+              targetObj.vit = Math.max(0, Number(targetObj.vit || 0) - invertedDamage);
+              totalRecovered += invertedDamage;
+              result.desc += ` [治疗反转] ${targetObj === attacker ? '自身' : targetObj.name}的治疗被扭成伤害，反而损失了 ${invertedDamage} 点HP。`;
+              return;
+            }
+            targetObj[resourceKey] = Math.min(maxResource, Number(targetObj[resourceKey] || 0) + amount);
+            totalRecovered += amount;
+            result.desc += ` [机制触发] ${targetObj === attacker ? '自身' : targetObj.name}恢复了 ${amount} 点${labelText}。`;
+          });
+          return totalRecovered;
         };
 
         const applyShieldEffect = effect => {
           if (!effect || Number(result.backlash_dmg || 0) > 0) return 0;
-          const targetObj = resolveSkillEffectTargetCharacter(playerAction.skill, effect, attacker, defender);
-          const targetText = String(effect?.目标 || effect?.对象 || getSkillTarget(playerAction.skill) || '敌方/单体');
-          const isFriendly = targetObj === attacker || /自身|己方|友方/.test(targetText);
-          const supportScale = isFriendly ? getSupportEffectScale(attacker, targetObj) : 1;
-          const totalShieldGainMult = attackerConditionEffects.reduce(
-            (mult, ce) => mult * Number(ce.shield_gain_mult || 1.0),
-            1.0,
-          );
-          const totalShieldGainBonus = attackerConditionEffects.reduce(
-            (sum, ce) => sum + Number(ce.shield_gain_bonus || 0),
-            0,
-          );
-          const baseShield = Number(effect.护盾值 || 0);
-          let shieldAmount = Math.floor(baseShield * supportScale * totalShieldGainMult) + totalShieldGainBonus;
-          if (fusionProfile) shieldAmount = Math.floor(shieldAmount * Number(fusionProfile.shieldMult || 1));
-          shieldAmount = Math.max(0, shieldAmount);
-          if (!shieldAmount) return 0;
-          applyShieldToCharacter(
-            targetObj,
-            shieldAmount,
-            Number(effect.持续回合 || 1),
-            String(effect.状态名称 || skillName || '护盾'),
-          );
-          result.desc += ` [护盾生成] ${targetObj === attacker ? '自身' : targetObj.name}获得 ${shieldAmount} 点护盾。`;
-          return shieldAmount;
+          const effectTargetContext = getEffectTargetContext(effect);
+          const targetUnits = effectTargetContext.targetSet;
+          let totalShield = 0;
+          targetUnits.forEach(targetObj => {
+            const isFriendly =
+              targetObj === attacker || ['自身', '友方单体', '友方群体'].includes(effectTargetContext.targetModel);
+            const supportScale = isFriendly ? getSupportEffectScale(attacker, targetObj) : 1;
+            const totalShieldGainMult = attackerConditionEffects.reduce(
+              (mult, ce) => mult * Number(ce.shield_gain_mult || 1.0),
+              1.0,
+            );
+            const totalShieldGainBonus = attackerConditionEffects.reduce(
+              (sum, ce) => sum + Number(ce.shield_gain_bonus || 0),
+              0,
+            );
+            const baseShield = Number(effect.护盾值 || 0);
+            let shieldAmount = Math.floor(baseShield * supportScale * totalShieldGainMult) + totalShieldGainBonus;
+            if (fusionProfile) shieldAmount = Math.floor(shieldAmount * Number(fusionProfile.shieldMult || 1));
+            shieldAmount = Math.max(0, shieldAmount);
+            if (!shieldAmount) return;
+            applyShieldToCharacter(
+              targetObj,
+              shieldAmount,
+              Number(effect.持续回合 || 1),
+              String(effect.状态名称 || skillName || '护盾'),
+            );
+            totalShield += shieldAmount;
+            result.desc += ` [护盾生成] ${targetObj === attacker ? '自身' : targetObj.name}获得 ${shieldAmount} 点护盾。`;
+          });
+          return totalShield;
         };
 
         const applyFieldEffect = effect => {
           if (!effect) return false;
-          const targetText = String(effect?.目标 || effect?.对象 || getSkillTarget(playerAction.skill) || '');
-          const fieldHolder = /敌/.test(targetText) && !/全场/.test(targetText) ? defender : attacker;
+          const effectTargetContext = getEffectTargetContext(effect);
+          const isHostileField = ['敌方单体', '敌方群体'].includes(effectTargetContext.targetModel);
+          const fieldHolder = isHostileField ? defender : attacker;
           const fieldName = String(effect?.实体名称 || effect?.状态名称 || `${skillName || '场地效果'}`);
           if (!fieldHolder || !fieldName || fieldName === '无') return false;
           if (!fieldHolder.状态效果) fieldHolder.状态效果 = {};
@@ -7371,7 +8628,7 @@ class BattleUIComponent {
             existing.描述 = effect?.核心机制描述 || existing.描述 || `由[${skillName || fieldName}]展开`;
           } else {
             fieldHolder.状态效果[fieldName] = {
-              类型: /敌/.test(targetText) && !/全场/.test(targetText) ? 'debuff' : 'buff',
+              类型: isHostileField ? 'debuff' : 'buff',
               层数: 1,
               描述: effect?.核心机制描述 || `由[${skillName || fieldName}]展开`,
               duration: Number(effect?.持续回合 || 0),
@@ -7459,6 +8716,100 @@ class BattleUIComponent {
           return null;
         };
 
+        const applyStatusTransferEffect = effect => {
+          if (!effect) return false;
+          const targetObj = resolveSkillEffectTargetCharacter(playerAction.skill, effect, attacker, defender, combatData);
+          if (!targetObj || targetObj === attacker) {
+            result.desc += ` [状态转移] 缺少有效转移目标。`;
+            return false;
+          }
+          const transferMode = String(effect?.转移类型 || '自身负面->目标').trim() || '自身负面->目标';
+          const sourceChar = /目标/.test(transferMode) ? targetObj : attacker;
+          const candidate = /目标正面->自身/.test(transferMode)
+            ? pickTransferableCondition(targetObj, ['buff'])
+            : pickTransferableCondition(sourceChar, ['debuff', 'buff']);
+          if (!candidate) {
+            result.desc += ` [状态转移] 没有找到可转移的状态。`;
+            return false;
+          }
+          const moved = removeConditionWithSustain(sourceChar, candidate.key);
+          if (!moved) {
+            result.desc += ` [状态转移] 目标状态已失效。`;
+            return false;
+          }
+          const receiver = sourceChar === attacker ? targetObj : attacker;
+          moved.描述 = `由[${skillName || '技能'}]自${sourceChar.name || '自身'}转移至${receiver.name || '自身'}`;
+          const nextKey = putConditionWithUniqueKey(receiver, candidate.key, moved);
+          result.desc += ` [状态转移] ${sourceChar === attacker ? '自身' : sourceChar.name}的[${candidate.key}]被转移到${receiver === attacker ? '自身' : receiver.name}，现为[${nextKey}]。`;
+          return true;
+        };
+
+        const applyDotDetonateEffect = effect => {
+          if (!effect) return 0;
+          const targetUnits = resolveSkillEffectTargetCharacters(playerAction.skill, effect, attacker, defender, combatData);
+          const ratio = Math.max(0.1, Number(effect?.引爆倍率 || effect?.detonate_ratio || 1));
+          let totalAddedDamage = 0;
+          targetUnits.forEach(targetObj => {
+            if (!targetObj?.状态效果) return;
+            let consumedDot = 0;
+            Object.entries(targetObj.状态效果).forEach(([key, cond]) => {
+              const dotDamage = Math.max(0, Number(cond?.战斗效果?.dot_damage || 0));
+              if (!(dotDamage > 0)) return;
+              consumedDot += dotDamage;
+              if (effect?.消耗持续伤害 !== false) removeConditionWithSustain(targetObj, key);
+            });
+            if (!(consumedDot > 0)) return;
+            const bonusDamage = Math.max(1, Math.floor(consumedDot * ratio));
+            appendProjectedDamageToSettleResult(result, targetObj, bonusDamage, targetObj === primaryResolvedTarget ? 'primary' : 'secondary');
+            totalAddedDamage += bonusDamage;
+            result.desc += ` [持续引爆] ${targetObj === attacker ? '自身' : targetObj.name}身上的持续伤害被引爆，追加 ${bonusDamage} 点伤害。`;
+          });
+          return totalAddedDamage;
+        };
+
+        const applyShieldBreakEffect = effect => {
+          if (!effect) return 0;
+          const targetUnits = resolveSkillEffectTargetCharacters(playerAction.skill, effect, attacker, defender, combatData);
+          const ratio = Math.max(0, Number(effect?.斩盾倍率 || effect?.shield_break_ratio || 1));
+          let totalAddedDamage = 0;
+          targetUnits.forEach(targetObj => {
+            const shieldEntries = collectShieldConditionEntries(targetObj);
+            if (!shieldEntries.length) return;
+            let removedShield = 0;
+            shieldEntries.forEach(entry => {
+              removedShield += entry.shieldValue;
+              delete targetObj.状态效果[entry.key];
+            });
+            if (!(removedShield > 0)) return;
+            const bonusDamage = Math.max(1, Math.floor(removedShield * Math.max(0.2, ratio)));
+            appendProjectedDamageToSettleResult(result, targetObj, bonusDamage, targetObj === primaryResolvedTarget ? 'primary' : 'secondary');
+            totalAddedDamage += bonusDamage;
+            result.desc += ` [斩盾爆破] ${targetObj === attacker ? '自身' : targetObj.name}的护盾被一并斩碎，追加 ${bonusDamage} 点伤害。`;
+          });
+          return totalAddedDamage;
+        };
+
+        const applyStealShieldEffect = effect => {
+          if (!effect) return 0;
+          const targetUnits = resolveSkillEffectTargetCharacters(playerAction.skill, effect, attacker, defender, combatData);
+          const ratio = Math.max(0, Number(effect?.窃盾比例 || effect?.shield_steal_ratio || 0.5));
+          let totalShield = 0;
+          targetUnits.forEach(targetObj => {
+            const shieldEntries = collectShieldConditionEntries(targetObj);
+            if (!shieldEntries.length) return;
+            shieldEntries.forEach(entry => {
+              const stolen = Math.max(0, Math.floor(entry.shieldValue * ratio));
+              if (!(stolen > 0)) return;
+              entry.cond.shield_value = Math.max(0, entry.shieldValue - stolen);
+              if (entry.cond.shield_value <= 0) delete targetObj.状态效果[entry.key];
+              applyShieldToCharacter(attacker, stolen, Math.max(1, Number(effect?.持续回合 || 1)), `${skillName || '技能'}窃盾`);
+              totalShield += stolen;
+              result.desc += ` [窃取护盾] 从${targetObj === attacker ? '自身' : targetObj.name}身上夺取 ${stolen} 点护盾转移给施术者。`;
+            });
+          });
+          return totalShield;
+        };
+
         const applyCopyEffect = effect => {
           if (!effect) return false;
           const sourceObj = resolveSkillEffectTargetCharacter(playerAction.skill, effect, attacker, defender);
@@ -7474,6 +8825,40 @@ class BattleUIComponent {
           copied.描述 = `由[${skillName || '技能'}]复制自${sourceObj === attacker ? '自身' : sourceObj.name || '目标'}的[${candidate.key}]`;
           const copiedKey = putConditionWithUniqueKey(attacker, `${candidate.key}·复制`, copied);
           result.desc += ` [规则复制] 自身复制了${sourceObj === attacker ? '自身' : sourceObj.name || '目标'}的[${candidate.key}]，获得[${copiedKey}]。`;
+          return true;
+        };
+
+        const applyStealBuffEffect = effect => {
+          if (!effect) return false;
+          const stealCount = Math.max(1, Number(effect?.窃取数量 || 1));
+          const sourceTargets = resolveSkillEffectTargetCharacters(
+            playerAction.skill,
+            effect,
+            attacker,
+            defender,
+            combatData,
+          );
+          const stolenLogs = [];
+          sourceTargets.forEach(sourceObj => {
+            const stolen = [];
+            for (let index = 0; index < stealCount; index += 1) {
+              const candidate = pickTransferableCondition(sourceObj, ['buff']);
+              if (!candidate) break;
+              const removed = removeConditionWithSustain(sourceObj, candidate.key);
+              if (!removed) break;
+              removed.描述 = `由[${skillName || '技能'}]自${sourceObj === attacker ? '自身' : sourceObj.name || '目标'}窃取`;
+              const copiedKey = putConditionWithUniqueKey(attacker, `${candidate.key}·窃取`, removed);
+              stolen.push({ from: candidate.key, to: copiedKey });
+            }
+            if (stolen.length) {
+              stolenLogs.push(`${sourceObj === attacker ? '自身' : sourceObj.name || '目标'}失去了[${stolen.map(item => item.from).join('/')}]，自身获得[${stolen.map(item => item.to).join('/')}]`);
+            }
+          });
+          if (!stolenLogs.length) {
+            result.desc += ` [窃取失败] 未找到可窃取的增益状态。`;
+            return false;
+          }
+          result.desc += ` [窃取增益] ${stolenLogs.join('；')}。`;
           return true;
         };
 
@@ -7550,17 +8935,20 @@ class BattleUIComponent {
         }
 
           if (directCleanseEffect) {
-            const cleanseTarget = resolveSkillEffectTargetCharacter(
+            const cleanseTargets = resolveSkillEffectTargetCharacters(
               playerAction.skill,
               directCleanseEffect,
               attacker,
               defender,
+              combatData,
             );
-            const removed = removeNegativeConditionsByCleanse(cleanseTarget, Number(directCleanseEffect.清除层级 || 1));
-            if (removed.length > 0)
-              result.desc += ` [净化生效] ${cleanseTarget === attacker ? '自身' : cleanseTarget.name}清除了[${removed.join('/')}]。`;
-            else
-              result.desc += ` [净化生效] ${cleanseTarget === attacker ? '自身' : cleanseTarget.name}当前没有可清除的负面状态。`;
+            cleanseTargets.forEach(cleanseTarget => {
+              const removed = removeNegativeConditionsByCleanse(cleanseTarget, Number(directCleanseEffect.清除层级 || 1));
+              if (removed.length > 0)
+                result.desc += ` [净化生效] ${cleanseTarget === attacker ? '自身' : cleanseTarget.name}清除了[${removed.join('/')}]。`;
+              else
+                result.desc += ` [净化生效] ${cleanseTarget === attacker ? '自身' : cleanseTarget.name}当前没有可清除的负面状态。`;
+            });
             if (selfMirrorEffect && !effectTargetsSelf(directCleanseEffect)) {
               const removedSelf = removeNegativeConditionsByCleanse(
                 attacker,
@@ -7568,6 +8956,32 @@ class BattleUIComponent {
               );
               if (removedSelf.length > 0) result.desc += ` [自身反馈] 自身同步清除了[${removedSelf.join('/')}]。`;
             }
+          }
+          if (directDispelEffect) {
+            const dispelTargets = resolveSkillEffectTargetCharacters(
+              playerAction.skill,
+              directDispelEffect,
+              attacker,
+              defender,
+              combatData,
+            );
+            dispelTargets.forEach(dispelTarget => {
+              const removed = removePositiveConditionsByDispel(dispelTarget, Number(directDispelEffect.驱散数量 || 1));
+              if (removed.length > 0)
+                result.desc += ` [驱散生效] ${dispelTarget === attacker ? '自身' : dispelTarget.name}失去了[${removed.join('/')}]。`;
+              else
+                result.desc += ` [驱散生效] ${dispelTarget === attacker ? '自身' : dispelTarget.name}当前没有可驱散的增益状态。`;
+            });
+            if (selfMirrorEffect && !effectTargetsSelf(directDispelEffect)) {
+              const removedSelf = removePositiveConditionsByDispel(
+                attacker,
+                Number(directDispelEffect.驱散数量 || 1),
+              );
+              if (removedSelf.length > 0) result.desc += ` [自身反馈] 自身同步失去了[${removedSelf.join('/')}]。`;
+            }
+          }
+          if (directStealBuffEffect) {
+            applyStealBuffEffect(directStealBuffEffect);
           }
           if (directShieldEffect) {
             applyShieldEffect(directShieldEffect);
@@ -7584,63 +8998,83 @@ class BattleUIComponent {
           if (directStateExchangeEffect) {
             applyStateExchangeEffect(directStateExchangeEffect);
           }
+          if (directStatusTransferEffect) {
+            applyStatusTransferEffect(directStatusTransferEffect);
+          }
+          if (directDotDetonateEffect) {
+            applyDotDetonateEffect(directDotDetonateEffect);
+          }
+          if (directShieldBreakEffect) {
+            applyShieldBreakEffect(directShieldBreakEffect);
+          }
+          if (directShieldStealEffect) {
+            applyStealShieldEffect(directShieldStealEffect);
+          }
 
           const hasDirectDamageEffect = Number(pClash.威力倍率 || 0) > 0;
           if (
             pState.状态名称 &&
             pState.状态名称 !== '无' &&
-            (result.dmg > 0 || hostileTargetRedirectedToSelf || !hasDirectDamageEffect)
+            (Number(result.totalProjectedDamage || result.dmg || 0) > 0 || hostileTargetRedirectedToSelf || !hasDirectDamageEffect)
           ) {
-            const stateTargetText = String(pState.目标 || pState.对象 || playerAction.skill.对象 || '');
-            let targetObj = resolveSkillEffectTargetCharacter(playerAction.skill, pState, attacker, defender);
-            const selfRedirectedDebuff =
-              hostileTargetRedirectedToSelf && targetObj === attacker && !/自身|己方|友方/.test(stateTargetText);
-            let isBuff =
-              (!selfRedirectedDebuff && targetObj === attacker) ||
-              /自身|己方|友方/.test(stateTargetText) ||
-              String(pState.特殊机制标识 || '无').includes('增益') ||
-              pState.计算层效果?.super_armor === true ||
-              Number(pState.计算层效果?.min_hp_floor || 0) > 0 ||
-              Number(pState.计算层效果?.hot_heal_ratio || 0) > 0;
-            const supportScale = isBuff ? getSupportEffectScale(attacker, targetObj) : 1;
-            let scaledMods = { ...(pState.面板修改比例 || {}) };
-            ['str', 'def', 'agi', 'men_max', 'sp_max'].forEach(k => {
-              if (scaledMods[k] !== undefined && scaledMods[k] !== 1.0) {
-                scaledMods[k] = 1 + (scaledMods[k] - 1) * supportScale;
+            const stateTargetContext = getEffectTargetContext(pState);
+            const stateTargets = stateTargetContext.targetSet;
+            const stateTargetsFriendly = ['自身', '友方单体', '友方群体'].includes(stateTargetContext.targetModel);
+            stateTargets.forEach(targetObj => {
+              const targetFinalStat = targetObj?.final || buildCombatFinalStats(targetObj);
+              const selfRedirectedDebuff =
+                hostileTargetRedirectedToSelf && targetObj === attacker && !stateTargetsFriendly;
+              let isBuff =
+                (!selfRedirectedDebuff && targetObj === attacker) ||
+                stateTargetsFriendly ||
+                String(pState.特殊机制标识 || '无').includes('增益') ||
+                pState.计算层效果?.super_armor === true ||
+                Number(pState.计算层效果?.min_hp_floor || 0) > 0 ||
+                Number(pState.计算层效果?.hot_heal_ratio || 0) > 0;
+              const supportScale = isBuff ? getSupportEffectScale(attacker, targetObj) : 1;
+              let scaledMods = { ...(pState.面板修改比例 || {}) };
+              ['str', 'def', 'agi', 'men_max', 'sp_max'].forEach(k => {
+                if (scaledMods[k] !== undefined && scaledMods[k] !== 1.0) {
+                  scaledMods[k] = 1 + (scaledMods[k] - 1) * supportScale;
+                }
+              });
+              let scaledCalc = isBuff
+                ? scaleBattleSupportBuffCalc(pState.计算层效果 || {}, supportScale)
+                : { ...(pState.计算层效果 || {}) };
+              if (fusionProfile) {
+                scaledMods = scaleFusionPanelModifierMap(scaledMods, fusionProfile);
+                scaledCalc = scaleFusionCombatEffectMap(scaledCalc, fusionProfile);
               }
-            });
-            let scaledCalc = isBuff
-              ? scaleBattleSupportBuffCalc(pState.计算层效果 || {}, supportScale)
-              : { ...(pState.计算层效果 || {}) };
-            if (fusionProfile) {
-              scaledMods = scaleFusionPanelModifierMap(scaledMods, fusionProfile);
-              scaledCalc = scaleFusionCombatEffectMap(scaledCalc, fusionProfile);
-            }
-            const scaledShield =
-              isBuff && pClash.护盾绝对值 > 0
-                ? Math.floor(
-                    pClash.护盾绝对值 *
-                      supportScale *
-                      Number(fusionProfile ? fusionProfile.shieldMult || 1 : 1),
-                  )
-                : pClash.护盾绝对值;
 
-            let isImmune = false;
-            const isControlLike =
-              !isBuff &&
-              (pState.计算层效果?.skip_turn === true ||
-                pState.计算层效果?.cannot_react === true ||
-                Number(pState.计算层效果?.control_success_bonus || 0) > 0);
-            if (isControlLike) {
-              let atkStat = pClash.伤害类型 === '物理近战' ? aStr : attackerFinalStat.men_max;
-              let defStat = pClash.伤害类型 === '物理近战' ? dStr : defenderFinalStat.men_max;
-              const controlResistMult = Number(defender.temp_control_resist_mult || 1.0);
-              if (defStat > atkStat * (1.5 / Math.max(0.01, controlResistMult))) isImmune = true;
-            }
+              let isImmune = false;
+              const isControlLike =
+                !isBuff &&
+                (pState.计算层效果?.skip_turn === true ||
+                  pState.计算层效果?.cannot_react === true ||
+                  Number(pState.计算层效果?.control_success_bonus || 0) > 0);
+              if (isControlLike) {
+                let atkStat = pClash.伤害类型 === '物理近战' ? aStr : attackerFinalStat.men_max;
+                let defStat =
+                  pClash.伤害类型 === '物理近战'
+                    ? Number(targetFinalStat.str || targetObj.str || 0)
+                    : Number(targetFinalStat.men_max || targetObj.men_max || 0);
+                const controlResistMult = Number(
+                  targetObj.temp_control_resist_mult || targetFinalStat?.战斗效果?.control_resist_mult || 1.0,
+                );
+                if (defStat > atkStat * (1.5 / Math.max(0.01, controlResistMult))) isImmune = true;
+              }
+              const invincibleThreshold = Math.max(
+                0,
+                targetConditionEffects.reduce((maxVal, ce) => Math.max(maxVal, Number(ce.invincible_tier_threshold || 0)), 0),
+              );
+              if (invincibleThreshold > 0 && getCombatUnitTierNumber(attacker) < invincibleThreshold) {
+                isImmune = true;
+              }
 
-            if (isImmune) {
-              result.desc += ` 但目标凭借绝对的属性碾压，强行豁免了[${pState.状态名称}]控制！`;
-            } else {
+              if (isImmune) {
+                result.desc += ` 但${targetObj === attacker ? '自身' : targetObj.name}凭借绝对的属性碾压，强行豁免了[${pState.状态名称}]控制！`;
+                return;
+              }
               if (!targetObj.状态效果) targetObj.状态效果 = {};
               targetObj.状态效果[pState.状态名称] = {
                 类型: isBuff ? 'buff' : 'debuff',
@@ -7653,11 +9087,18 @@ class BattleUIComponent {
                   silence: scaledCalc?.silence ?? false,
                   disarm: scaledCalc?.disarm ?? false,
                   blind: scaledCalc?.blind ?? false,
+                  invincible: scaledCalc?.invincible ?? false,
+                  skill_seal: scaledCalc?.skill_seal ?? false,
                   counter_attack_ratio: scaledCalc?.counter_attack_ratio ?? 0,
+                  damage_reflect_ratio: scaledCalc?.damage_reflect_ratio ?? 0,
+                  damage_share_ratio: scaledCalc?.damage_share_ratio ?? 0,
                   damage_reduction: scaledCalc?.damage_reduction ?? 0,
                   block_count: scaledCalc?.block_count ?? 0,
+                  substitute_count: scaledCalc?.substitute_count ?? 0,
                   super_armor: scaledCalc?.super_armor ?? false,
                   death_save_count: scaledCalc?.death_save_count ?? 0,
+                  revive_count: scaledCalc?.revive_count ?? 0,
+                  revive_heal_ratio: scaledCalc?.revive_heal_ratio ?? 0,
                   hit_bonus: isBuff ? (scaledCalc?.hit_bonus ?? 0) : 0,
                   dodge_penalty: isBuff ? 0 : (scaledCalc?.dodge_penalty ?? 0),
                   dodge_bonus: isBuff ? (scaledCalc?.dodge_bonus ?? 0) : 0,
@@ -7688,10 +9129,22 @@ class BattleUIComponent {
                   heal_block_ratio: scaledCalc?.heal_block_ratio ?? 0,
                   hot_heal_ratio: scaledCalc?.hot_heal_ratio ?? 0,
                   resource_block_ratio: scaledCalc?.resource_block_ratio ?? 0,
+                  heal_inversion_ratio: scaledCalc?.heal_inversion_ratio ?? 0,
+                  random_target_rate: scaledCalc?.random_target_rate ?? 0,
+                  stealth_level: scaledCalc?.stealth_level ?? 0,
                   min_hp_floor: scaledCalc?.min_hp_floor ?? 0,
                   death_save_count: scaledCalc?.death_save_count ?? 0,
+                  damage_share_count: scaledCalc?.damage_share_count ?? 0,
+                  invincible_tier_threshold: scaledCalc?.invincible_tier_threshold ?? 0,
+                  daily_trigger_limit: scaledCalc?.daily_trigger_limit ?? 0,
                 },
               };
+              if (directTauntEffect && targetObj !== attacker) {
+                targetObj.状态效果[pState.状态名称].强制目标名 = attacker.name || '';
+              }
+              if (directGuardEffect) {
+                targetObj.状态效果[pState.状态名称].护卫者名 = attacker.name || '';
+              }
               let targetNameStr = targetObj === attacker ? '自身' : 'NPC';
               result.desc += ` 并对${targetNameStr}施加了[${pState.状态名称}]状态！`;
               if (selfMirrorEffect && targetObj !== attacker) {
@@ -7701,7 +9154,7 @@ class BattleUIComponent {
                 attacker.状态效果[mirrorKey].描述 = `由[${playerAction.skill.name}]同步反馈`;
                 result.desc += ` [自身反馈] 施术者同步获得了[${mirrorKey}]效果。`;
               }
-            }
+            });
           }
 
           result.interrupt_bonus = attackerInterruptBonus;
@@ -7983,6 +9436,7 @@ class BattleUIComponent {
         ) {
           const attackerSpeed = attacker.agi - (playerAction.cast_time || 0) * 10;
           const isChargingHighThreat = !!behaviorState?.isChargingHighThreat;
+          const threatProfile = estimateIncomingActionThreat(attacker, defender, playerAction, behaviorState?.combatData);
           const validSkills = availableSkills.filter(skill => {
             const castTime = getSkillCastTime(skill);
             const npcSpeed = defender.agi - castTime * 10;
@@ -8066,6 +9520,8 @@ class BattleUIComponent {
               const allyCount = behaviorState.alliesCount || 1;
               const selfSpRatio = Math.max(0, Number(defender.sp || 0)) / Math.max(1, Number(defender.sp_max || 1));
               const selfMenRatio = Math.max(0, Number(defender.men || 0)) / Math.max(1, Number(defender.men_max || 1));
+              const hasFriendlyGrantable = skillCanGrantFriendlyMechanism(skill);
+              const hasHostileSemantic = skillTargetsEnemySide(skill) && hasSkillMechanismSemantic(skill, 'hostile');
               const hasAntiHeal = hasSkillMechanism(skill, ['禁疗']);
               const hasSharedVision = hasSkillMechanism(skill, ['共享视野']);
               const hasCounter = hasSkillMechanism(skill, ['受击反击', '反制']);
@@ -8073,6 +9529,16 @@ class BattleUIComponent {
               const hasShield = hasSkillMechanism(skill, ['护盾']);
               const hasDeathSave = hasSkillMechanism(skill, ['免死']);
               const hasClone = hasSkillMechanism(skill, ['分身']);
+              const hasInvincible = hasSkillMechanism(skill, ['无敌金身']);
+              const hasReflect = hasSkillMechanism(skill, ['伤害反射']);
+              const hasDamageShare = hasSkillMechanism(skill, ['伤害分摊']);
+              const hasSubstitute = hasSkillMechanism(skill, ['替身抵消']);
+              const hasRevive = hasSkillMechanism(skill, ['复苏']);
+              const hasSkillSeal = hasSkillMechanism(skill, ['封技']);
+              const hasHealInvert = hasSkillMechanism(skill, ['治疗反转']);
+              const hasDotDetonate = hasSkillMechanism(skill, ['引爆持续伤害']);
+              const hasShieldBreak = hasSkillMechanism(skill, ['斩盾']);
+              const hasShieldSteal = hasSkillMechanism(skill, ['窃取护盾']);
               const hasExecute = hasSkillMechanism(skill, ['斩杀补伤']);
               const hasResourceRecover = getSkillEffects(skill).some(effect =>
                 isBattleRecoverEffect(effect, ['sp', 'men']),
@@ -8111,6 +9577,11 @@ class BattleUIComponent {
 
               if (summary.协同性 === '高' && (behaviorState.alliesCount || 1) > 1) weight += 20;
               else if (summary.协同性 === '中' && (behaviorState.alliesCount || 1) > 1) weight += 10;
+              if (hasFriendlyGrantable && allyCount > 1) {
+                weight += summary.目标规模 === '单体' ? 8 : 18;
+                if (selfHpRatio < 0.55 || behaviorState.round <= 2) weight += 10;
+              }
+              if (hasHostileSemantic && summary.控制强度 !== '无' && isChargingHighThreat) weight += 10;
 
               if (summary.生效方式 === '持续') weight += fieldActive ? -30 : 20;
               if (summary.生效方式 === '延迟') {
@@ -8139,7 +9610,18 @@ class BattleUIComponent {
                 weight += selfSnapshot.hasReactiveDefense ? 10 : 28;
               if (hasShield && selfHpRatio < 0.55) weight += selfSnapshot.hasShielded ? 6 : 24;
               if (hasDeathSave && selfHpRatio < 0.35) weight += 55;
+              if (hasInvincible && (isChargingHighThreat || selfHpRatio < 0.28)) weight += 85;
+              if (hasReflect && (isChargingHighThreat || enemyHpRatio > 0.45)) weight += 24;
+              if (hasDamageShare && allyCount > 1 && selfHpRatio < 0.45) weight += 28;
+              if (hasSubstitute && (selfHpRatio < 0.55 || behaviorState.round <= 2)) weight += 26;
+              if (hasRevive && selfHpRatio < 0.3) weight += 62;
               if (hasExecute && enemyHpRatio < 0.35) weight += 40;
+              if (hasSkillSeal && isChargingHighThreat) weight += 58;
+              if (hasHealInvert && (enemySnapshot.hasHealingTrend || ['辅助系', '治疗系', '食物系'].includes(attacker.type)))
+                weight += 42;
+              if (hasDotDetonate && enemySnapshot.debuffCount > 0) weight += 38 + enemySnapshot.debuffCount * 6;
+              if (hasShieldBreak && enemySnapshot.hasShielded) weight += 44;
+              if (hasShieldSteal && enemySnapshot.hasShielded && selfHpRatio < 0.7) weight += 32;
               if (hasResourceRecover && (selfSpRatio < 0.4 || selfMenRatio < 0.4))
                 weight += selfSnapshot.hasHealingTrend ? 10 : 30;
               if (hasHeal && selfHpRatio < 0.45) weight += selfSnapshot.hasHealingTrend ? 8 : 28;
@@ -8161,6 +9643,22 @@ class BattleUIComponent {
               }
               if (hasReflectiveConvert) {
                 if (enemySnapshot.buffCount > 0 || selfHpRatio < 0.5 || enemyHpRatio < 0.5) weight += 15;
+              }
+              if (threatProfile.targetHitsDefender) {
+                if (threatProfile.severeDamage || threatProfile.lethalRisk) {
+                  if (hasInvincible) weight += threatProfile.bypassesInvincible ? 0 : 110;
+                  if (hasDeathSave || hasRevive) weight += 70;
+                  if (hasSubstitute) weight += 66;
+                  if (hasDamageShare && allyCount > 1) weight += 58;
+                  if (hasShield || hasBlock) weight += 36;
+                } else if (threatProfile.moderateDamage) {
+                  if (hasShield || hasBlock || hasCounter) weight += 18;
+                  if (hasReflect) weight += 12;
+                }
+                if (threatProfile.severeControl) {
+                  if (hasSharedVision || hasClone || hasInvincible) weight += 12;
+                  if (skillType2 === '控制') weight -= 8;
+                }
               }
               if (Number(actorMemory.focus_ttl || 0) > 0) {
                 if (actorMemory.focus_reason === 'control_window') {
@@ -8218,7 +9716,7 @@ class BattleUIComponent {
             return (
               skillType === '防御' ||
               mainType === '防御类' ||
-              hasSkillMechanism(skill, ['护盾', '减伤', '格挡', '霸体', '免死', '分身']) ||
+              hasSkillMechanism(skill, ['护盾', '减伤', '格挡', '霸体', '免死', '分身', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏']) ||
               skillType === '控制'
             );
           });
@@ -8241,6 +9739,7 @@ class BattleUIComponent {
               mainType === '削弱类' ||
               summary.控制强度 === '硬控' ||
               summary.控制强度 === '软控' ||
+              (skillTargetsEnemySide(skill) && hasSkillMechanismSemantic(skill, 'hostile')) ||
               hasSkillMechanism(skill, [
                 '硬控',
                 '催眠',
@@ -8293,12 +9792,34 @@ class BattleUIComponent {
             validSkills.filter(
               skill =>
                 hasSkillMechanism(skill, ['共享视野']) ||
+                skillCanGrantFriendlyMechanism(skill) ||
                 (getSkillType(skill) === '辅助' && deriveBattleSummaryFromEffects(skill).协同性 === '高'),
             ),
           );
+          const invincibleSkillPick = pickSkillWithWeight(
+            validSkills.filter(skill => hasSkillMechanism(skill, ['无敌金身'])),
+          );
+          const shieldBreakSkillPick = pickSkillWithWeight(
+            validSkills.filter(skill => hasSkillMechanism(skill, ['斩盾'])),
+          );
+          const shieldStealSkillPick = pickSkillWithWeight(
+            validSkills.filter(skill => hasSkillMechanism(skill, ['窃取护盾'])),
+          );
+          const dotDetonateSkillPick = pickSkillWithWeight(
+            validSkills.filter(skill => hasSkillMechanism(skill, ['引爆持续伤害'])),
+          );
+          const skillSealSkillPick = pickSkillWithWeight(
+            validSkills.filter(skill => hasSkillMechanism(skill, ['封技'])),
+          );
+          const healInvertSkillPick = pickSkillWithWeight(
+            validSkills.filter(skill => hasSkillMechanism(skill, ['治疗反转'])),
+          );
+          const statusTransferSkillPick = pickSkillWithWeight(
+            validSkills.filter(skill => hasSkillMechanism(skill, ['状态转移'])),
+          );
           const reactiveDefenseSkillPick = pickSkillWithWeight(
             validSkills.filter(skill =>
-              hasSkillMechanism(skill, ['受击反击', '反制', '格挡', '护盾', '免死', '霸体', '分身']),
+              hasSkillMechanism(skill, ['受击反击', '反制', '格挡', '护盾', '免死', '霸体', '分身', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏']),
             ),
           );
 
@@ -8310,6 +9831,13 @@ class BattleUIComponent {
           const executeSkill = executeSkillPick.skill || null;
           const recoverSkill = recoverSkillPick.skill || null;
           const teamSupportSkill = teamSupportSkillPick.skill || null;
+          const invincibleSkill = invincibleSkillPick.skill || null;
+          const shieldBreakSkill = shieldBreakSkillPick.skill || null;
+          const shieldStealSkill = shieldStealSkillPick.skill || null;
+          const dotDetonateSkill = dotDetonateSkillPick.skill || null;
+          const skillSealSkill = skillSealSkillPick.skill || null;
+          const healInvertSkill = healInvertSkillPick.skill || null;
+          const statusTransferSkill = statusTransferSkillPick.skill || null;
           const reactiveDefenseSkill = reactiveDefenseSkillPick.skill || defSkill || null;
           const npcAtkPower = Number(getPrimaryDamageEffect(atkSkill)?.威力倍率 || 0);
           const skillTraceLog = [
@@ -8321,6 +9849,13 @@ class BattleUIComponent {
             executeSkillPick.trace,
             recoverSkillPick.trace,
             teamSupportSkillPick.trace,
+            invincibleSkillPick.trace,
+            shieldBreakSkillPick.trace,
+            shieldStealSkillPick.trace,
+            dotDetonateSkillPick.trace,
+            skillSealSkillPick.trace,
+            healInvertSkillPick.trace,
+            statusTransferSkillPick.trace,
             reactiveDefenseSkillPick.trace,
           ]
             .filter(Boolean)
@@ -8335,9 +9870,17 @@ class BattleUIComponent {
             executeSkill,
             recoverSkill,
             teamSupportSkill,
+            invincibleSkill,
+            shieldBreakSkill,
+            shieldStealSkill,
+            dotDetonateSkill,
+            skillSealSkill,
+            healInvertSkill,
+            statusTransferSkill,
             reactiveDefenseSkill,
             npcAtkPower,
             skillTraceLog,
+            threatProfile,
           };
         }
 
@@ -8360,8 +9903,16 @@ class BattleUIComponent {
             executeSkill,
             recoverSkill,
             teamSupportSkill,
+            invincibleSkill,
+            shieldBreakSkill,
+            shieldStealSkill,
+            dotDetonateSkill,
+            skillSealSkill,
+            healInvertSkill,
+            statusTransferSkill,
             reactiveDefenseSkill,
             npcAtkPower,
+            threatProfile,
           } = skillContext;
           const playerPower = behaviorState.playerPower || 0;
           const isChargingHighThreat = !!behaviorState.isChargingHighThreat;
@@ -8372,6 +9923,10 @@ class BattleUIComponent {
           const selfSpRatio = Math.max(0, Number(defender.sp || 0)) / Math.max(1, Number(defender.sp_max || 1));
           const selfMenRatio = Math.max(0, Number(defender.men || 0)) / Math.max(1, Number(defender.men_max || 1));
           const allyCount = behaviorState.alliesCount || 1;
+          const lethalThreat = !!threatProfile?.lethalRisk;
+          const severeThreat = !!threatProfile?.severeDamage;
+          const severeControlThreat = !!threatProfile?.severeControl;
+          const reactiveThreat = severeThreat || severeControlThreat || !!threatProfile?.moderateDamage;
 
           let isLockedBySpirit = false;
           if ((playerAction.cast_time || 0) > 0) {
@@ -8387,6 +9942,35 @@ class BattleUIComponent {
           }
 
           const tacticalBranches = [];
+
+          if (reactiveThreat) {
+            const emergencyDefenseSkill =
+              (!threatProfile?.bypassesInvincible && invincibleSkill) ||
+              reactiveDefenseSkill ||
+              defSkill ||
+              recoverSkill ||
+              null;
+            if (emergencyDefenseSkill) {
+              tacticalBranches.push({
+                name: '极限保命',
+                weight: adjustBehaviorWeight(
+                  '危机自保',
+                  lethalThreat ? 155 : severeThreat ? 132 : 108,
+                  defender,
+                  attacker,
+                  behaviorState,
+                ),
+                build() {
+                  const severityText = lethalThreat ? '已逼近致命线' : severeControlThreat ? '可能被一举封死节奏' : '将承受重创';
+                  return makeNpcAction(
+                    '危机自保',
+                    `[反应判定成功] NPC瞬间判断自己${severityText}，立即交出[${emergencyDefenseSkill.name}]进行极限保命！`,
+                    emergencyDefenseSkill,
+                  );
+                },
+              });
+            }
+          }
 
           const atkSummary = atkSkill ? deriveBattleSummaryFromEffects(atkSkill) : createEmptyBattleSummary();
           const executeSummary = executeSkill
@@ -8423,6 +10007,84 @@ class BattleUIComponent {
                   '破防强攻',
                   `[破防识别] NPC判断常规打击难以奏效，改以[${pierceSkill.name}]强行撕开防御层！`,
                   pierceSkill,
+                );
+              },
+            });
+          }
+          if (enemySnapshot.hasShielded && shieldBreakSkill) {
+            tacticalBranches.push({
+              name: '斩盾爆破',
+              weight: adjustBehaviorWeight('破防强攻', 104, defender, attacker, behaviorState),
+              build() {
+                return makeNpcAction(
+                  '破防强攻',
+                  `[护盾识别] NPC判断常规伤害会被护盾吞掉，直接以[${shieldBreakSkill.name}]斩碎护盾层！`,
+                  shieldBreakSkill,
+                );
+              },
+            });
+          }
+          if (enemySnapshot.hasShielded && shieldStealSkill && selfHpRatio < 0.75) {
+            tacticalBranches.push({
+              name: '夺盾续战',
+              weight: adjustBehaviorWeight('危机自保', 84, defender, attacker, behaviorState),
+              build() {
+                return makeNpcAction(
+                  '危机自保',
+                  `[护盾夺取] NPC判断自身续战压力偏大，转而用[${shieldStealSkill.name}]夺走对手护盾补强自身。`,
+                  shieldStealSkill,
+                );
+              },
+            });
+          }
+          if (enemySnapshot.debuffCount > 0 && dotDetonateSkill) {
+            tacticalBranches.push({
+              name: '持续引爆',
+              weight: adjustBehaviorWeight('乘胜追击', enemyHpRatio < 0.5 ? 98 : 78, defender, attacker, behaviorState),
+              build() {
+                return makeNpcAction(
+                  '乘胜追击',
+                  `[引爆窗口] NPC察觉对手身上已叠起持续伤害，立刻以[${dotDetonateSkill.name}]引爆全部压血。`,
+                  dotDetonateSkill,
+                );
+              },
+            });
+          }
+          if ((attacker?.蓄力技能 || isChargingHighThreat || (playerAction.cast_time || 0) >= 15) && skillSealSkill) {
+            tacticalBranches.push({
+              name: '封技断流',
+              weight: adjustBehaviorWeight('危机自保', 112, defender, attacker, behaviorState),
+              build() {
+                return makeNpcAction(
+                  '危机自保',
+                  `[术路封锁] NPC判断对手技能前摇已成，立即以[${skillSealSkill.name}]封死其后续术路。`,
+                  skillSealSkill,
+                );
+              },
+            });
+          }
+          if (enemySnapshot.hasHealingTrend && healInvertSkill && !enemySnapshot.hasAntiHeal) {
+            tacticalBranches.push({
+              name: '逆疗封锁',
+              weight: adjustBehaviorWeight('断疗压制', 100, defender, attacker, behaviorState),
+              build() {
+                return makeNpcAction(
+                  '断疗压制',
+                  `[逆疗反制] NPC识别到对手恢复链成型，果断用[${healInvertSkill.name}]把治疗窗口反拧成伤害。`,
+                  healInvertSkill,
+                );
+              },
+            });
+          }
+          if (selfSnapshot.hasBadCondition && statusTransferSkill) {
+            tacticalBranches.push({
+              name: '移祸转压',
+              weight: adjustBehaviorWeight('危机自保', 76, defender, attacker, behaviorState),
+              build() {
+                return makeNpcAction(
+                  '危机自保',
+                  `[移祸脱身] NPC不愿继续背着异常状态硬拼，转而用[${statusTransferSkill.name}]把压力甩回对手。`,
+                  statusTransferSkill,
                 );
               },
             });
@@ -8878,52 +10540,37 @@ class BattleUIComponent {
         // ==========================================
         function applyHighTierMechanics(attackerChar, defenderChar, playerAction, baseResult) {
           let result = { ...baseResult };
+          refreshSettleResultProjectedDamage(result);
+          const primaryTargetEntry = summarizeProjectedDamageEntries(result.targetResults).primaryEntry;
+          const primaryTarget = primaryTargetEntry?.target || defenderChar || null;
           let attackerStats = attackerChar.属性 || attackerChar;
-          let defenderStats = defenderChar.属性 || defenderChar;
+          let defenderStats = primaryTarget?.属性 || primaryTarget || defenderChar?.属性 || defenderChar || {};
           const unlockedAttributeSet = new Set(collectBattleUnlockedAttributeTokens(attackerChar));
-          const battleMindMax = Number(
-            attackerChar?.final?.men_max || attackerStats?.men_max || attackerChar?.men_max || 0,
-          );
-          const applyDerivedState = (
-            targetObj,
-            stateName,
-            sourceName,
-            duration,
-            statMods = {},
-            combatEffects = {},
-            forceBuff = false,
-          ) => {
-            if (!targetObj || !stateName) return false;
-            return applyStateToCharacter(
-              targetObj,
-              {
-                状态名称: stateName,
-                特殊机制标识: forceBuff ? '增益/高阶衍生' : '削弱/高阶衍生',
-                持续回合: duration,
-                面板修改比例: {
-                  str: 1.0,
-                  def: 1.0,
-                  agi: 1.0,
-                  sp_max: 1.0,
-                  vit_max: 1.0,
-                  men_max: 1.0,
-                  ...(statMods || {}),
-                },
-                计算层效果: {
-                  ...createEmptyCombatEffectMap(),
-                  ...(combatEffects || {}),
-                },
-              },
-              sourceName || stateName,
-              forceBuff,
-            );
+          const rewriteTargetResultsDamage = mapper => {
+            if (!Array.isArray(result.targetResults) || !result.targetResults.length) return;
+            result.targetResults = result.targetResults.map((entry, index) => ({
+              ...entry,
+              damage: Math.max(0, Math.floor(Number(mapper(entry, index) ?? entry.damage ?? 0))),
+            }));
+            refreshSettleResultProjectedDamage(result);
           };
 
           const skillElementLabel = getBattleSkillDisplayElement(playerAction.skill || {});
           let isHoly = skillElementLabel === '神圣' || skillElementLabel === '光明' || skillElementLabel === '生命';
-          if (isHoly && defenderStats.is_evil) {
-            result.dmg = Math.floor(result.dmg * 2.0);
-            result.desc += ' [神圣克制] 纯粹的光明之力如同沸水泼雪，无视等级压制，对邪魂师造成双倍真实伤害！';
+          if (isHoly) {
+            let doubledTargets = 0;
+            rewriteTargetResultsDamage(entry => {
+              const targetStats = entry?.target?.属性 || entry?.target || {};
+              if (targetStats.is_evil) {
+                doubledTargets += 1;
+                return Number(entry?.damage || 0) * 2;
+              }
+              return Number(entry?.damage || 0);
+            });
+            if (doubledTargets > 0) {
+              const targetSuffix = doubledTargets > 1 ? `，共压制 ${doubledTargets} 个邪属性目标` : '';
+              result.desc += ` [神圣克制] 纯粹的光明之力如同沸水泼雪，无视等级压制，对邪魂师造成双倍真实伤害${targetSuffix}！`;
+            }
           }
 
           if (playerAction.action_type === '多元素融合') {
@@ -8966,7 +10613,7 @@ class BattleUIComponent {
             }
 
             if (roll <= failRate) {
-              result.dmg = 0;
+              rewriteTargetResultsDamage(() => 0);
               result.backlash_dmg = Math.floor(attackerStats.vit_max * 0.3);
               result.desc += ` [元素炸膛] 精神力失控！${fusionLabel}在手中轰然引爆，遭到极致反噬！(Roll: ${roll} <= 炸膛率: ${Math.floor(failRate)}%)`;
             } else {
@@ -8976,12 +10623,12 @@ class BattleUIComponent {
                 multiplier *= 1.5;
                 result.desc += ` [极致蓄力] 元素被压缩到极致！`;
               }
-              result.dmg = Math.floor(result.dmg * multiplier);
+              rewriteTargetResultsDamage(entry => Number(entry?.damage || 0) * multiplier);
               result.desc += ` [元素共鸣] ${fusionLabel}完美融合！威力呈指数级暴涨！(威力倍率: x${multiplier.toFixed(2)})`;
             }
           }
 
-          return result;
+          return refreshSettleResultProjectedDamage(result);
         }
 
         // ==========================================
@@ -9298,6 +10945,16 @@ class BattleUIComponent {
           (enemyTeam || []).forEach(bindCombatParticipant);
           let validTargets = enemyTeam.filter(t => isCombatUnitAbleToFight(t));
           if (validTargets.length === 0) return null;
+          const forcedTauntTargetName = getForcedTauntTargetName(attackerChar);
+          if (forcedTauntTargetName) {
+            const forcedTarget = validTargets.find(target => isCombatUnitIdentityMatch(target, forcedTauntTargetName));
+            if (forcedTarget) return forcedTarget;
+          }
+          const attackerSnapshot = buildConditionTacticalSnapshot(attackerChar);
+          if (!attackerSnapshot.hasSharedVision && !attackerSnapshot.hasTargetLock) {
+            const visibleTargets = validTargets.filter(target => !buildConditionTacticalSnapshot(target).hasStealthed);
+            if (visibleTargets.length > 0) validTargets = visibleTargets;
+          }
           if (validTargets.length === 1) return validTargets[0];
 
           let totalWeight = 0;
@@ -9355,6 +11012,7 @@ class BattleUIComponent {
           bindCombatParticipant(attackerChar);
           bindCombatParticipant(target);
           const snapshot = buildConditionTacticalSnapshot(target);
+          const attackerSnapshot = buildConditionTacticalSnapshot(attackerChar);
           const summary = deriveBattleSummaryFromEffects(skill);
           const dmg = getPrimaryDamageEffect(skill);
           const hpRatio = Math.max(0, Number(target.vit || 0)) / Math.max(1, Number(target.vit_max || 1));
@@ -9401,19 +11059,48 @@ class BattleUIComponent {
             if (snapshot.debuffCount > 0) weight += 15;
             if (hpRatio < 0.25) weight -= 15;
           }
+          if (hasSkillMechanism(skill, ['引爆持续伤害']) && snapshot.debuffCount > 0) {
+            weight += 40 + snapshot.debuffCount * 6;
+          }
+          if (hasSkillMechanism(skill, ['破隐']) && snapshot.hasStealthed) weight += 75;
+          if (hasSkillMechanism(skill, ['窃取增益']) && snapshot.buffCount > 0) weight += 60 + snapshot.buffCount * 8;
+          if (hasSkillMechanism(skill, ['窃取护盾', '斩盾']) && snapshot.hasShielded) weight += 55;
+          if (hasSkillMechanism(skill, ['治疗反转']) && snapshot.hasHealingTrend) weight += 48;
+          if (hasSkillMechanism(skill, ['封技']) && target.蓄力技能) weight += 65;
+          if (hasSkillMechanism(skill, ['嘲讽'])) {
+            const offenseScore = Math.max(Number(target.str || 0), Number(target.men_max || 0));
+            if (isSupport) weight += 20;
+            weight += Math.min(45, Math.floor(offenseScore / 250));
+          }
+          if (snapshot.hasStealthed && !canBypassStealth(attackerChar, skill) && !attackerSnapshot.hasSharedVision) {
+            weight = Math.max(1, Math.floor(weight * 0.18));
+          }
           return Math.max(1, weight);
         }
 
         function chooseEnemyTargetForSkill(attackerChar, enemyTeam, skill, fallbackTarget = null) {
           const validTargets = (enemyTeam || []).filter(target => target && isCombatUnitAbleToFight(target));
           if (validTargets.length === 0) return fallbackTarget || null;
+          const forcedTauntTargetName = getForcedTauntTargetName(attackerChar);
+          if (forcedTauntTargetName) {
+            const forcedTarget = validTargets.find(target => isCombatUnitIdentityMatch(target, forcedTauntTargetName));
+            if (forcedTarget) return forcedTarget;
+          }
           const focusTarget = getActorFocusedTarget(attackerChar, validTargets);
           if (!skill) return focusTarget || fallbackTarget || validTargets[0];
-          if (validTargets.length === 1) return validTargets[0];
+          const effectiveTargets = canBypassStealth(attackerChar, skill)
+            ? validTargets
+            : (() => {
+                const visibleTargets = validTargets.filter(target => !buildConditionTacticalSnapshot(target).hasStealthed);
+                return visibleTargets.length > 0 ? visibleTargets : validTargets;
+              })();
+          const effectiveFocusTarget =
+            focusTarget && effectiveTargets.some(target => target.name === focusTarget.name) ? focusTarget : null;
+          if (effectiveTargets.length === 1) return effectiveTargets[0];
           const memory = ensureActorDecisionMemory(attackerChar);
           const summary = deriveBattleSummaryFromEffects(skill);
           const picked = chooseWeightedOption(
-            validTargets.map(target => {
+            effectiveTargets.map(target => {
               let weight = scoreEnemyTargetForSkill(attackerChar, target, skill);
               if (focusTarget && target.name === focusTarget.name) {
                 weight += 18 + Number(memory.focus_ttl || 0) * 6;
@@ -9436,7 +11123,7 @@ class BattleUIComponent {
               return { target, weight: Math.max(1, weight) };
             }),
           );
-          return picked?.target || focusTarget || fallbackTarget || validTargets[0];
+          return picked?.target || effectiveFocusTarget || fallbackTarget || effectiveTargets[0];
         }
 
         function scoreAllyTargetForSkill(actorChar, ally, skill) {
@@ -9450,12 +11137,18 @@ class BattleUIComponent {
           let weight = ally.name === actorChar.name ? 12 : 10;
           if (
             getSkillEffects(skill).some(effect => isBattleRecoverEffect(effect, ['vit'])) ||
-            hasSkillMechanism(skill, ['护盾', '免死'])
+            hasSkillMechanism(skill, ['护盾', '免死', '护卫'])
           )
             weight += Math.floor((1 - hpRatio) * 120) + (snapshot.hasBadCondition ? 15 : 0);
           if (getSkillEffects(skill).some(effect => isBattleRecoverEffect(effect, ['sp', 'men'])))
             weight += Math.floor((1 - spRatio) * 40) + Math.floor((1 - menRatio) * 40);
           if (hasSkillMechanism(skill, ['共享视野'])) weight += Math.min(40, Math.floor(attackScore / 500));
+          if (hasSkillMechanism(skill, ['护卫']) && ally.name !== actorChar.name) weight += Math.floor((1 - hpRatio) * 90) + 20;
+          if (hasSkillMechanism(skill, ['嘲讽']) && ally.name === actorChar.name) weight += 35;
+          if (hasSkillMechanism(skill, ['隐身'])) {
+            if (ally.name === actorChar.name) weight += 18;
+            if (hpRatio < 0.5) weight += 20;
+          }
           if (['辅助系', '治疗系', '食物系', '控制系'].includes(ally.type)) weight += 10;
           return Math.max(1, weight);
         }
@@ -9765,7 +11458,10 @@ class BattleUIComponent {
           }
 
           let finalTarget = targets.enemyTarget;
-          const skillTargetObj = getSkillTarget(action?.skill);
+          const skillTargetMeta = getSkillRuntimeMeta(action?.skill || {});
+          const skillTargetObj = skillTargetMeta.对象;
+          const skillTargetModel = skillTargetMeta.目标模型;
+          const targetsFriendlyTeam = ['自身', '友方单体', '友方群体'].includes(skillTargetModel);
           const enemyTeam =
             actorEntry.side === 'player'
               ? battleState.combatData.参战者.team_enemy || []
@@ -9780,20 +11476,27 @@ class BattleUIComponent {
                   actor,
                   ...(battleState.combatData.参战者.team_enemy || []).filter(unit => unit.name !== actor.name),
                 ];
-          if (skillTargetObj.includes('己方') || skillTargetObj.includes('友方')) {
+          if (targetsFriendlyTeam && skillTargetModel !== '自身') {
             finalTarget = chooseAllyTargetForSkill(actor, allyTeam, action?.skill, targets.allyTarget || actor);
-          } else if (skillTargetObj.includes('自身')) {
+          } else if (skillTargetModel === '自身') {
             finalTarget = actor;
           } else {
             finalTarget = chooseEnemyTargetForSkill(actor, enemyTeam, action?.skill, targets.enemyTarget);
           }
           if (!finalTarget) finalTarget = targets.enemyTarget || actor;
+          if (!targetsFriendlyTeam) {
+            const guardRedirectTarget = resolveGuardRedirectTarget(finalTarget, enemyTeam);
+            if (guardRedirectTarget && guardRedirectTarget.name !== finalTarget.name) {
+              actionLog += `[护卫拦截] ${guardRedirectTarget.name}挺身挡在${finalTarget.name}身前，接下本次攻击。 `;
+              finalTarget = guardRedirectTarget;
+            }
+          }
           action.target_name = finalTarget?.name || action.target_name || null;
 
           const actorTurnCombatData = createActorTurnCombatData(actorEntry, finalTarget, battleState);
           const ratio = calculateReactionRatio(actor, finalTarget, action, actorTurnCombatData);
           let reactionAction = { type: '无法反应', log: '无', skill: null, def_mult: 1.0 };
-          if (finalTarget === actor || skillTargetObj.includes('己方') || skillTargetObj.includes('友方')) {
+          if (finalTarget === actor || targetsFriendlyTeam) {
             reactionAction.log = `[配合] ${finalTarget.name}毫无防备地接受了${actor.name}的辅助。`;
           } else {
             reactionAction = finalTarget.is_controlled
@@ -9805,47 +11508,12 @@ class BattleUIComponent {
           let turnLog =
             `${actionLog}[团战执行] ${actor.name}以[${action?.skill?.name || action?.action_type || '未知动作'}]指向[${finalTarget.name}]。 ${reactionAction.log} ${settleResult.desc}`.trim();
 
-          let finalDmg = settleResult.dmg;
-          const reactiveDefense = resolveReactiveDefenseOnDamage(actor, finalTarget, finalDmg);
-          let appliedDamage = 0;
-          finalDmg = reactiveDefense.damage;
-          if (reactiveDefense.counterDamage > 0)
-            actor.vit = Math.max(0, Number(actor.vit || 0) - reactiveDefense.counterDamage);
-          if (reactiveDefense.log) turnLog += ` ${reactiveDefense.log}`;
-          if (finalDmg > 0) {
-            if (finalDmg < finalTarget.def * 0.1) {
-              finalTarget.vit -= 1;
-              appliedDamage = 1;
-              turnLog += ` [未破防] 对${finalTarget.name}仅造成 1 点强制伤害。`;
-            } else {
-              finalTarget.vit -= finalDmg;
-              appliedDamage = finalDmg;
-              if (finalDmg > finalTarget.sp_max * 0.5) {
-                if (!finalTarget.状态效果) finalTarget.状态效果 = {};
-                finalTarget.状态效果['重度流血'] = {
-                  类型: 'debuff',
-                  层数: 1,
-                  描述: '重创导致的流血',
-                  duration: 3,
-                  面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, sp_max: 1.0 },
-                  战斗效果: {
-                    skip_turn: false,
-                    dot_damage: Math.floor(finalTarget.vit_max * 0.05),
-                    armor_pen: 0,
-                  },
-                };
-                turnLog += ` [重创打击] ${finalTarget.name}被附加[重度流血]状态！`;
-              }
-            }
-          }
-          const targetInterruptLog = resolveCastInterruptOnDamage(
-            finalTarget,
-            action,
-            appliedDamage,
-            settleResult,
-            finalTarget.name || '目标',
-          );
-          if (targetInterruptLog) turnLog += ` ${targetInterruptLog}`;
+          const damagePackage = applyResolvedDamagePackage(actor, action, settleResult, {
+            primaryTarget: finalTarget,
+            combatData: actorTurnCombatData,
+          });
+          let appliedDamage = damagePackage.primaryAppliedDamage;
+          if (damagePackage.log) turnLog += ` ${damagePackage.log}`;
           const fusionAftermathLog = applyFusionActionAftermath(actor, action, actorTurnCombatData);
           if (fusionAftermathLog) turnLog += ` ${fusionAftermathLog}`;
 
@@ -9856,7 +11524,7 @@ class BattleUIComponent {
               Number(getFusionScaledInterruptChance(action.skill) || 0),
             );
             const isTargetInterrupted =
-              settleResult.dmg / Math.max(1, finalTarget.vit_max) >= 0.15 ||
+              appliedDamage / Math.max(1, finalTarget.vit_max) >= 0.15 ||
               actorStateCalc.skip_turn === true ||
               getPrimaryStateFlags(action.skill).includes('硬控') ||
               (actorInterruptChance > 0 && Math.random() <= Math.min(1, actorInterruptChance)) ||
@@ -9873,8 +11541,7 @@ class BattleUIComponent {
           if (
             finalTarget.vit < finalTarget.vit_max * 0.1 &&
             finalTarget !== actor &&
-            !skillTargetObj.includes('己方') &&
-            !skillTargetObj.includes('友方')
+            !targetsFriendlyTeam
           ) {
             let hasMech = finalTarget.装备?.机甲?.等级 !== '无' && finalTarget.装备?.机甲?.状态 !== '重创';
             let hasArmor = finalTarget.装备?.斗铠?.装备状态 === '已装备';

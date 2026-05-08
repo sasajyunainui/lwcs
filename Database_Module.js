@@ -838,12 +838,6 @@
      */
     function buildDefaultTableTemplateObject_ACU() {
         return {
-            [globalStateSheet.uid]: globalStateSheet,
-            [protagonistInfoSheet.uid]: protagonistInfoSheet,
-            [importantCharsSheet.uid]: importantCharsSheet,
-            [protagonistSkillsSheet.uid]: protagonistSkillsSheet,
-            [inventorySheet.uid]: inventorySheet,
-            [questsEventsSheet.uid]: questsEventsSheet,
             [chronicleSheet.uid]: chronicleSheet,
             [optionsSheet.uid]: optionsSheet,
             mate: mateConfig
@@ -996,6 +990,54 @@ DELETE FROM table_name WHERE row_id = 2;
     const DEFAULT_TABLE_TEMPLATE_ACU = buildDefaultTableTemplateString_ACU();
     let TABLE_TEMPLATE_ACU = DEFAULT_TABLE_TEMPLATE_ACU;
     // --- [剧情推进] 默认设置 ---
+    const BUILTIN_PLOT_RUNTIME_GUARD_PROMPTS_ACU = Object.freeze([
+        Object.freeze({
+            role: 'system',
+            content: [
+                '你正在执行内置剧情推进任务。',
+                '必须先做剧情规划，再决定正文该进入普通叙事还是战斗/交易/副职业等模块。',
+                '模块切换只能打断正文生成，不能跳过剧情规划本身。',
+                '若命中特殊模块，模块返回必须拆成：可执行结构化结果（供系统写入）+ 概要总结（供后续剧情规划/正文继续使用）。',
+                '若未命中特殊模块，也必须完成剧情规划，不得直接把用户输入原样放行成正文。',
+                '输出时只遵守当前任务要求，不得私自引入表格编辑、SQL、模板助手、无关系统格式。',
+            ].join('\n')
+        }),
+        Object.freeze({
+            role: 'system',
+            content: [
+                '在输出正文前，你必须先在内部思维链中完整执行以下 COT 审查框架，再整理成最终正文。',
+                '这段 COT 只属于内置剧情推进约束，优先级高于任何外部导入预设，不得跳过、不得被覆盖。',
+                '<COT>',
+                '1. 场域与氛围构建',
+                '- 当前时间与地点：结合当前上下文明确填写',
+                '- 场景的氛围基调与视觉异象：结合当前场景明确填写',
+                '- 当前角色的外貌与性格：结合当前角色卡与场景状态明确填写',
+                '- 【反八股审查】：当前场景描写是否使用了“似乎、宛如、心湖泛起涟漪”等模糊词或劣质比喻？是否做到了客观白描？',
+                '',
+                '2. 角色深层心理与动机',
+                '- 在场NPC对主角的好感度与关系：结合当前关系数据明确填写',
+                '- 基于【认知隔离】，NPC与主角当前不知道的情报是：结合当前情报状态明确填写',
+                '- NPC最真实的隐藏诉求与心理活动：结合角色设定与现状明确填写',
+                '- 【表现手法审查】：接下来是否打算用“嘴角上扬、指尖泛白”等微表情八股？是否能用“具体的肢体动作和纯粹的台词”来替代内心独白？',
+                '',
+                '3. 合理性与蝴蝶效应审查',
+                '- 主角的行动是否超出了当前等级(lv)与装备极限：明确判断',
+                '- 当前事件对世界线偏差值(deviation)的潜在影响：明确判断',
+                '- 【代价与冲突审查】：当前行动是否存在物理/逻辑上的阻力？是否无视了战损、体力消耗或社会规则，让主角轻易达成目的？',
+                '',
+                '4. 动作决策与数值明示',
+                '- 是否读取了时间线预览的内容，下一个事件发生离现在还有多长时间：明确判断',
+                '- 是否根据当前时间与世界线偏差值合理安排剧情和自然铺垫，是否存在刻意引导：明确判断',
+                '- 下一步剧情走向计划：明确填写',
+                '- 是否过分夸大和抬高主角实力定位，大惊小怪：明确判断',
+                '- 【防代操与防说教审查】：下一步计划是否剥夺了玩家(User)的行动权与对话权？结尾是否打算使用空洞的道德说教或强行大圆满升华？',
+                '- 【反加戏与反阴谋论审查】：当前描写是否给角色强加了“穿越者、隐藏身份、伪装、暗中修炼、察觉异样”等网文套路？是否保持角色设定的纯粹与表里如一。绝对禁止 AI 自行脑补阴谋论。',
+                '',
+                '5. 执行完上述步骤后，重新整理规划思路，再输出正文(<content>)。',
+                '</COT>',
+            ].join('\n')
+        })
+    ]);
     const DEFAULT_PLOT_SETTINGS_ACU = {
         "enabled": true,
         "prompts": [
@@ -3353,22 +3395,6 @@ $CONTENT
         catch (e) { }
         generationGate_ACU.lastUserSendIntentAt = Date.now();
     }
-    let capturedUserSendInFlight_ACU = false;
-    function shouldInterceptCapturedUserSendEvent_ACU(event) {
-        if (capturedUserSendInFlight_ACU)
-            return false;
-        if (event?.type === 'keydown') {
-            const key = event.key || event.code;
-            if ((key !== 'Enter' && key !== 'NumpadEnter') || event.shiftKey || event.isComposing) {
-                return false;
-            }
-        }
-        const text = String(getSendTextareaValue_ACU() || '').trim();
-        if (!text || text.startsWith('/'))
-            return false;
-        const helper = window.TavernHelper;
-        return !!(helper && typeof helper.generate === 'function' && typeof helper.createChatMessages === 'function');
-    }
     async function persistUserMessageWithoutGeneration_ACU(userMessage) {
         const helper = window.TavernHelper;
         const text = String(userMessage || '').trim();
@@ -3392,45 +3418,17 @@ $CONTENT
             return false;
         }
     }
-    async function handleCapturedUserSend_ACU(userMessage) {
-        const helper = window.TavernHelper;
-        const text = String(userMessage || '').trim();
-        if (!helper || typeof helper.generate !== 'function' || typeof helper.createChatMessages !== 'function' || !text) {
-            return false;
-        }
-        const moduleSettlementContext = '';
-        const preflight = await preflightModuleIntent_ACU(text, {
-            inputForHash: text,
-            hasExistingUserMessage: false,
-            moduleSettlementContext,
-        });
-        await helper.generate({
-            user_input: text,
-            _acu_skip_preflight: true,
-            _acu_preflight_result: preflight,
-        });
-        return true;
-    }
     function tryInterceptCapturedUserSendEvent_ACU(event) {
+        if (event?.type === 'keydown') {
+            const key = event.key || event.code;
+            if ((key !== 'Enter' && key !== 'NumpadEnter') || event.shiftKey || event.isComposing) {
+                return false;
+            }
+        }
         markUserSendIntent_ACU();
-        if (!shouldInterceptCapturedUserSendEvent_ACU(event))
-            return false;
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        event.stopPropagation();
-        const text = String(getSendTextareaValue_ACU() || '').trim();
-        if (!text)
-            return true;
-        capturedUserSendInFlight_ACU = true;
-        Promise.resolve()
-            .then(() => handleCapturedUserSend_ACU(text))
-            .catch(error => {
-            logError_ACU('[剧情推进] Captured user send interception failed:', error);
-        })
-            .finally(() => {
-            capturedUserSendInFlight_ACU = false;
-        });
-        return true;
+        // 只记录“这次是用户主动发送”，不在 DOM 层抢发送链路。
+        // 普通聊天发送统一交给酒馆原流程，再由 GENERATION_AFTER_COMMANDS 启动剧情推进。
+        return false;
     }
     function isRecentUserSendIntent_ACU() {
         if (!generationGate_ACU.lastUserSendIntentAt)
@@ -3478,13 +3476,13 @@ $CONTENT
     function shouldProcessPlotForGeneration_ACU(type, params, dryRun) {
         if (dryRun)
             return false;
-        if (!settings_ACU?.plotSettings?.enabled)
-            return false;
         if (isQuietLikeGeneration_ACU(type, params))
             return false;
         if (params?.automatic_trigger)
             return false;
-        return true;
+        const freshUserSendGate = getFreshUserSendGate_ACU();
+        logDebug_ACU(`[剧情推进] shouldProcessPlot: type=${type}, dryRun=${dryRun}, hasFreshIntent=${freshUserSendGate.hasFreshIntent}, hasFreshUserMessage=${freshUserSendGate.hasFreshUserMessage}, result=${freshUserSendGate.isFreshUserSend}`);
+        return freshUserSendGate.isFreshUserSend;
     }
     function shouldProcessAutoTableUpdateForGenerationEnded_ACU() {
         const g = generationGate_ACU.lastGeneration;
@@ -17200,6 +17198,7 @@ $CONTENT
             .filter(seg => seg && typeof seg.__renderedContent === 'string' && seg.__renderedContent.trim().length > 0)
             .map(seg => ({ role: getNormalizedPlotMessageRole_ACU(seg.role), content: seg.__renderedContent }));
         return [
+            ...BUILTIN_PLOT_RUNTIME_GUARD_PROMPTS_ACU.map((item) => ({ role: item.role, content: item.content })),
             ...renderedMessages,
             ...normalizeRuntimeSystemMessages_ACU(runtimeOptions.systemMessages),
         ];
@@ -17601,9 +17600,6 @@ $CONTENT
                 ...DEFAULT_PLOT_SETTINGS_ACU,
                 ...currentSettings,
             };
-            if (!plotSettings.enabled) {
-                return { success: false, skipped: true, reason: 'disabled' };
-            }
             _set_abortController_ACU(new AbortController());
             const runtimeResult = await runPlotTasksRuntime_ACU(plotSettings, userMessage, {
                 inputForHash,
@@ -20402,6 +20398,80 @@ $CONTENT
                 out.mate.version = 1;
         }
         return out;
+    }
+    function isImportableSheetLike_ACU(value) {
+        return !!(value
+            && typeof value === 'object'
+            && !Array.isArray(value)
+            && typeof value.name === 'string'
+            && value.name.trim()
+            && Array.isArray(value.content));
+    }
+    function buildImportedSheetKey_ACU(rawKey, sheetValue, usedKeys) {
+        const used = usedKeys instanceof Set ? usedKeys : new Set();
+        const candidateUid = typeof sheetValue?.uid === 'string' ? sheetValue.uid.trim() : '';
+        const candidateKey = typeof rawKey === 'string' ? rawKey.trim() : '';
+        let baseKey = candidateUid && candidateUid.startsWith('sheet_')
+            ? candidateUid
+            : (candidateKey && candidateKey.startsWith('sheet_') ? candidateKey : '');
+        if (!baseKey) {
+            const normalizedSeed = String(candidateKey || sheetValue?.name || 'sheet')
+                .replace(/[^\w]+/g, '_')
+                .replace(/^_+|_+$/g, '');
+            baseKey = `sheet_${normalizedSeed || 'imported'}`;
+        }
+        let finalKey = baseKey;
+        let suffix = 2;
+        while (used.has(finalKey)) {
+            finalKey = `${baseKey}_${suffix}`;
+            suffix += 1;
+        }
+        used.add(finalKey);
+        return finalKey;
+    }
+    function normalizeImportedTablePayload_ACU(rawInput) {
+        let parsed = rawInput;
+        if (typeof rawInput === 'string') {
+            const trimmed = rawInput.trim();
+            if (!trimmed)
+                return null;
+            parsed = JSON.parse(trimmed);
+        }
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            return null;
+        }
+        if (isImportableSheetLike_ACU(parsed)) {
+            const singleKey = buildImportedSheetKey_ACU(parsed.uid || parsed.name || 'sheet', parsed, new Set());
+            const wrapped = {
+                mate: { type: 'chatSheets', version: 1 },
+                [singleKey]: {
+                    ...JSON.parse(JSON.stringify(parsed)),
+                    uid: singleKey,
+                },
+            };
+            return sanitizeChatSheetsObject_ACU(wrapped, { ensureMate: true });
+        }
+        const normalized = {};
+        const usedKeys = new Set();
+        Object.keys(parsed).forEach((key) => {
+            if (key === 'mate' && parsed[key] && typeof parsed[key] === 'object' && !Array.isArray(parsed[key])) {
+                normalized.mate = JSON.parse(JSON.stringify(parsed[key]));
+                return;
+            }
+            const sheetValue = parsed[key];
+            if (!isImportableSheetLike_ACU(sheetValue)) {
+                return;
+            }
+            const finalKey = buildImportedSheetKey_ACU(key, sheetValue, usedKeys);
+            normalized[finalKey] = {
+                ...JSON.parse(JSON.stringify(sheetValue)),
+                uid: finalKey,
+            };
+        });
+        if (!Object.keys(normalized).some((key) => key.startsWith('sheet_'))) {
+            return null;
+        }
+        return sanitizeChatSheetsObject_ACU(normalized, { ensureMate: true });
     }
     // [新增] 辅助函数：从上下文中提取指定标签的内容（正文标签提取）
     // 从 shared/utils.ts 搬来（原函数依赖 service/data 层，不适合放在 shared 层）
@@ -44965,12 +45035,16 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
      * 纯业务逻辑
      */
     function shouldProcessTavernHelperHook_ACU(options) {
-        if (!settings_ACU.plotSettings.enabled || isProcessing_Plot_ACU || loopState_ACU.isRetrying) {
+        if (isProcessing_Plot_ACU || loopState_ACU.isRetrying) {
             return false;
         }
-        // 普通聊天框直发常常走流式 helper.generate；只要带有明确用户负载，就不应因 should_stream 被排除。
         const hasExplicitUserPayload = !!extractUserMessageFromOptions_ACU(options);
-        if (options.should_stream && !hasExplicitUserPayload) {
+        if (!hasExplicitUserPayload) {
+            return false;
+        }
+        // 普通聊天框发送统一走 GENERATION_AFTER_COMMANDS。
+        // generate hook 只保留给真正的脚本直调 / 非流式场景。
+        if (options.should_stream) {
             return false;
         }
         return true;
@@ -45040,6 +45114,12 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
             return extractModuleSettlementContextFromMessage_ACU(message);
         return String(matched.content || '').trim();
     }
+    function buildPlanningRuntimeSystemMessagesFromSettlement_ACU(moduleSettlementContext = '') {
+        const content = String(moduleSettlementContext || '').trim();
+        if (!content)
+            return [];
+        return [{ role: 'system', content }];
+    }
     function normalizeRuntimeSystemMessages_ACU(messages) {
         return (Array.isArray(messages) ? messages : [])
             .map((item) => {
@@ -45073,95 +45153,13 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
         }
         return extracted.join('\n\n').trim();
     }
-    function resolveModuleIntentApiPreset_ACU() {
-        const currentPresetName = getCurrentRuntimePlotPresetName_ACU({ fallbackToGlobal: true });
-        const normalizedPresetName = normalizePlotPresetSelectionValue_ACU(currentPresetName);
-        const presets = Array.isArray(settings_ACU?.plotSettings?.promptPresets) ? settings_ACU.plotSettings.promptPresets : [];
-        const matchedPreset = normalizedPresetName
-            ? presets.find((preset) => normalizePlotPresetSelectionValue_ACU(preset?.name) === normalizedPresetName)
-            : null;
-        const taskApiPreset = String(matchedPreset?.taskApiPreset || '').trim();
-        return taskApiPreset || settings_ACU.plotApiPreset || '';
-    }
-    async function buildModuleIntentPassMessages_ACU(userMessage, runtimeOptions = {}) {
-        const plotSettings = {
-            ...DEFAULT_PLOT_SETTINGS_ACU,
-            ...(settings_ACU.plotSettings || {}),
-        };
-        const recentContext = buildRecentAssistantContextForModuleIntent_ACU(userMessage, plotSettings.contextTurnCount ?? 1);
-        let outlineTableContent = '';
-        if (!currentJsonTableData_ACU || typeof currentJsonTableData_ACU !== 'object') {
-            try {
-                const merged = await mergeAllIndependentTables_ACU();
-                if (merged && typeof merged === 'object') {
-                    _set_currentJsonTableData_ACU(merged);
-                }
-            }
-            catch (error) { }
+    async function resolveModuleDecisionFromPlanningText_ACU(planningText, { moduleSettlementContext = '' } = {}) {
+        const settlementContext = String(moduleSettlementContext || '').trim();
+        if (settlementContext) {
+            return { action: 'none', intent: null, reason: 'module_settlement_context_present' };
         }
-        if (currentJsonTableData_ACU && typeof currentJsonTableData_ACU === 'object') {
-            const summaryIndexResult = formatSummaryIndexForPlot_ACU(currentJsonTableData_ACU);
-            outlineTableContent = summaryIndexResult.success
-                ? summaryIndexResult.content
-                : formatOutlineTableForPlot_ACU(currentJsonTableData_ACU);
-        }
-        const historyAnchorText = String(runtimeOptions.inputForHash ?? userMessage ?? '');
-        const historyLookupOptions = runtimeOptions.hasExistingUserMessage && historyAnchorText.trim()
-            ? {
-                beforeUserInputHash: hashUserInput_ACU(historyAnchorText),
-                beforeUserInputText: historyAnchorText,
-            }
-            : {};
-        const lastPlotContent = getPlotFromHistory_ACU(historyLookupOptions);
-        const systemPrompt = [
-            '你是模块路由判定器。',
-            '你的任务是判断当前用户输入是否需要由前端模块接管。',
-            '你只能输出一个 <模块路由>...</模块路由> 机器可读块，除此之外禁止输出任何正文、解释、思维链、补充说明。',
-            '如果你输出了 <moduleRoute>、<moduleSettlement>、多个块、参战者数组、交易物品对象或副职业材料对象数组，都视为失败；失败时必须改为 {"模块":"无","请求":{}}。',
-            INTERNAL_SCRIPT_PROTOCOL_APPENDIX_ACU,
-            MODULE_INTENT_PLANNING_INSTRUCTION_ACU,
-            '如果没有模块需要接管，也必须输出 {"模块":"无","请求":{}} 这个合法 <模块路由> 块。'
-        ].join('\n\n');
-        const userPrompt = [
-            '最近剧情上下文（仅供判定）:',
-            recentContext || '(空)',
-            '最近规划记录（仅供判定）:',
-            lastPlotContent || '(空)',
-            '纪要/索引（仅供判定）:',
-            outlineTableContent || '(空)',
-            '当前用户原始输入:',
-            String(userMessage || '').trim()
-        ].join('\n\n');
-        return [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
-        ];
-    }
-    async function runModuleIntentPass_ACU(userMessage, runtimeOptions = {}) {
-        const messages = await buildModuleIntentPassMessages_ACU(userMessage, runtimeOptions);
-        const rawText = await callApiWithPlotPreset_ACU(messages, resolveModuleIntentApiPreset_ACU(), abortController_ACU?.signal || null);
-        const intent = extractModuleIntentFromText_ACU(rawText);
-        return {
-            rawText: String(rawText || ''),
-            intent
-        };
-    }
-    async function preflightModuleIntent_ACU(userMessage, runtimeOptions = {}) {
-        const moduleSettlementContext = String(runtimeOptions.moduleSettlementContext || '').trim();
-        if (moduleSettlementContext) {
-            return {
-                action: 'continue',
-                moduleDecision: { action: 'none', intent: null },
-                systemMessages: [{ role: 'system', content: moduleSettlementContext }]
-            };
-        }
-        const intentPass = await runModuleIntentPass_ACU(userMessage, runtimeOptions);
-        const moduleDecision = await processModuleIntentFromPlanning_ACU(intentPass.intent);
-        return {
-            action: 'continue',
-            moduleDecision,
-            systemMessages: []
-        };
+        const intent = extractModuleIntentFromText_ACU(planningText);
+        return await processModuleIntentFromPlanning_ACU(intent);
     }
     /**
      * 处理规划结果并决定如何写回 TavernHelper.generate 的 options
@@ -45230,23 +45228,16 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
             return { action: 'passthrough' };
         }
         const moduleSettlementContext = extractModuleSettlementContextFromOptions_ACU(options);
-        const presetPreflight = options && options._acu_skip_preflight === true && options._acu_preflight_result && typeof options._acu_preflight_result === 'object'
-            ? options._acu_preflight_result
-            : null;
+        const runtimeSystemMessages = buildPlanningRuntimeSystemMessagesFromSettlement_ACU(moduleSettlementContext);
         // 3. 标记拦截（供 GENERATION_AFTER_COMMANDS 去重）
         markPlotIntercept_ACU(userMessage);
-        const preflight = presetPreflight || await preflightModuleIntent_ACU(userMessage, {
-            inputForHash: userMessage,
-            hasExistingUserMessage: false,
-            moduleSettlementContext,
-        });
         // 4. 调用规划
         _set_isProcessing_Plot_ACU(true);
         try {
             const finalMessage = await runPlanning(userMessage, {
                 originalUserInput: userMessage,
                 hasExistingUserMessage: false,
-                systemMessages: preflight.systemMessages,
+                systemMessages: runtimeSystemMessages,
             });
             // 5. 处理跳过
             if (finalMessage && finalMessage.skipped) {
@@ -45258,6 +45249,14 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                 logDebug_ACU('[剧情推进] Generation aborted by user.');
                 return { action: 'aborted' };
             }
+            if (finalMessage && finalMessage.blocked) {
+                logWarn_ACU(`[剧情推进] Planning blocked generation in TavernHelper.generate hook. reason=${finalMessage.reason || 'unknown'}`);
+                return {
+                    action: 'blocked',
+                    reason: finalMessage.reason || 'blocked',
+                    errorMessage: finalMessage.errorMessage || '',
+                };
+            }
             // 7. 判断循环模式下规划失败
             if (shouldEnterLoopRetryOnPlanningFailure_ACU(finalMessage)) {
                 logWarn_ACU('[剧情推进] [Loop] 规划未产生有效回复，按循环重试规则重试。');
@@ -45265,11 +45264,12 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
             }
             // 8. 规划成功，决定写回位置
             if (finalMessage && typeof finalMessage === 'string') {
+                const moduleDecision = await resolveModuleDecisionFromPlanningText_ACU(finalMessage, { moduleSettlementContext });
                 let hookUserMessagePersisted = false;
-                if (preflight.moduleDecision?.action === 'switch_body') {
+                if (moduleDecision?.action === 'switch_body') {
                     hookUserMessagePersisted = await persistUserMessageWithoutGeneration_ACU(userMessage);
                 }
-                const moduleSwitchResult = await finalizeModuleSwitchAfterPlanning_ACU(preflight.moduleDecision);
+                const moduleSwitchResult = await finalizeModuleSwitchAfterPlanning_ACU(moduleDecision);
                 if (moduleSwitchResult.action === 'switched') {
                     stripInternalUiSystemInjectsFromOptions_ACU(options);
                     return {
@@ -45293,14 +45293,18 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                 const finalMessageForGeneration = sanitizePlanningVisibleOutput_ACU(stripModuleIntentBlocks_ACU(finalMessage));
                 stripInternalUiSystemInjectsFromOptions_ACU(options);
                 const writeBack = applyPlanningResultToOptions_ACU(options, finalMessageForGeneration);
-                return { action: 'planned', finalMessage: finalMessageForGeneration, writeBack, moduleDecision: preflight.moduleDecision };
+                return { action: 'planned', finalMessage: finalMessageForGeneration, writeBack, moduleDecision };
             }
-            // 9. 规划返回 null（未启用/失败），透传
-            return { action: 'passthrough' };
+            // 9. 规划未产出可用于正文的结果，阻断正文
+            return { action: 'blocked', reason: 'empty_final_message' };
         }
         catch (error) {
             logError_ACU('[剧情推进] Error in TavernHelper.generate hook orchestration:', error);
-            return { action: 'passthrough' };
+            return {
+                action: 'blocked',
+                reason: 'exception',
+                errorMessage: error?.message || '剧情推进异常。',
+            };
         }
         finally {
             _set_isProcessing_Plot_ACU(false);
@@ -45323,24 +45327,20 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
         }
         const { messageToProcess, originalInputHash } = context;
         const moduleSettlementContext = extractModuleSettlementContextFromOptions_ACU(requestOptions, lastMessage);
+        const runtimeSystemMessages = buildPlanningRuntimeSystemMessagesFromSettlement_ACU(moduleSettlementContext);
         // 2. 标记循环模式
         const isLoopTriggered = loopState_ACU.isLooping && loopState_ACU.awaitingReply;
         if (isLoopTriggered) {
             lastMessage._qrf_from_planning = true;
             logDebug_ACU('[剧情推进] [Loop] 标记规划层消息: _qrf_from_planning=true');
         }
-        const preflight = await preflightModuleIntent_ACU(messageToProcess, {
-            inputForHash: messageToProcess,
-            hasExistingUserMessage: true,
-            moduleSettlementContext,
-        });
         // 3. 调用规划
         _set_isProcessing_Plot_ACU(true);
         try {
             const finalMessage = await runPlanning(messageToProcess, {
                 originalUserInput: messageToProcess,
                 hasExistingUserMessage: true,
-                systemMessages: preflight.systemMessages,
+                systemMessages: runtimeSystemMessages,
             });
             // 4. 处理跳过
             if (finalMessage && finalMessage.skipped) {
@@ -45358,6 +45358,15 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                     lastMessageIndex,
                 };
             }
+            if (finalMessage && finalMessage.blocked) {
+                logWarn_ACU(`[剧情推进] Planning blocked generation in Strategy 1. reason=${finalMessage.reason || 'unknown'}`);
+                return {
+                    action: 'blocked',
+                    reason: finalMessage.reason || 'blocked',
+                    originalMessage: messageToProcess,
+                    lastMessageIndex,
+                };
+            }
             // 6. 判断循环模式下规划失败
             if (shouldEnterLoopRetryOnPlanningFailure_ACU(finalMessage)) {
                 logWarn_ACU('[剧情推进] [Loop] 规划未产生有效回复，按循环重试规则重试。');
@@ -45365,7 +45374,8 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
             }
             // 7. 规划成功
             if (finalMessage && typeof finalMessage === 'string') {
-                const moduleSwitchResult = await finalizeModuleSwitchAfterPlanning_ACU(preflight.moduleDecision);
+                const moduleDecision = await resolveModuleDecisionFromPlanningText_ACU(finalMessage, { moduleSettlementContext });
+                const moduleSwitchResult = await finalizeModuleSwitchAfterPlanning_ACU(moduleDecision);
                 if (moduleSwitchResult.action === 'switched') {
                     return {
                         action: 'module_switched',
@@ -45388,18 +45398,28 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                 return {
                     action: 'planned',
                     finalMessage: finalMessageForGeneration,
-                    moduleDecision: preflight.moduleDecision,
+                    moduleDecision,
                     originalMessage: messageToProcess,
                     lastMessageIndex,
                 };
             }
-            // 8. 规划返回 null
-            return { action: 'no_match' };
+            // 8. 规划未产出可用于正文的结果
+            return {
+                action: 'blocked',
+                reason: 'empty_final_message',
+                originalMessage: messageToProcess,
+                lastMessageIndex,
+            };
         }
         catch (error) {
             logError_ACU('[剧情推进] Error processing last chat message:', error);
             delete lastMessage._plot_processed;
-            return { action: 'no_match' };
+            return {
+                action: 'blocked',
+                reason: 'exception',
+                originalMessage: messageToProcess,
+                lastMessageIndex,
+            };
         }
         finally {
             clearModuleSettlementContextFromMessage_ACU(lastMessage);
@@ -45421,17 +45441,13 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
         }
         const originalInputText = String(textInBox);
         const moduleSettlementContext = extractModuleSettlementContextFromOptions_ACU(requestOptions);
-        const preflight = await preflightModuleIntent_ACU(originalInputText, {
-            inputForHash: originalInputText,
-            hasExistingUserMessage: false,
-            moduleSettlementContext,
-        });
+        const runtimeSystemMessages = buildPlanningRuntimeSystemMessagesFromSettlement_ACU(moduleSettlementContext);
         _set_isProcessing_Plot_ACU(true);
         try {
             const finalMessage = await runPlanning(originalInputText, {
                 originalUserInput: originalInputText,
                 hasExistingUserMessage: false,
-                systemMessages: preflight.systemMessages,
+                systemMessages: runtimeSystemMessages,
             });
             // 处理跳过
             if (finalMessage && finalMessage.skipped) {
@@ -45443,13 +45459,22 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                 logDebug_ACU('[剧情推进] Generation aborted by user in Strategy 2.');
                 return { action: 'aborted', manual: finalMessage.manual };
             }
+            if (finalMessage && finalMessage.blocked) {
+                logWarn_ACU(`[剧情推进] Planning blocked generation in Strategy 2. reason=${finalMessage.reason || 'unknown'}`);
+                return {
+                    action: 'blocked',
+                    reason: finalMessage.reason || 'blocked',
+                    originalMessage: originalInputText,
+                };
+            }
             // 规划成功
             if (finalMessage && typeof finalMessage === 'string') {
+                const moduleDecision = await resolveModuleDecisionFromPlanningText_ACU(finalMessage, { moduleSettlementContext });
                 let strategy2UserMessagePersisted = false;
-                if (preflight.moduleDecision?.action === 'switch_body') {
+                if (moduleDecision?.action === 'switch_body') {
                     strategy2UserMessagePersisted = await persistUserMessageWithoutGeneration_ACU(originalInputText);
                 }
-                const moduleSwitchResult = await finalizeModuleSwitchAfterPlanning_ACU(preflight.moduleDecision);
+                const moduleSwitchResult = await finalizeModuleSwitchAfterPlanning_ACU(moduleDecision);
                 if (moduleSwitchResult.action === 'switched') {
                     return {
                         action: 'module_switched',
@@ -45469,13 +45494,13 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                     };
                 }
                 const finalMessageForGeneration = sanitizePlanningVisibleOutput_ACU(stripModuleIntentBlocks_ACU(finalMessage));
-                return { action: 'planned', finalMessage: finalMessageForGeneration, moduleDecision: preflight.moduleDecision };
+                return { action: 'planned', finalMessage: finalMessageForGeneration, moduleDecision };
             }
-            return { action: 'skip' };
+            return { action: 'blocked', reason: 'empty_final_message', originalMessage: originalInputText };
         }
         catch (error) {
             logError_ACU('[剧情推进] Error processing textarea input (Strategy 2):', error);
-            return { action: 'skip' };
+            return { action: 'blocked', reason: 'exception', originalMessage: originalInputText };
         }
         finally {
             _set_isProcessing_Plot_ACU(false);
@@ -45558,11 +45583,23 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
         catch (e) { }
         // 5. 根据结果做 UI 通知
         if (!result) {
-            return null;
+            showToastr_ACU('error', '剧情推进未返回有效结果，已阻止正文生成。', '规划失败', {
+                acuToastCategory: ACU_TOAST_CATEGORY_ACU.ERROR,
+            });
+            return { blocked: true, reason: 'empty_result' };
         }
-        // 跳过的情况（retrying / inflight / disabled）—— 不弹 toast，静默返回
+        // 跳过的情况：重复并发仍可静默跳过，其余情况一律阻断正文
         if (result.skipped) {
-            return result.reason === 'inflight' ? { skipped: true } : null;
+            if (result.reason === 'inflight') {
+                return { skipped: true };
+            }
+            const skipMessage = result.reason === 'retrying'
+                ? '剧情推进正在重试，本轮正文已阻止。'
+                : `剧情推进被跳过（${result.reason || 'unknown'}），正文已阻止。`;
+            showToastr_ACU('error', skipMessage, '规划失败', {
+                acuToastCategory: ACU_TOAST_CATEGORY_ACU.ERROR,
+            });
+            return { blocked: true, reason: result.reason || 'skipped' };
         }
         // 用户中止
         if (result.aborted) {
@@ -45581,7 +45618,11 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                     acuToastCategory: ACU_TOAST_CATEGORY_ACU.ERROR,
                 });
             }
-            return null;
+            return {
+                blocked: true,
+                reason: result.errorType || 'failed',
+                errorMessage: errorMsg,
+            };
         }
         // 成功：弹结果 toast
         if (result.aggregatedTagNames && result.aggregatedTagNames.length > 0) {
@@ -45721,6 +45762,11 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                         }
                         options._qrf_processed_by_hook = true;
                         break;
+                    }
+                    case 'blocked': {
+                        options._qrf_processed_by_hook = true;
+                        stripInternalUiSystemInjectsFromOptions_ACU(options);
+                        return;
                     }
                     case 'module_switched':
                     case 'module_switch_failed': {
@@ -45942,6 +45988,7 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                             return;
                         if (type === 'regenerate' || isProcessing_Plot_ACU)
                             return;
+                        const shouldRunPlot = shouldProcessPlotForGeneration_ACU(type, params, dryRun);
                         const chat = SillyTavern_API_ACU.chat;
                         if (!chat || chat.length === 0)
                             return;
@@ -46011,7 +46058,6 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                             }
                         } // end if (vectorInputText && isRecentUserSendIntent_ACU)
                         // ── 阶段2：剧情推进（仅当启用时执行） ──
-                        const shouldRunPlot = shouldProcessPlotForGeneration_ACU(type, params, dryRun);
                         if (!shouldRunPlot) {
                             generationGate_ACU.lastUserSendIntentAt = 0;
                             return;
@@ -46061,6 +46107,15 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                                     if (getSendTextareaValue_ACU() === s1.originalMessage)
                                         setSendTextareaValue_ACU('');
                                     break;
+                                case 'blocked':
+                                    try {
+                                        if (SillyTavern_API_ACU && typeof SillyTavern_API_ACU.stopGeneration === 'function')
+                                            SillyTavern_API_ACU.stopGeneration();
+                                        else if (window.SillyTavern?.stopGeneration)
+                                            window.SillyTavern.stopGeneration();
+                                    }
+                                    catch (e) { }
+                                    break;
                                 case 'module_switched':
                                 case 'module_switch_failed':
                                     try {
@@ -46082,8 +46137,8 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                             return; // 策略1匹配，不再执行策略2
                         }
                         // ── 策略2：输入框文本 ──
-                        if (!freshUserSendGate.isFreshUserSend)
-                            return;
+                        // shouldRunPlot 是本次事件开始时锁定的“允许剧情推进”结论。
+                        // 向量召回可能占掉部分 TTL，这里不再二次按当前时刻否决。
                         const textInBox = getSendTextareaValue_ACU();
                         // [重构] 调用 service 层策略2编排
                         const s2 = await orchestrateAfterCommandsStrategy2_ACU(String(textInBox || ''), runOptimizationLogicWithUI_ACU, params);
@@ -46103,6 +46158,15 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                                 setSendTextareaValue_ACU(s2.finalMessage);
                                 try {
                                     params.prompt = s2.finalMessage;
+                                }
+                                catch (e) { }
+                                break;
+                            case 'blocked':
+                                try {
+                                    if (SillyTavern_API_ACU && typeof SillyTavern_API_ACU.stopGeneration === 'function')
+                                        SillyTavern_API_ACU.stopGeneration();
+                                    else if (window.SillyTavern?.stopGeneration)
+                                        window.SillyTavern.stopGeneration();
                                 }
                                 catch (e) { }
                                 break;
@@ -46298,16 +46362,17 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                 return currentJsonTableData_ACU || {};
             },
             // 导入并覆盖当前表格数据
-            importTableAsJson: async function (jsonString) {
-                if (typeof jsonString !== 'string' || jsonString.trim() === '') {
+            importTableAsJson: async function (jsonInput) {
+                if ((typeof jsonInput !== 'string' || jsonInput.trim() === '')
+                    && (!jsonInput || typeof jsonInput !== 'object')) {
                     logError_ACU('importTableAsJson received invalid input.');
                     showToastr_ACU('error', '导入数据失败：输入为空。');
                     return false;
                 }
                 try {
-                    const newData = JSON.parse(jsonString);
+                    const newData = normalizeImportedTablePayload_ACU(jsonInput);
                     if (newData && newData.mate && Object.keys(newData).some(k => k.startsWith('sheet_'))) {
-                        _set_currentJsonTableData_ACU(sanitizeChatSheetsObject_ACU(newData, { ensureMate: true }));
+                        _set_currentJsonTableData_ACU(newData);
                         logDebug_ACU('Successfully imported new table data into memory.');
                         const chat = SillyTavern_API_ACU.chat;
                         if (chat && chat.length > 0) {
@@ -46399,7 +46464,7 @@ insertRow(1, ["时间2", "大纲事件2...", "关键词"]);
                         return true;
                     }
                     else {
-                        throw new Error('导入的JSON缺少关键结构 (mate, sheet_*)。');
+                        throw new Error('导入的数据缺少有效表格结构（至少一张表）。');
                     }
                 }
                 catch (error) {
