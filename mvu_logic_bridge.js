@@ -4056,7 +4056,7 @@
       '回复类': Object.freeze(['体力恢复', '魂力恢复', '精神恢复', '持续恢复', '净化/解控']),
       '感知/认知类': Object.freeze(['感知干扰', '标记锁定', '共享视野', '幻境', '催眠', '认知扭曲']),
       '位移类': Object.freeze(['自身位移', '强制位移', '位移交换', '追击位移', '脱离位移']),
-      '特殊规则类': Object.freeze(['分身', '复制', '反制', '转化', '状态交换', '状态转移', '强制绑定/锁定', '条件触发', '规则改写', '引爆持续伤害', '斩盾', '窃取护盾', '资源夺取', '资源反灌']),
+      '特殊规则类': Object.freeze(['分身', '复制', '反制', '转化', '状态交换', '状态转移', '强制绑定/锁定', '条件触发', '规则改写', '引爆持续伤害', '斩盾', '窃取护盾', '资源夺取', '资源反灌', '机制抹消']),
     });
     const SKILL_DESIGNER_DELIVERY_FORM_POOL = Object.freeze(['直接生效', '自身附体', '远程命中', '范围展开', '召唤承载', '造物承载', '标记触发', '延迟触发']);
     const SKILL_DESIGNER_DELIVERY_FORM_BY_TYPE = Object.freeze({
@@ -4087,21 +4087,21 @@
     const SKILL_DESIGNER_SECONDARY_BY_MAIN = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.secondaryByMain || {
       '伤害类': Object.freeze(['穿透', '吸血', '斩杀补伤', '流血DOT', '打断', '反击', '追击', '引爆持续伤害', '斩盾', '资源夺取']),
       '控制类': Object.freeze(['打断', '沉默', '减速', '致盲', '迟缓', '禁疗', '缴械', '嘲讽', '破隐', '封技']),
-      '削弱类': Object.freeze(['禁疗', '减速', '迟缓', '标记弱点', '缴械', '驱散增益', '破隐', '治疗反转', '封技', '斩盾', '资源夺取']),
+      '削弱类': Object.freeze(['禁疗', '减速', '迟缓', '标记弱点', '缴械', '驱散增益', '破隐', '治疗反转', '封技', '斩盾', '资源夺取', '机制抹消']),
       '增益类': Object.freeze(['小护盾', '净化', '解控', '共享视野', '隐身', '护卫', '无敌金身', '复苏', '资源反灌']),
       '防御类': Object.freeze(['小护盾', '反击', '净化', '解控', '护卫', '嘲讽', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏']),
       '回复类': Object.freeze(['净化', '解控', '小护盾', '魂力恢复', '精神恢复', '驱散增益', '护卫', '复苏', '资源反灌']),
       '感知/认知类': Object.freeze(['标记弱点', '共享视野', '目标锁定', '打断', '沉默', '缴械', '驱散增益', '窃取增益', '破隐']),
       '位移类': Object.freeze(['打断', '反击', '标记弱点', '缴械', '隐身', '破隐']),
-      '特殊规则类': Object.freeze(['共享视野', '标记弱点', '净化', '驱散增益', '窃取增益', '隐身', '护卫', '状态转移', '引爆持续伤害', '斩盾', '窃取护盾', '资源夺取', '资源反灌', '治疗反转', '封技', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏']),
+      '特殊规则类': Object.freeze(['共享视野', '标记弱点', '净化', '驱散增益', '窃取增益', '隐身', '护卫', '状态转移', '引爆持续伤害', '斩盾', '窃取护盾', '资源夺取', '资源反灌', '机制抹消', '治疗反转', '封技', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏']),
     });
     const SKILL_DESIGNER_SECONDARY_TYPE_BIAS = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.secondaryTypeBias || {
       '强攻系': Object.freeze(['斩盾', '引爆持续伤害', '无敌金身', '伤害反射', '反击', '追击']),
       '防御系': Object.freeze(['伤害反射', '复苏', '护卫']),
       '敏攻系': Object.freeze(['隐身', '追击', '破隐', '替身抵消', '无敌金身', '斩盾']),
-      '控制系': Object.freeze(['封技', '治疗反转', '目标锁定', '缴械', '驱散增益', '嘲讽', '伤害分摊', '状态转移', '资源夺取']),
-      '精神系': Object.freeze(['状态转移', '封技', '治疗反转', '窃取增益', '目标锁定', '隐身', '资源夺取', '资源反灌']),
-      '元素系': Object.freeze(['引爆持续伤害', '斩盾', '封技', '治疗反转', '驱散增益', '破隐', '资源夺取']),
+      '控制系': Object.freeze(['封技', '治疗反转', '目标锁定', '缴械', '驱散增益', '嘲讽', '伤害分摊', '状态转移', '资源夺取', '机制抹消']),
+      '精神系': Object.freeze(['状态转移', '封技', '治疗反转', '窃取增益', '目标锁定', '隐身', '资源夺取', '资源反灌', '机制抹消']),
+      '元素系': Object.freeze(['引爆持续伤害', '斩盾', '封技', '治疗反转', '驱散增益', '破隐', '资源夺取', '机制抹消']),
       '辅助系': Object.freeze(['护卫', '复苏', '共享视野', '驱散增益', '窃取护盾', '无敌金身', '伤害分摊', '资源反灌']),
       '治疗系': Object.freeze(['复苏', '护卫', '驱散增益', '共享视野', '无敌金身', '窃取护盾', '伤害分摊', '资源反灌']),
       '食物系': Object.freeze(['复苏', '驱散增益', '共享视野', '窃取护盾', '治疗反转', '护卫', '资源反灌']),
@@ -4184,6 +4184,7 @@
       '窃取护盾': Object.freeze({ main: '特殊规则类', sub: '窃取护盾', secondary: '窃取护盾' }),
       '资源夺取': Object.freeze({ main: '特殊规则类', sub: '资源夺取', secondary: '资源夺取' }),
       '资源反灌': Object.freeze({ main: '特殊规则类', sub: '资源反灌', secondary: '资源反灌' }),
+      '机制抹消': Object.freeze({ main: '特殊规则类', sub: '机制抹消', secondary: '机制抹消' }),
       '效果反转': Object.freeze({ main: '特殊规则类', sub: '规则改写' }),
       '伤害转回复': Object.freeze({ main: '特殊规则类', sub: '转化' }),
       '回复转伤害': Object.freeze({ main: '特殊规则类', sub: '转化' }),
@@ -4235,6 +4236,7 @@
       '窃取护盾': Object.freeze(['窃取护盾']),
       '资源夺取': Object.freeze(['资源夺取']),
       '资源反灌': Object.freeze(['资源反灌']),
+      '机制抹消': Object.freeze(['机制抹消']),
     });
     const SKILL_DESIGNER_PACKED_PROPERTY_LABELS = Object.freeze({
       str: '力量',
@@ -4297,6 +4299,8 @@
     const SKILL_DESIGNER_PARAM_PENETRATION_TARGET_OPTIONS = Object.freeze(['防御', '护盾', '抗性']);
     const SKILL_DESIGNER_PARAM_LIFESTEAL_RESOURCE_OPTIONS = Object.freeze(['生命', '魂力', '精神力']);
     const SKILL_DESIGNER_PARAM_RESOURCE_TRANSFER_TYPE_OPTIONS = Object.freeze(['魂力', '精神力', '双资源']);
+    const SKILL_DESIGNER_PARAM_MECHANISM_SUPPRESS_TARGET_OPTIONS = Object.freeze(['复苏', '护盾', '隐身', '增益', '防御机制', '回复机制', '控制机制', '特殊规则']);
+    const SKILL_DESIGNER_PARAM_MECHANISM_SUPPRESS_MODE_OPTIONS = Object.freeze(['移除并封锁', '仅封锁后续']);
     const SKILL_DESIGNER_PARAM_INTERRUPT_WINDOW_OPTIONS = Object.freeze(['前摇', '吟唱中', '引导中']);
     const SKILL_DESIGNER_PARAM_COUNTER_RULE_OPTIONS = Object.freeze(['受击后', '格挡后', '受控后']);
     const SKILL_DESIGNER_PARAM_MUTE_SCOPE_OPTIONS = Object.freeze(['主动技', '咏唱技', '造物技', '全部技能']);
@@ -4322,6 +4326,8 @@
       PENETRATION_TARGET: SKILL_DESIGNER_PARAM_PENETRATION_TARGET_OPTIONS,
       LIFESTEAL_RESOURCE: SKILL_DESIGNER_PARAM_LIFESTEAL_RESOURCE_OPTIONS,
       RESOURCE_TRANSFER_TYPE: SKILL_DESIGNER_PARAM_RESOURCE_TRANSFER_TYPE_OPTIONS,
+      MECHANISM_SUPPRESS_TARGET: SKILL_DESIGNER_PARAM_MECHANISM_SUPPRESS_TARGET_OPTIONS,
+      MECHANISM_SUPPRESS_MODE: SKILL_DESIGNER_PARAM_MECHANISM_SUPPRESS_MODE_OPTIONS,
       INTERRUPT_WINDOW: SKILL_DESIGNER_PARAM_INTERRUPT_WINDOW_OPTIONS,
       COUNTER_RULE: SKILL_DESIGNER_PARAM_COUNTER_RULE_OPTIONS,
       MUTE_SCOPE: SKILL_DESIGNER_PARAM_MUTE_SCOPE_OPTIONS,
@@ -4700,6 +4706,15 @@
           pushParamHint('资源反灌', {
             resourceType: normalizeSkillUiText(effect && effect['资源类型'], '魂力'),
             refeedRatio: formatSkillDesignerNumericInput(effect && (effect['反灌比例'] ?? effect['refeed_ratio']), 0.2),
+          });
+          return;
+        }
+
+        if (mechanism === '机制抹消') {
+          pushParamHint('机制抹消', {
+            suppressTarget: normalizeSkillUiText(effect && (effect['抹消目标'] ?? effect['机制抹消目标']), '复苏'),
+            suppressMode: normalizeSkillUiText(effect && (effect['抹消方式'] ?? effect['机制抹消方式']), '移除并封锁'),
+            duration: durationText,
           });
           return;
         }
@@ -6502,6 +6517,12 @@
             createSkillDesignerSelectParam('resourceType', '反灌资源', SKILL_DESIGNER_PARAM_RESOURCE_TRANSFER_TYPE_OPTIONS),
             createSkillDesignerNumberParam('refeedRatio', '反灌比例', '0.2'),
           ];
+        case '机制抹消':
+          return [
+            createSkillDesignerSelectParam('suppressTarget', '抹消目标', SKILL_DESIGNER_PARAM_MECHANISM_SUPPRESS_TARGET_OPTIONS),
+            createSkillDesignerSelectParam('suppressMode', '抹消方式', SKILL_DESIGNER_PARAM_MECHANISM_SUPPRESS_MODE_OPTIONS),
+            createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
+          ];
         case '穿透':
           return [
             createSkillDesignerNumberParam('penetrationRatio', '穿透比例', '0.25'),
@@ -8081,6 +8102,16 @@
               '反灌比例': parseSkillDesignerPercentRatio(params['refeedRatio'], 0.2),
             }),
           ].filter(effect => safeEntries(effect).length);
+        case '机制抹消':
+          return [
+            buildSkillDesignerRuntimeObject({
+              '机制': '机制抹消',
+              '目标': target,
+              '抹消目标': normalizeSkillUiText(params['suppressTarget'], '复苏'),
+              '抹消方式': normalizeSkillUiText(params['suppressMode'], '移除并封锁'),
+              '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+            }),
+          ].filter(effect => safeEntries(effect).length);
         default:
           return [];
       }
@@ -8431,6 +8462,15 @@
             '目标': grantableTarget,
             '资源类型': normalizeSkillUiText(params['resourceType'], '魂力'),
             '反灌比例': parseSkillDesignerPercentRatio(params['refeedRatio'], 0.2),
+          }));
+          break;
+        case '机制抹消':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '机制': '机制抹消',
+            '目标': offensiveTarget,
+            '抹消目标': normalizeSkillUiText(params['suppressTarget'], '复苏'),
+            '抹消方式': normalizeSkillUiText(params['suppressMode'], '移除并封锁'),
+            '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
           }));
           break;
         default:

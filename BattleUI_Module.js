@@ -2063,6 +2063,16 @@ class BattleUIComponent {
         ctx.directPayload.blind = true;
         ctx.ensureStateShell('致盲', ['致盲']);
       },
+      mechanism_suppress(ctx) {
+        const state = ctx.state || {};
+        state.机制抹消目标 = normalizeBattleMechanismSuppressionTargets(
+          ctx.effect?.抹消目标 || ctx.effect?.机制抹消目标 || '复苏',
+        );
+        state.机制抹消方式 = normalizeBattleMechanismSuppressionMode(
+          ctx.effect?.抹消方式 || ctx.effect?.机制抹消方式 || '移除并封锁',
+        );
+        ctx.ensureStateShell(ctx.effect?.状态名称 || '机制抹消', ['机制抹消']);
+      },
       soft_control(ctx) {
         ctx.directPayload.reaction_penalty = Number(ctx.effect.reaction_penalty || 0);
         ctx.directPayload.cast_speed_penalty = Number(ctx.effect.cast_speed_penalty || 0);
@@ -2350,7 +2360,7 @@ class BattleUIComponent {
           }
           if (['流血DOT', '持续伤害DOT'].includes(mechanism))
             directPayload.dot_damage = Math.max(0, Number(effect.dot_damage || effect.每回合伤害 || 0));
-          if (runtimeConsumer) runtimeConsumer({ effect, mechanism, directPayload, ensureStateShell });
+          if (runtimeConsumer) runtimeConsumer({ effect, mechanism, directPayload, ensureStateShell, state: pState });
           if (['流血DOT', '持续伤害DOT'].includes(mechanism))
             ensureStateShell(effect?.状态名称 || (mechanism === '流血DOT' ? '流血' : '持续创伤'), [
               effect?.状态名称 || (mechanism === '流血DOT' ? '流血' : '持续伤害'),
@@ -3598,6 +3608,7 @@ class BattleUIComponent {
       'dispel_buff',
       'steal_buff',
       'resource_drain',
+      'mechanism_suppress',
       'taunt',
       'reveal',
       'slow',
@@ -3670,6 +3681,7 @@ class BattleUIComponent {
       'shield_steal',
       'resource_drain',
       'resource_refeed',
+      'mechanism_suppress',
       'effect_reverse',
       'construct_create',
     ]);
@@ -3816,6 +3828,7 @@ class BattleUIComponent {
       召唤与场地: 'construct_create',
       资源夺取: 'resource_drain',
       资源反灌: 'resource_refeed',
+      机制抹消: 'mechanism_suppress',
     });
     const LOCAL_BATTLE_DEFENSE_NATURE_BY_LABEL = Object.freeze({
       反制: '反制',
@@ -3845,9 +3858,131 @@ class BattleUIComponent {
       复苏: '复苏',
       资源反灌: '资源回复',
     });
+    const BATTLE_MECHANISM_SUPPRESSION_TARGET_SET = new Set([
+      '复苏',
+      '护盾',
+      '隐身',
+      '增益',
+      '防御机制',
+      '回复机制',
+      '控制机制',
+      '特殊规则',
+    ]);
 
     function getFallbackBattleMechanismConsumer(label = '') {
       return String(LOCAL_BATTLE_MECHANISM_CONSUMER_BY_LABEL[String(label || '').trim()] || '').trim();
+    }
+
+    function normalizeBattleMechanismSuppressionTargets(value) {
+      const source = Array.isArray(value) ? value : [value];
+      return Array.from(
+        new Set(
+          source
+            .flatMap(item => String(item || '').split(/[、,，/|｜；;\s]+/g))
+            .map(item => String(item || '').trim())
+            .filter(item => BATTLE_MECHANISM_SUPPRESSION_TARGET_SET.has(item)),
+        ),
+      );
+    }
+
+    function normalizeBattleMechanismSuppressionMode(value = '') {
+      const text = String(value || '').trim();
+      return text === '仅封锁后续' ? '仅封锁后续' : '移除并封锁';
+    }
+
+    function collectBattleMechanismTagsFromDescriptor(name = '', cond = {}) {
+      const tags = [];
+      const ce = cond?.战斗效果 || cond?.计算层效果 || {};
+      const text = String(name || '').trim();
+      if (cond?.类型 === 'buff') tags.push('增益');
+      if (
+        Number(cond?.shield_value || 0) > 0 ||
+        /护盾|屏障|结界/.test(text)
+      )
+        tags.push('护盾', '防御机制', '增益');
+      if (Number(ce.stealth_level || 0) > 0 || /隐身|潜行/.test(text)) tags.push('隐身', '增益');
+      if (Number(ce.revive_count || 0) > 0 || /复苏/.test(text)) tags.push('复苏', '回复机制', '防御机制');
+      if (
+        Number(ce.death_save_count || 0) > 0 ||
+        Number(ce.min_hp_floor || 0) > 0 ||
+        ce.invincible === true ||
+        ce.super_armor === true ||
+        Number(ce.block_count || 0) > 0 ||
+        Number(ce.substitute_count || 0) > 0 ||
+        Number(ce.damage_reduction || 0) > 0 ||
+        Number(ce.damage_reflect_ratio || 0) > 0 ||
+        Number(ce.damage_share_ratio || 0) > 0
+      )
+        tags.push('防御机制');
+      if (
+        Number(ce.final_heal_mult || 1) > 1 ||
+        Number(ce.final_heal_bonus || 0) > 0 ||
+        Number(ce.sp_gain_ratio || 0) > 0 ||
+        Number(ce.men_gain_ratio || 0) > 0 ||
+        Number(ce.hot_heal_ratio || 0) > 0 ||
+        /回血|治疗|再生|回复|回魂|回精神/.test(text)
+      )
+        tags.push('回复机制');
+      if (
+        ce.skip_turn === true ||
+        ce.cannot_react === true ||
+        ce.skill_seal === true ||
+        Number(ce.lock_level || 0) > 0 ||
+        Number(ce.reaction_penalty || 0) > 0 ||
+        Number(ce.cast_speed_penalty || 0) > 0 ||
+        Number(ce.dodge_penalty || 0) > 0 ||
+        Number(ce.heal_block_ratio || 0) > 0 ||
+        Number(ce.heal_inversion_ratio || 0) > 0 ||
+        /封技|沉默|缴械|打断|锁定|禁疗|控制|硬控|软控|减速|迟缓|嘲讽|破隐/.test(text)
+      )
+        tags.push('控制机制');
+      if (
+        /分身|复制|状态交换|状态转移|引爆持续伤害|斩盾|窃取护盾|资源夺取|资源反灌|机制抹消|效果反转|共享视野|护卫/.test(text)
+      )
+        tags.push('特殊规则');
+      return Array.from(new Set(tags));
+    }
+
+    function getActiveMechanismSuppressionEntries(targetChar) {
+      if (!targetChar?.状态效果) return [];
+      return Object.entries(targetChar.状态效果)
+        .map(([key, cond]) => ({
+          key,
+          cond,
+          tags: normalizeBattleMechanismSuppressionTargets(cond?.机制抹消目标 || cond?.抹消目标 || []),
+          mode: normalizeBattleMechanismSuppressionMode(cond?.机制抹消方式 || cond?.抹消方式 || ''),
+        }))
+        .filter(entry => entry.tags.length > 0);
+    }
+
+    function isMechanismSuppressionBlocking(targetChar, tags = []) {
+      const wantedTags = normalizeBattleMechanismSuppressionTargets(tags);
+      if (!wantedTags.length) return false;
+      return getActiveMechanismSuppressionEntries(targetChar).some(entry => {
+        if (!/封锁/.test(entry.mode)) return false;
+        return wantedTags.some(tag => entry.tags.includes(tag));
+      });
+    }
+
+    function removeSuppressedMechanismStates(targetChar, tags = [], options = {}) {
+      const wantedTags = normalizeBattleMechanismSuppressionTargets(tags);
+      if (!targetChar?.状态效果 || !wantedTags.length) return [];
+      const excluded = new Set(Array.isArray(options.excludeKeys) ? options.excludeKeys : []);
+      const removed = [];
+      Object.entries(targetChar.状态效果).forEach(([key, cond]) => {
+        if (excluded.has(key)) return;
+        const conditionTags = collectBattleMechanismTagsFromDescriptor(key, cond);
+        if (!conditionTags.length) return;
+        if (!wantedTags.some(tag => conditionTags.includes(tag))) return;
+        delete targetChar.状态效果[key];
+        removed.push(key);
+        if (targetChar.持续效果) {
+          Object.keys(targetChar.持续效果).forEach(sustainKey => {
+            if (targetChar.持续效果[sustainKey]?.related_condition === key) delete targetChar.持续效果[sustainKey];
+          });
+        }
+      });
+      return removed;
     }
 
     function inferFallbackBattleMechanismSemantic(label = '') {
@@ -4119,6 +4254,19 @@ class BattleUIComponent {
 
     function isBattleSkillResourceRefeedProfile(skill) {
       return hasBattleSkillRuntimeConsumer(skill, ['resource_refeed']);
+    }
+
+    function getBattleSkillMechanismSuppressionTargets(skill) {
+      const effect =
+        getSkillEffects(skill).find(item => item?.机制 === '机制抹消') ||
+        null;
+      return normalizeBattleMechanismSuppressionTargets(
+        effect?.抹消目标 || effect?.机制抹消目标 || [],
+      );
+    }
+
+    function isBattleSkillMechanismSuppressProfile(skill) {
+      return hasBattleSkillRuntimeConsumer(skill, ['mechanism_suppress']);
     }
 
     function isBattleSkillReactiveDefenseProfile(skill, context = {}) {
@@ -4439,6 +4587,7 @@ class BattleUIComponent {
           Number(cond?.战斗效果?.heal_inversion_ratio || 0) > 0 ||
           /禁疗|治疗反转/.test(name),
       );
+      const suppressionEntries = getActiveMechanismSuppressionEntries(entity);
       return {
         entries,
         buffCount: buffEntries.length,
@@ -4454,11 +4603,14 @@ class BattleUIComponent {
         hasStealthed,
         hasReactiveDefense,
         hasAntiHeal,
+        hasMechanismSuppression: suppressionEntries.length > 0,
+        suppressedMechanisms: Array.from(new Set(suppressionEntries.flatMap(entry => entry.tags))),
       };
     }
 
     function getStealthConditionEntries(targetChar) {
       if (!targetChar?.状态效果) return [];
+      if (isMechanismSuppressionBlocking(targetChar, ['隐身', '增益'])) return [];
       return Object.entries(targetChar.状态效果).filter(
         ([key, cond]) =>
           cond?.类型 === 'buff' &&
@@ -5794,6 +5946,12 @@ class BattleUIComponent {
             char.vit = Math.max(0, char.vit - dot);
             totalDot += dot;
             parts.push(`[状态结算] ${label}受[${key}]影响，额外损失 ${dot} 点HP`);
+          }
+          if (hotHealRatio > 0) {
+            if (isMechanismSuppressionBlocking(char, ['回复机制'])) {
+              parts.push(`[机制抹消] ${label}的回复回路被封锁，[${key}]未能提供恢复。`);
+              hotHealRatio = 0;
+            }
           }
           if (hotHealRatio > 0) {
             const maxVit = Math.max(1, Number(char.vit_max || char.vit || 1));
@@ -7814,6 +7972,7 @@ class BattleUIComponent {
 
       function collectShieldConditionEntries(char) {
         if (!char?.状态效果) return [];
+        if (isMechanismSuppressionBlocking(char, ['护盾', '防御机制'])) return [];
         return Object.entries(char.状态效果)
           .map(([key, cond]) => ({ key, cond, shieldValue: Math.max(0, Number(cond?.shield_value || 0)) }))
           .filter(entry => entry.shieldValue > 0)
@@ -7822,6 +7981,9 @@ class BattleUIComponent {
 
       function triggerReviveEffect(targetChar, label = '目标') {
         if (!targetChar?.状态效果) return null;
+        if (isMechanismSuppressionBlocking(targetChar, ['复苏', '回复机制', '防御机制'])) {
+          return `[复苏受阻] ${label}的复苏回路已被机制抹消封锁，无法触发！`;
+        }
         const candidate = Object.entries(targetChar.状态效果)
           .map(([key, cond]) => ({ key, cond, ce: cond?.战斗效果 || {} }))
           .filter(entry => Number(entry.ce.revive_count || 0) > 0)
@@ -7842,6 +8004,7 @@ class BattleUIComponent {
       function applyShieldToCharacter(targetChar, shieldAmount, duration = 1, sourceName = '护盾') {
         const amount = Math.max(0, Math.floor(Number(shieldAmount || 0)));
         if (!targetChar || amount <= 0) return 0;
+        if (isMechanismSuppressionBlocking(targetChar, ['护盾', '防御机制', '增益'])) return 0;
         if (!targetChar.状态效果) targetChar.状态效果 = {};
         const stateName = /护盾|屏障|结界/.test(String(sourceName || ''))
           ? String(sourceName || '护盾')
@@ -9049,6 +9212,10 @@ class BattleUIComponent {
           const isFriendly = ['自身', '友方单体', '友方群体'].includes(effectTargetContext.targetModel);
           let totalRecovered = 0;
           targetUnits.forEach(targetObj => {
+            if (isMechanismSuppressionBlocking(targetObj, ['回复机制'])) {
+              result.desc += ` [机制抹消] ${targetObj === attacker ? '自身' : targetObj.name}的回复回路被封锁，${labelText}恢复未能生效。`;
+              return;
+            }
             const targetFinalStat = targetObj?.final || buildCombatFinalStats(targetObj);
             const supportScale = isFriendly ? getSupportEffectScale(attacker, targetObj) : 1;
             const targetConditionEffects = targetObj.状态效果
@@ -9389,6 +9556,10 @@ class BattleUIComponent {
           const resourceKeys = resolveTransferResourceKeys(effect?.资源类型 || effect?.resource_type || '');
           let totalRecovered = 0;
           targetUnits.forEach(targetObj => {
+            if (isMechanismSuppressionBlocking(targetObj, ['回复机制'])) {
+              result.desc += ` [机制抹消] ${targetObj === attacker ? '自身' : targetObj.name}的回复回路被封锁，资源反灌未能生效。`;
+              return;
+            }
             resourceKeys.forEach(resourceKey => {
               const maxKey = resourceKey === 'sp' ? 'sp_max' : 'men_max';
               const targetMax = Math.max(1, Number(targetObj?.[maxKey] || 0));
@@ -9642,6 +9813,22 @@ class BattleUIComponent {
                 pState.计算层效果?.super_armor === true ||
                 Number(pState.计算层效果?.min_hp_floor || 0) > 0 ||
                 Number(pState.计算层效果?.hot_heal_ratio || 0) > 0;
+              const pendingStateTags = collectBattleMechanismTagsFromDescriptor(
+                pState.状态名称 || playerAction.skill.name || '',
+                {
+                  类型: isBuff ? 'buff' : 'debuff',
+                  战斗效果: pState.计算层效果 || {},
+                  shield_value:
+                    Number(pState.计算层效果?.shield_gain_bonus || 0) > 0 ||
+                    Number(pState.计算层效果?.shield_gain_mult || 1) > 1
+                      ? 1
+                      : 0,
+                },
+              );
+              if (pendingStateTags.length && isMechanismSuppressionBlocking(targetObj, pendingStateTags)) {
+                result.desc += ` [机制抹消] ${targetObj === attacker ? '自身' : targetObj.name}对[${pendingStateTags.join('/')}]存在封锁，本次状态未能附着。`;
+                return;
+              }
               const supportScale = isBuff ? getSupportEffectScale(attacker, targetObj) : 1;
               let scaledMods = { ...(pState.面板修改比例 || {}) };
               ['str', 'def', 'agi', 'men_max', 'sp_max'].forEach(k => {
@@ -9692,6 +9879,8 @@ class BattleUIComponent {
                 层数: 1,
                 描述: `由[${playerAction.skill.name}]附加`,
                 duration: pState.持续回合,
+                机制抹消目标: normalizeBattleMechanismSuppressionTargets(pState.机制抹消目标 || []),
+                机制抹消方式: normalizeBattleMechanismSuppressionMode(pState.机制抹消方式 || ''),
                 面板修改比例: scaledMods,
                 战斗效果: {
                   ...createEmptyCombatEffectMap(),
@@ -9755,6 +9944,18 @@ class BattleUIComponent {
               }
               if (directGuardEffect) {
                 targetObj.状态效果[pState.状态名称].护卫者名 = attacker.name || '';
+              }
+              if (targetObj.状态效果[pState.状态名称].机制抹消目标.length) {
+                const removedStates = /移除/.test(targetObj.状态效果[pState.状态名称].机制抹消方式)
+                  ? removeSuppressedMechanismStates(
+                      targetObj,
+                      targetObj.状态效果[pState.状态名称].机制抹消目标,
+                      { excludeKeys: [pState.状态名称] },
+                    )
+                  : [];
+                if (removedStates.length > 0) {
+                  result.desc += ` [机制抹消] ${targetObj === attacker ? '自身' : targetObj.name}的[${removedStates.join('/')}]被直接抹除。`;
+                }
               }
               let targetNameStr = targetObj === attacker ? '自身' : 'NPC';
               result.desc += ` 并对${targetNameStr}施加了[${pState.状态名称}]状态！`;
@@ -10157,6 +10358,8 @@ class BattleUIComponent {
               const hasShieldSteal = isBattleSkillShieldStealProfile(skill);
               const hasResourceDrain = isBattleSkillResourceDrainProfile(skill);
               const hasResourceRefeed = isBattleSkillResourceRefeedProfile(skill);
+              const hasMechanismSuppress = isBattleSkillMechanismSuppressProfile(skill);
+              const suppressTargets = hasMechanismSuppress ? getBattleSkillMechanismSuppressionTargets(skill) : [];
               const hasExecute = isBattleSkillExecuteProfile(skill, { summary });
               const hasResourceRecover = getSkillEffects(skill).some(effect =>
                 isBattleRecoverEffect(effect, ['sp', 'men']),
@@ -10255,6 +10458,14 @@ class BattleUIComponent {
                 if (enemySpRatio > 0.45 || enemyMenRatio > 0.45) weight += 28;
                 if (selfSpRatio < 0.5 || selfMenRatio < 0.5) weight += 12;
                 if (isChargingHighThreat) weight += 10;
+              }
+              if (hasMechanismSuppress) {
+                if ((suppressTargets.includes('复苏') || suppressTargets.includes('回复机制')) && enemySnapshot.hasHealingTrend) weight += 26;
+                if ((suppressTargets.includes('护盾') || suppressTargets.includes('防御机制')) && enemySnapshot.hasShielded) weight += 24;
+                if ((suppressTargets.includes('隐身') || suppressTargets.includes('增益')) && enemySnapshot.hasStealthed) weight += 24;
+                if ((suppressTargets.includes('增益') || suppressTargets.includes('特殊规则')) && enemySnapshot.buffCount > 0)
+                  weight += 14 + enemySnapshot.buffCount * 4;
+                if (suppressTargets.includes('防御机制') && enemySnapshot.hasReactiveDefense) weight += 20;
               }
               if (hasResourceRecover && (selfSpRatio < 0.4 || selfMenRatio < 0.4))
                 weight += selfSnapshot.hasHealingTrend ? 10 : 30;
@@ -11677,6 +11888,15 @@ class BattleUIComponent {
           if (isBattleSkillResourceDrainProfile(skill)) {
             if (spRatio > 0.45 || menRatio > 0.45) weight += 45;
             if (isSupport || target.蓄力技能) weight += 18;
+          }
+          if (isBattleSkillMechanismSuppressProfile(skill)) {
+            const suppressTargets = getBattleSkillMechanismSuppressionTargets(skill);
+            if ((suppressTargets.includes('复苏') || suppressTargets.includes('回复机制')) && snapshot.hasHealingTrend) weight += 58;
+            if ((suppressTargets.includes('护盾') || suppressTargets.includes('防御机制')) && snapshot.hasShielded) weight += 52;
+            if ((suppressTargets.includes('隐身') || suppressTargets.includes('增益')) && snapshot.hasStealthed) weight += 62;
+            if ((suppressTargets.includes('增益') || suppressTargets.includes('特殊规则')) && snapshot.buffCount > 0)
+              weight += 36 + snapshot.buffCount * 6;
+            if (suppressTargets.includes('防御机制') && snapshot.hasReactiveDefense) weight += 38;
           }
           if (决策标签.includes('规则压制型')) {
             if (snapshot.hasShielded || snapshot.hasHealingTrend || target.蓄力技能) weight += 12;
