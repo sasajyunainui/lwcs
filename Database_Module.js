@@ -13917,6 +13917,25 @@ $CONTENT
             return 'user';
         return String(role || 'user').toLowerCase();
     }
+    function normalizeRuntimeSystemMessages_ACU(messages) {
+        if (!Array.isArray(messages) || messages.length === 0)
+            return [];
+        return messages
+            .map((item) => {
+            if (typeof item === 'string') {
+                const content = item.trim();
+                return content ? { role: 'system', content } : null;
+            }
+            if (!item || typeof item !== 'object')
+                return null;
+            const role = getNormalizedPlotMessageRole_ACU(item.role || 'system');
+            const content = String(item.content || '').trim();
+            if (!content)
+                return null;
+            return { role, content };
+        })
+            .filter(Boolean);
+    }
     async function tryRenderPlotTemplateWithEjs_ACU(content) {
         if (!content)
             return '';

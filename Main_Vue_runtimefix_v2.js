@@ -404,9 +404,6 @@ const mvuUnifiedDetailState = window.__MVU_UNIFIED_DETAIL_STATE__ || (window.__M
   stack: [],
   returnScrollTop: 0
 }));
-const mvuFoldState = window.__MVU_SIDE_FOLD_STATE__ || (window.__MVU_SIDE_FOLD_STATE__ = ref(true));
-const mvuPinState = window.__MVU_PIN_STATE__ || (window.__MVU_PIN_STATE__ = ref(false));
-
 if (!mvuLayoutState.surfaceLauncherPosition || !Number.isFinite(Number(mvuLayoutState.surfaceLauncherPosition.x)) || !Number.isFinite(Number(mvuLayoutState.surfaceLauncherPosition.y))) {
   mvuLayoutState.surfaceLauncherPosition = readSurfaceLauncherPosition(initialIsMobileViewport ? 'mobile' : 'desktop');
 }
@@ -677,7 +674,7 @@ function setDesktopMode(mode, options = {}) {
 }
 
 function applyDesktopLayoutSelection(mode, options = {}) {
-  const nextMode = String(mode || '').trim();
+  const nextMode = String(mode || '').trim() === 'shell' ? 'shell' : 'unified';
   const result = setDesktopMode(nextMode, options);
   if (!mvuLayoutState.isMobileViewport && nextMode === 'unified') {
     mvuLayoutState.surfaceMode = 'panel';
@@ -701,7 +698,7 @@ function applyLayoutBodyClasses() {
   }
   const shellSurfaceMode = isShellSurfaceMode();
   body.classList.toggle('mvu-unified-mount-ready', !!mvuLayoutState.unifiedAnchorReady);
-  body.classList.toggle('mvu-layout-split', false);
+  body.classList.remove('mvu-layout-split');
   body.classList.toggle('mvu-layout-unified', true);
   body.classList.toggle('mvu-mobile-viewport', !!mvuLayoutState.isMobileViewport);
   body.classList.toggle('mvu-shell-overlay-enabled', true);
@@ -731,7 +728,7 @@ function syncLayoutMode() {
 function setLayoutMode(mode, options = {}) {
   const normalized = normalizeLayoutMode(mode);
   if (!normalized) return mvuLayoutState.effectiveMode;
-  const nextPreferred = normalized === 'split' && !isSplitLayoutAllowed() ? 'unified' : normalized;
+  const nextPreferred = normalized || 'unified';
 
   if (!mvuLayoutState.isMobileViewport && mvuLayoutState.surfaceMode === 'shell') {
     if (mvuLayoutState.mobileShellOpen) {
@@ -824,23 +821,6 @@ window.mvuGetLayoutMode = () => getLayoutMode();
 window.mvuSetSurfaceMode = mode => setSurfaceMode(mode, { manual: true });
 window.mvuGetDesktopMode = () => getDesktopModeSelection();
 window.mvuSetDesktopMode = mode => setDesktopMode(mode, { manual: true });
-
-function handleGlobalFold() {
-  if (mvuPinState.value) return;
-  if (window.__mvuFoldTimer) clearTimeout(window.__mvuFoldTimer);
-  window.__mvuFoldTimer = setTimeout(() => {
-    const hasOpenModal = !!document.querySelector('.modal-mask.show, .mvu-modal-mask.show, #detailModal.show');
-    if (!hasOpenModal) {
-      mvuFoldState.value = true;
-    }
-  }, 3000);
-}
-
-function handleGlobalUnfold() {
-  if (window.__mvuFoldTimer) clearTimeout(window.__mvuFoldTimer);
-  window.__mvuFoldTimer = null;
-  mvuFoldState.value = false;
-}
 
 function setSharedTab(target) {
   mvuTabState.current = normalizeTabId(target);
@@ -1036,6 +1016,7 @@ function createUnifiedAnchorManager(options = {}) {
   };
 }
 
+/* Legacy split layout retired.
 const LeftPanel = {
   template: `
     <div class="mvu-vue-wrapper mvu-root left-panel" :class="{ 'is-folded': isFolded }" style="position:fixed;top:0;left:0;bottom:0;z-index:100;">
@@ -1158,19 +1139,12 @@ const RightPanel = {
         </button>
         <div v-if="settingsOpen" class="mvu-window-settings-panel" @click.stop>
           <div class="mvu-window-settings-title">窗口设置</div>
-          <div v-if="layoutState.isMobileViewport" class="mvu-window-settings-note">移动端固定使用小手机壳，桌面端可切换分栏、一体或手机模式。</div>
+          <div v-if="layoutState.isMobileViewport" class="mvu-window-settings-note">移动端固定使用小手机壳，桌面端可切换一体或手机模式。</div>
           <button
             v-if="!layoutState.isMobileViewport"
             type="button"
             class="mvu-window-settings-option"
-            :class="{ active: layoutState.surfaceMode !== 'shell' && layoutState.preferredMode === 'split' }"
-            @click="setLayoutByPanel('split')"
-          >分栏模式</button>
-          <button
-            v-if="!layoutState.isMobileViewport"
-            type="button"
-            class="mvu-window-settings-option"
-            :class="{ active: layoutState.surfaceMode !== 'shell' && layoutState.preferredMode === 'unified' }"
+            :class="{ active: layoutState.surfaceMode !== 'shell' }"
             @click="setLayoutByPanel('unified')"
           >一体模式</button>
           <button
@@ -1296,6 +1270,8 @@ const RightPanel = {
   }
 };
 
+*/
+
 const UnifiedDock = {
   template: `
     <div class="mvu-unified-wrapper mvu-root">
@@ -1306,22 +1282,12 @@ const UnifiedDock = {
               <span class="mvu-unified-eyebrow">{{ activeMeta.eyebrow }}</span>
               <span class="mvu-unified-mode-badge">{{ modeBadge }}</span>
             </div>
-            <div class="mvu-unified-layout-toggle" :class="{ locked: splitLocked }">
-              <template v-if="!splitLocked">
-                <button
-                  type="button"
-                  class="mvu-unified-layout-btn"
-                  :class="{ active: layoutState.preferredMode === 'split' }"
-                  @click="setLayout('split')"
-                >分栏</button>
-                <button
-                  type="button"
-                  class="mvu-unified-layout-btn"
-                  :class="{ active: layoutState.preferredMode === 'unified' }"
-                  @click="setLayout('unified')"
-                >一体</button>
-              </template>
-              <span v-else class="mvu-unified-lock-note">移动端已锁定一体栏</span>
+            <div class="mvu-unified-layout-toggle">
+              <button
+                type="button"
+                class="mvu-unified-layout-btn active"
+                disabled
+              >一体</button>
             </div>
           </div>
           <div class="mvu-unified-headline">
@@ -1331,7 +1297,7 @@ const UnifiedDock = {
         </div>
 
         <div class="mvu-unified-section-head">
-          <b>主分栏</b>
+          <b>主导航</b>
           <span>先切页，再下钻详细弹窗</span>
         </div>
 
@@ -1376,8 +1342,7 @@ const UnifiedDock = {
       quickActionHint,
       tabState: mvuTabState,
       layoutState: mvuLayoutState,
-      setTab: requestTabChange,
-      setLayout: setLayoutMode
+      setTab: requestTabChange
     };
   }
 };
@@ -1551,7 +1516,6 @@ const SurfaceLauncherShellLayout = {
     const shellDetailPreviewKey = ref('');
     const shellDetailReturnScreen = ref('section');
     const launcherModeItems = [
-      { id: 'split', label: '分栏' },
       { id: 'unified', label: '一体' },
       { id: 'shell', label: '手机' }
     ];
@@ -2340,13 +2304,21 @@ const DesktopUnifiedLayout = {
       requestTabChange(tabId);
       scheduleUnifiedFrameViewportSync();
     };
+    const forceUnifiedCardSync = () => {
+      requestUnifiedShellCardRefresh({ force: true });
+    };
+    const handleDesktopUnifiedResize = () => {
+      scheduleUnifiedFrameViewportSync();
+      forceUnifiedCardSync();
+    };
     onMounted(() => {
       window.__MVU_OPEN_UNIFIED_PREVIEW__ = openUnifiedPreview;
       window.__MVU_CLOSE_UNIFIED_PREVIEW__ = closeUnifiedDetail;
       window.__MVU_GET_UNIFIED_DETAIL_HOST__ = () => detailHostRef.value;
-      window.addEventListener('resize', scheduleUnifiedFrameViewportSync);
+      window.addEventListener('resize', handleDesktopUnifiedResize);
       bindDetailWheelBridge();
       scheduleUnifiedFrameViewportSync();
+      forceUnifiedCardSync();
       if (mvuTabState.current === 'page-map') {
         requestMapSurfaceSync();
       }
@@ -2355,7 +2327,7 @@ const DesktopUnifiedLayout = {
       }
     });
     onUnmounted(() => {
-      window.removeEventListener('resize', scheduleUnifiedFrameViewportSync);
+      window.removeEventListener('resize', handleDesktopUnifiedResize);
       if (typeof removeDetailWheelBridge === 'function') {
         removeDetailWheelBridge();
         removeDetailWheelBridge = null;
@@ -2378,6 +2350,12 @@ const DesktopUnifiedLayout = {
     });
     watch(() => mvuTabState.current, () => {
       scheduleUnifiedFrameViewportSync();
+    });
+    watch(() => mvuLayoutState.isMobileViewport, nextValue => {
+      if (!nextValue) {
+        scheduleUnifiedFrameViewportSync();
+        forceUnifiedCardSync();
+      }
     });
     return {
       tabs: TAB_ITEMS,
@@ -2418,7 +2396,7 @@ const LayoutRescueDock = {
     <div class="mvu-layout-rescue" :class="{ active: shouldShow }">
       <button type="button" class="mvu-layout-rescue-btn" @click="rescue">
         <span class="mvu-layout-rescue-title">切回一体栏</span>
-        <span class="mvu-layout-rescue-desc">移动端分栏不可用，点这里直接恢复。</span>
+        <span class="mvu-layout-rescue-desc">移动端仅保留一体栏，点这里直接恢复。</span>
       </button>
     </div>
   `,

@@ -23,10 +23,10 @@
   const jsList = [
     CDN_BASE + 'TradeUI_Module.js',
     CDN_BASE + 'ProfessionUI_Module.js',
-    CDN_BASE + 'BattleUI_Module.js',
     CDN_BASE + 'sheep_map_restore.js',
     CDN_BASE + 'Main_Vue_runtimefix_v2.js',
     CDN_BASE + 'mvu_logic_bridge.js',
+    CDN_BASE + 'BattleUI_Module.js',
     CDN_BASE + 'Database_Module.js'
   ];
 

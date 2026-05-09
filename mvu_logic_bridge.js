@@ -1,24 +1,33 @@
 ﻿
 (() => {
   const __mvuBridgeRoot = typeof globalThis !== 'undefined' ? globalThis : window;
+  const resolveSharedSkillMechanismRegistry = () => {
+    if (__mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__ && typeof __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__ === 'object') {
+      return __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__;
+    }
+    try {
+      if (window.parent && window.parent !== window && window.parent.__LWCS_SKILL_MECHANISM_REGISTRY__ && typeof window.parent.__LWCS_SKILL_MECHANISM_REGISTRY__ === 'object') {
+        return window.parent.__LWCS_SKILL_MECHANISM_REGISTRY__;
+      }
+    } catch (error) {}
+    try {
+      if (window.top && window.top !== window && window.top.__LWCS_SKILL_MECHANISM_REGISTRY__ && typeof window.top.__LWCS_SKILL_MECHANISM_REGISTRY__ === 'object') {
+        return window.top.__LWCS_SKILL_MECHANISM_REGISTRY__;
+      }
+    } catch (error) {}
+    return null;
+  };
+  const __sharedSkillMechanismRegistry = resolveSharedSkillMechanismRegistry();
+  if (!__mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__ && __sharedSkillMechanismRegistry) {
+    __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__ = __sharedSkillMechanismRegistry;
+  }
+  __mvuBridgeRoot.__LWCS_BRIDGE_REGISTRY_SOURCE__ = __sharedSkillMechanismRegistry ? 'shared' : 'bridge_fallback_pending';
   if (__mvuBridgeRoot.__MVU_LOGIC_BRIDGE_LOADED__ === true) {
     console.warn('[DragonUI] mvu_logic_bridge duplicate load skipped.');
     return;
   }
   __mvuBridgeRoot.__MVU_LOGIC_BRIDGE_LOADED__ = true;
 
-    const tabs = [];
-    const pages = document.querySelectorAll(".split-page");
-    const viewport = document.getElementById('mvuViewport');
-    const scaleWrap = document.getElementById('mvuScaleWrap');
-    const canvas = document.getElementById('mvuCanvas');
-    const splitOverlay = document.getElementById('splitOverlay');
-    const splitTopShell = document.getElementById('splitTopShell');
-    const splitTopStage = document.getElementById('splitTopStage');
-    const splitBottomTime = document.getElementById('splitBottomTime');
-    const splitBottomLoc = document.getElementById('splitBottomLoc');
-    const splitLeftStage = document.getElementById('splitLeftStage');
-    const splitRightStage = document.getElementById('splitRightStage');
     const detailModal = document.getElementById('detailModal');
     if (detailModal && detailModal.parentElement !== document.body) {
       document.body.appendChild(detailModal);
@@ -4056,7 +4065,7 @@
       '回复类': Object.freeze(['体力恢复', '魂力恢复', '精神恢复', '持续恢复', '净化/解控']),
       '感知/认知类': Object.freeze(['感知干扰', '标记锁定', '共享视野', '幻境', '催眠', '认知扭曲']),
       '位移类': Object.freeze(['自身位移', '强制位移', '位移交换', '追击位移', '脱离位移']),
-      '特殊规则类': Object.freeze(['分身', '复制', '反制', '转化', '状态交换', '状态转移', '强制绑定/锁定', '条件触发', '规则改写', '引爆持续伤害', '斩盾', '窃取护盾', '资源夺取', '资源反灌', '机制抹消']),
+      '特殊规则类': Object.freeze(['分身', '复制', '反制', '转化', '状态交换', '状态转移', '强制绑定/锁定', '条件触发', '规则改写', '引爆持续伤害', '斩盾', '窃取护盾', '吞噬', '能力共享', '机制抹消']),
     });
     const SKILL_DESIGNER_DELIVERY_FORM_POOL = Object.freeze(['直接生效', '自身附体', '远程命中', '范围展开', '召唤承载', '造物承载', '标记触发', '延迟触发']);
     const SKILL_DESIGNER_DELIVERY_FORM_BY_TYPE = Object.freeze({
@@ -4085,28 +4094,52 @@
       '治疗系': Object.freeze(['魂力', '精神力']),
     });
     const SKILL_DESIGNER_SECONDARY_BY_MAIN = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.secondaryByMain || {
-      '伤害类': Object.freeze(['穿透', '吸血', '斩杀补伤', '流血DOT', '打断', '反击', '追击', '引爆持续伤害', '斩盾', '资源夺取']),
+      '伤害类': Object.freeze(['穿透', '吸血', '斩杀补伤', '流血DOT', '打断', '反击', '追击', '引爆持续伤害', '斩盾', '吞噬']),
       '控制类': Object.freeze(['打断', '沉默', '减速', '致盲', '迟缓', '禁疗', '缴械', '嘲讽', '破隐', '封技']),
-      '削弱类': Object.freeze(['禁疗', '减速', '迟缓', '标记弱点', '缴械', '驱散增益', '破隐', '治疗反转', '封技', '斩盾', '资源夺取', '机制抹消']),
-      '增益类': Object.freeze(['小护盾', '净化', '解控', '共享视野', '隐身', '护卫', '无敌金身', '复苏', '资源反灌']),
+      '削弱类': Object.freeze(['禁疗', '减速', '迟缓', '标记弱点', '缴械', '驱散增益', '破隐', '治疗反转', '封技', '斩盾', '吞噬', '机制抹消']),
+      '增益类': Object.freeze(['小护盾', '净化', '解控', '共享视野', '隐身', '护卫', '无敌金身', '复苏', '能力共享']),
       '防御类': Object.freeze(['小护盾', '反击', '净化', '解控', '护卫', '嘲讽', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏']),
-      '回复类': Object.freeze(['净化', '解控', '小护盾', '魂力恢复', '精神恢复', '驱散增益', '护卫', '复苏', '资源反灌']),
+      '回复类': Object.freeze(['净化', '解控', '小护盾', '魂力恢复', '精神恢复', '驱散增益', '护卫', '复苏', '能力共享']),
       '感知/认知类': Object.freeze(['标记弱点', '共享视野', '目标锁定', '打断', '沉默', '缴械', '驱散增益', '窃取增益', '破隐']),
       '位移类': Object.freeze(['打断', '反击', '标记弱点', '缴械', '隐身', '破隐']),
-      '特殊规则类': Object.freeze(['共享视野', '标记弱点', '净化', '驱散增益', '窃取增益', '隐身', '护卫', '状态转移', '引爆持续伤害', '斩盾', '窃取护盾', '资源夺取', '资源反灌', '机制抹消', '治疗反转', '封技', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏']),
+      '特殊规则类': Object.freeze(['共享视野', '标记弱点', '净化', '驱散增益', '窃取增益', '隐身', '护卫', '状态转移', '引爆持续伤害', '斩盾', '窃取护盾', '吞噬', '能力共享', '机制抹消', '治疗反转', '封技', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏']),
     });
     const SKILL_DESIGNER_SECONDARY_TYPE_BIAS = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.secondaryTypeBias || {
       '强攻系': Object.freeze(['斩盾', '引爆持续伤害', '无敌金身', '伤害反射', '反击', '追击']),
       '防御系': Object.freeze(['伤害反射', '复苏', '护卫']),
       '敏攻系': Object.freeze(['隐身', '追击', '破隐', '替身抵消', '无敌金身', '斩盾']),
-      '控制系': Object.freeze(['封技', '治疗反转', '目标锁定', '缴械', '驱散增益', '嘲讽', '伤害分摊', '状态转移', '资源夺取', '机制抹消']),
-      '精神系': Object.freeze(['状态转移', '封技', '治疗反转', '窃取增益', '目标锁定', '隐身', '资源夺取', '资源反灌', '机制抹消']),
-      '元素系': Object.freeze(['引爆持续伤害', '斩盾', '封技', '治疗反转', '驱散增益', '破隐', '资源夺取', '机制抹消']),
-      '辅助系': Object.freeze(['护卫', '复苏', '共享视野', '驱散增益', '窃取护盾', '无敌金身', '伤害分摊', '资源反灌']),
-      '治疗系': Object.freeze(['复苏', '护卫', '驱散增益', '共享视野', '无敌金身', '窃取护盾', '伤害分摊', '资源反灌']),
-      '食物系': Object.freeze(['复苏', '驱散增益', '共享视野', '窃取护盾', '治疗反转', '护卫', '资源反灌']),
+      '控制系': Object.freeze(['封技', '治疗反转', '目标锁定', '缴械', '驱散增益', '嘲讽', '伤害分摊', '状态转移', '吞噬', '机制抹消']),
+      '精神系': Object.freeze(['状态转移', '封技', '治疗反转', '窃取增益', '目标锁定', '隐身', '吞噬', '能力共享', '机制抹消']),
+      '元素系': Object.freeze(['引爆持续伤害', '斩盾', '封技', '治疗反转', '驱散增益', '破隐', '吞噬', '机制抹消']),
+      '辅助系': Object.freeze(['护卫', '复苏', '共享视野', '驱散增益', '窃取护盾', '无敌金身', '伤害分摊', '能力共享']),
+      '治疗系': Object.freeze(['复苏', '护卫', '驱散增益', '共享视野', '无敌金身', '窃取护盾', '伤害分摊', '能力共享']),
+      '食物系': Object.freeze(['复苏', '驱散增益', '共享视野', '窃取护盾', '治疗反转', '护卫', '能力共享']),
     });
     const SKILL_DESIGNER_TARGET_SEMANTICS = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.目标语义表 || {});
+    const BRIDGE_FALLBACK_SKILL_MECHANISM_REGISTRY = Object.freeze({
+      mainArchetypes: SKILL_DESIGNER_MAIN_MECHANIC_POOL,
+      secondaryByMain: SKILL_DESIGNER_SECONDARY_BY_MAIN,
+      secondaryTypeBias: SKILL_DESIGNER_SECONDARY_TYPE_BIAS,
+      机制定义: SKILL_DESIGNER_MECHANISM_META,
+      目标语义表: SKILL_DESIGNER_TARGET_SEMANTICS,
+    });
+    if (!__mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__) {
+      __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__ = BRIDGE_FALLBACK_SKILL_MECHANISM_REGISTRY;
+    }
+    __mvuBridgeRoot.__LWCS_BRIDGE_REGISTRY_SOURCE__ =
+      SHARED_SKILL_MECHANISM_REGISTRY && SHARED_SKILL_MECHANISM_REGISTRY === __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__
+        ? 'shared'
+        : 'bridge_fallback';
+    try {
+      if (window.parent && window.parent !== window && !window.parent.__LWCS_SKILL_MECHANISM_REGISTRY__) {
+        window.parent.__LWCS_SKILL_MECHANISM_REGISTRY__ = __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__;
+      }
+    } catch (error) {}
+    try {
+      if (window.top && window.top !== window && !window.top.__LWCS_SKILL_MECHANISM_REGISTRY__) {
+        window.top.__LWCS_SKILL_MECHANISM_REGISTRY__ = __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__;
+      }
+    } catch (error) {}
     const SKILL_DESIGNER_ALL_SECONDARY_OPTIONS = Object.freeze(
       Array.from(new Set(Object.values(SKILL_DESIGNER_SECONDARY_BY_MAIN).flat())).sort(),
     );
@@ -4182,8 +4215,8 @@
       '引爆持续伤害': Object.freeze({ main: '特殊规则类', sub: '引爆持续伤害', secondary: '引爆持续伤害' }),
       '斩盾': Object.freeze({ main: '特殊规则类', sub: '斩盾', secondary: '斩盾' }),
       '窃取护盾': Object.freeze({ main: '特殊规则类', sub: '窃取护盾', secondary: '窃取护盾' }),
-      '资源夺取': Object.freeze({ main: '特殊规则类', sub: '资源夺取', secondary: '资源夺取' }),
-      '资源反灌': Object.freeze({ main: '特殊规则类', sub: '资源反灌', secondary: '资源反灌' }),
+      '吞噬': Object.freeze({ main: '特殊规则类', sub: '吞噬', secondary: '吞噬' }),
+      '能力共享': Object.freeze({ main: '特殊规则类', sub: '能力共享', secondary: '能力共享' }),
       '机制抹消': Object.freeze({ main: '特殊规则类', sub: '机制抹消', secondary: '机制抹消' }),
       '效果反转': Object.freeze({ main: '特殊规则类', sub: '规则改写' }),
       '伤害转回复': Object.freeze({ main: '特殊规则类', sub: '转化' }),
@@ -4234,8 +4267,8 @@
       '引爆持续伤害': Object.freeze(['引爆持续伤害']),
       '斩盾': Object.freeze(['斩盾']),
       '窃取护盾': Object.freeze(['窃取护盾']),
-      '资源夺取': Object.freeze(['资源夺取']),
-      '资源反灌': Object.freeze(['资源反灌']),
+      '吞噬': Object.freeze(['吞噬']),
+      '能力共享': Object.freeze(['能力共享']),
       '机制抹消': Object.freeze(['机制抹消']),
     });
     const SKILL_DESIGNER_PACKED_PROPERTY_LABELS = Object.freeze({
@@ -4693,8 +4726,8 @@
           return;
         }
 
-        if (mechanism === '资源夺取') {
-          pushParamHint('资源夺取', {
+        if (mechanism === '吞噬') {
+          pushParamHint('吞噬', {
             resourceType: normalizeSkillUiText(effect && effect['资源类型'], '魂力'),
             drainRatio: formatSkillDesignerNumericInput(effect && (effect['夺取比例'] ?? effect['drain_ratio']), 0.18),
             convertRatio: formatSkillDesignerNumericInput(effect && (effect['转化比例'] ?? effect['convert_ratio']), 1),
@@ -4702,8 +4735,8 @@
           return;
         }
 
-        if (mechanism === '资源反灌') {
-          pushParamHint('资源反灌', {
+        if (mechanism === '能力共享') {
+          pushParamHint('能力共享', {
             resourceType: normalizeSkillUiText(effect && effect['资源类型'], '魂力'),
             refeedRatio: formatSkillDesignerNumericInput(effect && (effect['反灌比例'] ?? effect['refeed_ratio']), 0.2),
           });
@@ -6506,16 +6539,16 @@
             createSkillDesignerNumberParam('shieldStealRatio', '窃盾比例', '0.45'),
             createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
           ];
-        case '资源夺取':
+        case '吞噬':
           return [
-            createSkillDesignerSelectParam('resourceType', '夺取资源', SKILL_DESIGNER_PARAM_RESOURCE_TRANSFER_TYPE_OPTIONS),
-            createSkillDesignerNumberParam('drainRatio', '夺取比例', '0.18'),
+            createSkillDesignerSelectParam('resourceType', '吞噬资源', SKILL_DESIGNER_PARAM_RESOURCE_TRANSFER_TYPE_OPTIONS),
+            createSkillDesignerNumberParam('drainRatio', '吞噬比例', '0.18'),
             createSkillDesignerNumberParam('convertRatio', '转化比例', '1.0'),
           ];
-        case '资源反灌':
+        case '能力共享':
           return [
-            createSkillDesignerSelectParam('resourceType', '反灌资源', SKILL_DESIGNER_PARAM_RESOURCE_TRANSFER_TYPE_OPTIONS),
-            createSkillDesignerNumberParam('refeedRatio', '反灌比例', '0.2'),
+            createSkillDesignerSelectParam('resourceType', '共享资源', SKILL_DESIGNER_PARAM_RESOURCE_TRANSFER_TYPE_OPTIONS),
+            createSkillDesignerNumberParam('refeedRatio', '共享比例', '0.2'),
           ];
         case '机制抹消':
           return [
@@ -8083,20 +8116,20 @@
               '窃盾比例': parseSkillDesignerPercentRatio(params['shieldStealRatio'], 0.45),
             }),
           ].filter(effect => safeEntries(effect).length);
-        case '资源夺取':
+        case '吞噬':
           return [
             buildSkillDesignerRuntimeObject({
-              '机制': '资源夺取',
+              '机制': '吞噬',
               '目标': target,
               '资源类型': normalizeSkillUiText(params['resourceType'], '魂力'),
               '夺取比例': parseSkillDesignerPercentRatio(params['drainRatio'], 0.18),
               '转化比例': parseSkillDesignerFactorInputValue(params['convertRatio'], 1),
             }),
           ].filter(effect => safeEntries(effect).length);
-        case '资源反灌':
+        case '能力共享':
           return [
             buildSkillDesignerRuntimeObject({
-              '机制': '资源反灌',
+              '机制': '能力共享',
               '目标': target,
               '资源类型': normalizeSkillUiText(params['resourceType'], '魂力'),
               '反灌比例': parseSkillDesignerPercentRatio(params['refeedRatio'], 0.2),
@@ -8447,18 +8480,18 @@
             '窃盾比例': parseSkillDesignerPercentRatio(params['shieldStealRatio'], 0.45),
           }));
           break;
-        case '资源夺取':
+        case '吞噬':
           effects.push(buildSkillDesignerRuntimeObject({
-            '机制': '资源夺取',
+            '机制': '吞噬',
             '目标': offensiveTarget,
             '资源类型': normalizeSkillUiText(params['resourceType'], '魂力'),
             '夺取比例': parseSkillDesignerPercentRatio(params['drainRatio'], 0.18),
             '转化比例': parseSkillDesignerFactorInputValue(params['convertRatio'], 1),
           }));
           break;
-        case '资源反灌':
+        case '能力共享':
           effects.push(buildSkillDesignerRuntimeObject({
-            '机制': '资源反灌',
+            '机制': '能力共享',
             '目标': grantableTarget,
             '资源类型': normalizeSkillUiText(params['resourceType'], '魂力'),
             '反灌比例': parseSkillDesignerPercentRatio(params['refeedRatio'], 0.2),
@@ -9921,11 +9954,7 @@
       const headerComboHtml = `<span style="opacity:1;font-size:12px;color:#fff;">${worldTimeText}</span><span style="opacity:0.65;font-size:11px;">${snapshot.currentLoc}</span>`;
       setLiveHtml('.header-loc span', headerComboHtml);
       setLiveText('.char-name', snapshot.activeName);
-      setLiveHtml('.archive-split-loc span', headerComboHtml);
-      setLiveText('.archive-split-name-text', snapshot.activeName);
       syncPrivateArchiveLongPressTargets(snapshot);
-      if (splitBottomTime) splitBottomTime.textContent = '';
-      if (splitBottomLoc) splitBottomLoc.textContent = '';
 
       const statusChips = getLiveUiElements('.header-status-row .header-status-chip');
       if (statusChips[0]) setLiveNodeText(statusChips[0].querySelector('span'), `${toText(deepGet(snapshot, 'activeChar.状态.行动', '日常'), '日常')} / ${toText(deepGet(snapshot, 'activeChar.状态.当前领域', '无'), '无')}`);
@@ -10336,7 +10365,7 @@
 
     function syncPrivateArchiveLongPressTargets(snapshot) {
       const enabled = canOpenPrivateArchive(snapshot);
-      getLiveUiElements('.char-name, .archive-split-name-text').forEach(node => {
+      getLiveUiElements('.char-name').forEach(node => {
         setPrivateArchiveLongPressTarget(node, enabled);
       });
       getLiveUiElements('#mvu-unified-mount .mvu-unified-section-title').forEach(node => {
@@ -12966,7 +12995,7 @@
       const latestIntelText = getLatestUnlockedIntelText(snapshot, 12, '暂无');
       const sectionSignatures = precomputedSectionSignatures || buildDashboardSectionRenderSignatures(snapshot);
       const previousSectionSignatures = lastDashboardSectionRenderSignatures || Object.create(null);
-      lastDashboardSectionRenderSignatures = sectionSignatures;
+      renderUnifiedCards(snapshot, sectionSignatures, previousSectionSignatures);
 
       if (sectionSignatures.archive !== previousSectionSignatures.archive) {
         setLiveHtml('[data-preview="生命图谱详细页"].mvu-panel.core-card', buildArchiveCoreCard(snapshot));
@@ -13076,7 +13105,7 @@
           </div>
         `);
       }
-      renderUnifiedCards(snapshot, sectionSignatures, previousSectionSignatures);
+      lastDashboardSectionRenderSignatures = sectionSignatures;
     }
 
     function buildLiveArchiveModal(previewKey) {
@@ -17155,6 +17184,927 @@
     };
     window.__MVU_APPLY_PATCHES__ = (patches, options = {}) => applyJsonPatchOpsByEditor(patches, options);
 
+    function createSkillFixtureSystemBase(target = '敌方/单体', skillSource = '自创魂技') {
+      return {
+        机制: '系统基础',
+        技能来源: skillSource,
+        技能类型: skillSource,
+        对象: target,
+        cast_time: 10,
+        消耗: '无',
+      };
+    }
+
+    function 构建技能夹具恢复描述列表(根数据 = {}, 补丁列表 = []) {
+      const 恢复映射 = new Map();
+      (Array.isArray(补丁列表) ? 补丁列表 : []).forEach(patch => {
+        const 指针路径 = String(patch && patch.path || '').trim();
+        if (!指针路径 || 恢复映射.has(指针路径)) return;
+        const 解码路径 = decodeJsonPointerPath(指针路径);
+        if (!解码路径.length) return;
+        const 原始值 = deepGet(根数据, 解码路径);
+        恢复映射.set(指针路径, {
+          path: 指针路径,
+          depth: 解码路径.length,
+          existed: 原始值 !== undefined,
+          value: cloneJsonValue(原始值, 原始值),
+        });
+      });
+      return Array.from(恢复映射.values());
+    }
+
+    function 构建技能夹具恢复补丁(恢复描述列表 = []) {
+      return [...(Array.isArray(恢复描述列表) ? 恢复描述列表 : [])]
+        .sort((left, right) => Number(right && right.depth || 0) - Number(left && left.depth || 0))
+        .map(descriptor =>
+          descriptor && descriptor.existed
+            ? { op: 'replace', path: descriptor.path, value: cloneJsonValue(descriptor.value, descriptor.value) }
+            : { op: 'remove', path: descriptor && descriptor.path || '' });
+    }
+
+    function 收集技能夹具状态差异(前状态 = {}, 后状态 = {}) {
+      const 前状态键 = Object.keys(前状态 && typeof 前状态 === 'object' ? 前状态 : {});
+      const 后状态键 = Object.keys(后状态 && typeof 后状态 === 'object' ? 后状态 : {});
+      const 前状态集合 = new Set(前状态键);
+      const 后状态集合 = new Set(后状态键);
+      return {
+        新增: 后状态键.filter(key => !前状态集合.has(key)),
+        移除: 前状态键.filter(key => !后状态集合.has(key)),
+        保留: 后状态键.filter(key => 前状态集合.has(key)),
+      };
+    }
+
+    function 汇总技能夹具执行结果(夹具配置, 执行结果, 玩家名 = '') {
+      const 前快照 = 执行结果 && 执行结果.beforeSnapshot || {};
+      const 后快照 = 执行结果 && 执行结果.afterSnapshot || {};
+      const 标准玩家名 = toText(玩家名, '').trim();
+      const 标准目标名 = toText(夹具配置 && 夹具配置.targetName, '').trim();
+      const 读取角色属性 = (快照数据, 角色名) =>
+        cloneJsonValue(deepGet(快照数据, ['rootData', 'char', 角色名, '属性'], {}), {});
+      const 玩家前属性 = 标准玩家名 ? 读取角色属性(前快照, 标准玩家名) : {};
+      const 玩家后属性 = 标准玩家名 ? 读取角色属性(后快照, 标准玩家名) : {};
+      const 目标前属性 = 标准目标名 ? 读取角色属性(前快照, 标准目标名) : {};
+      const 目标后属性 = 标准目标名 ? 读取角色属性(后快照, 标准目标名) : {};
+      const 玩家状态差异 = 收集技能夹具状态差异(玩家前属性.状态效果 || {}, 玩家后属性.状态效果 || {});
+      const 目标状态差异 = 收集技能夹具状态差异(目标前属性.状态效果 || {}, 目标后属性.状态效果 || {});
+      return {
+        玩家名: 标准玩家名,
+        目标名: 标准目标名,
+        玩家资源变化: {
+          体力: Number(玩家后属性.体力 || 0) - Number(玩家前属性.体力 || 0),
+          魂力: Number(玩家后属性.魂力 || 0) - Number(玩家前属性.魂力 || 0),
+          精神力: Number(玩家后属性.精神力 || 0) - Number(玩家前属性.精神力 || 0),
+        },
+        目标资源变化: {
+          体力: Number(目标后属性.体力 || 0) - Number(目标前属性.体力 || 0),
+          魂力: Number(目标后属性.魂力 || 0) - Number(目标前属性.魂力 || 0),
+          精神力: Number(目标后属性.精神力 || 0) - Number(目标前属性.精神力 || 0),
+        },
+        玩家状态变化: 玩家状态差异,
+        目标状态变化: 目标状态差异,
+        补丁数量: Array.isArray(执行结果 && 执行结果.mvuUpdate && 执行结果.mvuUpdate.patchOps)
+          ? 执行结果.mvuUpdate.patchOps.length
+          : 0,
+        动作来源: toText(执行结果 && 执行结果.action && 执行结果.action.source, ''),
+        提交模式: toText(执行结果 && 执行结果.result && 执行结果.result.mode, ''),
+      };
+    }
+
+    function 校验技能夹具摘要(夹具配置, 摘要) {
+      const 预期 = 夹具配置 && 夹具配置.预期 && typeof 夹具配置.预期 === 'object' ? 夹具配置.预期 : {};
+      const 检查项 = [];
+      const 追加检查 = (label, passed, detail) => {
+        检查项.push({ 项目: label, 通过: !!passed, 详情: detail });
+      };
+      const 目标移除状态 = Array.isArray(预期.目标移除状态) ? 预期.目标移除状态 : [];
+      目标移除状态.forEach(stateName => {
+        追加检查(
+          `目标移除状态:${stateName}`,
+          (摘要 && 摘要.目标状态变化 && 摘要.目标状态变化.移除 || []).includes(stateName),
+          `移除=${(摘要 && 摘要.目标状态变化 && 摘要.目标状态变化.移除 || []).join(' / ') || '无'}`,
+        );
+      });
+      const 目标新增状态 = Array.isArray(预期.目标新增状态) ? 预期.目标新增状态 : [];
+      目标新增状态.forEach(stateName => {
+        追加检查(
+          `目标新增状态:${stateName}`,
+          (摘要 && 摘要.目标状态变化 && 摘要.目标状态变化.新增 || []).includes(stateName),
+          `新增=${(摘要 && 摘要.目标状态变化 && 摘要.目标状态变化.新增 || []).join(' / ') || '无'}`,
+        );
+      });
+      const 玩家移除状态 = Array.isArray(预期.玩家移除状态) ? 预期.玩家移除状态 : [];
+      玩家移除状态.forEach(stateName => {
+        追加检查(
+          `玩家移除状态:${stateName}`,
+          (摘要 && 摘要.玩家状态变化 && 摘要.玩家状态变化.移除 || []).includes(stateName),
+          `移除=${(摘要 && 摘要.玩家状态变化 && 摘要.玩家状态变化.移除 || []).join(' / ') || '无'}`,
+        );
+      });
+      const 玩家新增状态 = Array.isArray(预期.玩家新增状态) ? 预期.玩家新增状态 : [];
+      玩家新增状态.forEach(stateName => {
+        追加检查(
+          `玩家新增状态:${stateName}`,
+          (摘要 && 摘要.玩家状态变化 && 摘要.玩家状态变化.新增 || []).includes(stateName),
+          `新增=${(摘要 && 摘要.玩家状态变化 && 摘要.玩家状态变化.新增 || []).join(' / ') || '无'}`,
+        );
+      });
+      const 玩家魂力至少变化 = Number(预期.玩家魂力至少变化);
+      if (Number.isFinite(玩家魂力至少变化)) {
+        追加检查(
+          '玩家魂力至少变化',
+          Number(摘要 && 摘要.玩家资源变化 && 摘要.玩家资源变化.魂力 || 0) >= 玩家魂力至少变化,
+          `期望>=${玩家魂力至少变化} / 实际=${Number(摘要 && 摘要.玩家资源变化 && 摘要.玩家资源变化.魂力 || 0)}`,
+        );
+      }
+      const 玩家魂力至多变化 = Number(预期.玩家魂力至多变化);
+      if (Number.isFinite(玩家魂力至多变化)) {
+        追加检查(
+          '玩家魂力至多变化',
+          Number(摘要 && 摘要.玩家资源变化 && 摘要.玩家资源变化.魂力 || 0) <= 玩家魂力至多变化,
+          `期望<=${玩家魂力至多变化} / 实际=${Number(摘要 && 摘要.玩家资源变化 && 摘要.玩家资源变化.魂力 || 0)}`,
+        );
+      }
+      const 玩家精神力至少变化 = Number(预期.玩家精神力至少变化);
+      if (Number.isFinite(玩家精神力至少变化)) {
+        追加检查(
+          '玩家精神力至少变化',
+          Number(摘要 && 摘要.玩家资源变化 && 摘要.玩家资源变化.精神力 || 0) >= 玩家精神力至少变化,
+          `期望>=${玩家精神力至少变化} / 实际=${Number(摘要 && 摘要.玩家资源变化 && 摘要.玩家资源变化.精神力 || 0)}`,
+        );
+      }
+      const 玩家精神力至多变化 = Number(预期.玩家精神力至多变化);
+      if (Number.isFinite(玩家精神力至多变化)) {
+        追加检查(
+          '玩家精神力至多变化',
+          Number(摘要 && 摘要.玩家资源变化 && 摘要.玩家资源变化.精神力 || 0) <= 玩家精神力至多变化,
+          `期望<=${玩家精神力至多变化} / 实际=${Number(摘要 && 摘要.玩家资源变化 && 摘要.玩家资源变化.精神力 || 0)}`,
+        );
+      }
+      if (预期.要求补丁输出 === true) {
+        追加检查(
+          '要求补丁输出',
+          Number(摘要 && 摘要.补丁数量 || 0) > 0,
+          `补丁数量=${Number(摘要 && 摘要.补丁数量 || 0)}`,
+        );
+      }
+      const 目标体力至少减少 = Number(预期.目标体力至少减少);
+      if (Number.isFinite(目标体力至少减少)) {
+        const 实际减少值 = Math.max(0, -Number(摘要 && 摘要.目标资源变化 && 摘要.目标资源变化.体力 || 0));
+        追加检查(
+          '目标体力至少减少',
+          实际减少值 >= 目标体力至少减少,
+          `期望>=${目标体力至少减少} / 实际=${实际减少值}`,
+        );
+      }
+      return {
+        通过: 检查项.every(item => item.通过),
+        检查项,
+      };
+    }
+
+    function createSkillFixtureLibrary() {
+      return Object.freeze({
+        吞噬: Object.freeze({
+          skillName: '夹具_吞噬',
+          targetName: '云冥',
+          battle: Object.freeze({
+            进行中: true,
+            战斗类型: '擂台切磋',
+            战斗意图: '点到为止',
+            先攻: '无',
+            允许撤离: true,
+            回合: 0,
+            环境: '固定夹具场',
+            裁断结果: '',
+            参战者: Object.freeze({
+              player: Object.freeze({ name: '曹德智' }),
+              enemy: Object.freeze({ name: '云冥' }),
+              team_player: Object.freeze([]),
+              team_enemy: Object.freeze([]),
+            }),
+          }),
+          patchesBefore: Object.freeze([
+            { op: 'replace', path: '/char/曹德智/属性/魂力上限', value: 100 },
+            { op: 'replace', path: '/char/曹德智/属性/魂力', value: 0 },
+            { op: 'replace', path: '/char/曹德智/属性/精神力上限', value: 100 },
+            { op: 'replace', path: '/char/曹德智/属性/精神力', value: 0 },
+            { op: 'replace', path: '/char/云冥/属性/魂力上限', value: 100 },
+            { op: 'replace', path: '/char/云冥/属性/魂力', value: 50 },
+            { op: 'replace', path: '/char/云冥/属性/精神力上限', value: 100 },
+            { op: 'replace', path: '/char/云冥/属性/精神力', value: 50 },
+          ]),
+          skillData: Object.freeze({
+            name: '夹具_吞噬',
+            魂技名: '夹具_吞噬',
+            技能来源: '自创魂技',
+            技能类型: '自创魂技',
+            对象: '敌方单体',
+            消耗: '无',
+            _效果数组: Object.freeze([
+              createSkillFixtureSystemBase('敌方/单体'),
+              Object.freeze({ 机制: '吞噬', 目标: '敌方单体', 资源类型: '双资源', 夺取比例: 0.18, 转化比例: 1 }),
+            ]),
+          }),
+          预期: Object.freeze({
+            玩家魂力至少变化: 1,
+            玩家精神力至少变化: 1,
+            要求补丁输出: true,
+          }),
+        }),
+        能力共享: Object.freeze({
+          skillName: '夹具_能力共享',
+          targetName: '曹德智',
+          battle: Object.freeze({
+            进行中: true,
+            战斗类型: '擂台切磋',
+            战斗意图: '点到为止',
+            先攻: '无',
+            允许撤离: true,
+            回合: 0,
+            环境: '固定夹具场',
+            裁断结果: '',
+            参战者: Object.freeze({
+              player: Object.freeze({ name: '曹德智' }),
+              enemy: Object.freeze({ name: '云冥' }),
+              team_player: Object.freeze([]),
+              team_enemy: Object.freeze([]),
+            }),
+          }),
+          patchesBefore: Object.freeze([
+            { op: 'replace', path: '/char/曹德智/属性/魂力上限', value: 100 },
+            { op: 'replace', path: '/char/曹德智/属性/魂力', value: 0 },
+            { op: 'replace', path: '/char/曹德智/属性/精神力上限', value: 100 },
+            { op: 'replace', path: '/char/曹德智/属性/精神力', value: 0 },
+          ]),
+          skillData: Object.freeze({
+            name: '夹具_能力共享',
+            魂技名: '夹具_能力共享',
+            技能来源: '自创魂技',
+            技能类型: '自创魂技',
+            对象: '友方单体',
+            消耗: '无',
+            _效果数组: Object.freeze([
+              createSkillFixtureSystemBase('己方/单体'),
+              Object.freeze({ 机制: '能力共享', 目标: '友方单体', 资源类型: '双资源', 反灌比例: 0.2 }),
+            ]),
+          }),
+          预期: Object.freeze({
+            玩家魂力至少变化: 1,
+            玩家精神力至少变化: 1,
+            要求补丁输出: true,
+          }),
+        }),
+        机制抹消_复苏: Object.freeze({
+          skillName: '夹具_机制抹消_复苏',
+          targetName: '云冥',
+          battle: Object.freeze({
+            进行中: true,
+            战斗类型: '擂台切磋',
+            战斗意图: '点到为止',
+            先攻: '无',
+            允许撤离: true,
+            回合: 0,
+            环境: '固定夹具场',
+            裁断结果: '',
+            参战者: Object.freeze({
+              player: Object.freeze({ name: '曹德智' }),
+              enemy: Object.freeze({ name: '云冥' }),
+              team_player: Object.freeze([]),
+              team_enemy: Object.freeze([]),
+            }),
+          }),
+          patchesBefore: Object.freeze([
+            {
+              op: 'replace',
+              path: '/char/云冥/属性/状态效果',
+              value: {
+                复苏护符: {
+                  类型: 'buff',
+                  层数: 1,
+                  描述: '夹具复苏',
+                  duration: 3,
+                  面板修改比例: { str: 1, def: 1, agi: 1, sp_max: 1 },
+                  战斗效果: { revive_count: 1, revive_heal_ratio: 0.25 },
+                },
+              },
+            },
+          ]),
+          skillData: Object.freeze({
+            name: '夹具_机制抹消_复苏',
+            魂技名: '夹具_机制抹消_复苏',
+            技能来源: '自创魂技',
+            技能类型: '自创魂技',
+            对象: '敌方单体',
+            消耗: '无',
+            _效果数组: Object.freeze([
+              createSkillFixtureSystemBase('敌方/单体'),
+              Object.freeze({ 机制: '机制抹消', 目标: '敌方单体', 抹消目标: '复苏', 抹消方式: '移除并封锁', 持续回合: 2 }),
+            ]),
+          }),
+          预期: Object.freeze({
+            目标移除状态: Object.freeze(['复苏护符']),
+            目标新增状态: Object.freeze(['机制抹消']),
+            要求补丁输出: true,
+          }),
+        }),
+        机制抹消_回复机制: Object.freeze({
+          skillName: '夹具_能力共享',
+          targetName: '曹德智',
+          battle: Object.freeze({
+            进行中: true,
+            战斗类型: '擂台切磋',
+            战斗意图: '点到为止',
+            先攻: '无',
+            允许撤离: true,
+            回合: 0,
+            环境: '固定夹具场',
+            裁断结果: '',
+            参战者: Object.freeze({
+              player: Object.freeze({ name: '曹德智' }),
+              enemy: Object.freeze({ name: '云冥' }),
+              team_player: Object.freeze([]),
+              team_enemy: Object.freeze([]),
+            }),
+          }),
+          patchesBefore: Object.freeze([
+            { op: 'replace', path: '/char/曹德智/属性/魂力上限', value: 100 },
+            { op: 'replace', path: '/char/曹德智/属性/魂力', value: 0 },
+            { op: 'replace', path: '/char/曹德智/属性/精神力上限', value: 100 },
+            { op: 'replace', path: '/char/曹德智/属性/精神力', value: 0 },
+            {
+              op: 'replace',
+              path: '/char/曹德智/属性/状态效果',
+              value: {
+                回复封锁: {
+                  类型: 'debuff',
+                  层数: 1,
+                  描述: '夹具回复抹消',
+                  duration: 2,
+                  机制抹消目标: ['回复机制'],
+                  机制抹消方式: '仅封锁后续',
+                  面板修改比例: { str: 1, def: 1, agi: 1, sp_max: 1 },
+                  战斗效果: {},
+                },
+              },
+            },
+          ]),
+          skillData: Object.freeze({
+            name: '夹具_能力共享',
+            魂技名: '夹具_能力共享',
+            技能来源: '自创魂技',
+            技能类型: '自创魂技',
+            对象: '友方单体',
+            消耗: '无',
+            _效果数组: Object.freeze([
+              createSkillFixtureSystemBase('己方/单体'),
+              Object.freeze({ 机制: '能力共享', 目标: '友方单体', 资源类型: '双资源', 反灌比例: 0.2 }),
+            ]),
+          }),
+          预期: Object.freeze({
+            玩家魂力至多变化: 5,
+            玩家精神力至多变化: 5,
+            要求补丁输出: true,
+          }),
+        }),
+        机制抹消_护盾: Object.freeze({
+          skillName: '夹具_机制抹消_护盾',
+          targetName: '云冥',
+          battle: Object.freeze({
+            进行中: true,
+            战斗类型: '擂台切磋',
+            战斗意图: '点到为止',
+            先攻: '无',
+            允许撤离: true,
+            回合: 0,
+            环境: '固定夹具场',
+            裁断结果: '',
+            参战者: Object.freeze({
+              player: Object.freeze({ name: '曹德智' }),
+              enemy: Object.freeze({ name: '云冥' }),
+              team_player: Object.freeze([]),
+              team_enemy: Object.freeze([]),
+            }),
+          }),
+          patchesBefore: Object.freeze([
+            {
+              op: 'replace',
+              path: '/char/云冥/属性/状态效果',
+              value: {
+                圣光护盾: {
+                  类型: 'buff',
+                  层数: 1,
+                  描述: '夹具护盾',
+                  duration: 3,
+                  shield_value: 180,
+                  面板修改比例: { str: 1, def: 1, agi: 1, sp_max: 1 },
+                  战斗效果: { shield_gain_bonus: 0 },
+                },
+              },
+            },
+          ]),
+          skillData: Object.freeze({
+            name: '夹具_机制抹消_护盾',
+            魂技名: '夹具_机制抹消_护盾',
+            技能来源: '自创魂技',
+            技能类型: '自创魂技',
+            对象: '敌方单体',
+            消耗: '无',
+            _效果数组: Object.freeze([
+              createSkillFixtureSystemBase('敌方/单体'),
+              Object.freeze({ 机制: '机制抹消', 目标: '敌方单体', 抹消目标: '护盾', 抹消方式: '移除并封锁', 持续回合: 2 }),
+            ]),
+          }),
+          预期: Object.freeze({
+            目标移除状态: Object.freeze(['圣光护盾']),
+            目标新增状态: Object.freeze(['机制抹消']),
+            要求补丁输出: true,
+          }),
+        }),
+        机制抹消_隐身: Object.freeze({
+          skillName: '夹具_机制抹消_隐身',
+          targetName: '云冥',
+          battle: Object.freeze({
+            进行中: true,
+            战斗类型: '擂台切磋',
+            战斗意图: '点到为止',
+            先攻: '无',
+            允许撤离: true,
+            回合: 0,
+            环境: '固定夹具场',
+            裁断结果: '',
+            参战者: Object.freeze({
+              player: Object.freeze({ name: '曹德智' }),
+              enemy: Object.freeze({ name: '云冥' }),
+              team_player: Object.freeze([]),
+              team_enemy: Object.freeze([]),
+            }),
+          }),
+          patchesBefore: Object.freeze([
+            {
+              op: 'replace',
+              path: '/char/云冥/属性/状态效果',
+              value: {
+                潜影隐身: {
+                  类型: 'buff',
+                  层数: 1,
+                  描述: '夹具隐身',
+                  duration: 3,
+                  面板修改比例: { str: 1, def: 1, agi: 1, sp_max: 1 },
+                  战斗效果: { stealth_level: 80, dodge_bonus: 0.1 },
+                },
+              },
+            },
+          ]),
+          skillData: Object.freeze({
+            name: '夹具_机制抹消_隐身',
+            魂技名: '夹具_机制抹消_隐身',
+            技能来源: '自创魂技',
+            技能类型: '自创魂技',
+            对象: '敌方单体',
+            消耗: '无',
+            _效果数组: Object.freeze([
+              createSkillFixtureSystemBase('敌方/单体'),
+              Object.freeze({ 机制: '机制抹消', 目标: '敌方单体', 抹消目标: '隐身', 抹消方式: '移除并封锁', 持续回合: 2 }),
+            ]),
+          }),
+          预期: Object.freeze({
+            目标移除状态: Object.freeze(['潜影隐身']),
+            目标新增状态: Object.freeze(['机制抹消']),
+            要求补丁输出: true,
+          }),
+        }),
+        状态转移: Object.freeze({
+          skillName: '夹具_状态转移',
+          targetName: '云冥',
+          battle: Object.freeze({
+            进行中: true,
+            战斗类型: '擂台切磋',
+            战斗意图: '点到为止',
+            先攻: '无',
+            允许撤离: true,
+            回合: 0,
+            环境: '固定夹具场',
+            裁断结果: '',
+            参战者: Object.freeze({
+              player: Object.freeze({ name: '曹德智' }),
+              enemy: Object.freeze({ name: '云冥' }),
+              team_player: Object.freeze([]),
+              team_enemy: Object.freeze([]),
+            }),
+          }),
+          patchesBefore: Object.freeze([
+            {
+              op: 'replace',
+              path: '/char/曹德智/属性/状态效果',
+              value: {
+                迟缓诅咒: {
+                  类型: 'debuff',
+                  层数: 1,
+                  描述: '夹具负面状态',
+                  duration: 2,
+                  面板修改比例: { str: 1, def: 1, agi: 0.85, sp_max: 1 },
+                  战斗效果: { dodge_penalty: 0.18, cast_speed_penalty: 0.12 },
+                },
+              },
+            },
+          ]),
+          skillData: Object.freeze({
+            name: '夹具_状态转移',
+            魂技名: '夹具_状态转移',
+            技能来源: '自创魂技',
+            技能类型: '自创魂技',
+            对象: '敌方单体',
+            消耗: '无',
+            _效果数组: Object.freeze([
+              createSkillFixtureSystemBase('敌方/单体'),
+              Object.freeze({ 机制: '状态转移', 目标: '敌方单体', 转移类型: '自身负面->目标', 转移数量: 1, 触发条件: '命中后' }),
+            ]),
+          }),
+          预期: Object.freeze({
+            玩家移除状态: Object.freeze(['迟缓诅咒']),
+            目标新增状态: Object.freeze(['迟缓诅咒']),
+            要求补丁输出: true,
+          }),
+        }),
+        引爆持续伤害: Object.freeze({
+          skillName: '夹具_引爆持续伤害',
+          targetName: '云冥',
+          battle: Object.freeze({
+            进行中: true,
+            战斗类型: '擂台切磋',
+            战斗意图: '点到为止',
+            先攻: '无',
+            允许撤离: true,
+            回合: 0,
+            环境: '固定夹具场',
+            裁断结果: '',
+            参战者: Object.freeze({
+              player: Object.freeze({ name: '曹德智' }),
+              enemy: Object.freeze({ name: '云冥' }),
+              team_player: Object.freeze([]),
+              team_enemy: Object.freeze([]),
+            }),
+          }),
+          patchesBefore: Object.freeze([
+            { op: 'replace', path: '/char/云冥/属性/体力上限', value: 200 },
+            { op: 'replace', path: '/char/云冥/属性/体力', value: 200 },
+            {
+              op: 'replace',
+              path: '/char/云冥/属性/状态效果',
+              value: {
+                火毒灼烧: {
+                  类型: 'debuff',
+                  层数: 1,
+                  描述: '夹具持续伤害',
+                  duration: 3,
+                  面板修改比例: { str: 1, def: 1, agi: 1, sp_max: 1 },
+                  战斗效果: { dot_damage: 36 },
+                },
+              },
+            },
+          ]),
+          skillData: Object.freeze({
+            name: '夹具_引爆持续伤害',
+            魂技名: '夹具_引爆持续伤害',
+            技能来源: '自创魂技',
+            技能类型: '自创魂技',
+            对象: '敌方单体',
+            消耗: '无',
+            _效果数组: Object.freeze([
+              createSkillFixtureSystemBase('敌方/单体'),
+              Object.freeze({ 机制: '引爆持续伤害', 目标: '敌方单体', 引爆倍率: 2, 消耗持续伤害: true }),
+            ]),
+          }),
+          预期: Object.freeze({
+            目标移除状态: Object.freeze(['火毒灼烧']),
+            目标体力至少减少: 1,
+            要求补丁输出: true,
+          }),
+        }),
+        斩盾: Object.freeze({
+          skillName: '夹具_斩盾',
+          targetName: '云冥',
+          battle: Object.freeze({
+            进行中: true,
+            战斗类型: '擂台切磋',
+            战斗意图: '点到为止',
+            先攻: '无',
+            允许撤离: true,
+            回合: 0,
+            环境: '固定夹具场',
+            裁断结果: '',
+            参战者: Object.freeze({
+              player: Object.freeze({ name: '曹德智' }),
+              enemy: Object.freeze({ name: '云冥' }),
+              team_player: Object.freeze([]),
+              team_enemy: Object.freeze([]),
+            }),
+          }),
+          patchesBefore: Object.freeze([
+            { op: 'replace', path: '/char/云冥/属性/体力上限', value: 200 },
+            { op: 'replace', path: '/char/云冥/属性/体力', value: 200 },
+            {
+              op: 'replace',
+              path: '/char/云冥/属性/状态效果',
+              value: {
+                灵壁护盾: {
+                  类型: 'buff',
+                  层数: 1,
+                  描述: '夹具护盾层',
+                  duration: 2,
+                  shield_value: 160,
+                  面板修改比例: { str: 1, def: 1, agi: 1, sp_max: 1 },
+                  战斗效果: {},
+                },
+              },
+            },
+          ]),
+          skillData: Object.freeze({
+            name: '夹具_斩盾',
+            魂技名: '夹具_斩盾',
+            技能来源: '自创魂技',
+            技能类型: '自创魂技',
+            对象: '敌方单体',
+            消耗: '无',
+            _效果数组: Object.freeze([
+              createSkillFixtureSystemBase('敌方/单体'),
+              Object.freeze({ 机制: '斩盾', 目标: '敌方单体', 斩盾倍率: 1 }),
+            ]),
+          }),
+          预期: Object.freeze({
+            目标移除状态: Object.freeze(['灵壁护盾']),
+            目标体力至少减少: 1,
+            要求补丁输出: true,
+          }),
+        }),
+        窃取护盾: Object.freeze({
+          skillName: '夹具_窃取护盾',
+          targetName: '云冥',
+          battle: Object.freeze({
+            进行中: true,
+            战斗类型: '擂台切磋',
+            战斗意图: '点到为止',
+            先攻: '无',
+            允许撤离: true,
+            回合: 0,
+            环境: '固定夹具场',
+            裁断结果: '',
+            参战者: Object.freeze({
+              player: Object.freeze({ name: '曹德智' }),
+              enemy: Object.freeze({ name: '云冥' }),
+              team_player: Object.freeze([]),
+              team_enemy: Object.freeze([]),
+            }),
+          }),
+          patchesBefore: Object.freeze([
+            {
+              op: 'replace',
+              path: '/char/云冥/属性/状态效果',
+              value: {
+                玄盾壁垒: {
+                  类型: 'buff',
+                  层数: 1,
+                  描述: '夹具可窃护盾',
+                  duration: 2,
+                  shield_value: 120,
+                  面板修改比例: { str: 1, def: 1, agi: 1, sp_max: 1 },
+                  战斗效果: {},
+                },
+              },
+            },
+          ]),
+          skillData: Object.freeze({
+            name: '夹具_窃取护盾',
+            魂技名: '夹具_窃取护盾',
+            技能来源: '自创魂技',
+            技能类型: '自创魂技',
+            对象: '敌方单体',
+            消耗: '无',
+            _效果数组: Object.freeze([
+              createSkillFixtureSystemBase('敌方/单体'),
+              Object.freeze({ 机制: '窃取护盾', 目标: '敌方单体', 窃盾比例: 1, 持续回合: 2 }),
+            ]),
+          }),
+          预期: Object.freeze({
+            目标移除状态: Object.freeze(['玄盾壁垒']),
+            玩家新增状态: Object.freeze(['夹具_窃取护盾窃盾']),
+            要求补丁输出: true,
+          }),
+        }),
+      });
+    }
+
+    function buildSkillCoverageMatrix() {
+      return Object.freeze({
+        已验证夹具: Object.freeze([
+          { 类目: '资源', 机制: Object.freeze(['吞噬', '能力共享']), 状态: '已验证' },
+          { 类目: '通用反制', 机制: Object.freeze(['机制抹消']), 状态: '已验证' },
+          { 类目: '状态博弈', 机制: Object.freeze(['状态转移']), 状态: '已验证' },
+          { 类目: '持续伤害', 机制: Object.freeze(['引爆持续伤害']), 状态: '已验证' },
+          { 类目: '护盾博弈', 机制: Object.freeze(['斩盾', '窃取护盾']), 状态: '已验证' },
+        ]),
+        当前缺口: Object.freeze([
+          { 类目: '链接', 状态: '缺失', 机制: Object.freeze(['伤害链', '生命链接']) },
+          { 类目: '场地', 状态: '部分实现', 机制: Object.freeze(['召唤与场地']) },
+          { 类目: '持续层数操控', 状态: '缺失', 机制: Object.freeze(['延长持续伤害', '压缩持续伤害', '拆层转存']) },
+          { 类目: '资源规则', 状态: '缺失', 机制: Object.freeze(['资源燃烧', '资源锁定']) },
+        ]),
+      });
+    }
+
+    window.__LWCS_SKILL_FIXTURE_LIBRARY__ = createSkillFixtureLibrary();
+    window.__LWCS_SKILL_COVERAGE_MATRIX__ = buildSkillCoverageMatrix();
+    window.__LWCS_GET_SKILL_COVERAGE_MATRIX__ = () => window.__LWCS_SKILL_COVERAGE_MATRIX__;
+    window.__LWCS_LIST_SKILL_FIXTURES__ = () => Object.keys(window.__LWCS_SKILL_FIXTURE_LIBRARY__ || {});
+    window.__LWCS_RUN_SKILL_FIXTURE__ = async function runSkillFixture(fixtureKeyOrConfig, options = {}) {
+      const fixtureLibrary = window.__LWCS_SKILL_FIXTURE_LIBRARY__ || {};
+      const fixture =
+        typeof fixtureKeyOrConfig === 'string'
+          ? fixtureLibrary[fixtureKeyOrConfig]
+          : fixtureKeyOrConfig && typeof fixtureKeyOrConfig === 'object'
+            ? fixtureKeyOrConfig
+            : null;
+      if (!fixture || typeof fixture !== 'object') throw new Error('skill_fixture_missing');
+
+      await refreshLiveSnapshot({ force: true });
+      const snapshot = liveSnapshot || lastRenderableSnapshot;
+      if (!snapshot?.rootData) throw new Error('skill_fixture_snapshot_missing');
+      syncMvuEditorStoreFromRoot(snapshot.rootData, { force: true });
+      const playerName = toText(options.playerName, toText(snapshot.activeName, '曹德智')) || '曹德智';
+      const fixtureTargetName = toText(fixture.targetName, '').trim();
+      const battleData = cloneJsonValue(fixture.battle, {});
+      if (battleData?.参战者?.player) battleData.参战者.player.name = playerName;
+
+      const patches = [
+        { op: 'replace', path: `/char/${playerName}/自创魂技`, value: { [fixture.skillName || fixture.skillData?.name || '夹具技能']: cloneJsonValue(fixture.skillData, {}) } },
+        ...(Array.isArray(fixture.patchesBefore) ? fixture.patchesBefore : []),
+        { op: 'replace', path: '/world/战斗', value: battleData },
+      ];
+      const 恢复基线路径补丁 = [
+        { op: 'replace', path: `/char/${playerName}/属性` },
+        { op: 'replace', path: `/char/${playerName}/决策记忆` },
+        { op: 'replace', path: '/world/战斗' },
+      ];
+      if (fixtureTargetName) {
+        恢复基线路径补丁.push({ op: 'replace', path: `/char/${fixtureTargetName}/属性` });
+        恢复基线路径补丁.push({ op: 'replace', path: `/char/${fixtureTargetName}/决策记忆` });
+      }
+      const 恢复描述列表 = 构建技能夹具恢复描述列表(snapshot.rootData, [...patches, ...恢复基线路径补丁]);
+
+      const originalSendToAI = window.sendToAI;
+      try {
+        if (typeof window.__MVU_CLOSE_DETAIL_MODAL__ === 'function') {
+          try { window.__MVU_CLOSE_DETAIL_MODAL__(); } catch (error) {}
+        }
+        await applyJsonPatchOpsByEditor(patches, { force: true });
+        await refreshLiveSnapshot({ force: true });
+        await window.__MVU_OPEN_BATTLE_UI__();
+        await new Promise(resolve => setTimeout(resolve, Number(options.waitMs || 220)));
+        const actionName = String(fixture.skillName || fixture.skillData?.name || '').trim();
+        const action = (window.BattleUI?.state?.availableActions || []).find(item => String(item?.name || '').trim() === actionName) || null;
+        if (!action) throw new Error('skill_fixture_action_missing');
+        if (fixtureTargetName) action.target_name = fixtureTargetName;
+
+        window.sendToAI = () => ({ blocked: true, offline: true });
+        const beforeSnapshot = cloneJsonValue(window.__MVU_GET_LIVE_SNAPSHOT__?.(), {});
+        window.BattleUI.state.selectedAction = action;
+        window.BattleUI.state.selectedSkillActions = [action];
+        const result = window.BattleUI.submitBattleIntent();
+        await new Promise(resolve => setTimeout(resolve, Number(options.settleWaitMs || 320)));
+        const afterSnapshot = cloneJsonValue(window.__MVU_GET_LIVE_SNAPSHOT__?.(), {});
+        const mvuUpdate = window.BattleUIBridge?.getLastMvuUpdateRequest?.() || null;
+        const 摘要 = 汇总技能夹具执行结果(fixture, { beforeSnapshot, afterSnapshot, action, result, mvuUpdate }, playerName);
+        const 校验 = 校验技能夹具摘要(fixture, 摘要);
+        return {
+          key: typeof fixtureKeyOrConfig === 'string' ? fixtureKeyOrConfig : '',
+          action: { id: action.id, name: action.name, category: action.category, source: action.source_detail || action.source || '' },
+          result,
+          beforeSnapshot,
+          afterSnapshot,
+          mvuUpdate,
+          summary: 摘要,
+          validation: 校验,
+        };
+      } finally {
+        window.sendToAI = originalSendToAI;
+        await applyJsonPatchOpsByEditor(构建技能夹具恢复补丁(恢复描述列表), { force: true });
+        await refreshLiveSnapshot({ force: true });
+        if (liveSnapshot?.rootData) syncMvuEditorStoreFromRoot(liveSnapshot.rootData, { force: true });
+        if (typeof window.__MVU_CLOSE_DETAIL_MODAL__ === 'function') {
+          try { window.__MVU_CLOSE_DETAIL_MODAL__(); } catch (error) {}
+        }
+      }
+    };
+    window.__LWCS_RUN_SKILL_FIXTURE_BATCH__ = async function runSkillFixtureBatch(夹具键列表 = [], options = {}) {
+      const fixtureLibrary = window.__LWCS_SKILL_FIXTURE_LIBRARY__ || {};
+      const 待运行键列表 = Array.isArray(夹具键列表) && 夹具键列表.length ? 夹具键列表 : Object.keys(fixtureLibrary);
+      const 结果项列表 = [];
+      const 最大重试次数 = Math.max(0, Number(options?.retryCount ?? 1));
+      for (const fixtureKey of 待运行键列表) {
+        let 最佳结果 = null;
+        let 最佳错误 = '';
+        for (let attemptIndex = 0; attemptIndex <= 最大重试次数; attemptIndex += 1) {
+          try {
+            await refreshLiveSnapshot({ force: true });
+            const 执行结果 = await window.__LWCS_RUN_SKILL_FIXTURE__(fixtureKey, options);
+            const 当前结果 = {
+              key: fixtureKey,
+              ok: true,
+              validation: 执行结果.validation,
+              summary: 执行结果.summary,
+              attempts: attemptIndex + 1,
+            };
+            最佳结果 = 当前结果;
+            if (当前结果.validation && 当前结果.validation.通过) break;
+          } catch (error) {
+            最佳错误 = String(error && error.message || error || 'unknown_fixture_error');
+            最佳结果 = {
+              key: fixtureKey,
+              ok: false,
+              error: 最佳错误,
+              attempts: attemptIndex + 1,
+            };
+          }
+          await new Promise(resolve => setTimeout(resolve, Math.max(0, Number(options?.retryWaitMs || 160))));
+        }
+        if (最佳结果) 结果项列表.push(最佳结果);
+        else
+          结果项列表.push({
+            key: fixtureKey,
+            ok: false,
+            error: 最佳错误 || 'unknown_fixture_error',
+            attempts: 最大重试次数 + 1,
+          });
+        await new Promise(resolve => setTimeout(resolve, Math.max(0, Number(options?.betweenWaitMs || 120))));
+      }
+      const 通过数量 = 结果项列表.filter(item => item.ok && item.validation && item.validation.通过).length;
+      return {
+        total: 结果项列表.length,
+        passed: 通过数量,
+        failed: 结果项列表.length - 通过数量,
+        items: 结果项列表,
+      };
+    };
+    window.__LWCS_RUN_SKILL_FULL_CHECK__ = async function runSkillFullCheck(options = {}) {
+      const 生成侧函数 =
+        typeof window.__LWCS_RUN_GENERATION_RULE_CHECKS__ === 'function'
+          ? window.__LWCS_RUN_GENERATION_RULE_CHECKS__
+          : typeof __mvuBridgeRoot.__LWCS_RUN_GENERATION_RULE_CHECKS__ === 'function'
+            ? __mvuBridgeRoot.__LWCS_RUN_GENERATION_RULE_CHECKS__
+            : null;
+      const 生成侧结果 = 生成侧函数
+        ? 生成侧函数({
+            品级: String(options?.品级 || 'A').trim() || 'A',
+            魂环位: Math.max(1, Number(options?.魂环位 || 5)),
+          })
+        : { 错误: 'generation_check_unavailable' };
+      const 战斗夹具键列表 =
+        Array.isArray(options?.战斗夹具键列表) && options.战斗夹具键列表.length
+          ? options.战斗夹具键列表
+          : ['吞噬', '能力共享', '机制抹消_复苏', '机制抹消_回复机制', '机制抹消_护盾', '机制抹消_隐身', '状态转移', '引爆持续伤害', '斩盾', '窃取护盾'];
+      const 战斗侧结果 = await window.__LWCS_RUN_SKILL_FIXTURE_BATCH__(战斗夹具键列表, {
+        waitMs: Number(options?.waitMs || 260),
+        settleWaitMs: Number(options?.settleWaitMs || 420),
+      });
+      return {
+        生成侧: 生成侧结果,
+        战斗侧: 战斗侧结果,
+        覆盖矩阵: window.__LWCS_SKILL_COVERAGE_MATRIX__ || null,
+        汇总: {
+          生成独占通过数: Number(生成侧结果?.汇总?.独占通过数 || 0),
+          生成独占总数: Number(生成侧结果?.汇总?.独占总数 || 0),
+          生成分档通过数: Number(生成侧结果?.汇总?.分档通过数 || 0),
+          生成分档总数: Number(生成侧结果?.汇总?.分档总数 || 0),
+          战斗通过数: Number(战斗侧结果?.passed || 0),
+          战斗总数: Number(战斗侧结果?.total || 0),
+        },
+      };
+    };
+    window.__LWCS_INSPECT_SKILL_RUNTIME__ = function inspectSkillRuntime() {
+      const 当前表 = __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__;
+      let 父级存在 = false;
+      let 顶级存在 = false;
+      try {
+        父级存在 = !!(window.parent && window.parent !== window && window.parent.__LWCS_SKILL_MECHANISM_REGISTRY__);
+      } catch (error) {}
+      try {
+        顶级存在 = !!(window.top && window.top !== window && window.top.__LWCS_SKILL_MECHANISM_REGISTRY__);
+      } catch (error) {}
+      return {
+        bridgeLoaded: __mvuBridgeRoot.__MVU_LOGIC_BRIDGE_LOADED__ === true,
+        bridgeRegistrySource: __mvuBridgeRoot.__LWCS_BRIDGE_REGISTRY_SOURCE__ || '',
+        registryReady: !!(当前表 && typeof 当前表 === 'object'),
+        registryMechanismCount: 当前表?.机制定义 ? Object.keys(当前表.机制定义).length : 0,
+        registryCurrent: !!(__mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__),
+        registryParent: 父级存在,
+        registryTop: 顶级存在,
+        fixtureKeys: typeof window.__LWCS_LIST_SKILL_FIXTURES__ === 'function' ? window.__LWCS_LIST_SKILL_FIXTURES__() : [],
+        fixtureBatchReady: typeof window.__LWCS_RUN_SKILL_FIXTURE_BATCH__ === 'function',
+        battleRegistrySource: __mvuBridgeRoot.__LWCS_BATTLE_RUNTIME_REGISTRY_SOURCE__ || '',
+        battleRegistrySize: Number(__mvuBridgeRoot.__LWCS_BATTLE_RUNTIME_REGISTRY_SIZE__ || 0),
+      };
+    };
+
     function buildRingHoverMarkup(ring) {
       return buildRingHoverCardMarkup(ring);
     }
@@ -17202,48 +18152,6 @@
       try {
         if (typeof window.__MVU_SET_TAB_STATE__ === 'function') window.__MVU_SET_TAB_STATE__(targetId);
       } catch (err) {}
-
-      tabs.forEach(t => t.classList.toggle('active', t.dataset.target === targetId));
-      pages.forEach(p => {
-        const pageTarget = p.dataset && p.dataset.target ? p.dataset.target : p.id;
-        p.classList.toggle('active', pageTarget === targetId);
-      });
-
-      if (viewport) viewport.classList.add('split-hidden');
-      if (splitOverlay) {
-        splitOverlay.classList.add('active');
-        splitOverlay.classList.toggle('archive-mode', targetId === 'page-archive');
-        splitOverlay.classList.toggle('map-mode', targetId === 'page-map');
-      }
-      if (splitTopShell) splitTopShell.classList.remove('active');
-
-      const leftPages = splitOverlay ? splitOverlay.querySelectorAll('.split-left-page') : [];
-      const rightPages = splitOverlay ? splitOverlay.querySelectorAll('.split-right-page') : [];
-      leftPages.forEach(p => p.classList.toggle('active', p.dataset.target === targetId));
-      rightPages.forEach(p => p.classList.toggle('active', p.dataset.target === targetId));
-
-      if (splitTopShell && splitTopStage) {
-        const meta = pageMetaMap[targetId] || pageMetaMap['page-archive'];
-        const currentHeaderLoc = document.querySelector('.header-loc span')?.textContent?.trim() || '';
-        const currentHeaderTime = document.querySelector('.header-time')?.textContent?.trim() || '';
-        splitTopStage.innerHTML = `
-          <div class="header" style="height:100%;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-            <div style="min-width:0;display:grid;gap:4px;">
-              <div style="display:flex;align-items:center;gap:8px;min-width:0;">
-                <span class="modal-level-chip">${meta.tag}</span>
-                <span class="modal-path-chip">SHELL / ${meta.title}</span>
-              </div>
-              <div style="font-family:var(--font-title);font-size:15px;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${meta.title}</div>
-              <div style="font-size:10px;line-height:1.35;color:var(--text-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${meta.subtitle}</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;flex:0 0 auto;">
-              <span class="split-bottom-chip">${currentHeaderTime}</span>
-              <span class="split-bottom-chip live">${currentHeaderLoc}</span>
-            </div>
-          </div>
-        `;
-        splitTopShell.classList.add('active');
-      }
 
       closeModal();
     }
@@ -18283,15 +19191,6 @@ ${mvuUpdate}`;
         'mvu-tab-btn mvu-battle-return-tab',
         htmlEscape(summary.title)
       );
-      const splitHosts = [
-        document.getElementById('splitFooterTabsLeft'),
-        document.getElementById('splitFooterTabsRight')
-      ].filter(Boolean);
-      splitHosts.forEach(host => ensureBattleReturnEntry(
-        host,
-        'mvu-tab-btn mvu-battle-return-tab',
-        htmlEscape(summary.title)
-      ));
     }
 
     function scheduleBattleReturnEntrySync(snapshot, isActive) {

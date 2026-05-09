@@ -34,10 +34,31 @@ class BattleUIComponent {
     const byId = id => wrapperElement.querySelector(`#${id}`);
 
     const root = typeof globalThis !== 'undefined' ? globalThis : window;
-    const SHARED_SKILL_MECHANISM_REGISTRY =
-      root.__LWCS_SKILL_MECHANISM_REGISTRY__ && typeof root.__LWCS_SKILL_MECHANISM_REGISTRY__ === 'object'
-        ? root.__LWCS_SKILL_MECHANISM_REGISTRY__
-        : null;
+    const resolveSharedSkillMechanismRegistry = () => {
+      if (root.__LWCS_SKILL_MECHANISM_REGISTRY__ && typeof root.__LWCS_SKILL_MECHANISM_REGISTRY__ === 'object') {
+        return root.__LWCS_SKILL_MECHANISM_REGISTRY__;
+      }
+      try {
+        if (window.parent && window.parent !== window && window.parent.__LWCS_SKILL_MECHANISM_REGISTRY__ && typeof window.parent.__LWCS_SKILL_MECHANISM_REGISTRY__ === 'object') {
+          return window.parent.__LWCS_SKILL_MECHANISM_REGISTRY__;
+        }
+      } catch (error) {}
+      try {
+        if (window.top && window.top !== window && window.top.__LWCS_SKILL_MECHANISM_REGISTRY__ && typeof window.top.__LWCS_SKILL_MECHANISM_REGISTRY__ === 'object') {
+          return window.top.__LWCS_SKILL_MECHANISM_REGISTRY__;
+        }
+      } catch (error) {}
+      return null;
+    };
+    const SHARED_SKILL_MECHANISM_REGISTRY = resolveSharedSkillMechanismRegistry();
+    if (!root.__LWCS_SKILL_MECHANISM_REGISTRY__ && SHARED_SKILL_MECHANISM_REGISTRY) {
+      root.__LWCS_SKILL_MECHANISM_REGISTRY__ = SHARED_SKILL_MECHANISM_REGISTRY;
+    }
+    root.__LWCS_BATTLE_RUNTIME_REGISTRY_SOURCE__ = SHARED_SKILL_MECHANISM_REGISTRY ? 'shared' : 'fallback';
+    root.__LWCS_BATTLE_RUNTIME_REGISTRY_SIZE__ =
+      SHARED_SKILL_MECHANISM_REGISTRY?.机制定义 && typeof SHARED_SKILL_MECHANISM_REGISTRY.机制定义 === 'object'
+        ? Object.keys(SHARED_SKILL_MECHANISM_REGISTRY.机制定义).length
+        : 0;
     const BATTLE_SKILL_MECHANISM_META = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.机制定义 || {});
     const BATTLE_SKILL_TARGET_SEMANTICS = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.目标语义表 || {});
     const BATTLE_GRANTABLE_MECHANISM_SET = new Set(
@@ -674,7 +695,8 @@ class BattleUIComponent {
       const durationParsed = Number(durationCandidate);
       const duration = Number.isFinite(durationParsed) ? Math.max(0, durationParsed) : 0;
       const layerParsed = Number(source.层数);
-      return {
+      const snapshot = {
+        ...source,
         类型: String(source.类型 || 'buff'),
         层数: Number.isFinite(layerParsed) ? layerParsed : 1,
         描述: String(source.描述 || '无'),
@@ -682,6 +704,9 @@ class BattleUIComponent {
         面板倍率: buildSchemaStatRatioFromCondition(source),
         战斗效果: buildSchemaCombatEffectsFromCondition(source),
       };
+      delete snapshot.duration;
+      delete snapshot.面板修改比例;
+      return snapshot;
     }
 
     function buildCombatConditionMapPersistenceSnapshot(conditionMap) {
@@ -3826,8 +3851,8 @@ class BattleUIComponent {
       吸血: 'lifesteal',
       流血DOT: 'dot_damage',
       召唤与场地: 'construct_create',
-      资源夺取: 'resource_drain',
-      资源反灌: 'resource_refeed',
+      吞噬: 'resource_drain',
+      能力共享: 'resource_refeed',
       机制抹消: 'mechanism_suppress',
     });
     const LOCAL_BATTLE_DEFENSE_NATURE_BY_LABEL = Object.freeze({
@@ -3856,7 +3881,7 @@ class BattleUIComponent {
       净化: '净化',
       解控: '净化',
       复苏: '复苏',
-      资源反灌: '资源回复',
+      能力共享: '资源回复',
     });
     const BATTLE_MECHANISM_SUPPRESSION_TARGET_SET = new Set([
       '复苏',
@@ -3937,7 +3962,7 @@ class BattleUIComponent {
       )
         tags.push('控制机制');
       if (
-        /分身|复制|状态交换|状态转移|引爆持续伤害|斩盾|窃取护盾|资源夺取|资源反灌|机制抹消|效果反转|共享视野|护卫/.test(text)
+        /分身|复制|状态交换|状态转移|引爆持续伤害|斩盾|窃取护盾|吞噬|能力共享|机制抹消|效果反转|共享视野|护卫/.test(text)
       )
         tags.push('特殊规则');
       return Array.from(new Set(tags));
@@ -6892,7 +6917,8 @@ class BattleUIComponent {
               let preCostLog = applyActionCost(attacker, preAct);
               if (preCostLog) roundLog += preCostLog + ' ';
               if (preAct.action_type === '穿戴装备') {
-                attacker.装备[preAct.equip_target === 'armor' ? '斗铠' : '机甲'].装备状态 = '已装备';
+                const 装备槽 = ensureBattleEquipmentSlot(attacker, preAct.equip_target);
+                if (装备槽) 装备槽.装备状态 = '已装备';
                 roundLog += `[连招生效] 玩家在电光火石间成功穿戴了${preAct.equip_target === 'armor' ? '斗铠' : '机甲'}！ `;
               }
             });
@@ -7008,7 +7034,8 @@ class BattleUIComponent {
           isNpcInterrupted = isNpcInterrupted || appliedDamage / Math.max(1, defender.vit_max) >= 0.15;
           if (npcAction.type === '穿戴装备') {
             if (!isNpcInterrupted) {
-              defender.装备[npcAction.skill.equip_target === 'armor' ? '斗铠' : '机甲'].装备状态 = '已装备';
+              const 装备槽 = ensureBattleEquipmentSlot(defender, npcAction.skill.equip_target);
+              if (装备槽) 装备槽.装备状态 = '已装备';
               roundLog += ` [装备生效] NPC成功穿戴了${npcAction.skill.equip_target === 'armor' ? '斗铠' : '机甲'}，防御力大增！`;
             } else {
               roundLog += ` [穿戴失败] 玩家的猛烈攻击强行打断了NPC的装备穿戴过程！`;
@@ -7842,27 +7869,51 @@ class BattleUIComponent {
         return { log, extraPatchOps };
       }
 
+      function ensureBattleEquipmentSlot(角色对象, 装备目标 = 'armor') {
+        if (!角色对象 || typeof 角色对象 !== 'object') return null;
+        if (!角色对象.装备 || typeof 角色对象.装备 !== 'object') 角色对象.装备 = {};
+        const 装备键 = 装备目标 === 'armor' ? '斗铠' : '机甲';
+        if (!角色对象.装备[装备键] || typeof 角色对象.装备[装备键] !== 'object') {
+          角色对象.装备[装备键] =
+            装备键 === '斗铠'
+              ? { 等级: 0, 名称: '无', 领域: '无', 材质: '无', 装备状态: '未装备', parts: {} }
+              : { 等级: '无', 型号: '无', 材质: '无', 状态: '完好', 装备状态: '未装备', 武装: '无', 品质系数: 1.0 };
+        }
+        const 装备槽 = 角色对象.装备[装备键];
+        if (装备键 === '斗铠') {
+          if (!装备槽.parts || typeof 装备槽.parts !== 'object') 装备槽.parts = {};
+          if (!('装备状态' in 装备槽)) 装备槽.装备状态 = '未装备';
+        } else {
+          if (!('状态' in 装备槽)) 装备槽.状态 = '完好';
+          if (!('装备状态' in 装备槽)) 装备槽.装备状态 = '未装备';
+          if (!('品质系数' in 装备槽)) 装备槽.品质系数 = 1.0;
+        }
+        return 装备槽;
+      }
+
       function applyArmorDamage(defender) {
         let log = '';
-        if (defender.装备.机甲.等级 !== '无' && defender.装备.机甲.状态 !== '重创') {
-          if (defender.装备.机甲.状态 === '完好') {
-            defender.装备.机甲.状态 = '受损';
-            defender.装备.机甲.品质系数 = 0.5;
+        const 机甲槽 = ensureBattleEquipmentSlot(defender, 'mech');
+        const 斗铠槽 = ensureBattleEquipmentSlot(defender, 'armor');
+        if (机甲槽?.等级 !== '无' && 机甲槽?.状态 !== '重创') {
+          if (机甲槽.状态 === '完好') {
+            机甲槽.状态 = '受损';
+            机甲槽.品质系数 = 0.5;
             log = `[战损] 敌方最外层的机甲装甲大面积凹陷，状态降级为【受损】！`;
-          } else if (defender.装备.机甲.状态 === '受损') {
-            defender.装备.机甲.状态 = '重创';
-            defender.装备.机甲.品质系数 = 0;
+          } else if (机甲槽.状态 === '受损') {
+            机甲槽.状态 = '重创';
+            机甲槽.品质系数 = 0;
             log = `[战损] 敌方机甲核心法阵爆裂，状态降级为【重创】，彻底瘫痪！`;
           }
           return log;
         }
-        if (defender.装备.斗铠.装备状态 === '已装备') {
-          let parts = Object.keys(defender.装备.斗铠.parts);
-          let intactParts = parts.filter(p => defender.装备.斗铠.parts[p].状态 === '完好');
+        if (斗铠槽?.装备状态 === '已装备') {
+          let parts = Object.keys(斗铠槽.parts || {});
+          let intactParts = parts.filter(p => 斗铠槽.parts?.[p]?.状态 === '完好');
           if (intactParts.length > 0) {
             let targetPart = intactParts[Math.floor(Math.random() * intactParts.length)];
-            defender.装备.斗铠.parts[targetPart].状态 = '碎裂';
-            defender.装备.斗铠.parts[targetPart].品质系数 = 0;
+            斗铠槽.parts[targetPart].状态 = '碎裂';
+            斗铠槽.parts[targetPart].品质系数 = 0;
             log = `[战损] 敌方贴身的斗铠【${targetPart}】承受不住透体的重击，轰然碎裂！`;
           }
         }
@@ -8847,8 +8898,8 @@ class BattleUIComponent {
         const directGuardEffect = actionEffects.find(effect => effect?.机制 === '护卫') || null;
         const directShieldBreakEffect = actionEffects.find(effect => effect?.机制 === '斩盾') || null;
         const directShieldStealEffect = actionEffects.find(effect => effect?.机制 === '窃取护盾') || null;
-        const directResourceDrainEffect = actionEffects.find(effect => effect?.机制 === '资源夺取') || null;
-        const directResourceRefeedEffect = actionEffects.find(effect => effect?.机制 === '资源反灌') || null;
+        const directResourceDrainEffect = actionEffects.find(effect => effect?.机制 === '吞噬') || null;
+        const directResourceRefeedEffect = actionEffects.find(effect => effect?.机制 === '能力共享') || null;
         const directDotDetonateEffect = actionEffects.find(effect => effect?.机制 === '引爆持续伤害') || null;
         const directStatusTransferEffect = actionEffects.find(effect => effect?.机制 === '状态转移') || null;
         const directVolatileEffect = actionEffects.find(effect => effect?.机制 === '高波动随机值') || null;
@@ -9202,11 +9253,33 @@ class BattleUIComponent {
         }
         const getEffectTargetContext = effect =>
           resolveSkillTargetContext(playerAction.skill, attacker, defender, combatData, effect);
+        const resolveDirectMechanismTargetList = (effect, options = {}) => {
+          const targetContext = getEffectTargetContext(effect);
+          let targets = Array.isArray(targetContext?.targetSet) ? [...targetContext.targetSet] : [];
+          const targetHint = String(
+            effect?.目标 ||
+            effect?.对象 ||
+            effect?.目标覆盖 ||
+            playerAction?.skill?.对象 ||
+            playerAction?.skill?.目标模型 ||
+            '',
+          ).trim();
+          const hostileHint = /敌方单体|敌方群体|敌方\/单体|敌方\/群体|敌方/.test(targetHint);
+          const friendlyHint = /友方单体|友方群体|己方\/单体|己方\/群体|友方|己方|自身/.test(targetHint);
+          if (hostileHint) {
+            const filteredTargets = targets.filter(targetObj => targetObj && targetObj !== attacker);
+            targets = filteredTargets.length > 0 ? filteredTargets : defender && defender !== attacker ? [defender] : [];
+          } else if (friendlyHint && (!targets.length || targets.every(targetObj => !targetObj))) {
+            targets = attacker ? [attacker] : [];
+          }
+          if (options.single === true) return targets[0] || null;
+          return targets;
+        };
 
         const applyImmediateRecoveryEffect = (effect, resourceKey, labelText) => {
           if (!effect || Number(result.backlash_dmg || 0) > 0) return 0;
           const effectTargetContext = getEffectTargetContext(effect);
-          const targetUnits = effectTargetContext.targetSet;
+          const targetUnits = resolveDirectMechanismTargetList(effect);
           const ratio = Number(effect.数值 || 0);
           if (!(ratio > 0) || !targetUnits.length) return 0;
           const isFriendly = ['自身', '友方单体', '友方群体'].includes(effectTargetContext.targetModel);
@@ -9417,35 +9490,40 @@ class BattleUIComponent {
 
         const applyStatusTransferEffect = effect => {
           if (!effect) return false;
-          const targetObj = resolveSkillEffectTargetCharacter(playerAction.skill, effect, attacker, defender, combatData);
+          const targetObj = resolveDirectMechanismTargetList(effect, { single: true });
           if (!targetObj || targetObj === attacker) {
             result.desc += ` [状态转移] 缺少有效转移目标。`;
             return false;
           }
           const transferMode = String(effect?.转移类型 || '自身负面->目标').trim() || '自身负面->目标';
-          const sourceChar = /目标/.test(transferMode) ? targetObj : attacker;
-          const candidate = /目标正面->自身/.test(transferMode)
-            ? pickTransferableCondition(targetObj, ['buff'])
-            : pickTransferableCondition(sourceChar, ['debuff', 'buff']);
-          if (!candidate) {
+          const transferCount = Math.max(1, Number(effect?.转移数量 || effect?.transfer_count || 1));
+          const transferLogs = [];
+          for (let index = 0; index < transferCount; index += 1) {
+            const sourceChar = String(transferMode).startsWith('目标') ? targetObj : attacker;
+            const candidate = /目标正面->自身/.test(transferMode)
+              ? pickTransferableCondition(targetObj, ['buff'])
+              : pickTransferableCondition(sourceChar, ['debuff', 'buff']);
+            if (!candidate) break;
+            const moved = removeConditionWithSustain(sourceChar, candidate.key);
+            if (!moved) continue;
+            const receiver = sourceChar === attacker ? targetObj : attacker;
+            moved.描述 = `由[${skillName || '技能'}]自${sourceChar.name || '自身'}转移至${receiver.name || '自身'}`;
+            const nextKey = putConditionWithUniqueKey(receiver, candidate.key, moved);
+            transferLogs.push(
+              `${sourceChar === attacker ? '自身' : sourceChar.name}的[${candidate.key}]被转移到${receiver === attacker ? '自身' : receiver.name}，现为[${nextKey}]`,
+            );
+          }
+          if (!transferLogs.length) {
             result.desc += ` [状态转移] 没有找到可转移的状态。`;
             return false;
           }
-          const moved = removeConditionWithSustain(sourceChar, candidate.key);
-          if (!moved) {
-            result.desc += ` [状态转移] 目标状态已失效。`;
-            return false;
-          }
-          const receiver = sourceChar === attacker ? targetObj : attacker;
-          moved.描述 = `由[${skillName || '技能'}]自${sourceChar.name || '自身'}转移至${receiver.name || '自身'}`;
-          const nextKey = putConditionWithUniqueKey(receiver, candidate.key, moved);
-          result.desc += ` [状态转移] ${sourceChar === attacker ? '自身' : sourceChar.name}的[${candidate.key}]被转移到${receiver === attacker ? '自身' : receiver.name}，现为[${nextKey}]。`;
+          result.desc += ` [状态转移] ${transferLogs.join('；')}。`;
           return true;
         };
 
         const applyDotDetonateEffect = effect => {
           if (!effect) return 0;
-          const targetUnits = resolveSkillEffectTargetCharacters(playerAction.skill, effect, attacker, defender, combatData);
+          const targetUnits = resolveDirectMechanismTargetList(effect);
           const ratio = Math.max(0.1, Number(effect?.引爆倍率 || effect?.detonate_ratio || 1));
           let totalAddedDamage = 0;
           targetUnits.forEach(targetObj => {
@@ -9468,7 +9546,7 @@ class BattleUIComponent {
 
         const applyShieldBreakEffect = effect => {
           if (!effect) return 0;
-          const targetUnits = resolveSkillEffectTargetCharacters(playerAction.skill, effect, attacker, defender, combatData);
+          const targetUnits = resolveDirectMechanismTargetList(effect);
           const ratio = Math.max(0, Number(effect?.斩盾倍率 || effect?.shield_break_ratio || 1));
           let totalAddedDamage = 0;
           targetUnits.forEach(targetObj => {
@@ -9490,7 +9568,7 @@ class BattleUIComponent {
 
         const applyStealShieldEffect = effect => {
           if (!effect) return 0;
-          const targetUnits = resolveSkillEffectTargetCharacters(playerAction.skill, effect, attacker, defender, combatData);
+          const targetUnits = resolveDirectMechanismTargetList(effect);
           const ratio = Math.max(0, Number(effect?.窃盾比例 || effect?.shield_steal_ratio || 0.5));
           let totalShield = 0;
           targetUnits.forEach(targetObj => {
@@ -9523,7 +9601,7 @@ class BattleUIComponent {
 
         const applyResourceDrainEffect = effect => {
           if (!effect) return 0;
-          const targetUnits = resolveSkillEffectTargetCharacters(playerAction.skill, effect, attacker, defender, combatData);
+          const targetUnits = resolveDirectMechanismTargetList(effect);
           const ratio = Math.max(0, Number(effect?.夺取比例 || effect?.drain_ratio || 0.18));
           const convertRatio = Math.max(0, Number(effect?.转化比例 || effect?.convert_ratio || 1));
           const resourceKeys = resolveTransferResourceKeys(effect?.资源类型 || effect?.resource_type || '');
@@ -9543,7 +9621,7 @@ class BattleUIComponent {
               const actualRecover = Math.max(0, attackerAfter - attackerBefore);
               attacker[resourceKey] = attackerAfter;
               totalRecovered += actualRecover;
-              result.desc += ` [资源夺取] 从${targetObj === attacker ? '自身' : targetObj.name}抽离 ${drainAmount} 点${getTransferResourceLabel(resourceKey)}，施术者回收 ${actualRecover} 点。`;
+              result.desc += ` [吞噬] 从${targetObj === attacker ? '自身' : targetObj.name}抽离 ${drainAmount} 点${getTransferResourceLabel(resourceKey)}，施术者回收 ${actualRecover} 点。`;
             });
           });
           return totalRecovered;
@@ -9551,13 +9629,13 @@ class BattleUIComponent {
 
         const applyResourceRefeedEffect = effect => {
           if (!effect) return 0;
-          const targetUnits = resolveSkillEffectTargetCharacters(playerAction.skill, effect, attacker, defender, combatData);
+          const targetUnits = resolveDirectMechanismTargetList(effect);
           const ratio = Math.max(0, Number(effect?.反灌比例 || effect?.refeed_ratio || 0.2));
           const resourceKeys = resolveTransferResourceKeys(effect?.资源类型 || effect?.resource_type || '');
           let totalRecovered = 0;
           targetUnits.forEach(targetObj => {
             if (isMechanismSuppressionBlocking(targetObj, ['回复机制'])) {
-              result.desc += ` [机制抹消] ${targetObj === attacker ? '自身' : targetObj.name}的回复回路被封锁，资源反灌未能生效。`;
+              result.desc += ` [机制抹消] ${targetObj === attacker ? '自身' : targetObj.name}的回复回路被封锁，能力共享未能生效。`;
               return;
             }
             resourceKeys.forEach(resourceKey => {
@@ -9570,7 +9648,7 @@ class BattleUIComponent {
               if (!(actualGain > 0)) return;
               targetObj[resourceKey] = afterValue;
               totalRecovered += actualGain;
-              result.desc += ` [资源反灌] 向${targetObj === attacker ? '自身' : targetObj.name}灌注 ${actualGain} 点${getTransferResourceLabel(resourceKey)}。`;
+              result.desc += ` [能力共享] 向${targetObj === attacker ? '自身' : targetObj.name}共享 ${actualGain} 点${getTransferResourceLabel(resourceKey)}。`;
             });
           });
           return totalRecovered;
@@ -9804,6 +9882,9 @@ class BattleUIComponent {
             const stateTargetsFriendly = ['自身', '友方单体', '友方群体'].includes(stateTargetContext.targetModel);
             stateTargets.forEach(targetObj => {
               const targetFinalStat = targetObj?.final || buildCombatFinalStats(targetObj);
+              const targetConditionEffects = targetObj.状态效果
+                ? Object.values(targetObj.状态效果).map(c => c?.战斗效果 || {})
+                : [];
               const selfRedirectedDebuff =
                 hostileTargetRedirectedToSelf && targetObj === attacker && !stateTargetsFriendly;
               let isBuff =
@@ -12271,7 +12352,8 @@ class BattleUIComponent {
               const preCostLog = applyActionCost(actor, preAct);
               if (preCostLog) actionLog += preCostLog + ' ';
               if (preAct.action_type === '穿戴装备') {
-                actor.装备[preAct.equip_target === 'armor' ? '斗铠' : '机甲'].装备状态 = '已装备';
+                const 装备槽 = ensureBattleEquipmentSlot(actor, preAct.equip_target);
+                if (装备槽) 装备槽.装备状态 = '已装备';
                 actionLog += `[连招生效] ${actor.name}趁隙穿戴了${preAct.equip_target === 'armor' ? '斗铠' : '机甲'}！`;
               }
             });
@@ -12370,7 +12452,8 @@ class BattleUIComponent {
               (Number(settleResult.interrupt_bonus || 0) > 0 &&
                 Math.random() <= Math.min(1, Number(settleResult.interrupt_bonus || 0)));
             if (!isTargetInterrupted) {
-              finalTarget.装备[reactionAction.skill.equip_target === 'armor' ? '斗铠' : '机甲'].装备状态 = '已装备';
+              const 装备槽 = ensureBattleEquipmentSlot(finalTarget, reactionAction.skill.equip_target);
+              if (装备槽) 装备槽.装备状态 = '已装备';
               turnLog += ` [装备生效] ${finalTarget.name}成功完成装备穿戴。`;
             } else {
               turnLog += ` [穿戴失败] ${finalTarget.name}的装备穿戴被强行打断。`;
