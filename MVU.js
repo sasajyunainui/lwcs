@@ -137,6 +137,16 @@ const MAP_TRAVEL_SCALE_BY_LEVEL = {
   facility: 0.02,
 };
 
+function cloneJsonValue(值, 回退值 = {}) {
+  try {
+    return structuredClone(值);
+  } catch (错误) {}
+  try {
+    return JSON.parse(JSON.stringify(值));
+  } catch (错误) {}
+  return 回退值;
+}
+
 function normalizeTravelMapLevel(level = 'world') {
   const safeLevel = String(level || 'world')
     .trim()
@@ -3032,6 +3042,118 @@ const SKILL_MECHANISM_META_V1 = (() => {
     designerSecondaryHint: '流血DOT',
     设计台参数定义: [num('dotRatio', '每跳倍率', '0.2'), num('duration', '持续回合', '3', '1')],
   });
+  register('伤害链', {
+    可主机制: true,
+    可副机制: true,
+    目标语义: '敌对',
+    运行时消费器: 'dot_detonate',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '输出', mainType: '特殊规则类', effectMode: '触发' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '伤害链',
+    designerSecondaryHint: '伤害链',
+    设计台参数定义: [
+      num('chainRatio', '链式比例', '0.45'),
+      num('chainTargets', '链式目标数', '2', '1'),
+      num('duration', '持续回合', '2', '1'),
+    ],
+  });
+  register('生命链接', {
+    可主机制: true,
+    可副机制: true,
+    目标语义: '上下文',
+    运行时消费器: 'damage_share',
+    决策标签: ['团队保护型', '规则压制型'],
+    摘要提示: { skillType: '防御', mainType: '特殊规则类', defenseNature: '分摊', cooperation: '高', effectMode: '持续' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '生命链接',
+    designerSecondaryHint: '生命链接',
+    设计台参数定义: [
+      num('shareRatio', '分摊比例', '0.35'),
+      num('duration', '持续回合', '3', '1'),
+      text('linkRule', '链接规则', '双方同步承受比例伤害'),
+    ],
+  });
+  register('延长持续伤害', {
+    可主机制: true,
+    可副机制: true,
+    目标语义: '敌对',
+    运行时消费器: 'dot_damage',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '特殊规则类', effectMode: '持续' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '延长持续伤害',
+    designerSecondaryHint: '延长持续伤害',
+    设计台参数定义: [
+      num('extendRounds', '延长回合', '1', '1'),
+      num('stackDelta', '层数变化', '0', '1'),
+      text('scope', '作用范围', '目标全部DOT'),
+    ],
+  });
+  register('压缩持续伤害', {
+    可主机制: true,
+    可副机制: true,
+    目标语义: '敌对',
+    运行时消费器: 'dot_detonate',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '输出', mainType: '特殊规则类', effectMode: '瞬发' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '压缩持续伤害',
+    designerSecondaryHint: '压缩持续伤害',
+    设计台参数定义: [
+      num('compressRatio', '压缩倍率', '1.35'),
+      num('consumeRounds', '压缩回合', '1', '1'),
+      text('convertRule', '转化规则', '将后续DOT折算为本回合伤害'),
+    ],
+  });
+  register('拆层转存', {
+    可主机制: true,
+    可副机制: true,
+    目标语义: '上下文',
+    运行时消费器: 'copy_status',
+    决策标签: ['规则压制型', '团队保护型'],
+    摘要提示: { skillType: '辅助', mainType: '特殊规则类', effectMode: '触发' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '拆层转存',
+    designerSecondaryHint: '拆层转存',
+    设计台参数定义: [
+      num('splitLayers', '拆层数量', '1', '1'),
+      text('storeTarget', '转存目标', '自身/友方'),
+      num('duration', '持续回合', '2', '1'),
+    ],
+  });
+  register('资源燃烧', {
+    可主机制: true,
+    可副机制: true,
+    目标语义: '敌对',
+    运行时消费器: 'resource_drain',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '特殊规则类', controlStrength: '软控', effectMode: '持续' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '资源燃烧',
+    designerSecondaryHint: '资源燃烧',
+    设计台参数定义: [
+      select('resourceType', '燃烧资源', 'RESOURCE_TRANSFER_TYPE'),
+      num('burnRatio', '每回合燃烧', '0.12'),
+      num('duration', '持续回合', '2', '1'),
+    ],
+  });
+  register('资源锁定', {
+    可主机制: true,
+    可副机制: true,
+    目标语义: '敌对',
+    运行时消费器: 'cost_increase',
+    决策标签: ['规则压制型'],
+    摘要提示: { skillType: '控制', mainType: '特殊规则类', controlStrength: '软控', effectMode: '持续' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '资源锁定',
+    designerSecondaryHint: '资源锁定',
+    设计台参数定义: [
+      num('lockRatio', '锁定比例', '0.5'),
+      num('duration', '持续回合', '2', '1'),
+      text('lockRule', '限制规则', '资源回复与转化受阻'),
+    ],
+  });
   register(['反击', '受击反击'], {
     可副机制: true,
     目标语义: '可赋予',
@@ -3049,6 +3171,23 @@ const SKILL_MECHANISM_META_V1 = (() => {
     运行时消费器: 'construct_create',
     决策标签: ['团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '特殊规则类' },
+  });
+  register('召唤与场地', {
+    可主机制: true,
+    可副机制: true,
+    目标语义: '上下文',
+    运行时消费器: 'construct_create',
+    决策标签: ['团队保护型', '规则压制型'],
+    摘要提示: { skillType: '辅助', mainType: '特殊规则类', cooperation: '高', effectMode: '持续' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '召唤与场地',
+    designerSecondaryHint: '召唤与场地',
+    设计台参数定义: [
+      text('entityName', '实体名称', '嗜血领域'),
+      num('duration', '持续回合', '3', '1'),
+      num('inheritRatio', '继承比例', '0.35'),
+      text('coreMechanism', '核心描述', '友军增益光环 / 敌方压制场'),
+    ],
   });
 
   return Object.freeze(map);
@@ -4310,15 +4449,6 @@ const 技能执行黑名单键表_V1 = Object.freeze([
   '效果描述',
   '副作用说明',
   '对象差异条件文案',
-  '方向名称',
-  'summaryOnly',
-  '机制参数摘要',
-  '副作用摘要',
-  '属性摘要',
-  '构型摘要',
-  '术式摘要',
-  '极性摘要',
-  '属性系数摘要',
 ]);
 const 技能执行黑名单键集合_V1 = new Set(技能执行黑名单键表_V1);
 const 技能执行效果保留键集合_V1 = new Set(['机制', '目标模型', '持续回合', '触发时机', '参数', '对象差异规则']);
@@ -6798,13 +6928,8 @@ function buildSkillEffectReferenceText(packedEffects) {
 }
 
 function buildSkillSummaryReferenceText(packedEffects) {
-  return Array.from(
-    new Set(
-      getSkillSummaryEffects(packedEffects)
-        .map(effect => String(effect?.文本 || '').trim())
-        .filter(Boolean),
-    ),
-  ).join('；');
+  void packedEffects;
+  return '';
 }
 
 function getSkillAttributeGateGuideText() {
@@ -8700,10 +8825,10 @@ function autoGenerateSkill(
     自动切换规则 = normalizeSkillDirectionAutoSwitchRuleList(方向打包.自动切换规则 || [], 方向配置列表);
     if (方向配置列表.length > 0) {
       tagList.push('多方向模板');
-      const 默认方向配置 = 方向配置列表[0];
-      if (默认方向配置 && Array.isArray(默认方向配置.方向效果数组) && 默认方向配置.方向效果数组.length > 0) {
+      const 首方向配置 = 方向配置列表[0];
+      if (首方向配置 && Array.isArray(首方向配置.方向效果数组) && 首方向配置.方向效果数组.length > 0) {
         packedEffects.length = 0;
-        packedEffects.push(...clonePackedSkillEffects(默认方向配置.方向效果数组));
+        packedEffects.push(...clonePackedSkillEffects(首方向配置.方向效果数组));
       }
     }
   }
@@ -17065,7 +17190,7 @@ export const Schema = z
           副职业摘要: jobSummary,
           装备加成摘要: equipmentBonusSummary,
           斗铠回路冲突: !!sourceChar.装备?.斗铠?._已排异,
-          魂骨属性摘要: soulBoneStatSummary,
+          魂骨属性概览: soulBoneStatSummary,
           ...(isSoulTowerEligibleCharacter(sourceChar)
             ? {
                 试炼最高层: Number(sourceChar.魂灵塔记录?.最高层 || 0),

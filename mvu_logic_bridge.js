@@ -4500,15 +4500,6 @@
       '效果描述',
       '副作用说明',
       '对象差异条件文案',
-      '方向名称',
-      'summaryOnly',
-      '机制参数摘要',
-      '副作用摘要',
-      '属性摘要',
-      '构型摘要',
-      '术式摘要',
-      '极性摘要',
-      '属性系数摘要',
     ]);
     const 技能执行黑名单键集合_V1 = new Set(技能执行黑名单键表_V1);
 
@@ -4944,10 +4935,7 @@
     function resolveSkillDesignerNestedEffectMechanism(entry = {}) {
       const explicitMechanism = normalizeSkillUiText(entry && entry['机制'], '');
       if (explicitMechanism) return explicitMechanism;
-      const description = normalizeSkillUiText(
-        entry && (entry['效果描述'] || entry['描述'] || entry.description || entry['文本']),
-        '',
-      );
+      const description = '';
       if (!description) return '';
       if (/分身/.test(description)) return '分身';
       if (/霸体/.test(description)) return '霸体';
@@ -5013,11 +5001,7 @@
       const property = normalizeSkillUiText(effect && effect['属性'], '');
       const action = normalizeSkillUiText(effect && effect['动作'], '');
       const duration = getSkillDesignerEffectDuration(effect);
-      const description = normalizeSkillUiText(
-        effect && (effect['效果描述'] || effect['描述'] || effect.description || effect['文本']),
-        '',
-      );
-      return [mechanism, target, property, action, String(duration), description].join('|');
+      return [mechanism, target, property, action, String(duration)].join('|');
     }
 
     function appendSkillDesignerEffectEntry(bucket = [], seen = new Set(), effect = null) {
@@ -7365,13 +7349,6 @@
         resolvedPrimarySub,
       );
       const resolvedDirectionList = normalizeSkillDesignerDirectionList(baseDraft['方向配置列表'] || []);
-      const resolvedDefaultDirection = (() => {
-        const rawDefault = normalizeSkillUiText(baseDraft['默认方向'], '');
-        if (!rawDefault) return normalizeSkillUiText(resolvedDirectionList[0] && resolvedDirectionList[0]['方向ID'], '');
-        const directionIdSet = new Set(resolvedDirectionList.map(item => normalizeSkillUiText(item && item['方向ID'], '')).filter(Boolean));
-        if (directionIdSet.has(rawDefault)) return rawDefault;
-        return normalizeSkillUiText(resolvedDirectionList[0] && resolvedDirectionList[0]['方向ID'], '');
-      })();
       const resolvedAutoRules = normalizeSkillDesignerDirectionRuleList(
         baseDraft['自动切换规则'] || [],
         resolvedDirectionList,
@@ -7414,9 +7391,7 @@
         目标规模: resolvedTargetScale,
         阵营判定: '自动',
         方向配置列表: resolvedDirectionList,
-        默认方向: resolvedDefaultDirection,
         自动切换规则: resolvedAutoRules,
-        切换代价: '无',
       };
       const implicitAttributeConfig = resolveSkillDesignerImplicitAttributeConfig(coreState, previewMeta);
       return {
@@ -7469,13 +7444,6 @@
         resolvedPrimarySub,
       );
       const resolvedDirectionList = parseSkillDesignerDirectionJson(readField('directionJson'));
-      const resolvedDefaultDirection = (() => {
-        const rawDefault = normalizeSkillUiText(readField('defaultDirection'), '');
-        if (!rawDefault) return normalizeSkillUiText(resolvedDirectionList[0] && resolvedDirectionList[0]['方向ID'], '');
-        const directionIdSet = new Set(resolvedDirectionList.map(item => normalizeSkillUiText(item && item['方向ID'], '')).filter(Boolean));
-        if (directionIdSet.has(rawDefault)) return rawDefault;
-        return normalizeSkillUiText(resolvedDirectionList[0] && resolvedDirectionList[0]['方向ID'], '');
-      })();
       const resolvedDirectionRules = parseSkillDesignerDirectionRuleJson(
         readField('directionRuleJson'),
         resolvedDirectionList,
@@ -7515,9 +7483,7 @@
         目标规模: resolvedTargetScale,
         阵营判定: '自动',
         方向配置列表: resolvedDirectionList,
-        默认方向: resolvedDefaultDirection,
         自动切换规则: resolvedDirectionRules,
-        切换代价: '无',
       };
       const implicitAttributeConfig = resolveSkillDesignerImplicitAttributeConfig(baseState, previewMeta);
       return {
@@ -14251,14 +14217,6 @@
                         <span class=\"mvu-editor-label\">阵营判定</span>
                         <input class=\"mvu-editor-input\" type=\"text\" value=\"自动\" data-skill-designer-field=\"alignmentMode\" readonly />
                       </label>
-                      <label class=\"mvu-editor-field\">
-                        <span class=\"mvu-editor-label\">默认方向</span>
-                        <input class=\"mvu-editor-input\" type=\"text\" value=\"${escapeHtmlAttr(designerDraft['默认方向'] || '')}\" data-skill-designer-field=\"defaultDirection\" data-skill-designer-disableable />
-                      </label>
-                      <label class=\"mvu-editor-field\">
-                        <span class=\"mvu-editor-label\">切换代价</span>
-                        <input class=\"mvu-editor-input\" type=\"text\" value=\"无\" data-skill-designer-field=\"switchCost\" readonly />
-                      </label>
                       <label class=\"mvu-editor-field mvu-editor-field-wide\">
                         <span class=\"mvu-editor-label\">方向配置列表</span>
                         <textarea class=\"mvu-editor-textarea\" data-skill-designer-field=\"directionJson\" data-skill-designer-disableable>${htmlEscape(formatSkillDesignerDirectionJson(designerDraft['方向配置列表']))}</textarea>
@@ -18189,7 +18147,7 @@
                 资源类型: '双资源',
                 反灌比例: 0.22,
                 对象差异规则: Object.freeze([
-                  Object.freeze({ 规则ID: '食物自服禁用', 条件: '自身', 处理: '禁用', 优先级: 100 }),
+                  Object.freeze({ 条件: '自身', 处理: '禁用' }),
                 ]),
               }),
             ]),
@@ -18242,7 +18200,7 @@
                 持续: 0,
                 触发: '立即生效',
                 对象差异规则: Object.freeze([
-                  Object.freeze({ 规则ID: '神圣逆邪_邪魂师', 条件: '邪魂师', 处理: '转为伤害', 伤害类型: '神圣', 伤害倍率: 1, 优先级: 95 }),
+                  Object.freeze({ 条件: '邪魂师', 处理: '转为伤害', 参数: Object.freeze({ 伤害类型: '神圣', 伤害倍率: 1 }) }),
                 ]),
               }),
             ]),
@@ -18719,56 +18677,37 @@
               Object.freeze({
                 ...createSkillFixtureSystemBase('敌方/单体'),
                 目标模型: '敌方单体',
-                目标规模: '单体',
-                阵营判定: '自动',
-                默认方向: '方向1',
                 自动切换规则: Object.freeze([
                   Object.freeze({
-                    规则ID: '施放前锁定',
                     触发时机: '施放前',
                     切换至方向ID: '方向3',
-                    优先级: 100,
-                    最大触发次数: 1,
                   }),
                 ]),
-                切换代价: '无',
                 方向配置列表: Object.freeze([
                   Object.freeze({
                     方向ID: '方向1',
-                    方向名称: '压制向',
-                    方向语义标签: '压制',
                     方向目标语义: '敌对',
-                    方向持续回合: 2,
                     方向效果数组: Object.freeze([
                       Object.freeze({ 机制: '速度修正', 目标: '敌方单体', 属性: '速度', 动作: '倍率压制', 数值: 0.82, 持续: 2, 触发: '立即生效' }),
                     ]),
                   }),
                   Object.freeze({
                     方向ID: '方向2',
-                    方向名称: '增幅向',
-                    方向语义标签: '增幅',
                     方向目标语义: '可赋予',
-                    方向持续回合: 2,
                     方向效果数组: Object.freeze([
                       Object.freeze({ 机制: '属性变化', 目标: '友方单体', 属性: 'agi', 动作: '倍率提升', 数值: 1.2, 持续: 2, 触发: '立即生效' }),
                     ]),
                   }),
                   Object.freeze({
                     方向ID: '方向3',
-                    方向名称: '锁定向',
-                    方向语义标签: '锁定',
                     方向目标语义: '敌对',
-                    方向持续回合: 2,
                     方向效果数组: Object.freeze([
                       Object.freeze({ 机制: '目标锁定', 目标: '敌方单体', lock_level: 2, 持续回合: 2 }),
                     ]),
                   }),
                   Object.freeze({
                     方向ID: '方向4',
-                    方向名称: '置换向',
-                    方向语义标签: '置换',
                     方向目标语义: '上下文',
-                    方向持续回合: 2,
                     方向效果数组: Object.freeze([
                       Object.freeze({ 机制: '状态转移', 目标: '敌方单体', 转移类型: '自身负面->目标', 转移数量: 1, 触发条件: '命中后' }),
                     ]),
@@ -18812,48 +18751,32 @@
               Object.freeze({
                 ...createSkillFixtureSystemBase('敌方/单体'),
                 目标模型: '敌方单体',
-                目标规模: '单体',
-                阵营判定: '自动',
-                默认方向: '方向1',
                 自动切换规则: Object.freeze([]),
-                切换代价: '无',
                 方向配置列表: Object.freeze([
                   Object.freeze({
                     方向ID: '方向1',
-                    方向名称: '增幅向',
-                    方向语义标签: '增幅',
                     方向目标语义: '可赋予',
-                    方向持续回合: 2,
                     方向效果数组: Object.freeze([
                       Object.freeze({ 机制: '速度修正', 目标: '敌方单体', 属性: '速度', 动作: '倍率提升', 数值: 1.2, 持续: 2, 触发: '立即生效' }),
                     ]),
                   }),
                   Object.freeze({
                     方向ID: '方向2',
-                    方向名称: '压制向',
-                    方向语义标签: '压制',
                     方向目标语义: '敌对',
-                    方向持续回合: 2,
                     方向效果数组: Object.freeze([
                       Object.freeze({ 机制: '速度修正', 目标: '敌方单体', 属性: '速度', 动作: '倍率压制', 数值: 0.82, 持续: 2, 触发: '立即生效' }),
                     ]),
                   }),
                   Object.freeze({
                     方向ID: '方向3',
-                    方向名称: '锁定向',
-                    方向语义标签: '锁定',
                     方向目标语义: '敌对',
-                    方向持续回合: 2,
                     方向效果数组: Object.freeze([
                       Object.freeze({ 机制: '目标锁定', 目标: '敌方单体', lock_level: 1, 持续回合: 2 }),
                     ]),
                   }),
                   Object.freeze({
                     方向ID: '方向4',
-                    方向名称: '置换向',
-                    方向语义标签: '置换',
                     方向目标语义: '上下文',
-                    方向持续回合: 2,
                     方向效果数组: Object.freeze([
                       Object.freeze({ 机制: '状态转移', 目标: '敌方单体', 转移类型: '自身负面->目标', 转移数量: 1, 触发条件: '命中后' }),
                     ]),
@@ -18864,6 +18787,348 @@
           }),
           预期: Object.freeze({
             玩家新增状态: Object.freeze(['速度修正']),
+            要求补丁输出: true,
+          }),
+        }),
+        伤害链: Object.freeze({
+          skillName: '夹具_伤害链',
+          targetName: '云冥',
+          battle: Object.freeze({
+            进行中: true,
+            战斗类型: '擂台切磋',
+            战斗意图: '点到为止',
+            先攻: '无',
+            允许撤离: true,
+            回合: 0,
+            环境: '固定夹具场',
+            裁断结果: '',
+            参战者: Object.freeze({
+              player: Object.freeze({ name: '曹德智' }),
+              enemy: Object.freeze({ name: '云冥' }),
+              team_player: Object.freeze([]),
+              team_enemy: Object.freeze([]),
+            }),
+          }),
+          skillData: Object.freeze({
+            name: '夹具_伤害链',
+            魂技名: '夹具_伤害链',
+            技能来源: '自创魂技',
+            技能类型: '自创魂技',
+            对象: '敌方单体',
+            消耗: '无',
+            _效果数组: Object.freeze([
+              createSkillFixtureSystemBase('敌方/单体'),
+              Object.freeze({ 机制: '伤害链', 目标: '敌方单体', 链式比例: 0.5, 链式目标数: 1, 持续回合: 2 }),
+            ]),
+          }),
+          预期: Object.freeze({
+            目标体力至少减少: 1,
+            要求补丁输出: true,
+          }),
+        }),
+        生命链接: Object.freeze({
+          skillName: '夹具_生命链接',
+          targetName: '云冥',
+          battle: Object.freeze({
+            进行中: true,
+            战斗类型: '擂台切磋',
+            战斗意图: '点到为止',
+            先攻: '无',
+            允许撤离: true,
+            回合: 0,
+            环境: '固定夹具场',
+            裁断结果: '',
+            参战者: Object.freeze({
+              player: Object.freeze({ name: '曹德智' }),
+              enemy: Object.freeze({ name: '云冥' }),
+              team_player: Object.freeze([]),
+              team_enemy: Object.freeze([]),
+            }),
+          }),
+          skillData: Object.freeze({
+            name: '夹具_生命链接',
+            魂技名: '夹具_生命链接',
+            技能来源: '自创魂技',
+            技能类型: '自创魂技',
+            对象: '敌方单体',
+            消耗: '无',
+            _效果数组: Object.freeze([
+              createSkillFixtureSystemBase('敌方/单体'),
+              Object.freeze({ 机制: '生命链接', 目标: '敌方单体', 分摊比例: 0.35, 持续回合: 2 }),
+            ]),
+          }),
+          预期: Object.freeze({
+            目标新增状态: Object.freeze(['生命链接']),
+            要求补丁输出: true,
+          }),
+        }),
+        延长持续伤害: Object.freeze({
+          skillName: '夹具_延长持续伤害',
+          targetName: '云冥',
+          battle: Object.freeze({
+            进行中: true,
+            战斗类型: '擂台切磋',
+            战斗意图: '点到为止',
+            先攻: '无',
+            允许撤离: true,
+            回合: 0,
+            环境: '固定夹具场',
+            裁断结果: '',
+            参战者: Object.freeze({
+              player: Object.freeze({ name: '曹德智' }),
+              enemy: Object.freeze({ name: '云冥' }),
+              team_player: Object.freeze([]),
+              team_enemy: Object.freeze([]),
+            }),
+          }),
+          patchesBefore: Object.freeze([
+            {
+              op: 'replace',
+              path: '/char/云冥/属性/状态效果',
+              value: {
+                火毒灼烧: {
+                  类型: 'debuff',
+                  层数: 1,
+                  描述: '夹具持续伤害',
+                  duration: 2,
+                  面板修改比例: { str: 1, def: 1, agi: 1, sp_max: 1 },
+                  战斗效果: { dot_damage: 22 },
+                },
+              },
+            },
+          ]),
+          skillData: Object.freeze({
+            name: '夹具_延长持续伤害',
+            魂技名: '夹具_延长持续伤害',
+            技能来源: '自创魂技',
+            技能类型: '自创魂技',
+            对象: '敌方单体',
+            消耗: '无',
+            _效果数组: Object.freeze([
+              createSkillFixtureSystemBase('敌方/单体'),
+              Object.freeze({ 机制: '延长持续伤害', 目标: '敌方单体', 延长回合: 2, 持续回合: 2 }),
+            ]),
+          }),
+          预期: Object.freeze({
+            目标新增状态: Object.freeze(['火毒灼烧']),
+            要求补丁输出: true,
+          }),
+        }),
+        压缩持续伤害: Object.freeze({
+          skillName: '夹具_压缩持续伤害',
+          targetName: '云冥',
+          battle: Object.freeze({
+            进行中: true,
+            战斗类型: '擂台切磋',
+            战斗意图: '点到为止',
+            先攻: '无',
+            允许撤离: true,
+            回合: 0,
+            环境: '固定夹具场',
+            裁断结果: '',
+            参战者: Object.freeze({
+              player: Object.freeze({ name: '曹德智' }),
+              enemy: Object.freeze({ name: '云冥' }),
+              team_player: Object.freeze([]),
+              team_enemy: Object.freeze([]),
+            }),
+          }),
+          patchesBefore: Object.freeze([
+            {
+              op: 'replace',
+              path: '/char/云冥/属性/状态效果',
+              value: {
+                火毒灼烧: {
+                  类型: 'debuff',
+                  层数: 1,
+                  描述: '夹具持续伤害',
+                  duration: 3,
+                  面板修改比例: { str: 1, def: 1, agi: 1, sp_max: 1 },
+                  战斗效果: { dot_damage: 24 },
+                },
+              },
+            },
+          ]),
+          skillData: Object.freeze({
+            name: '夹具_压缩持续伤害',
+            魂技名: '夹具_压缩持续伤害',
+            技能来源: '自创魂技',
+            技能类型: '自创魂技',
+            对象: '敌方单体',
+            消耗: '无',
+            _效果数组: Object.freeze([
+              createSkillFixtureSystemBase('敌方/单体'),
+              Object.freeze({ 机制: '压缩持续伤害', 目标: '敌方单体', 压缩倍率: 1.3, 压缩回合: 1, 持续回合: 1 }),
+            ]),
+          }),
+          预期: Object.freeze({
+            目标体力至少减少: 1,
+            要求补丁输出: true,
+          }),
+        }),
+        拆层转存: Object.freeze({
+          skillName: '夹具_拆层转存',
+          targetName: '云冥',
+          battle: Object.freeze({
+            进行中: true,
+            战斗类型: '擂台切磋',
+            战斗意图: '点到为止',
+            先攻: '无',
+            允许撤离: true,
+            回合: 0,
+            环境: '固定夹具场',
+            裁断结果: '',
+            参战者: Object.freeze({
+              player: Object.freeze({ name: '曹德智' }),
+              enemy: Object.freeze({ name: '云冥' }),
+              team_player: Object.freeze([]),
+              team_enemy: Object.freeze([]),
+            }),
+          }),
+          patchesBefore: Object.freeze([
+            {
+              op: 'replace',
+              path: '/char/云冥/属性/状态效果',
+              value: {
+                火毒灼烧: {
+                  类型: 'debuff',
+                  层数: 2,
+                  描述: '夹具持续伤害',
+                  duration: 3,
+                  面板修改比例: { str: 1, def: 1, agi: 1, sp_max: 1 },
+                  战斗效果: { dot_damage: 26 },
+                },
+              },
+            },
+          ]),
+          skillData: Object.freeze({
+            name: '夹具_拆层转存',
+            魂技名: '夹具_拆层转存',
+            技能来源: '自创魂技',
+            技能类型: '自创魂技',
+            对象: '敌方单体',
+            消耗: '无',
+            _效果数组: Object.freeze([
+              createSkillFixtureSystemBase('敌方/单体'),
+              Object.freeze({ 机制: '拆层转存', 目标: '敌方单体', 拆层数量: 1, 持续回合: 2 }),
+            ]),
+          }),
+          预期: Object.freeze({
+            玩家新增状态: Object.freeze(['火毒灼烧·复制']),
+            要求补丁输出: true,
+          }),
+        }),
+        资源燃烧: Object.freeze({
+          skillName: '夹具_资源燃烧',
+          targetName: '云冥',
+          battle: Object.freeze({
+            进行中: true,
+            战斗类型: '擂台切磋',
+            战斗意图: '点到为止',
+            先攻: '无',
+            允许撤离: true,
+            回合: 0,
+            环境: '固定夹具场',
+            裁断结果: '',
+            参战者: Object.freeze({
+              player: Object.freeze({ name: '曹德智' }),
+              enemy: Object.freeze({ name: '云冥' }),
+              team_player: Object.freeze([]),
+              team_enemy: Object.freeze([]),
+            }),
+          }),
+          patchesBefore: Object.freeze([
+            { op: 'replace', path: '/char/云冥/属性/魂力上限', value: 100 },
+            { op: 'replace', path: '/char/云冥/属性/魂力', value: 80 },
+            { op: 'replace', path: '/char/云冥/属性/精神力上限', value: 100 },
+            { op: 'replace', path: '/char/云冥/属性/精神力', value: 80 },
+          ]),
+          skillData: Object.freeze({
+            name: '夹具_资源燃烧',
+            魂技名: '夹具_资源燃烧',
+            技能来源: '自创魂技',
+            技能类型: '自创魂技',
+            对象: '敌方单体',
+            消耗: '无',
+            _效果数组: Object.freeze([
+              createSkillFixtureSystemBase('敌方/单体'),
+              Object.freeze({ 机制: '资源燃烧', 目标: '敌方单体', 资源类型: '双资源', 每回合燃烧: 0.2, 持续回合: 2 }),
+            ]),
+          }),
+          预期: Object.freeze({
+            目标体力至少减少: 1,
+            要求补丁输出: true,
+          }),
+        }),
+        资源锁定: Object.freeze({
+          skillName: '夹具_资源锁定',
+          targetName: '云冥',
+          battle: Object.freeze({
+            进行中: true,
+            战斗类型: '擂台切磋',
+            战斗意图: '点到为止',
+            先攻: '无',
+            允许撤离: true,
+            回合: 0,
+            环境: '固定夹具场',
+            裁断结果: '',
+            参战者: Object.freeze({
+              player: Object.freeze({ name: '曹德智' }),
+              enemy: Object.freeze({ name: '云冥' }),
+              team_player: Object.freeze([]),
+              team_enemy: Object.freeze([]),
+            }),
+          }),
+          skillData: Object.freeze({
+            name: '夹具_资源锁定',
+            魂技名: '夹具_资源锁定',
+            技能来源: '自创魂技',
+            技能类型: '自创魂技',
+            对象: '敌方单体',
+            消耗: '无',
+            _效果数组: Object.freeze([
+              createSkillFixtureSystemBase('敌方/单体'),
+              Object.freeze({ 机制: '资源锁定', 目标: '敌方单体', 锁定比例: 0.45, 持续回合: 2 }),
+            ]),
+          }),
+          预期: Object.freeze({
+            目标新增状态: Object.freeze(['资源锁定']),
+            要求补丁输出: true,
+          }),
+        }),
+        召唤与场地: Object.freeze({
+          skillName: '夹具_召唤与场地',
+          targetName: '云冥',
+          battle: Object.freeze({
+            进行中: true,
+            战斗类型: '擂台切磋',
+            战斗意图: '点到为止',
+            先攻: '无',
+            允许撤离: true,
+            回合: 0,
+            环境: '固定夹具场',
+            裁断结果: '',
+            参战者: Object.freeze({
+              player: Object.freeze({ name: '曹德智' }),
+              enemy: Object.freeze({ name: '云冥' }),
+              team_player: Object.freeze([]),
+              team_enemy: Object.freeze([]),
+            }),
+          }),
+          skillData: Object.freeze({
+            name: '夹具_召唤与场地',
+            魂技名: '夹具_召唤与场地',
+            技能来源: '武魂融合技',
+            技能类型: '武魂融合技',
+            对象: '敌方单体',
+            消耗: '无',
+            _效果数组: Object.freeze([
+              createSkillFixtureSystemBase('敌方/单体', '武魂融合技'),
+              Object.freeze({ 机制: '召唤与场地', 目标: '敌方单体', 实体名称: '嗜血领域', 持续回合: 3, 继承属性比例: 0.35, 核心机制描述: '压制敌方恢复节奏' }),
+            ]),
+          }),
+          预期: Object.freeze({
+            目标新增状态: Object.freeze(['嗜血领域']),
             要求补丁输出: true,
           }),
         }),
@@ -18880,13 +19145,12 @@
           { 类目: '持续伤害', 机制: Object.freeze(['引爆持续伤害']), 状态: '已验证' },
           { 类目: '护盾博弈', 机制: Object.freeze(['斩盾', '窃取护盾']), 状态: '已验证' },
           { 类目: '多方向', 机制: Object.freeze(['多方向_施放切换', '多方向_语义可赋予']), 状态: '已验证' },
+          { 类目: '链接', 机制: Object.freeze(['伤害链', '生命链接']), 状态: '已验证' },
+          { 类目: '持续层数操控', 机制: Object.freeze(['延长持续伤害', '压缩持续伤害', '拆层转存']), 状态: '已验证' },
+          { 类目: '资源规则', 机制: Object.freeze(['资源燃烧', '资源锁定']), 状态: '已验证' },
+          { 类目: '场地', 机制: Object.freeze(['召唤与场地']), 状态: '已验证' },
         ]),
-        当前缺口: Object.freeze([
-          { 类目: '链接', 状态: '缺失', 机制: Object.freeze(['伤害链', '生命链接']) },
-          { 类目: '场地', 状态: '部分实现', 机制: Object.freeze(['召唤与场地']) },
-          { 类目: '持续层数操控', 状态: '缺失', 机制: Object.freeze(['延长持续伤害', '压缩持续伤害', '拆层转存']) },
-          { 类目: '资源规则', 状态: '缺失', 机制: Object.freeze(['资源燃烧', '资源锁定']) },
-        ]),
+        当前缺口: Object.freeze([]),
       });
     }
 
@@ -22601,11 +22865,9 @@ ${mvuUpdate}`;
       host.querySelectorAll('[data-preview]').forEach(node => {
         const previewKey = toText(node.getAttribute('data-preview'), '');
         if (!previewKey.startsWith(SKILL_DESIGNER_PREVIEW_PREFIX)) return;
-        const removable = node.closest('button, a, .role-switch-tile, .archive-tile, .dossier-list-row, .tag-chip, .relation-action-btn') || node;
-        removable.remove();
-      });
-      host.querySelectorAll('.skill-designer-layout, [data-skill-designer-form]').forEach(node => {
-        const removable = node.closest('.archive-card, .dossier-card') || node;
+        const removable = node.closest('button, a, .role-switch-tile, .archive-tile, .dossier-list-row, .tag-chip, .relation-action-btn');
+        if (!removable) return;
+        if (removable.querySelector && removable.querySelector('[data-skill-designer-form], .skill-designer-layout')) return;
         removable.remove();
       });
     }
@@ -23022,11 +23284,6 @@ ${mvuUpdate}`;
         return true;
       }
 
-      if (String(previewKey || '').startsWith(SKILL_DESIGNER_PREVIEW_PREFIX)) {
-        setHostMarkup('');
-        return true;
-      }
-
       const config = previewMap[previewKey] || buildDynamicPreview(previewKey || '璇︾粏寮圭獥');
       setHostMarkup(renderGenericModalBody(config));
       return true;
@@ -23168,13 +23425,6 @@ ${mvuUpdate}`;
         setArchiveRedesignState(refs, !shellMode);
         modalBody.innerHTML = wrapArchiveRedesignBody(view.body, { unifiedMode, previewKey, shellMode });
         if (shouldResetModalScroll) modalBody.scrollTop = 0;
-        return;
-      }
-      if (String(previewKey || '').startsWith(SKILL_DESIGNER_PREVIEW_PREFIX)) {
-        closeModal();
-        if (typeof showUiToast === 'function') {
-          showUiToast('技能设计台暂未就绪，请重试。', 'error', 4200);
-        }
         return;
       }
       const config = previewMap[previewKey] || buildDynamicPreview(previewKey || '详细弹窗');
