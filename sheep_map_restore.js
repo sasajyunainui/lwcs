@@ -7038,7 +7038,7 @@
         
         patchOps.push(
           { op: 'replace', path: `/world/时间/tick`, value: (Number(deepGet(mapState.baseSnapshot.rootData, 'world.时间.tick', 0)) + request.est_ticks) },
-          { op: 'replace', path: `/sys/rsn`, value: `[地图移动完成] 玩家乘坐 ${request.method} 抵达 ${finalLocName.replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '')}${targetTerrainInfo ? `（${toText(targetTerrainInfo.name, '未知地形')}）` : ''}，历时 ${request.est_duration}。` }
+          { op: 'replace', path: `/sys/系统播报`, value: `[地图移动完成] 玩家乘坐 ${request.method} 抵达 ${finalLocName.replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '')}${targetTerrainInfo ? `（${toText(targetTerrainInfo.name, '未知地形')}）` : ''}，历时 ${request.est_duration}。` }
         );
 
         if (request.costs) {

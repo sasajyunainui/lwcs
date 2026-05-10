@@ -147,6 +147,20 @@ function cloneJsonValue(值, 回退值 = {}) {
   return 回退值;
 }
 
+function 追加系统播报文本(数据对象 = {}, 文本 = '', 分隔符 = ' ') {
+  if (!数据对象 || typeof 数据对象 !== 'object') return '';
+  if (!数据对象.sys || typeof 数据对象.sys !== 'object') 数据对象.sys = {};
+  const 清洗文本 = String(文本 || '').trim();
+  if (!清洗文本) return String(数据对象.sys.系统播报 || '');
+  const 原播报 = String(数据对象.sys.系统播报 || '').trim();
+  const 现有播报 = 原播报 && 原播报 !== '初始化' ? 原播报 : '';
+  const 安全分隔符 = String(分隔符 || ' ').trim() || ' ';
+  数据对象.sys.系统播报 = `${现有播报}${现有播报 ? 安全分隔符 : ''}${清洗文本}`.trim();
+  return 数据对象.sys.系统播报;
+}
+
+let 最近旧选择回响签名 = '';
+
 function normalizeTravelMapLevel(level = 'world') {
   const safeLevel = String(level || 'world')
     .trim()
@@ -1690,7 +1704,7 @@ const SKILL_ARCHETYPE_POOL_V1 = {
   伤害类: ['直接伤害', '多段伤害', '延迟爆发', '持续伤害'],
   控制类: ['硬控', '软控', '位移限制', '节奏打断'],
   削弱类: ['单属性削弱', '多属性削弱', '禁疗', '消耗提高', '前摇拉长', '掌控压制'],
-  增益类: ['单属性增益', '多属性增益', '全属性增益', '消耗降低', '前摇缩短', '掌控提升', '速度提升'],
+  增益类: ['单属性增益', '多属性增益', '全属性增益', '消耗降低', '前摇缩短', '掌控提升', '速度提升', '修炼增益'],
   防御类: ['护盾', '减伤', '格挡/抵消', '霸体', '免死/锁血', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏'],
   回复类: ['体力恢复', '魂力恢复', '精神恢复', '持续恢复', '净化/解控'],
   '感知/认知类': ['感知干扰', '标记锁定', '共享视野', '幻境', '催眠', '认知扭曲'],
@@ -1756,9 +1770,9 @@ const SKILL_SECONDARY_BY_MAIN_V1 = {
   伤害类: ['穿透', '吸血', '斩杀补伤', '流血DOT', '打断', '反击', '追击', '引爆持续伤害', '斩盾', '吞噬'],
   控制类: ['打断', '沉默', '减速', '致盲', '迟缓', '禁疗', '缴械', '嘲讽', '破隐', '封技'],
   削弱类: ['禁疗', '减速', '迟缓', '标记弱点', '缴械', '驱散增益', '破隐', '治疗反转', '封技', '斩盾', '吞噬', '机制抹消'],
-  增益类: ['小护盾', '净化', '解控', '共享视野', '隐身', '护卫', '无敌金身', '复苏', '能力共享'],
+  增益类: ['小护盾', '净化', '解控', '共享视野', '隐身', '护卫', '无敌金身', '复苏', '能力共享', '修炼增益'],
   防御类: ['小护盾', '反击', '净化', '解控', '护卫', '嘲讽', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏'],
-  回复类: ['净化', '解控', '小护盾', '魂力恢复', '精神恢复', '驱散增益', '护卫', '复苏', '能力共享'],
+  回复类: ['净化', '解控', '小护盾', '魂力恢复', '精神恢复', '驱散增益', '护卫', '复苏', '能力共享', '修炼增益'],
   '感知/认知类': ['标记弱点', '共享视野', '目标锁定', '打断', '沉默', '缴械', '驱散增益', '窃取增益', '破隐'],
   位移类: ['打断', '反击', '标记弱点', '缴械', '隐身', '破隐'],
   特殊规则类: ['共享视野', '标记弱点', '净化', '驱散增益', '窃取增益', '隐身', '护卫', '状态转移', '引爆持续伤害', '斩盾', '窃取护盾', '吞噬', '能力共享', '机制抹消', '治疗反转', '封技', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏'],
@@ -1773,7 +1787,7 @@ const SKILL_SECONDARY_TYPE_BIAS_V1 = {
   元素系: ['引爆持续伤害', '斩盾', '封技', '治疗反转', '驱散增益', '破隐', '吞噬', '机制抹消'],
   辅助系: ['护卫', '复苏', '共享视野', '驱散增益', '窃取护盾', '无敌金身', '伤害分摊', '能力共享'],
   治疗系: ['复苏', '护卫', '驱散增益', '共享视野', '无敌金身', '窃取护盾', '伤害分摊', '能力共享'],
-  食物系: ['复苏', '驱散增益', '共享视野', '窃取护盾', '治疗反转', '护卫', '能力共享'],
+  食物系: ['修炼增益', '复苏', '驱散增益', '共享视野', '窃取护盾', '治疗反转', '护卫', '能力共享'],
 };
 
 const SKILL_MECHANISM_DEFAULT_META_V1 = Object.freeze({
@@ -2227,6 +2241,18 @@ const SKILL_MECHANISM_META_V1 = (() => {
     designerMainHint: '增益类',
     designerSubHint: '速度提升',
     设计台参数定义: [num('gainRatio', '提升倍率', '1.15'), num('duration', '持续回合', '2', '1')],
+  });
+  register('修炼增益', {
+    可主机制: true,
+    可副机制: true,
+    目标语义: '可赋予',
+    运行时消费器: 'cultivation_boost',
+    决策标签: ['团队保护型'],
+    摘要提示: { skillType: '辅助', mainType: '增益类', effectMode: '持续' },
+    designerMainHint: '增益类',
+    designerSubHint: '修炼增益',
+    designerSecondaryHint: '修炼增益',
+    设计台参数定义: [num('cultivateRatio', '修炼倍率', '1.2'), num('duration', '持续回合', '6', '1')],
   });
   register(['护盾', '小护盾'], {
     可主机制: true,
@@ -4982,6 +5008,23 @@ function buildConstructUsableEffects(baseEffects, defaultTarget, skillType = '')
       });
       return;
     }
+    if (mechanism === '修炼增益') {
+      const 持续回合 = Math.max(1, Number(effect.持续回合 || effect.持续 || 6));
+      const 持续tick = Math.max(6, Math.round(Number(effect.持续tick || 持续回合 * 6)));
+      const 修炼倍率 = Math.max(1.01, Number(effect.修炼速度倍率 || effect.修炼倍率 || effect.训练倍率 || 1.2));
+      usable.push({
+        target,
+        type: 'buff',
+        description: effect.描述 || summaryText || '使用后提升修炼速度',
+        value: {
+          持续: 持续回合,
+          持续tick,
+          修炼速度倍率: Number(修炼倍率.toFixed(4)),
+          修炼倍率说明: String(effect.修炼倍率说明 || '魂技机制:修炼增益'),
+        },
+      });
+      return;
+    }
     if (['属性变化', '持续恢复', '消耗修正', '前摇修正', '掌控修正', '速度修正'].includes(mechanism)) {
       const property = String(effect.属性 || '').trim();
       const action = String(effect.动作 || '').trim();
@@ -6677,6 +6720,11 @@ function buildSingleSkillEffectSummary(effect) {
         return '使' + target + '的速度压制' + formatSkillPercent(Math.abs(1 - value)) + durationText;
       return '使' + target + '的速度提升' + formatSkillPercent(Math.abs(value - 1)) + durationText;
     }
+    case '修炼增益': {
+      const duration = Math.max(1, Number(effect?.持续回合 || effect?.持续 || 6));
+      const ratio = Math.max(1.01, Number(effect?.修炼速度倍率 || effect?.修炼倍率 || effect?.训练倍率 || 1.2));
+      return '使' + target + '的修炼效率提升至 x' + formatSkillNumber(ratio, 2) + '，持续' + formatSkillNumber(duration) + '回合';
+    }
     case '解控':
     case '净化':
       return (
@@ -8207,6 +8255,18 @@ function autoGenerateSkill(
       目标: resolvePackedSemanticTarget('解控'),
       清除层级: { C: 1, B: 2, A: 3, S: 4 }[grade] || 1,
     });
+  if (main === '增益类' && archetype === '修炼增益') {
+    const 修炼倍率 = Number(randomInRange({ C: [1.08, 1.12], B: [1.15, 1.22], A: [1.24, 1.34], S: [1.36, 1.5] }).toFixed(2));
+    const 持续回合 = Math.max(2, Number(state.持续回合 || 3));
+    packedEffects.push({
+      机制: '修炼增益',
+      目标: resolvePackedSemanticTarget('修炼增益'),
+      持续回合,
+      持续tick: Math.max(12, Math.round(持续回合 * 6)),
+      修炼速度倍率: 修炼倍率,
+      修炼倍率说明: '魂技机制:修炼增益',
+    });
+  }
   if (
     (main === '伤害类' || secondary.includes('流血DOT')) &&
     Math.max(Number(state.持续真伤dot || 0), Number(stateCalc.dot_damage || 0)) > 0
@@ -8264,6 +8324,19 @@ function autoGenerateSkill(
       false,
     );
     if (effect) packedEffects.push(effect);
+  }
+  if (secondary.includes('修炼增益')) {
+    const 基础倍率 = Number(randomInRange({ C: [1.06, 1.1], B: [1.1, 1.16], A: [1.16, 1.24], S: [1.24, 1.34] }).toFixed(2));
+    const 修炼倍率 = Math.max(1.03, Number((1 + (基础倍率 - 1) * secondaryEffectScale).toFixed(4)));
+    const 持续回合 = Math.max(1, Math.round((state.持续回合 || 2) * secondaryDurationScale));
+    packedEffects.push({
+      机制: '修炼增益',
+      目标: resolvePackedSemanticTarget('修炼增益'),
+      持续回合,
+      持续tick: Math.max(6, Math.round(持续回合 * 6)),
+      修炼速度倍率: 修炼倍率,
+      修炼倍率说明: '魂技机制:修炼增益',
+    });
   }
   if (secondary.includes('斩杀补伤')) {
     const match = String(state.特殊机制标识 || '').match(/斩杀补伤:(\d+)%\/(\d+)%/);
@@ -9049,6 +9122,7 @@ function autoGenerateSkill(
 const GENERATION_CHECK_TYPE_HINT_BY_MECHANISM_V1 = Object.freeze({
   吞噬: '精神系',
   能力共享: '辅助系',
+  修炼增益: '食物系',
   机制抹消: '控制系',
   状态转移: '精神系',
   引爆持续伤害: '元素系',
@@ -9067,6 +9141,7 @@ const GENERATION_STRENGTH_RULES_V1 = Object.freeze({
     { 字段: '转化比例', 模式: 'gt' },
   ]),
   能力共享: Object.freeze([{ 字段: '反灌比例', 模式: 'gt' }]),
+  修炼增益: Object.freeze([{ 字段: '修炼速度倍率', 模式: 'gt' }]),
   机制抹消: Object.freeze([
     { 字段: '抹消方式', 模式: 'pair_eq', 主期望: '移除并封锁', 副期望: '仅封锁后续' },
     { 字段: '持续回合', 模式: 'gt' },
@@ -9793,12 +9868,12 @@ function settleInternalAbyssKillReward(data = {}, winner = {}, winnerName = '', 
   else if (level === '高阶生物') pts = 1000;
   else if (level === '深渊王者') pts = 50000;
   if (pts <= 0) {
-    data.sys.系统播报 = `[深渊战功] ${winnerName} 击杀【${defeatedName}】后未能识别深渊级别，未获得战功。`;
+    追加系统播报文本(data, `[深渊战功] ${winnerName} 击杀【${defeatedName}】未识别级别，未获战功，军方评价不变。`);
     return;
   }
   if (!winner.财富 || typeof winner.财富 !== 'object') winner.财富 = {};
   winner.财富.战功 = Math.max(0, Number(winner.财富.战功 || 0) + pts);
-  data.sys.系统播报 = `[深渊战功] ${winnerName} 击杀【${defeatedName}】，获得 ${pts} 点战功！`;
+  追加系统播报文本(data, `[深渊战功] ${winnerName} 击杀【${defeatedName}】，获得 ${pts} 点战功，军方记录已更新。`);
 }
 
 function getDeviationMultiplierValue(data = {}) {
@@ -9824,7 +9899,7 @@ function applyDeviationDeltaValue(data = {}, rawDelta = 0) {
 function settleInternalSoulBeastReward(data = {}, winner = {}, winnerName = '', defeated = {}, defeatedName = '') {
   const age = Math.max(0, Math.floor(Number(defeated?.属性?.年龄 || defeated?.年限 || 0)));
   if (age <= 0) {
-    data.sys.系统播报 = `[现实狩猎] ${winnerName} 击败了【${defeatedName}】，但未识别到有效年限，未生成猎魂结算。`;
+    追加系统播报文本(data, `[现实狩猎] ${winnerName} 击败了【${defeatedName}】，但未识别有效年限，背包无新增。`);
     return;
   }
   if (!winner.背包 || typeof winner.背包 !== 'object') winner.背包 = {};
@@ -9834,7 +9909,7 @@ function settleInternalSoulBeastReward(data = {}, winner = {}, winnerName = '', 
     winner.背包[ringName] = { 数量: 0, 类型: '魂环', 品质: '标准', 描述: '未吸收的无主魂环' };
   }
   winner.背包[ringName].数量 = Math.max(0, Number(winner.背包[ringName].数量 || 0) + 1);
-  let msg = `[现实狩猎] ${winnerName} 击杀了【${defeatedName}】，获得【${ringName}】！`;
+  let msg = `[现实狩猎] ${winnerName} 击杀了【${defeatedName}】，获得【${ringName}】，背包已入账。`;
 
   const dropRate = age >= 100000 ? 100 : (age / 100000) * 100;
   const roll = Math.floor(Math.random() * 100) + 1;
@@ -9871,7 +9946,7 @@ function settleInternalSoulBeastReward(data = {}, winner = {}, winnerName = '', 
     msg += `\n💀 [命运烙印] 击杀十万年/凶兽！烙上【魂兽公敌】印记！`;
   }
 
-  data.sys.系统播报 = msg;
+  追加系统播报文本(data, msg);
 }
 
 function normalizeSkillAttributeCoefficients(value = {}) {
@@ -12326,6 +12401,11 @@ const CharacterSchema = z
             奖励币: z.coerce.number().prefault(0),
             奖励声望: z.coerce.number().prefault(0),
             描述: z.string().prefault('无'),
+            阶段: z.coerce.number().prefault(1).describe('任务当前阶段(>=1)'),
+            分支: z.string().prefault('未判定').describe('任务分支结果'),
+            失败计数: z.coerce.number().prefault(0).describe('提交失败累计次数'),
+            里程碑: z.array(z.string()).prefault([]).describe('已触发的阶段里程碑'),
+            最后更新时间tick: z.coerce.number().prefault(0).describe('最近一次进度更新tick'),
           })
           .prefault({}),
       )
@@ -13625,6 +13705,11 @@ const SchemaRootObject = z
                 内容: z.string().prefault('无'),
                 知情规则: z.array(z.string()).prefault([]),
                 知情对象: z.array(z.string()).prefault([]),
+                核实状态: z.string().prefault('可疑').describe('可疑/待核实/已核实/误报'),
+                核实进度: z.coerce.number().prefault(0).describe('当前情报核实推进值'),
+                最近核实结果: z.string().prefault('无').describe('最近一次核实结果'),
+                最近核实tick: z.coerce.number().prefault(0).describe('最近一次核实发生时间'),
+                触发来源: z.string().prefault('无').describe('最近一次核实触发来源'),
               })
               .prefault({}),
           )
@@ -13805,7 +13890,23 @@ const SchemaRootObject = z
           })
           .describe('随剧情动态拓展的子地图节点'),
         图鉴: z
-          .record(z.string().describe('物种或怪物名称，如：巴安'), z.object({}).prefault({}))
+          .record(
+            z.string().describe('物种或怪物名称，如：巴安'),
+            z
+              .object({
+                交手次数: z.coerce.number().prefault(0),
+                击杀次数: z.coerce.number().prefault(0),
+                图鉴档位: z.string().prefault('初识'),
+                当前档经验: z.coerce.number().prefault(0),
+                下档需求: z.coerce.number().prefault(3),
+                最近活跃tick: z.coerce.number().prefault(0),
+                最近升档tick: z.coerce.number().prefault(0),
+                探索收益: z.coerce.number().prefault(0),
+                战斗收益: z.coerce.number().prefault(0),
+              })
+              .catchall(z.any())
+              .prefault({}),
+          )
           .prefault({})
           .describe('怪物图鉴，记录已遭遇怪物的标准数据'),
         战斗: z
@@ -13935,8 +14036,7 @@ export const Schema = z
     const appendSystemReasonText = text => {
       const safeText = String(text || '').trim();
       if (!safeText) return;
-      if (data.sys.系统播报 === '初始化' || !data.sys.系统播报) data.sys.系统播报 = '';
-      data.sys.系统播报 += `${data.sys.系统播报 ? ' ' : ''}${safeText}`;
+      追加系统播报文本(data, safeText);
     };
 
     const appendSystemReasonBatchText = (label, entries = [], options = {}) => {
@@ -13986,10 +14086,24 @@ export const Schema = z
       const next = {
         标题: '无',
         内容: '无',
+        知情规则: [],
         知情对象: [],
+        核实状态: '可疑',
+        核实进度: 0,
+        最近核实结果: '无',
+        最近核实tick: 0,
+        触发来源: '无',
         ...(previous && typeof previous === 'object' ? _.cloneDeep(previous) : {}),
         ...(payload && typeof payload === 'object' ? _.cloneDeep(payload) : {}),
       };
+      if (!Array.isArray(next.知情规则)) next.知情规则 = [];
+      if (!Array.isArray(next.知情对象)) next.知情对象 = [];
+      const 核实状态白名单 = new Set(['可疑', '待核实', '已核实', '误报']);
+      if (!核实状态白名单.has(String(next.核实状态 || '').trim())) next.核实状态 = '可疑';
+      next.核实进度 = Math.max(0, Number(next.核实进度 || 0));
+      next.最近核实结果 = String(next.最近核实结果 || '无').trim() || '无';
+      next.最近核实tick = Math.max(0, Number(next.最近核实tick || 0));
+      next.触发来源 = String(next.触发来源 || '无').trim() || '无';
       data.world.机密情报[safeKey] = next;
       return next;
     };
@@ -14070,11 +14184,252 @@ export const Schema = z
         });
         intelEntry.知情规则 = resolved.rules;
         intelEntry.知情对象 = Array.from(new Set((Array.isArray(intelEntry.知情对象) ? intelEntry.知情对象 : []).concat(resolved.targets)));
+        const 核实状态白名单 = new Set(['可疑', '待核实', '已核实', '误报']);
+        if (!核实状态白名单.has(String(intelEntry.核实状态 || '').trim())) intelEntry.核实状态 = '可疑';
+        intelEntry.核实进度 = Math.max(0, Number(intelEntry.核实进度 || 0));
+        intelEntry.最近核实结果 = String(intelEntry.最近核实结果 || '无').trim() || '无';
+        intelEntry.最近核实tick = Math.max(0, Number(intelEntry.最近核实tick || 0));
+        intelEntry.触发来源 = String(intelEntry.触发来源 || '无').trim() || '无';
       });
     };
 
     let currentTick = Number(data.world.时间.tick || 0);
     data.world.时间.tick = currentTick;
+    const 机密情报触发队列 = [];
+
+    const 推入机密情报触发 = (来源 = '', 关键词 = []) => {
+      const 安全来源 = String(来源 || '').trim();
+      const 关键词列表 = Array.from(new Set((Array.isArray(关键词) ? 关键词 : [])
+        .map(item => String(item || '').trim())
+        .filter(Boolean)));
+      if (!安全来源 || !关键词列表.length) return;
+      机密情报触发队列.push({
+        来源: 安全来源,
+        关键词: 关键词列表,
+      });
+    };
+
+    const 获取任务阶段跨度 = 任务条目 => {
+      const 目标进度 = Math.max(1, Number(任务条目?.目标进度 || 1));
+      return Math.max(1, Math.ceil(目标进度 / 3));
+    };
+
+    const 计算任务阶段号 = 任务条目 => {
+      const 当前进度 = Math.max(0, Number(任务条目?.当前进度 || 0));
+      const 目标进度 = Math.max(1, Number(任务条目?.目标进度 || 1));
+      const 阶段跨度 = 获取任务阶段跨度(任务条目);
+      const 阶段总数 = Math.max(1, Math.ceil(目标进度 / 阶段跨度));
+      const 阶段号 = Math.floor(当前进度 / 阶段跨度) + 1;
+      return Math.max(1, Math.min(阶段总数, 阶段号));
+    };
+
+    const 补全任务条目字段 = (任务条目 = {}, 当前tick = 0) => {
+      if (!任务条目 || typeof 任务条目 !== 'object' || Array.isArray(任务条目)) return null;
+      if (!Array.isArray(任务条目.里程碑)) 任务条目.里程碑 = [];
+      任务条目.失败计数 = Math.max(0, Number(任务条目.失败计数 || 0));
+      任务条目.分支 = String(任务条目.分支 || '未判定').trim() || '未判定';
+      任务条目.阶段 = Math.max(1, Number(任务条目.阶段 || 0)) || 1;
+      任务条目.最后更新时间tick = Math.max(0, Number(任务条目.最后更新时间tick || 当前tick || 0));
+      if (!任务条目.阶段 || !Number.isFinite(Number(任务条目.阶段))) {
+        任务条目.阶段 = 计算任务阶段号(任务条目);
+      }
+      return 任务条目;
+    };
+
+    const 记录任务里程碑 = (任务条目 = {}, 里程碑名 = '') => {
+      if (!任务条目 || typeof 任务条目 !== 'object') return false;
+      if (!Array.isArray(任务条目.里程碑)) 任务条目.里程碑 = [];
+      const 安全名 = String(里程碑名 || '').trim();
+      if (!安全名 || 任务条目.里程碑.includes(安全名)) return false;
+      任务条目.里程碑.push(安全名);
+      return true;
+    };
+
+    const 图鉴档位序列 = Object.freeze(['初识', '熟悉', '精研', '通晓', '猎王']);
+    const 图鉴档位阈值表 = Object.freeze([
+      Object.freeze({ 档位: '初识', 交手次数: 1, 击杀次数: 0, 探索收益: 0.005, 战斗收益: 0.005 }),
+      Object.freeze({ 档位: '熟悉', 交手次数: 3, 击杀次数: 1, 探索收益: 0.01, 战斗收益: 0.01 }),
+      Object.freeze({ 档位: '精研', 交手次数: 6, 击杀次数: 2, 探索收益: 0.015, 战斗收益: 0.015 }),
+      Object.freeze({ 档位: '通晓', 交手次数: 10, 击杀次数: 3, 探索收益: 0.02, 战斗收益: 0.02 }),
+      Object.freeze({ 档位: '猎王', 交手次数: 15, 击杀次数: 5, 探索收益: 0.03, 战斗收益: 0.03 }),
+    ]);
+
+    const 获取图鉴条目经验 = 图鉴条目 =>
+      Math.max(0, Number(图鉴条目?.交手次数 || 0)) + Math.max(0, Number(图鉴条目?.击杀次数 || 0)) * 2;
+
+    const 重算图鉴成长 = (图鉴条目 = {}, 当前tick = 0) => {
+      if (!图鉴条目 || typeof 图鉴条目 !== 'object' || Array.isArray(图鉴条目)) return null;
+      图鉴条目.交手次数 = Math.max(0, Number(图鉴条目.交手次数 || 0));
+      图鉴条目.击杀次数 = Math.max(0, Number(图鉴条目.击杀次数 || 0));
+      const 原档位 = String(图鉴条目.图鉴档位 || '初识').trim() || '初识';
+      let 当前阈值索引 = 0;
+      图鉴档位阈值表.forEach((档位配置, 索引) => {
+        if (图鉴条目.交手次数 >= Number(档位配置.交手次数 || 0) && 图鉴条目.击杀次数 >= Number(档位配置.击杀次数 || 0)) {
+          当前阈值索引 = 索引;
+        }
+      });
+      const 当前档位配置 = 图鉴档位阈值表[当前阈值索引] || 图鉴档位阈值表[0];
+      图鉴条目.图鉴档位 = 当前档位配置.档位;
+      图鉴条目.探索收益 = Number(当前档位配置.探索收益 || 0);
+      图鉴条目.战斗收益 = Number(当前档位配置.战斗收益 || 0);
+      const 当前经验 = 获取图鉴条目经验(图鉴条目);
+      图鉴条目.当前档经验 = 当前经验;
+      const 下档配置 = 图鉴档位阈值表[Math.min(图鉴档位阈值表.length - 1, 当前阈值索引 + 1)] || 当前档位配置;
+      const 下档需求经验 = Number(下档配置.交手次数 || 0) + Number(下档配置.击杀次数 || 0) * 2;
+      图鉴条目.下档需求 = Math.max(0, 下档需求经验);
+      const 原活跃tick = Math.max(0, Number(图鉴条目.最近活跃tick || 0));
+      图鉴条目.最近活跃tick = 当前经验 > 0 ? (原活跃tick > 0 ? 原活跃tick : Math.max(0, Number(当前tick || 0))) : 原活跃tick;
+      const 是否升档 = 原档位 !== 当前档位配置.档位;
+      if (是否升档) {
+        图鉴条目.最近升档tick = Math.max(0, Number(当前tick || 图鉴条目.最近升档tick || 0));
+      } else {
+        图鉴条目.最近升档tick = Math.max(0, Number(图鉴条目.最近升档tick || 0));
+      }
+      return {
+        是否升档,
+        原档位,
+        新档位: 当前档位配置.档位,
+        当前经验,
+        下档需求经验,
+      };
+    };
+
+    const 计算图鉴总被动 = () => {
+      const 图鉴数据 = data.world?.图鉴 && typeof data.world.图鉴 === 'object' ? data.world.图鉴 : {};
+      let 探索加成总和 = 0;
+      let 战斗加成总和 = 0;
+      const 升档播报项 = [];
+      Object.entries(图鉴数据).forEach(([图鉴名, 图鉴条目]) => {
+        const 成长结果 = 重算图鉴成长(图鉴条目, currentTick);
+        if (!成长结果) return;
+        探索加成总和 += Number(图鉴条目.探索收益 || 0);
+        战斗加成总和 += Number(图鉴条目.战斗收益 || 0);
+        if (成长结果.是否升档) {
+          升档播报项.push(`${图鉴名}:${成长结果.原档位}→${成长结果.新档位}`);
+        }
+      });
+      if (升档播报项.length) {
+        appendSystemReasonBatchText('[图鉴升档]', 升档播报项, { limit: 2 });
+      }
+      return {
+        探索加成: Math.max(0, Number(探索加成总和.toFixed(4))),
+        战斗加成: Math.max(0, Number(战斗加成总和.toFixed(4))),
+      };
+    };
+
+    const 图鉴总被动 = 计算图鉴总被动();
+
+    const 应用图鉴被动到角色 = (角色 = {}, 角色名 = '') => {
+      if (!角色 || typeof 角色 !== 'object') return;
+      if (!角色.属性 || typeof 角色.属性 !== 'object') return;
+      if (!角色.属性.状态效果 || typeof 角色.属性.状态效果 !== 'object') 角色.属性.状态效果 = {};
+      const 探索加成 = Math.max(0, Number(图鉴总被动.探索加成 || 0));
+      const 战斗加成 = Math.max(0, Number(图鉴总被动.战斗加成 || 0));
+      if (!(探索加成 > 0 || 战斗加成 > 0)) {
+        delete 角色.属性.状态效果['图鉴研究增益'];
+        return;
+      }
+      角色.属性.状态效果['图鉴研究增益'] = {
+        类型: 'buff',
+        层数: 1,
+        描述: `由图鉴研究积累带来的稳定增益(探索+${Math.round(探索加成 * 100)}%/战斗+${Math.round(战斗加成 * 100)}%)`,
+        stat_mods: {
+          str: Number((1 + 战斗加成).toFixed(4)),
+          def: Number((1 + 战斗加成 * 0.7).toFixed(4)),
+          agi: Number((1 + 探索加成).toFixed(4)),
+          sp_max: Number((1 + 探索加成 * 0.7).toFixed(4)),
+        },
+      };
+      if (!角色.状态 || typeof 角色.状态 !== 'object') 角色.状态 = {};
+      角色.状态.图鉴被动来源 = `${角色名 || '角色'}图鉴研究`;
+    };
+
+    const 计算情报触发匹配分 = (情报条目 = {}, 触发项 = {}) => {
+      const 关键词列表 = Array.isArray(触发项?.关键词) ? 触发项.关键词 : [];
+      const 标题文本 = String(情报条目?.标题 || '').trim();
+      const 内容文本 = String(情报条目?.内容 || '').trim();
+      const 规则文本 = Array.isArray(情报条目?.知情规则) ? 情报条目.知情规则.join(' ') : '';
+      let 匹配分 = 0;
+      关键词列表.forEach(关键词 => {
+        const 安全词 = String(关键词 || '').trim();
+        if (!安全词) return;
+        if ((标题文本 && (标题文本.includes(安全词) || 安全词.includes(标题文本))) ||
+            (内容文本 && (内容文本.includes(安全词) || 安全词.includes(内容文本)))) {
+          匹配分 += 2;
+        } else if (规则文本 && (规则文本.includes(安全词) || 安全词.includes(规则文本))) {
+          匹配分 += 1;
+        } else if (标题文本 || 内容文本) {
+          const 情报文本 = `${标题文本} ${内容文本}`;
+          if (安全词.length >= 2 && 情报文本.includes(安全词.slice(0, 2))) 匹配分 += 1;
+        }
+      });
+      return 匹配分;
+    };
+
+    const 推进机密情报核实流程 = () => {
+      if (!机密情报触发队列.length) return;
+      const 玩家名 = String(data.sys?.玩家名 || '').trim();
+      const 玩家角色 = 玩家名 && data.char?.[玩家名] ? data.char[玩家名] : null;
+      const 节点播报 = [];
+      机密情报触发队列.forEach(触发项 => {
+        Object.entries(data.world.机密情报 || {}).forEach(([情报键, 原条目]) => {
+          const 情报条目 = upsertSecretIntel(情报键, 原条目 || {});
+          if (!情报条目) return;
+          const 当前状态 = String(情报条目.核实状态 || '可疑').trim() || '可疑';
+          if (当前状态 === '已核实' || 当前状态 === '误报') return;
+          const 匹配分 = 计算情报触发匹配分(情报条目, 触发项);
+          if (当前状态 === '可疑') {
+            if (匹配分 > 0) {
+              情报条目.核实状态 = '待核实';
+              情报条目.核实进度 = Math.max(1, Number(情报条目.核实进度 || 0) + 1);
+              情报条目.最近核实结果 = '待核实';
+              情报条目.最近核实tick = currentTick;
+              情报条目.触发来源 = String(触发项.来源 || '未知').trim() || '未知';
+            }
+            return;
+          }
+          情报条目.核实进度 = Math.max(1, Number(情报条目.核实进度 || 0) + 1);
+          情报条目.最近核实tick = currentTick;
+          情报条目.触发来源 = String(触发项.来源 || '未知').trim() || '未知';
+          const 满足核实成功 = 匹配分 >= 2 || Number(情报条目.核实进度 || 0) >= 3;
+          if (满足核实成功) {
+            情报条目.核实状态 = '已核实';
+            情报条目.最近核实结果 = '核实成功';
+            if (玩家角色 && typeof 玩家角色 === 'object') {
+              if (!Array.isArray(玩家角色.已掌握情报)) 玩家角色.已掌握情报 = [];
+              const 线索文本 = `${String(情报条目.标题 || 情报键).trim()}:${String(情报条目.内容 || '无').trim()}`;
+              if (线索文本 && !玩家角色.已掌握情报.includes(线索文本)) {
+                玩家角色.已掌握情报.push(线索文本);
+              }
+              if (!玩家角色.属性 || typeof 玩家角色.属性 !== 'object') 玩家角色.属性 = {};
+              if (!玩家角色.属性.状态效果 || typeof 玩家角色.属性.状态效果 !== 'object') 玩家角色.属性.状态效果 = {};
+              玩家角色.属性.状态效果['情报核实增益'] = {
+                类型: 'buff',
+                层数: 1,
+                描述: '核实到关键情报，短时提升行动效率',
+                duration: 2,
+                stat_mods: { str: 1.01, def: 1.0, agi: 1.02, sp_max: 1.02 },
+              };
+            }
+            节点播报.push(`${String(情报条目.标题 || 情报键).trim()} 核实成功`);
+          } else if (匹配分 <= 0 && Number(情报条目.核实进度 || 0) >= 2) {
+            情报条目.核实状态 = '误报';
+            情报条目.最近核实结果 = '核实失败';
+            if (玩家角色 && 玩家角色.属性 && typeof 玩家角色.属性 === 'object') {
+              const 体力上限 = Math.max(1, Number(玩家角色.属性.体力上限 || 玩家角色.属性.HP上限 || 1));
+              const 失败代价 = Math.max(1, Math.floor(体力上限 * 0.02));
+              玩家角色.属性.体力 = Math.max(0, Number(玩家角色.属性.体力 || 0) - 失败代价);
+              玩家角色.属性.HP = Math.max(0, Number(玩家角色.属性.HP || 玩家角色.属性.体力 || 0) - 失败代价);
+            }
+            节点播报.push(`${String(情报条目.标题 || 情报键).trim()} 误报`);
+          } else {
+            情报条目.最近核实结果 = '待核实';
+          }
+        });
+      });
+      appendSystemReasonBatchText('[情报核实]', 节点播报, { limit: 2 });
+      机密情报触发队列.length = 0;
+    };
 
     const formatTickToCalendarDateLocal = tickValue => {
       const safeTick = Math.max(0, Number(tickValue || 0));
@@ -14877,6 +15232,99 @@ export const Schema = z
 
     let lastTick = data.world.时间._上次结算tick ?? data.world.时间.上次结算tick ?? currentTick;
     let delta = currentTick - lastTick;
+    if (delta > 0 && data.sys.系统播报 && data.sys.系统播报 !== '初始化') {
+      data.sys.系统播报 = '初始化';
+    }
+
+    const 收集旧选择回响候选 = () => {
+      const 回响候选列表 = [];
+      const 最小回合间隔 = 3;
+      const 最大任务窗口 = 432;
+      const 最大互动窗口 = 216;
+      const 最大情报窗口 = 432;
+      const 类型优先级 = { 任务: 3, 情报: 2, 互动: 1 };
+
+      _(data.char || {}).forEach((角色数据, 角色名) => {
+        _(角色数据?.记录 || {}).forEach((任务条目, 任务名) => {
+          if (!任务条目 || typeof 任务条目 !== 'object') return;
+          const 更新时间tick = Math.max(0, Number(任务条目.最后更新时间tick || 0));
+          if (!(更新时间tick > 0)) return;
+          const 回合差 = currentTick - 更新时间tick;
+          if (回合差 < 最小回合间隔 || 回合差 > 最大任务窗口) return;
+          const 状态文本 = String(任务条目.状态 || '').trim();
+          if (!['已完成', '已放弃', '可提交', '阶段推进'].includes(状态文本)) return;
+          const 分支文本 = String(任务条目.分支 || '').trim();
+          let 后果文本 = '相关势力正在依据你的处理结果重新评估你';
+          if (状态文本 === '已完成' && 分支文本 === '高收益线') 后果文本 = '高风险资源线被进一步打开';
+          else if (状态文本 === '已完成' && 分支文本 === '稳妥线') 后果文本 = '稳定合作路线正在升温';
+          else if (状态文本 === '已放弃') 后果文本 = '委托板正在重新分配该任务';
+          else if (状态文本 === '可提交') 后果文本 = '任务委托方已开始催促最终交付';
+          const 回响文本 = `[旧选择回响] ${角色名}此前处理的【${任务名}】仍在发酵，${后果文本}。`;
+          回响候选列表.push({
+            类型: '任务',
+            tick: 更新时间tick,
+            签名: `任务|${角色名}|${任务名}|${更新时间tick}|${状态文本}|${分支文本}`,
+            文本: 回响文本,
+          });
+        });
+      });
+
+      _(data.char || {}).forEach((角色数据, 角色名) => {
+        _(角色数据?.社交?.关系 || {}).forEach((关系条目, 对象名) => {
+          if (!关系条目 || typeof 关系条目 !== 'object') return;
+          const 互动tick = Math.max(0, Number(关系条目.上次互动tick || 0));
+          if (!(互动tick > 0)) return;
+          const 回合差 = currentTick - 互动tick;
+          if (回合差 < 最小回合间隔 || 回合差 > 最大互动窗口) return;
+          const 最近动作 = String(关系条目.上次互动动作 || '').trim();
+          const 最近变化 = Number(关系条目.最近好感变化 || 0);
+          if ((!最近动作 || 最近动作 === '无') && 最近变化 === 0) return;
+          const 路线文本 = String(关系条目.关系路线 || '朋友线').trim() || '朋友线';
+          const 回响文本 = `[旧选择回响] ${角色名}对【${对象名}】的${最近动作 || '互动'}仍在发酵，当前关系倾向${路线文本}。`;
+          回响候选列表.push({
+            类型: '互动',
+            tick: 互动tick,
+            签名: `互动|${角色名}|${对象名}|${互动tick}|${最近动作}|${最近变化}|${路线文本}`,
+            文本: 回响文本,
+          });
+        });
+      });
+
+      _(data.world?.机密情报 || {}).forEach((情报条目, 情报名) => {
+        if (!情报条目 || typeof 情报条目 !== 'object') return;
+        const 核实tick = Math.max(0, Number(情报条目.最近核实tick || 0));
+        if (!(核实tick > 0)) return;
+        const 回合差 = currentTick - 核实tick;
+        if (回合差 < 最小回合间隔 || 回合差 > 最大情报窗口) return;
+        const 核实结果 = String(情报条目.最近核实结果 || '').trim();
+        if (!核实结果 || 核实结果 === '无') return;
+        const 标题文本 = String(情报条目.标题 || 情报名 || '未命名情报').trim();
+        const 回响文本 = `[旧选择回响] 情报【${标题文本}】的核实结果正在扩散：${核实结果}。`;
+        回响候选列表.push({
+          类型: '情报',
+          tick: 核实tick,
+          签名: `情报|${标题文本}|${核实tick}|${核实结果}`,
+          文本: 回响文本,
+        });
+      });
+
+      if (!回响候选列表.length) return null;
+      回响候选列表.sort((左侧, 右侧) => {
+        const tick差值 = Number(右侧.tick || 0) - Number(左侧.tick || 0);
+        if (tick差值 !== 0) return tick差值;
+        return Number(类型优先级[右侧.类型] || 0) - Number(类型优先级[左侧.类型] || 0);
+      });
+      return 回响候选列表[0] || null;
+    };
+
+    const 追加旧选择回响播报 = () => {
+      if (!(delta > 0)) return;
+      const 回响候选 = 收集旧选择回响候选();
+      if (!回响候选 || !回响候选.文本) return;
+      if (回响候选.签名 === 最近旧选择回响签名) return;
+      最近旧选择回响签名 = 回响候选.签名;
+      追加系统播报文本(data, 回响候选.文本);
+    };
 
     let refreshQuestBoardFrames = () => {};
     const lowerCaseKeys = obj => {
@@ -15433,7 +15881,10 @@ export const Schema = z
         };
 
         if (!dataRef.sys?.系统播报 || dataRef.sys.系统播报 === '初始化') {
-          dataRef.sys.系统播报 = `[委托刷新] ${frame.publisher} 挂出了一份${frame.tier}级【${frame.descriptor?.label || '公开'}】委托框架：${frame.title}。`;
+          追加系统播报文本(
+            dataRef,
+            `[委托刷新] ${frame.publisher} 挂出了一份${frame.tier}级【${frame.descriptor?.label || '公开'}】委托框架：${frame.title}。`,
+          );
         }
       };
 
@@ -15945,6 +16396,7 @@ export const Schema = z
 
     _(data.char).forEach((c, charName) => {
       const trainedBonus = ensureNumericStatBonusMap(c.属性, '训练加成');
+      应用图鉴被动到角色(c, charName);
       const previousResourceSnapshot = resourceStateBeforeRecalc.get(charName) || {
         魂力: Math.max(0, Number(c.属性?.魂力 || 0)),
         魂力上限: Math.max(1, Number(c.属性?.魂力上限 || 1)),
@@ -16079,22 +16531,24 @@ export const Schema = z
           if (getComputedWoundLevelFromStat(c.属性) === '濒死') {
             c.属性.HP = Math.max(Math.ceil(c.属性.HP上限 * 0.1), Number(c.属性.HP || 0));
           }
-          data.sys.系统播报 = `[本源修复] ${charName} 吸收高阶灵物，庞大的生机修补了受损的根基！恢复了 ${recoverAmount} 级等级上限。`;
+          let 灵物播报文本 = `[本源修复] ${charName} 吸收高阶灵物，庞大的生机修补了受损的根基！恢复了 ${recoverAmount} 级等级上限。`;
           const extraHerbMessages = applyHundredThousandSpiritHerbBonus_ACU(c);
           if (extraHerbMessages.length) {
-            data.sys.系统播报 += ` 同时${extraHerbMessages.join('，')}。`;
+            灵物播报文本 += ` 同时${extraHerbMessages.join('，')}。`;
           }
+          追加系统播报文本(data, 灵物播报文本);
         } else {
           if (c.属性.等级 - c.属性.上次灵物等级 >= 20) {
             c.属性.永久魂力加成 = Math.floor(Number(c.属性.永久魂力加成 || 0) + spiritHerbGain);
             c.属性.魂力上限 = Math.floor(Number(c.属性.魂力上限 || 0) + spiritHerbGain);
             c.属性.突破魂力上限 = Math.floor(Number(c.属性.突破魂力上限 || 0) + spiritHerbGain);
             c.属性.上次灵物等级 = c.属性.等级;
-            data.sys.系统播报 = `[灵物吸收] ${charName} 成功吸收 ${age} 年灵物，魂力成长槽提升 ${spiritHerbGain} 点！`;
+            let 灵物播报文本 = `[灵物吸收] ${charName} 成功吸收 ${age} 年灵物，魂力成长槽提升 ${spiritHerbGain} 点！`;
             const extraHerbMessages = applyHundredThousandSpiritHerbBonus_ACU(c);
             if (extraHerbMessages.length) {
-              data.sys.系统播报 += ` 同时${extraHerbMessages.join('，')}。`;
+              灵物播报文本 += ` 同时${extraHerbMessages.join('，')}。`;
             }
+            追加系统播报文本(data, 灵物播报文本);
           } else {
             c.属性.等级惩罚 += 1;
             c.属性.状态效果['灵物反噬'] = {
@@ -16102,7 +16556,7 @@ export const Schema = z
               层数: 1,
               描述: '短时间内强行吸收灵物，经脉受损，永久扣除1级等级上限',
             };
-            data.sys.系统播报 = `[灵物反噬] ${charName} 违规连续吸收灵物！经脉受损，永久扣除 1 级等级上限！`;
+            追加系统播报文本(data, `[灵物反噬] ${charName} 违规连续吸收灵物！经脉受损，永久扣除 1 级等级上限！`);
           }
         }
         c.状态.吸收灵物年限 = 0;
@@ -16110,7 +16564,7 @@ export const Schema = z
 
       const hadLifeFireActive = LIFE_FIRE_STATE_CACHE[charName] === true;
       if (hadLifeFireActive && c.血脉之力?.生命之火 === false) {
-        data.sys.系统播报 = `[生命之火熄灭] ${charName} 透支本源，修为暴跌 3 级，陷入濒死！`;
+        追加系统播报文本(data, `[生命之火熄灭] ${charName} 透支本源，修为暴跌 3 级，陷入濒死！`);
         c.属性.等级 = Math.max(1, c.属性.等级 - 3);
         c.属性.等级惩罚 += 3;
         c.属性.HP = Math.max(1, Math.floor(c.属性.HP上限 * 0.03));
@@ -16272,6 +16726,31 @@ export const Schema = z
     });
 
     _(data.char).forEach((c, charName) => {
+      if (!c || typeof c !== 'object' || !c.状态 || typeof c.状态 !== 'object') return;
+      const 当前地点 = String(c.状态.位置 || '').trim();
+      if (!当前地点) return;
+      const 上次地点 = String(c.状态._情报上次地点 || '').trim();
+      if (上次地点 && 上次地点 !== 当前地点) {
+        推入机密情报触发('地点', [上次地点, 当前地点, charName]);
+      }
+      c.状态._情报上次地点 = 当前地点;
+    });
+
+    if (!data.world.战斗 || typeof data.world.战斗 !== 'object') data.world.战斗 = {};
+    const 当前战斗裁断结果 = String(data.world.战斗.裁断结果 || '').trim();
+    const 上次战斗裁断结果 = String(data.world.战斗._情报上次裁断结果 || '').trim();
+    if (当前战斗裁断结果 && 当前战斗裁断结果 !== 上次战斗裁断结果) {
+      推入机密情报触发('战斗', [当前战斗裁断结果, String(data.world.战斗.战斗类型 || '').trim()]);
+    }
+    data.world.战斗._情报上次裁断结果 = 当前战斗裁断结果;
+
+    _(data.char).forEach(c => {
+      _(c?.记录 || {}).forEach(任务条目 => {
+        补全任务条目字段(任务条目, currentTick);
+      });
+    });
+
+    _(data.char).forEach((c, charName) => {
       const trainedBonus = ensureNumericStatBonusMap(c.属性, '训练加成');
       if (c.互动请求 && c.互动请求.动作 !== '无') {
         let req = c.互动请求;
@@ -16418,7 +16897,8 @@ export const Schema = z
           }
         }
 
-        if (msg) data.sys.系统播报 = msg;
+        推入机密情报触发('交互', [charName, targetName, req.动作, msg]);
+        if (msg) 追加系统播报文本(data, msg);
         c.互动请求 = { 目标人物: '无', 动作: '无', 使用物品: '无', 结果评分: 0 };
       }
     });
@@ -16426,53 +16906,105 @@ export const Schema = z
     _(data.char).forEach((c, charName) => {
       if (c.任务请求 && c.任务请求.动作 !== '无') {
         let req = c.任务请求;
-        let qName = req.任务名称;
+        let qName = String(req.任务名称 || '').trim();
         let msg = '';
+        if (!qName || qName === '无') qName = '未命名任务';
+        if (!c.记录 || typeof c.记录 !== 'object') c.记录 = {};
         if (!data.world.委托板 || typeof data.world.委托板 !== 'object') data.world.委托板 = {};
         let boardEntry = data.world.委托板[qName];
 
         if (req.动作 === '接取') {
           c.记录[qName] = {
             类型: (boardEntry && boardEntry.类型) || '悬赏任务',
-            状态: '进行中',
+            状态: '阶段推进',
             当前进度: 0,
-            目标进度: req.目标进度,
-            奖励币: req.奖励币,
-            奖励声望: req.奖励声望,
+            目标进度: Math.max(1, Number(req.目标进度 || 1)),
+            奖励币: Math.max(0, Number(req.奖励币 || 0)),
+            奖励声望: Math.max(0, Number(req.奖励声望 || 0)),
             描述: req.任务描述,
+            阶段: 1,
+            分支: '未判定',
+            失败计数: 0,
+            里程碑: ['任务接取'],
+            最后更新时间tick: currentTick,
           };
           if (boardEntry && typeof boardEntry === 'object') {
-            boardEntry.状态 = '进行中';
+            boardEntry.状态 = '阶段推进';
             boardEntry.承接者 = charName;
           }
           msg = `[任务接取] ${charName} 接取了悬赏：【${qName}】。目标：${req.任务描述}。`;
         } else if (req.动作 === '更新进度' && c.记录[qName]) {
           let q = c.记录[qName];
-          if (q.状态 === '进行中') {
-            q.当前进度 += req.进度增量;
-            msg = `[任务进度] 【${qName}】进度更新：${q.当前进度}/${q.目标进度}。`;
+          q = 补全任务条目字段(q, currentTick) || q;
+          if (!['已完成', '已放弃'].includes(String(q.状态 || '').trim())) {
+            const 原阶段 = Math.max(1, Number(q.阶段 || 1));
+            q.当前进度 = Math.max(0, Number(q.当前进度 || 0) + Number(req.进度增量 || 0));
+            q.阶段 = 计算任务阶段号(q);
+            q.状态 = '阶段推进';
+            q.最后更新时间tick = currentTick;
+            msg = `[任务进度] 【${qName}】阶段 ${q.阶段} 进度更新：${q.当前进度}/${q.目标进度}。`;
+            if (q.阶段 > 原阶段 && 记录任务里程碑(q, `阶段${q.阶段}达成`)) {
+              const 里程碑奖励币 = Math.max(1, Math.floor(Number(q.奖励币 || 0) * 0.08));
+              const 里程碑奖励声望 = Math.max(1, Math.floor(Number(q.奖励声望 || 0) * 0.12));
+              c.财富.联邦币 = Math.max(0, Number(c.财富.联邦币 || 0) + 里程碑奖励币);
+              c.社交.声望 = Math.max(0, Number(c.社交.声望 || 0) + 里程碑奖励声望);
+              msg += ` [节点爆发] 阶段里程碑达成，额外获得 ${里程碑奖励币} 联邦币 / ${里程碑奖励声望} 声望。`;
+            }
             if (q.当前进度 >= q.目标进度) {
+              q.状态 = '分支判定';
+              const 失败计数 = Math.max(0, Number(q.失败计数 || 0));
+              if (失败计数 >= 2) q.分支 = '稳妥线';
+              else if (失败计数 === 0 && Math.random() < 0.45) q.分支 = '高收益线';
+              else q.分支 = '主线';
+              记录任务里程碑(q, `分支:${q.分支}`);
               q.状态 = '可提交';
               if (boardEntry && typeof boardEntry === 'object') boardEntry.状态 = '可提交';
-              msg += ` (已达成目标，可前往提交！)`;
+              msg += ` [节点爆发] 已进入${q.分支}，可前往提交。`;
+            } else if (boardEntry && typeof boardEntry === 'object') {
+              boardEntry.状态 = '阶段推进';
             }
           }
         } else if (req.动作 === '提交' && c.记录[qName]) {
           let q = c.记录[qName];
-          if (q.状态 === '可提交' || q.当前进度 >= q.目标进度) {
+          q = 补全任务条目字段(q, currentTick) || q;
+          if (q.状态 === '可提交' || Number(q.当前进度 || 0) >= Number(q.目标进度 || 1)) {
             q.状态 = '已完成';
-            c.财富.联邦币 = (c.财富.联邦币 || 0) + (q.奖励币 || 0);
-            c.社交.声望 = (c.社交.声望 || 0) + (q.奖励声望 || 0);
+            let 实得奖励币 = Math.max(0, Number(q.奖励币 || 0));
+            let 实得奖励声望 = Math.max(0, Number(q.奖励声望 || 0));
+            if (q.分支 === '高收益线') {
+              实得奖励币 = Math.max(0, Math.floor(实得奖励币 * 1.2));
+              实得奖励声望 = Math.max(0, Math.floor(实得奖励声望 * 1.15));
+            } else if (q.分支 === '稳妥线') {
+              实得奖励币 = Math.max(0, Math.floor(实得奖励币 * 0.9));
+              实得奖励声望 = Math.max(0, Math.floor(实得奖励声望 * 1.05));
+            }
+            c.财富.联邦币 = Math.max(0, Number(c.财富.联邦币 || 0) + 实得奖励币);
+            c.社交.声望 = Math.max(0, Number(c.社交.声望 || 0) + 实得奖励声望);
+            记录任务里程碑(q, '任务结算');
+            q.最后更新时间tick = currentTick;
             if (boardEntry && typeof boardEntry === 'object') {
               boardEntry.状态 = '已完成';
               boardEntry.承接者 = charName;
             }
-            msg = `[任务完成] ${charName} 提交了【${qName}】！获得奖励：${q.奖励币} 联邦币, ${q.奖励声望} 声望！`;
+            msg = `[任务完成] ${charName} 提交了【${qName}】！获得奖励：${实得奖励币} 联邦币, ${实得奖励声望} 声望！`;
           } else {
-            msg = `[任务提交失败] 【${qName}】进度未达标 (${q.当前进度}/${q.目标进度})，NPC 拒绝结算！`;
+            q.失败计数 = Math.max(0, Number(q.失败计数 || 0) + 1);
+            const 回退量 = Math.max(1, Math.floor(获取任务阶段跨度(q) * 0.5));
+            q.当前进度 = Math.max(0, Number(q.当前进度 || 0) - 回退量);
+            q.阶段 = 计算任务阶段号(q);
+            q.状态 = '阶段推进';
+            q.最后更新时间tick = currentTick;
+            const 失败代价币 = Math.max(0, Math.floor(Number(q.奖励币 || 0) * 0.05));
+            const 失败代价声望 = 1;
+            c.财富.联邦币 = Math.max(0, Number(c.财富.联邦币 || 0) - 失败代价币);
+            c.社交.声望 = Math.max(0, Number(c.社交.声望 || 0) - 失败代价声望);
+            if (boardEntry && typeof boardEntry === 'object') boardEntry.状态 = '阶段推进';
+            msg = `[任务提交失败] 【${qName}】进度未达标 (${q.当前进度}/${q.目标进度})，回退 ${回退量} 进度并扣除 ${失败代价币} 联邦币/${失败代价声望} 声望。`;
           }
         } else if (req.动作 === '放弃' && c.记录[qName]) {
-          c.记录[qName].状态 = '已放弃';
+          const q = 补全任务条目字段(c.记录[qName], currentTick) || c.记录[qName];
+          q.状态 = '已放弃';
+          q.最后更新时间tick = currentTick;
           if (boardEntry && typeof boardEntry === 'object') {
             boardEntry.状态 = '待接取';
             boardEntry.承接者 = '无';
@@ -16480,7 +17012,8 @@ export const Schema = z
           msg = `[任务放弃] ${charName} 放弃了悬赏：【${qName}】。`;
         }
 
-        if (msg) data.sys.系统播报 = msg;
+        推入机密情报触发('任务', [charName, qName, req.动作, msg]);
+        if (msg) 追加系统播报文本(data, msg);
         c.任务请求 = {
           动作: '无',
           任务名称: '无',
@@ -16492,6 +17025,7 @@ export const Schema = z
         };
       }
     });
+    推进机密情报核实流程();
 
     _(data.char).forEach((c, charName) => {
       if (c.晋升请求 && c.晋升请求.目标势力 !== '无') {
@@ -16679,7 +17213,7 @@ export const Schema = z
           msg = `[势力晋升] 恭喜 ${charName} 成功晋升为【${fac} - ${title}】！`;
           if (cost > 0) msg += `扣除贡献/战功: ${cost}。`;
         }
-        data.sys.系统播报 = msg;
+        追加系统播报文本(data, msg);
         c.晋升请求 = { 目标势力: '无', 目标职位: '无' };
       }
       if (c.捐献请求 && c.捐献请求.物品名称 !== '无') {
@@ -16687,7 +17221,7 @@ export const Schema = z
         let itemName = req.物品名称;
 
         if (!c.背包[itemName] || c.背包[itemName].数量 < req.数量) {
-          data.sys.系统播报 = `[捐献失败] 背包中没有足够的【${itemName}】。`;
+          追加系统播报文本(data, `[捐献失败] 背包中没有足够的【${itemName}】。`);
         } else {
           let basePrice = 10000;
           if (/天锻|四字|红级|十万年/.test(itemName)) basePrice = 100000000;
@@ -16709,7 +17243,10 @@ export const Schema = z
             c.财富.战功 = (c.财富.战功 || 0) + pointsEarned;
           else c.财富.唐门积分 = (c.财富.唐门积分 || 0) + pointsEarned;
 
-          data.sys.系统播报 = `[物资捐献] ${charName} 向【${req.目标势力}】上交了 ${req.数量} 份【${itemName}】。获得 ${pointsEarned} 贡献点！`;
+          追加系统播报文本(
+            data,
+            `[物资捐献] ${charName} 向【${req.目标势力}】上交了 ${req.数量} 份【${itemName}】。获得 ${pointsEarned} 贡献点！`,
+          );
         }
         c.捐献请求 = { 物品名称: '无', 目标势力: '无', 数量: 1 };
       }
@@ -16734,6 +17271,7 @@ export const Schema = z
       }
 
     });
+    追加旧选择回响播报();
 
     const REFRESH_INTERVAL = 1008;
 

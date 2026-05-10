@@ -1484,8 +1484,6 @@
     let lastDashboardRenderSignature = '';
     let lastDashboardSectionRenderSignatures = null;
     let liveUiRefCache = new Map();
-    let 最近两轮选项键历史 = [];
-    let 最近选项轮次签名 = '';
 
     function htmlEscape(value) {
       return String(value == null ? '' : value)
@@ -4331,7 +4329,7 @@
       '伤害类': Object.freeze(['单体伤害', '群体伤害', '多段伤害', '延迟爆发', '持续伤害']),
       '控制类': Object.freeze(['硬控', '软控', '位移限制', '节奏打断', '封技']),
       '削弱类': Object.freeze(['单属性削弱', '多属性削弱', '禁疗', '消耗提高', '前摇拉长', '掌控压制', '速度压制', '治疗反转']),
-      '增益类': Object.freeze(['单属性增益', '多属性增益', '全属性增益', '消耗降低', '前摇缩短', '掌控提升', '速度提升']),
+      '增益类': Object.freeze(['单属性增益', '多属性增益', '全属性增益', '消耗降低', '前摇缩短', '掌控提升', '速度提升', '修炼增益']),
       '防御类': Object.freeze(['护盾', '减伤', '格挡/抵消', '霸体', '免死/锁血', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏']),
       '回复类': Object.freeze(['体力恢复', '魂力恢复', '精神恢复', '持续恢复', '净化/解控']),
       '感知/认知类': Object.freeze(['感知干扰', '标记锁定', '共享视野', '幻境', '催眠', '认知扭曲']),
@@ -4368,9 +4366,9 @@
       '伤害类': Object.freeze(['穿透', '吸血', '斩杀补伤', '流血DOT', '打断', '反击', '追击', '引爆持续伤害', '斩盾', '吞噬']),
       '控制类': Object.freeze(['打断', '沉默', '减速', '致盲', '迟缓', '禁疗', '缴械', '嘲讽', '破隐', '封技']),
       '削弱类': Object.freeze(['禁疗', '减速', '迟缓', '标记弱点', '缴械', '驱散增益', '破隐', '治疗反转', '封技', '斩盾', '吞噬', '机制抹消']),
-      '增益类': Object.freeze(['小护盾', '净化', '解控', '共享视野', '隐身', '护卫', '无敌金身', '复苏', '能力共享']),
+      '增益类': Object.freeze(['小护盾', '净化', '解控', '共享视野', '隐身', '护卫', '无敌金身', '复苏', '能力共享', '修炼增益']),
       '防御类': Object.freeze(['小护盾', '反击', '净化', '解控', '护卫', '嘲讽', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏']),
-      '回复类': Object.freeze(['净化', '解控', '小护盾', '魂力恢复', '精神恢复', '驱散增益', '护卫', '复苏', '能力共享']),
+      '回复类': Object.freeze(['净化', '解控', '小护盾', '魂力恢复', '精神恢复', '驱散增益', '护卫', '复苏', '能力共享', '修炼增益']),
       '感知/认知类': Object.freeze(['标记弱点', '共享视野', '目标锁定', '打断', '沉默', '缴械', '驱散增益', '窃取增益', '破隐']),
       '位移类': Object.freeze(['打断', '反击', '标记弱点', '缴械', '隐身', '破隐']),
       '特殊规则类': Object.freeze(['共享视野', '标记弱点', '净化', '驱散增益', '窃取增益', '隐身', '护卫', '状态转移', '引爆持续伤害', '斩盾', '窃取护盾', '吞噬', '能力共享', '机制抹消', '治疗反转', '封技', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏']),
@@ -4384,7 +4382,7 @@
       '元素系': Object.freeze(['引爆持续伤害', '斩盾', '封技', '治疗反转', '驱散增益', '破隐', '吞噬', '机制抹消']),
       '辅助系': Object.freeze(['护卫', '复苏', '共享视野', '驱散增益', '窃取护盾', '无敌金身', '伤害分摊', '能力共享']),
       '治疗系': Object.freeze(['复苏', '护卫', '驱散增益', '共享视野', '无敌金身', '窃取护盾', '伤害分摊', '能力共享']),
-      '食物系': Object.freeze(['复苏', '驱散增益', '共享视野', '窃取护盾', '治疗反转', '护卫', '能力共享']),
+      '食物系': Object.freeze(['修炼增益', '复苏', '驱散增益', '共享视野', '窃取护盾', '治疗反转', '护卫', '能力共享']),
     });
     const SKILL_DESIGNER_TARGET_SEMANTICS = Object.freeze(SHARED_SKILL_MECHANISM_REGISTRY?.目标语义表 || {});
     const BRIDGE_FALLBACK_SKILL_MECHANISM_REGISTRY = Object.freeze({
@@ -4488,6 +4486,7 @@
       '窃取护盾': Object.freeze({ main: '特殊规则类', sub: '窃取护盾', secondary: '窃取护盾' }),
       '吞噬': Object.freeze({ main: '特殊规则类', sub: '吞噬', secondary: '吞噬' }),
       '能力共享': Object.freeze({ main: '特殊规则类', sub: '能力共享', secondary: '能力共享' }),
+      '修炼增益': Object.freeze({ main: '增益类', sub: '修炼增益', secondary: '修炼增益' }),
       '机制抹消': Object.freeze({ main: '特殊规则类', sub: '机制抹消', secondary: '机制抹消' }),
       '效果反转': Object.freeze({ main: '特殊规则类', sub: '规则改写' }),
       '伤害转回复': Object.freeze({ main: '特殊规则类', sub: '转化' }),
@@ -4540,6 +4539,7 @@
       '窃取护盾': Object.freeze(['窃取护盾']),
       '吞噬': Object.freeze(['吞噬']),
       '能力共享': Object.freeze(['能力共享']),
+      '修炼增益': Object.freeze(['修炼增益']),
       '机制抹消': Object.freeze(['机制抹消']),
     });
     const SKILL_DESIGNER_PACKED_PROPERTY_LABELS = Object.freeze({
@@ -10261,153 +10261,19 @@
       };
     }
 
-    function 从请求摘要提取候选选项(请求列表 = []) {
-      const 候选列表 = [];
-      if (!Array.isArray(请求列表)) return 候选列表;
-      请求列表.forEach(请求文本 => {
-        const 原文 = toText(请求文本, '').trim();
-        if (!原文 || isShellPlaceholderText(原文) || hasUiPlaceholderToken(原文)) return;
-        const 短句列表 = 原文
-          .split(/[；;。！？!?、\n]+/)
-          .map(片段 => toText(片段, '').trim())
-          .filter(Boolean);
-        (短句列表.length ? 短句列表 : [原文]).forEach(短句 => {
-          if (/^任务[:：]/.test(短句)) {
-            候选列表.push(`推进${短句.replace(/^任务[:：]\s*/, '')}`);
-          } else if (/^晋升[:：]/.test(短句)) {
-            候选列表.push(`处理${短句}`);
-          } else if (/^捐献[:：]/.test(短句)) {
-            候选列表.push(`完成${短句}`);
-          } else if (/^互动[:：]/.test(短句)) {
-            候选列表.push(`执行${短句}`);
-          } else {
-            候选列表.push(`处理${短句}`);
-          }
-        });
-      });
-      return 候选列表;
-    }
-
-    function 从系统播报提取候选选项(快照, 数量上限 = 2) {
-      const 候选列表 = [];
-      const 推入候选 = 文本 => {
-        const 清洗后文本 = 归一化候选选项原文(文本);
-        if (!清洗后文本) return;
-        候选列表.push(清洗后文本);
-      };
-      const 播报文本 = toText(deepGet(快照, 'rootData.sys.系统播报', ''), '').trim();
-      const 最新时间线 = Array.isArray(快照 && 快照.latestTimeline) ? 快照.latestTimeline : [];
-      const 时间线事件文本 = 最新时间线.length >= 2
-        ? toText(deepGet(最新时间线[1], '事件', 最新时间线[0]), '').trim()
-        : '';
-      const 判断文本 = `${播报文本} ${时间线事件文本}`.trim();
-
-      if (/战|敌|袭|冲突|追击|高危|警报/.test(判断文本)) 推入候选('前往冲突点确认局势');
-      if (/交易|拍卖|商店|资源|金币|战功/.test(判断文本)) 推入候选('前往交易点处理资源调度');
-      if (/任务|委托|请求|指令|推进/.test(判断文本)) 推入候选('推进当前任务线索');
-      if (/情报|线索|调查|异常|踪迹/.test(判断文本)) 推入候选('核实系统播报里的关键线索');
-
-      if (!候选列表.length && 播报文本) {
-        推入候选(`跟进系统播报：${shortenText(播报文本, 20)}`);
-      }
-      if (候选列表.length < 2 && 时间线事件文本) {
-        推入候选(`跟进时间线：${shortenText(时间线事件文本, 20)}`);
-      }
-      if (!候选列表.length) {
-        推入候选('探索周边动向');
-      }
-      return 候选列表.slice(0, Math.max(1, toNumber(数量上限, 2)));
-    }
-
-    function 应用两轮去重候选选项(候选条目列表 = [], 轮次签名 = '') {
-      const 原始条目列表 = Array.isArray(候选条目列表) ? 候选条目列表.filter(Boolean) : [];
-      const 唯一条目列表 = [];
-      const 本轮唯一键集合 = new Set();
-      原始条目列表.forEach(条目 => {
-        const 规范键 = toText(条目 && 条目.规范键, '').trim();
-        if (!规范键 || 本轮唯一键集合.has(规范键)) return;
-        本轮唯一键集合.add(规范键);
-        唯一条目列表.push(条目);
-      });
-
-      const 历史键集合 = new Set();
-      (最近两轮选项键历史 || []).forEach(键列表 => {
-        if (!Array.isArray(键列表)) return;
-        键列表.forEach(键 => {
-          const 规范键 = toText(键, '').trim();
-          if (规范键) 历史键集合.add(规范键);
-        });
-      });
-
-      const 过滤后条目列表 = 唯一条目列表.filter(条目 => !历史键集合.has(toText(条目 && 条目.规范键, '').trim()));
-      const 展示条目列表 = 过滤后条目列表.slice(0, 4);
-      if (展示条目列表.length < 2) {
-        for (const 条目 of 唯一条目列表) {
-          if (展示条目列表.includes(条目)) continue;
-          展示条目列表.push(条目);
-          if (展示条目列表.length >= Math.min(2, 唯一条目列表.length)) break;
-        }
-      }
-      if (展示条目列表.length < 4) {
-        for (const 条目 of 唯一条目列表) {
-          if (展示条目列表.includes(条目)) continue;
-          展示条目列表.push(条目);
-          if (展示条目列表.length >= 4) break;
-        }
-      }
-
-      const 当前签名 = toText(轮次签名, '').trim();
-      if (当前签名 && 当前签名 !== 最近选项轮次签名) {
-        const 本轮展示键列表 = 展示条目列表
-          .map(条目 => toText(条目 && 条目.规范键, '').trim())
-          .filter(Boolean);
-        if (本轮展示键列表.length) {
-          最近两轮选项键历史.unshift(Array.from(new Set(本轮展示键列表)));
-          最近两轮选项键历史 = 最近两轮选项键历史.slice(0, 2);
-        }
-        最近选项轮次签名 = 当前签名;
-      }
-      return 展示条目列表.slice(0, 4);
-    }
-
     function 构建可玩选项展示列表(快照) {
-      const 候选原文池 = [];
-      const 已录入文本集合 = new Set();
-      const 追加候选文本 = (文本列表 = []) => {
-        if (!Array.isArray(文本列表)) return;
-        文本列表.forEach(文本 => {
-          const 清洗后文本 = 归一化候选选项原文(文本);
-          if (!清洗后文本) return;
-          if (已录入文本集合.has(清洗后文本)) return;
-          已录入文本集合.add(清洗后文本);
-          候选原文池.push(清洗后文本);
-        });
-      };
-
-      追加候选文本(读取选项表候选文本列表());
-      if (候选原文池.length < 4) 追加候选文本(从请求摘要提取候选选项(快照 && 快照.pendingRequests));
-      if (候选原文池.length < 4) 追加候选文本(从系统播报提取候选选项(快照, 2));
-      if (候选原文池.length < 4) 追加候选文本(['探索周边动向', '整理当前线索', '休整并恢复状态']);
-
-      const 候选条目列表 = 候选原文池
-        .map((文本, 序号) => 构建候选选项条目(文本, 序号 + 1))
-        .filter(Boolean);
-      const 时间线签名 = Array.isArray(快照 && 快照.timelineEntries)
-        ? 快照.timelineEntries
-          .slice(0, 3)
-          .map(([名称, 条目]) => `${toText(名称, '')}@${toText(deepGet(条目, '触发tick', ''), '')}:${toText(deepGet(条目, '状态', ''), '')}`)
-          .join('|')
-        : '';
-      const 轮次签名 = JSON.stringify({
-        角色: toText(快照 && 快照.activeName, ''),
-        地点: toText(快照 && 快照.currentLoc, ''),
-        时间: toText(deepGet(快照, 'rootData.world.当前时间', deepGet(快照, 'rootData.world.上轮场景时间', '')), ''),
-        时间线: 时间线签名,
-        播报: toText(deepGet(快照, 'rootData.sys.系统播报', ''), ''),
-        请求: Array.isArray(快照 && 快照.pendingRequests) ? 快照.pendingRequests.join('|') : '',
-        候选: 候选条目列表.map(条目 => 条目.规范键).join('|')
+      const 选项原文列表 = 读取选项表候选文本列表();
+      const 已录入键集合 = new Set();
+      const 展示条目列表 = [];
+      (Array.isArray(选项原文列表) ? 选项原文列表 : []).forEach((原文, 索引) => {
+        const 条目 = 构建候选选项条目(原文, 索引 + 1);
+        if (!条目) return;
+        const 规范键 = toText(条目.规范键, '').trim();
+        if (!规范键 || 已录入键集合.has(规范键)) return;
+        已录入键集合.add(规范键);
+        展示条目列表.push(条目);
       });
-      return 应用两轮去重候选选项(候选条目列表, 轮次签名);
+      return 展示条目列表.slice(0, 4);
     }
 
     function 提取叙事句段(source = '') {
@@ -10640,6 +10506,52 @@
       const pendingRequests = collectPendingRequests(activeChar || {}, sd || {});
       const bestiaryEntries = safeEntries(deepGet(sd, 'world.图鉴', {}));
       const forestKilledAge = toNumber(deepGet(sd, 'world.累计击杀年限', 0), 0);
+      const 任务进行中列表 = recordEntries.filter(([, item]) => item && typeof item === 'object' && !['已完成', '已放弃', '失败', '已失败'].includes(toText(item && item['状态'], '进行中')));
+      const 当前任务聚焦条目 = 任务进行中列表[0] || recordEntries[0] || null;
+      const 当前任务名称 = 当前任务聚焦条目 ? toText(当前任务聚焦条目[0], '暂无任务') : '暂无任务';
+      const 当前任务数据 = 当前任务聚焦条目 && 当前任务聚焦条目[1] && typeof 当前任务聚焦条目[1] === 'object'
+        ? 当前任务聚焦条目[1]
+        : {};
+      const 当前任务阶段 = Math.max(1, toNumber(当前任务数据 && 当前任务数据['阶段'], 1));
+      const 当前任务阶段文本 = 当前任务聚焦条目 ? `第${当前任务阶段}阶段` : '无';
+      const 当前任务下一节点进度 = 当前任务聚焦条目
+        ? `${Math.max(0, toNumber(当前任务数据 && 当前任务数据['当前进度'], 0))}/${Math.max(1, toNumber(当前任务数据 && 当前任务数据['目标进度'], 1))}`
+        : '--';
+      const 机密情报条目 = safeEntries(deepGet(sd, 'world.机密情报', {})).filter(([, item]) => item && typeof item === 'object');
+      const 待核实情报列表 = 机密情报条目.filter(([, item]) => toText(item && item['核实状态'], '可疑') === '待核实');
+      const 最近核实情报 = 机密情报条目
+        .map(([name, item]) => ({ 名称: name, 数据: item }))
+        .sort((a, b) => toNumber(deepGet(b, '数据.最近核实tick', 0), 0) - toNumber(deepGet(a, '数据.最近核实tick', 0), 0))[0] || null;
+      const 情报最近核实结果 = 最近核实情报
+        ? `${toText(deepGet(最近核实情报, '数据.标题', 最近核实情报.名称), 最近核实情报.名称)}:${toText(deepGet(最近核实情报, '数据.最近核实结果', '无'), '无')}`
+        : '暂无核实记录';
+      const 图鉴档位顺序 = ['初识', '熟悉', '精研', '通晓', '猎王'];
+      const 图鉴聚焦条目 = (bestiaryEntries || [])
+        .filter(([, item]) => item && typeof item === 'object')
+        .sort((a, b) => {
+          const aData = a[1] || {};
+          const bData = b[1] || {};
+          const aTick = toNumber(aData && aData['最近活跃tick'], 0);
+          const bTick = toNumber(bData && bData['最近活跃tick'], 0);
+          if (aTick !== bTick) return bTick - aTick;
+          const a档位 = 图鉴档位顺序.indexOf(toText(aData && aData['图鉴档位'], '初识'));
+          const b档位 = 图鉴档位顺序.indexOf(toText(bData && bData['图鉴档位'], '初识'));
+          if (a档位 !== b档位) return b档位 - a档位;
+          return toNumber(bData && bData['交手次数'], 0) - toNumber(aData && aData['交手次数'], 0);
+        })[0] || null;
+      const 图鉴当前档位 = 图鉴聚焦条目
+        ? toText(deepGet(图鉴聚焦条目, '1.图鉴档位', '初识'), '初识')
+        : '无';
+      const 图鉴当前经验 = 图鉴聚焦条目
+        ? Math.max(0, toNumber(deepGet(图鉴聚焦条目, '1.当前档经验', 0), 0))
+        : 0;
+      const 图鉴下档需求 = 图鉴聚焦条目
+        ? Math.max(0, toNumber(deepGet(图鉴聚焦条目, '1.下档需求', 0), 0))
+        : 0;
+      const 图鉴下一档进度 = 图鉴聚焦条目
+        ? (图鉴下档需求 > 图鉴当前经验 ? `${图鉴当前经验}/${图鉴下档需求}` : '已达上限')
+        : '--';
+      const 图鉴聚焦名称 = 图鉴聚焦条目 ? toText(图鉴聚焦条目[0], '暂无') : '暂无';
       const pendingSoulRing = buildPendingSoulRingState({ rootData: sd, activeChar, activeName });
       const mapData = sd && sd.map && typeof sd.map === 'object' ? sd.map : {};
       const sheepSnapshot = window.__sheepMapSnapshot && typeof window.__sheepMapSnapshot === 'object'
@@ -10760,6 +10672,14 @@
         关系分析: deepGet(activeChar, '社交.关系分析', {}),
 
         questRecordCount,
+        当前任务名称,
+        当前任务阶段文本,
+        当前任务下一节点进度,
+        情报待核实数量: 待核实情报列表.length,
+        情报最近核实结果,
+        图鉴当前档位,
+        图鉴下一档进度,
+        图鉴聚焦名称,
         recentTitles,
         worldAlert: warningText,
         bestiaryEntries,
@@ -12623,7 +12543,8 @@
         return buildShellSummaryCard({
           title: '情报',
           value: '0',
-          meta: '无情报',
+          meta: `待核实 ${toNumber(snapshot && snapshot.情报待核实数量, 0)} 条`,
+          note: shortenText(toText(snapshot && snapshot.情报最近核实结果, '暂无核实记录'), 24),
         });
       }
       const latestIntelText = getLatestUnlockedIntelText(snapshot, 12, '暂无情报');
@@ -12632,8 +12553,11 @@
         kicker: '情报',
         title: '情报',
         value: (snapshot.unlockedKnowledges || []).length ? `${(snapshot.unlockedKnowledges || []).length} 已录` : '待命中',
-        meta: shortenText(latestIntelText || '暂无情报', 20),
-        note: shortenText(pendingRequestText || '', 24),
+        meta: shortenText(`待核实 ${toNumber(snapshot && snapshot.情报待核实数量, 0)} 条`, 20),
+        note: shortenText(
+          toText(snapshot && snapshot.情报最近核实结果, '') || pendingRequestText || latestIntelText || '暂无核实记录',
+          24,
+        ),
       });
     }
 
@@ -12664,15 +12588,16 @@
         return buildShellSummaryCard({
           title: '图鉴',
           value: '0',
-          meta: '无收录',
+          meta: `档位 ${toText(snapshot && snapshot.图鉴当前档位, '无')}`,
+          note: `下一档 ${toText(snapshot && snapshot.图鉴下一档进度, '--')}`,
         });
       }
       return buildShellSummaryCard({
         kicker: '收录',
         title: '收录',
         value: bestiaryNames.length ? `${bestiaryNames.length} 种` : '待收录',
-        meta: shortenText(bestiaryNames.slice(0, 2).join(' / ') || '等待首条图鉴', 20),
-        note: bestiaryNames[0] ? shortenText(bestiaryNames[0], 24) : '',
+        meta: shortenText(`${toText(snapshot && snapshot.图鉴聚焦名称, bestiaryNames[0] || '暂无')} · ${toText(snapshot && snapshot.图鉴当前档位, '初识')}`, 20),
+        note: shortenText(`下一档 ${toText(snapshot && snapshot.图鉴下一档进度, '--')}`, 24),
       });
     }
 
@@ -12683,15 +12608,16 @@
         return buildShellSummaryCard({
           title: '任务',
           value: '0',
-          meta: '无任务',
+          meta: `${toText(snapshot && snapshot.当前任务阶段文本, '无')} · ${toText(snapshot && snapshot.当前任务下一节点进度, '--')}`,
+          note: toText(snapshot && snapshot.当前任务名称, '暂无任务'),
         });
       }
       return buildShellSummaryCard({
         kicker: '任务',
         title: '任务',
         value: snapshot.questRecordCount ? `${snapshot.questRecordCount} 项` : '待命中',
-        meta: `${questBoardEntries.length || 0} 条委托 / ${(snapshot.pendingRequests || []).length || 0} 待办`,
-        note: shortenText(pendingRequestText, 24),
+        meta: `${toText(snapshot && snapshot.当前任务阶段文本, '无')} · 下节点 ${toText(snapshot && snapshot.当前任务下一节点进度, '--')}`,
+        note: shortenText(toText(snapshot && snapshot.当前任务名称, '') || pendingRequestText, 24),
       });
     }
 
@@ -13522,9 +13448,9 @@
           setUnifiedCardMarkup('terminal-intel', `
             <div class="simple-head"><div class="simple-title">试炼与情报</div></div>
             <div class="simple-list">
-              <div class="simple-row"><b>情报</b><span>${htmlEscape(`${snapshot.unlockedKnowledges.length} 条`)}</span></div>
-              <div class="simple-row"><b>已掌握</b><span>${htmlEscape(`${snapshot.unlockedKnowledges.length} 条`)}</span></div>
-              <div class="simple-row"><b>入口</b><span>打开情报与试炼</span></div>
+              <div class="simple-row"><b>入口</b><span>${htmlEscape(getTrialEntranceText(snapshot))}</span></div>
+              <div class="simple-row"><b>待核实</b><span>${htmlEscape(`${toNumber(snapshot && snapshot.情报待核实数量, 0)} 条`)}</span></div>
+              <div class="simple-row"><b>最近核实</b><span>${htmlEscape(toText(snapshot && snapshot.情报最近核实结果, '暂无核实记录'))}</span></div>
             </div>
           `, { preview: '试炼与情报', surface: normalizedSurface });
           const newsSummary = buildRecentNewsSummary(snapshot, { seqLimit: 1, intelLimit: 1 });
@@ -13539,7 +13465,8 @@
             <div class="simple-head"><div class="simple-title">怪物图鉴</div></div>
             <div class="simple-list">
               <div class="simple-row"><b>已记录</b><span>${htmlEscape(`${snapshot.bestiaryEntries.length} 种`)}</span></div>
-              <div class="simple-row"><b>最近条目</b><span>${htmlEscape(snapshot.bestiaryEntries.slice(0, 2).map(([name]) => name).join(' / ') || '暂无')}</span></div>
+              <div class="simple-row"><b>当前档位</b><span>${htmlEscape(`${toText(snapshot && snapshot.图鉴聚焦名称, '暂无')} / ${toText(snapshot && snapshot.图鉴当前档位, '无')}`)}</span></div>
+              <div class="simple-row"><b>下一档</b><span>${htmlEscape(toText(snapshot && snapshot.图鉴下一档进度, '--'))}</span></div>
             </div>
           `, { preview: '怪物图鉴', surface: normalizedSurface });
           setUnifiedCardMarkup('terminal-quest', `
@@ -13547,6 +13474,8 @@
             <div class="simple-list">
               <div class="simple-row"><b>我的任务</b><span>${htmlEscape(`${(snapshot.recordEntries || []).length} 项任务`)}</span></div>
               <div class="simple-row"><b>委托板</b><span>${htmlEscape(`${safeEntries(deepGet(snapshot, 'rootData.world.委托板', {})).length} 条委托`)}</span></div>
+              <div class="simple-row"><b>当前阶段</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务阶段文本, '无'))}</span></div>
+              <div class="simple-row"><b>下一节点</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务下一节点进度, '--'))}</span></div>
             </div>
           `, { preview: '任务界面', surface: normalizedSurface });
         }
@@ -13678,9 +13607,9 @@
         setUnifiedCardMarkup('terminal-intel', `
           <div class="simple-head"><div class="simple-title">试炼与情报</div></div>
           <div class="simple-list">
-            <div class="simple-row"><b>情报</b><span>${htmlEscape(`${snapshot.unlockedKnowledges.length} 条`)}</span></div>
-            <div class="simple-row"><b>已掌握</b><span>${htmlEscape(`${snapshot.unlockedKnowledges.length} 条`)}</span></div>
-            <div class="simple-row"><b>入口</b><span>打开情报与试炼</span></div>
+            <div class="simple-row"><b>入口</b><span>${htmlEscape(getTrialEntranceText(snapshot))}</span></div>
+            <div class="simple-row"><b>待核实</b><span>${htmlEscape(`${toNumber(snapshot && snapshot.情报待核实数量, 0)} 条`)}</span></div>
+            <div class="simple-row"><b>最近核实</b><span>${htmlEscape(toText(snapshot && snapshot.情报最近核实结果, '暂无核实记录'))}</span></div>
           </div>
         `, { preview: '试炼与情报' });
         const newsSummary = buildRecentNewsSummary(snapshot, { seqLimit: 1, intelLimit: 1 });
@@ -13695,7 +13624,8 @@
           <div class="simple-head"><div class="simple-title">怪物图鉴</div></div>
           <div class="simple-list">
             <div class="simple-row"><b>已记录</b><span>${htmlEscape(`${snapshot.bestiaryEntries.length} 种`)}</span></div>
-            <div class="simple-row"><b>最近条目</b><span>${htmlEscape(snapshot.bestiaryEntries.slice(0, 2).map(([name]) => name).join(' / ') || '暂无')}</span></div>
+            <div class="simple-row"><b>当前档位</b><span>${htmlEscape(`${toText(snapshot && snapshot.图鉴聚焦名称, '暂无')} / ${toText(snapshot && snapshot.图鉴当前档位, '无')}`)}</span></div>
+            <div class="simple-row"><b>下一档</b><span>${htmlEscape(toText(snapshot && snapshot.图鉴下一档进度, '--'))}</span></div>
           </div>
         `, { preview: '怪物图鉴' });
         setUnifiedCardMarkup('terminal-quest', `
@@ -13703,6 +13633,8 @@
           <div class="simple-list">
             <div class="simple-row"><b>我的任务</b><span>${htmlEscape(`${(snapshot.recordEntries || []).length} 项任务`)}</span></div>
             <div class="simple-row"><b>委托板</b><span>${htmlEscape(`${safeEntries(deepGet(snapshot, 'rootData.world.委托板', {})).length} 条委托`)}</span></div>
+            <div class="simple-row"><b>当前阶段</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务阶段文本, '无'))}</span></div>
+            <div class="simple-row"><b>下一节点</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务下一节点进度, '--'))}</span></div>
           </div>
         `, { preview: '任务界面' });
       }
@@ -14144,8 +14076,8 @@
         <div class="simple-head"><div class="simple-title">试炼与情报</div></div>
         <div class="simple-list">
           <div class="simple-row"><b>试炼入口</b><span>${htmlEscape(getTrialEntranceText(snapshot))}</span></div>
-          <div class="simple-row"><b>情报状态</b><span>${htmlEscape(`已掌握 ${snapshot.unlockedKnowledges.length} 条`)}</span></div>
-          <div class="simple-row"><b>累计猎杀</b><span>${htmlEscape(formatNumber(snapshot.forestKilledAge || 0))} 年</span></div>
+          <div class="simple-row"><b>待核实</b><span>${htmlEscape(`${toNumber(snapshot && snapshot.情报待核实数量, 0)} 条`)}</span></div>
+          <div class="simple-row"><b>最近核实</b><span>${htmlEscape(toText(snapshot && snapshot.情报最近核实结果, '暂无核实记录'))}</span></div>
         </div>
       `);
         setLiveHtml('[data-preview="近期见闻"].terminal-side-card, [data-preview="近期见闻"].mvu-simple-card, [data-preview="近期见闻"].simple-card', `
@@ -14161,8 +14093,8 @@
         <div class="simple-head"><div class="simple-title">怪物图鉴</div></div>
         <div class="simple-list">
           <div class="simple-row"><b>已记录</b><span>${htmlEscape(`${snapshot.bestiaryEntries.length} 种`)}</span></div>
-          <div class="simple-row"><b>最近条目</b><span>${htmlEscape(snapshot.bestiaryEntries.slice(0, 2).map(([name]) => name).join(' / ') || '暂无')}</span></div>
-          <div class="simple-row"><b>图鉴状态</b><span>${htmlEscape(snapshot.bestiaryEntries.length ? '探索推进中' : '等待首次遭遇')}</span></div>
+          <div class="simple-row"><b>当前档位</b><span>${htmlEscape(`${toText(snapshot && snapshot.图鉴聚焦名称, '暂无')} / ${toText(snapshot && snapshot.图鉴当前档位, '无')}`)}</span></div>
+          <div class="simple-row"><b>下一档</b><span>${htmlEscape(toText(snapshot && snapshot.图鉴下一档进度, '--'))}</span></div>
         </div>
       `);
         const questRecords = (snapshot.recordEntries || []).filter(([, item]) => item && typeof item === 'object' && (Object.prototype.hasOwnProperty.call(item, '状态') || Object.prototype.hasOwnProperty.call(item, '目标进度') || Object.prototype.hasOwnProperty.call(item, '奖励币') || Object.prototype.hasOwnProperty.call(item, '奖励声望')));
@@ -14176,7 +14108,8 @@
           <div class="simple-list">
             <div class="simple-row"><b>我的任务</b><span>${htmlEscape(questRecords.length ? `${questRecords.length} 项 / 当前 ${activeQuestName || '已归档'}` : '暂无任务')}</span></div>
             <div class="simple-row"><b>委托板</b><span>${htmlEscape(questBoardEntries.length ? `${questBoardEntries.length} 条 / 待接取 ${openBoardCount}` : '暂无委托')}</span></div>
-            <div class="simple-row"><b>当前状态</b><span>${htmlEscape(activeQuestState)}</span></div>
+            <div class="simple-row"><b>当前阶段</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务阶段文本, activeQuestState))}</span></div>
+            <div class="simple-row"><b>下一节点</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务下一节点进度, '--'))}</span></div>
           </div>
         `);
       }
@@ -14185,6 +14118,7 @@
 
     function 构建可玩选项卡区(快照, 来源标记 = '') {
       const 选项列表 = Array.isArray(快照 && 快照.可玩选项) ? 快照.可玩选项.slice(0, 4) : [];
+      if (!选项列表.length) return '';
       const 按钮Html = 选项列表.length
         ? 选项列表.map(条目 => `
             <button
@@ -14194,7 +14128,7 @@
               data-lwcs-option-key="${escapeHtmlAttr(toText(条目 && 条目.规范键, ''))}"
             >${htmlEscape(toText(条目 && 条目.展示文案, toText(条目 && 条目.原文, '可选行动')))}</button>
           `).join('')
-        : '<button type="button" class="tag-chip" disabled>暂无可选行动</button>';
+        : '';
       return `
         <div class="archive-card full" data-lwcs-option-panel="${escapeHtmlAttr(toText(来源标记, ''))}">
           <div class="archive-card-head"><div class="archive-card-title">可选行动</div></div>
@@ -19772,7 +19706,7 @@
       if (battleData?.参战者?.player) battleData.参战者.player.name = playerName;
 
       const patches = [
-        { op: 'replace', path: `/char/${playerName}/自创魂技`, value: { [fixture.skillName || fixture.skillData?.name || '夹具技能']: cloneJsonValue(fixture.skillData, {}) } },
+        { op: 'add', path: `/char/${playerName}/自创魂技`, value: { [fixture.skillName || fixture.skillData?.name || '夹具技能']: cloneJsonValue(fixture.skillData, {}) } },
         ...(Array.isArray(fixture.patchesBefore) ? fixture.patchesBefore : []),
         { op: 'replace', path: '/world/战斗', value: battleData },
       ];
@@ -25635,7 +25569,7 @@ window.EquipmentManager = {
     return map[key] || null;
   },
 
-    createInventoryStatusRecord(itemName, effect = {}, statusName = '') {
+    createInventoryStatusRecord(itemName, effect = {}, statusName = '', 当前tick = 0) {
       const value = effect && typeof effect === 'object' ? effect.value || {} : {};
       const duration = Math.max(1, toNumber(value.持续, toNumber(value.durationRounds, 1)));
       const 状态记录 = {
@@ -25650,6 +25584,7 @@ window.EquipmentManager = {
       if (持续tick > 0) 状态记录.持续tick = 持续tick;
       const 结束tick = Math.max(0, toNumber(value.结束tick, 0));
       if (结束tick > 0) 状态记录.结束tick = 结束tick;
+      else if (持续tick > 0 && 当前tick > 0) 状态记录.结束tick = 当前tick + 持续tick;
       if (toText(value.修炼倍率说明, '').trim()) 状态记录.修炼倍率说明 = toText(value.修炼倍率说明, '');
       return 状态记录;
   },
@@ -25670,10 +25605,10 @@ window.EquipmentManager = {
     return true;
   },
 
-  appendInventoryStatusEffect(statusMap = {}, itemName, effect = {}, index = 0, logs = []) {
+  appendInventoryStatusEffect(statusMap = {}, itemName, effect = {}, index = 0, logs = [], 当前tick = 0) {
     const key = `${itemName}#${index + 1}`;
     const value = effect && typeof effect === 'object' ? effect.value || {} : {};
-    const record = this.createInventoryStatusRecord(itemName, effect, key);
+    const record = this.createInventoryStatusRecord(itemName, effect, key, 当前tick);
     if (value && value.statMods && typeof value.statMods === 'object') {
       record.stat_mods = cloneJsonValue(value.statMods, {});
     } else {
@@ -25808,6 +25743,7 @@ window.EquipmentManager = {
 
         const logs = [];
         let appliedCount = 0;
+        const 当前tick = Math.max(0, toNumber(deepGet(statData, 'world.时间.tick', 0), 0));
         (Array.isArray(itemData.使用效果) ? itemData.使用效果 : []).forEach((effect, index) => {
           if (!effect || typeof effect !== 'object') return;
           if (!this.isSelfResolvableUsageTarget(effect.target)) return;
@@ -25816,7 +25752,7 @@ window.EquipmentManager = {
             return;
           }
           if (['buff', 'debuff', 'shield', 'custom'].includes(String(effect.type || ''))) {
-            if (this.appendInventoryStatusEffect(charData.属性.状态效果, itemName, effect, index, logs)) appliedCount += 1;
+            if (this.appendInventoryStatusEffect(charData.属性.状态效果, itemName, effect, index, logs, 当前tick)) appliedCount += 1;
             return;
           }
         });
@@ -25882,27 +25818,16 @@ window.EquipmentManager = {
             /食物/.test(toText(itemValue?.类型, '')) ||
             /食用/.test(toText(itemValue?.触发方式, '')) ||
             /食物系/.test(toText(deepGet(skill, '技能定位.类型', ''), ''));
-          if (是否食物造物) {
+          const 使用效果列表 = Array.isArray(itemValue?.使用效果) ? itemValue.使用效果 : [];
+          const 命中修炼增益效果 = 使用效果列表.some(使用效果项 => {
+            if (!使用效果项 || typeof 使用效果项 !== 'object') return false;
+            const 数值体 = 使用效果项?.value && typeof 使用效果项.value === 'object' ? 使用效果项.value : {};
+            const 倍率值 = Number(数值体?.修炼速度倍率 || 数值体?.修炼倍率 || 数值体?.训练倍率 || 0);
+            return Number.isFinite(倍率值) && 倍率值 > 1;
+          });
+          if (是否食物造物 && 命中修炼增益效果) {
             itemValue.品级 = toText(itemValue.品级, 'S');
             itemValue.品质 = toText(itemValue.品质, 'S');
-            if (!Array.isArray(itemValue.使用效果)) itemValue.使用效果 = [];
-            const 修炼倍率 = Math.max(1.05, Math.min(2.0, Number(toNumber(effect?.修炼速度倍率, toNumber(effect?.修炼倍率, 1.2)))));
-            const 持续tick = Math.max(36, Math.floor(toNumber(effect?.修炼增益持续tick, toNumber(effect?.持续tick, 72))));
-            const 持续回合 = Math.max(1, Math.round(持续tick / 6));
-            const 说明文本 = `修炼效率提升至 x${修炼倍率.toFixed(2)}（持续约${持续回合}回合）`;
-            itemValue.使用效果.push({
-              target: '自身',
-              type: 'buff',
-              description: 说明文本,
-              value: {
-                持续: 持续回合,
-                持续tick,
-                结束tick: currentTick + 持续tick,
-                修炼速度倍率: Number(修炼倍率.toFixed(4)),
-                修炼倍率说明: '食物系魂技增益',
-              },
-            });
-            if (!toText(itemValue.描述, '').trim()) itemValue.描述 = 说明文本;
           }
           const existing = charData.背包[itemName] && typeof charData.背包[itemName] === 'object'
             ? charData.背包[itemName]

@@ -6608,6 +6608,9 @@ class BattleUIComponent {
           parts.push(`[状态消散] ${label}的[${key}]已结束`);
         });
 
+        const 禁用本回合自然恢复 = char.__禁用本回合自然恢复 === true;
+        if (char.__禁用本回合自然恢复 !== undefined) delete char.__禁用本回合自然恢复;
+
         const resourceBlockRatio = Math.min(
           1,
           Object.values(conditionMap).reduce((maxVal, cond) => {
@@ -6624,14 +6627,14 @@ class BattleUIComponent {
 
         const maxSp = Math.max(0, Number(char.sp_max || 0));
         const maxMen = Math.max(0, Number(char.men_max || 0));
-        if (maxSp > 0 && naturalSpRatio > 0 && resourceBlockRatio < 1) {
+        if (!禁用本回合自然恢复 && maxSp > 0 && naturalSpRatio > 0 && resourceBlockRatio < 1) {
           const beforeSp = Math.max(0, Number(char.sp || 0));
           const recoverSp = Math.max(0, Math.floor(maxSp * naturalSpRatio * (1 - resourceBlockRatio)));
           char.sp = Math.min(maxSp, beforeSp + recoverSp);
           const actualRecoverSp = Math.max(0, Number(char.sp || 0) - beforeSp);
           if (actualRecoverSp > 0) parts.push(`[自然恢复] ${label}回合末恢复 ${actualRecoverSp} 点魂力`);
         }
-        if (maxMen > 0 && naturalMenRatio > 0 && resourceBlockRatio < 1) {
+        if (!禁用本回合自然恢复 && maxMen > 0 && naturalMenRatio > 0 && resourceBlockRatio < 1) {
           const beforeMen = Math.max(0, Number(char.men || 0));
           const recoverMen = Math.max(0, Math.floor(maxMen * naturalMenRatio * (1 - resourceBlockRatio)));
           char.men = Math.min(maxMen, beforeMen + recoverMen);
@@ -8295,18 +8298,57 @@ class BattleUIComponent {
         let bestiary = window.BattleUIBridge?.getMVU('world.图鉴') || {};
         if (isBeastOrAbyss && validDefenderName) {
           let monsterEntry = bestiary[defenderName];
+          const 图鉴路径前缀 = `/world/图鉴/${escapeJsonPointerSegment(defenderName)}`;
+          const 当前交手次数 = Math.max(0, Number(monsterEntry?.交手次数 || 0));
+          const 当前击杀次数 = Math.max(0, Number(monsterEntry?.击杀次数 || 0));
+          const 下次交手次数 = 当前交手次数 + 1;
+          const 下次击杀次数 = isVictoryOutcome ? 当前击杀次数 + 1 : 当前击杀次数;
+          const 下次档经验 = 下次交手次数 + 下次击杀次数 * 2;
           if (!monsterEntry) {
             extraPatchOps.push({
               op: 'add',
-              path: `/world/图鉴/${defenderName}`,
-              value: { 交手次数: 1, 首次记录: `由 ${attackerName} 在${combatType}中遭遇` },
+              path: 图鉴路径前缀,
+              value: {
+                交手次数: 1,
+                击杀次数: isVictoryOutcome ? 1 : 0,
+                图鉴档位: '初识',
+                当前档经验: isVictoryOutcome ? 3 : 1,
+                下档需求: 5,
+                最近活跃tick: currentTick,
+                最近升档tick: 0,
+                探索收益: 0,
+                战斗收益: 0,
+                首次记录: `由 ${attackerName} 在${combatType}中遭遇`,
+              },
             });
           } else {
             extraPatchOps.push({
               op: 'replace',
-              path: `/world/图鉴/${defenderName}/交手次数`,
-              value: (monsterEntry.交手次数 || 1) + 1,
+              path: `${图鉴路径前缀}/交手次数`,
+              value: 下次交手次数,
             });
+            extraPatchOps.push({
+              op: 'add',
+              path: `${图鉴路径前缀}/击杀次数`,
+              value: 下次击杀次数,
+            });
+            extraPatchOps.push({
+              op: 'add',
+              path: `${图鉴路径前缀}/当前档经验`,
+              value: 下次档经验,
+            });
+            extraPatchOps.push({
+              op: 'add',
+              path: `${图鉴路径前缀}/最近活跃tick`,
+              value: currentTick,
+            });
+            if (monsterEntry.首次记录 === undefined) {
+              extraPatchOps.push({
+                op: 'add',
+                path: `${图鉴路径前缀}/首次记录`,
+                value: `由 ${attackerName} 在${combatType}中遭遇`,
+              });
+            }
           }
         }
 
@@ -9713,7 +9755,13 @@ class BattleUIComponent {
         const directShieldBreakEffect = actionEffects.find(effect => effect?.机制 === '斩盾') || null;
         const directShieldStealEffect = actionEffects.find(effect => effect?.机制 === '窃取护盾') || null;
         const directResourceDrainEffect = actionEffects.find(effect => effect?.机制 === '吞噬') || null;
-        const directResourceRefeedEffect = actionEffects.find(effect => effect?.机制 === '能力共享') || null;
+        const 是能力共享机制效果 = effect => {
+          const 机制名 = String(effect?.机制 || effect?.名称 || effect?.类型 || '').trim();
+          if (!机制名) return false;
+          if (机制名 === '能力共享') return true;
+          return String(getBattleSkillMechanismMeta(机制名)?.运行时消费器 || '').trim() === 'resource_refeed';
+        };
+        const directResourceRefeedEffect = actionEffects.find(effect => 是能力共享机制效果(effect)) || null;
         const directResourceBurnEffect = actionEffects.find(effect => effect?.机制 === '资源燃烧') || null;
         const directResourceLockEffect = actionEffects.find(effect => effect?.机制 === '资源锁定') || null;
         const directDamageChainEffect = actionEffects.find(effect => effect?.机制 === '伤害链') || null;
@@ -9737,6 +9785,37 @@ class BattleUIComponent {
           playerAction?.skill?.name || playerAction?.skill?.技能名称 || playerAction?.action_type || '',
         );
         const fusionProfile = getFusionBattleProfileFromSkill(playerAction.skill);
+        const 引爆移除状态标记集 = new Set();
+        const 能力共享自身预禁用 = (() => {
+          const 命中禁用规则 = effect => {
+            const 规则列表 = normalizeBattleObjectDiffRuleList(effect?.对象差异规则 || []);
+            return 规则列表.some(
+              规则 =>
+                String(规则?.处理 || '').trim() === '禁用' &&
+                Array.isArray(规则?.匹配) &&
+                规则.匹配.some(tag => normalizeBattleObjectDiffMatchToken(tag) === '自身'),
+            );
+          };
+          const 运行态能力共享效果列表 = actionEffects.filter(effect => 是能力共享机制效果(effect));
+          const 原始能力共享效果列表 = Array.isArray(playerAction?.skill?._效果数组)
+            ? playerAction.skill._效果数组.filter(effect => 是能力共享机制效果(effect))
+            : [];
+          const 候选效果列表 = [...运行态能力共享效果列表, ...原始能力共享效果列表];
+          const 原始效果文本 = (() => {
+            try {
+              return JSON.stringify(playerAction?.skill?._效果数组 || []);
+            } catch (error) {
+              return '';
+            }
+          })();
+          const 原始文本命中 =
+            /"机制"\s*:\s*"能力共享"/.test(原始效果文本) &&
+            /"条件"\s*:\s*"自身"/.test(原始效果文本) &&
+            /"处理"\s*:\s*"禁用"/.test(原始效果文本);
+          return 候选效果列表.some(effect => 命中禁用规则(effect)) || 原始文本命中;
+        })();
+        if (能力共享自身预禁用) attacker.__禁用本回合自然恢复 = true;
+        let 能力共享自身禁用命中 = 能力共享自身预禁用;
         if (directRevealEffect) {
           const revealTargets = resolveSkillEffectTargetCharacters(
             playerAction.skill,
@@ -10386,17 +10465,28 @@ class BattleUIComponent {
 
         const applyDotDetonateEffect = effect => {
           if (!effect) return 0;
-          const targetUnits = resolveDirectMechanismTargetList(effect);
+          const 目标列表 = resolveDirectMechanismTargetList(effect);
+          const targetUnits = 目标列表.length
+            ? 目标列表
+            : (defender && defender !== attacker ? [defender] : (attacker ? [attacker] : []));
           const ratio = Math.max(0.1, Number(effect?.引爆倍率 || effect?.detonate_ratio || 1));
           let totalAddedDamage = 0;
           targetUnits.forEach(targetObj => {
             if (!targetObj?.状态效果) return;
             let consumedDot = 0;
+            const 目标标记名 = String(targetObj?.name || (targetObj === attacker ? '自身' : '') || '').trim();
             Object.entries(targetObj.状态效果).forEach(([key, cond]) => {
-              const dotDamage = Math.max(0, Number(cond?.战斗效果?.dot_damage || 0));
+              const dotDamage = Math.max(0, Number(cond?.战斗效果?.dot_damage || cond?.战斗效果?.持续伤害 || 0));
               if (!(dotDamage > 0)) return;
               consumedDot += dotDamage;
-              if (effect?.消耗持续伤害 !== false) removeConditionWithSustain(targetObj, key);
+              if (effect?.消耗持续伤害 !== false) {
+                const 移除快照 = removeConditionWithSustain(targetObj, key);
+                if (移除快照) 引爆移除状态标记集.add(`${目标标记名}::${String(key || '').trim()}`);
+                else if (targetObj?.状态效果?.[key]) {
+                  delete targetObj.状态效果[key];
+                  引爆移除状态标记集.add(`${目标标记名}::${String(key || '').trim()}`);
+                }
+              }
             });
             if (!(consumedDot > 0)) return;
             const bonusDamage = Math.max(1, Math.floor(consumedDot * ratio));
@@ -10535,8 +10625,18 @@ class BattleUIComponent {
           const targetUnits = resolveDirectMechanismTargetList(effect);
           let totalRecovered = 0;
           targetUnits.forEach(targetObj => {
+            if (能力共享自身预禁用 && targetObj === attacker) {
+              能力共享自身禁用命中 = true;
+              attacker.__禁用本回合自然恢复 = true;
+              result.desc += ` [对象差异] 自身命中规则[自身]，能力共享不生效。`;
+              return;
+            }
             const diffResult = resolveBattleObjectDiffEffect(effect, attacker, targetObj, effectTargetContext);
             if (!diffResult.生效) {
+              if (targetObj === attacker) {
+                能力共享自身禁用命中 = true;
+                attacker.__禁用本回合自然恢复 = true;
+              }
               const 命中条件 = Array.isArray(diffResult?.命中规则?.匹配)
                 ? diffResult.命中规则.匹配.join('/')
                 : String(diffResult?.命中规则?.条件 || '禁用').trim();
@@ -10796,7 +10896,7 @@ class BattleUIComponent {
           applyImmediateRecoveryEffect(directSpEffect, 'sp', '魂力');
           if (selfMirrorEffect && !effectTargetsSelf(directSpEffect))
             applyImmediateRecoveryEffect(mirrorEffectToSelf(directSpEffect), 'sp', '魂力');
-        } else if ((pState.计算层效果?.sp_gain_ratio || 0) > 0) {
+        } else if ((pState.计算层效果?.sp_gain_ratio || 0) > 0 && !能力共享自身禁用命中) {
           const selfResourceBlockRatio = Math.min(
             1,
             attackerConditionEffects.reduce((maxVal, ce) => Math.max(maxVal, Number(ce.resource_block_ratio || 0)), 0),
@@ -10815,7 +10915,7 @@ class BattleUIComponent {
           applyImmediateRecoveryEffect(directMenEffect, 'men', '精神力');
           if (selfMirrorEffect && !effectTargetsSelf(directMenEffect))
             applyImmediateRecoveryEffect(mirrorEffectToSelf(directMenEffect), 'men', '精神力');
-        } else if ((pState.计算层效果?.men_gain_ratio || 0) > 0) {
+        } else if ((pState.计算层效果?.men_gain_ratio || 0) > 0 && !能力共享自身禁用命中) {
           const selfResourceBlockRatio = Math.min(
             1,
             attackerConditionEffects.reduce((maxVal, ce) => Math.max(maxVal, Number(ce.resource_block_ratio || 0)), 0),
@@ -10928,6 +11028,16 @@ class BattleUIComponent {
             const stateTargets = stateTargetContext.targetSet;
             const stateTargetsFriendly = ['自身', '友方单体', '友方群体'].includes(stateTargetContext.targetModel);
             stateTargets.forEach(targetObj => {
+              const 状态名 = String(pState.状态名称 || '').trim();
+              const 目标标记名 = String(targetObj?.name || (targetObj === attacker ? '自身' : '') || '').trim();
+              if (
+                directDotDetonateEffect &&
+                状态名 &&
+                引爆移除状态标记集.has(`${目标标记名}::${状态名}`)
+              ) {
+                result.desc += ` [持续引爆] ${targetObj === attacker ? '自身' : targetObj.name}的[${状态名}]已被引爆消耗，本回合不重复附着。`;
+                return;
+              }
               const targetFinalStat = targetObj?.final || buildCombatFinalStats(targetObj);
               const targetConditionEffects = targetObj.状态效果
                 ? Object.values(targetObj.状态效果).map(c => c?.战斗效果 || {})
