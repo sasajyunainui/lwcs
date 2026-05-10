@@ -23,6 +23,15 @@
   const SUBMAP_RENDER_ZOOM_FACTOR = 1;
   const MAP_NODE_SNAP_RATIO_THRESHOLD = 0.028;
 
+  function cloneJsonValue(值, 回退值 = {}) {
+    if (值 === undefined) return 回退值;
+    try {
+      return JSON.parse(JSON.stringify(值));
+    } catch (错误) {
+      return 回退值;
+    }
+  }
+
   const worldTerrainColorSamplerState = {
     image: null,
     canvas: null,

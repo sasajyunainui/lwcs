@@ -10032,6 +10032,15 @@ class BattleUIComponent {
         const getEffectTargetContext = effect =>
           resolveSkillTargetContext(playerAction.skill, attacker, defender, combatData, effect);
         const resolveDirectMechanismTargetList = (effect, options = {}) => {
+          const mechanism = String(effect?.机制 || effect?.名称 || effect?.类型 || '').trim();
+          if (['资源锁定', '召唤与场地', '生命链接'].includes(mechanism)) {
+            const hostileTarget = defender && defender !== attacker ? defender : null;
+            const friendlyTarget = attacker || null;
+            const contextHint = String(effect?.目标 || effect?.对象 || effect?.目标模型 || '').trim();
+            const pickTarget = /自身|己方|友方/.test(contextHint) ? friendlyTarget : hostileTarget || friendlyTarget;
+            if (options.single === true) return pickTarget || null;
+            return pickTarget ? [pickTarget] : [];
+          }
           const targetContext = getEffectTargetContext(effect);
           let targets = Array.isArray(targetContext?.targetSet) ? [...targetContext.targetSet] : [];
           const targetHint = String(
@@ -10639,9 +10648,17 @@ class BattleUIComponent {
         applyCopyEffect = effect => {
           if (!effect) return false;
           const sourceObj = resolveSkillEffectTargetCharacter(playerAction.skill, effect, attacker, defender);
-          const candidate = pickTransferableCondition(sourceObj, [
-            String(effect?.复制类型 || 'buff') === 'debuff' ? 'debuff' : 'buff',
-          ]);
+          const 复制类型 = String(effect?.复制类型 || '').trim();
+          const 机制名称 = String(effect?.机制 || effect?.名称 || effect?.类型 || '').trim();
+          const 优先类型列表 =
+            复制类型 === 'debuff'
+              ? ['debuff', 'buff']
+              : 复制类型 === 'buff'
+                ? ['buff', 'debuff']
+                : 机制名称 === '拆层转存'
+                  ? ['debuff', 'buff']
+                  : ['buff', 'debuff'];
+          const candidate = pickTransferableCondition(sourceObj, 优先类型列表);
           if (!candidate) {
             result.desc += ` [规则复制] 未找到可复制的状态。`;
             return false;

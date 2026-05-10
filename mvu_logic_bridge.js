@@ -1484,6 +1484,8 @@
     let lastDashboardRenderSignature = '';
     let lastDashboardSectionRenderSignatures = null;
     let liveUiRefCache = new Map();
+    let 最近两轮选项键历史 = [];
+    let 最近选项轮次签名 = '';
 
     function htmlEscape(value) {
       return String(value == null ? '' : value)
@@ -1508,6 +1510,114 @@
     function toNumber(value, fallback = 0) {
       const parsed = Number(value);
       return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    const 模块依赖映射 = Object.freeze({
+      交易网络: ['交易模块'],
+      交易模块弹窗: ['交易模块'],
+      当前节点详情: ['交易模块', '地图模块'],
+      图层控制与跑图: ['地图模块'],
+      全息星图主画布: ['地图模块'],
+      动态地点与扩展节点: ['地图模块'],
+      武装工坊详细页: ['职业模块'],
+      战斗终端: ['战斗模块']
+    });
+    const 预览依赖任务表 = new Map();
+
+    function 获取载入器候选窗口() {
+      const 列表 = [window];
+      try {
+        if (window.parent && window.parent !== window) 列表.push(window.parent);
+      } catch (错误) {}
+      try {
+        if (window.top && window.top !== window && !列表.includes(window.top)) 列表.push(window.top);
+      } catch (错误) {}
+      return 列表;
+    }
+
+    function 读取窗口函数(键名) {
+      for (const 目标窗口 of 获取载入器候选窗口()) {
+        const 函数值 = 目标窗口 && typeof 目标窗口 === 'object' ? 目标窗口[键名] : null;
+        if (typeof 函数值 === 'function') return 函数值.bind(目标窗口);
+      }
+      return null;
+    }
+
+    function 读取模块状态(模块名) {
+      const 名称 = String(模块名 || '').trim();
+      if (!名称) return null;
+      for (const 目标窗口 of 获取载入器候选窗口()) {
+        const 状态表 = 目标窗口 && typeof 目标窗口 === 'object' ? 目标窗口.__LWCS_模块状态__ : null;
+        if (状态表 && typeof 状态表 === 'object' && 状态表[名称]) {
+          return 状态表[名称];
+        }
+      }
+      return null;
+    }
+
+    function 模块是否已加载(模块名) {
+      const 状态 = 读取模块状态(模块名);
+      return !!(状态 && 状态.状态 === 'loaded');
+    }
+
+    function 获取预览依赖模块列表(预览键) {
+      const 键 = String(预览键 || '').trim();
+      if (!键) return [];
+      if (键.startsWith('地图节点：')) return ['地图模块'];
+      return Array.isArray(模块依赖映射[键]) ? 模块依赖映射[键] : [];
+    }
+
+    async function 确保模块依赖已加载(模块名, 来源 = 'bridge') {
+      const 名称 = String(模块名 || '').trim();
+      if (!名称) return { ok: false, reason: 'empty_module_name' };
+      if (模块是否已加载(名称)) return { ok: true, 模块名: 名称, cached: true };
+      const 加载函数 = 读取窗口函数('__LWCS_确保模块已加载__');
+      if (typeof 加载函数 !== 'function') {
+        return { ok: false, 模块名: 名称, reason: 'loader_unavailable' };
+      }
+      try {
+        const 结果 = await Promise.resolve(加载函数(名称, { 来源, 允许失败降级: true }));
+        return 结果 && typeof 结果 === 'object'
+          ? 结果
+          : { ok: !!结果, 模块名: 名称, reason: 结果 ? '' : 'loader_returned_false' };
+      } catch (错误) {
+        return { ok: false, 模块名: 名称, reason: 错误 && 错误.message ? 错误.message : 'loader_exception', error: 错误 };
+      }
+    }
+
+    function 请求预热预览依赖(预览键, 来源 = 'preview_open') {
+      const 键 = String(预览键 || '').trim();
+      if (!键) return Promise.resolve({ ok: true, skipped: true });
+      const 任务键 = 键;
+      if (预览依赖任务表.has(任务键)) return 预览依赖任务表.get(任务键);
+
+      const 预览加载函数 = 读取窗口函数('__LWCS_确保预览依赖已加载__');
+      const 缺失模块列表 = 获取预览依赖模块列表(键).filter(模块名 => !模块是否已加载(模块名));
+      if (!预览加载函数 && !缺失模块列表.length) {
+        return Promise.resolve({ ok: true, skipped: true });
+      }
+
+      const 任务 = (async () => {
+        if (typeof 预览加载函数 === 'function') {
+          const 结果 = await Promise.resolve(预览加载函数(键, { 来源 }));
+          return 结果 && typeof 结果 === 'object'
+            ? 结果
+            : { ok: !!结果, 预览键: 键, reason: 结果 ? '' : 'preview_loader_failed' };
+        }
+        const 结果列表 = [];
+        for (const 模块名 of 缺失模块列表) {
+          const 结果 = await 确保模块依赖已加载(模块名, `${来源}:${键}`);
+          结果列表.push(结果);
+        }
+        return { ok: 结果列表.every(item => item && item.ok), 预览键: 键, results: 结果列表 };
+      })()
+        .catch(错误 => ({ ok: false, 预览键: 键, reason: 错误 && 错误.message ? 错误.message : 'preview_loader_exception', error: 错误 }))
+        .finally(() => {
+          预览依赖任务表.delete(任务键);
+        });
+
+      预览依赖任务表.set(任务键, 任务);
+      return 任务;
     }
 
     function formatCultivationLevelValue(value, fallback = '0') {
@@ -2455,6 +2565,39 @@
     }
 
     const pendingUiSystemInjections = new Map();
+    const 异步动作锁表 = new Map();
+    const 异步动作锁超时毫秒 = 120000;
+
+    function 清理过期异步动作锁() {
+      const 当前时间 = Date.now();
+      for (const [锁键, 锁时间] of Array.from(异步动作锁表.entries())) {
+        if (当前时间 - Number(锁时间 || 0) > 异步动作锁超时毫秒) {
+          异步动作锁表.delete(锁键);
+        }
+      }
+    }
+
+    function 构建异步动作锁键(请求类型 = 'ui_request', 用户文本 = '', 附加信息 = {}) {
+      const 显式锁键 = toText(附加信息 && (附加信息.lockKey || 附加信息.actionLockKey), '').trim();
+      if (显式锁键) return `explicit:${显式锁键}`;
+      const 类型 = toText(请求类型, 'ui_request').trim();
+      const 文本 = toText(用户文本, '').trim();
+      if (!文本) return '';
+      return `${类型}::${文本}`;
+    }
+
+    function 尝试占用异步动作锁(锁键) {
+      if (!锁键) return true;
+      清理过期异步动作锁();
+      if (异步动作锁表.has(锁键)) return false;
+      异步动作锁表.set(锁键, Date.now());
+      return true;
+    }
+
+    function 释放异步动作锁(锁键) {
+      if (!锁键) return;
+      异步动作锁表.delete(锁键);
+    }
 
     function getCurrentUiRequestChatId() {
       try {
@@ -2667,6 +2810,8 @@
       const userText = toText(playerInput, '').trim();
       const hiddenPrompt = toText(systemPrompt, '').trim();
       const patchOps = Array.isArray(meta && meta.patchOps) ? meta.patchOps : [];
+      const 跳过动作锁 = meta && (meta.skipActionLock === true || meta.noActionLock === true);
+      const 动作锁键 = 跳过动作锁 ? '' : 构建异步动作锁键(requestKind, userText, meta);
       let persistentInjection = null;
 
       if (!userText) {
@@ -2679,6 +2824,10 @@
         || typeof helper.triggerSlash !== 'function') {
         showUiToast('酒馆助手发送接口未就绪，当前无法提交请求。', 'error', 4200);
         return { ok: false, requestKind, reason: 'helper_unavailable' };
+      }
+      if (动作锁键 && !尝试占用异步动作锁(动作锁键)) {
+        showUiToast('同一操作仍在执行，请稍候再试。', 'info', 2400);
+        return { ok: false, requestKind, reason: 'request_locked' };
       }
 
       try {
@@ -2721,6 +2870,8 @@
         console.error('[DragonUI] UI request dispatch failed', error);
         showUiToast(error && error.message ? error.message : '请求提交失败。', 'error', 4200);
         return { ok: false, requestKind, reason: 'dispatch_failed', error };
+      } finally {
+        if (动作锁键) 释放异步动作锁(动作锁键);
       }
     }
 
@@ -9989,6 +10140,296 @@
       return result;
     }
 
+    function 获取数据库选项表快照() {
+      const 已访问窗口 = new Set();
+      for (const 目标窗口 of 获取载入器候选窗口()) {
+        if (!目标窗口 || 已访问窗口.has(目标窗口)) continue;
+        已访问窗口.add(目标窗口);
+        try {
+          const 数据库接口 = 目标窗口.AutoCardUpdaterAPI;
+          if (!数据库接口 || typeof 数据库接口.exportTableAsJson !== 'function') continue;
+          const 导出结果 = 数据库接口.exportTableAsJson();
+          if (导出结果 && typeof 导出结果 === 'object') return 导出结果;
+        } catch (错误) {}
+      }
+      return null;
+    }
+
+    function 从数据库快照定位选项表(数据库快照) {
+      if (!数据库快照 || typeof 数据库快照 !== 'object') return null;
+      const 表条目列表 = safeEntries(数据库快照)
+        .filter(([键名, 表对象]) => /^sheet_/i.test(toText(键名, '')) && 表对象 && typeof 表对象 === 'object');
+      for (const [, 表对象] of 表条目列表) {
+        const 表名 = toText(表对象 && 表对象.name, '').trim();
+        if (表名 === '选项表') return 表对象;
+      }
+      for (const [, 表对象] of 表条目列表) {
+        const 表名 = toText(表对象 && 表对象.name, '').trim();
+        if (表名.includes('选项')) return 表对象;
+      }
+      return null;
+    }
+
+    function 读取选项表首行候选文本(选项表对象) {
+      const 列名列表 = ['选项一', '选项二', '选项三', '选项四'];
+      const 结果列表 = [];
+      if (!选项表对象 || typeof 选项表对象 !== 'object') return 结果列表;
+
+      const 内容行列表 = Array.isArray(选项表对象.content) ? 选项表对象.content : [];
+      if (内容行列表.length) {
+        const 标题行 = Array.isArray(内容行列表[0])
+          ? 内容行列表[0].map(值 => toText(值, '').trim())
+          : [];
+        const 数组数据行 = 内容行列表.find((行, 序号) => 序号 > 0 && Array.isArray(行) && 行.length);
+        if (标题行.length && 数组数据行) {
+          列名列表.forEach(列名 => {
+            const 列索引 = 标题行.indexOf(列名);
+            if (列索引 >= 0) 结果列表.push(toText(数组数据行[列索引], '').trim());
+          });
+        }
+        if (!结果列表.some(Boolean)) {
+          const 对象数据行 = 内容行列表.find((行, 序号) => 序号 > 0 && 行 && typeof 行 === 'object' && !Array.isArray(行));
+          if (对象数据行) {
+            列名列表.forEach(列名 => {
+              结果列表.push(toText(对象数据行[列名], '').trim());
+            });
+          }
+        }
+      }
+
+      if (!结果列表.some(Boolean)) {
+        const 行对象 = Array.isArray(选项表对象.rows) ? (选项表对象.rows[0] || null) : null;
+        if (行对象 && typeof 行对象 === 'object' && !Array.isArray(行对象)) {
+          列名列表.forEach(列名 => {
+            结果列表.push(toText(行对象[列名], '').trim());
+          });
+        }
+      }
+      return 结果列表.filter(Boolean);
+    }
+
+    function 读取选项表候选文本列表() {
+      const 数据库快照 = 获取数据库选项表快照();
+      if (!数据库快照) return [];
+      const 选项表对象 = 从数据库快照定位选项表(数据库快照);
+      if (!选项表对象) return [];
+      return 读取选项表首行候选文本(选项表对象);
+    }
+
+    function 归一化候选选项原文(value = '') {
+      const 原始文本 = toText(value, '').trim();
+      if (!原始文本) return '';
+      const 去前缀文本 = 原始文本
+        .replace(/^\s*(?:选项)?[一二三四1234①②③④]\s*[：:、.)）]\s*/i, '')
+        .replace(/^\s*[-•·]\s*/, '')
+        .trim();
+      if (!去前缀文本) return '';
+      if (hasUiPlaceholderToken(去前缀文本)) return '';
+      if (isShellPlaceholderText(去前缀文本)) return '';
+      return 去前缀文本;
+    }
+
+    function 归一化候选选项键(value = '') {
+      let 规范文本 = toText(value, '').toLowerCase();
+      if (!规范文本) return '';
+      const 同义词规则 = [
+        { 根词: '前往', 匹配: /(前往|去往|动身|启程|出发|前去|赶赴|赶往|奔赴)/g },
+        { 根词: '探索', 匹配: /(探索|探查|侦查|巡查|搜寻|查探)/g },
+        { 根词: '整理', 匹配: /(整理|整备|筹备|准备|盘点|归整)/g },
+        { 根词: '休整', 匹配: /(休整|休息|调息|恢复|疗伤|修养)/g },
+        { 根词: '交易', 匹配: /(交易|买卖|采购|出售|兑换)/g },
+        { 根词: '战斗', 匹配: /(战斗|交战|迎战|出手|攻击|对决)/g },
+      ];
+      同义词规则.forEach(规则 => {
+        规范文本 = 规范文本.replace(规则.匹配, 规则.根词);
+      });
+      规范文本 = 规范文本
+        .replace(/[\s\u3000]+/g, '')
+        .replace(/[`~!@#$%^&*()_\-+=|\\[\]{};:'",.<>/?，。！？、；：“”‘’（）【】《》·…]/g, '');
+      return 规范文本.trim();
+    }
+
+    function 构建候选选项条目(原文 = '', 序号 = 0) {
+      const 清洗后文本 = 归一化候选选项原文(原文);
+      if (!清洗后文本) return null;
+      const 规范键 = 归一化候选选项键(清洗后文本) || `选项_${序号}_${清洗后文本}`;
+      return {
+        序号: Math.max(1, toNumber(序号, 1)),
+        原文: 清洗后文本,
+        规范键,
+        展示文案: shortenText(清洗后文本, 26)
+      };
+    }
+
+    function 从请求摘要提取候选选项(请求列表 = []) {
+      const 候选列表 = [];
+      if (!Array.isArray(请求列表)) return 候选列表;
+      请求列表.forEach(请求文本 => {
+        const 原文 = toText(请求文本, '').trim();
+        if (!原文 || isShellPlaceholderText(原文) || hasUiPlaceholderToken(原文)) return;
+        const 短句列表 = 原文
+          .split(/[；;。！？!?、\n]+/)
+          .map(片段 => toText(片段, '').trim())
+          .filter(Boolean);
+        (短句列表.length ? 短句列表 : [原文]).forEach(短句 => {
+          if (/^任务[:：]/.test(短句)) {
+            候选列表.push(`推进${短句.replace(/^任务[:：]\s*/, '')}`);
+          } else if (/^晋升[:：]/.test(短句)) {
+            候选列表.push(`处理${短句}`);
+          } else if (/^捐献[:：]/.test(短句)) {
+            候选列表.push(`完成${短句}`);
+          } else if (/^互动[:：]/.test(短句)) {
+            候选列表.push(`执行${短句}`);
+          } else {
+            候选列表.push(`处理${短句}`);
+          }
+        });
+      });
+      return 候选列表;
+    }
+
+    function 从系统播报提取候选选项(snapshot, 数量上限 = 2) {
+      const 候选列表 = [];
+      const 推入候选 = 文本 => {
+        const 清洗后文本 = 归一化候选选项原文(文本);
+        if (!清洗后文本) return;
+        候选列表.push(清洗后文本);
+      };
+      const 播报文本 = toText(deepGet(snapshot, 'rootData.sys.系统播报', ''), '').trim();
+      const 最新时间线 = Array.isArray(snapshot && snapshot.latestTimeline) ? snapshot.latestTimeline : [];
+      const 时间线事件文本 = 最新时间线.length >= 2
+        ? toText(deepGet(最新时间线[1], '事件', 最新时间线[0]), '').trim()
+        : '';
+      const 判断文本 = `${播报文本} ${时间线事件文本}`.trim();
+
+      if (/战|敌|袭|冲突|追击|高危|警报/.test(判断文本)) 推入候选('前往冲突点确认局势');
+      if (/交易|拍卖|商店|资源|金币|战功/.test(判断文本)) 推入候选('前往交易点处理资源调度');
+      if (/任务|委托|请求|指令|推进/.test(判断文本)) 推入候选('推进当前任务线索');
+      if (/情报|线索|调查|异常|踪迹/.test(判断文本)) 推入候选('核实系统播报里的关键线索');
+
+      if (!候选列表.length && 播报文本) {
+        推入候选(`跟进系统播报：${shortenText(播报文本, 20)}`);
+      }
+      if (候选列表.length < 2 && 时间线事件文本) {
+        推入候选(`跟进时间线：${shortenText(时间线事件文本, 20)}`);
+      }
+      if (!候选列表.length) {
+        推入候选('探索周边动向');
+      }
+      return 候选列表.slice(0, Math.max(1, toNumber(数量上限, 2)));
+    }
+
+    function 应用两轮去重候选选项(候选条目列表 = [], 轮次签名 = '') {
+      const 原始条目列表 = Array.isArray(候选条目列表) ? 候选条目列表.filter(Boolean) : [];
+      const 唯一条目列表 = [];
+      const 本轮唯一键集合 = new Set();
+      原始条目列表.forEach(条目 => {
+        const 规范键 = toText(条目 && 条目.规范键, '').trim();
+        if (!规范键 || 本轮唯一键集合.has(规范键)) return;
+        本轮唯一键集合.add(规范键);
+        唯一条目列表.push(条目);
+      });
+
+      const 历史键集合 = new Set();
+      (最近两轮选项键历史 || []).forEach(键列表 => {
+        if (!Array.isArray(键列表)) return;
+        键列表.forEach(键 => {
+          const 规范键 = toText(键, '').trim();
+          if (规范键) 历史键集合.add(规范键);
+        });
+      });
+
+      const 过滤后条目列表 = 唯一条目列表.filter(条目 => !历史键集合.has(toText(条目 && 条目.规范键, '').trim()));
+      const 展示条目列表 = 过滤后条目列表.slice(0, 4);
+      if (展示条目列表.length < 2) {
+        for (const 条目 of 唯一条目列表) {
+          if (展示条目列表.includes(条目)) continue;
+          展示条目列表.push(条目);
+          if (展示条目列表.length >= Math.min(2, 唯一条目列表.length)) break;
+        }
+      }
+      if (展示条目列表.length < 4) {
+        for (const 条目 of 唯一条目列表) {
+          if (展示条目列表.includes(条目)) continue;
+          展示条目列表.push(条目);
+          if (展示条目列表.length >= 4) break;
+        }
+      }
+
+      const 当前签名 = toText(轮次签名, '').trim();
+      if (当前签名 && 当前签名 !== 最近选项轮次签名) {
+        const 本轮展示键列表 = 展示条目列表
+          .map(条目 => toText(条目 && 条目.规范键, '').trim())
+          .filter(Boolean);
+        if (本轮展示键列表.length) {
+          最近两轮选项键历史.unshift(Array.from(new Set(本轮展示键列表)));
+          最近两轮选项键历史 = 最近两轮选项键历史.slice(0, 2);
+        }
+        最近选项轮次签名 = 当前签名;
+      }
+      return 展示条目列表.slice(0, 4);
+    }
+
+    function 构建可玩选项展示列表(snapshot) {
+      const 候选原文池 = [];
+      const 已录入文本集合 = new Set();
+      const 追加候选文本 = (文本列表 = []) => {
+        if (!Array.isArray(文本列表)) return;
+        文本列表.forEach(文本 => {
+          const 清洗后文本 = 归一化候选选项原文(文本);
+          if (!清洗后文本) return;
+          if (已录入文本集合.has(清洗后文本)) return;
+          已录入文本集合.add(清洗后文本);
+          候选原文池.push(清洗后文本);
+        });
+      };
+
+      追加候选文本(读取选项表候选文本列表());
+      if (候选原文池.length < 4) 追加候选文本(从请求摘要提取候选选项(snapshot && snapshot.pendingRequests));
+      if (候选原文池.length < 4) 追加候选文本(从系统播报提取候选选项(snapshot, 2));
+      if (候选原文池.length < 4) 追加候选文本(['探索周边动向', '整理当前线索', '休整并恢复状态']);
+
+      const 候选条目列表 = 候选原文池
+        .map((文本, 序号) => 构建候选选项条目(文本, 序号 + 1))
+        .filter(Boolean);
+      const 轮次签名 = JSON.stringify({
+        角色: toText(snapshot && snapshot.activeName, ''),
+        地点: toText(snapshot && snapshot.currentLoc, ''),
+        播报: toText(deepGet(snapshot, 'rootData.sys.系统播报', ''), ''),
+        请求: Array.isArray(snapshot && snapshot.pendingRequests) ? snapshot.pendingRequests.join('|') : '',
+        候选: 候选条目列表.map(条目 => 条目.规范键).join('|')
+      });
+      return 应用两轮去重候选选项(候选条目列表, 轮次签名);
+    }
+
+    function 提取叙事句段(source = '') {
+      const 原文 = String(source || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!原文) return [];
+      return 原文
+        .split(/[。！？!?；;\n]+/)
+        .map(segment => String(segment || '').trim())
+        .filter(Boolean);
+    }
+
+    function 构建叙事三段文案({ 现象 = '', 后果 = '', 钩子 = '', 回退 = '暂无记录' } = {}) {
+      const 现象文本 = toText(现象, '').trim() || 回退;
+      const 后果文本 = toText(后果, '').trim() || '局势仍在演化';
+      const 钩子文本 = toText(钩子, '').trim() || '可继续跟进相关人物或地点';
+      return `${现象文本} ｜ 后果：${后果文本} ｜ 下一钩子：${钩子文本}`;
+    }
+
+    function 归一化情报叙事文案(source = '') {
+      const 句段 = 提取叙事句段(source);
+      return 构建叙事三段文案({
+        现象: 句段[0] || toText(source, '暂无记录'),
+        后果: 句段[1] || '情报已入档',
+        钩子: 句段[2] || '建议继续核实线索来源',
+        回退: '暂无记录'
+      });
+    }
+
     function buildRecentNewsSummary(snapshot, options = {}) {
       const { seqLimit = 2, intelLimit = 2 } = options || {};
       const globalNews = (snapshot.timelineEntries || [])
@@ -9996,11 +10437,16 @@
         .slice(0, Math.max(1, seqLimit))
         .map(([key, item]) => ({
         title: `全局 / ${key}`,
-        desc: toText(deepGet(item, '事件', '暂无记录'), '暂无记录')
+        desc: 构建叙事三段文案({
+          现象: toText(deepGet(item, '事件', ''), '暂无记录'),
+          后果: toText(deepGet(item, '后果', deepGet(item, '影响', deepGet(item, '结果', ''))), ''),
+          钩子: toText(deepGet(item, '下一步', deepGet(item, '后续', deepGet(item, '线索', ''))), ''),
+          回退: '暂无记录'
+        })
       }));
       const personalNews = (snapshot.unlockedKnowledges || []).slice(-Math.max(1, intelLimit)).reverse().map((text, index) => ({
         title: `个人 / 见闻 ${index + 1}`,
-        desc: toText(text, '暂无记录')
+        desc: 归一化情报叙事文案(text)
       }));
       return {
         globalNews,
@@ -10014,11 +10460,21 @@
       const { worldLimit = 2, recordLimit = 2 } = options || {};
       const worldPlans = (snapshot.timelineEntries || []).filter(([, item]) => !/done|handled|完成|已处理|取消|cancel/i.test(toText(deepGet(item, '状态', 'pending'), 'pending'))).slice(0, Math.max(1, worldLimit)).map(([name, item]) => ({
         title: `世界 / ${name}`,
-        desc: `${toText(deepGet(item, '事件', '无'), '无')} ｜ Tick ${toText(deepGet(item, '触发tick', 0), '0')} ｜ ${toText(deepGet(item, '状态', 'pending'), 'pending')}`
+        desc: 构建叙事三段文案({
+          现象: toText(deepGet(item, '事件', '无'), '无'),
+          后果: `预计 Tick ${toText(deepGet(item, '触发tick', 0), '0')} 触发，当前 ${toText(deepGet(item, '状态', 'pending'), 'pending')}`,
+          钩子: toText(deepGet(item, '下一步', deepGet(item, '后续', '')), ''),
+          回退: '暂无安排'
+        })
       }));
       const personalPlans = (snapshot.recordEntries || []).filter(([, item]) => toText(item && item['状态'], '进行中') !== '已完成' && toText(item && item['状态'], '进行中') !== '已放弃').slice(0, Math.max(1, recordLimit)).map(([name, item]) => ({
         title: `个人 / ${name}`,
-        desc: `${toText(item && item['描述'], '无描述')} ｜ ${toText(item && item['状态'], '进行中')} ｜ ${toNumber(item && item['当前进度'], 0)}/${toNumber(item && item['目标进度'], 1)}`
+        desc: 构建叙事三段文案({
+          现象: toText(item && item['描述'], '无描述'),
+          后果: `进度 ${toNumber(item && item['当前进度'], 0)}/${toNumber(item && item['目标进度'], 1)}，当前 ${toText(item && item['状态'], '进行中')}`,
+          钩子: toText(item && (item['下一步'] || item['后续'] || item['建议']), ''),
+          回退: '暂无安排'
+        })
       }));
       return {
         worldPlans,
@@ -10255,7 +10711,7 @@
 
       const chars = sd && sd.char ? sd.char : {};
       const charEntries = safeEntries(chars);
-      return {
+      const 快照数据 = {
         runtimeReady,
         rawRootData,
         rootData: sd,
@@ -10313,6 +10769,8 @@
         publicIntel: !!deepGet(activeChar, 'social.公开情报', deepGet(activeChar, 'social.public_intel', false)),
         extraSkills
       };
+      快照数据.可玩选项 = 构建可玩选项展示列表(快照数据);
+      return 快照数据;
     }
 
     function getPendingSoulRingSignature(snapshot) {
@@ -13717,6 +14175,28 @@
       lastDashboardSectionRenderSignatures = sectionSignatures;
     }
 
+    function 构建可玩选项卡区(snapshot, 来源标记 = '') {
+      const 选项列表 = Array.isArray(snapshot && snapshot.可玩选项) ? snapshot.可玩选项.slice(0, 4) : [];
+      const 按钮Html = 选项列表.length
+        ? 选项列表.map(条目 => `
+            <button
+              type="button"
+              class="tag-chip live"
+              data-lwcs-option-fill="${escapeHtmlAttr(toText(条目 && 条目.原文, ''))}"
+              data-lwcs-option-key="${escapeHtmlAttr(toText(条目 && 条目.规范键, ''))}"
+            >${htmlEscape(toText(条目 && 条目.展示文案, toText(条目 && 条目.原文, '可选行动')))}</button>
+          `).join('')
+        : '<button type="button" class="tag-chip" disabled>暂无可选行动</button>';
+      return `
+        <div class="archive-card full" data-lwcs-option-panel="${escapeHtmlAttr(toText(来源标记, ''))}">
+          <div class="archive-card-head"><div class="archive-card-title">可选行动</div></div>
+          <div class="request-console-row" style="display:flex; gap:8px; flex-wrap:wrap;">
+            ${按钮Html}
+          </div>
+        </div>
+      `;
+    }
+
     function buildLiveArchiveModal(previewKey) {
       if (!liveSnapshot) return null;
       const snapshot = liveSnapshot;
@@ -15743,17 +16223,34 @@
               return null;
             }
             const professionMount = container.querySelector('#armoryProfessionMount');
-            if (professionMount && typeof window.mountProfessionUI === 'function') {
-              return window.mountProfessionUI(professionMount, snapshot, {
-                dispatchContext: mapDispatchContext,
-                onAction: (actionData) => {
-                  dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, {
-                    requestKind: actionData.requestKind,
-                    patchOps: actionData.patchOps
-                  });
-                }
-              });
+            if (!professionMount) return null;
+            const 挂载职业工坊 = () => window.mountProfessionUI(professionMount, snapshot, {
+              dispatchContext: mapDispatchContext,
+              onAction: (actionData) => {
+                dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, {
+                  requestKind: actionData.requestKind,
+                  patchOps: actionData.patchOps
+                });
+              }
+            });
+            if (typeof window.mountProfessionUI === 'function') {
+              return 挂载职业工坊();
             }
+            professionMount.innerHTML = '<div class="dossier-empty-note">工坊模块加载中...</div>';
+            void 请求预热预览依赖('武装工坊详细页', 'armory_profession_mount')
+              .then(() => {
+                if (!professionMount.isConnected) return;
+                if (typeof window.mountProfessionUI !== 'function') {
+                  professionMount.innerHTML = '<div class="dossier-empty-note">工坊模块暂不可用</div>';
+                  return;
+                }
+                professionMount.innerHTML = '';
+                activeSubUI = 挂载职业工坊();
+              })
+              .catch(() => {
+                if (professionMount.isConnected) professionMount.innerHTML = '<div class="dossier-empty-note">工坊模块加载失败</div>';
+              });
+            return null;
           }
         };
       }
@@ -17117,25 +17614,43 @@
               container.innerHTML = '<div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">旁观视角</div></div><div class="intel-layout"><div class="intel-card"><b>店铺概览</b><span>交易不可用</span></div></div></div>';
               return null;
             }
+            const 挂载交易面板 = () => window.mountTradeUI(container, snapshot, {
+              initialTab: tradeLaunchOptions.initialTab,
+              prefillNpc: tradeLaunchOptions.prefillNpc,
+              lockNpc: tradeLaunchOptions.lockNpc,
+              preferredStore: tradeLaunchOptions.preferredStore,
+              prefillAction: tradeLaunchOptions.prefillAction,
+              prefillItem: tradeLaunchOptions.prefillItem,
+              prefillQty: tradeLaunchOptions.prefillQty,
+              prefillPrice: tradeLaunchOptions.prefillPrice,
+              autoExecute: tradeLaunchOptions.autoExecute,
+              onTradeAction: (actionData) => {
+                dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, {
+                  requestKind: actionData.requestKind,
+                  patchOps: actionData.patchOps
+                });
+              }
+            });
             if (typeof window.mountTradeUI === 'function') {
-              return window.mountTradeUI(container, snapshot, {
-                initialTab: tradeLaunchOptions.initialTab,
-                prefillNpc: tradeLaunchOptions.prefillNpc,
-                lockNpc: tradeLaunchOptions.lockNpc,
-                preferredStore: tradeLaunchOptions.preferredStore,
-                prefillAction: tradeLaunchOptions.prefillAction,
-                prefillItem: tradeLaunchOptions.prefillItem,
-                prefillQty: tradeLaunchOptions.prefillQty,
-                prefillPrice: tradeLaunchOptions.prefillPrice,
-                autoExecute: tradeLaunchOptions.autoExecute,
-                onTradeAction: (actionData) => {
-                  dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, {
-                    requestKind: actionData.requestKind,
-                    patchOps: actionData.patchOps
-                  });
+              return 挂载交易面板();
+            }
+            container.innerHTML = '<div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">交易模块</div></div><div class="dossier-empty-note">交易模块加载中...</div></div>';
+            void 请求预热预览依赖('交易网络', 'trade_preview_mount')
+              .then(() => {
+                if (!container.isConnected) return;
+                if (typeof window.mountTradeUI !== 'function') {
+                  container.innerHTML = '<div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">交易模块</div></div><div class="dossier-empty-note">交易模块暂不可用</div></div>';
+                  return;
+                }
+                container.innerHTML = '';
+                activeSubUI = 挂载交易面板();
+              })
+              .catch(() => {
+                if (container.isConnected) {
+                  container.innerHTML = '<div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">交易模块</div></div><div class="dossier-empty-note">交易模块加载失败</div></div>';
                 }
               });
-            }
+            return null;
           }
         };
       }
@@ -17823,6 +18338,11 @@
     window.__MVU_REFRESH_LIVE_SNAPSHOT__ = options => refreshLiveSnapshot(options);
     window.__MVU_GET_LIVE_SNAPSHOT__ = () => liveSnapshot || lastRenderableSnapshot || null;
     window.__MVU_OPEN_BATTLE_UI__ = async () => {
+      const 模块加载结果 = await 确保模块依赖已加载('战斗模块', 'open_battle_ui');
+      if (!模块加载结果 || 模块加载结果.ok === false) {
+        showUiToast('战斗模块加载失败，暂时无法开启战斗终端。', 'error', 4200);
+        return false;
+      }
       battleInlineDismissed = false;
       removeBattleReturnEntries();
       await openBattleInlineSurface();
@@ -17989,6 +18509,30 @@
           `期望<=${玩家精神力至多变化} / 实际=${Number(摘要 && 摘要.玩家资源变化 && 摘要.玩家资源变化.精神力 || 0)}`,
         );
       }
+      const 目标魂力至多变化 = Number(预期.目标魂力至多变化);
+      if (Number.isFinite(目标魂力至多变化)) {
+        追加检查(
+          '目标魂力至多变化',
+          Number(摘要 && 摘要.目标资源变化 && 摘要.目标资源变化.魂力 || 0) <= 目标魂力至多变化,
+          `期望<=${目标魂力至多变化} / 实际=${Number(摘要 && 摘要.目标资源变化 && 摘要.目标资源变化.魂力 || 0)}`,
+        );
+      }
+      const 目标精神力至多变化 = Number(预期.目标精神力至多变化);
+      if (Number.isFinite(目标精神力至多变化)) {
+        追加检查(
+          '目标精神力至多变化',
+          Number(摘要 && 摘要.目标资源变化 && 摘要.目标资源变化.精神力 || 0) <= 目标精神力至多变化,
+          `期望<=${目标精神力至多变化} / 实际=${Number(摘要 && 摘要.目标资源变化 && 摘要.目标资源变化.精神力 || 0)}`,
+        );
+      }
+      const 目标保留状态 = Array.isArray(预期.目标保留状态) ? 预期.目标保留状态 : [];
+      目标保留状态.forEach(stateName => {
+        追加检查(
+          `目标保留状态:${stateName}`,
+          (摘要 && 摘要.目标状态变化 && 摘要.目标状态变化.保留 || []).includes(stateName),
+          `保留=${(摘要 && 摘要.目标状态变化 && 摘要.目标状态变化.保留 || []).join(' / ') || '无'}`,
+        );
+      });
       if (预期.要求补丁输出 === true) {
         追加检查(
           '要求补丁输出',
@@ -18910,7 +19454,7 @@
             ]),
           }),
           预期: Object.freeze({
-            目标新增状态: Object.freeze(['火毒灼烧']),
+            目标保留状态: Object.freeze(['火毒灼烧']),
             要求补丁输出: true,
           }),
         }),
@@ -19010,7 +19554,7 @@
             消耗: '无',
             _效果数组: Object.freeze([
               createSkillFixtureSystemBase('敌方/单体'),
-              Object.freeze({ 机制: '拆层转存', 目标: '敌方单体', 拆层数量: 1, 持续回合: 2 }),
+              Object.freeze({ 机制: '拆层转存', 目标: '敌方单体', 拆层数量: 1, 复制类型: 'debuff', 持续回合: 2 }),
             ]),
           }),
           预期: Object.freeze({
@@ -19056,7 +19600,8 @@
             ]),
           }),
           预期: Object.freeze({
-            目标体力至少减少: 1,
+            目标魂力至多变化: -1,
+            目标精神力至多变化: -1,
             要求补丁输出: true,
           }),
         }),
@@ -21424,12 +21969,17 @@ ${mvuUpdate}`;
         if (pendingBattleInlineMount) return;
         const mountToken = ++battleInlineMountToken;
         pendingBattleInlineMount = openBattleInlineSurface()
-          .then(host => {
+          .then(async host => {
             if (mountToken !== battleInlineMountToken) return;
             const latestSnapshot = liveSnapshot || lastRenderableSnapshot || snapshot;
             const latestCombatData = normalizeCombatForBattleUI(latestSnapshot);
             if (!latestCombatData || !latestCombatData.进行中 || !isSnapshotPlayerControlled(latestSnapshot)) return;
             const latestBattleUiSnapshot = buildBattleUiSnapshot(latestSnapshot, latestCombatData);
+            const 模块加载结果 = await 确保模块依赖已加载('战斗模块', 'battle_sync_mount');
+            if (!模块加载结果 || 模块加载结果.ok === false) {
+              showUiToast('战斗模块尚未就绪，暂时无法挂载战斗终端。', 'error', 4200);
+              return;
+            }
             if (!host || typeof window.mountBattleUI !== 'function') {
               showUiToast('战斗终端嵌入宿主未就绪，战斗模块未打开。', 'error', 4200);
               return;
@@ -21519,6 +22069,10 @@ ${mvuUpdate}`;
     async function openMapBattleModule(snapshot, dispatchDetail) {
       const combatData = buildMapBattleCombatData(snapshot, dispatchDetail);
       if (!combatData || combatData.ok === false) return { ok: false, reason: combatData?.reason || 'combat_context_unresolved' };
+      const 模块加载结果 = await 确保模块依赖已加载('战斗模块', 'open_map_battle_module');
+      if (!模块加载结果 || 模块加载结果.ok === false) {
+        return { ok: false, reason: '战斗模块加载失败。' };
+      }
       const playerName = toText(combatData.参战者.player.name, '玩家');
       const enemyName = toText(combatData.参战者.enemy.name, '对手');
       const compactCombatData = compactCombatDataForWorldStorage(snapshot, combatData);
@@ -22088,6 +22642,10 @@ ${mvuUpdate}`;
     }
 
     async function buildInlineTradeAction(snapshot, tradeRequest) {
+      const 模块加载结果 = await 确保模块依赖已加载('交易模块', 'inline_trade_action');
+      if (!模块加载结果 || 模块加载结果.ok === false) {
+        return { ok: false, reason: 'trade_module_load_failed', detail: 模块加载结果 };
+      }
       if (typeof window.mountTradeUI !== 'function') {
         return { ok: false, reason: 'trade_ui_unavailable' };
       }
@@ -22111,6 +22669,10 @@ ${mvuUpdate}`;
     }
 
     async function buildInlineProfessionAction(snapshot, professionRequest) {
+      const 模块加载结果 = await 确保模块依赖已加载('职业模块', 'inline_profession_action');
+      if (!模块加载结果 || 模块加载结果.ok === false) {
+        return { ok: false, reason: 'profession_module_load_failed', detail: 模块加载结果 };
+      }
       if (typeof window.mountProfessionUI !== 'function') {
         return { ok: false, reason: 'profession_ui_unavailable' };
       }
@@ -22603,6 +23165,7 @@ ${mvuUpdate}`;
 
       const targetKey = previewKey || '';
       if (targetKey === PRIVATE_ARCHIVE_PREVIEW_KEY && !canOpenPrivateArchive(liveSnapshot)) return;
+      if (targetKey) void 请求预热预览依赖(targetKey, 'modal_open');
       if (targetKey) {
         if (!modalStack.length || modalStack[modalStack.length - 1] !== targetKey) {
           modalStack.push(targetKey);
@@ -23030,6 +23593,7 @@ ${mvuUpdate}`;
       const targetKey = toText(previewKey, '').trim();
       if (!host || !targetKey) return false;
       if (targetKey === PRIVATE_ARCHIVE_PREVIEW_KEY && !canOpenPrivateArchive(liveSnapshot)) return false;
+      void 请求预热预览依赖(targetKey, 'unified_preview');
       if (shouldBlockInlineEditRerender(options)) {
         pendingLiveRefresh = true;
         return true;
@@ -23635,7 +24199,11 @@ ${mvuUpdate}`;
         event.preventDefault();
         event.stopPropagation();
         const nodeName = mapTravelBtn.getAttribute('data-map-travel-node') || '';
-        const sheepMapBridge = window.__sheepMapBridge;
+        let sheepMapBridge = window.__sheepMapBridge;
+        if (!sheepMapBridge || typeof sheepMapBridge.travelToNode !== 'function') {
+          await 确保模块依赖已加载('地图模块', 'map_travel_action');
+          sheepMapBridge = window.__sheepMapBridge;
+        }
         if (!sheepMapBridge || typeof sheepMapBridge.travelToNode !== 'function') {
           showUiToast('地图移动桥未就绪，暂时无法直接前往该节点。', 'error', 4200);
           return;
