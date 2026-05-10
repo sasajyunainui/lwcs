@@ -10882,7 +10882,17 @@ function getBonePreferredSecondary(part = '') {
 }
 
 const 技能机制决策临时字段_V1 = '机制决策临时';
-const 技能机制候选方案数量_V1 = 4;
+const 技能机制决策只读字段_V1 = Object.freeze([
+  '只读字段',
+  '状态',
+  '决策版本',
+  '上下文签名',
+  '主机制分类目录',
+  '副机制分类目录',
+  '副机制可选_魂环来源优先',
+  '变异机制可选',
+  '推荐选择',
+]);
 
 function 计算文本哈希32_V1(text = '') {
   let hash = 2166136261;
@@ -10934,193 +10944,250 @@ function 构建技能机制决策上下文签名_V1(context = {}) {
   }
 }
 
-function 构建技能机制候选种子文本_V1(skill = {}, context = {}, optionIndex = 0) {
-  const keyText = [
-    String(skill?.魂技名 || '').trim(),
-    构建技能机制决策上下文签名_V1(context),
-    `候选:${Math.max(1, Number(optionIndex || 1))}`,
-  ].join('|');
-  return keyText;
+function 规范化机制枚举数组_V1(list = []) {
+  return Array.from(
+    new Set(
+      (Array.isArray(list) ? list : [])
+        .map(item => String(item || '').trim())
+        .filter(Boolean),
+    ),
+  );
 }
 
-function 构建技能机制候选方案_V1(skill = {}, context = {}, optionIndex = 1) {
-  const safeIndex = Math.max(1, Math.floor(Number(optionIndex || 1)));
-  const seedText = 构建技能机制候选种子文本_V1(skill, context, safeIndex);
-  const seed = 计算文本哈希32_V1(seedText) || safeIndex;
+function 构建主机制目录_V1() {
+  const result = {};
+  Object.entries(SKILL_ARCHETYPE_POOL_V1 || {}).forEach(([main, archetypes]) => {
+    const label = String(main || '').trim();
+    if (!label) return;
+    result[label] = 规范化机制枚举数组_V1(archetypes);
+  });
+  return result;
+}
+
+function 构建副机制目录_V1() {
+  const result = {};
+  Object.entries(SKILL_SECONDARY_BY_MAIN_V1 || {}).forEach(([main, secondaryList]) => {
+    const label = String(main || '').trim();
+    if (!label) return;
+    result[label] = 规范化机制枚举数组_V1(secondaryList);
+  });
+  return result;
+}
+
+function 构建机制推荐选择_V1(context = {}) {
+  const signature = 构建技能机制决策上下文签名_V1(context);
+  const seed = 计算文本哈希32_V1(signature) || 1;
   const skillType = String(context?.type || '强攻系').trim() || '强攻系';
   const talentTier = String(context?.talentTier || '正常').trim() || '正常';
   const ringAge = Math.max(100, Number(context?.age || 1000));
   const ringIndex = Math.max(1, Number(context?.ringIndex || 1));
   const compatibility = Math.max(0, Math.min(100, Number(context?.compatibility || 100)));
-  const sourceQuality = String(context?.sourceQuality || context?.来源品质 || '').trim();
-  const preferredSecondary = Array.isArray(context?.preferredSecondary)
-    ? context.preferredSecondary.map(item => String(item || '').trim()).filter(Boolean)
-    : [];
+  const preferredSecondary = 规范化机制枚举数组_V1(context?.preferredSecondary || []);
   const spiritName = String(context?.textContext?.spiritName || context?.spiritName || '').trim();
-  const sourceCategory = String(context?.sourceCategory || context?.技能来源 || '魂技').trim() || '魂技';
-  const passiveMode = context?.passiveMode === true;
-  const passiveName = String(context?.passiveName || skill?.魂技名 || '').trim();
+  const gradeInfo = judgeSkillGrade(
+    talentTier,
+    ringAge,
+    ringIndex,
+    compatibility,
+    String(context?.sourceQuality || context?.来源品质 || '').trim(),
+  );
+  const rawGrade = normalizeSkillGradeSymbol(gradeInfo?.grade || 'B');
 
   return 使用确定随机执行_V1(seed, () => {
-    const gradeInfo = judgeSkillGrade(talentTier, ringAge, ringIndex, compatibility, sourceQuality);
-    const rawGrade = normalizeSkillGradeSymbol(gradeInfo?.grade || 'B');
-    const tableGrade = normalizeSkillTableGrade(rawGrade);
-    const quality = String(gradeInfo?.quality || '').trim() || ({ C: 'C级_劣质', B: 'B级_普通', A: 'A级_优秀', S: 'S级_极品' }[tableGrade] || 'B级_普通');
     const blueprint = rollSkillBlueprint(skillType, rawGrade, ringIndex, preferredSecondary, {
       spiritName,
       sourceName: spiritName,
     });
-    const generated = autoGenerateSkill(
-      skillType,
-      talentTier,
-      ringAge,
-      ringIndex,
-      compatibility,
-      preferredSecondary,
-      Number(context?.currentTick || 0),
-      {
-        passiveMode,
-        passiveName,
-        sourceCategory,
-        sourceQuality,
-        textContext: context?.textContext || {},
-        elementProfile: context?.elementProfile || null,
-        unlockedAttributes: Array.isArray(context?.unlockedAttributes) ? context.unlockedAttributes : [],
-        attributeCapacity: Array.isArray(context?.attributeCapacity) ? context.attributeCapacity : [],
-        elementTrigger: String(context?.elementTrigger || '').trim(),
-        blueprintOverride: blueprint,
-        gradeOverride: rawGrade,
-        qualityOverride: quality,
-      },
-    );
-    const blueprintSummary = buildSkillBattleSummary(blueprint);
     return {
-      方案编号: safeIndex,
-      方案标签: `方案${safeIndex}`,
-      随机种子: seed,
-      品级: tableGrade,
-      品质: quality,
       主机制大类: String(blueprint?.主机制大类 || '').trim(),
       主机制原型: String(blueprint?.主机制原型 || '').trim(),
       目标模型: String(blueprint?.目标模型 || '敌方单体').trim(),
       释放形态: String(blueprint?.释放形态 || '直接生效').trim(),
-      副机制: Array.isArray(blueprint?.副机制) ? [...blueprint.副机制] : [],
-      变异机制: Array.isArray(blueprint?.变异机制) ? [...blueprint.变异机制] : [],
-      机制摘要: compactSkillHintText(buildSkillEffectReferenceText(generated?._效果数组 || []), 128),
-      战斗评估: {
-        目标规模: String(blueprintSummary?.目标规模 || '单体'),
-        生效方式: String(blueprintSummary?.生效方式 || '直接'),
-        持续性: String(blueprintSummary?.持续性 || '无'),
-        风险等级: String(blueprintSummary?.风险等级 || '中'),
-        协同性: String(blueprintSummary?.协同性 || '低'),
-        保留倾向: Number(blueprintSummary?.保留倾向 || 0),
-      },
-      推演参数: {
-        gradeOverride: rawGrade,
-        qualityOverride: quality,
-      },
-      蓝图: {
-        主机制大类: String(blueprint?.主机制大类 || '').trim(),
-        主机制原型: String(blueprint?.主机制原型 || '').trim(),
-        目标模型: String(blueprint?.目标模型 || '敌方单体').trim(),
-        副机制: Array.isArray(blueprint?.副机制) ? [...blueprint.副机制] : [],
-        变异机制: Array.isArray(blueprint?.变异机制) ? [...blueprint.变异机制] : [],
-        释放形态: String(blueprint?.释放形态 || '直接生效').trim(),
-        加成属性候选: Array.isArray(blueprint?.加成属性候选) ? [...blueprint.加成属性候选] : [],
-      },
+      副机制: 规范化机制枚举数组_V1(blueprint?.副机制 || []),
+      变异机制: 规范化机制枚举数组_V1(blueprint?.变异机制 || []),
+      品级: normalizeSkillTableGrade(rawGrade),
     };
   });
 }
 
-function 构建技能机制候选方案列表_V1(skill = {}, context = {}) {
-  const totalCount = Math.max(2, Math.min(8, Number(技能机制候选方案数量_V1 || 4)));
-  const list = [];
-  for (let index = 1; index <= totalCount; index += 1) {
-    list.push(构建技能机制候选方案_V1(skill, context, index));
-  }
-  return list;
-}
-
-function 计算技能机制推荐方案编号_V1(candidates = []) {
-  const source = Array.isArray(candidates) ? candidates : [];
-  if (!source.length) return 1;
-  let best = source[0];
-  let bestScore = -Infinity;
-  const riskPenaltyMap = { 低: 0, 中: 4, 高: 8 };
-  source.forEach(item => {
-    const summary = item?.战斗评估 || {};
-    const base = Number(summary?.保留倾向 || 0);
-    const synergy = summary?.协同性 === '高' ? 6 : summary?.协同性 === '中' ? 3 : 0;
-    const riskPenalty = riskPenaltyMap[String(summary?.风险等级 || '中')] ?? 4;
-    const score = base + synergy - riskPenalty;
-    if (score > bestScore) {
-      best = item;
-      bestScore = score;
-    }
-  });
-  return Math.max(1, Number(best?.方案编号 || 1));
+function 构建技能机制决策待生成提示词_V1(runtimeDecision = {}, textContext = {}) {
+  const decision = runtimeDecision && typeof runtimeDecision === 'object' ? runtimeDecision : {};
+  const spiritName = String(textContext?.spiritName || '所属武魂').trim() || '所属武魂';
+  const mainCatalog = 构建主机制目录_V1();
+  const secondaryCatalog = 构建副机制目录_V1();
+  const mutationPool = 规范化机制枚举数组_V1(decision?.变异机制可选 || []);
+  const sourcePreferred = 规范化机制枚举数组_V1(decision?.副机制可选_魂环来源优先 || []);
+  const defaultMainRangeText = Object.entries(mainCatalog)
+    .map(([main, subList]) => `${main}:[${规范化机制枚举数组_V1(subList).join('/') || '无'}]`)
+    .join('；');
+  const defaultSecondaryRangeText = Object.entries(secondaryCatalog)
+    .map(([main, subList]) => `${main}:[${规范化机制枚举数组_V1(subList).join('/') || '无'}]`)
+    .join('；');
+  const mainRangeText = String(decision?.主机制分类目录 || '').trim() || defaultMainRangeText;
+  const secondaryRangeText = String(decision?.副机制分类目录 || '').trim() || defaultSecondaryRangeText;
+  const recommend = decision?.推荐选择 && typeof decision.推荐选择 === 'object' ? decision.推荐选择 : {};
+  const recommendText = [
+    `主机制大类=${String(recommend?.主机制大类 || '无').trim() || '无'}`,
+    `主机制原型=${String(recommend?.主机制原型 || '无').trim() || '无'}`,
+    `副机制=${(Array.isArray(recommend?.副机制) ? recommend.副机制 : []).join('+') || '无'}`,
+    `变异机制=${(Array.isArray(recommend?.变异机制) ? recommend.变异机制 : []).join('+') || '无'}`,
+  ].join('，');
+  return `待生成（除「已选方案编号」外其余字段都视为只读。你必须基于【${spiritName}】及魂灵来源/上下文决定，推荐仅供参考；结果只能从给定范围选择，禁止新增范围外机制。请把本字段改写为JSON对象：{"主机制大类":"...","主机制原型":"...","副机制":["..."],"变异机制":[],"目标模型":"...","释放形态":"..."}。主机制分类:${mainRangeText || '无'}。副机制分类:${secondaryRangeText || '无'}。魂环来源优先副机制:${sourcePreferred.join('/') || '无'}。变异机制可选:${mutationPool.join('/') || '无'}。推荐:${recommendText}）`;
 }
 
 function 构建技能机制决策临时数据_V1(skill = {}, context = {}) {
-  const candidates = 构建技能机制候选方案列表_V1(skill, context);
-  return {
+  const mainCatalog = 构建主机制目录_V1();
+  const secondaryCatalog = 构建副机制目录_V1();
+  const mutationPool = 规范化机制枚举数组_V1(SKILL_MUTATION_MECHANIC_TYPES_V1 || []);
+  const sourcePreferredSecondary = 规范化机制枚举数组_V1(context?.preferredSecondary || []);
+  const recommendation = 构建机制推荐选择_V1(context);
+  const mainCatalogText = Object.entries(mainCatalog)
+    .map(([main, subList]) => `${main}:[${规范化机制枚举数组_V1(subList).join('/') || '无'}]`)
+    .join('；');
+  const secondaryCatalogText = Object.entries(secondaryCatalog)
+    .map(([main, subList]) => `${main}:[${规范化机制枚举数组_V1(subList).join('/') || '无'}]`)
+    .join('；');
+  const existingDecision = skill?.[技能机制决策临时字段_V1];
+  const existingSelected = existingDecision?.已选方案编号;
+  const decision = {
+    只读字段: 技能机制决策只读字段_V1.filter(field => field !== '已选方案编号'),
     状态: '待决策',
-    决策版本: 1,
+    决策版本: 2,
     上下文签名: 构建技能机制决策上下文签名_V1(context),
-    推荐方案编号: 计算技能机制推荐方案编号_V1(candidates),
-    已选方案编号: 0,
-    候选方案: candidates,
+    主机制分类目录: mainCatalogText,
+    副机制分类目录: secondaryCatalogText,
+    副机制可选_魂环来源优先: sourcePreferredSecondary,
+    变异机制可选: mutationPool,
+    推荐选择: recommendation,
+    已选方案编号: existingSelected,
   };
+  const isPendingString = typeof decision.已选方案编号 === 'string' && /^(待生成|待补全|待补充)/.test(String(decision.已选方案编号).trim());
+  if (!decision.已选方案编号 || (typeof decision.已选方案编号 !== 'object' && !isPendingString)) {
+    decision.已选方案编号 = 构建技能机制决策待生成提示词_V1(decision, context?.textContext || context);
+  }
+  return decision;
 }
 
 function 读取技能机制已选方案编号_V1(runtimeDecision = {}) {
   const decision = runtimeDecision && typeof runtimeDecision === 'object' ? runtimeDecision : {};
-  const directNumber = Number(decision?.已选方案编号 || 0);
-  if (Number.isFinite(directNumber) && directNumber > 0) return Math.floor(directNumber);
-  const directText = String(decision?.已选方案编号 || decision?.已选方案标签 || decision?.已选方案 || '').trim();
-  if (!directText) return 0;
-  const digitMatch = directText.match(/(\d+)/);
-  if (digitMatch) return Math.max(0, Math.floor(Number(digitMatch[1] || 0)));
-  return 0;
+  const rawValue = decision?.已选方案编号;
+  if (rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)) return cloneJsonValue(rawValue, {});
+  const directText = String(rawValue || '').trim();
+  if (!directText || /^(待生成|待补全|待补充)/.test(directText)) return null;
+  try {
+    const parsed = JSON.parse(directText);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+  } catch (error) {}
+  const readToken = regex => {
+    const match = directText.match(regex);
+    return match ? String(match[1] || '').trim() : '';
+  };
+  const main = readToken(/主机制大类\s*[:：=]\s*([^\s,，;；\n]+)/);
+  const sub = readToken(/主机制原型\s*[:：=]\s*([^\s,，;；\n]+)/);
+  const target = readToken(/目标模型\s*[:：=]\s*([^\s,，;；\n]+)/);
+  const delivery = readToken(/释放形态\s*[:：=]\s*([^\s,，;；\n]+)/);
+  const secondaryRaw = readToken(/副机制\s*[:：=]\s*([^\n;；]+)/);
+  const mutationRaw = readToken(/变异机制\s*[:：=]\s*([^\n;；]+)/);
+  const secondary = 规范化机制枚举数组_V1(secondaryRaw.split(/[\s,，、/+]+/g));
+  const mutation = 规范化机制枚举数组_V1(mutationRaw.split(/[\s,，、/+]+/g));
+  if (!main || !sub) return null;
+  return {
+    主机制大类: main,
+    主机制原型: sub,
+    副机制: secondary,
+    变异机制: mutation,
+    目标模型: target || '敌方单体',
+    释放形态: delivery || '',
+  };
 }
 
-function 按候选方案回填技能效果数组_V1(skill = {}, context = {}, candidate = {}) {
-  if (!skill || typeof skill !== 'object' || !candidate || typeof candidate !== 'object') return false;
-  const seed = Number(candidate?.随机种子 || 0) || 1;
+function 规范化技能机制选择结果_V1(choice = {}, runtimeDecision = {}, context = {}) {
+  if (!choice || typeof choice !== 'object') return null;
+  const main = String(choice?.主机制大类 || '').trim();
+  const sub = String(choice?.主机制原型 || '').trim();
+  if (!main || !sub) return null;
+  const mainCatalog = 构建主机制目录_V1();
+  const mainOptions = Object.keys(mainCatalog);
+  if (mainOptions.length && !mainOptions.includes(main)) return null;
+  const subOptions = 规范化机制枚举数组_V1(mainCatalog[main] || []);
+  if (subOptions.length && !subOptions.includes(sub)) return null;
+
+  const secondaryMap = 构建副机制目录_V1();
+  const secondaryPool = 规范化机制枚举数组_V1(secondaryMap[main] || []);
+  const secondaryRaw = Array.isArray(choice?.副机制)
+    ? choice.副机制
+    : String(choice?.副机制 || '').split(/[\s,，、/+]+/g);
+  const secondary = secondaryPool.length
+    ? 规范化机制枚举数组_V1(secondaryRaw).filter(item => secondaryPool.includes(item))
+    : 规范化机制枚举数组_V1(secondaryRaw);
+
+  const mutationPool = 规范化机制枚举数组_V1(SKILL_MUTATION_MECHANIC_TYPES_V1 || []);
+  const mutationRaw = Array.isArray(choice?.变异机制)
+    ? choice.变异机制
+    : String(choice?.变异机制 || '').split(/[\s,，、/+]+/g);
+  const mutation = mutationPool.length
+    ? 规范化机制枚举数组_V1(mutationRaw).filter(item => mutationPool.includes(item))
+    : 规范化机制枚举数组_V1(mutationRaw);
+
+  const skillType = String(context?.type || '强攻系').trim() || '强攻系';
+  const deliveryPool = 规范化机制枚举数组_V1(SKILL_DELIVERY_FORM_BY_TYPE_V1[skillType] || ['直接生效']);
+  let delivery = String(choice?.释放形态 || '').trim();
+  if (!delivery) delivery = String(runtimeDecision?.推荐选择?.释放形态 || '').trim();
+  if (!delivery) delivery = skillType === '食物系' ? '造物承载' : (deliveryPool[0] || '直接生效');
+  if (!deliveryPool.includes(delivery) && !(skillType === '食物系' && delivery === '造物承载')) {
+    delivery = skillType === '食物系' ? '造物承载' : (deliveryPool[0] || '直接生效');
+  }
+  const targetModel = normalizeSkillTargetModel(String(choice?.目标模型 || runtimeDecision?.推荐选择?.目标模型 || '敌方单体').trim(), '敌方单体');
+  return {
+    主机制大类: main,
+    主机制原型: sub,
+    副机制: secondary,
+    变异机制: mutation,
+    目标模型: targetModel,
+    释放形态: delivery,
+  };
+}
+
+function 按候选方案回填技能效果数组_V1(skill = {}, context = {}, choice = {}) {
+  if (!skill || typeof skill !== 'object' || !choice || typeof choice !== 'object') return false;
+  const runtimeDecision = skill?.[技能机制决策临时字段_V1];
+  const normalizedChoice = 规范化技能机制选择结果_V1(choice, runtimeDecision, context);
+  if (!normalizedChoice) return false;
   const skillType = String(context?.type || '强攻系').trim() || '强攻系';
   const talentTier = String(context?.talentTier || '正常').trim() || '正常';
   const ringAge = Math.max(100, Number(context?.age || 1000));
   const ringIndex = Math.max(1, Number(context?.ringIndex || 1));
   const compatibility = Math.max(0, Math.min(100, Number(context?.compatibility || 100)));
   const sourceQuality = String(context?.sourceQuality || context?.来源品质 || '').trim();
-  const preferredSecondary = Array.isArray(context?.preferredSecondary)
-    ? context.preferredSecondary.map(item => String(item || '').trim()).filter(Boolean)
-    : [];
+  const preferredSecondary = Array.isArray(normalizedChoice?.副机制) ? normalizedChoice.副机制 : [];
   const sourceCategory = String(context?.sourceCategory || context?.技能来源 || '魂技').trim() || '魂技';
-  const generated = 使用确定随机执行_V1(seed, () =>
-    autoGenerateSkill(
-      skillType,
-      talentTier,
-      ringAge,
-      ringIndex,
-      compatibility,
-      preferredSecondary,
-      Number(context?.currentTick || 0),
-      {
-        passiveMode: context?.passiveMode === true,
-        passiveName: String(context?.passiveName || skill?.魂技名 || '').trim(),
-        sourceCategory,
-        sourceQuality,
-        textContext: context?.textContext || {},
-        elementProfile: context?.elementProfile || null,
-        unlockedAttributes: Array.isArray(context?.unlockedAttributes) ? context.unlockedAttributes : [],
-        attributeCapacity: Array.isArray(context?.attributeCapacity) ? context.attributeCapacity : [],
-        elementTrigger: String(context?.elementTrigger || '').trim(),
-        blueprintOverride: candidate?.蓝图 || {},
-        gradeOverride: String(candidate?.推演参数?.gradeOverride || '').trim(),
-        qualityOverride: String(candidate?.推演参数?.qualityOverride || '').trim(),
+  const generated = autoGenerateSkill(
+    skillType,
+    talentTier,
+    ringAge,
+    ringIndex,
+    compatibility,
+    preferredSecondary,
+    Number(context?.currentTick || 0),
+    {
+      passiveMode: context?.passiveMode === true,
+      passiveName: String(context?.passiveName || skill?.魂技名 || '').trim(),
+      sourceCategory,
+      sourceQuality,
+      textContext: context?.textContext || {},
+      elementProfile: context?.elementProfile || null,
+      unlockedAttributes: Array.isArray(context?.unlockedAttributes) ? context.unlockedAttributes : [],
+      attributeCapacity: Array.isArray(context?.attributeCapacity) ? context.attributeCapacity : [],
+      elementTrigger: String(context?.elementTrigger || '').trim(),
+      blueprintOverride: {
+        主机制大类: normalizedChoice.主机制大类,
+        主机制原型: normalizedChoice.主机制原型,
+        目标模型: normalizedChoice.目标模型,
+        副机制: normalizedChoice.副机制,
+        变异机制: normalizedChoice.变异机制,
+        释放形态: normalizedChoice.释放形态,
       },
-    ),
+    },
   );
   const effectArray = Array.isArray(generated?._效果数组) ? generated._效果数组 : [];
   if (!effectArray.length) return false;
@@ -11135,43 +11202,27 @@ function 按候选方案回填技能效果数组_V1(skill = {}, context = {}, ca
 
 function 尝试按机制决策回填技能效果数组_V1(skill = {}, context = {}) {
   if (!skill || typeof skill !== 'object') return false;
-  const runtimeDecision = skill?.[技能机制决策临时字段_V1];
-  if (!runtimeDecision || typeof runtimeDecision !== 'object') return false;
-  const expectedSignature = 构建技能机制决策上下文签名_V1(context);
-  const currentSignature = String(runtimeDecision?.上下文签名 || '').trim();
-  if (currentSignature && currentSignature !== expectedSignature && !读取技能机制已选方案编号_V1(runtimeDecision)) {
-    skill[技能机制决策临时字段_V1] = 构建技能机制决策临时数据_V1(skill, context);
+  const rebuiltDecision = 构建技能机制决策临时数据_V1(skill, context);
+  const existingDecision = skill?.[技能机制决策临时字段_V1];
+  const existed = existingDecision && typeof existingDecision === 'object';
+  const selectedRaw = existed ? existingDecision.已选方案编号 : undefined;
+  const nextDecision = {};
+  技能机制决策只读字段_V1.forEach(field => {
+    nextDecision[field] = cloneJsonValue(rebuiltDecision[field], rebuiltDecision[field]);
+  });
+  if (selectedRaw && typeof selectedRaw === 'object') {
+    nextDecision.已选方案编号 = cloneJsonValue(selectedRaw, {});
+  } else if (typeof selectedRaw === 'string' && /^(待生成|待补全|待补充)/.test(String(selectedRaw).trim())) {
+    nextDecision.已选方案编号 = 构建技能机制决策待生成提示词_V1(nextDecision, context?.textContext || context);
+  } else if (typeof selectedRaw === 'string' && String(selectedRaw).trim()) {
+    nextDecision.已选方案编号 = String(selectedRaw);
+  } else {
+    nextDecision.已选方案编号 = rebuiltDecision.已选方案编号;
   }
-  const normalizedDecision = skill?.[技能机制决策临时字段_V1];
-  const selectedIndex = 读取技能机制已选方案编号_V1(normalizedDecision);
-  const candidates = Array.isArray(normalizedDecision?.候选方案) ? normalizedDecision.候选方案 : [];
-  if (!selectedIndex || !candidates.length) return false;
-  const selected = candidates.find(item => Number(item?.方案编号 || 0) === selectedIndex);
-  if (!selected) return false;
-  return 按候选方案回填技能效果数组_V1(skill, context, selected);
-}
-
-function 构建技能机制决策待生成提示词_V1(runtimeDecision = {}, textContext = {}) {
-  const decision = runtimeDecision && typeof runtimeDecision === 'object' ? runtimeDecision : {};
-  const candidates = Array.isArray(decision?.候选方案) ? decision.候选方案 : [];
-  if (!candidates.length) return '待生成（当前暂无候选机制方案，请稍后重新生成）';
-  const candidateIds = candidates.map(item => Number(item?.方案编号 || 0)).filter(id => id > 0);
-  const rangeText = candidateIds.length ? candidateIds.join(' / ') : '1';
-  const spiritName = String(textContext?.spiritName || '所属武魂').trim() || '所属武魂';
-  const recommended = Math.max(1, Number(decision?.推荐方案编号 || candidateIds[0] || 1));
-  const candidateText = candidates
-    .map(item => {
-      const idx = Math.max(1, Number(item?.方案编号 || 1));
-      const main = String(item?.主机制大类 || '未定').trim() || '未定';
-      const sub = String(item?.主机制原型 || '未定').trim() || '未定';
-      const target = String(item?.目标模型 || '敌方单体').trim() || '敌方单体';
-      const secondaries = (Array.isArray(item?.副机制) ? item.副机制 : []).map(v => String(v || '').trim()).filter(Boolean);
-      const mutations = (Array.isArray(item?.变异机制) ? item.变异机制 : []).map(v => String(v || '').trim()).filter(Boolean);
-      const effects = String(item?.机制摘要 || '').trim() || '无摘要';
-      return `${idx}[${main}/${sub}] 目标:${target} 副:${secondaries.join('+') || '无'} 变异:${mutations.join('+') || '无'} 摘要:${effects}`;
-    })
-    .join('；');
-  return `待生成（脚本已给出机制候选；推荐方案=${recommended}。你必须结合【${spiritName}】及魂灵/上下文作最终决策，推荐仅供参考；结果只能在候选范围内选择，不得新增范围外机制。请仅将「${技能机制决策临时字段_V1}.已选方案编号」填写为 ${rangeText} 之一。候选：${candidateText}）`;
+  skill[技能机制决策临时字段_V1] = nextDecision;
+  const selectedChoice = 读取技能机制已选方案编号_V1(skill[技能机制决策临时字段_V1]);
+  if (!selectedChoice || typeof selectedChoice !== 'object') return false;
+  return 按候选方案回填技能效果数组_V1(skill, context, selectedChoice);
 }
 
 function ensureSkillStructGenerated(skill, context = {}) {
@@ -12138,6 +12189,7 @@ const CharacterSchema = z
                     年限: z.coerce.number().prefault(0),
                     颜色: z.string().prefault('无'),
                     来源: z.string().prefault('无').describe('该独立魂环的来源，如吸收对象/无主魂环/特殊传承'),
+                    附机制候选: z.array(z.string()).prefault(['无']).describe('独立魂环附机制候选'),
                     魂技: z.record(z.string().describe('魂技名称'), SkillStructSchema).prefault({}),
                   })
                   .prefault({}),
@@ -12201,6 +12253,7 @@ const CharacterSchema = z
                     年限: z.coerce.number().prefault(0),
                     颜色: z.string().prefault('无'),
                     来源: z.string().prefault('无').describe('该独立魂环的来源，如吸收对象/无主魂环/特殊传承'),
+                    附机制候选: z.array(z.string()).prefault(['无']).describe('独立魂环附机制候选'),
                     魂技: z.record(z.string().describe('魂技名称'), SkillStructSchema).prefault({}),
                   })
                   .prefault({}),
@@ -13189,6 +13242,9 @@ const CharacterSchema = z
           inferSoulSpiritQuality(spiritData) ||
           '';
         if (ring && typeof ring === 'object' && !String(ring.颜色 || '').trim()) ring.颜色 = getRingColorByAge(ring.年限);
+        if (ring && typeof ring === 'object') {
+          ring.附机制候选 = normalizeSoulSpiritSecondaryCandidates(ring.附机制候选, char.属性.系别, ringIndex);
+        }
         ensureSkillMapGenerated(ring?.魂技, (_, skillName) => ({
           type: char.属性.系别,
           talentTier: char.属性.天赋梯队,
@@ -13196,7 +13252,10 @@ const CharacterSchema = z
           ringIndex,
           compatibility: 100,
           sourceQuality: 来源品质,
-          preferredSecondary: [],
+          deferGenerationUntilSecondaryReady: hasPendingSecondaryTodoCandidates(ring?.附机制候选),
+          preferredSecondary: Array.isArray(ring?.附机制候选)
+            ? ring.附机制候选.filter(option => SOUL_SPIRIT_SECONDARY_OPTIONS_V1.includes(option))
+            : [],
           elementProfile: runtimeElementProfile,
           unlockedAttributes: spiritAttributeState.已解锁属性,
           attributeCapacity: spiritAttributeState.可容纳属性,
@@ -18130,9 +18189,12 @@ export const Schema = z
           skill.附带属性 = [];
         const runtimeDecision = skill?.[技能机制决策临时字段_V1];
         if (runtimeDecision && typeof runtimeDecision === 'object' && !hasPackedEffects) {
-          runtimeDecision.待生成提示词 = 构建技能机制决策待生成提示词_V1(runtimeDecision, textContext);
-        } else if (runtimeDecision && typeof runtimeDecision === 'object' && '待生成提示词' in runtimeDecision) {
-          delete runtimeDecision.待生成提示词;
+          const selectedRaw = runtimeDecision.已选方案编号;
+          if (!selectedRaw || (typeof selectedRaw === 'string' && !String(selectedRaw).trim())) {
+            runtimeDecision.已选方案编号 = 构建技能机制决策待生成提示词_V1(runtimeDecision, textContext);
+          } else if (typeof selectedRaw === 'string' && /^(待生成|待补全|待补充)/.test(String(selectedRaw).trim())) {
+            runtimeDecision.已选方案编号 = 构建技能机制决策待生成提示词_V1(runtimeDecision, textContext);
+          }
         }
       };
       const injectDisplaySkillMapDefaults = (skillMap = {}, contextFactory = () => ({})) => {
@@ -18270,10 +18332,14 @@ export const Schema = z
               }));
             });
           });
-          _(spiritData?.独立魂环 || {}).forEach(ringData => {
+          _(spiritData?.独立魂环 || {}).forEach((ringData, ringIndexStr) => {
             if (!ringData || typeof ringData !== 'object') return;
+            const ringIndex = parseInt(ringIndexStr) || 1;
             ensureDisplayText(ringData, '颜色', '无');
             ensureDisplayText(ringData, '来源', '无');
+            const 默认候选 = buildSoulSpiritSecondaryDefaultValue(spiritType, ringIndex);
+            const 默认提示词 = Array.isArray(默认候选) && 默认候选.length ? 默认候选[0] : AI_TODO_SOUL_SPIRIT_SECONDARY;
+            ensureDisplayStringArray(ringData, '附机制候选', 默认提示词);
             injectDisplaySkillMapDefaults(ringData.魂技, skillName => ({
               type: spiritType,
               textContext: {
