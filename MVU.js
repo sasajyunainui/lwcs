@@ -7103,6 +7103,72 @@ function ensureNumericStatBonusMap(target = {}, fieldName = '') {
   return target;
 }
 
+function 计算关系加成(好感度 = 0) {
+  const 安全好感度 = Number(好感度 || 0);
+  if (!Number.isFinite(安全好感度)) return 0;
+  return Math.max(0, Math.min(20, Math.floor(Math.max(0, 安全好感度) / 10)));
+}
+
+function 计算总相关度(基础值 = 0, 关系加成 = 0) {
+  const 安全基础值 = Number(基础值 || 0);
+  const 安全关系加成 = Number(关系加成 || 0);
+  const 原始总分 = (Number.isFinite(安全基础值) ? 安全基础值 : 0) + (Number.isFinite(安全关系加成) ? 安全关系加成 : 0);
+  return Math.max(0, Math.min(100, Math.floor(原始总分)));
+}
+
+function 规范武魂相关度状态(状态文本 = '') {
+  const 状态 = String(状态文本 || '').trim();
+  if (状态 === '待重算') return '待重算';
+  if (状态 === '待生成') return '待生成';
+  if (状态 === '生成中') return '生成中';
+  if (状态 === '已生成') return '已生成';
+  return '待生成';
+}
+
+function 读取武魂相关度基础值(关系数据 = {}) {
+  const 原值 = Number(关系数据?.武魂相关度基础);
+  if (!Number.isFinite(原值)) return null;
+  return Math.max(0, Math.min(100, Math.floor(原值)));
+}
+
+function 刷新武魂相关度字段(关系数据 = {}, 选项 = {}) {
+  if (!关系数据 || typeof 关系数据 !== 'object') return;
+  const 当前tick = Math.max(0, Math.floor(Number(选项?.当前tick || 0)));
+  const 基础值 = 读取武魂相关度基础值(关系数据);
+  const 关系加成 = 计算关系加成(关系数据.好感度);
+  const 状态文本 = 规范武魂相关度状态(关系数据.武魂相关度状态);
+  const 最终状态 = 基础值 == null ? '待生成' : 状态文本;
+
+  关系数据.武魂相关度基础 = 基础值 == null ? 0 : 基础值;
+  关系数据.武魂相关度关系加成 = 关系加成;
+  关系数据.武魂相关度总分 = 计算总相关度(关系数据.武魂相关度基础, 关系加成);
+  关系数据.武魂相关度状态 = 最终状态;
+  if (!String(关系数据.武魂相关度说明 || '').trim()) {
+    关系数据.武魂相关度说明 = 基础值 == null ? '待生成' : '规则回填';
+  }
+  if (!(Number(关系数据.武魂相关度更新时间tick || 0) > 0) && 当前tick > 0 && 基础值 != null && 最终状态 === '已生成') {
+    关系数据.武魂相关度更新时间tick = 当前tick;
+  } else if (!Number.isFinite(Number(关系数据.武魂相关度更新时间tick))) {
+    关系数据.武魂相关度更新时间tick = 0;
+  }
+}
+
+function 标记相关度脏状态(关系数据 = {}, 当前tick = 0, 原因 = '') {
+  if (!关系数据 || typeof 关系数据 !== 'object') return;
+  刷新武魂相关度字段(关系数据, { 当前tick });
+  关系数据.武魂相关度状态 = '待重算';
+  if (当前tick > 0) 关系数据.武魂相关度更新时间tick = Math.max(0, Math.floor(Number(当前tick || 0)));
+  const 原因文本 = String(原因 || '').trim();
+  if (原因文本) 关系数据.武魂相关度说明 = 原因文本;
+}
+
+function 是否跨好感十位段(旧好感度 = 0, 新好感度 = 0) {
+  const 旧值 = Math.floor(Number(旧好感度 || 0) / 10);
+  const 新值 = Math.floor(Number(新好感度 || 0) / 10);
+  if (!Number.isFinite(旧值) || !Number.isFinite(新值)) return false;
+  return 旧值 !== 新值;
+}
+
 function buildNumericStatBonusSummary(bonusMap = {}) {
   const labels = {
     力量: '力量',
@@ -11973,6 +12039,12 @@ const CharacterSchema = z
                 _当前关系加成: z.string().prefault('无').describe('当前已激活的关系加成说明'),
                 _下档解锁加成: z.string().prefault('无').describe('下一档可解锁的羁绊加成说明'),
                 _下档解锁阈值: z.coerce.number().prefault(30).describe('下一档羁绊加成所需好感度'),
+                武魂相关度基础: z.coerce.number().prefault(0).describe('武魂相关度基础分(0-100，通常由AI判定)'),
+                武魂相关度关系加成: z.coerce.number().prefault(0).describe('由好感度推导的相关度加成(0-20)'),
+                武魂相关度总分: z.coerce.number().prefault(0).describe('基础分+关系加成后的总相关度，封顶100'),
+                武魂相关度状态: z.string().prefault('待生成').describe('待生成/生成中/已生成/待重算'),
+                武魂相关度说明: z.string().prefault('待生成').describe('AI判定摘要或规则备注'),
+                武魂相关度更新时间tick: z.coerce.number().prefault(0).describe('最近一次相关度更新的tick'),
               })
               .prefault({}),
           )
@@ -12087,6 +12159,7 @@ const CharacterSchema = z
           relData._当前关系加成 = relData.好感加成 || '无';
           relData._下档解锁加成 = nextUnlockBonus;
           relData._下档解锁阈值 = nextUnlockThreshold;
+          刷新武魂相关度字段(relData, { 当前tick: 0 });
 
           topTargets.push({
             对象: targetName,
@@ -14107,6 +14180,218 @@ export const Schema = z
       return vitRatio < 0.45 || menRatio < 0.45 || (vitRatio < 0.6 && menRatio < 0.6);
     };
 
+    const 城市消费倍率表_ACU = Object.freeze([1, 10, 100, 1000]);
+    const 城市修炼加成表_ACU = Object.freeze([0, 0.05, 0.1, 0.2]);
+    const 城市档位名称表_ACU = Object.freeze(['聚落', '城镇', '城市', '主城']);
+
+    const 归一化地点文本_ACU = 地点 => {
+      const 原文 = String(地点 || '')
+        .replace(/^斗罗大陆-/, '')
+        .replace(/^斗灵大陆-/, '')
+        .trim();
+      const 分段 = 原文.split('-').filter(Boolean);
+      return {
+        原文,
+        末段: 分段[分段.length - 1] || 原文,
+        分段,
+      };
+    };
+
+    const 判断地点相容_ACU = (地点甲, 地点乙) => {
+      const 甲 = 归一化地点文本_ACU(地点甲);
+      const 乙 = 归一化地点文本_ACU(地点乙);
+      if (!甲.原文 || !乙.原文) return 甲.原文 === 乙.原文;
+      if (甲.原文 === 乙.原文 || 甲.末段 === 乙.末段) return true;
+      return 甲.分段.some(片段 => 乙.分段.includes(片段));
+    };
+
+    const 读取地点信息_ACU = 角色 => {
+      const 地点名 = String(角色?.状态?.位置 || '').trim();
+      if (!地点名) return { 地点名: '', 地点信息: null, 文本: '' };
+      const 动态地点信息 = data?.world?.动态地点?.[地点名];
+      const 静态地点信息 = data?.world?.地点?.[地点名];
+      const 地点信息 = 动态地点信息 && typeof 动态地点信息 === 'object' ? 动态地点信息 : 静态地点信息 || null;
+      const 文本 = [
+        地点名,
+        地点信息?.节点类型,
+        地点信息?.类型,
+        地点信息?.描述,
+        地点信息?.归属父节点,
+      ]
+        .map(项 => String(项 || '').trim())
+        .filter(Boolean)
+        .join(' ');
+      return { 地点名, 地点信息, 文本 };
+    };
+
+    const 判定城市规模档位_ACU = 角色 => {
+      const 地点上下文 = 读取地点信息_ACU(角色);
+      const 文本 = 地点上下文.文本;
+      if (!文本) return { 档位索引: -1, 名称: '无城市环境' };
+      const 层级 = Math.max(0, Math.floor(Number(地点上下文.地点信息?.层级 || 0)));
+      const 节点类型 = String(地点上下文.地点信息?.节点类型 || '').trim();
+      if (/首都|皇城|帝都|都城|主城|海外首都/.test(文本) || 节点类型 === '主城') {
+        return { 档位索引: 3, 名称: 城市档位名称表_ACU[3] };
+      }
+      if (/城|学院|塔|都会|都市/.test(文本) || ['城市', '学院总部', '大型设施'].includes(节点类型) || 层级 === 2) {
+        return { 档位索引: 2, 名称: 城市档位名称表_ACU[2] };
+      }
+      if (/镇|村|街|巷|营地|分部|据点|市集|聚落/.test(文本) || ['城镇', '村落', '聚落', '街区', '店铺'].includes(节点类型)) {
+        return { 档位索引: 1, 名称: 城市档位名称表_ACU[1] };
+      }
+      if (/居住|驿站|客栈|宿舍|据点|营地/.test(文本) || 层级 >= 3) {
+        return { 档位索引: 0, 名称: 城市档位名称表_ACU[0] };
+      }
+      return { 档位索引: -1, 名称: '无城市环境' };
+    };
+
+    const 收集角色武魂属性词_ACU = 角色 => {
+      const 词集合 = new Set();
+      Object.entries(角色?.武魂 || {}).forEach(([槽位名, 武魂数据]) => {
+        const 属性状态 = normalizeSpiritAttributeState(武魂数据 || {}, 槽位名, 角色);
+        [武魂数据?.type, 武魂数据?.表象名称, 武魂数据?.属性体系, 武魂数据?.描述, ...(属性状态?.已解锁属性 || [])]
+          .map(项 => String(项 || '').trim())
+          .filter(Boolean)
+          .forEach(词 => 词集合.add(词));
+      });
+      return Array.from(词集合);
+    };
+
+    const 计算地图拟态倍率_ACU = 角色 => {
+      const 地点上下文 = 读取地点信息_ACU(角色);
+      const 地点文本 = 地点上下文.文本;
+      if (!地点文本) return { 倍率: 1, 来源: '无地点数据' };
+      const 武魂词 = 收集角色武魂属性词_ACU(角色);
+      if (!武魂词.length) return { 倍率: 1, 来源: '无武魂属性' };
+
+      const 拟态规则表 = [
+        { 关键词: ['冰', '雪', '寒', '冻', '霜'], 地形: /(冰|雪|寒|冻|霜|冰川|冰山)/, 加成: 0.2, 名称: '冰系拟态' },
+        { 关键词: ['火', '炎', '焰', '熔', '热'], 地形: /(火山|熔岩|炎|热|地火|赤地)/, 加成: 0.2, 名称: '火系拟态' },
+        { 关键词: ['水', '海', '潮', '雨', '雾'], 地形: /(海|湖|河|雨林|潮|湿地|水域)/, 加成: 0.16, 名称: '水系拟态' },
+        { 关键词: ['风', '翼', '空', '云', '雷鹏'], 地形: /(高空|山巅|峡谷|风口|云层)/, 加成: 0.14, 名称: '风系拟态' },
+        { 关键词: ['雷', '电', '霆'], 地形: /(雷|电|风暴|雷暴)/, 加成: 0.15, 名称: '雷系拟态' },
+        { 关键词: ['土', '岩', '山', '石'], 地形: /(山|岩|矿|地脉|洞窟)/, 加成: 0.12, 名称: '土系拟态' },
+        { 关键词: ['木', '林', '草', '藤', '花'], 地形: /(森林|林海|草原|藤|花海|雨林)/, 加成: 0.12, 名称: '木系拟态' },
+        { 关键词: ['光', '圣'], 地形: /(圣殿|日耀|光|辉)/, 加成: 0.1, 名称: '光系拟态' },
+        { 关键词: ['暗', '影', '夜', '冥'], 地形: /(夜|暗|幽|冥|影)/, 加成: 0.1, 名称: '暗系拟态' },
+      ];
+
+      let 倍率 = 1;
+      const 来源列表 = [];
+      拟态规则表.forEach(规则 => {
+        const 命中属性 = 规则.关键词.some(关键词 => 武魂词.some(词 => String(词 || '').includes(关键词)));
+        if (!命中属性) return;
+        if (!规则.地形.test(地点文本)) return;
+        倍率 *= 1 + Number(规则.加成 || 0);
+        来源列表.push(规则.名称);
+      });
+      const 安全倍率 = Math.max(1, Math.min(2.2, Number(倍率.toFixed(4))));
+      return {
+        倍率: 安全倍率,
+        来源: 来源列表.length ? 来源列表.join(' + ') : '无拟态命中',
+      };
+    };
+
+    const 读取修炼食物倍率_ACU = 角色 => {
+      const 状态表 = 角色?.属性?.状态效果;
+      if (!状态表 || typeof 状态表 !== 'object') return { 倍率: 1, 来源: '无食物增益' };
+      let 倍率 = 1;
+      const 来源列表 = [];
+      Object.entries(状态表).forEach(([状态名, 状态值]) => {
+        if (!状态值 || typeof 状态值 !== 'object') return;
+        const 结束tick = Math.max(0, Math.floor(Number(状态值.结束tick || 状态值.有效期至tick || 0)));
+        if (结束tick > 0 && currentTick >= 结束tick) {
+          delete 状态表[状态名];
+          return;
+        }
+        const 状态倍率 = Number(状态值.修炼速度倍率 || 状态值.修炼倍率 || 状态值.训练倍率 || 0);
+        if (!Number.isFinite(状态倍率) || 状态倍率 <= 1) return;
+        倍率 *= 状态倍率;
+        来源列表.push(状态名);
+      });
+      const 安全倍率 = Math.max(1, Math.min(3.5, Number(倍率.toFixed(4))));
+      return { 倍率: 安全倍率, 来源: 来源列表.length ? 来源列表.join(' + ') : '无食物增益' };
+    };
+
+    const 计算关系同修倍率_ACU = (角色, 角色名 = '') => {
+      const 关系表 = 角色?.社交?.关系;
+      if (!关系表 || typeof 关系表 !== 'object') return { 倍率: 1, 来源: '无关系数据' };
+      const 当前地点 = String(角色?.状态?.位置 || '').trim();
+      const 显式同修对象 = String(角色?.状态?.同修对象 || 角色?.状态?.双修对象 || '').trim();
+
+      let 同修对象名 = '';
+      let 同修关系数据 = null;
+      if (显式同修对象 && 关系表[显式同修对象]) {
+        const 候选角色 = data?.char?.[显式同修对象];
+        if (!候选角色 || 判断地点相容_ACU(当前地点, 候选角色?.状态?.位置 || '')) {
+          同修对象名 = 显式同修对象;
+          同修关系数据 = 关系表[显式同修对象];
+        }
+      }
+      if (!同修关系数据) {
+        Object.entries(关系表).forEach(([目标名, 关系数据]) => {
+          if (目标名 === 角色名) return;
+          const 目标角色 = data?.char?.[目标名];
+          if (!目标角色) return;
+          if (!判断地点相容_ACU(当前地点, 目标角色?.状态?.位置 || '')) return;
+          if (!同修关系数据 || Number(关系数据?.武魂相关度总分 || 0) > Number(同修关系数据?.武魂相关度总分 || 0)) {
+            同修对象名 = 目标名;
+            同修关系数据 = 关系数据;
+          }
+        });
+      }
+      if (!同修关系数据) return { 倍率: 1, 来源: '无同修对象' };
+      const 相关度总分 = Math.max(0, Math.min(100, Number(同修关系数据?.武魂相关度总分 || 0)));
+      const 倍率 = Math.max(1, Number((1 + 相关度总分 * 0.0025).toFixed(4)));
+      return { 倍率, 来源: 同修对象名 ? `同修:${同修对象名}` : '同修' };
+    };
+
+    const 计算修炼速度倍率_ACU = (角色, 角色名 = '', 动作模式 = '日常') => {
+      const 模式 = String(动作模式 || '').trim();
+      const 生效模式 = ['冥想', '肉体训练', '精神训练', '日常'].includes(模式);
+      if (!生效模式) return { 倍率: 1, 构成说明: '常规', 明细: {} };
+
+      const 同修倍率信息 = 计算关系同修倍率_ACU(角色, 角色名);
+      const 拟态倍率信息 = 计算地图拟态倍率_ACU(角色);
+      const 城市档位信息 = 判定城市规模档位_ACU(角色);
+      const 城市修炼倍率 = 1 + (城市档位信息.档位索引 >= 0 ? Number(城市修炼加成表_ACU[城市档位信息.档位索引] || 0) : 0);
+      const 食物倍率信息 = 读取修炼食物倍率_ACU(角色);
+      const 总倍率 = Math.max(
+        1,
+        Math.min(8, Number((同修倍率信息.倍率 * 拟态倍率信息.倍率 * 城市修炼倍率 * 食物倍率信息.倍率).toFixed(4))),
+      );
+      return {
+        倍率: 总倍率,
+        构成说明: [
+          `同修${同修倍率信息.倍率.toFixed(3)}`,
+          `拟态${拟态倍率信息.倍率.toFixed(3)}`,
+          `城市${城市修炼倍率.toFixed(3)}`,
+          `食物${食物倍率信息.倍率.toFixed(3)}`,
+        ].join(' × '),
+        明细: {
+          同修: 同修倍率信息,
+          拟态: 拟态倍率信息,
+          城市: {
+            倍率: 城市修炼倍率,
+            档位: 城市档位信息.档位索引,
+            名称: 城市档位信息.名称,
+          },
+          食物: 食物倍率信息,
+        },
+      };
+    };
+
+    const 计算可负担消费档位_ACU = (存款, 基础日消费, 目标档位索引) => {
+      const 安全存款 = Math.max(0, Number(存款 || 0));
+      const 安全基础日消费 = Math.max(0, Number(基础日消费 || 0));
+      const 安全目标档位 = Math.max(0, Math.min(3, Math.floor(Number(目标档位索引 || 0))));
+      for (let 档位索引 = 安全目标档位; 档位索引 >= 0; 档位索引 -= 1) {
+        const 周消费 = 安全基础日消费 * Number(城市消费倍率表_ACU[档位索引] || 1) * 7;
+        if (安全存款 >= 周消费) return 档位索引;
+      }
+      return 0;
+    };
+
     const normalizeCharacterActionMode_ACU = actionMode => {
       const raw = String(actionMode || '').trim() || '日常';
       return raw === '凝聚魂核' ? '冥想' : raw;
@@ -14368,10 +14653,17 @@ export const Schema = z
       return 0;
     };
 
-    const applyCharacterActionSegment_ACU = (c, actionMode, segmentDelta, trainedBonus) => {
+    const applyCharacterActionSegment_ACU = (c, actionMode, segmentDelta, trainedBonus, 角色名 = '') => {
       const safeDelta = Math.max(0, Number(segmentDelta || 0));
       if (!(safeDelta > 0) || !c?.属性) return;
       const normalizedActionMode = normalizeCharacterActionMode_ACU(actionMode);
+      const 修炼倍率信息 = 计算修炼速度倍率_ACU(c, 角色名, normalizedActionMode);
+      const 修炼速度倍率 = Math.max(1, Number(修炼倍率信息.倍率 || 1));
+      if (!c.属性.训练加成 || typeof c.属性.训练加成 !== 'object' || Array.isArray(c.属性.训练加成)) {
+        c.属性.训练加成 = createNumericStatBonusMap({});
+      }
+      c.属性.训练加成.修炼倍率 = Number(修炼速度倍率.toFixed(4));
+      c.属性.训练加成.修炼倍率来源 = String(修炼倍率信息.构成说明 || '常规');
       const hasNoSoulPowerTalent = isNoSoulPowerTalentTier(c?.属性?.天赋梯队);
       const coreCount = c.魂核?.核心?.数量 || 0;
       let spRate = 0.01;
@@ -14432,6 +14724,7 @@ export const Schema = z
         if (isGoodTalentLateBloom_ACU(c) && Number(c.属性?.年龄 || 0) >= GOOD_TALENT_LATE_BLOOM_START_AGE_ACU && coreCount >= 0) {
           finalGrowth *= GOOD_TALENT_LATE_BLOOM_GROWTH_MULTIPLIER_ACU;
         }
+        finalGrowth *= 修炼速度倍率;
         finalGrowth = roundRuntimeGrowthValue_ACU(finalGrowth);
         const currentLevel = Math.max(0, Number(c.属性?.等级 || 0));
         const isSoulCoreBottlenecked = currentLevel >= getSoulCoreLevelCapByCount_ACU(coreCount) && coreCount < 3;
@@ -14500,7 +14793,7 @@ export const Schema = z
           }
         }
         if (actualCycles > 0) {
-          const gain = 0.05 * actualCycles;
+          const gain = 0.05 * actualCycles * 修炼速度倍率;
           addNumericStatBonusEntries(trainedBonus, {
             力量: gain,
             防御: gain,
@@ -14521,14 +14814,14 @@ export const Schema = z
           }
         }
         if (actualCycles > 0 && c.属性.年龄 <= 40) {
-          let gain = 0.02 * actualCycles;
+          let gain = 0.02 * actualCycles * 修炼速度倍率;
           if (c.功法?.['紫极魔瞳']) gain = Math.floor(gain * 1.1);
           addNumericStatBonusValue(trainedBonus, '精神力上限', gain);
         }
       } else if (normalizedActionMode === '日常') {
         const passiveDays = safeDelta / DAY_TICK_SPAN_ACU;
         if (passiveDays > 0) {
-          const passiveGain = 0.01 * passiveDays;
+          const passiveGain = 0.01 * passiveDays * 修炼速度倍率;
           addNumericStatBonusEntries(trainedBonus, {
             力量: passiveGain,
             防御: passiveGain,
@@ -15583,12 +15876,24 @@ export const Schema = z
 
         if (c.状态.存活 && getComputedWoundLevelFromStat(c.属性) !== '濒死') {
           if (daysPassed > 0 && c.状态.行动 === '日常') {
-            const isCity = /城|学院|镇|塔|村|都/.test(c.状态.位置);
+            const 城市档位信息 = 判定城市规模档位_ACU(c);
+            const 城市档位索引 = Math.max(-1, Math.min(3, Number(城市档位信息.档位索引 ?? -1)));
 
-            if (isCity) {
-              let cost = BASE_DAILY_LIVING_COST_ACU * daysPassed;
-              if ((c.财富?.联邦币 || 0) >= cost) {
-                c.财富.联邦币 -= cost;
+            if (城市档位索引 >= 0) {
+              if (!c.财富 || typeof c.财富 !== 'object' || Array.isArray(c.财富)) c.财富 = {};
+              const 当前存款 = Math.max(0, Number(c.财富?.联邦币 || 0));
+              const 基础日消费 = BASE_DAILY_LIVING_COST_ACU;
+              const 可负担档位索引 = 计算可负担消费档位_ACU(当前存款, 基础日消费, 城市档位索引);
+              const 消费倍率 = Number(城市消费倍率表_ACU[可负担档位索引] || 1);
+              const 实际消费 = Math.max(0, Math.floor(基础日消费 * daysPassed * 消费倍率));
+              const 实际可扣 = 当前存款 >= 实际消费;
+              if (可负担档位索引 < 城市档位索引) {
+                appendSystemReasonText(
+                  `[城市消费降档] ${charName} 所在地区档位由${城市档位名称表_ACU[城市档位索引]}(${城市消费倍率表_ACU[城市档位索引]}x)自动降为${城市档位名称表_ACU[可负担档位索引]}(${消费倍率}x)。`,
+                );
+              }
+              if (实际可扣) {
+                c.财富.联邦币 = Math.max(0, 当前存款 - 实际消费);
                 delete c.属性.状态效果['饥饿'];
               } else {
                 c.财富.联邦币 = 0;
@@ -15617,11 +15922,11 @@ export const Schema = z
               const segmentAction = isNightMeditationTick_ACU(segmentTickCursor)
                 ? (shouldDailyAutoSleep_ACU(c) ? '睡眠' : '冥想')
                 : '日常';
-              applyCharacterActionSegment_ACU(c, segmentAction, segmentDelta, trainedBonus);
+              applyCharacterActionSegment_ACU(c, segmentAction, segmentDelta, trainedBonus, charName);
               segmentTickCursor = nextBoundaryTick;
             }
           } else {
-            applyCharacterActionSegment_ACU(c, normalizedDeclaredAction, delta, trainedBonus);
+            applyCharacterActionSegment_ACU(c, normalizedDeclaredAction, delta, trainedBonus, charName);
           }
           const afterCoreCount = Math.max(0, Math.floor(Number(c.魂核?.核心?.数量 || 0)));
           if (afterCoreCount > beforeCoreCount) {
@@ -15991,9 +16296,18 @@ export const Schema = z
               关系路线: '朋友线',
               对方身份: '无',
               好感加成: '无',
+              武魂相关度基础: 0,
+              武魂相关度关系加成: 0,
+              武魂相关度总分: 0,
+              武魂相关度状态: '待生成',
+              武魂相关度说明: '待生成',
+              武魂相关度更新时间tick: 0,
             };
           }
           let rel = c.社交.关系[targetName];
+          刷新武魂相关度字段(rel, { 当前tick: Number(data.world?.时间?.tick || 0) });
+          const 互动前好感度 = Number(rel.好感度 || 0);
+          const 互动前路线 = String(rel.关系路线 || '朋友线');
           let score = req.结果评分;
           const currentTick = Number(data.world?.时间?.tick || 0);
 
@@ -16062,8 +16376,18 @@ export const Schema = z
               关系路线: '朋友线',
               对方身份: '无',
               好感加成: '无',
+              武魂相关度基础: 0,
+              武魂相关度关系加成: 0,
+              武魂相关度总分: 0,
+              武魂相关度状态: '待生成',
+              武魂相关度说明: '待生成',
+              武魂相关度更新时间tick: 0,
             };
           }
+          const 对侧关系 = targetNPC.社交.关系[charName];
+          刷新武魂相关度字段(对侧关系, { 当前tick });
+          const 对侧互动前好感度 = Number(对侧关系.好感度 || 0);
+          const 对侧互动前路线 = String(对侧关系.关系路线 || '朋友线');
           targetNPC.社交.关系[charName].好感度 = rel.好感度;
           targetNPC.社交.关系[charName].关系路线 =
             rel.关系路线 || targetNPC.社交.关系[charName].关系路线 || '朋友线';
@@ -16074,6 +16398,23 @@ export const Schema = z
             const sourceIdentity = c.社交?.主身份;
             targetNPC.社交.关系[charName].对方身份 =
               !isAiTodoText(sourceIdentity) && sourceIdentity ? sourceIdentity : '无';
+          }
+
+          刷新武魂相关度字段(rel, { 当前tick });
+          刷新武魂相关度字段(targetNPC.社交.关系[charName], { 当前tick });
+          const 本侧跨段 = 是否跨好感十位段(互动前好感度, Number(rel.好感度 || 0));
+          const 本侧改线 = 互动前路线 !== String(rel.关系路线 || '朋友线');
+          if (本侧跨段 || 本侧改线) {
+            标记相关度脏状态(rel, currentTick, 本侧改线 ? '关系路线变化，待重算' : '好感阶段变化，待重算');
+          }
+          const 对侧跨段 = 是否跨好感十位段(对侧互动前好感度, Number(targetNPC.社交.关系[charName].好感度 || 0));
+          const 对侧改线 = 对侧互动前路线 !== String(targetNPC.社交.关系[charName].关系路线 || '朋友线');
+          if (对侧跨段 || 对侧改线) {
+            标记相关度脏状态(
+              targetNPC.社交.关系[charName],
+              currentTick,
+              对侧改线 ? '关系路线变化，待重算' : '好感阶段变化，待重算',
+            );
           }
         }
 

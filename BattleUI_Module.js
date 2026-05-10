@@ -1676,7 +1676,7 @@ class BattleUIComponent {
       });
       Object.entries(char.自创魂技 || {}).forEach(([name, skill]) => fallbackPushSkill(actions, skill, name, '自创魂技'));
       Object.entries(char.武魂融合技 || {}).forEach(([name, fusion]) =>
-        fallbackPushSkill(actions, buildFusionCombatSkill(fusion, name), `武魂融合技·${name}`, '武魂融合技'),
+        fallbackPushSkill(actions, buildFusionCombatSkill(fusion, name, char), `武魂融合技·${name}`, '武魂融合技'),
       );
       actions.push(
         { id: 'basic_attack', name: '普通攻击', type: 'tactical', action_type: '常规攻击', category: '战术', cast_time: 10, cost_text: '无', enabled: true, skill: { name: '普通攻击' } },
@@ -5582,7 +5582,52 @@ class BattleUIComponent {
       return names.length ? names.join('、') : String(fusionSkill?.融合对象 || '').trim();
     }
 
-    function buildFusionBattleProfile(mode = 'partner', partnerCount = 1) {
+    function 读取融合相关度总分(charData = {}, fusionSkill = {}) {
+      if (getFusionSkillMode(fusionSkill) === 'self') return 100;
+      const partnerNames = getFusionSkillPartnerNames(fusionSkill);
+      if (!partnerNames.length) return 0;
+      const relationMap = charData?.社交?.关系 && typeof charData.社交.关系 === 'object' ? charData.社交.关系 : {};
+      const scores = partnerNames.map(name => {
+        const rel = relationMap[name];
+        const score = Number(rel?.武魂相关度总分 ?? 0);
+        return Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 0;
+      });
+      if (!scores.length) return 0;
+      return Math.max(0, Math.min(100, Math.floor(Math.min(...scores))));
+    }
+
+    function 计算融合相关度倍率(相关度总分 = 100) {
+      const 安全总分 = Math.max(0, Math.min(100, Number(相关度总分 || 0)));
+      if (安全总分 < 70) return 0.9;
+      const 进度 = (安全总分 - 70) / 30;
+      return Number((1 + Math.max(0, Math.min(1, 进度)) * 0.25).toFixed(4));
+    }
+
+    function 获取融合技能可用性(charData, fusionSkill, alliedTeam = []) {
+      if (!fusionSkill?.技能数据 || fusionSkill?.技能数据?.状态 === '未生成') {
+        return { 可用: false, 原因: '融合技能未完成生成', 相关度总分: 0 };
+      }
+      if (getFusionSkillMode(fusionSkill) === 'self') {
+        const slots = getFusionSkillSourceSpirits(fusionSkill);
+        const 可用 = slots.length >= 2 && slots.every(slot => hasUsableSpiritSlot(charData, slot));
+        return { 可用, 原因: 可用 ? '' : '自体融合缺少双武魂槽位', 相关度总分: 100 };
+      }
+      const partnerNames = getFusionSkillPartnerNames(fusionSkill);
+      if (!partnerNames.length) return { 可用: false, 原因: '未配置融合对象', 相关度总分: 0 };
+      const 搭档到位 = partnerNames.every(partnerName =>
+        (alliedTeam || []).some(unit => isCombatUnitIdentityMatch(unit, partnerName) && isCombatUnitAbleToFight(unit)),
+      );
+      if (!搭档到位) {
+        return { 可用: false, 原因: `搭档[${partnerNames.join('、')}]未到位`, 相关度总分: 0 };
+      }
+      const 相关度总分 = 读取融合相关度总分(charData || {}, fusionSkill || {});
+      if (相关度总分 < 70) {
+        return { 可用: false, 原因: `武魂相关度不足(${相关度总分}/70)`, 相关度总分 };
+      }
+      return { 可用: true, 原因: '', 相关度总分 };
+    }
+
+    function buildFusionBattleProfile(mode = 'partner', partnerCount = 1, 相关度总分 = 100) {
       const safeMode = mode === 'self' ? 'self' : 'partner';
       const safePartnerCount = Math.max(1, Math.floor(Number(partnerCount || 1)));
       const multiPartnerBonus = Math.min(0.12, Math.max(0, safePartnerCount - 1) * 0.05);
@@ -5607,19 +5652,22 @@ class BattleUIComponent {
           aftermathDodgePenalty: 0.15,
           aftermathReactionPenalty: 0.15,
           aftermathResourceBlock: 0.28,
+          相关度总分: 100,
+          相关度倍率: 1,
         };
       }
+      const 相关度倍率 = 计算融合相关度倍率(相关度总分);
       return {
         mode: safeMode,
         partnerCount: safePartnerCount,
         actorCostScale: 1.1,
         partnerPoolScale: 0.6,
         castTimeScale: 1.15,
-        damageMult: 1.65 + multiPartnerBonus,
-        recoverMult: 1.5 + multiPartnerBonus * 0.6,
-        shieldMult: 1.5 + multiPartnerBonus * 0.6,
-        stateScale: 1.42 + multiPartnerBonus * 0.5,
-        controlScale: 1.5 + multiPartnerBonus * 0.6,
+        damageMult: (1.65 + multiPartnerBonus) * 相关度倍率,
+        recoverMult: (1.5 + multiPartnerBonus * 0.6) * 相关度倍率,
+        shieldMult: (1.5 + multiPartnerBonus * 0.6) * 相关度倍率,
+        stateScale: (1.42 + multiPartnerBonus * 0.5) * 相关度倍率,
+        controlScale: (1.5 + multiPartnerBonus * 0.6) * 相关度倍率,
         aftermathDuration: 2,
         aftermathPanelScale: 0.82,
         aftermathDamageMult: 0.82,
@@ -5629,6 +5677,8 @@ class BattleUIComponent {
         aftermathDodgePenalty: 0.12,
         aftermathReactionPenalty: 0.12,
         aftermathResourceBlock: 0.22,
+        相关度总分: Math.max(0, Math.min(100, Math.floor(Number(相关度总分 || 0)))),
+        相关度倍率,
       };
     }
 
@@ -5636,11 +5686,12 @@ class BattleUIComponent {
       return skill?.__fusion_profile && typeof skill.__fusion_profile === 'object' ? skill.__fusion_profile : null;
     }
 
-    function buildFusionCombatSkill(fusionSkill = {}, fusionName = '武魂融合技') {
+    function buildFusionCombatSkill(fusionSkill = {}, fusionName = '武魂融合技', charData = null) {
       const skill = normalizeSkillData(fusionSkill?.技能数据, `武魂融合技·${fusionName}`);
       const mode = getFusionSkillMode(fusionSkill);
       const partnerNames = getFusionSkillPartnerNames(fusionSkill);
-      const profile = buildFusionBattleProfile(mode, partnerNames.length || 1);
+      const 相关度总分 = mode === 'self' ? 100 : 读取融合相关度总分(charData || {}, fusionSkill || {});
+      const profile = buildFusionBattleProfile(mode, partnerNames.length || 1, 相关度总分);
       const effects = Array.isArray(skill._效果数组) ? skill._效果数组 : [];
       const systemBase = effects.find(effect => effect?.机制 === '系统基础');
       const baseCostText = String(systemBase?.消耗 || skill.消耗 || '无').trim() || '无';
@@ -5667,6 +5718,8 @@ class BattleUIComponent {
       skill.__fusion_profile = { ...profile, partnerNames: [...partnerNames] };
       skill.__fusion_partner_names = [...partnerNames];
       skill.__fusion_partner_cost_text = partnerCostText;
+      skill.__融合相关度总分 = Number(profile?.相关度总分 || 0);
+      skill.__融合相关度倍率 = Number(profile?.相关度倍率 || 1);
       skill.__fusion_display_cost_text =
         partnerCostText !== '无' && partnerNames.length
           ? `${actorCostText} | 共耗(${partnerNames.join('、')}): ${partnerCostText}`
@@ -5697,16 +5750,7 @@ class BattleUIComponent {
     }
 
     function isFusionSkillAvailable(charData, fusionSkill, alliedTeam = []) {
-      if (!fusionSkill?.技能数据 || fusionSkill?.技能数据?.状态 === '未生成') return false;
-      if (getFusionSkillMode(fusionSkill) === 'self') {
-        const slots = getFusionSkillSourceSpirits(fusionSkill);
-        return slots.length >= 2 && slots.every(slot => hasUsableSpiritSlot(charData, slot));
-      }
-      const partnerNames = getFusionSkillPartnerNames(fusionSkill);
-      if (!partnerNames.length) return false;
-      return partnerNames.every(partnerName =>
-        (alliedTeam || []).some(unit => isCombatUnitIdentityMatch(unit, partnerName) && isCombatUnitAbleToFight(unit)),
-      );
+      return !!获取融合技能可用性(charData, fusionSkill, alliedTeam).可用;
     }
 
     function buildFusionCastNarration(fusionSkill, actorName = '施术者') {
@@ -5778,6 +5822,11 @@ class BattleUIComponent {
         failureReason: selfCanCast ? '' : '自身状态不足',
         partnerCosts: [],
       };
+      if (String(skill?.source_tag || skill?.技能来源 || '').trim() === '武魂融合技' && skill?.__融合可用 === false) {
+        result.canCast = false;
+        result.failureReason = String(skill?.__融合不可用原因 || '').trim() || '武魂融合技条件不足';
+        return result;
+      }
       if (!fusionProfile || fusionProfile.mode !== 'partner') return result;
 
       const partnerUnits = resolveFusionPartnerUnitsForSkill(skill, [], null, char);
@@ -5867,6 +5916,7 @@ class BattleUIComponent {
       const collectOptions = {
         includePassive: !!options.includePassive,
         includeActive: options.includeActive !== false,
+        includeUnavailableFusion: !!options.includeUnavailableFusion,
       };
 
       if (charData?.武魂) {
@@ -5895,8 +5945,12 @@ class BattleUIComponent {
       pushUnifiedSkillMapEntries(skills, charData?.自创魂技 || {}, '自创魂技', collectOptions);
 
       Object.entries(charData?.武魂融合技 || {}).forEach(([fusionName, fusionSkill]) => {
-        if (!isFusionSkillAvailable(charData, fusionSkill, alliedTeam)) return;
-        const nSkill = buildFusionCombatSkill(fusionSkill, fusionName);
+        const 融合可用性 = 获取融合技能可用性(charData, fusionSkill, alliedTeam);
+        if (!融合可用性.可用 && !collectOptions.includeUnavailableFusion) return;
+        const nSkill = buildFusionCombatSkill(fusionSkill, fusionName, charData);
+        nSkill.__融合可用 = !!融合可用性.可用;
+        nSkill.__融合不可用原因 = String(融合可用性.原因 || '');
+        nSkill.__融合相关度总分 = Number(融合可用性.相关度总分 || nSkill.__融合相关度总分 || 0);
         const isPassive = isPassiveSkillData(nSkill);
         if (isPassive && !collectOptions.includePassive) return;
         if (!isPassive && !collectOptions.includeActive) return;
@@ -11116,7 +11170,7 @@ class BattleUIComponent {
                 name: '武魂融合技',
                 weight: adjustBehaviorWeight('武魂融合技', weight, defender, attacker, behaviorState),
                 build() {
-                  const skill = buildFusionCombatSkill(fusionSkill, fusionName);
+                  const skill = buildFusionCombatSkill(fusionSkill, fusionName, defender);
                   skill.name = `武魂融合技·${skill.name}`;
                   return makeNpcAction(
                     '武魂融合技',
@@ -12763,17 +12817,23 @@ class BattleUIComponent {
           // 4. 武魂融合技判定 (这是一个巨大的主动作，会覆盖掉普通的释放魂技)
           if (playerInput.includes('武魂融合技')) {
             let hasFusion = false;
+            let 融合失败原因 = '武魂融合技条件不足';
             Object.entries(charData.武魂融合技 || {}).forEach(([fusionName, fusionSkill]) => {
-              if (!isFusionSkillAvailable(charData, fusionSkill, combatData.参战者.team_player || [])) return;
+              const 融合可用性 = 获取融合技能可用性(charData, fusionSkill, combatData.参战者.team_player || []);
+              if (!融合可用性.可用) {
+                融合失败原因 = 融合可用性.原因 || 融合失败原因;
+                return;
+              }
               hasFusion = true;
               action.action_type = '武魂融合技';
-              action.skill = buildFusionCombatSkill(fusionSkill, fusionName);
+              action.skill = buildFusionCombatSkill(fusionSkill, fusionName, charData);
               action.skill.name = `武魂融合技·${action.skill.name}`;
               action.cast_time = getSkillCastTime(action.skill) || 30;
             });
             if (!hasFusion) {
               action.action_type = '施法失败';
               action.cast_time = 0;
+              action.log = `[融合失败] ${融合失败原因}`;
             }
           } else if (!matchedSkill) {
             // 如果没有任何武魂融合技、也没有匹配到具体魂技，但是匹配到了一些其它的特殊主动作
@@ -13818,7 +13878,11 @@ class BattleUIComponent {
           if (!charData) return [];
           bindCombatParticipant(charData);
           const allyTeam = (combatData?.参战者?.team_player || []).filter(unit => unit.name !== charData.name);
-          const availableSkills = collectCombatSkills(charData, allyTeam);
+          const availableSkills = collectUnifiedSkillEntries(charData, allyTeam, {
+            includePassive: false,
+            includeActive: true,
+            includeUnavailableFusion: true,
+          });
 
           const actions = [];
 
@@ -14131,7 +14195,7 @@ class BattleUIComponent {
           });
           Object.entries(char.自创魂技 || {}).forEach(([name, skill]) => pushUiSkillAction(actions, skill, name, '自创魂技'));
           Object.entries(char.武魂融合技 || {}).forEach(([name, fusion]) => {
-            pushUiSkillAction(actions, buildFusionCombatSkill(fusion, name), `武魂融合技·${name}`, '武魂融合技');
+            pushUiSkillAction(actions, buildFusionCombatSkill(fusion, name, char), `武魂融合技·${name}`, '武魂融合技');
           });
           actions.push(
             { id: 'basic_attack', type: 'tactical', action_type: '常规攻击', name: '普通攻击', category: '战术', cast_time: 10, cost_text: '无', enabled: true, skill: { name: '普通攻击' } },

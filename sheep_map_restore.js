@@ -3448,10 +3448,36 @@
     return num.toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
   }
 
-  function buildRoutineActionPreview(snapshot, action = '') {
+  function 构建拟态来源提示(snapshot, 节点项 = null) {
+    const 角色数据 = deepGet(snapshot, 'activeChar', {}) || {};
+    const 地点文本 = [
+      toText(deepGet(snapshot, 'currentLoc', ''), ''),
+      toText(节点项 && 节点项.name, ''),
+      toText(节点项 && 节点项.type, ''),
+      toText(节点项 && 节点项.nodeKind, ''),
+    ].join(' ');
+    const 武魂文本 = (() => {
+      try {
+        return JSON.stringify(deepGet(角色数据, '武魂', {}));
+      } catch (error) {
+        return '';
+      }
+    })();
+    const 命中来源 = [];
+    if (/(冰|雪|寒|霜)/.test(武魂文本) && /(冰|雪|寒|霜|冰川|冰山)/.test(地点文本)) 命中来源.push('冰系拟态');
+    if (/(火|炎|焰|熔)/.test(武魂文本) && /(火山|熔岩|炎|热)/.test(地点文本)) 命中来源.push('火系拟态');
+    if (/(水|海|潮|雨|雾)/.test(武魂文本) && /(海|湖|河|潮|湿地|水域)/.test(地点文本)) 命中来源.push('水系拟态');
+    if (/(木|林|草|藤|花)/.test(武魂文本) && /(森林|林海|草原|藤|花海|雨林)/.test(地点文本)) 命中来源.push('木系拟态');
+    if (/(土|岩|山|石)/.test(武魂文本) && /(山|岩|矿|洞窟)/.test(地点文本)) 命中来源.push('土系拟态');
+    if (/(雷|电|霆)/.test(武魂文本) && /(雷|电|风暴|雷暴)/.test(地点文本)) 命中来源.push('雷系拟态');
+    return 命中来源.length ? `拟态来源：${命中来源.join(' + ')}` : '拟态来源：无明显匹配';
+  }
+
+  function buildRoutineActionPreview(snapshot, action = '', 节点项 = null) {
     const safeAction = toText(action, '');
     const activeChar = deepGet(snapshot, 'activeChar', {}) || {};
     const stat = deepGet(activeChar, '属性', {}) || {};
+    const 拟态来源提示 = 构建拟态来源提示(snapshot, 节点项);
     const multiplier = Math.max(0, toNumber(deepGet(stat, '训练加成.修炼倍率', 1), 1));
     const currentMen = Math.max(0, toNumber(stat.精神力, 0));
     const menMax = Math.max(0, toNumber(stat.精神力上限, 0));
@@ -3484,6 +3510,7 @@
         slotReason: `单次 1小时（6 tick） · 精神+${formatRoutineDeltaValue(menGain)} / 体力+${formatRoutineDeltaValue(vitGain)} / 魂力+${formatRoutineDeltaValue(spGain)} / 魂力上限+${formatRoutineDeltaValue(spMaxGain)}`,
         detailText: `本次预计恢复精神 ${formatRoutineDeltaValue(menGain)}、体力 ${formatRoutineDeltaValue(vitGain)}、魂力 ${formatRoutineDeltaValue(spGain)}，并推动魂力上限成长 ${formatRoutineDeltaValue(spMaxGain)}。`,
         logText: `角色进行了约 1 小时的冥想，本次预计恢复精神 ${formatRoutineDeltaValue(menGain)}、体力 ${formatRoutineDeltaValue(vitGain)}、魂力 ${formatRoutineDeltaValue(spGain)}，并让魂力上限成长 ${formatRoutineDeltaValue(spMaxGain)}。`,
+        mimicHint: 拟态来源提示,
       };
     }
 
@@ -3501,6 +3528,7 @@
         logText: canTrain
           ? `角色进行了约 1 小时的肉体训练，消耗了高强度体能，并使力量、防御、敏捷、体魄训练加成各提升 ${formatRoutineDeltaValue(gain)}。`
           : `角色尝试进行肉体训练，但当前体力只有 ${formatRoutineDeltaValue(currentVit)}，不足以完成一整轮训练。`,
+        mimicHint: 拟态来源提示,
       };
     }
 
@@ -3519,6 +3547,7 @@
         logText: canTrain
           ? `角色进行了约 1 小时的精神训练，消耗了大量精神力，并使精神上限训练加成提升 ${formatRoutineDeltaValue(gain)}。`
           : `角色尝试进行精神训练，但当前精神只有 ${formatRoutineDeltaValue(currentMen)}，不足以支撑完整训练。`,
+        mimicHint: 拟态来源提示,
       };
     }
 
@@ -3528,6 +3557,7 @@
         slotReason: `单次 1小时（6 tick） · 魂力+${formatRoutineDeltaValue(spGain)}`,
         detailText: `推进 1 小时时间。当前规则下主要恢复魂力 ${formatRoutineDeltaValue(spGain)}。`,
         logText: `角色进行了约 1 小时的休整，本次主要恢复魂力 ${formatRoutineDeltaValue(spGain)}。`,
+        mimicHint: 拟态来源提示,
       };
     }
 
@@ -3536,6 +3566,7 @@
         slotReason: '单次 1小时（6 tick） · 阅读/学习推进',
         detailText: '推进 1 小时时间，适合图书馆与学术节点，不直接追加训练加成。',
         logText: '角色进行了约 1 小时的研读与学习，主要推进阅读与知识积累类内容。',
+        mimicHint: 拟态来源提示,
       };
     }
 
@@ -3543,6 +3574,7 @@
       slotReason: '单次 1小时（6 tick）',
       detailText: '按 1 小时推进时间。',
       logText: `角色在当前节点完成了【${getNodeInteractionLabel(safeAction)}】动作。`,
+      mimicHint: 拟态来源提示,
     };
   }
 
@@ -7106,7 +7138,9 @@
         let logMsg = `[系统仲裁] 玩家在【${item.name}】进行了【${actionLabel}】操作。${action === 'talk' ? (npcTarget ? ` 当前对话对象：${npcTarget}。` : (talkTargets.length ? ` 当前可对话对象：${talkTargets.join('、')}。` : '')) : (npcTarget ? ` 当前交互对象：${npcTarget}。` : '')}`;
         let baseTicks = 1;
         let playerInput = `[节点交互] 我在【${item.name}】准备进行【${actionLabel}】。`;
-        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, action);
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, action, item);
+        const 拟态提示文本 = toText(actionPreview && actionPreview.mimicHint, '');
+        if (拟态提示文本) logMsg += ` ${拟态提示文本}`;
 
         if (action === 'study' || action === '研读') {
           baseTicks = 6;
@@ -7605,29 +7639,37 @@ ${logMsg}
     };
 
     const timedHint = description => ['单次 1小时（6 tick）', toText(description, '')].filter(Boolean).join(' · ');
+    const 合并动作说明文本 = (...文本列表) => 文本列表
+      .map(text => toText(text, '').trim())
+      .filter(Boolean)
+      .join(' · ');
+    const 构建动作摘要文本 = (动作预览, 默认说明) => 合并动作说明文本(
+      动作预览?.slotReason || timedHint(默认说明),
+      动作预览?.mimicHint || ''
+    );
     const pushMappedActionSlot = action => {
       const normalized = toText(action, '');
       if (!normalized || ['inspect', 'enter'].includes(normalized)) return;
       if (normalized === 'train') {
         const bodyPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'train_body');
         const mindPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'train_mind');
-        pushActionSlot('train_body', '肉体训练', { reason: bodyPreview.slotReason || timedHint('肉体训练') });
-        pushActionSlot('train_mind', '精神训练', { reason: mindPreview.slotReason || timedHint('精神训练') });
+        pushActionSlot('train_body', '肉体训练', { reason: 构建动作摘要文本(bodyPreview, '肉体训练') });
+        pushActionSlot('train_mind', '精神训练', { reason: 构建动作摘要文本(mindPreview, '精神训练') });
         return;
       }
       if (normalized === 'meditate') {
         const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, normalized);
-        pushActionSlot('meditate', '冥想', { reason: actionPreview.slotReason || timedHint('冥想') });
+        pushActionSlot('meditate', '冥想', { reason: 构建动作摘要文本(actionPreview, '冥想') });
         return;
       }
       if (normalized === 'study') {
         const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, normalized);
-        pushActionSlot('study', '研读', { reason: actionPreview.slotReason || timedHint('阅读/学习类动作') });
+        pushActionSlot('study', '研读', { reason: 构建动作摘要文本(actionPreview, '阅读/学习类动作') });
         return;
       }
       if (normalized === 'rest') {
         const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, normalized);
-        pushActionSlot('rest', '休整', { reason: actionPreview.slotReason || timedHint('休整/恢复类动作') });
+        pushActionSlot('rest', '休整', { reason: 构建动作摘要文本(actionPreview, '休整/恢复类动作') });
         return;
       }
       pushActionSlot(normalized, getNodeInteractionLabel(normalized));
@@ -7736,33 +7778,38 @@ ${logMsg}
         selectedActionDetail.panelDisabled = !travelPreview || !!selectedActionSlot.disabled;
       } else if (selectedAction === 'meditate') {
         const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'meditate');
+        const 结算说明 = 合并动作说明文本(actionPreview.detailText || '推进 1 小时并恢复状态。', actionPreview.mimicHint);
         selectedActionDetail.title = '点击此框进行 1 小时冥想';
         selectedActionDetail.labels = ['执行项目', '单次耗时', '结算说明'];
-        selectedActionDetail.values = ['冥想', '1小时（6 tick）', actionPreview.detailText || '推进 1 小时并恢复状态。'];
+        selectedActionDetail.values = ['冥想', '1小时（6 tick）', 结算说明];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedAction === 'train_body') {
         const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'train_body');
+        const 结算说明 = 合并动作说明文本(actionPreview.detailText || '推进 1 小时并进行肉体训练。', actionPreview.mimicHint);
         selectedActionDetail.title = '点击此框进行 1 小时肉体训练';
         selectedActionDetail.labels = ['训练项目', '单次耗时', '结算说明'];
-        selectedActionDetail.values = ['肉体训练', '1小时（6 tick）', actionPreview.detailText || '推进 1 小时并进行肉体训练。'];
+        selectedActionDetail.values = ['肉体训练', '1小时（6 tick）', 结算说明];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedAction === 'train_mind') {
         const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'train_mind');
+        const 结算说明 = 合并动作说明文本(actionPreview.detailText || '推进 1 小时并进行精神训练。', actionPreview.mimicHint);
         selectedActionDetail.title = '点击此框进行 1 小时精神训练';
         selectedActionDetail.labels = ['训练项目', '单次耗时', '结算说明'];
-        selectedActionDetail.values = ['精神训练', '1小时（6 tick）', actionPreview.detailText || '推进 1 小时并进行精神训练。'];
+        selectedActionDetail.values = ['精神训练', '1小时（6 tick）', 结算说明];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedAction === 'study') {
         const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'study');
+        const 结算说明 = 合并动作说明文本(actionPreview.detailText || '推进 1 小时时间并进行学习。', actionPreview.mimicHint);
         selectedActionDetail.title = '点击此框进行 1 小时研读';
         selectedActionDetail.labels = ['执行项目', '单次耗时', '结算说明'];
-        selectedActionDetail.values = ['研读', '1小时（6 tick）', actionPreview.detailText || '推进 1 小时时间并进行学习。'];
+        selectedActionDetail.values = ['研读', '1小时（6 tick）', 结算说明];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedAction === 'rest') {
         const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'rest');
+        const 结算说明 = 合并动作说明文本(actionPreview.detailText || '推进 1 小时时间并恢复状态。', actionPreview.mimicHint);
         selectedActionDetail.title = '点击此框进行 1 小时休整';
         selectedActionDetail.labels = ['执行项目', '单次耗时', '结算说明'];
-        selectedActionDetail.values = ['休整', '1小时（6 tick）', actionPreview.detailText || '推进 1 小时时间并恢复状态。'];
+        selectedActionDetail.values = ['休整', '1小时（6 tick）', 结算说明];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedAction === 'talk') {
         selectedActionDetail.title = selectedNpc ? `点击此框与${selectedNpc}对话` : '点击此框发起对话';

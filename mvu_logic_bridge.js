@@ -10216,8 +10216,8 @@
       return 读取选项表首行候选文本(选项表对象);
     }
 
-    function 归一化候选选项原文(value = '') {
-      const 原始文本 = toText(value, '').trim();
+    function 归一化候选选项原文(原始值 = '') {
+      const 原始文本 = toText(原始值, '').trim();
       if (!原始文本) return '';
       const 去前缀文本 = 原始文本
         .replace(/^\s*(?:选项)?[一二三四1234①②③④]\s*[：:、.)）]\s*/i, '')
@@ -10229,8 +10229,8 @@
       return 去前缀文本;
     }
 
-    function 归一化候选选项键(value = '') {
-      let 规范文本 = toText(value, '').toLowerCase();
+    function 归一化候选选项键(原始值 = '') {
+      let 规范文本 = toText(原始值, '').toLowerCase();
       if (!规范文本) return '';
       const 同义词规则 = [
         { 根词: '前往', 匹配: /(前往|去往|动身|启程|出发|前去|赶赴|赶往|奔赴)/g },
@@ -10288,15 +10288,15 @@
       return 候选列表;
     }
 
-    function 从系统播报提取候选选项(snapshot, 数量上限 = 2) {
+    function 从系统播报提取候选选项(快照, 数量上限 = 2) {
       const 候选列表 = [];
       const 推入候选 = 文本 => {
         const 清洗后文本 = 归一化候选选项原文(文本);
         if (!清洗后文本) return;
         候选列表.push(清洗后文本);
       };
-      const 播报文本 = toText(deepGet(snapshot, 'rootData.sys.系统播报', ''), '').trim();
-      const 最新时间线 = Array.isArray(snapshot && snapshot.latestTimeline) ? snapshot.latestTimeline : [];
+      const 播报文本 = toText(deepGet(快照, 'rootData.sys.系统播报', ''), '').trim();
+      const 最新时间线 = Array.isArray(快照 && 快照.latestTimeline) ? 快照.latestTimeline : [];
       const 时间线事件文本 = 最新时间线.length >= 2
         ? toText(deepGet(最新时间线[1], '事件', 最新时间线[0]), '').trim()
         : '';
@@ -10370,7 +10370,7 @@
       return 展示条目列表.slice(0, 4);
     }
 
-    function 构建可玩选项展示列表(snapshot) {
+    function 构建可玩选项展示列表(快照) {
       const 候选原文池 = [];
       const 已录入文本集合 = new Set();
       const 追加候选文本 = (文本列表 = []) => {
@@ -10385,18 +10385,26 @@
       };
 
       追加候选文本(读取选项表候选文本列表());
-      if (候选原文池.length < 4) 追加候选文本(从请求摘要提取候选选项(snapshot && snapshot.pendingRequests));
-      if (候选原文池.length < 4) 追加候选文本(从系统播报提取候选选项(snapshot, 2));
+      if (候选原文池.length < 4) 追加候选文本(从请求摘要提取候选选项(快照 && 快照.pendingRequests));
+      if (候选原文池.length < 4) 追加候选文本(从系统播报提取候选选项(快照, 2));
       if (候选原文池.length < 4) 追加候选文本(['探索周边动向', '整理当前线索', '休整并恢复状态']);
 
       const 候选条目列表 = 候选原文池
         .map((文本, 序号) => 构建候选选项条目(文本, 序号 + 1))
         .filter(Boolean);
+      const 时间线签名 = Array.isArray(快照 && 快照.timelineEntries)
+        ? 快照.timelineEntries
+          .slice(0, 3)
+          .map(([名称, 条目]) => `${toText(名称, '')}@${toText(deepGet(条目, '触发tick', ''), '')}:${toText(deepGet(条目, '状态', ''), '')}`)
+          .join('|')
+        : '';
       const 轮次签名 = JSON.stringify({
-        角色: toText(snapshot && snapshot.activeName, ''),
-        地点: toText(snapshot && snapshot.currentLoc, ''),
-        播报: toText(deepGet(snapshot, 'rootData.sys.系统播报', ''), ''),
-        请求: Array.isArray(snapshot && snapshot.pendingRequests) ? snapshot.pendingRequests.join('|') : '',
+        角色: toText(快照 && 快照.activeName, ''),
+        地点: toText(快照 && 快照.currentLoc, ''),
+        时间: toText(deepGet(快照, 'rootData.world.当前时间', deepGet(快照, 'rootData.world.上轮场景时间', '')), ''),
+        时间线: 时间线签名,
+        播报: toText(deepGet(快照, 'rootData.sys.系统播报', ''), ''),
+        请求: Array.isArray(快照 && 快照.pendingRequests) ? 快照.pendingRequests.join('|') : '',
         候选: 候选条目列表.map(条目 => 条目.规范键).join('|')
       });
       return 应用两轮去重候选选项(候选条目列表, 轮次签名);
@@ -14175,8 +14183,8 @@
       lastDashboardSectionRenderSignatures = sectionSignatures;
     }
 
-    function 构建可玩选项卡区(snapshot, 来源标记 = '') {
-      const 选项列表 = Array.isArray(snapshot && snapshot.可玩选项) ? snapshot.可玩选项.slice(0, 4) : [];
+    function 构建可玩选项卡区(快照, 来源标记 = '') {
+      const 选项列表 = Array.isArray(快照 && 快照.可玩选项) ? 快照.可玩选项.slice(0, 4) : [];
       const 按钮Html = 选项列表.length
         ? 选项列表.map(条目 => `
             <button
@@ -15407,6 +15415,11 @@
         const relationHtml = relationNodes.map(([name, rel], index) => {
           const pos = relationPositions[index];
           const favor = toNumber(rel && rel['好感度'], 0);
+          const 武魂相关度基础值 = Math.max(0, Math.min(100, toNumber(rel && rel['武魂相关度基础'], 0)));
+          const 武魂相关度关系加成值 = Math.max(0, Math.min(20, toNumber(rel && rel['武魂相关度关系加成'], Math.floor(Math.max(0, favor) / 10))));
+          const 武魂相关度总分值 = Math.max(0, Math.min(100, toNumber(rel && rel['武魂相关度总分'], 武魂相关度基础值 + 武魂相关度关系加成值)));
+          const 融合触发状态 = 武魂相关度总分值 >= 70 ? '可触发' : '未达阈值';
+          const 同修倍率预估 = Number((1 + 武魂相关度总分值 * 0.0025).toFixed(3));
           return `
             <div class="topology-node interactive-ring ${pos.className}" data-relation-focus="${escapeHtmlAttr(name)}" style="left:${pos.left}%;top:${pos.top}%">
               <b>${htmlEscape(name)}</b><span>${htmlEscape(toText(rel && rel['关系'], '陌生'))}</span>
@@ -15416,6 +15429,7 @@
                 <div class="relation-hover-tags">
                   <span class="relation-hover-chip">${htmlEscape(`好感 ${favor}`)}</span>
                   <span class="relation-hover-chip">${htmlEscape(toText(rel && rel['对方身份'], '未知身份'))}</span>
+                  <span class="relation-hover-chip">${htmlEscape(`相关度 ${武魂相关度总分值}`)}</span>
                 </div>
                 <div class="relation-hover-skill">
                   <span>${htmlEscape(toText(rel && rel['好感加成'], '暂无额外关系加成说明'))}</span>
@@ -15425,6 +15439,9 @@
                   <span>${htmlEscape(`当前加成：${toText(rel && rel['_当前关系加成'], toText(rel && rel['好感加成'], '无'))}`)}</span>
                   <span>${htmlEscape(`下一解锁：${toText(rel && rel['_下档解锁加成'], '无')}`)}</span>
                   <span>${htmlEscape(`关系状态：${toText(rel && rel['_维护优先级'], '未知')} / ${toText(rel && rel['_切线限制原因'], '无')}`)}</span>
+                  <span>${htmlEscape(`基础相关度：${武魂相关度基础值} / 关系加成：+${武魂相关度关系加成值}`)}</span>
+                  <span>${htmlEscape(`融合判定：${融合触发状态} (总分${武魂相关度总分值})`)}</span>
+                  <span>${htmlEscape(`同修效率：x${同修倍率预估}`)}</span>
                 </div>
                 <div class="energy-stack">
                   <div class="energy-row-block">
@@ -15456,6 +15473,18 @@
         const relationTargetLocLabel = relationTargetLoc ? relationTargetLoc.replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '') : '未知地点';
         const relationFavor = toNumber(relationDetail && relationDetail['好感度'], 0);
         const relationRoute = toText(relationDetail && relationDetail['关系路线'], '朋友线');
+        const 武魂相关度基础值 = Math.max(0, Math.min(100, toNumber(relationDetail && relationDetail['武魂相关度基础'], 0)));
+        const 武魂相关度关系加成值 = Math.max(
+          0,
+          Math.min(20, toNumber(relationDetail && relationDetail['武魂相关度关系加成'], Math.floor(Math.max(0, relationFavor) / 10))),
+        );
+        const 武魂相关度总分值 = Math.max(
+          0,
+          Math.min(100, toNumber(relationDetail && relationDetail['武魂相关度总分'], 武魂相关度基础值 + 武魂相关度关系加成值)),
+        );
+        const 武魂相关度状态值 = toText(relationDetail && relationDetail['武魂相关度状态'], '待生成');
+        const 融合触发状态值 = 武魂相关度总分值 >= 70 ? '可触发' : '未达阈值';
+        const 同修效率倍率值 = Number((1 + 武魂相关度总分值 * 0.0025).toFixed(3));
         const routeSwitchable = !!deepGet(relationDetail, '_可切线', false);
         const isContactable = !!relationTargetChar && deepGet(relationTargetChar, '状态.存活', true) !== false;
         const isSameLocation = !!relationTargetChar && isLocationCompatible(currentLocFull, relationTargetLoc);
@@ -15564,6 +15593,18 @@
                     rawValue: toText(relationDetail && relationDetail['对方身份'], '无'),
                   })
                 : htmlEscape(toText(relationDetail && relationDetail['对方身份'], '无')) },
+              { label: '基础相关度', value: relationDetailPath.length
+                ? makeInlineEditableValue(String(武魂相关度基础值), {
+                    path: [...relationDetailPath, '武魂相关度基础'],
+                    kind: 'number',
+                    rawValue: 武魂相关度基础值,
+                    editorMeta: { min: 0, max: 100, integer: true, hint: '0-100整数' },
+                  })
+                : htmlEscape(String(武魂相关度基础值)) },
+              { label: '关系加成', value: htmlEscape(`+${武魂相关度关系加成值}`) },
+              { label: '总相关度', value: htmlEscape(`${武魂相关度总分值} (${武魂相关度状态值})`) },
+              { label: '融合触发', value: htmlEscape(`${融合触发状态值} / 阈值70`) },
+              { label: '同修效率', value: htmlEscape(`x${同修效率倍率值}`) },
               { label: '位置状态', value: htmlEscape(`${relationTargetLocLabel} / ${isSameLocation ? '同地可接触' : (isContactable ? '远端可联系' : '当前不可接触')}`) },
               { label: '推进提示', value: htmlEscape(toText(relationDetail && relationDetail['_推进提示'], '暂无')) },
               { label: '关系状态', value: htmlEscape(`${toText(relationDetail && relationDetail['_维护优先级'], '未知')} / ${toText(relationDetail && relationDetail['_切线限制原因'], '无')}`) },
@@ -15640,6 +15681,12 @@
         return {
           title: '人物关系弹窗',
           summary: '全局社会链路扫描、当前重点对象监控与智能关系行动推荐。',
+          onMount: () => {
+            const 当前快照 = liveSnapshot || lastRenderableSnapshot;
+            if (!当前快照 || !activeCharKey || !relationDetailName) return null;
+            void 尝试触发武魂相关度自动判定(当前快照, activeCharKey, relationDetailName);
+            return null;
+          },
           body: `
             <div class="archive-modal-grid dossier-shell dossier-shell--relation">
               <div class="archive-card dossier-card dossier-card--relation-overview full">
@@ -17698,6 +17745,7 @@
                   { label: '请求摘要', value: String(snapshot.pendingRequests.length) }
                 ], 'two')}
               </div>
+              ${构建可玩选项卡区(snapshot, '操作总线')}
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">世界日程</div></div>
                 ${makeTimelineStack(planSummary.worldPlans.length ? planSummary.worldPlans : [{ title: '暂无世界安排', desc: '当前未记录待触发的世界日程。' }])}
@@ -17760,6 +17808,7 @@
           summary: '当前试炼资源、票据储备与近期风险情报。',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: repeat(2, minmax(0, 1fr)); align-items:stretch;">
+              ${构建可玩选项卡区(snapshot, '试炼与情报')}
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">试炼总览</div></div>
                 ${makeTileGrid([
@@ -20189,6 +20238,128 @@
       return buildMapBattleInitRequest(snapshot, { npcTarget: rawTargetName, target: currentLoc, currentLoc, requestKind: 'relation_sparring' });
     }
 
+    const 武魂相关度请求锁 = new Set();
+
+    function 提取武魂判定摘要文本(角色数据 = {}) {
+      const 词条 = [];
+      Object.entries(角色数据?.武魂 || {}).forEach(([槽位名, 武魂]) => {
+        if (!武魂 || typeof 武魂 !== 'object') return;
+        const 表象名称 = toText(武魂.表象名称, 槽位名);
+        const 系别 = toText(武魂.type, '未知系');
+        const 属性体系 = toText(武魂.属性体系, '无');
+        const 已解锁属性 = Array.isArray(武魂.已解锁属性) ? 武魂.已解锁属性.map(item => toText(item, '')).filter(Boolean) : [];
+        const 描述 = toText(武魂.描述, '');
+        词条.push(`${槽位名}:${表象名称}/${系别}/${属性体系}${已解锁属性.length ? `/${已解锁属性.join('|')}` : ''}${描述 ? `/${描述}` : ''}`);
+      });
+      return 词条.join('；') || '无武魂信息';
+    }
+
+    function 规则估算武魂相关度基础(主角数据 = {}, 对象数据 = {}, 关系数据 = {}) {
+      const 主角词 = 提取武魂判定摘要文本(主角数据);
+      const 对象词 = 提取武魂判定摘要文本(对象数据);
+      if (!主角词 || !对象词 || 主角词 === '无武魂信息' || 对象词 === '无武魂信息') return 0;
+
+      const 主角属性词 = new Set();
+      Object.values(主角数据?.武魂 || {}).forEach(武魂 => {
+        if (!武魂 || typeof 武魂 !== 'object') return;
+        [武魂.type, 武魂.属性体系, ...(Array.isArray(武魂.已解锁属性) ? 武魂.已解锁属性 : [])]
+          .map(item => toText(item, ''))
+          .filter(Boolean)
+          .forEach(item => 主角属性词.add(item));
+      });
+      const 对象属性词 = new Set();
+      Object.values(对象数据?.武魂 || {}).forEach(武魂 => {
+        if (!武魂 || typeof 武魂 !== 'object') return;
+        [武魂.type, 武魂.属性体系, ...(Array.isArray(武魂.已解锁属性) ? 武魂.已解锁属性 : [])]
+          .map(item => toText(item, ''))
+          .filter(Boolean)
+          .forEach(item => 对象属性词.add(item));
+      });
+
+      let 分数 = 0;
+      const 重叠属性词 = Array.from(主角属性词).filter(item => 对象属性词.has(item));
+      if (重叠属性词.length) 分数 += Math.min(40, 重叠属性词.length * 10);
+      if (Array.from(主角属性词).some(item => /龙/.test(item)) && Array.from(对象属性词).some(item => /龙/.test(item))) 分数 += 15;
+      if (Array.from(主角属性词).some(item => /元素/.test(item)) && Array.from(对象属性词).some(item => /元素/.test(item))) 分数 += 8;
+      if (String(关系数据?.关系路线 || '').trim() === '恋人线') 分数 += 5;
+
+      return Math.max(0, Math.min(100, Math.floor(分数)));
+    }
+
+    function 计算关系加成值_桥接(好感度 = 0) {
+      const 数值 = Number(好感度 || 0);
+      if (!Number.isFinite(数值)) return 0;
+      return Math.max(0, Math.min(20, Math.floor(Math.max(0, 数值) / 10)));
+    }
+
+    function 构建武魂相关度判定系统提示(主角名, 对象名, 主角摘要, 对象摘要) {
+      return [
+        '你是武魂相关度判定器，只输出简短中文结论。',
+        '判定口径：通常为0分，仅在武魂系别/属性体系/上下文出现明显协同时提高。',
+        '基础相关度范围0-100；关系加成由系统自动计算，不由你输出。',
+        `判定对象：${主角名} 与 ${对象名}。`,
+        `主角武魂：${主角摘要}`,
+        `对象武魂：${对象摘要}`,
+        '输出格式：一句话说明判定依据，不要输出JSON，不要输出多段。'
+      ].join('\n');
+    }
+
+    function 构建武魂相关度补丁路径前缀(角色键, 目标名) {
+      return `/char/${escapeJsonPointerValue(角色键)}/社交/关系/${escapeJsonPointerValue(目标名)}`;
+    }
+
+    async function 尝试触发武魂相关度自动判定(snapshot, 角色键, 目标名) {
+      const safe角色键 = toText(角色键, '').trim();
+      const safe目标名 = toText(目标名, '').trim();
+      if (!snapshot || !safe角色键 || !safe目标名) return;
+      const 锁键 = `${safe角色键}::${safe目标名}`;
+      if (武魂相关度请求锁.has(锁键)) return;
+
+      const 关系数据 = deepGet(snapshot, ['rootData', 'char', safe角色键, '社交', '关系', safe目标名], null);
+      if (!关系数据 || typeof 关系数据 !== 'object') return;
+      const 状态值 = toText(关系数据['武魂相关度状态'], '');
+      const 基础值有效 = Number.isFinite(Number(关系数据['武魂相关度基础']));
+      const 需要判定 = !基础值有效 || 状态值 === '待重算' || 状态值 === '待生成';
+      if (!需要判定) return;
+
+      const 主角数据 = deepGet(snapshot, ['rootData', 'char', safe角色键], {}) || {};
+      const 对象解析 = resolveSnapshotCharacter(snapshot, safe目标名);
+      const 对象数据 = 对象解析.char || {};
+      const 当前tick = Math.max(0, toNumber(deepGet(snapshot, 'rootData.world.时间.tick', 0), 0));
+      const 基础分 = 规则估算武魂相关度基础(主角数据, 对象数据, 关系数据);
+      const 关系加成 = 计算关系加成值_桥接(toNumber(关系数据['好感度'], 0));
+      const 总分 = Math.max(0, Math.min(100, 基础分 + 关系加成));
+      const 路径前缀 = 构建武魂相关度补丁路径前缀(safe角色键, safe目标名);
+      const 预写补丁 = [
+        { op: 'replace', path: `${路径前缀}/武魂相关度基础`, value: 基础分 },
+        { op: 'replace', path: `${路径前缀}/武魂相关度关系加成`, value: 关系加成 },
+        { op: 'replace', path: `${路径前缀}/武魂相关度总分`, value: 总分 },
+        { op: 'replace', path: `${路径前缀}/武魂相关度状态`, value: '已生成' },
+        { op: 'replace', path: `${路径前缀}/武魂相关度说明`, value: `规则回填：基础${基础分}，关系加成+${关系加成}` },
+        { op: 'replace', path: `${路径前缀}/武魂相关度更新时间tick`, value: 当前tick },
+      ];
+      const 主角名 = toText(deepGet(主角数据, 'name', safe角色键), safe角色键);
+      const 对象名 = 对象解析.displayName || safe目标名;
+      const 主角摘要 = 提取武魂判定摘要文本(主角数据);
+      const 对象摘要 = 提取武魂判定摘要文本(对象数据);
+
+      武魂相关度请求锁.add(锁键);
+      try {
+        await dispatchUiAiRequest(
+          `请判定【${主角名}】与【${对象名}】的武魂相关度基础分，通常为0，按武魂系别/属性/上下文修正。`,
+          构建武魂相关度判定系统提示(主角名, 对象名, 主角摘要, 对象摘要),
+          {
+            requestKind: 'relation_wuhun_affinity',
+            patchOps: 预写补丁,
+            skipActionLock: true,
+          },
+        );
+      } catch (error) {
+      } finally {
+        window.setTimeout(() => 武魂相关度请求锁.delete(锁键), 2400);
+      }
+    }
+
     function listAscensionTicketNames(snapshot) {
       return (snapshot && Array.isArray(snapshot.inventoryEntries) ? snapshot.inventoryEntries : [])
         .filter(([name, item]) => /升灵台/.test(toText(name, '')) && toNumber(item && item['数量'], 0) > 0)
@@ -22337,6 +22508,21 @@ ${mvuUpdate}`;
       return document.getElementById('send_textarea') || document.querySelector('#send_form textarea');
     }
 
+    function 写入选项到输入框(选项文本 = '') {
+      const 输入框 = getChatSendTextarea();
+      if (!输入框 || !('value' in 输入框)) return false;
+      const 规范文本 = toText(选项文本, '').trim();
+      if (!规范文本) return false;
+      const 写入文本 = `我选择：${规范文本}`;
+      输入框.value = 写入文本;
+      输入框.dispatchEvent(new Event('input', { bubbles: true }));
+      if (typeof 输入框.focus === 'function') 输入框.focus();
+      if (typeof 输入框.setSelectionRange === 'function') {
+        输入框.setSelectionRange(写入文本.length, 写入文本.length);
+      }
+      return true;
+    }
+
     function extractBracketTokens(text) {
       const tokens = [];
       String(text || '').replace(/【([^】]{1,80})】/g, (_, token) => {
@@ -24165,6 +24351,23 @@ ${mvuUpdate}`;
         event.stopPropagation();
         return;
       }
+      const 可玩选项按钮 = eventTarget ? eventTarget.closest('[data-lwcs-option-fill]') : null;
+      if (可玩选项按钮 && detailSurfaceHost.contains(可玩选项按钮)) {
+        event.preventDefault();
+        event.stopPropagation();
+        const 选项文本 = toText(可玩选项按钮.getAttribute('data-lwcs-option-fill'), '').trim();
+        if (!选项文本) {
+          showUiToast('当前选项为空，无法写入输入框。', 'error', 2400);
+          return;
+        }
+        const 写入成功 = 写入选项到输入框(选项文本);
+        if (!写入成功) {
+          showUiToast('未找到输入框，无法写入选项。', 'error', 2800);
+          return;
+        }
+        showUiToast('已写入输入框。', 'info', 1800);
+        return;
+      }
       const actionBtn = eventTarget ? eventTarget.closest('.armory-action-btn') : null;
       if (actionBtn && detailSurfaceHost.contains(actionBtn)) {
         event.preventDefault();
@@ -25435,12 +25638,20 @@ window.EquipmentManager = {
     createInventoryStatusRecord(itemName, effect = {}, statusName = '') {
       const value = effect && typeof effect === 'object' ? effect.value || {} : {};
       const duration = Math.max(1, toNumber(value.持续, toNumber(value.durationRounds, 1)));
-      return {
+      const 状态记录 = {
         类型: effect?.type === 'debuff' ? 'debuff' : 'buff',
-      层数: 1,
-      描述: toText(effect?.description, `${itemName}触发效果`),
-      持续回合: duration,
-    };
+        层数: 1,
+        描述: toText(effect?.description, `${itemName}触发效果`),
+        持续回合: duration,
+      };
+      const 修炼倍率 = Number(value.修炼速度倍率 || value.修炼倍率 || value.训练倍率 || 0);
+      if (Number.isFinite(修炼倍率) && 修炼倍率 > 1) 状态记录.修炼速度倍率 = Number(修炼倍率.toFixed(4));
+      const 持续tick = Math.max(0, toNumber(value.持续tick, 0));
+      if (持续tick > 0) 状态记录.持续tick = 持续tick;
+      const 结束tick = Math.max(0, toNumber(value.结束tick, 0));
+      if (结束tick > 0) 状态记录.结束tick = 结束tick;
+      if (toText(value.修炼倍率说明, '').trim()) 状态记录.修炼倍率说明 = toText(value.修炼倍率说明, '');
+      return 状态记录;
   },
 
   applyInventoryHealEffect(stat = {}, effect = {}, logs = []) {
@@ -25667,6 +25878,32 @@ window.EquipmentManager = {
         producedItems = [];
         createEffects.forEach(effect => {
           const { itemName, itemValue } = this.buildConstructInventoryValue(skill, effect, currentTick);
+          const 是否食物造物 =
+            /食物/.test(toText(itemValue?.类型, '')) ||
+            /食用/.test(toText(itemValue?.触发方式, '')) ||
+            /食物系/.test(toText(deepGet(skill, '技能定位.类型', ''), ''));
+          if (是否食物造物) {
+            itemValue.品级 = toText(itemValue.品级, 'S');
+            itemValue.品质 = toText(itemValue.品质, 'S');
+            if (!Array.isArray(itemValue.使用效果)) itemValue.使用效果 = [];
+            const 修炼倍率 = Math.max(1.05, Math.min(2.0, Number(toNumber(effect?.修炼速度倍率, toNumber(effect?.修炼倍率, 1.2)))));
+            const 持续tick = Math.max(36, Math.floor(toNumber(effect?.修炼增益持续tick, toNumber(effect?.持续tick, 72))));
+            const 持续回合 = Math.max(1, Math.round(持续tick / 6));
+            const 说明文本 = `修炼效率提升至 x${修炼倍率.toFixed(2)}（持续约${持续回合}回合）`;
+            itemValue.使用效果.push({
+              target: '自身',
+              type: 'buff',
+              description: 说明文本,
+              value: {
+                持续: 持续回合,
+                持续tick,
+                结束tick: currentTick + 持续tick,
+                修炼速度倍率: Number(修炼倍率.toFixed(4)),
+                修炼倍率说明: '食物系魂技增益',
+              },
+            });
+            if (!toText(itemValue.描述, '').trim()) itemValue.描述 = 说明文本;
+          }
           const existing = charData.背包[itemName] && typeof charData.背包[itemName] === 'object'
             ? charData.背包[itemName]
             : null;
