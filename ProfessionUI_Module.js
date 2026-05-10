@@ -305,6 +305,19 @@ const ProfessionTemplate = `
       <div class="hint" id="target-hint">锻造会尝试根据所选材料自动生成产物名；修理模式下这里填待修对象名。</div>
     </div>
 
+    <div class="inline-grid">
+      <div class="form-group">
+        <label>连续模式</label>
+        <select id="prof-loop-enabled" class="tech-select">
+          <option value="0">关闭</option>
+          <option value="1">开启</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>连续天数</label>
+        <input id="prof-loop-days" class="tech-input" type="number" min="1" value="1" />
+      </div>
+    </div>
 
     <div class="form-group">
       <label id="materials-label">材料选择</label>
@@ -328,6 +341,7 @@ const ProfessionTemplate = `
       <div class="info-row"><span class="info-key">模式 / 融合率</span><span class="info-val" id="prev-fusion">-</span></div>
       <div class="info-row"><span class="info-key">最大复合数</span><span class="info-val" id="prev-maxfusion">-</span></div>
       <div class="info-row"><span class="info-key">品质极限</span><span class="info-val" id="prev-maxq">-</span></div>
+      <div class="info-row"><span class="info-key">连续预估</span><span class="info-val" id="prev-loop">-</span></div>
       <div class="info-row"><span class="info-key">规则提示</span><span class="info-val" id="prev-note">-</span></div>
     </div>
   </div>
@@ -376,6 +390,9 @@ const PROFESSION_CONFIG = {
 
 const OFFICIAL_COMMISSION_FEES = { 1: 150000, 2: 1500000, 3: 15000000, 4: 100000000, 5: 500000000 };
 const PRIVATE_COMMISSION_FEES = { 1: 100000, 2: 1000000, 3: 10000000, 4: 80000000, 5: 300000000 };
+const 副职业每小时tick = 6;
+const 副职业每日小时 = 24;
+const 副职业连续模式默认天数 = 1;
 
 const PROF_HIDDEN_ARBITRATION_NARRATION_RULES = `
 [前端仲裁器说明]
@@ -420,6 +437,8 @@ class ProfessionUIComponent {
     });
     this.$('#prof-cost').addEventListener('input', () => this.updatePreview());
     this.$('#prof-target').addEventListener('input', () => this.updatePreview());
+    this.$('#prof-loop-enabled').addEventListener('change', () => this.updatePreview());
+    this.$('#prof-loop-days').addEventListener('input', () => this.updatePreview());
     this.$('#prof-submit').addEventListener('click', () => this.executeProfessionAction());
   }
 
@@ -435,7 +454,9 @@ class ProfessionUIComponent {
       subtype: subtype,
       cost: this.$('#prof-cost')?.value || '1',
       target: this.$('#prof-target')?.value || '',
-      selectedMaterials: this.getSelectedMaterialNames()
+      selectedMaterials: this.getSelectedMaterialNames(),
+      连续模式开启: this.$('#prof-loop-enabled')?.value === '1',
+      连续天数: Math.max(1, Number(this.$('#prof-loop-days')?.value || 副职业连续模式默认天数)),
     };
   }
 
@@ -472,6 +493,8 @@ class ProfessionUIComponent {
     }
     if (this.$('#prof-cost')) this.$('#prof-cost').value = state.cost || '1';
     if (this.$('#prof-target')) this.$('#prof-target').value = state.target || '';
+    if (this.$('#prof-loop-enabled')) this.$('#prof-loop-enabled').value = state.连续模式开启 ? '1' : '0';
+    if (this.$('#prof-loop-days')) this.$('#prof-loop-days').value = String(Math.max(1, Number(state.连续天数 || 副职业连续模式默认天数)));
 
     this.toggleCommissionFields();
     this.populateMaterialList();
@@ -878,12 +901,174 @@ class ProfessionUIComponent {
     const config = Object.values(PROFESSION_CONFIG).find(c => c.jobName === jobName);
     const base = (config?.costs?.[tier] || [0, 0, 0]).slice();
     const m = Math.max(1, Number(qty || 1));
-    return { vit: base[0] * m, sp: base[1] * m, men: base[2] * m };
+    return { 体力: base[0] * m, 魂力: base[1] * m, 精神力: base[2] * m };
   }
 
-  formatResourceCost(costs) { return `体:${costs.vit.toLocaleString()} / 魂:${costs.sp.toLocaleString()} / 精:${costs.men.toLocaleString()}`; }
-  formatCurrentResources() { const s = this.charData.属性 || {}; return `体:${Number(s.vit || 0).toLocaleString()} / 魂:${Number(s.sp || 0).toLocaleString()} / 精:${Number(s.men || 0).toLocaleString()}`; }
-  hasEnoughResources(costs) { const s = this.charData.属性 || {}; return Number(s.vit || 0) >= costs.vit && Number(s.sp || 0) >= costs.sp && Number(s.men || 0) >= costs.men; }
+  formatResourceCost(costs) { return `体:${Number(costs.体力 || 0).toLocaleString()} / 魂:${Number(costs.魂力 || 0).toLocaleString()} / 精:${Number(costs.精神力 || 0).toLocaleString()}`; }
+  formatCurrentResources() { const s = this.charData.属性 || {}; return `体:${Number(s.体力 || 0).toLocaleString()} / 魂:${Number(s.魂力 || 0).toLocaleString()} / 精:${Number(s.精神力 || 0).toLocaleString()}`; }
+  hasEnoughResources(costs, 当前资源 = null) {
+    const s = 当前资源 || this.charData.属性 || {};
+    return Number(s.体力 || 0) >= Number(costs.体力 || 0)
+      && Number(s.魂力 || 0) >= Number(costs.魂力 || 0)
+      && Number(s.精神力 || 0) >= Number(costs.精神力 || 0);
+  }
+
+  获取连续模式配置() {
+    const 连续模式开启 = this.$('#prof-loop-enabled')?.value === '1';
+    const 连续天数 = Math.max(1, Number(this.$('#prof-loop-days')?.value || 副职业连续模式默认天数));
+    const 连续总小时 = Math.max(1, 连续天数 * 副职业每日小时);
+    return { 连续模式开启, 连续天数, 连续总小时 };
+  }
+
+  构建单次材料消耗计划(cfg, tier, qty, targetName, materialNames = []) {
+    const 安全数量 = Math.max(1, Number(qty || 1));
+    if (!materialNames.length) return {};
+    if (cfg.mode === 'manufacture') {
+      const recipe = this.getManufactureRecipe(targetName, materialNames, tier, 安全数量);
+      if (recipe?.mode === 'mech') {
+        const 计划 = this.buildTierNeedConsumePlan(materialNames, recipe.fixedTierNeeds);
+        return 计划 && typeof 计划 === 'object' ? 计划 : {};
+      }
+      if (recipe?.mode === 'armor') {
+        const 计划 = {};
+        materialNames.filter(name => name !== recipe.blueprint).forEach(name => {
+          计划[name] = Number(计划[name] || 0) + 安全数量;
+        });
+        if (materialNames.includes(recipe.blueprint)) {
+          计划[recipe.blueprint] = Number(计划[recipe.blueprint] || 0) + Number(recipe.blueprintCost || 1);
+        }
+        return 计划;
+      }
+    }
+    return materialNames.reduce((计划, 名称) => {
+      计划[名称] = Number(计划[名称] || 0) + 安全数量;
+      return 计划;
+    }, {});
+  }
+
+  构建材料库存快照(materialNames = []) {
+    const 快照 = {};
+    materialNames.forEach(名称 => {
+      快照[名称] = Math.max(0, Number(this.currentInventory[名称]?.数量 || 0));
+    });
+    return 快照;
+  }
+
+  检查材料是否足够(材料库存快照 = {}, 单次材料消耗计划 = {}) {
+    return Object.entries(单次材料消耗计划).every(([名称, 消耗]) =>
+      Math.max(0, Number(材料库存快照[名称] || 0)) >= Math.max(0, Number(消耗 || 0))
+    );
+  }
+
+  扣减材料库存(材料库存快照 = {}, 单次材料消耗计划 = {}) {
+    Object.entries(单次材料消耗计划).forEach(([名称, 消耗]) => {
+      材料库存快照[名称] = Math.max(0, Number(材料库存快照[名称] || 0) - Math.max(0, Number(消耗 || 0)));
+    });
+  }
+
+  扣减资源(资源状态 = {}, 消耗 = {}) {
+    资源状态.体力 = Math.max(0, Number(资源状态.体力 || 0) - Math.max(0, Number(消耗.体力 || 0)));
+    资源状态.魂力 = Math.max(0, Number(资源状态.魂力 || 0) - Math.max(0, Number(消耗.魂力 || 0)));
+    资源状态.精神力 = Math.max(0, Number(资源状态.精神力 || 0) - Math.max(0, Number(消耗.精神力 || 0)));
+  }
+
+  获取恢复状态快照() {
+    const 属性 = this.charData?.属性 || {};
+    const 核心数量 = Math.max(0, Number(this.charData?.魂核?.核心?.数量 || 0));
+    return {
+      体力: Math.max(0, Number(属性.体力 || 0)),
+      魂力: Math.max(0, Number(属性.魂力 || 0)),
+      精神力: Math.max(0, Number(属性.精神力 || 0)),
+      体力上限: Math.max(0, Number(属性.体力上限 || 0)),
+      魂力上限: Math.max(0, Number(属性.魂力上限 || 0)),
+      精神力上限: Math.max(0, Number(属性.精神力上限 || 0)),
+      魂核数量: 核心数量,
+      无魂力天赋: /无魂力/.test(String(属性.天赋梯队 || '').trim()),
+    };
+  }
+
+  计算恢复增量预估(资源状态 = {}, 恢复模式 = '冥想') {
+    const 魂核数量 = Math.max(0, Number(资源状态.魂核数量 || 0));
+    const 无魂力天赋 = !!资源状态.无魂力天赋;
+    const 魂力系数 = 恢复模式 === '冥想'
+      ? (魂核数量 === 0 ? 0.05 : (魂核数量 === 1 ? 0.2 : (魂核数量 === 2 ? 0.3 : 0.4)))
+      : 0.01;
+    const 体力系数 = 恢复模式 === '冥想' ? 0.005 : 0.01;
+    const 精神系数 = 恢复模式 === '冥想' ? 0.008 : 0.01;
+    const 魂力增量 = 无魂力天赋
+      ? 0
+      : Math.max(0, Math.min(Number(资源状态.魂力上限 || 0), Math.floor(Number(资源状态.魂力 || 0) + Number(资源状态.魂力上限 || 0) * 魂力系数 * 副职业每小时tick)) - Number(资源状态.魂力 || 0));
+    const 体力增量 = Math.max(0, Math.min(Number(资源状态.体力上限 || 0), Math.floor(Number(资源状态.体力 || 0) + Number(资源状态.体力上限 || 0) * 体力系数 * 副职业每小时tick)) - Number(资源状态.体力 || 0));
+    const 精神力增量 = Math.max(0, Math.min(Number(资源状态.精神力上限 || 0), Math.floor(Number(资源状态.精神力 || 0) + Number(资源状态.精神力上限 || 0) * 精神系数 * 副职业每小时tick)) - Number(资源状态.精神力 || 0));
+    return { 体力增量, 魂力增量, 精神力增量 };
+  }
+
+  应用恢复增量(资源状态 = {}, 恢复增量 = {}) {
+    资源状态.体力 = Math.min(Number(资源状态.体力上限 || 0), Number(资源状态.体力 || 0) + Math.max(0, Number(恢复增量.体力增量 || 0)));
+    资源状态.魂力 = Math.min(Number(资源状态.魂力上限 || 0), Number(资源状态.魂力 || 0) + Math.max(0, Number(恢复增量.魂力增量 || 0)));
+    资源状态.精神力 = Math.min(Number(资源状态.精神力上限 || 0), Number(资源状态.精神力 || 0) + Math.max(0, Number(恢复增量.精神力增量 || 0)));
+  }
+
+  选择最佳恢复模式(资源状态 = {}, 消耗 = {}) {
+    const 缺口体力 = Math.max(0, Number(消耗.体力 || 0) - Number(资源状态.体力 || 0));
+    const 缺口魂力 = Math.max(0, Number(消耗.魂力 || 0) - Number(资源状态.魂力 || 0));
+    const 缺口精神力 = Math.max(0, Number(消耗.精神力 || 0) - Number(资源状态.精神力 || 0));
+    const 缺口总量 = 缺口体力 + 缺口魂力 + 缺口精神力;
+    if (缺口总量 <= 0) return '睡眠';
+    const 冥想增量 = this.计算恢复增量预估(资源状态, '冥想');
+    const 睡眠增量 = this.计算恢复增量预估(资源状态, '睡眠');
+    const 计算覆盖分 = 增量 => {
+      const 体力覆盖 = 缺口体力 > 0 ? Math.min(1, Number(增量.体力增量 || 0) / 缺口体力) : 0;
+      const 魂力覆盖 = 缺口魂力 > 0 ? Math.min(1, Number(增量.魂力增量 || 0) / 缺口魂力) : 0;
+      const 精神覆盖 = 缺口精神力 > 0 ? Math.min(1, Number(增量.精神力增量 || 0) / 缺口精神力) : 0;
+      return 体力覆盖 * 缺口体力 + 魂力覆盖 * 缺口魂力 + 精神覆盖 * 缺口精神力;
+    };
+    const 冥想得分 = 计算覆盖分(冥想增量);
+    const 睡眠得分 = 计算覆盖分(睡眠增量);
+    if (冥想得分 === 睡眠得分) {
+      const 冥想总恢复 = Number(冥想增量.体力增量 || 0) + Number(冥想增量.魂力增量 || 0) + Number(冥想增量.精神力增量 || 0);
+      const 睡眠总恢复 = Number(睡眠增量.体力增量 || 0) + Number(睡眠增量.魂力增量 || 0) + Number(睡眠增量.精神力增量 || 0);
+      return 冥想总恢复 >= 睡眠总恢复 ? '冥想' : '睡眠';
+    }
+    return 冥想得分 > 睡眠得分 ? '冥想' : '睡眠';
+  }
+
+  估算连续可执行次数(options = {}) {
+    const 总小时 = Math.max(1, Number(options.总小时 || 1));
+    const 是否委托 = !!options.是否委托;
+    const 资源消耗 = options.资源消耗 || { 体力: 0, 魂力: 0, 精神力: 0 };
+    const 单次材料消耗计划 = options.单次材料消耗计划 || {};
+    const 材料库存快照 = Object.assign({}, options.材料库存快照 || {});
+    const 资源状态 = Object.assign({}, options.资源状态 || this.获取恢复状态快照());
+    const 资金单次消耗 = Math.max(0, Number(options.资金单次消耗 || 0));
+    let 当前资金 = Math.max(0, Number(options.当前资金 || 0));
+    let 可执行次数 = 0;
+    let 冥想小时 = 0;
+    let 睡眠小时 = 0;
+    let 剩余小时 = 总小时;
+    while (剩余小时 > 0) {
+      const 资源充足 = 是否委托 ? true : this.hasEnoughResources(资源消耗, 资源状态);
+      const 材料充足 = this.检查材料是否足够(材料库存快照, 单次材料消耗计划);
+      const 资金充足 = 资金单次消耗 <= 0 || 当前资金 >= 资金单次消耗;
+      if (资源充足 && 材料充足 && 资金充足) {
+        可执行次数 += 1;
+        if (!是否委托) this.扣减资源(资源状态, 资源消耗);
+        this.扣减材料库存(材料库存快照, 单次材料消耗计划);
+        if (资金单次消耗 > 0) 当前资金 = Math.max(0, 当前资金 - 资金单次消耗);
+        剩余小时 -= 1;
+        continue;
+      }
+      const 恢复模式 = this.选择最佳恢复模式(资源状态, 资源消耗);
+      const 恢复增量 = this.计算恢复增量预估(资源状态, 恢复模式);
+      if (!资源充足 || (恢复增量.体力增量 + 恢复增量.魂力增量 + 恢复增量.精神力增量) > 0) {
+        this.应用恢复增量(资源状态, 恢复增量);
+      }
+      if (恢复模式 === '冥想') 冥想小时 += 1;
+      else 睡眠小时 += 1;
+      剩余小时 -= 1;
+    }
+    return { 可执行次数, 冥想小时, 睡眠小时, 结束资源: 资源状态 };
+  }
 
   resolveDispatchNpcTarget() {
     const detail = this.options?.dispatchContext || {};
@@ -1203,10 +1388,12 @@ class ProfessionUIComponent {
     const costs = this.getProfessionCost(cfg.jobName, tier, qty);
     const commissionCtx = this.getCommissionContext(cfg, runtime, tier, materialNames, targetName);
     const effectiveRuntime = commissionCtx.validationRuntime || runtime;
+    const 连续配置 = this.获取连续模式配置();
     const enoughResources = commissionCtx.isCommission ? commissionCtx.hasEnoughFunds : this.hasEnoughResources(costs);
 
     let ruleError = commissionCtx.error || null;
     let rateText = '-', fusionText = '-', maxQText = '-', noteText = '-';
+    let 当前成功率数值 = 0;
     let costText = commissionCtx.isCommission ? `<span class="val-cyan">委托模式不扣职业资源</span>` : this.formatResourceCost(costs);
     let feeText = commissionCtx.isCommission ? (commissionCtx.commissionFee > 0 ? `<span class="val-highlight">${this.formatFedCoin(commissionCtx.commissionFee)}</span>` : `<span class="val-green">免单</span>`) : `<span class="val-cyan">无</span>`;
 
@@ -1216,6 +1403,7 @@ class ProfessionUIComponent {
         const efc = Math.max(commissionCtx.fusionCount || 1, materialNames.length || 1);
         const isFusion = efc > 1;
         const rate = commissionCtx.isCommission ? Number(commissionCtx.successRate || 0) : (isFusion ? this.getForgeFusionSuccessRate(runtime, efc, !!this.charData.功法?.['暗器百解']) : this.getSingleTierSuccessRate(tier, runtime));
+        当前成功率数值 = Number(rate || 0);
         const dfr = isFusion ? Number(commissionCtx.fusionSync || (materialNames.length > 1 ? this.getForgeFusionRate(effectiveRuntime, materialNames) : 100)) : Number(this.currentInventory[materialNames[0]]?.融合参数?.融合率 ?? this.currentInventory[materialNames[0]]?.融合参数?.契合度 ?? 100);
         rateText = `<span class="val-highlight">${rate}%</span>`;
         fusionText = isFusion ? `<span class="val-cyan">${efc}级复合 / 融合率${dfr}%</span>` : `<span class="val-cyan">单金属 / 融合率${dfr}%</span>`;
@@ -1228,6 +1416,7 @@ class ProfessionUIComponent {
         const efc = Math.max(materialNames.length || 0, commissionCtx.fusionCount || 1);
         const isComp = efc > 1;
         const rate = commissionCtx.isCommission ? Number(commissionCtx.successRate || 0) : (isComp ? this.getGenericCompositeRate(runtime, efc) : this.getGenericSingleRate(runtime));
+        当前成功率数值 = Number(rate || 0);
         rateText = `<span class="val-highlight">${rate}%</span>`;
         fusionText = isComp ? `<span class="val-cyan">复合工序 ${efc} 材</span>` : `<span class="val-cyan">单工序</span>`;
         maxQText = `<span class="val-highlight">${(isComp ? 1.25 : 1.15).toFixed(2)}</span>`;
@@ -1243,7 +1432,24 @@ class ProfessionUIComponent {
       }
     }
 
-    if (!commissionCtx.isCommission && !enoughResources) ruleError = ruleError || '职业资源不足。';
+    if (!commissionCtx.isCommission && !连续配置.连续模式开启 && !enoughResources) ruleError = ruleError || '职业资源不足。';
+
+    let 连续预估文本 = '<span class="val-cyan">关闭</span>';
+    if (!ruleError) {
+      const 单次材料消耗计划 = this.构建单次材料消耗计划(cfg, tier, qty, targetName, materialNames);
+      const 连续估算结果 = this.估算连续可执行次数({
+        总小时: 连续配置.连续总小时,
+        是否委托: commissionCtx.isCommission,
+        资源消耗: costs,
+        单次材料消耗计划,
+        材料库存快照: this.构建材料库存快照(materialNames),
+        资源状态: this.获取恢复状态快照(),
+        资金单次消耗: commissionCtx.isCommission ? Number(commissionCtx.commissionFee || 0) : 0,
+        当前资金: Number(this.charData?.财富?.联邦币 || 0),
+      });
+      const 期望成功数 = Number((Number(连续估算结果.可执行次数 || 0) * Math.max(0, 当前成功率数值) / 100).toFixed(2));
+      连续预估文本 = `${连续配置.连续模式开启 ? '<span class="val-green">开启</span>' : '<span class="val-cyan">未开启</span>'} / <span class="val-highlight">${连续配置.连续天数}天</span> / 可执行 <span class="val-cyan">${连续估算结果.可执行次数}</span> 次 / 期望成功 <span class="val-highlight">${期望成功数}</span> 次${!commissionCtx.isCommission ? ` / 冥想${连续估算结果.冥想小时}h 睡眠${连续估算结果.睡眠小时}h` : ''}`;
+    }
 
     this.$('#prof-submit').disabled = Boolean(ruleError);
     this.setPreviewField('prev-job', `<span class="val-cyan">${cfg.jobName} Lv.${effectiveRuntime.lv}</span>${commissionCtx.isCommission ? ` / 执行者 ${commissionCtx.executorName}` : ''}`);
@@ -1256,16 +1462,40 @@ class ProfessionUIComponent {
     this.setPreviewField('prev-fusion', ruleError ? `<span class="val-red">-</span>` : fusionText);
     this.setPreviewField('prev-maxfusion', `<span class="val-highlight">${effectiveRuntime.maxFusion}</span>`);
     this.setPreviewField('prev-maxq', ruleError ? `<span class="val-red">-</span>` : maxQText);
+    this.setPreviewField('prev-loop', ruleError ? `<span class="val-red">-</span>` : 连续预估文本);
     this.setPreviewField('prev-note', ruleError ? `<span class="val-red">${ruleError}</span>` : noteText);
   }
 
   // --- 提交操作相关补丁生成 --- 
   buildResourcePatches(costs) {
     return [
-      { op: 'replace', path: `${this.activeCharBasePath}/属性/vit`, value: Math.max(0, Number(this.charData.属性?.vit || 0) - costs.vit) },
-      { op: 'replace', path: `${this.activeCharBasePath}/属性/sp`, value: Math.max(0, Number(this.charData.属性?.sp || 0) - costs.sp) },
-      { op: 'replace', path: `${this.activeCharBasePath}/属性/men`, value: Math.max(0, Number(this.charData.属性?.men || 0) - costs.men) }
+      { op: 'replace', path: `${this.activeCharBasePath}/属性/体力`, value: Math.max(0, Number(this.charData.属性?.体力 || 0) - Number(costs.体力 || 0)) },
+      { op: 'replace', path: `${this.activeCharBasePath}/属性/魂力`, value: Math.max(0, Number(this.charData.属性?.魂力 || 0) - Number(costs.魂力 || 0)) },
+      { op: 'replace', path: `${this.activeCharBasePath}/属性/精神力`, value: Math.max(0, Number(this.charData.属性?.精神力 || 0) - Number(costs.精神力 || 0)) }
     ];
+  }
+
+  buildResourceFinalPatches(资源状态 = {}) {
+    return [
+      { op: 'replace', path: `${this.activeCharBasePath}/属性/体力`, value: Math.max(0, Number(资源状态.体力 || 0)) },
+      { op: 'replace', path: `${this.activeCharBasePath}/属性/魂力`, value: Math.max(0, Number(资源状态.魂力 || 0)) },
+      { op: 'replace', path: `${this.activeCharBasePath}/属性/精神力`, value: Math.max(0, Number(资源状态.精神力 || 0)) }
+    ];
+  }
+
+  buildMaterialFinalPatches(材料库存快照 = {}, 选中材料 = []) {
+    return 选中材料.map(材料名 => {
+      const 剩余数量 = Math.max(0, Number(材料库存快照[材料名] || 0));
+      return 剩余数量 <= 0
+        ? { op: 'remove', path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(材料名)}` }
+        : { op: 'replace', path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(材料名)}/数量`, value: 剩余数量 };
+    });
+  }
+
+  buildTimeSkipPatch(跳过小时 = 0) {
+    const 当前tick = Math.max(0, Number(this.snapshot?.sd?.world?.时间?.tick || 0));
+    const 目标tick = 当前tick + Math.max(0, Math.floor(Number(跳过小时 || 0) * 副职业每小时tick));
+    return [{ op: 'replace', path: '/world/时间/tick', value: 目标tick }];
   }
   buildMaterialConsumePatches(materialNames, qty) {
     return materialNames.map(mName => {
@@ -1346,8 +1576,199 @@ class ProfessionUIComponent {
   }
 
   executeProfessionAction() {
+    const 连续配置 = this.获取连续模式配置();
+    if (连续配置.连续模式开启) {
+      this.executeContinuousProfession(连续配置);
+      return;
+    }
     if (this.activeMode === 'forge') this.executeForge();
     else this.executeGenericProfession();
+  }
+
+  executeContinuousProfession(连续配置 = this.获取连续模式配置()) {
+    const cfg = PROFESSION_CONFIG[this.activeMode];
+    const runtime = this.getJobRuntime(cfg.jobName);
+    const tier = Number(this.$('#prof-tier').value || 1);
+    const qty = Math.max(1, Number(this.$('#prof-cost').value || 1));
+    const targetName = String(this.$('#prof-target').value || '').trim();
+    const materialNames = this.getSelectedMaterialNames();
+    const costs = this.getProfessionCost(cfg.jobName, tier, qty);
+    const commissionCtx = this.getCommissionContext(cfg, runtime, tier, materialNames, targetName);
+    const effectiveRuntime = commissionCtx.validationRuntime || runtime;
+    let ruleError = commissionCtx.error || null;
+    if (this.activeMode === 'forge') {
+      if (!ruleError) ruleError = this.validateForgeRules(effectiveRuntime, tier, materialNames, targetName, { isCommission: commissionCtx.isCommission });
+    } else if (!ruleError) {
+      ruleError = this.validateGenericRules(cfg, effectiveRuntime, tier, materialNames, targetName);
+    }
+    if (ruleError) {
+      alert(ruleError);
+      return;
+    }
+
+    const 是否委托 = commissionCtx.isCommission;
+    const 总小时 = Math.max(1, Number(连续配置.连续总小时 || 1));
+    const 单次材料消耗计划 = this.构建单次材料消耗计划(cfg, tier, qty, targetName, materialNames);
+    const 材料库存快照 = this.构建材料库存快照(materialNames);
+    const 资源状态 = this.获取恢复状态快照();
+    const 资金单次消耗 = 是否委托 ? Math.max(0, Number(commissionCtx.commissionFee || 0)) : 0;
+    let 当前资金 = Math.max(0, Number(this.charData?.财富?.联邦币 || 0));
+    let 剩余小时 = 总小时;
+
+    const 统计 = {
+      执行次数: 0,
+      成功次数: 0,
+      失败次数: 0,
+      大成功次数: 0,
+      冥想小时: 0,
+      睡眠小时: 0,
+      累计经验: 0,
+      最后检定: 0,
+      最后成功率: 0,
+    };
+    const 产物汇总 = {};
+    let 修理成功标记 = false;
+
+    const 锻造复合数 = Math.max(Number(commissionCtx.fusionCount || 1), materialNames.length || 1);
+    const 锻造是否融锻 = 锻造复合数 > 1;
+    const 通用复合数 = Math.max(materialNames.length || 0, commissionCtx.fusionCount || 1);
+    const 通用是否复合 = 通用复合数 > 1;
+
+    while (剩余小时 > 0) {
+      const 资源充足 = 是否委托 ? true : this.hasEnoughResources(costs, 资源状态);
+      const 材料充足 = this.检查材料是否足够(材料库存快照, 单次材料消耗计划);
+      const 资金充足 = 资金单次消耗 <= 0 || 当前资金 >= 资金单次消耗;
+      if (资源充足 && 材料充足 && 资金充足) {
+        统计.执行次数 += 1;
+        if (!是否委托) this.扣减资源(资源状态, costs);
+        this.扣减材料库存(材料库存快照, 单次材料消耗计划);
+        if (资金单次消耗 > 0) 当前资金 = Math.max(0, 当前资金 - 资金单次消耗);
+
+        const 本次成功率 = this.activeMode === 'forge'
+          ? (是否委托 ? Number(commissionCtx.successRate || 0) : (锻造是否融锻 ? this.getForgeFusionSuccessRate(runtime, 锻造复合数, !!this.charData.功法?.['暗器百解']) : this.getSingleTierSuccessRate(tier, runtime)))
+          : (是否委托 ? Number(commissionCtx.successRate || 0) : (通用是否复合 ? this.getGenericCompositeRate(runtime, 通用复合数) : this.getGenericSingleRate(runtime)));
+        const roll = Math.floor(Math.random() * 100) + 1;
+        const isGreatSuccess = roll <= 5 && !commissionCtx.isOfficial;
+        const isSuccess = isGreatSuccess || roll <= 本次成功率;
+        统计.最后检定 = roll;
+        统计.最后成功率 = 本次成功率;
+        if (isSuccess) {
+          统计.成功次数 += 1;
+          if (isGreatSuccess) 统计.大成功次数 += 1;
+          let 本次经验 = Number(cfg.expGain[tier] || 50);
+          if (isGreatSuccess && !是否委托) 本次经验 *= 2;
+          if (!是否委托) 统计.累计经验 += 本次经验;
+
+          if (this.activeMode === 'forge') {
+            const 本次融合率 = 锻造是否融锻
+              ? Number(commissionCtx.fusionSync || this.getForgeFusionRate(commissionCtx.executorRuntime || runtime, materialNames))
+              : Number(this.currentInventory[materialNames[0]]?.融合参数?.融合率 ?? this.currentInventory[materialNames[0]]?.融合参数?.契合度 ?? 100);
+            const 本次品质 = commissionCtx.isOfficial
+              ? 1
+              : (锻造是否融锻
+                ? this.getForgeFusionQuality(tier, this.getForgeMaxQ(tier, 锻造复合数), 本次融合率, roll, isGreatSuccess)
+                : this.clamp(isGreatSuccess ? 1.2 : this.getForgeSingleQuality(tier, commissionCtx.executorRuntime || runtime), 0.8, 1.2));
+            const 产物名 = isGreatSuccess ? `极品·${targetName}` : targetName;
+            if (!产物汇总[产物名]) {
+              产物汇总[产物名] = {
+                数量: 0,
+                类型: '副职业产物',
+                品质: isGreatSuccess ? '极品' : '标准',
+                品质系数累计: 0,
+                融合参数: 锻造是否融锻 ? { 数量: 锻造复合数, 融合率: Math.floor(本次融合率) } : null,
+                描述: `由${commissionCtx.executorName}完成的${cfg.jobName}产物`,
+              };
+            }
+            产物汇总[产物名].数量 += 1;
+            产物汇总[产物名].品质系数累计 += Number(本次品质 || 1);
+            if (isGreatSuccess) 产物汇总[产物名].品质 = '极品';
+          } else if (this.activeMode === 'design') {
+            const 产物名 = this.getDesignOutputName(targetName, tier, materialNames);
+            const 品质系数 = commissionCtx.isOfficial ? 1 : this.getGenericQuality(commissionCtx.executorRuntime || runtime, tier, isGreatSuccess);
+            if (!产物汇总[产物名]) {
+              产物汇总[产物名] = { 数量: 0, 类型: '图纸', 品质: this.getTierQualityLabel(cfg.mode, tier), 品质系数累计: 0, 描述: `由${commissionCtx.executorName}完成的${cfg.jobName}绘制` };
+            }
+            产物汇总[产物名].数量 += 1;
+            产物汇总[产物名].品质系数累计 += Number(品质系数 || 1);
+          } else if (this.activeMode === 'manufacture') {
+            const 产物信息 = this.getManufactureOutputMeta(targetName, materialNames, tier);
+            const 品质系数 = commissionCtx.isOfficial ? 1 : this.getGenericQuality(commissionCtx.executorRuntime || runtime, tier, isGreatSuccess);
+            if (!产物汇总[产物信息.name]) {
+              产物汇总[产物信息.name] = { 数量: 0, 类型: 产物信息.type, 品质: this.getTierQualityLabel(cfg.mode, tier), 品质系数累计: 0, 描述: `由${commissionCtx.executorName}完成的${cfg.jobName}制造` };
+            }
+            产物汇总[产物信息.name].数量 += 1;
+            产物汇总[产物信息.name].品质系数累计 += Number(品质系数 || 1);
+          } else if (this.activeMode === 'repair') {
+            修理成功标记 = true;
+          }
+        } else {
+          统计.失败次数 += 1;
+        }
+
+        剩余小时 -= 1;
+        continue;
+      }
+
+      if (是否委托) {
+        剩余小时 -= 1;
+        continue;
+      }
+      const 恢复模式 = this.选择最佳恢复模式(资源状态, costs);
+      const 恢复增量 = this.计算恢复增量预估(资源状态, 恢复模式);
+      this.应用恢复增量(资源状态, 恢复增量);
+      if (恢复模式 === '冥想') 统计.冥想小时 += 1;
+      else 统计.睡眠小时 += 1;
+      剩余小时 -= 1;
+    }
+
+    let patchOps = [];
+    if (!是否委托) patchOps.push(...this.buildResourceFinalPatches(资源状态));
+    else if (资金单次消耗 > 0) patchOps.push({ op: 'replace', path: `${this.activeCharBasePath}/财富/联邦币`, value: 当前资金 });
+    patchOps.push(...this.buildMaterialFinalPatches(材料库存快照, materialNames));
+    patchOps.push(...this.buildTimeSkipPatch(总小时));
+
+    Object.entries(产物汇总).forEach(([产物名, 数据]) => {
+      const 平均品质系数 = Number((Number(数据.品质系数累计 || 0) / Math.max(1, Number(数据.数量 || 1))).toFixed(2));
+      const 物品数据 = {
+        类型: 数据.类型 || '副职业产物',
+        品质: 数据.品质 || '标准',
+        品质系数: 平均品质系数,
+        描述: 数据.描述 || `由${commissionCtx.executorName}完成的${cfg.jobName}产物`,
+      };
+      if (数据.融合参数) 物品数据.融合参数 = 数据.融合参数;
+      patchOps.push(...this.buildInventoryAddPatches(产物名, 物品数据, Number(数据.数量 || 1)));
+    });
+
+    if (this.activeMode === 'repair' && 修理成功标记) {
+      const existing = this.currentInventory[targetName];
+      const repairDesc = this.getRepairDescriptor(materialNames);
+      const nextItem = Object.assign({}, existing, { 描述: `${existing?.描述 ? existing.描述 + ' | ' : ''}${repairDesc.desc}`, 状态: repairDesc.status });
+      if ('耐久' in (existing || {})) nextItem.耐久 = 100;
+      if ('完整度' in (existing || {})) nextItem.完整度 = 100;
+      if (!('耐久' in (existing || {})) && !('完整度' in (existing || {}))) nextItem.完整度 = 100;
+      patchOps.push({ op: 'replace', path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(targetName)}`, value: nextItem });
+    }
+
+    if (!是否委托 && 统计.累计经验 > 0) {
+      const progress = this.buildJobProgressPatches(cfg.jobName, 统计.累计经验);
+      patchOps.push(...progress.patches);
+    }
+
+    const 连续结果播报 = `[连续副职业] ${cfg.displayName} ${连续配置.连续天数}天（${总小时}小时）结束：执行${统计.执行次数}次，成功${统计.成功次数}次，失败${统计.失败次数}次，大成功${统计.大成功次数}次。${是否委托 ? '' : ` 冥想${统计.冥想小时}小时，睡眠${统计.睡眠小时}小时。`}时间已推进${总小时 * 副职业每小时tick}tick。`;
+    patchOps.push(...this.buildSystemResultPatches(连续结果播报, 统计.最后检定, 统计.最后成功率));
+
+    const materialText = materialNames.length > 0 ? materialNames.map(name => `${qty}份${name}`).join('、') : '无显式材料';
+    const officialLocationName = this.getOfficialCommissionLocation(cfg.jobName);
+    const actionLead = commissionCtx.isOfficial
+      ? `我要在${officialLocationName}连续委托${cfg.displayName}${连续配置.连续天数}天，目标是【${targetName}】`
+      : (commissionCtx.isPrivate
+        ? `我要委托【${commissionCtx.executorName}】连续代工${cfg.displayName}${连续配置.连续天数}天，目标是【${targetName}】`
+        : `我要连续进行${cfg.displayName}${连续配置.连续天数}天，目标是【${targetName}】`);
+    const consumptionText = commissionCtx.isCommission
+      ? `连续代工单次费用：${this.formatFedCoin(commissionCtx.commissionFee)}。本轮执行 ${统计.执行次数} 次，累计扣费 ${this.formatFedCoin(统计.执行次数 * Number(commissionCtx.commissionFee || 0))}。`
+      : `单次消耗：${this.formatResourceCost(costs)}。本轮执行 ${统计.执行次数} 次后，剩余资源为 体:${Math.floor(资源状态.体力)} / 魂:${Math.floor(资源状态.魂力)} / 精:${Math.floor(资源状态.精神力)}。`;
+    const sysPrompt = `${PROF_HIDDEN_ARBITRATION_NARRATION_RULES}\n\n[执行来源]\n本次执行者：${commissionCtx.executorName}。${commissionCtx.note}\n\n${连续结果播报}\n\n[副职业资源消耗]\n${consumptionText}\n${this.buildFrontEndStateBlock('Continuous profession executed.', patchOps)}`;
+    this.submitAction(`${actionLead}，材料：${materialText}。`, sysPrompt, `prof_${cfg.mode}_continuous`);
   }
 
   executeForge() {

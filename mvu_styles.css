@@ -783,6 +783,21 @@
       line-height: 1.1;
     }
 
+    .terminal-hero-card .foot-hint {
+      display: block;
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .timeline-card--single span,
+    .intel-card--single span {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     .enter-chip {
       padding: 6px 10px;
       border-radius: 999px;
@@ -1482,7 +1497,7 @@
     }
 
     .terminal-overview {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .map-status-chip,
@@ -1996,6 +2011,28 @@
     .terminal-metric {
       position: relative;
       overflow: hidden;
+      cursor: pointer;
+      transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
+    }
+
+    .terminal-metric b {
+      font-size: 11px;
+      line-height: 1.2;
+    }
+
+    .terminal-metric span {
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .terminal-metric:hover {
+      border-color: rgba(77, 240, 255, 0.24);
+      background: rgba(77, 240, 255, 0.08);
+      transform: translateY(-1px);
+    }
+
+    .terminal-metric:active {
+      transform: translateY(1px);
     }
 
     .terminal-metric::after {
@@ -2055,6 +2092,7 @@
       color: var(--text-sub);
       font-size: 9px;
       line-height: 1;
+      transition: background 180ms ease, border-color 180ms ease, color 180ms ease, opacity 180ms ease;
     }
 
     .terminal-channel-chip.live {
@@ -2074,12 +2112,13 @@
       padding: 8px 9px;
       background: rgba(255,255,255,0.03);
       border: 1px solid rgba(255,255,255,0.05);
-      font-size: 10px;
-      line-height: 1.4;
+      font-size: 12px;
+      line-height: 1.45;
       color: var(--white);
       position: relative;
       z-index: 1;
       backdrop-filter: blur(2px);
+      transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
     }
 
     .log-line.sys { border-color: rgba(0,229,255,0.12); }
@@ -2093,6 +2132,34 @@
       margin-right: 6px;
     }
 
+    .log-line--single {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .terminal-channel-strip--single {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+    }
+
+    .terminal-channel-strip--single::-webkit-scrollbar {
+      display: none;
+    }
+
+    .terminal-skeleton-row {
+      opacity: 0.72;
+      animation: mvuSkeletonPulse 1.2s ease-in-out infinite;
+    }
+
+    @keyframes mvuSkeletonPulse {
+      0% { opacity: 0.52; }
+      50% { opacity: 0.92; }
+      100% { opacity: 0.52; }
+    }
+
     .terminal-side-card {
       background: linear-gradient(180deg, rgba(0,229,255,0.05), rgba(255,255,255,0.02));
       border-color: rgba(0,229,255,0.08);
@@ -2104,6 +2171,12 @@
       align-items: center;
       justify-content: space-between;
       gap: 8px;
+    }
+
+    .terminal-side-card .simple-row span {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .terminal-side-badge {
@@ -4919,6 +4992,32 @@
       white-space: nowrap;
     }
 
+    button.tag-chip,
+    .tag-chip.clickable,
+    .clickable {
+      cursor: pointer;
+      transition: transform 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
+    }
+
+    button.tag-chip:hover,
+    .tag-chip.clickable:hover,
+    .clickable:hover {
+      border-color: rgba(77, 240, 255, 0.24);
+      background: rgba(77, 240, 255, 0.09);
+    }
+
+    button.tag-chip:active,
+    .tag-chip.clickable:active,
+    .clickable:active {
+      transform: translateY(1px);
+    }
+
+    .tag-chip.is-busy,
+    .tag-chip.is-short-lock {
+      opacity: 0.58;
+      pointer-events: none;
+    }
+
     .skill-designer-fusion-actions {
       margin-left: 0;
       justify-content: flex-start;
@@ -6840,7 +6939,8 @@
     min-width: 0;
     border-radius: 8px;
     padding: 0 12px;
-    height: 32px;
+    height: 44px;
+    min-height: 44px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     background: rgba(3, 10, 22, 0.92);
     color: #dffaff;
@@ -6850,10 +6950,29 @@
   }
 
   .request-console-textarea {
-    min-height: 88px;
+    min-height: 96px;
     padding: 8px 12px;
     resize: vertical;
     line-height: 1.5;
+  }
+
+  .request-console-row button,
+  .request-console-row .tag-chip {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .request-console-primary-action {
+    font-weight: 700;
+  }
+
+  .request-console-primary-action:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
   }
 
   .request-console-input:focus,
@@ -10530,6 +10649,21 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-tab-btn:hover {
   overflow-wrap: anywhere;
 }
 
+#detailModal .timeline-card.timeline-card--single span,
+#detailModal .intel-card.intel-card--single span,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .timeline-card.timeline-card--single span,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .intel-card.intel-card--single span,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .timeline-card.timeline-card--single span,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .intel-card.intel-card--single span,
+#detailModal.mvu-modal-display-shell .timeline-card.timeline-card--single span,
+#detailModal.mvu-modal-display-shell .intel-card.intel-card--single span {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  overflow-wrap: normal !important;
+  word-break: keep-all !important;
+}
+
 #detailModal .location-status-layout {
   display: grid;
   grid-template-columns: minmax(220px, 0.92fr) minmax(0, 1.08fr);
@@ -10754,6 +10888,17 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
   align-items: stretch;
 }
 
+#detailModal .request-console-input,
+#detailModal .request-console-row button,
+#detailModal .request-console-row .tag-chip {
+  min-height: 44px !important;
+  height: auto !important;
+}
+
+#detailModal .request-console-textarea {
+  min-height: 96px !important;
+}
+
 @media (max-width: 980px) {
   #detailModal .location-status-layout {
     grid-template-columns: 1fr;
@@ -10779,6 +10924,19 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
   #detailModal .archive-tile-grid,
   #detailModal .map-action-grid {
     grid-template-columns: 1fr;
+  }
+
+  #detailModal .request-console-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  #detailModal .request-console-row > * {
+    width: 100% !important;
+  }
+
+  #detailModal .request-console-row .request-console-primary-action {
+    order: -1;
   }
 
   #detailModal .archive-tile span,
@@ -11509,7 +11667,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
 #detailModal.archive-redesign-mode .archive-redesign-root .relation-gift-select {
   width: 100%;
   min-width: 0;
-  min-height: 40px;
+  min-height: 44px;
   padding: 9px 12px !important;
   border-radius: 12px !important;
   border: 1px solid rgba(60, 180, 210, 0.12) !important;
@@ -11527,7 +11685,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
 
 #detailModal.archive-redesign-mode .archive-redesign-root .relation-action-btn,
 #detailModal.archive-redesign-mode .archive-redesign-root .map-dispatch-action-btn {
-  min-height: 40px !important;
+  min-height: 44px !important;
   height: auto !important;
   padding: 9px 12px !important;
   border-radius: 12px !important;
@@ -14709,8 +14867,17 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .intel-pending-editor,
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .map-action-grid,
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .request-console-row {
+  display: grid !important;
   grid-template-columns: minmax(0, 1fr) !important;
   gap: 10px !important;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .request-console-row > * {
+  width: 100% !important;
+}
+
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .request-console-row .request-console-primary-action {
+  order: -1;
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .dossier-row-grid--two,
@@ -15665,8 +15832,17 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
 #detailModal.mvu-modal-display-shell .intel-pending-editor,
 #detailModal.mvu-modal-display-shell .map-action-grid,
 #detailModal.mvu-modal-display-shell .request-console-row {
+  display: grid !important;
   grid-template-columns: minmax(0, 1fr) !important;
   gap: 10px !important;
+}
+
+#detailModal.mvu-modal-display-shell .request-console-row > * {
+  width: 100% !important;
+}
+
+#detailModal.mvu-modal-display-shell .request-console-row .request-console-primary-action {
+  order: -1;
 }
 
 #detailModal.mvu-modal-display-shell .dossier-row-grid--two,

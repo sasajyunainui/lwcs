@@ -3346,28 +3346,6 @@ function getPotentialSecondaryOptionsByType(type = '强攻系') {
   return Array.from(new Set([...typeBias, ...mains.flatMap(main => SKILL_SECONDARY_BY_MAIN_V1[main] || [])]));
 }
 
-function buildSoulSpiritSecondaryDefaultValue(type = '强攻系', ringIndex = 1) {
-  if (getSecondaryGenerationChance('S', ringIndex) <= 0) return ['无'];
-  const options = getPotentialSecondaryOptionsByType(type).slice(0, 14);
-  if (!options.length) return [AI_TODO_SOUL_SPIRIT_SECONDARY];
-  return [AI_TODO_SOUL_SPIRIT_SECONDARY.replace('）', `：${options.join(' / ')}）`)];
-}
-
-function normalizeSoulSpiritSecondaryCandidates(currentValue, type = '强攻系', ringIndex = 1) {
-  const current = Array.isArray(currentValue) ? currentValue.map(v => String(v || '').trim()).filter(Boolean) : [];
-  const valid = current.filter(option => SOUL_SPIRIT_SECONDARY_OPTIONS_V1.includes(option));
-  if (valid.length > 0) return valid;
-  const shouldAutofill =
-    current.length === 0 || current.every(text => text === '无' || isAiTodoText(text) || /^待补全/.test(text));
-  return shouldAutofill ? buildSoulSpiritSecondaryDefaultValue(type, ringIndex) : current;
-}
-
-function hasPendingSecondaryTodoCandidates(currentValue) {
-  const current = Array.isArray(currentValue) ? currentValue.map(v => String(v || '').trim()).filter(Boolean) : [];
-  if (!current.length) return false;
-  return current.some(text => text !== '无' && (isAiTodoText(text) || /^待补全/.test(text)));
-}
-
 function pickUniqueRandom(list = [], count = 1) {
   const pool = Array.isArray(list) ? [...list] : [];
   const result = [];
@@ -9346,7 +9324,6 @@ const AI_TODO_SOUL_SPIRIT_NAME = '待补全（魂兽名）';
 const AI_TODO_SOUL_SPIRIT_DESC = '待生成（请结合魂灵物种、年限、品质补全外形、血脉特征、行动风格与能力倾向）';
 const AI_TODO_SOUL_SPIRIT_QUALITY =
   '待生成（可选f/d/c/b/a/s/s+；f为劣质魂灵，如草蛇等杂血弱种；d为低劣魂灵，如普通凶性野兽型魂灵；c为普通魂灵，具备基础血脉与战斗价值；b为良品魂灵，常见强势魂兽；a为精英魂灵，稀有异种或强族后裔；s为顶尖魂灵，王族血脉或顶级龙种；s+为神话级魂灵，真龙、神兽后裔或极端变异个体）';
-const AI_TODO_SOUL_SPIRIT_SECONDARY = '待补全（可选副机制）';
 const AI_TODO_MAIN_IDENTITY = '待补全(填写当前主要公开身份)';
 const AI_TODO_PERSONALITY = '待补全(根据角色设定补全性格特征)';
 const AI_TODO_STATUS_LOC = '斗罗大陆-待补全(按大陆-城市-地点完整路径填写，禁止只填单一地名)';
@@ -10882,67 +10859,6 @@ function getBonePreferredSecondary(part = '') {
 }
 
 const 技能机制决策临时字段_V1 = '机制决策临时';
-const 技能机制决策只读字段_V1 = Object.freeze([
-  '只读字段',
-  '状态',
-  '决策版本',
-  '上下文签名',
-  '主机制分类目录',
-  '副机制分类目录',
-  '副机制可选_魂环来源优先',
-  '变异机制可选',
-  '推荐选择',
-]);
-
-function 计算文本哈希32_V1(text = '') {
-  let hash = 2166136261;
-  const source = String(text || '');
-  for (let i = 0; i < source.length; i += 1) {
-    hash ^= source.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-}
-
-function 创建确定随机函数_V1(seed = 1) {
-  let state = (Number(seed) >>> 0) || 1;
-  return () => {
-    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
-    return state / 4294967296;
-  };
-}
-
-function 使用确定随机执行_V1(seed = 1, executor = () => null) {
-  const originalRandom = Math.random;
-  const nextRandom = 创建确定随机函数_V1(seed);
-  Math.random = nextRandom;
-  try {
-    return executor();
-  } finally {
-    Math.random = originalRandom;
-  }
-}
-
-function 构建技能机制决策上下文签名_V1(context = {}) {
-  const normalized = {
-    type: String(context?.type || '').trim(),
-    talentTier: String(context?.talentTier || '').trim(),
-    age: Math.max(0, Number(context?.age || 0)),
-    ringIndex: Math.max(1, Number(context?.ringIndex || 1)),
-    compatibility: Math.max(0, Math.min(100, Number(context?.compatibility || 100))),
-    sourceCategory: String(context?.sourceCategory || context?.技能来源 || '').trim(),
-    sourceQuality: String(context?.sourceQuality || context?.来源品质 || '').trim(),
-    preferredSecondary: Array.isArray(context?.preferredSecondary) ? context.preferredSecondary.map(item => String(item || '').trim()) : [],
-    passiveMode: context?.passiveMode === true,
-    passiveName: String(context?.passiveName || '').trim(),
-    spiritName: String(context?.textContext?.spiritName || context?.spiritName || '').trim(),
-  };
-  try {
-    return JSON.stringify(normalized);
-  } catch (error) {
-    return String(Date.now());
-  }
-}
 
 function 规范化机制枚举数组_V1(list = []) {
   return Array.from(
@@ -10974,96 +10890,120 @@ function 构建副机制目录_V1() {
   return result;
 }
 
-function 构建机制推荐选择_V1(context = {}) {
-  const signature = 构建技能机制决策上下文签名_V1(context);
-  const seed = 计算文本哈希32_V1(signature) || 1;
-  const skillType = String(context?.type || '强攻系').trim() || '强攻系';
-  const talentTier = String(context?.talentTier || '正常').trim() || '正常';
-  const ringAge = Math.max(100, Number(context?.age || 1000));
-  const ringIndex = Math.max(1, Number(context?.ringIndex || 1));
-  const compatibility = Math.max(0, Math.min(100, Number(context?.compatibility || 100)));
-  const preferredSecondary = 规范化机制枚举数组_V1(context?.preferredSecondary || []);
-  const spiritName = String(context?.textContext?.spiritName || context?.spiritName || '').trim();
-  const gradeInfo = judgeSkillGrade(
-    talentTier,
-    ringAge,
-    ringIndex,
-    compatibility,
-    String(context?.sourceQuality || context?.来源品质 || '').trim(),
-  );
-  const rawGrade = normalizeSkillGradeSymbol(gradeInfo?.grade || 'B');
-
-  return 使用确定随机执行_V1(seed, () => {
-    const blueprint = rollSkillBlueprint(skillType, rawGrade, ringIndex, preferredSecondary, {
-      spiritName,
-      sourceName: spiritName,
-    });
-    return {
-      主机制大类: String(blueprint?.主机制大类 || '').trim(),
-      主机制原型: String(blueprint?.主机制原型 || '').trim(),
-      目标模型: String(blueprint?.目标模型 || '敌方单体').trim(),
-      释放形态: String(blueprint?.释放形态 || '直接生效').trim(),
-      副机制: 规范化机制枚举数组_V1(blueprint?.副机制 || []),
-      变异机制: 规范化机制枚举数组_V1(blueprint?.变异机制 || []),
-      品级: normalizeSkillTableGrade(rawGrade),
-    };
-  });
+function 构建技能机制决策上下文摘要_V1(context = {}) {
+  const ctx = context && typeof context === 'object' ? context : {};
+  const textContext = ctx?.textContext && typeof ctx.textContext === 'object' ? ctx.textContext : ctx;
+  const 系别 = String(ctx?.type || textContext?.type || '强攻系').trim() || '强攻系';
+  const 来源类别 = String(ctx?.sourceCategory || ctx?.技能来源 || '魂技').trim() || '魂技';
+  const 来源品质 = String(ctx?.sourceQuality || ctx?.来源品质 || '无').trim() || '无';
+  const 魂环位 = Math.max(1, Number(ctx?.ringIndex || 1));
+  const 年限 = Math.max(0, Number(ctx?.age || 0));
+  const 契合度 = Math.max(0, Math.min(100, Number(ctx?.compatibility || 100)));
+  const 武魂名 = String(textContext?.spiritName || ctx?.spiritName || '所属武魂').trim() || '所属武魂';
+  const 武魂描述 = String(textContext?.spiritDesc || '').trim();
+  const 武魂本体 = String(textContext?.martialSoulName || '').trim();
+  const 魂环来源 = String(textContext?.ringSource || '').trim();
+  const 片段 = [
+    `系别=${系别}`,
+    `来源类别=${来源类别}`,
+    `来源品质=${来源品质}`,
+    `魂环位=${魂环位}`,
+    `年限=${年限}`,
+    `契合度=${契合度}`,
+    `武魂/魂灵=${武魂名}`,
+  ];
+  if (武魂本体) 片段.push(`武魂本体=${武魂本体}`);
+  if (武魂描述) 片段.push(`武魂描述=${武魂描述}`);
+  if (魂环来源) 片段.push(`魂环来源=${魂环来源}`);
+  return 片段.join('；');
 }
 
-function 构建技能机制决策待生成提示词_V1(runtimeDecision = {}, textContext = {}) {
+function 构建技能机制决策待生成提示词_V1(runtimeDecision = {}, context = {}) {
   const decision = runtimeDecision && typeof runtimeDecision === 'object' ? runtimeDecision : {};
+  const ctx = context && typeof context === 'object' ? context : {};
+  const textContext = ctx?.textContext && typeof ctx.textContext === 'object' ? ctx.textContext : ctx;
   const spiritName = String(textContext?.spiritName || '所属武魂').trim() || '所属武魂';
-  const mainCatalog = 构建主机制目录_V1();
-  const secondaryCatalog = 构建副机制目录_V1();
-  const mutationPool = 规范化机制枚举数组_V1(decision?.变异机制可选 || []);
-  const sourcePreferred = 规范化机制枚举数组_V1(decision?.副机制可选_魂环来源优先 || []);
-  const defaultMainRangeText = Object.entries(mainCatalog)
-    .map(([main, subList]) => `${main}:[${规范化机制枚举数组_V1(subList).join('/') || '无'}]`)
-    .join('；');
-  const defaultSecondaryRangeText = Object.entries(secondaryCatalog)
-    .map(([main, subList]) => `${main}:[${规范化机制枚举数组_V1(subList).join('/') || '无'}]`)
-    .join('；');
-  const mainRangeText = String(decision?.主机制分类目录 || '').trim() || defaultMainRangeText;
-  const secondaryRangeText = String(decision?.副机制分类目录 || '').trim() || defaultSecondaryRangeText;
-  const recommend = decision?.推荐选择 && typeof decision.推荐选择 === 'object' ? decision.推荐选择 : {};
-  const recommendText = [
-    `主机制大类=${String(recommend?.主机制大类 || '无').trim() || '无'}`,
-    `主机制原型=${String(recommend?.主机制原型 || '无').trim() || '无'}`,
-    `副机制=${(Array.isArray(recommend?.副机制) ? recommend.副机制 : []).join('+') || '无'}`,
-    `变异机制=${(Array.isArray(recommend?.变异机制) ? recommend.变异机制 : []).join('+') || '无'}`,
-  ].join('，');
-  return `待生成（除「已选方案编号」外其余字段都视为只读。你必须基于【${spiritName}】及魂灵来源/上下文决定，推荐仅供参考；结果只能从给定范围选择，禁止新增范围外机制。请把本字段改写为JSON对象：{"主机制大类":"...","主机制原型":"...","副机制":["..."],"变异机制":[],"目标模型":"...","释放形态":"..."}。主机制分类:${mainRangeText || '无'}。副机制分类:${secondaryRangeText || '无'}。魂环来源优先副机制:${sourcePreferred.join('/') || '无'}。变异机制可选:${mutationPool.join('/') || '无'}。推荐:${recommendText}）`;
-}
-
-function 构建技能机制决策临时数据_V1(skill = {}, context = {}) {
+  const 系别 = String(ctx?.type || textContext?.type || '强攻系').trim() || '强攻系';
   const mainCatalog = 构建主机制目录_V1();
   const secondaryCatalog = 构建副机制目录_V1();
   const mutationPool = 规范化机制枚举数组_V1(SKILL_MUTATION_MECHANIC_TYPES_V1 || []);
-  const sourcePreferredSecondary = 规范化机制枚举数组_V1(context?.preferredSecondary || []);
-  const recommendation = 构建机制推荐选择_V1(context);
-  const mainCatalogText = Object.entries(mainCatalog)
+  const targetPool = 规范化机制枚举数组_V1(SKILL_TARGET_MODEL_VALUES_V1 || ['敌方单体']);
+  const deliveryPool = 规范化机制枚举数组_V1(SKILL_DELIVERY_FORM_BY_TYPE_V1[系别] || ['直接生效']);
+  if (系别 === '食物系' && !deliveryPool.includes('造物承载')) deliveryPool.push('造物承载');
+  const sourcePreferredRaw = decision?.副机制可选_魂环来源优先;
+  const sourcePreferred =
+    typeof sourcePreferredRaw === 'string'
+      ? String(sourcePreferredRaw || '').trim()
+      : 规范化机制枚举数组_V1(sourcePreferredRaw || []).join('/');
+  const mainRangeText = Object.entries(mainCatalog)
     .map(([main, subList]) => `${main}:[${规范化机制枚举数组_V1(subList).join('/') || '无'}]`)
     .join('；');
-  const secondaryCatalogText = Object.entries(secondaryCatalog)
+  const secondaryRangeText = Object.entries(secondaryCatalog)
     .map(([main, subList]) => `${main}:[${规范化机制枚举数组_V1(subList).join('/') || '无'}]`)
     .join('；');
+  const contextSummary = 构建技能机制决策上下文摘要_V1(ctx);
+  return `待生成（仅输出JSON对象，不要解释。格式：{"主机制大类":"...","主机制原型":"...","副机制":["..."],"变异机制":["..."],"目标模型":"...","释放形态":"..."}。先基于上下文与来源特性决策，再在范围内选择，不得编造。上下文:${contextSummary}。主机制范围:${mainRangeText || '无'}。副机制范围:${secondaryRangeText || '无'}。来源优先副机制:${sourcePreferred || '无'}。变异范围:${mutationPool.join('/') || '无'}。目标模型范围:${targetPool.join('/') || '无'}。释放形态范围:${deliveryPool.join('/') || '无'}。武魂=${spiritName}）`;
+}
+
+function 构建副机制来源优先待生成提示词_V1(runtimeDecision = {}, context = {}) {
+  void runtimeDecision;
+  const ctx = context && typeof context === 'object' ? context : {};
+  const textContext = ctx?.textContext && typeof ctx.textContext === 'object' ? ctx.textContext : ctx;
+  const spiritName = String(textContext?.spiritName || '所属武魂').trim() || '所属武魂';
+  const contextSummary = 构建技能机制决策上下文摘要_V1(ctx);
+  const secondaryCatalog = Object.entries(构建副机制目录_V1())
+    .map(([main, subList]) => `${main}:[${规范化机制枚举数组_V1(subList).join('/') || '无'}]`)
+    .join('；');
+  return `待生成（仅输出JSON数组，不要解释，如["沉默","减速"]。基于上下文与来源特性，为【${spiritName}】选择0-6个来源优先副机制。只能从副机制分类目录中选。上下文:${contextSummary}。副机制分类目录:${secondaryCatalog}）`;
+}
+
+function 构建技能机制决策临时数据_V1(skill = {}, context = {}) {
   const existingDecision = skill?.[技能机制决策临时字段_V1];
+  const existingSourcePreferred = existingDecision?.副机制可选_魂环来源优先;
   const existingSelected = existingDecision?.已选方案编号;
+  const 来源优先待生成占位 = 构建副机制来源优先待生成提示词_V1({}, context);
+  let 副机制可选_魂环来源优先 = existingSourcePreferred;
+  if (Array.isArray(副机制可选_魂环来源优先)) {
+    副机制可选_魂环来源优先 = 规范化机制枚举数组_V1(副机制可选_魂环来源优先).filter(item =>
+      SOUL_SPIRIT_SECONDARY_OPTIONS_V1.includes(item),
+    );
+  } else if (typeof 副机制可选_魂环来源优先 === 'string') {
+    const 文本 = String(副机制可选_魂环来源优先 || '').trim();
+    const 待生成文本 = /^(待生成|待补全|待补充)/.test(文本);
+    if (!文本 || 待生成文本) {
+      副机制可选_魂环来源优先 = 来源优先待生成占位;
+    } else {
+      let 已解析数组 = null;
+      try {
+        const parsed = JSON.parse(文本);
+        if (Array.isArray(parsed)) {
+          已解析数组 = 规范化机制枚举数组_V1(parsed).filter(item =>
+            SOUL_SPIRIT_SECONDARY_OPTIONS_V1.includes(item),
+          );
+        }
+      } catch (error) {}
+      if (!Array.isArray(已解析数组)) {
+        已解析数组 = 规范化机制枚举数组_V1(文本.split(/[\s,，、/+]+/g)).filter(item => SOUL_SPIRIT_SECONDARY_OPTIONS_V1.includes(item));
+      }
+      副机制可选_魂环来源优先 = 已解析数组.length ? 已解析数组 : 来源优先待生成占位;
+    }
+  }
+  if (!Array.isArray(副机制可选_魂环来源优先) && typeof 副机制可选_魂环来源优先 !== 'string') {
+    副机制可选_魂环来源优先 = 来源优先待生成占位;
+  }
   const decision = {
-    只读字段: 技能机制决策只读字段_V1.filter(field => field !== '已选方案编号'),
-    状态: '待决策',
-    决策版本: 2,
-    上下文签名: 构建技能机制决策上下文签名_V1(context),
-    主机制分类目录: mainCatalogText,
-    副机制分类目录: secondaryCatalogText,
-    副机制可选_魂环来源优先: sourcePreferredSecondary,
-    变异机制可选: mutationPool,
-    推荐选择: recommendation,
+    副机制可选_魂环来源优先,
     已选方案编号: existingSelected,
   };
+  if (
+    !decision.副机制可选_魂环来源优先 ||
+    (Array.isArray(decision.副机制可选_魂环来源优先) && decision.副机制可选_魂环来源优先.length === 0)
+  ) {
+    decision.副机制可选_魂环来源优先 = 构建副机制来源优先待生成提示词_V1(decision, context);
+  }
   const isPendingString = typeof decision.已选方案编号 === 'string' && /^(待生成|待补全|待补充)/.test(String(decision.已选方案编号).trim());
   if (!decision.已选方案编号 || (typeof decision.已选方案编号 !== 'object' && !isPendingString)) {
-    decision.已选方案编号 = 构建技能机制决策待生成提示词_V1(decision, context?.textContext || context);
+    decision.已选方案编号 = 构建技能机制决策待生成提示词_V1(decision, context);
   }
   return decision;
 }
@@ -11096,7 +11036,7 @@ function 读取技能机制已选方案编号_V1(runtimeDecision = {}) {
     主机制原型: sub,
     副机制: secondary,
     变异机制: mutation,
-    目标模型: target || '敌方单体',
+    目标模型: target || '',
     释放形态: delivery || '',
   };
 }
@@ -11131,13 +11071,15 @@ function 规范化技能机制选择结果_V1(choice = {}, runtimeDecision = {},
 
   const skillType = String(context?.type || '强攻系').trim() || '强攻系';
   const deliveryPool = 规范化机制枚举数组_V1(SKILL_DELIVERY_FORM_BY_TYPE_V1[skillType] || ['直接生效']);
+  if (skillType === '食物系' && !deliveryPool.includes('造物承载')) deliveryPool.push('造物承载');
   let delivery = String(choice?.释放形态 || '').trim();
-  if (!delivery) delivery = String(runtimeDecision?.推荐选择?.释放形态 || '').trim();
-  if (!delivery) delivery = skillType === '食物系' ? '造物承载' : (deliveryPool[0] || '直接生效');
-  if (!deliveryPool.includes(delivery) && !(skillType === '食物系' && delivery === '造物承载')) {
-    delivery = skillType === '食物系' ? '造物承载' : (deliveryPool[0] || '直接生效');
-  }
-  const targetModel = normalizeSkillTargetModel(String(choice?.目标模型 || runtimeDecision?.推荐选择?.目标模型 || '敌方单体').trim(), '敌方单体');
+  if (!delivery) delivery = String(runtimeDecision?.推荐释放形态 || '').trim();
+  if (!deliveryPool.includes(delivery)) delivery = skillType === '食物系' ? '造物承载' : (deliveryPool[0] || '直接生效');
+  const targetModel = normalizeSkillTargetModel(
+    String(choice?.目标模型 || runtimeDecision?.推荐目标模型 || '敌方单体').trim(),
+    '敌方单体',
+  );
+
   return {
     主机制大类: main,
     主机制原型: sub,
@@ -11205,15 +11147,24 @@ function 尝试按机制决策回填技能效果数组_V1(skill = {}, context = 
   const rebuiltDecision = 构建技能机制决策临时数据_V1(skill, context);
   const existingDecision = skill?.[技能机制决策临时字段_V1];
   const existed = existingDecision && typeof existingDecision === 'object';
+  const sourcePreferredRaw = existed ? existingDecision.副机制可选_魂环来源优先 : undefined;
   const selectedRaw = existed ? existingDecision.已选方案编号 : undefined;
-  const nextDecision = {};
-  技能机制决策只读字段_V1.forEach(field => {
-    nextDecision[field] = cloneJsonValue(rebuiltDecision[field], rebuiltDecision[field]);
-  });
+  const nextDecision = {
+    副机制可选_魂环来源优先: cloneJsonValue(
+      rebuiltDecision.副机制可选_魂环来源优先,
+      rebuiltDecision.副机制可选_魂环来源优先,
+    ),
+    已选方案编号: cloneJsonValue(rebuiltDecision.已选方案编号, rebuiltDecision.已选方案编号),
+  };
+  if (Array.isArray(sourcePreferredRaw)) {
+    nextDecision.副机制可选_魂环来源优先 = cloneJsonValue(sourcePreferredRaw, []);
+  } else if (typeof sourcePreferredRaw === 'string' && String(sourcePreferredRaw).trim()) {
+    nextDecision.副机制可选_魂环来源优先 = String(sourcePreferredRaw);
+  }
   if (selectedRaw && typeof selectedRaw === 'object') {
     nextDecision.已选方案编号 = cloneJsonValue(selectedRaw, {});
   } else if (typeof selectedRaw === 'string' && /^(待生成|待补全|待补充)/.test(String(selectedRaw).trim())) {
-    nextDecision.已选方案编号 = 构建技能机制决策待生成提示词_V1(nextDecision, context?.textContext || context);
+    nextDecision.已选方案编号 = 构建技能机制决策待生成提示词_V1(nextDecision, context);
   } else if (typeof selectedRaw === 'string' && String(selectedRaw).trim()) {
     nextDecision.已选方案编号 = String(selectedRaw);
   } else {
@@ -12151,7 +12102,6 @@ const CharacterSchema = z
                     年限: z.coerce.number().prefault(0),
                     品质: z.string().prefault(AI_TODO_SOUL_SPIRIT_QUALITY).describe('魂灵品质：F/D/C/B/A/S/S+'),
                     契合度: z.coerce.number().prefault(60).describe('与武魂的契合度(0-100)，影响融合难度与发挥'),
-                    附机制候选: z.array(z.string()).prefault(['无']).describe('魂灵附机制候选'),
                     状态: z.string().prefault('沉睡'),
                     战力面板: z
                       .object({
@@ -12189,7 +12139,6 @@ const CharacterSchema = z
                     年限: z.coerce.number().prefault(0),
                     颜色: z.string().prefault('无'),
                     来源: z.string().prefault('无').describe('该独立魂环的来源，如吸收对象/无主魂环/特殊传承'),
-                    附机制候选: z.array(z.string()).prefault(['无']).describe('独立魂环附机制候选'),
                     魂技: z.record(z.string().describe('魂技名称'), SkillStructSchema).prefault({}),
                   })
                   .prefault({}),
@@ -12215,7 +12164,6 @@ const CharacterSchema = z
                     年限: z.coerce.number().prefault(0),
                     品质: z.string().prefault(AI_TODO_SOUL_SPIRIT_QUALITY).describe('魂灵品质：F/D/C/B/A/S/S+'),
                     契合度: z.coerce.number().prefault(60).describe('与武魂的契合度(0-100)，影响融合难度与发挥'),
-                    附机制候选: z.array(z.string()).prefault(['无']).describe('魂灵附机制候选'),
                     状态: z.string().prefault('沉睡'),
                     战力面板: z
                       .object({
@@ -12253,7 +12201,6 @@ const CharacterSchema = z
                     年限: z.coerce.number().prefault(0),
                     颜色: z.string().prefault('无'),
                     来源: z.string().prefault('无').describe('该独立魂环的来源，如吸收对象/无主魂环/特殊传承'),
-                    附机制候选: z.array(z.string()).prefault(['无']).describe('独立魂环附机制候选'),
                     魂技: z.record(z.string().describe('魂技名称'), SkillStructSchema).prefault({}),
                   })
                   .prefault({}),
@@ -13197,6 +13144,7 @@ const CharacterSchema = z
       totalSpirits += Object.keys(spiritData?.魂灵 || {}).length;
       _(spiritData?.魂灵 || {}).forEach(武魂 => {
         syncSoulSpiritRuntimeData(武魂);
+        if (Object.prototype.hasOwnProperty.call(武魂, '附机制候选')) delete 武魂.附机制候选;
         const 来源品质 =
           normalizeSoulSpiritQuality(武魂?.品质 || '') ||
           inferSoulSpiritQuality(武魂) ||
@@ -13206,7 +13154,6 @@ const CharacterSchema = z
 
         _(武魂.魂环 || {}).forEach((ring, ringIndexStr) => {
           const ringIndex = parseInt(ringIndexStr) || 1;
-          武魂.附机制候选 = normalizeSoulSpiritSecondaryCandidates(武魂.附机制候选, char.属性.系别, ringIndex);
           ensureSkillMapGenerated(ring.魂技, (_, skillName) => ({
             type: char.属性.系别,
             talentTier: char.属性.天赋梯队,
@@ -13214,10 +13161,7 @@ const CharacterSchema = z
             ringIndex,
             compatibility: 武魂.契合度 || 100,
             sourceQuality: 来源品质,
-            deferGenerationUntilSecondaryReady: hasPendingSecondaryTodoCandidates(武魂.附机制候选),
-            preferredSecondary: Array.isArray(武魂.附机制候选)
-              ? 武魂.附机制候选.filter(option => SOUL_SPIRIT_SECONDARY_OPTIONS_V1.includes(option))
-              : [],
+            preferredSecondary: [],
             elementProfile: runtimeElementProfile,
             unlockedAttributes: spiritAttributeState.已解锁属性,
             attributeCapacity: spiritAttributeState.可容纳属性,
@@ -13230,6 +13174,9 @@ const CharacterSchema = z
                   ? 武魂.表象名称
                   : spiritData?.表象名称 || skillName,
               type: char.属性.系别,
+              spiritDesc: String(武魂?.描述 || '').trim(),
+              martialSoulName: String(spiritData?.表象名称 || spiritKey || '').trim(),
+              ringSource: String(ring?.来源 || '').trim(),
             },
           }));
         });
@@ -13242,9 +13189,7 @@ const CharacterSchema = z
           inferSoulSpiritQuality(spiritData) ||
           '';
         if (ring && typeof ring === 'object' && !String(ring.颜色 || '').trim()) ring.颜色 = getRingColorByAge(ring.年限);
-        if (ring && typeof ring === 'object') {
-          ring.附机制候选 = normalizeSoulSpiritSecondaryCandidates(ring.附机制候选, char.属性.系别, ringIndex);
-        }
+        if (ring && typeof ring === 'object' && Object.prototype.hasOwnProperty.call(ring, '附机制候选')) delete ring.附机制候选;
         ensureSkillMapGenerated(ring?.魂技, (_, skillName) => ({
           type: char.属性.系别,
           talentTier: char.属性.天赋梯队,
@@ -13252,10 +13197,7 @@ const CharacterSchema = z
           ringIndex,
           compatibility: 100,
           sourceQuality: 来源品质,
-          deferGenerationUntilSecondaryReady: hasPendingSecondaryTodoCandidates(ring?.附机制候选),
-          preferredSecondary: Array.isArray(ring?.附机制候选)
-            ? ring.附机制候选.filter(option => SOUL_SPIRIT_SECONDARY_OPTIONS_V1.includes(option))
-            : [],
+          preferredSecondary: [],
           elementProfile: runtimeElementProfile,
           unlockedAttributes: spiritAttributeState.已解锁属性,
           attributeCapacity: spiritAttributeState.可容纳属性,
@@ -13265,6 +13207,9 @@ const CharacterSchema = z
           textContext: {
             spiritName: spiritData?.表象名称 || skillName,
             type: char.属性.系别,
+            spiritDesc: String(spiritData?.描述 || '').trim(),
+            martialSoulName: String(spiritData?.表象名称 || spiritKey || '').trim(),
+            ringSource: String(ring?.来源 || '').trim(),
           },
         }));
       });
@@ -14587,6 +14532,35 @@ export const Schema = z
         来源: 安全来源,
         关键词: 关键词列表,
       });
+    };
+
+    const 交易触发待处理标记 = '[交易触发待处理]';
+    const 提取交易热度关键词 = 文本 => {
+      const 原文 = String(文本 || '');
+      const 关键词 = [];
+      if (/\[买入热\]/.test(原文)) 关键词.push('买入热');
+      if (/\[卖出热\]/.test(原文)) 关键词.push('卖出热');
+      if (/\[竞拍热\]/.test(原文)) 关键词.push('竞拍热');
+      if (/\[兑换热\]/.test(原文)) 关键词.push('兑换热');
+      const 物品匹配 = 原文.match(/【([^】]{1,40})】/g) || [];
+      物品匹配.slice(0, 2).forEach(文本片段 => {
+        const 名称 = String(文本片段 || '').replace(/[【】]/g, '').trim();
+        if (名称) 关键词.push(名称);
+      });
+      const 地点匹配 = 原文.match(/在([^，。！？\s]{1,24})/);
+      if (地点匹配 && 地点匹配[1]) 关键词.push(String(地点匹配[1]).trim());
+      return Array.from(new Set(关键词.filter(Boolean)));
+    };
+
+    const 消费交易触发标记并推入情报 = () => {
+      if (!data || !data.sys || typeof data.sys !== 'object') return;
+      const 播报原文 = String(data.sys.系统播报 || '').trim();
+      if (!播报原文 || !播报原文.includes(交易触发待处理标记)) return;
+      const 热度关键词 = 提取交易热度关键词(播报原文);
+      if (热度关键词.length > 0) {
+        推入机密情报触发('交易', 热度关键词);
+      }
+      data.sys.系统播报 = 播报原文.replace(/\[交易触发待处理\]/g, '').replace(/\s{2,}/g, ' ').trim();
     };
 
     const 获取任务阶段跨度 = 任务条目 => {
@@ -16576,7 +16550,6 @@ export const Schema = z
               年限: spData.age,
               品质: AI_TODO_SOUL_SPIRIT_QUALITY,
               契合度: calculatedComp,
-              附机制候选: buildSoulSpiritSecondaryDefaultValue(char.属性.系别, 1),
               状态: '活跃',
               魂环: {},
             };
@@ -17548,6 +17521,7 @@ export const Schema = z
         };
       }
     });
+    消费交易触发标记并推入情报();
     推进机密情报核实流程();
 
     _(data.char).forEach((c, charName) => {
@@ -17797,6 +17771,7 @@ export const Schema = z
     追加旧选择回响播报();
 
     const REFRESH_INTERVAL = 1008;
+    const 市场耗散基础触发率 = 0.22;
 
     _(data.world.地点).forEach((cityData, cityName) => {
       if (!cityData.商店) cityData.商店 = {};
@@ -18002,6 +17977,76 @@ export const Schema = z
       }
     });
     });
+
+    const 计算商品库存耗散量 = 当前库存 => {
+      const 安全库存 = Math.max(0, Math.floor(Number(当前库存 || 0)));
+      if (安全库存 <= 0) return 0;
+      const 最大耗散 = 安全库存 >= 20 ? 4 : 安全库存 >= 8 ? 3 : 安全库存 >= 3 ? 2 : 1;
+      return Math.max(1, Math.min(安全库存, Math.floor(Math.random() * 最大耗散) + 1));
+    };
+
+    const 执行市场自然耗散 = () => {
+      if (Math.random() > 市场耗散基础触发率) return;
+      const 城市列表 = Object.entries(data.world?.地点 || {}).filter(([, 城市数据]) =>
+        城市数据 &&
+        typeof 城市数据 === 'object' &&
+        城市数据.商店 &&
+        typeof 城市数据.商店 === 'object' &&
+        !Array.isArray(城市数据.商店) &&
+        Object.keys(城市数据.商店).length > 0
+      );
+      if (!城市列表.length) return;
+      const 波动次数 = Math.random() < 0.75 ? 1 : 2;
+      const 波动记录 = [];
+      for (let i = 0; i < 波动次数; i += 1) {
+        const 城市项 = 城市列表[Math.floor(Math.random() * 城市列表.length)];
+        if (!城市项) continue;
+        const [城市名, 城市数据] = 城市项;
+        const 商店列表 = Object.entries(城市数据.商店 || {}).filter(([, 商店数据]) => {
+          if (!商店数据 || typeof 商店数据 !== 'object') return false;
+          const 距刷新剩余tick = Math.max(0, Number(商店数据.下次刷新tick || 0) - currentTick);
+          if (距刷新剩余tick >= Math.floor(REFRESH_INTERVAL * 0.9)) return false;
+          const 可售条目数 = Object.values(商店数据.库存 || {}).filter(
+            条目 => 条目 && typeof 条目 === 'object' && Math.max(0, Number(条目.库存 || 0)) > 0,
+          ).length;
+          return 可售条目数 > 0;
+        });
+        if (!商店列表.length) continue;
+        const [商店名, 商店数据] = 商店列表[Math.floor(Math.random() * 商店列表.length)];
+        const 商品列表 = Object.entries(商店数据.库存 || {}).filter(([, 商品数据]) =>
+          商品数据 &&
+          typeof 商品数据 === 'object' &&
+          Math.max(0, Number(商品数据.库存 || 0)) > 0
+        );
+        if (!商品列表.length) continue;
+        const [商品名, 商品数据] = 商品列表[Math.floor(Math.random() * 商品列表.length)];
+        const 当前库存 = Math.max(0, Number(商品数据.库存 || 0));
+        const 耗散量 = 计算商品库存耗散量(当前库存);
+        if (!(耗散量 > 0)) continue;
+        const 新库存 = Math.max(0, 当前库存 - 耗散量);
+        商品数据.库存 = 新库存;
+        const 价格值 = Math.max(0, Number(商品数据.价格 || 0));
+        const 高价值 = 价格值 >= 20000000 || /万年|十万|天锻|魂锻|四字斗铠|魂灵塔/.test(String(商品名 || ''));
+        波动记录.push({
+          城市名: String(城市名 || '').trim(),
+          商店名: String(商店名 || '').trim(),
+          商品名: String(商品名 || '').trim(),
+          耗散量,
+          新库存,
+          高价值,
+          耗尽: 新库存 <= 0,
+        });
+      }
+      if (!波动记录.length) return;
+      const 关键记录 = 波动记录.filter(项 => 项.耗尽 || 项.高价值);
+      if (!关键记录.length) return;
+      const 播报文本 = 关键记录
+        .slice(0, 2)
+        .map(项 => `${项.城市名 || '未知地区'}·${项.商店名 || '未知商店'}【${项.商品名 || '未知商品'}】-${项.耗散量}(余${项.新库存})`)
+        .join('；');
+      追加系统播报文本(data, `[市场波动] ${播报文本}`);
+    };
+    执行市场自然耗散();
     function tryGenerateDynamicItem(背包, itemName, basePrice, tier, prob) {
       if (Math.random() * 100 > prob) return;
 
@@ -18189,6 +18234,19 @@ export const Schema = z
           skill.附带属性 = [];
         const runtimeDecision = skill?.[技能机制决策临时字段_V1];
         if (runtimeDecision && typeof runtimeDecision === 'object' && !hasPackedEffects) {
+          const sourcePreferredRaw = runtimeDecision.副机制可选_魂环来源优先;
+          const sourcePreferredPendingText = 构建副机制来源优先待生成提示词_V1(runtimeDecision, textContext);
+          const sourcePreferredArray = Array.isArray(sourcePreferredRaw)
+            ? 规范化机制枚举数组_V1(sourcePreferredRaw).filter(item => SOUL_SPIRIT_SECONDARY_OPTIONS_V1.includes(item))
+            : [];
+          if (!sourcePreferredArray.length) {
+            const sourcePreferredText = String(sourcePreferredRaw || '').trim();
+            if (!sourcePreferredText || /^(待生成|待补全|待补充)/.test(sourcePreferredText)) {
+              runtimeDecision.副机制可选_魂环来源优先 = sourcePreferredPendingText;
+            }
+          } else {
+            runtimeDecision.副机制可选_魂环来源优先 = sourcePreferredArray;
+          }
           const selectedRaw = runtimeDecision.已选方案编号;
           if (!selectedRaw || (typeof selectedRaw === 'string' && !String(selectedRaw).trim())) {
             runtimeDecision.已选方案编号 = 构建技能机制决策待生成提示词_V1(runtimeDecision, textContext);
@@ -18314,7 +18372,7 @@ export const Schema = z
             if (isEmptyDisplayText(soulSpirit.描述))
               soulSpirit.描述 = buildSoulSpiritDescriptionTodoText(soulSpirit);
             ensureDisplayText(soulSpirit, '品质', AI_TODO_SOUL_SPIRIT_QUALITY);
-            ensureDisplayStringArray(soulSpirit, '附机制候选', AI_TODO_SOUL_SPIRIT_SECONDARY);
+            if (Object.prototype.hasOwnProperty.call(soulSpirit, '附机制候选')) delete soulSpirit.附机制候选;
             _(soulSpirit?.魂环 || {}).forEach(ringData => {
               if (!ringData || typeof ringData !== 'object') return;
               ensureDisplayText(ringData, '颜色', '无');
@@ -18332,14 +18390,11 @@ export const Schema = z
               }));
             });
           });
-          _(spiritData?.独立魂环 || {}).forEach((ringData, ringIndexStr) => {
+          _(spiritData?.独立魂环 || {}).forEach(ringData => {
             if (!ringData || typeof ringData !== 'object') return;
-            const ringIndex = parseInt(ringIndexStr) || 1;
             ensureDisplayText(ringData, '颜色', '无');
             ensureDisplayText(ringData, '来源', '无');
-            const 默认候选 = buildSoulSpiritSecondaryDefaultValue(spiritType, ringIndex);
-            const 默认提示词 = Array.isArray(默认候选) && 默认候选.length ? 默认候选[0] : AI_TODO_SOUL_SPIRIT_SECONDARY;
-            ensureDisplayStringArray(ringData, '附机制候选', 默认提示词);
+            if (Object.prototype.hasOwnProperty.call(ringData, '附机制候选')) delete ringData.附机制候选;
             injectDisplaySkillMapDefaults(ringData.魂技, skillName => ({
               type: spiritType,
               textContext: {

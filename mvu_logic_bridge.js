@@ -891,9 +891,9 @@
       return `
         <div class="timeline-stack">
           ${(items || []).map(item => `
-            <div class="timeline-card${item && item.preview ? ' clickable' : ''}"${item && item.preview ? ` data-preview="${escapeHtmlAttr(item.preview)}"` : ''}>
+            <div class="timeline-card${item && item.className ? ` ${item.className}` : ''}${item && item.preview ? ' clickable' : ''}"${item && item.preview ? ` data-preview="${escapeHtmlAttr(item.preview)}"` : ''}>
               <b>${item.title}</b>
-              <span>${item.desc}</span>
+              <span${item && item.descTitle ? ` title="${escapeHtmlAttr(toText(item.descTitle, ''))}"` : ''}>${item.desc}</span>
             </div>
           `).join('')}
         </div>
@@ -1484,6 +1484,11 @@
     let lastDashboardRenderSignature = '';
     let lastDashboardSectionRenderSignatures = null;
     let liveUiRefCache = new Map();
+    let 可玩选项短锁截止时间 = 0;
+    let 可玩选项短锁键 = '';
+    let 慢刷新骨架已启用 = false;
+    const 慢刷新骨架预览键列表 = Object.freeze(['系统播报与日志', '操作总线', '试炼与情报']);
+    const 慢刷新骨架预览键集合 = new Set(慢刷新骨架预览键列表);
 
     function htmlEscape(value) {
       return String(value == null ? '' : value)
@@ -10358,6 +10363,56 @@
       };
     }
 
+    function 收集本地商店商品样本(locationData = {}) {
+      const 样本 = [];
+      safeEntries(deepGet(locationData, '商店', {})).forEach(([商店名, 商店数据]) => {
+        safeEntries(deepGet(商店数据, '库存', {})).forEach(([商品名, 商品数据]) => {
+          if (!商品数据 || typeof 商品数据 !== 'object') return;
+          样本.push({
+            商店名: toText(商店名, '未知商店'),
+            商品名: toText(商品名, '未知商品'),
+            库存: Math.max(0, toNumber(商品数据 && 商品数据['库存'], 0)),
+            价格: Math.max(0, toNumber(商品数据 && 商品数据['价格'], 0)),
+          });
+        });
+      });
+      return 样本;
+    }
+
+    function 计算本地供给指标(locationData = {}) {
+      const 商品样本 = 收集本地商店商品样本(locationData);
+      if (!商品样本.length) return '无供给';
+      const 总库存 = 商品样本.reduce((总和, 项) => 总和 + Math.max(0, toNumber(项 && 项['库存'], 0)), 0);
+      const 缺货数 = 商品样本.filter(项 => Math.max(0, toNumber(项 && 项['库存'], 0)) <= 0).length;
+      const 均值库存 = 总库存 / Math.max(1, 商品样本.length);
+      const 缺货占比 = 缺货数 / Math.max(1, 商品样本.length);
+      if (总库存 <= 0 || 缺货占比 >= 0.55 || 均值库存 < 1.5) return '紧缺';
+      if (缺货占比 >= 0.3 || 均值库存 < 3.5) return '偏紧';
+      if (均值库存 >= 9) return '充裕';
+      return '平衡';
+    }
+
+    function 计算本地价格带指标(locationData = {}) {
+      const 商品样本 = 收集本地商店商品样本(locationData);
+      const 价格样本 = 商品样本.map(项 => Math.max(0, toNumber(项 && 项['价格'], 0))).filter(价格 => 价格 > 0);
+      if (!价格样本.length) return '无';
+      const 均价 = 价格样本.reduce((总和, 价格) => 总和 + 价格, 0) / Math.max(1, 价格样本.length);
+      if (均价 < 100000) return '低价';
+      if (均价 < 2000000) return '中价';
+      if (均价 < 50000000) return '高价';
+      return '超高价';
+    }
+
+    function 提取最近成交影响指标(系统播报 = '') {
+      const 播报文本 = toText(系统播报, '');
+      if (!播报文本) return '平稳';
+      const 标签匹配 = Array.from(播报文本.matchAll(/\[(买入热|卖出热|竞拍热|兑换热|市场波动)\]/g))
+        .map(match => toText(match && match[1], '').trim())
+        .filter(Boolean);
+      if (!标签匹配.length) return '平稳';
+      return 标签匹配[标签匹配.length - 1];
+    }
+
     function buildSnapshot(sd) {
       const rawRootData = sd && typeof sd === 'object' ? sd : {};
       const contextMeta = getCurrentChatContextMeta();
@@ -10637,6 +10692,9 @@
           : (flagEntries.length ? `世界状态 ${flagEntries.length} 项` : '无'));
       const auctionStatus = toText(deepGet(sd, 'world.拍卖.状态', '休市'), '休市');
       const auctionLocation = toText(deepGet(sd, 'world.拍卖.地点', '无'), '无');
+      const 本地供给 = 计算本地供给指标(locationData);
+      const 价格带 = 计算本地价格带指标(locationData);
+      const 最近成交影响 = 提取最近成交影响指标(deepGet(sd, 'sys.系统播报', ''));
 
       const chars = sd && sd.char ? sd.char : {};
       const charEntries = safeEntries(chars);
@@ -10695,6 +10753,9 @@
         图鉴成长倾向,
         recentTitles,
         worldAlert: warningText,
+        本地供给,
+        价格带,
+        最近成交影响,
         bestiaryEntries,
         forestKilledAge,
         auctionStatus,
@@ -10955,6 +11016,68 @@
 
     function setLiveHtml(selector, value) {
       getLiveUiElements(selector).forEach(node => setLiveNodeHtml(node, value));
+    }
+
+    function 构建慢刷新骨架终端卡() {
+      return `
+        <div class="module-name">系统播报</div>
+        <div class="terminal-overview">
+          <div class="terminal-metric live terminal-skeleton-row"><b>核心状态</b><span>加载中...</span></div>
+          <div class="terminal-metric terminal-skeleton-row"><b>最近播报</b><span>加载中...</span></div>
+          <div class="terminal-metric terminal-skeleton-row"><b>最近安排</b><span>加载中...</span></div>
+        </div>
+        <div class="terminal-log">
+          <div class="terminal-channel-strip">
+            <span class="terminal-channel-chip live">状态</span>
+            <span class="terminal-channel-chip">播报</span>
+            <span class="terminal-channel-chip">安排</span>
+          </div>
+          <div class="log-line sys terminal-skeleton-row"><b>[状态]</b> 加载中...</div>
+          <div class="log-line roll terminal-skeleton-row"><b>[播报]</b> 加载中...</div>
+          <div class="log-line bus terminal-skeleton-row"><b>[安排]</b> 加载中...</div>
+        </div>
+        <div class="module-foot">
+          <span class="foot-hint">数据刷新中</span>
+          <span class="enter-chip">同步中</span>
+        </div>
+      `;
+    }
+
+    function 构建慢刷新骨架侧卡(标题 = '加载中') {
+      return `
+        <div class="simple-head"><div class="simple-title">${htmlEscape(toText(标题, '加载中'))}</div></div>
+        <div class="simple-list">
+          <div class="simple-row"><b>状态</b><span>加载中...</span></div>
+          <div class="simple-row"><b>数据</b><span>正在同步</span></div>
+        </div>
+      `;
+    }
+
+    function 应用慢刷新骨架卡片() {
+      setLiveHtml('[data-preview="系统播报与日志"].terminal-hero-card', 构建慢刷新骨架终端卡());
+      setLiveHtml('[data-preview="操作总线"].terminal-side-card, [data-preview="操作总线"].mvu-simple-card, [data-preview="操作总线"].simple-card', 构建慢刷新骨架侧卡('近期安排'));
+      setLiveHtml('[data-preview="试炼与情报"].terminal-side-card, [data-preview="试炼与情报"].mvu-simple-card, [data-preview="试炼与情报"].simple-card', 构建慢刷新骨架侧卡('试炼与情报'));
+    }
+
+    function 设置慢刷新骨架状态(启用 = false, 选项 = {}) {
+      const 需刷新详情 = Object.prototype.hasOwnProperty.call(选项 || {}, '刷新详情')
+        ? !!选项.刷新详情
+        : true;
+      if (启用) {
+        if (!慢刷新骨架已启用) {
+          慢刷新骨架已启用 = true;
+          应用慢刷新骨架卡片();
+        }
+      } else if (慢刷新骨架已启用) {
+        慢刷新骨架已启用 = false;
+      }
+      if (!需刷新详情) return;
+      const 当前详情预览键 = toText(currentUnifiedPreviewKey || currentModalPreviewKey, '').trim();
+      if (!当前详情预览键 || !慢刷新骨架预览键集合.has(当前详情预览键)) return;
+      rerenderDetailSurface(当前详情预览键, {
+        surface: currentUnifiedPreviewKey ? 'unified' : 'modal',
+        force: true,
+      });
     }
 
     function renderHeader(snapshot) {
@@ -13397,6 +13520,9 @@
             { label: '地点', value: snapshot.normalizedLoc !== snapshot.currentLoc ? `${snapshot.normalizedLoc} / ${snapshot.currentLoc}` : snapshot.currentLoc },
             { label: '地图', value: getMapDisplayName(snapshot) },
             { label: '入口', value: '展开节点详情' },
+            { label: '本地供给', value: toText(snapshot && snapshot.本地供给, '无供给') },
+            { label: '价格带', value: toText(snapshot && snapshot.价格带, '无') },
+            { label: '最近成交', value: toText(snapshot && snapshot.最近成交影响, '平稳') },
           ]), { preview: '当前节点详情', surface: normalizedSurface });
           setUnifiedCardMarkup('map-route', `
             <div class="simple-head"><div class="simple-title">移动与导航</div></div>
@@ -13411,6 +13537,9 @@
             <div class="simple-list">
               <div class="simple-row"><b>可见动态点</b><span>${htmlEscape(String(snapshot.mapVisibleDynamicEntries.length || 0))}</span></div>
               <div class="simple-row"><b>最近变化</b><span>${htmlEscape(snapshot.latestTimeline ? snapshot.latestTimeline[0] : '暂无')}</span></div>
+              <div class="simple-row"><b>本地供给</b><span>${htmlEscape(toText(snapshot && snapshot.本地供给, '无供给'))}</span></div>
+              <div class="simple-row"><b>价格带</b><span>${htmlEscape(toText(snapshot && snapshot.价格带, '无'))}</span></div>
+              <div class="simple-row"><b>最近成交</b><span>${htmlEscape(toText(snapshot && snapshot.最近成交影响, '平稳'))}</span></div>
             </div>
           `, { preview: '动态地点与扩展节点', surface: normalizedSurface });
         }
@@ -13578,7 +13707,10 @@
         setUnifiedCardMarkup('map-current', buildSimpleCard('当前位置', { text: '当前' }, [
           { label: '地点', value: snapshot.normalizedLoc !== snapshot.currentLoc ? `${snapshot.normalizedLoc} / ${snapshot.currentLoc}` : snapshot.currentLoc },
           { label: '地图', value: getMapDisplayName(snapshot) },
-          { label: '入口', value: '展开节点详情' }
+          { label: '入口', value: '展开节点详情' },
+          { label: '本地供给', value: toText(snapshot && snapshot.本地供给, '无供给') },
+          { label: '价格带', value: toText(snapshot && snapshot.价格带, '无') },
+          { label: '最近成交', value: toText(snapshot && snapshot.最近成交影响, '平稳') }
         ]), { preview: '当前节点详情' });
         setUnifiedCardMarkup('map-route', `
           <div class="simple-head"><div class="simple-title">移动与导航</div></div>
@@ -13593,6 +13725,9 @@
           <div class="simple-list">
             <div class="simple-row"><b>可见动态点</b><span>${htmlEscape(String(snapshot.mapVisibleDynamicEntries.length || 0))}</span></div>
             <div class="simple-row"><b>最近变化</b><span>${htmlEscape(snapshot.latestTimeline ? snapshot.latestTimeline[0] : '暂无')}</span></div>
+            <div class="simple-row"><b>本地供给</b><span>${htmlEscape(toText(snapshot && snapshot.本地供给, '无供给'))}</span></div>
+            <div class="simple-row"><b>价格带</b><span>${htmlEscape(toText(snapshot && snapshot.价格带, '无'))}</span></div>
+            <div class="simple-row"><b>最近成交</b><span>${htmlEscape(toText(snapshot && snapshot.最近成交影响, '平稳'))}</span></div>
           </div>
         `, { preview: '动态地点与扩展节点' });
       }
@@ -13896,33 +14031,28 @@
       const latestBroadcast = toText(sys.系统播报, '暂无播报');
       const latestEvent = recentNews.cards[0] ? recentNews.cards[0].desc : '暂无事件';
       const pendingRequestText = recentPlans.cards[0] ? recentPlans.cards[0].desc : '暂无安排';
-      const intelText = recentNews.personalNews[0]
-        ? recentNews.personalNews[0].desc
-        : getLatestUnlockedIntelText(snapshot, 20, '暂无新情报');
-      const intelCount = (snapshot.unlockedKnowledges || []).length || 0;
+      const 核心状态摘要 = shortenText(`${snapshot.worldAlert.includes('高危') ? '高压同步' : '稳定同步'} · ${toText(snapshot.currentLoc, '未知地点')}`, 24);
+      const 最近播报摘要 = shortenText(latestBroadcast, 24);
+      const 最近安排摘要 = shortenText(pendingRequestText, 24);
       return `
         <div class="module-name">系统播报</div>
         <div class="terminal-overview">
-          <div class="terminal-metric live clickable" data-preview="近期见闻"><b>系统状态</b><span>${htmlEscape(snapshot.worldAlert.includes('高危') ? '高压同步' : '稳定')}</span></div>
-          <div class="terminal-metric clickable" data-preview="系统播报与日志"><b>最近播报</b><span>${htmlEscape(shortenText(latestBroadcast, 14))}</span></div>
-          <div class="terminal-metric clickable" data-preview="操作总线"><b>当前安排</b><span>${htmlEscape(recentPlans.cards.length ? `${recentPlans.cards.length} 项` : '暂无')}</span></div>
-          <div class="terminal-metric gold clickable" data-preview="试炼与情报"><b>情报库</b><span>${htmlEscape(intelCount ? `${intelCount} 条` : '暂无')}</span></div>
+          <div class="terminal-metric live clickable" data-preview="近期见闻"><b>核心状态</b><span>${htmlEscape(核心状态摘要)}</span></div>
+          <div class="terminal-metric clickable" data-preview="系统播报与日志"><b>最近播报</b><span>${htmlEscape(最近播报摘要)}</span></div>
+          <div class="terminal-metric clickable" data-preview="操作总线"><b>最近安排</b><span>${htmlEscape(最近安排摘要)}</span></div>
         </div>
         <div class="terminal-log">
-          <div class="terminal-log-head"><span>近期播报</span><b>终端在线</b></div>
-          <div class="terminal-channel-strip">
-            <span class="terminal-channel-chip live">播报</span>
-            <span class="terminal-channel-chip">事件</span>
+          <div class="terminal-channel-strip terminal-channel-strip--single">
+            <span class="terminal-channel-chip live">状态</span>
+            <span class="terminal-channel-chip">播报</span>
             <span class="terminal-channel-chip">安排</span>
-            <span class="terminal-channel-chip gold">情报</span>
           </div>
-          <div class="log-line sys"><b>[播报]</b> ${htmlEscape(latestBroadcast)}</div>
-          <div class="log-line roll"><b>[事件]</b> ${htmlEscape(latestEvent)}</div>
-          <div class="log-line bus"><b>[安排]</b> ${htmlEscape(pendingRequestText)}</div>
-          <div class="log-line intel"><b>[情报]</b> ${htmlEscape(intelText)}</div>
+          <div class="log-line sys log-line--single"><b>[状态]</b> ${htmlEscape(shortenText(`${snapshot.worldAlert} · ${latestEvent}`, 40))}</div>
+          <div class="log-line roll log-line--single"><b>[播报]</b> ${htmlEscape(shortenText(latestBroadcast, 40))}</div>
+          <div class="log-line bus log-line--single"><b>[安排]</b> ${htmlEscape(shortenText(pendingRequestText, 40))}</div>
         </div>
         <div class="module-foot">
-          <span class="foot-hint">最近播报：${htmlEscape(toText(sys.系统播报, '无'))}</span>
+          <span class="foot-hint">${htmlEscape(shortenText(toText(sys.系统播报, '无'), 26))}</span>
           <span class="enter-chip">展开日志</span>
         </div>
       `;
@@ -14086,8 +14216,8 @@
         <div class="simple-head"><div class="simple-title">近期安排</div></div>
         <div class="simple-list">
           ${(() => { const planSummary = buildRecentPlanSummary(snapshot, { worldLimit: 1, recordLimit: 1 }); return `
-          <div class="simple-row"><b>世界安排</b><span>${htmlEscape(planSummary.worldPlans[0] ? planSummary.worldPlans[0].desc : '暂无')}</span></div>
-          <div class="simple-row"><b>个人待办</b><span>${htmlEscape(planSummary.personalPlans[0] ? planSummary.personalPlans[0].desc : '暂无')}</span></div>
+          <div class="simple-row"><b>世界安排</b><span>${htmlEscape(shortenText(planSummary.worldPlans[0] ? planSummary.worldPlans[0].desc : '暂无', 24))}</span></div>
+          <div class="simple-row"><b>个人待办</b><span>${htmlEscape(shortenText(planSummary.personalPlans[0] ? planSummary.personalPlans[0].desc : '暂无', 24))}</span></div>
           `; })()}
         </div>
       `);
@@ -14097,7 +14227,7 @@
           <div class="simple-row"><b>试炼入口</b><span>${htmlEscape(getTrialEntranceText(snapshot))}</span></div>
           <div class="simple-row"><b>待核实</b><span>${htmlEscape(`${toNumber(snapshot && snapshot.情报待核实数量, 0)} 条`)}</span></div>
           <div class="simple-row"><b>证据净值</b><span>${htmlEscape(String(toNumber(snapshot && snapshot.情报证据净值, 0)))}</span></div>
-          <div class="simple-row"><b>最近核实</b><span>${htmlEscape(toText(snapshot && snapshot.情报最近核实结果, '暂无核实记录'))}</span></div>
+          <div class="simple-row"><b>最近核实</b><span>${htmlEscape(shortenText(toText(snapshot && snapshot.情报最近核实结果, '暂无核实记录'), 24))}</span></div>
         </div>
       `);
         setLiveHtml('[data-preview="近期见闻"].terminal-side-card, [data-preview="近期见闻"].mvu-simple-card, [data-preview="近期见闻"].simple-card', `
@@ -14164,6 +14294,16 @@
     function buildLiveArchiveModal(previewKey) {
       if (!liveSnapshot) return null;
       const snapshot = liveSnapshot;
+      if (慢刷新骨架已启用 && 慢刷新骨架预览键集合.has(previewKey)) {
+        const 骨架视图 = buildArchiveSkeletonModal(previewKey);
+        if (骨架视图) {
+          return {
+            title: 骨架视图.title,
+            summary: '',
+            body: 骨架视图.body,
+          };
+        }
+      }
       const tradeLaunchOptions = buildMapTradeModalOptions(snapshot, mapDispatchContext);
       const stat = deepGet(snapshot, 'activeChar.属性', {});
       const social = deepGet(snapshot, 'activeChar.社交', {});
@@ -17426,6 +17566,9 @@
                       <div class="location-summary-card location-summary-card--highlight"><b>综合评级</b><span>${htmlEscape(toText(nodeInfo.data && nodeInfo.data['经济状况'], '未知'))}</span></div>
                       <div class="location-summary-card"><b>守备评估</b><span>${htmlEscape(toText(nodeInfo.data && nodeInfo.data['守护军团'], '无军团驻扎'))}</span></div>
                       <div class="location-summary-card"><b>补给节点</b><span>${htmlEscape(nodeStores.length ? `${nodeStores.length} 处贸易站或设施` : '无可见商店')}</span></div>
+                      <div class="location-summary-card"><b>本地供给</b><span>${htmlEscape(toText(snapshot && snapshot.本地供给, '无供给'))}</span></div>
+                      <div class="location-summary-card"><b>价格带</b><span>${htmlEscape(toText(snapshot && snapshot.价格带, '无'))}</span></div>
+                      <div class="location-summary-card"><b>最近成交</b><span>${htmlEscape(toText(snapshot && snapshot.最近成交影响, '平稳'))}</span></div>
                       <div class="location-summary-card location-summary-card--note"><b>地图简报</b><span>${locationBasePath.length
                         ? makeInlineEditableValue(toText(deepGet(nodeInfo.data, 'desc', mapNode ? mapNode.desc : '无扫描数据'), mapNode ? mapNode.desc : '无扫描数据'), {
                             path: [...locationBasePath, 'desc'],
@@ -17687,7 +17830,7 @@
         const planSummary = buildRecentPlanSummary(snapshot, { worldLimit: 6, recordLimit: 6 });
         return {
           title: '近期安排',
-          summary: '世界日程与个人待办的双视角安排板。',
+          summary: '',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
               <div class="archive-card full">
@@ -17704,15 +17847,18 @@
               ${构建可玩选项卡区(snapshot, '操作总线')}
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">世界日程</div></div>
-                ${makeTimelineStack(planSummary.worldPlans.length ? planSummary.worldPlans : [{ title: '暂无世界安排', desc: '当前未记录待触发的世界日程。' }])}
+                ${makeTimelineStack(planSummary.worldPlans.length ? planSummary.worldPlans : [{ title: '暂无世界安排', desc: '暂无', className: 'timeline-card--single' }])}
               </div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">个人待办</div></div>
-                ${makeTimelineStack(planSummary.personalPlans.length ? planSummary.personalPlans : [{ title: '暂无个人待办', desc: '当前未记录进行中的个人任务。' }])}
+                ${makeTimelineStack(planSummary.personalPlans.length ? planSummary.personalPlans : [{ title: '暂无个人待办', desc: '暂无', className: 'timeline-card--single' }])}
               </div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">请求摘要</div></div>
-                ${makeTimelineStack((snapshot.pendingRequests.length ? snapshot.pendingRequests : ['暂无请求摘要']).map((item, index) => ({ title: `请求 ${index + 1}`, desc: item })))}
+                ${makeTimelineStack((snapshot.pendingRequests.length ? snapshot.pendingRequests : ['暂无请求摘要']).map((item, index) => ({
+                  title: `请求 ${index + 1}`,
+                  desc: item,
+                })))}
               </div>
             </div>
           `
@@ -17750,8 +17896,16 @@
         const towerGateText = getSoulTowerStageTextByHighestFloor(towerHighestFloor);
         const towerNextBossText = getSoulTowerNextBossFloorText(towerHighestFloor);
         const ticketCards = trialTickets.length
-          ? trialTickets.map(([name, item]) => ({ title: `${name} ×${toNumber(item && item['数量'], 0)}`, desc: toText(item && item['描述'], '可用于对应试炼场景。') }))
-          : [{ title: '暂无试炼门票', desc: '当前背包中没有可用试炼门票。' }];
+          ? trialTickets.map(([name, item]) => {
+            const 原始描述 = toText(item && item['描述'], '可用于对应试炼场景。');
+            return {
+              title: `${name} ×${toNumber(item && item['数量'], 0)}`,
+              desc: shortenText(原始描述, 22),
+              descTitle: 原始描述,
+              className: 'intel-card--single',
+            };
+          })
+          : [{ title: '暂无试炼门票', desc: '暂无可用门票', className: 'intel-card--single' }];
         const ascensionTicketOptionsHtml = ascensionTickets.length
           ? ascensionTickets.map(name => `<option value="${escapeHtmlAttr(name)}">${htmlEscape(name)}</option>`).join('')
           : '<option value="">暂无门票</option>';
@@ -17761,10 +17915,9 @@
         delete modalFocusState[`${previewKey}::trial-focus`];
         return {
           title: '试炼与情报',
-          summary: '当前试炼资源、票据储备与近期风险情报。',
+          summary: '',
           body: `
             <div class="archive-modal-grid" style="grid-template-columns: repeat(2, minmax(0, 1fr)); align-items:stretch;">
-              ${构建可玩选项卡区(snapshot, '试炼与情报')}
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">试炼总览</div></div>
                 ${makeTileGrid([
@@ -17782,7 +17935,7 @@
                           : htmlEscape(String(toNumber(deepGet(snapshot, 'activeChar.魂灵塔记录.最高层', 0), 0))),
                       }, {
                         label: '当前分区',
-                        value: towerStageText,
+                        value: towerGateText,
                       }, {
                         label: '下个区间上限',
                         value: towerNextBossText,
@@ -17795,32 +17948,38 @@
               </div>
 
               <div class="archive-card full">
-                <div class="archive-card-head"><div class="archive-card-title">${soulTowerEligible ? '试炼票据与当前资格' : '试炼票据'}</div></div>
+                <div class="archive-card-head"><div class="archive-card-title">门票与资格</div></div>
                 <div class="intel-layout" style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px;">
-                  ${ticketCards.map(item => `<div class="intel-card" style="min-height:116px;"><b>${htmlEscape(item.title)}</b><span>${htmlEscape(item.desc)}</span></div>`).join('')}
+                  ${ticketCards.map(item => `<div class="intel-card ${item.className || ''}" style="min-height:116px;"><b>${htmlEscape(item.title)}</b><span${item.descTitle ? ` title="${escapeHtmlAttr(item.descTitle)}"` : ''}>${htmlEscape(item.desc)}</span></div>`).join('')}
                 </div>
                 ${soulTowerEligible ? `
                   <div style="margin-top:12px;">
                     ${makeTimelineStack(hasActiveSoulTowerDiscountSpirit(towerDiscountSpirit)
-                      ? [{ title: '当前可五折魂灵', desc: `${buildSoulTowerDiscountSpiritDisplay(towerDiscountSpirit)} · 前往传灵塔后可半价购买` }]
-                      : [{ title: '暂无折扣资格', desc: '当前未记录可用的魂灵塔五折目标。' }])}
+                      ? [{
+                        title: '当前可五折魂灵',
+                        desc: shortenText(`${buildSoulTowerDiscountSpiritDisplay(towerDiscountSpirit)} · 前往传灵塔后可半价购买`, 34),
+                        descTitle: `${buildSoulTowerDiscountSpiritDisplay(towerDiscountSpirit)} · 前往传灵塔后可半价购买`,
+                        className: 'timeline-card--single',
+                      }]
+                      : [{ title: '暂无折扣资格', desc: '暂无可用的五折目标', className: 'timeline-card--single' }])}
                   </div>
                 ` : ''}
               </div>
+              ${构建可玩选项卡区(snapshot, '试炼与情报')}
 
               ${isPlayerControlled && activeCharKey ? `
                 <div class="archive-card full">
-                  <div class="archive-card-head"><div class="archive-card-title">试炼操作</div></div>
+                  <div class="archive-card-head"><div class="archive-card-title">可执行操作</div></div>
                   <div class="request-console-row" data-collection-panel="trial-ascension" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
                     <select class="request-console-input" data-collection-input="asc-ticket" style="margin:0; flex:1 1 180px;">${ascensionTicketOptionsHtml}</select>
                     <select class="request-console-input" data-collection-input="asc-target" style="margin:0; flex:1 1 260px;">${soulSpiritTargetOptionsHtml}</select>
                     <input type="number" min="1" class="request-console-input" data-collection-input="asc-gain" value="100" style="margin:0; width:110px; flex:0 0 110px;" placeholder="提升年限" />
-                    <button type="button" class="tag-chip live" data-collection-action="run-ascension" data-collection-char="${escapeHtmlAttr(activeCharKey)}" ${canRunAscensionAtCurrentLocation ? '' : 'disabled'}>执行升灵</button>
+                    <button type="button" class="tag-chip live request-console-primary-action" data-collection-action="run-ascension" data-collection-char="${escapeHtmlAttr(activeCharKey)}" ${canRunAscensionAtCurrentLocation ? '' : 'disabled'}>执行升灵</button>
                   </div>
                   ${soulTowerEligible ? `
                     <div class="request-console-row" data-collection-panel="trial-tower" style="display:flex; gap:8px; flex-wrap:wrap;">
                       <input type="number" min="1" class="request-console-input" data-collection-input="tower-floor" value="${escapeHtmlAttr(String(Math.max(1, toNumber(deepGet(snapshot, 'activeChar.魂灵塔记录.最高层', 0), 0) + 1)))}" style="margin:0; width:110px; flex:0 0 110px;" placeholder="层数" />
-                      <button type="button" class="tag-chip live" data-collection-action="run-soul-tower" data-collection-char="${escapeHtmlAttr(activeCharKey)}" ${canStartSoulTowerAtCurrentLocation ? '' : 'disabled'}>开始冲塔</button>
+                      <button type="button" class="tag-chip live request-console-primary-action" data-collection-action="run-soul-tower" data-collection-char="${escapeHtmlAttr(activeCharKey)}" ${canStartSoulTowerAtCurrentLocation ? '' : 'disabled'}>开始冲塔</button>
                     </div>
                   ` : ''}
                 </div>
@@ -17829,7 +17988,7 @@
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">近期情报</div></div>
                 <div class="intel-layout" style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px;">
-                  ${(snapshot.unlockedKnowledges.length ? snapshot.unlockedKnowledges.slice(-4).reverse() : ['情报仍待收集']).map(item => `<div class="intel-card" style="min-height:116px;"><b>${htmlEscape(item)}</b><span>${htmlEscape(item)}</span></div>`).join('')}
+                  ${(snapshot.unlockedKnowledges.length ? snapshot.unlockedKnowledges.slice(-4).reverse() : ['情报仍待收集']).map(item => `<div class="intel-card intel-card--single" style="min-height:116px;"><b>${htmlEscape(shortenText(item, 20))}</b><span title="${escapeHtmlAttr(item)}">${htmlEscape(shortenText(item, 24))}</span></div>`).join('')}
                 </div>
               </div>
             </div>
@@ -18244,8 +18403,18 @@
     }
 
     async function refreshLiveSnapshot(options = {}) {
+      let 慢刷新骨架计时器 = 0;
+      let 已触发慢刷新骨架 = false;
+      let 已写回真实卡片 = false;
       try {
         const refreshInlineEditToken = inlineEditSessionToken;
+        if (!options.force) {
+          慢刷新骨架计时器 = window.setTimeout(() => {
+            if (refreshInlineEditToken !== inlineEditSessionToken) return;
+            已触发慢刷新骨架 = true;
+            设置慢刷新骨架状态(true, { 刷新详情: true });
+          }, 300);
+        }
         if (shouldPauseLiveRefresh(options)) {
           pendingLiveRefresh = true;
           return;
@@ -18286,14 +18455,19 @@
         const nextDashboardRenderSignature = buildDashboardRenderSignature(liveSnapshot, nextDashboardSectionRenderSignatures);
         const shouldRenderHeader = !!options.force || nextHeaderRenderSignature !== lastHeaderRenderSignature;
         const shouldRenderDashboard = !!options.force || nextDashboardRenderSignature !== lastDashboardRenderSignature;
+        const 需要渲染仪表盘 = shouldRenderDashboard || 已触发慢刷新骨架;
+        if (已触发慢刷新骨架) {
+          设置慢刷新骨架状态(false, { 刷新详情: false });
+        }
 
         if (shouldRenderHeader) {
           renderHeader(liveSnapshot);
           lastHeaderRenderSignature = nextHeaderRenderSignature;
         }
-        if (shouldRenderDashboard) {
+        if (需要渲染仪表盘) {
           renderLiveCards(liveSnapshot, nextDashboardSectionRenderSignatures);
           lastDashboardRenderSignature = nextDashboardRenderSignature;
+          已写回真实卡片 = true;
         }
         syncPrivateArchiveLongPressTargets(liveSnapshot);
         maybeOpenTradeRequestFromAI(liveSnapshot);
@@ -18303,7 +18477,7 @@
 
         const effectiveUnifiedPreviewKey = getEffectiveUnifiedPreviewKey();
         const activeDetailPreviewKey = effectiveUnifiedPreviewKey || currentModalPreviewKey;
-        if ((shouldRenderDashboard || !!options.force) && (detailModal.classList.contains('show') || isShellInlinePreviewActive() || isUnifiedInlinePreviewActive()) && activeDetailPreviewKey) {
+        if ((需要渲染仪表盘 || !!options.force) && (detailModal.classList.contains('show') || isShellInlinePreviewActive() || isUnifiedInlinePreviewActive()) && activeDetailPreviewKey) {
           if (activeDetailPreviewKey === '角色切换器') {
             return;
           }
@@ -18329,6 +18503,22 @@
         }
       } catch (error) {
         console.warn('[DragonUI] MVU 实时渲染失败', error);
+      } finally {
+        if (慢刷新骨架计时器) window.clearTimeout(慢刷新骨架计时器);
+        if (慢刷新骨架已启用) {
+          设置慢刷新骨架状态(false, { 刷新详情: false });
+          if (!已写回真实卡片 && lastRenderableSnapshot) {
+            const 回退区段签名 = buildDashboardSectionRenderSignatures(lastRenderableSnapshot);
+            renderLiveCards(lastRenderableSnapshot, 回退区段签名);
+          }
+          const 当前详情预览键 = toText(currentUnifiedPreviewKey || currentModalPreviewKey, '').trim();
+          if (当前详情预览键 && (detailModal.classList.contains('show') || isShellInlinePreviewActive() || isUnifiedInlinePreviewActive())) {
+            rerenderDetailSurface(当前详情预览键, {
+              surface: currentUnifiedPreviewKey ? 'unified' : 'modal',
+              force: true,
+            });
+          }
+        }
       }
     }
 
@@ -20047,6 +20237,90 @@
           高收益失败代价币,
           稳妥失败代价币,
         },
+      };
+    };
+    window.__LWCS_INSPECT_PHASE3_LINKAGE__ = function inspectPhase3Linkage(options = {}) {
+      const 快照 = window.__MVU_GET_LIVE_SNAPSHOT__?.() || liveSnapshot || lastRenderableSnapshot || null;
+      if (!快照 || !快照.rootData) return { ok: false, reason: 'phase3_linkage_snapshot_missing' };
+      const 根数据 = 快照.rootData || {};
+      const 系统播报 = toText(deepGet(根数据, 'sys.系统播报', ''), '');
+      const 地点条目 = safeEntries(deepGet(根数据, 'world.地点', {})).filter(([, item]) => item && typeof item === 'object');
+      const 库存条目 = [];
+      地点条目.forEach(([地点名, 地点数据]) => {
+        safeEntries(deepGet(地点数据, '商店', {})).forEach(([商店名, 商店数据]) => {
+          safeEntries(deepGet(商店数据, '库存', {})).forEach(([商品名, 商品数据]) => {
+            if (!商品数据 || typeof 商品数据 !== 'object') return;
+            库存条目.push({
+              地点: 地点名,
+              商店: 商店名,
+              商品: 商品名,
+              库存: toNumber(商品数据 && 商品数据['库存'], 0),
+              价格: toNumber(商品数据 && 商品数据['价格'], 0),
+            });
+          });
+        });
+      });
+      const 情报条目 = safeEntries(deepGet(根数据, 'world.机密情报', {})).filter(([, item]) => item && typeof item === 'object');
+      const 交易触发命中数 = 情报条目.filter(([, item]) => {
+        const 触发来源 = toText(item && item['触发来源'], '');
+        const 来源列表 = Array.isArray(item && item['证据来源列表']) ? item['证据来源列表'] : [];
+        return 触发来源 === '交易' || 来源列表.some(来源 => toText(来源, '') === '交易');
+      }).length;
+      const 最近成交标签 = Array.from(系统播报.matchAll(/\[(买入热|卖出热|竞拍热|兑换热)\]/g))
+        .map(match => toText(match && match[1], '').trim())
+        .filter(Boolean)
+        .slice(-1)[0] || '无';
+      const 市场波动命中 = /\[市场波动\]/.test(系统播报);
+      return {
+        ok: true,
+        看板: {
+          本地供给: toText(快照 && 快照.本地供给, '无供给'),
+          价格带: toText(快照 && 快照.价格带, '无'),
+          最近成交影响: toText(快照 && 快照.最近成交影响, '平稳'),
+        },
+        市场: {
+          库存总项数: 库存条目.length,
+          负库存项数: 库存条目.filter(项 => toNumber(项 && 项['库存'], 0) < 0).length,
+          市场波动命中,
+        },
+        交易情报联动: {
+          最近成交标签,
+          交易触发命中数,
+          情报总数: 情报条目.length,
+        },
+      };
+    };
+    window.__LWCS_RUN_PHASE3_LINKAGE_CHECK__ = function runPhase3LinkageCheck(options = {}) {
+      const 快照结果 = window.__LWCS_INSPECT_PHASE3_LINKAGE__(options);
+      const 检查项 = [];
+      const 追加检查 = (项目, 通过, 详情 = '') => 检查项.push({ 项目, 通过: !!通过, 详情: toText(详情, '') });
+      const 允许空交易样本 = options?.允许空交易样本 !== false;
+      if (!快照结果 || 快照结果.ok !== true) {
+        追加检查('三期快照可用', false, toText(快照结果 && 快照结果.reason, 'unknown'));
+        return {
+          通过: false,
+          检查项,
+          检查断言: 检查项.map(item => ({ 名称: item.项目, 通过: item.通过, 详情: item.详情 })),
+          快照: 快照结果 || null,
+        };
+      }
+      const 看板 = 快照结果.看板 || {};
+      追加检查('地图交易指标可见', !!(看板.本地供给 && 看板.价格带 && 看板.最近成交影响), `供给=${看板.本地供给 || '无'} / 价格=${看板.价格带 || '无'} / 成交=${看板.最近成交影响 || '无'}`);
+      const 负库存项数 = toNumber(deepGet(快照结果, '市场.负库存项数', 0), 0);
+      const 市场波动命中 = deepGet(快照结果, '市场.市场波动命中', false) === true;
+      追加检查('库存不为负', 负库存项数 === 0, `负库存项=${负库存项数}`);
+      追加检查('市场耗散命中可追踪', 市场波动命中 ? true : 允许空交易样本, 市场波动命中 ? '检测到[市场波动]' : (允许空交易样本 ? '本轮随机未命中(按通过处理)' : '本轮未命中'));
+      const 最近成交标签 = toText(deepGet(快照结果, '交易情报联动.最近成交标签', '无'), '无');
+      const 交易触发命中数 = toNumber(deepGet(快照结果, '交易情报联动.交易触发命中数', 0), 0);
+      const 成交样本存在 = 最近成交标签 !== '无';
+      const 联动通过 = !成交样本存在 || 交易触发命中数 > 0;
+      追加检查('交易触发已并入情报链', 联动通过, 成交样本存在 ? `标签=${最近成交标签} / 命中=${交易触发命中数}` : '当前无交易热度样本');
+      const 检查断言 = 检查项.map(item => ({ 名称: item.项目, 通过: item.通过, 详情: item.详情 }));
+      return {
+        通过: 检查项.every(item => item.通过),
+        检查项,
+        检查断言,
+        快照: 快照结果,
       };
     };
     window.__LWCS_INSPECT_SKILL_RUNTIME__ = function inspectSkillRuntime() {
@@ -24460,6 +24734,12 @@ ${mvuUpdate}`;
         event.preventDefault();
         event.stopPropagation();
         const 选项文本 = toText(可玩选项按钮.getAttribute('data-lwcs-option-fill'), '').trim();
+        const 短锁键 = toText(可玩选项按钮.getAttribute('data-lwcs-option-key'), '').trim() || 选项文本;
+        const 当前毫秒 = Date.now();
+        if (当前毫秒 < 可玩选项短锁截止时间 && 短锁键 === 可玩选项短锁键) {
+          showUiToast('操作过快，请稍候再点。', 'info', 1600);
+          return;
+        }
         if (!选项文本) {
           showUiToast('当前选项为空，无法写入输入框。', 'error', 2400);
           return;
@@ -24469,6 +24749,14 @@ ${mvuUpdate}`;
           showUiToast('未找到输入框，无法写入选项。', 'error', 2800);
           return;
         }
+        可玩选项短锁键 = 短锁键;
+        可玩选项短锁截止时间 = 当前毫秒 + 420;
+        可玩选项按钮.classList.add('is-short-lock');
+        window.setTimeout(() => {
+          if (可玩选项按钮 && typeof 可玩选项按钮.classList?.remove === 'function') {
+            可玩选项按钮.classList.remove('is-short-lock');
+          }
+        }, 420);
         showUiToast('已写入输入框。', 'info', 1800);
         return;
       }
@@ -24692,6 +24980,10 @@ ${mvuUpdate}`;
           const raw = readCollectionInput(key);
           return raw === '' ? fallback : toNumber(raw, fallback);
         };
+        const 按钮原文 = toText(collectionActionBtn.textContent, '执行').trim() || '执行';
+        collectionActionBtn.disabled = true;
+        collectionActionBtn.classList.add('is-busy');
+        collectionActionBtn.textContent = '加载中...';
         try {
           if (actionType === 'add-intel') {
             const charKey = collectionActionBtn.getAttribute('data-collection-char') || '';
@@ -24874,7 +25166,16 @@ ${mvuUpdate}`;
           }
         } catch (error) {
           showUiToast(error && error.message ? error.message : '操作失败。', 'error');
+          if (actionType === 'run-ascension' || actionType === 'run-soul-tower') {
+            showUiToast('可检查门票与地点后重试。', 'info', 2600);
+          }
           return;
+        } finally {
+          if (collectionActionBtn && collectionActionBtn.isConnected) {
+            collectionActionBtn.disabled = false;
+            collectionActionBtn.classList.remove('is-busy');
+            collectionActionBtn.textContent = 按钮原文;
+          }
         }
       }
 
