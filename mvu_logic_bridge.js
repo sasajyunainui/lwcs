@@ -10517,6 +10517,8 @@
       const 当前任务下一节点进度 = 当前任务聚焦条目
         ? `${Math.max(0, toNumber(当前任务数据 && 当前任务数据['当前进度'], 0))}/${Math.max(1, toNumber(当前任务数据 && 当前任务数据['目标进度'], 1))}`
         : '--';
+      const 当前任务路线 = 当前任务聚焦条目 ? toText(当前任务数据 && 当前任务数据['分支'], '未判定') : '无';
+      const 当前任务风险级别 = 当前任务聚焦条目 ? toText(当前任务数据 && 当前任务数据['风险级别'], '无') : '无';
       const 机密情报条目 = safeEntries(deepGet(sd, 'world.机密情报', {})).filter(([, item]) => item && typeof item === 'object');
       const 待核实情报列表 = 机密情报条目.filter(([, item]) => toText(item && item['核实状态'], '可疑') === '待核实');
       const 最近核实情报 = 机密情报条目
@@ -10525,6 +10527,12 @@
       const 情报最近核实结果 = 最近核实情报
         ? `${toText(deepGet(最近核实情报, '数据.标题', 最近核实情报.名称), 最近核实情报.名称)}:${toText(deepGet(最近核实情报, '数据.最近核实结果', '无'), '无')}`
         : '暂无核实记录';
+      const 情报证据净值 = 最近核实情报
+        ? Number((
+            Math.max(0, toNumber(deepGet(最近核实情报, '数据.证据权重', 0), 0))
+            - Math.max(0, toNumber(deepGet(最近核实情报, '数据.反证权重', 0), 0))
+          ).toFixed(2))
+        : 0;
       const 图鉴档位顺序 = ['初识', '熟悉', '精研', '通晓', '猎王'];
       const 图鉴聚焦条目 = (bestiaryEntries || [])
         .filter(([, item]) => item && typeof item === 'object')
@@ -10552,6 +10560,7 @@
         ? (图鉴下档需求 > 图鉴当前经验 ? `${图鉴当前经验}/${图鉴下档需求}` : '已达上限')
         : '--';
       const 图鉴聚焦名称 = 图鉴聚焦条目 ? toText(图鉴聚焦条目[0], '暂无') : '暂无';
+      const 图鉴成长倾向 = 图鉴聚焦条目 ? toText(deepGet(图鉴聚焦条目, '1.成长倾向', '均衡'), '均衡') : '无';
       const pendingSoulRing = buildPendingSoulRingState({ rootData: sd, activeChar, activeName });
       const mapData = sd && sd.map && typeof sd.map === 'object' ? sd.map : {};
       const sheepSnapshot = window.__sheepMapSnapshot && typeof window.__sheepMapSnapshot === 'object'
@@ -10675,11 +10684,15 @@
         当前任务名称,
         当前任务阶段文本,
         当前任务下一节点进度,
+        当前任务路线,
+        当前任务风险级别,
         情报待核实数量: 待核实情报列表.length,
         情报最近核实结果,
+        情报证据净值,
         图鉴当前档位,
         图鉴下一档进度,
         图鉴聚焦名称,
+        图鉴成长倾向,
         recentTitles,
         worldAlert: warningText,
         bestiaryEntries,
@@ -12543,7 +12556,7 @@
         return buildShellSummaryCard({
           title: '情报',
           value: '0',
-          meta: `待核实 ${toNumber(snapshot && snapshot.情报待核实数量, 0)} 条`,
+          meta: `待核实 ${toNumber(snapshot && snapshot.情报待核实数量, 0)} 条 · 净值 ${toNumber(snapshot && snapshot.情报证据净值, 0)}`,
           note: shortenText(toText(snapshot && snapshot.情报最近核实结果, '暂无核实记录'), 24),
         });
       }
@@ -12553,7 +12566,7 @@
         kicker: '情报',
         title: '情报',
         value: (snapshot.unlockedKnowledges || []).length ? `${(snapshot.unlockedKnowledges || []).length} 已录` : '待命中',
-        meta: shortenText(`待核实 ${toNumber(snapshot && snapshot.情报待核实数量, 0)} 条`, 20),
+        meta: shortenText(`待核实 ${toNumber(snapshot && snapshot.情报待核实数量, 0)} 条 · 净值 ${toNumber(snapshot && snapshot.情报证据净值, 0)}`, 20),
         note: shortenText(
           toText(snapshot && snapshot.情报最近核实结果, '') || pendingRequestText || latestIntelText || '暂无核实记录',
           24,
@@ -12597,7 +12610,7 @@
         title: '收录',
         value: bestiaryNames.length ? `${bestiaryNames.length} 种` : '待收录',
         meta: shortenText(`${toText(snapshot && snapshot.图鉴聚焦名称, bestiaryNames[0] || '暂无')} · ${toText(snapshot && snapshot.图鉴当前档位, '初识')}`, 20),
-        note: shortenText(`下一档 ${toText(snapshot && snapshot.图鉴下一档进度, '--')}`, 24),
+        note: shortenText(`下一档 ${toText(snapshot && snapshot.图鉴下一档进度, '--')} · 倾向 ${toText(snapshot && snapshot.图鉴成长倾向, '均衡')}`, 24),
       });
     }
 
@@ -12608,7 +12621,7 @@
         return buildShellSummaryCard({
           title: '任务',
           value: '0',
-          meta: `${toText(snapshot && snapshot.当前任务阶段文本, '无')} · ${toText(snapshot && snapshot.当前任务下一节点进度, '--')}`,
+          meta: `${toText(snapshot && snapshot.当前任务路线, '无')} · ${toText(snapshot && snapshot.当前任务风险级别, '无')}`,
           note: toText(snapshot && snapshot.当前任务名称, '暂无任务'),
         });
       }
@@ -12616,7 +12629,7 @@
         kicker: '任务',
         title: '任务',
         value: snapshot.questRecordCount ? `${snapshot.questRecordCount} 项` : '待命中',
-        meta: `${toText(snapshot && snapshot.当前任务阶段文本, '无')} · 下节点 ${toText(snapshot && snapshot.当前任务下一节点进度, '--')}`,
+        meta: `${toText(snapshot && snapshot.当前任务路线, '无')} · ${toText(snapshot && snapshot.当前任务风险级别, '无')} · 下节点 ${toText(snapshot && snapshot.当前任务下一节点进度, '--')}`,
         note: shortenText(toText(snapshot && snapshot.当前任务名称, '') || pendingRequestText, 24),
       });
     }
@@ -13450,6 +13463,7 @@
             <div class="simple-list">
               <div class="simple-row"><b>入口</b><span>${htmlEscape(getTrialEntranceText(snapshot))}</span></div>
               <div class="simple-row"><b>待核实</b><span>${htmlEscape(`${toNumber(snapshot && snapshot.情报待核实数量, 0)} 条`)}</span></div>
+              <div class="simple-row"><b>证据净值</b><span>${htmlEscape(String(toNumber(snapshot && snapshot.情报证据净值, 0)))}</span></div>
               <div class="simple-row"><b>最近核实</b><span>${htmlEscape(toText(snapshot && snapshot.情报最近核实结果, '暂无核实记录'))}</span></div>
             </div>
           `, { preview: '试炼与情报', surface: normalizedSurface });
@@ -13467,6 +13481,7 @@
               <div class="simple-row"><b>已记录</b><span>${htmlEscape(`${snapshot.bestiaryEntries.length} 种`)}</span></div>
               <div class="simple-row"><b>当前档位</b><span>${htmlEscape(`${toText(snapshot && snapshot.图鉴聚焦名称, '暂无')} / ${toText(snapshot && snapshot.图鉴当前档位, '无')}`)}</span></div>
               <div class="simple-row"><b>下一档</b><span>${htmlEscape(toText(snapshot && snapshot.图鉴下一档进度, '--'))}</span></div>
+              <div class="simple-row"><b>成长倾向</b><span>${htmlEscape(toText(snapshot && snapshot.图鉴成长倾向, '均衡'))}</span></div>
             </div>
           `, { preview: '怪物图鉴', surface: normalizedSurface });
           setUnifiedCardMarkup('terminal-quest', `
@@ -13474,7 +13489,8 @@
             <div class="simple-list">
               <div class="simple-row"><b>我的任务</b><span>${htmlEscape(`${(snapshot.recordEntries || []).length} 项任务`)}</span></div>
               <div class="simple-row"><b>委托板</b><span>${htmlEscape(`${safeEntries(deepGet(snapshot, 'rootData.world.委托板', {})).length} 条委托`)}</span></div>
-              <div class="simple-row"><b>当前阶段</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务阶段文本, '无'))}</span></div>
+              <div class="simple-row"><b>当前路线</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务路线, '无'))}</span></div>
+              <div class="simple-row"><b>风险级别</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务风险级别, '无'))}</span></div>
               <div class="simple-row"><b>下一节点</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务下一节点进度, '--'))}</span></div>
             </div>
           `, { preview: '任务界面', surface: normalizedSurface });
@@ -13609,6 +13625,7 @@
           <div class="simple-list">
             <div class="simple-row"><b>入口</b><span>${htmlEscape(getTrialEntranceText(snapshot))}</span></div>
             <div class="simple-row"><b>待核实</b><span>${htmlEscape(`${toNumber(snapshot && snapshot.情报待核实数量, 0)} 条`)}</span></div>
+            <div class="simple-row"><b>证据净值</b><span>${htmlEscape(String(toNumber(snapshot && snapshot.情报证据净值, 0)))}</span></div>
             <div class="simple-row"><b>最近核实</b><span>${htmlEscape(toText(snapshot && snapshot.情报最近核实结果, '暂无核实记录'))}</span></div>
           </div>
         `, { preview: '试炼与情报' });
@@ -13626,6 +13643,7 @@
             <div class="simple-row"><b>已记录</b><span>${htmlEscape(`${snapshot.bestiaryEntries.length} 种`)}</span></div>
             <div class="simple-row"><b>当前档位</b><span>${htmlEscape(`${toText(snapshot && snapshot.图鉴聚焦名称, '暂无')} / ${toText(snapshot && snapshot.图鉴当前档位, '无')}`)}</span></div>
             <div class="simple-row"><b>下一档</b><span>${htmlEscape(toText(snapshot && snapshot.图鉴下一档进度, '--'))}</span></div>
+            <div class="simple-row"><b>成长倾向</b><span>${htmlEscape(toText(snapshot && snapshot.图鉴成长倾向, '均衡'))}</span></div>
           </div>
         `, { preview: '怪物图鉴' });
         setUnifiedCardMarkup('terminal-quest', `
@@ -13633,7 +13651,8 @@
           <div class="simple-list">
             <div class="simple-row"><b>我的任务</b><span>${htmlEscape(`${(snapshot.recordEntries || []).length} 项任务`)}</span></div>
             <div class="simple-row"><b>委托板</b><span>${htmlEscape(`${safeEntries(deepGet(snapshot, 'rootData.world.委托板', {})).length} 条委托`)}</span></div>
-            <div class="simple-row"><b>当前阶段</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务阶段文本, '无'))}</span></div>
+            <div class="simple-row"><b>当前路线</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务路线, '无'))}</span></div>
+            <div class="simple-row"><b>风险级别</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务风险级别, '无'))}</span></div>
             <div class="simple-row"><b>下一节点</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务下一节点进度, '--'))}</span></div>
           </div>
         `, { preview: '任务界面' });
@@ -14077,6 +14096,7 @@
         <div class="simple-list">
           <div class="simple-row"><b>试炼入口</b><span>${htmlEscape(getTrialEntranceText(snapshot))}</span></div>
           <div class="simple-row"><b>待核实</b><span>${htmlEscape(`${toNumber(snapshot && snapshot.情报待核实数量, 0)} 条`)}</span></div>
+          <div class="simple-row"><b>证据净值</b><span>${htmlEscape(String(toNumber(snapshot && snapshot.情报证据净值, 0)))}</span></div>
           <div class="simple-row"><b>最近核实</b><span>${htmlEscape(toText(snapshot && snapshot.情报最近核实结果, '暂无核实记录'))}</span></div>
         </div>
       `);
@@ -14095,6 +14115,7 @@
           <div class="simple-row"><b>已记录</b><span>${htmlEscape(`${snapshot.bestiaryEntries.length} 种`)}</span></div>
           <div class="simple-row"><b>当前档位</b><span>${htmlEscape(`${toText(snapshot && snapshot.图鉴聚焦名称, '暂无')} / ${toText(snapshot && snapshot.图鉴当前档位, '无')}`)}</span></div>
           <div class="simple-row"><b>下一档</b><span>${htmlEscape(toText(snapshot && snapshot.图鉴下一档进度, '--'))}</span></div>
+          <div class="simple-row"><b>成长倾向</b><span>${htmlEscape(toText(snapshot && snapshot.图鉴成长倾向, '均衡'))}</span></div>
         </div>
       `);
         const questRecords = (snapshot.recordEntries || []).filter(([, item]) => item && typeof item === 'object' && (Object.prototype.hasOwnProperty.call(item, '状态') || Object.prototype.hasOwnProperty.call(item, '目标进度') || Object.prototype.hasOwnProperty.call(item, '奖励币') || Object.prototype.hasOwnProperty.call(item, '奖励声望')));
@@ -14108,7 +14129,8 @@
           <div class="simple-list">
             <div class="simple-row"><b>我的任务</b><span>${htmlEscape(questRecords.length ? `${questRecords.length} 项 / 当前 ${activeQuestName || '已归档'}` : '暂无任务')}</span></div>
             <div class="simple-row"><b>委托板</b><span>${htmlEscape(questBoardEntries.length ? `${questBoardEntries.length} 条 / 待接取 ${openBoardCount}` : '暂无委托')}</span></div>
-            <div class="simple-row"><b>当前阶段</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务阶段文本, activeQuestState))}</span></div>
+            <div class="simple-row"><b>当前路线</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务路线, activeQuestState))}</span></div>
+            <div class="simple-row"><b>风险级别</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务风险级别, '无'))}</span></div>
             <div class="simple-row"><b>下一节点</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务下一节点进度, '--'))}</span></div>
           </div>
         `);
@@ -19879,6 +19901,142 @@
         items: 结果项列表,
       };
     };
+    window.__LWCS_INSPECT_PHASE2_LINKAGE__ = function inspectPhase2Linkage(options = {}) {
+      const 快照 = window.__MVU_GET_LIVE_SNAPSHOT__?.() || liveSnapshot || lastRenderableSnapshot || null;
+      if (!快照 || !快照.rootData) return { ok: false, reason: 'phase2_linkage_snapshot_missing' };
+      const 根数据 = 快照.rootData || {};
+      const 玩家名 = toText(deepGet(根数据, 'sys.玩家名', 快照.activeName), 快照.activeName);
+      const 玩家任务条目 = safeEntries(deepGet(根数据, ['char', 玩家名, '记录'], {})).filter(([, item]) => item && typeof item === 'object');
+      const 任务聚焦 = 玩家任务条目.find(([, item]) => !['已完成', '已放弃', '失败', '已失败'].includes(toText(item && item['状态'], '进行中'))) || 玩家任务条目[0] || null;
+      const 情报条目 = safeEntries(deepGet(根数据, 'world.机密情报', {})).filter(([, item]) => item && typeof item === 'object');
+      const 图鉴条目 = safeEntries(deepGet(根数据, 'world.图鉴', {})).filter(([, item]) => item && typeof item === 'object');
+      const 待核实条目 = 情报条目.filter(([, item]) => toText(item && item['核实状态'], '可疑') === '待核实');
+      const 情报状态统计 = 情报条目.reduce((桶, [, item]) => {
+        const 状态 = toText(item && item['核实状态'], '可疑');
+        桶[状态] = (桶[状态] || 0) + 1;
+        return 桶;
+      }, {});
+      const 最近情报 = 情报条目
+        .slice()
+        .sort((a, b) => toNumber(deepGet(b, '1.最近核实tick', 0), 0) - toNumber(deepGet(a, '1.最近核实tick', 0), 0))[0] || null;
+      const 图鉴聚焦 = 图鉴条目
+        .slice()
+        .sort((a, b) => toNumber(deepGet(b, '1.最近活跃tick', 0), 0) - toNumber(deepGet(a, '1.最近活跃tick', 0), 0))[0] || null;
+      const 快照字段缺失 = ['当前任务路线', '当前任务风险级别', '当前任务下一节点进度', '情报待核实数量', '情报证据净值', '情报最近核实结果', '图鉴当前档位', '图鉴下一档进度', '图鉴成长倾向']
+        .filter(key => !Object.prototype.hasOwnProperty.call(快照, key));
+      return {
+        ok: true,
+        玩家名,
+        任务: {
+          总数: 玩家任务条目.length,
+          聚焦: 任务聚焦
+            ? {
+                名称: 任务聚焦[0],
+                状态: toText(deepGet(任务聚焦, '1.状态', '进行中'), '进行中'),
+                分支: toText(deepGet(任务聚焦, '1.分支', '未判定'), '未判定'),
+                风险级别: toText(deepGet(任务聚焦, '1.风险级别', '无'), '无'),
+                推荐路线: toText(deepGet(任务聚焦, '1.推荐路线', '主线'), '主线'),
+                当前进度: toNumber(deepGet(任务聚焦, '1.当前进度', 0), 0),
+                目标进度: toNumber(deepGet(任务聚焦, '1.目标进度', 1), 1),
+                情报贡献值: toNumber(deepGet(任务聚焦, '1.情报贡献值', 0), 0),
+                图鉴贡献值: toNumber(deepGet(任务聚焦, '1.图鉴贡献值', 0), 0),
+              }
+            : null,
+        },
+        情报: {
+          总数: 情报条目.length,
+          待核实数: 待核实条目.length,
+          状态统计: 情报状态统计,
+          最近: 最近情报
+            ? {
+                名称: 最近情报[0],
+                标题: toText(deepGet(最近情报, '1.标题', 最近情报[0]), 最近情报[0]),
+                最近结果: toText(deepGet(最近情报, '1.最近核实结果', '无'), '无'),
+                证据权重: toNumber(deepGet(最近情报, '1.证据权重', 0), 0),
+                反证权重: toNumber(deepGet(最近情报, '1.反证权重', 0), 0),
+                证据净值: Number((
+                  toNumber(deepGet(最近情报, '1.证据权重', 0), 0)
+                  - toNumber(deepGet(最近情报, '1.反证权重', 0), 0)
+                ).toFixed(2)),
+                来源数: Array.isArray(deepGet(最近情报, '1.证据来源列表', [])) ? deepGet(最近情报, '1.证据来源列表', []).length : 0,
+              }
+            : null,
+        },
+        图鉴: {
+          总数: 图鉴条目.length,
+          聚焦: 图鉴聚焦
+            ? {
+                名称: 图鉴聚焦[0],
+                档位: toText(deepGet(图鉴聚焦, '1.图鉴档位', '初识'), '初识'),
+                下一档进度: `${toNumber(deepGet(图鉴聚焦, '1.当前档经验', 0), 0)}/${toNumber(deepGet(图鉴聚焦, '1.下档需求', 0), 0)}`,
+                成长倾向: toText(deepGet(图鉴聚焦, '1.成长倾向', '均衡'), '均衡'),
+                任务协同系数: toNumber(deepGet(图鉴聚焦, '1.任务协同系数', 1), 1),
+                情报协同系数: toNumber(deepGet(图鉴聚焦, '1.情报协同系数', 1), 1),
+                最近战斗标签: toText(deepGet(图鉴聚焦, '1.最近战斗标签', '未知'), '未知'),
+                战斗样本数: toNumber(deepGet(图鉴聚焦, '1.战斗样本数', 0), 0),
+              }
+            : null,
+        },
+        看板快照: {
+          当前任务路线: toText(快照.当前任务路线, '无'),
+          当前任务风险级别: toText(快照.当前任务风险级别, '无'),
+          当前任务下一节点进度: toText(快照.当前任务下一节点进度, '--'),
+          情报待核实数量: toNumber(快照.情报待核实数量, 0),
+          情报证据净值: toNumber(快照.情报证据净值, 0),
+          情报最近核实结果: toText(快照.情报最近核实结果, '暂无'),
+          图鉴当前档位: toText(快照.图鉴当前档位, '无'),
+          图鉴下一档进度: toText(快照.图鉴下一档进度, '--'),
+          图鉴成长倾向: toText(快照.图鉴成长倾向, '无'),
+          缺失字段: 快照字段缺失,
+        },
+      };
+    };
+    window.__LWCS_RUN_PHASE2_LINKAGE_CHECK__ = function runPhase2LinkageCheck(options = {}) {
+      const 快照结果 = window.__LWCS_INSPECT_PHASE2_LINKAGE__(options);
+      const 检查项 = [];
+      const 追加检查 = (项目, 通过, 详情 = '') => 检查项.push({ 项目, 通过: !!通过, 详情: toText(详情, '') });
+      if (!快照结果 || 快照结果.ok !== true) {
+        追加检查('联动快照可用', false, toText(快照结果 && 快照结果.reason, 'unknown'));
+        return { 通过: false, 检查项, 快照: 快照结果 || null };
+      }
+      const 看板缺失字段 = Array.isArray(deepGet(快照结果, '看板快照.缺失字段', [])) ? deepGet(快照结果, '看板快照.缺失字段', []) : [];
+      追加检查('看板字段完整', !看板缺失字段.length, 看板缺失字段.length ? `缺失:${看板缺失字段.join(' / ')}` : '已覆盖');
+      追加检查('任务联动字段可见', !!deepGet(快照结果, '任务.聚焦', null), deepGet(快照结果, '任务.聚焦', null) ? '存在聚焦任务' : '当前无任务样本');
+      const 情报最近 = deepGet(快照结果, '情报.最近', null);
+      const 情报字段完整 = !情报最近 || (
+        Object.prototype.hasOwnProperty.call(情报最近, '证据权重')
+        && Object.prototype.hasOwnProperty.call(情报最近, '反证权重')
+        && Object.prototype.hasOwnProperty.call(情报最近, '来源数')
+      );
+      追加检查('情报证据字段可见', 情报字段完整, 情报最近 ? `净值=${toNumber(情报最近.证据净值, 0)}` : '当前无情报样本');
+      const 图鉴最近 = deepGet(快照结果, '图鉴.聚焦', null);
+      const 图鉴字段完整 = !图鉴最近 || (
+        Object.prototype.hasOwnProperty.call(图鉴最近, '成长倾向')
+        && Object.prototype.hasOwnProperty.call(图鉴最近, '任务协同系数')
+        && Object.prototype.hasOwnProperty.call(图鉴最近, '情报协同系数')
+        && Object.prototype.hasOwnProperty.call(图鉴最近, '最近战斗标签')
+      );
+      追加检查('图鉴协同字段可见', 图鉴字段完整, 图鉴最近 ? `倾向=${toText(图鉴最近.成长倾向, '均衡')}` : '当前无图鉴样本');
+      const 基准奖励币 = Math.max(1, Math.floor(Number(options?.基准奖励币 || 100000)));
+      const 高收益成功币 = Math.floor(基准奖励币 * 1.45);
+      const 稳妥成功币 = Math.floor(基准奖励币 * 0.85);
+      const 高收益失败代价币 = Math.floor(基准奖励币 * 0.12);
+      const 稳妥失败代价币 = Math.floor(基准奖励币 * 0.04);
+      追加检查('路线成功收益拉开', 高收益成功币 > 稳妥成功币, `高收益=${高收益成功币} / 稳妥=${稳妥成功币}`);
+      追加检查('路线失败代价拉开', 高收益失败代价币 > 稳妥失败代价币, `高收益=${高收益失败代价币} / 稳妥=${稳妥失败代价币}`);
+      return {
+        通过: 检查项.every(item => item.通过),
+        检查项,
+        快照: 快照结果,
+        系数样本: {
+          基准奖励币,
+          高收益成功币,
+          稳妥成功币,
+          高收益失败代价币,
+          稳妥失败代价币,
+        },
+      };
+    };
     window.__LWCS_INSPECT_SKILL_RUNTIME__ = function inspectSkillRuntime() {
       const 当前表 = __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__;
       let 父级存在 = false;
@@ -25571,6 +25729,22 @@ window.EquipmentManager = {
 
     createInventoryStatusRecord(itemName, effect = {}, statusName = '', 当前tick = 0) {
       const value = effect && typeof effect === 'object' ? effect.value || {} : {};
+      const 修炼倍率 = Number(value.修炼速度倍率 || 0);
+      if (Number.isFinite(修炼倍率) && 修炼倍率 > 1) {
+        const 状态记录 = {
+          修炼速度倍率: Number(修炼倍率.toFixed(4)),
+        };
+        const 显式结束tick = Math.max(0, toNumber(value.结束tick, 0));
+        if (显式结束tick > 0) {
+          状态记录.结束tick = 显式结束tick;
+          return 状态记录;
+        }
+        const 持续tick = Math.max(0, toNumber(value.持续tick, 0));
+        const 持续回合 = Math.max(0, toNumber(value.持续, toNumber(value.durationRounds, 0)));
+        const 推导持续tick = 持续tick > 0 ? 持续tick : Math.max(0, Math.round(持续回合 * 6));
+        if (推导持续tick > 0 && 当前tick >= 0) 状态记录.结束tick = 当前tick + 推导持续tick;
+        return 状态记录;
+      }
       const duration = Math.max(1, toNumber(value.持续, toNumber(value.durationRounds, 1)));
       const 状态记录 = {
         类型: effect?.type === 'debuff' ? 'debuff' : 'buff',
@@ -25578,14 +25752,11 @@ window.EquipmentManager = {
         描述: toText(effect?.description, `${itemName}触发效果`),
         持续回合: duration,
       };
-      const 修炼倍率 = Number(value.修炼速度倍率 || value.修炼倍率 || value.训练倍率 || 0);
-      if (Number.isFinite(修炼倍率) && 修炼倍率 > 1) 状态记录.修炼速度倍率 = Number(修炼倍率.toFixed(4));
       const 持续tick = Math.max(0, toNumber(value.持续tick, 0));
       if (持续tick > 0) 状态记录.持续tick = 持续tick;
       const 结束tick = Math.max(0, toNumber(value.结束tick, 0));
       if (结束tick > 0) 状态记录.结束tick = 结束tick;
-      else if (持续tick > 0 && 当前tick > 0) 状态记录.结束tick = 当前tick + 持续tick;
-      if (toText(value.修炼倍率说明, '').trim()) 状态记录.修炼倍率说明 = toText(value.修炼倍率说明, '');
+      else if (持续tick > 0 && 当前tick >= 0) 状态记录.结束tick = 当前tick + 持续tick;
       return 状态记录;
   },
 
@@ -25822,7 +25993,7 @@ window.EquipmentManager = {
           const 命中修炼增益效果 = 使用效果列表.some(使用效果项 => {
             if (!使用效果项 || typeof 使用效果项 !== 'object') return false;
             const 数值体 = 使用效果项?.value && typeof 使用效果项.value === 'object' ? 使用效果项.value : {};
-            const 倍率值 = Number(数值体?.修炼速度倍率 || 数值体?.修炼倍率 || 数值体?.训练倍率 || 0);
+            const 倍率值 = Number(数值体?.修炼速度倍率 || 0);
             return Number.isFinite(倍率值) && 倍率值 > 1;
           });
           if (是否食物造物 && 命中修炼增益效果) {

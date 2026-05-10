@@ -8287,6 +8287,17 @@ class BattleUIComponent {
         const isVictoryOutcome = outcome.isVictory === true;
         const isDrawOutcome = outcome.isDraw === true;
         const isUnresolvedOutcome = outcome.isUnresolved === true;
+        const 战斗回合数 = Math.max(0, Number(combatData?.回合 || 0));
+        const 攻方当前生命 = Math.max(0, Number(attackerStats?.HP ?? attackerStats?.体力 ?? 0));
+        const 攻方生命上限 = Math.max(1, Number(attackerStats?.HP上限 ?? attackerStats?.体力上限 ?? 1));
+        const 攻方生命比例 = 攻方当前生命 / 攻方生命上限;
+        let 最近战斗标签 = '消耗战';
+        if (outcome.isDefeat === true) 最近战斗标签 = '失利';
+        else if (isVictoryOutcome) {
+          if (战斗回合数 <= 2 && 攻方生命比例 >= 0.65) 最近战斗标签 = '速胜';
+          else if (攻方生命比例 <= 0.35) 最近战斗标签 = '险胜';
+          else 最近战斗标签 = '消耗战';
+        } else if (isDrawOutcome || isUnresolvedOutcome) 最近战斗标签 = '消耗战';
         const shouldRecordCombatHistory = outcome.formalEncounter !== false && !isBeastOrAbyss && validDefenderName;
         let historyCountBefore = 0;
         if (shouldRecordCombatHistory) {
@@ -8301,6 +8312,10 @@ class BattleUIComponent {
           const 图鉴路径前缀 = `/world/图鉴/${escapeJsonPointerSegment(defenderName)}`;
           const 当前交手次数 = Math.max(0, Number(monsterEntry?.交手次数 || 0));
           const 当前击杀次数 = Math.max(0, Number(monsterEntry?.击杀次数 || 0));
+          const 当前战斗样本数 = Math.max(0, Number(monsterEntry?.战斗样本数 || 0));
+          const 下次战斗样本数 = 当前战斗样本数 + 1;
+          const 当前标签样本 = Math.max(0, Number(monsterEntry?.战斗标签样本?.[最近战斗标签] || 0));
+          const 下次标签样本 = 当前标签样本 + 1;
           const 下次交手次数 = 当前交手次数 + 1;
           const 下次击杀次数 = isVictoryOutcome ? 当前击杀次数 + 1 : 当前击杀次数;
           const 下次档经验 = 下次交手次数 + 下次击杀次数 * 2;
@@ -8318,6 +8333,12 @@ class BattleUIComponent {
                 最近升档tick: 0,
                 探索收益: 0,
                 战斗收益: 0,
+                成长倾向: '均衡',
+                任务协同系数: 1,
+                情报协同系数: 1,
+                最近战斗标签,
+                战斗样本数: 1,
+                战斗标签样本: { [最近战斗标签]: 1 },
                 首次记录: `由 ${attackerName} 在${combatType}中遭遇`,
               },
             });
@@ -8341,6 +8362,28 @@ class BattleUIComponent {
               op: 'add',
               path: `${图鉴路径前缀}/最近活跃tick`,
               value: currentTick,
+            });
+            extraPatchOps.push({
+              op: 'add',
+              path: `${图鉴路径前缀}/最近战斗标签`,
+              value: 最近战斗标签,
+            });
+            extraPatchOps.push({
+              op: 'add',
+              path: `${图鉴路径前缀}/战斗样本数`,
+              value: 下次战斗样本数,
+            });
+            if (!monsterEntry.战斗标签样本 || typeof monsterEntry.战斗标签样本 !== 'object' || Array.isArray(monsterEntry.战斗标签样本)) {
+              extraPatchOps.push({
+                op: 'add',
+                path: `${图鉴路径前缀}/战斗标签样本`,
+                value: {},
+              });
+            }
+            extraPatchOps.push({
+              op: 'add',
+              path: `${图鉴路径前缀}/战斗标签样本/${escapeJsonPointerSegment(最近战斗标签)}`,
+              value: 下次标签样本,
             });
             if (monsterEntry.首次记录 === undefined) {
               extraPatchOps.push({

@@ -10881,14 +10881,313 @@ function getBonePreferredSecondary(part = '') {
   return [];
 }
 
+const 技能机制决策临时字段_V1 = '机制决策临时';
+const 技能机制候选方案数量_V1 = 4;
+
+function 计算文本哈希32_V1(text = '') {
+  let hash = 2166136261;
+  const source = String(text || '');
+  for (let i = 0; i < source.length; i += 1) {
+    hash ^= source.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function 创建确定随机函数_V1(seed = 1) {
+  let state = (Number(seed) >>> 0) || 1;
+  return () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+}
+
+function 使用确定随机执行_V1(seed = 1, executor = () => null) {
+  const originalRandom = Math.random;
+  const nextRandom = 创建确定随机函数_V1(seed);
+  Math.random = nextRandom;
+  try {
+    return executor();
+  } finally {
+    Math.random = originalRandom;
+  }
+}
+
+function 构建技能机制决策上下文签名_V1(context = {}) {
+  const normalized = {
+    type: String(context?.type || '').trim(),
+    talentTier: String(context?.talentTier || '').trim(),
+    age: Math.max(0, Number(context?.age || 0)),
+    ringIndex: Math.max(1, Number(context?.ringIndex || 1)),
+    compatibility: Math.max(0, Math.min(100, Number(context?.compatibility || 100))),
+    sourceCategory: String(context?.sourceCategory || context?.技能来源 || '').trim(),
+    sourceQuality: String(context?.sourceQuality || context?.来源品质 || '').trim(),
+    preferredSecondary: Array.isArray(context?.preferredSecondary) ? context.preferredSecondary.map(item => String(item || '').trim()) : [],
+    passiveMode: context?.passiveMode === true,
+    passiveName: String(context?.passiveName || '').trim(),
+    spiritName: String(context?.textContext?.spiritName || context?.spiritName || '').trim(),
+  };
+  try {
+    return JSON.stringify(normalized);
+  } catch (error) {
+    return String(Date.now());
+  }
+}
+
+function 构建技能机制候选种子文本_V1(skill = {}, context = {}, optionIndex = 0) {
+  const keyText = [
+    String(skill?.魂技名 || '').trim(),
+    构建技能机制决策上下文签名_V1(context),
+    `候选:${Math.max(1, Number(optionIndex || 1))}`,
+  ].join('|');
+  return keyText;
+}
+
+function 构建技能机制候选方案_V1(skill = {}, context = {}, optionIndex = 1) {
+  const safeIndex = Math.max(1, Math.floor(Number(optionIndex || 1)));
+  const seedText = 构建技能机制候选种子文本_V1(skill, context, safeIndex);
+  const seed = 计算文本哈希32_V1(seedText) || safeIndex;
+  const skillType = String(context?.type || '强攻系').trim() || '强攻系';
+  const talentTier = String(context?.talentTier || '正常').trim() || '正常';
+  const ringAge = Math.max(100, Number(context?.age || 1000));
+  const ringIndex = Math.max(1, Number(context?.ringIndex || 1));
+  const compatibility = Math.max(0, Math.min(100, Number(context?.compatibility || 100)));
+  const sourceQuality = String(context?.sourceQuality || context?.来源品质 || '').trim();
+  const preferredSecondary = Array.isArray(context?.preferredSecondary)
+    ? context.preferredSecondary.map(item => String(item || '').trim()).filter(Boolean)
+    : [];
+  const spiritName = String(context?.textContext?.spiritName || context?.spiritName || '').trim();
+  const sourceCategory = String(context?.sourceCategory || context?.技能来源 || '魂技').trim() || '魂技';
+  const passiveMode = context?.passiveMode === true;
+  const passiveName = String(context?.passiveName || skill?.魂技名 || '').trim();
+
+  return 使用确定随机执行_V1(seed, () => {
+    const gradeInfo = judgeSkillGrade(talentTier, ringAge, ringIndex, compatibility, sourceQuality);
+    const rawGrade = normalizeSkillGradeSymbol(gradeInfo?.grade || 'B');
+    const tableGrade = normalizeSkillTableGrade(rawGrade);
+    const quality = String(gradeInfo?.quality || '').trim() || ({ C: 'C级_劣质', B: 'B级_普通', A: 'A级_优秀', S: 'S级_极品' }[tableGrade] || 'B级_普通');
+    const blueprint = rollSkillBlueprint(skillType, rawGrade, ringIndex, preferredSecondary, {
+      spiritName,
+      sourceName: spiritName,
+    });
+    const generated = autoGenerateSkill(
+      skillType,
+      talentTier,
+      ringAge,
+      ringIndex,
+      compatibility,
+      preferredSecondary,
+      Number(context?.currentTick || 0),
+      {
+        passiveMode,
+        passiveName,
+        sourceCategory,
+        sourceQuality,
+        textContext: context?.textContext || {},
+        elementProfile: context?.elementProfile || null,
+        unlockedAttributes: Array.isArray(context?.unlockedAttributes) ? context.unlockedAttributes : [],
+        attributeCapacity: Array.isArray(context?.attributeCapacity) ? context.attributeCapacity : [],
+        elementTrigger: String(context?.elementTrigger || '').trim(),
+        blueprintOverride: blueprint,
+        gradeOverride: rawGrade,
+        qualityOverride: quality,
+      },
+    );
+    const blueprintSummary = buildSkillBattleSummary(blueprint);
+    return {
+      方案编号: safeIndex,
+      方案标签: `方案${safeIndex}`,
+      随机种子: seed,
+      品级: tableGrade,
+      品质: quality,
+      主机制大类: String(blueprint?.主机制大类 || '').trim(),
+      主机制原型: String(blueprint?.主机制原型 || '').trim(),
+      目标模型: String(blueprint?.目标模型 || '敌方单体').trim(),
+      释放形态: String(blueprint?.释放形态 || '直接生效').trim(),
+      副机制: Array.isArray(blueprint?.副机制) ? [...blueprint.副机制] : [],
+      变异机制: Array.isArray(blueprint?.变异机制) ? [...blueprint.变异机制] : [],
+      机制摘要: compactSkillHintText(buildSkillEffectReferenceText(generated?._效果数组 || []), 128),
+      战斗评估: {
+        目标规模: String(blueprintSummary?.目标规模 || '单体'),
+        生效方式: String(blueprintSummary?.生效方式 || '直接'),
+        持续性: String(blueprintSummary?.持续性 || '无'),
+        风险等级: String(blueprintSummary?.风险等级 || '中'),
+        协同性: String(blueprintSummary?.协同性 || '低'),
+        保留倾向: Number(blueprintSummary?.保留倾向 || 0),
+      },
+      推演参数: {
+        gradeOverride: rawGrade,
+        qualityOverride: quality,
+      },
+      蓝图: {
+        主机制大类: String(blueprint?.主机制大类 || '').trim(),
+        主机制原型: String(blueprint?.主机制原型 || '').trim(),
+        目标模型: String(blueprint?.目标模型 || '敌方单体').trim(),
+        副机制: Array.isArray(blueprint?.副机制) ? [...blueprint.副机制] : [],
+        变异机制: Array.isArray(blueprint?.变异机制) ? [...blueprint.变异机制] : [],
+        释放形态: String(blueprint?.释放形态 || '直接生效').trim(),
+        加成属性候选: Array.isArray(blueprint?.加成属性候选) ? [...blueprint.加成属性候选] : [],
+      },
+    };
+  });
+}
+
+function 构建技能机制候选方案列表_V1(skill = {}, context = {}) {
+  const totalCount = Math.max(2, Math.min(8, Number(技能机制候选方案数量_V1 || 4)));
+  const list = [];
+  for (let index = 1; index <= totalCount; index += 1) {
+    list.push(构建技能机制候选方案_V1(skill, context, index));
+  }
+  return list;
+}
+
+function 计算技能机制推荐方案编号_V1(candidates = []) {
+  const source = Array.isArray(candidates) ? candidates : [];
+  if (!source.length) return 1;
+  let best = source[0];
+  let bestScore = -Infinity;
+  const riskPenaltyMap = { 低: 0, 中: 4, 高: 8 };
+  source.forEach(item => {
+    const summary = item?.战斗评估 || {};
+    const base = Number(summary?.保留倾向 || 0);
+    const synergy = summary?.协同性 === '高' ? 6 : summary?.协同性 === '中' ? 3 : 0;
+    const riskPenalty = riskPenaltyMap[String(summary?.风险等级 || '中')] ?? 4;
+    const score = base + synergy - riskPenalty;
+    if (score > bestScore) {
+      best = item;
+      bestScore = score;
+    }
+  });
+  return Math.max(1, Number(best?.方案编号 || 1));
+}
+
+function 构建技能机制决策临时数据_V1(skill = {}, context = {}) {
+  const candidates = 构建技能机制候选方案列表_V1(skill, context);
+  return {
+    状态: '待决策',
+    决策版本: 1,
+    上下文签名: 构建技能机制决策上下文签名_V1(context),
+    推荐方案编号: 计算技能机制推荐方案编号_V1(candidates),
+    已选方案编号: 0,
+    候选方案: candidates,
+  };
+}
+
+function 读取技能机制已选方案编号_V1(runtimeDecision = {}) {
+  const decision = runtimeDecision && typeof runtimeDecision === 'object' ? runtimeDecision : {};
+  const directNumber = Number(decision?.已选方案编号 || 0);
+  if (Number.isFinite(directNumber) && directNumber > 0) return Math.floor(directNumber);
+  const directText = String(decision?.已选方案编号 || decision?.已选方案标签 || decision?.已选方案 || '').trim();
+  if (!directText) return 0;
+  const digitMatch = directText.match(/(\d+)/);
+  if (digitMatch) return Math.max(0, Math.floor(Number(digitMatch[1] || 0)));
+  return 0;
+}
+
+function 按候选方案回填技能效果数组_V1(skill = {}, context = {}, candidate = {}) {
+  if (!skill || typeof skill !== 'object' || !candidate || typeof candidate !== 'object') return false;
+  const seed = Number(candidate?.随机种子 || 0) || 1;
+  const skillType = String(context?.type || '强攻系').trim() || '强攻系';
+  const talentTier = String(context?.talentTier || '正常').trim() || '正常';
+  const ringAge = Math.max(100, Number(context?.age || 1000));
+  const ringIndex = Math.max(1, Number(context?.ringIndex || 1));
+  const compatibility = Math.max(0, Math.min(100, Number(context?.compatibility || 100)));
+  const sourceQuality = String(context?.sourceQuality || context?.来源品质 || '').trim();
+  const preferredSecondary = Array.isArray(context?.preferredSecondary)
+    ? context.preferredSecondary.map(item => String(item || '').trim()).filter(Boolean)
+    : [];
+  const sourceCategory = String(context?.sourceCategory || context?.技能来源 || '魂技').trim() || '魂技';
+  const generated = 使用确定随机执行_V1(seed, () =>
+    autoGenerateSkill(
+      skillType,
+      talentTier,
+      ringAge,
+      ringIndex,
+      compatibility,
+      preferredSecondary,
+      Number(context?.currentTick || 0),
+      {
+        passiveMode: context?.passiveMode === true,
+        passiveName: String(context?.passiveName || skill?.魂技名 || '').trim(),
+        sourceCategory,
+        sourceQuality,
+        textContext: context?.textContext || {},
+        elementProfile: context?.elementProfile || null,
+        unlockedAttributes: Array.isArray(context?.unlockedAttributes) ? context.unlockedAttributes : [],
+        attributeCapacity: Array.isArray(context?.attributeCapacity) ? context.attributeCapacity : [],
+        elementTrigger: String(context?.elementTrigger || '').trim(),
+        blueprintOverride: candidate?.蓝图 || {},
+        gradeOverride: String(candidate?.推演参数?.gradeOverride || '').trim(),
+        qualityOverride: String(candidate?.推演参数?.qualityOverride || '').trim(),
+      },
+    ),
+  );
+  const effectArray = Array.isArray(generated?._效果数组) ? generated._效果数组 : [];
+  if (!effectArray.length) return false;
+  skill._效果数组 = clonePackedSkillEffects(effectArray);
+  const currentName = String(skill?.魂技名 || '').trim();
+  if (!currentName || isSkillTodoText(currentName)) skill.魂技名 = buildSkillNameTodoText(context?.textContext || context);
+  if (!String(skill?.画面描述 || '').trim() || isSkillTodoText(skill?.画面描述)) skill.画面描述 = AI_TODO_SKILL_VISUAL;
+  if (!String(skill?.效果描述 || '').trim() || isSkillTodoText(skill?.效果描述)) skill.效果描述 = AI_TODO_SKILL_EFFECT;
+  delete skill[技能机制决策临时字段_V1];
+  return true;
+}
+
+function 尝试按机制决策回填技能效果数组_V1(skill = {}, context = {}) {
+  if (!skill || typeof skill !== 'object') return false;
+  const runtimeDecision = skill?.[技能机制决策临时字段_V1];
+  if (!runtimeDecision || typeof runtimeDecision !== 'object') return false;
+  const expectedSignature = 构建技能机制决策上下文签名_V1(context);
+  const currentSignature = String(runtimeDecision?.上下文签名 || '').trim();
+  if (currentSignature && currentSignature !== expectedSignature && !读取技能机制已选方案编号_V1(runtimeDecision)) {
+    skill[技能机制决策临时字段_V1] = 构建技能机制决策临时数据_V1(skill, context);
+  }
+  const normalizedDecision = skill?.[技能机制决策临时字段_V1];
+  const selectedIndex = 读取技能机制已选方案编号_V1(normalizedDecision);
+  const candidates = Array.isArray(normalizedDecision?.候选方案) ? normalizedDecision.候选方案 : [];
+  if (!selectedIndex || !candidates.length) return false;
+  const selected = candidates.find(item => Number(item?.方案编号 || 0) === selectedIndex);
+  if (!selected) return false;
+  return 按候选方案回填技能效果数组_V1(skill, context, selected);
+}
+
+function 构建技能机制决策待生成提示词_V1(runtimeDecision = {}, textContext = {}) {
+  const decision = runtimeDecision && typeof runtimeDecision === 'object' ? runtimeDecision : {};
+  const candidates = Array.isArray(decision?.候选方案) ? decision.候选方案 : [];
+  if (!candidates.length) return '待生成（当前暂无候选机制方案，请稍后重新生成）';
+  const candidateIds = candidates.map(item => Number(item?.方案编号 || 0)).filter(id => id > 0);
+  const rangeText = candidateIds.length ? candidateIds.join(' / ') : '1';
+  const spiritName = String(textContext?.spiritName || '所属武魂').trim() || '所属武魂';
+  const recommended = Math.max(1, Number(decision?.推荐方案编号 || candidateIds[0] || 1));
+  const candidateText = candidates
+    .map(item => {
+      const idx = Math.max(1, Number(item?.方案编号 || 1));
+      const main = String(item?.主机制大类 || '未定').trim() || '未定';
+      const sub = String(item?.主机制原型 || '未定').trim() || '未定';
+      const target = String(item?.目标模型 || '敌方单体').trim() || '敌方单体';
+      const secondaries = (Array.isArray(item?.副机制) ? item.副机制 : []).map(v => String(v || '').trim()).filter(Boolean);
+      const mutations = (Array.isArray(item?.变异机制) ? item.变异机制 : []).map(v => String(v || '').trim()).filter(Boolean);
+      const effects = String(item?.机制摘要 || '').trim() || '无摘要';
+      return `${idx}[${main}/${sub}] 目标:${target} 副:${secondaries.join('+') || '无'} 变异:${mutations.join('+') || '无'} 摘要:${effects}`;
+    })
+    .join('；');
+  return `待生成（脚本已给出机制候选；推荐方案=${recommended}。你必须结合【${spiritName}】及魂灵/上下文作最终决策，推荐仅供参考；结果只能在候选范围内选择，不得新增范围外机制。请仅将「${技能机制决策临时字段_V1}.已选方案编号」填写为 ${rangeText} 之一。候选：${candidateText}）`;
+}
+
 function ensureSkillStructGenerated(skill, context = {}) {
   if (!skill || typeof skill !== 'object') return skill;
   if (!Array.isArray(skill._效果数组)) skill._效果数组 = [];
   if (typeof skill.魂技名 !== 'string' || !skill.魂技名.trim() || isSkillTodoText(skill.魂技名)) {
     skill.魂技名 = buildSkillNameTodoText(context?.textContext || context);
   }
-  const hasPackedEffects = Array.isArray(skill._效果数组) && skill._效果数组.length > 0;
+  let hasPackedEffects = Array.isArray(skill._效果数组) && skill._效果数组.length > 0;
   const shouldDeferGeneration = !hasPackedEffects && context.deferGenerationUntilSecondaryReady === true;
+  if (hasPackedEffects && skill?.[技能机制决策临时字段_V1] && typeof skill[技能机制决策临时字段_V1] === 'object') {
+    delete skill[技能机制决策临时字段_V1];
+  }
+  if (!hasPackedEffects && 尝试按机制决策回填技能效果数组_V1(skill, context)) {
+    hasPackedEffects = Array.isArray(skill._效果数组) && skill._效果数组.length > 0;
+  }
 
   if (!hasPackedEffects) {
     if (typeof skill.画面描述 !== 'string' || !skill.画面描述.trim() || isSkillTodoText(skill.画面描述))
@@ -10904,35 +11203,25 @@ function ensureSkillStructGenerated(skill, context = {}) {
 
   const shouldGenerate = skill._效果数组.length === 0 && context.enableGenerate !== false && !shouldDeferGeneration;
   if (shouldGenerate) {
-    const generated = context.forceTrueBody
-      ? buildSeventhRingTrueBodySkill(
-          context.type || '强攻系',
-          context.talentTier || '正常',
-          Math.max(100, Number(context.age || 1000)),
-          Math.max(1, Number(context.ringIndex || 1)),
-          Math.max(0, Math.min(100, Number(context.compatibility || 100))),
-          context.textContext || {},
-          context.sourceQuality || '',
-        )
-      : autoGenerateSkill(
-          context.type || '强攻系',
-          context.talentTier || '正常',
-          Math.max(100, Number(context.age || 1000)),
-          Math.max(1, Number(context.ringIndex || 1)),
-          Math.max(0, Math.min(100, Number(context.compatibility || 100))),
-          Array.isArray(context.preferredSecondary) ? context.preferredSecondary : [],
-          Number(context.currentTick || 0),
-          {
-            passiveMode: context.passiveMode === true,
-            passiveName: context.passiveName || skill.魂技名 || '',
-            sourceQuality: context.sourceQuality || '',
-          },
-        );
-    Object.keys(skill).forEach(key => delete skill[key]);
-    skill.魂技名 = generated.魂技名 || AI_TODO_SKILL_NAME;
-    skill.画面描述 = generated.画面描述 || AI_TODO_SKILL_VISUAL;
-    skill.效果描述 = generated.效果描述 || AI_TODO_SKILL_EFFECT;
-    skill._效果数组 = clonePackedSkillEffects(generated._效果数组 || []);
+    if (context.forceTrueBody === true) {
+      const generated = buildSeventhRingTrueBodySkill(
+        context.type || '强攻系',
+        context.talentTier || '正常',
+        Math.max(100, Number(context.age || 1000)),
+        Math.max(1, Number(context.ringIndex || 1)),
+        Math.max(0, Math.min(100, Number(context.compatibility || 100))),
+        context.textContext || {},
+        context.sourceQuality || '',
+      );
+      const preservedSkillName = String(skill?.魂技名 || '').trim();
+      skill.魂技名 = preservedSkillName || generated.魂技名 || AI_TODO_SKILL_NAME;
+      skill.画面描述 = generated.画面描述 || AI_TODO_SKILL_VISUAL;
+      skill.效果描述 = generated.效果描述 || AI_TODO_SKILL_EFFECT;
+      skill._效果数组 = clonePackedSkillEffects(generated._效果数组 || []);
+      delete skill[技能机制决策临时字段_V1];
+    } else if (!skill?.[技能机制决策临时字段_V1] || typeof skill[技能机制决策临时字段_V1] !== 'object') {
+      skill[技能机制决策临时字段_V1] = 构建技能机制决策临时数据_V1(skill, context);
+    }
   }
 
   if (typeof skill.魂技名 !== 'string' || !skill.魂技名.trim() || isSkillTodoText(skill.魂技名)) {
@@ -11210,6 +11499,7 @@ const SkillStructSchema = z
     效果描述: z.string().prefault(AI_TODO_SKILL_EFFECT),
     附带属性: z.array(z.string()).prefault([]),
     _效果数组: z.array(z.any()).prefault([]).describe('打包后的_效果数组，供前端显示和后续战斗模块解析'),
+    机制决策临时: z.any().optional(),
   })
   .prefault({});
 const SoulBoneSchema = z
@@ -12406,6 +12696,11 @@ const CharacterSchema = z
             失败计数: z.coerce.number().prefault(0).describe('提交失败累计次数'),
             里程碑: z.array(z.string()).prefault([]).describe('已触发的阶段里程碑'),
             最后更新时间tick: z.coerce.number().prefault(0).describe('最近一次进度更新tick'),
+            情报贡献值: z.coerce.number().prefault(0).describe('任务分支判定时的情报贡献值'),
+            图鉴贡献值: z.coerce.number().prefault(0).describe('任务分支判定时的图鉴贡献值'),
+            风险级别: z.string().prefault('中风险').describe('任务当前风险级别'),
+            推荐路线: z.string().prefault('主线').describe('系统建议任务路线'),
+            最近爆发tick: z.coerce.number().prefault(0).describe('最近一次节点爆发发生tick'),
           })
           .prefault({}),
       )
@@ -13710,6 +14005,11 @@ const SchemaRootObject = z
                 最近核实结果: z.string().prefault('无').describe('最近一次核实结果'),
                 最近核实tick: z.coerce.number().prefault(0).describe('最近一次核实发生时间'),
                 触发来源: z.string().prefault('无').describe('最近一次核实触发来源'),
+                证据权重: z.coerce.number().prefault(0).describe('支持该情报为真的证据权重'),
+                反证权重: z.coerce.number().prefault(0).describe('指向该情报为误报的反证权重'),
+                证据来源列表: z.array(z.string()).prefault([]).describe('参与核实的来源列表'),
+                核实阈值: z.coerce.number().prefault(3).describe('达到核实成功所需净证据阈值'),
+                最后证据tick: z.coerce.number().prefault(0).describe('最近一次证据更新tick'),
               })
               .prefault({}),
           )
@@ -13903,6 +14203,12 @@ const SchemaRootObject = z
                 最近升档tick: z.coerce.number().prefault(0),
                 探索收益: z.coerce.number().prefault(0),
                 战斗收益: z.coerce.number().prefault(0),
+                成长倾向: z.string().prefault('均衡'),
+                任务协同系数: z.coerce.number().prefault(1),
+                情报协同系数: z.coerce.number().prefault(1),
+                最近战斗标签: z.string().prefault('未知'),
+                战斗样本数: z.coerce.number().prefault(0),
+                战斗标签样本: z.record(z.string(), z.coerce.number()).prefault({}),
               })
               .catchall(z.any())
               .prefault({}),
@@ -14093,17 +14399,27 @@ export const Schema = z
         最近核实结果: '无',
         最近核实tick: 0,
         触发来源: '无',
+        证据权重: 0,
+        反证权重: 0,
+        证据来源列表: [],
+        核实阈值: 3,
+        最后证据tick: 0,
         ...(previous && typeof previous === 'object' ? _.cloneDeep(previous) : {}),
         ...(payload && typeof payload === 'object' ? _.cloneDeep(payload) : {}),
       };
       if (!Array.isArray(next.知情规则)) next.知情规则 = [];
       if (!Array.isArray(next.知情对象)) next.知情对象 = [];
+      if (!Array.isArray(next.证据来源列表)) next.证据来源列表 = [];
       const 核实状态白名单 = new Set(['可疑', '待核实', '已核实', '误报']);
       if (!核实状态白名单.has(String(next.核实状态 || '').trim())) next.核实状态 = '可疑';
       next.核实进度 = Math.max(0, Number(next.核实进度 || 0));
       next.最近核实结果 = String(next.最近核实结果 || '无').trim() || '无';
       next.最近核实tick = Math.max(0, Number(next.最近核实tick || 0));
       next.触发来源 = String(next.触发来源 || '无').trim() || '无';
+      next.证据权重 = Math.max(0, Number(next.证据权重 || 0));
+      next.反证权重 = Math.max(0, Number(next.反证权重 || 0));
+      next.核实阈值 = Math.max(1, Number(next.核实阈值 || 3));
+      next.最后证据tick = Math.max(0, Number(next.最后证据tick || 0));
       data.world.机密情报[safeKey] = next;
       return next;
     };
@@ -14190,6 +14506,11 @@ export const Schema = z
         intelEntry.最近核实结果 = String(intelEntry.最近核实结果 || '无').trim() || '无';
         intelEntry.最近核实tick = Math.max(0, Number(intelEntry.最近核实tick || 0));
         intelEntry.触发来源 = String(intelEntry.触发来源 || '无').trim() || '无';
+        intelEntry.证据权重 = Math.max(0, Number(intelEntry.证据权重 || 0));
+        intelEntry.反证权重 = Math.max(0, Number(intelEntry.反证权重 || 0));
+        intelEntry.核实阈值 = Math.max(1, Number(intelEntry.核实阈值 || 3));
+        intelEntry.最后证据tick = Math.max(0, Number(intelEntry.最后证据tick || 0));
+        if (!Array.isArray(intelEntry.证据来源列表)) intelEntry.证据来源列表 = [];
       });
     };
 
@@ -14230,6 +14551,11 @@ export const Schema = z
       任务条目.分支 = String(任务条目.分支 || '未判定').trim() || '未判定';
       任务条目.阶段 = Math.max(1, Number(任务条目.阶段 || 0)) || 1;
       任务条目.最后更新时间tick = Math.max(0, Number(任务条目.最后更新时间tick || 当前tick || 0));
+      任务条目.情报贡献值 = Math.max(0, Number(任务条目.情报贡献值 || 0));
+      任务条目.图鉴贡献值 = Math.max(0, Number(任务条目.图鉴贡献值 || 0));
+      任务条目.风险级别 = String(任务条目.风险级别 || '中风险').trim() || '中风险';
+      任务条目.推荐路线 = String(任务条目.推荐路线 || '主线').trim() || '主线';
+      任务条目.最近爆发tick = Math.max(0, Number(任务条目.最近爆发tick || 0));
       if (!任务条目.阶段 || !Number.isFinite(Number(任务条目.阶段))) {
         任务条目.阶段 = 计算任务阶段号(任务条目);
       }
@@ -14253,6 +14579,12 @@ export const Schema = z
       Object.freeze({ 档位: '通晓', 交手次数: 10, 击杀次数: 3, 探索收益: 0.02, 战斗收益: 0.02 }),
       Object.freeze({ 档位: '猎王', 交手次数: 15, 击杀次数: 5, 探索收益: 0.03, 战斗收益: 0.03 }),
     ]);
+    const 图鉴倾向映射表 = Object.freeze({
+      速胜: '战斗向',
+      险胜: '战斗向',
+      消耗战: '探索向',
+      失利: '探索向',
+    });
 
     const 获取图鉴条目经验 = 图鉴条目 =>
       Math.max(0, Number(图鉴条目?.交手次数 || 0)) + Math.max(0, Number(图鉴条目?.击杀次数 || 0)) * 2;
@@ -14261,6 +14593,15 @@ export const Schema = z
       if (!图鉴条目 || typeof 图鉴条目 !== 'object' || Array.isArray(图鉴条目)) return null;
       图鉴条目.交手次数 = Math.max(0, Number(图鉴条目.交手次数 || 0));
       图鉴条目.击杀次数 = Math.max(0, Number(图鉴条目.击杀次数 || 0));
+      图鉴条目.最近战斗标签 = String(图鉴条目.最近战斗标签 || '未知').trim() || '未知';
+      图鉴条目.战斗样本数 = Math.max(0, Number(图鉴条目.战斗样本数 || 0));
+      if (!图鉴条目.战斗标签样本 || typeof 图鉴条目.战斗标签样本 !== 'object' || Array.isArray(图鉴条目.战斗标签样本)) {
+        图鉴条目.战斗标签样本 = {};
+      }
+      Object.keys(图鉴条目.战斗标签样本).forEach(标签 => {
+        图鉴条目.战斗标签样本[标签] = Math.max(0, Number(图鉴条目.战斗标签样本[标签] || 0));
+      });
+
       const 原档位 = String(图鉴条目.图鉴档位 || '初识').trim() || '初识';
       let 当前阈值索引 = 0;
       图鉴档位阈值表.forEach((档位配置, 索引) => {
@@ -14285,6 +14626,36 @@ export const Schema = z
       } else {
         图鉴条目.最近升档tick = Math.max(0, Number(图鉴条目.最近升档tick || 0));
       }
+
+      const 战斗向样本 = Math.max(
+        0,
+        Number(图鉴条目?.战斗标签样本?.速胜 || 0) + Number(图鉴条目?.战斗标签样本?.险胜 || 0),
+      );
+      const 探索向样本 = Math.max(
+        0,
+        Number(图鉴条目?.战斗标签样本?.消耗战 || 0) + Number(图鉴条目?.战斗标签样本?.失利 || 0),
+      );
+      let 成长倾向 = '均衡';
+      if (战斗向样本 > 探索向样本) 成长倾向 = '战斗向';
+      else if (探索向样本 > 战斗向样本) 成长倾向 = '探索向';
+      else {
+        const 最近标签倾向 = 图鉴倾向映射表[图鉴条目.最近战斗标签] || '均衡';
+        成长倾向 = 最近标签倾向;
+      }
+      图鉴条目.成长倾向 = 成长倾向;
+
+      const 基础协同 = 1 + 当前阈值索引 * 0.015;
+      let 任务协同系数 = 基础协同;
+      let 情报协同系数 = 基础协同;
+      if (成长倾向 === '战斗向') 任务协同系数 += 0.03;
+      else if (成长倾向 === '探索向') 情报协同系数 += 0.03;
+      else {
+        任务协同系数 += 0.015;
+        情报协同系数 += 0.015;
+      }
+      图鉴条目.任务协同系数 = Number(Math.max(1, 任务协同系数).toFixed(4));
+      图鉴条目.情报协同系数 = Number(Math.max(1, 情报协同系数).toFixed(4));
+
       return {
         是否升档,
         原档位,
@@ -14298,22 +14669,36 @@ export const Schema = z
       const 图鉴数据 = data.world?.图鉴 && typeof data.world.图鉴 === 'object' ? data.world.图鉴 : {};
       let 探索加成总和 = 0;
       let 战斗加成总和 = 0;
+      let 任务协同总和 = 0;
+      let 情报协同总和 = 0;
+      let 条目数量 = 0;
+      let 战斗向计数 = 0;
+      let 探索向计数 = 0;
       const 升档播报项 = [];
       Object.entries(图鉴数据).forEach(([图鉴名, 图鉴条目]) => {
         const 成长结果 = 重算图鉴成长(图鉴条目, currentTick);
         if (!成长结果) return;
+        条目数量 += 1;
         探索加成总和 += Number(图鉴条目.探索收益 || 0);
         战斗加成总和 += Number(图鉴条目.战斗收益 || 0);
+        任务协同总和 += Math.max(1, Number(图鉴条目.任务协同系数 || 1));
+        情报协同总和 += Math.max(1, Number(图鉴条目.情报协同系数 || 1));
+        if (String(图鉴条目.成长倾向 || '') === '战斗向') 战斗向计数 += 1;
+        if (String(图鉴条目.成长倾向 || '') === '探索向') 探索向计数 += 1;
         if (成长结果.是否升档) {
           升档播报项.push(`${图鉴名}:${成长结果.原档位}→${成长结果.新档位}`);
         }
       });
       if (升档播报项.length) {
-        appendSystemReasonBatchText('[图鉴升档]', 升档播报项, { limit: 2 });
+        appendSystemReasonBatchText('[节点爆发][图鉴]', 升档播报项, { limit: 2 });
       }
+      const 主成长倾向 = 战斗向计数 > 探索向计数 ? '战斗向' : 探索向计数 > 战斗向计数 ? '探索向' : '均衡';
       return {
         探索加成: Math.max(0, Number(探索加成总和.toFixed(4))),
         战斗加成: Math.max(0, Number(战斗加成总和.toFixed(4))),
+        任务协同系数: Number((条目数量 > 0 ? 任务协同总和 / 条目数量 : 1).toFixed(4)),
+        情报协同系数: Number((条目数量 > 0 ? 情报协同总和 / 条目数量 : 1).toFixed(4)),
+        主成长倾向,
       };
     };
 
@@ -14344,6 +14729,49 @@ export const Schema = z
       角色.状态.图鉴被动来源 = `${角色名 || '角色'}图鉴研究`;
     };
 
+    const 计算情报证据净值总和 = () => {
+      const 情报数据 = data.world?.机密情报 && typeof data.world.机密情报 === 'object' ? data.world.机密情报 : {};
+      return Object.values(情报数据).reduce((总和, 条目) => {
+        if (!条目 || typeof 条目 !== 'object') return 总和;
+        return 总和 + (Number(条目.证据权重 || 0) - Number(条目.反证权重 || 0));
+      }, 0);
+    };
+
+    const 计算任务联动评分 = (任务条目 = {}) => {
+      const 情报条目列表 = Object.values(data.world?.机密情报 || {}).filter(item => item && typeof item === 'object');
+      const 已核实数 = 情报条目列表.filter(item => String(item.核实状态 || '') === '已核实').length;
+      const 待核实数 = 情报条目列表.filter(item => String(item.核实状态 || '') === '待核实').length;
+      const 误报数 = 情报条目列表.filter(item => String(item.核实状态 || '') === '误报').length;
+      const 情报证据净值 = 计算情报证据净值总和();
+      const 情报贡献值 = Math.max(0, Number((已核实数 * 2 + 待核实数 * 0.5 + 情报证据净值 * 0.2 - 误报数 * 1.5).toFixed(2)));
+
+      const 图鉴条目列表 = Object.values(data.world?.图鉴 || {}).filter(item => item && typeof item === 'object');
+      const 图鉴档位贡献值 = 图鉴条目列表.reduce((总和, 条目) => {
+        const 档位索引 = Math.max(0, 图鉴档位序列.indexOf(String(条目.图鉴档位 || '初识')));
+        return 总和 + 档位索引;
+      }, 0);
+      const 图鉴协同任务系数 = Math.max(1, Number(图鉴总被动.任务协同系数 || 1));
+      const 图鉴贡献值 = Math.max(0, Number((图鉴档位贡献值 * 0.6 + (图鉴协同任务系数 - 1) * 20).toFixed(2)));
+
+      let 风险级别 = '中风险';
+      const 失败计数 = Math.max(0, Number(任务条目?.失败计数 || 0));
+      if (失败计数 >= 2 || 情报贡献值 < 1.5) 风险级别 = '高风险';
+      else if (失败计数 <= 0 && 情报贡献值 >= 4 && 图鉴贡献值 >= 2.5) 风险级别 = '低风险';
+
+      let 推荐路线 = '主线';
+      if (风险级别 === '高风险') 推荐路线 = '稳妥线';
+      else if (情报贡献值 >= 4 && 图鉴贡献值 >= 2.5) 推荐路线 = '高收益线';
+
+      const 任务推进系数 = Math.max(1, Number((1 + Math.min(0.25, (图鉴协同任务系数 - 1) * 0.9) + Math.min(0.12, 情报贡献值 * 0.01)).toFixed(4)));
+      return {
+        情报贡献值,
+        图鉴贡献值,
+        风险级别,
+        推荐路线,
+        任务推进系数,
+      };
+    };
+
     const 计算情报触发匹配分 = (情报条目 = {}, 触发项 = {}) => {
       const 关键词列表 = Array.isArray(触发项?.关键词) ? 触发项.关键词 : [];
       const 标题文本 = String(情报条目?.标题 || '').trim();
@@ -14371,6 +14799,7 @@ export const Schema = z
       const 玩家名 = String(data.sys?.玩家名 || '').trim();
       const 玩家角色 = 玩家名 && data.char?.[玩家名] ? data.char[玩家名] : null;
       const 节点播报 = [];
+      const 图鉴情报协同系数 = Math.max(1, Number(图鉴总被动.情报协同系数 || 1));
       机密情报触发队列.forEach(触发项 => {
         Object.entries(data.world.机密情报 || {}).forEach(([情报键, 原条目]) => {
           const 情报条目 = upsertSecretIntel(情报键, 原条目 || {});
@@ -14378,20 +14807,31 @@ export const Schema = z
           const 当前状态 = String(情报条目.核实状态 || '可疑').trim() || '可疑';
           if (当前状态 === '已核实' || 当前状态 === '误报') return;
           const 匹配分 = 计算情报触发匹配分(情报条目, 触发项);
-          if (当前状态 === '可疑') {
-            if (匹配分 > 0) {
-              情报条目.核实状态 = '待核实';
-              情报条目.核实进度 = Math.max(1, Number(情报条目.核实进度 || 0) + 1);
-              情报条目.最近核实结果 = '待核实';
-              情报条目.最近核实tick = currentTick;
-              情报条目.触发来源 = String(触发项.来源 || '未知').trim() || '未知';
-            }
-            return;
+          const 来源文本 = String(触发项.来源 || '未知').trim() || '未知';
+          const 来源列表 = Array.isArray(情报条目.证据来源列表) ? 情报条目.证据来源列表 : [];
+          const 新来源命中 = !来源列表.includes(来源文本);
+          if (新来源命中) 来源列表.push(来源文本);
+          情报条目.证据来源列表 = Array.from(new Set(来源列表));
+          if (匹配分 > 0) {
+            const 基础证据增量 = 匹配分 >= 2 ? 2 : 1;
+            const 新来源增量 = 新来源命中 ? 0.8 : 0.3;
+            const 协同增量 = Math.max(0, (图鉴情报协同系数 - 1) * 1.2);
+            情报条目.证据权重 = Number((Math.max(0, Number(情报条目.证据权重 || 0)) + 基础证据增量 + 新来源增量 + 协同增量).toFixed(3));
+          } else {
+            情报条目.反证权重 = Number((Math.max(0, Number(情报条目.反证权重 || 0)) + 1 + (新来源命中 ? 0.2 : 0)).toFixed(3));
           }
+          情报条目.最后证据tick = currentTick;
           情报条目.核实进度 = Math.max(1, Number(情报条目.核实进度 || 0) + 1);
           情报条目.最近核实tick = currentTick;
-          情报条目.触发来源 = String(触发项.来源 || '未知').trim() || '未知';
-          const 满足核实成功 = 匹配分 >= 2 || Number(情报条目.核实进度 || 0) >= 3;
+          情报条目.触发来源 = 来源文本;
+          const 净证据值 = Number((Number(情报条目.证据权重 || 0) - Number(情报条目.反证权重 || 0)).toFixed(3));
+          const 核实阈值 = Math.max(1, Number(情报条目.核实阈值 || 3));
+          const 来源多样性 = Array.isArray(情报条目.证据来源列表) ? 情报条目.证据来源列表.length : 0;
+          if (当前状态 === '可疑' && (匹配分 > 0 || 净证据值 > 0)) {
+            情报条目.核实状态 = '待核实';
+            情报条目.最近核实结果 = '待核实';
+          }
+          const 满足核实成功 = 净证据值 >= 核实阈值 && 来源多样性 >= 2;
           if (满足核实成功) {
             情报条目.核实状态 = '已核实';
             情报条目.最近核实结果 = '核实成功';
@@ -14411,8 +14851,8 @@ export const Schema = z
                 stat_mods: { str: 1.01, def: 1.0, agi: 1.02, sp_max: 1.02 },
               };
             }
-            节点播报.push(`${String(情报条目.标题 || 情报键).trim()} 核实成功`);
-          } else if (匹配分 <= 0 && Number(情报条目.核实进度 || 0) >= 2) {
+            节点播报.push(`${String(情报条目.标题 || 情报键).trim()} 核实成功(净值${净证据值.toFixed(1)})`);
+          } else if (Number(情报条目.核实进度 || 0) >= 3 && 净证据值 <= -1) {
             情报条目.核实状态 = '误报';
             情报条目.最近核实结果 = '核实失败';
             if (玩家角色 && 玩家角色.属性 && typeof 玩家角色.属性 === 'object') {
@@ -14421,13 +14861,14 @@ export const Schema = z
               玩家角色.属性.体力 = Math.max(0, Number(玩家角色.属性.体力 || 0) - 失败代价);
               玩家角色.属性.HP = Math.max(0, Number(玩家角色.属性.HP || 玩家角色.属性.体力 || 0) - 失败代价);
             }
-            节点播报.push(`${String(情报条目.标题 || 情报键).trim()} 误报`);
+            节点播报.push(`${String(情报条目.标题 || 情报键).trim()} 误报(净值${净证据值.toFixed(1)})`);
           } else {
             情报条目.最近核实结果 = '待核实';
+            if (当前状态 === '可疑') 情报条目.核实状态 = '待核实';
           }
         });
       });
-      appendSystemReasonBatchText('[情报核实]', 节点播报, { limit: 2 });
+      appendSystemReasonBatchText('[节点爆发][情报]', 节点播报, { limit: 2 });
       机密情报触发队列.length = 0;
     };
 
@@ -14654,12 +15095,13 @@ export const Schema = z
       const 来源列表 = [];
       Object.entries(状态表).forEach(([状态名, 状态值]) => {
         if (!状态值 || typeof 状态值 !== 'object') return;
-        const 结束tick = Math.max(0, Math.floor(Number(状态值.结束tick || 状态值.有效期至tick || 0)));
+        const 结束tick = Math.max(0, Math.floor(Number(状态值.结束tick || 0)));
         if (结束tick > 0 && currentTick >= 结束tick) {
           delete 状态表[状态名];
           return;
         }
-        const 状态倍率 = Number(状态值.修炼速度倍率 || 状态值.修炼倍率 || 状态值.训练倍率 || 0);
+        if (结束tick <= 0) return;
+        const 状态倍率 = Number(状态值.修炼速度倍率 || 0);
         if (!Number.isFinite(状态倍率) || 状态倍率 <= 1) return;
         倍率 *= 状态倍率;
         来源列表.push(状态名);
@@ -16927,6 +17369,11 @@ export const Schema = z
             失败计数: 0,
             里程碑: ['任务接取'],
             最后更新时间tick: currentTick,
+            情报贡献值: 0,
+            图鉴贡献值: 0,
+            风险级别: '中风险',
+            推荐路线: '主线',
+            最近爆发tick: 0,
           };
           if (boardEntry && typeof boardEntry === 'object') {
             boardEntry.状态 = '阶段推进';
@@ -16938,7 +17385,16 @@ export const Schema = z
           q = 补全任务条目字段(q, currentTick) || q;
           if (!['已完成', '已放弃'].includes(String(q.状态 || '').trim())) {
             const 原阶段 = Math.max(1, Number(q.阶段 || 1));
-            q.当前进度 = Math.max(0, Number(q.当前进度 || 0) + Number(req.进度增量 || 0));
+            const 联动评分 = 计算任务联动评分(q);
+            const 原始进度增量 = Math.max(0, Number(req.进度增量 || 0));
+            const 联动后进度增量 = 原始进度增量 > 0
+              ? Math.max(1, Math.round(原始进度增量 * Math.max(1, Number(联动评分.任务推进系数 || 1))))
+              : 0;
+            q.情报贡献值 = Number(联动评分.情报贡献值 || 0);
+            q.图鉴贡献值 = Number(联动评分.图鉴贡献值 || 0);
+            q.风险级别 = String(联动评分.风险级别 || '中风险').trim() || '中风险';
+            q.推荐路线 = String(联动评分.推荐路线 || '主线').trim() || '主线';
+            q.当前进度 = Math.max(0, Number(q.当前进度 || 0) + 联动后进度增量);
             q.阶段 = 计算任务阶段号(q);
             q.状态 = '阶段推进';
             q.最后更新时间tick = currentTick;
@@ -16948,18 +17404,21 @@ export const Schema = z
               const 里程碑奖励声望 = Math.max(1, Math.floor(Number(q.奖励声望 || 0) * 0.12));
               c.财富.联邦币 = Math.max(0, Number(c.财富.联邦币 || 0) + 里程碑奖励币);
               c.社交.声望 = Math.max(0, Number(c.社交.声望 || 0) + 里程碑奖励声望);
-              msg += ` [节点爆发] 阶段里程碑达成，额外获得 ${里程碑奖励币} 联邦币 / ${里程碑奖励声望} 声望。`;
+              q.最近爆发tick = currentTick;
+              msg += ` [节点爆发][任务] 阶段里程碑达成，额外获得 ${里程碑奖励币} 联邦币 / ${里程碑奖励声望} 声望。`;
             }
             if (q.当前进度 >= q.目标进度) {
               q.状态 = '分支判定';
               const 失败计数 = Math.max(0, Number(q.失败计数 || 0));
-              if (失败计数 >= 2) q.分支 = '稳妥线';
-              else if (失败计数 === 0 && Math.random() < 0.45) q.分支 = '高收益线';
+              if (失败计数 >= 2 || q.风险级别 === '高风险') q.分支 = '稳妥线';
+              else if (q.推荐路线 === '高收益线') q.分支 = '高收益线';
+              else if (q.推荐路线 === '稳妥线') q.分支 = '稳妥线';
               else q.分支 = '主线';
               记录任务里程碑(q, `分支:${q.分支}`);
               q.状态 = '可提交';
+              q.最近爆发tick = currentTick;
               if (boardEntry && typeof boardEntry === 'object') boardEntry.状态 = '可提交';
-              msg += ` [节点爆发] 已进入${q.分支}，可前往提交。`;
+              msg += ` [节点爆发][任务] 已进入${q.分支}(风险:${q.风险级别})，可前往提交。`;
             } else if (boardEntry && typeof boardEntry === 'object') {
               boardEntry.状态 = '阶段推进';
             }
@@ -16967,39 +17426,44 @@ export const Schema = z
         } else if (req.动作 === '提交' && c.记录[qName]) {
           let q = c.记录[qName];
           q = 补全任务条目字段(q, currentTick) || q;
+          if (!['高收益线', '主线', '稳妥线'].includes(String(q.分支 || '').trim())) q.分支 = '主线';
           if (q.状态 === '可提交' || Number(q.当前进度 || 0) >= Number(q.目标进度 || 1)) {
             q.状态 = '已完成';
             let 实得奖励币 = Math.max(0, Number(q.奖励币 || 0));
             let 实得奖励声望 = Math.max(0, Number(q.奖励声望 || 0));
             if (q.分支 === '高收益线') {
-              实得奖励币 = Math.max(0, Math.floor(实得奖励币 * 1.2));
-              实得奖励声望 = Math.max(0, Math.floor(实得奖励声望 * 1.15));
+              实得奖励币 = Math.max(0, Math.floor(实得奖励币 * 1.45));
+              实得奖励声望 = Math.max(0, Math.floor(实得奖励声望 * 1.3));
             } else if (q.分支 === '稳妥线') {
-              实得奖励币 = Math.max(0, Math.floor(实得奖励币 * 0.9));
-              实得奖励声望 = Math.max(0, Math.floor(实得奖励声望 * 1.05));
+              实得奖励币 = Math.max(0, Math.floor(实得奖励币 * 0.85));
+              实得奖励声望 = Math.max(0, Math.floor(实得奖励声望 * 1.12));
             }
             c.财富.联邦币 = Math.max(0, Number(c.财富.联邦币 || 0) + 实得奖励币);
             c.社交.声望 = Math.max(0, Number(c.社交.声望 || 0) + 实得奖励声望);
             记录任务里程碑(q, '任务结算');
             q.最后更新时间tick = currentTick;
+            q.最近爆发tick = currentTick;
             if (boardEntry && typeof boardEntry === 'object') {
               boardEntry.状态 = '已完成';
               boardEntry.承接者 = charName;
             }
-            msg = `[任务完成] ${charName} 提交了【${qName}】！获得奖励：${实得奖励币} 联邦币, ${实得奖励声望} 声望！`;
+            msg = `[任务完成] ${charName} 提交了【${qName}】！获得奖励：${实得奖励币} 联邦币, ${实得奖励声望} 声望！ [节点爆发][任务] 路线:${q.分支}`;
           } else {
             q.失败计数 = Math.max(0, Number(q.失败计数 || 0) + 1);
-            const 回退量 = Math.max(1, Math.floor(获取任务阶段跨度(q) * 0.5));
+            const 回退比例 = q.分支 === '高收益线' ? 0.35 : q.分支 === '稳妥线' ? 0.2 : 0.28;
+            const 回退量 = Math.max(1, Math.floor(获取任务阶段跨度(q) * 回退比例));
             q.当前进度 = Math.max(0, Number(q.当前进度 || 0) - 回退量);
             q.阶段 = 计算任务阶段号(q);
             q.状态 = '阶段推进';
             q.最后更新时间tick = currentTick;
-            const 失败代价币 = Math.max(0, Math.floor(Number(q.奖励币 || 0) * 0.05));
-            const 失败代价声望 = 1;
+            const 失败代价比例 = q.分支 === '高收益线' ? 0.12 : q.分支 === '稳妥线' ? 0.04 : 0.07;
+            const 失败代价币 = Math.max(0, Math.floor(Number(q.奖励币 || 0) * 失败代价比例));
+            const 失败代价声望 = q.分支 === '高收益线' ? 2 : 1;
             c.财富.联邦币 = Math.max(0, Number(c.财富.联邦币 || 0) - 失败代价币);
             c.社交.声望 = Math.max(0, Number(c.社交.声望 || 0) - 失败代价声望);
             if (boardEntry && typeof boardEntry === 'object') boardEntry.状态 = '阶段推进';
-            msg = `[任务提交失败] 【${qName}】进度未达标 (${q.当前进度}/${q.目标进度})，回退 ${回退量} 进度并扣除 ${失败代价币} 联邦币/${失败代价声望} 声望。`;
+            q.最近爆发tick = currentTick;
+            msg = `[任务提交失败] 【${qName}】进度未达标 (${q.当前进度}/${q.目标进度})，回退 ${回退量} 进度并扣除 ${失败代价币} 联邦币/${失败代价声望} 声望。 [节点爆发][任务] 路线:${q.分支}`;
           }
         } else if (req.动作 === '放弃' && c.记录[qName]) {
           const q = 补全任务条目字段(c.记录[qName], currentTick) || c.记录[qName];
@@ -17664,6 +18128,12 @@ export const Schema = z
           skill.效果描述 = hasPackedEffects ? AI_TODO_SKILL_EFFECT : SKILL_TEXT_UNKNOWN;
         if (!Array.isArray(skill.附带属性) && (skill.附带属性 === undefined || skill.附带属性 === null || skill.附带属性 === ''))
           skill.附带属性 = [];
+        const runtimeDecision = skill?.[技能机制决策临时字段_V1];
+        if (runtimeDecision && typeof runtimeDecision === 'object' && !hasPackedEffects) {
+          runtimeDecision.待生成提示词 = 构建技能机制决策待生成提示词_V1(runtimeDecision, textContext);
+        } else if (runtimeDecision && typeof runtimeDecision === 'object' && '待生成提示词' in runtimeDecision) {
+          delete runtimeDecision.待生成提示词;
+        }
       };
       const injectDisplaySkillMapDefaults = (skillMap = {}, contextFactory = () => ({})) => {
         _(skillMap || {}).forEach((skill, skillName) => {
