@@ -1,7 +1,8 @@
 !(function () {
   'use strict';
 
-  const LOADER_ID = 'mvu_external_ui_vue_loader';
+  const 载入版本标记 = '20260510_多方向框架';
+  const LOADER_ID = 'mvu_external_ui_vue_loader_' + 载入版本标记;
   const hostWin = (() => {
     try {
       if (window.parent && window.parent !== window && window.parent.document) return window.parent;
@@ -14,20 +15,21 @@
   hostWin[LOADER_ID] = true;
 
   const CDN_BASE = 'http://localhost:5501/lwcs/';
+  const 资源版本后缀 = '?v=' + encodeURIComponent(载入版本标记);
   const VUE_URL = 'https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js';
 
   const cssList = [
-    CDN_BASE + 'mvu_styles.css'
+    CDN_BASE + 'mvu_styles.css' + 资源版本后缀
   ];
 
   const jsList = [
-    CDN_BASE + 'TradeUI_Module.js',
-    CDN_BASE + 'ProfessionUI_Module.js',
-    CDN_BASE + 'sheep_map_restore.js',
-    CDN_BASE + 'Main_Vue_runtimefix_v2.js',
-    CDN_BASE + 'mvu_logic_bridge.js',
-    CDN_BASE + 'BattleUI_Module.js',
-    CDN_BASE + 'Database_Module.js'
+    CDN_BASE + 'TradeUI_Module.js' + 资源版本后缀,
+    CDN_BASE + 'ProfessionUI_Module.js' + 资源版本后缀,
+    CDN_BASE + 'sheep_map_restore.js' + 资源版本后缀,
+    CDN_BASE + 'Main_Vue_runtimefix_v2.js' + 资源版本后缀,
+    CDN_BASE + 'mvu_logic_bridge.js' + 资源版本后缀,
+    CDN_BASE + 'BattleUI_Module.js' + 资源版本后缀,
+    CDN_BASE + 'Database_Module.js' + 资源版本后缀
   ];
 
   function ensureHostNodes() {

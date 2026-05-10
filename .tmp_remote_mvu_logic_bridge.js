@@ -1,4 +1,4 @@
-﻿
+﻿﻿
 (() => {
   const __mvuBridgeRoot = typeof globalThis !== 'undefined' ? globalThis : window;
   const resolveSharedSkillMechanismRegistry = () => {
@@ -4167,7 +4167,7 @@
     }
 
     const SKILL_DESIGNER_PREVIEW_PREFIX = '技能设计台：';
-    const SKILL_SUMMARY_EFFECT_MECHANISM_SET = new Set();
+    const SKILL_SUMMARY_EFFECT_MECHANISM_SET = new Set(['属性摘要', '构型摘要', '术式摘要', '极性摘要', '属性系数摘要', '机制参数摘要', '副作用摘要']);
     const SKILL_DESIGNER_SELF_FUSION_PARTNER = '自身双武魂';
     const SHARED_SKILL_MECHANISM_REGISTRY =
       __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__ && typeof __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__ === 'object'
@@ -4494,27 +4494,10 @@
     const SKILL_DESIGNER_DIRECTION_TARGET_SEMANTIC_OPTIONS = Object.freeze(['可赋予', '敌对', '上下文', '仅自身']);
     const SKILL_DESIGNER_DIRECTION_TAG_OPTIONS = Object.freeze(['增幅', '压制', '锁定', '限制', '转译', '置换']);
     const SKILL_DESIGNER_DIRECTION_AUTO_TRIGGER_OPTIONS = Object.freeze(['施放前', '命中后']);
-    const 技能执行黑名单键表_V1 = Object.freeze([
-      '文本',
-      '描述',
-      '效果描述',
-      '副作用说明',
-      '对象差异条件文案',
-      '方向名称',
-      'summaryOnly',
-      '机制参数摘要',
-      '副作用摘要',
-      '属性摘要',
-      '构型摘要',
-      '术式摘要',
-      '极性摘要',
-      '属性系数摘要',
-    ]);
-    const 技能执行黑名单键集合_V1 = new Set(技能执行黑名单键表_V1);
 
     function isSkillSummaryEffect(effect) {
-      void effect;
-      return false;
+      const mechanism = toText(effect && effect['机制'], '').trim();
+      return !!mechanism && (!!(effect && effect.summaryOnly) || SKILL_SUMMARY_EFFECT_MECHANISM_SET.has(mechanism));
     }
 
     function normalizeSkillDesignerArray(value) {
@@ -4566,27 +4549,13 @@
       const 持续回合 = Math.max(0, parseSkillDesignerIntegerInputValue(value['持续回合'], 0, 0));
       const rawChance = parseSkillDesignerNumericInputValue(value['触发概率'], 1, 4);
       const 触发概率 = Number(Math.max(0, Math.min(1, Number.isFinite(rawChance) ? rawChance : 1)).toFixed(4));
+      const 关联状态 = normalizeSkillUiText(value['关联状态'], '');
       const 面板修改比例 = normalizeSkillDesignerSideEffectStatMap(value['面板修改比例']);
       const 战斗效果 = normalizeSkillDesignerSideEffectCombatMap(value['战斗效果']);
-      const 参数 = value['参数'] && typeof value['参数'] === 'object' && !Array.isArray(value['参数'])
-        ? cloneJsonValue(value['参数'])
-        : {};
-      const 关联状态 = normalizeSkillUiText(value['关联状态'], '');
-      if (safeEntries(面板修改比例).length) 参数['面板修改比例'] = 面板修改比例;
-      if (safeEntries(战斗效果).length) 参数['战斗效果'] = 战斗效果;
-      if (关联状态) 参数['关联状态'] = 关联状态;
-      safeEntries(value).forEach(([key, raw]) => {
-        if (
-          ['副作用类型', '触发时机', '生效对象', '持续回合', '触发概率', '参数', '面板修改比例', '战斗效果', '关联状态'].includes(key)
-        )
-          return;
-        if (技能执行黑名单键集合_V1.has(key)) return;
-        if (raw === undefined || raw === null) return;
-        if (typeof raw === 'string' && !raw.trim()) return;
-        参数[key] = cloneJsonValue(raw);
-      });
       const normalized = { 副作用类型, 触发时机, 生效对象, 持续回合, 触发概率 };
-      if (safeEntries(参数).length) normalized['参数'] = 参数;
+      if (safeEntries(面板修改比例).length) normalized['面板修改比例'] = 面板修改比例;
+      if (safeEntries(战斗效果).length) normalized['战斗效果'] = 战斗效果;
+      if (关联状态) normalized['关联状态'] = 关联状态;
       return normalized;
     }
 
@@ -4645,16 +4614,26 @@
     function normalizeSkillDesignerDirectionEntry(value = {}, index = 0) {
       const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
       const 方向ID = normalizeSkillUiText(source['方向ID'] || source.id, `方向${index + 1}`) || `方向${index + 1}`;
+      const 方向名称 = normalizeSkillUiText(source['方向名称'] || source.name, 方向ID) || 方向ID;
+      const rawTag = normalizeSkillUiText(source['方向语义标签'] || source.tag, '增幅');
+      const 方向语义标签 = SKILL_DESIGNER_DIRECTION_TAG_OPTIONS.includes(rawTag) ? rawTag : '增幅';
       const rawTargetSemantic = normalizeSkillUiText(source['方向目标语义'] || source.targetSemantic, '上下文');
       const 方向目标语义 = SKILL_DESIGNER_DIRECTION_TARGET_SEMANTIC_OPTIONS.includes(rawTargetSemantic)
         ? rawTargetSemantic
         : '上下文';
       const 方向效果数组 = normalizeSkillDesignerDirectionEffectList(source['方向效果数组'] || source.effects || []);
-      return {
+      const 方向触发条件 = normalizeSkillUiText(source['方向触发条件'] || source['触发条件'] || source.condition, '');
+      const 方向持续回合 = Math.max(0, parseSkillDesignerIntegerInputValue(source['方向持续回合'] ?? source['持续回合'], 0, 0));
+      const normalized = {
         方向ID,
+        方向名称,
+        方向语义标签,
         方向效果数组,
         方向目标语义,
       };
+      if (方向触发条件) normalized['方向触发条件'] = 方向触发条件;
+      if (方向持续回合 > 0) normalized['方向持续回合'] = 方向持续回合;
+      return normalized;
     }
 
     function normalizeSkillDesignerDirectionList(value = []) {
@@ -4666,6 +4645,7 @@
         if (!next['方向效果数组'].length) return;
         if (used.has(next['方向ID'])) {
           next['方向ID'] = `${next['方向ID']}_${index + 1}`;
+          if (next['方向名称'] === next['方向ID']) next['方向名称'] = `方向${index + 1}`;
         }
         used.add(next['方向ID']);
         normalized.push(next);
@@ -4675,17 +4655,19 @@
 
     function normalizeSkillDesignerDirectionRuleEntry(value = {}, index = 0, directionIdSet = new Set()) {
       const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-      void index;
+      const 规则ID = normalizeSkillUiText(source['规则ID'] || source.id, `规则${index + 1}`) || `规则${index + 1}`;
       const rawTrigger = normalizeSkillUiText(source['触发时机'] || source.trigger, '施放前');
       const 触发时机 = SKILL_DESIGNER_DIRECTION_AUTO_TRIGGER_OPTIONS.includes(rawTrigger) ? rawTrigger : '施放前';
-      const 条件 = normalizeSkillUiText(source['条件'] || source['触发条件'] || source.condition, '');
+      const 触发条件 = normalizeSkillUiText(source['触发条件'] || source.condition, '');
       const 切换至方向ID = normalizeSkillUiText(source['切换至方向ID'] || source.nextDirectionId, '');
       if (!切换至方向ID || !directionIdSet.has(切换至方向ID)) return null;
-      return {
-        触发时机,
-        ...(条件 ? { 条件 } : {}),
-        切换至方向ID,
-      };
+      const 优先级 = Math.max(0, parseSkillDesignerIntegerInputValue(source['优先级'] ?? source.priority, 50, 0));
+      const 最大触发次数 = Math.max(1, parseSkillDesignerIntegerInputValue(source['最大触发次数'] ?? source.maxTriggers, 1, 1));
+      const 阈值 = parseSkillDesignerNumericInputValue(source['阈值'] ?? source.threshold, NaN, 4);
+      const normalized = { 规则ID, 触发时机, 切换至方向ID, 优先级, 最大触发次数 };
+      if (触发条件) normalized['触发条件'] = 触发条件;
+      if (Number.isFinite(阈值)) normalized['阈值'] = 阈值;
+      return normalized;
     }
 
     function normalizeSkillDesignerDirectionRuleList(value = [], directionList = []) {
@@ -4693,7 +4675,8 @@
       const directionIdSet = new Set((Array.isArray(directionList) ? directionList : []).map(item => normalizeSkillUiText(item && item['方向ID'], '')).filter(Boolean));
       return source
         .map((entry, index) => normalizeSkillDesignerDirectionRuleEntry(entry, index, directionIdSet))
-        .filter(Boolean);
+        .filter(Boolean)
+        .sort((a, b) => Number(b && b['优先级'] || 0) - Number(a && a['优先级'] || 0));
     }
 
     function parseSkillDesignerDirectionJson(value = '') {
@@ -4736,172 +4719,6 @@
       } catch (error) {
         return '';
       }
-    }
-
-    function normalizeSkillDesignerExecutionTargetModel(value = '', fallback = '敌方单体') {
-      const text = normalizeSkillUiText(value, '');
-      if (!text) return normalizeSkillDesignerTargetForForm(fallback, '敌方单体');
-      const aliasMap = {
-        '己方/单体': '友方单体',
-        '己方/群体': '友方群体',
-        '敌方/单体': '敌方单体',
-        '敌方/群体': '敌方群体',
-        食用者: '友方单体',
-        使用者: '自身',
-        随机目标: normalizeSkillDesignerTargetForForm(fallback, '敌方单体'),
-      };
-      return normalizeSkillDesignerTargetForForm(aliasMap[text] || text, normalizeSkillDesignerTargetForForm(fallback, '敌方单体'));
-    }
-
-    function normalizeSkillDesignerExecutionObjectDiffRuleList(value = [], recordViolation = () => {}) {
-      return (Array.isArray(value) ? value : [])
-        .map(rule => {
-          if (!rule || typeof rule !== 'object' || Array.isArray(rule)) return null;
-          safeEntries(rule).forEach(([key]) => {
-            if (技能执行黑名单键集合_V1.has(key)) recordViolation(`对象差异规则.${key}`);
-          });
-          const 条件 = Array.isArray(rule['条件'])
-            ? rule['条件'].map(item => normalizeSkillUiText(item, '')).filter(Boolean)
-            : normalizeSkillUiText(rule['条件'] || rule['匹配'] || rule['对象'] || rule.target, '');
-          const 处理 = normalizeSkillUiText(rule['处理'] || rule['动作'] || rule.action, '覆盖') || '覆盖';
-          const 参数 = rule['参数'] && typeof rule['参数'] === 'object' && !Array.isArray(rule['参数'])
-            ? cloneJsonValue(rule['参数'])
-            : {};
-          safeEntries(rule).forEach(([key, raw]) => {
-            if (['条件', '匹配', '对象', 'target', '处理', '动作', 'action', '参数'].includes(key)) return;
-            if (技能执行黑名单键集合_V1.has(key)) return;
-            if (raw === undefined || raw === null) return;
-            if (typeof raw === 'string' && !raw.trim()) return;
-            参数[key] = cloneJsonValue(raw);
-          });
-          const normalized = { 条件, 处理 };
-          if (safeEntries(参数).length) normalized['参数'] = 参数;
-          return normalized;
-        })
-        .filter(Boolean);
-    }
-
-    function normalizeSkillDesignerExecutionEffectEntry(value = {}, fallbackTargetModel = '敌方单体', recordViolation = () => {}) {
-      if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-      const mechanism = normalizeSkillUiText(value['机制'], '');
-      if (!mechanism || mechanism === '系统基础' || isSkillSummaryEffect(value)) return null;
-      safeEntries(value).forEach(([key]) => {
-        if (技能执行黑名单键集合_V1.has(key)) recordViolation(`${mechanism}.${key}`);
-      });
-      const 目标模型 = normalizeSkillDesignerExecutionTargetModel(value['目标模型'] || value['目标'] || value['对象'], fallbackTargetModel);
-      const 持续回合 = Math.max(0, parseSkillDesignerIntegerInputValue(value['持续回合'] ?? value['持续'], 0, 0));
-      const 触发时机 = normalizeSkillUiText(value['触发时机'] || value['触发'], '');
-      const 参数 = value['参数'] && typeof value['参数'] === 'object' && !Array.isArray(value['参数'])
-        ? cloneJsonValue(value['参数'])
-        : {};
-      safeEntries(value).forEach(([key, raw]) => {
-        if (['机制', '目标模型', '目标', '对象', '持续回合', '持续', '触发时机', '触发', '参数', '对象差异规则'].includes(key))
-          return;
-        if (技能执行黑名单键集合_V1.has(key)) return;
-        if (raw === undefined || raw === null) return;
-        if (typeof raw === 'string' && !raw.trim()) return;
-        参数[key] = cloneJsonValue(raw);
-      });
-      const 对象差异规则 = normalizeSkillDesignerExecutionObjectDiffRuleList(value['对象差异规则'] || [], recordViolation);
-      const normalized = { '机制': mechanism, '目标模型': 目标模型 };
-      if (持续回合 > 0) normalized['持续回合'] = 持续回合;
-      if (触发时机) normalized['触发时机'] = 触发时机;
-      if (safeEntries(参数).length) normalized['参数'] = 参数;
-      if (对象差异规则.length) normalized['对象差异规则'] = 对象差异规则;
-      return normalized;
-    }
-
-    function normalizeSkillDesignerExecutionSystemBase(systemBase = {}, fallbackTargetModel = '敌方单体', recordViolation = () => {}) {
-      const source = systemBase && typeof systemBase === 'object' && !Array.isArray(systemBase) ? systemBase : {};
-      safeEntries(source).forEach(([key]) => {
-        if (技能执行黑名单键集合_V1.has(key)) recordViolation(`系统基础.${key}`);
-      });
-      const 目标模型 = normalizeSkillDesignerExecutionTargetModel(source['目标模型'] || source['对象'], fallbackTargetModel);
-      const 方向配置列表 = normalizeSkillDesignerDirectionList(source['方向配置列表'] || [])
-        .map((item, index) => {
-          const 方向效果数组 = normalizeSkillDesignerDirectionEffectList(item && item['方向效果数组'])
-            .map(effect => normalizeSkillDesignerExecutionEffectEntry(effect, 目标模型, recordViolation))
-            .filter(Boolean);
-          if (!方向效果数组.length) return null;
-          return {
-            '方向ID': normalizeSkillUiText(item && item['方向ID'], `方向${index + 1}`) || `方向${index + 1}`,
-            '方向目标语义': normalizeSkillUiText(item && item['方向目标语义'], '上下文') || '上下文',
-            '方向效果数组': 方向效果数组,
-          };
-        })
-        .filter(Boolean);
-      const directionIdSet = new Set(方向配置列表.map(item => normalizeSkillUiText(item && item['方向ID'], '')).filter(Boolean));
-      const 自动切换规则 = normalizeSkillDesignerDirectionRuleList(source['自动切换规则'] || [], 方向配置列表)
-        .map(rule => {
-          if (!rule || typeof rule !== 'object') return null;
-          safeEntries(rule).forEach(([key]) => {
-            if (技能执行黑名单键集合_V1.has(key)) recordViolation(`自动切换规则.${key}`);
-          });
-          const 触发时机 = normalizeSkillUiText(rule['触发时机'], '施放前') || '施放前';
-          const 条件 = normalizeSkillUiText(rule['条件'] || rule['触发条件'], '');
-          const 切换至方向ID = normalizeSkillUiText(rule['切换至方向ID'], '');
-          if (!切换至方向ID || !directionIdSet.has(切换至方向ID)) return null;
-          return {
-            '触发时机': 触发时机,
-            ...(条件 ? { '条件': 条件 } : {}),
-            '切换至方向ID': 切换至方向ID,
-          };
-        })
-        .filter(Boolean);
-      const 副作用列表 = normalizeSkillDesignerSideEffectList(source['副作用列表'] || [])
-        .map(item => {
-          if (!item || typeof item !== 'object') return null;
-          const normalized = {
-            '副作用类型': normalizeSkillUiText(item['副作用类型'], ''),
-            '触发时机': normalizeSkillUiText(item['触发时机'], '施放后') || '施放后',
-            '生效对象': normalizeSkillUiText(item['生效对象'], '施术者') || '施术者',
-            '持续回合': Math.max(0, parseSkillDesignerIntegerInputValue(item['持续回合'], 0, 0)),
-            '触发概率': Number(Math.max(0, Math.min(1, parseSkillDesignerNumericInputValue(item['触发概率'], 1, 4))).toFixed(4)),
-          };
-          const 参数 = item['参数'] && typeof item['参数'] === 'object' && !Array.isArray(item['参数'])
-            ? cloneJsonValue(item['参数'])
-            : {};
-          if (safeEntries(参数).length) normalized['参数'] = 参数;
-          if (!normalized['副作用类型']) return null;
-          return normalized;
-        })
-        .filter(Boolean);
-      const normalized = {
-        '机制': '系统基础',
-        '技能来源': normalizeSkillUiText(source['技能来源'], '魂技') || '魂技',
-        '技能类型': normalizeSkillUiText(source['技能类型'], '无') || '无',
-        '目标模型': 目标模型,
-        '结算策略': normalizeSkillUiText(
-          source['结算策略'],
-          ['敌方群体', '友方群体', '全场'].includes(目标模型) ? '全目标独立' : '单目标独立',
-        ) || '单目标独立',
-        '消耗': source['消耗'] === undefined ? '无' : cloneJsonValue(source['消耗']),
-        'cast_time': Math.max(0, toNumber(source['cast_time'], 0)),
-      };
-      if (方向配置列表.length) normalized['方向配置列表'] = 方向配置列表;
-      if (自动切换规则.length) normalized['自动切换规则'] = 自动切换规则;
-      if (副作用列表.length) normalized['副作用列表'] = 副作用列表;
-      return normalized;
-    }
-
-    function normalizeSkillDesignerExecutionEffectArray(effectArray = [], fallbackTargetModel = '敌方单体') {
-      const source = Array.isArray(effectArray) ? effectArray : [];
-      const violationList = [];
-      const recordViolation = path => {
-        if (!path) return;
-        violationList.push(path);
-      };
-      const rawSystemBase = source.find(effect => normalizeSkillUiText(effect && effect['机制'], '') === '系统基础') || {};
-      const systemBase = normalizeSkillDesignerExecutionSystemBase(rawSystemBase, fallbackTargetModel, recordViolation);
-      const effectList = source
-        .filter(effect => normalizeSkillUiText(effect && effect['机制'], '') !== '系统基础')
-        .map(effect => normalizeSkillDesignerExecutionEffectEntry(effect, systemBase['目标模型'], recordViolation))
-        .filter(Boolean);
-      if (violationList.length) {
-        const uniqueList = Array.from(new Set(violationList));
-        throw new Error(`[技能执行结构校验失败] 检测到黑名单字段：${uniqueList.join('、')}`);
-      }
-      return [systemBase, ...effectList];
     }
 
     function formatSkillDesignerNumericInput(value, digits = 4) {
@@ -5668,9 +5485,11 @@
     }
 
     function getSkillSummaryEffectByMechanism(effectArray, mechanism = '') {
-      void effectArray;
-      void mechanism;
-      return null;
+      const targetMechanism = toText(mechanism, '').trim();
+      if (!targetMechanism) return null;
+      return (Array.isArray(effectArray) ? effectArray : []).find(effect => {
+        return isSkillSummaryEffect(effect) && toText(effect && effect['机制'], '').trim() === targetMechanism;
+      }) || null;
     }
 
     function cleanSkillDisplayName(skill, rawName = '') {
@@ -5917,6 +5736,9 @@
       const effectArray = Array.isArray(safeSkill['_效果数组']) ? safeSkill['_效果数组'] : [];
       const designDraft = safeSkill['设计稿'] && typeof safeSkill['设计稿'] === 'object' ? safeSkill['设计稿'] : {};
       const systemBase = effectArray.find(effect => toText(effect && effect['机制'], '').trim() === '系统基础') || {};
+      const attributeSummary = getSkillSummaryEffectByMechanism(effectArray, '属性摘要') || {};
+      const coeffSummary = getSkillSummaryEffectByMechanism(effectArray, '属性系数摘要') || {};
+      const mechanicParamSummary = getSkillSummaryEffectByMechanism(effectArray, '机制参数摘要') || {};
       const resolvedType = normalizeSkillUiText(
         designDraft['技能类型'] || systemBase['技能类型'],
         '未知',
@@ -5946,7 +5768,7 @@
       });
       const mergedMechanicParams = mergeSkillDesignerMechanicParamSources(
         inferredMechanicParams,
-        undefined,
+        mechanicParamSummary['参数表'],
         designDraft['机制参数'],
       );
       const resolvedSideEffects = normalizeSkillDesignerSideEffectList(
@@ -5959,6 +5781,16 @@
         designDraft['目标规模'] || systemBase['目标规模'],
         deriveSkillDesignerTargetScaleFromTarget(resolvedTarget),
       );
+      const resolvedDefaultDirection = (() => {
+        const rawDefault = normalizeSkillUiText(
+          designDraft['默认方向'] || systemBase['默认方向'],
+          '',
+        );
+        if (!rawDefault) return normalizeSkillUiText(resolvedDirectionList[0] && resolvedDirectionList[0]['方向ID'], '');
+        const directionIdSet = new Set(resolvedDirectionList.map(item => normalizeSkillUiText(item && item['方向ID'], '')).filter(Boolean));
+        if (directionIdSet.has(rawDefault)) return rawDefault;
+        return normalizeSkillUiText(resolvedDirectionList[0] && resolvedDirectionList[0]['方向ID'], '');
+      })();
       const resolvedDirectionRules = normalizeSkillDesignerDirectionRuleList(
         designDraft['自动切换规则'] || systemBase['自动切换规则'] || [],
         resolvedDirectionList,
@@ -5983,17 +5815,18 @@
         secondaryMechanics: resolvedSecondaryMechanics,
         attachedAttributes: normalizeSkillDesignerArray(
           designDraft['附带属性']
+          || attributeSummary['属性列表']
           || safeSkill['附带属性']
         ),
         attributeSource: normalizeSkillUiText(
-          designDraft['属性来源'],
+          designDraft['属性来源'] || attributeSummary['属性来源'],
           '无'
         ),
         attributeRole: normalizeSkillUiText(
-          designDraft['魂技作用'],
+          designDraft['魂技作用'] || attributeSummary['魂技作用'],
           '无'
         ),
-        coeff: normalizeSkillDesignerCoeffMap(designDraft['属性系数']),
+        coeff: normalizeSkillDesignerCoeffMap(designDraft['属性系数'] || coeffSummary['系数']),
         artStage: normalizeSkillUiText(safeSkill['境界'] || designDraft['境界'], '未入门'),
         artLevel: Math.max(0, toNumber(safeSkill['lv'] ?? designDraft['lv'], 0)),
         artExp: Math.max(0, toNumber(safeSkill['exp'] ?? designDraft['exp'], 0)),
@@ -6017,7 +5850,9 @@
         目标规模: resolvedTargetScale,
         阵营判定: '自动',
         方向配置列表: resolvedDirectionList,
+        默认方向: resolvedDefaultDirection,
         自动切换规则: resolvedDirectionRules,
+        切换代价: '无',
       };
     }
 
@@ -6101,6 +5936,7 @@
       const constructSummary = buildSkillDesignerConstructSummary(draft);
       const directionList = normalizeSkillDesignerDirectionList(draft['方向配置列表'] || []);
       const autoRules = normalizeSkillDesignerDirectionRuleList(draft['自动切换规则'] || [], directionList);
+      const defaultDirection = normalizeSkillUiText(draft['默认方向'], normalizeSkillUiText(directionList[0] && directionList[0]['方向ID'], ''));
       if (target) parts.push(`对象：${target}`);
       if (targetScale) parts.push(`规模：${targetScale}`);
       if (cost && cost !== '无') parts.push(`消耗：${cost}`);
@@ -6109,8 +5945,7 @@
       if (mechanismContext.triggerOwner) parts.push(`触发归属：${mechanismContext.triggerOwner}`);
       if (directionList.length > 0) {
         parts.push(`方向数：${directionList.length}`);
-        const firstDirection = normalizeSkillUiText(directionList[0] && directionList[0]['方向ID'], '');
-        if (firstDirection) parts.push(`首方向：${firstDirection}`);
+        if (defaultDirection) parts.push(`默认方向：${defaultDirection}`);
         if (autoRules.length > 0) parts.push(`自动切换：${autoRules.length}条`);
       }
       const sideEffectSummary = buildSkillDesignerSideEffectSummary(draft);
@@ -6121,7 +5956,10 @@
     function buildSkillDesignerDirectionSummary(draft = {}) {
       const directionList = normalizeSkillDesignerDirectionList(draft['方向配置列表'] || []);
       if (!directionList.length) return '';
-      const firstDirection = normalizeSkillUiText(directionList[0] && directionList[0]['方向ID'], '');
+      const defaultDirection = normalizeSkillUiText(
+        draft['默认方向'],
+        normalizeSkillUiText(directionList[0] && directionList[0]['方向ID'], ''),
+      );
       const autoRules = normalizeSkillDesignerDirectionRuleList(draft['自动切换规则'] || [], directionList);
       const coverageText = directionList
         .map(item => {
@@ -6133,7 +5971,7 @@
           return `${directionId}:${effectNames.join('/') || '无'}`;
         })
         .join('；');
-      return `方向数：${directionList.length}；首方向：${firstDirection || '未设置'}；自动切换规则：${autoRules.length}；方向覆盖：${coverageText}`;
+      return `方向数：${directionList.length}；默认方向：${defaultDirection || '未设置'}；自动切换规则：${autoRules.length}；方向覆盖：${coverageText}`;
     }
 
     function buildSkillDesignerArtProgressSummary(draft = {}) {
@@ -6164,13 +6002,41 @@
     }
 
     function buildSkillDesignerRuntimeSummaryEffects(draft = {}) {
-      void draft;
-      return [];
+      const attachedAttributes = normalizeSkillDesignerArray(draft.attachedAttributes);
+      const summaryEffects = [];
+      if (attachedAttributes.length) {
+        summaryEffects.push({
+          '机制': '属性摘要',
+          summaryOnly: true,
+          '文本': `附带属性：${attachedAttributes.join('/')}`,
+          '属性列表': [...attachedAttributes],
+          '显示元素': attachedAttributes.join('/') || '无',
+        });
+      }
+      const mechanicParamSummary = buildSkillDesignerMechanicParamSummary(draft);
+      if (mechanicParamSummary) {
+        summaryEffects.push({
+          '机制': '机制参数摘要',
+          summaryOnly: true,
+          '文本': mechanicParamSummary,
+          '参数表': cloneJsonValue(normalizeSkillDesignerMechanicParamMap(draft.mechanicParams, draft)),
+        });
+      }
+      const sideEffects = normalizeSkillDesignerSideEffectList(draft && draft['副作用列表']);
+      if (sideEffects.length) {
+        summaryEffects.push({
+          '机制': '副作用摘要',
+          summaryOnly: true,
+          '文本': buildSkillDesignerSideEffectSummary(draft),
+          '副作用列表': cloneJsonValue(sideEffects),
+        });
+      }
+      return summaryEffects;
     }
 
     function replaceSkillDesignerSummaryEffects(effectArray, summaryEffects = []) {
-      void summaryEffects;
-      return (Array.isArray(effectArray) ? effectArray : []).filter(effect => effect && typeof effect === 'object');
+      const baseEffects = (Array.isArray(effectArray) ? effectArray : []).filter(effect => !isSkillSummaryEffect(effect));
+      return [...baseEffects, ...cloneJsonValue(summaryEffects)];
     }
 
     function getSkillDesignerChildMechanicOptions(primaryMain = '') {
@@ -7938,7 +7804,21 @@
       const effectInfo = ensureSkillDesignerEffectArray(skillSource);
       const existing = effectInfo.systemBase && typeof effectInfo.systemBase === 'object' ? effectInfo.systemBase : {};
       const isPassive = /被动/.test(normalizeSkillUiText(draft && draft.type, '')) || toText(previewMeta && previewMeta.scope, '') === 'blood_passive';
+      const systemTarget = draft && draft.deliveryForm === '造物承载'
+        ? '自身'
+        : normalizeSkillDesignerTargetForRuntime(draft && draft.target, 'system');
+      const targetScale = normalizeSkillDesignerTargetScale(
+        draft && draft['目标规模'],
+        deriveSkillDesignerTargetScaleFromTarget(draft && draft.target),
+      );
       const directionList = normalizeSkillDesignerDirectionList(draft && draft['方向配置列表']);
+      const defaultDirection = (() => {
+        const rawDefault = normalizeSkillUiText(draft && draft['默认方向'], '');
+        if (!rawDefault) return normalizeSkillUiText(directionList[0] && directionList[0]['方向ID'], '');
+        const directionIdSet = new Set(directionList.map(item => normalizeSkillUiText(item && item['方向ID'], '')).filter(Boolean));
+        if (directionIdSet.has(rawDefault)) return rawDefault;
+        return normalizeSkillUiText(directionList[0] && directionList[0]['方向ID'], '');
+      })();
       const directionRules = normalizeSkillDesignerDirectionRuleList(
         draft && draft['自动切换规则'],
         directionList,
@@ -7955,12 +7835,13 @@
         '机制': '系统基础',
         '技能来源': resolveSkillDesignerSourceCategory(previewMeta),
         '技能类型': skillTypeText,
-        '目标模型': normalizeSkillDesignerTargetForForm(draft && draft.target, '敌方单体'),
-        '结算策略': ['敌方群体', '友方群体', '全场'].includes(normalizeSkillDesignerTargetForForm(draft && draft.target, '敌方单体'))
-          ? '全目标独立'
-          : '单目标独立',
+        '目标规模': targetScale,
+        '阵营判定': '自动',
         '方向配置列表': directionList,
+        '默认方向': defaultDirection,
         '自动切换规则': directionRules,
+        '切换代价': '无',
+        '对象': systemTarget,
         '消耗': isPassive ? '无' : (draft && draft.cost) || '无',
         'cast_time': isPassive ? 0 : (Number.isFinite(existingCastTime) ? existingCastTime : fallbackCastTime),
         '副作用列表': sideEffects,
@@ -9211,10 +9092,18 @@
       safeSkill['name'] = normalized.name;
       safeSkill['技能来源'] = skillSourceCategory;
       safeSkill['技能类型'] = normalized.type;
+      safeSkill['对象'] = normalized.target;
+      safeSkill['目标规模'] = normalizeSkillDesignerTargetScale(
+        normalized['目标规模'],
+        deriveSkillDesignerTargetScaleFromTarget(normalized.target),
+      );
+      safeSkill['阵营判定'] = '自动';
       safeSkill['方向配置列表'] = cloneJsonValue(normalizeSkillDesignerDirectionList(normalized['方向配置列表']));
+      safeSkill['默认方向'] = normalizeSkillUiText(normalized['默认方向'], '');
       safeSkill['自动切换规则'] = cloneJsonValue(
         normalizeSkillDesignerDirectionRuleList(normalized['自动切换规则'], normalized['方向配置列表']),
       );
+      safeSkill['切换代价'] = '无';
       safeSkill['消耗'] = normalized.cost;
       delete safeSkill['加成属性'];
       safeSkill['主定位'] = normalized.mainRole;
@@ -9246,14 +9135,18 @@
         '附带属性': [...normalized.attachedAttributes],
         '标签': compactSkillDesignerStoredTags(normalized.tags),
         '技能类型': normalized.type,
-        '目标模型': normalizeSkillDesignerTargetForForm(normalized.target, '敌方单体'),
+        '对象': normalized.target,
+        '目标规模': normalizeSkillDesignerTargetScale(
+          normalized['目标规模'],
+          deriveSkillDesignerTargetScaleFromTarget(normalized.target),
+        ),
+        '阵营判定': '自动',
         '方向配置列表': cloneJsonValue(normalizeSkillDesignerDirectionList(normalized['方向配置列表'])),
+        '默认方向': normalizeSkillUiText(normalized['默认方向'], ''),
         '自动切换规则': cloneJsonValue(
           normalizeSkillDesignerDirectionRuleList(normalized['自动切换规则'], normalized['方向配置列表']),
         ),
-        '结算策略': ['敌方群体', '友方群体', '全场'].includes(normalizeSkillDesignerTargetForForm(normalized.target, '敌方单体'))
-          ? '全目标独立'
-          : '单目标独立',
+        '切换代价': '无',
         '消耗': normalized.cost,
         '消耗资源': normalized.costType,
         '消耗数值': normalized.costValue,
@@ -9273,25 +9166,16 @@
       let runtimeEffects = buildSkillDesignerRuntimeEffects(normalized, skillSource, previewMeta);
       const directionList = normalizeSkillDesignerDirectionList(normalized['方向配置列表']);
       if (directionList.length > 0) {
-        const defaultDirection = directionList[0];
+        const defaultDirectionId = normalizeSkillUiText(
+          normalized['默认方向'],
+          normalizeSkillUiText(directionList[0] && directionList[0]['方向ID'], ''),
+        );
+        const defaultDirection =
+          directionList.find(item => normalizeSkillUiText(item && item['方向ID'], '') === defaultDirectionId) || directionList[0];
         const defaultEffects = normalizeSkillDesignerDirectionEffectList(defaultDirection && defaultDirection['方向效果数组']);
         if (defaultEffects.length > 0) runtimeEffects = defaultEffects;
       }
-      safeSkill['_效果数组'] = normalizeSkillDesignerExecutionEffectArray(
-        [cloneJsonValue(systemBase), ...cloneJsonValue(runtimeEffects)],
-        normalizeSkillDesignerTargetForForm(normalized.target, '敌方单体'),
-      );
-      const 已收口系统基础 = safeSkill['_效果数组'][0] && typeof safeSkill['_效果数组'][0] === 'object'
-        ? safeSkill['_效果数组'][0]
-        : {};
-      safeSkill['技能来源'] = normalizeSkillUiText(已收口系统基础['技能来源'], safeSkill['技能来源']);
-      safeSkill['技能类型'] = normalizeSkillUiText(已收口系统基础['技能类型'], safeSkill['技能类型']);
-      safeSkill['目标模型'] = normalizeSkillUiText(已收口系统基础['目标模型'], safeSkill['目标模型'] || normalized.target);
-      safeSkill['结算策略'] = normalizeSkillUiText(已收口系统基础['结算策略'], safeSkill['结算策略'] || '单目标独立');
-      safeSkill['消耗'] = 已收口系统基础['消耗'] === undefined ? safeSkill['消耗'] : cloneJsonValue(已收口系统基础['消耗']);
-      safeSkill['cast_time'] = Math.max(0, toNumber(已收口系统基础['cast_time'], safeSkill['cast_time']));
-      safeSkill['方向配置列表'] = cloneJsonValue(已收口系统基础['方向配置列表'] || []);
-      safeSkill['自动切换规则'] = cloneJsonValue(已收口系统基础['自动切换规则'] || []);
+      safeSkill['_效果数组'] = [cloneJsonValue(systemBase), ...cloneJsonValue(runtimeEffects)];
       return safeSkill;
     }
 
@@ -18149,109 +18033,6 @@
             要求补丁输出: true,
           }),
         }),
-        对象差异_食物自服禁用: Object.freeze({
-          skillName: '夹具_对象差异_食物自服禁用',
-          targetName: '曹德智',
-          battle: Object.freeze({
-            进行中: true,
-            战斗类型: '擂台切磋',
-            战斗意图: '点到为止',
-            先攻: '无',
-            允许撤离: true,
-            回合: 0,
-            环境: '固定夹具场',
-            裁断结果: '',
-            参战者: Object.freeze({
-              player: Object.freeze({ name: '曹德智' }),
-              enemy: Object.freeze({ name: '云冥' }),
-              team_player: Object.freeze([]),
-              team_enemy: Object.freeze([]),
-            }),
-          }),
-          patchesBefore: Object.freeze([
-            { op: 'replace', path: '/char/曹德智/属性/魂力上限', value: 100 },
-            { op: 'replace', path: '/char/曹德智/属性/魂力', value: 0 },
-            { op: 'replace', path: '/char/曹德智/属性/精神力上限', value: 100 },
-            { op: 'replace', path: '/char/曹德智/属性/精神力', value: 0 },
-          ]),
-          skillData: Object.freeze({
-            name: '夹具_对象差异_食物自服禁用',
-            魂技名: '夹具_对象差异_食物自服禁用',
-            技能来源: '自创魂技',
-            技能类型: '自创魂技',
-            对象: '友方单体',
-            消耗: '无',
-            _效果数组: Object.freeze([
-              createSkillFixtureSystemBase('己方/单体'),
-              Object.freeze({
-                机制: '能力共享',
-                目标: '友方单体',
-                资源类型: '双资源',
-                反灌比例: 0.22,
-                对象差异规则: Object.freeze([
-                  Object.freeze({ 规则ID: '食物自服禁用', 条件: '自身', 处理: '禁用', 优先级: 100 }),
-                ]),
-              }),
-            ]),
-          }),
-          预期: Object.freeze({
-            玩家魂力至多变化: 0,
-            玩家精神力至多变化: 0,
-            要求补丁输出: true,
-          }),
-        }),
-        对象差异_神圣逆邪: Object.freeze({
-          skillName: '夹具_对象差异_神圣逆邪',
-          targetName: '云冥',
-          battle: Object.freeze({
-            进行中: true,
-            战斗类型: '擂台切磋',
-            战斗意图: '点到为止',
-            先攻: '无',
-            允许撤离: true,
-            回合: 0,
-            环境: '固定夹具场',
-            裁断结果: '',
-            参战者: Object.freeze({
-              player: Object.freeze({ name: '曹德智' }),
-              enemy: Object.freeze({ name: '云冥' }),
-              team_player: Object.freeze([]),
-              team_enemy: Object.freeze([]),
-            }),
-          }),
-          patchesBefore: Object.freeze([
-            { op: 'replace', path: '/char/云冥/属性/体力上限', value: 220 },
-            { op: 'replace', path: '/char/云冥/属性/体力', value: 220 },
-            { op: 'replace', path: '/char/云冥/属性/邪魂师', value: true },
-          ]),
-          skillData: Object.freeze({
-            name: '夹具_对象差异_神圣逆邪',
-            魂技名: '夹具_对象差异_神圣逆邪',
-            技能来源: '自创魂技',
-            技能类型: '自创魂技',
-            对象: '敌方单体',
-            消耗: '无',
-            _效果数组: Object.freeze([
-              createSkillFixtureSystemBase('敌方/单体'),
-              Object.freeze({
-                机制: '属性变化',
-                目标: '敌方单体',
-                属性: 'vit',
-                动作: '加值',
-                数值: 0.26,
-                持续: 0,
-                触发: '立即生效',
-                对象差异规则: Object.freeze([
-                  Object.freeze({ 规则ID: '神圣逆邪_邪魂师', 条件: '邪魂师', 处理: '转为伤害', 伤害类型: '神圣', 伤害倍率: 1, 优先级: 95 }),
-                ]),
-              }),
-            ]),
-          }),
-          预期: Object.freeze({
-            目标体力至少减少: 1,
-            要求补丁输出: true,
-          }),
-        }),
         机制抹消_复苏: Object.freeze({
           skillName: '夹具_机制抹消_复苏',
           targetName: '云冥',
@@ -18874,7 +18655,6 @@
       return Object.freeze({
         已验证夹具: Object.freeze([
           { 类目: '资源', 机制: Object.freeze(['吞噬', '能力共享']), 状态: '已验证' },
-          { 类目: '对象差异', 机制: Object.freeze(['对象差异_食物自服禁用', '对象差异_神圣逆邪']), 状态: '已验证' },
           { 类目: '通用反制', 机制: Object.freeze(['机制抹消']), 状态: '已验证' },
           { 类目: '状态博弈', 机制: Object.freeze(['状态转移']), 状态: '已验证' },
           { 类目: '持续伤害', 机制: Object.freeze(['引爆持续伤害']), 状态: '已验证' },
@@ -19039,7 +18819,7 @@
       const 战斗夹具键列表 =
         Array.isArray(options?.战斗夹具键列表) && options.战斗夹具键列表.length
           ? options.战斗夹具键列表
-          : ['吞噬', '能力共享', '对象差异_食物自服禁用', '对象差异_神圣逆邪', '机制抹消_复苏', '机制抹消_回复机制', '机制抹消_护盾', '机制抹消_隐身', '状态转移', '引爆持续伤害', '斩盾', '窃取护盾', '多方向_施放切换', '多方向_语义可赋予'];
+          : ['吞噬', '能力共享', '机制抹消_复苏', '机制抹消_回复机制', '机制抹消_护盾', '机制抹消_隐身', '状态转移', '引爆持续伤害', '斩盾', '窃取护盾', '多方向_施放切换', '多方向_语义可赋予'];
       const 战斗侧结果 = await window.__LWCS_RUN_SKILL_FIXTURE_BATCH__(战斗夹具键列表, {
         waitMs: Number(options?.waitMs || 260),
         settleWaitMs: Number(options?.settleWaitMs || 420),
@@ -19062,7 +18842,7 @@
       const 待运行键列表 =
         Array.isArray(夹具键列表) && 夹具键列表.length
           ? 夹具键列表
-          : ['对象差异_食物自服禁用', '对象差异_神圣逆邪', '状态转移', '引爆持续伤害', '斩盾', '窃取护盾', '机制抹消_复苏', '机制抹消_护盾', '机制抹消_隐身', '多方向_施放切换', '多方向_语义可赋予'];
+          : ['状态转移', '引爆持续伤害', '斩盾', '窃取护盾', '机制抹消_复苏', '机制抹消_护盾', '机制抹消_隐身', '多方向_施放切换', '多方向_语义可赋予'];
       const 结果项列表 = [];
       for (const fixtureKey of 待运行键列表) {
         await refreshLiveSnapshot({ force: true });
@@ -24989,5 +24769,6 @@ window.mvuSetMainTab = setMainTab;
 
 
 })();
+
 
 

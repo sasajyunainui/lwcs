@@ -1894,6 +1894,7 @@ class BattleUIComponent {
     }
 
     const BATTLE_SKILL_TARGET_MODELS = new Set(['自身', '友方单体', '友方群体', '敌方单体', '敌方群体', '全场']);
+    const BATTLE_SKILL_TARGET_SCALES = new Set(['自身', '单体', '群体', '全场']);
     const BATTLE_SKILL_TARGET_MODIFIERS = new Set([
       '受隐身筛选',
       '可被破隐',
@@ -1902,6 +1903,8 @@ class BattleUIComponent {
       '可被随机偏转',
       '可被锁定强化',
     ]);
+    const BATTLE_SKILL_DIRECTION_TARGET_SEMANTICS = new Set(['可赋予', '敌对', '上下文', '仅自身']);
+    const BATTLE_SKILL_DIRECTION_AUTO_TRIGGERS = new Set(['施放前', '命中后']);
 
     function normalizeBattleSkillTargetModel(value = '', fallback = '敌方单体') {
       const text = String(value || '').trim();
@@ -1961,6 +1964,147 @@ class BattleUIComponent {
       if (mechanisms.includes('破隐')) modifiers.push('可被破隐');
       if (mechanisms.includes('随机目标') || mechanisms.includes('认知扭曲')) modifiers.push('可被随机偏转');
       return normalizeBattleSkillTargetModifiers(modifiers);
+    }
+
+    function normalizeBattleSkillTargetScale(value = '', fallback = '单体') {
+      const text = String(value || '').trim();
+      if (BATTLE_SKILL_TARGET_SCALES.has(text)) return text;
+      if (text === '自身') return '自身';
+      if (text === '全场') return '全场';
+      if (/群体/.test(text)) return '群体';
+      if (/单体/.test(text)) return '单体';
+      return BATTLE_SKILL_TARGET_SCALES.has(fallback) ? fallback : '单体';
+    }
+
+    function deriveBattleSkillTargetScaleFromModel(targetModel = '敌方单体') {
+      const normalized = normalizeBattleSkillTargetModel(targetModel, '敌方单体');
+      if (normalized === '自身') return '自身';
+      if (normalized === '全场') return '全场';
+      if (normalized.includes('群体')) return '群体';
+      return '单体';
+    }
+
+    function normalizeBattleExecutionEffectTargetModel(value = '', fallback = '敌方单体') {
+      const text = String(value || '').trim();
+      if (!text) return normalizeBattleSkillTargetModel(fallback, '敌方单体');
+      const aliasMap = {
+        '己方/单体': '友方单体',
+        '己方/群体': '友方群体',
+        '敌方/单体': '敌方单体',
+        '敌方/群体': '敌方群体',
+        食用者: '友方单体',
+        使用者: '自身',
+        随机目标: normalizeBattleSkillTargetModel(fallback, '敌方单体'),
+      };
+      return normalizeBattleSkillTargetModel(aliasMap[text] || text, normalizeBattleSkillTargetModel(fallback, '敌方单体'));
+    }
+
+    function hydrateBattleExecutionEffectEntry(effect = {}, fallbackTargetModel = '敌方单体') {
+      if (!effect || typeof effect !== 'object' || Array.isArray(effect)) return null;
+      const mechanism = String(effect?.机制 || '').trim();
+      if (!mechanism || mechanism === '系统基础' || isBattleSkillSummaryEffect(effect)) return null;
+      const targetModel = normalizeBattleExecutionEffectTargetModel(
+        effect?.目标模型 || effect?.目标 || effect?.对象,
+        fallbackTargetModel,
+      );
+      const duration = Math.max(0, Math.round(Number(effect?.持续回合 ?? effect?.持续 ?? 0)));
+      const trigger = String(effect?.触发时机 || effect?.触发 || '').trim();
+      const params =
+        effect?.参数 && typeof effect.参数 === 'object' && !Array.isArray(effect.参数) ? deepClonePlain(effect.参数) : {};
+      const hydrated = {
+        ...params,
+        ...deepClonePlain(effect || {}),
+        机制: mechanism,
+        目标模型: targetModel,
+        目标: targetModel,
+        对象: targetModel,
+      };
+      delete hydrated.参数;
+      if (duration > 0) hydrated.持续回合 = duration;
+      if (trigger) {
+        hydrated.触发时机 = trigger;
+        if (!String(hydrated.触发 || '').trim()) hydrated.触发 = trigger;
+      }
+      return hydrated;
+    }
+
+    function normalizeBattleDirectionEffectList(value = [], fallbackTargetModel = '敌方单体') {
+      const source = Array.isArray(value) ? value : [];
+      return source
+        .map(effect => hydrateBattleExecutionEffectEntry(effect, fallbackTargetModel))
+        .filter(Boolean);
+    }
+
+    function normalizeBattleDirectionConfigEntry(value = {}, index = 0, fallbackTargetModel = '敌方单体') {
+      const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+      const 方向ID = String(source.方向ID || source.id || `方向${index + 1}`).trim() || `方向${index + 1}`;
+      const rawTargetSemantic = String(source.方向目标语义 || source.targetSemantic || '上下文').trim();
+      const 方向目标语义 = BATTLE_SKILL_DIRECTION_TARGET_SEMANTICS.has(rawTargetSemantic) ? rawTargetSemantic : '上下文';
+      const 方向效果数组 = normalizeBattleDirectionEffectList(source.方向效果数组 || source.effects || [], fallbackTargetModel);
+      return {
+        方向ID,
+        方向效果数组,
+        方向目标语义,
+      };
+    }
+
+    function normalizeBattleDirectionConfigList(value = [], fallbackTargetModel = '敌方单体') {
+      const source = Array.isArray(value) ? value : [];
+      const normalized = [];
+      const used = new Set();
+      source.forEach((entry, index) => {
+        const next = normalizeBattleDirectionConfigEntry(entry, index, fallbackTargetModel);
+        if (!next.方向效果数组.length) return;
+        if (used.has(next.方向ID)) {
+          next.方向ID = `${next.方向ID}_${index + 1}`;
+        }
+        used.add(next.方向ID);
+        normalized.push(next);
+      });
+      return normalized;
+    }
+
+    function normalizeBattleDirectionRuleEntry(value = {}, index = 0, directionIdSet = new Set()) {
+      const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+      const 规则ID = String(source.规则ID || source.id || `规则${index + 1}`).trim() || `规则${index + 1}`;
+      const rawTrigger = String(source.触发时机 || source.trigger || '施放前').trim();
+      const 触发时机 = BATTLE_SKILL_DIRECTION_AUTO_TRIGGERS.has(rawTrigger) ? rawTrigger : '施放前';
+      const 条件 = String(source.条件 || source.触发条件 || source.condition || '').trim();
+      const 切换至方向ID = String(source.切换至方向ID || source.nextDirectionId || '').trim();
+      if (!切换至方向ID || !directionIdSet.has(切换至方向ID)) return null;
+      return {
+        规则ID,
+        触发时机,
+        ...(条件 ? { 条件 } : {}),
+        切换至方向ID,
+      };
+    }
+
+    function normalizeBattleDirectionRuleList(value = [], directionList = []) {
+      const source = Array.isArray(value) ? value : [];
+      const directionIdSet = new Set((Array.isArray(directionList) ? directionList : []).map(item => String(item?.方向ID || '').trim()).filter(Boolean));
+      return source
+        .map((entry, index) => normalizeBattleDirectionRuleEntry(entry, index, directionIdSet))
+        .filter(Boolean);
+    }
+
+    function resolveBattleDirectionSemanticTargetModel(semantic = '上下文', targetScale = '单体', fallbackModel = '敌方单体') {
+      const normalizedSemantic = BATTLE_SKILL_DIRECTION_TARGET_SEMANTICS.has(String(semantic || '').trim())
+        ? String(semantic || '').trim()
+        : '上下文';
+      const normalizedScale = normalizeBattleSkillTargetScale(targetScale, deriveBattleSkillTargetScaleFromModel(fallbackModel));
+      if (normalizedSemantic === '仅自身') return '自身';
+      if (normalizedSemantic === '可赋予') return ['群体', '全场'].includes(normalizedScale) ? '友方群体' : '友方单体';
+      if (normalizedSemantic === '敌对') return ['群体', '全场'].includes(normalizedScale) ? '敌方群体' : '敌方单体';
+      if (normalizedScale === '自身') return '自身';
+      if (normalizedScale === '全场') return '全场';
+      if (normalizedScale === '群体') {
+        const fallback = normalizeBattleSkillTargetModel(fallbackModel, '敌方群体');
+        if (fallback === '友方群体') return '友方群体';
+        if (fallback === '全场') return '全场';
+        return '敌方群体';
+      }
+      return normalizeBattleSkillTargetModel(fallbackModel, '敌方单体');
     }
 
     function getMechanismJudgeValue(entity, finalEntity, judgeKey) {
@@ -2635,16 +2779,157 @@ class BattleUIComponent {
       return getBattleSkillSummaryEffects(skill).find(effect => String(effect?.机制 || '').trim() === target) || null;
     }
 
+    function getBattleDirectionRuleTriggerCountMap(skill = {}) {
+      if (!skill || typeof skill !== 'object') return {};
+      const raw = skill._runtime_方向规则计数;
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw;
+      skill._runtime_方向规则计数 = {};
+      return skill._runtime_方向规则计数;
+    }
+
+    function resolveBattleDirectionRuleThreshold(rule = {}, fallback = 0.35) {
+      const explicit = Number(rule?.阈值);
+      if (Number.isFinite(explicit)) return Math.max(0, Math.min(1, explicit));
+      const text = String(rule?.条件 || rule?.触发条件 || '').trim();
+      const match = text.match(/(\d+(?:\.\d+)?)\s*%/);
+      if (match) {
+        const parsed = Number(match[1]);
+        if (Number.isFinite(parsed)) return Math.max(0, Math.min(1, parsed / 100));
+      }
+      return Math.max(0, Math.min(1, fallback));
+    }
+
+    function getBattleDirectionRuleHpRatio(char = null) {
+      if (!char) return 1;
+      const hp = Math.max(0, Number(char?.hp ?? char?.HP ?? char?.final?.hp ?? 0));
+      const hpMax = Math.max(1, Number(char?.hp_max ?? char?.HP上限 ?? char?.final?.hp_max ?? 1));
+      return hp / hpMax;
+    }
+
+    function isBattleDirectionRuleConditionMatched(rule = {}, context = {}) {
+      const trigger = String(rule?.触发时机 || '施放前').trim();
+      const condition = String(rule?.条件 || rule?.触发条件 || '').trim();
+      if (trigger === '命中后' && context?.命中成功 !== true) return false;
+      if (!condition) return true;
+      if (/命中后/.test(condition)) return context?.命中成功 === true;
+      if (/自身血量|低血/.test(condition)) {
+        const threshold = resolveBattleDirectionRuleThreshold(rule, 0.35);
+        const ratio = getBattleDirectionRuleHpRatio(context?.attacker || null);
+        return ratio <= threshold;
+      }
+      if (/目标高机动/.test(condition)) {
+        const attackerAgi = Number(context?.attacker?.agi ?? context?.attacker?.final?.agi ?? 0);
+        const defenderAgi = Number(context?.defender?.agi ?? context?.defender?.final?.agi ?? 0);
+        return defenderAgi > Math.max(1, attackerAgi) * 1.08;
+      }
+      if (/状态存在|目标有状态/.test(condition)) {
+        const targetStates = context?.defender?.状态效果;
+        return !!(targetStates && typeof targetStates === 'object' && Object.keys(targetStates).length > 0);
+      }
+      return true;
+    }
+
+    function resolveBattleSkillDirectionSelection(skill = {}, context = {}) {
+      const runtimeMeta = getSkillRuntimeMeta(skill);
+      const directionList = Array.isArray(runtimeMeta?.方向配置列表) ? runtimeMeta.方向配置列表 : [];
+      if (!directionList.length) {
+        return { 方向ID: '', 方向配置: null, 自动切换规则: [], 命中规则: null, 是否自动切换: false };
+      }
+      const directionIdSet = new Set(directionList.map(item => String(item?.方向ID || '').trim()).filter(Boolean));
+      const preferredDirectionId = String(
+        context?.方向ID || skill?._runtime_施放方向ID || skill?._runtime_方向ID || runtimeMeta?.默认方向 || directionList[0]?.方向ID || '',
+      ).trim();
+      const defaultDirectionId = directionIdSet.has(preferredDirectionId)
+        ? preferredDirectionId
+        : String(directionList[0]?.方向ID || '').trim();
+      const rules = Array.isArray(runtimeMeta?.自动切换规则) ? runtimeMeta.自动切换规则 : [];
+      const trigger = String(context?.触发时机 || '施放前').trim() || '施放前';
+      const ruleCounter = getBattleDirectionRuleTriggerCountMap(skill);
+      const matchedRule = rules.find(rule => {
+        if (String(rule?.触发时机 || '施放前').trim() !== trigger) return false;
+        const ruleId = String(rule?.规则ID || '').trim();
+        if (ruleId) {
+          const usedCount = Math.max(0, Math.round(Number(ruleCounter[ruleId] || 0)));
+          if (usedCount >= Math.max(1, Math.round(Number(rule?.最大触发次数 || 1)))) return false;
+        }
+        if (!directionIdSet.has(String(rule?.切换至方向ID || '').trim())) return false;
+        return isBattleDirectionRuleConditionMatched(rule, context);
+      }) || null;
+      const resolvedDirectionId = matchedRule
+        ? String(matchedRule.切换至方向ID || defaultDirectionId).trim()
+        : defaultDirectionId;
+      if (matchedRule && context?.记录触发 === true) {
+        const ruleId = String(matchedRule?.规则ID || '').trim();
+        if (ruleId) {
+          ruleCounter[ruleId] = Math.max(0, Math.round(Number(ruleCounter[ruleId] || 0))) + 1;
+        }
+      }
+      const directionEntry =
+        directionList.find(item => String(item?.方向ID || '').trim() === resolvedDirectionId) || directionList[0] || null;
+      return {
+        方向ID: resolvedDirectionId,
+        方向配置: directionEntry,
+        自动切换规则: rules,
+        命中规则: matchedRule,
+        是否自动切换: !!matchedRule && resolvedDirectionId !== defaultDirectionId,
+      };
+    }
+
+    function pickBattleSkillDirectionForAi(skill = {}, context = {}) {
+      const runtimeMeta = getSkillRuntimeMeta(skill);
+      const directionList = Array.isArray(runtimeMeta?.方向配置列表) ? runtimeMeta.方向配置列表 : [];
+      if (!directionList.length) return '';
+      const actor = context?.actor || null;
+      const target = context?.target || null;
+      const selfHpRatio = getBattleDirectionRuleHpRatio(actor);
+      const enemyAgi = Number(target?.agi ?? target?.final?.agi ?? 0);
+      const selfAgi = Number(actor?.agi ?? actor?.final?.agi ?? 0);
+      const chargingThreat = !!context?.高威胁窗口;
+      let best = { id: String(runtimeMeta?.默认方向 || directionList[0]?.方向ID || '').trim(), weight: -Infinity };
+      directionList.forEach(item => {
+        const directionId = String(item?.方向ID || '').trim();
+        if (!directionId) return;
+        const semantic = String(item?.方向目标语义 || '上下文').trim() || '上下文';
+        const tag = String(item?.方向语义标签 || '').trim();
+        let weight = 10;
+        if (semantic === '敌对') weight += 8;
+        if (semantic === '可赋予') weight += 4;
+        if (selfHpRatio < 0.4 && (tag === '增幅' || semantic === '可赋予')) weight += 24;
+        if (chargingThreat && ['压制', '锁定', '限制'].includes(tag)) weight += 22;
+        if (enemyAgi > Math.max(1, selfAgi) * 1.08 && ['锁定', '限制'].includes(tag)) weight += 14;
+        if (selfHpRatio > 0.7 && ['压制', '锁定'].includes(tag)) weight += 8;
+        if (weight > best.weight) best = { id: directionId, weight };
+      });
+      return best.id || String(runtimeMeta?.默认方向 || directionList[0]?.方向ID || '').trim();
+    }
+
     function getSkillEffects(skill) {
+      const runtimeMeta = getSkillRuntimeMeta(skill);
+      const directionList = Array.isArray(runtimeMeta?.方向配置列表) ? runtimeMeta.方向配置列表 : [];
+      if (directionList.length > 0) {
+        const selectedDirectionId = String(
+          skill?._runtime_施放方向ID || skill?._runtime_方向ID || runtimeMeta?.默认方向 || directionList[0]?.方向ID || '',
+        ).trim();
+        const selectedDirection =
+          directionList.find(item => String(item?.方向ID || '').trim() === selectedDirectionId) || directionList[0];
+        if (selectedDirection && Array.isArray(selectedDirection.方向效果数组) && selectedDirection.方向效果数组.length > 0) {
+          return normalizeBattleDirectionEffectList(selectedDirection.方向效果数组, runtimeMeta?.目标模型 || '敌方单体');
+        }
+      }
       const rawEffects = (Array.isArray(skill?._效果数组) ? skill._效果数组 : []).filter(
         effect => effect?.机制 !== '系统基础' && !isBattleSkillSummaryEffect(effect),
       );
       const creationEffects = rawEffects.filter(effect =>
         ['生成造物', '造物生成'].includes(String(effect?.机制 || '')),
       );
-      if (!creationEffects.length) return rawEffects;
+      if (!creationEffects.length)
+        return rawEffects
+          .map(effect => hydrateBattleExecutionEffectEntry(effect, runtimeMeta?.目标模型 || '敌方单体'))
+          .filter(Boolean);
       const usageEffects = creationEffects.flatMap(effect => (Array.isArray(effect?.使用效果) ? effect.使用效果 : []));
-      return usageEffects;
+      return usageEffects
+        .map(effect => hydrateBattleExecutionEffectEntry(effect, runtimeMeta?.目标模型 || '敌方单体'))
+        .filter(Boolean);
     }
 
     const BATTLE_SKILL_DEFAULT_ATTRIBUTE_COEFF = Object.freeze({
@@ -3454,14 +3739,15 @@ class BattleUIComponent {
       const systemBase = getSystemBaseEffect(skill);
       const baseType = String(systemBase?.技能类型 || '').trim();
       const baseTargetModel = normalizeBattleSkillTargetModel(
-        systemBase?.目标模型 || systemBase?.对象 || '敌方单体',
+        systemBase?.目标模型 || '敌方单体',
         '敌方单体',
+      );
+      const baseTargetScale = normalizeBattleSkillTargetScale(
+        deriveBattleSkillTargetScaleFromModel(baseTargetModel),
       );
       const baseTarget = mapBattleTargetModelToCombatTarget(baseTargetModel);
       const baseTargetModifiers = normalizeBattleSkillTargetModifiers(
-        Array.isArray(systemBase?.目标修饰) && systemBase.目标修饰.length
-          ? systemBase.目标修饰
-          : deriveBattleSkillTargetModifiers(skill, baseTargetModel),
+        deriveBattleSkillTargetModifiers(skill, baseTargetModel),
       );
       const baseResolutionStrategy = String(
         systemBase?.结算策略 || deriveBattleTargetResolutionStrategy(baseTargetModel),
@@ -3470,10 +3756,18 @@ class BattleUIComponent {
       const baseCost =
         typeof baseCostRaw === 'object' ? formatCostObjectToString(baseCostRaw) : String(baseCostRaw || '无').trim() || '无';
       const baseCastTime = Number(systemBase?.cast_time ?? 0) || 0;
+      const directionList = normalizeBattleDirectionConfigList(systemBase?.方向配置列表 || [], baseTargetModel);
+      const defaultDirection = directionList.length > 0 ? String(directionList[0]?.方向ID || '').trim() : '';
+      const directionRules = normalizeBattleDirectionRuleList(systemBase?.自动切换规则 || [], directionList);
       return {
         技能来源: String(systemBase?.技能来源 || '魂技').trim() || '魂技',
         技能类型: normalizeSkillTypeLabel(baseType || '无'),
         目标模型: baseTargetModel,
+        目标规模: baseTargetScale,
+        阵营判定: '自动',
+        方向配置列表: directionList,
+        默认方向: defaultDirection,
+        自动切换规则: directionRules,
         目标修饰: baseTargetModifiers,
         结算策略: baseResolutionStrategy,
         对象: baseTarget,
@@ -3517,9 +3811,10 @@ class BattleUIComponent {
       const 持续回合 = Math.max(0, Math.round(Number(value.持续回合 || 0)));
       const rawChance = Number(value.触发概率 ?? 1);
       const 触发概率 = Number.isFinite(rawChance) ? Math.max(0, Math.min(1, Number(rawChance.toFixed(4)))) : 1;
-      const 关联状态 = String(value.关联状态 || '').trim();
-      const 面板修改比例 = normalizeBattleSkillSideEffectStatMap(value.面板修改比例);
-      const 战斗效果 = normalizeBattleSkillSideEffectCombatMap(value.战斗效果);
+      const 参数 = value.参数 && typeof value.参数 === 'object' && !Array.isArray(value.参数) ? value.参数 : {};
+      const 关联状态 = String(参数.关联状态 || value.关联状态 || '').trim();
+      const 面板修改比例 = normalizeBattleSkillSideEffectStatMap(参数.面板修改比例 || value.面板修改比例);
+      const 战斗效果 = normalizeBattleSkillSideEffectCombatMap(参数.战斗效果 || value.战斗效果);
       const normalized = { 副作用类型, 触发时机, 生效对象, 持续回合, 触发概率 };
       if (Object.keys(面板修改比例).length > 0) normalized.面板修改比例 = 面板修改比例;
       if (Object.keys(战斗效果).length > 0) normalized.战斗效果 = 战斗效果;
@@ -5094,20 +5389,30 @@ class BattleUIComponent {
       const existingSystemBase = getSystemBaseEffect(normalized);
       if (existingSystemBase && typeof existingSystemBase === 'object') {
         existingSystemBase.技能来源 = String(existingSystemBase.技能来源 || normalized.技能来源 || normalized.source_tag || '魂技').trim() || '魂技';
+        existingSystemBase.技能类型 = String(existingSystemBase.技能类型 || normalized.技能类型 || '无').trim() || '无';
         const runtimeTargetModel = normalizeBattleSkillTargetModel(
-          existingSystemBase.目标模型 || existingSystemBase.对象 || normalized.对象 || explicitSemanticTarget || '敌方单体',
+          existingSystemBase.目标模型 || normalized.目标模型 || '敌方单体',
           '敌方单体',
         );
         existingSystemBase.目标模型 = runtimeTargetModel;
-        existingSystemBase.目标修饰 = normalizeBattleSkillTargetModifiers(
-          Array.isArray(existingSystemBase.目标修饰) && existingSystemBase.目标修饰.length
-            ? existingSystemBase.目标修饰
-            : deriveBattleSkillTargetModifiers(normalized, runtimeTargetModel),
-        );
         existingSystemBase.结算策略 = String(
           existingSystemBase.结算策略 || deriveBattleTargetResolutionStrategy(runtimeTargetModel),
         ).trim() || '单目标独立';
-        existingSystemBase.对象 = mapBattleTargetModelToCombatTarget(runtimeTargetModel);
+        existingSystemBase.方向配置列表 = normalizeBattleDirectionConfigList(
+          existingSystemBase.方向配置列表 || [],
+          runtimeTargetModel,
+        );
+        existingSystemBase.自动切换规则 = normalizeBattleDirectionRuleList(
+          existingSystemBase.自动切换规则 || [],
+          existingSystemBase.方向配置列表,
+        );
+        existingSystemBase.cast_time = Number(existingSystemBase.cast_time ?? normalized.cast_time ?? 0) || 0;
+        existingSystemBase.消耗 =
+          existingSystemBase.消耗 === undefined
+            ? normalized.消耗 || '无'
+            : typeof existingSystemBase.消耗 === 'object'
+              ? formatCostObjectToString(existingSystemBase.消耗)
+              : String(existingSystemBase.消耗 || '无').trim() || '无';
       }
 
       const runtimeMeta = getSkillRuntimeMeta(normalized);
@@ -5131,6 +5436,15 @@ class BattleUIComponent {
           技能来源: normalized.技能来源 || normalized.source_tag || '魂技',
           消耗: '无',
           目标模型: normalizeBattleSkillTargetModel(normalized.对象 || explicitSemanticTarget || '敌方单体', '敌方单体'),
+          目标规模: normalizeBattleSkillTargetScale(
+            '',
+            deriveBattleSkillTargetScaleFromModel(normalizeBattleSkillTargetModel(normalized.对象 || explicitSemanticTarget || '敌方单体', '敌方单体')),
+          ),
+          阵营判定: '自动',
+          方向配置列表: [],
+          默认方向: '',
+          自动切换规则: [],
+          切换代价: '无',
           目标修饰: deriveBattleSkillTargetModifiers(normalized, normalizeBattleSkillTargetModel(normalized.对象 || explicitSemanticTarget || '敌方单体', '敌方单体')),
           结算策略: deriveBattleTargetResolutionStrategy(normalizeBattleSkillTargetModel(normalized.对象 || explicitSemanticTarget || '敌方单体', '敌方单体')),
           对象: normalized.对象,
@@ -5897,10 +6211,28 @@ class BattleUIComponent {
 
     function resolveSkillTargetContext(skill, attacker, defender, combatData, effect = null) {
       const runtimeMeta = getSkillRuntimeMeta(skill);
+      const directionList = Array.isArray(runtimeMeta?.方向配置列表) ? runtimeMeta.方向配置列表 : [];
+      const selectedDirectionId = String(
+        skill?._runtime_施放方向ID || skill?._runtime_方向ID || runtimeMeta?.默认方向 || directionList[0]?.方向ID || '',
+      ).trim();
+      const selectedDirection =
+        directionList.find(item => String(item?.方向ID || '').trim() === selectedDirectionId) || directionList[0] || null;
+      const directionTargetSemantic = String(
+        effect?.方向目标语义 || selectedDirection?.方向目标语义 || '上下文',
+      ).trim() || '上下文';
+      const baseTargetScale = normalizeBattleSkillTargetScale(
+        effect?.目标规模 || runtimeMeta?.目标规模 || '',
+        deriveBattleSkillTargetScaleFromModel(effect?.目标模型 || runtimeMeta.目标模型 || '敌方单体'),
+      );
       const explicitTargetText = String(effect?.目标覆盖 || effect?.目标 || effect?.对象 || '').trim();
-      const baseTargetModel = explicitTargetText
+      let baseTargetModel = explicitTargetText
         ? inferBattleTargetModelFromLegacyTarget(explicitTargetText)
         : normalizeBattleSkillTargetModel(effect?.目标模型 || runtimeMeta.目标模型 || '敌方单体', '敌方单体');
+      const directionSemanticOverrideEnabled =
+        !!selectedDirection && ['可赋予', '敌对', '仅自身'].includes(directionTargetSemantic);
+      if (directionSemanticOverrideEnabled || !explicitTargetText) {
+        baseTargetModel = resolveBattleDirectionSemanticTargetModel(directionTargetSemantic, baseTargetScale, baseTargetModel);
+      }
       const targetModifiers = normalizeBattleSkillTargetModifiers(
         Array.isArray(effect?.目标修饰) && effect.目标修饰.length
           ? effect.目标修饰
@@ -5979,6 +6311,9 @@ class BattleUIComponent {
       const primaryTarget = targetSet[0] || null;
       return {
         targetModel: effectiveTargetModel,
+        targetScale: baseTargetScale,
+        directionId: selectedDirection ? String(selectedDirection.方向ID || '').trim() : '',
+        directionSemantic: directionTargetSemantic,
         targetModifiers,
         resolutionStrategy,
         targetText,
@@ -8622,6 +8957,207 @@ class BattleUIComponent {
         };
       }
 
+      function isCombatUnitEvilSoulMaster(char = {}) {
+        const stats = char?.属性 && typeof char.属性 === 'object' ? char.属性 : char || {};
+        const social = char?.社交 && typeof char.社交 === 'object' ? char.社交 : {};
+        const factionMap = social?.势力 && typeof social.势力 === 'object' ? social.势力 : {};
+        const factionNames = Object.keys(factionMap).map(name => String(name || '').trim());
+        const identityTexts = [
+          stats?.主身份,
+          social?.主身份,
+          social?.身份,
+          social?.称号 && typeof social.称号 === 'object' ? Object.keys(social.称号).join('/') : '',
+          stats?.标签,
+          social?.标签,
+        ]
+          .map(text => String(text || '').trim())
+          .filter(Boolean)
+          .join('/');
+        return (
+          stats?.邪魂师 === true ||
+          stats?.is_evil === true ||
+          stats?.evil === true ||
+          /邪魂/.test(identityTexts) ||
+          factionNames.some(name => /邪魂|圣灵教|深渊/.test(name))
+        );
+      }
+
+      function normalizeBattleObjectDiffMatchToken(value = '') {
+        const text = String(value || '').trim();
+        if (!text) return '';
+        if (['自身', '施术者', '自己', '本体', '自体'].includes(text)) return '自身';
+        if (['友方', '己方', '队友', '同伴'].includes(text)) return '友方';
+        if (['敌方', '对手', '目标方', '对面'].includes(text)) return '敌方';
+        if (['邪魂师', '邪魂'].includes(text)) return '邪魂师';
+        if (['深渊生物', '深渊'].includes(text)) return '深渊生物';
+        if (['魂兽', '魂兽类'].includes(text)) return '魂兽';
+        return text;
+      }
+
+      function normalizeBattleObjectDiffMatchList(value = '') {
+        const source = Array.isArray(value) ? value : [value];
+        return Array.from(
+          new Set(
+            source
+              .flatMap(item =>
+                String(item || '')
+                  .split(/[\/|,，、\s]+/)
+                  .map(token => normalizeBattleObjectDiffMatchToken(token))
+                  .filter(Boolean),
+              )
+              .filter(Boolean),
+          ),
+        );
+      }
+
+      function normalizeBattleObjectDiffRuleEntry(value = {}, index = 0) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+        const ruleId = String(value.规则ID || value.id || `对象差异规则${index + 1}`).trim() || `对象差异规则${index + 1}`;
+        const action = String(value.处理 || value.动作 || value.action || '覆盖').trim() || '覆盖';
+        const conditionSource = value.条件 ?? value.匹配 ?? value.对象 ?? value.target ?? '';
+        const matchList = normalizeBattleObjectDiffMatchList(conditionSource);
+        if (!matchList.length) return null;
+        const rule = {
+          规则ID: ruleId,
+          匹配: matchList,
+          处理: action,
+          参数: {},
+        };
+        const explicitParams =
+          value.参数 && typeof value.参数 === 'object' && !Array.isArray(value.参数) ? deepClonePlain(value.参数) : {};
+        rule.参数 = explicitParams;
+        const legacyScale = Number(value.数值倍率 ?? value.scale ?? value.倍率);
+        if (Number.isFinite(legacyScale) && !Number.isFinite(Number(rule.参数.数值倍率)))
+          rule.参数.数值倍率 = Number(legacyScale.toFixed(4));
+        const legacyDamageScale = Number(value.伤害倍率 ?? value.damageScale ?? value.转伤倍率);
+        if (Number.isFinite(legacyDamageScale) && !Number.isFinite(Number(rule.参数.伤害倍率)))
+          rule.参数.伤害倍率 = Number(legacyDamageScale.toFixed(4));
+        const legacyDamageType = String(value.伤害类型 || value.damageType || '').trim();
+        if (legacyDamageType && !String(rule.参数.伤害类型 || '').trim()) rule.参数.伤害类型 = legacyDamageType;
+        const legacyMechanism = String(value.机制 || value.替换机制 || '').trim();
+        if (legacyMechanism && !String(rule.参数.替换机制 || '').trim()) rule.参数.替换机制 = legacyMechanism;
+        if (
+          !rule.参数.覆盖字段 &&
+          value.覆盖字段 &&
+          typeof value.覆盖字段 === 'object' &&
+          !Array.isArray(value.覆盖字段)
+        ) {
+          rule.参数.覆盖字段 = deepClonePlain(value.覆盖字段);
+        }
+        if (!Object.keys(rule.参数 || {}).length) delete rule.参数;
+        return rule;
+      }
+
+      function normalizeBattleObjectDiffRuleList(value = []) {
+        const source = Array.isArray(value) ? value : [];
+        return source
+          .map((entry, index) => normalizeBattleObjectDiffRuleEntry(entry, index))
+          .filter(Boolean);
+      }
+
+      function buildBattleObjectDiffTagSet(caster = null, target = null, targetContext = null) {
+        const tagSet = new Set();
+        if (!target) return tagSet;
+        if (caster && isCombatUnitIdentityMatch(target, caster?.name || caster)) tagSet.add('自身');
+        const alliedSet = Array.isArray(targetContext?.alliedSet) ? targetContext.alliedSet : [];
+        const hostileSet = Array.isArray(targetContext?.hostileSet) ? targetContext.hostileSet : [];
+        if (alliedSet.some(unit => isCombatUnitIdentityMatch(unit, target?.name || target))) tagSet.add('友方');
+        if (hostileSet.some(unit => isCombatUnitIdentityMatch(unit, target?.name || target))) tagSet.add('敌方');
+        const speciesFlags = getCombatTargetSpeciesFlags(target);
+        if (speciesFlags.isAbyss) tagSet.add('深渊生物');
+        if (speciesFlags.isBeast) tagSet.add('魂兽');
+        if (isCombatUnitEvilSoulMaster(target)) tagSet.add('邪魂师');
+        if (!tagSet.size && caster && !isCombatUnitIdentityMatch(target, caster?.name || caster)) tagSet.add('敌方');
+        return tagSet;
+      }
+
+      function applyBattleObjectDiffRuleToEffect(effect = {}, rule = null) {
+        const nextEffect = deepClonePlain(effect || {});
+        if (!rule || typeof rule !== 'object') return nextEffect;
+        const ruleParams = rule.参数 && typeof rule.参数 === 'object' && !Array.isArray(rule.参数) ? rule.参数 : {};
+        nextEffect.对象差异命中规则 = String(rule.规则ID || '').trim();
+        nextEffect.对象差异处理 = String(rule.处理 || '').trim() || '覆盖';
+        if (nextEffect.对象差异处理 === '禁用') return nextEffect;
+        if (nextEffect.对象差异处理 === '替换机制' && ruleParams.替换机制) {
+          nextEffect.机制 = String(ruleParams.替换机制 || nextEffect.机制 || '').trim() || nextEffect.机制;
+        }
+        if (nextEffect.对象差异处理 === '转为伤害') {
+          nextEffect.机制 = '直接伤害';
+          if (!(Number(nextEffect.威力倍率 || 0) > 0)) {
+            const baseRatio = Number(nextEffect.数值 || 0);
+            nextEffect.威力倍率 = Math.max(1, Math.round(Math.max(0, baseRatio) * 100));
+          }
+          nextEffect.伤害类型 = String(ruleParams.伤害类型 || nextEffect.伤害类型 || '神圣').trim() || '神圣';
+          nextEffect.对象差异伤害倍率 = Number.isFinite(Number(ruleParams.伤害倍率))
+            ? Number(Number(ruleParams.伤害倍率).toFixed(4))
+            : 1;
+        }
+        if (Number.isFinite(Number(ruleParams.数值倍率))) {
+          const scale = Number(ruleParams.数值倍率);
+          [
+            '数值',
+            '威力倍率',
+            '护盾值',
+            'dot_damage',
+            '每回合伤害',
+            '反灌比例',
+            '夺取比例',
+            '转化比例',
+            '斩盾倍率',
+            '窃盾比例',
+            '引爆倍率',
+            '反射比例',
+            '分摊比例',
+            '复苏回血比例',
+          ].forEach(field => {
+            const base = Number(nextEffect?.[field]);
+            if (!Number.isFinite(base)) return;
+            const scaled = field === '威力倍率' || field === '护盾值' || field === 'dot_damage' || field === '每回合伤害'
+              ? Math.max(0, Math.round(base * scale))
+              : Number((base * scale).toFixed(4));
+            nextEffect[field] = scaled;
+          });
+        }
+        if (ruleParams.覆盖字段 && typeof ruleParams.覆盖字段 === 'object') {
+          Object.entries(ruleParams.覆盖字段).forEach(([key, value]) => {
+            nextEffect[key] = deepClonePlain(value);
+          });
+        }
+        return nextEffect;
+      }
+
+      function resolveBattleObjectDiffEffect(effect = {}, caster = null, target = null, targetContext = null) {
+        const rules = normalizeBattleObjectDiffRuleList(effect?.对象差异规则 || []);
+        if (!rules.length || !target) {
+          return {
+            生效: true,
+            命中: false,
+            命中规则: null,
+            生效效果: effect,
+          };
+        }
+        const tagSet = buildBattleObjectDiffTagSet(caster, target, targetContext);
+        const matchedRule =
+          rules.find(rule => Array.isArray(rule?.匹配) && rule.匹配.some(tag => tagSet.has(normalizeBattleObjectDiffMatchToken(tag)))) ||
+          null;
+        if (!matchedRule) {
+          return {
+            生效: true,
+            命中: false,
+            命中规则: null,
+            生效效果: effect,
+          };
+        }
+        const resolvedEffect = applyBattleObjectDiffRuleToEffect(effect, matchedRule);
+        const disabled = String(resolvedEffect?.对象差异处理 || '').trim() === '禁用';
+        return {
+          生效: !disabled,
+          命中: true,
+          命中规则: matchedRule,
+          生效效果: resolvedEffect,
+        };
+      }
+
       function buildFrontEndBattleOutcome(attacker, defender, options = {}) {
         const attackerAlive = isCombatUnitAlive(attacker);
         const defenderAlive = isCombatUnitAlive(defender);
@@ -8946,6 +9482,23 @@ class BattleUIComponent {
             npcAction.skill,
             npcAction.skill.name || npcAction.skill.技能名称 || '未知技能',
           );
+        }
+
+        const 施放前方向选择 = resolveBattleSkillDirectionSelection(playerAction.skill, {
+          触发时机: '施放前',
+          attacker,
+          defender,
+          方向ID: String(playerAction?.方向ID || playerAction?.skill?._runtime_方向ID || '').trim(),
+          记录触发: true,
+        });
+        if (施放前方向选择.方向配置) {
+          playerAction.skill._runtime_施放方向ID = 施放前方向选择.方向ID;
+          if (施放前方向选择.命中规则) {
+            const 规则名 = String(施放前方向选择.命中规则?.规则ID || '自动切换').trim();
+            result.desc += ` [方向切换] 命中规则[${规则名}]，切换至${施放前方向选择.方向配置.方向名称 || 施放前方向选择.方向ID}。`;
+          } else {
+            result.desc += ` [方向选择] 当前使用${施放前方向选择.方向配置.方向名称 || 施放前方向选择.方向ID}。`;
+          }
         }
 
         const getEffect = (sk, types) => getSkillEffects(sk).find(e => types.includes(e.机制)) || {};
@@ -9362,6 +9915,17 @@ class BattleUIComponent {
           result.desc += ` [融合共鸣] 武魂交叠后的极限共振将杀伤再度推高。`;
         }
         refreshSettleResultProjectedDamage(result);
+        const 命中后方向选择 = resolveBattleSkillDirectionSelection(playerAction.skill, {
+          触发时机: '命中后',
+          attacker,
+          defender,
+          命中成功: Number(result.totalProjectedDamage || 0) > 0,
+          记录触发: true,
+        });
+        if (命中后方向选择.方向配置 && 命中后方向选择.命中规则) {
+          playerAction.skill._runtime_方向ID = 命中后方向选择.方向ID;
+          result.desc += ` [自动补切换] 已切至${命中后方向选择.方向配置.方向名称 || 命中后方向选择.方向ID}，下次施放生效。`;
+        }
         result = applyHighTierMechanics(attacker, defender, playerAction, result);
 
         if (directSelfSacrificeEffect && Number(directSelfSacrificeEffect.体力代价 || 0) > 0) {
@@ -9437,11 +10001,18 @@ class BattleUIComponent {
           if (!effect || Number(result.backlash_dmg || 0) > 0) return 0;
           const effectTargetContext = getEffectTargetContext(effect);
           const targetUnits = resolveDirectMechanismTargetList(effect);
-          const ratio = Number(effect.数值 || 0);
-          if (!(ratio > 0) || !targetUnits.length) return 0;
+          if (!targetUnits.length) return 0;
           const isFriendly = ['自身', '友方单体', '友方群体'].includes(effectTargetContext.targetModel);
           let totalRecovered = 0;
           targetUnits.forEach(targetObj => {
+            const diffResult = resolveBattleObjectDiffEffect(effect, attacker, targetObj, effectTargetContext);
+            if (!diffResult.生效) {
+              result.desc += ` [对象差异] ${targetObj === attacker ? '自身' : targetObj.name}命中规则[${diffResult?.命中规则?.规则ID || '禁用'}]，本次${labelText}效果不生效。`;
+              return;
+            }
+            const resolvedEffect = diffResult.生效效果 || effect;
+            const ratio = Number(resolvedEffect.数值 || 0);
+            if (!(ratio > 0)) return;
             if (isMechanismSuppressionBlocking(targetObj, ['回复机制'])) {
               result.desc += ` [机制抹消] ${targetObj === attacker ? '自身' : targetObj.name}的回复回路被封锁，${labelText}恢复未能生效。`;
               return;
@@ -9491,6 +10062,17 @@ class BattleUIComponent {
             if (resourceKey === 'vit') amount += totalFinalHealBonus;
             amount = Math.max(0, amount);
             if (!amount) return;
+            const convertToDamage =
+              String(resolvedEffect?.对象差异处理 || '').trim() === '转为伤害' ||
+              String(resolvedEffect?.机制 || '').trim() === '直接伤害';
+            if (convertToDamage) {
+              const damageScale = Math.max(0, Number(resolvedEffect?.对象差异伤害倍率 ?? resolvedEffect?.伤害倍率 ?? 1));
+              const damage = Math.max(1, Math.floor(amount * (damageScale > 0 ? damageScale : 1)));
+              设置战斗血量值(targetObj, getCombatHpValue(targetObj) - damage);
+              totalRecovered += damage;
+              result.desc += ` [对象差异] ${targetObj === attacker ? '自身' : targetObj.name}命中差异规则，${labelText}被转化为 ${damage} 点伤害。`;
+              return;
+            }
             const healInvertRatio =
               resourceKey === 'vit'
                 ? Math.max(0, targetConditionEffects.reduce((maxVal, ce) => Math.max(maxVal, Number(ce.heal_inversion_ratio || 0)), 0))
@@ -9787,19 +10369,38 @@ class BattleUIComponent {
 
         const applyResourceRefeedEffect = effect => {
           if (!effect) return 0;
+          const effectTargetContext = getEffectTargetContext(effect);
           const targetUnits = resolveDirectMechanismTargetList(effect);
-          const ratio = Math.max(0, Number(effect?.反灌比例 || effect?.refeed_ratio || 0.2));
-          const resourceKeys = resolveTransferResourceKeys(effect?.资源类型 || effect?.resource_type || '');
           let totalRecovered = 0;
           targetUnits.forEach(targetObj => {
+            const diffResult = resolveBattleObjectDiffEffect(effect, attacker, targetObj, effectTargetContext);
+            if (!diffResult.生效) {
+              result.desc += ` [对象差异] ${targetObj === attacker ? '自身' : targetObj.name}命中规则[${diffResult?.命中规则?.规则ID || '禁用'}]，能力共享不生效。`;
+              return;
+            }
+            const resolvedEffect = diffResult.生效效果 || effect;
+            const ratio = Math.max(0, Number(resolvedEffect?.反灌比例 || resolvedEffect?.refeed_ratio || 0.2));
+            if (!(ratio > 0)) return;
+            const resourceKeys = resolveTransferResourceKeys(resolvedEffect?.资源类型 || resolvedEffect?.resource_type || '');
             if (isMechanismSuppressionBlocking(targetObj, ['回复机制'])) {
               result.desc += ` [机制抹消] ${targetObj === attacker ? '自身' : targetObj.name}的回复回路被封锁，能力共享未能生效。`;
               return;
             }
+            const convertToDamage =
+              String(resolvedEffect?.对象差异处理 || '').trim() === '转为伤害' ||
+              String(resolvedEffect?.机制 || '').trim() === '直接伤害';
             resourceKeys.forEach(resourceKey => {
               const maxKey = resourceKey === 'sp' ? 'sp_max' : 'men_max';
               const targetMax = Math.max(1, Number(targetObj?.[maxKey] || 0));
               const gainAmount = Math.max(1, Math.floor(targetMax * ratio));
+              if (convertToDamage) {
+                const damageScale = Math.max(0, Number(resolvedEffect?.对象差异伤害倍率 ?? resolvedEffect?.伤害倍率 ?? 1));
+                const damage = Math.max(1, Math.floor(gainAmount * (damageScale > 0 ? damageScale : 1)));
+                设置战斗血量值(targetObj, getCombatHpValue(targetObj) - damage);
+                totalRecovered += damage;
+                result.desc += ` [对象差异] ${targetObj === attacker ? '自身' : targetObj.name}的能力共享被转译为 ${damage} 点伤害。`;
+                return;
+              }
               const beforeValue = Math.max(0, Number(targetObj?.[resourceKey] || 0));
               const afterValue = Math.min(targetMax, beforeValue + gainAmount);
               const actualGain = Math.max(0, afterValue - beforeValue);
@@ -10805,6 +11406,25 @@ class BattleUIComponent {
               else if (summary.保留倾向 >= 40 && !(isChargingHighThreat || enemyHpRatio < 0.45 || selfHpRatio < 0.45))
                 weight -= 15;
 
+              const aiDirectionId = pickBattleSkillDirectionForAi(skill, {
+                actor: defender,
+                target: attacker,
+                高威胁窗口: isChargingHighThreat,
+              });
+              if (aiDirectionId) {
+                const directionMeta = getSkillRuntimeMeta(skill);
+                const directionEntry =
+                  (Array.isArray(directionMeta?.方向配置列表) ? directionMeta.方向配置列表 : []).find(
+                    item => String(item?.方向ID || '').trim() === aiDirectionId,
+                  ) || null;
+                const directionTag = String(directionEntry?.方向语义标签 || '').trim();
+                const directionSemantic = String(directionEntry?.方向目标语义 || '').trim();
+                if (isChargingHighThreat && ['压制', '锁定', '限制'].includes(directionTag)) weight += 10;
+                if (selfHpRatio < 0.4 && ['增幅', '置换'].includes(directionTag)) weight += 10;
+                if (directionSemantic === '可赋予' && allyCount > 1) weight += 6;
+                skill._runtime_方向ID = aiDirectionId;
+              }
+
               return {
                 skill,
                 weight: Math.max(0, weight),
@@ -11513,11 +12133,20 @@ class BattleUIComponent {
           let attacker = combatData.参战者.player;
 
           function makeNpcAction(type, log, skill = null, extra = {}) {
+            const normalizedSkill = skill ? normalizeSkillData(skill, skill.name || skill.技能名称 || type) : null;
+            if (normalizedSkill) {
+              const aiDirectionId = pickBattleSkillDirectionForAi(normalizedSkill, {
+                actor: defender,
+                target: attacker,
+                高威胁窗口: !!(attacker?.蓄力技能 || (playerAction?.cast_time || 0) >= 20),
+              });
+              if (aiDirectionId) normalizedSkill._runtime_方向ID = aiDirectionId;
+            }
             return Object.assign(
               {
                 type,
                 log,
-                skill: skill ? normalizeSkillData(skill, skill.name || skill.技能名称 || type) : null,
+                skill: normalizedSkill,
                 def_mult: 1.0,
               },
               extra,
