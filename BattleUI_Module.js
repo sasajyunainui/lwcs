@@ -873,8 +873,10 @@ class BattleUIComponent {
 
       const participantPath = `/char/${escapeJsonPointerSegment(participantName)}`;
       const currentCharData = getMvuValue(`char.${participantName}`, undefined);
-      const previousSnapshot = buildCanonicalParticipantPersistenceSnapshot(currentCharData) || {};
-      const nextSnapshot = buildCanonicalParticipantPersistenceSnapshot(participant);
+      const 包含生命字段 = options.syncHpRecoveryOnly !== true;
+      const previousSnapshot =
+        buildCanonicalParticipantPersistenceSnapshot(currentCharData, { includeHpFields: 包含生命字段 }) || {};
+      const nextSnapshot = buildCanonicalParticipantPersistenceSnapshot(participant, { includeHpFields: 包含生命字段 });
       if (!nextSnapshot || typeof nextSnapshot !== 'object' || Object.keys(nextSnapshot).length === 0) return;
       if (options.syncHpRecoveryOnly) appendParticipantHpRecoverySnapshot(nextSnapshot, previousSnapshot, participant);
       const fieldKeys = new Set([...Object.keys(previousSnapshot), ...Object.keys(nextSnapshot)]);
@@ -1568,10 +1570,12 @@ class BattleUIComponent {
       merged.敏捷 = fallbackNumber(merged.敏捷, fallbackNumber(stat.敏捷, 0));
       merged.状态效果 = merged.状态效果 || stat.状态效果 || {};
       merged.持续效果 = merged.持续效果 || {};
-      merged.vit_max = merged.HP上限;
-      merged.vit = merged.HP;
+      merged.vit_max = merged.体力上限;
+      merged.vit = merged.体力;
       merged.sta_max = merged.体力上限;
       merged.sta = merged.体力;
+      merged.hp_max = merged.HP上限;
+      merged.hp = merged.HP;
       merged.sp_max = merged.魂力上限;
       merged.sp = merged.魂力;
       merged.men_max = merged.精神力上限;
@@ -1968,6 +1972,9 @@ class BattleUIComponent {
         case 'str':
         case 'def':
         case 'vit':
+          if (judgeKey === 'vit') {
+            return Math.max(0, Number(entity?.sta ?? stats?.sta ?? entity?.体力 ?? stats?.体力 ?? entity?.vit ?? stats?.vit ?? 0));
+          }
           return Number(stats[judgeKey] || 0);
         case 'vit_ratio':
           return (
@@ -1976,8 +1983,8 @@ class BattleUIComponent {
           );
         case 'hp_ratio':
           return (
-            Math.max(0, Number(entity?.vit || stats?.vit || 0)) /
-            Math.max(1, Number(entity?.vit_max || stats?.vit_max || 1))
+            Math.max(0, Number(entity?.hp ?? stats?.hp ?? entity?.HP ?? stats?.HP ?? 0)) /
+            Math.max(1, Number(entity?.hp_max ?? stats?.hp_max ?? entity?.HP上限 ?? stats?.HP上限 ?? 1))
           );
         case 'sp_ratio':
           return (
@@ -2609,6 +2616,7 @@ class BattleUIComponent {
       '术式摘要',
       '极性摘要',
       '属性系数摘要',
+      '副作用摘要',
     ]);
 
     function isBattleSkillSummaryEffect(effect = {}) {
@@ -3472,6 +3480,92 @@ class BattleUIComponent {
         消耗: baseCost,
         cast_time: baseCastTime,
       };
+    }
+
+    const BATTLE_SKILL_SIDE_EFFECT_TRIGGER_SET = new Set(['施放后', '命中后', '回合结束时', '状态结束后']);
+    const BATTLE_SKILL_SIDE_EFFECT_TARGET_SET = new Set(['施术者', '状态持有者', '受术目标', '双方']);
+
+    function normalizeBattleSkillSideEffectStatMap(value = {}) {
+      const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+      const normalized = {};
+      ['str', 'def', 'agi', 'vit_max', 'sp_max', 'men_max'].forEach(key => {
+        const parsed = Number(source[key]);
+        if (Number.isFinite(parsed) && parsed > 0) normalized[key] = Number(parsed.toFixed(4));
+      });
+      return normalized;
+    }
+
+    function normalizeBattleSkillSideEffectCombatMap(value = {}) {
+      const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+      const normalized = {};
+      if (source.skip_turn === true) normalized.skip_turn = true;
+      ['random_target_rate', 'hit_penalty', 'dodge_penalty', 'cast_speed_penalty', 'control_success_penalty'].forEach(key => {
+        const parsed = Number(source[key]);
+        if (Number.isFinite(parsed) && parsed > 0) normalized[key] = Number(parsed.toFixed(4));
+      });
+      return normalized;
+    }
+
+    function normalizeBattleSkillSideEffectEntry(value = {}) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+      const 副作用类型 = String(value.副作用类型 || '').trim();
+      if (!副作用类型) return null;
+      const rawTrigger = String(value.触发时机 || '施放后').trim();
+      const 触发时机 = BATTLE_SKILL_SIDE_EFFECT_TRIGGER_SET.has(rawTrigger) ? rawTrigger : '施放后';
+      const rawTarget = String(value.生效对象 || '施术者').trim();
+      const 生效对象 = BATTLE_SKILL_SIDE_EFFECT_TARGET_SET.has(rawTarget) ? rawTarget : '施术者';
+      const 持续回合 = Math.max(0, Math.round(Number(value.持续回合 || 0)));
+      const rawChance = Number(value.触发概率 ?? 1);
+      const 触发概率 = Number.isFinite(rawChance) ? Math.max(0, Math.min(1, Number(rawChance.toFixed(4)))) : 1;
+      const 关联状态 = String(value.关联状态 || '').trim();
+      const 面板修改比例 = normalizeBattleSkillSideEffectStatMap(value.面板修改比例);
+      const 战斗效果 = normalizeBattleSkillSideEffectCombatMap(value.战斗效果);
+      const normalized = { 副作用类型, 触发时机, 生效对象, 持续回合, 触发概率 };
+      if (Object.keys(面板修改比例).length > 0) normalized.面板修改比例 = 面板修改比例;
+      if (Object.keys(战斗效果).length > 0) normalized.战斗效果 = 战斗效果;
+      if (关联状态) normalized.关联状态 = 关联状态;
+      return normalized;
+    }
+
+    function normalizeBattleSkillSideEffectList(value = []) {
+      const source = Array.isArray(value) ? value : [];
+      return source
+        .map(item => normalizeBattleSkillSideEffectEntry(item))
+        .filter(Boolean);
+    }
+
+    function getBattleSkillSideEffectList(skill = {}) {
+      const systemBase = getSystemBaseEffect(skill);
+      return normalizeBattleSkillSideEffectList(systemBase?.副作用列表 || []);
+    }
+
+    function resolveBattleSideEffectTargets(effect = {}, caster = null, targetSet = []) {
+      const targets = Array.isArray(targetSet) ? targetSet.filter(Boolean) : [];
+      const targetMode = String(effect?.生效对象 || '施术者').trim();
+      if (targetMode === '受术目标' || targetMode === '状态持有者') return targets;
+      if (targetMode === '双方') return Array.from(new Set([caster, ...targets].filter(Boolean)));
+      return caster ? [caster] : targets;
+    }
+
+    function applyBattleSideEffectState(targetChar, effect = {}, sourceName = '', logs = []) {
+      if (!targetChar) return;
+      const chance = Number(effect?.触发概率 ?? 1);
+      if (chance < 1 && Math.random() > chance) return;
+      const duration = Math.max(1, Number(effect?.持续回合 || 0));
+      const stateName = `副作用:${String(effect?.副作用类型 || '未知')}`;
+      if (!targetChar.状态效果) targetChar.状态效果 = {};
+      const nextCalc = mergeCombatEffectMaps(createEmptyCombatEffectMap(), effect?.战斗效果 || {});
+      targetChar.状态效果[stateName] = {
+        类型: 'debuff',
+        层数: 1,
+        描述: `由[${sourceName || '技能'}]触发`,
+        duration,
+        面板修改比例: effect?.面板修改比例 || {},
+        战斗效果: nextCalc,
+      };
+      if (Array.isArray(logs)) {
+        logs.push(`[副作用] ${targetChar.name || '目标'}触发[${effect?.副作用类型 || '未知副作用'}](${effect?.触发时机 || '施放后'})`);
+      }
     }
 
     function getSkillType(skill) {
@@ -4744,12 +4838,12 @@ class BattleUIComponent {
 
     function normalizeCombatHpFields(source) {
       if (!source || typeof source !== 'object') return;
-      source.HP上限 = Math.max(1, Number.isFinite(Number(source.HP上限)) ? Number(source.HP上限) : Math.max(1, Number(source.体力上限 || 1)));
+      source.HP上限 = Math.max(1, Number.isFinite(Number(source.HP上限)) ? Number(source.HP上限) : 1);
       source.HP = Math.max(
         0,
         Math.min(
           source.HP上限,
-          Number.isFinite(Number(source.HP)) ? Number(source.HP) : Math.max(0, Number(source.体力 || source.HP上限 || 0)),
+          Number.isFinite(Number(source.HP)) ? Number(source.HP) : source.HP上限,
         ),
       );
       source.体力上限 = Math.max(1, Number.isFinite(Number(source.体力上限)) ? Number(source.体力上限) : 1);
@@ -4776,7 +4870,7 @@ class BattleUIComponent {
       if (!target || !source) return;
       normalizeCombatHpFields(source);
       try {
-        Object.defineProperty(target, 'vit', {
+        Object.defineProperty(target, 'hp', {
           configurable: true,
           enumerable: true,
           get() {
@@ -4789,7 +4883,7 @@ class BattleUIComponent {
             applyStaminaLinkFromHpChange(source, previousHp, nextHp);
           },
         });
-        Object.defineProperty(target, 'vit_max', {
+        Object.defineProperty(target, 'hp_max', {
           configurable: true,
           enumerable: true,
           get() {
@@ -4800,9 +4894,32 @@ class BattleUIComponent {
             source.HP = Math.max(0, Math.min(source.HP上限, Number(source.HP || 0)));
           },
         });
+        Object.defineProperty(target, 'vit', {
+          configurable: true,
+          enumerable: true,
+          get() {
+            return source.体力;
+          },
+          set(value) {
+            source.体力 = Math.max(0, Math.min(Number(source.体力上限 || 1), Number(value || 0)));
+          },
+        });
+        Object.defineProperty(target, 'vit_max', {
+          configurable: true,
+          enumerable: true,
+          get() {
+            return source.体力上限;
+          },
+          set(value) {
+            source.体力上限 = Math.max(1, Number(value || 1));
+            source.体力 = Math.max(0, Math.min(source.体力上限, Number(source.体力 || 0)));
+          },
+        });
       } catch (error) {
-        target.vit = source.HP;
-        target.vit_max = source.HP上限;
+        target.hp = source.HP;
+        target.hp_max = source.HP上限;
+        target.vit = source.体力;
+        target.vit_max = source.体力上限;
       }
     }
 
@@ -5259,8 +5376,8 @@ class BattleUIComponent {
       );
       const reqSp = Math.floor(rawReqSp * costScale);
       const hpRatio =
-        Math.max(0, Number(stats.vit ?? stats.HP ?? stats.体力 ?? 0)) /
-        Math.max(1, Number(stats.vit_max ?? stats.HP上限 ?? stats.体力上限 ?? 1));
+        Math.max(0, Number(stats.hp ?? stats.HP ?? 0)) /
+        Math.max(1, Number(stats.hp_max ?? stats.HP上限 ?? 1));
       const staminaCostScale = hpRatio <= 0.2 ? 2 : 1;
       const reqVit = Math.floor(rawReqVit * costScale * staminaCostScale);
       const reqMen = Math.floor(rawReqMen * costScale);
@@ -5965,10 +6082,11 @@ class BattleUIComponent {
           if (!cond) return;
 
           let combatEffects = cond.战斗效果 || {};
+          const sideEffects = normalizeBattleSkillSideEffectList(cond.副作用列表 || []);
           let dot = Math.max(0, combatEffects.dot_damage || 0);
           let hotHealRatio = Math.max(0, Number(combatEffects.hot_heal_ratio || 0));
           if (dot > 0) {
-            char.vit = Math.max(0, char.vit - dot);
+            设置战斗血量值(char, getCombatHpValue(char) - dot);
             totalDot += dot;
             parts.push(`[状态结算] ${label}受[${key}]影响，额外损失 ${dot} 点HP`);
           }
@@ -5979,22 +6097,30 @@ class BattleUIComponent {
             }
           }
           if (hotHealRatio > 0) {
-            const maxVit = Math.max(1, Number(char.vit_max || char.vit || 1));
+            const maxVit = getCombatHpMaxValue(char);
             const hotHeal = Math.floor(maxVit * hotHealRatio);
             const healInvertRatio = Math.max(0, Number(combatEffects.heal_inversion_ratio || 0));
             if (healInvertRatio > 0) {
               const invertedDamage = Math.max(1, Math.floor(hotHeal * Math.max(1, healInvertRatio)));
-              char.vit = Math.max(0, char.vit - invertedDamage);
+              设置战斗血量值(char, getCombatHpValue(char) - invertedDamage);
               if (invertedDamage > 0) parts.push(`[状态结算] ${label}的[${key}]治疗被反转，反而损失 ${invertedDamage} 点HP`);
             } else {
-              char.vit = Math.min(maxVit, char.vit + hotHeal);
+              设置战斗血量值(char, Math.min(maxVit, getCombatHpValue(char) + hotHeal));
               if (hotHeal > 0) parts.push(`[状态结算] ${label}受[${key}]影响，额外恢复 ${hotHeal} 点HP`);
             }
           }
-          if (char.vit <= 0) {
+          if (getCombatHpValue(char) <= 0) {
             const reviveLog = triggerReviveEffect(char, label);
             if (reviveLog) parts.push(reviveLog);
           }
+
+          sideEffects
+            .filter(item => String(item?.触发时机 || '').trim() === '回合结束时')
+            .forEach(item => {
+              const boundState = String(item?.关联状态 || '').trim();
+              if (boundState && boundState !== key) return;
+              applyBattleSideEffectState(char, item, key, parts);
+            });
 
           if (typeof cond.duration === 'number') {
             cond.duration -= 1;
@@ -6003,6 +6129,15 @@ class BattleUIComponent {
         });
 
         expired.forEach(key => {
+          const expiredCond = conditionMap[key];
+          const endSideEffects = normalizeBattleSkillSideEffectList(expiredCond?.副作用列表 || []);
+          endSideEffects
+            .filter(item => String(item?.触发时机 || '').trim() === '状态结束后')
+            .forEach(item => {
+              const boundState = String(item?.关联状态 || '').trim();
+              if (boundState && boundState !== key) return;
+              applyBattleSideEffectState(char, item, key, parts);
+            });
           delete conditionMap[key];
           if (String(char.当前领域 || '') === String(key)) {
             char.当前领域 = '无';
@@ -6187,9 +6322,9 @@ class BattleUIComponent {
           return { log: logs.join(' '), broken };
         }
 
-        function getBehaviorProfile(actor, target, battleState = {}) {
-          const hpRatio = (actor?.vit || 0) / Math.max(1, actor?.vit_max || 1);
-          const targetHpRatio = (target?.vit || 0) / Math.max(1, target?.vit_max || 1);
+      function getBehaviorProfile(actor, target, battleState = {}) {
+          const hpRatio = getCombatHpRatio(actor);
+          const targetHpRatio = getCombatHpRatio(target);
           const profile = {
             aggression: 10,
             caution: 10,
@@ -6320,9 +6455,9 @@ class BattleUIComponent {
           return null;
         }
 
-        function setActorFocusTarget(actor, target, reason = '', ttl = 2) {
+      function setActorFocusTarget(actor, target, reason = '', ttl = 2) {
           const memory = ensureActorDecisionMemory(actor);
-          if (!target || Number(target.vit || 0) <= 0) {
+          if (!target || getCombatHpValue(target) <= 0) {
             memory.关注对象 = '';
             memory.focus_reason = '';
             memory.focus_ttl = 0;
@@ -6343,7 +6478,7 @@ class BattleUIComponent {
           if (repeatCount > 0) weight -= repeatCount * 12;
           if (memory.last_action === branchName) weight -= 8;
 
-          const targetHpRatio = (target?.vit || 0) / Math.max(1, target?.vit_max || 1);
+          const targetHpRatio = getCombatHpRatio(target);
           if (Number(memory.focus_ttl || 0) > 0) {
             if (
               branchName === '乘胜追击' &&
@@ -6354,7 +6489,7 @@ class BattleUIComponent {
             if (branchName === '断疗压制' && memory.focus_reason === 'anti_heal_window') weight += 8;
           }
           if (branchName === '强势对轰' && targetHpRatio < 0.35) weight += 10;
-          if (branchName === '亡命奔逃' && (actor?.vit || 0) / Math.max(1, actor?.vit_max || 1) > 0.35) weight -= 15;
+          if (branchName === '亡命奔逃' && getCombatHpRatio(actor) > 0.35) weight -= 15;
           if (branchName === '危机自保' && battleState?.isChargingHighThreat) weight += 8;
 
           return Math.max(0, weight);
@@ -6457,7 +6592,7 @@ class BattleUIComponent {
             if (
               isBattleSkillSharedVisionProfile(skill) &&
               fallbackEnemyTarget &&
-              Number(fallbackEnemyTarget.vit || 0) > 0
+              getCombatHpValue(fallbackEnemyTarget) > 0
             ) {
               focusTarget = fallbackEnemyTarget;
               focusReason = 'shared_vision_focus';
@@ -6467,10 +6602,10 @@ class BattleUIComponent {
             !targetMode.includes('自身') &&
             finalTarget &&
             finalTarget !== actor &&
-            Number(finalTarget.vit || 0) > 0
+            getCombatHpValue(finalTarget) > 0
           ) {
             const snapshot = buildConditionTacticalSnapshot(finalTarget);
-            const hpRatio = Math.max(0, Number(finalTarget.vit || 0)) / Math.max(1, Number(finalTarget.vit_max || 1));
+            const hpRatio = getCombatHpRatio(finalTarget);
             focusTarget = finalTarget;
             if (
               snapshot.isLockedOrControlled &&
@@ -6498,7 +6633,7 @@ class BattleUIComponent {
             } else if (
               snapshot.hasDotPressure ||
               isBattleSkillDotPressureProfile(skill) ||
-              Number(settleResult?.dmg || 0) >= Math.max(1, Number(finalTarget.vit_max || 1)) * 0.22
+              Number(settleResult?.dmg || 0) >= getCombatHpMaxValue(finalTarget) * 0.22
             )
               focusReason = 'dot_pressure';
             ttl = 2;
@@ -6512,7 +6647,7 @@ class BattleUIComponent {
 
       function buildBattleStateContext(actor, target, combatData, extra = {}) {
         const canFlee = combatData?.允许撤离 !== false;
-        const isDesperateNoEscape = (actor?.vit || 0) < (actor?.vit_max || 1) * 0.3 && !canFlee;
+        const isDesperateNoEscape = getCombatHpRatio(actor) < 0.3 && !canFlee;
         return {
           combatType: combatData?.战斗类型 || '突发遭遇',
           isDeadlyFight:
@@ -6522,8 +6657,8 @@ class BattleUIComponent {
           ratio: extra.ratio ?? 1,
           playerPower: extra.playerPower ?? 0,
           isChargingHighThreat: !!extra.isChargingHighThreat,
-          actorHpRatio: (actor?.vit || 0) / Math.max(1, actor?.vit_max || 1),
-          targetHpRatio: (target?.vit || 0) / Math.max(1, target?.vit_max || 1),
+          actorHpRatio: getCombatHpRatio(actor),
+          targetHpRatio: getCombatHpRatio(target),
           canFlee: canFlee,
           isDesperateNoEscape: isDesperateNoEscape,
           actor,
@@ -6950,7 +7085,7 @@ class BattleUIComponent {
             clashExtraPatchOps.push(...settleResult.extraPatchOps);
 
           if (attacker.蓄力技能 != null) {
-            let damageRatio = Number(settleResult.totalProjectedDamage || settleResult.dmg || 0) / attacker.vit_max;
+            let damageRatio = Number(settleResult.totalProjectedDamage || settleResult.dmg || 0) / getCombatHpMaxValue(attacker);
             let isControlled = attacker.状态效果 && attacker.状态效果['眩晕'];
 
             let hasSuperArmor = false;
@@ -6971,8 +7106,8 @@ class BattleUIComponent {
                 if (hasSuperArmor) {
                   roundLog += ` NPC释放[${npcAction.skill.name}]试图打断，但玩家处于霸体状态，强行免疫了控制！`;
                 } else {
-                  let backlashDmg = Math.floor(attacker.vit_max * 0.05);
-                  attacker.vit -= backlashDmg;
+                  let backlashDmg = Math.floor(getCombatHpMaxValue(attacker) * 0.05);
+                  设置战斗血量值(attacker, getCombatHpValue(attacker) - backlashDmg);
                   if (!attacker.状态效果) attacker.状态效果 = {};
                   attacker.状态效果['僵直'] = {
                     类型: 'debuff',
@@ -7031,7 +7166,7 @@ class BattleUIComponent {
           });
           let appliedDamage = damagePackage.primaryAppliedDamage;
           if (damagePackage.log) roundLog += ` ${damagePackage.log}`;
-          isNpcInterrupted = isNpcInterrupted || appliedDamage / Math.max(1, defender.vit_max) >= 0.15;
+          isNpcInterrupted = isNpcInterrupted || appliedDamage / getCombatHpMaxValue(defender) >= 0.15;
           if (npcAction.type === '穿戴装备') {
             if (!isNpcInterrupted) {
               const 装备槽 = ensureBattleEquipmentSlot(defender, npcAction.skill.equip_target);
@@ -7047,34 +7182,34 @@ class BattleUIComponent {
           // --- 第五步：装备护主与战损结算 ---
           let combatType = combatData.战斗类型 || '突发遭遇';
 
-          if (defender.vit < defender.vit_max * 0.1) {
+          if (getCombatHpValue(defender) < getCombatHpMaxValue(defender) * 0.1) {
             let hasMech = defender.装备?.机甲?.等级 !== '无' && defender.装备?.机甲?.状态 !== '重创';
             let hasArmor = defender.装备?.斗铠?.装备状态 === '已装备';
 
-            if (combatType === '擂台切磋' && defender.vit <= defender.vit_max * 0.05) {
-              defender.vit = Math.floor(defender.vit_max * 0.05); // 强制锁血 5%
+            if (combatType === '擂台切磋' && getCombatHpValue(defender) <= getCombatHpMaxValue(defender) * 0.05) {
+              设置战斗血量值(defender, Math.floor(getCombatHpMaxValue(defender) * 0.05)); // 强制锁血 5%
               roundLog += ` [擂台保护] 胜负已分！裁判强行介入，终止了致命一击！`;
               continueSimulation = false; // 强制结束战斗
             } else if (hasMech || hasArmor) {
-              defender.vit = Math.floor(defender.vit_max * 0.1);
+              设置战斗血量值(defender, Math.floor(getCombatHpMaxValue(defender) * 0.1));
               let armorLog = applyArmorDamage(defender);
               roundLog += ` [装备护主] 致命打击触发替死锁血！NPC HP强制锁定在10%！${armorLog}`;
             } else if (combatType === '升灵台虚拟战斗' || combatType === '魂灵塔冲塔') {
               // 虚拟战斗中，敌方体力归零照常死亡，如果是己方或判定特殊保护，需要锁定体力并标记退出
               let saveLog = triggerDeathSave(defender);
               if (saveLog) {
-                defender.vit = Math.floor(defender.vit_max * 0.1);
+                设置战斗血量值(defender, Math.floor(getCombatHpMaxValue(defender) * 0.1));
                 roundLog += ` ${saveLog}`;
               } else {
-                // 虚拟环境，如果是玩家/模拟死亡也是正常走到 vit <= 0，靠 settleBattle 拦截
-              }
-            } else {
-              let saveLog = triggerDeathSave(defender);
-              if (saveLog) {
-                defender.vit = Math.floor(defender.vit_max * 0.1);
-                roundLog += ` ${saveLog}`;
-              }
+              // 虚拟环境，如果是玩家/模拟死亡也是正常走到 vit <= 0，靠 settleBattle 拦截
             }
+          } else {
+            let saveLog = triggerDeathSave(defender);
+            if (saveLog) {
+              设置战斗血量值(defender, Math.floor(getCombatHpMaxValue(defender) * 0.1));
+              roundLog += ` ${saveLog}`;
+            }
+          }
           }
 
           let attackerUpkeep = settleSustainEffectsAtRoundEnd(attacker, '玩家');
@@ -7100,7 +7235,8 @@ class BattleUIComponent {
               continueSimulation = false;
               roundLog += ` [单回合仲裁] 当前模式为单回合，本次暗箱演算到此结束。`;
             } else {
-              const continueThresholdReached = Number(settleResult.totalProjectedDamage || settleResult.dmg || 0) / Math.max(1, attacker.vit_max) >= 0.05;
+              const continueThresholdReached =
+                Number(settleResult.totalProjectedDamage || settleResult.dmg || 0) / getCombatHpMaxValue(attacker) >= 0.05;
               if (continueThresholdReached) {
                 continueSimulation = false;
                 roundLog += ` [续推终止] 本回合攻防烈度已达阈值，暗箱续推停止。`;
@@ -7742,7 +7878,7 @@ class BattleUIComponent {
             }
           } else if (outcome.isDefeat === true || isDrawOutcome) {
             log = `[升灵台保护] 玩家受到致命创伤，升灵台保护机制触发！一道接引光芒落下，强制将其弹出升灵台。(虚拟战败，无实质损伤，但终止了本次历练)`;
-            attackerChar.vit = 1;
+            设置战斗血量值(attackerChar, 1);
           } else {
             log = `[升灵台仲裁] 本次交锋暂未分出胜负，升灵台能量回路仍在持续运转。`;
           }
@@ -7761,7 +7897,7 @@ class BattleUIComponent {
             log = `🏆[冲塔成功] ${gateMeta.gateLabel}${gateMeta.isGateBoss ? '关底' : ''}镇守第 ${floor} 层的 ${defenderName} 被彻底击溃！当前守塔魂灵已锁定为可选购买目标，请决定是结束冲塔并保留资格，还是继续冲击下一层。`;
           } else if (outcome.isDefeat === true || isDrawOutcome) {
             log = `💀[冲塔失败] 玩家遭到 ${defenderName} 重创，魂灵塔阵法排斥之力发动，将其强行传送出塔外！(请 AI 描写重伤弹出塔外的虚弱状态)`;
-            attackerChar.vit = 1;
+            设置战斗血量值(attackerChar, 1);
           } else {
             log = `[冲塔仲裁] 本次交锋尚未形成通关结果，魂灵塔考核仍在继续。`;
           }
@@ -8044,9 +8180,9 @@ class BattleUIComponent {
         const nextCount = Math.max(0, Number(candidate.cond.战斗效果.revive_count || 0) - 1);
         candidate.cond.战斗效果.revive_count = nextCount;
         const healRatio = Math.max(0.05, Number(candidate.cond.战斗效果.revive_heal_ratio || 0.25));
-        const maxVit = Math.max(1, Number(targetChar.vit_max || 1));
+        const maxVit = getCombatHpMaxValue(targetChar);
         const restoreAmount = Math.max(1, Math.floor(maxVit * healRatio));
-        targetChar.vit = Math.min(maxVit, Math.max(restoreAmount, Number(targetChar.vit || 0) + restoreAmount));
+        设置战斗血量值(targetChar, Math.min(maxVit, Math.max(restoreAmount, getCombatHpValue(targetChar) + restoreAmount)));
         if (!targetChar.状态 || typeof targetChar.状态 !== 'object') targetChar.状态 = {};
         targetChar.状态.行动 = '战斗';
         return `[复苏触发] ${label}借[${candidate.key}]重燃战意，恢复 ${restoreAmount} 点HP！剩余复苏次数:${nextCount}`;
@@ -8209,7 +8345,7 @@ class BattleUIComponent {
         const hasSuperArmor =
           targetEffects.some(ce => ce?.super_armor === true) ||
           Object.keys(targetChar.状态效果 || {}).some(key => /霸体|真身/.test(String(key || '')));
-        const damageRatio = Math.max(0, Number(inflictedDamage || 0)) / Math.max(1, Number(targetChar.vit_max || 1));
+        const damageRatio = Math.max(0, Number(inflictedDamage || 0)) / getCombatHpMaxValue(targetChar);
         const stateCalc = getPrimaryStateCalc(attackAction?.skill);
         const specialFlags = String(getPrimaryStateEffect(attackAction?.skill)?.特殊机制标识 || '无');
         const interruptEffect = getSkillEffects(attackAction?.skill).find(effect => effect?.机制 === '打断') || {};
@@ -8313,14 +8449,15 @@ class BattleUIComponent {
           const reactiveDefense = resolveReactiveDefenseOnDamage(attacker, targetChar, incomingDamage, options);
           let finalDamage = reactiveDefense.damage;
           if (reactiveDefense.counterDamage > 0) {
-            attacker.vit = Math.max(0, Number(attacker.vit || 0) - reactiveDefense.counterDamage);
+            设置战斗血量值(attacker, getCombatHpValue(attacker) - reactiveDefense.counterDamage);
           }
           if (reactiveDefense.log) logParts.push(reactiveDefense.log);
           let appliedDamage = 0;
           if (finalDamage > 0) {
             const defThreshold = Math.max(1, Number(targetFinalStat.def || targetChar.def || 0)) * 0.1;
-            if (finalDamage < defThreshold) {
-              targetChar.vit = Math.max(0, Number(targetChar.vit || 0) - 1);
+            const ignoreDefenseThreshold = ['dot_detonate', 'shield_break'].includes(String(targetEntry?.kind || '').trim());
+            if (!ignoreDefenseThreshold && finalDamage < defThreshold) {
+              设置战斗血量值(targetChar, getCombatHpValue(targetChar) - 1);
               appliedDamage = 1;
               logParts.push(
                 targetEntry?.kind === 'primary'
@@ -8328,7 +8465,7 @@ class BattleUIComponent {
                   : `[群体擦伤] ${targetChar.name || '目标'}仅承受 1 点擦伤伤害。`,
               );
             } else {
-              targetChar.vit = Math.max(0, Number(targetChar.vit || 0) - finalDamage);
+              设置战斗血量值(targetChar, getCombatHpValue(targetChar) - finalDamage);
               appliedDamage = finalDamage;
               logParts.push(
                 targetEntry?.kind === 'primary'
@@ -8345,7 +8482,7 @@ class BattleUIComponent {
                   面板修改比例: { str: 1.0, def: 1.0, agi: 1.0, sp_max: 1.0 },
                   战斗效果: {
                     ...createEmptyCombatEffectMap(),
-                    dot_damage: Math.floor(Number(targetFinalStat.vit_max || targetChar.vit_max || 0) * 0.05),
+                    dot_damage: Math.floor(getCombatHpMaxValue(targetChar) * 0.05),
                   },
                 };
                 logParts.push(`[重创打击] ${targetChar.name || '目标'}被附加[重度流血]状态！`);
@@ -8358,11 +8495,11 @@ class BattleUIComponent {
               const sharedDamage = Math.max(0, Math.floor(Number(sharedEntry?.damage || 0)));
               if (!sharedTarget || !(sharedDamage > 0)) return;
               bindCombatParticipant(sharedTarget);
-              sharedTarget.vit = Math.max(0, Number(sharedTarget.vit || 0) - sharedDamage);
+              设置战斗血量值(sharedTarget, getCombatHpValue(sharedTarget) - sharedDamage);
               logParts.push(
                 `[分摊结算] ${sharedTarget.name || '队友'}替${targetChar.name || '目标'}承受了 ${sharedDamage} 点伤害。`,
               );
-              if (sharedTarget.vit <= 0) {
+              if (getCombatHpValue(sharedTarget) <= 0) {
                 const reviveLog = triggerReviveEffect(sharedTarget, sharedTarget.name || '队友');
                 if (reviveLog) logParts.push(reviveLog);
               }
@@ -8376,7 +8513,7 @@ class BattleUIComponent {
             targetChar.name || `目标${index + 1}`,
           );
           if (interruptLog) logParts.push(interruptLog);
-          if (targetChar.vit <= 0) {
+          if (getCombatHpValue(targetChar) <= 0) {
             const reviveLog = triggerReviveEffect(targetChar, targetChar.name || `目标${index + 1}`);
             if (reviveLog) logParts.push(reviveLog);
           }
@@ -8397,22 +8534,42 @@ class BattleUIComponent {
       // ==========================================
       function getCombatHpValue(char) {
         const stats = char?.属性 && typeof char.属性 === 'object' ? char.属性 : char || {};
-        return Math.max(0, Number(char?.vit ?? stats.vit ?? char?.HP ?? stats.HP ?? 0));
+        return Math.max(0, Number(char?.hp ?? stats.hp ?? char?.HP ?? stats.HP ?? 0));
       }
 
       function getCombatHpMaxValue(char) {
         const stats = char?.属性 && typeof char.属性 === 'object' ? char.属性 : char || {};
-        return Math.max(1, Number(char?.vit_max ?? stats.vit_max ?? char?.HP上限 ?? stats.HP上限 ?? 1));
+        return Math.max(1, Number(char?.hp_max ?? stats.hp_max ?? char?.HP上限 ?? stats.HP上限 ?? 1));
       }
 
       function getCombatStaminaValue(char) {
         const stats = char?.属性 && typeof char.属性 === 'object' ? char.属性 : char || {};
-        return Math.max(0, Number(char?.sta ?? stats.sta ?? char?.体力 ?? stats.体力 ?? 0));
+        return Math.max(0, Number(char?.sta ?? stats.sta ?? char?.体力 ?? stats.体力 ?? char?.vit ?? stats.vit ?? 0));
       }
 
       function getCombatStaminaMaxValue(char) {
         const stats = char?.属性 && typeof char.属性 === 'object' ? char.属性 : char || {};
-        return Math.max(1, Number(char?.sta_max ?? stats.sta_max ?? char?.体力上限 ?? stats.体力上限 ?? 1));
+        return Math.max(1, Number(char?.sta_max ?? stats.sta_max ?? char?.体力上限 ?? stats.体力上限 ?? char?.vit_max ?? stats.vit_max ?? 1));
+      }
+
+      function 设置战斗血量值(char, value) {
+        if (!char || typeof char !== 'object') return 0;
+        const stats = char?.属性 && typeof char.属性 === 'object' ? char.属性 : char;
+        const nextValue = Math.max(0, Math.min(getCombatHpMaxValue(char), Number(value || 0)));
+        if ('hp' in char || Object.prototype.hasOwnProperty.call(char, 'hp')) char.hp = nextValue;
+        else char.HP = nextValue;
+        if (stats && typeof stats === 'object') stats.HP = nextValue;
+        return nextValue;
+      }
+
+      function 设置战斗体力值(char, value) {
+        if (!char || typeof char !== 'object') return 0;
+        const stats = char?.属性 && typeof char.属性 === 'object' ? char.属性 : char;
+        const nextValue = Math.max(0, Math.min(getCombatStaminaMaxValue(char), Number(value || 0)));
+        if ('sta' in char || Object.prototype.hasOwnProperty.call(char, 'sta')) char.sta = nextValue;
+        else char.体力 = nextValue;
+        if (stats && typeof stats === 'object') stats.体力 = nextValue;
+        return nextValue;
       }
 
       function getCombatHpRatio(char) {
@@ -8562,7 +8719,7 @@ class BattleUIComponent {
           targetHitsDefender: false,
           projectedDamage: 0,
           projectedDamageRatio: 0,
-          projectedRemainingHp: Math.max(0, Number(defender?.vit || 0)),
+          projectedRemainingHp: getCombatHpValue(defender),
           lethalRisk: false,
           severeDamage: false,
           moderateDamage: false,
@@ -8632,8 +8789,8 @@ class BattleUIComponent {
         projectedDamage = projectedDamage * (1 - defenderReduction) * attackerFinalDamageMult + attackerFinalDamageBonus + extraTrueDamage;
         const shieldPressure = collectShieldConditionEntries(defender).reduce((sum, entry) => sum + Number(entry.shieldValue || 0), 0);
         const projectedDamageAfterShield = Math.max(0, Math.floor(projectedDamage - shieldPressure));
-        const currentHp = Math.max(0, Number(defender.vit || 0));
-        const maxHp = Math.max(1, Number(defender.vit_max || 1));
+        const currentHp = getCombatHpValue(defender);
+        const maxHp = getCombatHpMaxValue(defender);
         const projectedDamageRatio = projectedDamageAfterShield / maxHp;
         const projectedRemainingHp = Math.max(0, currentHp - projectedDamageAfterShield);
         const executeEffect = getSkillEffects(skill).find(effect => effect?.机制 === '斩杀补伤') || null;
@@ -9158,7 +9315,7 @@ class BattleUIComponent {
           if (extraTrueDamagePerTarget > 0) projectedDamage += extraTrueDamagePerTarget;
 
           if (directExecuteEffect) {
-            const judgeKey = String(directExecuteEffect.判定属性 || 'vit_ratio');
+            const judgeKey = String(directExecuteEffect.判定属性 || 'hp_ratio');
             const threshold = Number(directExecuteEffect.判定阈值 ?? 0.2);
             let executeSuccess = true;
             if (judgeKey) {
@@ -9217,9 +9374,9 @@ class BattleUIComponent {
         if (Number(result.totalProjectedDamage || 0) > 0 && totalLifeStealRatio > 0 && !Number(result.backlash_dmg || 0)) {
           const lifeStealAmount = Math.floor(Number(result.totalProjectedDamage || 0) * totalLifeStealRatio);
           if (lifeStealAmount > 0) {
-            attacker.vit = Math.min(
-              attackerFinalStat.vit_max || attacker.vit_max || attacker.vit,
-              attacker.vit + lifeStealAmount,
+            设置战斗血量值(
+              attacker,
+              Math.min(getCombatHpMaxValue(attacker), getCombatHpValue(attacker) + lifeStealAmount),
             );
             result.desc +=
               directDamageToHealRatio > 0
@@ -9230,7 +9387,7 @@ class BattleUIComponent {
 
         if (Number(result.backlash_dmg || 0) > 0) {
           const backlashDamage = Math.max(0, Math.floor(Number(result.backlash_dmg || 0)));
-          attacker.vit = Math.max(0, Number(attacker.vit || 0) - backlashDamage);
+          设置战斗血量值(attacker, getCombatHpValue(attacker) - backlashDamage);
           result.desc += ` [反噬结算] 玩家额外承受了 ${backlashDamage} 点反噬伤害。`;
         }
         if (Number(result.totalProjectedDamage || 0) > 0) {
@@ -9239,7 +9396,7 @@ class BattleUIComponent {
             : ` 造成了 ${Number(result.dmg || 0)} 点最终伤害。`;
           if (selfMirrorEffect && primaryResolvedTarget !== attacker) {
             const selfEchoDamage = Math.max(1, Math.floor(Number(result.dmg || 0)));
-            attacker.vit = Math.max(0, Number(attacker.vit || 0) - selfEchoDamage);
+            设置战斗血量值(attacker, getCombatHpValue(attacker) - selfEchoDamage);
             result.desc += ` [自身反馈] 技能余波同步反噬自身，额外承受 ${selfEchoDamage} 点伤害。`;
           }
         }
@@ -9295,7 +9452,7 @@ class BattleUIComponent {
               ? Object.values(targetObj.状态效果).map(c => c?.战斗效果 || {})
               : [];
             let maxResource = 0;
-            if (resourceKey === 'vit') maxResource = Number(targetFinalStat.vit_max || targetObj.vit_max || 0);
+            if (resourceKey === 'vit') maxResource = getCombatHpMaxValue(targetObj);
             else if (resourceKey === 'sp') maxResource = Number(targetFinalStat.sp_max || targetObj.sp_max || 0);
             else maxResource = Number(targetFinalStat.men_max || targetObj.men_max || 0);
             if (!(maxResource > 0)) return;
@@ -9340,12 +9497,13 @@ class BattleUIComponent {
                 : 0;
             if (resourceKey === 'vit' && healInvertRatio > 0) {
               const invertedDamage = Math.max(1, Math.floor(amount * Math.max(1, healInvertRatio)));
-              targetObj.vit = Math.max(0, Number(targetObj.vit || 0) - invertedDamage);
+              设置战斗血量值(targetObj, getCombatHpValue(targetObj) - invertedDamage);
               totalRecovered += invertedDamage;
               result.desc += ` [治疗反转] ${targetObj === attacker ? '自身' : targetObj.name}的治疗被扭成伤害，反而损失了 ${invertedDamage} 点HP。`;
               return;
             }
-            targetObj[resourceKey] = Math.min(maxResource, Number(targetObj[resourceKey] || 0) + amount);
+            if (resourceKey === 'vit') 设置战斗血量值(targetObj, Math.min(maxResource, getCombatHpValue(targetObj) + amount));
+            else targetObj[resourceKey] = Math.min(maxResource, Number(targetObj[resourceKey] || 0) + amount);
             totalRecovered += amount;
             result.desc += ` [机制触发] ${targetObj === attacker ? '自身' : targetObj.name}恢复了 ${amount} 点${labelText}。`;
           });
@@ -9537,7 +9695,7 @@ class BattleUIComponent {
             });
             if (!(consumedDot > 0)) return;
             const bonusDamage = Math.max(1, Math.floor(consumedDot * ratio));
-            appendProjectedDamageToSettleResult(result, targetObj, bonusDamage, targetObj === primaryResolvedTarget ? 'primary' : 'secondary');
+            appendProjectedDamageToSettleResult(result, targetObj, bonusDamage, 'dot_detonate');
             totalAddedDamage += bonusDamage;
             result.desc += ` [持续引爆] ${targetObj === attacker ? '自身' : targetObj.name}身上的持续伤害被引爆，追加 ${bonusDamage} 点伤害。`;
           });
@@ -9559,7 +9717,7 @@ class BattleUIComponent {
             });
             if (!(removedShield > 0)) return;
             const bonusDamage = Math.max(1, Math.floor(removedShield * Math.max(0.2, ratio)));
-            appendProjectedDamageToSettleResult(result, targetObj, bonusDamage, targetObj === primaryResolvedTarget ? 'primary' : 'secondary');
+            appendProjectedDamageToSettleResult(result, targetObj, bonusDamage, 'shield_break');
             totalAddedDamage += bonusDamage;
             result.desc += ` [斩盾爆破] ${targetObj === attacker ? '自身' : targetObj.name}的护盾被一并斩碎，追加 ${bonusDamage} 点伤害。`;
           });
@@ -9877,6 +10035,9 @@ class BattleUIComponent {
             pState.状态名称 !== '无' &&
             (Number(result.totalProjectedDamage || result.dmg || 0) > 0 || hostileTargetRedirectedToSelf || !hasDirectDamageEffect)
           ) {
+            const skillSideEffects = getBattleSkillSideEffectList(playerAction.skill).filter(item =>
+              ['回合结束时', '状态结束后'].includes(String(item?.触发时机 || '').trim()),
+            );
             const stateTargetContext = getEffectTargetContext(pState);
             const stateTargets = stateTargetContext.targetSet;
             const stateTargetsFriendly = ['自身', '友方单体', '友方群体'].includes(stateTargetContext.targetModel);
@@ -9960,6 +10121,10 @@ class BattleUIComponent {
                 层数: 1,
                 描述: `由[${playerAction.skill.name}]附加`,
                 duration: pState.持续回合,
+                副作用列表: skillSideEffects.filter(item => {
+                  const boundState = String(item?.关联状态 || '').trim();
+                  return !boundState || boundState === pState.状态名称;
+                }),
                 机制抹消目标: normalizeBattleMechanismSuppressionTargets(pState.机制抹消目标 || []),
                 机制抹消方式: normalizeBattleMechanismSuppressionMode(pState.机制抹消方式 || ''),
                 面板修改比例: scaledMods,
@@ -10050,6 +10215,25 @@ class BattleUIComponent {
             });
           }
 
+          const immediateSideEffects = getBattleSkillSideEffectList(playerAction.skill).filter(item =>
+            ['施放后', '命中后'].includes(String(item?.触发时机 || '').trim()),
+          );
+          if (immediateSideEffects.length > 0) {
+            const sideEffectTargetContext = resolveSkillTargetContext(playerAction.skill, attacker, defender, combatData);
+            const sideEffectTargets = Array.isArray(sideEffectTargetContext?.targetSet)
+              ? sideEffectTargetContext.targetSet.filter(Boolean)
+              : [defender].filter(Boolean);
+            const sideEffectLogs = [];
+            immediateSideEffects.forEach(item => {
+              resolveBattleSideEffectTargets(item, attacker, sideEffectTargets).forEach(targetChar => {
+                applyBattleSideEffectState(targetChar, item, playerAction.skill.name || '技能', sideEffectLogs);
+              });
+            });
+            if (sideEffectLogs.length > 0) {
+              result.desc += ` ${sideEffectLogs.join(' ')}`;
+            }
+          }
+
           result.interrupt_bonus = attackerInterruptBonus;
           return result;
         }
@@ -10091,8 +10275,8 @@ class BattleUIComponent {
               if (isDeadlyFight) {
                 if (lvDiff >= 5) weight += 80;
                 if (isChargingHighThreat) weight += 60;
-                if (defender.vit < defender.vit_max * 0.5) weight += 30;
-              } else if (defender.vit < defender.vit_max * 0.4 || isChargingHighThreat) {
+                if (getCombatHpRatio(defender) < 0.5) weight += 30;
+              } else if (getCombatHpRatio(defender) < 0.4 || isChargingHighThreat) {
                 weight += 50;
               }
 
@@ -10123,7 +10307,7 @@ class BattleUIComponent {
               if (isDeadlyFight) {
                 if (lvDiff >= 0) weight += 70;
                 if (isChargingHighThreat) weight += 60;
-              } else if (defender.vit < defender.vit_max * 0.6 || isChargingHighThreat) {
+              } else if (getCombatHpRatio(defender) < 0.6 || isChargingHighThreat) {
                 weight += 50;
               }
 
@@ -10152,8 +10336,8 @@ class BattleUIComponent {
             behaviorState.isDesperateNoEscape
           ) {
             let weight = 0;
-            if (lvDiff >= 10 && defender.vit < defender.vit_max * 0.8) weight += 60;
-            else if (defender.vit < defender.vit_max * 0.3) weight += 80;
+            if (lvDiff >= 10 && getCombatHpRatio(defender) < 0.8) weight += 60;
+            else if (getCombatHpRatio(defender) < 0.3) weight += 80;
             if (isChargingHighThreat) weight += 25;
 
             let fireLog = `[绝命搏杀] 面对${lvDiff >= 10 ? '令人绝望的实力差距' : '生死绝境'}，NPC做出了极其疯狂的举动！强行点燃了生命之火做殊死一搏！`;
@@ -10177,8 +10361,8 @@ class BattleUIComponent {
             (defender.当前领域 || '无') === '无' && (defender.装备?.斗铠?.等级 >= 3 || defender.men_max >= 30000);
           if (hasDomain) {
             let weight = 0;
-            if (defender.vit >= defender.vit_max * 0.9) weight += 40;
-            if (defender.vit < defender.vit_max * 0.5) weight += 80;
+            if (getCombatHpRatio(defender) >= 0.9) weight += 40;
+            if (getCombatHpRatio(defender) < 0.5) weight += 80;
             if (isChargingHighThreat) weight += 30;
 
             strategicBranches.push({
@@ -10212,11 +10396,11 @@ class BattleUIComponent {
           if (bestSpirit && defender.men >= 500) {
             let weight = 0;
             const playerLv = attacker.lv || 1;
-            if (maxSpiritLv >= playerLv - 15) {
-              weight += 20;
-              if (maxSpiritLv >= playerLv) weight += 40;
-              if (defender.vit >= defender.vit_max * 0.9) weight += 30;
-            }
+              if (maxSpiritLv >= playerLv - 15) {
+                weight += 20;
+                if (maxSpiritLv >= playerLv) weight += 40;
+                if (getCombatHpRatio(defender) >= 0.9) weight += 30;
+              }
             strategicBranches.push({
               name: '召唤魂灵',
               weight: adjustBehaviorWeight('召唤魂灵', weight, defender, attacker, behaviorState),
@@ -10258,7 +10442,7 @@ class BattleUIComponent {
             let weight = 0;
             let decisionLog = '';
             if (equipCastTime === 0) weight += 500;
-            if (combatType === '死战' && defender.vit >= defender.vit_max * 0.95) {
+            if (combatType === '死战' && getCombatHpRatio(defender) >= 0.95) {
               weight += 200;
               decisionLog = '面临生死决战，NPC不敢托大，开局便试图引动装备护体！';
             }
@@ -10270,7 +10454,7 @@ class BattleUIComponent {
               weight += 60;
               if (!decisionLog) decisionLog = 'NPC察觉到对方前摇破绽，从容地开始释放装备。';
             }
-            if (defender.vit < defender.vit_max * 0.4) {
+            if (getCombatHpRatio(defender) < 0.4) {
               weight += 50;
               if (!decisionLog) decisionLog = '身受重创的NPC陷入绝境，拼着被打断的风险也要强行穿戴装备！';
             }
@@ -10300,7 +10484,7 @@ class BattleUIComponent {
           if (
             behaviorState.canFlee &&
             combatType !== '擂台切磋' &&
-            defender.vit < defender.vit_max * 0.15 &&
+            getCombatHpRatio(defender) < 0.15 &&
             !hasMechOrArmor
           ) {
             strategicBranches.push({
@@ -10310,7 +10494,7 @@ class BattleUIComponent {
                 return makeNpcAction('亡命奔逃', `[濒死溃逃] NPC身受重创，丧失了战意，放弃防守转身亡命奔逃！`);
               },
             });
-          } else if (!behaviorState.canFlee && defender.vit < defender.vit_max * 0.15) {
+          } else if (!behaviorState.canFlee && getCombatHpRatio(defender) < 0.15) {
             // 如果濒死但无法逃跑，给肉体兜底和死斗加一点补救权重
             behaviorState.isDesperateNoEscape = true;
           }
@@ -10385,8 +10569,8 @@ class BattleUIComponent {
               const isUltimate =
                 skillPower >= 200 || /真身|第八魂技|第九魂技|武魂融合技|生命之火/.test(skill.name || '');
               if (isUltimate) {
-                const enemyHpRatio = attacker.vit / Math.max(1, attacker.vit_max);
-                const myHpRatio = defender.vit / Math.max(1, defender.vit_max);
+                const enemyHpRatio = getCombatHpRatio(attacker);
+                const myHpRatio = getCombatHpRatio(defender);
                 if (behaviorState.combatType === '擂台切磋') weight -= 30;
                 else {
                   if (enemyHpRatio < 0.4) weight += 60;
@@ -10407,8 +10591,8 @@ class BattleUIComponent {
               const mainType = inferMainTypeFromEffects(skill) || '无';
               const 决策标签 = getSkillAiRoleTags(skill);
               const 技能来源 = String(getSkillRuntimeMeta(skill).技能来源 || '魂技').trim() || '魂技';
-              const enemyHpRatio = attacker.vit / Math.max(1, attacker.vit_max);
-              const selfHpRatio = defender.vit / Math.max(1, defender.vit_max);
+              const enemyHpRatio = getCombatHpRatio(attacker);
+              const selfHpRatio = getCombatHpRatio(defender);
               const enemySpRatio = Math.max(0, Number(attacker.sp || 0)) / Math.max(1, Number(attacker.sp_max || 1));
               const enemyMenRatio = Math.max(0, Number(attacker.men || 0)) / Math.max(1, Number(attacker.men_max || 1));
               const fieldActive = Object.keys(defender.状态效果 || {}).some(k => /领域|场地|结界|召唤/.test(k));
@@ -10808,8 +10992,8 @@ class BattleUIComponent {
           const isChargingHighThreat = !!behaviorState.isChargingHighThreat;
           const enemySnapshot = buildConditionTacticalSnapshot(attacker);
           const selfSnapshot = buildConditionTacticalSnapshot(defender);
-          const enemyHpRatio = attacker.vit / Math.max(1, attacker.vit_max);
-          const selfHpRatio = defender.vit / Math.max(1, defender.vit_max);
+          const enemyHpRatio = getCombatHpRatio(attacker);
+          const selfHpRatio = getCombatHpRatio(defender);
           const selfSpRatio = Math.max(0, Number(defender.sp || 0)) / Math.max(1, Number(defender.sp_max || 1));
           const selfMenRatio = Math.max(0, Number(defender.men || 0)) / Math.max(1, Number(defender.men_max || 1));
           const allyCount = behaviorState.alliesCount || 1;
@@ -11358,7 +11542,7 @@ class BattleUIComponent {
             playerAction.action_type === '蓄力挨打' ||
             ((playerAction.cast_time || 0) >= 20 && playerPower >= 120);
           const isSupport = ['辅助系', '治疗系', '食物系'].includes(defender.type);
-          const isLowHealth = defender.vit < defender.vit_max * 0.3;
+          const isLowHealth = getCombatHpRatio(defender) < 0.3;
           const activeBuffs = Object.keys(defender.状态效果 || {});
           const allyTeam = combatData.参战者.team_enemy || [];
           const availableSkills = collectCombatSkills(defender, allyTeam);
@@ -11504,7 +11688,7 @@ class BattleUIComponent {
 
             if (roll <= failRate) {
               rewriteTargetResultsDamage(() => 0);
-              result.backlash_dmg = Math.floor(attackerStats.vit_max * 0.3);
+              result.backlash_dmg = Math.floor(getCombatHpMaxValue(attacker) * 0.3);
               result.desc += ` [元素炸膛] 精神力失控！${fusionLabel}在手中轰然引爆，遭到极致反噬！(Roll: ${roll} <= 炸膛率: ${Math.floor(failRate)}%)`;
             } else {
               let multiplier = Math.pow(1.5, elementCount - 1) * Number(gatedFusionSemantics.multiplier || 1);
@@ -11852,7 +12036,7 @@ class BattleUIComponent {
             let weight = 10;
             let isSupport = ['辅助系', '治疗系', '食物系', '控制系'].includes(target.type);
             let isTank = ['防御系', '强攻系'].includes(target.type);
-            let hpRatio = target.vit / target.vit_max;
+            let hpRatio = getCombatHpRatio(target);
 
             if (attackerChar.type === '敏攻系') {
               if (isSupport) weight += 60;
@@ -11889,7 +12073,7 @@ class BattleUIComponent {
 
           for (let ally of validAllies) {
             bindCombatParticipant(ally);
-            let hpRatio = ally.vit / Math.max(1, ally.vit_max);
+            let hpRatio = getCombatHpRatio(ally);
             if (hpRatio < lowestHpRatio) {
               lowestHpRatio = hpRatio;
               targetAlly = ally;
@@ -11907,7 +12091,7 @@ class BattleUIComponent {
           const 决策标签 = getSkillAiRoleTags(skill);
           const 技能来源 = String(getSkillRuntimeMeta(skill).技能来源 || '魂技').trim() || '魂技';
           const dmg = getPrimaryDamageEffect(skill);
-          const hpRatio = Math.max(0, Number(target.vit || 0)) / Math.max(1, Number(target.vit_max || 1));
+          const hpRatio = getCombatHpRatio(target);
           const spRatio = Math.max(0, Number(target.sp || 0)) / Math.max(1, Number(target.sp_max || 1));
           const menRatio = Math.max(0, Number(target.men || 0)) / Math.max(1, Number(target.men_max || 1));
           const power = Number(dmg?.威力倍率 || 0);
@@ -12047,7 +12231,7 @@ class BattleUIComponent {
           const snapshot = buildConditionTacticalSnapshot(ally);
           const summary = deriveBattleSummaryFromEffects(skill);
           const 技能来源 = getBattleSkillSourceCategory(skill);
-          const hpRatio = Math.max(0, Number(ally.vit || 0)) / Math.max(1, Number(ally.vit_max || 1));
+          const hpRatio = getCombatHpRatio(ally);
           const spRatio = Math.max(0, Number(ally.sp || 0)) / Math.max(1, Number(ally.sp_max || 1));
           const menRatio = Math.max(0, Number(ally.men || 0)) / Math.max(1, Number(ally.men_max || 1));
           const attackScore = Math.max(Number(ally.str || 0), Number(ally.men_max || 0));
@@ -12160,7 +12344,7 @@ class BattleUIComponent {
             makeActorAction,
           );
           const isSupport = ['辅助系', '治疗系', '食物系'].includes(actor.type);
-          const isLowHealth = actor.vit < actor.vit_max * 0.3;
+          const isLowHealth = getCombatHpRatio(actor) < 0.3;
 
           const strategicAction = chooseAndBuildActorAction(
             actor,
@@ -12445,7 +12629,7 @@ class BattleUIComponent {
               Number(getFusionScaledInterruptChance(action.skill) || 0),
             );
             const isTargetInterrupted =
-              appliedDamage / Math.max(1, finalTarget.vit_max) >= 0.15 ||
+              appliedDamage / getCombatHpMaxValue(finalTarget) >= 0.15 ||
               actorStateCalc.skip_turn === true ||
               getPrimaryStateFlags(action.skill).includes('硬控') ||
               (actorInterruptChance > 0 && Math.random() <= Math.min(1, actorInterruptChance)) ||
@@ -12461,14 +12645,14 @@ class BattleUIComponent {
           }
 
           if (
-            finalTarget.vit < finalTarget.vit_max * 0.1 &&
+            getCombatHpRatio(finalTarget) < 0.1 &&
             finalTarget !== actor &&
             !targetsFriendlyTeam
           ) {
             let hasMech = finalTarget.装备?.机甲?.等级 !== '无' && finalTarget.装备?.机甲?.状态 !== '重创';
             let hasArmor = finalTarget.装备?.斗铠?.装备状态 === '已装备';
             if (hasMech || hasArmor) {
-              finalTarget.vit = Math.floor(finalTarget.vit_max * 0.1);
+              设置战斗血量值(finalTarget, Math.floor(getCombatHpMaxValue(finalTarget) * 0.1));
               turnLog += ` [装备护主] ${finalTarget.name}触发装备护主，强制锁血至 10%。${applyArmorDamage(finalTarget)}`;
             }
           }
@@ -12504,8 +12688,8 @@ class BattleUIComponent {
             settleResult,
             log: turnLog,
             extraPatchOps: Array.isArray(settleResult?.extraPatchOps) ? settleResult.extraPatchOps : [],
-            actorVit: actor.vit,
-            targetVit: finalTarget.vit,
+            actorVit: getCombatHpValue(actor),
+            targetVit: getCombatHpValue(finalTarget),
           };
         }
 
@@ -12596,10 +12780,10 @@ class BattleUIComponent {
           if (combatType === '升灵台虚拟战斗' || combatType === '魂灵塔冲塔') {
             if (winner === 'enemy') {
               (combatData.参战者.team_player || []).forEach(p => {
-                if (p.vit <= 0) p.vit = 1;
+                if (getCombatHpValue(p) <= 0) 设置战斗血量值(p, 1);
               });
-              if (combatData.参战者.player && combatData.参战者.player.vit <= 0) {
-                combatData.参战者.player.vit = 1;
+              if (combatData.参战者.player && getCombatHpValue(combatData.参战者.player) <= 0) {
+                设置战斗血量值(combatData.参战者.player, 1);
               }
               logs.push(`[虚拟战败保护] 玩家方全员战败，触发安全协议，强制弹出并锁定HP为 1！`);
             }
@@ -12725,8 +12909,12 @@ class BattleUIComponent {
               lv: char.lv || 1,
               lv_label: formatBattleCultivationLevelText(char.lv || 1, '1'),
               type: char.type || '未知系',
-              vit: char.vit || 0,
-              vit_max: char.vit_max || 1,
+              hp: getCombatHpValue(char),
+              hp_max: getCombatHpMaxValue(char),
+              vit: getCombatStaminaValue(char),
+              vit_max: getCombatStaminaMaxValue(char),
+              sta: getCombatStaminaValue(char),
+              sta_max: getCombatStaminaMaxValue(char),
               sp: char.sp || 0,
               sp_max: char.sp_max || 1,
               men: char.men || 0,
@@ -12927,14 +13115,14 @@ class BattleUIComponent {
           merged.type = merged.type || merged.系别 || stat.系别 || '未知系';
           merged.hp_max = Math.max(
             1,
-            toUiNumber(merged.hp_max ?? merged.HP上限, toUiNumber(stat.HP上限, toUiNumber(merged.体力上限 ?? stat.体力上限, 1))),
+            toUiNumber(merged.hp_max ?? merged.HP上限, toUiNumber(stat.HP上限, 1)),
           );
           merged.hp = Math.max(
             0,
-            toUiNumber(merged.hp ?? merged.HP, toUiNumber(stat.HP, toUiNumber(merged.体力 ?? stat.体力, merged.hp_max))),
+            toUiNumber(merged.hp ?? merged.HP, toUiNumber(stat.HP, merged.hp_max)),
           );
-          merged.vit_max = merged.hp_max;
-          merged.vit = merged.hp;
+          merged.vit_max = Math.max(1, toUiNumber(merged.vit_max ?? merged.体力上限, toUiNumber(stat.体力上限, 1)));
+          merged.vit = Math.max(0, toUiNumber(merged.vit ?? merged.体力, toUiNumber(stat.体力, merged.vit_max)));
           merged.sta_max = Math.max(1, toUiNumber(merged.sta_max ?? merged.体力上限, toUiNumber(stat.体力上限, 1)));
           merged.sta = Math.max(0, toUiNumber(merged.sta ?? merged.体力, toUiNumber(stat.体力, merged.sta_max)));
           merged.sp_max = Math.max(1, toUiNumber(merged.sp_max ?? merged.魂力上限, toUiNumber(stat.魂力上限, 1)));

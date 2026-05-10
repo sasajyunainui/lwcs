@@ -3381,6 +3381,8 @@
 
     function getMvuHost() {
       const candidates = [];
+      const bridgedHost = ensureBridgedMvuHost();
+      if (bridgedHost) candidates.push(bridgedHost);
       try {
         if (window.Mvu) candidates.push(window.Mvu);
       } catch (err) {}
@@ -3393,7 +3395,125 @@
       return candidates.find(item => item) || null;
     }
 
+    function collectMvuProviderCandidates() {
+      const providers = [];
+      const seen = new Set();
+      const pushProvider = (label, candidate) => {
+        if (!candidate || (typeof candidate !== 'object' && typeof candidate !== 'function')) return;
+        if (seen.has(candidate)) return;
+        const hasRead =
+          typeof candidate.getAllVariables === 'function' ||
+          typeof candidate.getVariables === 'function' ||
+          typeof candidate.getMvuData === 'function';
+        const hasWrite =
+          typeof candidate.replaceVariables === 'function' ||
+          typeof candidate.replaceMvuData === 'function';
+        if (!hasRead || !hasWrite) return;
+        seen.add(candidate);
+        providers.push({ label, candidate });
+      };
+
+      try { pushProvider('当前窗口', window); } catch (err) {}
+      try {
+        if (window.parent && window.parent !== window) pushProvider('父窗口', window.parent);
+      } catch (err) {}
+      try {
+        if (window.top && window.top !== window) pushProvider('顶层窗口', window.top);
+      } catch (err) {}
+      try {
+        Array.from(window.frames || []).forEach((frame, index) => {
+          const frameName = String(frame?.name || `frame_${index}`).trim() || `frame_${index}`;
+          pushProvider(`子框架:${frameName}`, frame);
+        });
+      } catch (err) {}
+
+      return providers;
+    }
+
+    function buildBridgedMvuHost(providerInfo) {
+      const provider = providerInfo && providerInfo.candidate;
+      if (!provider) return null;
+      return {
+        __bridgeSource: String(providerInfo.label || '').trim() || '未知来源',
+        getAllVariables(...args) {
+          if (typeof provider.getAllVariables === 'function') return provider.getAllVariables(...args);
+          if (typeof provider.getVariables === 'function') return provider.getVariables(...args);
+          if (typeof provider.getMvuData === 'function') return provider.getMvuData(...args);
+          return null;
+        },
+        getMvuData(options = {}) {
+          if (typeof provider.getMvuData === 'function') return provider.getMvuData(options);
+          if (typeof provider.getVariables === 'function') return provider.getVariables(options);
+          if (typeof provider.getAllVariables === 'function') return provider.getAllVariables(options);
+          return null;
+        },
+        getVariables(options = {}) {
+          if (typeof provider.getVariables === 'function') return provider.getVariables(options);
+          if (typeof provider.getMvuData === 'function') return provider.getMvuData(options);
+          if (typeof provider.getAllVariables === 'function') return provider.getAllVariables(options);
+          return null;
+        },
+        replaceMvuData(nextValue, options = {}) {
+          if (typeof provider.replaceMvuData === 'function') return provider.replaceMvuData(nextValue, options);
+          if (typeof provider.replaceVariables === 'function') return provider.replaceVariables(nextValue, options);
+          throw new Error('mvu_replace_unavailable');
+        },
+        replaceVariables(nextValue, options = {}) {
+          if (typeof provider.replaceVariables === 'function') return provider.replaceVariables(nextValue, options);
+          if (typeof provider.replaceMvuData === 'function') return provider.replaceMvuData(nextValue, options);
+          throw new Error('mvu_replace_unavailable');
+        },
+      };
+    }
+
+    function ensureBridgedMvuHost() {
+      const existingWindowHost = (() => {
+        try {
+          return window.Mvu && typeof window.Mvu === 'object' ? window.Mvu : null;
+        } catch (err) {
+          return null;
+        }
+      })();
+      const existingHasRead =
+        existingWindowHost &&
+        (typeof existingWindowHost.getAllVariables === 'function' ||
+          typeof existingWindowHost.getVariables === 'function' ||
+          typeof existingWindowHost.getMvuData === 'function');
+      const existingHasWrite =
+        existingWindowHost &&
+        (typeof existingWindowHost.replaceMvuData === 'function' ||
+          typeof existingWindowHost.replaceVariables === 'function');
+      if (existingHasRead && existingHasWrite) {
+        __mvuBridgeRoot.__LWCS_BRIDGED_MVU_HOST__ = existingWindowHost;
+        __mvuBridgeRoot.__LWCS_BRIDGED_MVU_HOST_SOURCE__ = String(existingWindowHost.__bridgeSource || '原生Mvu');
+        return existingWindowHost;
+      }
+
+      const cachedHost =
+        __mvuBridgeRoot.__LWCS_BRIDGED_MVU_HOST__ && typeof __mvuBridgeRoot.__LWCS_BRIDGED_MVU_HOST__ === 'object'
+          ? __mvuBridgeRoot.__LWCS_BRIDGED_MVU_HOST__
+          : null;
+      if (cachedHost) return cachedHost;
+
+      const providerInfo = collectMvuProviderCandidates()[0] || null;
+      if (!providerInfo) return null;
+      const bridgedHost = buildBridgedMvuHost(providerInfo);
+      if (!bridgedHost) return null;
+      __mvuBridgeRoot.__LWCS_BRIDGED_MVU_HOST__ = bridgedHost;
+      __mvuBridgeRoot.__LWCS_BRIDGED_MVU_HOST_SOURCE__ = bridgedHost.__bridgeSource || providerInfo.label || '未知来源';
+      try {
+        if (!window.Mvu || typeof window.Mvu !== 'object') window.Mvu = bridgedHost;
+      } catch (err) {}
+      try {
+        if (typeof window.getAllVariables !== 'function') {
+          window.getAllVariables = (...args) => bridgedHost.getAllVariables(...args);
+        }
+      } catch (err) {}
+      return bridgedHost;
+    }
+
     async function waitForMvuReady() {
+      if (ensureBridgedMvuHost()) return;
       try {
         if (typeof waitGlobalInitialized === 'function') {
           await waitGlobalInitialized('Mvu');
@@ -4047,7 +4167,7 @@
     }
 
     const SKILL_DESIGNER_PREVIEW_PREFIX = '技能设计台：';
-    const SKILL_SUMMARY_EFFECT_MECHANISM_SET = new Set(['属性摘要', '构型摘要', '术式摘要', '极性摘要', '属性系数摘要', '机制参数摘要']);
+    const SKILL_SUMMARY_EFFECT_MECHANISM_SET = new Set(['属性摘要', '构型摘要', '术式摘要', '极性摘要', '属性系数摘要', '机制参数摘要', '副作用摘要']);
     const SKILL_DESIGNER_SELF_FUSION_PARTNER = '自身双武魂';
     const SHARED_SKILL_MECHANISM_REGISTRY =
       __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__ && typeof __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__ === 'object'
@@ -4368,6 +4488,8 @@
       WEAK_POINT_TYPE: SKILL_DESIGNER_PARAM_WEAK_POINT_TYPE_OPTIONS,
     });
     const SKILL_DESIGNER_FULL_ATTRIBUTE_KEYS = Object.freeze(['str', 'def', 'agi', 'sp_max', 'men_max']);
+    const SKILL_DESIGNER_SIDE_EFFECT_TRIGGER_OPTIONS = Object.freeze(['施放后', '命中后', '回合结束时', '状态结束后']);
+    const SKILL_DESIGNER_SIDE_EFFECT_TARGET_OPTIONS = Object.freeze(['施术者', '状态持有者', '受术目标', '双方']);
 
     function isSkillSummaryEffect(effect) {
       const mechanism = toText(effect && effect['机制'], '').trim();
@@ -4387,6 +4509,91 @@
         ));
       }
       return [];
+    }
+
+    function normalizeSkillDesignerSideEffectStatMap(value = {}) {
+      const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+      const normalized = {};
+      ['str', 'def', 'agi', 'vit_max', 'sp_max', 'men_max'].forEach(key => {
+        const parsed = Number(source[key]);
+        if (Number.isFinite(parsed) && parsed > 0) normalized[key] = Number(parsed.toFixed(4));
+      });
+      return normalized;
+    }
+
+    function normalizeSkillDesignerSideEffectCombatMap(value = {}) {
+      const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+      const normalized = {};
+      ['skip_turn'].forEach(key => {
+        if (source[key] === true) normalized[key] = true;
+      });
+      ['random_target_rate', 'hit_penalty', 'dodge_penalty', 'cast_speed_penalty', 'control_success_penalty'].forEach(key => {
+        const parsed = Number(source[key]);
+        if (Number.isFinite(parsed) && parsed > 0) normalized[key] = Number(parsed.toFixed(4));
+      });
+      return normalized;
+    }
+
+    function normalizeSkillDesignerSideEffectEntry(value = {}) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+      const 副作用类型 = normalizeSkillUiText(value['副作用类型'], '');
+      if (!副作用类型) return null;
+      const rawTrigger = normalizeSkillUiText(value['触发时机'], '施放后');
+      const rawTarget = normalizeSkillUiText(value['生效对象'], '施术者');
+      const 触发时机 = SKILL_DESIGNER_SIDE_EFFECT_TRIGGER_OPTIONS.includes(rawTrigger) ? rawTrigger : '施放后';
+      const 生效对象 = SKILL_DESIGNER_SIDE_EFFECT_TARGET_OPTIONS.includes(rawTarget) ? rawTarget : '施术者';
+      const 持续回合 = Math.max(0, parseSkillDesignerIntegerInputValue(value['持续回合'], 0, 0));
+      const rawChance = parseSkillDesignerNumericInputValue(value['触发概率'], 1, 4);
+      const 触发概率 = Number(Math.max(0, Math.min(1, Number.isFinite(rawChance) ? rawChance : 1)).toFixed(4));
+      const 关联状态 = normalizeSkillUiText(value['关联状态'], '');
+      const 面板修改比例 = normalizeSkillDesignerSideEffectStatMap(value['面板修改比例']);
+      const 战斗效果 = normalizeSkillDesignerSideEffectCombatMap(value['战斗效果']);
+      const normalized = { 副作用类型, 触发时机, 生效对象, 持续回合, 触发概率 };
+      if (safeEntries(面板修改比例).length) normalized['面板修改比例'] = 面板修改比例;
+      if (safeEntries(战斗效果).length) normalized['战斗效果'] = 战斗效果;
+      if (关联状态) normalized['关联状态'] = 关联状态;
+      return normalized;
+    }
+
+    function normalizeSkillDesignerSideEffectList(value = []) {
+      const source = Array.isArray(value) ? value : [];
+      return source
+        .map(item => normalizeSkillDesignerSideEffectEntry(item))
+        .filter(Boolean);
+    }
+
+    function parseSkillDesignerSideEffectJson(value = '') {
+      const text = normalizeSkillUiText(value, '').trim();
+      if (!text) return [];
+      try {
+        const parsed = JSON.parse(text);
+        return normalizeSkillDesignerSideEffectList(Array.isArray(parsed) ? parsed : []);
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function formatSkillDesignerSideEffectJson(value = []) {
+      const normalized = normalizeSkillDesignerSideEffectList(value);
+      if (!normalized.length) return '';
+      try {
+        return JSON.stringify(normalized, null, 2);
+      } catch (error) {
+        return '';
+      }
+    }
+
+    function buildSkillDesignerSideEffectSummary(draft = {}) {
+      const list = normalizeSkillDesignerSideEffectList(draft && draft['副作用列表']);
+      if (!list.length) return '';
+      return list
+        .map(item => {
+          const trigger = normalizeSkillUiText(item['触发时机'], '施放后');
+          const target = normalizeSkillUiText(item['生效对象'], '施术者');
+          const duration = Math.max(0, Number(item['持续回合'] || 0));
+          return `${normalizeSkillUiText(item['副作用类型'], '副作用')}@${trigger}/${target}${duration > 0 ? `/持续${duration}回合` : ''}`;
+        })
+        .join('；');
     }
 
     function formatSkillDesignerNumericInput(value, digits = 4) {
@@ -5421,6 +5628,9 @@
         mechanicParamSummary['参数表'],
         designDraft['机制参数'],
       );
+      const resolvedSideEffects = normalizeSkillDesignerSideEffectList(
+        designDraft['副作用列表'] || systemBase['副作用列表'] || [],
+      );
       const costConfig = parseSkillDesignerCostConfig(
         designDraft['消耗'] || systemBase['消耗'],
         designDraft['消耗资源'],
@@ -5472,6 +5682,7 @@
         visualDesc: normalizeSkillUiText(safeSkill['画面描述'], '未知'),
         effectDesc: normalizeSkillUiText(safeSkill['效果描述'] || safeSkill['描述'], '未知'),
         summaryText: normalizeSkillUiText(safeSkill['特效量化参数'] || designDraft['设计摘要'], ''),
+        副作用列表: resolvedSideEffects,
       };
     }
 
@@ -5557,6 +5768,8 @@
       if (constructSummary) parts.push(constructSummary);
       if (mechanismContext.grantTarget) parts.push(`赋予对象：${mechanismContext.grantTarget}`);
       if (mechanismContext.triggerOwner) parts.push(`触发归属：${mechanismContext.triggerOwner}`);
+      const sideEffectSummary = buildSkillDesignerSideEffectSummary(draft);
+      if (sideEffectSummary) parts.push(`副作用：${sideEffectSummary}`);
       return parts.join('；');
     }
 
@@ -5606,6 +5819,15 @@
           summaryOnly: true,
           '文本': mechanicParamSummary,
           '参数表': cloneJsonValue(normalizeSkillDesignerMechanicParamMap(draft.mechanicParams, draft)),
+        });
+      }
+      const sideEffects = normalizeSkillDesignerSideEffectList(draft && draft['副作用列表']);
+      if (sideEffects.length) {
+        summaryEffects.push({
+          '机制': '副作用摘要',
+          summaryOnly: true,
+          '文本': buildSkillDesignerSideEffectSummary(draft),
+          '副作用列表': cloneJsonValue(sideEffects),
         });
       }
       return summaryEffects;
@@ -6837,6 +7059,7 @@
           ? derivedFusionFields.fusionSourceSpirits
           : (isFusionScope ? normalizeSkillDesignerArray(baseDraft.fusionSourceSpirits || baseDraft['来源武魂']) : []),
         fusionParticipants: derivedFusionFields.fusionParticipants,
+        副作用列表: normalizeSkillDesignerSideEffectList(baseDraft['副作用列表'] || []),
       };
       const implicitAttributeConfig = resolveSkillDesignerImplicitAttributeConfig(coreState, previewMeta);
       return {
@@ -6915,6 +7138,7 @@
         fusionPartner: derivedFusionFields.fusionPartner,
         fusionSourceSpirits: derivedFusionFields.fusionSourceSpirits,
         fusionParticipants: derivedFusionFields.fusionParticipants,
+        副作用列表: parseSkillDesignerSideEffectJson(readField('sideEffectJson')),
       };
       const implicitAttributeConfig = resolveSkillDesignerImplicitAttributeConfig(baseState, previewMeta);
       return {
@@ -7345,6 +7569,7 @@
         if (isPassive && !/被动/.test(baseType)) return `被动/${baseType}`;
         return baseType || '技能';
       })();
+      const sideEffects = normalizeSkillDesignerSideEffectList(draft && draft['副作用列表']);
       return buildSkillDesignerRuntimeObject({
         '机制': '系统基础',
         '技能来源': resolveSkillDesignerSourceCategory(previewMeta),
@@ -7352,6 +7577,7 @@
         '对象': systemTarget,
         '消耗': isPassive ? '无' : (draft && draft.cost) || '无',
         'cast_time': isPassive ? 0 : (Number.isFinite(existingCastTime) ? existingCastTime : fallbackCastTime),
+        '副作用列表': sideEffects,
       });
     }
 
@@ -8627,6 +8853,7 @@
         '释放形式': normalized.deliveryForm,
         '附加机制': [...normalized.secondaryMechanics],
         '机制参数': cloneJsonValue(normalizeSkillDesignerMechanicParamMap(normalized.mechanicParams, normalized)),
+        '副作用列表': cloneJsonValue(normalizeSkillDesignerSideEffectList(normalized['副作用列表'])),
         '附带属性': [...normalized.attachedAttributes],
         '标签': compactSkillDesignerStoredTags(normalized.tags),
         '技能类型': normalized.type,
@@ -13300,6 +13527,7 @@
                 mechanicParams: buildSkillDesignerMechanicParamSummary(formState) || '未设置',
                 construct: buildSkillDesignerConstructSummary(formState) || '未设置',
                 execution: buildSkillDesignerExecutionSummary(formState) || '未设置',
+                sideEffects: buildSkillDesignerSideEffectSummary(formState) || '无',
                 progress: buildSkillDesignerArtProgressSummary(formState) || '未设置',
                 attribute: buildSkillDesignerAttributeSummary(formState) || '未设置',
                 summary: buildSkillDesignerCompactSummary(formState) || '未设置',
@@ -13594,6 +13822,16 @@
                   </section>
 
                   <section class=\"mvu-editor-section\">
+                    <div class=\"mvu-editor-section-title\">副作用</div>
+                    <div class=\"mvu-editor-field-grid\">
+                      <label class=\"mvu-editor-field mvu-editor-field-wide\">
+                        <span class=\"mvu-editor-label\">副作用列表</span>
+                        <textarea class=\"mvu-editor-textarea\" data-skill-designer-field=\"sideEffectJson\" data-skill-designer-disableable>${htmlEscape(formatSkillDesignerSideEffectJson(designerDraft['副作用列表']))}</textarea>
+                      </label>
+                    </div>
+                  </section>
+
+                  <section class=\"mvu-editor-section\">
                     <div class=\"mvu-editor-section-title\">执行参数</div>
                     <div class=\"mvu-editor-field-grid\">
                       <label class=\"mvu-editor-field\">
@@ -13647,6 +13885,7 @@
                     <em>造物规则</em><span data-skill-designer-preview=\"construct\">${htmlEscape(buildSkillDesignerConstructSummary(designerDraft) || '未设置')}</span>
                   </div>
                   <div class=\"skill-designer-summary-row\"><em>执行摘要</em><span data-skill-designer-preview=\"execution\">${htmlEscape(buildSkillDesignerExecutionSummary(designerDraft) || '未设置')}</span></div>
+                  <div class=\"skill-designer-summary-row\"><em>副作用</em><span data-skill-designer-preview=\"sideEffects\">${htmlEscape(buildSkillDesignerSideEffectSummary(designerDraft) || '无')}</span></div>
                   ${previewMeta.scope === 'art'
                     ? `<div class=\"skill-designer-summary-row\"><em>功法进度</em><span data-skill-designer-preview=\"progress\">${htmlEscape(buildSkillDesignerArtProgressSummary(designerDraft) || '未设置')}</span></div>`
                     : ''}
@@ -17251,11 +17490,13 @@
         玩家名: 标准玩家名,
         目标名: 标准目标名,
         玩家资源变化: {
+          生命: Number(玩家后属性.HP || 0) - Number(玩家前属性.HP || 0),
           体力: Number(玩家后属性.体力 || 0) - Number(玩家前属性.体力 || 0),
           魂力: Number(玩家后属性.魂力 || 0) - Number(玩家前属性.魂力 || 0),
           精神力: Number(玩家后属性.精神力 || 0) - Number(玩家前属性.精神力 || 0),
         },
         目标资源变化: {
+          生命: Number(目标后属性.HP || 0) - Number(目标前属性.HP || 0),
           体力: Number(目标后属性.体力 || 0) - Number(目标前属性.体力 || 0),
           魂力: Number(目标后属性.魂力 || 0) - Number(目标前属性.魂力 || 0),
           精神力: Number(目标后属性.精神力 || 0) - Number(目标前属性.精神力 || 0),
@@ -17349,7 +17590,11 @@
       }
       const 目标体力至少减少 = Number(预期.目标体力至少减少);
       if (Number.isFinite(目标体力至少减少)) {
-        const 实际减少值 = Math.max(0, -Number(摘要 && 摘要.目标资源变化 && 摘要.目标资源变化.体力 || 0));
+        const 实际减少值 = Math.max(
+          0,
+          -Number(摘要 && 摘要.目标资源变化 && 摘要.目标资源变化.体力 || 0),
+          -Number(摘要 && 摘要.目标资源变化 && 摘要.目标资源变化.生命 || 0),
+        );
         追加检查(
           '目标体力至少减少',
           实际减少值 >= 目标体力至少减少,
@@ -18080,6 +18325,35 @@
         },
       };
     };
+    window.__LWCS_RUN_SKILL_STABLE_CHECK__ = async function runSkillStableCheck(夹具键列表 = [], options = {}) {
+      const 待运行键列表 =
+        Array.isArray(夹具键列表) && 夹具键列表.length
+          ? 夹具键列表
+          : ['状态转移', '引爆持续伤害', '斩盾', '窃取护盾', '机制抹消_复苏', '机制抹消_护盾', '机制抹消_隐身'];
+      const 结果项列表 = [];
+      for (const fixtureKey of 待运行键列表) {
+        await refreshLiveSnapshot({ force: true });
+        const 执行结果 = await window.__LWCS_RUN_SKILL_FIXTURE__(fixtureKey, {
+          waitMs: Number(options?.waitMs || 260),
+          settleWaitMs: Number(options?.settleWaitMs || 420),
+        });
+        结果项列表.push({
+          key: fixtureKey,
+          ok: true,
+          validation: 执行结果.validation,
+          summary: 执行结果.summary,
+          mode: 执行结果.result?.mode || '',
+        });
+        await new Promise(resolve => setTimeout(resolve, Math.max(0, Number(options?.betweenWaitMs || 220))));
+      }
+      const 通过数量 = 结果项列表.filter(item => item.validation && item.validation.通过).length;
+      return {
+        total: 结果项列表.length,
+        passed: 通过数量,
+        failed: 结果项列表.length - 通过数量,
+        items: 结果项列表,
+      };
+    };
     window.__LWCS_INSPECT_SKILL_RUNTIME__ = function inspectSkillRuntime() {
       const 当前表 = __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__;
       let 父级存在 = false;
@@ -18093,6 +18367,7 @@
       return {
         bridgeLoaded: __mvuBridgeRoot.__MVU_LOGIC_BRIDGE_LOADED__ === true,
         bridgeRegistrySource: __mvuBridgeRoot.__LWCS_BRIDGE_REGISTRY_SOURCE__ || '',
+        bridgeMvuHostSource: __mvuBridgeRoot.__LWCS_BRIDGED_MVU_HOST_SOURCE__ || '',
         registryReady: !!(当前表 && typeof 当前表 === 'object'),
         registryMechanismCount: 当前表?.机制定义 ? Object.keys(当前表.机制定义).length : 0,
         registryCurrent: !!(__mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__),
@@ -18104,6 +18379,7 @@
         battleRegistrySize: Number(__mvuBridgeRoot.__LWCS_BATTLE_RUNTIME_REGISTRY_SIZE__ || 0),
       };
     };
+    window.__LWCS_BOOTSTRAP_MVU_HOST__ = () => ensureBridgedMvuHost();
 
     function buildRingHoverMarkup(ring) {
       return buildRingHoverCardMarkup(ring);
