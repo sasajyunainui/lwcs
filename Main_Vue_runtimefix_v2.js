@@ -286,23 +286,23 @@ function resolveShellAppMeta(tabId) {
 
 function resolveShellPreviewTitle(previewKey, fallback = '') {
   const key = String(previewKey || '').trim();
-  if (key.startsWith('鎶€鑳借璁″彴锛?)) {
+  if (key.startsWith('技能设计台：')) {
     try {
-      const payload = JSON.parse(decodeURIComponent(key.slice('鎶€鑳借璁″彴锛?.length)));
+      const payload = JSON.parse(decodeURIComponent(key.slice('技能设计台：'.length)));
       const scope = String(payload && payload.scope || '').trim();
       const label = String(payload && payload.label || '').trim();
       const scopeTitleMap = {
-        fusion_skill: '铻嶅悎鎶€璁捐',
-        art: '鍔熸硶璁捐',
-        special_ability: '鐗规畩鎶€鑳借璁?,
-        spirit_skill: '榄傛妧璁捐',
-        soul_bone_skill: '榄傞鎶€鑳借璁?,
-        blood_skill: '琛€鑴夋妧鑳借璁?,
-        blood_passive: '琛€鑴夎鍔ㄨ璁?
+        fusion_skill: '融合技设计',
+        art: '功法设计',
+        special_ability: '特殊能力设计',
+        spirit_skill: '魂技设计',
+        soul_bone_skill: '魂骨技设计',
+        blood_skill: '血脉技能设计',
+        blood_passive: '血脉被动设计'
       };
-      return [scopeTitleMap[scope] || '鎶€鑳借璁?, label].filter(Boolean).join(' / ') || '鎶€鑳借璁?;
+      return [scopeTitleMap[scope] || '技能设计', label].filter(Boolean).join(' / ') || '技能设计';
     } catch (err) {
-      return '鎶€鑳借璁?;
+      return '技能设计';
     }
   }
   const previewTitleMap = {
@@ -340,7 +340,7 @@ function resolveShellPreviewTitle(previewKey, fallback = '') {
     '\u602a\u7269\u56fe\u9274': '\u56fe\u9274',
     '\u4efb\u52a1\u754c\u9762': '\u4efb\u52a1'
   };
-  return previewTitleMap[key] || key || fallback || '\u8be6\u60c5';
+  return previewTitleMap[key] || key || fallback || '详情';
 }
 
 const persistedLayoutMode = readLayoutModeStorage();
@@ -1333,7 +1333,7 @@ const UnifiedDock = {
     const quickActions = computed(() => resolveUnifiedActions(mvuTabState.current));
     const activeMeta = computed(() => resolveUnifiedTabMeta(mvuTabState.current));
     const modeBadge = computed(() => (mvuLayoutState.isMobileViewport ? '绉诲姩绔竴浣撴爮' : '妗岄潰涓€浣撴爮'));
-    const quickActionHint = computed(() => `${quickActions.value.length || 0} 涓叆鍙);
+    const quickActionHint = computed(() => `${quickActions.value.length || 0} 个入口`);
     return {
       tabs: TAB_ITEMS,
       quickActions,
@@ -1513,7 +1513,7 @@ const SurfaceLauncherShellLayout = {
     const shellDetailPreviewKey = ref('');
     const shellDetailReturnScreen = ref('section');
     const launcherModeItems = [
-      { id: 'unified', label: '涓€浣? },
+      { id: 'unified', label: '一体' },
       { id: 'shell', label: '鎵嬫満' }
     ];
     const dragState = {
@@ -1582,8 +1582,8 @@ const SurfaceLauncherShellLayout = {
       return activeApp.value.title;
     });
     const launcherMainAriaLabel = computed(() => {
-      if (mvuLayoutState.surfaceMode === 'shell' && shellVisible.value) return '鏀惰捣灏忔墜鏈?;
-      return '鎵撳紑灏忔墜鏈?;
+      if (mvuLayoutState.surfaceMode === 'shell' && shellVisible.value) return '收起小手机';
+      return '打开小手机';
     });
     const launcherMenuAlign = computed(() => {
       const viewport = getViewportSize();
