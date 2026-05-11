@@ -2275,9 +2275,24 @@
         return JSON.parse(normalized);
       }
       if (safeKind === 'string_list' || safeKind === 'token_multi') {
-        return normalizeEditorStringList(text);
+        const 列表值 = normalizeEditorStringList(text);
+        if (safeKind === 'token_multi') {
+          const 候选 = normalizeInlineEditorOptions(meta);
+          if (候选.length) {
+            const 非法项 = 列表值.filter(item => !候选.includes(item));
+            if (非法项.length) throw new Error(`存在非法选项：${非法项.join('、')}`);
+          }
+        }
+        return 列表值;
       }
-      if (safeKind === 'enum_select') return text.trim();
+      if (safeKind === 'enum_select') {
+        const 单值 = text.trim();
+        const 候选 = normalizeInlineEditorOptions(meta);
+        if (候选.length && 单值 && !候选.includes(单值)) {
+          throw new Error(`只能选择候选项：${候选.join(' / ')}`);
+        }
+        return 单值;
+      }
       if (safeKind === 'null') return null;
       return text;
     }
@@ -3236,6 +3251,24 @@
       return String(value ?? '');
     }
 
+    function 校验内联限选写回值(value, kind = 'string', meta = {}) {
+      const safeKind = String(kind || 'string').trim().toLowerCase();
+      const 候选 = normalizeInlineEditorOptions(meta);
+      if (!候选.length) return value;
+      if (safeKind === 'enum_select') {
+        const 单值 = toText(value, '').trim();
+        if (!单值 || 候选.includes(单值)) return 单值;
+        throw new Error(`只能选择候选项：${候选.join(' / ')}`);
+      }
+      if (safeKind === 'token_multi') {
+        const 列表值 = normalizeEditorStringList(value);
+        const 非法项 = 列表值.filter(item => !候选.includes(item));
+        if (非法项.length) throw new Error(`存在非法选项：${非法项.join('、')}`);
+        return 列表值;
+      }
+      return value;
+    }
+
     function bumpInlineEditSession(duration = 320) {
       inlineEditSessionToken += 1;
       const holdMs = Math.max(0, toNumber(duration, 320));
@@ -3312,6 +3345,7 @@
         nextValue = typeof state.readValue === 'function'
           ? state.readValue(state)
           : parseEditorInputValue(state.inputEl ? state.inputEl.value : '', state.kind, state.editorMeta || {});
+        nextValue = 校验内联限选写回值(nextValue, state.kind, state.editorMeta || {});
       } catch (error) {
         restoreInlineEditState(state);
         showUiToast(error && error.message ? error.message : '变量格式不正确。', 'error', 4200);
@@ -4900,6 +4934,37 @@
       return normalizeSkillDesignerTargetForForm(aliasMap[text] || text, normalizeSkillDesignerTargetForForm(fallback, '敌方单体'));
     }
 
+    const SKILL_DESIGNER_OBJECT_DIFF_CONDITION_OPTIONS = Object.freeze([
+      '自身',
+      '友方',
+      '敌方',
+      '邪魂师',
+      '深渊生物',
+      '魂兽',
+      '施术者低血量',
+      '施术者高血量',
+      '目标低血量',
+      '目标高血量',
+      '目标有状态',
+      '目标无状态',
+      '目标有护盾',
+      '目标无护盾',
+    ]);
+    const SKILL_DESIGNER_OBJECT_DIFF_ACTION_OPTIONS = Object.freeze([
+      '覆盖',
+      '禁用',
+      '转为伤害',
+      '替换机制',
+      '倍率提升',
+      '倍率压制',
+      '持续延长',
+      '持续缩短',
+      '改为自身',
+      '改为友方',
+      '改为敌方',
+      '附加状态',
+    ]);
+
     function normalizeSkillDesignerExecutionObjectDiffRuleList(value = [], recordViolation = () => {}) {
       return (Array.isArray(value) ? value : [])
         .map(rule => {
@@ -4907,10 +4972,17 @@
           safeEntries(rule).forEach(([key]) => {
             if (技能执行黑名单键集合_V1.has(key)) recordViolation(`对象差异规则.${key}`);
           });
-          const 条件 = Array.isArray(rule['条件'])
-            ? rule['条件'].map(item => normalizeSkillUiText(item, '')).filter(Boolean)
-            : normalizeSkillUiText(rule['条件'] || rule['匹配'] || rule['对象'] || rule.target, '');
-          const 处理 = normalizeSkillUiText(rule['处理'] || rule['动作'] || rule.action, '覆盖') || '覆盖';
+          const 条件原始 = Array.isArray(rule['条件'])
+            ? rule['条件']
+            : normalizeSkillUiText(rule['条件'] || rule['匹配'] || rule['对象'] || rule.target, '')
+              .split(/[\/|,，、\s]+/)
+              .filter(Boolean);
+          const 条件 = Array.from(new Set(条件原始.map(item => normalizeSkillUiText(item, '')).filter(item =>
+            SKILL_DESIGNER_OBJECT_DIFF_CONDITION_OPTIONS.includes(item),
+          )));
+          const 处理原始 = normalizeSkillUiText(rule['处理'] || rule['动作'] || rule.action, '覆盖') || '覆盖';
+          const 处理 = SKILL_DESIGNER_OBJECT_DIFF_ACTION_OPTIONS.includes(处理原始) ? 处理原始 : '覆盖';
+          if (!条件.length) return null;
           const 参数 = rule['参数'] && typeof rule['参数'] === 'object' && !Array.isArray(rule['参数'])
             ? cloneJsonValue(rule['参数'])
             : {};
@@ -4950,11 +5022,13 @@
         参数[key] = cloneJsonValue(raw);
       });
       const 对象差异规则 = normalizeSkillDesignerExecutionObjectDiffRuleList(value['对象差异规则'] || [], recordViolation);
+      const 分支标记 = normalizeSkillUiText(value['分支标记'], '');
       const normalized = { '机制': mechanism, '目标模型': 目标模型 };
       if (持续回合 > 0) normalized['持续回合'] = 持续回合;
       if (触发时机) normalized['触发时机'] = 触发时机;
       if (safeEntries(参数).length) normalized['参数'] = 参数;
       if (对象差异规则.length) normalized['对象差异规则'] = 对象差异规则;
+      if (分支标记) normalized['分支标记'] = 分支标记;
       return normalized;
     }
 
@@ -4964,37 +5038,6 @@
         if (技能执行黑名单键集合_V1.has(key)) recordViolation(`系统基础.${key}`);
       });
       const 目标模型 = normalizeSkillDesignerExecutionTargetModel(source['目标模型'] || source['对象'], fallbackTargetModel);
-      const 方向配置列表 = normalizeSkillDesignerDirectionList(source['方向配置列表'] || [])
-        .map((item, index) => {
-          const 方向效果数组 = normalizeSkillDesignerDirectionEffectList(item && item['方向效果数组'])
-            .map(effect => normalizeSkillDesignerExecutionEffectEntry(effect, 目标模型, recordViolation))
-            .filter(Boolean);
-          if (!方向效果数组.length) return null;
-          return {
-            '方向ID': normalizeSkillUiText(item && item['方向ID'], `方向${index + 1}`) || `方向${index + 1}`,
-            '方向目标语义': normalizeSkillUiText(item && item['方向目标语义'], '上下文') || '上下文',
-            '方向效果数组': 方向效果数组,
-          };
-        })
-        .filter(Boolean);
-      const directionIdSet = new Set(方向配置列表.map(item => normalizeSkillUiText(item && item['方向ID'], '')).filter(Boolean));
-      const 自动切换规则 = normalizeSkillDesignerDirectionRuleList(source['自动切换规则'] || [], 方向配置列表)
-        .map(rule => {
-          if (!rule || typeof rule !== 'object') return null;
-          safeEntries(rule).forEach(([key]) => {
-            if (技能执行黑名单键集合_V1.has(key)) recordViolation(`自动切换规则.${key}`);
-          });
-          const 触发时机 = normalizeSkillUiText(rule['触发时机'], '施放前') || '施放前';
-          const 条件 = normalizeSkillUiText(rule['条件'] || rule['触发条件'], '');
-          const 切换至方向ID = normalizeSkillUiText(rule['切换至方向ID'], '');
-          if (!切换至方向ID || !directionIdSet.has(切换至方向ID)) return null;
-          return {
-            '触发时机': 触发时机,
-            ...(条件 ? { '条件': 条件 } : {}),
-            '切换至方向ID': 切换至方向ID,
-          };
-        })
-        .filter(Boolean);
       const 副作用列表 = normalizeSkillDesignerSideEffectList(source['副作用列表'] || [])
         .map(item => {
           if (!item || typeof item !== 'object') return null;
@@ -5025,8 +5068,6 @@
         '消耗': source['消耗'] === undefined ? '无' : cloneJsonValue(source['消耗']),
         'cast_time': Math.max(0, toNumber(source['cast_time'], 0)),
       };
-      if (方向配置列表.length) normalized['方向配置列表'] = 方向配置列表;
-      if (自动切换规则.length) normalized['自动切换规则'] = 自动切换规则;
       if (副作用列表.length) normalized['副作用列表'] = 副作用列表;
       return normalized;
     }
@@ -6092,16 +6133,9 @@
       const resolvedSideEffects = normalizeSkillDesignerSideEffectList(
         designDraft['副作用列表'] || systemBase['副作用列表'] || [],
       );
-      const resolvedDirectionList = normalizeSkillDesignerDirectionList(
-        designDraft['方向配置列表'] || systemBase['方向配置列表'] || [],
-      );
       const resolvedTargetScale = normalizeSkillDesignerTargetScale(
         designDraft['目标规模'] || systemBase['目标规模'],
         deriveSkillDesignerTargetScaleFromTarget(resolvedTarget),
-      );
-      const resolvedDirectionRules = normalizeSkillDesignerDirectionRuleList(
-        designDraft['自动切换规则'] || systemBase['自动切换规则'] || [],
-        resolvedDirectionList,
       );
       const costConfig = parseSkillDesignerCostConfig(
         designDraft['消耗'] || systemBase['消耗'],
@@ -6156,8 +6190,6 @@
         副作用列表: resolvedSideEffects,
         目标规模: resolvedTargetScale,
         阵营判定: '自动',
-        方向配置列表: resolvedDirectionList,
-        自动切换规则: resolvedDirectionRules,
       };
     }
 
@@ -6239,41 +6271,20 @@
       const cost = formatSkillDesignerCostText(draft.costType, draft.costValue);
       const mechanismContext = summarizeSkillDesignerMechanismGrantContext(draft);
       const constructSummary = buildSkillDesignerConstructSummary(draft);
-      const directionList = normalizeSkillDesignerDirectionList(draft['方向配置列表'] || []);
-      const autoRules = normalizeSkillDesignerDirectionRuleList(draft['自动切换规则'] || [], directionList);
       if (target) parts.push(`对象：${target}`);
       if (targetScale) parts.push(`规模：${targetScale}`);
       if (cost && cost !== '无') parts.push(`消耗：${cost}`);
       if (constructSummary) parts.push(constructSummary);
       if (mechanismContext.grantTarget) parts.push(`赋予对象：${mechanismContext.grantTarget}`);
       if (mechanismContext.triggerOwner) parts.push(`触发归属：${mechanismContext.triggerOwner}`);
-      if (directionList.length > 0) {
-        parts.push(`方向数：${directionList.length}`);
-        const firstDirection = normalizeSkillUiText(directionList[0] && directionList[0]['方向ID'], '');
-        if (firstDirection) parts.push(`首方向：${firstDirection}`);
-        if (autoRules.length > 0) parts.push(`自动切换：${autoRules.length}条`);
-      }
       const sideEffectSummary = buildSkillDesignerSideEffectSummary(draft);
       if (sideEffectSummary) parts.push(`副作用：${sideEffectSummary}`);
       return parts.join('；');
     }
 
     function buildSkillDesignerDirectionSummary(draft = {}) {
-      const directionList = normalizeSkillDesignerDirectionList(draft['方向配置列表'] || []);
-      if (!directionList.length) return '';
-      const firstDirection = normalizeSkillUiText(directionList[0] && directionList[0]['方向ID'], '');
-      const autoRules = normalizeSkillDesignerDirectionRuleList(draft['自动切换规则'] || [], directionList);
-      const coverageText = directionList
-        .map(item => {
-          const directionId = normalizeSkillUiText(item && item['方向ID'], '方向');
-          const effectNames = normalizeSkillDesignerDirectionEffectList(item && item['方向效果数组'])
-            .map(effect => normalizeSkillUiText(effect && effect['机制'], ''))
-            .filter(Boolean)
-            .slice(0, 3);
-          return `${directionId}:${effectNames.join('/') || '无'}`;
-        })
-        .join('；');
-      return `方向数：${directionList.length}；首方向：${firstDirection || '未设置'}；自动切换规则：${autoRules.length}；方向覆盖：${coverageText}`;
+      void draft;
+      return '';
     }
 
     function buildSkillDesignerArtProgressSummary(draft = {}) {
@@ -7504,11 +7515,6 @@
         resolvedPrimaryMain,
         resolvedPrimarySub,
       );
-      const resolvedDirectionList = normalizeSkillDesignerDirectionList(baseDraft['方向配置列表'] || []);
-      const resolvedAutoRules = normalizeSkillDesignerDirectionRuleList(
-        baseDraft['自动切换规则'] || [],
-        resolvedDirectionList,
-      );
       const resolvedTargetScale = normalizeSkillDesignerTargetScale(
         baseDraft['目标规模'],
         deriveSkillDesignerTargetScaleFromTarget(resolvedTarget),
@@ -7546,8 +7552,6 @@
         副作用列表: normalizeSkillDesignerSideEffectList(baseDraft['副作用列表'] || []),
         目标规模: resolvedTargetScale,
         阵营判定: '自动',
-        方向配置列表: resolvedDirectionList,
-        自动切换规则: resolvedAutoRules,
       };
       const implicitAttributeConfig = resolveSkillDesignerImplicitAttributeConfig(coreState, previewMeta);
       return {
@@ -7599,11 +7603,6 @@
         resolvedPrimaryMain,
         resolvedPrimarySub,
       );
-      const resolvedDirectionList = parseSkillDesignerDirectionJson(readField('directionJson'));
-      const resolvedDirectionRules = parseSkillDesignerDirectionRuleJson(
-        readField('directionRuleJson'),
-        resolvedDirectionList,
-      );
       const resolvedTargetScale = normalizeSkillDesignerTargetScale(
         readField('targetScale'),
         deriveSkillDesignerTargetScaleFromTarget(resolvedTarget),
@@ -7638,8 +7637,6 @@
         副作用列表: parseSkillDesignerSideEffectJson(readField('sideEffectJson')),
         目标规模: resolvedTargetScale,
         阵营判定: '自动',
-        方向配置列表: resolvedDirectionList,
-        自动切换规则: resolvedDirectionRules,
       };
       const implicitAttributeConfig = resolveSkillDesignerImplicitAttributeConfig(baseState, previewMeta);
       return {
@@ -8060,11 +8057,6 @@
       const effectInfo = ensureSkillDesignerEffectArray(skillSource);
       const existing = effectInfo.systemBase && typeof effectInfo.systemBase === 'object' ? effectInfo.systemBase : {};
       const isPassive = /被动/.test(normalizeSkillUiText(draft && draft.type, '')) || toText(previewMeta && previewMeta.scope, '') === 'blood_passive';
-      const directionList = normalizeSkillDesignerDirectionList(draft && draft['方向配置列表']);
-      const directionRules = normalizeSkillDesignerDirectionRuleList(
-        draft && draft['自动切换规则'],
-        directionList,
-      );
       const fallbackCastTime = SKILL_DESIGNER_RUNTIME_CAST_TIME_BY_DELIVERY[normalizeSkillUiText(draft && draft.deliveryForm, '直接生效')] || 10;
       const existingCastTime = Number(existing['cast_time']);
       const skillTypeText = (() => {
@@ -8081,8 +8073,6 @@
         '结算策略': ['敌方群体', '友方群体', '全场'].includes(normalizeSkillDesignerTargetForForm(draft && draft.target, '敌方单体'))
           ? '全目标独立'
           : '单目标独立',
-        '方向配置列表': directionList,
-        '自动切换规则': directionRules,
         '消耗': isPassive ? '无' : (draft && draft.cost) || '无',
         'cast_time': isPassive ? 0 : (Number.isFinite(existingCastTime) ? existingCastTime : fallbackCastTime),
         '副作用列表': sideEffects,
@@ -9333,10 +9323,6 @@
       safeSkill['name'] = normalized.name;
       safeSkill['技能来源'] = skillSourceCategory;
       safeSkill['技能类型'] = normalized.type;
-      safeSkill['方向配置列表'] = cloneJsonValue(normalizeSkillDesignerDirectionList(normalized['方向配置列表']));
-      safeSkill['自动切换规则'] = cloneJsonValue(
-        normalizeSkillDesignerDirectionRuleList(normalized['自动切换规则'], normalized['方向配置列表']),
-      );
       safeSkill['消耗'] = normalized.cost;
       delete safeSkill['加成属性'];
       safeSkill['主定位'] = normalized.mainRole;
@@ -9369,10 +9355,6 @@
         '标签': compactSkillDesignerStoredTags(normalized.tags),
         '技能类型': normalized.type,
         '目标模型': normalizeSkillDesignerTargetForForm(normalized.target, '敌方单体'),
-        '方向配置列表': cloneJsonValue(normalizeSkillDesignerDirectionList(normalized['方向配置列表'])),
-        '自动切换规则': cloneJsonValue(
-          normalizeSkillDesignerDirectionRuleList(normalized['自动切换规则'], normalized['方向配置列表']),
-        ),
         '结算策略': ['敌方群体', '友方群体', '全场'].includes(normalizeSkillDesignerTargetForForm(normalized.target, '敌方单体'))
           ? '全目标独立'
           : '单目标独立',
@@ -9393,12 +9375,6 @@
       };
       const systemBase = buildSkillDesignerSystemBaseEffect(skillSource, normalized, previewMeta);
       let runtimeEffects = buildSkillDesignerRuntimeEffects(normalized, skillSource, previewMeta);
-      const directionList = normalizeSkillDesignerDirectionList(normalized['方向配置列表']);
-      if (directionList.length > 0) {
-        const defaultDirection = directionList[0];
-        const defaultEffects = normalizeSkillDesignerDirectionEffectList(defaultDirection && defaultDirection['方向效果数组']);
-        if (defaultEffects.length > 0) runtimeEffects = defaultEffects;
-      }
       safeSkill['_效果数组'] = normalizeSkillDesignerExecutionEffectArray(
         [cloneJsonValue(systemBase), ...cloneJsonValue(runtimeEffects)],
         normalizeSkillDesignerTargetForForm(normalized.target, '敌方单体'),
@@ -9412,8 +9388,6 @@
       safeSkill['结算策略'] = normalizeSkillUiText(已收口系统基础['结算策略'], safeSkill['结算策略'] || '单目标独立');
       safeSkill['消耗'] = 已收口系统基础['消耗'] === undefined ? safeSkill['消耗'] : cloneJsonValue(已收口系统基础['消耗']);
       safeSkill['cast_time'] = Math.max(0, toNumber(已收口系统基础['cast_time'], safeSkill['cast_time']));
-      safeSkill['方向配置列表'] = cloneJsonValue(已收口系统基础['方向配置列表'] || []);
-      safeSkill['自动切换规则'] = cloneJsonValue(已收口系统基础['自动切换规则'] || []);
       return safeSkill;
     }
 
@@ -11021,20 +10995,23 @@
     function 构建慢刷新骨架终端卡() {
       return `
         <div class="module-name">系统播报</div>
-        <div class="terminal-overview">
-          <div class="terminal-metric live terminal-skeleton-row"><b>核心状态</b><span>加载中...</span></div>
-          <div class="terminal-metric terminal-skeleton-row"><b>最近播报</b><span>加载中...</span></div>
-          <div class="terminal-metric terminal-skeleton-row"><b>最近安排</b><span>加载中...</span></div>
-        </div>
-        <div class="terminal-log">
-          <div class="terminal-channel-strip">
-            <span class="terminal-channel-chip live">状态</span>
-            <span class="terminal-channel-chip">播报</span>
-            <span class="terminal-channel-chip">安排</span>
+        <div class="terminal-log terminal-log--single-pane" data-terminal-tab-host="terminal-hero">
+          <div class="terminal-tab-strip">
+            <button type="button" class="terminal-tab active terminal-skeleton-row" data-terminal-tab="状态">状态</button>
+            <button type="button" class="terminal-tab terminal-skeleton-row" data-terminal-tab="播报">播报</button>
+            <button type="button" class="terminal-tab terminal-skeleton-row" data-terminal-tab="安排">安排</button>
           </div>
-          <div class="log-line sys terminal-skeleton-row"><b>[状态]</b> 加载中...</div>
-          <div class="log-line roll terminal-skeleton-row"><b>[播报]</b> 加载中...</div>
-          <div class="log-line bus terminal-skeleton-row"><b>[安排]</b> 加载中...</div>
+          <div class="terminal-tab-panels">
+            <div class="terminal-tab-panel active terminal-skeleton-row" data-terminal-tab-panel="状态">
+              <div class="log-line sys log-line--single"><b>[状态]</b> 加载中...</div>
+            </div>
+            <div class="terminal-tab-panel terminal-skeleton-row" data-terminal-tab-panel="播报">
+              <div class="log-line roll log-line--single"><b>[播报]</b> 加载中...</div>
+            </div>
+            <div class="terminal-tab-panel terminal-skeleton-row" data-terminal-tab-panel="安排">
+              <div class="log-line bus log-line--single"><b>[安排]</b> 加载中...</div>
+            </div>
+          </div>
         </div>
         <div class="module-foot">
           <span class="foot-hint">数据刷新中</span>
@@ -11144,6 +11121,9 @@
     const SOUL_TOWER_MAX_AGE_GAP = 3;
     const SOUL_TOWER_TOTAL_FLOORS = 108;
     const SOUL_TOWER_DISCOUNT_STORE_NAME = '魂灵塔特许兑换';
+    const 试炼地点前缀 = '试炼-';
+    const 升灵台退出地点 = '传灵塔入口';
+    const 魂灵塔退出地点 = '史莱克城传灵塔总部';
     const SOUL_TOWER_LAYER_RULES = Object.freeze([
       Object.freeze({
         key: 'thousand',
@@ -11273,6 +11253,64 @@
       const hasSpiritPagoda = isTransmissionTowerEntryLocation(normalized.raw);
       const hasShrekCity = normalized.segments.some(seg => /史莱克城/.test(seg));
       return hasSpiritPagoda && hasShrekCity;
+    }
+
+    function 读取当前角色位置(snapshot) {
+      return toText(
+        deepGet(snapshot, 'activeChar.状态.位置', snapshot && snapshot.currentLoc),
+        toText(snapshot && snapshot.currentLoc, ''),
+      ).trim();
+    }
+
+    function 读取试炼状态文本(snapshot) {
+      return toText(deepGet(snapshot, 'rootData.world.战斗.试炼状态', ''), '').trim();
+    }
+
+    function 是否试炼内地点(location = '') {
+      return toText(location, '').trim().startsWith(试炼地点前缀);
+    }
+
+    function 构建升灵台试炼地点(档位 = '初级', 暴动期 = false) {
+      const safeTier = ['初级', '中级', '高级'].includes(toText(档位, '初级')) ? toText(档位, '初级') : '初级';
+      return `${试炼地点前缀}${暴动期 ? '暴动期' : ''}${safeTier}升灵台`;
+    }
+
+    function 构建魂灵塔试炼地点(层数 = 1) {
+      const floor = Math.min(SOUL_TOWER_TOTAL_FLOORS, Math.max(1, Math.floor(toNumber(层数, 1))));
+      return `${试炼地点前缀}魂灵塔-第${floor}层`;
+    }
+
+    function 解析试炼地点(location = '') {
+      const safeLocation = toText(location, '').trim();
+      if (!是否试炼内地点(safeLocation)) return null;
+      const 塔匹配 = safeLocation.match(/^试炼-魂灵塔-第(\d+)层$/);
+      if (塔匹配) {
+        const floor = Math.min(SOUL_TOWER_TOTAL_FLOORS, Math.max(1, Math.floor(toNumber(塔匹配[1], 1))));
+        return {
+          试炼类型: '魂灵塔',
+          门票名: '魂灵塔门票',
+          档位: '魂灵塔',
+          暴动期: false,
+          入场地点: 魂灵塔退出地点,
+          当前层: floor,
+          试炼内地点: 构建魂灵塔试炼地点(floor),
+        };
+      }
+      if (/升灵台/.test(safeLocation)) {
+        const body = safeLocation.replace(/^试炼-/, '');
+        const 暴动期 = /暴动期/.test(body);
+        const 档位 = 解析升灵台档位(body);
+        return {
+          试炼类型: '升灵台',
+          门票名: `${暴动期 ? '暴动期' : ''}${档位}升灵台门票`,
+          档位,
+          暴动期,
+          入场地点: 升灵台退出地点,
+          当前层: 0,
+          试炼内地点: 构建升灵台试炼地点(档位, 暴动期),
+        };
+      }
+      return null;
     }
 
     function isSoulTowerCombatType(detail = {}) {
@@ -11447,6 +11485,82 @@
           age: getSoulTowerAgeValueFromCharacter(charData || {}),
         };
       });
+    }
+
+    function buildTrialBattleDispatchDetail(snapshot, dispatchDetail = {}, trialContext = null) {
+      const sourceSnapshot = snapshot && snapshot.rootData ? snapshot : (liveSnapshot || lastRenderableSnapshot);
+      if (!sourceSnapshot || !sourceSnapshot.rootData) return null;
+      const baseDetail = { ...cloneJsonValue(dispatchDetail, {}) };
+      const 显式参战者 = baseDetail.参战者 && typeof baseDetail.参战者 === 'object'
+        ? cloneJsonValue(baseDetail.参战者, {})
+        : null;
+      const 显式己方队伍 = Array.isArray(显式参战者 && 显式参战者.team_player)
+        ? cloneJsonValue(显式参战者.team_player, [])
+        : [];
+      const 状态上下文 = 解析试炼地点(读取试炼状态文本(sourceSnapshot));
+      const safeContext = 规范化试炼状态上下文(trialContext || 状态上下文 || null);
+      if (!safeContext) return null;
+      const activeKey = resolveSnapshotCharKey(sourceSnapshot, toText(sourceSnapshot && sourceSnapshot.activeName, ''));
+      if (!activeKey) return null;
+      const activeName = toText(deepGet(sourceSnapshot, ['rootData', 'char', activeKey, 'name'], ''), toText(sourceSnapshot && sourceSnapshot.activeName, activeKey));
+      if (safeContext.试炼类型 === '升灵台') {
+        const ascensionResult = 生成升灵台战斗参数(sourceSnapshot, safeContext);
+        return {
+          ...baseDetail,
+          action: 'battle',
+          currentLoc: safeContext.试炼内地点 || 读取当前角色位置(sourceSnapshot),
+          target: safeContext.试炼内地点 || 读取当前角色位置(sourceSnapshot),
+          战斗类型: '升灵台虚拟战斗',
+          战斗意图: '升灵试炼',
+          source: toText(baseDetail.source, 'trial_entry'),
+          试炼状态: safeContext.试炼内地点 || 构建升灵台试炼地点(safeContext.档位, safeContext.暴动期),
+          ascension_ticket: toText(baseDetail.ascension_ticket, safeContext.门票名),
+          killed_age: Math.max(1, Math.floor(toNumber(baseDetail.killed_age, ascensionResult.killedAge))),
+          party_size: Math.max(1, Math.floor(toNumber(baseDetail.party_size, 1))),
+          升灵对手类型: toText(baseDetail.升灵对手类型, ascensionResult.对手类型),
+          升灵档位百分位: Math.max(0, Math.min(1, toNumber(baseDetail.升灵档位百分位, ascensionResult.百分位))),
+          参战者: {
+            player: { name: activeName || activeKey },
+            enemy: cloneJsonValue(ascensionResult.对手种子, {}),
+            team_player: 显式己方队伍,
+            team_enemy: [],
+          },
+        };
+      }
+      if (safeContext.试炼类型 === '魂灵塔') {
+        const 塔层基准值 = toNumber(
+          baseDetail.floor,
+          toNumber(
+            deepGet(sourceSnapshot, 'rootData.world.战斗.floor', safeContext.当前层 || getDefaultSoulTowerChallengeFloor(sourceSnapshot)),
+            safeContext.当前层 || getDefaultSoulTowerChallengeFloor(sourceSnapshot),
+          ),
+        );
+        const requestedFloor = Math.min(
+          SOUL_TOWER_TOTAL_FLOORS,
+          Math.max(1, Math.floor(塔层基准值)),
+        );
+        const guardianSeed = 构建魂灵塔守塔种子({ ...safeContext, 当前层: requestedFloor });
+        return {
+          ...baseDetail,
+          action: 'battle',
+          currentLoc: safeContext.试炼内地点 || 构建魂灵塔试炼地点(requestedFloor),
+          target: safeContext.试炼内地点 || 构建魂灵塔试炼地点(requestedFloor),
+          战斗类型: '魂灵塔冲塔',
+          战斗意图: '魂灵塔试炼',
+          source: toText(baseDetail.source, 'trial_entry'),
+          试炼状态: safeContext.试炼内地点 || 构建魂灵塔试炼地点(requestedFloor),
+          floor: requestedFloor,
+          soulTowerTicket: toText(baseDetail.soulTowerTicket, safeContext.门票名),
+          门票已扣除: true,
+          参战者: {
+            player: { name: activeName || activeKey },
+            enemy: cloneJsonValue(guardianSeed, {}),
+            team_player: 显式己方队伍,
+            team_enemy: [],
+          },
+        };
+      }
+      return null;
     }
 
     function getTrialEntranceText(snapshot) {
@@ -14031,29 +14145,32 @@
       const latestBroadcast = toText(sys.系统播报, '暂无播报');
       const latestEvent = recentNews.cards[0] ? recentNews.cards[0].desc : '暂无事件';
       const pendingRequestText = recentPlans.cards[0] ? recentPlans.cards[0].desc : '暂无安排';
-      const 核心状态摘要 = shortenText(`${snapshot.worldAlert.includes('高危') ? '高压同步' : '稳定同步'} · ${toText(snapshot.currentLoc, '未知地点')}`, 24);
-      const 最近播报摘要 = shortenText(latestBroadcast, 24);
-      const 最近安排摘要 = shortenText(pendingRequestText, 24);
+      const 核心状态摘要 = shortenText(`${snapshot.worldAlert.includes('高危') ? '高压同步' : '稳定同步'} · ${toText(snapshot.currentLoc, '未知地点')} · ${latestEvent}`, 44);
+      const 最近播报摘要 = shortenText(latestBroadcast, 44);
+      const 最近安排摘要 = shortenText(pendingRequestText, 44);
       return `
         <div class="module-name">系统播报</div>
-        <div class="terminal-overview">
-          <div class="terminal-metric live clickable" data-preview="近期见闻"><b>核心状态</b><span>${htmlEscape(核心状态摘要)}</span></div>
-          <div class="terminal-metric clickable" data-preview="系统播报与日志"><b>最近播报</b><span>${htmlEscape(最近播报摘要)}</span></div>
-          <div class="terminal-metric clickable" data-preview="操作总线"><b>最近安排</b><span>${htmlEscape(最近安排摘要)}</span></div>
-        </div>
-        <div class="terminal-log">
-          <div class="terminal-channel-strip terminal-channel-strip--single">
-            <span class="terminal-channel-chip live">状态</span>
-            <span class="terminal-channel-chip">播报</span>
-            <span class="terminal-channel-chip">安排</span>
+        <div class="terminal-log terminal-log--single-pane" data-terminal-tab-host="terminal-hero">
+          <div class="terminal-tab-strip">
+            <button type="button" class="terminal-tab active" data-terminal-tab="状态" data-terminal-preview="世界状态总览">状态</button>
+            <button type="button" class="terminal-tab" data-terminal-tab="播报" data-terminal-preview="系统播报与日志">播报</button>
+            <button type="button" class="terminal-tab" data-terminal-tab="安排" data-terminal-preview="操作总线">安排</button>
           </div>
-          <div class="log-line sys log-line--single"><b>[状态]</b> ${htmlEscape(shortenText(`${snapshot.worldAlert} · ${latestEvent}`, 40))}</div>
-          <div class="log-line roll log-line--single"><b>[播报]</b> ${htmlEscape(shortenText(latestBroadcast, 40))}</div>
-          <div class="log-line bus log-line--single"><b>[安排]</b> ${htmlEscape(shortenText(pendingRequestText, 40))}</div>
+          <div class="terminal-tab-panels">
+            <div class="terminal-tab-panel active" data-terminal-tab-panel="状态">
+              <div class="log-line sys log-line--single"><b>[状态]</b> ${htmlEscape(核心状态摘要)}</div>
+            </div>
+            <div class="terminal-tab-panel" data-terminal-tab-panel="播报">
+              <div class="log-line roll log-line--single"><b>[播报]</b> ${htmlEscape(最近播报摘要)}</div>
+            </div>
+            <div class="terminal-tab-panel" data-terminal-tab-panel="安排">
+              <div class="log-line bus log-line--single"><b>[安排]</b> ${htmlEscape(最近安排摘要)}</div>
+            </div>
+          </div>
         </div>
         <div class="module-foot">
           <span class="foot-hint">${htmlEscape(shortenText(toText(sys.系统播报, '无'), 26))}</span>
-          <span class="enter-chip">展开日志</span>
+          <span class="enter-chip">进入详情</span>
         </div>
       `;
     }
@@ -14491,7 +14608,6 @@
                 fusion: buildSkillDesignerFusionSummary(formState) || '未设置',
                 mechanic: buildSkillDesignerMechanicSummary(formState) || '未设置',
                 mechanicParams: buildSkillDesignerMechanicParamSummary(formState) || '未设置',
-                direction: buildSkillDesignerDirectionSummary(formState) || '未设置',
                 construct: buildSkillDesignerConstructSummary(formState) || '未设置',
                 execution: buildSkillDesignerExecutionSummary(formState) || '未设置',
                 sideEffects: buildSkillDesignerSideEffectSummary(formState) || '无',
@@ -14795,24 +14911,6 @@
                   </section>
 
                   <section class=\"mvu-editor-section\">
-                    <div class=\"mvu-editor-section-title\">方向配置</div>
-                    <div class=\"mvu-editor-field-grid\">
-                      <label class=\"mvu-editor-field\">
-                        <span class=\"mvu-editor-label\">阵营判定</span>
-                        <input class=\"mvu-editor-input\" type=\"text\" value=\"自动\" data-skill-designer-field=\"alignmentMode\" readonly />
-                      </label>
-                      <label class=\"mvu-editor-field mvu-editor-field-wide\">
-                        <span class=\"mvu-editor-label\">方向配置列表</span>
-                        <textarea class=\"mvu-editor-textarea\" data-skill-designer-field=\"directionJson\" data-skill-designer-disableable>${htmlEscape(formatSkillDesignerDirectionJson(designerDraft['方向配置列表']))}</textarea>
-                      </label>
-                      <label class=\"mvu-editor-field mvu-editor-field-wide\">
-                        <span class=\"mvu-editor-label\">自动切换规则</span>
-                        <textarea class=\"mvu-editor-textarea\" data-skill-designer-field=\"directionRuleJson\" data-skill-designer-disableable>${htmlEscape(formatSkillDesignerDirectionRuleJson(designerDraft['自动切换规则'], designerDraft['方向配置列表']))}</textarea>
-                      </label>
-                    </div>
-                  </section>
-
-                  <section class=\"mvu-editor-section\">
                     <div class=\"mvu-editor-section-title\">副作用</div>
                     <div class=\"mvu-editor-field-grid\">
                       <label class=\"mvu-editor-field mvu-editor-field-wide\">
@@ -14872,7 +14970,6 @@
                     : ''}
                   <div class=\"skill-designer-summary-row\"><em>机制组合</em><span data-skill-designer-preview=\"mechanic\">${htmlEscape(buildSkillDesignerMechanicSummary(designerDraft) || '未设置')}</span></div>
                   <div class=\"skill-designer-summary-row\"><em>机制参数</em><span data-skill-designer-preview=\"mechanicParams\">${htmlEscape(buildSkillDesignerMechanicParamSummary(designerDraft) || '未设置')}</span></div>
-                  <div class=\"skill-designer-summary-row\"><em>方向摘要</em><span data-skill-designer-preview=\"direction\">${htmlEscape(buildSkillDesignerDirectionSummary(designerDraft) || '未设置')}</span></div>
                   <div class=\"skill-designer-summary-row\" data-skill-designer-construct-row ${normalizeSkillUiText(designerDraft.deliveryForm, '') === '造物承载' ? '' : 'hidden'}>
                     <em>造物规则</em><span data-skill-designer-preview=\"construct\">${htmlEscape(buildSkillDesignerConstructSummary(designerDraft) || '未设置')}</span>
                   </div>
@@ -17857,7 +17954,9 @@
                 <div class="archive-card-head"><div class="archive-card-title">请求摘要</div></div>
                 ${makeTimelineStack((snapshot.pendingRequests.length ? snapshot.pendingRequests : ['暂无请求摘要']).map((item, index) => ({
                   title: `请求 ${index + 1}`,
-                  desc: item,
+                  desc: shortenText(toText(item, '暂无请求摘要'), 28),
+                  descTitle: toText(item, '暂无请求摘要'),
+                  className: 'timeline-card--single',
                 })))}
               </div>
             </div>
@@ -17873,11 +17972,9 @@
         const soulTowerEntryLocation = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc), snapshot.currentLoc);
         const ascensionTickets = listAscensionTicketNames(snapshot);
         const soulTowerTickets = listSoulTowerTicketNames(snapshot);
-        const soulSpiritTargets = listSoulSpiritTargets(snapshot);
         const canRunAscensionAtCurrentLocation =
           isTransmissionTowerEntryLocation(soulTowerEntryLocation) &&
-          ascensionTickets.length > 0 &&
-          soulSpiritTargets.length > 0;
+          ascensionTickets.length > 0;
         const canStartSoulTowerAtCurrentLocation =
           soulTowerEligible &&
           isSoulTowerHeadquartersLocation(soulTowerEntryLocation) &&
@@ -17909,9 +18006,9 @@
         const ascensionTicketOptionsHtml = ascensionTickets.length
           ? ascensionTickets.map(name => `<option value="${escapeHtmlAttr(name)}">${htmlEscape(name)}</option>`).join('')
           : '<option value="">暂无门票</option>';
-        const soulSpiritTargetOptionsHtml = soulSpiritTargets.length
-          ? soulSpiritTargets.map(item => `<option value="${escapeHtmlAttr(item.value)}">${htmlEscape(item.label)}</option>`).join('')
-          : '<option value="">暂无魂灵</option>';
+        const 显示升灵台操作 = ascensionTickets.length > 0;
+        const 显示魂灵塔操作 = soulTowerEligible && soulTowerTickets.length > 0;
+        const 显示试炼操作区 = isPlayerControlled && activeCharKey && (显示升灵台操作 || 显示魂灵塔操作);
         delete modalFocusState[`${previewKey}::trial-focus`];
         return {
           title: '试炼与情报',
@@ -17967,19 +18064,19 @@
               </div>
               ${构建可玩选项卡区(snapshot, '试炼与情报')}
 
-              ${isPlayerControlled && activeCharKey ? `
+              ${显示试炼操作区 ? `
                 <div class="archive-card full">
                   <div class="archive-card-head"><div class="archive-card-title">可执行操作</div></div>
-                  <div class="request-console-row" data-collection-panel="trial-ascension" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
-                    <select class="request-console-input" data-collection-input="asc-ticket" style="margin:0; flex:1 1 180px;">${ascensionTicketOptionsHtml}</select>
-                    <select class="request-console-input" data-collection-input="asc-target" style="margin:0; flex:1 1 260px;">${soulSpiritTargetOptionsHtml}</select>
-                    <input type="number" min="1" class="request-console-input" data-collection-input="asc-gain" value="100" style="margin:0; width:110px; flex:0 0 110px;" placeholder="提升年限" />
-                    <button type="button" class="tag-chip live request-console-primary-action" data-collection-action="run-ascension" data-collection-char="${escapeHtmlAttr(activeCharKey)}" ${canRunAscensionAtCurrentLocation ? '' : 'disabled'}>执行升灵</button>
-                  </div>
-                  ${soulTowerEligible ? `
+                  ${显示升灵台操作 ? `
+                    <div class="request-console-row" data-collection-panel="trial-ascension" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:${显示魂灵塔操作 ? '12px' : '0'};">
+                      <select class="request-console-input" data-collection-input="asc-ticket" style="margin:0; flex:1 1 180px;">${ascensionTicketOptionsHtml}</select>
+                      <button type="button" class="tag-chip live request-console-primary-action" data-collection-action="run-ascension" data-collection-char="${escapeHtmlAttr(activeCharKey)}" ${canRunAscensionAtCurrentLocation ? '' : 'disabled'}>进入升灵台</button>
+                    </div>
+                  ` : ''}
+                  ${显示魂灵塔操作 ? `
                     <div class="request-console-row" data-collection-panel="trial-tower" style="display:flex; gap:8px; flex-wrap:wrap;">
-                      <input type="number" min="1" class="request-console-input" data-collection-input="tower-floor" value="${escapeHtmlAttr(String(Math.max(1, toNumber(deepGet(snapshot, 'activeChar.魂灵塔记录.最高层', 0), 0) + 1)))}" style="margin:0; width:110px; flex:0 0 110px;" placeholder="层数" />
-                      <button type="button" class="tag-chip live request-console-primary-action" data-collection-action="run-soul-tower" data-collection-char="${escapeHtmlAttr(activeCharKey)}" ${canStartSoulTowerAtCurrentLocation ? '' : 'disabled'}>开始冲塔</button>
+                      <select class="request-console-input" data-collection-input="tower-ticket" style="margin:0; flex:1 1 180px;">${soulTowerTickets.map(name => `<option value="${escapeHtmlAttr(name)}">${htmlEscape(name)}</option>`).join('')}</select>
+                      <button type="button" class="tag-chip live request-console-primary-action" data-collection-action="run-soul-tower" data-collection-char="${escapeHtmlAttr(activeCharKey)}" ${canStartSoulTowerAtCurrentLocation ? '' : 'disabled'}>进入魂灵塔</button>
                     </div>
                   ` : ''}
                 </div>
@@ -20793,6 +20890,322 @@
       );
     }
 
+    function 解析升灵台档位(门票名 = '') {
+      const safeName = toText(门票名, '');
+      if (/高级/.test(safeName)) return '高级';
+      if (/中级/.test(safeName)) return '中级';
+      return '初级';
+    }
+
+    function 是否暴动期升灵门票(门票名 = '') {
+      return /暴动期/.test(toText(门票名, ''));
+    }
+
+    function 获取升灵台强度范围(档位 = '初级', 暴动期 = false) {
+      const tier = toText(档位, '初级');
+      const baseMap = {
+        初级: { 最小年限: 100, 最大年限: 3000, 最小等级: 20, 最大等级: 42 },
+        中级: { 最小年限: 3000, 最大年限: 20000, 最小等级: 42, 最大等级: 75 },
+        高级: { 最小年限: 20000, 最大年限: 100000, 最小等级: 75, 最大等级: 95 },
+      };
+      const base = baseMap[tier] || baseMap.初级;
+      if (!暴动期) return cloneJsonValue(base, base);
+      return {
+        最小年限: Math.max(1, Math.floor(base.最小年限 * 0.95)),
+        最大年限: Math.max(1, Math.floor(base.最大年限 * 1.12)),
+        最小等级: Math.max(1, Math.floor(base.最小等级 * 0.98)),
+        最大等级: Math.max(base.最小等级, Math.min(99, Math.ceil(base.最大等级 * 1.05))),
+      };
+    }
+
+    function 规范化试炼状态上下文(raw = {}) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+      const 试炼类型 = toText(raw.试炼类型, '').trim();
+      if (!['升灵台', '魂灵塔'].includes(试炼类型)) return null;
+      if (试炼类型 === '升灵台') {
+        const 档位 = 解析升灵台档位(raw.档位 || raw.门票名 || '');
+        const 暴动期 = raw.暴动期 === true || 是否暴动期升灵门票(raw.门票名 || raw.试炼内地点 || '');
+        const 门票名 = toText(raw.门票名, `${暴动期 ? '暴动期' : ''}${档位}升灵台门票`).trim();
+        const 入场地点 = toText(raw.入场地点, 升灵台退出地点).trim() || 升灵台退出地点;
+        const 试炼内地点 = toText(raw.试炼内地点, 构建升灵台试炼地点(档位, 暴动期)).trim() || 构建升灵台试炼地点(档位, 暴动期);
+        return {
+          试炼类型: '升灵台',
+          门票名,
+          档位,
+          暴动期,
+          入场地点,
+          当前层: 0,
+          试炼内地点,
+        };
+      }
+      const 当前层 = Math.min(
+        SOUL_TOWER_TOTAL_FLOORS,
+        Math.max(1, Math.floor(toNumber(raw.当前层, 1))),
+      );
+      const 入场地点 = toText(raw.入场地点, 魂灵塔退出地点).trim() || 魂灵塔退出地点;
+      const 门票名 = toText(raw.门票名, '魂灵塔门票').trim() || '魂灵塔门票';
+      const 试炼内地点 = toText(raw.试炼内地点, 构建魂灵塔试炼地点(当前层)).trim() || 构建魂灵塔试炼地点(当前层);
+      return {
+        试炼类型: '魂灵塔',
+        门票名,
+        档位: '魂灵塔',
+        暴动期: false,
+        入场地点,
+        当前层,
+        试炼内地点,
+      };
+    }
+
+    function 读取试炼状态上下文(snapshot) {
+      return 规范化试炼状态上下文(解析试炼地点(读取试炼状态文本(snapshot)));
+    }
+
+    function 是否试炼状态可继续(context = null) {
+      return !!规范化试炼状态上下文(context);
+    }
+
+    function 构建试炼状态上下文(options = {}) {
+      const 试炼类型 = toText(options.试炼类型, '').trim();
+      if (试炼类型 === '升灵台') {
+        const 门票名 = toText(options.门票名, '').trim();
+        const 档位 = 解析升灵台档位(门票名 || options.档位 || '初级');
+        const 暴动期 = 是否暴动期升灵门票(门票名) || options.暴动期 === true;
+        return {
+          试炼类型: '升灵台',
+          门票名: 门票名 || `${暴动期 ? '暴动期' : ''}${档位}升灵台门票`,
+          档位,
+          暴动期,
+          入场地点: toText(options.入场地点, 升灵台退出地点).trim() || 升灵台退出地点,
+          当前层: 0,
+          试炼内地点: 构建升灵台试炼地点(档位, 暴动期),
+        };
+      }
+      const 当前层 = Math.min(
+        SOUL_TOWER_TOTAL_FLOORS,
+        Math.max(1, Math.floor(toNumber(options.当前层, 1))),
+      );
+      return {
+        试炼类型: '魂灵塔',
+        门票名: toText(options.门票名, '魂灵塔门票').trim() || '魂灵塔门票',
+        档位: '魂灵塔',
+        暴动期: false,
+        入场地点: toText(options.入场地点, 魂灵塔退出地点).trim() || 魂灵塔退出地点,
+        当前层,
+        试炼内地点: 构建魂灵塔试炼地点(当前层),
+      };
+    }
+
+    function 生成升灵台战斗参数(snapshot, context = {}) {
+      const safeContext = 规范化试炼状态上下文(context) || 构建试炼状态上下文({ 试炼类型: '升灵台' });
+      const 强度范围 = 获取升灵台强度范围(safeContext.档位, safeContext.暴动期);
+      const seedText = [
+        safeContext.门票名,
+        safeContext.档位,
+        safeContext.暴动期 ? '暴动期' : '常规',
+        safeContext.入场地点,
+        toText(snapshot && snapshot.activeName, '玩家'),
+      ].join('|');
+      const 结果 = withTemporaryBattleRandom(seedText, rng => {
+        const 对手类型 = pickTemporaryBattleItem(
+          safeContext.暴动期
+            ? ['魂兽', '魂师', '魂兽', '魂师']
+            : ['魂兽', '魂兽', '魂师', '魂兽'],
+          rng,
+        ) || '魂兽';
+        const 百分位 = Math.max(0, Math.min(1, Number(rng())));
+        if (对手类型 === '魂师') {
+          const 等级 = pickTemporaryBattleInt(强度范围.最小等级, 强度范围.最大等级, rng);
+          const 对应年限 = Math.max(
+            强度范围.最小年限,
+            Math.min(
+              强度范围.最大年限,
+              Math.floor(强度范围.最小年限 + (强度范围.最大年限 - 强度范围.最小年限) * 百分位),
+            ),
+          );
+          return {
+            对手种子: {
+              name: `${safeContext.档位}${safeContext.暴动期 ? '暴动期' : ''}试炼魂师`,
+              单位性质: '人类',
+              身份: '魂师',
+              等级,
+              数量: 1,
+            },
+            对手类型: '魂师',
+            对应年限,
+            百分位,
+          };
+        }
+        const 魂兽物种 = pickTemporaryBattleItem(BATTLE_SOUL_BEAST_STANDARD_SPECIES, rng) || '龙类';
+        const 品质映射 = safeContext.档位 === '高级'
+          ? ['A', 'S']
+          : safeContext.档位 === '中级'
+            ? ['B', 'A']
+            : ['C', 'B'];
+        const 品质 = pickTemporaryBattleItem(品质映射, rng) || 品质映射[0] || 'C';
+        const 年限 = pickTemporaryBattleInt(强度范围.最小年限, 强度范围.最大年限, rng);
+        return {
+          对手种子: {
+            name: `${魂兽物种}拟态魂兽`,
+            单位性质: '魂兽',
+            标准物种: 魂兽物种,
+            年限,
+            品质,
+            数量: 1,
+          },
+          对手类型: '魂兽',
+          对应年限: 年限,
+          百分位,
+        };
+      });
+      return {
+        对手种子: 结果.对手种子,
+        对手类型: 结果.对手类型,
+        killedAge: Math.max(1, Math.floor(toNumber(结果.对应年限, 强度范围.最小年限))),
+        百分位: Math.max(0, Math.min(1, toNumber(结果.百分位, 0))),
+        强度范围,
+      };
+    }
+
+    function 构建魂灵塔守塔种子(context = {}) {
+      const safeContext = 规范化试炼状态上下文(context) || 构建试炼状态上下文({ 试炼类型: '魂灵塔', 当前层: 1 });
+      const floor = Math.min(SOUL_TOWER_TOTAL_FLOORS, Math.max(1, Math.floor(toNumber(safeContext.当前层, 1))));
+      const seedText = `${safeContext.入场地点}|${safeContext.门票名}|tower|${floor}`;
+      return withTemporaryBattleRandom(seedText, rng => buildSoulTowerGuardianSeed(floor, { rng }));
+    }
+
+    function 构建试炼入场系统提示(snapshot, context = {}, activeDisplayName = '') {
+      const safeContext = 规范化试炼状态上下文(context) || {};
+      const 角色名 = toText(activeDisplayName, toText(snapshot && snapshot.activeName, '当前角色'));
+      const 入场地点 = toText(safeContext.入场地点, toText(snapshot && snapshot.currentLoc, '未知地点'));
+      if (safeContext.试炼类型 === '升灵台') {
+        const 强度范围 = 获取升灵台强度范围(safeContext.档位, safeContext.暴动期);
+        return `以下内容属于前端代发的升灵台入场请求，请直接承接剧情推进，不要输出 JSON 块或变量维护指令。
+[入场信息]
+角色：${角色名}
+地点：${入场地点}
+门票：${toText(safeContext.门票名, '升灵台门票')}
+档位：${toText(safeContext.档位, '初级')}
+暴动期：${safeContext.暴动期 ? '是' : '否'}
+[强度约束]
+本场潜在对手可以是魂兽或魂师，战力必须限制在该档位区间：
+- 对应年限区间：${formatNumber(强度范围.最小年限)}~${formatNumber(强度范围.最大年限)}
+- 对应魂师等级区间：${强度范围.最小等级}~${强度范围.最大等级}
+非暴动期魂师胜利不提供升灵奖励；暴动期魂师胜利可提供随机升灵奖励。
+[流程要求]
+本轮先描写入场与试炼氛围推进，入场不等于直接开战。只有当剧情推进到明确交锋节点时，才输出 battle 模块意图触发战斗。`;
+      }
+      const floor = Math.min(SOUL_TOWER_TOTAL_FLOORS, Math.max(1, Math.floor(toNumber(safeContext.当前层, 1))));
+      const gateMeta = getSoulTowerGateMeta(floor);
+      return `以下内容属于前端代发的魂灵塔入场请求，请直接承接剧情推进，不要输出 JSON 块或变量维护指令。
+[入场信息]
+角色：${角色名}
+地点：${入场地点}
+门票：${toText(safeContext.门票名, '魂灵塔门票')}
+当前层：第${floor}层（${gateMeta.gateLabel}，${gateMeta.gateRangeLabel}）
+[强度约束]
+守塔对象强度必须匹配第${floor}层规则，不得越级漂移。
+[流程要求]
+本轮先写入塔后的剧情与对峙推进，入塔不等于立即开战。只有在剧情明确进入战斗节点时，才输出 battle 模块意图。`;
+    }
+
+    async function 登记试炼入场并推进剧情(snapshot, options = {}) {
+      const sourceSnapshot = snapshot && snapshot.rootData ? snapshot : (liveSnapshot || lastRenderableSnapshot);
+      if (!sourceSnapshot || !sourceSnapshot.rootData) throw new Error('当前快照未就绪，无法登记试炼入场。');
+      if (!isSnapshotPlayerControlled(sourceSnapshot)) throw new Error('旁观视角不可操作。');
+      if (deepGet(sourceSnapshot, 'rootData.world.战斗.进行中', false)) {
+        throw new Error('当前仍在战斗中，无法登记新的试炼入场。');
+      }
+      const 当前试炼 = 读取试炼状态上下文(sourceSnapshot);
+      if (当前试炼) {
+        throw new Error(`当前仍在${当前试炼.试炼类型}流程中，请先结束后再进入新试炼。`);
+      }
+      const 试炼类型 = toText(options.试炼类型, '').trim();
+      if (!['升灵台', '魂灵塔'].includes(试炼类型)) throw new Error('试炼类型无效。');
+      const activeCharKey = resolveSnapshotCharKey(sourceSnapshot, toText(sourceSnapshot.activeName, '')) || toText(sourceSnapshot.activeName, '');
+      if (!activeCharKey) throw new Error('缺少角色信息。');
+      const entryLocation = toText(options.entryLocation, 读取当前角色位置(sourceSnapshot)).trim();
+      if (是否试炼内地点(entryLocation)) throw new Error('当前仍在试炼区域，无法重复入场。');
+      let selectedTicket = '';
+      let trialContext = null;
+      if (试炼类型 === '升灵台') {
+        if (!isTransmissionTowerEntryLocation(entryLocation)) throw new Error('升灵台只能从传灵塔入口进入。');
+        const ascensionTickets = listAscensionTicketNames(sourceSnapshot);
+        selectedTicket = toText(options.ticketName, ascensionTickets[0] || '').trim();
+        if (!selectedTicket) throw new Error('缺少升灵台门票。');
+        trialContext = 构建试炼状态上下文({
+          试炼类型,
+          门票名: selectedTicket,
+          入场地点: entryLocation,
+        });
+      } else {
+        if (!isSoulTowerHeadquartersLocation(entryLocation)) throw new Error('魂灵塔只能从史莱克城传灵塔总部进入。');
+        const activeChar = getActiveSnapshotCharacter(sourceSnapshot);
+        if (!isSoulTowerEligibleCharacterData(activeChar)) throw new Error('当前角色不满足魂灵塔入塔条件。');
+        const soulTowerTickets = listSoulTowerTicketNames(sourceSnapshot);
+        selectedTicket = toText(options.ticketName, soulTowerTickets[0] || '').trim();
+        if (!selectedTicket) throw new Error('缺少魂灵塔门票。');
+        trialContext = 构建试炼状态上下文({
+          试炼类型,
+          门票名: selectedTicket,
+          入场地点: entryLocation,
+          当前层: Math.min(
+            SOUL_TOWER_TOTAL_FLOORS,
+            Math.max(1, Math.floor(toNumber(options.floor, getDefaultSoulTowerChallengeFloor(sourceSnapshot)))),
+          ),
+        });
+      }
+      const ticketConsumeResult = buildInventoryConsumePatches(sourceSnapshot, activeCharKey, selectedTicket, 1);
+      if (!ticketConsumeResult.ok) throw new Error(ticketConsumeResult.reason || `缺少【${selectedTicket}】门票。`);
+      const 试炼内地点 = trialContext.试炼类型 === '魂灵塔'
+        ? 构建魂灵塔试炼地点(trialContext.当前层)
+        : 构建升灵台试炼地点(trialContext.档位, trialContext.暴动期);
+      const 清理后战斗数据 = (() => {
+        const rawBattle = cloneJsonValue(deepGet(sourceSnapshot, 'rootData.world.战斗', {}), {});
+        const nextBattle = rawBattle && typeof rawBattle === 'object' && !Array.isArray(rawBattle) ? rawBattle : {};
+        nextBattle.试炼状态 = trialContext.试炼类型 === '魂灵塔'
+          ? 构建魂灵塔试炼地点(trialContext.当前层)
+          : 构建升灵台试炼地点(trialContext.档位, trialContext.暴动期);
+        if (trialContext.试炼类型 === '魂灵塔') {
+          nextBattle.floor = trialContext.当前层;
+        }
+        return nextBattle;
+      })();
+      const 播报前缀 = trialContext.试炼类型 === '升灵台' ? '升灵台' : '魂灵塔';
+      const 播报正文 = trialContext.试炼类型 === '升灵台'
+        ? `${toText(sourceSnapshot.activeName, activeCharKey)} 已进入${trialContext.档位}${trialContext.暴动期 ? '暴动期' : ''}升灵台，等待剧情推进触发战斗。`
+        : `${toText(sourceSnapshot.activeName, activeCharKey)} 已进入魂灵塔第${trialContext.当前层}层，等待剧情推进触发战斗。`;
+      await applyJsonPatchOpsByEditor([
+        ...ticketConsumeResult.patchOps,
+        { op: 'replace', path: '/world/战斗', value: 清理后战斗数据 },
+        { op: 'add', path: `/char/${escapeJsonPointerValue(activeCharKey)}/状态/位置`, value: 试炼内地点 },
+        { op: 'replace', path: '/sys/系统播报', value: `[${播报前缀}] ${播报正文}` },
+      ], { force: true });
+      await refreshLiveSnapshot({ force: true });
+      const latestSnapshot = liveSnapshot || sourceSnapshot;
+      const activeDisplayName = toText(deepGet(latestSnapshot, 'activeChar.name', latestSnapshot.activeName), latestSnapshot.activeName);
+      const dispatchRequest = {
+        playerInput: trialContext.试炼类型 === '升灵台'
+          ? `我进入了${trialContext.档位}${trialContext.暴动期 ? '暴动期' : ''}升灵台，准备开始本次试炼。`
+          : `我进入魂灵塔第${trialContext.当前层}层，准备开始本层挑战。`,
+        systemPrompt: 构建试炼入场系统提示(latestSnapshot, trialContext, activeDisplayName),
+        requestKind: trialContext.试炼类型 === '升灵台' ? 'trial_entry_ascension' : 'trial_entry_tower',
+      };
+      const dispatchResult = await dispatchUiAiRequest(
+        dispatchRequest.playerInput,
+        dispatchRequest.systemPrompt,
+        { requestKind: dispatchRequest.requestKind },
+      );
+      if (!dispatchResult?.ok) {
+        throw new Error('入场登记成功，但剧情推进触发失败，请重试推进。');
+      }
+      return {
+        ok: true,
+        context: trialContext,
+        requestKind: dispatchRequest.requestKind,
+        dispatchResult,
+      };
+    }
+
     function listSoulSpiritTargets(snapshot) {
       const activeChar = deepGet(snapshot, 'activeChar', {});
       const result = [];
@@ -22262,7 +22675,13 @@ ${mvuUpdate}`;
     function buildSoulTowerTeamMemberEntry(snapshot, charKey = '', fallbackName = '') {
       const safeKey = toText(charKey, '').trim();
       const charData = safeKey ? deepGet(snapshot, ['rootData', 'char', safeKey], null) : null;
-      const ageValue = getSoulTowerAgeValueFromCharacter(charData || {});
+      let ageValue = getSoulTowerAgeValueFromCharacter(charData || {});
+      if (!(Number.isFinite(ageValue) && ageValue > 0)) {
+        const activeName = toText(snapshot && snapshot.activeName, '').trim();
+        if (safeKey && activeName && safeKey === activeName) {
+          ageValue = getSoulTowerAgeValueFromCharacter(deepGet(snapshot, 'activeChar', {}));
+        }
+      }
       return {
         key: safeKey,
         name: toText(deepGet(charData, 'name', ''), fallbackName || safeKey || '队员'),
@@ -22590,14 +23009,14 @@ ${mvuUpdate}`;
       return {
         进行中: true,
         战斗类型: toText(detail.战斗类型, '擂台切磋'),
-        战斗意图: '点到为止',
+        战斗意图: toText(detail.战斗意图, '点到为止'),
         先攻: '无',
         允许撤离: true,
         回合: 0,
         环境: arenaName,
         裁断结果: '',
         参战者: rosterResult.participants,
-        source: 'map_action',
+        source: toText(detail.source, 'map_action'),
         ...(soulTowerCombat
           ? {
               floor: soulTowerFloor,
@@ -22607,6 +23026,12 @@ ${mvuUpdate}`;
               关底战: soulTowerMeta.isGateBoss,
             }
           : {}),
+        ...(detail.ascension_ticket !== undefined ? { ascension_ticket: toText(detail.ascension_ticket, '') } : {}),
+        ...(detail.killed_age !== undefined ? { killed_age: Math.max(1, Math.floor(toNumber(detail.killed_age, 1))) } : {}),
+        ...(detail.party_size !== undefined ? { party_size: Math.max(1, Math.floor(toNumber(detail.party_size, 1))) } : {}),
+        ...(detail.试炼状态 !== undefined ? { 试炼状态: toText(detail.试炼状态, '') } : {}),
+        ...(detail.升灵对手类型 !== undefined ? { 升灵对手类型: toText(detail.升灵对手类型, '') } : {}),
+        ...(detail.升灵档位百分位 !== undefined ? { 升灵档位百分位: Math.max(0, Math.min(1, toNumber(detail.升灵档位百分位, 0))) } : {}),
         request: {
           action: '战斗',
           target: arenaName,
@@ -22616,7 +23041,11 @@ ${mvuUpdate}`;
     }
 
     async function openMapBattleModule(snapshot, dispatchDetail) {
-      const combatData = buildMapBattleCombatData(snapshot, dispatchDetail);
+      const trialContext = 读取试炼状态上下文(snapshot);
+      const trialBattleDetail = trialContext
+        ? buildTrialBattleDispatchDetail(snapshot, dispatchDetail, trialContext)
+        : null;
+      const combatData = buildMapBattleCombatData(snapshot, trialBattleDetail || dispatchDetail);
       if (!combatData || combatData.ok === false) return { ok: false, reason: combatData?.reason || 'combat_context_unresolved' };
       const 模块加载结果 = await 确保模块依赖已加载('战斗模块', 'open_map_battle_module');
       if (!模块加载结果 || 模块加载结果.ok === false) {
@@ -22637,11 +23066,16 @@ ${mvuUpdate}`;
             value: createEmptySoulTowerDiscountSpiritRecord(),
           });
         }
-        const towerTicketName = toText(dispatchDetail && (dispatchDetail.soulTowerTicket || dispatchDetail.ticketName), '').trim();
-        if (!towerTicketName) return { ok: false, reason: '缺少魂灵塔门票。' };
-        const ticketConsumeResult = buildInventoryConsumePatches(snapshot, activeCharKey, towerTicketName, 1);
-        if (!ticketConsumeResult.ok) return { ok: false, reason: ticketConsumeResult.reason || '魂灵塔门票不足。' };
-        towerEntryTicketPatches.push(...ticketConsumeResult.patchOps);
+        const alreadyConsumedTicket = (trialBattleDetail || dispatchDetail) && (
+          (trialBattleDetail || dispatchDetail).门票已扣除 === true
+        );
+        if (!alreadyConsumedTicket) {
+          const towerTicketName = toText((trialBattleDetail || dispatchDetail) && ((trialBattleDetail || dispatchDetail).soulTowerTicket || (trialBattleDetail || dispatchDetail).ticketName), '').trim();
+          if (!towerTicketName) return { ok: false, reason: '缺少魂灵塔门票。' };
+          const ticketConsumeResult = buildInventoryConsumePatches(snapshot, activeCharKey, towerTicketName, 1);
+          if (!ticketConsumeResult.ok) return { ok: false, reason: ticketConsumeResult.reason || '魂灵塔门票不足。' };
+          towerEntryTicketPatches.push(...ticketConsumeResult.patchOps);
+        }
       }
       const soulTowerText = combatData.战斗类型 === '魂灵塔冲塔'
         ? ` ${toText(combatData.大关标签, '魂灵塔')} 第${toNumber(combatData.floor, 1)}层`
@@ -22686,16 +23120,17 @@ ${mvuUpdate}`;
       }
       const requestedFloor = Math.floor(toNumber(options.floor, getDefaultSoulTowerChallengeFloor(sourceSnapshot)));
       const floor = Math.min(SOUL_TOWER_TOTAL_FLOORS, Math.max(1, requestedFloor));
-      const soulTowerArena = `${entryLocation}-魂灵塔`;
-      return openMapBattleModule(sourceSnapshot, {
-        action: 'battle',
-        战斗类型: '魂灵塔冲塔',
-        target: soulTowerArena,
-        currentLoc: soulTowerArena,
-        floor,
-        source: toText(options.source, 'soul_tower_entry'),
-        soulTowerTicket: selectedTicket,
-      });
+      try {
+        const result = await 登记试炼入场并推进剧情(sourceSnapshot, {
+          试炼类型: '魂灵塔',
+          ticketName: selectedTicket,
+          floor,
+          entryLocation,
+        });
+        return { ok: !!(result && result.ok), context: result && result.context ? result.context : null, dispatchResult: result && result.dispatchResult ? result.dispatchResult : null };
+      } catch (error) {
+        return { ok: false, reason: error && error.message ? error.message : '魂灵塔入场失败。' };
+      }
     }
 
     function buildTradeDispatchFromRequest(snapshot, tradeRequest) {
@@ -23309,29 +23744,39 @@ ${mvuUpdate}`;
       let request = null;
 
       if (/battle|combat|战斗|切磋|单挑/.test(kind)) {
-        const explicitParticipants = payload.参战者 && typeof payload.参战者 === 'object'
-          ? cloneJsonValue(payload.参战者, {})
-          : null;
-        if (explicitParticipants) {
-          request = {
-            action: 'battle',
-            target: toText(payload.location || payload.targetLocation || payload.arena || payload.target, findBracketLocationToken(snapshot, text)),
-            currentLoc: toText(payload.currentLoc || payload.location, toText(snapshot && snapshot.currentLoc, '')),
-            战斗类型: toText(payload.战斗类型 || payload.combatType, /死战|生死|击杀|袭击|伏击/.test(text) ? '突发遭遇' : '擂台切磋'),
-            source: toText(payload.source, 'module_intent_router'),
-            参战者: explicitParticipants
-          };
-        } else {
-          const npcTarget = toText(payload.npcTarget || payload.enemy || payload.targetNpc || payload.npc, '');
-          request = {
-            action: 'battle',
-            target: toText(payload.location || payload.targetLocation || payload.arena || payload.target, findBracketLocationToken(snapshot, text)),
-            currentLoc: toText(payload.currentLoc || payload.location, toText(snapshot && snapshot.currentLoc, '')),
-            npcTarget,
-            战斗类型: toText(payload.战斗类型 || payload.combatType, /死战|生死|击杀|袭击|伏击/.test(text) ? '突发遭遇' : '擂台切磋'),
-            source: toText(payload.source, 'module_intent_router')
-          };
-          if (!npcTarget) request = null;
+        const trialContext = 读取试炼状态上下文(snapshot);
+        if (trialContext) {
+          const 指定层数 = Math.max(0, Math.floor(toNumber(payload.floor, 0)));
+          request = buildTrialBattleDispatchDetail(snapshot, {
+            source: toText(payload.source, 'module_intent_router_trial'),
+            ...(指定层数 > 0 ? { floor: 指定层数 } : {}),
+          }, trialContext);
+        }
+        if (!request) {
+          const explicitParticipants = payload.参战者 && typeof payload.参战者 === 'object'
+            ? cloneJsonValue(payload.参战者, {})
+            : null;
+          if (explicitParticipants) {
+            request = {
+              action: 'battle',
+              target: toText(payload.location || payload.targetLocation || payload.arena || payload.target, findBracketLocationToken(snapshot, text)),
+              currentLoc: toText(payload.currentLoc || payload.location, toText(snapshot && snapshot.currentLoc, '')),
+              战斗类型: toText(payload.战斗类型 || payload.combatType, /死战|生死|击杀|袭击|伏击/.test(text) ? '突发遭遇' : '擂台切磋'),
+              source: toText(payload.source, 'module_intent_router'),
+              参战者: explicitParticipants
+            };
+          } else {
+            const npcTarget = toText(payload.npcTarget || payload.enemy || payload.targetNpc || payload.npc, '');
+            request = {
+              action: 'battle',
+              target: toText(payload.location || payload.targetLocation || payload.arena || payload.target, findBracketLocationToken(snapshot, text)),
+              currentLoc: toText(payload.currentLoc || payload.location, toText(snapshot && snapshot.currentLoc, '')),
+              npcTarget,
+              战斗类型: toText(payload.战斗类型 || payload.combatType, /死战|生死|击杀|袭击|伏击/.test(text) ? '突发遭遇' : '擂台切磋'),
+              source: toText(payload.source, 'module_intent_router')
+            };
+            if (!npcTarget) request = null;
+          }
         }
         moduleKind = 'battle';
       } else if (/trade|交易|购买|出售|竞拍|拍卖/.test(kind)) {
@@ -23494,33 +23939,46 @@ ${mvuUpdate}`;
 
       if (action === 'ascension') {
         mapDispatchContext = { ...detail, action, services };
-        const currentLoc = toText(
-          detail.currentLoc,
-          toText(deepGet(liveSnapshot, 'activeChar.状态.位置', liveSnapshot && liveSnapshot.currentLoc), liveSnapshot && liveSnapshot.currentLoc),
-        );
-        if (!isTransmissionTowerEntryLocation(currentLoc)) {
-          showUiToast('升灵台只能从传灵塔入口进入。', 'error', 4200);
-          return;
+        try {
+          await 登记试炼入场并推进剧情(liveSnapshot, {
+            试炼类型: '升灵台',
+            ticketName: toText(detail.ticketName || detail.ascensionTicket, ''),
+            entryLocation: toText(
+              detail.currentLoc,
+              toText(deepGet(liveSnapshot, 'activeChar.状态.位置', liveSnapshot && liveSnapshot.currentLoc), liveSnapshot && liveSnapshot.currentLoc),
+            ),
+          });
+          showUiToast('升灵台入场已登记。', 'info', 2400);
+        } catch (error) {
+          showUiToast(error && error.message ? error.message : '升灵台入场失败。', 'error', 4200);
         }
-        if (!listAscensionTicketNames(liveSnapshot).length) {
-          showUiToast('缺少升灵台门票。', 'error', 4200);
-          return;
-        }
-        openModal('试炼与情报', { preserveMapDispatchContext: true });
         return;
       }
 
       if (action === 'tower') {
         mapDispatchContext = { ...detail, action, services };
-        const towerOpenResult = await openSoulTowerChallengeFromSnapshot(liveSnapshot, {
-          source: 'map_action_tower',
-          entryLocation: toText(
-            detail.currentLoc,
-            toText(deepGet(liveSnapshot, 'activeChar.状态.位置', liveSnapshot && liveSnapshot.currentLoc), liveSnapshot && liveSnapshot.currentLoc),
-          ),
-        });
-        if (towerOpenResult && towerOpenResult.ok) return;
-        showUiToast(`魂灵塔开启失败：${towerOpenResult && towerOpenResult.reason ? towerOpenResult.reason : 'entry_invalid'}`, 'error', 4200);
+        try {
+          await 登记试炼入场并推进剧情(liveSnapshot, {
+            试炼类型: '魂灵塔',
+            ticketName: toText(detail.ticketName || detail.soulTowerTicket, ''),
+            floor: Math.max(
+              1,
+              Math.floor(
+                toNumber(
+                  detail.floor,
+                  getDefaultSoulTowerChallengeFloor(liveSnapshot || lastRenderableSnapshot || {}),
+                ),
+              ),
+            ),
+            entryLocation: toText(
+              detail.currentLoc,
+              toText(deepGet(liveSnapshot, 'activeChar.状态.位置', liveSnapshot && liveSnapshot.currentLoc), liveSnapshot && liveSnapshot.currentLoc),
+            ),
+          });
+          showUiToast('魂灵塔入场已登记。', 'info', 2400);
+        } catch (error) {
+          showUiToast(error && error.message ? error.message : '魂灵塔入场失败。', 'error', 4200);
+        }
         return;
       }
 
@@ -24608,6 +25066,35 @@ ${mvuUpdate}`;
       applyModalDisplayMode(refs, { displayMode: currentModalDisplayMode });
     };
 
+    const 终端标签预览映射 = Object.freeze({
+      状态: '世界状态总览',
+      播报: '系统播报与日志',
+      安排: '操作总线',
+    });
+
+    function 应用终端标签切换(终端标签按钮) {
+      if (!终端标签按钮 || !(终端标签按钮 instanceof Element)) return false;
+      const 标签宿主 = 终端标签按钮.closest('[data-terminal-tab-host]');
+      if (!标签宿主) return false;
+      const 目标标签 = toText(终端标签按钮.getAttribute('data-terminal-tab'), '状态').trim() || '状态';
+      标签宿主.querySelectorAll('[data-terminal-tab]').forEach(btn => {
+        const isActive = btn === 终端标签按钮;
+        btn.classList.toggle('active', isActive);
+        if (isActive) btn.setAttribute('aria-pressed', 'true');
+        else btn.removeAttribute('aria-pressed');
+      });
+      标签宿主.querySelectorAll('[data-terminal-tab-panel]').forEach(panel => {
+        panel.classList.toggle('active', toText(panel.getAttribute('data-terminal-tab-panel'), '') === 目标标签);
+      });
+      const 目标预览 = toText(终端标签按钮.getAttribute('data-terminal-preview'), '').trim()
+        || toText(终端标签预览映射[目标标签], '').trim();
+      if (目标预览) {
+        const 可点击卡片 = 标签宿主.closest('.clickable[data-preview]');
+        if (可点击卡片) 可点击卡片.setAttribute('data-preview', 目标预览);
+      }
+      return true;
+    }
+
     function bindVueModalDelegation(mountEl) {
       if (!mountEl || mountEl.__mvuModalDelegationBound) return;
       mountEl.addEventListener('click', (event) => {
@@ -24625,6 +25112,13 @@ ${mvuUpdate}`;
               scheduleUnifiedMapCanvasClamp();
             }
           }
+          return;
+        }
+        const 终端标签按钮 = eventTarget ? eventTarget.closest('[data-terminal-tab]') : null;
+        if (终端标签按钮 && mountEl.contains(终端标签按钮)) {
+          event.preventDefault();
+          event.stopPropagation();
+          应用终端标签切换(终端标签按钮);
           return;
         }
         const clickable = eventTarget ? eventTarget.closest('.clickable') : null;
@@ -24664,6 +25158,12 @@ ${mvuUpdate}`;
     document.addEventListener('click', (event) => {
       const eventTarget = event.target instanceof Element ? event.target : (event.target && event.target.parentElement ? event.target.parentElement : null);
       if (isInlineEditInteractionTarget(eventTarget)) return;
+      const 终端标签按钮 = eventTarget ? eventTarget.closest('[data-terminal-tab]') : null;
+      if (终端标签按钮 && 应用终端标签切换(终端标签按钮)) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       const clickable = eventTarget ? eventTarget.closest('.clickable') : null;
       const unifiedMount = document.getElementById('mvu-unified-mount');
       const inUnifiedSurface = (unifiedMount && unifiedMount.contains(clickable))
@@ -25050,33 +25550,32 @@ ${mvuUpdate}`;
           if (actionType === 'run-ascension') {
             const charKey = collectionActionBtn.getAttribute('data-collection-char') || '';
             const ticketName = readCollectionInput('asc-ticket');
-            const targetValue = readCollectionInput('asc-target');
-            const gainAge = Math.max(0, readCollectionNumber('asc-gain', 0));
             if (!charKey) throw new Error('缺少角色信息。');
             const currentSnapshot = liveSnapshot || lastRenderableSnapshot;
             if (!currentSnapshot) throw new Error('当前快照未就绪，无法进入升灵台。');
-            const entryLocation = toText(deepGet(currentSnapshot, 'activeChar.状态.位置', currentSnapshot.currentLoc), currentSnapshot.currentLoc);
-            if (!isTransmissionTowerEntryLocation(entryLocation)) {
-              throw new Error('升灵台只能从传灵塔入口进入。');
-            }
-            await runInternalAscensionSettlementByEditor(charKey, { ticketName, targetValue, gainAge });
-            showUiToast('已完成升灵结算。');
+            await 登记试炼入场并推进剧情(currentSnapshot, {
+              试炼类型: '升灵台',
+              ticketName,
+              entryLocation: toText(deepGet(currentSnapshot, 'activeChar.状态.位置', currentSnapshot.currentLoc), currentSnapshot.currentLoc),
+            });
+            showUiToast('升灵台入场已登记。');
             if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
             return;
           }
           if (actionType === 'run-soul-tower') {
             const charKey = collectionActionBtn.getAttribute('data-collection-char') || '';
-            const floor = Math.max(0, readCollectionNumber('tower-floor', 0));
+            const ticketName = readCollectionInput('tower-ticket');
             if (!charKey) throw new Error('缺少角色信息。');
             const currentSnapshot = liveSnapshot || lastRenderableSnapshot;
             if (!currentSnapshot) throw new Error('当前快照未就绪，无法开启魂灵塔。');
-            const battleOpenResult = await openSoulTowerChallengeFromSnapshot(currentSnapshot, {
-              floor,
-              source: 'trial_console',
+            await 登记试炼入场并推进剧情(currentSnapshot, {
+              试炼类型: '魂灵塔',
+              ticketName,
+              floor: Math.max(1, getDefaultSoulTowerChallengeFloor(currentSnapshot)),
+              entryLocation: toText(deepGet(currentSnapshot, 'activeChar.状态.位置', currentSnapshot.currentLoc), currentSnapshot.currentLoc),
             });
-            if (!battleOpenResult?.ok) {
-              throw new Error(battleOpenResult?.reason || '魂灵塔开启失败');
-            }
+            showUiToast('魂灵塔入场已登记。');
+            if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
             return;
           }
           if (actionType === 'add-record') {
@@ -26453,5 +26952,6 @@ window.mvuSetMainTab = setMainTab;
 
 
 })();
+
 
 

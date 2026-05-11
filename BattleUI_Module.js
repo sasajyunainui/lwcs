@@ -126,6 +126,9 @@ class BattleUIComponent {
     const SOUL_TOWER_TEAM_LIMIT = 7;
     const SOUL_TOWER_MAX_AGE_GAP = 3;
     const SOUL_TOWER_TOTAL_FLOORS = 108;
+    const 试炼地点前缀 = '试炼-';
+    const 升灵台退出地点 = '传灵塔入口';
+    const 魂灵塔退出地点 = '史莱克城传灵塔总部';
     const SOUL_TOWER_LAYER_RULES = Object.freeze([
       Object.freeze({
         key: 'thousand',
@@ -205,6 +208,46 @@ class BattleUIComponent {
         .replace('＋', '+')
         .replace(/\s+/g, '');
       return SOUL_SPIRIT_QUALITY_VALUES.includes(text) ? text : '';
+    }
+
+    function 构建魂灵塔试炼地点(层数 = 1) {
+      const floor = Math.min(SOUL_TOWER_TOTAL_FLOORS, Math.max(1, Math.floor(Number(层数) || 1)));
+      return `${试炼地点前缀}魂灵塔-第${floor}层`;
+    }
+
+    function 解析角色键(角色名 = '') {
+      const safeName = String(角色名 || '').trim();
+      if (!safeName) return '';
+      const 角色表 = getMvuValue('char', {}) || {};
+      if (角色表 && typeof 角色表 === 'object' && Object.prototype.hasOwnProperty.call(角色表, safeName)) {
+        return safeName;
+      }
+      const 匹配项 = Object.entries(角色表).find(([键, 数据]) => {
+        const 显示名 = String(数据?.name || 数据?.base?.name || 键 || '').trim();
+        return 显示名 === safeName;
+      });
+      return 匹配项 ? String(匹配项[0] || '').trim() : safeName;
+    }
+
+    function 构建角色位置补丁(角色名 = '', 位置 = '') {
+      const safeName = String(角色名 || '').trim();
+      const safeLocation = String(位置 || '').trim();
+      if (!safeName || !safeLocation) return null;
+      const charKey = 解析角色键(safeName);
+      if (!charKey) return null;
+      return {
+        op: 'add',
+        path: `/char/${escapeJsonPointerSegment(charKey)}/状态/位置`,
+        value: safeLocation,
+      };
+    }
+
+    function 构建试炼状态补丁(试炼状态 = '') {
+      return {
+        op: 'add',
+        path: '/world/战斗/试炼状态',
+        value: String(试炼状态 || '').trim(),
+      };
     }
 
     function createEmptySoulTowerDiscountSpiritRecord() {
@@ -298,6 +341,14 @@ class BattleUIComponent {
       return steps[index] || steps[steps.length - 1];
     }
 
+    function pickBattleSeedInt(min = 0, max = min) {
+      const lo = Math.floor(Number(min));
+      const hi = Math.floor(Number(max));
+      if (!Number.isFinite(lo) || !Number.isFinite(hi)) return 0;
+      if (hi <= lo) return lo;
+      return lo + Math.floor(Math.random() * (hi - lo + 1));
+    }
+
     function buildSoulTowerGuardianAgeForFloor(floor = 1) {
       const meta = getSoulTowerGateMeta(floor);
       const minAge = Math.max(1, Math.floor(Number(meta.minAge || 1)));
@@ -347,6 +398,35 @@ class BattleUIComponent {
 
     function getSoulTowerPlayerRosterUnits(combatData = {}) {
       return [combatData?.参战者?.player, ...(combatData?.参战者?.team_player || [])].filter(Boolean);
+    }
+
+    function 获取升灵台结算队伍(combatData = {}, 默认角色名 = '') {
+      const 队伍种子 = [combatData?.参战者?.player, ...(combatData?.参战者?.team_player || [])].filter(Boolean);
+      const 队伍成员 = [];
+      const 已收录 = new Set();
+      const 加入成员 = 成员名 => {
+        const safeName = String(成员名 || '').trim();
+        if (!safeName) return;
+        const 角色键 = 解析角色键(safeName);
+        if (!角色键 || 已收录.has(角色键)) return;
+        const 角色数据 = getMvuValue(`char.${角色键}`, null);
+        if (!角色数据 || typeof 角色数据 !== 'object') return;
+        已收录.add(角色键);
+        队伍成员.push({
+          角色键,
+          角色名: String(角色数据.name || safeName || 角色键).trim() || 角色键,
+          角色数据,
+        });
+      };
+      队伍种子.forEach(成员 => {
+        const 成员名 = String(成员?.name || 成员?.名称 || '').trim();
+        if (!成员名) return;
+        加入成员(成员名);
+      });
+      if (!队伍成员.length && 默认角色名) {
+        加入成员(默认角色名);
+      }
+      return 队伍成员;
     }
 
     function validateSoulTowerCombatRoster(combatData = {}) {
@@ -907,6 +987,7 @@ class BattleUIComponent {
       '关卡范围',
       '关底战',
       '魂灵塔待结算',
+      '试炼状态',
     ];
 
     const COMBAT_WORLD_TRANSIENT_KEYS = [
@@ -2909,95 +2990,67 @@ class BattleUIComponent {
     }
 
     function resolveBattleSkillDirectionSelection(skill = {}, context = {}) {
-      const runtimeMeta = getSkillRuntimeMeta(skill);
-      const directionList = Array.isArray(runtimeMeta?.方向配置列表) ? runtimeMeta.方向配置列表 : [];
-      if (!directionList.length) {
-        return { 方向ID: '', 方向配置: null, 自动切换规则: [], 命中规则: null, 是否自动切换: false };
-      }
-      const directionIdSet = new Set(directionList.map(item => String(item?.方向ID || '').trim()).filter(Boolean));
-      const preferredDirectionId = String(
-        context?.方向ID || skill?._runtime_施放方向ID || skill?._runtime_方向ID || directionList[0]?.方向ID || '',
-      ).trim();
-      const defaultDirectionId = directionIdSet.has(preferredDirectionId)
-        ? preferredDirectionId
-        : String(directionList[0]?.方向ID || '').trim();
-      const rules = Array.isArray(runtimeMeta?.自动切换规则) ? runtimeMeta.自动切换规则 : [];
-      const trigger = String(context?.触发时机 || '施放前').trim() || '施放前';
-      const matchedRule = rules.find(rule => {
-        if (String(rule?.触发时机 || '施放前').trim() !== trigger) return false;
-        if (!directionIdSet.has(String(rule?.切换至方向ID || '').trim())) return false;
-        return isBattleDirectionRuleConditionMatched(rule, context);
-      }) || null;
-      const resolvedDirectionId = matchedRule
-        ? String(matchedRule.切换至方向ID || defaultDirectionId).trim()
-        : defaultDirectionId;
-      const directionEntry =
-        directionList.find(item => String(item?.方向ID || '').trim() === resolvedDirectionId) || directionList[0] || null;
-      return {
-        方向ID: resolvedDirectionId,
-        方向配置: directionEntry,
-        自动切换规则: rules,
-        命中规则: matchedRule,
-        是否自动切换: !!matchedRule && resolvedDirectionId !== defaultDirectionId,
-      };
+      void skill;
+      void context;
+      return { 方向ID: '', 方向配置: null, 自动切换规则: [], 命中规则: null, 是否自动切换: false };
     }
 
-    function pickBattleSkillDirectionForAi(skill = {}, context = {}) {
-      const runtimeMeta = getSkillRuntimeMeta(skill);
-      const directionList = Array.isArray(runtimeMeta?.方向配置列表) ? runtimeMeta.方向配置列表 : [];
-      if (!directionList.length) return '';
-      const actor = context?.actor || null;
-      const target = context?.target || null;
-      const selfHpRatio = getBattleDirectionRuleHpRatio(actor);
-      const enemyAgi = Number(target?.agi ?? target?.final?.agi ?? 0);
-      const selfAgi = Number(actor?.agi ?? actor?.final?.agi ?? 0);
-      const chargingThreat = !!context?.高威胁窗口;
-      let best = { id: String(directionList[0]?.方向ID || '').trim(), weight: -Infinity };
-      directionList.forEach(item => {
-        const directionId = String(item?.方向ID || '').trim();
-        if (!directionId) return;
-        const semantic = String(item?.方向目标语义 || '上下文').trim() || '上下文';
-        const mechanismSet = new Set(
-          (Array.isArray(item?.方向效果数组) ? item.方向效果数组 : []).map(effect => String(effect?.机制 || '').trim()).filter(Boolean),
+    function collectBattleSkillBranchList(skill = {}) {
+      const 效果列表 = Array.isArray(skill?._效果数组) ? skill._效果数组 : [];
+      return Array.from(new Set(
+        效果列表
+          .map(effect => String(effect?.分支标记 || '').trim())
+          .filter(Boolean),
+      ));
+    }
+
+    function pickBattleSkillBranchForAi(skill = {}, context = {}) {
+      const 分支列表 = collectBattleSkillBranchList(skill);
+      if (!分支列表.length) return '';
+      const 施术者 = context?.actor || null;
+      const 目标 = context?.target || null;
+      const 自身血量比 = getBattleDirectionRuleHpRatio(施术者);
+      const 目标敏捷 = Number(目标?.agi ?? 目标?.final?.agi ?? 0);
+      const 自身敏捷 = Number(施术者?.agi ?? 施术者?.final?.agi ?? 0);
+      const 高威胁窗口 = !!context?.高威胁窗口;
+      let 最优分支 = { id: 分支列表[0], weight: -Infinity };
+      分支列表.forEach(分支标记 => {
+        const 分支效果列表 = (Array.isArray(skill?._效果数组) ? skill._效果数组 : []).filter(effect =>
+          String(effect?.分支标记 || '').trim() === 分支标记,
         );
-        const isBuff = ['属性变化', '持续恢复', '护盾', '减伤', '无敌金身', '伤害分摊', '伤害反射', '替身抵消', '复苏', '能力共享'].some(name => mechanismSet.has(name));
-        const isDebuff = ['软控', '硬控', '位移限制', '封技', '治疗反转', '机制抹消', '吞噬', '斩盾', '引爆持续伤害', '窃取护盾', '状态转移'].some(name => mechanismSet.has(name));
-        const isLock = ['硬控', '位移限制', '封技', '破隐', '目标锁定'].some(name => mechanismSet.has(name));
-        let weight = 10;
-        if (semantic === '敌对') weight += 8;
-        if (semantic === '可赋予') weight += 4;
-        if (selfHpRatio < 0.4 && (isBuff || semantic === '可赋予')) weight += 24;
-        if (chargingThreat && (isDebuff || isLock)) weight += 22;
-        if (enemyAgi > Math.max(1, selfAgi) * 1.08 && isLock) weight += 14;
-        if (selfHpRatio > 0.7 && isDebuff) weight += 8;
-        if (weight > best.weight) best = { id: directionId, weight };
+        const 分支机制集合 = new Set(分支效果列表.map(effect => String(effect?.机制 || '').trim()).filter(Boolean));
+        const 是否增益分支 = ['属性变化', '持续恢复', '护盾', '减伤', '无敌金身', '伤害分摊', '伤害反射', '替身抵消', '复苏', '能力共享'].some(name => 分支机制集合.has(name));
+        const 是否压制分支 = ['软控', '硬控', '位移限制', '封技', '治疗反转', '机制抹消', '吞噬', '斩盾', '引爆持续伤害', '窃取护盾', '状态转移'].some(name => 分支机制集合.has(name));
+        const 是否锁定分支 = ['硬控', '位移限制', '封技', '破隐', '目标锁定'].some(name => 分支机制集合.has(name));
+        let 权重 = 10;
+        if (自身血量比 < 0.4 && 是否增益分支) 权重 += 24;
+        if (高威胁窗口 && (是否压制分支 || 是否锁定分支)) 权重 += 22;
+        if (目标敏捷 > Math.max(1, 自身敏捷) * 1.08 && 是否锁定分支) 权重 += 14;
+        if (自身血量比 > 0.7 && 是否压制分支) 权重 += 8;
+        if (权重 > 最优分支.weight) 最优分支 = { id: 分支标记, weight: 权重 };
       });
-      return best.id || String(directionList[0]?.方向ID || '').trim();
+      return String(最优分支.id || 分支列表[0] || '').trim();
     }
 
     function getSkillEffects(skill) {
       const runtimeMeta = getSkillRuntimeMeta(skill);
-      const directionList = Array.isArray(runtimeMeta?.方向配置列表) ? runtimeMeta.方向配置列表 : [];
-      if (directionList.length > 0) {
-        const selectedDirectionId = String(
-          skill?._runtime_施放方向ID || skill?._runtime_方向ID || directionList[0]?.方向ID || '',
-        ).trim();
-        const selectedDirection =
-          directionList.find(item => String(item?.方向ID || '').trim() === selectedDirectionId) || directionList[0];
-        if (selectedDirection && Array.isArray(selectedDirection.方向效果数组) && selectedDirection.方向效果数组.length > 0) {
-          return normalizeBattleDirectionEffectList(selectedDirection.方向效果数组, runtimeMeta?.目标模型 || '敌方单体');
-        }
-      }
-      const rawEffects = (Array.isArray(skill?._效果数组) ? skill._效果数组 : []).filter(effect => effect?.机制 !== '系统基础');
-      const creationEffects = rawEffects.filter(effect =>
+      const 原始效果列表 = (Array.isArray(skill?._效果数组) ? skill._效果数组 : []).filter(effect => effect?.机制 !== '系统基础');
+      const 造物效果列表 = 原始效果列表.filter(effect =>
         ['生成造物', '造物生成'].includes(String(effect?.机制 || '')),
       );
-      if (!creationEffects.length)
-        return rawEffects
-          .map(effect => hydrateBattleExecutionEffectEntry(effect, runtimeMeta?.目标模型 || '敌方单体'))
-          .filter(Boolean);
-      const usageEffects = creationEffects.flatMap(effect => (Array.isArray(effect?.使用效果) ? effect.使用效果 : []));
-      return usageEffects
+      const 来源效果列表 = 造物效果列表.length
+        ? 造物效果列表.flatMap(effect => (Array.isArray(effect?.使用效果) ? effect.使用效果 : []))
+        : 原始效果列表;
+      const 分支列表 = Array.from(new Set(来源效果列表.map(effect => String(effect?.分支标记 || '').trim()).filter(Boolean)));
+      const 已选分支 = String(skill?._runtime_分支标记 || '').trim();
+      const 生效分支 = 分支列表.includes(已选分支) ? 已选分支 : (分支列表[0] || '');
+      const 生效效果列表 = 生效分支
+        ? 来源效果列表.filter(effect => {
+            const 分支 = String(effect?.分支标记 || '').trim();
+            return !分支 || 分支 === 生效分支;
+          })
+        : 来源效果列表;
+      return 生效效果列表
         .map(effect => hydrateBattleExecutionEffectEntry(effect, runtimeMeta?.目标模型 || '敌方单体'))
         .filter(Boolean);
     }
@@ -3836,16 +3889,12 @@ class BattleUIComponent {
       const baseCost =
         typeof baseCostRaw === 'object' ? formatCostObjectToString(baseCostRaw) : String(baseCostRaw || '无').trim() || '无';
       const baseCastTime = Number(systemBase?.cast_time ?? 0) || 0;
-      const directionList = normalizeBattleDirectionConfigList(systemBase?.方向配置列表 || [], baseTargetModel);
-      const directionRules = normalizeBattleDirectionRuleList(systemBase?.自动切换规则 || [], directionList);
       return {
         技能来源: String(systemBase?.技能来源 || '魂技').trim() || '魂技',
         技能类型: normalizeSkillTypeLabel(baseType || '无'),
         目标模型: baseTargetModel,
         目标规模: baseTargetScale,
         阵营判定: '自动',
-        方向配置列表: directionList,
-        自动切换规则: directionRules,
         目标修饰: baseTargetModifiers,
         结算策略: baseResolutionStrategy,
         对象: baseTarget,
@@ -5476,14 +5525,6 @@ class BattleUIComponent {
         existingSystemBase.结算策略 = String(
           existingSystemBase.结算策略 || deriveBattleTargetResolutionStrategy(runtimeTargetModel),
         ).trim() || '单目标独立';
-        existingSystemBase.方向配置列表 = normalizeBattleDirectionConfigList(
-          existingSystemBase.方向配置列表 || [],
-          runtimeTargetModel,
-        );
-        existingSystemBase.自动切换规则 = normalizeBattleDirectionRuleList(
-          existingSystemBase.自动切换规则 || [],
-          existingSystemBase.方向配置列表,
-        );
         existingSystemBase.cast_time = Number(existingSystemBase.cast_time ?? normalized.cast_time ?? 0) || 0;
         existingSystemBase.消耗 =
           existingSystemBase.消耗 === undefined
@@ -5514,8 +5555,6 @@ class BattleUIComponent {
           技能来源: normalized.技能来源 || normalized.source_tag || '魂技',
           消耗: '无',
           目标模型: normalizeBattleSkillTargetModel(normalized.对象 || explicitSemanticTarget || '敌方单体', '敌方单体'),
-          方向配置列表: [],
-          自动切换规则: [],
           结算策略: deriveBattleTargetResolutionStrategy(normalizeBattleSkillTargetModel(normalized.对象 || explicitSemanticTarget || '敌方单体', '敌方单体')),
           技能类型: normalized.技能类型,
           cast_time: normalized.cast_time,
@@ -5900,14 +5939,37 @@ class BattleUIComponent {
 
     function pushUnifiedSkillMapEntries(skills, skillMap, sourceTag, options = {}) {
       const { includePassive = false, includeActive = true } = options;
+      const 展开技能分支候选 = skill => {
+        const 原技能 = skill && typeof skill === 'object' ? skill : null;
+        if (!原技能) return [];
+        const 原始效果列表 = Array.isArray(原技能._效果数组) ? 原技能._效果数组 : [];
+        const 分支列表 = Array.from(new Set(
+          原始效果列表
+            .map(effect => String(effect?.分支标记 || '').trim())
+            .filter(Boolean),
+        ));
+        if (!分支列表.length) return [原技能];
+        const 基础名称 = String(原技能.name || 原技能.魂技名 || 原技能.技能名称 || '未命名技能').trim() || '未命名技能';
+        return 分支列表.map(分支标记 => {
+          const 克隆技能 = deepClonePlain(原技能);
+          克隆技能._runtime_分支标记 = 分支标记;
+          克隆技能._runtime_分支展示名 = `${基础名称}·${分支标记}`;
+          克隆技能.name = `${基础名称}·${分支标记}`;
+          克隆技能.魂技名 = 克隆技能.name;
+          return 克隆技能;
+        });
+      };
       Object.entries(skillMap || {}).forEach(([skillName, skillData]) => {
         if (!skillData || skillData?.状态 === '未生成') return;
-        const nSkill = normalizeSkillData(skillData, skillName);
-        const isPassive = isPassiveSkillData(nSkill);
-        if (isPassive && !includePassive) return;
-        if (!isPassive && !includeActive) return;
-        nSkill.source_tag = sourceTag;
-        skills.push(nSkill);
+        const 标准技能 = normalizeSkillData(skillData, skillName);
+        const 分支候选列表 = 展开技能分支候选(标准技能);
+        分支候选列表.forEach(候选技能 => {
+          const 是否被动 = isPassiveSkillData(候选技能);
+          if (是否被动 && !includePassive) return;
+          if (!是否被动 && !includeActive) return;
+          候选技能.source_tag = sourceTag;
+          skills.push(候选技能);
+        });
       });
     }
 
@@ -5948,13 +6010,28 @@ class BattleUIComponent {
         const 融合可用性 = 获取融合技能可用性(charData, fusionSkill, alliedTeam);
         if (!融合可用性.可用 && !collectOptions.includeUnavailableFusion) return;
         const nSkill = buildFusionCombatSkill(fusionSkill, fusionName, charData);
-        nSkill.__融合可用 = !!融合可用性.可用;
-        nSkill.__融合不可用原因 = String(融合可用性.原因 || '');
-        nSkill.__融合相关度总分 = Number(融合可用性.相关度总分 || nSkill.__融合相关度总分 || 0);
-        const isPassive = isPassiveSkillData(nSkill);
-        if (isPassive && !collectOptions.includePassive) return;
-        if (!isPassive && !collectOptions.includeActive) return;
-        skills.push(nSkill);
+        const 原始效果列表 = Array.isArray(nSkill?._效果数组) ? nSkill._效果数组 : [];
+        const 分支列表 = Array.from(new Set(原始效果列表.map(effect => String(effect?.分支标记 || '').trim()).filter(Boolean)));
+        const 候选技能列表 = 分支列表.length
+          ? 分支列表.map(branchId => {
+              const 克隆技能 = deepClonePlain(nSkill);
+              const 基础名称 = String(克隆技能.name || 克隆技能.魂技名 || fusionName).trim() || fusionName;
+              克隆技能._runtime_分支标记 = branchId;
+              克隆技能._runtime_分支展示名 = `${基础名称}·${branchId}`;
+              克隆技能.name = `${基础名称}·${branchId}`;
+              克隆技能.魂技名 = 克隆技能.name;
+              return 克隆技能;
+            })
+          : [nSkill];
+        候选技能列表.forEach(技能项 => {
+          技能项.__融合可用 = !!融合可用性.可用;
+          技能项.__融合不可用原因 = String(融合可用性.原因 || '');
+          技能项.__融合相关度总分 = Number(融合可用性.相关度总分 || 技能项.__融合相关度总分 || 0);
+          const 是否被动 = isPassiveSkillData(技能项);
+          if (是否被动 && !collectOptions.includePassive) return;
+          if (!是否被动 && !collectOptions.includeActive) return;
+          skills.push(技能项);
+        });
       });
 
       return skills;
@@ -6334,15 +6411,6 @@ class BattleUIComponent {
 
     function resolveSkillTargetContext(skill, attacker, defender, combatData, effect = null) {
       const runtimeMeta = getSkillRuntimeMeta(skill);
-      const directionList = Array.isArray(runtimeMeta?.方向配置列表) ? runtimeMeta.方向配置列表 : [];
-      const selectedDirectionId = String(
-        skill?._runtime_施放方向ID || skill?._runtime_方向ID || directionList[0]?.方向ID || '',
-      ).trim();
-      const selectedDirection =
-        directionList.find(item => String(item?.方向ID || '').trim() === selectedDirectionId) || directionList[0] || null;
-      const directionTargetSemantic = String(
-        effect?.方向目标语义 || selectedDirection?.方向目标语义 || '上下文',
-      ).trim() || '上下文';
       const baseTargetScale = normalizeBattleSkillTargetScale(
         effect?.目标规模 || runtimeMeta?.目标规模 || '',
         deriveBattleSkillTargetScaleFromModel(effect?.目标模型 || runtimeMeta.目标模型 || '敌方单体'),
@@ -6351,11 +6419,6 @@ class BattleUIComponent {
       let baseTargetModel = explicitTargetText
         ? inferBattleTargetModelFromLegacyTarget(explicitTargetText)
         : normalizeBattleSkillTargetModel(effect?.目标模型 || runtimeMeta.目标模型 || '敌方单体', '敌方单体');
-      const directionSemanticOverrideEnabled =
-        !!selectedDirection && ['可赋予', '敌对', '仅自身'].includes(directionTargetSemantic);
-      if (directionSemanticOverrideEnabled || !explicitTargetText) {
-        baseTargetModel = resolveBattleDirectionSemanticTargetModel(directionTargetSemantic, baseTargetScale, baseTargetModel);
-      }
       const targetModifiers = normalizeBattleSkillTargetModifiers(
         Array.isArray(effect?.目标修饰) && effect.目标修饰.length
           ? effect.目标修饰
@@ -6435,8 +6498,8 @@ class BattleUIComponent {
       return {
         targetModel: effectiveTargetModel,
         targetScale: baseTargetScale,
-        directionId: selectedDirection ? String(selectedDirection.方向ID || '').trim() : '',
-        directionSemantic: directionTargetSemantic,
+        directionId: '',
+        directionSemantic: '上下文',
         targetModifiers,
         resolutionStrategy,
         targetText,
@@ -8269,7 +8332,6 @@ class BattleUIComponent {
         const attackerName = String(
           attackerChar?.name || combatData?.参战者?.player?.name || preferredPlayerName || '',
         ).trim();
-        const attackerPath = `/char/${escapeJsonPointerSegment(attackerName)}`;
         let inventory = (attackerName ? window.BattleUIBridge?.getMVU(`char.${attackerName}.背包`) : null) || {};
         const currentTick = Number(window.BattleUIBridge?.getMVU('world.时间.tick') || 0);
         const defenderFlags = getCombatTargetSpeciesFlags(defenderChar);
@@ -8397,31 +8459,71 @@ class BattleUIComponent {
 
         if (combatType === '升灵台虚拟战斗') {
           if (isVictoryOutcome) {
-            let killedAge = combatData.killed_age || defenderStats.age || 100;
-            let partySize = combatData.party_size || 1;
-            let ticket = combatData.ascension_ticket || '初级升灵台门票';
-            let maxAge = ticket === '高级升灵台门票' ? 100000 : ticket === '中级升灵台门票' ? 20000 : 3000;
-            killedAge = Math.min(killedAge, maxAge);
-
-            let rings = Object.keys(attackerChar.魂环 || {});
-            let totalRings = rings.length;
-            if (totalRings > 0) {
-              let gain = Math.floor(killedAge / partySize / totalRings);
-              log = `[升灵台结算] 击溃虚拟魂兽！化为纯净修为能量涌入体内(${partySize}人平分)，拥有 ${totalRings} 个魂环均获得大约 ${gain} 年修为提升！(请 AI 描写吸收能量的画面)`;
-              rings.forEach(rIndex => {
-                const oldAge = attackerChar.魂环[rIndex].年限 || 10;
+            const ticket = combatData.ascension_ticket || '初级升灵台门票';
+            const ticketRange = getAscensionTicketAgeRange(ticket);
+            const riotPeriod = isAscensionRiotTicket(ticket);
+            const defenderIsSoulMaster = isCombatUnitSoulMaster(defenderChar);
+            let killedAge = Math.max(
+              ticketRange.min,
+              Math.min(ticketRange.max, Number(combatData.killed_age || defenderStats.age || ticketRange.min || 100)),
+            );
+            const 结算队伍 = 获取升灵台结算队伍(combatData, attackerName);
+            const 参与人数 = Math.max(1, 结算队伍.length);
+            const ticketPercent = ticketRange.max > ticketRange.min
+              ? (killedAge - ticketRange.min) / (ticketRange.max - ticketRange.min)
+              : 0;
+            const rewardMultiplier = defenderIsSoulMaster
+              ? (riotPeriod ? getAscensionRiotRewardMultiplier(ticketPercent) : 0)
+              : 1;
+            const 非暴动期魂师战 = defenderIsSoulMaster && !riotPeriod;
+            let 可结算成员数 = 0;
+            let 无魂环成员数 = 0;
+            let 有效增益样本 = 0;
+            结算队伍.forEach(成员 => {
+              const 魂环表 = 成员.角色数据?.魂环 && typeof 成员.角色数据.魂环 === 'object'
+                ? 成员.角色数据.魂环
+                : {};
+              const 魂环序号列表 = Object.keys(魂环表).filter(魂环序号 => 魂环表[魂环序号] && typeof 魂环表[魂环序号] === 'object');
+              if (!魂环序号列表.length) {
+                无魂环成员数 += 1;
+                return;
+              }
+              可结算成员数 += 1;
+              let 成员增益 = 非暴动期魂师战 ? 0 : Math.floor((killedAge / 参与人数 / 魂环序号列表.length) * rewardMultiplier);
+              if (!Number.isFinite(成员增益) || 成员增益 < 0) 成员增益 = 0;
+              有效增益样本 += 成员增益;
+              魂环序号列表.forEach(魂环序号 => {
+                const 旧年限原值 = Number(魂环表[魂环序号]?.年限);
+                const 旧年限 = Number.isFinite(旧年限原值) && 旧年限原值 > 0 ? Math.floor(旧年限原值) : 10;
                 extraPatchOps.push({
                   op: 'replace',
-                  path: `${attackerPath}/魂环/${rIndex}/年限`,
-                  value: oldAge + gain,
+                  path: `/char/${escapeJsonPointerSegment(成员.角色键)}/魂环/${魂环序号}/年限`,
+                  value: 旧年限 + 成员增益,
                 });
               });
+            });
+            const 增益摘要 = 可结算成员数 > 0
+              ? `可结算成员${可结算成员数}人，单成员单魂环平均增益约 ${Math.floor(有效增益样本 / 可结算成员数)} 年`
+              : '全队暂无可结算魂环';
+            const 无魂环摘要 = 无魂环成员数 > 0 ? `，${无魂环成员数}名成员无魂环未吸收` : '';
+            if (非暴动期魂师战) {
+              log = `[升灵台结算] 队伍击败了魂师，但当前非暴动期，全队不结算升灵奖励。`;
+            } else if (defenderIsSoulMaster) {
+              log = `[升灵台结算] 队伍击败暴动期魂师！对手处于档位区间${Math.round(ticketPercent * 100)}%，倍率约 ${rewardMultiplier.toFixed(2)} 倍；${增益摘要}${无魂环摘要}。`;
             } else {
-              log = `[升灵台结算] 虚拟魂兽已被击溃！但玩家尚未拥有魂环，无法吸收升灵能量，能量缓缓消散...`;
+              log = `[升灵台结算] 虚拟魂兽被击溃，升灵能量按队伍(${参与人数}人)平分；${增益摘要}${无魂环摘要}。`;
             }
+            const 升灵台退出补丁 = 构建角色位置补丁(attackerName, 升灵台退出地点);
+            if (升灵台退出补丁) extraPatchOps.push(升灵台退出补丁);
+            combatData.试炼状态 = '';
+            extraPatchOps.push(构建试炼状态补丁(''));
           } else if (outcome.isDefeat === true || isDrawOutcome) {
             log = `[升灵台保护] 玩家受到致命创伤，升灵台保护机制触发！一道接引光芒落下，强制将其弹出升灵台。(虚拟战败，无实质损伤，但终止了本次历练)`;
             设置战斗血量值(attackerChar, 1);
+            const 升灵台退出补丁 = 构建角色位置补丁(attackerName, 升灵台退出地点);
+            if (升灵台退出补丁) extraPatchOps.push(升灵台退出补丁);
+            combatData.试炼状态 = '';
+            extraPatchOps.push(构建试炼状态补丁(''));
           } else {
             log = `[升灵台仲裁] 本次交锋暂未分出胜负，升灵台能量回路仍在持续运转。`;
           }
@@ -8441,6 +8543,10 @@ class BattleUIComponent {
           } else if (outcome.isDefeat === true || isDrawOutcome) {
             log = `💀[冲塔失败] 玩家遭到 ${defenderName} 重创，魂灵塔阵法排斥之力发动，将其强行传送出塔外！(请 AI 描写重伤弹出塔外的虚弱状态)`;
             设置战斗血量值(attackerChar, 1);
+            const 魂灵塔退出补丁 = 构建角色位置补丁(attackerName, 魂灵塔退出地点);
+            if (魂灵塔退出补丁) extraPatchOps.push(魂灵塔退出补丁);
+            combatData.试炼状态 = '';
+            extraPatchOps.push(构建试炼状态补丁(''));
           } else {
             log = `[冲塔仲裁] 本次交锋尚未形成通关结果，魂灵塔考核仍在继续。`;
           }
@@ -9165,6 +9271,49 @@ class BattleUIComponent {
         };
       }
 
+      function isCombatUnitSoulMaster(char = {}) {
+        const unitNature = String(char?.单位性质 || '').trim();
+        const identity = String(char?.身份 || '').trim();
+        const stats = char?.属性 && typeof char.属性 === 'object' ? char.属性 : char || {};
+        return (
+          unitNature === '人类' &&
+          identity === '魂师' &&
+          stats?.普通人 !== true
+        );
+      }
+
+      function parseAscensionTicketTier(ticket = '') {
+        const text = String(ticket || '').trim();
+        if (/高级/.test(text)) return '高级';
+        if (/中级/.test(text)) return '中级';
+        return '初级';
+      }
+
+      function isAscensionRiotTicket(ticket = '') {
+        return /暴动期/.test(String(ticket || ''));
+      }
+
+      function getAscensionTicketAgeRange(ticket = '') {
+        const tier = parseAscensionTicketTier(ticket);
+        const map = {
+          初级: { min: 100, max: 3000 },
+          中级: { min: 3000, max: 20000 },
+          高级: { min: 20000, max: 100000 },
+        };
+        return map[tier] || map.初级;
+      }
+
+      function getAscensionRiotRewardMultiplier(percent = 0) {
+        const safePercent = Math.max(0, Math.min(1, Number(percent) || 0));
+        if (safePercent <= 0.1) return 5;
+        if (safePercent <= 0.2) return 4;
+        if (safePercent <= 0.5) {
+          const t = (safePercent - 0.2) / 0.3;
+          return 4 - t * 3;
+        }
+        return 1;
+      }
+
       function isCombatUnitEvilSoulMaster(char = {}) {
         const stats = char?.属性 && typeof char.属性 === 'object' ? char.属性 : char || {};
         const social = char?.社交 && typeof char.社交 === 'object' ? char.社交 : {};
@@ -9190,22 +9339,24 @@ class BattleUIComponent {
         );
       }
 
-      function normalizeBattleObjectDiffMatchToken(value = '') {
-        const text = String(value || '').trim();
-        if (!text) return '';
-        if (['自身', '施术者', '自己', '本体', '自体'].includes(text)) return '自身';
-        if (['友方', '己方', '队友', '同伴'].includes(text)) return '友方';
-        if (['敌方', '对手', '目标方', '对面'].includes(text)) return '敌方';
-        if (['邪魂师', '邪魂'].includes(text)) return '邪魂师';
-        if (['深渊生物', '深渊'].includes(text)) return '深渊生物';
-        if (['魂兽', '魂兽类'].includes(text)) return '魂兽';
+    function normalizeBattleObjectDiffMatchToken(value = '') {
+      const text = String(value || '').trim();
+      if (!text) return '';
+      if (['自身', '施术者', '自己', '本体', '自体'].includes(text)) return '自身';
+      if (['友方', '己方', '队友', '同伴'].includes(text)) return '友方';
+      if (['敌方', '对手', '目标方', '对面'].includes(text)) return '敌方';
+      if (['邪魂师', '邪魂'].includes(text)) return '邪魂师';
+      if (['深渊生物', '深渊'].includes(text)) return '深渊生物';
+      if (['魂兽', '魂兽类'].includes(text)) return '魂兽';
+      if (['施术者低血量', '施术者高血量', '目标低血量', '目标高血量', '目标有状态', '目标无状态', '目标有护盾', '目标无护盾'].includes(text))
         return text;
-      }
+      return '';
+    }
 
-      function normalizeBattleObjectDiffMatchList(value = '') {
-        const source = Array.isArray(value) ? value : [value];
-        return Array.from(
-          new Set(
+    function normalizeBattleObjectDiffMatchList(value = '') {
+      const source = Array.isArray(value) ? value : [value];
+      return Array.from(
+        new Set(
             source
               .flatMap(item =>
                 String(item || '')
@@ -9215,16 +9366,32 @@ class BattleUIComponent {
               )
               .filter(Boolean),
           ),
-        );
-      }
+      );
+    }
 
-      function normalizeBattleObjectDiffRuleEntry(value = {}, index = 0) {
-        if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-        void index;
-        const action = String(value.处理 || value.动作 || value.action || '覆盖').trim() || '覆盖';
-        const conditionSource = value.条件 ?? '';
-        const matchList = normalizeBattleObjectDiffMatchList(conditionSource);
-        if (!matchList.length) return null;
+    const BATTLE_OBJECT_DIFF_ACTION_OPTIONS = new Set([
+      '覆盖',
+      '禁用',
+      '转为伤害',
+      '替换机制',
+      '倍率提升',
+      '倍率压制',
+      '持续延长',
+      '持续缩短',
+      '改为自身',
+      '改为友方',
+      '改为敌方',
+      '附加状态',
+    ]);
+
+    function normalizeBattleObjectDiffRuleEntry(value = {}, index = 0) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+      void index;
+      const actionRaw = String(value.处理 || value.动作 || value.action || '覆盖').trim() || '覆盖';
+      const action = BATTLE_OBJECT_DIFF_ACTION_OPTIONS.has(actionRaw) ? actionRaw : '覆盖';
+      const conditionSource = value.条件 ?? '';
+      const matchList = normalizeBattleObjectDiffMatchList(conditionSource);
+      if (!matchList.length) return null;
         const rule = {
           匹配: matchList,
           处理: action,
@@ -9266,6 +9433,42 @@ class BattleUIComponent {
         const ruleParams = rule.参数 && typeof rule.参数 === 'object' && !Array.isArray(rule.参数) ? rule.参数 : {};
         nextEffect.对象差异命中规则 = Array.isArray(rule.匹配) ? rule.匹配.join('/') : '';
         nextEffect.对象差异处理 = String(rule.处理 || '').trim() || '覆盖';
+        if (nextEffect.对象差异处理 === '倍率提升') {
+          const scale = Number.isFinite(Number(ruleParams.数值倍率)) ? Number(ruleParams.数值倍率) : 1.2;
+          ruleParams.数值倍率 = Math.max(1, Number(scale.toFixed(4)));
+        }
+        if (nextEffect.对象差异处理 === '倍率压制') {
+          const scale = Number.isFinite(Number(ruleParams.数值倍率)) ? Number(ruleParams.数值倍率) : 0.8;
+          ruleParams.数值倍率 = Math.max(0, Math.min(1, Number(scale.toFixed(4))));
+        }
+        if (nextEffect.对象差异处理 === '持续延长') {
+          const extra = Math.max(1, Math.round(Number(ruleParams.持续回合增量 || 1)));
+          const baseDuration = Math.max(0, Math.round(Number(nextEffect.持续回合 || 0)));
+          nextEffect.持续回合 = baseDuration + extra;
+        }
+        if (nextEffect.对象差异处理 === '持续缩短') {
+          const reduce = Math.max(1, Math.round(Number(ruleParams.持续回合减量 || 1)));
+          const baseDuration = Math.max(0, Math.round(Number(nextEffect.持续回合 || 0)));
+          nextEffect.持续回合 = Math.max(0, baseDuration - reduce);
+        }
+        if (nextEffect.对象差异处理 === '改为自身') {
+          nextEffect.目标模型 = '自身';
+          nextEffect.目标 = '自身';
+          nextEffect.对象 = '自身';
+        }
+        if (nextEffect.对象差异处理 === '改为友方') {
+          nextEffect.目标模型 = '友方单体';
+          nextEffect.目标 = '友方单体';
+          nextEffect.对象 = '友方单体';
+        }
+        if (nextEffect.对象差异处理 === '改为敌方') {
+          nextEffect.目标模型 = '敌方单体';
+          nextEffect.目标 = '敌方单体';
+          nextEffect.对象 = '敌方单体';
+        }
+        if (nextEffect.对象差异处理 === '附加状态' && String(ruleParams.状态名称 || '').trim()) {
+          nextEffect.附加状态名称 = String(ruleParams.状态名称 || '').trim();
+        }
         if (nextEffect.对象差异处理 === '禁用') return nextEffect;
         if (nextEffect.对象差异处理 === '替换机制' && ruleParams.替换机制) {
           nextEffect.机制 = String(ruleParams.替换机制 || nextEffect.机制 || '').trim() || nextEffect.机制;
@@ -9326,6 +9529,23 @@ class BattleUIComponent {
           };
         }
         const tagSet = buildBattleObjectDiffTagSet(caster, target, targetContext);
+        const casterHpRatio = getCombatHpRatio(caster);
+        const targetHpRatio = getCombatHpRatio(target);
+        if (casterHpRatio <= 0.35) tagSet.add('施术者低血量');
+        if (casterHpRatio >= 0.7) tagSet.add('施术者高血量');
+        if (targetHpRatio <= 0.35) tagSet.add('目标低血量');
+        if (targetHpRatio >= 0.7) tagSet.add('目标高血量');
+        const targetStateMap = target?.状态效果 && typeof target.状态效果 === 'object' ? target.状态效果 : {};
+        if (Object.keys(targetStateMap).length > 0) tagSet.add('目标有状态');
+        else tagSet.add('目标无状态');
+        const hasShield = Object.entries(targetStateMap).some(([_, state]) => {
+          const cond = state && typeof state === 'object' ? state : {};
+          const shieldVal = Number(cond?.shield_value || cond?.shield || 0);
+          const typeText = String(cond?.类型 || '').trim();
+          return shieldVal > 0 || /护盾/.test(typeText);
+        });
+        if (hasShield) tagSet.add('目标有护盾');
+        else tagSet.add('目标无护盾');
         const matchedRule =
           rules.find(rule => Array.isArray(rule?.匹配) && rule.匹配.some(tag => tagSet.has(normalizeBattleObjectDiffMatchToken(tag)))) ||
           null;
@@ -9673,22 +9893,8 @@ class BattleUIComponent {
           );
         }
 
-        const 施放前方向选择 = resolveBattleSkillDirectionSelection(playerAction.skill, {
-          触发时机: '施放前',
-          attacker,
-          defender,
-          方向ID: String(playerAction?.方向ID || playerAction?.skill?._runtime_方向ID || '').trim(),
-          记录触发: true,
-        });
-        if (施放前方向选择.方向配置) {
-          playerAction.skill._runtime_施放方向ID = 施放前方向选择.方向ID;
-          if (施放前方向选择.命中规则) {
-            const 条件文本 = String(施放前方向选择.命中规则?.条件 || 施放前方向选择.命中规则?.触发时机 || '自动切换').trim();
-            result.desc += ` [方向切换] 命中规则[${条件文本}]，切换至${施放前方向选择.方向ID}。`;
-          } else {
-            result.desc += ` [方向选择] 当前使用${施放前方向选择.方向ID}。`;
-          }
-        }
+        const 施放分支 = String(playerAction?.分支标记 || playerAction?.skill?._runtime_分支标记 || '').trim();
+        if (施放分支) result.desc += ` [分支选择] 当前使用${施放分支}。`;
 
         const getEffect = (sk, types) => getSkillEffects(sk).find(e => types.includes(e.机制)) || {};
 
@@ -10148,17 +10354,6 @@ class BattleUIComponent {
           result.desc += ` [融合共鸣] 武魂交叠后的极限共振将杀伤再度推高。`;
         }
         refreshSettleResultProjectedDamage(result);
-        const 命中后方向选择 = resolveBattleSkillDirectionSelection(playerAction.skill, {
-          触发时机: '命中后',
-          attacker,
-          defender,
-          命中成功: Number(result.totalProjectedDamage || 0) > 0,
-          记录触发: true,
-        });
-        if (命中后方向选择.方向配置 && 命中后方向选择.命中规则) {
-          playerAction.skill._runtime_方向ID = 命中后方向选择.方向ID;
-          result.desc += ` [自动补切换] 已切至${命中后方向选择.方向ID}，下次施放生效。`;
-        }
         result = applyHighTierMechanics(attacker, defender, playerAction, result);
 
         if (directSelfSacrificeEffect && Number(directSelfSacrificeEffect.体力代价 || 0) > 0) {
@@ -11844,20 +12039,15 @@ class BattleUIComponent {
               else if (summary.保留倾向 >= 40 && !(isChargingHighThreat || enemyHpRatio < 0.45 || selfHpRatio < 0.45))
                 weight -= 15;
 
-              const aiDirectionId = pickBattleSkillDirectionForAi(skill, {
+              const aiBranchId = pickBattleSkillBranchForAi(skill, {
                 actor: defender,
                 target: attacker,
                 高威胁窗口: isChargingHighThreat,
               });
-              if (aiDirectionId) {
-                const directionMeta = getSkillRuntimeMeta(skill);
-                const directionEntry =
-                  (Array.isArray(directionMeta?.方向配置列表) ? directionMeta.方向配置列表 : []).find(
-                    item => String(item?.方向ID || '').trim() === aiDirectionId,
-                  ) || null;
-                const directionSemantic = String(directionEntry?.方向目标语义 || '').trim();
+              if (aiBranchId) {
                 const directionMechanismSet = new Set(
-                  (Array.isArray(directionEntry?.方向效果数组) ? directionEntry.方向效果数组 : [])
+                  (Array.isArray(skill?._效果数组) ? skill._效果数组 : [])
+                    .filter(effect => String(effect?.分支标记 || '').trim() === aiBranchId)
                     .map(effect => String(effect?.机制 || '').trim())
                     .filter(Boolean),
                 );
@@ -11865,8 +12055,7 @@ class BattleUIComponent {
                 const isDirectionBuff = ['属性变化', '持续恢复', '护盾', '减伤', '无敌金身', '能力共享', '复苏'].some(name => directionMechanismSet.has(name));
                 if (isChargingHighThreat && isDirectionControl) weight += 10;
                 if (selfHpRatio < 0.4 && isDirectionBuff) weight += 10;
-                if (directionSemantic === '可赋予' && allyCount > 1) weight += 6;
-                skill._runtime_方向ID = aiDirectionId;
+                skill._runtime_分支标记 = aiBranchId;
               }
 
               return {
@@ -12579,12 +12768,12 @@ class BattleUIComponent {
           function makeNpcAction(type, log, skill = null, extra = {}) {
             const normalizedSkill = skill ? normalizeSkillData(skill, skill.name || skill.技能名称 || type) : null;
             if (normalizedSkill) {
-              const aiDirectionId = pickBattleSkillDirectionForAi(normalizedSkill, {
+              const aiBranchId = pickBattleSkillBranchForAi(normalizedSkill, {
                 actor: defender,
                 target: attacker,
                 高威胁窗口: !!(attacker?.蓄力技能 || (playerAction?.cast_time || 0) >= 20),
               });
-              if (aiDirectionId) normalizedSkill._runtime_方向ID = aiDirectionId;
+              if (aiBranchId) normalizedSkill._runtime_分支标记 = aiBranchId;
             }
             return Object.assign(
               {
@@ -12875,15 +13064,30 @@ class BattleUIComponent {
 
           let matchedSkill = null;
           let matchedSkillName = '';
+          let 已命中明确分支 = false;
           // 为了支持多重施法，我们需要找出所有被提及的技能。但为了保持单技能模式兜底，我们先选出最主要的那个。
           // TODO: 后续可以升级为返回技能数组，这里先保留主技能逻辑，把时间累计放进 pre_actions 处理中
           let directSkills = collectCombatSkills(charData, combatData.参战者.team_player || []);
           directSkills.forEach(skill => {
-            let plainName = (skill.name || '').replace(/^武魂融合技·/, '');
-            if (playerInput.includes(skill.name) || (plainName && playerInput.includes(plainName))) {
-              // 如果提及多个，这里会被覆盖为最后一个，目前作为主动作
+            const 完整技能名 = String(skill.name || '').trim();
+            const 去融合前缀名 = 完整技能名.replace(/^武魂融合技·/, '');
+            const 主体技能名 = 去融合前缀名.replace(/·[^·\s]+$/, '');
+            const 分支展示名 = String(skill?._runtime_分支展示名 || '').trim();
+            const 命中明确分支 = !!(
+              (完整技能名 && playerInput.includes(完整技能名)) ||
+              (去融合前缀名 && playerInput.includes(去融合前缀名)) ||
+              (分支展示名 && playerInput.includes(分支展示名))
+            );
+            const 命中主体技能 = !!(主体技能名 && playerInput.includes(主体技能名));
+            if (命中明确分支) {
               matchedSkill = skill;
-              matchedSkillName = skill.name;
+              matchedSkillName = 完整技能名 || 分支展示名;
+              已命中明确分支 = true;
+              return;
+            }
+            if (!已命中明确分支 && 命中主体技能 && !matchedSkill) {
+              matchedSkill = skill;
+              matchedSkillName = 完整技能名 || 主体技能名;
             }
           });
 
@@ -14666,8 +14870,12 @@ class BattleUIComponent {
             combatData.大关标签 = nextMeta.gateLabel;
             combatData.关卡范围 = nextMeta.gateRangeLabel;
             combatData.关底战 = nextMeta.isGateBoss;
+            combatData.环境 = 构建魂灵塔试炼地点(nextFloor);
+            combatData.试炼状态 = 构建魂灵塔试炼地点(nextFloor);
             combatData.参战者.enemy = buildSoulTowerGuardianSeed(nextFloor);
             combatData.参战者.team_enemy = [];
+            const 冲塔续层位置补丁 = 构建角色位置补丁(playerName, 构建魂灵塔试炼地点(nextFloor));
+            if (冲塔续层位置补丁) extraPatchOps.push(冲塔续层位置补丁);
             extraPatchOps.push({
               op: 'replace',
               path: '/sys/系统播报',
@@ -14676,6 +14884,9 @@ class BattleUIComponent {
           } else {
             combatData.进行中 = false;
             combatData.裁断结果 = `魂灵塔第${pendingSettlement.层数}层通关`;
+            combatData.试炼状态 = '';
+            const 冲塔结束位置补丁 = 构建角色位置补丁(playerName, 魂灵塔退出地点);
+            if (冲塔结束位置补丁) extraPatchOps.push(冲塔结束位置补丁);
             extraPatchOps.push({
               op: 'replace',
               path: '/sys/系统播报',
