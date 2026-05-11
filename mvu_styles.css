@@ -7463,6 +7463,10 @@ body.mvu-surface-shell #chat {
 }
 
 #mvu-unified-mount {
+  --mvu-motion-hover: 140ms;
+  --mvu-motion-state: 200ms;
+  --mvu-motion-expand: 230ms;
+  --mvu-motion-burst: 360ms;
   position: relative;
   width: min(1120px, 100%);
   max-width: 100%;
@@ -7619,7 +7623,10 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-tab-btn {
   border-radius: 12px;
   background: rgba(255,255,255,0.04);
   color: var(--white);
-  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  transition:
+    background var(--mvu-motion-state) ease,
+    border-color var(--mvu-motion-state) ease,
+    transform var(--mvu-motion-hover) ease;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-layout-btn {
@@ -7666,6 +7673,117 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-page {
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-page.active {
   display: block;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-inline-zone {
+  display: grid;
+  min-width: 0;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-inline-host {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-inline-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(117, 235, 255, 0.22);
+  background:
+    linear-gradient(180deg, rgba(77, 240, 255, 0.09), rgba(77, 240, 255, 0.03)),
+    rgba(10, 18, 24, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  animation: mvu-unified-inline-enter var(--mvu-motion-expand) ease both;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-inline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-inline-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #f1fdff;
+  font-family: var(--font-title);
+  font-size: 14px;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-inline-close {
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(228, 246, 250, 0.9);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background var(--mvu-motion-state) ease,
+    border-color var(--mvu-motion-state) ease;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-inline-close:hover {
+  border-color: rgba(117, 235, 255, 0.45);
+  background: rgba(117, 235, 255, 0.14);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-inline-summary {
+  min-height: 0;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-inline-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-inline-action {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(168, 232, 242, 0.2);
+  background: rgba(255, 255, 255, 0.035);
+  color: #ecfdff;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--mvu-motion-state) ease,
+    background var(--mvu-motion-state) ease,
+    transform var(--mvu-motion-hover) ease;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-inline-action:hover {
+  border-color: rgba(132, 236, 255, 0.5);
+  background: rgba(110, 220, 238, 0.14);
+  transform: translateY(-1px);
+}
+
+body.mvu-layout-unified #mvu-unified-mount [data-unified-expand].is-inline-active,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card[data-unified-card][data-unified-surface="panel"].is-inline-active {
+  border-color: rgba(117, 235, 255, 0.48);
+  box-shadow: inset 0 0 0 1px rgba(117, 235, 255, 0.2), 0 0 0 1px rgba(117, 235, 255, 0.14);
+}
+
+@keyframes mvu-unified-inline-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-frame.is-detail {
@@ -8961,6 +9079,11 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card {
     rgba(16, 24, 31, 0.72);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
   overflow: hidden;
+  transition:
+    border-color var(--mvu-motion-state) ease,
+    background var(--mvu-motion-state) ease,
+    box-shadow var(--mvu-motion-state) ease,
+    transform var(--mvu-motion-hover) ease;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card:has(.ring-hover-card),
@@ -9029,7 +9152,10 @@ body.mvu-layout-unified #mvu-unified-mount button.mvu-unified-row {
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-row--nav {
   padding: 8px 10px;
   border-radius: 10px;
-  transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+  transition:
+    background var(--mvu-motion-state) ease,
+    box-shadow var(--mvu-motion-state) ease,
+    transform var(--mvu-motion-hover) ease;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-row--nav:hover {
@@ -9173,6 +9299,10 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card.clickable:hover,
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-tab-btn:hover {
   border-color: rgba(77, 240, 255, 0.26);
   background: rgba(77, 240, 255, 0.08);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card.clickable:hover {
+  transform: translateY(-1px);
 }
 
 /* =========================================================================
@@ -9478,7 +9608,11 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-tab-btn:hover {
   font-family: var(--font-title);
   font-size: 12px;
   letter-spacing: 0.4px;
-  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    background var(--mvu-motion-state) ease,
+    border-color var(--mvu-motion-state) ease,
+    transform var(--mvu-motion-hover) ease,
+    box-shadow var(--mvu-motion-state) ease;
 }
 
 .mvu-unified-layout-btn:hover {
@@ -9604,7 +9738,12 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-tab-btn:hover {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02));
   color: #ecfdff;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color var(--mvu-motion-state) ease,
+    background var(--mvu-motion-state) ease,
+    color var(--mvu-motion-state) ease,
+    transform var(--mvu-motion-hover) ease,
+    box-shadow var(--mvu-motion-state) ease;
 }
 
 .mvu-unified-tab-btn {

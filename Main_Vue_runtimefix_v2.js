@@ -1,29 +1,29 @@
-const { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } = Vue;
+﻿const { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } = Vue;
 
 const TAB_ITEMS = [
   {
     id: 'page-archive',
-    label: '档案',
+    label: '妗ｆ',
     icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5.5h10l2 2v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-11l2-2Z"></path><path d="M9 5.5V4h6v1.5"></path><path d="M9 11h6"></path><path d="M9 15h6"></path></svg>'
   },
   {
     id: 'page-map',
-    label: '星图',
+    label: '鏄熷浘',
     icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7.5 12 4l7 3.5v9L12 20l-7-3.5z"></path><path d="M12 4v16"></path><path d="m5 7.5 7 3.5 7-3.5"></path></svg>'
   },
   {
     id: 'page-world',
-    label: '世界',
+    label: '涓栫晫',
     icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><path d="M4 12h16"></path><path d="M12 4a12 12 0 0 1 0 16"></path><path d="M12 4a12 12 0 0 0 0 16"></path></svg>'
   },
   {
     id: 'page-org',
-    label: '势力',
+    label: '鍔垮姏',
     icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16"></path><path d="M8 5h8l-1.5 3L16 11H8z"></path><path d="M7 20h10"></path></svg>'
   },
   {
     id: 'page-terminal',
-    label: '终端',
+    label: '缁堢',
     icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"></rect><path d="m8 10 2 2-2 2"></path><path d="M12.5 15h3.5"></path></svg>'
   }
 ];
@@ -59,27 +59,27 @@ const UNIFIED_ACTION_ITEMS = {
 const UNIFIED_TAB_META = {
   'page-archive': {
     eyebrow: '',
-    title: '档案',
+    title: '妗ｆ',
     desc: ''
   },
   'page-map': {
     eyebrow: '',
-    title: '星图',
+    title: '鏄熷浘',
     desc: ''
   },
   'page-world': {
     eyebrow: '',
-    title: '世界',
+    title: '涓栫晫',
     desc: ''
   },
   'page-org': {
     eyebrow: '',
-    title: '势力',
+    title: '鍔垮姏',
     desc: ''
   },
   'page-terminal': {
     eyebrow: '',
-    title: '终端',
+    title: '缁堢',
     desc: ''
   }
 };
@@ -87,31 +87,31 @@ const UNIFIED_TAB_META = {
 const SHELL_APP_ITEMS = [
   {
     id: 'page-archive',
-    title: '档案',
+    title: '妗ｆ',
     hint: '',
     homeSlot: 'home-archive'
   },
   {
     id: 'page-map',
-    title: '星图',
+    title: '鏄熷浘',
     hint: '',
     homeSlot: 'home-map'
   },
   {
     id: 'page-world',
-    title: '世界',
+    title: '涓栫晫',
     hint: '',
     homeSlot: 'home-world'
   },
   {
     id: 'page-org',
-    title: '势力',
+    title: '鍔垮姏',
     hint: '',
     homeSlot: 'home-org'
   },
   {
     id: 'page-terminal',
-    title: '终端',
+    title: '缁堢',
     hint: '',
     homeSlot: 'home-terminal'
   }
@@ -286,23 +286,23 @@ function resolveShellAppMeta(tabId) {
 
 function resolveShellPreviewTitle(previewKey, fallback = '') {
   const key = String(previewKey || '').trim();
-  if (key.startsWith('技能设计台：')) {
+  if (key.startsWith('鎶€鑳借璁″彴锛?)) {
     try {
-      const payload = JSON.parse(decodeURIComponent(key.slice('技能设计台：'.length)));
+      const payload = JSON.parse(decodeURIComponent(key.slice('鎶€鑳借璁″彴锛?.length)));
       const scope = String(payload && payload.scope || '').trim();
       const label = String(payload && payload.label || '').trim();
       const scopeTitleMap = {
-        fusion_skill: '融合技设计',
-        art: '功法设计',
-        special_ability: '特殊技能设计',
-        spirit_skill: '魂技设计',
-        soul_bone_skill: '魂骨技能设计',
-        blood_skill: '血脉技能设计',
-        blood_passive: '血脉被动设计'
+        fusion_skill: '铻嶅悎鎶€璁捐',
+        art: '鍔熸硶璁捐',
+        special_ability: '鐗规畩鎶€鑳借璁?,
+        spirit_skill: '榄傛妧璁捐',
+        soul_bone_skill: '榄傞鎶€鑳借璁?,
+        blood_skill: '琛€鑴夋妧鑳借璁?,
+        blood_passive: '琛€鑴夎鍔ㄨ璁?
       };
-      return [scopeTitleMap[scope] || '技能设计', label].filter(Boolean).join(' / ') || '技能设计';
+      return [scopeTitleMap[scope] || '鎶€鑳借璁?, label].filter(Boolean).join(' / ') || '鎶€鑳借璁?;
     } catch (err) {
-      return '技能设计';
+      return '鎶€鑳借璁?;
     }
   }
   const previewTitleMap = {
@@ -1041,17 +1041,17 @@ const LeftPanel = {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
                   <span></span>
                 </div>
-                <div class="archive-split-name clickable" data-preview="角色切换器" title="切换当前查看角色">
-                  <span class="char-emblem">◈</span>
+                <div class="archive-split-name clickable" data-preview="瑙掕壊鍒囨崲鍣? title="鍒囨崲褰撳墠鏌ョ湅瑙掕壊">
+                  <span class="char-emblem">鈼?/span>
                   <span class="archive-split-name-text"></span>
                 </div>
               </div>
 
-              <div class="mvu-panel core-card clickable" data-preview="生命图谱详细页"></div>
+              <div class="mvu-panel core-card clickable" data-preview="鐢熷懡鍥捐氨璇︾粏椤?></div>
 
               <div class="strip dual-spirit-strip single-track">
                 <div class="dual-spirit-body">
-                  <div class="spirit-side primary-side clickable" id="archivePrimarySpiritEntry" data-preview="第一武魂详细页"></div>
+                  <div class="spirit-side primary-side clickable" id="archivePrimarySpiritEntry" data-preview="绗竴姝﹂瓊璇︾粏椤?></div>
                   <div class="spirit-side secondary-side clickable"></div>
                 </div>
               </div>
@@ -1059,26 +1059,26 @@ const LeftPanel = {
               <div class="strip dual-spirit-strip secondary-track split-secondary-left">
                 <div class="dual-spirit-body">
                   <div class="spirit-side primary-side clickable"></div>
-                  <div class="spirit-side secondary-side clickable" id="archiveSecondarySpiritEntry" data-preview="血脉封印详细页"></div>
+                  <div class="spirit-side secondary-side clickable" id="archiveSecondarySpiritEntry" data-preview="琛€鑴夊皝鍗拌缁嗛〉"></div>
                 </div>
               </div>
             </div>
           </div>
 
           <div class="split-page split-left-page" :class="{ active: tabState.current === 'page-map' }" data-target="page-map">
-            <div class="mvu-module-card hero-card core-card map-hero-card clickable" data-preview="全息星图主画布"></div>
+            <div class="mvu-module-card hero-card core-card map-hero-card clickable" data-preview="鍏ㄦ伅鏄熷浘涓荤敾甯?></div>
           </div>
 
           <div class="split-page split-left-page" :class="{ active: tabState.current === 'page-world' }" data-target="page-world">
-            <div class="mvu-module-card hero-card core-card" data-preview="世界状态总览"></div>
+            <div class="mvu-module-card hero-card core-card" data-preview="涓栫晫鐘舵€佹€昏"></div>
           </div>
 
           <div class="split-page split-left-page" :class="{ active: tabState.current === 'page-org' }" data-target="page-org">
-            <div class="mvu-module-card hero-card core-card clickable" data-preview="势力矩阵总览"></div>
+            <div class="mvu-module-card hero-card core-card clickable" data-preview="鍔垮姏鐭╅樀鎬昏"></div>
           </div>
 
           <div class="split-page split-left-page" :class="{ active: tabState.current === 'page-terminal' }" data-target="page-terminal">
-            <div class="mvu-module-card hero-card core-card terminal-hero-card clickable" data-preview="系统播报与日志"></div>
+            <div class="mvu-module-card hero-card core-card terminal-hero-card clickable" data-preview="绯荤粺鎾姤涓庢棩蹇?></div>
           </div>
         </div>
 
@@ -1096,10 +1096,10 @@ const LeftPanel = {
       <button
         type="button"
         class="mvu-fold-btn left-btn"
-        :title="isFolded ? '展开左侧栏' : '折叠左侧栏'"
+        :title="isFolded ? '灞曞紑宸︿晶鏍? : '鎶樺彔宸︿晶鏍?"
         @mouseenter="unfold"
         @click.stop="toggleFold"
-      >{{ isFolded ? '›' : '‹' }}</button>
+      >{{ isFolded ? '鈥? : '鈥? }}</button>
     </div>
   `,
   setup() {
@@ -1124,36 +1124,36 @@ const RightPanel = {
     <div class="mvu-vue-wrapper mvu-root right-panel" :class="{ 'is-folded': isFolded }" style="position:fixed;top:0;right:0;bottom:0;z-index:100;">
       <div class="split-shell-bg-sibling split-shell-bg-right"></div>
       <div class="split-shell split-shell-right" @mouseenter="unfold" @mouseleave="fold">
-        <button type="button" class="mvu-pin-btn" :class="{ active: isPinned }" @click.stop="togglePin" title="固定侧边栏(不会自动收起)" @mouseenter="unfold">
+        <button type="button" class="mvu-pin-btn" :class="{ active: isPinned }" @click.stop="togglePin" title="鍥哄畾渚ц竟鏍?涓嶄細鑷姩鏀惰捣)" @mouseenter="unfold">
           <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M16 4v4l2 3v2h-5v8l-1 2-1-2v-8H6v-2l2-3V4z"></path></svg>
         </button>
         <button
           type="button"
           class="mvu-window-settings-btn"
           :class="{ active: settingsOpen }"
-          title="窗口设置"
+          title="绐楀彛璁剧疆"
           @mouseenter="unfold"
           @click.stop="toggleSettings"
         >
           <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"><path d="M12 2v3"></path><path d="M12 19v3"></path><path d="M4.93 4.93l2.12 2.12"></path><path d="M16.95 16.95l2.12 2.12"></path><path d="M2 12h3"></path><path d="M19 12h3"></path><path d="M4.93 19.07l2.12-2.12"></path><path d="M16.95 7.05l2.12-2.12"></path><circle cx="12" cy="12" r="3.2"></circle></svg>
         </button>
         <div v-if="settingsOpen" class="mvu-window-settings-panel" @click.stop>
-          <div class="mvu-window-settings-title">窗口设置</div>
-          <div v-if="layoutState.isMobileViewport" class="mvu-window-settings-note">移动端固定使用小手机壳，桌面端可切换一体或手机模式。</div>
+          <div class="mvu-window-settings-title">绐楀彛璁剧疆</div>
+          <div v-if="layoutState.isMobileViewport" class="mvu-window-settings-note">绉诲姩绔浐瀹氫娇鐢ㄥ皬鎵嬫満澹筹紝妗岄潰绔彲鍒囨崲涓€浣撴垨鎵嬫満妯″紡銆?/div>
           <button
             v-if="!layoutState.isMobileViewport"
             type="button"
             class="mvu-window-settings-option"
             :class="{ active: layoutState.surfaceMode !== 'shell' }"
             @click="setLayoutByPanel('unified')"
-          >一体模式</button>
+          >涓€浣撴ā寮?/button>
           <button
             v-if="!layoutState.isMobileViewport"
             type="button"
             class="mvu-window-settings-option"
             :class="{ active: layoutState.surfaceMode === 'shell' }"
             @click="setLayoutByPanel('shell')"
-          >手机模式</button>
+          >鎵嬫満妯″紡</button>
         </div>
         <div class="ring-group top-left-rings">
           <div class="astro-circle ring-cyan-1"></div>
@@ -1170,17 +1170,17 @@ const RightPanel = {
           <div class="split-page split-right-page" :class="{ active: tabState.current === 'page-archive' }" data-target="page-archive">
             <div class="split-archive-stack split-archive-right">
               <div class="right-stack">
-                <div class="mvu-module-card entry-card clickable" data-preview="武装工坊详细页"></div>
-                <div class="mvu-module-card entry-card clickable" data-preview="储物仓库详细页"></div>
+                <div class="mvu-module-card entry-card clickable" data-preview="姝﹁宸ュ潑璇︾粏椤?></div>
+                <div class="mvu-module-card entry-card clickable" data-preview="鍌ㄧ墿浠撳簱璇︾粏椤?></div>
               </div>
 
               <div class="mvu-simple-card archive-social-card">
-                <div class="simple-head"><div class="simple-title">社交摘要</div></div>
+                <div class="simple-head"><div class="simple-title">绀句氦鎽樿</div></div>
                 <div class="social-summary">
-                  <div class="social-chip clickable" data-preview="社会档案详细页"><b>名望等级</b><span></span></div>
-                  <div class="social-chip clickable" data-preview="所属势力详细页"><b>所属势力</b><span></span></div>
-                  <div class="social-chip clickable" data-preview="人物关系详细页"><b>关系摘要</b><span></span></div>
-                  <div class="social-chip clickable" data-preview="情报库详细页"><b>已解锁情报</b><span></span></div>
+                  <div class="social-chip clickable" data-preview="绀句細妗ｆ璇︾粏椤?><b>鍚嶆湜绛夌骇</b><span></span></div>
+                  <div class="social-chip clickable" data-preview="鎵€灞炲娍鍔涜缁嗛〉"><b>鎵€灞炲娍鍔?/b><span></span></div>
+                  <div class="social-chip clickable" data-preview="浜虹墿鍏崇郴璇︾粏椤?><b>鍏崇郴鎽樿</b><span></span></div>
+                  <div class="social-chip clickable" data-preview="鎯呮姤搴撹缁嗛〉"><b>宸茶В閿佹儏鎶?/b><span></span></div>
                 </div>
               </div>
             </div>
@@ -1188,31 +1188,31 @@ const RightPanel = {
 
           <div class="split-page split-right-page" :class="{ active: tabState.current === 'page-map' }" data-target="page-map">
             <div class="stack-3 map-side-stack">
-              <div class="mvu-simple-card live-card map-side-card clickable" data-preview="当前节点详情"></div>
-              <div class="mvu-simple-card entry-card map-side-card clickable" data-preview="图层控制与跑图"></div>
-              <div class="mvu-simple-card live-card map-side-card clickable" data-preview="动态地点与扩展节点"></div>
+              <div class="mvu-simple-card live-card map-side-card clickable" data-preview="褰撳墠鑺傜偣璇︽儏"></div>
+              <div class="mvu-simple-card entry-card map-side-card clickable" data-preview="鍥惧眰鎺у埗涓庤窇鍥?></div>
+              <div class="mvu-simple-card live-card map-side-card clickable" data-preview="鍔ㄦ€佸湴鐐逛笌鎵╁睍鑺傜偣"></div>
             </div>
           </div>
 
           <div class="split-page split-right-page" :class="{ active: tabState.current === 'page-world' }" data-target="page-world">
             <div class="stack-3">
-              <div class="mvu-simple-card live-card clickable" data-preview="编年史档案"></div>
-              <div class="mvu-simple-card live-card clickable" data-preview="拍卖与警报"></div>
+              <div class="mvu-simple-card live-card clickable" data-preview="缂栧勾鍙叉。妗?></div>
+              <div class="mvu-simple-card live-card clickable" data-preview="鎷嶅崠涓庤鎶?></div>
             </div>
           </div>
 
           <div class="split-page split-right-page" :class="{ active: tabState.current === 'page-org' }" data-target="page-org">
             <div class="stack-3">
-              <div class="mvu-simple-card live-card clickable" data-preview="我的阵营详情"></div>
-              <div class="mvu-simple-card live-card clickable" data-preview="本地据点详情"></div>
+              <div class="mvu-simple-card live-card clickable" data-preview="鎴戠殑闃佃惀璇︽儏"></div>
+              <div class="mvu-simple-card live-card clickable" data-preview="鏈湴鎹偣璇︽儏"></div>
             </div>
           </div>
 
           <div class="split-page split-right-page" :class="{ active: tabState.current === 'page-terminal' }" data-target="page-terminal">
             <div class="stack-3 terminal-side-stack">
-              <div class="mvu-simple-card entry-card terminal-side-card clickable" data-preview="试炼与情报"></div>
-              <div class="mvu-simple-card live-card terminal-side-card clickable" data-preview="怪物图鉴"></div>
-              <div class="mvu-simple-card live-card terminal-side-card clickable" data-preview="任务界面"></div>
+              <div class="mvu-simple-card entry-card terminal-side-card clickable" data-preview="璇曠偧涓庢儏鎶?></div>
+              <div class="mvu-simple-card live-card terminal-side-card clickable" data-preview="鎬墿鍥鹃壌"></div>
+              <div class="mvu-simple-card live-card terminal-side-card clickable" data-preview="浠诲姟鐣岄潰"></div>
             </div>
           </div>
         </div>
@@ -1231,10 +1231,10 @@ const RightPanel = {
       <button
         type="button"
         class="mvu-fold-btn right-btn"
-        :title="isFolded ? '展开右侧栏' : '折叠右侧栏'"
+        :title="isFolded ? '灞曞紑鍙充晶鏍? : '鎶樺彔鍙充晶鏍?"
         @mouseenter="unfold"
         @click.stop="toggleFold"
-      >{{ isFolded ? '‹' : '›' }}</button>
+      >{{ isFolded ? '鈥? : '鈥? }}</button>
     </div>
   `,
   setup() {
@@ -1287,7 +1287,7 @@ const UnifiedDock = {
                 type="button"
                 class="mvu-unified-layout-btn active"
                 disabled
-              >一体</button>
+              >涓€浣?/button>
             </div>
           </div>
           <div class="mvu-unified-headline">
@@ -1297,8 +1297,8 @@ const UnifiedDock = {
         </div>
 
         <div class="mvu-unified-section-head">
-          <b>主导航</b>
-          <span>先切页，再下钻详细弹窗</span>
+          <b>涓诲鑸?/b>
+          <span>鍏堝垏椤碉紝鍐嶄笅閽昏缁嗗脊绐?/span>
         </div>
 
         <div class="mvu-unified-tab-grid">
@@ -1313,7 +1313,7 @@ const UnifiedDock = {
         </div>
 
         <div class="mvu-unified-section-head">
-          <b>当前页快捷入口</b>
+          <b>褰撳墠椤靛揩鎹峰叆鍙?/b>
           <span>{{ quickActionHint }}</span>
         </div>
 
@@ -1332,8 +1332,8 @@ const UnifiedDock = {
   setup() {
     const quickActions = computed(() => resolveUnifiedActions(mvuTabState.current));
     const activeMeta = computed(() => resolveUnifiedTabMeta(mvuTabState.current));
-    const modeBadge = computed(() => (mvuLayoutState.isMobileViewport ? '移动端一体栏' : '桌面一体栏'));
-    const quickActionHint = computed(() => `${quickActions.value.length || 0} 个入口`);
+    const modeBadge = computed(() => (mvuLayoutState.isMobileViewport ? '绉诲姩绔竴浣撴爮' : '妗岄潰涓€浣撴爮'));
+    const quickActionHint = computed(() => `${quickActions.value.length || 0} 涓叆鍙);
     return {
       tabs: TAB_ITEMS,
       quickActions,
@@ -1362,7 +1362,7 @@ const SurfaceLauncherShellLayout = {
         :data-mode="launcherMode"
         :style="launcherStyle"
         role="group"
-        aria-label="LWCS 挂件"
+        aria-label="LWCS 鎸備欢"
       >
         <button
           type="button"
@@ -1393,7 +1393,7 @@ const SurfaceLauncherShellLayout = {
             'open-up': launcherMenuVertical === 'up'
           }"
           role="menu"
-          aria-label="界面模式"
+          aria-label="鐣岄潰妯″紡"
         >
           <button
             v-for="item in launcherModeItems"
@@ -1410,7 +1410,7 @@ const SurfaceLauncherShellLayout = {
 
       <div class="mvu-mobile-shell-backdrop" :class="{ active: shellVisible }"></div>
 
-      <section class="mvu-mobile-shell" :class="{ active: shellVisible }" aria-label="酒馆助手小手机框架">
+      <section class="mvu-mobile-shell" :class="{ active: shellVisible }" aria-label="閰掗鍔╂墜灏忔墜鏈烘鏋?>
         <div ref="shellFrameRef" class="mvu-mobile-shell-frame" :style="shellFrameStyle" :data-screen="shellScreen">
           <header class="mvu-mobile-shell-head" @pointerdown="onShellHeaderPointerDown">
             <div class="mvu-mobile-shell-head-main">
@@ -1418,7 +1418,7 @@ const SurfaceLauncherShellLayout = {
                 v-if="showHomeBack"
                 type="button"
                 class="mvu-mobile-shell-back"
-                aria-label="返回首页"
+                aria-label="杩斿洖棣栭〉"
                 @click="handleBack"
               >
                 <span aria-hidden="true">
@@ -1432,7 +1432,7 @@ const SurfaceLauncherShellLayout = {
               </div>
             </div>
             <div class="mvu-mobile-shell-head-actions">
-              <button type="button" class="mvu-mobile-shell-close" aria-label="关闭" @click="closeShell">&times;</button>
+              <button type="button" class="mvu-mobile-shell-close" aria-label="鍏抽棴" @click="closeShell">&times;</button>
             </div>
           </header>
 
@@ -1444,53 +1444,50 @@ const SurfaceLauncherShellLayout = {
 
               <section v-else class="mvu-mobile-library" :data-target="tabState.current">
                 <section v-if="tabState.current === 'page-archive'" class="mvu-mobile-library-page" data-target="page-archive">
-                  <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="生命图谱详细页" data-unified-card="archive-core" data-unified-surface="shell"></div>
+                  <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="鐢熷懡鍥捐氨璇︾粏椤? data-unified-card="archive-core" data-unified-surface="shell"></div>
                   <div class="mvu-mobile-card-grid mvu-mobile-card-grid--two">
                     <div class="mvu-mobile-card clickable" data-unified-card="primary-spirit" data-unified-surface="shell"></div>
                     <div class="mvu-mobile-card clickable" data-unified-card="secondary-spirit" data-unified-surface="shell"></div>
                   </div>
                   <div class="mvu-mobile-card-grid mvu-mobile-card-grid--two">
-                    <div class="mvu-mobile-card clickable" data-preview="武装工坊详细页" data-unified-card="armory" data-unified-surface="shell"></div>
-                    <div class="mvu-mobile-card clickable" data-preview="储物仓库详细页" data-unified-card="vault" data-unified-surface="shell"></div>
+                    <div class="mvu-mobile-card clickable" data-preview="姝﹁宸ュ潑璇︾粏椤? data-unified-card="armory" data-unified-surface="shell"></div>
+                    <div class="mvu-mobile-card clickable" data-preview="鍌ㄧ墿浠撳簱璇︾粏椤? data-unified-card="vault" data-unified-surface="shell"></div>
                   </div>
-                  <div class="mvu-mobile-card clickable" data-preview="社会档案详细页" data-unified-card="social" data-unified-surface="shell"></div>
+                  <div class="mvu-mobile-card clickable" data-preview="绀句細妗ｆ璇︾粏椤? data-unified-card="social" data-unified-surface="shell"></div>
                 </section>
-
                 <section v-if="tabState.current === 'page-map'" class="mvu-mobile-library-page" data-target="page-map">
-                  <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="当前节点详情" data-unified-card="map-locals" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card clickable" data-preview="当前节点详情" data-unified-card="map-current" data-unified-surface="shell"></div>
+                  <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="褰撳墠鑺傜偣璇︽儏" data-unified-card="map-locals" data-unified-surface="shell"></div>
+                  <div class="mvu-mobile-card clickable" data-preview="褰撳墠鑺傜偣璇︽儏" data-unified-card="map-current" data-unified-surface="shell"></div>
                 </section>
 
                 <section v-if="tabState.current === 'page-world'" class="mvu-mobile-library-page" data-target="page-world">
-                  <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="世界状态总览" data-unified-card="world-hero" data-unified-surface="shell"></div>
+                  <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="涓栫晫鐘舵€佹€昏" data-unified-card="world-hero" data-unified-surface="shell"></div>
                   <div class="mvu-mobile-card-grid mvu-mobile-card-grid--two">
-                    <div class="mvu-mobile-card clickable" data-preview="编年史档案" data-unified-card="world-timeline" data-unified-surface="shell"></div>
-                    <div class="mvu-mobile-card clickable" data-preview="拍卖与警报" data-unified-card="world-alerts" data-unified-surface="shell"></div>
+                    <div class="mvu-mobile-card clickable" data-preview="缂栧勾鍙叉。妗? data-unified-card="world-timeline" data-unified-surface="shell"></div>
+                    <div class="mvu-mobile-card clickable" data-preview="鎷嶅崠涓庤鎶? data-unified-card="world-alerts" data-unified-surface="shell"></div>
                   </div>
                 </section>
-
                 <section v-if="tabState.current === 'page-org'" class="mvu-mobile-library-page" data-target="page-org">
-                  <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="势力矩阵总览" data-unified-card="org-hero" data-unified-surface="shell"></div>
+                  <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="鍔垮姏鐭╅樀鎬昏" data-unified-card="org-hero" data-unified-surface="shell"></div>
                   <div class="mvu-mobile-card-grid mvu-mobile-card-grid--two">
-                    <div class="mvu-mobile-card clickable" data-preview="我的阵营详情" data-unified-card="org-faction" data-unified-surface="shell"></div>
-                    <div class="mvu-mobile-card clickable" data-preview="本地据点详情" data-unified-card="org-node" data-unified-surface="shell"></div>
+                    <div class="mvu-mobile-card clickable" data-preview="鎴戠殑闃佃惀璇︽儏" data-unified-card="org-faction" data-unified-surface="shell"></div>
+                    <div class="mvu-mobile-card clickable" data-preview="鏈湴鎹偣璇︽儏" data-unified-card="org-node" data-unified-surface="shell"></div>
                   </div>
                 </section>
-
                 <section v-if="tabState.current === 'page-terminal'" class="mvu-mobile-library-page" data-target="page-terminal">
-                  <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="系统播报与日志" data-unified-card="terminal-hero" data-unified-surface="shell"></div>
+                  <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="绯荤粺鎾姤涓庢棩蹇? data-unified-card="terminal-hero" data-unified-surface="shell"></div>
                   <div class="mvu-mobile-card-grid mvu-mobile-card-grid--two">
-                    <div class="mvu-mobile-card clickable" data-preview="试炼与情报" data-unified-card="terminal-intel" data-unified-surface="shell"></div>
-                    <div class="mvu-mobile-card clickable" data-preview="近期见闻" data-unified-card="terminal-news" data-unified-surface="shell"></div>
-                    <div class="mvu-mobile-card clickable" data-preview="怪物图鉴" data-unified-card="terminal-bestiary" data-unified-surface="shell"></div>
-                    <div class="mvu-mobile-card clickable" data-preview="任务界面" data-unified-card="terminal-quest" data-unified-surface="shell"></div>
+                    <div class="mvu-mobile-card clickable" data-preview="璇曠偧涓庢儏鎶? data-unified-card="terminal-intel" data-unified-surface="shell"></div>
+                    <div class="mvu-mobile-card clickable" data-preview="杩戞湡瑙侀椈" data-unified-card="terminal-news" data-unified-surface="shell"></div>
+                    <div class="mvu-mobile-card clickable" data-preview="鎬墿鍥鹃壌" data-unified-card="terminal-bestiary" data-unified-surface="shell"></div>
+                    <div class="mvu-mobile-card clickable" data-preview="浠诲姟鐣岄潰" data-unified-card="terminal-quest" data-unified-surface="shell"></div>
                   </div>
                 </section>
               </section>
             </div>
           </div>
 
-          <nav class="mvu-mobile-shell-nav" aria-label="页面切换">
+          <nav class="mvu-mobile-shell-nav" aria-label="椤甸潰鍒囨崲">
             <button
               v-for="tab in tabs"
               :key="'mobile-tab-' + tab.id"
@@ -1516,8 +1513,8 @@ const SurfaceLauncherShellLayout = {
     const shellDetailPreviewKey = ref('');
     const shellDetailReturnScreen = ref('section');
     const launcherModeItems = [
-      { id: 'unified', label: '一体' },
-      { id: 'shell', label: '手机' }
+      { id: 'unified', label: '涓€浣? },
+      { id: 'shell', label: '鎵嬫満' }
     ];
     const dragState = {
       pointerId: null,
@@ -1585,8 +1582,8 @@ const SurfaceLauncherShellLayout = {
       return activeApp.value.title;
     });
     const launcherMainAriaLabel = computed(() => {
-      if (mvuLayoutState.surfaceMode === 'shell' && shellVisible.value) return '收起小手机';
-      return '打开小手机';
+      if (mvuLayoutState.surfaceMode === 'shell' && shellVisible.value) return '鏀惰捣灏忔墜鏈?;
+      return '鎵撳紑灏忔墜鏈?;
     });
     const launcherMenuAlign = computed(() => {
       const viewport = getViewportSize();
@@ -1958,7 +1955,7 @@ const DesktopUnifiedLayout = {
         <div class="mvu-unified-toolbar" :class="{ 'is-detail': detailState.isOpen }">
           <div class="mvu-unified-toolbar-main">
             <template v-if="detailState.isOpen">
-              <button type="button" class="mvu-unified-detail-back" aria-label="返回" @click="closeUnifiedDetail">‹</button>
+              <button type="button" class="mvu-unified-detail-back" aria-label="杩斿洖" @click="closeUnifiedDetail">鈥?/button>
               <strong class="mvu-unified-detail-title">{{ detailTitle }}</strong>
             </template>
             <template v-else>
@@ -1970,13 +1967,13 @@ const DesktopUnifiedLayout = {
                     class="mvu-unified-layout-btn"
                     :class="{ active: layoutState.surfaceMode !== 'shell' }"
                     @click="setDesktopMode('unified')"
-                  >一体</button>
+                  >涓€浣?/button>
                   <button
                     type="button"
                     class="mvu-unified-layout-btn"
                     :class="{ active: layoutState.surfaceMode === 'shell' }"
                     @click="setDesktopMode('shell')"
-                  >手机</button>
+                  >鎵嬫満</button>
                 </div>
               </div>
             </template>
@@ -1998,25 +1995,28 @@ const DesktopUnifiedLayout = {
           <section class="mvu-unified-page" :class="{ active: tabState.current === 'page-archive' }" data-target="page-archive">
             <div class="mvu-unified-section-stack">
               <section class="mvu-unified-section">
-                <div class="mvu-unified-card mvu-unified-card--featured clickable" data-preview="生命图谱详细页" data-unified-card="archive-core" data-unified-surface="panel"></div>
+                <div class="mvu-unified-card mvu-unified-card--featured clickable" data-preview="鐢熷懡鍥捐氨璇︾粏椤? data-unified-expand="1" data-unified-card="archive-core" data-unified-surface="panel"></div>
               </section>
 
               <section class="mvu-unified-section">
                 <div class="mvu-unified-grid mvu-unified-grid--two">
-                  <div class="mvu-unified-card clickable" data-unified-card="primary-spirit" data-unified-surface="panel"></div>
-                  <div class="mvu-unified-card" data-unified-card="secondary-spirit" data-unified-surface="panel"></div>
+                  <div class="mvu-unified-card clickable" data-unified-expand="1" data-unified-card="primary-spirit" data-unified-surface="panel"></div>
+                  <div class="mvu-unified-card clickable" data-unified-expand="1" data-unified-card="secondary-spirit" data-unified-surface="panel"></div>
                 </div>
               </section>
 
               <section class="mvu-unified-section">
                 <div class="mvu-unified-grid mvu-unified-grid--two">
-                  <div class="mvu-unified-card clickable" data-preview="武装工坊详细页" data-unified-card="armory" data-unified-surface="panel"></div>
-                  <div class="mvu-unified-card clickable" data-preview="储物仓库详细页" data-unified-card="vault" data-unified-surface="panel"></div>
+                  <div class="mvu-unified-card clickable" data-preview="姝﹁宸ュ潑璇︾粏椤? data-unified-expand="1" data-unified-card="armory" data-unified-surface="panel"></div>
+                  <div class="mvu-unified-card clickable" data-preview="鍌ㄧ墿浠撳簱璇︾粏椤? data-unified-expand="1" data-unified-card="vault" data-unified-surface="panel"></div>
                 </div>
               </section>
 
               <section class="mvu-unified-section">
-                <div class="mvu-unified-card clickable" data-preview="社会档案详细页" data-unified-card="social" data-unified-surface="panel"></div>
+                <div class="mvu-unified-card clickable" data-preview="绀句細妗ｆ璇︾粏椤? data-unified-expand="1" data-unified-card="social" data-unified-surface="panel"></div>
+              </section>
+              <section class="mvu-unified-inline-zone">
+                <div class="mvu-unified-inline-host" data-unified-inline-host="page-archive" data-unified-inline-surface="panel"></div>
               </section>
             </div>
           </section>
@@ -2029,10 +2029,13 @@ const DesktopUnifiedLayout = {
 
               <section class="mvu-unified-section">
                 <div class="mvu-unified-grid mvu-unified-grid--three">
-                  <div class="mvu-unified-card clickable" data-preview="当前节点详情" data-unified-card="map-current" data-unified-surface="panel"></div>
-                  <div class="mvu-unified-card clickable" data-preview="图层控制与跑图" data-unified-card="map-route" data-unified-surface="panel"></div>
-                  <div class="mvu-unified-card clickable" data-preview="动态地点与扩展节点" data-unified-card="map-dynamic" data-unified-surface="panel"></div>
+                  <div class="mvu-unified-card clickable" data-preview="褰撳墠鑺傜偣璇︽儏" data-unified-expand="1" data-unified-card="map-current" data-unified-surface="panel"></div>
+                  <div class="mvu-unified-card clickable" data-preview="鍥惧眰鎺у埗涓庤窇鍥? data-unified-expand="1" data-unified-card="map-route" data-unified-surface="panel"></div>
+                  <div class="mvu-unified-card clickable" data-preview="鍔ㄦ€佸湴鐐逛笌鎵╁睍鑺傜偣" data-unified-expand="1" data-unified-card="map-dynamic" data-unified-surface="panel"></div>
                 </div>
+              </section>
+              <section class="mvu-unified-inline-zone">
+                <div class="mvu-unified-inline-host" data-unified-inline-host="page-map" data-unified-inline-surface="panel"></div>
               </section>
             </div>
           </section>
@@ -2040,14 +2043,17 @@ const DesktopUnifiedLayout = {
           <section class="mvu-unified-page" :class="{ active: tabState.current === 'page-world' }" data-target="page-world">
             <div class="mvu-unified-section-stack">
               <section class="mvu-unified-section">
-                <div class="mvu-unified-card mvu-unified-card--featured" data-unified-card="world-hero" data-unified-surface="panel"></div>
+                <div class="mvu-unified-card mvu-unified-card--featured clickable" data-unified-expand="1" data-unified-card="world-hero" data-unified-surface="panel"></div>
               </section>
 
               <section class="mvu-unified-section">
                 <div class="mvu-unified-grid mvu-unified-grid--two">
-                  <div class="mvu-unified-card clickable" data-preview="编年史档案" data-unified-card="world-timeline" data-unified-surface="panel"></div>
-                  <div class="mvu-unified-card clickable" data-preview="拍卖与警报" data-unified-card="world-alerts" data-unified-surface="panel"></div>
+                  <div class="mvu-unified-card clickable" data-preview="缂栧勾鍙叉。妗? data-unified-expand="1" data-unified-card="world-timeline" data-unified-surface="panel"></div>
+                  <div class="mvu-unified-card clickable" data-preview="鎷嶅崠涓庤鎶? data-unified-expand="1" data-unified-card="world-alerts" data-unified-surface="panel"></div>
                 </div>
+              </section>
+              <section class="mvu-unified-inline-zone">
+                <div class="mvu-unified-inline-host" data-unified-inline-host="page-world" data-unified-inline-surface="panel"></div>
               </section>
             </div>
           </section>
@@ -2055,14 +2061,17 @@ const DesktopUnifiedLayout = {
           <section class="mvu-unified-page" :class="{ active: tabState.current === 'page-org' }" data-target="page-org">
             <div class="mvu-unified-section-stack">
               <section class="mvu-unified-section">
-                <div class="mvu-unified-card mvu-unified-card--featured clickable" data-preview="势力矩阵总览" data-unified-card="org-hero" data-unified-surface="panel"></div>
+                <div class="mvu-unified-card mvu-unified-card--featured clickable" data-preview="鍔垮姏鐭╅樀鎬昏" data-unified-expand="1" data-unified-card="org-hero" data-unified-surface="panel"></div>
               </section>
 
               <section class="mvu-unified-section">
                 <div class="mvu-unified-grid mvu-unified-grid--two">
-                  <div class="mvu-unified-card clickable" data-preview="我的阵营详情" data-unified-card="org-faction" data-unified-surface="panel"></div>
-                  <div class="mvu-unified-card clickable" data-preview="本地据点详情" data-unified-card="org-node" data-unified-surface="panel"></div>
+                  <div class="mvu-unified-card clickable" data-preview="鎴戠殑闃佃惀璇︽儏" data-unified-expand="1" data-unified-card="org-faction" data-unified-surface="panel"></div>
+                  <div class="mvu-unified-card clickable" data-preview="鏈湴鎹偣璇︽儏" data-unified-expand="1" data-unified-card="org-node" data-unified-surface="panel"></div>
                 </div>
+              </section>
+              <section class="mvu-unified-inline-zone">
+                <div class="mvu-unified-inline-host" data-unified-inline-host="page-org" data-unified-inline-surface="panel"></div>
               </section>
             </div>
           </section>
@@ -2070,16 +2079,19 @@ const DesktopUnifiedLayout = {
           <section class="mvu-unified-page" :class="{ active: tabState.current === 'page-terminal' }" data-target="page-terminal">
             <div class="mvu-unified-section-stack">
               <section class="mvu-unified-section">
-                <div class="mvu-unified-card mvu-unified-card--featured clickable" data-preview="系统播报与日志" data-unified-card="terminal-hero" data-unified-surface="panel"></div>
+                <div class="mvu-unified-card mvu-unified-card--featured clickable" data-preview="绯荤粺鎾姤涓庢棩蹇? data-unified-expand="1" data-unified-card="terminal-hero" data-unified-surface="panel"></div>
               </section>
 
               <section class="mvu-unified-section">
                 <div class="mvu-unified-grid mvu-unified-grid--two">
-                  <div class="mvu-unified-card clickable" data-preview="试炼与情报" data-unified-card="terminal-intel" data-unified-surface="panel"></div>
-                  <div class="mvu-unified-card clickable" data-preview="近期见闻" data-unified-card="terminal-news" data-unified-surface="panel"></div>
-                  <div class="mvu-unified-card clickable" data-preview="怪物图鉴" data-unified-card="terminal-bestiary" data-unified-surface="panel"></div>
-                  <div class="mvu-unified-card clickable" data-preview="任务界面" data-unified-card="terminal-quest" data-unified-surface="panel"></div>
+                  <div class="mvu-unified-card clickable" data-preview="璇曠偧涓庢儏鎶? data-unified-expand="1" data-unified-card="terminal-intel" data-unified-surface="panel"></div>
+                  <div class="mvu-unified-card clickable" data-preview="杩戞湡瑙侀椈" data-unified-expand="1" data-unified-card="terminal-news" data-unified-surface="panel"></div>
+                  <div class="mvu-unified-card clickable" data-preview="鎬墿鍥鹃壌" data-unified-expand="1" data-unified-card="terminal-bestiary" data-unified-surface="panel"></div>
+                  <div class="mvu-unified-card clickable" data-preview="浠诲姟鐣岄潰" data-unified-expand="1" data-unified-card="terminal-quest" data-unified-surface="panel"></div>
                 </div>
+              </section>
+              <section class="mvu-unified-inline-zone">
+                <div class="mvu-unified-inline-host" data-unified-inline-host="page-terminal" data-unified-inline-surface="panel"></div>
               </section>
             </div>
           </section>
@@ -2093,7 +2105,7 @@ const DesktopUnifiedLayout = {
   `,
   setup() {
     const activeMeta = computed(() => resolveUnifiedTabMeta(mvuTabState.current));
-    const modeBadge = computed(() => (mvuLayoutState.isMobileViewport ? '移动端一体栏' : '桌面一体栏'));
+    const modeBadge = computed(() => (mvuLayoutState.isMobileViewport ? '绉诲姩绔竴浣撴爮' : '妗岄潰涓€浣撴爮'));
     const detailHostRef = ref(null);
     const detailState = mvuUnifiedDetailState;
     const detailTitle = computed(() => resolveShellPreviewTitle(detailState.previewKey, activeMeta.value.title));
@@ -2395,8 +2407,8 @@ const LayoutRescueDock = {
   template: `
     <div class="mvu-layout-rescue" :class="{ active: shouldShow }">
       <button type="button" class="mvu-layout-rescue-btn" @click="rescue">
-        <span class="mvu-layout-rescue-title">切回一体栏</span>
-        <span class="mvu-layout-rescue-desc">移动端仅保留一体栏，点这里直接恢复。</span>
+        <span class="mvu-layout-rescue-title">鍒囧洖涓€浣撴爮</span>
+        <span class="mvu-layout-rescue-desc">绉诲姩绔粎淇濈暀涓€浣撴爮锛岀偣杩欓噷鐩存帴鎭㈠銆?/span>
       </button>
     </div>
   `,

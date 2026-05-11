@@ -5628,8 +5628,11 @@ class BattleUIComponent {
       const relationMap = charData?.社交?.关系 && typeof charData.社交.关系 === 'object' ? charData.社交.关系 : {};
       const scores = partnerNames.map(name => {
         const rel = relationMap[name];
-        const score = Number(rel?.武魂相关度总分 ?? 0);
-        return Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 0;
+        const base = Number(rel?.武魂相关度基础);
+        const 基础分 = Number.isFinite(base) ? Math.max(0, Math.min(100, Math.floor(base))) : 0;
+        const favor = Number(rel?.好感度 ?? 0);
+        const 关系加成 = Number.isFinite(favor) ? Math.max(0, Math.min(20, Math.floor(Math.max(0, favor) / 10))) : 0;
+        return Math.max(0, Math.min(100, 基础分 + 关系加成));
       });
       if (!scores.length) return 0;
       return Math.max(0, Math.min(100, Math.floor(Math.min(...scores))));

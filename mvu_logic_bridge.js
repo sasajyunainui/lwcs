@@ -1489,6 +1489,50 @@
     let 慢刷新骨架已启用 = false;
     const 慢刷新骨架预览键列表 = Object.freeze(['系统播报与日志', '操作总线', '试炼与情报']);
     const 慢刷新骨架预览键集合 = new Set(慢刷新骨架预览键列表);
+    const 一体栏页内展开状态 = Object.seal({
+      panel: Object.create(null),
+      shell: Object.create(null),
+    });
+    const 一体栏页内展开详情映射 = Object.freeze({
+      'page-archive': Object.freeze([
+        '生命图谱详细页',
+        '角色切换器',
+        '第一武魂详细页',
+        '第二武魂详细页',
+        '武魂融合技详细页',
+        '血脉封印详细页',
+        '武装工坊详细页',
+        '储物仓库详细页',
+        '社会档案详细页',
+        '所属势力详细页',
+        '人物关系详细页',
+        '情报库详细页',
+      ]),
+      'page-map': Object.freeze([
+        '当前节点详情',
+        '图层控制与跑图',
+        '动态地点与扩展节点',
+      ]),
+      'page-world': Object.freeze([
+        '世界状态总览',
+        '编年史档案',
+        '拍卖与警报',
+        '森林仇恨值',
+      ]),
+      'page-org': Object.freeze([
+        '势力矩阵总览',
+        '我的阵营详情',
+        '本地据点详情',
+      ]),
+      'page-terminal': Object.freeze([
+        '系统播报与日志',
+        '操作总线',
+        '试炼与情报',
+        '近期见闻',
+        '怪物图鉴',
+        '任务界面',
+      ]),
+    });
 
     function htmlEscape(value) {
       return String(value == null ? '' : value)
@@ -1501,7 +1545,7 @@
 
     function hasUiPlaceholderToken(value) {
       const text = String(value === undefined || value === null ? '' : value).trim();
-      return !!text && (/待补全|待补充|待生成|待展露|TODO/i.test(text));
+      return !!text && (/待补全/i.test(text));
     }
 
     function toText(value, fallback = '无') {
@@ -13651,9 +13695,7 @@
             <div class="simple-list">
               <div class="simple-row"><b>可见动态点</b><span>${htmlEscape(String(snapshot.mapVisibleDynamicEntries.length || 0))}</span></div>
               <div class="simple-row"><b>最近变化</b><span>${htmlEscape(snapshot.latestTimeline ? snapshot.latestTimeline[0] : '暂无')}</span></div>
-              <div class="simple-row"><b>本地供给</b><span>${htmlEscape(toText(snapshot && snapshot.本地供给, '无供给'))}</span></div>
-              <div class="simple-row"><b>价格带</b><span>${htmlEscape(toText(snapshot && snapshot.价格带, '无'))}</span></div>
-              <div class="simple-row"><b>最近成交</b><span>${htmlEscape(toText(snapshot && snapshot.最近成交影响, '平稳'))}</span></div>
+              <div class="simple-row"><b>入口</b><span>展开动态详情</span></div>
             </div>
           `, { preview: '动态地点与扩展节点', surface: normalizedSurface });
         }
@@ -13784,6 +13826,202 @@
       getLiveUiElements(selector).forEach(node => setLiveNodeHtml(node, html));
     }
 
+    function 获取一体栏页签键(节点) {
+      const 页容器 = 节点 && typeof 节点.closest === 'function'
+        ? 节点.closest('.mvu-unified-page[data-target]')
+        : null;
+      return 页容器 ? toText(页容器.getAttribute('data-target'), '').trim() : '';
+    }
+
+    function 规范化一体栏表面键(表面键 = '') {
+      return normalizeUnifiedSurfaceKey(表面键) || 'panel';
+    }
+
+    function 获取一体栏表面键(节点, 默认值 = 'panel') {
+      const 后备值 = 规范化一体栏表面键(默认值);
+      if (!(节点 instanceof Element)) return 后备值;
+      const 显式节点 = 节点.closest('[data-unified-surface]');
+      const 显式值 = 显式节点 ? normalizeUnifiedSurfaceKey(显式节点.getAttribute('data-unified-surface')) : '';
+      if (显式值) return 显式值;
+      if (节点.closest('.mvu-mobile-shell-host, .mvu-mobile-shell')) return 'shell';
+      if (节点.closest('.mvu-unified-panel-host')) return 'panel';
+      return 后备值;
+    }
+
+    function 获取一体栏表面状态(表面键 = 'panel') {
+      const 键 = 规范化一体栏表面键(表面键);
+      return 键 === 'shell' ? 一体栏页内展开状态.shell : 一体栏页内展开状态.panel;
+    }
+
+    function 获取一体栏表面根节点(表面键 = 'panel') {
+      const 键 = 规范化一体栏表面键(表面键);
+      const 选择器 = 键 === 'shell'
+        ? '#mvu-unified-mount .mvu-mobile-shell-host'
+        : '#mvu-unified-mount .mvu-unified-panel-host';
+      return getLiveUiElements(选择器)[0] || null;
+    }
+
+    function 获取一体栏页容器(页签键, 表面键 = 'panel') {
+      const 目标页签键 = toText(页签键, '').trim();
+      const 目标表面键 = 规范化一体栏表面键(表面键);
+      if (!目标页签键) return null;
+      const 表面根节点 = 获取一体栏表面根节点(目标表面键);
+      if (!表面根节点 || typeof 表面根节点.querySelector !== 'function') return null;
+      const 页容器列表 = Array.from(表面根节点.querySelectorAll('.mvu-unified-page[data-target]'));
+      return 页容器列表.find(node => toText(node.getAttribute('data-target'), '').trim() === 目标页签键) || null;
+    }
+
+    function 获取一体栏页内展开宿主(页签键, 表面键 = 'panel', options = {}) {
+      const 目标页签键 = toText(页签键, '').trim();
+      const 目标表面键 = 规范化一体栏表面键(表面键);
+      const 允许创建 = options && options.允许创建 !== false;
+      if (!目标页签键) return null;
+      const 表面根节点 = 获取一体栏表面根节点(目标表面键);
+      if (!表面根节点) return null;
+      const 宿主列表 = Array.from(表面根节点.querySelectorAll('[data-unified-inline-host][data-unified-inline-surface]'));
+      for (const 节点 of 宿主列表) {
+        const 当前页签键 = toText(节点.getAttribute('data-unified-inline-host'), '').trim();
+        const 当前表面键 = 规范化一体栏表面键(节点.getAttribute('data-unified-inline-surface'));
+        if (当前页签键 === 目标页签键 && 当前表面键 === 目标表面键) return 节点;
+      }
+      if (!允许创建) return null;
+      const 页容器 = 获取一体栏页容器(目标页签键, 目标表面键);
+      if (!页容器 || typeof document === 'undefined') return null;
+      const 展开区域 = document.createElement('section');
+      展开区域.className = 'mvu-unified-inline-zone';
+      const 宿主节点 = document.createElement('div');
+      宿主节点.className = 'mvu-unified-inline-host';
+      宿主节点.setAttribute('data-unified-inline-host', 目标页签键);
+      宿主节点.setAttribute('data-unified-inline-surface', 目标表面键);
+      展开区域.appendChild(宿主节点);
+      const 区块栈 = 页容器.querySelector('.mvu-unified-section-stack');
+      if (区块栈 && typeof 区块栈.appendChild === 'function') 区块栈.appendChild(展开区域);
+      else 页容器.appendChild(展开区域);
+      return 宿主节点;
+    }
+
+    function 获取一体栏页内展开卡片(页签键, 预览键, 表面键 = 'panel') {
+      const 目标页签键 = toText(页签键, '').trim();
+      const 目标预览键 = toText(预览键, '').trim();
+      const 目标表面键 = 规范化一体栏表面键(表面键);
+      if (!目标页签键 || !目标预览键) return null;
+      const 页容器 = 获取一体栏页容器(目标页签键, 目标表面键);
+      if (!页容器) return null;
+      const 候选卡片列表 = Array.from(页容器.querySelectorAll(`[data-unified-expand][data-preview], .mvu-unified-card.clickable[data-unified-card][data-unified-surface="${目标表面键}"][data-preview]`));
+      return 候选卡片列表.find(节点 => toText(节点.getAttribute('data-preview'), '').trim() === 目标预览键) || null;
+    }
+
+    function 净化页内展开摘要HTML(原始HTML = '') {
+      const 摘要HTML = toText(原始HTML, '').trim();
+      if (!摘要HTML) return '';
+      return 摘要HTML
+        .replace(/\sdata-preview="[^"]*"/g, '')
+        .replace(/\sdata-unified-expand="[^"]*"/g, '')
+        .replace(/\sdata-unified-open-detail="[^"]*"/g, '')
+        .replace(/\saria-pressed="[^"]*"/g, '')
+        .replace(/\bclickable\b/g, '')
+        .replace(/\s{2,}/g, ' ');
+    }
+
+    function 构建一体栏页内展开操作区(页签键, 当前预览键 = '') {
+      const 操作列表 = Array.isArray(一体栏页内展开详情映射[页签键]) ? 一体栏页内展开详情映射[页签键] : [];
+      const 去重集合 = new Set();
+      const 汇总列表 = [];
+      const 推入操作 = 预览键 => {
+        const 键 = toText(预览键, '').trim();
+        if (!键 || 去重集合.has(键)) return;
+        去重集合.add(键);
+        汇总列表.push(键);
+      };
+      推入操作(当前预览键);
+      操作列表.forEach(推入操作);
+      if (!汇总列表.length) return '';
+      return `
+        <div class="mvu-unified-inline-actions">
+          ${汇总列表.map(预览键 => `<button type="button" class="mvu-unified-inline-action" data-unified-open-detail="${htmlEscape(预览键)}">${htmlEscape(resolveShellPreviewTitle(预览键))}</button>`).join('')}
+        </div>
+      `;
+    }
+
+    function 渲染一体栏页内展开(页签键, 预览键, options = {}) {
+      const 目标页签键 = toText(页签键, '').trim();
+      const 目标预览键 = toText(预览键, '').trim();
+      const 目标表面键 = 规范化一体栏表面键(options && options.表面键 ? options.表面键 : 获取一体栏表面键(options && options.卡片节点, 'panel'));
+      const 表面状态 = 获取一体栏表面状态(目标表面键);
+      const 宿主 = 获取一体栏页内展开宿主(目标页签键, 目标表面键);
+      if (!宿主) return false;
+      if (!目标预览键) {
+        delete 表面状态[目标页签键];
+        宿主.innerHTML = '';
+        delete 宿主.dataset.unifiedInlinePreview;
+        return false;
+      }
+
+      const 卡片节点 = options && options.卡片节点 instanceof Element
+        ? options.卡片节点
+        : 获取一体栏页内展开卡片(目标页签键, 目标预览键, 目标表面键);
+      const 摘要HTML = 净化页内展开摘要HTML(卡片节点 ? toText(卡片节点.innerHTML, '') : '');
+      const 摘要内容 = 摘要HTML || '<div class="mvu-unified-empty-note">暂无</div>';
+      const 操作区HTML = 构建一体栏页内展开操作区(目标页签键, 目标预览键);
+      宿主.innerHTML = `
+        <div class="mvu-unified-inline-panel" data-unified-inline-preview="${htmlEscape(目标预览键)}">
+          <div class="mvu-unified-inline-head">
+            <strong class="mvu-unified-inline-title">${htmlEscape(resolveShellPreviewTitle(目标预览键))}</strong>
+            <button type="button" class="mvu-unified-inline-close" data-unified-inline-close="${htmlEscape(目标页签键)}">收起</button>
+          </div>
+          <div class="mvu-unified-inline-summary mvu-unified-card">${摘要内容}</div>
+          ${操作区HTML}
+        </div>
+      `;
+      宿主.dataset.unifiedInlinePreview = 目标预览键;
+      表面状态[目标页签键] = 目标预览键;
+
+      const 页容器 = 获取一体栏页容器(目标页签键, 目标表面键);
+      if (页容器) {
+        页容器.querySelectorAll(`[data-unified-expand].is-inline-active, .mvu-unified-card[data-unified-card][data-unified-surface="${目标表面键}"].is-inline-active`).forEach(node => node.classList.remove('is-inline-active'));
+        if (卡片节点) 卡片节点.classList.add('is-inline-active');
+      }
+      return true;
+    }
+
+    function 清空一体栏页内展开(页签键 = '', options = {}) {
+      const 目标页签键 = toText(页签键, '').trim();
+      const 指定表面键 = normalizeUnifiedSurfaceKey(options && options.表面键);
+      const 表面列表 = 指定表面键
+        ? [指定表面键]
+        : ['panel', 'shell'];
+      表面列表.forEach(当前表面键 => {
+        const 表面状态 = 获取一体栏表面状态(当前表面键);
+        const 目标页签列表 = 目标页签键
+          ? [目标页签键]
+          : Object.keys(表面状态);
+        目标页签列表.forEach(键 => {
+          delete 表面状态[键];
+          const 宿主 = 获取一体栏页内展开宿主(键, 当前表面键, { 允许创建: false });
+          if (宿主) {
+            宿主.innerHTML = '';
+            delete 宿主.dataset.unifiedInlinePreview;
+          }
+          const 页容器 = 获取一体栏页容器(键, 当前表面键);
+          if (页容器) {
+            页容器.querySelectorAll(`[data-unified-expand].is-inline-active, .mvu-unified-card[data-unified-card][data-unified-surface="${当前表面键}"].is-inline-active`).forEach(node => node.classList.remove('is-inline-active'));
+          }
+        });
+      });
+    }
+
+    function 刷新全部一体栏页内展开(表面键 = '') {
+      const 指定表面键 = normalizeUnifiedSurfaceKey(表面键);
+      const 表面列表 = 指定表面键 ? [指定表面键] : ['panel', 'shell'];
+      表面列表.forEach(当前表面键 => {
+        const 表面状态 = 获取一体栏表面状态(当前表面键);
+        Object.entries(表面状态).forEach(([页签键, 预览键]) => {
+          if (!toText(预览键, '').trim()) return;
+          渲染一体栏页内展开(页签键, 预览键, { 表面键: 当前表面键 });
+        });
+      });
+    }
+
     function renderUnifiedSpiritCards(snapshot) {
       renderUnifiedSpiritCardsBySurface(snapshot, 'panel');
       renderUnifiedSpiritCardsBySurface(snapshot, 'shell');
@@ -13805,6 +14043,7 @@
       const previousSectionSignatures = previousSectionSignaturesOverride || lastDashboardSectionRenderSignatures || Object.create(null);
       renderUnifiedCardsBySurface(snapshot, sectionSignatures, previousSectionSignatures, 'panel');
       renderUnifiedCardsBySurface(snapshot, sectionSignatures, previousSectionSignatures, 'shell');
+      刷新全部一体栏页内展开();
       return;
 
       if (sectionSignatures.archive !== previousSectionSignatures.archive) {
@@ -15608,9 +15847,12 @@
         const relationHtml = relationNodes.map(([name, rel], index) => {
           const pos = relationPositions[index];
           const favor = toNumber(rel && rel['好感度'], 0);
-          const 武魂相关度基础值 = Math.max(0, Math.min(100, toNumber(rel && rel['武魂相关度基础'], 0)));
-          const 武魂相关度关系加成值 = Math.max(0, Math.min(20, toNumber(rel && rel['武魂相关度关系加成'], Math.floor(Math.max(0, favor) / 10))));
-          const 武魂相关度总分值 = Math.max(0, Math.min(100, toNumber(rel && rel['武魂相关度总分'], 武魂相关度基础值 + 武魂相关度关系加成值)));
+          const 武魂相关度基础值 = 读取武魂相关度基础值_桥接(rel);
+          const 武魂相关度基础显示值 = 武魂相关度基础值 == null
+            ? toText(rel && rel['武魂相关度基础'], '待补全')
+            : String(武魂相关度基础值);
+          const 武魂相关度关系加成值 = 计算关系加成值_桥接(favor);
+          const 武魂相关度总分值 = 计算武魂相关度总分_桥接(rel);
           const 融合触发状态 = 武魂相关度总分值 >= 70 ? '可触发' : '未达阈值';
           const 同修倍率预估 = Number((1 + 武魂相关度总分值 * 0.0025).toFixed(3));
           return `
@@ -15632,7 +15874,7 @@
                   <span>${htmlEscape(`当前加成：${toText(rel && rel['_当前关系加成'], toText(rel && rel['好感加成'], '无'))}`)}</span>
                   <span>${htmlEscape(`下一解锁：${toText(rel && rel['_下档解锁加成'], '无')}`)}</span>
                   <span>${htmlEscape(`关系状态：${toText(rel && rel['_维护优先级'], '未知')} / ${toText(rel && rel['_切线限制原因'], '无')}`)}</span>
-                  <span>${htmlEscape(`基础相关度：${武魂相关度基础值} / 关系加成：+${武魂相关度关系加成值}`)}</span>
+                  <span>${htmlEscape(`基础相关度：${武魂相关度基础显示值} / 关系加成：+${武魂相关度关系加成值}`)}</span>
                   <span>${htmlEscape(`融合判定：${融合触发状态} (总分${武魂相关度总分值})`)}</span>
                   <span>${htmlEscape(`同修效率：x${同修倍率预估}`)}</span>
                 </div>
@@ -15666,16 +15908,12 @@
         const relationTargetLocLabel = relationTargetLoc ? relationTargetLoc.replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '') : '未知地点';
         const relationFavor = toNumber(relationDetail && relationDetail['好感度'], 0);
         const relationRoute = toText(relationDetail && relationDetail['关系路线'], '朋友线');
-        const 武魂相关度基础值 = Math.max(0, Math.min(100, toNumber(relationDetail && relationDetail['武魂相关度基础'], 0)));
-        const 武魂相关度关系加成值 = Math.max(
-          0,
-          Math.min(20, toNumber(relationDetail && relationDetail['武魂相关度关系加成'], Math.floor(Math.max(0, relationFavor) / 10))),
-        );
-        const 武魂相关度总分值 = Math.max(
-          0,
-          Math.min(100, toNumber(relationDetail && relationDetail['武魂相关度总分'], 武魂相关度基础值 + 武魂相关度关系加成值)),
-        );
-        const 武魂相关度状态值 = toText(relationDetail && relationDetail['武魂相关度状态'], '待生成');
+        const 武魂相关度基础值 = 读取武魂相关度基础值_桥接(relationDetail);
+        const 武魂相关度基础显示值 = 武魂相关度基础值 == null
+          ? toText(relationDetail && relationDetail['武魂相关度基础'], '待补全')
+          : String(武魂相关度基础值);
+        const 武魂相关度关系加成值 = 计算关系加成值_桥接(relationFavor);
+        const 武魂相关度总分值 = 计算武魂相关度总分_桥接(relationDetail);
         const 融合触发状态值 = 武魂相关度总分值 >= 70 ? '可触发' : '未达阈值';
         const 同修效率倍率值 = Number((1 + 武魂相关度总分值 * 0.0025).toFixed(3));
         const routeSwitchable = !!deepGet(relationDetail, '_可切线', false);
@@ -15787,15 +16025,21 @@
                   })
                 : htmlEscape(toText(relationDetail && relationDetail['对方身份'], '无')) },
               { label: '基础相关度', value: relationDetailPath.length
-                ? makeInlineEditableValue(String(武魂相关度基础值), {
-                    path: [...relationDetailPath, '武魂相关度基础'],
-                    kind: 'number',
-                    rawValue: 武魂相关度基础值,
-                    editorMeta: { min: 0, max: 100, integer: true, hint: '0-100整数' },
-                  })
-                : htmlEscape(String(武魂相关度基础值)) },
+                ? (武魂相关度基础值 == null
+                  ? makeInlineEditableValue(武魂相关度基础显示值, {
+                      path: [...relationDetailPath, '武魂相关度基础'],
+                      kind: 'string',
+                      rawValue: 武魂相关度基础显示值,
+                    })
+                  : makeInlineEditableValue(String(武魂相关度基础值), {
+                      path: [...relationDetailPath, '武魂相关度基础'],
+                      kind: 'number',
+                      rawValue: 武魂相关度基础值,
+                      editorMeta: { min: 0, max: 100, integer: true, hint: '0-100整数' },
+                    }))
+                : htmlEscape(武魂相关度基础显示值) },
               { label: '关系加成', value: htmlEscape(`+${武魂相关度关系加成值}`) },
-              { label: '总相关度', value: htmlEscape(`${武魂相关度总分值} (${武魂相关度状态值})`) },
+              { label: '总相关度', value: htmlEscape(`${武魂相关度总分值}`) },
               { label: '融合触发', value: htmlEscape(`${融合触发状态值} / 阈值70`) },
               { label: '同修效率', value: htmlEscape(`x${同修效率倍率值}`) },
               { label: '位置状态', value: htmlEscape(`${relationTargetLocLabel} / ${isSameLocation ? '同地可接触' : (isContactable ? '远端可联系' : '当前不可接触')}`) },
@@ -20726,10 +20970,22 @@
       return Math.max(0, Math.min(100, Math.floor(分数)));
     }
 
+    function 读取武魂相关度基础值_桥接(关系数据 = {}) {
+      const 原值 = Number(关系数据 && 关系数据['武魂相关度基础']);
+      if (!Number.isFinite(原值)) return null;
+      return Math.max(0, Math.min(100, Math.floor(原值)));
+    }
+
     function 计算关系加成值_桥接(好感度 = 0) {
       const 数值 = Number(好感度 || 0);
       if (!Number.isFinite(数值)) return 0;
       return Math.max(0, Math.min(20, Math.floor(Math.max(0, 数值) / 10)));
+    }
+
+    function 计算武魂相关度总分_桥接(关系数据 = {}) {
+      const 基础值 = 读取武魂相关度基础值_桥接(关系数据);
+      const 关系加成 = 计算关系加成值_桥接(toNumber(关系数据 && 关系数据['好感度'], 0));
+      return Math.max(0, Math.min(100, (基础值 == null ? 0 : 基础值) + 关系加成));
     }
 
     function 构建武魂相关度判定系统提示(主角名, 对象名, 主角摘要, 对象摘要) {
@@ -20757,26 +21013,17 @@
 
       const 关系数据 = deepGet(snapshot, ['rootData', 'char', safe角色键, '社交', '关系', safe目标名], null);
       if (!关系数据 || typeof 关系数据 !== 'object') return;
-      const 状态值 = toText(关系数据['武魂相关度状态'], '');
-      const 基础值有效 = Number.isFinite(Number(关系数据['武魂相关度基础']));
-      const 需要判定 = !基础值有效 || 状态值 === '待重算' || 状态值 === '待生成';
+      const 基础值 = 读取武魂相关度基础值_桥接(关系数据);
+      const 需要判定 = 基础值 == null;
       if (!需要判定) return;
 
       const 主角数据 = deepGet(snapshot, ['rootData', 'char', safe角色键], {}) || {};
       const 对象解析 = resolveSnapshotCharacter(snapshot, safe目标名);
       const 对象数据 = 对象解析.char || {};
-      const 当前tick = Math.max(0, toNumber(deepGet(snapshot, 'rootData.world.时间.tick', 0), 0));
       const 基础分 = 规则估算武魂相关度基础(主角数据, 对象数据, 关系数据);
-      const 关系加成 = 计算关系加成值_桥接(toNumber(关系数据['好感度'], 0));
-      const 总分 = Math.max(0, Math.min(100, 基础分 + 关系加成));
       const 路径前缀 = 构建武魂相关度补丁路径前缀(safe角色键, safe目标名);
       const 预写补丁 = [
         { op: 'replace', path: `${路径前缀}/武魂相关度基础`, value: 基础分 },
-        { op: 'replace', path: `${路径前缀}/武魂相关度关系加成`, value: 关系加成 },
-        { op: 'replace', path: `${路径前缀}/武魂相关度总分`, value: 总分 },
-        { op: 'replace', path: `${路径前缀}/武魂相关度状态`, value: '已生成' },
-        { op: 'replace', path: `${路径前缀}/武魂相关度说明`, value: `规则回填：基础${基础分}，关系加成+${关系加成}` },
-        { op: 'replace', path: `${路径前缀}/武魂相关度更新时间tick`, value: 当前tick },
       ];
       const 主角名 = toText(deepGet(主角数据, 'name', safe角色键), safe角色键);
       const 对象名 = 对象解析.displayName || safe目标名;
@@ -23699,6 +23946,40 @@ ${mvuUpdate}`;
       return { payload, text, kind };
     }
 
+    function 构建模块路由失败结果(moduleKind = '', request = null, reason = 'module_route_failed', extra = {}) {
+      return {
+        handled: false,
+        kind: moduleKind || '',
+        request: request || null,
+        reason: toText(reason, 'module_route_failed'),
+        ...extra,
+      };
+    }
+
+    function 构建模块路由成功结果(moduleKind = '', request = null, extra = {}) {
+      return {
+        handled: true,
+        kind: moduleKind || '',
+        request: request || null,
+        ...extra,
+      };
+    }
+
+    function 读取快照当前位置(snapshot) {
+      return toText(
+        deepGet(snapshot, 'activeChar.状态.位置', snapshot && snapshot.currentLoc),
+        snapshot && snapshot.currentLoc,
+      );
+    }
+
+    function 归一化模块意图类型(kind = '') {
+      const 文本 = toText(kind, '').toLowerCase();
+      if (/battle|combat|战斗|切磋|单挑/.test(文本)) return 'battle';
+      if (/trade|交易|购买|出售|竞拍|拍卖/.test(文本)) return 'trade';
+      if (/craft|profession|job|副职业|工坊|锻造|制造|设计|修理|维修/.test(文本)) return 'profession';
+      return '';
+    }
+
     function 解析试炼入场意图请求(snapshot, payload = {}, kind = '', narrativeText = '') {
       const 动作文本 = toText(
         payload.action
@@ -23759,6 +24040,37 @@ ${mvuUpdate}`;
       };
     }
 
+    async function 执行内联模块意图路由(snapshot, moduleKind, request, inlineBuilder, inlineUnavailableReason, dispatchFailReason) {
+      const inlineResult = await inlineBuilder(snapshot, request);
+      if (!inlineResult?.ok || !inlineResult.inlineAction) {
+        return 构建模块路由失败结果(moduleKind, request, inlineResult?.reason || inlineUnavailableReason, {
+          dispatchMode: 'inline',
+          result: inlineResult || null,
+        });
+      }
+      const dispatchResult = await dispatchUiAiRequest(
+        inlineResult.inlineAction.playerInput,
+        inlineResult.inlineAction.systemPrompt,
+        {
+          requestKind: inlineResult.inlineAction.requestKind,
+          patchOps: inlineResult.inlineAction.patchOps
+        }
+      );
+      if (!dispatchResult?.ok) {
+        return 构建模块路由失败结果(moduleKind, request, dispatchResult?.reason || dispatchFailReason, {
+          dispatchMode: 'inline',
+          inlineAction: inlineResult.inlineAction,
+          result: inlineResult,
+        });
+      }
+      return 构建模块路由成功结果(moduleKind, request, {
+        dispatchMode: 'inline',
+        inlineAction: inlineResult.inlineAction,
+        dispatchResult,
+        result: inlineResult,
+      });
+    }
+
     async function routeModuleIntentPayload(input, options = {}) {
       const snapshot = liveSnapshot || lastRenderableSnapshot;
       const { payload, text, kind } = resolveModuleIntentPayload(input);
@@ -23772,7 +24084,11 @@ ${mvuUpdate}`;
       if (试炼请求) {
         request = 试炼请求;
         moduleKind = 'trial_entry';
-      } else if (/battle|combat|战斗|切磋|单挑/.test(kind)) {
+      } else {
+        moduleKind = 归一化模块意图类型(kind);
+      }
+
+      if (moduleKind === 'battle') {
         const trialContext = 读取试炼状态上下文(snapshot);
         if (trialContext) {
           const 指定层数 = Math.max(0, Math.floor(toNumber(payload.floor, 0)));
@@ -23807,13 +24123,10 @@ ${mvuUpdate}`;
             if (!npcTarget) request = null;
           }
         }
-        moduleKind = 'battle';
-      } else if (/trade|交易|购买|出售|竞拍|拍卖/.test(kind)) {
+      } else if (moduleKind === 'trade') {
         request = buildTradeRequestFromObject(snapshot, payload);
-        moduleKind = 'trade';
-      } else if (/craft|profession|job|副职业|工坊|锻造|制造|设计|修理|维修/.test(kind)) {
+      } else if (moduleKind === 'profession') {
         request = buildDirectProfessionRequest(snapshot, payload);
-        moduleKind = 'profession';
       } else {
         request = null;
         moduleKind = '';
@@ -23821,12 +24134,7 @@ ${mvuUpdate}`;
 
       if (!request || !moduleKind) return { handled: false, reason: 'no_module_intent' };
       if (moduleKind === 'battle' && deepGet(snapshot, 'rootData.world.战斗.进行中', false)) {
-        return {
-          handled: false,
-          kind: moduleKind,
-          request,
-          reason: 'battle_already_active'
-        };
+        return 构建模块路由失败结果(moduleKind, request, 'battle_already_active');
       }
       if (dryRun) return { handled: true, dryRun: true, kind: moduleKind, request };
 
@@ -23835,15 +24143,14 @@ ${mvuUpdate}`;
         try {
           result = await 登记试炼入场并推进剧情(snapshot, request || {});
         } catch (error) {
-          return {
-            handled: false,
-            kind: moduleKind,
+          return 构建模块路由失败结果(
+            moduleKind,
             request,
-            reason: error && error.message ? error.message : 'trial_entry_failed',
-          };
+            error && error.message ? error.message : 'trial_entry_failed',
+          );
         }
         await refreshLiveSnapshot({ force: true });
-        return { handled: true, kind: moduleKind, request, result };
+        return 构建模块路由成功结果(moduleKind, request, { result });
       }
 
       if (moduleKind === 'battle') {
@@ -23853,102 +24160,35 @@ ${mvuUpdate}`;
           result = await openMapBattleModule(liveSnapshot || lastRenderableSnapshot || snapshot, request);
         }
         if (!result?.ok) {
-          return { handled: false, kind: moduleKind, request, result, reason: result?.reason || 'battle_open_failed' };
+          return 构建模块路由失败结果(moduleKind, request, result?.reason || 'battle_open_failed', { result });
         }
         await refreshLiveSnapshot({ force: true });
-        return { handled: true, kind: moduleKind, request, result };
+        return 构建模块路由成功结果(moduleKind, request, { result });
       }
 
       if (moduleKind === 'trade') {
         const privateTradeNpc = toText(request && request.对象, '');
         if (privateTradeNpc && !resolveSnapshotCharKey(snapshot, privateTradeNpc)) {
-          return {
-            handled: false,
-            kind: moduleKind,
-            request,
-            reason: 'trade_target_unresolved'
-          };
+          return 构建模块路由失败结果(moduleKind, request, 'trade_target_unresolved');
         }
-        const inlineResult = await buildInlineTradeAction(snapshot, request);
-        if (!inlineResult?.ok || !inlineResult.inlineAction) {
-          return {
-            handled: false,
-            kind: moduleKind,
-            request,
-            dispatchMode: 'inline',
-            reason: inlineResult?.reason || 'trade_inline_action_unavailable',
-            result: inlineResult || null
-          };
-        }
-        const dispatchResult = await dispatchUiAiRequest(
-          inlineResult.inlineAction.playerInput,
-          inlineResult.inlineAction.systemPrompt,
-          {
-            requestKind: inlineResult.inlineAction.requestKind,
-            patchOps: inlineResult.inlineAction.patchOps
-          }
-        );
-        if (!dispatchResult?.ok) {
-          return {
-            handled: false,
-            kind: moduleKind,
-            request,
-            dispatchMode: 'inline',
-            reason: dispatchResult?.reason || 'trade_continuation_dispatch_failed',
-            inlineAction: inlineResult.inlineAction,
-            result: inlineResult
-          };
-        }
-        return {
-          handled: true,
-          kind: moduleKind,
+        return await 执行内联模块意图路由(
+          snapshot,
+          moduleKind,
           request,
-          dispatchMode: 'inline',
-          inlineAction: inlineResult.inlineAction,
-          dispatchResult,
-          result: inlineResult
-        };
+          buildInlineTradeAction,
+          'trade_inline_action_unavailable',
+          'trade_continuation_dispatch_failed',
+        );
       }
 
-      const inlineResult = await buildInlineProfessionAction(snapshot, request);
-      if (!inlineResult?.ok || !inlineResult.inlineAction) {
-        return {
-          handled: false,
-          kind: moduleKind,
-          request,
-          dispatchMode: 'inline',
-          reason: inlineResult?.reason || 'profession_inline_action_unavailable',
-          result: inlineResult || null
-        };
-      }
-      const dispatchResult = await dispatchUiAiRequest(
-        inlineResult.inlineAction.playerInput,
-        inlineResult.inlineAction.systemPrompt,
-        {
-          requestKind: inlineResult.inlineAction.requestKind,
-          patchOps: inlineResult.inlineAction.patchOps
-        }
-      );
-      if (!dispatchResult?.ok) {
-        return {
-          handled: false,
-          kind: moduleKind,
-          request,
-          dispatchMode: 'inline',
-          reason: dispatchResult?.reason || 'profession_continuation_dispatch_failed',
-          inlineAction: inlineResult.inlineAction,
-          result: inlineResult
-        };
-      }
-      return {
-        handled: true,
-        kind: moduleKind,
+      return await 执行内联模块意图路由(
+        snapshot,
+        moduleKind,
         request,
-        dispatchMode: 'inline',
-        inlineAction: inlineResult.inlineAction,
-        dispatchResult,
-        result: inlineResult
-      };
+        buildInlineProfessionAction,
+        'profession_inline_action_unavailable',
+        'profession_continuation_dispatch_failed',
+      );
     }
 
     function installDirectModuleIntentGuard() {
@@ -23976,26 +24216,34 @@ ${mvuUpdate}`;
         return;
       }
 
-      if (action === 'craft' || services.includes('craft')) {
-        mapDispatchContext = { ...detail, action, services };
+      const 归一化动作 = (() => {
+        if (action === 'craft' || services.includes('craft')) return 'craft';
+        if (action === 'ascension' || action === 'tower') return action;
+        if (['talk', 'brief', 'intel'].includes(action)) return action;
+        if (action === 'battle' || services.includes('battle')) return 'battle';
+        if (
+          ['trade', 'bid', 'shop', 'auction', 'black_market'].includes(action)
+          || services.some(service => ['shop', 'auction', 'black_market'].includes(service))
+        ) return 'trade';
+        return '';
+      })();
+      if (!归一化动作) return;
+      mapDispatchContext = { ...detail, action: 归一化动作, services };
+
+      if (归一化动作 === 'craft') {
         openModal('武装工坊详细页', { preserveMapDispatchContext: true });
         return;
       }
 
-      if (action === 'ascension' || action === 'tower') {
-        mapDispatchContext = { ...detail, action, services };
-        const 是魂灵塔入场 = action === 'tower';
-        const 入场地点 = toText(
-          detail.currentLoc,
-          toText(deepGet(liveSnapshot, 'activeChar.状态.位置', liveSnapshot && liveSnapshot.currentLoc), liveSnapshot && liveSnapshot.currentLoc),
-        );
+      if (归一化动作 === 'ascension' || 归一化动作 === 'tower') {
+        const 是魂灵塔入场 = 归一化动作 === 'tower';
         const 入场请求 = {
           试炼类型: 是魂灵塔入场 ? '魂灵塔' : '升灵台',
           ticketName: toText(
             detail.ticketName || (是魂灵塔入场 ? detail.soulTowerTicket : detail.ascensionTicket),
             '',
           ),
-          entryLocation: 入场地点,
+          entryLocation: toText(detail.currentLoc, 读取快照当前位置(liveSnapshot || lastRenderableSnapshot || {})),
         };
         if (是魂灵塔入场) {
           入场请求.floor = Math.max(
@@ -24017,9 +24265,8 @@ ${mvuUpdate}`;
         return;
       }
 
-      if (['talk', 'brief', 'intel'].includes(action)) {
+      if (['talk', 'brief', 'intel'].includes(归一化动作)) {
         const interactInit = buildMapInteractDispatchRequest(liveSnapshot, detail);
-        mapDispatchContext = { ...detail, action, services };
         if (interactInit) {
           dispatchUiAiRequest(interactInit.playerInput, interactInit.systemPrompt, { requestKind: interactInit.requestKind });
           return;
@@ -24032,29 +24279,25 @@ ${mvuUpdate}`;
           brief: `我想在【${arenaName}】向${targetLabel}汇报情况并请示安排。`,
           intel: `我想在【${arenaName}】向${targetLabel}请教情报。`
         };
-        const actionLabel = action === 'brief' ? '汇报' : (action === 'intel' ? '请教' : '对话');
+        const actionLabel = 归一化动作 === 'brief' ? '汇报' : (归一化动作 === 'intel' ? '请教' : '对话');
         const systemPrompt = `以下内容属于前端已经发起的地图${actionLabel}请求。当前没有锁定唯一 NPC 目标，不要报错，也不要要求玩家重新点击；请结合【${arenaName}】的场景功能与在场人物，自然选择最合适的回应对象承接本次互动。${npcTargets.length ? ` 当前可候选人物：${npcTargets.join('、')}。` : ' 当前未识别到明确人物名单，请按地点与事件功能自然承接。'}`;
-        dispatchUiAiRequest(playerInputMap[action] || `我想在【${arenaName}】与在场人物互动。`, systemPrompt, { requestKind: 'map_interaction' });
+        dispatchUiAiRequest(playerInputMap[归一化动作] || `我想在【${arenaName}】与在场人物互动。`, systemPrompt, { requestKind: 'map_interaction' });
         return;
       }
 
-      if (action === 'battle' || services.includes('battle')) {
-        mapDispatchContext = { ...detail, action, services };
+      if (归一化动作 === 'battle') {
         let battleOpenResult = null;
         try {
           battleOpenResult = await openMapBattleModule(liveSnapshot, detail);
         } catch (error) {
           console.warn('[DragonUI] 战斗模块开启失败。', error);
         }
-        if (battleOpenResult && battleOpenResult.ok) {
-          return;
-        }
+        if (battleOpenResult && battleOpenResult.ok) return;
         showUiToast(`战斗模块开启失败：${battleOpenResult && battleOpenResult.reason ? battleOpenResult.reason : 'combat_context_unresolved'}`, 'error', 4200);
         return;
       }
 
-      if (['trade', 'bid', 'shop', 'auction', 'black_market'].includes(action) || services.some(service => ['shop', 'auction', 'black_market'].includes(service))) {
-        mapDispatchContext = { ...detail, action, services };
+      if (归一化动作 === 'trade') {
         openModal('交易网络', { preserveMapDispatchContext: true });
       }
     }
@@ -25156,6 +25399,37 @@ ${mvuUpdate}`;
           应用终端标签切换(终端标签按钮);
           return;
         }
+        const 页内收起按钮 = eventTarget ? eventTarget.closest('[data-unified-inline-close]') : null;
+        if (isUnifiedMount && 页内收起按钮 && mountEl.contains(页内收起按钮) && !页内收起按钮.closest('.mvu-mobile-shell')) {
+          event.preventDefault();
+          event.stopPropagation();
+          const 目标页签键 = toText(页内收起按钮.getAttribute('data-unified-inline-close'), '').trim() || 获取一体栏页签键(页内收起按钮);
+          const 目标表面键 = 获取一体栏表面键(页内收起按钮, 'panel');
+          清空一体栏页内展开(目标页签键, { 表面键: 目标表面键 });
+          return;
+        }
+        const 页内详情按钮 = eventTarget ? eventTarget.closest('[data-unified-open-detail]') : null;
+        if (isUnifiedMount && 页内详情按钮 && mountEl.contains(页内详情按钮) && !页内详情按钮.closest('.mvu-mobile-shell')) {
+          const 目标预览键 = toText(页内详情按钮.getAttribute('data-unified-open-detail'), '').trim();
+          if (!目标预览键) return;
+          event.preventDefault();
+          event.stopPropagation();
+          if (typeof window.__MVU_OPEN_UNIFIED_PREVIEW__ === 'function') {
+            window.__MVU_OPEN_UNIFIED_PREVIEW__(目标预览键, { triggerEl: 页内详情按钮, preserveMapDispatchContext: true });
+          }
+          return;
+        }
+        const 页内展开卡片 = eventTarget ? eventTarget.closest('[data-unified-expand], .mvu-unified-card.clickable[data-unified-card][data-unified-surface]') : null;
+        if (isUnifiedMount && 页内展开卡片 && mountEl.contains(页内展开卡片) && !页内展开卡片.closest('.mvu-mobile-shell')) {
+          const 目标预览键 = toText(页内展开卡片.getAttribute('data-preview'), '').trim();
+          const 目标页签键 = 获取一体栏页签键(页内展开卡片);
+          if (!目标预览键 || !目标页签键) return;
+          event.preventDefault();
+          event.stopPropagation();
+          const 目标表面键 = 获取一体栏表面键(页内展开卡片, 'panel');
+          渲染一体栏页内展开(目标页签键, 目标预览键, { 卡片节点: 页内展开卡片, 表面键: 目标表面键 });
+          return;
+        }
         const clickable = eventTarget ? eventTarget.closest('.clickable') : null;
         if (!clickable || !mountEl.contains(clickable)) return;
 
@@ -25198,6 +25472,39 @@ ${mvuUpdate}`;
         event.preventDefault();
         event.stopPropagation();
         return;
+      }
+      const 页内收起按钮 = eventTarget ? eventTarget.closest('[data-unified-inline-close]') : null;
+      if (页内收起按钮) {
+        const 目标页签键 = toText(页内收起按钮.getAttribute('data-unified-inline-close'), '').trim() || 获取一体栏页签键(页内收起按钮);
+        if (目标页签键) {
+          event.preventDefault();
+          event.stopPropagation();
+          const 目标表面键 = 获取一体栏表面键(页内收起按钮, 'panel');
+          清空一体栏页内展开(目标页签键, { 表面键: 目标表面键 });
+          return;
+        }
+      }
+      const 页内详情按钮 = eventTarget ? eventTarget.closest('[data-unified-open-detail]') : null;
+      if (页内详情按钮) {
+        const 目标预览键 = toText(页内详情按钮.getAttribute('data-unified-open-detail'), '').trim();
+        if (目标预览键 && typeof window.__MVU_OPEN_UNIFIED_PREVIEW__ === 'function') {
+          event.preventDefault();
+          event.stopPropagation();
+          window.__MVU_OPEN_UNIFIED_PREVIEW__(目标预览键, { triggerEl: 页内详情按钮, preserveMapDispatchContext: true });
+          return;
+        }
+      }
+      const 页内展开卡片 = eventTarget ? eventTarget.closest('[data-unified-expand], .mvu-unified-card.clickable[data-unified-card][data-unified-surface]') : null;
+      if (页内展开卡片) {
+        const 目标预览键 = toText(页内展开卡片.getAttribute('data-preview'), '').trim();
+        const 目标页签键 = 获取一体栏页签键(页内展开卡片);
+        if (目标预览键 && 目标页签键) {
+          event.preventDefault();
+          event.stopPropagation();
+          const 目标表面键 = 获取一体栏表面键(页内展开卡片, 'panel');
+          渲染一体栏页内展开(目标页签键, 目标预览键, { 卡片节点: 页内展开卡片, 表面键: 目标表面键 });
+          return;
+        }
       }
       const clickable = eventTarget ? eventTarget.closest('.clickable') : null;
       const unifiedMount = document.getElementById('mvu-unified-mount');
@@ -27003,6 +27310,7 @@ window.mvuSetMainTab = setMainTab;
 
 
 })();
+
 
 
 
