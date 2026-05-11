@@ -17966,19 +17966,8 @@
 
       if (previewKey === '试炼与情报') {
         const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
-        const isPlayerControlled = isSnapshotPlayerControlled(snapshot);
         const activeChar = getActiveSnapshotCharacter(snapshot);
         const soulTowerEligible = isSoulTowerEligibleCharacterData(activeChar);
-        const soulTowerEntryLocation = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc), snapshot.currentLoc);
-        const ascensionTickets = listAscensionTicketNames(snapshot);
-        const soulTowerTickets = listSoulTowerTicketNames(snapshot);
-        const canRunAscensionAtCurrentLocation =
-          isTransmissionTowerEntryLocation(soulTowerEntryLocation) &&
-          ascensionTickets.length > 0;
-        const canStartSoulTowerAtCurrentLocation =
-          soulTowerEligible &&
-          isSoulTowerHeadquartersLocation(soulTowerEntryLocation) &&
-          soulTowerTickets.length > 0;
         const towerPath = soulTowerEligible && activeCharKey ? ['char', activeCharKey, '魂灵塔记录'] : [];
         const towerDiscountSpirit = soulTowerEligible
           ? normalizeSoulTowerDiscountSpiritRecord(deepGet(snapshot, 'activeChar.魂灵塔记录.当前五折魂灵', {}))
@@ -18003,12 +17992,6 @@
             };
           })
           : [{ title: '暂无试炼门票', desc: '暂无可用门票', className: 'intel-card--single' }];
-        const ascensionTicketOptionsHtml = ascensionTickets.length
-          ? ascensionTickets.map(name => `<option value="${escapeHtmlAttr(name)}">${htmlEscape(name)}</option>`).join('')
-          : '<option value="">暂无门票</option>';
-        const 显示升灵台操作 = ascensionTickets.length > 0;
-        const 显示魂灵塔操作 = soulTowerEligible && soulTowerTickets.length > 0;
-        const 显示试炼操作区 = isPlayerControlled && activeCharKey && (显示升灵台操作 || 显示魂灵塔操作);
         delete modalFocusState[`${previewKey}::trial-focus`];
         return {
           title: '试炼与情报',
@@ -18063,24 +18046,6 @@
                 ` : ''}
               </div>
               ${构建可玩选项卡区(snapshot, '试炼与情报')}
-
-              ${显示试炼操作区 ? `
-                <div class="archive-card full">
-                  <div class="archive-card-head"><div class="archive-card-title">可执行操作</div></div>
-                  ${显示升灵台操作 ? `
-                    <div class="request-console-row" data-collection-panel="trial-ascension" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:${显示魂灵塔操作 ? '12px' : '0'};">
-                      <select class="request-console-input" data-collection-input="asc-ticket" style="margin:0; flex:1 1 180px;">${ascensionTicketOptionsHtml}</select>
-                      <button type="button" class="tag-chip live request-console-primary-action" data-collection-action="run-ascension" data-collection-char="${escapeHtmlAttr(activeCharKey)}" ${canRunAscensionAtCurrentLocation ? '' : 'disabled'}>进入升灵台</button>
-                    </div>
-                  ` : ''}
-                  ${显示魂灵塔操作 ? `
-                    <div class="request-console-row" data-collection-panel="trial-tower" style="display:flex; gap:8px; flex-wrap:wrap;">
-                      <select class="request-console-input" data-collection-input="tower-ticket" style="margin:0; flex:1 1 180px;">${soulTowerTickets.map(name => `<option value="${escapeHtmlAttr(name)}">${htmlEscape(name)}</option>`).join('')}</select>
-                      <button type="button" class="tag-chip live request-console-primary-action" data-collection-action="run-soul-tower" data-collection-char="${escapeHtmlAttr(activeCharKey)}" ${canStartSoulTowerAtCurrentLocation ? '' : 'disabled'}>进入魂灵塔</button>
-                    </div>
-                  ` : ''}
-                </div>
-              ` : ''}
 
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">近期情报</div></div>
@@ -23734,6 +23699,66 @@ ${mvuUpdate}`;
       return { payload, text, kind };
     }
 
+    function 解析试炼入场意图请求(snapshot, payload = {}, kind = '', narrativeText = '') {
+      const 动作文本 = toText(
+        payload.action
+          || payload.动作
+          || payload.action_type
+          || payload.module
+          || payload.type
+          || payload.kind
+          || payload.requestKind
+          || payload.request_kind
+          || payload.试炼类型
+          || payload.trialType
+          || payload.trial,
+        '',
+      ).toLowerCase();
+      const 识别文本 = `${toText(kind, '').toLowerCase()}|${动作文本}|${toText(narrativeText, '').toLowerCase()}`.trim();
+      let 试炼类型 = '';
+      if (/tower|魂灵塔/.test(识别文本)) 试炼类型 = '魂灵塔';
+      else if (/ascension|升灵台/.test(识别文本)) 试炼类型 = '升灵台';
+      if (!试炼类型) return null;
+
+      const 当前地点 = toText(
+        payload.currentLoc || payload.current_loc || payload.location || payload.entryLocation || payload.entry_location || payload.targetLocation,
+        toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc), snapshot.currentLoc),
+      );
+      const 读取门票名称 = 默认门票 => toText(
+        payload.ticketName || payload.ticket_name || payload.ascensionTicket || payload.ascension_ticket
+          || payload.soulTowerTicket || payload.soul_tower_ticket || payload.ticket || payload.门票名,
+        默认门票 || '',
+      ).trim();
+      if (试炼类型 === '升灵台') {
+        const 可用门票 = listAscensionTicketNames(snapshot);
+        const ticketName = 读取门票名称(可用门票[0] || '');
+        return {
+          试炼类型,
+          ticketName,
+          entryLocation: 当前地点,
+        };
+      }
+
+      const 可用门票 = listSoulTowerTicketNames(snapshot);
+      const ticketName = 读取门票名称(可用门票[0] || '');
+      const 文本层数匹配 = toText(narrativeText, '').match(/第\s*(\d+)\s*层/);
+      const 文本层数 = 文本层数匹配 ? toNumber(文本层数匹配[1], 0) : 0;
+      return {
+        试炼类型,
+        ticketName,
+        floor: Math.max(
+          1,
+          Math.floor(
+            toNumber(
+              payload.floor || payload.层数 || payload.layer || 文本层数,
+              getDefaultSoulTowerChallengeFloor(snapshot),
+            ),
+          ),
+        ),
+        entryLocation: 当前地点,
+      };
+    }
+
     async function routeModuleIntentPayload(input, options = {}) {
       const snapshot = liveSnapshot || lastRenderableSnapshot;
       const { payload, text, kind } = resolveModuleIntentPayload(input);
@@ -23743,7 +23768,11 @@ ${mvuUpdate}`;
       let moduleKind = '';
       let request = null;
 
-      if (/battle|combat|战斗|切磋|单挑/.test(kind)) {
+      const 试炼请求 = 解析试炼入场意图请求(snapshot, payload, kind, text);
+      if (试炼请求) {
+        request = 试炼请求;
+        moduleKind = 'trial_entry';
+      } else if (/battle|combat|战斗|切磋|单挑/.test(kind)) {
         const trialContext = 读取试炼状态上下文(snapshot);
         if (trialContext) {
           const 指定层数 = Math.max(0, Math.floor(toNumber(payload.floor, 0)));
@@ -23800,6 +23829,22 @@ ${mvuUpdate}`;
         };
       }
       if (dryRun) return { handled: true, dryRun: true, kind: moduleKind, request };
+
+      if (moduleKind === 'trial_entry') {
+        let result = null;
+        try {
+          result = await 登记试炼入场并推进剧情(snapshot, request || {});
+        } catch (error) {
+          return {
+            handled: false,
+            kind: moduleKind,
+            request,
+            reason: error && error.message ? error.message : 'trial_entry_failed',
+          };
+        }
+        await refreshLiveSnapshot({ force: true });
+        return { handled: true, kind: moduleKind, request, result };
+      }
 
       if (moduleKind === 'battle') {
         let result = await openMapBattleModule(snapshot, request);
@@ -23937,47 +23982,37 @@ ${mvuUpdate}`;
         return;
       }
 
-      if (action === 'ascension') {
+      if (action === 'ascension' || action === 'tower') {
         mapDispatchContext = { ...detail, action, services };
-        try {
-          await 登记试炼入场并推进剧情(liveSnapshot, {
-            试炼类型: '升灵台',
-            ticketName: toText(detail.ticketName || detail.ascensionTicket, ''),
-            entryLocation: toText(
-              detail.currentLoc,
-              toText(deepGet(liveSnapshot, 'activeChar.状态.位置', liveSnapshot && liveSnapshot.currentLoc), liveSnapshot && liveSnapshot.currentLoc),
-            ),
-          });
-          showUiToast('升灵台入场已登记。', 'info', 2400);
-        } catch (error) {
-          showUiToast(error && error.message ? error.message : '升灵台入场失败。', 'error', 4200);
-        }
-        return;
-      }
-
-      if (action === 'tower') {
-        mapDispatchContext = { ...detail, action, services };
-        try {
-          await 登记试炼入场并推进剧情(liveSnapshot, {
-            试炼类型: '魂灵塔',
-            ticketName: toText(detail.ticketName || detail.soulTowerTicket, ''),
-            floor: Math.max(
-              1,
-              Math.floor(
-                toNumber(
-                  detail.floor,
-                  getDefaultSoulTowerChallengeFloor(liveSnapshot || lastRenderableSnapshot || {}),
-                ),
+        const 是魂灵塔入场 = action === 'tower';
+        const 入场地点 = toText(
+          detail.currentLoc,
+          toText(deepGet(liveSnapshot, 'activeChar.状态.位置', liveSnapshot && liveSnapshot.currentLoc), liveSnapshot && liveSnapshot.currentLoc),
+        );
+        const 入场请求 = {
+          试炼类型: 是魂灵塔入场 ? '魂灵塔' : '升灵台',
+          ticketName: toText(
+            detail.ticketName || (是魂灵塔入场 ? detail.soulTowerTicket : detail.ascensionTicket),
+            '',
+          ),
+          entryLocation: 入场地点,
+        };
+        if (是魂灵塔入场) {
+          入场请求.floor = Math.max(
+            1,
+            Math.floor(
+              toNumber(
+                detail.floor,
+                getDefaultSoulTowerChallengeFloor(liveSnapshot || lastRenderableSnapshot || {}),
               ),
             ),
-            entryLocation: toText(
-              detail.currentLoc,
-              toText(deepGet(liveSnapshot, 'activeChar.状态.位置', liveSnapshot && liveSnapshot.currentLoc), liveSnapshot && liveSnapshot.currentLoc),
-            ),
-          });
-          showUiToast('魂灵塔入场已登记。', 'info', 2400);
+          );
+        }
+        try {
+          await 登记试炼入场并推进剧情(liveSnapshot, 入场请求);
+          showUiToast(是魂灵塔入场 ? '魂灵塔入场已登记。' : '升灵台入场已登记。', 'info', 2400);
         } catch (error) {
-          showUiToast(error && error.message ? error.message : '魂灵塔入场失败。', 'error', 4200);
+          showUiToast(error && error.message ? error.message : (是魂灵塔入场 ? '魂灵塔入场失败。' : '升灵台入场失败。'), 'error', 4200);
         }
         return;
       }
@@ -25553,12 +25588,20 @@ ${mvuUpdate}`;
             if (!charKey) throw new Error('缺少角色信息。');
             const currentSnapshot = liveSnapshot || lastRenderableSnapshot;
             if (!currentSnapshot) throw new Error('当前快照未就绪，无法进入升灵台。');
-            await 登记试炼入场并推进剧情(currentSnapshot, {
-              试炼类型: '升灵台',
-              ticketName,
-              entryLocation: toText(deepGet(currentSnapshot, 'activeChar.状态.位置', currentSnapshot.currentLoc), currentSnapshot.currentLoc),
-            });
-            showUiToast('升灵台入场已登记。');
+            const currentLoc = toText(
+              deepGet(currentSnapshot, 'activeChar.状态.位置', currentSnapshot.currentLoc),
+              currentSnapshot.currentLoc,
+            );
+            window.dispatchEvent(new CustomEvent('map-action-dispatch', {
+              detail: {
+                action: 'ascension',
+                ticketName,
+                currentLoc,
+                target: currentLoc,
+                services: [],
+                source: 'trial_console',
+              },
+            }));
             if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
             return;
           }
@@ -25568,13 +25611,21 @@ ${mvuUpdate}`;
             if (!charKey) throw new Error('缺少角色信息。');
             const currentSnapshot = liveSnapshot || lastRenderableSnapshot;
             if (!currentSnapshot) throw new Error('当前快照未就绪，无法开启魂灵塔。');
-            await 登记试炼入场并推进剧情(currentSnapshot, {
-              试炼类型: '魂灵塔',
-              ticketName,
-              floor: Math.max(1, getDefaultSoulTowerChallengeFloor(currentSnapshot)),
-              entryLocation: toText(deepGet(currentSnapshot, 'activeChar.状态.位置', currentSnapshot.currentLoc), currentSnapshot.currentLoc),
-            });
-            showUiToast('魂灵塔入场已登记。');
+            const currentLoc = toText(
+              deepGet(currentSnapshot, 'activeChar.状态.位置', currentSnapshot.currentLoc),
+              currentSnapshot.currentLoc,
+            );
+            window.dispatchEvent(new CustomEvent('map-action-dispatch', {
+              detail: {
+                action: 'tower',
+                ticketName,
+                floor: Math.max(1, getDefaultSoulTowerChallengeFloor(currentSnapshot)),
+                currentLoc,
+                target: currentLoc,
+                services: [],
+                source: 'trial_console',
+              },
+            }));
             if (detailPreviewKey) rerenderDetailSurface(detailPreviewKey, options);
             return;
           }

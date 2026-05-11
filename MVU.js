@@ -6207,94 +6207,6 @@ function clonePackedSkillEffects(effects) {
   return JSON.parse(JSON.stringify(Array.isArray(effects) ? effects : []));
 }
 
-const SKILL_DSL_LEGACY_FIELD_KEYS = Object.freeze([
-  '画面描述',
-  '效果描述',
-  '附带属性',
-  '_效果数组',
-  'dsl',
-  'dsl_warnings',
-  '属性来源',
-  '魂技作用',
-  '属性系数',
-  '元素构型',
-  '五行调用结构',
-  '极性信息',
-  '元素',
-  '技能类型',
-  '对象',
-  '加成属性',
-  '特效量化参数',
-]);
-
-function stripLegacySkillFieldsFromSkill(skill = {}) {
-  if (!skill || typeof skill !== 'object') return skill;
-  SKILL_DSL_LEGACY_FIELD_KEYS.forEach(key => {
-    if (key in skill) delete skill[key];
-  });
-  return skill;
-}
-
-function stripLegacySkillFieldsFromSkillMap(skillMap = {}) {
-  _(skillMap || {}).forEach(skill => stripLegacySkillFieldsFromSkill(skill));
-  return skillMap;
-}
-
-function buildCanonicalRingSkillKey(ringIndex = 1) {
-  const safeIndex = Math.max(1, Math.floor(Number(ringIndex) || 0));
-  return `第${safeIndex}魂技`;
-}
-
-function normalizeSingleRingSkillSlotMap(skillMap = {}, ringIndex = 1) {
-  if (!skillMap || typeof skillMap !== 'object' || Array.isArray(skillMap)) return skillMap;
-  const entries = Object.entries(skillMap).filter(([, skill]) => !!skill && typeof skill === 'object' && !Array.isArray(skill));
-  if (!entries.length) return skillMap;
-  const canonicalKey = buildCanonicalRingSkillKey(ringIndex);
-  const hasMultipleEntries = entries.length > 1;
-  const hasOrdinalKey = entries.some(([rawKey]) => /^第(?:\d+|[一二三四五六七八九十百]+)魂技/u.test(String(rawKey || '').trim()));
-  if (hasMultipleEntries || (hasOrdinalKey && skillMap[canonicalKey])) {
-    entries.forEach(([, skill]) => stripLegacySkillFieldsFromSkill(skill));
-    return skillMap;
-  }
-  const [rawKey, rawSkill] = entries[0];
-  const normalizedSkill = rawSkill && typeof rawSkill === 'object' ? rawSkill : {};
-  if (!normalizedSkill.魂技名 || !String(normalizedSkill.魂技名).trim()) {
-    normalizedSkill.魂技名 = String(rawKey || canonicalKey);
-  }
-  if (rawKey !== canonicalKey) delete skillMap[rawKey];
-  skillMap[canonicalKey] = normalizedSkill;
-  stripLegacySkillFieldsFromSkill(skillMap[canonicalKey]);
-  return skillMap;
-}
-
-function stripLegacySkillFieldsFromCharacter(char = {}) {
-  if (!char || typeof char !== 'object') return char;
-  _(char.武魂 || {}).forEach(spiritData => {
-    _(spiritData?.魂灵 || {}).forEach(soulSpirit => {
-      _(soulSpirit?.魂环 || {}).forEach((ringData, ringIndex) => {
-        normalizeSingleRingSkillSlotMap(ringData?.魂技 || {}, ringIndex);
-        stripLegacySkillFieldsFromSkillMap(ringData?.魂技 || {});
-      });
-    });
-    _(spiritData?.独立魂环 || {}).forEach((ringData, ringIndex) => {
-      normalizeSingleRingSkillSlotMap(ringData?.魂技 || {}, ringIndex);
-      stripLegacySkillFieldsFromSkillMap(ringData?.魂技 || {});
-    });
-  });
-  stripLegacySkillFieldsFromSkillMap(char?.自创魂技 || {});
-  _(char?.武魂融合技 || {}).forEach(fusionData =>
-    stripLegacySkillFieldsFromSkill(fusionData?.技能数据 || {}),
-  );
-  stripLegacySkillFieldsFromSkillMap(char?.血脉之力?.skills || {});
-  stripLegacySkillFieldsFromSkillMap(char?.血脉之力?.被动 || {});
-  _(char?.血脉之力?.气血魂环 || {}).forEach((ringData, ringIndex) => {
-    normalizeSingleRingSkillSlotMap(ringData?.魂技 || {}, ringIndex);
-    stripLegacySkillFieldsFromSkillMap(ringData?.魂技 || {});
-  });
-  _(char?.魂骨 || {}).forEach(boneData => stripLegacySkillFieldsFromSkillMap(boneData?.附带技能 || {}));
-  return char;
-}
-
 function isSkillSummaryEffect(effect = {}) {
   void effect;
   return false;
@@ -11162,8 +11074,6 @@ function 尝试按机制决策回填技能效果数组_V1(skill = {}, context = 
 
 function ensureSkillStructGenerated(skill, context = {}) {
   if (!skill || typeof skill !== 'object') return skill;
-  if ('dsl' in skill) delete skill.dsl;
-  if ('dsl_warnings' in skill) delete skill.dsl_warnings;
   if (!Array.isArray(skill._效果数组)) skill._效果数组 = [];
   if (typeof skill.魂技名 !== 'string' || !skill.魂技名.trim() || isSkillTodoText(skill.魂技名)) {
     skill.魂技名 = buildSkillNameTodoText(context?.textContext || context);
@@ -18254,8 +18164,6 @@ export const Schema = z
       };
       const injectDisplaySkillStructDefaults = (skill = {}, context = {}) => {
         if (!skill || typeof skill !== 'object') return;
-        if ('dsl' in skill) delete skill.dsl;
-        if ('dsl_warnings' in skill) delete skill.dsl_warnings;
         const hasPackedEffects = Array.isArray(skill._效果数组) && skill._效果数组.length > 0;
         const textContext = context?.textContext || context || {};
         if (isEmptyDisplayText(skill.魂技名)) skill.魂技名 = buildSkillNameTodoText(textContext);
