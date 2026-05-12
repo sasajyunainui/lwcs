@@ -4214,104 +4214,6 @@ function normalizeBlueprintOverrideForAutoGenerate(blueprintOverride = {}, type 
   };
 }
 
-function buildSkillBattleSummary(blueprint) {
-  const main = blueprint?.主机制大类 || '伤害类';
-  const archetype = blueprint?.主机制原型 || '单体伤害';
-  const delivery = blueprint?.释放形态 || '直接生效';
-  const secondary = Array.isArray(blueprint?.副机制) ? blueprint.副机制 : [];
-  const mutation = Array.isArray(blueprint?.变异机制) ? blueprint.变异机制 : [];
-  const targetModel = blueprint?.目标模型 || '敌方单体';
-
-  const summary = {
-    目标规模: '单体',
-    生效方式: '直接',
-    爆发级别: '中',
-    持续性: '无',
-    风险等级: '中',
-    控制强度: '无',
-    回复性质: '无',
-    防御性质: '无',
-    协同性: '低',
-    保留倾向: 0,
-    独占主机制: blueprint?.独占主机制 === true,
-  };
-
-  if (targetModel.includes('群体')) summary.目标规模 = '群体';
-  else if (targetModel === '全场') summary.目标规模 = '全场';
-  else if (targetModel === '自身') summary.目标规模 = '自身';
-  else summary.目标规模 = '单体';
-
-  const deliveryMap = {
-    直接生效: '直接',
-    自身附体: '直接',
-    远程命中: '直接',
-    范围展开: '持续',
-    召唤承载: '触发',
-    造物承载: '触发',
-    标记触发: '触发',
-    延迟触发: '延迟',
-  };
-  summary.生效方式 = deliveryMap[delivery] || '直接';
-
-  if (['延迟爆发', '规则改写', '复制', '反制', '免死/锁血'].includes(archetype)) summary.爆发级别 = '高';
-  else if (['单体伤害', '群体伤害', '多段伤害', '硬控', '全属性增益', '掌控提升', '掌控压制'].includes(archetype))
-    summary.爆发级别 = '中';
-  else summary.爆发级别 = '低';
-
-  if (['持续伤害', '持续恢复', '范围展开', '分身'].includes(archetype) || ['延迟触发', '范围展开'].includes(delivery))
-    summary.持续性 = '中';
-  if (delivery === '范围展开') summary.持续性 = '长';
-
-  if (['硬控'].includes(archetype)) summary.控制强度 = '硬控';
-  else if (
-    ['软控', '位移限制', '节奏打断', '前摇拉长', '掌控压制', '感知干扰', '幻境', '催眠', '认知扭曲', '吞噬', '机制抹消'].includes(
-      archetype,
-    ) ||
-    secondary.some(s => ['打断', '沉默', '减速', '致盲', '迟缓', '禁疗', '缴械', '嘲讽', '破隐'].includes(s))
-  )
-    summary.控制强度 = '软控';
-
-  if (['体力恢复', '魂力恢复', '精神恢复'].includes(archetype)) summary.回复性质 = '瞬回';
-  else if (['能力共享'].includes(archetype)) summary.回复性质 = '资源回复';
-  else if (['持续恢复'].includes(archetype)) summary.回复性质 = '持续';
-  else if (['净化/解控'].includes(archetype) || secondary.some(s => ['净化', '解控'].includes(s)))
-    summary.回复性质 = '净化';
-
-  if (['护盾'].includes(archetype) || secondary.includes('小护盾')) summary.防御性质 = '护盾';
-  else if (['减伤'].includes(archetype)) summary.防御性质 = '减伤';
-  else if (['霸体'].includes(archetype)) summary.防御性质 = '霸体';
-  else if (['分身', '隐身'].includes(archetype) || secondary.includes('隐身')) summary.防御性质 = '分身';
-  else if (secondary.includes('护卫')) summary.防御性质 = '护卫';
-  else if (['免死/锁血'].includes(archetype)) summary.防御性质 = '免死';
-
-  if (
-    ['共享视野', '标记锁定', '多属性增益', '全属性增益', '掌控提升', '速度提升', '消耗降低'].includes(
-      archetype,
-    ) ||
-    secondary.some(s => ['标记弱点', '共享视野', '目标锁定', '护卫', '能力共享'].includes(s))
-  )
-    summary.协同性 = '高';
-  else if (
-    ['单属性增益', '感知干扰', '反制', '分身', '隐身', '能力共享'].includes(archetype) ||
-    secondary.some(s => ['窃取增益', '隐身', '吞噬'].includes(s))
-  )
-    summary.协同性 = '中';
-
-  if (['延迟爆发', '条件触发', '规则改写', '复制', '反制'].includes(archetype)) summary.保留倾向 = 50;
-  if (['免死/锁血', '格挡/抵消'].includes(archetype)) summary.保留倾向 = 65;
-  if (blueprint?.独占主机制 === true) summary.保留倾向 = Math.max(summary.保留倾向, 58);
-  if (mutation.length > 0) summary.保留倾向 = Math.max(summary.保留倾向, 40);
-
-  summary.风险等级 = '中';
-  if (['免死/锁血', '规则改写', '复制', '反制', '吞噬'].includes(archetype)) summary.风险等级 = '高';
-  if (blueprint?.独占主机制 === true) summary.风险等级 = '高';
-  if (mutation.some(m => ['自残换收益', '效果反转', '随机目标', '高波动随机值'].includes(m))) summary.风险等级 = '高';
-  if (['体力恢复', '魂力恢复', '精神恢复', '护盾', '单属性增益'].includes(archetype) && mutation.length === 0)
-    summary.风险等级 = '低';
-
-  return summary;
-}
-
 function normalizeConstructTarget(target, fallback = '自身') {
   const text = String(target || fallback || '自身');
   if (/友方群体|己方\/群体|全员/.test(text)) return '友方群体';
@@ -7422,7 +7324,6 @@ function autoGenerateSkill(
           spiritName: String(options?.textContext?.spiritName || '').trim(),
           sourceName: String(options?.textContext?.spiritName || '').trim(),
         });
-  const summary = buildSkillBattleSummary(blueprint);
   const 战斗 = buildSkillCombatProfile(blueprint, { quality, ringIndex, ringAge, type });
   const main = blueprint.主机制大类;
   const archetype = blueprint.主机制原型;
@@ -10478,7 +10379,7 @@ function getNormalizedFusionSourceSpirits(fusionSkill = {}, char = {}) {
 
 function buildMinimalSkillRuntimeSystemBaseEffect(source = {}) {
   const raw = source && typeof source === 'object' ? source : {};
-  return 收口执行系统基础条目_V1(raw, raw?.目标模型 || raw?.对象 || '敌方单体');
+  return 收口执行系统基础条目_V1(raw, raw?.目标模型 || '敌方单体');
 }
 
 function ensureFusionSkillMentalCost(skill, currentRatio = 0.5) {
