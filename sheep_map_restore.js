@@ -2849,10 +2849,10 @@
             <span data-map-hover-terrain>地形：无</span>
           </div>
         </div>
-        <div class='mvu-simple-card map-side-card map-route-card map-left-route-card'>
+        <div class='mvu-simple-card map-side-card map-route-card map-left-route-card map-command-card'>
           <div class='simple-head'>
-            <div class='simple-title'>动作</div>
-            <span class='map-side-badge gold'>操作</span>
+            <div class='simple-title'>移动与行动</div>
+            <span class='map-side-badge gold' data-map-request-chip>停留中</span>
           </div>
           <div class='map-action-slots'>
             <div class='simple-row actionable map-action-slot' data-map-action-slot='0'><b data-map-action-slot-label='0'>动作</b><span data-map-action-slot-value='0'>点击切换动作</span></div>
@@ -2899,11 +2899,7 @@
         <div class='mvu-simple-card map-side-card'>
           <div class='simple-head'>
             <div class='simple-title'>在场人物</div>
-            <span class='map-side-badge'>人物</span>
-          </div>
-          <div class='simple-list'>
-            <div class='simple-row'><b>节点</b><span data-map-npc-node>无</span></div>
-            <div class='simple-row'><b>人数</b><span data-map-npc-count>0</span></div>
+            <span class='map-side-badge'><span data-map-npc-count>0</span> 人</span>
           </div>
           <div class='map-npc-list' data-map-npc-list><div class='map-npc-empty'>点击当前节点后，在此浏览在场人物与可执行互动。</div></div>
         </div>
@@ -2999,7 +2995,11 @@
   }
 
   function getCoordFromMapRatio(left, top) {
-    return getImageCoordFromRatio(left, top);
+    const 边界 = sanitizeBounds(mapState.bounds || DEFAULT_IMAGE_BOUNDS);
+    return {
+      x: Number((边界.minX + clamp(toNumber(left, 0), 0, 1) * Math.max(1, 边界.width)).toFixed(2)),
+      y: Number((边界.minY + clamp(toNumber(top, 0), 0, 1) * Math.max(1, 边界.height)).toFixed(2))
+    };
   }
 
   function toText(value, fallback = '') {
@@ -3912,6 +3912,25 @@
     };
   }
 
+  function 计算地图显示边界(items = [], padding = 180) {
+    const 坐标列表 = (Array.isArray(items) ? items : [])
+      .filter(item => item && item.validCoord && Number.isFinite(toNumber(item.x, NaN)) && Number.isFinite(toNumber(item.y, NaN)))
+      .map(item => ({ x: toNumber(item.x, 0), y: toNumber(item.y, 0) }));
+    if (!坐标列表.length) return { ...DEFAULT_IMAGE_BOUNDS };
+    const 最小X = Math.min(...坐标列表.map(item => item.x));
+    const 最大X = Math.max(...坐标列表.map(item => item.x));
+    const 最小Y = Math.min(...坐标列表.map(item => item.y));
+    const 最大Y = Math.max(...坐标列表.map(item => item.y));
+    const 横向留白 = Math.max(90, toNumber(padding, 180));
+    const 纵向留白 = Math.max(90, toNumber(padding, 180));
+    return sanitizeBounds({
+      minX: 最小X - 横向留白,
+      minY: 最小Y - 纵向留白,
+      width: Math.max(260, (最大X - 最小X) + 横向留白 * 2),
+      height: Math.max(220, (最大Y - 最小Y) + 纵向留白 * 2)
+    });
+  }
+
 
   function inferInitialLayer(snapshot) {
     const zoomHint = toNumber(snapshot && snapshot.currentZoomHint, NaN);
@@ -4079,7 +4098,7 @@
       characterDigest: characterIndexPayload.characterDigest
     };
     snapshot.items = buildRuntimeMapItems(snapshot);
-    snapshot.bounds = { ...DEFAULT_IMAGE_BOUNDS };
+    snapshot.bounds = isPreview ? 计算地图显示边界(snapshot.items, 190) : { ...DEFAULT_IMAGE_BOUNDS };
     return snapshot;
   }
 
@@ -4597,9 +4616,10 @@
   } catch (_) {}
 
   function projectCoord(coord) {
+    const 边界 = sanitizeBounds(mapState.bounds || DEFAULT_IMAGE_BOUNDS);
     return {
-      left: clamp(toNumber(coord && coord.x, 0) / Math.max(1, WORLD_IMAGE_WIDTH - 1), 0, 1),
-      top: clamp(toNumber(coord && coord.y, 0) / Math.max(1, WORLD_IMAGE_HEIGHT - 1), 0, 1)
+      left: clamp((toNumber(coord && coord.x, 边界.minX) - 边界.minX) / Math.max(1, 边界.width), 0, 1),
+      top: clamp((toNumber(coord && coord.y, 边界.minY) - 边界.minY) / Math.max(1, 边界.height), 0, 1)
     };
   }
 
@@ -5955,16 +5975,19 @@
   }
 
   function convertMapRatioToImageCoord(left, top) {
+    const 坐标 = getCoordFromMapRatio(left, top);
     return {
-      x: Math.round(clamp(toNumber(left, 0), 0, 1) * Math.max(0, WORLD_IMAGE_WIDTH - 1)),
-      y: Math.round(clamp(toNumber(top, 0), 0, 1) * Math.max(0, WORLD_IMAGE_HEIGHT - 1))
+      x: Math.round(clamp(toNumber(坐标 && 坐标.x, 0), 0, Math.max(0, WORLD_IMAGE_WIDTH - 1))),
+      y: Math.round(clamp(toNumber(坐标 && 坐标.y, 0), 0, Math.max(0, WORLD_IMAGE_HEIGHT - 1)))
     };
   }
 
   function convertMapCoordToImageCoord(coord) {
     if (!coord || !Number.isFinite(coord.x) || !Number.isFinite(coord.y)) return { x: 0, y: 0 };
-    const ratio = projectCoord(coord);
-    return convertMapRatioToImageCoord(ratio.left, ratio.top);
+    return {
+      x: Math.round(clamp(toNumber(coord.x, 0), 0, Math.max(0, WORLD_IMAGE_WIDTH - 1))),
+      y: Math.round(clamp(toNumber(coord.y, 0), 0, Math.max(0, WORLD_IMAGE_HEIGHT - 1)))
+    };
   }
 
   function formatMapImageCoord(point, prefix = '') {
@@ -6019,6 +6042,16 @@
     canvasEls.forEach((canvasEl, index) => {
       const width = canvasWidths[index] || 0;
       if (!width) return;
+      const 统一面板画布 = !!canvasEl.closest('.mvu-unified-map-stage');
+      if (统一面板画布) {
+        canvasEl.style.setProperty('height', '100%', 'important');
+        canvasEl.style.setProperty('min-height', '0px', 'important');
+        canvasEl.style.setProperty('max-height', 'none', 'important');
+        canvasEl.style.setProperty('align-self', 'stretch', 'important');
+        canvasEl.style.setProperty('flex', 'initial', 'important');
+        canvasEl.style.setProperty('aspect-ratio', 'auto', 'important');
+        return;
+      }
       const height = Math.max(160, Math.round(width * canvasRatio));
       const nextHeight = `${height}px`;
       const nextAspectRatio = `${WORLD_IMAGE_WIDTH} / ${WORLD_IMAGE_HEIGHT}`;
@@ -7270,6 +7303,9 @@ ${logMsg}
       if (enterPreviewMode(focusItem.name)) syncInteractiveMapUI({ center: true });
       return true;
     }
+    if (actionType === 'travel_anchor') {
+      return 执行预览入口移动();
+    }
     if (hasActivePreview() && !previewCurrentBranch) return false;
     if (actionType === 'travel') {
       if (!getMapTravelPreview()) return false;
@@ -7365,6 +7401,37 @@ ${logMsg}
     }
     commitMapTravel();
     return { ok: true, committed: true, request };
+  }
+
+  function 执行预览入口移动() {
+    const 预览路径列表 = Array.isArray(mapState.previewTrail) ? mapState.previewTrail.map(item => toText(item, '')).filter(Boolean) : [];
+    const 入口候选列表 = [
+      预览路径列表[0] || '',
+      ...预览路径列表.flatMap(item => String(item || '').split('-').map(seg => toText(seg, '')).filter(Boolean)),
+    ].filter(Boolean);
+    const 源快照 = mapState.baseSnapshot || mapState.snapshot || buildFallbackSnapshot();
+    if (!源快照 || !Array.isArray(源快照.items) || !入口候选列表.length) return false;
+    const 源节点表 = new Map(源快照.items.map(item => [toText(item && item.name, ''), item]).filter(([名称]) => !!名称));
+    const 入口节点名 = 入口候选列表.find(名称 => 源节点表.has(名称)) || 入口候选列表[0];
+    mapState.previewViewStack = [];
+    mapState.previewTrail = [];
+    syncPreviewKeyFromTrail();
+    syncMapStateFromSnapshot(源快照, { preserveSelection: false, forceLayer: inferInitialLayer(源快照), initializeLayer: false });
+    mapState.selectedNode = 入口节点名;
+    mapState.selectedFreePoint = null;
+    mapState.infoPanelMode = 'selection';
+    mapState.travelMethodOverride = null;
+    if (!getMapTravelPreview()) {
+      mapState.lastTravelNote = `当前无法规划前往【${入口节点名}】的移动。`;
+      syncInteractiveMapUI({ center: true, updateInfo: true });
+      return false;
+    }
+    if (hasPendingTravelRequestForTarget()) commitMapTravel();
+    else {
+      queueMapTravelRequest();
+      syncInteractiveMapUI({ center: true, updateInfo: true });
+    }
+    return true;
   }
 
   function focusCurrentLocation(options = {}) {
@@ -7616,6 +7683,7 @@ ${logMsg}
     const panelCharactersText = focusCharactersText;
     const npcBrowserActions = getNpcActionCandidates(panelMode === 'selection' ? focusItem : detailPanelItem, charactersHere.length);
     const currentSelectedAction = toText(mapState.selectedAction, '');
+    const 在场人物节点文本 = panelMode === 'selection' ? (isFreeSelection ? '自由坐标' : focusName) : (currentName || '未知地点');
     const npcListHtml = isFreeSelection
       ? `<div class="map-npc-empty">自由坐标没有固定在场人物，选择节点后可浏览 NPC 与互动。</div>`
       : (panelMode === 'follow' && inPreview && !previewCurrentBranch)
@@ -7624,7 +7692,7 @@ ${logMsg}
         ? `<div class="map-npc-empty">当前为远端区域预览，需先移动到 ${escapeMapHtml(previewTrailNames[0] || previewAnchorName)} 后才能与此处人物互动。</div>`
         : (!focusItem || !characterEntries.length)
           ? `<div class="map-npc-empty">${escapeMapHtml(focusName)} 暂未发现人物。</div>`
-          : `<div class="map-npc-roster-head"><span>全部 ${characterEntries.length} 人</span><span>${escapeMapHtml(selectedNpc ? `已选 ${selectedNpc}` : '未选定')}</span></div>${characterEntries.map(entry => {
+          : `<div class="map-npc-roster-head"><span>${escapeMapHtml(在场人物节点文本)}</span><span>${escapeMapHtml(selectedNpc ? `已选 ${selectedNpc}` : `全部 ${characterEntries.length} 人`)}</span></div>${characterEntries.map(entry => {
             const selectedClass = entry.name === selectedNpc ? ' current' : '';
             const metaHtml = entry.meta ? `<div class="map-npc-meta">${escapeMapHtml(entry.meta)}</div>` : '';
             const actionHtml = npcBrowserActions.length
@@ -7672,7 +7740,7 @@ ${logMsg}
     setMapText('[data-map-enter-brief]', enterBriefText);
     setMapText('[data-map-layer-brief]', `${getMapLevelText(snapshot.mapLevel)} / ${currentMapDisplayName}`);
     setMapText('[data-map-focus-characters]', panelCharactersText);
-    setMapText('[data-map-npc-node]', panelMode === 'selection' ? (isFreeSelection ? '自由坐标' : focusName) : (currentName || '未知地点'));
+    setMapText('[data-map-npc-node]', 在场人物节点文本);
     setMapText('[data-map-npc-count]', String(characterEntries.length));
     setMapHtml('[data-map-npc-list]', npcListHtml);
     setMapText('[data-map-request-mode]', actionModeText);
@@ -7748,7 +7816,9 @@ ${logMsg}
     const isFocusCurrentNode = !!(!isFreeSelection && focusItem && focusItem.name === currentActionNodeName);
     const allowLocalActions = !!(isFocusCurrentNode && (!inPreview || previewCurrentBranch));
 
-    if (travelPreview) {
+    if (inPreview && !previewCurrentBranch && previewTrailNames[0]) {
+      pushActionSlot('travel_anchor', `前往${previewTrailNames[0]}`, { reason: '移动到子图入口' });
+    } else if (travelPreview) {
       const travelDisabled = !!(previewRequest && previewRequest.costs && !previewRequest.costs.canAfford);
       pushActionSlot('travel', pendingForSelection ? '确认前往' : '规划路线', { reason: '', disabled: travelDisabled });
     }
@@ -7807,16 +7877,27 @@ ${logMsg}
     };
 
     if (inPreview && !previewCurrentBranch) {
-      selectedActionDetail.title = '当前为远端区域预览';
-      selectedActionDetail.labels = ['预览节点', '执行条件', '补充说明'];
-      selectedActionDetail.values = [
-        focusName,
-        `需先移动到【${previewTrailNames[0] || previewAnchorName}】`,
-        canPreviewEnter ? '双击节点可继续查看子图结构' : '这里只是预览，不会改变你的真实位置'
-      ];
-      selectedActionDetail.panelDisabled = true;
-      mapState.selectedAction = '';
-      selectedAction = '';
+      if (selectedAction === 'travel_anchor' && selectedActionSlot) {
+        selectedActionDetail.title = `点击前往${previewTrailNames[0] || previewAnchorName}`;
+        selectedActionDetail.labels = ['移动目标', '当前状态', '补充说明'];
+        selectedActionDetail.values = [
+          previewTrailNames[0] || previewAnchorName,
+          '远端预览',
+          '先抵达入口，再进入子图执行节点行动'
+        ];
+        selectedActionDetail.panelDisabled = false;
+      } else {
+        selectedActionDetail.title = '当前为远端区域预览';
+        selectedActionDetail.labels = ['预览节点', '执行条件', '补充说明'];
+        selectedActionDetail.values = [
+          focusName,
+          `需先移动到【${previewTrailNames[0] || previewAnchorName}】`,
+          canPreviewEnter ? '双击节点可继续查看子图结构' : '这里只是预览，不会改变你的真实位置'
+        ];
+        selectedActionDetail.panelDisabled = true;
+        mapState.selectedAction = '';
+        selectedAction = '';
+      }
     } else if (!selectedActionSlot && focusItem && canPreviewEnter) {
       selectedActionDetail.title = '双击节点进入子图';
       selectedActionDetail.labels = ['当前节点', '进入方式', '补充说明'];
@@ -8224,27 +8305,27 @@ ${logMsg}
     // 老板发话：不能卡！！坚决不能用全局庞大的 syncInteractiveMapUI！
     // 仅仅更新移动面板相关的局部文字！实现零延迟丝滑切换！
     const travelPreview = getMapTravelPreview();
-    const pending = mapState.pendingTravel;
-    const previewRequest = mapState.previewRequest;
+    const 待执行移动 = mapState.pendingTravelRequest;
+    const 预览移动请求 = travelPreview ? buildMapTravelRequest() : null;
     
-    const actionMoveBaseText = pending ? `${pending.est_duration}` : previewRequest ? `${previewRequest.est_duration}` : (travelPreview ? travelPreview.duration : '无');
-    const actionMoveText = pending
-      ? `${actionMoveBaseText}${pending.route_plan ? ` · ${pending.route_plan}` : ''}`
-      : previewRequest
-        ? `${actionMoveBaseText}${previewRequest.route_plan ? ` · ${previewRequest.route_plan}` : ''}`
+    const actionMoveBaseText = 待执行移动 ? `${待执行移动.est_duration}` : 预览移动请求 ? `${预览移动请求.est_duration}` : (travelPreview ? travelPreview.duration : '无');
+    const actionMoveText = 待执行移动
+      ? `${actionMoveBaseText}${待执行移动.route_plan ? ` · ${待执行移动.route_plan}` : ''}`
+      : 预览移动请求
+        ? `${actionMoveBaseText}${预览移动请求.route_plan ? ` · ${预览移动请求.route_plan}` : ''}`
         : (travelPreview
           ? `${actionMoveBaseText}${travelPreview.routePlanText ? ` · ${travelPreview.routePlanText}` : ''}`
           : actionMoveBaseText);
           
-    const actionCostText = pending
-      ? (pending.costs?.text || '无')
-      : previewRequest
-        ? (previewRequest.costs?.canAfford
-          ? (previewRequest.costs?.text || '无')
-          : ['不可用', previewRequest.costs?.reason || '', previewRequest.costs?.text && previewRequest.costs.text !== '无消耗' ? previewRequest.costs.text : ''].filter(Boolean).join(' · '))
+    const actionCostText = 待执行移动
+      ? (待执行移动.costs?.text || '无')
+      : 预览移动请求
+        ? (预览移动请求.costs?.canAfford
+          ? (预览移动请求.costs?.text || '无')
+          : ['不可用', 预览移动请求.costs?.reason || '', 预览移动请求.costs?.text && 预览移动请求.costs.text !== '无消耗' ? 预览移动请求.costs.text : ''].filter(Boolean).join(' · '))
         : (travelPreview && travelPreview.costs && travelPreview.costs.text !== '无消耗' ? travelPreview.costs.text : '无消耗');
 
-    const travelMethodText = pending ? pending.method : previewRequest ? previewRequest.method : (travelPreview ? travelPreview.method : '无');
+    const travelMethodText = 待执行移动 ? 待执行移动.method : 预览移动请求 ? 预览移动请求.method : (travelPreview ? travelPreview.method : '无');
     const travelMethodDisplay = travelMethodText === '无' ? '无' : travelMethodText;
     
     setMapText('[data-map-request-method]', travelMethodDisplay);

@@ -1460,7 +1460,7 @@ const SurfaceLauncherShellLayout = {
                   <div class="mvu-mobile-card clickable" data-preview="社会档案详细页" data-unified-card="social" data-unified-surface="shell"></div>
                 </section>
                 <section v-if="tabState.current === 'page-map'" class="mvu-mobile-library-page" data-target="page-map">
-                  <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="当前节点详情" data-unified-card="map-locals" data-unified-surface="shell"></div>
+                  <div class="mvu-mobile-card mvu-mobile-card--hero" data-unified-card="map-locals" data-unified-surface="shell"></div>
                   <div class="mvu-mobile-card clickable" data-preview="当前节点详情" data-unified-card="map-current" data-unified-surface="shell"></div>
                 </section>
 
@@ -2017,7 +2017,7 @@ const DesktopUnifiedLayout = {
               <div class="mvu-unified-dashboard mvu-unified-dashboard--map">
                 <div class="mvu-unified-map-stage" data-mvu-map-stage="panel"></div>
                 <div class="mvu-unified-card clickable" data-preview="当前节点详情" data-unified-card="map-current" data-unified-surface="panel"></div>
-                <div class="mvu-unified-card clickable" data-preview="当前节点详情" data-unified-card="map-locals" data-unified-surface="panel"></div>
+                <div class="mvu-unified-card" data-unified-card="map-locals" data-unified-surface="panel"></div>
               </div>
             </section>
           </section>

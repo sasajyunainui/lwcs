@@ -3635,13 +3635,13 @@
       const presets = 读取AI维护API预设列表();
       const selected = 读取AI维护有效API预设();
       const options = [
-        `<option value=""${selected ? '' : ' selected'}>当前配置</option>`,
+        `<option value=""${selected ? '' : ' selected'}>默认API</option>`,
         ...presets.map(name => `<option value="${escapeHtmlAttr(name)}"${name === selected ? ' selected' : ''}>${htmlEscape(name)}</option>`),
       ].join('');
       return `
-        <label class="mvu-ai-maintenance-api">
-          <span>AI API</span>
-          <select data-ai-maintenance-api-select aria-label="AI维护API">${options}</select>
+        <label class="mvu-ai-maintenance-api" title="选择AI维护调用的API">
+          <b>AI API</b>
+          <select data-ai-maintenance-api-select aria-label="AI维护API" title="选择AI维护调用的API">${options}</select>
         </label>
       `;
     }
@@ -12830,7 +12830,6 @@
           note: '当前聊天',
         });
       }
-      const routeCount = snapshot.mapTravelCandidates.length || snapshot.mapNodeLabels.length || 0;
       const 本地人物数量 = getShellLocalCharacterEntries(snapshot, 99).length;
       return buildShellAppPeek({
         value: shortenText(toText(snapshot.normalizedLoc || snapshot.currentLoc, '未命名节点'), 14),
@@ -13220,8 +13219,10 @@
       });
     }
 
-    function buildShellLocalRosterRows(localEntries, limit = 4) {
+    function buildShellLocalRosterRows(localEntries, limit = 4, 选项 = {}) {
       const entries = (Array.isArray(localEntries) ? localEntries : []).slice(0, Math.max(1, toNumber(limit, 4)));
+      const 启用操作 = !!(选项 && 选项.启用操作);
+      const 当前地点 = toText(选项 && 选项.当前地点, '');
       if (!entries.length) {
         return '<div class="mvu-shell-roster-empty">暂无本地角色</div>';
       }
@@ -13230,11 +13231,25 @@
         const identity = summarizeShellIdentityText(deepGet(char, '社交.主身份', ''), { limit: 14 })
           || shortenText(toText(deepGet(char, '社交.主身份', '未知身份'), '未知身份'), 14);
         const action = resolveShellText(deepGet(char, '状态.行动', ''), '日常') || '日常';
+        const 可委托 = 获取角色工坊委托能力摘要(char).length > 0;
+        const 操作按钮 = 启用操作
+          ? `
+            <div class="mvu-shell-roster-actions">
+              <button type="button" class="mvu-shell-roster-action clickable" data-preview="角色档案：${escapeHtmlAttr(displayName)}">档案</button>
+              <button type="button" class="mvu-shell-roster-action map-dispatch-action-btn live" data-action="talk" data-target="${escapeHtmlAttr(当前地点)}" data-current-loc="${escapeHtmlAttr(当前地点)}" data-npc-target="${escapeHtmlAttr(displayName)}">对话</button>
+              <button type="button" class="mvu-shell-roster-action map-dispatch-action-btn" data-action="intel" data-target="${escapeHtmlAttr(当前地点)}" data-current-loc="${escapeHtmlAttr(当前地点)}" data-npc-target="${escapeHtmlAttr(displayName)}">请教</button>
+              <button type="button" class="mvu-shell-roster-action map-dispatch-action-btn warn" data-action="battle" data-target="${escapeHtmlAttr(当前地点)}" data-current-loc="${escapeHtmlAttr(当前地点)}" data-npc-target="${escapeHtmlAttr(displayName)}">切磋</button>
+              <button type="button" class="mvu-shell-roster-action map-dispatch-action-btn" data-action="trade" data-target="${escapeHtmlAttr(当前地点)}" data-current-loc="${escapeHtmlAttr(当前地点)}" data-npc-target="${escapeHtmlAttr(displayName)}">交易</button>
+              ${可委托 ? `<button type="button" class="mvu-shell-roster-action map-dispatch-action-btn warn" data-action="commission" data-target="${escapeHtmlAttr(当前地点)}" data-current-loc="${escapeHtmlAttr(当前地点)}" data-npc-target="${escapeHtmlAttr(displayName)}" data-executor-type="private">委托</button>` : ''}
+            </div>
+          `
+          : '';
         return `
-          <div class="mvu-shell-roster-row">
-            <div class="mvu-shell-roster-name">${htmlEscape(shortenText(displayName, 12))}</div>
+          <div class="mvu-shell-roster-row${启用操作 ? ' mvu-shell-roster-row--interactive' : ''}">
+            <button type="button" class="mvu-shell-roster-name clickable" data-preview="角色档案：${escapeHtmlAttr(displayName)}">${htmlEscape(shortenText(displayName, 12))}</button>
             <div class="mvu-shell-roster-meta">${htmlEscape(shortenText(identity, 18))}</div>
             <div class="mvu-shell-roster-state">${htmlEscape(shortenText(action, 16))}</div>
+            ${操作按钮}
           </div>
         `;
       }).join('');
@@ -13253,7 +13268,7 @@
             <b>${htmlEscape(localEntries.length ? `${localEntries.length} 名` : '0')}</b>
           </div>
           <div class="mvu-shell-roster-list">
-            ${buildShellLocalRosterRows(localEntries, 4)}
+            ${buildShellLocalRosterRows(localEntries, 4, { 当前地点: currentLoc })}
           </div>
         </div>
       `;
@@ -14354,7 +14369,7 @@
           setUnifiedCardMarkup('home-map', buildShellHomeMapCard(snapshot), { surface: normalizedSurface });
           setUnifiedCardMarkup('map-hero', '', { enabled: false, surface: normalizedSurface });
           setUnifiedCardMarkup('map-current', buildShellMapCurrentCard(snapshot), { preview: '当前节点详情', surface: normalizedSurface });
-          setUnifiedCardMarkup('map-locals', buildShellMapLocalCharactersCard(snapshot), { preview: '当前节点详情', surface: normalizedSurface });
+          setUnifiedCardMarkup('map-locals', buildShellMapLocalCharactersCard(snapshot), { surface: normalizedSurface });
           setUnifiedCardMarkup('map-route', buildShellMapRouteCard(snapshot), { preview: '图层控制与跑图', surface: normalizedSurface });
           setUnifiedCardMarkup('map-dynamic', buildShellMapDynamicCard(snapshot), { preview: '动态地点与扩展节点', surface: normalizedSurface });
         } else {
@@ -14380,10 +14395,10 @@
                 <b>${htmlEscape(`${本地人物条目列表.length} 名`)}</b>
               </div>
               <div class="mvu-shell-roster-list">
-                ${buildShellLocalRosterRows(本地人物展示列表, 10)}
+                ${buildShellLocalRosterRows(本地人物展示列表, 10, { 启用操作: true, 当前地点: 本地人物位置 })}
               </div>
             </div>
-          `, { preview: '当前节点详情', surface: normalizedSurface });
+          `, { surface: normalizedSurface });
         }
       }
 
@@ -14852,35 +14867,27 @@
         return `
           <div class="mvu-unified-top-name">当前聊天</div>
           <div class="mvu-unified-top-chip-row">
-            <span>待同步</span>
-            <span>时间未同步</span>
-            <span>地点未同步</span>
-            <div class="mvu-ai-maintenance-home-api mvu-ai-maintenance-home-api--top" data-ai-maintenance-home-api>${构建AI维护API选择器()}</div>
+            <span class="is-time">时间未同步</span>
+            <span class="is-place">地点未同步</span>
           </div>
+          <div class="mvu-ai-maintenance-home-api mvu-ai-maintenance-home-api--top" data-ai-maintenance-home-api>${构建AI维护API选择器()}</div>
         `;
       }
-      const 属性 = deepGet(snapshot, 'activeChar.属性', {});
-      const 状态 = deepGet(snapshot, 'activeChar.状态', {});
       const 角色名 = toText(
         deepGet(snapshot, 'activeChar.name', deepGet(snapshot, 'activeChar.base.name', snapshot.activeName)),
         snapshot.activeName || '当前角色',
       );
-      const 等级 = formatCultivationLevelBadge(属性.等级, '0');
       const 世界时间 = getSnapshotWorldTimeText(snapshot);
       const 当前位置 = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc), snapshot.currentLoc || '未知地点')
         .replace(/^斗罗大陆-/, '')
         .replace(/^斗灵大陆-/, '');
-      const 行动 = toText(状态.行动, '日常');
-      const 伤势 = getDisplayWoundLabel(属性);
       return `
         <button type="button" class="mvu-unified-top-name mvu-unified-top-name-button clickable" data-preview="角色切换器" title="切换当前查看角色">${htmlEscape(shortenText(角色名, 16))}</button>
         <div class="mvu-unified-top-chip-row">
-          <span class="is-live">${htmlEscape(等级)}</span>
-          <span>${htmlEscape(shortenText(世界时间, 28))}</span>
-          <span class="is-place">${htmlEscape(shortenText(当前位置, 34))}</span>
-          <span>${htmlEscape(shortenText(伤势 && 伤势 !== '无' ? `${行动} / ${伤势}` : 行动, 18))}</span>
-          <div class="mvu-ai-maintenance-home-api mvu-ai-maintenance-home-api--top" data-ai-maintenance-home-api>${构建AI维护API选择器()}</div>
+          <span class="is-time" title="${escapeHtmlAttr(世界时间)}">${htmlEscape(世界时间)}</span>
+          <span class="is-place" title="${escapeHtmlAttr(当前位置)}">${htmlEscape(当前位置)}</span>
         </div>
+        <div class="mvu-ai-maintenance-home-api mvu-ai-maintenance-home-api--top" data-ai-maintenance-home-api>${构建AI维护API选择器()}</div>
       `;
     }
 
@@ -14944,6 +14951,16 @@
         if (!(canvas instanceof HTMLElement)) return;
         if (canvas.closest('.mvu-mobile-shell, .mvu-mobile-map-stage, .mvu-shell-map-stage')) return;
         const isDetail = !!canvas.closest('.mvu-unified-detail-host');
+        const 是概览星图 = !isDetail && !!canvas.closest('.mvu-unified-map-stage');
+        if (是概览星图) {
+          canvas.style.setProperty('height', '100%', 'important');
+          canvas.style.setProperty('width', '100%', 'important');
+          canvas.style.setProperty('min-height', '0px', 'important');
+          canvas.style.setProperty('max-height', 'none', 'important');
+          canvas.style.setProperty('aspect-ratio', 'auto', 'important');
+          canvas.style.setProperty('flex-basis', 'auto', 'important');
+          return;
+        }
         const 所属舞台 = canvas.closest('.mvu-unified-map-stage, .mvu-unified-detail-host');
         const 舞台高度 = 所属舞台 instanceof HTMLElement ? Math.round(所属舞台.getBoundingClientRect().height || 所属舞台.clientHeight || 0) : 0;
         const 视口目标 = isDetail
@@ -16163,9 +16180,14 @@
                 </section>
               </div>
               <div class="archive-card dossier-card dossier-card--life-profile">
-                <div class="archive-card-head">
+                <div class="archive-card-head archive-card-head--profile">
                   <div class="archive-card-title">角色档案</div>
-                  <div class="dossier-head-name">${htmlEscape(snapshot.activeName)}</div>
+                  <div class="dossier-profile-strip" aria-label="角色当前状态摘要">
+                    <span class="dossier-profile-chip"><b>行动</b><em>${htmlEscape(actionText)}</em></span>
+                    <span class="dossier-profile-chip dossier-profile-chip--wide"><b>地点</b><em>${htmlEscape(currentLocText)}</em></span>
+                    <span class="dossier-profile-chip"><b>时间</b><em>${htmlEscape(worldTimeText)}</em></span>
+                    <span class="dossier-profile-chip"><b>伤势</b><em>${htmlEscape(getDisplayWoundLabel(stat))}</em></span>
+                  </div>
                 </div>
                 <section class="dossier-section">
                   <div class="dossier-section-title">基础描述</div>
@@ -26795,7 +26817,7 @@ ${extraRequirement}
       const apiSelect = eventTarget ? eventTarget.closest('[data-ai-maintenance-api-select]') : null;
       if (!apiSelect) return;
       const presetName = 保存AI维护已选API预设(apiSelect.value || '');
-      showUiToast(presetName ? `AI维护API：${presetName}` : 'AI维护API：当前配置', 'info', 1800);
+      showUiToast(presetName ? `AI维护API：${presetName}` : 'AI维护API：默认API', 'info', 1800);
     });
 
     function getFloatingHoverTrigger(eventTarget) {
