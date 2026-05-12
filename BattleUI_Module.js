@@ -1984,8 +1984,6 @@ class BattleUIComponent {
       '可被随机偏转',
       '可被锁定强化',
     ]);
-    const BATTLE_SKILL_DIRECTION_TARGET_SEMANTICS = new Set(['可赋予', '敌对', '上下文', '仅自身']);
-    const BATTLE_SKILL_DIRECTION_AUTO_TRIGGERS = new Set(['施放前', '命中后']);
 
     function normalizeBattleSkillTargetModel(value = '', fallback = '敌方单体') {
       const text = String(value || '').trim();
@@ -2107,84 +2105,6 @@ class BattleUIComponent {
         if (!String(hydrated.触发 || '').trim()) hydrated.触发 = trigger;
       }
       return hydrated;
-    }
-
-    function normalizeBattleDirectionEffectList(value = [], fallbackTargetModel = '敌方单体') {
-      const source = Array.isArray(value) ? value : [];
-      return source
-        .map(effect => hydrateBattleExecutionEffectEntry(effect, fallbackTargetModel))
-        .filter(Boolean);
-    }
-
-    function normalizeBattleDirectionConfigEntry(value = {}, index = 0, fallbackTargetModel = '敌方单体') {
-      const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-      const 方向ID = String(source.方向ID || source.id || `方向${index + 1}`).trim() || `方向${index + 1}`;
-      const rawTargetSemantic = String(source.方向目标语义 || source.targetSemantic || '上下文').trim();
-      const 方向目标语义 = BATTLE_SKILL_DIRECTION_TARGET_SEMANTICS.has(rawTargetSemantic) ? rawTargetSemantic : '上下文';
-      const 方向效果数组 = normalizeBattleDirectionEffectList(source.方向效果数组 || source.effects || [], fallbackTargetModel);
-      return {
-        方向ID,
-        方向效果数组,
-        方向目标语义,
-      };
-    }
-
-    function normalizeBattleDirectionConfigList(value = [], fallbackTargetModel = '敌方单体') {
-      const source = Array.isArray(value) ? value : [];
-      const normalized = [];
-      const used = new Set();
-      source.forEach((entry, index) => {
-        const next = normalizeBattleDirectionConfigEntry(entry, index, fallbackTargetModel);
-        if (!next.方向效果数组.length) return;
-        if (used.has(next.方向ID)) {
-          next.方向ID = `${next.方向ID}_${index + 1}`;
-        }
-        used.add(next.方向ID);
-        normalized.push(next);
-      });
-      return normalized;
-    }
-
-    function normalizeBattleDirectionRuleEntry(value = {}, index = 0, directionIdSet = new Set()) {
-      const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-      void index;
-      const rawTrigger = String(source.触发时机 || source.trigger || '施放前').trim();
-      const 触发时机 = BATTLE_SKILL_DIRECTION_AUTO_TRIGGERS.has(rawTrigger) ? rawTrigger : '施放前';
-      const 条件 = String(source.条件 || source.触发条件 || source.condition || '').trim();
-      const 切换至方向ID = String(source.切换至方向ID || source.nextDirectionId || '').trim();
-      if (!切换至方向ID || !directionIdSet.has(切换至方向ID)) return null;
-      return {
-        触发时机,
-        ...(条件 ? { 条件 } : {}),
-        切换至方向ID,
-      };
-    }
-
-    function normalizeBattleDirectionRuleList(value = [], directionList = []) {
-      const source = Array.isArray(value) ? value : [];
-      const directionIdSet = new Set((Array.isArray(directionList) ? directionList : []).map(item => String(item?.方向ID || '').trim()).filter(Boolean));
-      return source
-        .map((entry, index) => normalizeBattleDirectionRuleEntry(entry, index, directionIdSet))
-        .filter(Boolean);
-    }
-
-    function resolveBattleDirectionSemanticTargetModel(semantic = '上下文', targetScale = '单体', fallbackModel = '敌方单体') {
-      const normalizedSemantic = BATTLE_SKILL_DIRECTION_TARGET_SEMANTICS.has(String(semantic || '').trim())
-        ? String(semantic || '').trim()
-        : '上下文';
-      const normalizedScale = normalizeBattleSkillTargetScale(targetScale, deriveBattleSkillTargetScaleFromModel(fallbackModel));
-      if (normalizedSemantic === '仅自身') return '自身';
-      if (normalizedSemantic === '可赋予') return ['群体', '全场'].includes(normalizedScale) ? '友方群体' : '友方单体';
-      if (normalizedSemantic === '敌对') return ['群体', '全场'].includes(normalizedScale) ? '敌方群体' : '敌方单体';
-      if (normalizedScale === '自身') return '自身';
-      if (normalizedScale === '全场') return '全场';
-      if (normalizedScale === '群体') {
-        const fallback = normalizeBattleSkillTargetModel(fallbackModel, '敌方群体');
-        if (fallback === '友方群体') return '友方群体';
-        if (fallback === '全场') return '全场';
-        return '敌方群体';
-      }
-      return normalizeBattleSkillTargetModel(fallbackModel, '敌方单体');
     }
 
     function getMechanismJudgeValue(entity, finalEntity, judgeKey) {
@@ -2949,50 +2869,11 @@ class BattleUIComponent {
       return getBattleSkillSummaryEffects(skill).find(effect => String(effect?.机制 || '').trim() === normalized) || null;
     }
 
-    function resolveBattleDirectionRuleThreshold(rule = {}, fallback = 0.35) {
-      const text = String(rule?.条件 || rule?.触发条件 || '').trim();
-      const match = text.match(/(\d+(?:\.\d+)?)\s*%/);
-      if (match) {
-        const parsed = Number(match[1]);
-        if (Number.isFinite(parsed)) return Math.max(0, Math.min(1, parsed / 100));
-      }
-      return Math.max(0, Math.min(1, fallback));
-    }
-
     function getBattleDirectionRuleHpRatio(char = null) {
       if (!char) return 1;
       const hp = Math.max(0, Number(char?.hp ?? char?.HP ?? char?.final?.hp ?? 0));
       const hpMax = Math.max(1, Number(char?.hp_max ?? char?.HP上限 ?? char?.final?.hp_max ?? 1));
       return hp / hpMax;
-    }
-
-    function isBattleDirectionRuleConditionMatched(rule = {}, context = {}) {
-      const trigger = String(rule?.触发时机 || '施放前').trim();
-      const condition = String(rule?.条件 || rule?.触发条件 || '').trim();
-      if (trigger === '命中后' && context?.命中成功 !== true) return false;
-      if (!condition) return true;
-      if (/命中后/.test(condition)) return context?.命中成功 === true;
-      if (/自身血量|低血/.test(condition)) {
-        const threshold = resolveBattleDirectionRuleThreshold(rule, 0.35);
-        const ratio = getBattleDirectionRuleHpRatio(context?.attacker || null);
-        return ratio <= threshold;
-      }
-      if (/目标高机动/.test(condition)) {
-        const attackerAgi = Number(context?.attacker?.agi ?? context?.attacker?.final?.agi ?? 0);
-        const defenderAgi = Number(context?.defender?.agi ?? context?.defender?.final?.agi ?? 0);
-        return defenderAgi > Math.max(1, attackerAgi) * 1.08;
-      }
-      if (/状态存在|目标有状态/.test(condition)) {
-        const targetStates = context?.defender?.状态效果;
-        return !!(targetStates && typeof targetStates === 'object' && Object.keys(targetStates).length > 0);
-      }
-      return true;
-    }
-
-    function resolveBattleSkillDirectionSelection(skill = {}, context = {}) {
-      void skill;
-      void context;
-      return { 方向ID: '', 方向配置: null, 自动切换规则: [], 命中规则: null, 是否自动切换: false };
     }
 
     function collectBattleSkillBranchList(skill = {}) {
@@ -3894,7 +3775,6 @@ class BattleUIComponent {
         技能类型: normalizeSkillTypeLabel(baseType || '无'),
         目标模型: baseTargetModel,
         目标规模: baseTargetScale,
-        阵营判定: '自动',
         目标修饰: baseTargetModifiers,
         结算策略: baseResolutionStrategy,
         对象: baseTarget,

@@ -4332,7 +4332,6 @@ const SKILL_TARGET_MODIFIER_VALUES_V1 = Object.freeze([
   '可被随机偏转',
   '可被锁定强化',
 ]);
-const SKILL_DIRECTION_TARGET_SEMANTIC_VALUES_V1 = Object.freeze(['可赋予', '敌对', '上下文', '仅自身']);
 const SKILL_DIRECTION_TAG_VALUES_V1 = Object.freeze(['增幅', '压制', '锁定', '限制', '转译', '置换']);
 const 技能多方向类型候选_V1 = Object.freeze([
   '无',
@@ -4342,7 +4341,6 @@ const 技能多方向类型候选_V1 = Object.freeze([
   '增幅压制锁定',
   '转译置换限制',
 ]);
-const SKILL_DIRECTION_AUTO_SWITCH_TRIGGER_VALUES_V1 = Object.freeze(['施放前', '命中后']);
 const AUTO_GENERATED_MULTI_DIRECTION_MAIN_ARCHETYPES_V1 = new Set([
   '状态交换',
   '状态转移',
@@ -4372,93 +4370,6 @@ function deriveSkillTargetScaleFromModel(targetModel = '敌方单体') {
   if (normalized === '全场') return '全场';
   if (normalized.includes('群体')) return '群体';
   return '单体';
-}
-
-function normalizeSkillDirectionEffectList(value = []) {
-  return clonePackedSkillEffects(Array.isArray(value) ? value : []).filter(effect => {
-    const mechanism = String(effect?.机制 || '').trim();
-    return !!mechanism && mechanism !== '系统基础';
-  });
-}
-
-function normalizeSkillDirectionConfigEntry(value = {}, index = 0) {
-  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-  const 方向ID = String(source.方向ID || source.id || `方向${index + 1}`).trim() || `方向${index + 1}`;
-  const rawTargetSemantic = String(source.方向目标语义 || source.targetSemantic || '上下文').trim();
-  const 方向目标语义 = SKILL_DIRECTION_TARGET_SEMANTIC_VALUES_V1.includes(rawTargetSemantic)
-    ? rawTargetSemantic
-    : '上下文';
-  const 方向效果数组 = normalizeSkillDirectionEffectList(source.方向效果数组 || source.effects || []);
-  return {
-    方向ID,
-    方向效果数组,
-    方向目标语义,
-  };
-}
-
-function normalizeSkillDirectionConfigList(value = [], options = {}) {
-  const source = Array.isArray(value) ? value : [];
-  const normalized = [];
-  const used = new Set();
-  source.forEach((entry, index) => {
-    const next = normalizeSkillDirectionConfigEntry(entry, index);
-    if (!next.方向效果数组.length) return;
-    if (used.has(next.方向ID)) {
-      next.方向ID = `${next.方向ID}_${index + 1}`;
-    }
-    used.add(next.方向ID);
-    normalized.push(next);
-  });
-  const 最小方向数 = Math.max(0, Math.round(Number(options?.最小方向数 || 0)));
-  if (!normalized.length || normalized.length >= 最小方向数) return normalized;
-  const 方向标签序列 = SKILL_DIRECTION_TAG_VALUES_V1;
-  while (normalized.length < 最小方向数) {
-    const index = normalized.length;
-    normalized.push(
-      normalizeSkillDirectionConfigEntry(
-        {
-          方向ID: `方向${index + 1}`,
-          方向目标语义: index % 2 === 0 ? '敌对' : '可赋予',
-          方向效果数组: [
-            {
-              机制: index % 2 === 0 ? '速度修正' : '属性变化',
-              目标: index % 2 === 0 ? '敌方单体' : '友方单体',
-              属性: index % 2 === 0 ? '速度' : 'agi',
-              动作: index % 2 === 0 ? '倍率压制' : '倍率提升',
-              数值: index % 2 === 0 ? 0.82 : 1.18,
-              持续: 2,
-              触发: '立即生效',
-            },
-          ],
-        },
-        index,
-      ),
-    );
-  }
-  return normalized;
-}
-
-function normalizeSkillDirectionAutoSwitchRuleEntry(value = {}, index = 0, directionIdSet = new Set()) {
-  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-  void index;
-  const rawTrigger = String(source.触发时机 || source.trigger || '施放前').trim();
-  const 触发时机 = SKILL_DIRECTION_AUTO_SWITCH_TRIGGER_VALUES_V1.includes(rawTrigger) ? rawTrigger : '施放前';
-  const 条件 = String(source.条件 || source.触发条件 || source.condition || '').trim();
-  const 切换至方向ID = String(source.切换至方向ID || source.nextDirectionId || '').trim();
-  if (!切换至方向ID || !directionIdSet.has(切换至方向ID)) return null;
-  return {
-    触发时机,
-    ...(条件 ? { 条件 } : {}),
-    切换至方向ID,
-  };
-}
-
-function normalizeSkillDirectionAutoSwitchRuleList(value = [], directionList = []) {
-  const source = Array.isArray(value) ? value : [];
-  const directionIdSet = new Set((Array.isArray(directionList) ? directionList : []).map(item => String(item?.方向ID || '').trim()).filter(Boolean));
-  return source
-    .map((entry, index) => normalizeSkillDirectionAutoSwitchRuleEntry(entry, index, directionIdSet))
-    .filter(Boolean);
 }
 
 const 技能执行黑名单键表_V1 = Object.freeze([
@@ -4656,58 +4567,6 @@ function 收口执行效果条目_V1(value = {}, fallbackTargetModel = '敌方�
   return normalized;
 }
 
-function 收口执行方向配置条目_V1(value = {}, index = 0, fallbackTargetModel = '敌方单体', recordViolation = () => {}) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  Object.keys(value).forEach(key => {
-    if (技能执行黑名单键集合_V1.has(key)) recordViolation(`方向配置列表.${key}`);
-  });
-  const 方向ID = String(value.方向ID || value.id || `方向${index + 1}`).trim() || `方向${index + 1}`;
-  const rawSemantic = String(value.方向目标语义 || value.targetSemantic || '上下文').trim();
-  const 方向目标语义 = SKILL_DIRECTION_TARGET_SEMANTIC_VALUES_V1.includes(rawSemantic) ? rawSemantic : '上下文';
-  const 方向效果数组 = (Array.isArray(value.方向效果数组) ? value.方向效果数组 : [])
-    .map(effect => 收口执行效果条目_V1(effect, fallbackTargetModel, recordViolation))
-    .filter(Boolean);
-  if (!方向效果数组.length) return null;
-  return { 方向ID, 方向目标语义, 方向效果数组 };
-}
-
-function 收口执行方向配置列表_V1(value = [], fallbackTargetModel = '敌方单体', recordViolation = () => {}) {
-  const source = Array.isArray(value) ? value : [];
-  const normalized = [];
-  const used = new Set();
-  source.forEach((entry, index) => {
-    const next = 收口执行方向配置条目_V1(entry, index, fallbackTargetModel, recordViolation);
-    if (!next) return;
-    if (used.has(next.方向ID)) next.方向ID = `${next.方向ID}_${index + 1}`;
-    used.add(next.方向ID);
-    normalized.push(next);
-  });
-  return normalized;
-}
-
-function 收口执行自动切换规则条目_V1(value = {}, directionIdSet = new Set(), recordViolation = () => {}) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  Object.keys(value).forEach(key => {
-    if (技能执行黑名单键集合_V1.has(key)) recordViolation(`自动切换规则.${key}`);
-  });
-  const 触发时机 = String(value.触发时机 || value.trigger || '施放前').trim() || '施放前';
-  const 条件 = String(value.条件 || value.触发条件 || value.condition || '').trim();
-  const 切换至方向ID = String(value.切换至方向ID || value.nextDirectionId || '').trim();
-  if (!切换至方向ID || !directionIdSet.has(切换至方向ID)) return null;
-  return {
-    触发时机,
-    ...(条件 ? { 条件 } : {}),
-    切换至方向ID,
-  };
-}
-
-function 收口执行自动切换规则列表_V1(value = [], directionList = [], recordViolation = () => {}) {
-  const directionIdSet = new Set((Array.isArray(directionList) ? directionList : []).map(item => String(item?.方向ID || '').trim()).filter(Boolean));
-  return (Array.isArray(value) ? value : [])
-    .map(item => 收口执行自动切换规则条目_V1(item, directionIdSet, recordViolation))
-    .filter(Boolean);
-}
-
 function 收口执行系统基础条目_V1(value = {}, fallbackTargetModel = '敌方单体', recordViolation = () => {}) {
   const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   Object.keys(source).forEach(key => {
@@ -4785,31 +4644,6 @@ function 解析多方向类型标签_V1(多方向类型 = '') {
     转译置换限制: ['转译', '置换', '限制'],
   };
   return Array.isArray(映射[类型]) ? [...映射[类型]] : [];
-}
-
-function resolveSkillDirectionSemanticTargetModel(directionSemantic = '上下文', targetScale = '单体', fallback = '敌方单体') {
-  const normalizedSemantic = SKILL_DIRECTION_TARGET_SEMANTIC_VALUES_V1.includes(String(directionSemantic || '').trim())
-    ? String(directionSemantic || '').trim()
-    : '上下文';
-  const normalizedScale = normalizeSkillTargetScale(targetScale, deriveSkillTargetScaleFromModel(fallback));
-  if (normalizedSemantic === '仅自身') return '自身';
-  if (normalizedSemantic === '可赋予') {
-    if (normalizedScale === '群体' || normalizedScale === '全场') return '友方群体';
-    return '友方单体';
-  }
-  if (normalizedSemantic === '敌对') {
-    if (normalizedScale === '群体' || normalizedScale === '全场') return '敌方群体';
-    return '敌方单体';
-  }
-  if (normalizedScale === '自身') return '自身';
-  if (normalizedScale === '群体') {
-    const normalizedFallback = normalizeSkillTargetModel(fallback, '敌方群体');
-    if (normalizedFallback === '友方群体') return '友方群体';
-    if (normalizedFallback === '全场') return '全场';
-    return '敌方群体';
-  }
-  if (normalizedScale === '全场') return '全场';
-  return normalizeSkillTargetModel(fallback, '敌方单体');
 }
 
 function buildAutoGeneratedDirectionEffectTemplate(directionTag = '压制', targetModel = '敌方单体', grade = 'B') {
@@ -4929,57 +4763,44 @@ function buildAutoGeneratedDirectionEffectTemplate(directionTag = '压制', targ
   ];
 }
 
-function buildAutoGeneratedDirectionBundleV1(targetModel = '敌方单体', grade = 'B', 多方向类型 = '') {
-  const targetScale = deriveSkillTargetScaleFromModel(targetModel);
-  const 类型标签 = 解析多方向类型标签_V1(多方向类型);
-  const directionCount = 类型标签.length > 0 ? 类型标签.length : buildAutoGeneratedDirectionCountByGrade(grade);
-  const directionTagOrder = 构建多方向标签序列_V1(类型标签.length > 0 ? 多方向类型 : '', directionCount);
-  const directionSemanticMap = {
-    增幅: '可赋予',
-    压制: '敌对',
-    锁定: '敌对',
-    限制: '敌对',
-    转译: '上下文',
-    置换: '上下文',
-  };
-  const directionList = [];
-  const directionTagIndexMap = {};
-  for (let index = 0; index < directionCount; index += 1) {
-    const directionTag = directionTagOrder[index] || '压制';
-    const directionSemantic = directionSemanticMap[directionTag] || '上下文';
-    const effectTargetModel = resolveSkillDirectionSemanticTargetModel(directionSemantic, targetScale, targetModel);
-    directionTagIndexMap[directionTag] = `方向${index + 1}`;
-    directionList.push(
-      normalizeSkillDirectionConfigEntry({
-        方向ID: `方向${index + 1}`,
-        方向目标语义: directionSemantic,
-        方向效果数组: buildAutoGeneratedDirectionEffectTemplate(directionTag, effectTargetModel, grade),
-      }, index),
-    );
+function 根据方向标签解析分支目标模型_V1(方向标签 = '', 基准目标模型 = '敌方单体') {
+  const 标签 = String(方向标签 || '').trim();
+  const 基准 = normalizeSkillTargetModel(基准目标模型, '敌方单体');
+  if (标签 === '增幅') {
+    if (基准 === '全场' || 基准 === '友方群体') return '友方群体';
+    if (基准 === '友方单体') return '友方单体';
+    return '友方单体';
   }
-  const normalizedDirectionList = normalizeSkillDirectionConfigList(directionList, { 最小方向数: directionCount });
-  const defaultDirectionId = String(normalizedDirectionList[0]?.方向ID || '').trim() || '方向1';
-  const 增幅方向ID = String(directionTagIndexMap.增幅 || defaultDirectionId).trim() || defaultDirectionId;
-  const 压制方向ID = String(directionTagIndexMap.压制 || directionTagIndexMap.锁定 || directionTagIndexMap.限制 || defaultDirectionId).trim() || defaultDirectionId;
-  const autoSwitchRules = normalizeSkillDirectionAutoSwitchRuleList(
-    [
-      {
-        触发时机: '施放前',
-        条件: '自身血量低于35%',
-        切换至方向ID: 增幅方向ID,
-      },
-      {
-        触发时机: '命中后',
-        条件: '命中后',
-        切换至方向ID: 压制方向ID,
-      },
-    ],
-    normalizedDirectionList,
-  );
-  return {
-    方向配置列表: normalizedDirectionList,
-    自动切换规则: autoSwitchRules,
-  };
+  if (['压制', '锁定', '限制'].includes(标签)) {
+    if (基准 === '全场') return '敌方群体';
+    if (基准 === '敌方群体') return '敌方群体';
+    if (基准 === '敌方单体') return '敌方单体';
+    if (基准 === '友方群体') return '敌方群体';
+    return '敌方单体';
+  }
+  return 基准;
+}
+
+function 构建自动多方向分支列表_V1(targetModel = '敌方单体', grade = 'B', 多方向类型 = '') {
+  const 类型标签 = 解析多方向类型标签_V1(多方向类型);
+  const 分支数量 = 类型标签.length > 0 ? 类型标签.length : buildAutoGeneratedDirectionCountByGrade(grade);
+  const 方向标签序列 = 构建多方向标签序列_V1(类型标签.length > 0 ? 多方向类型 : '', 分支数量);
+  const 分支列表 = [];
+  for (let index = 0; index < 分支数量; index += 1) {
+    const 方向标签 = 方向标签序列[index] || '压制';
+    const 分支标记 = `分支${index + 1}`;
+    const 分支目标模型 = 根据方向标签解析分支目标模型_V1(方向标签, targetModel);
+    const 原始效果列表 = buildAutoGeneratedDirectionEffectTemplate(方向标签, 分支目标模型, grade);
+    const 分支效果数组 = clonePackedSkillEffects(Array.isArray(原始效果列表) ? 原始效果列表 : [])
+      .filter(effect => String(effect?.机制 || '').trim() && String(effect?.机制 || '').trim() !== '系统基础')
+      .map(effect => ({
+        ...cloneJsonValue(effect),
+        分支标记,
+      }));
+    if (!分支效果数组.length) continue;
+    分支列表.push({ 分支标记, 分支效果数组 });
+  }
+  return 分支列表;
 }
 
 function normalizeSkillTargetModel(value = '', fallback = '敌方单体') {
@@ -7640,7 +7461,6 @@ function autoGenerateSkill(
     全场: '全场',
   };
   const normalizedTarget = blueprint.目标模型 || reverseTargetMap[战斗.对象] || '敌方单体';
-  const 目标规模 = normalizeSkillTargetScale(deriveSkillTargetScaleFromModel(normalizedTarget), '单体');
   const sharedMechanismRegistry =
     typeof globalThis !== 'undefined' &&
     globalThis.__LWCS_SKILL_MECHANISM_REGISTRY__ &&
@@ -8710,19 +8530,19 @@ function autoGenerateSkill(
     main !== '防御类' &&
     main !== '回复类';
   if (命中多方向模板) {
-    const 方向打包 = buildAutoGeneratedDirectionBundleV1(normalizedTarget, grade, 生效多方向类型);
-    const 方向配置列表 = normalizeSkillDirectionConfigList(方向打包.方向配置列表 || [], {
-      最小方向数: buildAutoGeneratedDirectionCountByGrade(grade),
-    });
-    if (方向配置列表.length > 0) {
+    const 分支列表 = 构建自动多方向分支列表_V1(normalizedTarget, grade, 生效多方向类型);
+    if (分支列表.length > 0) {
       const 基础公共效果 = clonePackedSkillEffects(packedEffects);
       const 分支效果 = [];
-      方向配置列表.forEach((方向项, index) => {
-        const 分支名 = String(方向项?.方向ID || '').trim() || `分支${index + 1}`;
-        (Array.isArray(方向项?.方向效果数组) ? 方向项.方向效果数组 : []).forEach(effect => {
+      分支列表.forEach(分支项 => {
+        const 分支名 = String(分支项?.分支标记 || '').trim();
+        (Array.isArray(分支项?.分支效果数组) ? 分支项.分支效果数组 : []).forEach(effect => {
           if (!effect || typeof effect !== 'object' || Array.isArray(effect)) return;
+          const 目标模型 = normalizeSkillTargetModel(effect.目标 || effect.对象 || normalizedTarget, normalizedTarget);
           分支效果.push({
             ...cloneJsonValue(effect),
+            目标: 目标模型,
+            对象: mapSkillTargetModelToCombatTarget(目标模型),
             分支标记: 分支名,
           });
         });
