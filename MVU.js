@@ -6943,6 +6943,17 @@ function 计算武魂相关度总分(关系数据 = {}) {
   return Math.max(0, Math.min(100, Math.floor(原始总分)));
 }
 
+function 构建默认社交关系数据() {
+  return {
+    关系: '陌生',
+    好感度: 0,
+    关系路线: '朋友线',
+    对方身份: '无',
+    好感加成: '无',
+    武魂相关度基础: 武魂相关度基础待补全提示词,
+  };
+}
+
 function buildNumericStatBonusSummary(bonusMap = {}) {
   const labels = {
     力量: '力量',
@@ -9542,7 +9553,37 @@ function buildCharacterCustomSkillAttributeState(char = {}) {
   const spiritStates = safeEntries(char?.武魂 || {}).map(([spiritKey, spiritData]) =>
     normalizeSpiritAttributeState(spiritData, spiritKey, char),
   );
-  return mergeSpiritAttributeStates(spiritStates);
+  const 基础属性状态 = mergeSpiritAttributeStates(spiritStates);
+  const 技能附带属性集合 = [];
+  const 追加技能图谱附带属性 = 技能图谱 => {
+    技能附带属性集合.push(...collectSkillMapAttachedAttributes(技能图谱));
+  };
+  safeEntries(char?.武魂 || {}).forEach(([, spiritData]) => {
+    safeEntries(spiritData?.魂灵 || {}).forEach(([, soulData]) => {
+      safeEntries(soulData?.魂环 || {}).forEach(([, ringData]) => {
+        追加技能图谱附带属性(ringData?.魂技);
+      });
+    });
+    safeEntries(spiritData?.独立魂环 || {}).forEach(([, ringData]) => {
+      追加技能图谱附带属性(ringData?.魂技);
+    });
+  });
+  safeEntries(char?.魂骨 || {}).forEach(([, boneData]) => {
+    追加技能图谱附带属性(boneData?.附带技能);
+  });
+  追加技能图谱附带属性(char?.血脉之力?.skills);
+  追加技能图谱附带属性(char?.血脉之力?.被动);
+  追加技能图谱附带属性(char?.自创魂技);
+
+  const 技能来源属性列表 = normalizeAttributeTokenArray(技能附带属性集合);
+  if (!技能来源属性列表.length) return 基础属性状态;
+
+  const 技能来源属性状态 = {
+    属性体系: 技能来源属性列表.some(属性 => WUXING_ELEMENT_SEQUENCE.includes(属性)) ? '五行' : '元素',
+    已解锁属性: 技能来源属性列表,
+    可容纳属性: 技能来源属性列表,
+  };
+  return mergeSpiritAttributeStates([基础属性状态, 技能来源属性状态]);
 }
 
 function getCombatParticipantName(participant = null) {
@@ -11852,7 +11893,6 @@ const CharacterSchema = z
         癖好: z.array(z.string()).prefault(['待补全(请根据角色经历，填写已觉醒的特殊癖好标签)']),
         幻想: z.array(z.string()).prefault(['待补全(请根据角色隐藏的性格，描写其内心深处渴望被对待的私密方式)']),
         
-        生理期偏移: z.coerce.number().prefault(() => Math.floor(Math.random() * 4032)).describe('初始生理期偏移量(28天=4032tick)'),
         受孕tick: z.coerce.number().prefault(-1).describe('受孕时的tick，-1表示未怀孕'),
         受孕对象: z.string().prefault('无').describe('孩子父亲'),
 
@@ -11869,7 +11909,7 @@ const CharacterSchema = z
           .prefault({}),
 
         _已来初潮: z.boolean().prefault(false).describe('是否已来初潮(底层只读)'),
-        生理期偏移: z.coerce.number().prefault(0),     
+        生理期偏移: z.coerce.number().prefault(0).describe('生理周期偏移量(28天=4032tick，默认0)'),     
         身体部位: z
           .object({
             胸部: BodyPartSchema,
@@ -15429,6 +15469,18 @@ export const Schema = z
       const safeDelta = Math.max(0, Number(segmentDelta || 0));
       if (!(safeDelta > 0) || !c?.属性) return;
       const normalizedActionMode = normalizeCharacterActionMode_ACU(actionMode);
+      const 应用伤势恢复到生命值 = 基础恢复倍率 => {
+        const 安全基础恢复倍率 = Math.max(0, Number(基础恢复倍率 || 0));
+        if (!(安全基础恢复倍率 > 0)) return;
+        const 生命值上限 = Math.max(1, Number(c?.属性?.HP上限 || c?.属性?.体力上限 || 1));
+        const 当前生命值 = Math.max(0, Number(c?.属性?.HP || 0));
+        if (当前生命值 >= 生命值上限) return;
+        const 伤势恢复倍率 = Math.max(0, Number(getComputedWoundRecoveryRatioFromStat(c?.属性 || {}) || 0));
+        if (!(伤势恢复倍率 > 0)) return;
+        const 恢复量 = roundRuntimeGrowthValue_ACU(生命值上限 * 安全基础恢复倍率 * safeDelta * 伤势恢复倍率);
+        if (!(恢复量 > 0)) return;
+        c.属性.HP = Math.min(生命值上限, roundRuntimeGrowthValue_ACU(当前生命值 + 恢复量));
+      };
       const 修炼倍率信息 = 计算修炼速度倍率_ACU(c, 角色名, normalizedActionMode);
       const 修炼速度倍率 = Math.max(1, Number(修炼倍率信息.倍率 || 1));
       if (!c.属性.训练加成 || typeof c.属性.训练加成 !== 'object' || Array.isArray(c.属性.训练加成)) {
@@ -15447,6 +15499,7 @@ export const Schema = z
         const menRate = 0.008;
         c.属性.精神力 = Math.min(c.属性.精神力上限, roundRuntimeGrowthValue_ACU(c.属性.精神力 + c.属性.精神力上限 * menRate * safeDelta));
         c.属性.体力 = Math.min(c.属性.体力上限, roundRuntimeGrowthValue_ACU(c.属性.体力 + c.属性.体力上限 * vitMenRate * safeDelta));
+        应用伤势恢复到生命值(0.0008);
       } else if (normalizedActionMode === '战斗') {
         spRate = 0;
         vitMenRate = 0;
@@ -15455,9 +15508,11 @@ export const Schema = z
         const sleepRate = 0.01;
         c.属性.精神力 = Math.min(c.属性.精神力上限, roundRuntimeGrowthValue_ACU(c.属性.精神力 + c.属性.精神力上限 * sleepRate * safeDelta));
         c.属性.体力 = Math.min(c.属性.体力上限, roundRuntimeGrowthValue_ACU(c.属性.体力 + c.属性.体力上限 * sleepRate * safeDelta));
+        应用伤势恢复到生命值(0.0015);
       } else {
         c.属性.精神力 = Math.min(c.属性.精神力上限, roundRuntimeGrowthValue_ACU(c.属性.精神力 + c.属性.精神力上限 * vitMenRate * safeDelta));
         c.属性.体力 = Math.min(c.属性.体力上限, roundRuntimeGrowthValue_ACU(c.属性.体力 + c.属性.体力上限 * vitMenRate * safeDelta));
+        应用伤势恢复到生命值(0.0004);
       }
 
       if (hasNoSoulPowerTalent) spRate = 0;
@@ -17185,14 +17240,7 @@ export const Schema = z
           msg = `[互动失败] 找不到目标角色【${targetName}】。`;
         } else {
           if (!c.社交.关系[targetName]) {
-            c.社交.关系[targetName] = {
-              关系: '陌生',
-              好感度: 0,
-              关系路线: '朋友线',
-              对方身份: '无',
-              好感加成: '无',
-              武魂相关度基础: 武魂相关度基础待补全提示词,
-            };
+            c.社交.关系[targetName] = 构建默认社交关系数据();
           }
           let rel = c.社交.关系[targetName];
           规范武魂相关度基础字段(rel);
@@ -17258,14 +17306,7 @@ export const Schema = z
           }
 
           if (!targetNPC.社交.关系[charName]) {
-            targetNPC.社交.关系[charName] = {
-              关系: '陌生',
-              好感度: 0,
-              关系路线: '朋友线',
-              对方身份: '无',
-              好感加成: '无',
-              武魂相关度基础: 武魂相关度基础待补全提示词,
-            };
+            targetNPC.社交.关系[charName] = 构建默认社交关系数据();
           }
           const 对侧关系 = targetNPC.社交.关系[charName];
           规范武魂相关度基础字段(对侧关系);
@@ -18110,6 +18151,52 @@ export const Schema = z
         const text = String(value ?? '').trim();
         return text && text !== '未知' ? text : fallback;
       };
+      const 读取本轮模块结算只读路径 = () => {
+        try {
+          const 当前时间 = Date.now();
+          const 运行时根列表 = [];
+          const 追加运行时根 = 运行时根 => {
+            try {
+              if (运行时根 && typeof 运行时根 === 'object' && !运行时根列表.includes(运行时根)) 运行时根列表.push(运行时根);
+            } catch (error) {}
+          };
+          try { 追加运行时根(window); } catch (error) {}
+          try { 追加运行时根(window.parent); } catch (error) {}
+          try { 追加运行时根(window.top); } catch (error) {}
+          try { 追加运行时根(globalThis); } catch (error) {}
+          const 记录 = 运行时根列表
+            .map(运行时根 => {
+              try { return 运行时根.__LWCS_本轮模块结算路径__; } catch (error) { return null; }
+            })
+            .find(候选记录 => 候选记录 && typeof 候选记录 === 'object' && Number(候选记录.过期时间 || 0) > 当前时间);
+          if (!记录 || typeof 记录 !== 'object' || Number(记录.过期时间 || 0) <= 当前时间) return [];
+          return (Array.isArray(记录.路径列表) ? 记录.路径列表 : [])
+            .filter(路径 => Array.isArray(路径) && 路径.length > 1)
+            .map(路径 => 路径.map(片段 => String(片段 ?? '').trim()).filter(Boolean))
+            .filter(路径 => 路径.length > 1 && ['sys', 'world', 'org', 'char'].includes(路径[0]));
+        } catch (error) {
+          return [];
+        }
+      };
+      const 投影本轮模块结算只读字段 = (显示根 = {}, 只读路径列表 = []) => {
+        if (!显示根 || typeof 显示根 !== 'object' || !Array.isArray(只读路径列表) || 只读路径列表.length === 0) return 显示根;
+        只读路径列表.forEach(路径 => {
+          if (!Array.isArray(路径) || 路径.length < 2) return;
+          let 当前节点 = 显示根;
+          for (let index = 0; index < 路径.length - 1; index += 1) {
+            const 片段 = 路径[index];
+            if (!当前节点 || typeof 当前节点 !== 'object' || !(片段 in 当前节点)) return;
+            当前节点 = 当前节点[片段];
+          }
+          if (!当前节点 || typeof 当前节点 !== 'object') return;
+          const 叶字段 = 路径[路径.length - 1];
+          if (!叶字段 || String(叶字段).startsWith('_') || !(叶字段 in 当前节点)) return;
+          const 只读叶字段 = `_${叶字段}`;
+          if (!(只读叶字段 in 当前节点)) 当前节点[只读叶字段] = 当前节点[叶字段];
+          delete 当前节点[叶字段];
+        });
+        return 显示根;
+      };
       const isEmptyDisplayText = value => String(value ?? '').trim() === '';
       const ensureDisplayText = (obj, key, fallbackText = '') => {
         if (!obj || typeof obj !== 'object') return;
@@ -18845,6 +18932,7 @@ export const Schema = z
         org: filtered_org,
         char: visibleChars,
       };
+      投影本轮模块结算只读字段(data.display_all, 读取本轮模块结算只读路径());
     }
 
     _(data.world?.动态地点 || {}).forEach(locData => {
