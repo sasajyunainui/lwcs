@@ -2505,8 +2505,28 @@
     .map-npc-list {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
       margin-top: 8px;
+      max-height: min(360px, 42vh);
+      overflow-y: auto;
+      padding-right: 3px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(118,226,255,0.34) rgba(255,255,255,0.04);
+    }
+
+    .map-npc-roster-head {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 4px 2px 5px;
+      background: linear-gradient(180deg, rgba(8,16,24,0.96), rgba(8,16,24,0.78));
+      color: rgba(216, 243, 255, 0.88);
+      font-size: 10px;
+      line-height: 1.2;
     }
 
     .map-npc-empty {
@@ -2523,8 +2543,12 @@
       border-radius: 12px;
       border: 1px solid rgba(168, 192, 214, 0.14);
       background: rgba(10, 22, 32, 0.42);
-      padding: 9px 10px;
+      padding: 5px 7px;
       transition: .18s ease;
+      display: grid;
+      grid-template-columns: minmax(44px, 0.58fr) minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 6px;
     }
 
     .map-npc-card.current {
@@ -2534,10 +2558,7 @@
     }
 
     .map-npc-card-head {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 8px;
+      display: contents;
     }
 
     .map-npc-name {
@@ -2549,10 +2570,21 @@
       font: inherit;
       font-size: 12px;
       font-weight: 600;
-      line-height: 1.4;
+      line-height: 1.25;
       color: #eef7fd;
       text-align: left;
       cursor: pointer;
+      grid-column: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .map-npc-card-head .map-event-chip {
+      grid-column: 3;
+      padding: 3px 6px;
+      font-size: 9px;
     }
 
     .map-npc-name:hover,
@@ -2561,17 +2593,28 @@
     }
 
     .map-npc-meta {
-      margin-top: 4px;
+      margin-top: 0;
       font-size: 10px;
-      line-height: 1.55;
+      line-height: 1.35;
       color: #8fb1c3;
+      grid-column: 2;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .map-npc-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 8px;
+      display: none;
+      grid-template-columns: repeat(auto-fit, minmax(42px, 1fr));
+      gap: 4px;
+      grid-column: 1 / -1;
+      margin-top: 2px;
+    }
+
+    .map-npc-card.current .map-npc-actions,
+    .map-npc-card:hover .map-npc-actions,
+    .map-npc-card:focus-within .map-npc-actions {
+      display: grid;
     }
 
     .map-npc-action-btn {
@@ -2580,12 +2623,14 @@
       background: rgba(13,24,35,0.82);
       color: #dfe9ef;
       border-radius: 999px;
-      padding: 5px 8px;
+      padding: 5px 6px;
       font-size: 9px;
       line-height: 1;
       cursor: pointer;
       transition: .18s ease;
       box-shadow: 0 4px 10px rgba(0,0,0,0.16);
+      min-width: 0;
+      white-space: nowrap;
     }
 
     .map-npc-action-btn:hover {
@@ -3240,9 +3285,16 @@
       const npcMetaParts = [];
       if (npcFaction) npcMetaParts.push(npcFaction);
       if (npcState) npcMetaParts.push(`状态 ${npcState}`);
-      const entry = { id: charId, name: npcName, meta: npcMetaParts.join(' · '), raw: charInfo };
-      const locationKeys = new Set(String(charLoc || '').split('-').filter(Boolean));
+      const entry = { id: charId, name: npcName, meta: npcMetaParts.join(' · '), location: charLoc, raw: charInfo };
+      const locationKeys = new Set();
+      const 地点片段列表 = String(charLoc || '').split('-').map(item => toText(item, '').trim()).filter(Boolean);
       if (charLoc) locationKeys.add(charLoc);
+      地点片段列表.forEach(地点片段 => locationKeys.add(地点片段));
+      for (let 起点 = 0; 起点 < 地点片段列表.length; 起点 += 1) {
+        for (let 终点 = 起点 + 2; 终点 <= 地点片段列表.length; 终点 += 1) {
+          locationKeys.add(地点片段列表.slice(起点, 终点).join('-'));
+        }
+      }
       locationKeys.forEach(locationKey => {
         const safeLocationKey = toText(locationKey, '');
         if (!safeLocationKey) return;
@@ -3396,7 +3448,7 @@
     talk: '对话',
     trade: '交易',
     bid: '竞拍',
-    craft: '打造',
+    craft: '委托工坊',
     rest: '休整',
     intel: '情报',
     brief: '汇报',
@@ -3412,7 +3464,7 @@
     shop: '商店',
     auction: '竞拍',
     black_market: '黑市',
-    craft: '工坊',
+    craft: '工坊委托',
     rest: '休息',
     intel: '情报',
     briefing: '政务'
@@ -3607,7 +3659,7 @@
     if (canEnter) return ['enter', 'inspect'];
     if (nodeKind === 'commerce') return /拍卖/.test(text) ? ['inspect', 'bid'] : ['inspect', 'trade'];
     if (nodeKind === 'study') return ['inspect', 'study'];
-    if (nodeKind === 'craft') return ['inspect', 'craft'];
+    if (nodeKind === 'craft') return ['inspect', 'talk'];
     if (nodeKind === 'training') return ['inspect', 'train'];
     if (nodeKind === 'rest') return ['inspect', 'rest'];
     if (nodeKind === 'intel') return ['inspect', 'intel'];
@@ -3620,7 +3672,7 @@
     if (canEnter) return ['enter', 'inspect'];
     if (nodeKind === 'commerce') return /拍卖/.test(text) ? ['bid', 'talk', 'inspect'] : ['trade', 'talk', 'inspect'];
     if (nodeKind === 'study') return /图书馆|藏书|静室|冥想/.test(text) ? ['study', 'meditate', 'inspect'] : ['study', 'talk', 'inspect'];
-    if (nodeKind === 'craft') return ['craft', 'talk', 'inspect'];
+    if (nodeKind === 'craft') return ['talk', 'inspect'];
     if (nodeKind === 'training') return (services.includes('battle') || /演武|斗魂|擂台|实战/.test(text)) ? ['train', 'battle', 'inspect'] : ['train', 'inspect', 'talk'];
     if (nodeKind === 'rest') return ['rest', 'meditate', 'inspect'];
     if (nodeKind === 'intel') return ['intel', 'talk', 'inspect'];
@@ -3634,7 +3686,7 @@
     if (canEnter) return ['preview'];
     if (nodeKind === 'commerce') return /黑市/.test(text) ? ['black_market'] : (/拍卖/.test(text) ? ['auction'] : ['shop']);
     if (nodeKind === 'study') return ['study'];
-    if (nodeKind === 'craft') return ['craft'];
+    if (nodeKind === 'craft') return [];
     if (nodeKind === 'training') return ['train'];
     if (nodeKind === 'rest') return ['rest'];
     if (nodeKind === 'intel') return ['intel'];
@@ -6139,6 +6191,9 @@
   function getNpcActionCandidates(item, npcCount = 0) {
     if (!item) return [];
     const candidates = new Set();
+    const nodeName = toText(item && item.name, '');
+    const isOfficialCommissionNode = ['锻造师协会', '制造师协会', '设计师协会', '修理师协会']
+      .some(name => nodeName && (nodeName.includes(name) || name.includes(nodeName)));
     const sourceActions = Array.isArray(item.actionSlots) && item.actionSlots.length
       ? item.actionSlots
       : (Array.isArray(item.interactions) ? item.interactions : []);
@@ -6147,14 +6202,15 @@
     }
     sourceActions.forEach(action => {
       const normalized = toText(action, '');
-      if (['talk', 'battle', 'trade', 'bid', 'craft', 'brief', 'intel'].includes(normalized)) candidates.add(normalized);
+      if (['talk', 'battle', 'trade', 'bid', 'brief', 'intel'].includes(normalized)) candidates.add(normalized);
+      if (normalized === 'craft' && (npcCount > 0 || isOfficialCommissionNode)) candidates.add('craft');
     });
     const services = Array.isArray(item.services) ? item.services : [];
     services.forEach(service => {
       const normalized = toText(service, '');
       if (normalized === 'shop' || normalized === 'black_market') candidates.add('trade');
       else if (normalized === 'auction') candidates.add('bid');
-      else if (normalized === 'craft') candidates.add('craft');
+      else if (normalized === 'craft' && (npcCount > 0 || isOfficialCommissionNode)) candidates.add('craft');
       else if (normalized === 'battle') candidates.add('battle');
       else if (normalized === 'intel') candidates.add('intel');
       else if (normalized === 'briefing') candidates.add('brief');
@@ -7481,11 +7537,26 @@ ${logMsg}
         toText(rawLocationName, '').split('-').filter(Boolean).pop() || '',
         toText(locationName, '').split('-').filter(Boolean).pop() || ''
       ].filter(Boolean);
-      for (const candidate of locationCandidates) {
-        const entries = snapshot.charactersByLoc.get(candidate);
-        if (Array.isArray(entries) && entries.length) return entries.slice();
+      const 收集结果 = [];
+      const 已收录 = new Set();
+      const 加入条目 = entries => {
+        if (!Array.isArray(entries)) return;
+        entries.forEach(entry => {
+          const 条目键 = `${toText(entry && entry.id, '')}::${toText(entry && entry.name, '')}`;
+          if (!条目键.trim() || 已收录.has(条目键)) return;
+          已收录.add(条目键);
+          收集结果.push(entry);
+        });
+      };
+      locationCandidates.forEach(candidate => 加入条目(snapshot.charactersByLoc.get(candidate)));
+      if (!收集结果.length) {
+        snapshot.charactersByLoc.forEach((entries, key) => {
+          const 安全键 = toText(key, '');
+          if (!安全键) return;
+          if (locationCandidates.some(candidate => 安全键.includes(candidate))) 加入条目(entries);
+        });
       }
-      return [];
+      return 收集结果;
     };
     const followItemName = currentVisibleName || (toText(rawCurrentName, '').split('-').filter(Boolean).pop() || toText(currentName, '').split('-').filter(Boolean).pop() || '');
     const followDetailItem = getItemByName(followItemName) || null;
@@ -7553,7 +7624,7 @@ ${logMsg}
         ? `<div class="map-npc-empty">当前为远端区域预览，需先移动到 ${escapeMapHtml(previewTrailNames[0] || previewAnchorName)} 后才能与此处人物互动。</div>`
         : (!focusItem || !characterEntries.length)
           ? `<div class="map-npc-empty">${escapeMapHtml(focusName)} 暂未发现人物。</div>`
-          : characterEntries.map(entry => {
+          : `<div class="map-npc-roster-head"><span>全部 ${characterEntries.length} 人</span><span>${escapeMapHtml(selectedNpc ? `已选 ${selectedNpc}` : '未选定')}</span></div>${characterEntries.map(entry => {
             const selectedClass = entry.name === selectedNpc ? ' current' : '';
             const metaHtml = entry.meta ? `<div class="map-npc-meta">${escapeMapHtml(entry.meta)}</div>` : '';
             const actionHtml = npcBrowserActions.length
@@ -7564,7 +7635,7 @@ ${logMsg}
                 }).join('')}</div>`
               : `<div class="map-npc-meta">当前无可互动人物。</div>`;
             return `<div class="map-npc-card${selectedClass}"><div class="map-npc-card-head"><button type="button" class="map-npc-name${selectedClass}" data-map-npc-select="${escapeMapHtml(entry.name)}" title="选中 ${escapeMapHtml(entry.name)}">${escapeMapHtml(entry.name)}</button><span class="map-event-chip${selectedClass ? ' live' : ''}">${selectedClass ? '已选' : '在场'}</span></div>${metaHtml}${actionHtml}</div>`;
-          }).join('');
+          }).join('')}`;
 
     const currentMapDisplayName = getMapDisplayName(snapshot.currentMapId, snapshot.mapMeta);
     setMapText('[data-map-focus]', inPreview ? `${toText(deepGet(snapshot, 'mapMeta.name', '地图预览'), '地图预览')} · ${previewAnchorName} [预览]` : `${toText(deepGet(snapshot, 'mapMeta.name', '全息星图'), '全息星图')} · ${focusName}`);

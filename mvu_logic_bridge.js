@@ -3517,7 +3517,7 @@
           restoreInlineEditState(activeInlineEditState);
           flushPendingLiveRefresh();
         }
-        if (是否处于AI维护选择交互(eventTarget)) {
+        if (typeof 是否处于AI维护选择交互 === 'function' && 是否处于AI维护选择交互(eventTarget)) {
           return;
         }
         const inlineTarget = eventTarget.closest('[data-inline-editable="1"]');
@@ -3531,7 +3531,7 @@
         const eventTarget = event.target instanceof Element ? event.target : (event.target && event.target.parentElement ? event.target.parentElement : null);
         if (!eventTarget) return;
         if (eventTarget.classList.contains('mvu-inline-editor-input')) return;
-        if (是否处于AI维护选择交互(eventTarget)) return;
+        if (typeof 是否处于AI维护选择交互 === 'function' && 是否处于AI维护选择交互(eventTarget)) return;
         const inlineTarget = eventTarget.closest('[data-inline-editable="1"]');
         if (!inlineTarget) return;
         if (event.key === 'Enter' || event.key === ' ') {
@@ -3540,6 +3540,658 @@
           beginInlineEdit(inlineTarget);
         }
       }, true);
+    }
+
+    const AI维护_API存储键 = 'LWCS_AI维护_API预设';
+    const AI维护_方式列表 = Object.freeze(['补全空值', '根据剧情修正', '整理格式', '生成缺失条目', '检查并修复']);
+    const AI维护_状态 = {
+      active: false,
+      root: null,
+      previewKey: '',
+      surfaceOptions: {},
+      selected: new Map(),
+      busy: false,
+    };
+
+    function 构建AI维护路径键(pathValue = []) {
+      return normalizeEditorPath(pathValue).map(token => String(token)).join('\u0001');
+    }
+
+    function 格式化AI维护路径(pathValue = []) {
+      const path = normalizeEditorPath(pathValue);
+      if (!path.length) return '';
+      return `/${path.map(token => escapeJsonPointerValue(token)).join('/')}`;
+    }
+
+    function 限长AI维护文本(value, maxLength = 2600) {
+      const raw = typeof value === 'string'
+        ? value
+        : (() => {
+            try { return JSON.stringify(value, null, 2); } catch (error) { return String(value ?? ''); }
+          })();
+      const text = toText(raw, '');
+      if (text.length <= maxLength) return text;
+      return `${text.slice(0, Math.max(1, maxLength - 24))}\n...已截断...`;
+    }
+
+    function 获取AI维护根列表() {
+      const roots = [];
+      const pushRoot = root => {
+        try {
+          if (root && typeof root === 'object' && !roots.includes(root)) roots.push(root);
+        } catch (error) {}
+      };
+      try { pushRoot(window); } catch (error) {}
+      try { pushRoot(window.parent); } catch (error) {}
+      try { pushRoot(window.top); } catch (error) {}
+      try { pushRoot(globalThis); } catch (error) {}
+      return roots;
+    }
+
+    function 获取AI维护数据库API() {
+      return 获取AI维护根列表()
+        .map(root => {
+          try { return root.AutoCardUpdaterAPI; } catch (error) { return null; }
+        })
+        .find(api => api && typeof api.getApiPresets === 'function' && typeof api.callAI === 'function') || null;
+    }
+
+    function 读取AI维护API预设列表() {
+      const api = 获取AI维护数据库API();
+      if (!api) return [];
+      try {
+        const presets = api.getApiPresets();
+        return (Array.isArray(presets) ? presets : [])
+          .map(item => toText(item && item.name, '').trim())
+          .filter(Boolean);
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function 读取AI维护已选API预设() {
+      try {
+        return toText(window.localStorage && window.localStorage.getItem(AI维护_API存储键), '').trim();
+      } catch (error) {
+        return '';
+      }
+    }
+
+    function 保存AI维护已选API预设(presetName = '') {
+      const safePresetName = toText(presetName, '').trim();
+      try {
+        if (window.localStorage) window.localStorage.setItem(AI维护_API存储键, safePresetName);
+      } catch (error) {}
+      return safePresetName;
+    }
+
+    function 读取AI维护有效API预设() {
+      const selected = 读取AI维护已选API预设();
+      if (!selected) return '';
+      return 读取AI维护API预设列表().includes(selected) ? selected : '';
+    }
+
+    function 构建AI维护API选择器() {
+      const presets = 读取AI维护API预设列表();
+      const selected = 读取AI维护有效API预设();
+      const options = [
+        `<option value=""${selected ? '' : ' selected'}>当前配置</option>`,
+        ...presets.map(name => `<option value="${escapeHtmlAttr(name)}"${name === selected ? ' selected' : ''}>${htmlEscape(name)}</option>`),
+      ].join('');
+      return `
+        <label class="mvu-ai-maintenance-api">
+          <span>AI API</span>
+          <select data-ai-maintenance-api-select aria-label="AI维护API">${options}</select>
+        </label>
+      `;
+    }
+
+    function 构建AI维护标题按钮(previewKey = '') {
+      const key = toText(previewKey, '').trim();
+      if (!key || key === BATTLE_INLINE_PREVIEW_KEY) return '';
+      return `<button type="button" class="tag-chip mvu-ai-maintenance-toggle mvu-ai-maintenance-title-button" data-ai-maintenance-toggle data-ai-maintenance-preview="${escapeHtmlAttr(key)}">AI维护</button>`;
+    }
+
+    function 同步AI维护标题按钮状态() {
+      const 是否激活 = !!(AI维护_状态.active && AI维护_状态.root && AI维护_状态.root.isConnected);
+      document.querySelectorAll('[data-ai-maintenance-toggle]').forEach(button => {
+        button.classList.toggle('is-ai-active', 是否激活);
+        button.setAttribute('aria-pressed', 是否激活 ? 'true' : 'false');
+        button.textContent = 是否激活 ? '选择中' : 'AI维护';
+      });
+    }
+
+    function 查找AI维护根(previewKey = '') {
+      const key = toText(previewKey, '').trim();
+      const candidates = Array.from(document.querySelectorAll('[data-ai-maintenance-root]'));
+      if (!key) return candidates.find(node => node instanceof Element && node.isConnected) || null;
+      return candidates.find(node => node instanceof Element && node.isConnected && toText(node.getAttribute('data-unified-preview'), '').trim() === key) || null;
+    }
+
+    function 同步AI维护首页配置入口() {
+      const unifiedMount = document.getElementById('mvu-unified-mount');
+      if (!unifiedMount) return;
+      const homeMarkup = 构建AI维护API选择器();
+      const 已有入口 = Array.from(unifiedMount.querySelectorAll('[data-ai-maintenance-home-api]'))
+        .filter(node => node instanceof Element);
+      if (已有入口.length) {
+        已有入口.forEach(node => { node.innerHTML = homeMarkup; });
+        return;
+      }
+      unifiedMount.querySelectorAll('.mvu-unified-toolbar').forEach(toolbar => {
+        if (!(toolbar instanceof Element)) return;
+        const 目标容器 = toolbar.querySelector('.mvu-unified-toolbar-side')
+          || (toolbar.classList.contains('is-detail') ? toolbar.querySelector('.mvu-unified-toolbar-main') : null);
+        if (!(目标容器 instanceof Element)) return;
+        const 插入位置 = 目标容器.classList.contains('mvu-unified-toolbar-main') ? 'beforeend' : 'afterbegin';
+        目标容器.insertAdjacentHTML(插入位置, `<div class="mvu-ai-maintenance-home-api" data-ai-maintenance-home-api>${homeMarkup}</div>`);
+      });
+      unifiedMount
+        .querySelectorAll('.mvu-mobile-shell-frame[data-screen="home"] .mvu-mobile-shell-head-actions, .mvu-mobile-shell-frame[data-screen="detail"] .mvu-mobile-shell-head-actions')
+        .forEach(shellActions => {
+          if (!(shellActions instanceof Element)) return;
+          shellActions.insertAdjacentHTML('afterbegin', `<div class="mvu-ai-maintenance-home-api mvu-ai-maintenance-home-api--shell" data-ai-maintenance-home-api>${homeMarkup}</div>`);
+        });
+    }
+
+    function 同步AI维护标题入口(previewKey = '') {
+      const key = toText(previewKey, '').trim();
+      document.querySelectorAll('[data-ai-maintenance-title-slot]').forEach(node => {
+        if (node && node.parentNode) node.parentNode.removeChild(node);
+      });
+      if (!key || key === BATTLE_INLINE_PREVIEW_KEY) {
+        同步AI维护标题按钮状态();
+        return;
+      }
+      const buttonHtml = 构建AI维护标题按钮(key);
+      const unifiedMain = document.querySelector('#mvu-unified-mount .mvu-unified-toolbar.is-detail .mvu-unified-toolbar-main');
+      if (unifiedMain) {
+        unifiedMain.insertAdjacentHTML('beforeend', `<div class="mvu-ai-maintenance-title-slot" data-ai-maintenance-title-slot>${buttonHtml}</div>`);
+      }
+      const shellActions = document.querySelector('#mvu-unified-mount .mvu-mobile-shell-frame[data-screen="detail"] .mvu-mobile-shell-head-actions');
+      if (shellActions) {
+        shellActions.insertAdjacentHTML('afterbegin', `<div class="mvu-ai-maintenance-title-slot" data-ai-maintenance-title-slot>${buttonHtml}</div>`);
+      }
+      const modalTitleWrap = document.querySelector('#detailModal.show .modal-title-wrap');
+      if (modalTitleWrap) {
+        modalTitleWrap.insertAdjacentHTML('beforeend', `<div class="mvu-ai-maintenance-title-slot mvu-ai-maintenance-title-slot--modal" data-ai-maintenance-title-slot>${buttonHtml}</div>`);
+      }
+      同步AI维护首页配置入口();
+      同步AI维护标题按钮状态();
+    }
+
+    function 是否处于AI维护选择交互(target) {
+      if (!AI维护_状态.active || !target || !(target instanceof Element)) return false;
+      const root = AI维护_状态.root;
+      return !!(root && root.isConnected && root.contains(target));
+    }
+
+    function 解析AI维护路径属性(element) {
+      if (!element || !(element instanceof Element)) return [];
+      try {
+        const parsed = JSON.parse(element.getAttribute('data-mvu-path') || '[]');
+        return normalizeEditorPath(parsed);
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function 构建AI维护页面变量组(previewKey = '', snapshot = liveSnapshot || lastRenderableSnapshot || {}) {
+      const activeName = toText(snapshot && snapshot.activeName, '');
+      const activeCharKey = resolveSnapshotCharKey(snapshot, activeName) || activeName;
+      const groups = [];
+      const add = (label, path, keywords = []) => {
+        const safePath = normalizeEditorPath(path);
+        if (!label || !safePath.length) return;
+        groups.push({
+          label,
+          path: safePath,
+          keywords: (Array.isArray(keywords) ? keywords : []).map(item => toText(item, '').trim()).filter(Boolean),
+        });
+      };
+
+      const key = toText(previewKey, '').trim();
+      if (activeCharKey) {
+        if (key === '任务界面') {
+          add('我的任务', ['char', activeCharKey, '记录'], ['我的任务', '任务详情', '任务']);
+          add('任务请求', ['char', activeCharKey, '任务请求'], ['任务请求', '当前路线']);
+        }
+        if (key === '人物关系详细页') add('人物关系', ['char', activeCharKey, '社交', '关系'], ['关系', '人物关系', '互动']);
+        if (key === '情报库详细页' || key === '试炼与情报') {
+          add('已掌握情报', ['char', activeCharKey, '已掌握情报'], ['近期情报', '已掌握情报', '情报']);
+          add('角色记录', ['char', activeCharKey, '记录'], ['任务记录', '记录']);
+        }
+        if (key === '储物仓库详细页') {
+          add('背包', ['char', activeCharKey, '背包'], ['背包', '物品', '仓库']);
+          add('财富', ['char', activeCharKey, '财富'], ['财富', '货币']);
+        }
+        if (key === '武装工坊详细页' || key.startsWith('武装详情')) {
+          add('装备', ['char', activeCharKey, '装备'], ['装备', '武装', '斗铠', '机甲']);
+          add('职业', ['char', activeCharKey, '职业'], ['职业', '工坊']);
+        }
+        if (key === '生命图谱详细页' || key === '生命图谱详情页') {
+          add('状态', ['char', activeCharKey, '状态'], ['状态', '当前状态']);
+          add('属性', ['char', activeCharKey, '属性'], ['属性', '生命体征']);
+          add('外貌', ['char', activeCharKey, '外貌'], ['外貌', '外观']);
+        }
+        if (key === '社会档案详细页') add('社会档案', ['char', activeCharKey, '社交'], ['社会', '名望', '称号']);
+        if (key === '第一武魂详细页' || key === '第二武魂详细页' || key === '武魂融合技详细页') {
+          add('武魂', ['char', activeCharKey, '武魂'], ['武魂', '魂灵', '魂环']);
+          add('融合技', ['char', activeCharKey, '武魂融合技'], ['融合']);
+        }
+        if (key === '血脉封印详细页') add('血脉', ['char', activeCharKey, '血脉之力'], ['血脉', '封印']);
+        if (key === '当前节点详情') add('位置状态', ['char', activeCharKey, '状态', '位置'], ['当前节点', '所在位置']);
+        if (key === '试炼与情报') add('魂灵塔记录', ['char', activeCharKey, '魂灵塔记录'], ['魂灵塔', '试炼总览']);
+      }
+
+      if (key === '任务界面') add('委托板', ['world', '委托板'], ['委托板', '委托详情', '发布委托']);
+      if (key === '系统播报与日志') {
+        add('系统播报', ['sys', '系统播报'], ['系统广播', '最近播报']);
+        add('时间线', ['world', '时间线'], ['最近事件', '编年', '时间线']);
+      }
+      if (key === '操作总线') {
+        add('时间线', ['world', '时间线'], ['世界日程', '安排']);
+        if (activeCharKey) add('个人待办', ['char', activeCharKey, '记录'], ['个人待办', '请求摘要']);
+      }
+      if (key === '试炼与情报') {
+        add('机密情报', ['world', '机密情报'], ['情报', '待核实']);
+        add('图鉴', ['world', '图鉴'], ['图鉴', '怪物']);
+      }
+      if (key === '近期见闻' || key === '编年史档案' || key === '世界状态总览') add('时间线', ['world', '时间线'], ['见闻', '编年', '时间线', '事件']);
+      if (key === '世界状态总览' || key === '当前节点详情' || key.startsWith('地图节点：')) {
+        add('地点', ['world', '地点'], ['地点', '当前节点', '据点']);
+        add('动态地点', ['world', '动态地点'], ['动态地点', '扩展节点']);
+      }
+      if (key === '势力矩阵总览' || key === '我的阵营详情' || key === '所属势力详细页') add('势力', ['org'], ['势力', '阵营']);
+      if (key === '怪物图鉴') add('图鉴', ['world', '图鉴'], ['图鉴', '怪物']);
+      if (key === '拍卖与警报') add('拍卖', ['world', '拍卖'], ['拍卖', '警报']);
+      return groups;
+    }
+
+    function 获取AI维护组定义(pathKey = '') {
+      const groups = 构建AI维护页面变量组(AI维护_状态.previewKey, liveSnapshot || lastRenderableSnapshot || {});
+      return groups.find(group => 构建AI维护路径键(group.path) === pathKey) || null;
+    }
+
+    function 获取AI维护节点标签(node, path = []) {
+      const safePath = normalizeEditorPath(path);
+      const leaf = toText(safePath[safePath.length - 1], '').trim();
+      const card = node && typeof node.closest === 'function'
+        ? node.closest('.archive-card, .timeline-card, .intel-card, .relation-card, .archive-tile, .role-switch-tile, .dossier-row, .simple-row')
+        : null;
+      const titleNode = card
+        ? card.querySelector('.archive-card-title, .simple-title, .role-switch-head b, b')
+        : null;
+      const title = toText(titleNode ? titleNode.textContent : '', '').replace(/\s+/g, ' ').trim();
+      const inlineText = toText(node && node.textContent, '').replace(/\s+/g, ' ').trim();
+      const valueText = inlineText && inlineText.length <= 18 ? inlineText : '';
+      return [title, leaf, valueText].filter(Boolean).join(' / ') || 格式化AI维护路径(safePath);
+    }
+
+    function 标记AI维护可选目标(root, previewKey = '') {
+      if (!root || !(root instanceof Element)) return 0;
+      let count = 0;
+      root.querySelectorAll('[data-mvu-path]').forEach(node => {
+        const path = 解析AI维护路径属性(node);
+        if (!path.length) return;
+        const label = 获取AI维护节点标签(node, path);
+        node.classList.add('mvu-ai-maintenance-selectable');
+        node.setAttribute('data-ai-maintenance-field', 构建AI维护路径键(path));
+        node.setAttribute('data-ai-maintenance-label', label);
+        node.setAttribute('title', node.getAttribute('title') || 格式化AI维护路径(path));
+        count += 1;
+      });
+
+      const groups = 构建AI维护页面变量组(previewKey, liveSnapshot || lastRenderableSnapshot || {});
+      const cards = Array.from(root.querySelectorAll('.archive-card, .timeline-card, .intel-card, .relation-card, .archive-tile, .role-switch-tile'));
+      groups.forEach(group => {
+        const pathKey = 构建AI维护路径键(group.path);
+        const keywords = group.keywords && group.keywords.length ? group.keywords : [group.label];
+        const matched = cards.filter(card => {
+          const titleNode = card.querySelector('.archive-card-title, b, .simple-title, .role-switch-head');
+          const titleText = toText(titleNode ? titleNode.textContent : card.textContent, '').trim();
+          return keywords.some(keyword => keyword && titleText.includes(keyword));
+        });
+        matched.slice(0, 6).forEach(card => {
+          if (card.hasAttribute('data-ai-maintenance-group')) return;
+          card.classList.add('mvu-ai-maintenance-group-target');
+          card.setAttribute('data-ai-maintenance-group', pathKey);
+          card.setAttribute('data-ai-maintenance-label', group.label);
+          card.setAttribute('title', card.getAttribute('title') || `${group.label} ${格式化AI维护路径(group.path)}`);
+          count += 1;
+        });
+      });
+      return count;
+    }
+
+    function 清理AI维护目标(root) {
+      if (!root || !(root instanceof Element)) return;
+      root.querySelectorAll('.mvu-ai-maintenance-selectable').forEach(node => {
+        node.classList.remove('mvu-ai-maintenance-selectable', 'is-ai-selected', 'is-ai-click-feedback');
+        node.removeAttribute('data-ai-maintenance-field');
+        node.removeAttribute('data-ai-maintenance-label');
+        node.removeAttribute('data-ai-maintenance-selected-order');
+      });
+      root.querySelectorAll('.mvu-ai-maintenance-group-target').forEach(node => {
+        node.classList.remove('mvu-ai-maintenance-group-target', 'is-ai-selected', 'is-ai-click-feedback');
+        node.removeAttribute('data-ai-maintenance-group');
+        node.removeAttribute('data-ai-maintenance-label');
+        node.removeAttribute('data-ai-maintenance-selected-order');
+      });
+      const bar = root.querySelector('[data-ai-maintenance-bar]');
+      if (bar) bar.remove();
+    }
+
+    function 构建AI维护浮条() {
+      const modeOptions = AI维护_方式列表
+        .map((mode, index) => `<option value="${escapeHtmlAttr(mode)}"${index === 0 ? ' selected' : ''}>${htmlEscape(mode)}</option>`)
+        .join('');
+      return `
+        <div class="mvu-ai-maintenance-bar" data-ai-maintenance-bar>
+          <div class="mvu-ai-maintenance-selection-panel">
+            <div class="mvu-ai-maintenance-count" data-ai-maintenance-count>未选择</div>
+            <div class="mvu-ai-maintenance-selected-list" data-ai-maintenance-selected-list><span class="mvu-ai-maintenance-empty">点击高亮字段或卡片</span></div>
+          </div>
+          <select class="mvu-ai-maintenance-mode-select" data-ai-maintenance-mode aria-label="维护方式">${modeOptions}</select>
+          <input class="mvu-ai-maintenance-extra" data-ai-maintenance-extra placeholder="额外要求" />
+          <button type="button" class="tag-chip live" data-ai-maintenance-action="submit">提交</button>
+          <button type="button" class="tag-chip" data-ai-maintenance-action="clear">清空</button>
+          <button type="button" class="tag-chip" data-ai-maintenance-action="cancel">取消</button>
+        </div>
+      `;
+    }
+
+    function 更新AI维护浮条(root = AI维护_状态.root) {
+      if (!root || !(root instanceof Element)) return;
+      const selectedEntries = Array.from(AI维护_状态.selected.entries());
+      const selectedOrderMap = new Map(selectedEntries.map(([key], index) => [key, String(index + 1)]));
+      const countEl = root.querySelector('[data-ai-maintenance-count]');
+      if (countEl) {
+        const labelText = selectedEntries
+          .slice(0, 3)
+          .map(([, item], index) => `#${index + 1} ${shortenText(item.label || 格式化AI维护路径(item.path), 14)}`)
+          .join(' / ');
+        countEl.textContent = selectedEntries.length
+          ? `已选 ${selectedEntries.length} 项 · ${labelText}${selectedEntries.length > 3 ? ` / +${selectedEntries.length - 3}` : ''}`
+          : '未选择';
+      }
+      const listEl = root.querySelector('[data-ai-maintenance-selected-list]');
+      if (listEl) {
+        listEl.innerHTML = selectedEntries.length
+          ? selectedEntries.slice(0, 10).map(([, item], index) => {
+              const label = item.label || 格式化AI维护路径(item.path);
+              const pathText = 格式化AI维护路径(item.path);
+              return `
+              <span class="mvu-ai-maintenance-selected-chip ${item.kind === '变量组' ? 'is-group' : 'is-field'}" title="${escapeHtmlAttr(`${item.kind} ${item.label || 格式化AI维护路径(item.path)} ${格式化AI维护路径(item.path)}`)}">
+                <b>#${index + 1} ${htmlEscape(item.kind)}</b>
+                <span>${htmlEscape(shortenText(label, 30))}</span>
+                <small>${htmlEscape(shortenText(pathText, 56))}</small>
+              </span>
+            `;
+            }).join('') + (selectedEntries.length > 10 ? `<span class="mvu-ai-maintenance-selected-chip is-more">+${selectedEntries.length - 10}</span>` : '')
+          : '<span class="mvu-ai-maintenance-empty">点击高亮字段或卡片</span>';
+      }
+      root.querySelectorAll('[data-ai-maintenance-field], [data-ai-maintenance-group]').forEach(node => {
+        const fieldKey = node.getAttribute('data-ai-maintenance-field');
+        const groupKey = node.getAttribute('data-ai-maintenance-group');
+        const selectedKey = fieldKey ? `字段:${fieldKey}` : (groupKey ? `变量组:${groupKey}` : '');
+        const selected = selectedKey && AI维护_状态.selected.has(selectedKey);
+        node.classList.toggle('is-ai-selected', !!selected);
+        if (selected) node.setAttribute('data-ai-maintenance-selected-order', selectedOrderMap.get(selectedKey) || '');
+        else node.removeAttribute('data-ai-maintenance-selected-order');
+      });
+      同步AI维护标题按钮状态();
+    }
+
+    function 播放AI维护选择反馈(node) {
+      if (!node || !(node instanceof Element)) return;
+      node.classList.remove('is-ai-click-feedback');
+      void node.offsetWidth;
+      node.classList.add('is-ai-click-feedback');
+      window.setTimeout(() => {
+        if (node && node.classList) node.classList.remove('is-ai-click-feedback');
+      }, 420);
+    }
+
+    function 启动AI维护模式(root, previewKey = '', options = {}) {
+      if (!root || !(root instanceof Element)) return false;
+      if (AI维护_状态.active && AI维护_状态.root === root) {
+        结束AI维护模式();
+        return true;
+      }
+      结束AI维护模式();
+      AI维护_状态.active = true;
+      AI维护_状态.root = root;
+      AI维护_状态.previewKey = toText(previewKey, '').trim();
+      AI维护_状态.surfaceOptions = options || {};
+      AI维护_状态.selected = new Map();
+      AI维护_状态.busy = false;
+      root.classList.add('mvu-ai-maintenance-mode');
+      const targetCount = 标记AI维护可选目标(root, AI维护_状态.previewKey);
+      root.insertAdjacentHTML('beforeend', 构建AI维护浮条());
+      更新AI维护浮条(root);
+      if (!targetCount) {
+        showUiToast('当前页没有可维护变量。', 'info', 2400);
+      } else {
+        showUiToast('选择要交给 AI 维护的变量。', 'info', 1800);
+      }
+      return true;
+    }
+
+    function 结束AI维护模式() {
+      const root = AI维护_状态.root;
+      if (root && root instanceof Element) {
+        root.classList.remove('mvu-ai-maintenance-mode');
+        清理AI维护目标(root);
+      }
+      AI维护_状态.active = false;
+      AI维护_状态.root = null;
+      AI维护_状态.previewKey = '';
+      AI维护_状态.surfaceOptions = {};
+      AI维护_状态.selected = new Map();
+      AI维护_状态.busy = false;
+      同步AI维护标题按钮状态();
+    }
+
+    function 切换AI维护字段选择(node) {
+      const path = 解析AI维护路径属性(node);
+      if (!path.length) return;
+      const pathKey = 构建AI维护路径键(path);
+      const key = `字段:${pathKey}`;
+      if (AI维护_状态.selected.has(key)) AI维护_状态.selected.delete(key);
+      else AI维护_状态.selected.set(key, { kind: '字段', label: toText(node && node.getAttribute('data-ai-maintenance-label'), '').trim() || 格式化AI维护路径(path), path });
+      播放AI维护选择反馈(node);
+      更新AI维护浮条();
+    }
+
+    function 切换AI维护变量组选择(node) {
+      const pathKey = toText(node && node.getAttribute('data-ai-maintenance-group'), '').trim();
+      if (!pathKey) return;
+      const group = 获取AI维护组定义(pathKey);
+      if (!group) return;
+      const key = `变量组:${pathKey}`;
+      if (AI维护_状态.selected.has(key)) AI维护_状态.selected.delete(key);
+      else AI维护_状态.selected.set(key, { kind: '变量组', label: group.label, path: group.path });
+      播放AI维护选择反馈(node);
+      更新AI维护浮条();
+    }
+
+    function 清空AI维护选择() {
+      AI维护_状态.selected.clear();
+      更新AI维护浮条();
+    }
+
+    function 路径是否在AI维护边界内(changedPath = [], allowedPath = []) {
+      const changed = normalizeEditorPath(changedPath);
+      const allowed = normalizeEditorPath(allowedPath);
+      if (!changed.length || !allowed.length) return false;
+      if (changed.length < allowed.length) return false;
+      return allowed.every((token, index) => String(changed[index]) === String(token));
+    }
+
+    function 收集AI维护差异路径(previousValue, nextValue, basePath = [], result = []) {
+      if (JSON.stringify(previousValue) === JSON.stringify(nextValue)) return result;
+      const prevIsObject = previousValue && typeof previousValue === 'object';
+      const nextIsObject = nextValue && typeof nextValue === 'object';
+      if (!prevIsObject || !nextIsObject || Array.isArray(previousValue) || Array.isArray(nextValue)) {
+        result.push(basePath.slice());
+        return result;
+      }
+      const keys = new Set([...Object.keys(previousValue), ...Object.keys(nextValue)]);
+      keys.forEach(key => {
+        收集AI维护差异路径(previousValue[key], nextValue[key], [...basePath, key], result);
+      });
+      return result;
+    }
+
+    function 构建AI维护上下文摘要(snapshot = liveSnapshot || lastRenderableSnapshot || {}) {
+      const sys = deepGet(snapshot, 'rootData.sys', {});
+      const latestTimeline = snapshot && snapshot.latestTimeline ? snapshot.latestTimeline[0] : '';
+      return [
+        `当前角色：${toText(snapshot && snapshot.activeName, '未知')}`,
+        `当前位置：${toText(snapshot && snapshot.currentLoc, '未知')}`,
+        `系统播报：${shortenText(toText(sys && sys.系统播报, '暂无'), 120)}`,
+        `最近事件：${shortenText(toText(latestTimeline, '暂无'), 120)}`,
+      ].join('\n');
+    }
+
+    function 构建AI维护调用消息(selectionItems = [], oldMvuData = {}, mode = '补全空值', extra = '') {
+      const statData = oldMvuData && oldMvuData.stat_data ? oldMvuData.stat_data : {};
+      const selectionText = selectionItems.map((item, index) => {
+        const value = deepGet(statData, item.path, undefined);
+        const valueLimit = item.kind === '变量组' ? 5200 : 1600;
+        return [
+          `${index + 1}. ${item.kind} ${item.label || 格式化AI维护路径(item.path)}`,
+          `路径：${格式化AI维护路径(item.path)}`,
+          `当前值：${限长AI维护文本(value, valueLimit)}`,
+        ].join('\n');
+      }).join('\n\n');
+      const boundaryText = selectionItems
+        .map(item => `- ${item.kind} ${item.label || 格式化AI维护路径(item.path)}：${格式化AI维护路径(item.path)}`)
+        .join('\n');
+      const userText = [
+        '[维护方式]',
+        mode,
+        '',
+        '[额外要求]',
+        toText(extra, '').trim() || '无',
+        '',
+        '[少量上下文]',
+        构建AI维护上下文摘要(liveSnapshot || lastRenderableSnapshot || {}),
+        '',
+        '[允许维护边界]',
+        boundaryText,
+        '',
+        '[当前变量值]',
+        selectionText || '无',
+      ].join('\n');
+      return [
+        {
+          role: 'system',
+          content: [
+            '你是 LWCS 的静默 MVU 变量维护器。',
+            '只输出一个 <UpdateVariable> 变量更新块，不输出剧情正文、解释、寒暄或 Markdown。',
+            '更新块内使用 <JSONPatch> 输出 JSON Patch 数组，路径必须使用 /char/...、/world/...、/sys/...、/org/... 形式。',
+            '只能修改用户选中的路径或变量组内部路径。禁止新增 MVU 结构预留字段，禁止修改未选中的变量。',
+            '若无需修改，输出空数组 []。'
+          ].join('\n')
+        },
+        {
+          role: 'user',
+          content: userText
+        }
+      ];
+    }
+
+    function 获取AI维护Mvu解析宿主() {
+      return 获取AI维护根列表()
+        .map(root => {
+          try { return root.Mvu; } catch (error) { return null; }
+        })
+        .find(host => host && typeof host.parseMessage === 'function') || null;
+    }
+
+    function 准备AI维护写回数据(oldMvuData, parsedMvuData) {
+      const parsedEnvelope = normalizeMvuDataEnvelopeForEditor(parsedMvuData);
+      const nextMvuData = cloneJsonValue(oldMvuData, {});
+      const nextStatData = buildSafeStatDataForEditorWrite(parsedEnvelope.stat_data, oldMvuData.stat_data);
+      if (oldMvuData && oldMvuData.stat_data && Object.prototype.hasOwnProperty.call(oldMvuData.stat_data, 'display_all')) {
+        nextStatData.display_all = cloneJsonValue(oldMvuData.stat_data.display_all, {});
+      } else {
+        delete nextStatData.display_all;
+      }
+      nextMvuData.stat_data = nextStatData;
+      return nextMvuData;
+    }
+
+    function 校验AI维护写回边界(oldMvuData, nextMvuData, selectionItems = []) {
+      const allowedPaths = selectionItems.map(item => normalizeEditorPath(item.path)).filter(path => path.length);
+      const oldStat = cloneJsonValue(oldMvuData && oldMvuData.stat_data, {});
+      const nextStat = cloneJsonValue(nextMvuData && nextMvuData.stat_data, {});
+      delete oldStat.display_all;
+      delete nextStat.display_all;
+      const changedPaths = 收集AI维护差异路径(oldStat, nextStat, []);
+      if (!changedPaths.length) return { ok: false, reason: 'AI 未生成有效变量改动。', changedPaths };
+      const outOfRange = changedPaths.filter(path => !allowedPaths.some(allowed => 路径是否在AI维护边界内(path, allowed)));
+      if (outOfRange.length) {
+        return {
+          ok: false,
+          reason: `AI 试图修改未选中的变量：${outOfRange.slice(0, 4).map(格式化AI维护路径).join('、')}`,
+          changedPaths,
+          outOfRange,
+        };
+      }
+      return { ok: true, changedPaths };
+    }
+
+    async function 提交AI维护请求(root = AI维护_状态.root) {
+      if (!AI维护_状态.active || AI维护_状态.busy) return;
+      const selectionItems = Array.from(AI维护_状态.selected.values());
+      if (!selectionItems.length) {
+        showUiToast('请先选择变量。', 'info', 1800);
+        return;
+      }
+      const api = 获取AI维护数据库API();
+      if (!api) {
+        showUiToast('数据库 AI API 不可用。', 'error', 3600);
+        return;
+      }
+      const parseHost = 获取AI维护Mvu解析宿主();
+      if (!parseHost) {
+        showUiToast('MVU 解析接口不可用。', 'error', 3600);
+        return;
+      }
+      const bar = root && root.querySelector ? root.querySelector('[data-ai-maintenance-bar]') : null;
+      const modeEl = bar ? bar.querySelector('[data-ai-maintenance-mode]') : null;
+      const extraEl = bar ? bar.querySelector('[data-ai-maintenance-extra]') : null;
+      const mode = toText(modeEl && modeEl.value, '补全空值');
+      const extra = toText(extraEl && extraEl.value, '').trim();
+      AI维护_状态.busy = true;
+      if (bar) bar.classList.add('is-busy');
+      try {
+        const { host, mvuData, messageId } = await readLatestMvuDataByEditor();
+        const messages = 构建AI维护调用消息(selectionItems, mvuData, mode, extra);
+        const presetName = 读取AI维护有效API预设();
+        const aiText = await api.callAI(messages, { presetName, max_tokens: 2200 });
+        if (!aiText || typeof aiText !== 'string') throw new Error('AI 没有返回可解析内容。');
+        const parsed = await Promise.resolve(parseHost.parseMessage(aiText, mvuData));
+        const nextMvuData = 准备AI维护写回数据(mvuData, parsed);
+        const check = 校验AI维护写回边界(mvuData, nextMvuData, selectionItems);
+        if (!check.ok) throw new Error(check.reason || '变量改动未通过边界检查。');
+        await Promise.resolve(host.replaceMvuData(nextMvuData, { type: 'message', message_id: messageId }));
+        writeMvuEditorStoreSnapshot(nextMvuData.stat_data, { messageId });
+        await refreshLiveSnapshot({ force: true });
+        showUiToast(`AI维护已写回 ${check.changedPaths.length} 项。`, 'info', 2600);
+        const previewKey = AI维护_状态.previewKey;
+        const surfaceOptions = AI维护_状态.surfaceOptions || {};
+        结束AI维护模式();
+        if (previewKey) rerenderDetailSurface(previewKey, { ...surfaceOptions, force: true });
+      } catch (error) {
+        showUiToast(error && error.message ? error.message : 'AI维护失败。', 'error', 5200);
+      } finally {
+        AI维护_状态.busy = false;
+        if (bar) bar.classList.remove('is-busy');
+      }
     }
 
     function formatAge(age) {
@@ -10946,6 +11598,12 @@
           mapAvailableChildMaps: snapshot && snapshot.mapAvailableChildMaps && typeof snapshot.mapAvailableChildMaps === 'object'
             ? snapshot.mapAvailableChildMaps
             : {},
+          本地人物: getShellLocalCharacterEntries(snapshot, 99).map(([名称, 角色]) => [
+            名称,
+            deepGet(角色, '状态.位置', ''),
+            deepGet(角色, '状态.行动', ''),
+            deepGet(角色, '社交.主身份', ''),
+          ]),
           latestTimeline: snapshot && snapshot.latestTimeline ? snapshot.latestTimeline : null,
           timelineEntries: Array.isArray(snapshot && snapshot.timelineEntries) ? snapshot.timelineEntries : []
         }),
@@ -11029,7 +11687,7 @@
           <div class="terminal-tab-strip">
             <button type="button" class="terminal-tab active terminal-skeleton-row" data-terminal-tab="状态">状态</button>
             <button type="button" class="terminal-tab terminal-skeleton-row" data-terminal-tab="播报">播报</button>
-            <button type="button" class="terminal-tab terminal-skeleton-row" data-terminal-tab="安排">安排</button>
+            <button type="button" class="terminal-tab terminal-skeleton-row" data-terminal-tab="总览">总览</button>
           </div>
           <div class="terminal-tab-panels">
             <div class="terminal-tab-panel active terminal-skeleton-row" data-terminal-tab-panel="状态">
@@ -11038,8 +11696,8 @@
             <div class="terminal-tab-panel terminal-skeleton-row" data-terminal-tab-panel="播报">
               <div class="log-line roll log-line--single"><b>[播报]</b> 加载中...</div>
             </div>
-            <div class="terminal-tab-panel terminal-skeleton-row" data-terminal-tab-panel="安排">
-              <div class="log-line bus log-line--single"><b>[安排]</b> 加载中...</div>
+            <div class="terminal-tab-panel terminal-skeleton-row" data-terminal-tab-panel="总览">
+              <div class="log-line sys log-line--single"><b>[总览]</b> 加载中...</div>
             </div>
           </div>
         </div>
@@ -11697,7 +12355,7 @@
         <div class="panel-head panel-head--archive">
           <div class="panel-title-row">
             <div class="panel-title${allowNsfwLongPress ? ' nsfw-trigger-title' : ''}"${allowNsfwLongPress ? ` data-longpress="${PRIVATE_ARCHIVE_PREVIEW_KEY}" data-longpress-delay="600"` : ''}>详细档案</div>
-            <button type="button" class="archive-role-chip meta-pill clickable" data-preview="角色切换器">${htmlEscape(activeDisplayName)}</button>
+            <span class="panel-active-name meta-pill">${htmlEscape(activeDisplayName)}</span>
           </div>
           <span class="meta-pill">${htmlEscape(nextSoulDisplayText)}</span>
         </div>
@@ -12173,9 +12831,10 @@
         });
       }
       const routeCount = snapshot.mapTravelCandidates.length || snapshot.mapNodeLabels.length || 0;
+      const 本地人物数量 = getShellLocalCharacterEntries(snapshot, 99).length;
       return buildShellAppPeek({
         value: shortenText(toText(snapshot.normalizedLoc || snapshot.currentLoc, '未命名节点'), 14),
-        meta: `${routeCount} 个入口 · ${snapshot.mapVisibleDynamicEntries.length || 0} 处动态`,
+        meta: `${本地人物数量} 名在场 · ${toText(snapshot && snapshot.价格带, '平稳')}`,
         note: shortenText(getMapDisplayName(snapshot), 18),
         tone: 'live',
       });
@@ -12498,20 +13157,20 @@
       const childMapCount = safeEntries(snapshot.mapAvailableChildMaps).length;
       const currentMapDisplayName = getMapDisplayName(snapshot);
       const focusText = toText(deepGet(snapshot, 'mapCurrentFocus.loc', snapshot.currentLoc), snapshot.currentLoc);
+      const 本地人物数量 = getShellLocalCharacterEntries(snapshot, 99).length;
       return buildShellSummaryCard({
         kicker: '星图',
         title: shortenText(toText(snapshot.currentLoc, '未命名节点'), 24),
         value: shortenText(currentMapDisplayName, 16),
         meta: `焦点 ${shortenText(focusText, 24)}`,
         badges: [
-          `${snapshot.mapTravelCandidates.length || snapshot.mapNodeLabels.length || 0} 个入口`,
+          `${本地人物数量} 名在场`,
           childMapCount ? { text: `${childMapCount} 个子图`, tone: 'gold' } : '',
-          snapshot.mapVisibleDynamicEntries.length ? { text: `${snapshot.mapVisibleDynamicEntries.length} 处动态`, tone: 'live' } : '',
         ],
         metrics: [
-          { label: '可见', value: String(snapshot.mapVisibleNodeEntries.length || snapshot.mapNodeLabels.length || 0), tone: 'live' },
-          { label: '动态', value: String(snapshot.mapVisibleDynamicEntries.length || 0) },
+          { label: '人物', value: String(本地人物数量 || 0), tone: 'live' },
           { label: '子图', value: String(childMapCount || 0), tone: 'gold' },
+          { label: '价格', value: toText(snapshot && snapshot.价格带, '平稳') },
         ],
         note: snapshot.latestTimeline
           ? shortenText(toText(deepGet(snapshot.latestTimeline[1], '事件', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]), 36)
@@ -12554,6 +13213,9 @@
         rows: [
           { label: '掌控', value: shortenText(localFaction, 22) },
           { label: '店铺', value: nodeStores.length ? `${nodeStores.length} 处` : '0' },
+          { label: '供给', value: toText(snapshot && snapshot.本地供给, '无供给') },
+          { label: '价格', value: toText(snapshot && snapshot.价格带, '无') },
+          { label: '成交', value: toText(snapshot && snapshot.最近成交影响, '平稳') },
         ],
       });
     }
@@ -12641,7 +13303,7 @@
           meta: '当前聊天',
           metrics: [
             { label: '偏差', value: '--' },
-            { label: '安排', value: '--' },
+            { label: '事件', value: '--' },
             { label: '见闻', value: '--' },
             { label: '森怨', value: '--' },
           ],
@@ -12655,7 +13317,6 @@
       const deviation = toNumber(deepGet(snapshot, 'rootData.world.偏差值', 0), 0);
       const deviationState = deviation >= 40 ? '高危' : (deviation >= 10 ? '波动' : '平稳');
       const forestRatio = Math.max(0, Math.min(100, Number(((toNumber(snapshot.forestKilledAge, 0) / 1000000) * 100).toFixed(1))));
-      const recentPlans = buildRecentPlanSummary(snapshot, { worldLimit: 2, recordLimit: 2 });
       const recentNews = buildRecentNewsSummary(snapshot, { seqLimit: 2, intelLimit: 2 });
       const worldAlertText = resolveShellText(snapshot.worldAlert, '');
       const timelineEventText = snapshot.latestTimeline
@@ -12672,7 +13333,7 @@
         ],
         metrics: [
           { label: '偏差', value: String(deviation), tone: deviation >= 40 ? 'warn' : (deviation >= 10 ? 'gold' : 'live') },
-          { label: '安排', value: String((recentPlans.cards || []).length || 0) },
+          { label: '事件', value: String((snapshot.timelineEntries || []).length || 0) },
           { label: '见闻', value: String((recentNews.cards || []).length || 0) },
           { label: '森怨', value: `${forestRatio}%`, tone: forestRatio >= 70 ? 'warn' : (forestRatio >= 30 ? 'gold' : 'live') },
         ],
@@ -12816,7 +13477,6 @@
       }
       const sys = deepGet(snapshot, 'rootData.sys', {});
       const recentNews = buildRecentNewsSummary(snapshot, { seqLimit: 2, intelLimit: 2 });
-      const pendingRequestText = resolveShellText((snapshot.pendingRequests || [])[0], resolveShellText(recentNews.summary, '待命中'));
       const worldAlertText = resolveShellText(snapshot.worldAlert, '');
       const intelCount = (snapshot.unlockedKnowledges || []).length || 0;
       return buildShellSummaryCard({
@@ -12833,9 +13493,26 @@
           { label: '任务', value: String(snapshot.questRecordCount || 0), tone: 'live' },
           { label: '收录', value: String((snapshot.bestiaryEntries || []).length || 0) },
         ],
-        note: shortenText(pendingRequestText || '待命中', 34),
+        note: shortenText(resolveShellText(recentNews.summary, '待命中'), 34),
         tone: 'hero',
         size: 'hero',
+      });
+    }
+
+    function buildShellTerminalPlanCard(snapshot) {
+      const planSummary = buildRecentPlanSummary(snapshot, { worldLimit: 2, recordLimit: 2 });
+      const worldText = resolveShellText(planSummary.worldPlans[0] && planSummary.worldPlans[0].desc, '暂无世界安排');
+      const personalText = resolveShellText(planSummary.personalPlans[0] && planSummary.personalPlans[0].desc, '暂无个人待办');
+      return buildShellSummaryCard({
+        kicker: '安排',
+        title: '安排',
+        value: `${(planSummary.worldPlans || []).length + (planSummary.personalPlans || []).length} 项`,
+        meta: shortenText(worldText, 22),
+        rows: [
+          { label: '世界', value: shortenText(worldText, 18) },
+          { label: '个人', value: shortenText(personalText, 18) },
+        ],
+        note: shortenText(resolveShellText(planSummary.summary, '暂无安排'), 26),
       });
     }
 
@@ -13683,30 +14360,30 @@
         } else {
           ensureUnifiedSheepMapStage('panel');
           setUnifiedCardMarkup('map-hero', '', { enabled: false, surface: normalizedSurface });
+          const 本地人物条目列表 = getShellLocalCharacterEntries(snapshot, 99);
+          const 本地人物展示列表 = 本地人物条目列表.slice(0, 10);
+          const 本地人物位置 = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc), snapshot.currentLoc);
           setUnifiedCardMarkup('map-current', buildSimpleCard('当前位置', { text: '当前' }, [
             { label: '地点', value: snapshot.normalizedLoc !== snapshot.currentLoc ? `${snapshot.normalizedLoc} / ${snapshot.currentLoc}` : snapshot.currentLoc },
             { label: '地图', value: getMapDisplayName(snapshot) },
-            { label: '可行动', value: `${snapshot.mapVisibleNodeEntries.length || snapshot.mapNodeLabels.length || 0} 个节点` },
             { label: '本地供给', value: toText(snapshot && snapshot.本地供给, '无供给') },
             { label: '价格带', value: toText(snapshot && snapshot.价格带, '无') },
             { label: '最近成交', value: toText(snapshot && snapshot.最近成交影响, '平稳') },
           ]), { preview: '当前节点详情', surface: normalizedSurface });
-          setUnifiedCardMarkup('map-route', `
-            <div class="simple-head"><div class="simple-title">移动与导航</div></div>
-            <div class="simple-list">
-              <div class="simple-row"><b>当前地图</b><span>${htmlEscape(getMapDisplayName(snapshot))}</span></div>
-              <div class="simple-row"><b>子图入口</b><span>${htmlEscape(`${safeEntries(snapshot.mapAvailableChildMaps).length} 个`)}</span></div>
-              <div class="simple-row"><b>可见节点</b><span>${htmlEscape(`${snapshot.mapVisibleNodeEntries.length || snapshot.mapNodeLabels.length || 0} 个`)}</span></div>
+          setUnifiedCardMarkup('map-locals', `
+            <div class="mvu-shell-roster-card">
+              <div class="mvu-shell-roster-head">
+                <div>
+                  <span>在场人物</span>
+                  <strong>${htmlEscape(shortenText(本地人物位置, 26))}</strong>
+                </div>
+                <b>${htmlEscape(`${本地人物条目列表.length} 名`)}</b>
+              </div>
+              <div class="mvu-shell-roster-list">
+                ${buildShellLocalRosterRows(本地人物展示列表, 10)}
+              </div>
             </div>
-          `, { preview: '图层控制与跑图', surface: normalizedSurface });
-          setUnifiedCardMarkup('map-dynamic', `
-            <div class="simple-head"><div class="simple-title">动态节点</div></div>
-            <div class="simple-list">
-              <div class="simple-row"><b>可见动态点</b><span>${htmlEscape(String(snapshot.mapVisibleDynamicEntries.length || 0))}</span></div>
-              <div class="simple-row"><b>最近变化</b><span>${htmlEscape(snapshot.latestTimeline ? snapshot.latestTimeline[0] : '暂无')}</span></div>
-              <div class="simple-row"><b>子图联动</b><span>${htmlEscape(`${safeEntries(snapshot.mapAvailableChildMaps).length} 个入口`)}</span></div>
-            </div>
-          `, { preview: '动态地点与扩展节点', surface: normalizedSurface });
+          `, { preview: '当前节点详情', surface: normalizedSurface });
         }
       }
 
@@ -13722,7 +14399,6 @@
           setUnifiedCardMarkup('org-node', buildShellOrgNodeCard(snapshot), { preview: '本地据点详情', surface: normalizedSurface });
         } else {
           setUnifiedCardMarkup('world-hero', buildWorldHeroCard(snapshot), { preview: '世界状态总览', surface: normalizedSurface });
-          const 世界安排摘要 = buildRecentPlanSummary(snapshot, { worldLimit: 2, recordLimit: 1 });
           const 世界见闻摘要 = buildRecentNewsSummary(snapshot, { seqLimit: 1, intelLimit: 1 });
           const 世界时间线数量 = (snapshot.timelineEntries || []).length || 0;
           const 世界商店数量 = (snapshot.storeNames || []).length || 0;
@@ -13730,7 +14406,6 @@
             { label: '最近事件', value: snapshot.latestTimeline ? toText(deepGet(snapshot.latestTimeline[1], '事件', snapshot.latestTimeline[0]), snapshot.latestTimeline[0]) : '暂无' },
             { label: '状态', value: snapshot.latestTimeline ? `${toText(deepGet(snapshot.latestTimeline[1], '状态', 'pending'), 'pending')} / Tick ${toText(deepGet(snapshot.latestTimeline[1], '触发tick', 0), '0')}` : '暂无时间线' },
             { label: '记录数', value: `${世界时间线数量} 条` },
-            { label: '近期安排', value: shortenText(世界安排摘要.summary, 34) },
             { label: '近期见闻', value: shortenText(世界见闻摘要.summary, 34) },
           ]), { preview: '编年史档案', surface: normalizedSurface });
           setUnifiedCardMarkup('world-alerts', buildSimpleCard('拍卖与警报', null, [
@@ -13767,12 +14442,14 @@
         if (isShellSurface) {
           setUnifiedCardMarkup('home-terminal', buildShellHomeTerminalCard(snapshot), { surface: normalizedSurface });
           setUnifiedCardMarkup('terminal-hero', buildShellTerminalHeroCard(snapshot), { preview: '系统播报与日志', surface: normalizedSurface });
+          setUnifiedCardMarkup('terminal-plan', buildShellTerminalPlanCard(snapshot), { preview: '操作总线', surface: normalizedSurface });
           setUnifiedCardMarkup('terminal-intel', buildShellTerminalIntelCard(snapshot), { preview: '试炼与情报', surface: normalizedSurface });
           setUnifiedCardMarkup('terminal-news', buildShellTerminalNewsCard(snapshot), { preview: '近期见闻', surface: normalizedSurface });
           setUnifiedCardMarkup('terminal-bestiary', buildShellTerminalBestiaryCard(snapshot), { preview: '怪物图鉴', surface: normalizedSurface });
           setUnifiedCardMarkup('terminal-quest', buildShellTerminalQuestCard(snapshot), { preview: '任务界面', surface: normalizedSurface });
         } else {
           setUnifiedCardMarkup('terminal-hero', buildTerminalHeroCard(snapshot), { preview: '系统播报与日志', surface: normalizedSurface });
+          setUnifiedCardMarkup('terminal-plan', buildTerminalPlanCard(snapshot), { preview: '操作总线', surface: normalizedSurface });
           setUnifiedCardMarkup('terminal-intel', `
             <div class="simple-head"><div class="simple-title">试炼与情报</div></div>
             <div class="simple-list">
@@ -13783,14 +14460,12 @@
             </div>
           `, { preview: '试炼与情报', surface: normalizedSurface });
           const newsSummary = buildRecentNewsSummary(snapshot, { seqLimit: 1, intelLimit: 1 });
-          const 终端安排摘要 = buildRecentPlanSummary(snapshot, { worldLimit: 1, recordLimit: 1 });
           setUnifiedCardMarkup('terminal-news', `
             <div class="simple-head"><div class="simple-title">近期见闻</div></div>
             <div class="simple-list">
               <div class="simple-row"><b>全局</b><span>${htmlEscape((newsSummary.globalNews[0] || {}).desc || '暂无')}</span></div>
               <div class="simple-row"><b>个人</b><span>${htmlEscape((newsSummary.personalNews[0] || {}).desc || '暂无')}</span></div>
               <div class="simple-row"><b>事件</b><span>${htmlEscape(snapshot.latestTimeline ? snapshot.latestTimeline[0] : '暂无')}</span></div>
-              <div class="simple-row"><b>安排</b><span>${htmlEscape(shortenText(终端安排摘要.summary, 34))}</span></div>
             </div>
           `, { preview: '近期见闻', surface: normalizedSurface });
           setUnifiedCardMarkup('terminal-bestiary', `
@@ -13814,6 +14489,7 @@
           `, { preview: '任务界面', surface: normalizedSurface });
         }
       }
+      同步AI维护首页配置入口();
     }
 
     function ensureUnifiedSheepMapStage(stage = 'panel') {
@@ -13860,6 +14536,24 @@
       getLiveUiElements(selector).forEach(node => setLiveNodeHtml(node, html));
     }
 
+    function 设置统一顶部状态条(snapshot) {
+      getLiveUiElements('#mvu-unified-mount [data-unified-top-status="panel"]').forEach(node => {
+        node.removeAttribute('data-preview');
+        node.classList.remove('clickable');
+        setLiveNodeHtml(node, 构建统一顶部状态条(snapshot));
+      });
+    }
+
+    function 设置统一角色切换入口(snapshot) {
+      const 角色名 = snapshot
+        ? toText(deepGet(snapshot, 'activeChar.name', deepGet(snapshot, 'activeChar.base.name', snapshot.activeName)), snapshot.activeName || '角色')
+        : '角色';
+      getLiveUiElements('#mvu-unified-mount [data-unified-role-switch="panel"]').forEach(node => {
+        setLiveNodeHtml(node, `角色｜${htmlEscape(shortenText(角色名, 10))}`);
+        node.setAttribute('title', '切换当前查看角色');
+      });
+    }
+
     function renderUnifiedSpiritCards(snapshot) {
       renderUnifiedSpiritCardsBySurface(snapshot, 'panel');
       renderUnifiedSpiritCardsBySurface(snapshot, 'shell');
@@ -13868,6 +14562,8 @@
     function renderUnifiedCards(snapshot, precomputedSectionSignatures = null, previousSectionSignaturesOverride = null) {
       const sectionSignatures = precomputedSectionSignatures || buildDashboardSectionRenderSignatures(snapshot);
       const previousSectionSignatures = previousSectionSignaturesOverride || lastDashboardSectionRenderSignatures || Object.create(null);
+      设置统一顶部状态条(snapshot);
+      设置统一角色切换入口(snapshot);
       renderUnifiedCardsBySurface(snapshot, sectionSignatures, previousSectionSignatures, 'panel');
       renderUnifiedCardsBySurface(snapshot, sectionSignatures, previousSectionSignatures, 'shell');
     }
@@ -14047,8 +14743,10 @@
       const stageLabel = latest
         ? toText(deepGet(latest[1], '事件', latest[0]), latest[0])
         : snapshot.currentLoc;
-      const planSummary = buildRecentPlanSummary(snapshot, { worldLimit: 1, recordLimit: 1 });
       const newsSummary = buildRecentNewsSummary(snapshot, { seqLimit: 1, intelLimit: 1 });
+      const latestEventText = latest
+        ? toText(deepGet(latest[1], '事件', latest[0]), latest[0])
+        : '暂无编年事件';
 
       return `
         <div class="module-name">时空中枢</div>
@@ -14059,7 +14757,7 @@
         </div>
         <div class="hero-list">
           <div class="hero-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
-            <b>近期安排</b><span>${htmlEscape(planSummary.summary)}</span>
+            <b>当前事件</b><span>${htmlEscape(latestEventText)}</span>
           </div>
           <div class="hero-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
             <b>近期见闻</b><span>${htmlEscape(newsSummary.summary)}</span>
@@ -14105,18 +14803,14 @@
     function buildTerminalHeroCard(snapshot) {
       const sys = deepGet(snapshot, 'rootData.sys', {});
       const recentNews = buildRecentNewsSummary(snapshot, { seqLimit: 2, intelLimit: 1 });
-      const recentPlans = buildRecentPlanSummary(snapshot, { worldLimit: 2, recordLimit: 1 });
       const latestBroadcast = toText(sys.系统播报, '暂无播报');
       const latestEvent = recentNews.cards[0] ? recentNews.cards[0].desc : '暂无事件';
-      const pendingRequestText = recentPlans.cards[0] ? recentPlans.cards[0].desc : '暂无安排';
       const 核心状态摘要 = shortenText(`${snapshot.worldAlert.includes('高危') ? '高压同步' : '稳定同步'} · ${toText(snapshot.currentLoc, '未知地点')} · ${latestEvent}`, 44);
       const 最近播报摘要 = shortenText(latestBroadcast, 44);
-      const 最近安排摘要 = shortenText(pendingRequestText, 44);
       const 情报任务摘要 = shortenText(`待核实 ${toNumber(snapshot && snapshot.情报待核实数量, 0)} · 任务 ${(snapshot.recordEntries || []).length} · 图鉴 ${(snapshot.bestiaryEntries || []).length}`, 44);
       const 终端行候选 = [
         { 标签: '[状态]', 内容: 核心状态摘要, 预览: '世界状态总览', 样式: 'sys' },
         { 标签: '[播报]', 内容: 最近播报摘要, 预览: '系统播报与日志', 样式: 'roll' },
-        { 标签: '[安排]', 内容: 最近安排摘要, 预览: '操作总线', 样式: 'bus' },
         { 标签: '[总览]', 内容: 情报任务摘要, 预览: '试炼与情报', 样式: 'sys' },
       ];
       const 终端行去重 = new Set();
@@ -14139,7 +14833,60 @@
       `;
     }
 
+    function buildTerminalPlanCard(snapshot) {
+      const planSummary = buildRecentPlanSummary(snapshot, { worldLimit: 2, recordLimit: 2 });
+      const worldText = planSummary.worldPlans[0] ? planSummary.worldPlans[0].desc : '暂无世界安排';
+      const personalText = planSummary.personalPlans[0] ? planSummary.personalPlans[0].desc : '暂无个人待办';
+      return `
+        <div class="simple-head"><div class="simple-title">近期安排</div></div>
+        <div class="simple-list">
+          <div class="simple-row"><b>世界</b><span>${htmlEscape(shortenText(worldText, 42))}</span></div>
+          <div class="simple-row"><b>个人</b><span>${htmlEscape(shortenText(personalText, 42))}</span></div>
+          <div class="simple-row"><b>待办数</b><span>${htmlEscape(`${(planSummary.worldPlans || []).length} 世界 · ${(planSummary.personalPlans || []).length} 个人`)}</span></div>
+        </div>
+      `;
+    }
+
+    function 构建统一顶部状态条(snapshot) {
+      if (!snapshot) {
+        return `
+          <div class="mvu-unified-top-name">当前聊天</div>
+          <div class="mvu-unified-top-chip-row">
+            <span>待同步</span>
+            <span>时间未同步</span>
+            <span>地点未同步</span>
+            <div class="mvu-ai-maintenance-home-api mvu-ai-maintenance-home-api--top" data-ai-maintenance-home-api>${构建AI维护API选择器()}</div>
+          </div>
+        `;
+      }
+      const 属性 = deepGet(snapshot, 'activeChar.属性', {});
+      const 状态 = deepGet(snapshot, 'activeChar.状态', {});
+      const 角色名 = toText(
+        deepGet(snapshot, 'activeChar.name', deepGet(snapshot, 'activeChar.base.name', snapshot.activeName)),
+        snapshot.activeName || '当前角色',
+      );
+      const 等级 = formatCultivationLevelBadge(属性.等级, '0');
+      const 世界时间 = getSnapshotWorldTimeText(snapshot);
+      const 当前位置 = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc), snapshot.currentLoc || '未知地点')
+        .replace(/^斗罗大陆-/, '')
+        .replace(/^斗灵大陆-/, '');
+      const 行动 = toText(状态.行动, '日常');
+      const 伤势 = getDisplayWoundLabel(属性);
+      return `
+        <button type="button" class="mvu-unified-top-name mvu-unified-top-name-button clickable" data-preview="角色切换器" title="切换当前查看角色">${htmlEscape(shortenText(角色名, 16))}</button>
+        <div class="mvu-unified-top-chip-row">
+          <span class="is-live">${htmlEscape(等级)}</span>
+          <span>${htmlEscape(shortenText(世界时间, 28))}</span>
+          <span class="is-place">${htmlEscape(shortenText(当前位置, 34))}</span>
+          <span>${htmlEscape(shortenText(伤势 && 伤势 !== '无' ? `${行动} / ${伤势}` : 行动, 18))}</span>
+          <div class="mvu-ai-maintenance-home-api mvu-ai-maintenance-home-api--top" data-ai-maintenance-home-api>${构建AI维护API选择器()}</div>
+        </div>
+      `;
+    }
+
     function renderEmptyUnifiedShellCards() {
+      设置统一顶部状态条(null);
+      设置统一角色切换入口(null);
       const emptyShellCards = {
         'archive-core': ['角色', '无数据'],
         'primary-spirit': ['主武魂', '无数据'],
@@ -14157,6 +14904,7 @@
         'org-faction': ['阵营', '无'],
         'org-node': ['据点', '无数据'],
         'terminal-hero': ['终端', '无数据'],
+        'terminal-plan': ['安排', '0'],
         'terminal-intel': ['情报', '0'],
         'terminal-news': ['见闻', '0'],
         'terminal-bestiary': ['图鉴', '0'],
@@ -14196,9 +14944,16 @@
         if (!(canvas instanceof HTMLElement)) return;
         if (canvas.closest('.mvu-mobile-shell, .mvu-mobile-map-stage, .mvu-shell-map-stage')) return;
         const isDetail = !!canvas.closest('.mvu-unified-detail-host');
-        const targetHeight = isDetail
-          ? Math.max(240, Math.min(320, Math.round(viewportHeight * 0.38)))
-          : Math.max(210, Math.min(270, Math.round(viewportHeight * 0.34)));
+        const 所属舞台 = canvas.closest('.mvu-unified-map-stage, .mvu-unified-detail-host');
+        const 舞台高度 = 所属舞台 instanceof HTMLElement ? Math.round(所属舞台.getBoundingClientRect().height || 所属舞台.clientHeight || 0) : 0;
+        const 视口目标 = isDetail
+          ? Math.round(viewportHeight * 0.56)
+          : Math.round(viewportHeight * 0.70);
+        const 容器目标 = 舞台高度 > 120 ? Math.max(220, 舞台高度 - (isDetail ? 18 : 20)) : 0;
+        const targetHeight = Math.max(
+          isDetail ? 360 : 420,
+          Math.min(isDetail ? 620 : 680, 容器目标 || 视口目标),
+        );
         canvas.style.setProperty('height', `${targetHeight}px`, 'important');
         canvas.style.setProperty('width', '100%', 'important');
         canvas.style.setProperty('min-height', '0px', 'important');
@@ -17456,6 +18211,9 @@
         const primaryNpc = localNpcEntries[0]
           ? toText(deepGet(localNpcEntries[0][1], 'name', deepGet(localNpcEntries[0][1], 'base.name', localNpcEntries[0][0])), localNpcEntries[0][0])
           : '';
+        const 主对象委托能力 = primaryNpc
+          ? 获取角色工坊委托能力摘要(resolveSnapshotCharacter(snapshot, primaryNpc).char)
+          : [];
         const officialCommissionLocationName = ['锻造师协会', '制造师协会', '设计师协会', '修理师协会']
           .find(locationName => isLocationCompatible(nodeName, locationName) || isLocationCompatible(locationName, nodeName)) || '';
         const currentNodeLocFull = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc), snapshot.currentLoc);
@@ -17470,10 +18228,6 @@
           ? toText((nodeStores.find(([name]) => /传灵塔/.test(toText(name, ''))) || nodeStores[0] || [])[0], '')
           : toText((nodeStores[0] || [])[0], '');
 
-        const localNpcCards = localNpcEntries.map(([name, char]) => ({
-          title: toText(deepGet(char, 'name', deepGet(char, 'base.name', name)), name),
-          desc: `${toText(deepGet(char, '社交.主身份', '未知身份'), '未知身份')} / ${toText(deepGet(char, '状态.位置', '未知地点'), '未知地点')}`
-        }));
         const availableActionButtons = [
           ...(isTransmissionTowerNode ? [{
             text: '进入升灵台',
@@ -17493,10 +18247,15 @@
                 ? '默认挑战下一层'
                 : '缺少魂灵塔门票',
           }] : []),
-          ...(preferredLocalStoreName ? [{ text: '前往商店', action: 'shop', target: preferredLocalStoreName, className: 'live' }] : []),
-          ...(officialCommissionLocationName ? [{ text: `进入${officialCommissionLocationName}官方工坊`, action: 'craft', executorType: 'official', className: 'live' }] : []),
-          ...(primaryNpc ? [{ text: `与${primaryNpc}交易`, action: 'trade', npcTarget: primaryNpc, className: 'warn' }, { text: `委托${primaryNpc}工坊`, action: 'craft', npcTarget: primaryNpc, executorType: 'private', className: 'warn' }, { text: `与${primaryNpc}对话`, action: 'talk', npcTarget: primaryNpc, className: 'live' }, { text: `向${primaryNpc}请教`, action: 'intel', npcTarget: primaryNpc, className: '' }, { text: `向${primaryNpc}切磋`, action: 'battle', npcTarget: primaryNpc, className: 'warn' }] : []),
-          ...(!primaryNpc ? [{ text: '打开工坊', action: 'craft', executorType: 'self', className: 'live' }] : [])
+          ...(preferredLocalStoreName ? [{ text: '商店交易', action: 'shop', target: preferredLocalStoreName, className: 'live', desc: `进入 ${preferredLocalStoreName}` }] : []),
+          ...(officialCommissionLocationName ? [{ text: '官方工坊委托', action: 'commission', target: officialCommissionLocationName, executorType: 'official', className: 'live', desc: 获取官方工坊委托能力摘要(officialCommissionLocationName).join(' / ') || officialCommissionLocationName }] : []),
+          ...(primaryNpc ? [
+            { text: `与${primaryNpc}交易`, action: 'trade', npcTarget: primaryNpc, className: 'warn', desc: '角色交易' },
+            ...(主对象委托能力.length ? [{ text: `委托${primaryNpc}工坊`, action: 'commission', npcTarget: primaryNpc, executorType: 'private', className: 'warn', desc: 主对象委托能力.join(' / ') }] : []),
+            { text: `与${primaryNpc}对话`, action: 'talk', npcTarget: primaryNpc, className: 'live' },
+            { text: `向${primaryNpc}请教`, action: 'intel', npcTarget: primaryNpc, className: '' },
+            { text: `向${primaryNpc}切磋`, action: 'battle', npcTarget: primaryNpc, className: 'warn' }
+          ] : [])
         ];
         const actionButtons = canDispatchHere ? availableActionButtons : [];
         const actionSummaryText = availableActionButtons.map(btn => btn.text).join(' / ');
@@ -17508,9 +18267,8 @@
           const metaParts = [];
           if (btn.npcTarget) metaParts.push(`对象 ${btn.npcTarget}`);
           if (btn.target && btn.target !== nodeName && !btn.npcTarget) metaParts.push(`目标 ${btn.target}`);
-          if (btn.executorType === 'official') metaParts.push('官方工坊');
+          if (btn.executorType === 'official') metaParts.push('官方委托');
           if (btn.executorType === 'private') metaParts.push('私人委托');
-          if (btn.executorType === 'self') metaParts.push('自营工坊');
           return {
             title: btn.text,
             desc: toText(btn.desc, '') || (metaParts.length ? metaParts.join(' / ') : '抵达后可直接发起')
@@ -17542,10 +18300,42 @@
                 <div class="dossier-section-title">到达后可执行</div>
                 ${arrivalActionItems.length
                   ? makeDossierList(arrivalActionItems, 'dossier-list--compact')
-                  : '<div class="dossier-empty-note">抵达后暂未识别到立即可执行的交易、工坊或社交入口。</div>'}
+                  : '<div class="dossier-empty-note">抵达后暂未识别到立即可执行的交易或社交入口。</div>'}
               </section>
             `)
           : `<div class="relation-card"><b>旁观视角</b><span>${htmlEscape(actionSummaryText ? `可见入口：${actionSummaryText}` : '无本地操作')}</span></div>`;
+        const localNpcCardsHtml = localNpcEntries.length
+          ? `<div class="location-npc-list">${localNpcEntries.map(([name, char]) => {
+              const displayName = toText(deepGet(char, 'name', deepGet(char, 'base.name', name)), name);
+              const identityRaw = toText(deepGet(char, '社交.主身份', '未知身份'), '未知身份');
+              const identity = identityRaw && identityRaw !== displayName ? identityRaw : '未标注';
+              const npcLoc = toText(deepGet(char, '状态.位置', '未知地点'), '未知地点');
+              const npcAction = toText(deepGet(char, '状态.行动', '日常'), '日常');
+              const 对象委托能力 = 获取角色工坊委托能力摘要(char);
+              const npcButtons = isPlayerControlled && canDispatchHere
+                ? `<div class="location-npc-actions">
+                    <button type="button" class="map-dispatch-action-btn live" data-action="trade" data-target="${escapeHtmlAttr(nodeName)}" data-current-loc="${escapeHtmlAttr(nodeName)}" data-npc-target="${escapeHtmlAttr(displayName)}">交易</button>
+                    ${对象委托能力.length ? `<button type="button" class="map-dispatch-action-btn warn" data-action="commission" data-target="${escapeHtmlAttr(nodeName)}" data-current-loc="${escapeHtmlAttr(nodeName)}" data-npc-target="${escapeHtmlAttr(displayName)}" data-executor-type="private">委托</button>` : ''}
+                    <button type="button" class="map-dispatch-action-btn live" data-action="talk" data-target="${escapeHtmlAttr(nodeName)}" data-current-loc="${escapeHtmlAttr(nodeName)}" data-npc-target="${escapeHtmlAttr(displayName)}">对话</button>
+                    <button type="button" class="map-dispatch-action-btn" data-action="intel" data-target="${escapeHtmlAttr(nodeName)}" data-current-loc="${escapeHtmlAttr(nodeName)}" data-npc-target="${escapeHtmlAttr(displayName)}">请教</button>
+                    <button type="button" class="map-dispatch-action-btn warn" data-action="battle" data-target="${escapeHtmlAttr(nodeName)}" data-current-loc="${escapeHtmlAttr(nodeName)}" data-npc-target="${escapeHtmlAttr(displayName)}">切磋</button>
+                  </div>`
+                : '';
+              return `
+                <article class="location-npc-card">
+                  <div class="location-npc-card-head">
+                    <b>${htmlEscape(shortenText(displayName, 16))}</b>
+                    <span>${htmlEscape(shortenText(npcAction, 10))}</span>
+                  </div>
+                  <div class="location-npc-meta">
+                    <span>${htmlEscape(`身份 ${shortenText(identity, 20)}`)}</span>
+                    <span>${htmlEscape(`位置 ${shortenText(npcLoc.replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, ''), 24)}`)}</span>
+                  </div>
+                  ${npcButtons}
+                </article>
+              `;
+            }).join('')}</div>`
+          : '<div class="location-empty-note">当前节点未扫描到可直接互动的本地角色。</div>';
         const travelTags = (snapshot.mapTravelCandidates.length ? snapshot.mapTravelCandidates : snapshot.dynamicLocationNames).filter(name => name !== nodeName).slice(0, 6);
         return {
           title: `本地据点 / ${nodeName}`,
@@ -17632,14 +18422,14 @@
                     </div>
                   </div>
                 </div>
-              ${localNpcCards.length > 0 ? `
+              ${localNpcEntries.length > 0 ? `
                 <div class="archive-card">
                   <div class="archive-card-head"><div class="archive-card-title">${htmlEscape(actionCardTitle)}</div></div>
                   ${actionButtonsHtml}
                 </div>
                 <div class="archive-card">
                   <div class="archive-card-head"><div class="archive-card-title">本地可接触人物</div></div>
-                  ${makeTimelineStack(localNpcCards)}
+                  ${localNpcCardsHtml}
                 </div>
               ` : `
                 <div class="archive-card full">
@@ -23800,6 +24590,128 @@ ${extraRequirement}
       }
     }
 
+    const 地图工坊委托职业列表 = Object.freeze(['锻造师', '制造师', '设计师', '修理师']);
+
+    function 获取副职业等级(职业数据) {
+      if (!职业数据 || typeof 职业数据 !== 'object') return 0;
+      return Math.max(0, Math.floor(toNumber(职业数据.等级 ?? 职业数据.lv ?? 职业数据.level, 0)));
+    }
+
+    function 描述副职业可承接范围(职业名, 等级, 职业数据 = {}) {
+      const 等级数值 = Math.max(0, Math.floor(toNumber(等级, 0)));
+      const 限制 = 职业数据 && typeof 职业数据 === 'object' && 职业数据.限制 && typeof 职业数据.限制 === 'object'
+        ? 职业数据.限制
+        : {};
+      const 额外 = [
+        toNumber(限制.最大融合数, 0) > 0 ? `最多${toNumber(限制.最大融合数, 0)}项复合` : '',
+        toNumber(限制.成功率, 0) > 0 ? `基准${toNumber(限制.成功率, 0)}%` : '',
+      ].filter(Boolean).join('，');
+      const 范围表 = {
+        锻造师: ['不可承接', '百锻/基础金属', '千锻/一字前置', '灵锻/二字前置', '魂锻/高阶金属', '天锻/顶级金属'],
+        制造师: ['不可承接', '黄级机甲/基础部件', '紫级机甲/一字斗铠部件', '二字斗铠/中阶模块', '三字斗铠/黑级机甲部件', '四字斗铠/红级机甲部件'],
+        设计师: ['不可承接', '基础图纸', '一字斗铠/紫级机甲图纸', '二字斗铠/中阶模块图纸', '三字斗铠/黑级方案', '四字斗铠/红级方案'],
+        修理师: ['不可承接', '基础维护', '一字斗铠/紫级机甲维护', '二字斗铠/中阶修复', '三字斗铠/黑级修复', '四字斗铠/红级修复'],
+      };
+      const 档 = Math.max(0, Math.min(5, 等级数值));
+      return `${职业名} Lv.${等级数值 || 0}：${(范围表[职业名] || 范围表.制造师)[档]}${额外 ? `（${额外}）` : ''}`;
+    }
+
+    function 获取角色工坊委托能力摘要(角色数据) {
+      const 职业集合 = 角色数据 && typeof 角色数据 === 'object' && 角色数据.职业 && typeof 角色数据.职业 === 'object'
+        ? 角色数据.职业
+        : {};
+      return 地图工坊委托职业列表
+        .map(职业名 => {
+          const 职业数据 = 职业集合[职业名];
+          const 等级 = 获取副职业等级(职业数据);
+          return 等级 > 0 ? 描述副职业可承接范围(职业名, 等级, 职业数据) : '';
+        })
+        .filter(Boolean);
+    }
+
+    function 解析官方工坊委托职业(地点名 = '') {
+      const 文本 = toText(地点名, '');
+      if (/锻造/.test(文本)) return '锻造师';
+      if (/制造/.test(文本)) return '制造师';
+      if (/设计/.test(文本)) return '设计师';
+      if (/修理|维修/.test(文本)) return '修理师';
+      return '';
+    }
+
+    function 获取官方工坊委托能力摘要(地点名 = '') {
+      const 职业名 = 解析官方工坊委托职业(地点名);
+      if (!职业名) return [];
+      return [
+        `${职业名}协会：可受理1-3级常规委托`,
+        '高阶单需剧情审批/大师档期',
+        '先询价与确认材料，不直接结算产物',
+      ];
+    }
+
+    function 构建地图工坊委托请求(snapshot, detail = {}) {
+      const executorType = toText(detail.executorType, '').trim();
+      const currentLoc = toText(detail.currentLoc, 读取快照当前位置(snapshot || {}));
+      const targetLoc = toText(detail.target, currentLoc);
+      const isOfficial = executorType === 'official';
+      const npcTarget = toText(detail.npcTarget, '');
+      let 执行者 = '';
+      let 能力摘要 = [];
+      let 约束摘要 = '';
+
+      if (isOfficial) {
+        执行者 = toText(targetLoc, currentLoc);
+        能力摘要 = 获取官方工坊委托能力摘要(执行者);
+        if (!能力摘要.length) {
+          showUiToast('这里不是可识别的官方工坊委托点。', 'error', 3200);
+          return null;
+        }
+      } else {
+        if (!npcTarget) {
+          showUiToast('请选择具备副职业的委托对象。', 'error', 3200);
+          return null;
+        }
+        const resolved = resolveSnapshotCharacter(snapshot, npcTarget);
+        const targetChar = resolved.char;
+        if (!targetChar) {
+          showUiToast(`找不到委托对象：${npcTarget}`, 'error', 3200);
+          return null;
+        }
+        const targetCharLoc = toText(deepGet(targetChar, '状态.位置', ''), '');
+        if (targetCharLoc && currentLoc && !isLocationCompatible(currentLoc, targetCharLoc)) {
+          showUiToast(`【${resolved.displayName}】不在当前地点，无法当面委托。`, 'error', 3600);
+          return null;
+        }
+        执行者 = resolved.displayName || npcTarget;
+        能力摘要 = 获取角色工坊委托能力摘要(targetChar);
+        if (!能力摘要.length) {
+          showUiToast(`【${执行者}】没有可识别的副职业，无法发起工坊委托。`, 'error', 3600);
+          return null;
+        }
+        const relation = toNumber(
+          deepGet(snapshot, ['activeChar', '关系', resolved.key, '好感度'], deepGet(snapshot, ['activeChar', '社交', '关系', resolved.key, '好感度'], 0)),
+          0,
+        );
+        约束摘要 = `私人委托需对方愿意接单；好感度参考：${relation}。`;
+      }
+
+      const abilityText = 能力摘要.join('；');
+      const playerInput = isOfficial
+        ? `我想在【${执行者}】办理工坊委托，先询价并确认能做什么。`
+        : `我想委托【${执行者}】处理工坊活，先问清楚对方能承接什么。`;
+      const systemPrompt = [
+        '以下内容属于地图页发起的工坊委托请求。',
+        '工坊委托不是玩家自行打造，也不是立即打开生产结算；这是一次世界内谈单/询价/接单确认。',
+        '请根据执行者的副职业等级与可承接范围推进剧情，不要直接生成产物，不要默认扣材料或扣钱。',
+        '若玩家没有给出具体产物、材料、阶级，请让对方按能力范围给出可接业务、报价倾向和下一步需要玩家确认的信息。',
+        `当前地点：${currentLoc || '未知地点'}`,
+        `委托对象：${执行者}`,
+        `委托类型：${isOfficial ? '官方工坊委托' : '角色工坊委托'}`,
+        `能力检测：${abilityText}`,
+        约束摘要 ? `委托约束：${约束摘要}` : '',
+      ].filter(Boolean).join('\n');
+      return { playerInput, systemPrompt, requestKind: 'map_profession_commission' };
+    }
+
     async function handleMapActionDispatch(event) {
       const detail = event && event.detail ? event.detail : {};
       const action = toText(detail.action, '');
@@ -23811,7 +24723,7 @@ ${extraRequirement}
       }
 
       const 归一化动作 = (() => {
-        if (action === 'craft' || services.includes('craft')) return 'craft';
+        if (action === 'commission' || action === 'craft') return 'commission';
         if (action === 'ascension' || action === 'tower') return action;
         if (['talk', 'brief', 'intel'].includes(action)) return action;
         if (action === 'battle' || services.includes('battle')) return 'battle';
@@ -23824,8 +24736,11 @@ ${extraRequirement}
       if (!归一化动作) return;
       mapDispatchContext = { ...detail, action: 归一化动作, services };
 
-      if (归一化动作 === 'craft') {
-        openModal('武装工坊详细页', { preserveMapDispatchContext: true });
+      if (归一化动作 === 'commission') {
+        const commissionInit = 构建地图工坊委托请求(liveSnapshot || lastRenderableSnapshot || {}, detail);
+        if (commissionInit) {
+          dispatchUiAiRequest(commissionInit.playerInput, commissionInit.systemPrompt, { requestKind: commissionInit.requestKind });
+        }
         return;
       }
 
@@ -23892,11 +24807,19 @@ ${extraRequirement}
       }
 
       if (归一化动作 === 'trade') {
-        openModal('交易网络', { preserveMapDispatchContext: true });
+        打开地图交易面板();
       }
     }
 
     window.addEventListener('map-action-dispatch', handleMapActionDispatch);
+
+    function 打开地图交易面板() {
+      if (document.body && document.body.classList.contains('mvu-layout-unified') && typeof window.__MVU_OPEN_UNIFIED_PREVIEW__ === 'function') {
+        window.__MVU_OPEN_UNIFIED_PREVIEW__('交易网络', { preserveMapDispatchContext: true, replace: true });
+        return;
+      }
+      openModal('交易网络', { preserveMapDispatchContext: true });
+    }
 
     async function handleMapAiRequest(event) {
       const detail = event && event.detail && typeof event.detail === 'object' ? event.detail : {};
@@ -24168,15 +25091,16 @@ ${extraRequirement}
     }
 
     function wrapArchiveRedesignBody(html, options = {}) {
+      const previewKey = toText(options.previewKey, '');
       if (options.shellMode) {
-        return `<div class="mvu-shell-detail-root mvu-unified-modal-root" data-unified-preview="${escapeHtmlAttr(toText(options.previewKey, ''))}">
+        return `<div class="mvu-shell-detail-root mvu-unified-modal-root" data-ai-maintenance-root="1" data-unified-preview="${escapeHtmlAttr(previewKey)}">
           <div class="mvu-shell-detail-scroll">
             ${html || ''}
           </div>
         </div>`;
       }
       if (options.unifiedMode) {
-        return `<div class="archive-redesign-root mvu-unified-modal-root" data-unified-preview="${escapeHtmlAttr(toText(options.previewKey, ''))}">
+        return `<div class="archive-redesign-root mvu-unified-modal-root" data-ai-maintenance-root="1" data-unified-preview="${escapeHtmlAttr(previewKey)}">
           <div class="mvu-unified-sheet">
             <div class="mvu-unified-sheet-scroll">
               ${html || ''}
@@ -24184,7 +25108,7 @@ ${extraRequirement}
           </div>
         </div>`;
       }
-      return `<div class="archive-redesign-root">
+      return `<div class="archive-redesign-root" data-ai-maintenance-root="1" data-unified-preview="${escapeHtmlAttr(previewKey)}">
         ${html || ''}
       </div>`;
     }
@@ -24430,13 +25354,15 @@ ${extraRequirement}
       currentUnifiedPreviewKey = '';
       lastRenderedUnifiedPreviewKey = '';
       syncUnifiedTitleLongPress('');
+      同步AI维护标题入口('');
       if (!host) return;
       host.innerHTML = '';
       delete host.dataset.unifiedPreview;
     }
 
     function wrapUnifiedInlineBody(html, options = {}) {
-      return `<div class="mvu-unified-detail-root archive-redesign-root" data-unified-preview="${escapeHtmlAttr(toText(options.previewKey, ''))}">
+      const previewKey = toText(options.previewKey, '');
+      return `<div class="mvu-unified-detail-root archive-redesign-root" data-ai-maintenance-root="1" data-unified-preview="${escapeHtmlAttr(previewKey)}">
         <div class="mvu-unified-detail-scroll">
           ${html || ''}
         </div>
@@ -24506,11 +25432,13 @@ ${extraRequirement}
       lastRenderedUnifiedPreviewKey = targetKey;
       host.dataset.unifiedPreview = targetKey;
       bindUnifiedDetailDelegation(host);
+      设置统一角色切换入口(liveSnapshot || lastRenderableSnapshot || null);
 
       const setHostMarkup = (html, onMount = null) => {
         host.innerHTML = wrapUnifiedInlineBody(html, { previewKey: targetKey });
         if (shouldResetScroll) host.scrollTop = 0;
         syncUnifiedTitleLongPress(targetKey);
+        同步AI维护标题入口(targetKey);
         if (typeof onMount === 'function') {
           activeSubUI = onMount(host);
         }
@@ -24567,6 +25495,7 @@ ${extraRequirement}
         host.innerHTML = wrapArchiveRedesignBody(html, { shellMode: true, previewKey });
         stripShellHeavyEntryNodes(host);
         if (shouldResetScroll) scrollTarget.scrollTop = 0;
+        同步AI维护标题入口(previewKey);
       };
 
       if (previewKey === BATTLE_INLINE_PREVIEW_KEY) {
@@ -24805,6 +25734,7 @@ ${extraRequirement}
         setArchiveRedesignState(refs, !shellMode);
         modalBody.innerHTML = wrapArchiveRedesignBody(liveArchive.body, { unifiedMode, previewKey, shellMode });
         if (shouldResetModalScroll) modalBody.scrollTop = 0;
+        同步AI维护标题入口(previewKey);
         if (typeof liveArchive.onMount === 'function') {
           activeSubUI = liveArchive.onMount(modalBody);
         }
@@ -24851,6 +25781,7 @@ ${extraRequirement}
           setArchiveRedesignState(refs, !shellMode);
           modalBody.innerHTML = wrapArchiveRedesignBody(skeletonArchive.body, { unifiedMode, previewKey, shellMode });
           if (shouldResetModalScroll) modalBody.scrollTop = 0;
+          同步AI维护标题入口(previewKey);
           return;
         }
         modalPanel.classList.add('archive-mode');
@@ -24865,6 +25796,7 @@ ${extraRequirement}
         setArchiveRedesignState(refs, !shellMode);
         modalBody.innerHTML = wrapArchiveRedesignBody('', { unifiedMode, previewKey, shellMode });
         if (shouldResetModalScroll) modalBody.scrollTop = 0;
+        同步AI维护标题入口(previewKey);
         return;
       }
       const archiveBuilder = archiveModalBuilders[previewKey];
@@ -24883,6 +25815,7 @@ ${extraRequirement}
         setArchiveRedesignState(refs, !shellMode);
         modalBody.innerHTML = wrapArchiveRedesignBody(view.body, { unifiedMode, previewKey, shellMode });
         if (shouldResetModalScroll) modalBody.scrollTop = 0;
+        同步AI维护标题入口(previewKey);
         return;
       }
       const config = previewMap[previewKey] || buildDynamicPreview(previewKey || '详细弹窗');
@@ -24897,6 +25830,7 @@ ${extraRequirement}
       if (modalSummary) modalSummary.textContent = '';
       modalBody.innerHTML = renderGenericModalBody(config);
       if (shouldResetModalScroll) modalBody.scrollTop = 0;
+      同步AI维护标题入口(previewKey);
     }
 
     function popModalOrClose() {
@@ -24929,6 +25863,7 @@ ${extraRequirement}
       clearShellInlinePreview();
       hideDetailModalElement(getModalRefs());
       syncModalTitleLongPress('', false);
+      同步AI维护标题入口('');
       notifyShellPreviewClosed();
       flushPendingLiveRefresh();
     }
@@ -25049,6 +25984,22 @@ ${extraRequirement}
         event.stopPropagation();
         return;
       }
+      const AI维护标题按钮 = eventTarget ? eventTarget.closest('[data-ai-maintenance-toggle]') : null;
+      if (AI维护标题按钮 && document.contains(AI维护标题按钮)) {
+        event.preventDefault();
+        event.stopPropagation();
+        const previewKey = toText(AI维护标题按钮.getAttribute('data-ai-maintenance-preview'), '').trim()
+          || currentUnifiedPreviewKey
+          || currentModalPreviewKey
+          || getDomUnifiedPreviewKey();
+        const root = 查找AI维护根(previewKey);
+        if (!root) {
+          showUiToast('当前页还没有可维护内容。', 'info', 1800);
+          return;
+        }
+        启动AI维护模式(root, previewKey, { surface: currentUnifiedPreviewKey ? 'unified' : 'modal' });
+        return;
+      }
       const clickable = eventTarget ? eventTarget.closest('.clickable') : null;
       const unifiedMount = document.getElementById('mvu-unified-mount');
       const inUnifiedSurface = (unifiedMount && unifiedMount.contains(clickable))
@@ -25114,6 +26065,45 @@ ${extraRequirement}
       if (isInlineEditInteractionTarget(eventTarget)) {
         event.stopPropagation();
         return;
+      }
+      const AI维护根 = eventTarget ? eventTarget.closest('[data-ai-maintenance-root]') : null;
+      const AI维护按钮 = eventTarget ? eventTarget.closest('[data-ai-maintenance-toggle]') : null;
+      if (AI维护按钮 && detailSurfaceHost.contains(AI维护按钮)) {
+        event.preventDefault();
+        event.stopPropagation();
+        启动AI维护模式(AI维护根 || detailSurfaceHost, detailPreviewKey, options);
+        return;
+      }
+      const AI维护动作按钮 = eventTarget ? eventTarget.closest('[data-ai-maintenance-action]') : null;
+      if (AI维护_状态.active && AI维护动作按钮 && AI维护根 && AI维护_状态.root === AI维护根) {
+        event.preventDefault();
+        event.stopPropagation();
+        const action = AI维护动作按钮.getAttribute('data-ai-maintenance-action') || '';
+        if (action === 'submit') await 提交AI维护请求(AI维护根);
+        else if (action === 'clear') 清空AI维护选择();
+        else if (action === 'cancel') 结束AI维护模式();
+        return;
+      }
+      if (AI维护_状态.active && AI维护根 && AI维护_状态.root === AI维护根) {
+        const AI维护字段 = eventTarget ? eventTarget.closest('[data-ai-maintenance-field]') : null;
+        const AI维护变量组 = eventTarget ? eventTarget.closest('[data-ai-maintenance-group]') : null;
+        if (AI维护字段 && AI维护根.contains(AI维护字段)) {
+          event.preventDefault();
+          event.stopPropagation();
+          切换AI维护字段选择(AI维护字段);
+          return;
+        }
+        if (AI维护变量组 && AI维护根.contains(AI维护变量组)) {
+          event.preventDefault();
+          event.stopPropagation();
+          切换AI维护变量组选择(AI维护变量组);
+          return;
+        }
+        if (!eventTarget.closest('[data-ai-maintenance-toolbar], [data-ai-maintenance-bar]')) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
       }
       const 可玩选项按钮 = eventTarget ? eventTarget.closest('[data-lwcs-option-fill]') : null;
       if (可玩选项按钮 && detailSurfaceHost.contains(可玩选项按钮)) {
@@ -25800,6 +26790,13 @@ ${extraRequirement}
     if (detailModal) detailModal.addEventListener('click', event => {
       handleDetailSurfaceClick(event, modalBody, { surface: 'modal', previewKey: currentModalPreviewKey, panel: modalPanel });
     });
+    document.addEventListener('change', event => {
+      const eventTarget = event.target instanceof Element ? event.target : null;
+      const apiSelect = eventTarget ? eventTarget.closest('[data-ai-maintenance-api-select]') : null;
+      if (!apiSelect) return;
+      const presetName = 保存AI维护已选API预设(apiSelect.value || '');
+      showUiToast(presetName ? `AI维护API：${presetName}` : 'AI维护API：当前配置', 'info', 1800);
+    });
 
     function getFloatingHoverTrigger(eventTarget) {
       if (!eventTarget || typeof eventTarget.closest !== 'function') return null;
@@ -25811,6 +26808,8 @@ ${extraRequirement}
 
     let activeFloatingHoverTrigger = null;
     let 顶层浮窗卡片 = null;
+    let 浮窗离区复核计时器 = 0;
+    let 最近指针坐标 = null;
 
     function 移除顶层浮窗卡片() {
       if (顶层浮窗卡片 && 顶层浮窗卡片.parentNode) {
@@ -25852,6 +26851,7 @@ ${extraRequirement}
     function clearAllFloatingHoverCards() {
       cancelFloatingHoverClearTimer();
       cancelFloatingHoverAutoHideTimer();
+      取消浮窗离区复核计时器();
       document.querySelectorAll('.interactive-ring.mvu-hover-floating-active').forEach(clearFloatingHoverCard);
       移除顶层浮窗卡片();
       activeFloatingHoverTrigger = null;
@@ -25872,6 +26872,12 @@ ${extraRequirement}
       if (!floatingHoverAutoHideTimer) return;
       window.clearTimeout(floatingHoverAutoHideTimer);
       floatingHoverAutoHideTimer = 0;
+    }
+
+    function 取消浮窗离区复核计时器() {
+      if (!浮窗离区复核计时器) return;
+      window.clearTimeout(浮窗离区复核计时器);
+      浮窗离区复核计时器 = 0;
     }
 
     function scheduleClearFloatingHoverCard(trigger) {
@@ -25915,6 +26921,23 @@ ${extraRequirement}
       const 浮窗矩形 = 顶层浮窗卡片 instanceof HTMLElement ? 顶层浮窗卡片.getBoundingClientRect() : null;
       return 坐标在矩形内(event.clientX, event.clientY, 触发矩形, 2)
         || 坐标在矩形内(event.clientX, event.clientY, 浮窗矩形, 2);
+    }
+
+    function 指针命中浮窗链路() {
+      if (!最近指针坐标 || !activeFloatingHoverTrigger) return false;
+      const 命中节点 = document.elementFromPoint(最近指针坐标.x, 最近指针坐标.y);
+      if (!(命中节点 instanceof Element)) return false;
+      if (activeFloatingHoverTrigger.contains(命中节点)) return true;
+      return !!(顶层浮窗卡片 && 顶层浮窗卡片.contains(命中节点));
+    }
+
+    function 安排浮窗离区复核(trigger) {
+      取消浮窗离区复核计时器();
+      浮窗离区复核计时器 = window.setTimeout(() => {
+        浮窗离区复核计时器 = 0;
+        if (!trigger || activeFloatingHoverTrigger !== trigger) return;
+        if (!指针命中浮窗链路()) clearFloatingHoverCard(trigger);
+      }, 120);
     }
 
     function clampHoverValue(value, min, max) {
@@ -26033,35 +27056,43 @@ ${extraRequirement}
     window.__MVU_CLEAR_FLOATING_HOVER__ = clearAllFloatingHoverCards;
 
     document.addEventListener('pointerover', event => {
+      最近指针坐标 = { x: event.clientX, y: event.clientY };
       const eventTarget = event.target instanceof Element ? event.target : null;
       const trigger = getFloatingHoverTrigger(eventTarget);
       if (!trigger) {
         if (eventTarget && 顶层浮窗卡片 && 顶层浮窗卡片.contains(eventTarget)) {
           cancelFloatingHoverClearTimer();
+          取消浮窗离区复核计时器();
           return;
         }
         if (activeFloatingHoverTrigger) scheduleClearFloatingHoverCard(activeFloatingHoverTrigger);
         return;
       }
       cancelFloatingHoverClearTimer();
+      取消浮窗离区复核计时器();
       positionFloatingHoverCard(trigger);
       scheduleFloatingHoverAutoHide(trigger);
     }, true);
 
     document.addEventListener('pointerout', event => {
+      最近指针坐标 = { x: event.clientX, y: event.clientY };
       const trigger = getFloatingHoverTrigger(event.target);
       if (!trigger) return;
       if (isPointerStillWithinFloatingHover(trigger, event)) return;
       scheduleClearFloatingHoverCard(trigger);
+      安排浮窗离区复核(trigger);
     }, true);
 
     document.addEventListener('pointermove', event => {
+      最近指针坐标 = { x: event.clientX, y: event.clientY };
       if (!activeFloatingHoverTrigger || !顶层浮窗卡片) return;
       if (指针仍在浮窗区域(event)) {
         cancelFloatingHoverClearTimer();
+        取消浮窗离区复核计时器();
         return;
       }
       scheduleClearFloatingHoverCard(activeFloatingHoverTrigger);
+      安排浮窗离区复核(activeFloatingHoverTrigger);
     }, true);
 
     document.addEventListener('focusin', event => {

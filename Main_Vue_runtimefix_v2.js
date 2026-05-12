@@ -318,12 +318,16 @@ function resolveShellPreviewTitle(previewKey, fallback = '') {
     '\u793e\u4f1a\u6863\u6848\u8be6\u7ec6\u9875': '\u793e\u4f1a',
     '\u6240\u5c5e\u52bf\u529b\u8be6\u60c5\u9875': '\u52bf\u529b',
     '\u4eba\u7269\u5173\u7cfb\u8be6\u60c5\u9875': '\u5173\u7cfb',
+    '\u4eba\u7269\u5173\u7cfb\u8be6\u7ec6\u9875': '\u5173\u7cfb',
     '\u60c5\u62a5\u5e93\u8be6\u60c5\u9875': '\u60c5\u62a5\u5e93',
+    '\u60c5\u62a5\u5e93\u8be6\u7ec6\u9875': '\u60c5\u62a5\u5e93',
     '\u7b2c\u4e00\u6b66\u9b42\u8be6\u60c5\u9875': '\u7b2c\u4e00\u6b66\u9b42',
     '\u7b2c\u4e00\u6b66\u9b42\u8be6\u7ec6\u9875': '\u7b2c\u4e00\u6b66\u9b42',
     '\u7b2c\u4e8c\u6b66\u9b42\u8be6\u60c5\u9875': '\u7b2c\u4e8c\u6b66\u9b42',
     '\u7b2c\u4e8c\u6b66\u9b42\u8be6\u7ec6\u9875': '\u7b2c\u4e8c\u6b66\u9b42',
     '\u8840\u8109\u5c01\u5370\u8be6\u60c5\u9875': '\u8840\u8109',
+    '\u6b66\u9b42\u878d\u5408\u6280\u8be6\u7ec6\u9875': '\u878d\u5408\u6280',
+    '\u6b66\u9b42\u878d\u5408\u6280\u8be6\u60c5\u9875': '\u878d\u5408\u6280',
     '\u5168\u606f\u661f\u56fe\u4e3b\u753b\u5e03': '\u661f\u56fe',
     '\u5f53\u524d\u8282\u70b9\u8be6\u60c5': '\u5f53\u524d\u8282\u70b9',
     '\u56fe\u5c42\u63a7\u5236\u4e0e\u8dd1\u56fe': '\u8dd1\u56fe',
@@ -1458,10 +1462,6 @@ const SurfaceLauncherShellLayout = {
                 <section v-if="tabState.current === 'page-map'" class="mvu-mobile-library-page" data-target="page-map">
                   <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="当前节点详情" data-unified-card="map-locals" data-unified-surface="shell"></div>
                   <div class="mvu-mobile-card clickable" data-preview="当前节点详情" data-unified-card="map-current" data-unified-surface="shell"></div>
-                  <div class="mvu-mobile-card-grid mvu-mobile-card-grid--two">
-                    <div class="mvu-mobile-card clickable" data-preview="图层控制与跑图" data-unified-card="map-route" data-unified-surface="shell"></div>
-                    <div class="mvu-mobile-card clickable" data-preview="动态地点与扩展节点" data-unified-card="map-dynamic" data-unified-surface="shell"></div>
-                  </div>
                 </section>
 
                 <section v-if="tabState.current === 'page-world'" class="mvu-mobile-library-page" data-target="page-world">
@@ -1481,6 +1481,7 @@ const SurfaceLauncherShellLayout = {
                 <section v-if="tabState.current === 'page-terminal'" class="mvu-mobile-library-page" data-target="page-terminal">
                   <div class="mvu-mobile-card mvu-mobile-card--hero clickable" data-preview="系统播报与日志" data-unified-card="terminal-hero" data-unified-surface="shell"></div>
                   <div class="mvu-mobile-card-grid mvu-mobile-card-grid--two">
+                    <div class="mvu-mobile-card clickable" data-preview="操作总线" data-unified-card="terminal-plan" data-unified-surface="shell"></div>
                     <div class="mvu-mobile-card clickable" data-preview="试炼与情报" data-unified-card="terminal-intel" data-unified-surface="shell"></div>
                     <div class="mvu-mobile-card clickable" data-preview="近期见闻" data-unified-card="terminal-news" data-unified-surface="shell"></div>
                     <div class="mvu-mobile-card clickable" data-preview="怪物图鉴" data-unified-card="terminal-bestiary" data-unified-surface="shell"></div>
@@ -1958,11 +1959,13 @@ const DesktopUnifiedLayout = {
       <div class="mvu-unified-frame" :class="{ 'is-detail': detailState.isOpen }">
         <div class="mvu-unified-toolbar" :class="{ 'is-detail': detailState.isOpen }">
           <div class="mvu-unified-toolbar-main">
-            <template v-if="detailState.isOpen">
+            <div class="mvu-unified-detail-bar" v-show="detailState.isOpen">
               <button type="button" class="mvu-unified-detail-back" aria-label="返回" @click="closeUnifiedDetail">&lt;</button>
               <strong class="mvu-unified-detail-title">{{ detailTitle }}</strong>
-            </template>
-            <template v-else>
+              <button type="button" class="mvu-unified-title-action clickable" data-preview="角色切换器" data-unified-role-switch="panel">角色</button>
+            </div>
+            <div class="mvu-unified-overview-bar" v-show="!detailState.isOpen">
+              <div class="mvu-unified-top-status" data-unified-top-status="panel"></div>
               <div class="mvu-unified-toolbar-side">
                 <span class="mvu-unified-mode-badge">{{ modeBadge }}</span>
                 <div class="mvu-unified-layout-toggle">
@@ -1980,7 +1983,7 @@ const DesktopUnifiedLayout = {
                   >手机</button>
                 </div>
               </div>
-            </template>
+            </div>
           </div>
 
           <div v-if="!detailState.isOpen" class="mvu-unified-tab-row">
@@ -2014,8 +2017,7 @@ const DesktopUnifiedLayout = {
               <div class="mvu-unified-dashboard mvu-unified-dashboard--map">
                 <div class="mvu-unified-map-stage" data-mvu-map-stage="panel"></div>
                 <div class="mvu-unified-card clickable" data-preview="当前节点详情" data-unified-card="map-current" data-unified-surface="panel"></div>
-                <div class="mvu-unified-card clickable" data-preview="图层控制与跑图" data-unified-card="map-route" data-unified-surface="panel"></div>
-                <div class="mvu-unified-card clickable" data-preview="动态地点与扩展节点" data-unified-card="map-dynamic" data-unified-surface="panel"></div>
+                <div class="mvu-unified-card clickable" data-preview="当前节点详情" data-unified-card="map-locals" data-unified-surface="panel"></div>
               </div>
             </section>
           </section>
@@ -2044,6 +2046,7 @@ const DesktopUnifiedLayout = {
             <section class="mvu-unified-section mvu-unified-section--dashboard">
               <div class="mvu-unified-dashboard mvu-unified-dashboard--terminal">
                 <div class="mvu-unified-card mvu-unified-card--featured clickable" data-preview="系统播报与日志" data-unified-card="terminal-hero" data-unified-surface="panel"></div>
+                <div class="mvu-unified-card clickable" data-preview="操作总线" data-unified-card="terminal-plan" data-unified-surface="panel"></div>
                 <div class="mvu-unified-card clickable" data-preview="试炼与情报" data-unified-card="terminal-intel" data-unified-surface="panel"></div>
                 <div class="mvu-unified-card clickable" data-preview="近期见闻" data-unified-card="terminal-news" data-unified-surface="panel"></div>
                 <div class="mvu-unified-card clickable" data-preview="怪物图鉴" data-unified-card="terminal-bestiary" data-unified-surface="panel"></div>
@@ -2064,7 +2067,22 @@ const DesktopUnifiedLayout = {
     const modeBadge = computed(() => (mvuLayoutState.isMobileViewport ? '移动端一体栏' : '桌面一体栏'));
     const detailHostRef = ref(null);
     const detailState = mvuUnifiedDetailState;
-    const detailTitle = computed(() => resolveShellPreviewTitle(detailState.previewKey, activeMeta.value.title));
+    const 上次详情标题 = ref('详情');
+    const 读取当前详情标题 = () => {
+      const 预览键 = String(detailState.previewKey || '').trim();
+      const 默认标题 = activeMeta.value && activeMeta.value.title ? activeMeta.value.title : '详情';
+      const 标题 = String(resolveShellPreviewTitle(预览键, 默认标题) || '').trim();
+      return 标题 || 上次详情标题.value || 默认标题 || '详情';
+    };
+    watch(
+      () => [detailState.previewKey, activeMeta.value && activeMeta.value.title],
+      () => {
+        const 标题 = 读取当前详情标题();
+        if (标题) 上次详情标题.value = 标题;
+      },
+      { immediate: true }
+    );
+    const detailTitle = computed(() => 读取当前详情标题());
     let removeDetailWheelBridge = null;
     const 清理顶层浮窗 = () => {
       if (typeof window.__MVU_CLEAR_FLOATING_HOVER__ === 'function') {
@@ -2154,26 +2172,29 @@ const DesktopUnifiedLayout = {
       const frame = (detailHostRef.value && detailHostRef.value.closest('.mvu-unified-frame'))
         || document.querySelector('#mvu-unified-mount .mvu-unified-frame');
       if (!frame || !frame.isConnected) return;
-      const viewportHeight = Number(window.innerHeight) || Number(document.documentElement.clientHeight) || 720;
-      const sendForm = document.getElementById('send_form');
-      const sendRect = sendForm ? sendForm.getBoundingClientRect() : null;
-      const bottomLimit = sendRect && sendRect.top > 80 && sendRect.top < viewportHeight
-        ? sendRect.top - 10
-        : viewportHeight - 10;
-      const topLimit = 42;
-      const 状态栏目标高度 = viewportHeight * 0.74;
-      const 状态栏高度上限 = 800;
-      const 状态栏高度下限 = Math.min(620, Math.max(520, viewportHeight - 140));
-      const 可用高度 = Math.max(状态栏高度下限, bottomLimit - topLimit - 18);
-      const frameMaxHeight = Math.max(状态栏高度下限, Math.min(状态栏高度上限, 状态栏目标高度, 可用高度));
-      frame.style.setProperty('--mvu-unified-frame-max-height', `${Math.floor(frameMaxHeight)}px`);
+      const 视口高度 = Number(window.innerHeight) || Number(document.documentElement.clientHeight) || 720;
+      const 发送栏 = document.getElementById('send_form');
+      const 发送栏矩形 = 发送栏 ? 发送栏.getBoundingClientRect() : null;
+      const 底部边界 = 发送栏矩形 && 发送栏矩形.top > 80 && 发送栏矩形.top < 视口高度
+        ? 发送栏矩形.top - 10
+        : 视口高度 - 10;
+      const 顶部边界 = 42;
+      const 状态栏目标高度 = 视口高度 * 0.86;
+      const 状态栏高度上限 = 940;
+      const 状态栏高度下限 = Math.min(760, Math.max(620, 视口高度 - 72));
+      const 状态栏最大高度 = Math.max(状态栏高度下限, Math.min(状态栏高度上限, 状态栏目标高度));
+      const 统一挂载 = frame.closest('#mvu-unified-mount') || frame.parentElement || frame;
+      统一挂载.style.setProperty('--mvu-unified-frame-max-height', `${Math.floor(状态栏最大高度)}px`);
+      frame.style.setProperty('--mvu-unified-frame-max-height', `${Math.floor(状态栏最大高度)}px`);
 
       const detailHost = detailHostRef.value;
       if (detailHost && detailHost.isConnected) {
         const toolbar = frame.querySelector('.mvu-unified-toolbar');
         const toolbarHeight = toolbar ? toolbar.getBoundingClientRect().height : 64;
-        const detailMaxHeight = Math.max(360, frameMaxHeight - toolbarHeight - 18);
-        detailHost.style.setProperty('--mvu-unified-detail-max-height', `${Math.floor(detailMaxHeight)}px`);
+        const 详情页 = frame.querySelector('.mvu-unified-detail-page');
+        const 详情页高度 = 详情页 ? 详情页.getBoundingClientRect().height : 0;
+        const 详情最大高度 = Math.max(420, 详情页高度 || (状态栏最大高度 - toolbarHeight - 18));
+        detailHost.style.setProperty('--mvu-unified-detail-max-height', `${Math.floor(详情最大高度)}px`);
       }
 
       const scrollTarget = getDetailScrollTarget();
@@ -2187,12 +2208,12 @@ const DesktopUnifiedLayout = {
       };
 
       let frameRect = frame.getBoundingClientRect();
-      const bottomOverflow = frameRect.bottom - bottomLimit;
+      const bottomOverflow = frameRect.bottom - 底部边界;
       if (bottomOverflow > 1) {
         scrollByAmount(bottomOverflow);
         frameRect = frame.getBoundingClientRect();
       }
-      const topOverflow = topLimit - frameRect.top;
+      const topOverflow = 顶部边界 - frameRect.top;
       if (topOverflow > 1) {
         scrollByAmount(-topOverflow);
       }
@@ -2265,6 +2286,8 @@ const DesktopUnifiedLayout = {
         try { window.__MVU_CLEAR_UNIFIED_PREVIEW__(); } catch (err) {}
       }
       requestTabChange(normalizeTabId(detailState.returnTab));
+      forceUnifiedCardSync();
+      scheduleUnifiedFrameViewportSync();
       scheduleFrameTask(restoreReturnScroll);
     };
     const requestMapSurfaceSync = () => {
