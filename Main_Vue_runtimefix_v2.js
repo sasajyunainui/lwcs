@@ -1457,7 +1457,7 @@ const SurfaceLauncherShellLayout = {
                     <div class="mvu-mobile-card clickable" data-preview="武装工坊详细页" data-unified-card="armory" data-unified-surface="shell"></div>
                     <div class="mvu-mobile-card clickable" data-preview="储物仓库详细页" data-unified-card="vault" data-unified-surface="shell"></div>
                   </div>
-                  <div class="mvu-mobile-card clickable" data-preview="社会档案详细页" data-unified-card="social" data-unified-surface="shell"></div>
+                  <div class="mvu-mobile-card" data-unified-card="social" data-unified-surface="shell"></div>
                 </section>
                 <section v-if="tabState.current === 'page-map'" class="mvu-mobile-library-page" data-target="page-map">
                   <div class="mvu-mobile-card mvu-mobile-card--hero" data-unified-card="map-locals" data-unified-surface="shell"></div>
@@ -2007,7 +2007,7 @@ const DesktopUnifiedLayout = {
                 <div class="mvu-unified-card clickable" data-unified-card="secondary-spirit" data-unified-surface="panel"></div>
                 <div class="mvu-unified-card clickable" data-preview="武装工坊详细页" data-unified-card="armory" data-unified-surface="panel"></div>
                 <div class="mvu-unified-card clickable" data-preview="储物仓库详细页" data-unified-card="vault" data-unified-surface="panel"></div>
-                <div class="mvu-unified-card clickable" data-preview="社会档案详细页" data-unified-card="social" data-unified-surface="panel"></div>
+                <div class="mvu-unified-card" data-unified-card="social" data-unified-surface="panel"></div>
               </div>
             </section>
           </section>
@@ -2258,6 +2258,8 @@ const DesktopUnifiedLayout = {
     const openUnifiedPreview = (previewKey, options = {}) => {
       const nextPreviewKey = String(previewKey || '').trim();
       if (!nextPreviewKey) return false;
+      const 下一个详情标题 = String(resolveShellPreviewTitle(nextPreviewKey, activeMeta.value && activeMeta.value.title ? activeMeta.value.title : '详情') || '').trim();
+      if (下一个详情标题) 上次详情标题.value = 下一个详情标题;
       清理顶层浮窗();
       if (!detailState.isOpen) {
         detailState.returnTab = normalizeTabId(mvuTabState.current);

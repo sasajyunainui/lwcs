@@ -134,6 +134,12 @@ const TradeStyles = `
   .trade-module-scope .info-row:last-child { border-bottom: none; }
   .trade-module-scope .val-highlight { color: var(--cyan); font-family: var(--font-tech); font-weight: bold; }
   .trade-module-scope .val-warn { color: var(--red); font-family: var(--font-tech); font-weight: bold; }
+  .trade-module-scope .market-adjust {
+    color: var(--gold);
+    font-family: var(--font-cjk);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
 
   .trade-module-scope .action-btn {
     width: 100%;
@@ -209,6 +215,7 @@ const TradeTemplate = `
       </div>
       <div class="info-panel">
         <div class="info-row"><span>鍗曚环:</span><span class="val-highlight" id="shop-price">-</span></div>
+        <div class="info-row"><span>市场调整:</span><span class="market-adjust" id="shop-market">-</span></div>
         <div class="info-row"><span>鎬昏:</span><span class="val-highlight" id="shop-total">-</span></div>
         <div class="info-row"><span>闇€姹傚０鏈?</span><span class="val-highlight" id="shop-fame">-</span></div>
         <div class="info-row"><span>褰撳墠搴撳瓨:</span><span class="val-highlight" id="shop-stock">-</span></div>
@@ -232,6 +239,7 @@ const TradeTemplate = `
       </div>
       <div class="info-panel">
         <div class="info-row"><span>绯荤粺浼板€?鍗曚环):</span><span class="val-highlight" id="sell-base-price">-</span></div>
+        <div class="info-row"><span>市场调整:</span><span class="market-adjust" id="sell-market">-</span></div>
         <div class="info-row"><span>鍑哄敭鎬绘敹鐩?</span><span class="val-highlight" id="sell-total">-</span></div>
         <div class="info-row"><span>瑙﹀彂鏂瑰紡:</span><span class="val-highlight" id="sell-trigger">-</span></div>
         <div class="info-row"><span>鏈夋晥鏈熻嚦:</span><span class="val-highlight" id="sell-expiry">-</span></div>
@@ -268,6 +276,7 @@ const TradeTemplate = `
       </div>
       <div class="info-panel">
         <div class="info-row"><span>绯荤粺浼板€?鍙傝€?:</span><span class="val-highlight" id="priv-base-price">-</span></div>
+        <div class="info-row"><span>市场调整:</span><span class="market-adjust" id="priv-market">-</span></div>
         <div class="info-row"><span>鎬婚噾棰?</span><span class="val-highlight" id="priv-total">-</span></div>
         <div class="info-row"><span>NPC鎬佸害棰勬祴:</span><span id="priv-attitude">-</span></div>
         <div class="info-row"><span>瑙﹀彂鏂瑰紡:</span><span class="val-highlight" id="priv-trigger">-</span></div>
@@ -535,6 +544,10 @@ class TradeUIComponent {
     return this.snapshot?.sd?.world || this.snapshot?.rootData?.world || {};
   }
 
+  get marketData() {
+    return this.snapshot?.市场派生 || {};
+  }
+
   get allChars() {
     return this.snapshot?.sd?.char || this.snapshot?.rootData?.char || {};
   }
@@ -652,6 +665,32 @@ class TradeUIComponent {
     else return Math.floor(totalMetalPrice * 1.0);
   }
 
+  clampMarketMultiplier(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return 1;
+    return Math.max(0.7, Math.min(1.6, num));
+  }
+
+  getMarketMultiplier(kind = 'buy') {
+    const key = kind === 'sell' ? '卖出倍率' : '买入倍率';
+    return this.clampMarketMultiplier(this.marketData?.[key] ?? 1);
+  }
+
+  getMarketAdjustedPrice(basePrice, kind = 'buy', options = {}) {
+    const base = Math.max(0, Math.floor(Number(basePrice || 0)));
+    if (options.fixed === true) return base;
+    return Math.max(0, Math.floor(base * this.getMarketMultiplier(kind)));
+  }
+
+  getMarketAdjustmentText(kind = 'buy', options = {}) {
+    if (options.fixed === true) return '固定价格';
+    const multiplier = this.getMarketMultiplier(kind);
+    const percent = Math.round((multiplier - 1) * 100);
+    const note = String(this.marketData?.说明 || '平稳').trim() || '平稳';
+    const prefix = percent > 0 ? `+${percent}%` : `${percent}%`;
+    return percent === 0 ? note : `${prefix} · ${note}`;
+  }
+
   clampTrade(value, min, max) {
     return Math.max(min, Math.min(max, Number(value || 0)));
   }
@@ -707,6 +746,7 @@ class TradeUIComponent {
     const ctx = {
       action, targetNpcName, targetChar: null, relationScore: 0, successRate: 0,
       basePrice: Math.max(0, this.estimateBasePrice(itemName, "物品")),
+      marketPrice: 0,
       total: Math.max(0, Number(price || 0) * Math.max(1, Number(qty || 1))),
       error: null, note: '', npcItem: null, playerItem: null
     };
@@ -727,9 +767,10 @@ class TradeUIComponent {
     if (ctx.basePrice <= 0) {
       ctx.error = `【${itemName}】当前无法进行可靠估值，私下交易无法发起。`; return ctx;
     }
+    ctx.marketPrice = this.getMarketAdjustedPrice(ctx.basePrice, action === "私下买入" ? 'buy' : 'sell');
     
     ctx.relationScore = Number(this.charData?.社交?.关系?.[targetNpcName]?.好感度 || this.charData?.社交?.关系?.[relationName]?.好感度 || 0);
-    const priceDeltaRatio = (Number(price || 0) - ctx.basePrice) / Math.max(1, ctx.basePrice);
+    const priceDeltaRatio = (Number(price || 0) - ctx.marketPrice) / Math.max(1, ctx.marketPrice);
 
     if (action === "私下买入") {
       ctx.npcItem = targetChar?.背包?.[itemName] || null;
@@ -740,7 +781,7 @@ class TradeUIComponent {
         ctx.error = `【${targetNpcName}】当前并没有足够的【${itemName}】可供出售。`; return ctx;
       }
       ctx.successRate = this.clampTrade(60 + Math.floor(ctx.relationScore * 0.25) + Math.floor(priceDeltaRatio * 50), 5, 95);
-      ctx.note = `好感 ${ctx.relationScore} / 对方持有 ${Number(ctx.npcItem?.数量 || 0)} / 预计成交率 ${ctx.successRate}%`;
+      ctx.note = `好感 ${ctx.relationScore} / 市场价 ${ctx.marketPrice.toLocaleString()} / 预计成交率 ${ctx.successRate}%`;
     } else {
       ctx.playerItem = this.charData?.背包?.[itemName] || null;
       if (!ctx.playerItem || Number(ctx.playerItem.数量 || 0) < qty) {
@@ -750,7 +791,7 @@ class TradeUIComponent {
         ctx.error = `【${targetNpcName}】的联邦币不足，无法完成这笔收购。`; return ctx;
       }
       ctx.successRate = this.clampTrade(60 + Math.floor(ctx.relationScore * 0.25) - Math.floor(priceDeltaRatio * 55), 5, 95);
-      ctx.note = `好感 ${ctx.relationScore} / 对方现金 ${(Number(targetChar?.财富?.联邦币 || 0)).toLocaleString()} / 预计成交率 ${ctx.successRate}%`;
+      ctx.note = `好感 ${ctx.relationScore} / 市场价 ${ctx.marketPrice.toLocaleString()} / 预计成交率 ${ctx.successRate}%`;
     }
     return ctx;
   }
@@ -989,19 +1030,19 @@ class TradeUIComponent {
     const itemSel = this.$('#shop-item-sel');
     itemSel.innerHTML = '';
     
-    if (!storeName || !this.currentStores[storeName] || !this.currentStores[storeName].搴撳瓨) {
+    if (!storeName || !this.currentStores[storeName] || !this.currentStores[storeName].库存) {
       itemSel.innerHTML = '<option value="">[璇ュ晢搴楁棤璐</option>';
       this.updateShopPreview();
       return;
     }
 
-    const inv = this.currentStores[storeName].搴撳瓨;
+    const inv = this.currentStores[storeName].库存;
     let hasItem = false;
     for (const iName in inv) {
-      if (inv[iName].搴撳瓨 > 0) {
+      if (Number(inv[iName].库存 || 0) > 0) {
         const opt = document.createElement('option');
         opt.value = iName;
-        opt.textContent = `${iName} (搴撳瓨: ${inv[iName].搴撳瓨})`;
+        opt.textContent = `${iName} (库存: ${Number(inv[iName].库存 || 0)})`;
         itemSel.appendChild(opt);
         hasItem = true;
       }
@@ -1018,6 +1059,7 @@ class TradeUIComponent {
 
     if (!storeName || !itemName || !this.currentStores[storeName]?.库存?.[itemName]) {
       this.$('#shop-price').textContent = '-';
+      this.$('#shop-market').textContent = '-';
       this.$('#shop-total').textContent = '-';
       this.$('#shop-fame').textContent = '-';
       this.$('#shop-stock').textContent = '-';
@@ -1027,13 +1069,16 @@ class TradeUIComponent {
     }
 
     const item = this.currentStores[storeName].库存[itemName];
-    const total = Number(item.价格 || 0) * qty;
-    const userFame = Number(this.charData?.社交?.声望 || 0);
     const storeData = this.currentStores[storeName] || {};
+    const isSoulTowerDiscountTrade = item && item._tower_discount_virtual === true;
+    const unitPrice = this.getMarketAdjustedPrice(Number(item.价格 || 0), 'buy', { fixed: isSoulTowerDiscountTrade });
+    const total = unitPrice * qty;
+    const userFame = Number(this.charData?.社交?.声望 || 0);
     const currency = this.resolveTradeCurrency(item, storeName, this.charData?.状态?.位置 || '', storeData);
     const userCoin = Number(this.charData?.财富?.[currency] || 0);
 
-    this.$('#shop-price').textContent = `${Number(item.价格 || 0).toLocaleString()} ${this.getCurrencyLabel(currency)}`;
+    this.$('#shop-price').textContent = `${unitPrice.toLocaleString()} ${this.getCurrencyLabel(currency)}`;
+    this.$('#shop-market').textContent = this.getMarketAdjustmentText('buy', { fixed: isSoulTowerDiscountTrade });
     
     const totalEl = this.$('#shop-total');
     totalEl.textContent = `${total.toLocaleString()} ${this.getCurrencyLabel(currency)}`;
@@ -1064,10 +1109,10 @@ class TradeUIComponent {
     const itemName = this.$('#shop-item-sel').value;
     const qty = parseInt(this.$('#shop-qty').value) || 1;
     const item = this.currentStores[storeName].库存[itemName];
-    const total = Number(item.价格 || 0) * qty;
     const storeData = this.currentStores[storeName] || {};
     const currency = this.resolveTradeCurrency(item, storeName, this.charData?.状态?.位置 || '', storeData);
     const isSoulTowerDiscountTrade = item && item._tower_discount_virtual === true;
+    const total = this.getMarketAdjustedPrice(Number(item.价格 || 0), 'buy', { fixed: isSoulTowerDiscountTrade }) * qty;
 
     if (!this.isCurrencySpendable(currency)) return alert(this.getCurrencyBlockedMessage(currency));
 
@@ -1115,6 +1160,7 @@ class TradeUIComponent {
     const sysPrompt = this.buildTradeNarrationPrompt(log, [
       `[交易地点]\n${storeName}`,
       `[交易类型]\n商店购买`,
+      `[市场调整]\n${this.getMarketAdjustmentText('buy', { fixed: isSoulTowerDiscountTrade })}`,
       `[结算摘要]\n已支付 ${total} ${this.getCurrencyLabel(currency)}；已获得 ${qty} 份【${itemName}】。`,
     ]);
 
@@ -1147,6 +1193,7 @@ class TradeUIComponent {
 
     if (!itemName || !this.charData.背包?.[itemName]) {
       this.$('#sell-base-price').textContent = '-';
+      this.$('#sell-market').textContent = '-';
       this.$('#sell-total').textContent = '-';
       btn.disabled = true;
       this.updateTradeMetaPanel('sell', null);
@@ -1155,17 +1202,19 @@ class TradeUIComponent {
 
     const item = this.charData.背包[itemName];
     const basePrice = this.estimateBasePrice(itemName, item.类型);
-    const sellPrice = Math.floor(basePrice * 0.5);
+    const sellPrice = this.getMarketAdjustedPrice(Math.floor(basePrice * 0.5), 'sell');
     const total = sellPrice * qty;
 
     this.updateTradeMetaPanel('sell', this.resolveTradeItemInfo(itemName, item, { source: item?.来源技能 || item?.绑定者 || '背包持有' }));
 
     if (basePrice === 0) {
       this.$('#sell-base-price').textContent = "禁售物品";
+      this.$('#sell-market').textContent = '-';
       this.$('#sell-total').textContent = "无法交易";
       btn.disabled = true;
     } else {
       this.$('#sell-base-price').textContent = `${sellPrice.toLocaleString()} ${this.getCurrencyLabel('联邦币')}`;
+      this.$('#sell-market').textContent = this.getMarketAdjustmentText('sell');
       this.$('#sell-total').textContent = `${total.toLocaleString()} ${this.getCurrencyLabel('联邦币')}`;
       btn.disabled = (item.数量 < qty);
     }
@@ -1176,7 +1225,7 @@ class TradeUIComponent {
     const qty = parseInt(this.$('#sell-qty').value) || 1;
     const itemType = this.charData.背包[itemName].类型;
     const basePrice = this.estimateBasePrice(itemName, itemType);
-    const totalEarn = Math.floor(basePrice * 0.5) * qty;
+    const totalEarn = this.getMarketAdjustedPrice(Math.floor(basePrice * 0.5), 'sell') * qty;
 
     let patchOps = [];
     let newQty = this.charData.背包[itemName].数量 - qty;
@@ -1192,6 +1241,7 @@ class TradeUIComponent {
 
     const sysPrompt = this.buildTradeNarrationPrompt(log, [
       `[交易类型]\n系统出售`,
+      `[市场调整]\n${this.getMarketAdjustmentText('sell')}`,
       `[结算摘要]\n已卖出 ${qty} 份【${itemName}】；已获得 ${totalEarn} 联邦币。`,
     ]);
 
@@ -1211,7 +1261,8 @@ class TradeUIComponent {
     
     const ctx = this.getPrivateTradeContext(action, targetNpc, itemName, qty, price);
 
-    this.$('#priv-base-price').textContent = ctx.basePrice > 0 ? `${ctx.basePrice.toLocaleString()} ${this.getCurrencyLabel('联邦币')}` : '未知/禁售';
+    this.$('#priv-base-price').textContent = ctx.marketPrice > 0 ? `${ctx.marketPrice.toLocaleString()} ${this.getCurrencyLabel('联邦币')}` : (ctx.basePrice > 0 ? `${ctx.basePrice.toLocaleString()} ${this.getCurrencyLabel('联邦币')}` : '未知/禁售');
+    this.$('#priv-market').textContent = ctx.basePrice > 0 ? this.getMarketAdjustmentText(action === '私下买入' ? 'buy' : 'sell') : '-';
     this.$('#priv-total').textContent = `${total.toLocaleString()} ${this.getCurrencyLabel('联邦币')}`;
 
     const previewItem = action === '私下买入' ? ctx.npcItem : ctx.playerItem;
@@ -1288,6 +1339,7 @@ class TradeUIComponent {
     const sysPrompt = this.buildTradeNarrationPrompt(log, [
       `[交易对象]\n${targetNpc}`,
       `[交易类型]\n${action}`,
+      `[市场调整]\n${this.getMarketAdjustmentText(action === '私下买入' ? 'buy' : 'sell')}`,
       `[结算摘要]\n${isSuccess ? `本次成交 ${qty} 份【${itemName}】，总价 ${ctx.total} 联邦币。` : `本次未成交，报价为单价 ${price} 联邦币。`}`
     ]);
 

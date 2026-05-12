@@ -11059,14 +11059,105 @@
       return '超高价';
     }
 
-    function 提取最近成交影响指标(系统播报 = '') {
+    function 提取最近成交影响指标(系统播报 = '', rootData = null) {
       const 播报文本 = toText(系统播报, '');
-      if (!播报文本) return '平稳';
       const 标签匹配 = Array.from(播报文本.matchAll(/\[(买入热|卖出热|竞拍热|兑换热|市场波动)\]/g))
         .map(match => toText(match && match[1], '').trim())
         .filter(Boolean);
-      if (!标签匹配.length) return '平稳';
-      return 标签匹配[标签匹配.length - 1];
+      if (标签匹配.length) return 标签匹配[标签匹配.length - 1];
+      const 情报条目 = safeEntries(deepGet(rootData, 'world.机密情报', {}))
+        .filter(([, item]) => item && typeof item === 'object')
+        .map(([, item]) => ({
+          来源: toText(item && item['触发来源'], ''),
+          证据来源列表: Array.isArray(item && item['证据来源列表']) ? item['证据来源列表'] : [],
+          最后证据tick: toNumber(item && item['最后证据tick'], 0),
+          最近核实tick: toNumber(item && item['最近核实tick'], 0),
+          标题: toText(item && item['标题'], ''),
+          内容: toText(item && item['内容'], ''),
+        }))
+        .filter(item => item.来源 === '交易' || item.证据来源列表.some(来源 => toText(来源, '') === '交易'))
+        .sort((a, b) => Math.max(b.最后证据tick, b.最近核实tick) - Math.max(a.最后证据tick, a.最近核实tick));
+      if (!情报条目.length) return '平稳';
+      const 文本 = `${情报条目[0].标题} ${情报条目[0].内容}`;
+      if (/竞拍|拍卖/.test(文本)) return '竞拍热';
+      if (/兑换|魂灵塔/.test(文本)) return '兑换热';
+      if (/卖出|出售|抛售|回收/.test(文本)) return '卖出热';
+      if (/买入|购买|采购|抢购|求购/.test(文本)) return '买入热';
+      return '市场波动';
+    }
+
+    function clampMarketMultiplier(value) {
+      const 数值 = Number(value);
+      if (!Number.isFinite(数值)) return 1;
+      return Math.max(0.7, Math.min(1.6, 数值));
+    }
+
+    function 获取市场供给倍率(供给 = '平衡') {
+      const 文本 = toText(供给, '平衡');
+      if (文本 === '紧缺') return 1.25;
+      if (文本 === '偏紧') return 1.12;
+      if (文本 === '充裕') return 0.92;
+      return 1;
+    }
+
+    function 获取市场经济倍率(经济状况 = '未知') {
+      const 文本 = toText(经济状况, '未知');
+      if (文本 === '繁荣') return 0.95;
+      if (文本 === '萧条') return 1.12;
+      return 1;
+    }
+
+    function 获取市场趋势倍率(最近成交影响 = '平稳') {
+      const 文本 = toText(最近成交影响, '平稳');
+      if (文本 === '买入热') return 1.08;
+      if (文本 === '卖出热') return 0.92;
+      if (文本 === '竞拍热') return 1.12;
+      if (文本 === '市场波动') return 1.06;
+      return 1;
+    }
+
+    function 构建市场倍率说明(市场派生 = {}) {
+      const 标签 = [];
+      const 供给 = toText(市场派生.本地供给, '平衡');
+      const 经济 = toText(市场派生.经济状况, '未知');
+      const 趋势 = toText(市场派生.最近成交影响, '平稳');
+      if (供给 === '紧缺') 标签.push('紧缺上浮');
+      else if (供给 === '偏紧') 标签.push('供给偏紧');
+      else if (供给 === '充裕') 标签.push('供给充裕');
+      if (经济 === '繁荣') 标签.push('繁荣回落');
+      else if (经济 === '萧条') 标签.push('萧条上浮');
+      if (趋势 === '买入热') 标签.push('买入热上浮');
+      else if (趋势 === '卖出热') 标签.push('卖出热回落');
+      else if (趋势 === '竞拍热') 标签.push('竞拍热');
+      else if (趋势 === '市场波动') 标签.push('市场波动');
+      return 标签.join(' / ') || '平稳';
+    }
+
+    function 构建市场派生模型(locationData = {}, rootData = null) {
+      const 本地供给 = 计算本地供给指标(locationData);
+      const 价格带 = 计算本地价格带指标(locationData);
+      const 最近成交影响 = 提取最近成交影响指标(deepGet(rootData, 'sys.系统播报', ''), rootData);
+      const 经济状况 = toText(locationData && locationData['经济状况'], '未知');
+      const 供给倍率 = 获取市场供给倍率(本地供给);
+      const 经济倍率 = 获取市场经济倍率(经济状况);
+      const 趋势倍率 = 获取市场趋势倍率(最近成交影响);
+      const 买入倍率 = clampMarketMultiplier(供给倍率 * 经济倍率 * 趋势倍率);
+      const 卖出倍率 = clampMarketMultiplier(供给倍率 * 趋势倍率);
+      const 成交率修正 = Math.round((1 - 买入倍率) * 35);
+      const 派生 = {
+        本地供给,
+        价格带,
+        最近成交影响,
+        经济状况,
+        供给倍率,
+        经济倍率,
+        趋势倍率,
+        买入倍率,
+        卖出倍率,
+        成交率修正,
+      };
+      派生.说明 = 构建市场倍率说明(派生);
+      return 派生;
     }
 
     function buildSnapshot(sd) {
@@ -11348,9 +11439,10 @@
           : (flagEntries.length ? `世界状态 ${flagEntries.length} 项` : '无'));
       const auctionStatus = toText(deepGet(sd, 'world.拍卖.状态', '休市'), '休市');
       const auctionLocation = toText(deepGet(sd, 'world.拍卖.地点', '无'), '无');
-      const 本地供给 = 计算本地供给指标(locationData);
-      const 价格带 = 计算本地价格带指标(locationData);
-      const 最近成交影响 = 提取最近成交影响指标(deepGet(sd, 'sys.系统播报', ''));
+      const 市场派生 = 构建市场派生模型(locationData, sd);
+      const 本地供给 = 市场派生.本地供给;
+      const 价格带 = 市场派生.价格带;
+      const 最近成交影响 = 市场派生.最近成交影响;
 
       const chars = sd && sd.char ? sd.char : {};
       const charEntries = safeEntries(chars);
@@ -11412,6 +11504,7 @@
         本地供给,
         价格带,
         最近成交影响,
+        市场派生,
         bestiaryEntries,
         forestKilledAge,
         auctionStatus,
@@ -12313,20 +12406,13 @@
 
     function buildArchiveCoreCard(snapshot) {
       const stat = deepGet(snapshot, 'activeChar.属性', {});
-      const social = deepGet(snapshot, 'activeChar.社交', {});
       const status = deepGet(snapshot, 'activeChar.状态', {});
       const hpPair = getDisplayHpPair(stat);
       const woundLabel = getDisplayWoundLabel(stat);
       const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '当前角色');
-      const activeDisplayName = toText(
-        deepGet(snapshot, 'activeChar.name', deepGet(snapshot, 'activeChar.base.name', snapshot.activeName)),
-        snapshot.activeName || '当前角色'
-      );
       const nextLevelSoul = getNextLevelSoulRequirementWithCap(stat, deepGet(snapshot, 'activeChar', {}));
       const allowNsfwLongPress = canOpenPrivateArchive(snapshot);
       const mentalRealmText = toText(stat._men_realm, toText(stat.精神力_realm, '灵元境'));
-      const currentLocText = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc), snapshot.currentLoc || '未知');
-      const worldTimeText = getSnapshotWorldTimeText(snapshot);
       const actionText = toText(status.行动, '日常');
       const actionDisplay = activeCharKey
         ? makeInlineEditableValue(actionText, {
@@ -12336,12 +12422,6 @@
             editorMeta: { options: getStatusActionEditorOptions(actionText) },
           })
         : htmlEscape(actionText);
-      const primaryFactionName = snapshot.primaryFaction ? snapshot.primaryFaction[0] : '无';
-      const primaryFactionRole = snapshot.primaryFaction ? toText(deepGet(snapshot.primaryFaction[1], '身份', '无'), '无') : '未加入';
-      const topRelationText = snapshot.topRelation
-        ? `${shortenText(snapshot.topRelation[0], 8)} / ${toText(deepGet(snapshot.topRelation[1], '关系', '陌生'), '陌生')} · ${toNumber(deepGet(snapshot.topRelation[1], '好感度', 0), 0)}`
-        : `${snapshot.relations.length} 条`;
-      const latestIntelText = getLatestUnlockedIntelText(snapshot, 12, '暂无');
       const nextSoulDisplayText = nextLevelSoul.isMax
         ? '下级魂力 已满级'
         : nextLevelSoul.blocked
@@ -12351,53 +12431,43 @@
         : (toNumber(nextLevelSoul.needed, 0) <= 0
           ? `下级魂力 已达${formatNumber(nextLevelSoul.nextLevel)}级门槛`
           : `下级魂力 ${formatNumber(nextLevelSoul.needed)}`);
+      const nextSoulValueText = nextSoulDisplayText.replace(/^下级魂力\s*/, '');
+      const 资源指标列表 = [
+        { 名称: '魂力', 数值: `${formatNumber(stat.魂力)}/${formatNumber(stat.魂力上限)}`, 比例: ratioPercent(stat.魂力, stat.魂力上限), 样式: 'cyan' },
+        { 名称: `精神力 · ${mentalRealmText}`, 数值: `${formatNumber(stat.精神力)}/${formatNumber(stat.精神力上限)}`, 比例: ratioPercent(stat.精神力, stat.精神力上限), 样式: 'white' },
+        { 名称: '生命', 数值: `${formatNumber(hpPair.hp)}/${formatNumber(hpPair.hpMax)}`, 比例: ratioPercent(hpPair.hp, hpPair.hpMax), 样式: 'red' },
+        { 名称: '体力', 数值: `${formatNumber(stat.体力)}/${formatNumber(stat.体力上限)}`, 比例: ratioPercent(stat.体力, stat.体力上限), 样式: 'red' },
+      ];
       return `
-        <div class="panel-head panel-head--archive">
+        <div class="panel-head panel-head--archive archive-core-head">
           <div class="panel-title-row">
             <div class="panel-title${allowNsfwLongPress ? ' nsfw-trigger-title' : ''}"${allowNsfwLongPress ? ` data-longpress="${PRIVATE_ARCHIVE_PREVIEW_KEY}" data-longpress-delay="600"` : ''}>详细档案</div>
-            <span class="panel-active-name meta-pill">${htmlEscape(activeDisplayName)}</span>
-          </div>
-          <span class="meta-pill">${htmlEscape(nextSoulDisplayText)}</span>
-        </div>
-        <div class="archive-context-strip">
-          <span class="split-bottom-chip">${htmlEscape(shortenText(worldTimeText, 26))}</span>
-          <span class="split-bottom-chip live">${htmlEscape(shortenText(currentLocText.replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, ''), 28))}</span>
-        </div>
-        <div class="stats-grid stats-grid-top">
-          <div class="stat-item compact no-bar">
-            <div class="stat-label">年龄 / 性别</div>
-            <div class="stat-value">${htmlEscape(`${toText(stat.年龄, '0')}岁 / ${toText(stat.性别, '未知')}`)}</div>
-          </div>
-          <div class="stat-item compact no-bar">
-            <div class="stat-label">修为等级</div>
-            <div class="stat-value cyan">${htmlEscape(formatCultivationLevelBadge(stat.等级, '0'))}</div>
-          </div>
-          <div class="stat-item compact no-bar">
-            <div class="stat-label">状态概览</div>
-            <div class="stat-value">${actionDisplay} / ${htmlEscape(woundLabel)}</div>
           </div>
         </div>
-        <div class="stats-grid stats-grid-pairs">
-          <div class="stat-item resource-stat">
-            <div class="stat-label">魂力</div>
-            <div class="stat-value cyan">${htmlEscape(formatNumber(stat.魂力))}/${htmlEscape(formatNumber(stat.魂力上限))}</div>
-            <div class="line"><div class="fill" style="color: var(--cyan); width: ${ratioPercent(stat.魂力, stat.魂力上限)}%;"></div></div>
+        <div class="archive-core-grid">
+          <div class="archive-core-tile">
+            <b>年龄 / 性别</b>
+            <strong>${htmlEscape(`${toText(stat.年龄, '0')}岁 / ${toText(stat.性别, '未知')}`)}</strong>
           </div>
-          <div class="stat-item resource-stat">
-            <div class="stat-label">精神力 · ${htmlEscape(mentalRealmText)}</div>
-            <div class="stat-value">${htmlEscape(formatNumber(stat.精神力))}/${htmlEscape(formatNumber(stat.精神力上限))}</div>
-            <div class="line"><div class="fill" style="color: var(--white); width: ${ratioPercent(stat.精神力, stat.精神力上限)}%;"></div></div>
+          <div class="archive-core-tile">
+            <b>修为等级</b>
+            <strong class="cyan">${htmlEscape(formatCultivationLevelBadge(stat.等级, '0'))}</strong>
           </div>
-          <div class="stat-item resource-stat">
-            <div class="stat-label">生命</div>
-            <div class="stat-value red">${htmlEscape(formatNumber(hpPair.hp))}/${htmlEscape(formatNumber(hpPair.hpMax))}</div>
-            <div class="line"><div class="fill" style="color: var(--red); width: ${ratioPercent(hpPair.hp, hpPair.hpMax)}%;"></div></div>
+          <div class="archive-core-tile">
+            <b>状态概览</b>
+            <strong>${actionDisplay} / ${htmlEscape(woundLabel)}</strong>
           </div>
-          <div class="stat-item resource-stat">
-            <div class="stat-label">体力</div>
-            <div class="stat-value red">${htmlEscape(formatNumber(stat.体力))}/${htmlEscape(formatNumber(stat.体力上限))}</div>
-            <div class="line"><div class="fill" style="color: var(--red); width: ${ratioPercent(stat.体力, stat.体力上限)}%;"></div></div>
+          <div class="archive-core-tile">
+            <b>下级魂力</b>
+            <strong class="cyan">${htmlEscape(nextSoulValueText)}</strong>
           </div>
+          ${资源指标列表.map(指标 => `
+            <div class="archive-core-tile archive-core-tile--resource is-${htmlEscape(指标.样式)}">
+              <b>${htmlEscape(指标.名称)}</b>
+              <strong>${htmlEscape(指标.数值)}</strong>
+              <i><span style="width:${指标.比例}%;"></span></i>
+            </div>
+          `).join('')}
         </div>
         `;
     }
@@ -12413,12 +12483,18 @@
       const armorSummary = toNumber(armor.等级, 0) > 0 ? `${toText(armor.名称, `${armor.等级}字斗铠`)} / ${toText(armor.装备状态, '未装备')}` : '未装备';
       const mechSummary = toText(mech.等级, '无') !== '无' ? `${toText(mech.等级, '无')}·${toText(mech.型号, '未定型')} / ${toText(mech.装备状态, '未装备')}` : '无';
       const boneCount = snapshot.soulBoneEntries ? snapshot.soulBoneEntries.length : 0;
+      const 武器摘要 = toText(weapon.名称, '') || toText(weapon.类型, '') || '未装备';
       return `
         <div class="module-name">武装工坊</div>
-        <div class="module-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="module-grid armory-grid">
           <div class="mini-box"><b>当前斗铠</b><span>${htmlEscape(armorSummary)}</span></div>
           <div class="mini-box"><b>当前机甲</b><span>${htmlEscape(mechSummary)}</span></div>
+          <div class="mini-box"><b>武器</b><span>${htmlEscape(shortenText(武器摘要, 28))}</span></div>
           <div class="mini-box"><b>装载魂骨</b><span>${htmlEscape(boneCount ? `${boneCount} 块` : '未装配')}</span></div>
+        </div>
+        <div class="module-foot">
+          <span class="foot-hint">${htmlEscape(jobSummary)} · ${htmlEscape(jobCoreTechSummary)}</span>
+          <span class="enter-chip">${htmlEscape(jobLimitSummary)}</span>
         </div>
       `;
     }
@@ -12428,13 +12504,15 @@
       const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '当前角色');
       return `
         <div class="module-name">储物仓库</div>
-        <div class="module-grid">
+        <div class="module-grid vault-grid">
           <div class="mini-box"><b>物品种类</b><span>${htmlEscape(String(snapshot.inventoryEntries.length || 0))}</span></div>
-          <div class="mini-box"><b>流动资金</b><span>${htmlEscape(formatNumber(wealth.联邦币))} / 星罗 ${htmlEscape(formatNumber(wealth.星罗币))}</span></div>
+          <div class="mini-box"><b>联邦币</b><span>${htmlEscape(formatNumber(wealth.联邦币))}</span></div>
+          <div class="mini-box"><b>星罗币</b><span>${htmlEscape(formatNumber(wealth.星罗币))}</span></div>
+          <div class="mini-box"><b>唐门积分</b><span>${htmlEscape(formatNumber(wealth.唐门积分))}</span></div>
         </div>
         <div class="module-foot">
           <span class="foot-hint">记录物资总计 ${htmlEscape(String(snapshot.inventoryEntries.length || 0))} 件</span>
-          <span class="enter-chip gold-chip">积分/战功：${htmlEscape(formatNumber(wealth.唐门积分))} / ${htmlEscape(formatNumber(wealth.学院积分))} / ${htmlEscape(formatNumber(wealth.战功))}</span>
+          <span class="enter-chip gold-chip">学院/战功：${htmlEscape(formatNumber(wealth.学院积分))} / ${htmlEscape(formatNumber(wealth.战功))}</span>
         </div>
       `;
     }
@@ -12448,23 +12526,11 @@
         : `${snapshot.relations.length} 条`;
       const latestIntelText = getLatestUnlockedIntelText(snapshot, 12, '暂无');
       return `
-        <div class="mvu-unified-card-head">
-          <div class="mvu-unified-card-title">社交摘要</div>
-          <span class="mvu-unified-card-pill">${htmlEscape(toText(social.名望等级, toText(social.名望等级, '籍籍无名')))}</span>
-        </div>
-        <div class="mvu-unified-row-list">
-          <button type="button" class="mvu-unified-row mvu-unified-row--nav clickable" data-preview="社会档案详细页">
-            <b>名望</b><span>${htmlEscape(`${toText(social.名望等级, toText(social.名望等级, '籍籍无名'))} / ${formatNumber(social.声望)}`)}</span>
-          </button>
-          <button type="button" class="mvu-unified-row mvu-unified-row--nav clickable" data-preview="所属势力详细页">
-            <b>所属势力</b><span>${htmlEscape(`${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}`)}</span>
-          </button>
-          <button type="button" class="mvu-unified-row mvu-unified-row--nav clickable" data-preview="人物关系详细页">
-            <b>关系摘要</b><span>${htmlEscape(topRelationText)}</span>
-          </button>
-          <button type="button" class="mvu-unified-row mvu-unified-row--nav clickable" data-preview="情报库详细页">
-            <b>已解锁情报</b><span>${htmlEscape(`${snapshot.unlockedKnowledges.length} / ${latestIntelText}`)}</span>
-          </button>
+        <div class="mvu-social-entry-grid">
+          ${构建社交入口块('名望', `${toText(social.名望等级, toText(social.名望等级, '籍籍无名'))} / ${formatNumber(social.声望)}`, toText(social.主身份, '社会档案'), '社会档案详细页', 'gold')}
+          ${构建社交入口块('势力', `${shortenText(primaryFactionName, 10)} / ${shortenText(primaryFactionRole, 10)}`, `${(snapshot.势力 || []).length || 0} 项归属`, '所属势力详细页', 'live')}
+          ${构建社交入口块('关系', topRelationText, `${snapshot.relations.length} 条关系`, '人物关系详细页')}
+          ${构建社交入口块('情报', `${snapshot.unlockedKnowledges.length} / ${latestIntelText}`, snapshot.publicIntel ? '公开情报' : '情报库', '情报库详细页')}
         </div>
       `;
     }
@@ -12485,22 +12551,28 @@
       return `<div class="mvu-unified-spirit-card">${content}</div>`;
     }
 
-    function 构建统一第二轨空卡(snapshot) {
-      const 血脉资料 = snapshot && snapshot.bloodline && snapshot.bloodline.valid ? snapshot.bloodline : null;
+    function 构建统一武魂双轨卡(snapshot) {
+      const 主轨 = snapshot && snapshot.primarySpirit ? snapshot.primarySpirit : null;
+      const 第二轨 = snapshot && snapshot.secondaryTrack ? snapshot.secondaryTrack : null;
       const 融合资料 = getFusionArchiveMeta(snapshot || {});
-      const 融合数量 = Array.isArray(融合资料 && 融合资料.fusionEntries) ? 融合资料.fusionEntries.length : 0;
       const 魂骨数量 = Array.isArray(snapshot && snapshot.soulBoneEntries) ? snapshot.soulBoneEntries.length : 0;
-      return `
-        <div class="mvu-unified-secondary-track-card">
-          <div class="mvu-unified-card-head">
-            <div class="mvu-unified-card-title">第二武魂 / 血脉</div>
-            <span class="mvu-unified-card-pill">未启用</span>
+      const 第二轨预览键 = 第二轨 ? toText(第二轨.preview, '血脉封印详细页') : '血脉封印详细页';
+      const 第二轨内容 = 第二轨
+        ? (第二轨.kind === 'bloodline' ? renderArchiveBloodlineEntry(第二轨) : renderArchiveSpiritEntry(第二轨, false))
+        : `
+          <div class="mvu-spirit-empty-compact">
+            <b>第二武魂 / 血脉</b>
+            <span>未启用第二武魂，血脉/封印仍可查看。</span>
+            <em>融合技 ${htmlEscape(String(融合资料.fusionEntries.length || 0))} 项 · 魂骨 ${htmlEscape(String(魂骨数量 || 0))} 块</em>
           </div>
-          <div class="mvu-unified-row-list">
-            <div class="mvu-unified-row"><b>第二武魂</b><span>未启用</span></div>
-            <div class="mvu-unified-row"><b>血脉封印</b><span>${htmlEscape(血脉资料 ? `${toText(血脉资料.bloodline, '血脉')} / ${toText(血脉资料.sealLv, 0)}层` : '未觉醒')}</span></div>
-            <div class="mvu-unified-row"><b>融合技</b><span>${htmlEscape(融合数量 ? `${融合数量} 项` : '暂无')}</span></div>
-            <div class="mvu-unified-row"><b>魂骨装载</b><span>${htmlEscape(魂骨数量 ? `${魂骨数量} 块` : '未装配')}</span></div>
+        `;
+      return `
+        <div class="mvu-spirit-pair-grid">
+          <div class="mvu-spirit-pair-side mvu-spirit-pair-side--primary ${主轨 ? 'clickable' : 'is-empty'}"${主轨 ? ` data-preview="${escapeHtmlAttr(toText(主轨.preview, '第一武魂详细页'))}"` : ''}>
+            ${主轨 ? renderArchiveSpiritEntry(主轨, true) : '<div class="mvu-unified-empty-note">当前未加载第一武魂。</div>'}
+          </div>
+          <div class="mvu-spirit-pair-side mvu-spirit-pair-side--secondary clickable ${第二轨 ? '' : 'is-empty'}" data-preview="${escapeHtmlAttr(第二轨预览键)}">
+            ${第二轨内容}
           </div>
         </div>
       `;
@@ -13090,28 +13162,34 @@
       });
     }
 
+    function 构建社交入口块(标题, 主值, 副值, 预览键, 色调 = '') {
+      return `
+        <button type="button" class="mvu-social-entry clickable ${色调 ? `is-${色调}` : ''}" data-preview="${escapeHtmlAttr(预览键)}">
+          <b>${htmlEscape(toText(标题, ''))}</b>
+          <strong>${htmlEscape(shortenText(toText(主值, '暂无'), 36))}</strong>
+          <span>${htmlEscape(shortenText(toText(副值, ''), 30))}</span>
+        </button>
+      `;
+    }
+
     function buildShellSocialCard(snapshot) {
       if (!snapshot) {
-        return buildShellSummaryCard({
-          kicker: '社交',
-          title: '社交',
-          value: '待同步',
-          meta: '当前聊天',
-          rows: [
-            { label: '关系', value: '--' },
-            { label: '名望', value: '--' },
-            { label: '阵营', value: '--' },
-          ],
-        });
+        return `
+          <div class="mvu-social-entry-grid">
+            ${构建社交入口块('名望', '待同步', '社会档案', '社会档案详细页')}
+            ${构建社交入口块('势力', '待同步', '所属势力', '所属势力详细页')}
+            ${构建社交入口块('关系', '待同步', '人物关系', '人物关系详细页')}
+            ${构建社交入口块('情报', '待同步', '情报库', '情报库详细页')}
+          </div>
+        `;
       }
       const social = deepGet(snapshot, 'activeChar.社交', {});
       const primaryFactionName = snapshot.primaryFaction ? snapshot.primaryFaction[0] : '未加入';
       const primaryFactionRole = snapshot.primaryFaction ? toText(deepGet(snapshot.primaryFaction[1], '身份', '未加入'), '未加入') : '未加入';
       const topRelationText = snapshot.topRelation
-        ? `${shortenText(snapshot.topRelation[0], 8)} / ${toText(deepGet(snapshot.topRelation[1], '关系', '陌生'), '陌生')}`
+        ? `${shortenText(snapshot.topRelation[0], 8)} / ${toText(deepGet(snapshot.topRelation[1], '关系', '陌生'), '陌生')} / ${toNumber(deepGet(snapshot.topRelation[1], '好感度', 0), 0)}`
         : '暂无高亮关系';
       const latestIntelText = getLatestUnlockedIntelText(snapshot, 12, '暂无');
-      const currentTitle = Array.isArray(snapshot.recentTitles) && snapshot.recentTitles.length ? snapshot.recentTitles[0] : '';
       const fameLevel = shortenText(toText(social.名望等级, toText(social.名望等级, '籍籍无名')), 12);
       const reputationText = formatNumber(social.声望);
       const mainIdentity = summarizeShellIdentityText(social.主身份, { limit: 12 }) || shortenText(toText(social.主身份, ''), 14);
@@ -13119,25 +13197,14 @@
         ? (mainIdentity || '未结盟')
         : `${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}`;
       const intelCount = (snapshot.unlockedKnowledges || []).length || 0;
-      return buildShellSummaryCard({
-        kicker: '社交',
-        title: '社交',
-        value: fameLevel,
-        meta: mainIdentity || `名望 ${reputationText}`,
-        badges: [
-          currentTitle ? { text: shortenText(currentTitle, 10), tone: 'gold' } : '',
-          snapshot.publicIntel ? { text: '公开情报', tone: 'live' } : '',
-          intelCount ? `已录 ${intelCount}` : '',
-        ],
-        metrics: [
-          { label: '关系', value: String((snapshot.relations || []).length || 0), tone: 'live' },
-          { label: '势力', value: String((snapshot.势力 || []).length || 0) },
-        ],
-        rows: [
-          { label: primaryFactionName === '未加入' ? '身份' : '所属', value: factionSummary },
-          { label: snapshot.topRelation ? '关系' : '动态', value: snapshot.topRelation ? topRelationText : latestIntelText },
-        ],
-      });
+      return `
+        <div class="mvu-social-entry-grid">
+          ${构建社交入口块('名望', `${fameLevel} / ${reputationText}`, mainIdentity || '社会档案', '社会档案详细页', 'gold')}
+          ${构建社交入口块('势力', factionSummary, `${(snapshot.势力 || []).length || 0} 项归属`, '所属势力详细页', 'live')}
+          ${构建社交入口块('关系', topRelationText, `${(snapshot.relations || []).length || 0} 条关系`, '人物关系详细页')}
+          ${构建社交入口块('情报', `${intelCount} / ${latestIntelText}`, snapshot.publicIntel ? '公开情报' : '情报库', '情报库详细页')}
+        </div>
+      `;
     }
 
     function buildShellMapHeroCard(snapshot) {
@@ -14315,6 +14382,18 @@
       const primary = snapshot.primarySpirit || null;
       const secondary = snapshot.secondaryTrack || null;
       const spiritBuilder = normalizedSurface === 'shell' ? buildShellSpiritSummaryCard : buildUnifiedSpiritCard;
+      if (normalizedSurface === 'panel') {
+        setUnifiedCardMarkup('primary-spirit', 构建统一武魂双轨卡(snapshot), {
+          enabled: true,
+          surface: normalizedSurface,
+        });
+        setUnifiedCardMarkup('secondary-spirit', '', {
+          enabled: false,
+          empty: true,
+          surface: normalizedSurface,
+        });
+        return;
+      }
       setUnifiedCardMarkup('primary-spirit', spiritBuilder(primary, { primary: true }), {
         preview: primary ? toText(primary.preview, '') : '',
         enabled: !!primary,
@@ -14327,9 +14406,9 @@
           surface: normalizedSurface,
         });
       } else {
-        setUnifiedCardMarkup('secondary-spirit', normalizedSurface === 'shell' ? spiritBuilder(null, { primary: false }) : 构建统一第二轨空卡(snapshot), {
-          preview: normalizedSurface === 'panel' ? '血脉封印详细页' : '',
-          enabled: normalizedSurface === 'panel',
+        setUnifiedCardMarkup('secondary-spirit', spiritBuilder(null, { primary: false }), {
+          preview: '',
+          enabled: false,
           empty: false,
           surface: normalizedSurface,
         });
@@ -14354,7 +14433,6 @@
           surface: normalizedSurface,
         });
         setUnifiedCardMarkup('social', isShellSurface ? buildShellSocialCard(snapshot) : buildUnifiedSocialCard(snapshot), {
-          preview: '社会档案详细页',
           surface: normalizedSurface,
         });
         if (isShellSurface) {
@@ -14376,7 +14454,7 @@
           ensureUnifiedSheepMapStage('panel');
           setUnifiedCardMarkup('map-hero', '', { enabled: false, surface: normalizedSurface });
           const 本地人物条目列表 = getShellLocalCharacterEntries(snapshot, 99);
-          const 本地人物展示列表 = 本地人物条目列表.slice(0, 10);
+          const 本地人物展示列表 = 本地人物条目列表;
           const 本地人物位置 = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc), snapshot.currentLoc);
           setUnifiedCardMarkup('map-current', buildSimpleCard('当前位置', { text: '当前' }, [
             { label: '地点', value: snapshot.normalizedLoc !== snapshot.currentLoc ? `${snapshot.normalizedLoc} / ${snapshot.currentLoc}` : snapshot.currentLoc },
@@ -14395,7 +14473,7 @@
                 <b>${htmlEscape(`${本地人物条目列表.length} 名`)}</b>
               </div>
               <div class="mvu-shell-roster-list">
-                ${buildShellLocalRosterRows(本地人物展示列表, 10, { 启用操作: true, 当前地点: 本地人物位置 })}
+                ${buildShellLocalRosterRows(本地人物展示列表, 99, { 启用操作: true, 当前地点: 本地人物位置 })}
               </div>
             </div>
           `, { surface: normalizedSurface });
@@ -14765,27 +14843,19 @@
 
       return `
         <div class="module-name">时空中枢</div>
-        <div class="hero-metrics">
-          <div class="hero-row"><b>当前时间</b><span>${htmlEscape(worldTime)}</span></div>
-          <div class="hero-row"><b>世界偏差</b><span>${htmlEscape(`${deviation} / ${deviation >= 40 ? '高危' : deviation >= 10 ? '波动' : '平稳'}`)}</span></div>
-          <div class="hero-row"><b>当前阶段</b><span>${htmlEscape(stageLabel)}</span></div>
-        </div>
-        <div class="hero-list">
-          <div class="hero-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
-            <b>当前事件</b><span>${htmlEscape(latestEventText)}</span>
-          </div>
-          <div class="hero-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
-            <b>近期见闻</b><span>${htmlEscape(newsSummary.summary)}</span>
-          </div>
-          <div class="hero-row" style="flex-direction: column; align-items: flex-start; gap: 6px;">
+        <div class="world-core-grid">
+          <div class="world-core-tile world-core-tile--wide"><b>当前时间</b><strong>${htmlEscape(worldTime)}</strong></div>
+          <div class="world-core-tile"><b>世界偏差</b><strong>${htmlEscape(`${deviation} / ${deviation >= 40 ? '高危' : deviation >= 10 ? '波动' : '平稳'}`)}</strong></div>
+          <div class="world-core-tile"><b>当前阶段</b><strong>${htmlEscape(stageLabel)}</strong></div>
+          <div class="world-core-tile world-core-tile--wide"><b>当前事件</b><strong>${htmlEscape(latestEventText)}</strong></div>
+          <div class="world-core-tile world-core-tile--wide"><b>近期见闻</b><strong>${htmlEscape(newsSummary.summary)}</strong></div>
+          <div class="world-core-tile world-core-tile--progress">
             <b>森林仇恨值</b>
-            <span>${htmlEscape(`${forestStage} / ${formatNumber(snapshot.forestKilledAge)} / 1000000`)}</span>
-            <div style="width:100%;height:8px;border-radius:999px;background:rgba(255,255,255,0.08);overflow:hidden;border:1px solid rgba(150,217,228,0.12);">
-              <div style="height:100%;width:${forestRatio}%;background:${forestRatio >= 100 ? 'linear-gradient(90deg,#ff6b6b,#ffb36b)' : (forestRatio >= 70 ? 'linear-gradient(90deg,#ffd36b,#ff8a5b)' : 'linear-gradient(90deg,#72e6ff,#7dffb2)')};box-shadow:0 0 10px rgba(255,180,107,0.28);"></div>
-            </div>
+            <strong>${htmlEscape(`${forestStage} / ${formatNumber(snapshot.forestKilledAge)} / 1000000`)}</strong>
+            <i><span style="width:${forestRatio}%;"></span></i>
           </div>
         </div>
-        <div class="module-foot">
+        <div class="module-foot world-core-foot">
           <span class="foot-hint">风险摘要：${htmlEscape(snapshot.worldAlert)}</span>
         </div>
       `;
@@ -14797,18 +14867,18 @@
       const relationSummary = buildFactionRelationSummary(primaryFactionEntry && primaryFactionEntry.data ? primaryFactionEntry.data : {}, 3) || '暂无';
       return `
         <div class="module-name">势力矩阵</div>
-        <div class="matrix-board">
+        <div class="matrix-board org-matrix-board">
           ${topOrgs.map(([name, data], index) => `<div class="matrix-node ${snapshot.势力.some(([fac]) => fac === name) || index === 0 ? 'gold' : ''}"><b>${htmlEscape(name)}</b><span>${htmlEscape(`影响力 ${formatNumber(data && data.影响力)} / ${toText(data && data.状态, '正常')}`)}</span></div>`).join('')}
         </div>
         ${(() => { const factionStats = getPrimaryFactionPowerStats(snapshot); return `
-        <div class="hero-list">
-          <div class="hero-row"><b>极限斗罗</b><span>${htmlEscape(String(factionStats.limit))}</span></div>
-          <div class="hero-row"><b>超级斗罗</b><span>${htmlEscape(String(factionStats.super))}</span></div>
-          <div class="hero-row"><b>封号斗罗</b><span>${htmlEscape(String(factionStats.title))}</span></div>
-          <div class="hero-row"><b>势力关系</b><span>${htmlEscape(relationSummary)}</span></div>
+        <div class="org-power-grid">
+          <div><b>极限斗罗</b><strong>${htmlEscape(String(factionStats.limit))}</strong></div>
+          <div><b>超级斗罗</b><strong>${htmlEscape(String(factionStats.super))}</strong></div>
+          <div><b>封号斗罗</b><strong>${htmlEscape(String(factionStats.title))}</strong></div>
+          <div class="org-power-grid__wide"><b>势力关系</b><strong>${htmlEscape(relationSummary)}</strong></div>
         </div>
         `; })()}
-        <div class="module-foot">
+        <div class="module-foot org-core-foot">
           <span class="foot-hint">本地高亮：${htmlEscape(toText(deepGet(snapshot, 'locationData.掌控势力', snapshot.势力[0] ? snapshot.势力[0][0] : '未知'), '未知'))}</span>
           <span class="enter-chip gold-chip">${htmlEscape(`${snapshot.orgEntries.length || 0} 个势力`)}</span>
         </div>
@@ -14820,12 +14890,14 @@
       const recentNews = buildRecentNewsSummary(snapshot, { seqLimit: 2, intelLimit: 1 });
       const latestBroadcast = toText(sys.系统播报, '暂无播报');
       const latestEvent = recentNews.cards[0] ? recentNews.cards[0].desc : '暂无事件';
-      const 核心状态摘要 = shortenText(`${snapshot.worldAlert.includes('高危') ? '高压同步' : '稳定同步'} · ${toText(snapshot.currentLoc, '未知地点')} · ${latestEvent}`, 44);
-      const 最近播报摘要 = shortenText(latestBroadcast, 44);
-      const 情报任务摘要 = shortenText(`待核实 ${toNumber(snapshot && snapshot.情报待核实数量, 0)} · 任务 ${(snapshot.recordEntries || []).length} · 图鉴 ${(snapshot.bestiaryEntries || []).length}`, 44);
+      const 核心状态摘要 = shortenText(`${snapshot.worldAlert.includes('高危') ? '高压同步' : '稳定同步'} · ${toText(snapshot.currentLoc, '未知地点')}`, 44);
+      const 最近播报摘要 = shortenText(latestBroadcast, 58);
+      const 最近事件摘要 = shortenText(latestEvent, 58);
+      const 情报任务摘要 = shortenText(`待核实 ${toNumber(snapshot && snapshot.情报待核实数量, 0)} · 任务 ${(snapshot.recordEntries || []).length} · 图鉴 ${(snapshot.bestiaryEntries || []).length}`, 58);
       const 终端行候选 = [
         { 标签: '[状态]', 内容: 核心状态摘要, 预览: '世界状态总览', 样式: 'sys' },
         { 标签: '[播报]', 内容: 最近播报摘要, 预览: '系统播报与日志', 样式: 'roll' },
+        { 标签: '[事件]', 内容: 最近事件摘要, 预览: '近期见闻', 样式: 'sys' },
         { 标签: '[总览]', 内容: 情报任务摘要, 预览: '试炼与情报', 样式: 'sys' },
       ];
       const 终端行去重 = new Set();
@@ -14838,12 +14910,14 @@
       });
       return `
         <div class="module-name">系统播报</div>
-        <div class="terminal-log terminal-log--single-pane">
-          ${终端行列表.map(条目 => `<button type="button" class="log-line ${htmlEscape(条目.样式)} log-line--single terminal-inline-entry clickable" data-preview="${escapeHtmlAttr(条目.预览)}"><b>${htmlEscape(条目.标签)}</b> ${htmlEscape(条目.内容)}</button>`).join('')}
+        <div class="terminal-home-log">
+          ${终端行列表.map(条目 => `<button type="button" class="terminal-home-line ${htmlEscape(条目.样式)} clickable" data-preview="${escapeHtmlAttr(条目.预览)}"><b>${htmlEscape(条目.标签)}</b><span>${htmlEscape(条目.内容)}</span></button>`).join('')}
         </div>
-        <div class="module-foot">
-          <span class="foot-hint">${htmlEscape(`待核实 ${toNumber(snapshot && snapshot.情报待核实数量, 0)} · 任务 ${(snapshot.recordEntries || []).length} · 见闻 ${(recentNews.cards || []).length}`)}</span>
-          <span class="enter-chip">${htmlEscape(`收录 ${(snapshot.bestiaryEntries || []).length} · 情报 ${(snapshot.unlockedKnowledges || []).length}`)}</span>
+        <div class="terminal-home-metrics">
+          <span><b>待核实</b><strong>${htmlEscape(String(toNumber(snapshot && snapshot.情报待核实数量, 0)))}</strong></span>
+          <span><b>任务</b><strong>${htmlEscape(String((snapshot.recordEntries || []).length))}</strong></span>
+          <span><b>见闻</b><strong>${htmlEscape(String((recentNews.cards || []).length))}</strong></span>
+          <span><b>图鉴</b><strong>${htmlEscape(String((snapshot.bestiaryEntries || []).length))}</strong></span>
         </div>
       `;
     }
@@ -14854,10 +14928,11 @@
       const personalText = planSummary.personalPlans[0] ? planSummary.personalPlans[0].desc : '暂无个人待办';
       return `
         <div class="simple-head"><div class="simple-title">近期安排</div></div>
-        <div class="simple-list">
-          <div class="simple-row"><b>世界</b><span>${htmlEscape(shortenText(worldText, 42))}</span></div>
-          <div class="simple-row"><b>个人</b><span>${htmlEscape(shortenText(personalText, 42))}</span></div>
-          <div class="simple-row"><b>待办数</b><span>${htmlEscape(`${(planSummary.worldPlans || []).length} 世界 · ${(planSummary.personalPlans || []).length} 个人`)}</span></div>
+        <div class="terminal-plan-grid">
+          <div class="terminal-plan-item terminal-plan-item--wide"><b>世界</b><span>${htmlEscape(shortenText(worldText, 72))}</span></div>
+          <div class="terminal-plan-item terminal-plan-item--wide"><b>个人</b><span>${htmlEscape(shortenText(personalText, 72))}</span></div>
+          <div class="terminal-plan-item"><b>世界待办</b><span>${htmlEscape(String((planSummary.worldPlans || []).length))}</span></div>
+          <div class="terminal-plan-item"><b>个人待办</b><span>${htmlEscape(String((planSummary.personalPlans || []).length))}</span></div>
         </div>
       `;
     }
@@ -16483,6 +16558,13 @@
           { label: '系统建议', value: htmlEscape(recommendedActions.slice(0, 3).join(' / ') || '无') },
           { label: '在场目标', value: htmlEscape(sameLocationTargets.slice(0, 4).join(' / ') || '无') },
         ], 'dossier-row-grid--two');
+        const 关系快照指标HTML = [
+          ['对象', `${snapshot.relations.length}名`],
+          ['同地', `${sameLocationTargets.length}名`],
+          ['信任', `${trustTargets.length}名`],
+        ].map(([标签, 数值]) => `
+          <span class="relation-overview-meter"><b>${htmlEscape(标签)}</b><em>${htmlEscape(数值)}</em></span>
+        `).join('');
         const relationTargetSummaryHtml = relationDetail
           ? makeDossierRows([
               { label: '目标对象', value: htmlEscape(relationDetailName) },
@@ -16621,10 +16703,13 @@
               <div class="archive-card dossier-card dossier-card--relation-overview full">
                 <div class="archive-card-head"><div class="archive-card-title">关系概览</div><span class="dossier-pill live">实时拓扑</span></div>
                 <div class="dossier-columns dossier-columns--relation-overview">
-                  <div class="topology-board relation-topology-board dossier-topology-board">
-                    <svg class="topology-svg" viewBox="0 0 100 100" preserveAspectRatio="none">${relationLinks}</svg>
-                    <div class="topology-node center" style="left:50%;top:50%"><b>${htmlEscape(snapshot.activeName)}</b><span>自我</span></div>
-                    ${relationHtml || '<div class="topology-node" style="left:50%;top:18%"><b>暂无关系对象</b><span>关系网络尚未展开</span></div>'}
+                  <div class="relation-topology-panel">
+                    <div class="topology-board relation-topology-board dossier-topology-board">
+                      <svg class="topology-svg" viewBox="0 0 100 100" preserveAspectRatio="none">${relationLinks}</svg>
+                      <div class="topology-node center" style="left:50%;top:50%"><b>${htmlEscape(snapshot.activeName)}</b><span>自我</span></div>
+                      ${relationHtml || '<div class="topology-node" style="left:50%;top:18%"><b>暂无关系对象</b><span>关系网络尚未展开</span></div>'}
+                    </div>
+                    <div class="relation-overview-meter-row">${关系快照指标HTML}</div>
                   </div>
                   <div class="dossier-section-stack">
                     <section class="dossier-section">

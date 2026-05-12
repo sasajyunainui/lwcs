@@ -3920,6 +3920,7 @@ class BattleUIComponent {
       const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
       const normalized = {};
       if (source.skip_turn === true) normalized.skip_turn = true;
+      if (source.致死 === true) normalized.致死 = true;
       ['random_target_rate', 'hit_penalty', 'dodge_penalty', 'cast_speed_penalty', 'control_success_penalty'].forEach(key => {
         const parsed = Number(source[key]);
         if (Number.isFinite(parsed) && parsed > 0) normalized[key] = Number(parsed.toFixed(4));
@@ -3973,10 +3974,27 @@ class BattleUIComponent {
       if (!targetChar) return;
       const chance = Number(effect?.触发概率 ?? 1);
       if (chance < 1 && Math.random() > chance) return;
+      const 战斗效果 = effect?.战斗效果 && typeof effect.战斗效果 === 'object' && !Array.isArray(effect.战斗效果)
+        ? effect.战斗效果
+        : {};
+      const 是否致死副作用 = 战斗效果?.致死 === true;
+      if (是否致死副作用) {
+        设置战斗血量值(targetChar, 0);
+        let 复苏结果日志 = '';
+        if (getCombatHpValue(targetChar) <= 0) {
+          复苏结果日志 = triggerReviveEffect(targetChar, targetChar?.name || '目标') || '';
+        }
+        if (Array.isArray(logs)) {
+          logs.push(`[副作用] ${targetChar.name || '目标'}触发[${effect?.副作用类型 || '未知副作用'}](${effect?.触发时机 || '施放后'})`);
+          if (复苏结果日志) logs.push(复苏结果日志);
+          else logs.push(`[副作用致死] ${targetChar.name || '目标'}受到致死反噬，生命归零。`);
+        }
+        return;
+      }
       const duration = Math.max(1, Number(effect?.持续回合 || 0));
       const stateName = `副作用:${String(effect?.副作用类型 || '未知')}`;
       if (!targetChar.状态效果) targetChar.状态效果 = {};
-      const nextCalc = mergeCombatEffectMaps(createEmptyCombatEffectMap(), effect?.战斗效果 || {});
+      const nextCalc = mergeCombatEffectMaps(createEmptyCombatEffectMap(), 战斗效果);
       targetChar.状态效果[stateName] = {
         类型: 'debuff',
         层数: 1,

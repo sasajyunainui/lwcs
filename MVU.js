@@ -1849,7 +1849,7 @@ function normalizeSkillSideEffectStatMap(value = {}) {
 function normalizeSkillSideEffectCombatMap(value = {}) {
   const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const normalized = {};
-  const booleanKeys = ['skip_turn'];
+  const booleanKeys = ['skip_turn', '致死'];
   const ratioKeys = ['random_target_rate', 'hit_penalty', 'dodge_penalty', 'cast_speed_penalty', 'control_success_penalty'];
   booleanKeys.forEach(key => {
     if (source[key] === true) normalized[key] = true;
@@ -10711,6 +10711,7 @@ const 技能副作用类型候选_V1 = Object.freeze([
   '全属性降低',
   '增幅失控',
   '自损反噬',
+  '致死献祭',
   '精神紊乱',
   '魂力反噬',
   '命中下降',
@@ -10935,6 +10936,14 @@ function 构建副作用条目_V1(副作用类型 = '', context = {}) {
       持续回合: 0,
       触发概率: 1,
       战斗效果: { hit_penalty: 0.05 },
+    },
+    致死献祭: {
+      副作用类型: '致死献祭',
+      触发时机: '施放后',
+      生效对象: '施术者',
+      持续回合: 0,
+      触发概率: 1,
+      战斗效果: { 致死: true },
     },
     精神紊乱: {
       副作用类型: '精神紊乱',
