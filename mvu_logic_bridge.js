@@ -629,6 +629,70 @@
       ];
     }
 
+    const SPIRIT_ATTRIBUTE_SYSTEM_OPTIONS = Object.freeze(['无', '元素', '五行']);
+    const SPIRIT_ATTRIBUTE_TOKEN_OPTIONS = Object.freeze([
+      '金',
+      '木',
+      '水',
+      '火',
+      '土',
+      '风',
+      '雷',
+      '冰',
+      '光',
+      '暗',
+      '空间',
+      '时间',
+    ]);
+    const WUXING_ATTRIBUTE_TOKEN_OPTIONS = Object.freeze(['金', '木', '水', '火', '土']);
+    const STATUS_ACTION_RUNTIME_OPTIONS = Object.freeze([
+      '日常',
+      '冥想',
+      '睡眠',
+      '战斗',
+      '肉体训练',
+      '精神训练',
+    ]);
+    const RING_COLOR_META = Object.freeze({
+      white: Object.freeze({ label: '白', glyph: '白', aliases: ['白色'] }),
+      yellow: Object.freeze({ label: '黄', glyph: '黄', aliases: ['黄色'] }),
+      purple: Object.freeze({ label: '紫', glyph: '紫', aliases: ['紫色'] }),
+      black: Object.freeze({ label: '黑', glyph: '黑', aliases: ['黑色'] }),
+      red: Object.freeze({ label: '红', glyph: '红', aliases: ['红色'] }),
+      gold: Object.freeze({ label: '金', glyph: '金', aliases: ['金色'] }),
+      orangegold: Object.freeze({ label: '橙金', glyph: '橙', aliases: ['橙', '橙色', '橙金色'] }),
+      whitegold: Object.freeze({ label: '白金', glyph: '铂', aliases: ['白金色', '铂金'] }),
+      silver: Object.freeze({ label: '银', glyph: '银', aliases: ['银色', '白银'] }),
+      frostsilver: Object.freeze({ label: '霜银', glyph: '霜', aliases: ['霜银色'] }),
+      moonwhite: Object.freeze({ label: '月白', glyph: '月', aliases: ['月白色'] }),
+      iceblue: Object.freeze({ label: '冰蓝', glyph: '冰', aliases: ['冰蓝色', '冰青'] }),
+      starblue: Object.freeze({ label: '星蓝', glyph: '星', aliases: ['星蓝色', '湛蓝'] }),
+      cyan: Object.freeze({ label: '青', glyph: '青', aliases: ['青色', '天青'] }),
+      teal: Object.freeze({ label: '海青', glyph: '海', aliases: ['海青色', '青碧'] }),
+      jade: Object.freeze({ label: '碧玉', glyph: '碧', aliases: ['碧', '玉色', '青玉'] }),
+      emerald: Object.freeze({ label: '翡翠', glyph: '翠', aliases: ['翡翠色', '翠绿', '翠色'] }),
+      'green-gold': Object.freeze({ label: '绿金', glyph: '绿', aliases: ['绿金色', '翠金', '苍翠金'] }),
+      'blue-gold': Object.freeze({ label: '蓝金', glyph: '蓝', aliases: ['蓝金色', '青金', '海金'] }),
+      'purple-gold': Object.freeze({ label: '紫金', glyph: '鎏', aliases: ['紫金色'] }),
+      'scarlet-gold': Object.freeze({ label: '赤金', glyph: '赤', aliases: ['赤金色', '绯金'] }),
+      'rose-gold': Object.freeze({ label: '玫金', glyph: '玫', aliases: ['玫金色', '玫瑰金'] }),
+      'amber-gold': Object.freeze({ label: '琥珀金', glyph: '琥', aliases: ['琥珀金色', '蜜金'] }),
+      'obsidian-gold': Object.freeze({ label: '曜黑金', glyph: '曜', aliases: ['曜黑金色', '黑金', '玄金'] }),
+      aurora: Object.freeze({ label: '极光', glyph: '极', aliases: ['极光色'] }),
+      rainbow: Object.freeze({ label: '虹彩', glyph: '虹', aliases: ['虹彩色', '七彩', '幻彩'] }),
+      crimson: Object.freeze({ label: '绯红', glyph: '绯', aliases: ['绯红色', '猩红', '血红'] }),
+    });
+    const RING_COLOR_OPTIONS = Object.freeze(Object.values(RING_COLOR_META).map(meta => meta.label));
+    const RING_COLOR_ALIAS_MAP = Object.freeze(
+      Object.entries(RING_COLOR_META).reduce((bucket, [key, meta]) => {
+        [meta.label, ...(Array.isArray(meta.aliases) ? meta.aliases : [])].forEach(alias => {
+          const label = toText(alias, '').trim();
+          if (label) bucket[label] = key;
+        });
+        return bucket;
+      }, {})
+    );
+
     function normalizeSpiritAttributeTokenList(value = []) {
       return normalizeEditorStringList(value).filter(token => SPIRIT_ATTRIBUTE_TOKEN_OPTIONS.includes(token));
     }
@@ -5260,6 +5324,42 @@
     const SKILL_DESIGNER_FULL_ATTRIBUTE_KEYS = Object.freeze(['str', 'def', 'agi', 'sp_max', 'men_max']);
     const SKILL_DESIGNER_SIDE_EFFECT_TRIGGER_OPTIONS = Object.freeze(['施放后', '命中后', '回合结束时', '状态结束后']);
     const SKILL_DESIGNER_SIDE_EFFECT_TARGET_OPTIONS = Object.freeze(['施术者', '状态持有者', '受术目标', '双方']);
+    const 技能设计台副作用类型候选_V1 = Object.freeze([
+      '全属性降低',
+      '增幅失控',
+      '自损反噬',
+      '致死献祭',
+      '精神紊乱',
+      '魂力反噬',
+      '命中下降',
+      '动作迟缓',
+      '目标错乱',
+      '施法僵直',
+      '状态溢出',
+    ]);
+    const 技能设计台标签候选_V1 = Object.freeze([
+      '输出',
+      '爆发',
+      '持续',
+      '控制',
+      '削弱',
+      '增益',
+      '回复',
+      '防御',
+      '位移',
+      '召唤',
+      '造物',
+      '标记',
+      '反制',
+      '护盾',
+      '净化',
+      '复苏',
+      '破甲',
+      '追击',
+      '融合',
+      '食物系',
+      '规则',
+    ]);
     const SKILL_DESIGNER_TARGET_SCALE_OPTIONS = Object.freeze(['自身', '单体', '群体', '全场']);
     const SKILL_DESIGNER_DIRECTION_TARGET_SEMANTIC_OPTIONS = Object.freeze(['可赋予', '敌对', '上下文', '仅自身']);
     const SKILL_DESIGNER_DIRECTION_TAG_OPTIONS = Object.freeze(['增幅', '压制', '锁定', '限制', '转译', '置换']);
@@ -5291,6 +5391,33 @@
         ));
       }
       return [];
+    }
+
+    function 规范化技能设计台标签勾选_V1(value = []) {
+      const 候选集合 = new Set(技能设计台标签候选_V1);
+      return normalizeSkillDesignerArray(value).filter(item => 候选集合.has(item));
+    }
+
+    function 提取技能设计台副作用类型勾选_V1(value = []) {
+      const 候选集合 = new Set(技能设计台副作用类型候选_V1);
+      return normalizeSkillDesignerSideEffectList(value)
+        .map(item => normalizeSkillUiText(item && item['副作用类型'], ''))
+        .filter(item => 候选集合.has(item));
+    }
+
+    function 构建技能设计台副作用列表_V1(类型列表 = []) {
+      return normalizeSkillDesignerArray(类型列表)
+        .filter(类型 => 技能设计台副作用类型候选_V1.includes(类型))
+        .map(副作用类型 =>
+          normalizeSkillDesignerSideEffectEntry({
+            副作用类型,
+            触发时机: '施放后',
+            生效对象: '施术者',
+            持续回合: 0,
+            触发概率: 1,
+          }),
+        )
+        .filter(Boolean);
     }
 
     function normalizeSkillDesignerSideEffectStatMap(value = {}) {
@@ -5356,27 +5483,6 @@
       return source
         .map(item => normalizeSkillDesignerSideEffectEntry(item))
         .filter(Boolean);
-    }
-
-    function parseSkillDesignerSideEffectJson(value = '') {
-      const text = normalizeSkillUiText(value, '').trim();
-      if (!text) return [];
-      try {
-        const parsed = JSON.parse(text);
-        return normalizeSkillDesignerSideEffectList(Array.isArray(parsed) ? parsed : []);
-      } catch (error) {
-        return [];
-      }
-    }
-
-    function formatSkillDesignerSideEffectJson(value = []) {
-      const normalized = normalizeSkillDesignerSideEffectList(value);
-      if (!normalized.length) return '';
-      try {
-        return JSON.stringify(normalized, null, 2);
-      } catch (error) {
-        return '';
-      }
     }
 
     function buildSkillDesignerSideEffectSummary(draft = {}) {
@@ -6408,11 +6514,11 @@
     }
 
     function inferSkillDesignerTags(effectArray = [], skill = {}, draft = {}) {
-      const explicitTags = normalizeSkillDesignerArray((skill && skill['标签']) || (draft && draft['标签']) || []);
+      const explicitTags = 规范化技能设计台标签勾选_V1((skill && skill['标签']) || (draft && draft['标签']) || []);
       if (explicitTags.length) return explicitTags;
-      const systemTags = getSkillDesignerSystemBaseTags(effectArray);
+      const systemTags = 规范化技能设计台标签勾选_V1(getSkillDesignerSystemBaseTags(effectArray));
       if (systemTags.length) return systemTags.slice(0, 8);
-      return normalizeSkillDesignerArray(
+      return 规范化技能设计台标签勾选_V1(
         getSkillDesignerEffectEntries(effectArray)
           .map(effect => normalizeSkillUiText(effect && effect['机制'], ''))
           .filter(Boolean),
@@ -8117,7 +8223,7 @@
         attributeSource: '无',
         attributeRole: '无',
         coeff: normalizeSkillDesignerCoeffMap({}),
-        tags: normalizeSkillDesignerArray(baseDraft.tags),
+        tags: 规范化技能设计台标签勾选_V1(baseDraft.tags),
         visualDesc: normalizeSkillUiText(baseDraft.visualDesc, ''),
         effectDesc: normalizeSkillUiText(baseDraft.effectDesc, ''),
         artStage: normalizeSkillUiText(baseDraft.artStage, '未入门'),
@@ -8129,7 +8235,7 @@
           ? derivedFusionFields.fusionSourceSpirits
           : (isFusionScope ? normalizeSkillDesignerArray(baseDraft.fusionSourceSpirits || baseDraft['来源武魂']) : []),
         fusionParticipants: derivedFusionFields.fusionParticipants,
-        副作用列表: normalizeSkillDesignerSideEffectList(baseDraft['副作用列表'] || []),
+        副作用列表: 构建技能设计台副作用列表_V1(提取技能设计台副作用类型勾选_V1(baseDraft['副作用列表'] || [])),
         目标规模: resolvedTargetScale,
         阵营判定: '自动',
       };
@@ -8204,7 +8310,7 @@
         attributeSource: '无',
         attributeRole: '无',
         coeff: normalizeSkillDesignerCoeffMap({}),
-        tags: normalizeSkillDesignerArray(readField('tags')),
+        tags: 规范化技能设计台标签勾选_V1(readCheckedValues('skill-tag')),
         visualDesc: readField('visualDesc'),
         effectDesc: readField('effectDesc'),
         artStage: readField('artStage') || '未入门',
@@ -8214,7 +8320,7 @@
         fusionPartner: derivedFusionFields.fusionPartner,
         fusionSourceSpirits: derivedFusionFields.fusionSourceSpirits,
         fusionParticipants: derivedFusionFields.fusionParticipants,
-        副作用列表: parseSkillDesignerSideEffectJson(readField('sideEffectJson')),
+        副作用列表: 构建技能设计台副作用列表_V1(readCheckedValues('skill-side-effect')),
         目标规模: resolvedTargetScale,
         阵营判定: '自动',
       };
@@ -12415,15 +12521,17 @@
       const primaryFactionName = snapshot.primaryFaction ? snapshot.primaryFaction[0] : '无';
       const primaryFactionRole = snapshot.primaryFaction ? toText(deepGet(snapshot.primaryFaction[1], '身份', '无'), '无') : '未加入';
       const topRelationText = snapshot.topRelation
-        ? `${shortenText(snapshot.topRelation[0], 8)} / ${toText(deepGet(snapshot.topRelation[1], '关系', '陌生'), '陌生')} / ${toNumber(deepGet(snapshot.topRelation[1], '好感度', 0), 0)}`
-        : `${snapshot.relations.length} 条`;
-      const latestIntelText = getLatestUnlockedIntelText(snapshot, 12, '暂无');
+        ? `${toText(snapshot.topRelation[0], '未知人物')} / ${toText(deepGet(snapshot.topRelation[1], '关系', '陌生'), '陌生')} / ${toNumber(deepGet(snapshot.topRelation[1], '好感度', 0), 0)}`
+        : '暂无高亮关系';
+      const latestIntelText = getLatestUnlockedIntelText(snapshot, 32, '暂无情报');
+      const 名望等级 = toText(social.名望等级, toText(social.名望等级, '籍籍无名'));
+      const 主身份 = toText(social.主身份, '社会档案');
       return `
         <div class="mvu-social-entry-grid">
-          ${构建社交入口块('名望', `${toText(social.名望等级, toText(social.名望等级, '籍籍无名'))} / ${formatNumber(social.声望)}`, toText(social.主身份, '社会档案'), '社会档案详细页', 'gold')}
-          ${构建社交入口块('势力', `${shortenText(primaryFactionName, 10)} / ${shortenText(primaryFactionRole, 10)}`, `${(snapshot.势力 || []).length || 0} 项归属`, '所属势力详细页', 'live')}
-          ${构建社交入口块('关系', topRelationText, `${snapshot.relations.length} 条关系`, '人物关系详细页')}
-          ${构建社交入口块('情报', `${snapshot.unlockedKnowledges.length} / ${latestIntelText}`, snapshot.publicIntel ? '公开情报' : '情报库', '情报库详细页')}
+          ${构建社交入口块('名望', 名望等级, 主身份, '社会档案详细页', 'gold', `声望 ${formatNumber(social.声望)}`)}
+          ${构建社交入口块('势力', primaryFactionName, primaryFactionRole, '所属势力详细页', 'live', `${(snapshot.势力 || []).length || 0} 项`)}
+          ${构建社交入口块('关系', topRelationText, '人物关系', '人物关系详细页', '', `${snapshot.relations.length} 条`)}
+          ${构建社交入口块('情报', latestIntelText, snapshot.publicIntel ? '公开情报' : '情报库', '情报库详细页', '', `${snapshot.unlockedKnowledges.length} 条`)}
         </div>
       `;
     }
@@ -13055,12 +13163,18 @@
       });
     }
 
-    function 构建社交入口块(标题, 主值, 副值, 预览键, 色调 = '') {
+    function 构建社交入口块(标题, 主值, 副值, 预览键, 色调 = '', 数量文本 = '') {
+      const 标题文本 = toText(标题, '');
+      const 主值文本 = toText(主值, '暂无');
+      const 副值文本 = toText(副值, '');
+      const 数量显示 = toText(数量文本, '').trim();
+      const 标题属性 = [标题文本, 主值文本, 副值文本, 数量显示].filter(Boolean).join(' / ');
       return `
-        <button type="button" class="mvu-social-entry clickable ${色调 ? `is-${色调}` : ''}" data-preview="${escapeHtmlAttr(预览键)}">
-          <b>${htmlEscape(toText(标题, ''))}</b>
-          <strong>${htmlEscape(shortenText(toText(主值, '暂无'), 36))}</strong>
-          <span>${htmlEscape(shortenText(toText(副值, ''), 30))}</span>
+        <button type="button" class="mvu-social-entry clickable ${色调 ? `is-${色调}` : ''}" data-preview="${escapeHtmlAttr(预览键)}" title="${escapeHtmlAttr(标题属性)}">
+          <b class="mvu-social-entry-label">${htmlEscape(标题文本)}</b>
+          <strong class="mvu-social-entry-main">${htmlEscape(主值文本)}</strong>
+          <span class="mvu-social-entry-sub">${htmlEscape(副值文本)}</span>
+          ${数量显示 ? `<em class="mvu-social-entry-count">${htmlEscape(数量显示)}</em>` : ''}
         </button>
       `;
     }
@@ -13083,19 +13197,19 @@
         ? `${shortenText(snapshot.topRelation[0], 8)} / ${toText(deepGet(snapshot.topRelation[1], '关系', '陌生'), '陌生')} / ${toNumber(deepGet(snapshot.topRelation[1], '好感度', 0), 0)}`
         : '暂无高亮关系';
       const latestIntelText = getLatestUnlockedIntelText(snapshot, 12, '暂无');
-      const fameLevel = shortenText(toText(social.名望等级, toText(social.名望等级, '籍籍无名')), 12);
+      const fameLevel = toText(social.名望等级, toText(social.名望等级, '籍籍无名'));
       const reputationText = formatNumber(social.声望);
-      const mainIdentity = summarizeShellIdentityText(social.主身份, { limit: 12 }) || shortenText(toText(social.主身份, ''), 14);
+      const mainIdentity = toText(social.主身份, '') || summarizeShellIdentityText(social.主身份, { limit: 12 });
       const factionSummary = primaryFactionName === '未加入'
         ? (mainIdentity || '未结盟')
-        : `${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}`;
+        : primaryFactionName;
       const intelCount = (snapshot.unlockedKnowledges || []).length || 0;
       return `
         <div class="mvu-social-entry-grid">
-          ${构建社交入口块('名望', `${fameLevel} / ${reputationText}`, mainIdentity || '社会档案', '社会档案详细页', 'gold')}
-          ${构建社交入口块('势力', factionSummary, `${(snapshot.势力 || []).length || 0} 项归属`, '所属势力详细页', 'live')}
-          ${构建社交入口块('关系', topRelationText, `${(snapshot.relations || []).length || 0} 条关系`, '人物关系详细页')}
-          ${构建社交入口块('情报', `${intelCount} / ${latestIntelText}`, snapshot.publicIntel ? '公开情报' : '情报库', '情报库详细页')}
+          ${构建社交入口块('名望', fameLevel, mainIdentity || '社会档案', '社会档案详细页', 'gold', `声望 ${reputationText}`)}
+          ${构建社交入口块('势力', factionSummary, primaryFactionRole, '所属势力详细页', 'live', `${(snapshot.势力 || []).length || 0} 项`)}
+          ${构建社交入口块('关系', topRelationText, '人物关系', '人物关系详细页', '', `${(snapshot.relations || []).length || 0} 条`)}
+          ${构建社交入口块('情报', latestIntelText, snapshot.publicIntel ? '公开情报' : '情报库', '情报库详细页', '', `${intelCount} 条`)}
         </div>
       `;
     }
@@ -14785,7 +14899,9 @@
     function 构建统一顶部状态条(snapshot) {
       if (!snapshot) {
         return `
-          <div class="mvu-unified-top-name">当前聊天</div>
+          <div class="mvu-unified-top-identity">
+            <div class="mvu-unified-top-name">当前聊天</div>
+          </div>
           <div class="mvu-unified-top-chip-row">
             <span class="is-time">时间未同步</span>
             <span class="is-place">地点未同步</span>
@@ -14802,7 +14918,9 @@
         .replace(/^斗罗大陆-/, '')
         .replace(/^斗灵大陆-/, '');
       return `
-        <button type="button" class="mvu-unified-top-name mvu-unified-top-name-button clickable" data-preview="角色切换器" title="切换当前查看角色">${htmlEscape(shortenText(角色名, 16))}</button>
+        <div class="mvu-unified-top-identity">
+          <button type="button" class="mvu-unified-top-name mvu-unified-top-name-button clickable" data-preview="角色切换器" title="${escapeHtmlAttr(`切换当前查看角色：${角色名}`)}">${htmlEscape(角色名)}</button>
+        </div>
         <div class="mvu-unified-top-chip-row">
           <span class="is-time" title="${escapeHtmlAttr(世界时间)}">${htmlEscape(世界时间)}</span>
           <span class="is-place" title="${escapeHtmlAttr(当前位置)}">${htmlEscape(当前位置)}</span>
@@ -15501,7 +15619,13 @@
                       </label>
                       <label class=\"mvu-editor-field mvu-editor-field-wide\">
                         <span class=\"mvu-editor-label\">标签</span>
-                        <input class=\"mvu-editor-input\" type=\"text\" value=\"${escapeHtmlAttr((designerDraft.tags || []).join('、'))}\" placeholder=\"用、或逗号分隔\" data-skill-designer-field=\"tags\" data-skill-designer-disableable />
+                        <div class=\"skill-designer-chip-grid\">
+                          ${buildSkillDesignerCheckChipList(
+                            技能设计台标签候选_V1,
+                            规范化技能设计台标签勾选_V1(designerDraft.tags),
+                            'skill-tag',
+                          )}
+                        </div>
                       </label>
                     </div>
                   </section>
@@ -15574,8 +15698,14 @@
                     <div class=\"mvu-editor-section-title\">副作用</div>
                     <div class=\"mvu-editor-field-grid\">
                       <label class=\"mvu-editor-field mvu-editor-field-wide\">
-                        <span class=\"mvu-editor-label\">副作用列表</span>
-                        <textarea class=\"mvu-editor-textarea\" data-skill-designer-field=\"sideEffectJson\" data-skill-designer-disableable>${htmlEscape(formatSkillDesignerSideEffectJson(designerDraft['副作用列表']))}</textarea>
+                        <span class=\"mvu-editor-label\">副作用类型（可多选）</span>
+                        <div class=\"skill-designer-chip-grid\">
+                          ${buildSkillDesignerCheckChipList(
+                            技能设计台副作用类型候选_V1,
+                            提取技能设计台副作用类型勾选_V1(designerDraft['副作用列表']),
+                            'skill-side-effect',
+                          )}
+                        </div>
                       </label>
                     </div>
                   </section>
