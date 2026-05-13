@@ -1721,12 +1721,75 @@ class BattleUIComponent {
       return unit;
     }
 
-    function fallbackPushSkill(actions, skill, fallbackName, category) {
+    function 读取当前世界tick_V1() {
+      return Math.max(0, Number(window.BattleUIBridge?.getMVU('world.时间.tick') || 0));
+    }
+
+    function 读取技能魂环恢复标记_V1(skill, charData) {
+      if (!skill || !charData || typeof charData !== 'object') return { 恢复中: false, 剩余tick: 0, 恢复tick: 0 };
+      const 魂环路径 = Array.isArray(skill.__魂环路径) ? skill.__魂环路径 : [];
+      if (!魂环路径.length) return { 恢复中: false, 剩余tick: 0, 恢复tick: 0 };
+      let 当前 = charData;
+      for (const 片段 of 魂环路径) {
+        if (!当前 || typeof 当前 !== 'object') return { 恢复中: false, 剩余tick: 0, 恢复tick: 0 };
+        当前 = 当前[片段];
+      }
+      const 恢复tick = Math.max(0, Number(当前?.炸环恢复tick || 0));
+      if (!(恢复tick > 0)) return { 恢复中: false, 剩余tick: 0, 恢复tick: 0 };
+      const 当前tick = 读取当前世界tick_V1();
+      if (恢复tick <= 当前tick) return { 恢复中: false, 剩余tick: 0, 恢复tick };
+      return { 恢复中: true, 剩余tick: 恢复tick - 当前tick, 恢复tick };
+    }
+
+    function 写入角色魂环恢复标记_V1(角色数据, 魂环路径 = [], 恢复tick = 0, 恢复时间文本 = '') {
+      if (!角色数据 || typeof 角色数据 !== 'object') return false;
+      if (!Array.isArray(魂环路径) || !魂环路径.length) return false;
+      let 当前 = 角色数据;
+      for (let 索引 = 0; 索引 < 魂环路径.length; 索引 += 1) {
+        const 片段 = 魂环路径[索引];
+        if (!当前 || typeof 当前 !== 'object' || !(片段 in 当前)) return false;
+        if (索引 === 魂环路径.length - 1) {
+          const 魂环数据 = 当前[片段];
+          if (!魂环数据 || typeof 魂环数据 !== 'object') return false;
+          魂环数据.炸环恢复tick = Math.max(0, Math.floor(Number(恢复tick || 0)));
+          if (恢复时间文本) 魂环数据.炸环恢复时间 = String(恢复时间文本).trim();
+          return true;
+        }
+        当前 = 当前[片段];
+      }
+      return false;
+    }
+
+    function 按路径读取对象_V1(根对象 = {}, 路径 = []) {
+      let 当前 = 根对象;
+      for (const 片段 of 路径) {
+        if (!当前 || typeof 当前 !== 'object') return undefined;
+        当前 = 当前[片段];
+      }
+      return 当前;
+    }
+
+    function 构建魂环恢复标记补丁_V1(角色名 = '', 魂环路径 = [], 恢复tick = 0, 恢复时间文本 = '') {
+      const 角色文本 = String(角色名 || '').trim();
+      if (!角色文本 || !Array.isArray(魂环路径) || !魂环路径.length) return [];
+      const 基础路径 =
+        `/char/${escapeJsonPointerSegment(角色文本)}/` +
+        魂环路径.map(片段 => escapeJsonPointerSegment(片段)).join('/');
+      const 补丁 = [
+        { op: 'add', path: `${基础路径}/炸环恢复tick`, value: Math.max(0, Math.floor(Number(恢复tick || 0))) },
+      ];
+      if (恢复时间文本) 补丁.push({ op: 'add', path: `${基础路径}/炸环恢复时间`, value: String(恢复时间文本).trim() });
+      return 补丁;
+    }
+
+    function fallbackPushSkill(actions, skill, fallbackName, category, 魂环路径 = null) {
       if (!skill || typeof skill !== 'object') return;
       const name = String(skill.魂技名 || skill.name || fallbackName || '').trim();
       if (!name) return;
       const effects = Array.isArray(skill._效果数组) ? skill._效果数组 : [];
       const systemEffect = effects.find(effect => effect && typeof effect === 'object' && effect.cast_time !== undefined) || {};
+      const runtimeSkill = normalizeSkillData(skill, name);
+      if (Array.isArray(魂环路径) && 魂环路径.length) runtimeSkill.__魂环路径 = [...魂环路径];
       const 技能来源 = String(systemEffect?.技能来源 || skill?.技能来源 || '').trim() || (category || '魂技');
       actions.push({
         id: `skill_${actions.length}_${name}`,
@@ -1735,8 +1798,8 @@ class BattleUIComponent {
         action_type: '释放魂技',
         category: 技能来源,
         source_detail: category || 技能来源,
-        skill,
-        raw_skill: skill,
+        skill: runtimeSkill,
+        raw_skill: runtimeSkill,
         cast_time: fallbackNumber(skill.cast_time ?? systemEffect.cast_time, 10),
         cost_text: skill?.__fusion_display_cost_text ? String(skill.__fusion_display_cost_text) : String(skill.消耗 || systemEffect.消耗 || ''),
         enabled: true,
@@ -1747,10 +1810,16 @@ class BattleUIComponent {
       const actions = [];
       const char = charData && typeof charData === 'object' ? charData : {};
       Object.entries(char.武魂 || {}).forEach(([spiritName, spirit]) => {
-        Object.entries(spirit?.魂灵 || {}).forEach(([, soulSpirit]) => {
+        Object.entries(spirit?.魂灵 || {}).forEach(([soulSpiritName, soulSpirit]) => {
           Object.entries(soulSpirit?.魂环 || {}).forEach(([ringIndex, ring]) => {
             Object.entries(ring?.魂技 || {}).forEach(([skillName, skill]) => {
-              fallbackPushSkill(actions, skill, skillName, spirit?.表象名称 || spiritName || `第${ringIndex}魂环`);
+              fallbackPushSkill(
+                actions,
+                skill,
+                skillName,
+                spirit?.表象名称 || spiritName || `第${ringIndex}魂环`,
+                ['武魂', spiritName, '魂灵', soulSpiritName, '魂环', ringIndex],
+              );
             });
           });
         });
@@ -1935,7 +2004,6 @@ class BattleUIComponent {
       return {
         主定位: '无',
         作用目标: '敌方单体',
-        战术标签: [],
         优先条件: [],
         风险等级: '中',
         保留倾向: 0,
@@ -5937,6 +6005,18 @@ class BattleUIComponent {
 
     function parseSkillCostForChar(skill, char) {
       const stats = char?.属性 || char || {};
+      const 炸环恢复信息 = 读取技能魂环恢复标记_V1(skill, char);
+      if (炸环恢复信息.恢复中) {
+        return {
+          reqSp: 0,
+          reqVit: 0,
+          reqMen: 0,
+          costScale: 1,
+          canCast: false,
+          failureReason: `魂环恢复中(剩余${Math.max(1, Math.floor(Number(炸环恢复信息.剩余tick || 0)))}tick)`,
+          partnerCosts: [],
+        };
+      }
       const costStr = normalizeSkillData(skill).消耗 || getSkillCostText(skill);
       const presetCostScale = Number(skill?.__battleSupportCostScale);
       const 单体辅助消耗倍率 =
@@ -6063,7 +6143,7 @@ class BattleUIComponent {
       return /被动/.test(String(rawType || ''));
     }
 
-    function pushUnifiedSkillMapEntries(skills, skillMap, sourceTag, options = {}) {
+    function pushUnifiedSkillMapEntries(skills, skillMap, sourceTag, options = {}, sourceContext = {}) {
       const { includePassive = false, includeActive = true } = options;
       const 展开技能分支候选 = skill => {
         const 原技能 = skill && typeof skill === 'object' ? skill : null;
@@ -6094,6 +6174,9 @@ class BattleUIComponent {
           if (是否被动 && !includePassive) return;
           if (!是否被动 && !includeActive) return;
           候选技能.source_tag = sourceTag;
+          if (Array.isArray(sourceContext?.魂环路径) && sourceContext.魂环路径.length > 0) {
+            候选技能.__魂环路径 = [...sourceContext.魂环路径];
+          }
           skills.push(候选技能);
         });
       });
@@ -6110,9 +6193,15 @@ class BattleUIComponent {
       if (charData?.武魂) {
         Object.entries(charData.武魂).forEach(([spKey, sp]) => {
           const spName = sp?.表象名称 || spKey || '武魂';
-          Object.values(sp?.魂灵 || {}).forEach(ss => {
-            Object.values(ss?.魂环 || {}).forEach(ring => {
-              pushUnifiedSkillMapEntries(skills, ring?.魂技 || {}, spName, collectOptions);
+          Object.entries(sp?.魂灵 || {}).forEach(([魂灵键, ss]) => {
+            Object.entries(ss?.魂环 || {}).forEach(([魂环键, ring]) => {
+              pushUnifiedSkillMapEntries(
+                skills,
+                ring?.魂技 || {},
+                spName,
+                collectOptions,
+                { 魂环路径: ['武魂', spKey, '魂灵', 魂灵键, '魂环', 魂环键] },
+              );
             });
           });
         });
@@ -6739,6 +6828,25 @@ class BattleUIComponent {
         char.状态效果 && typeof char.状态效果 === 'object' && !Array.isArray(char.状态效果)
           ? char.状态效果
           : {};
+      const 清理到期炸环恢复标记 = () => {
+        const 当前tick = 读取当前世界tick_V1();
+        let 清理数量 = 0;
+        Object.entries(char?.武魂 || {}).forEach(([, 武魂数据]) => {
+          Object.entries(武魂数据?.魂灵 || {}).forEach(([, 魂灵数据]) => {
+            Object.entries(魂灵数据?.魂环 || {}).forEach(([魂环键, 魂环数据]) => {
+              if (!魂环数据 || typeof 魂环数据 !== 'object') return;
+              const 恢复tick = Math.max(0, Number(魂环数据?.炸环恢复tick || 0));
+              if (!(恢复tick > 0 && 恢复tick <= 当前tick)) return;
+              delete 魂环数据.炸环恢复tick;
+              if (Object.prototype.hasOwnProperty.call(魂环数据, '炸环恢复时间')) delete 魂环数据.炸环恢复时间;
+              清理数量 += 1;
+              parts.push(`[炸环恢复] ${label}第${魂环键}魂环已恢复。`);
+            });
+          });
+        });
+        return 清理数量;
+      };
+      清理到期炸环恢复标记();
 
         Object.keys(conditionMap).forEach(key => {
           let cond = conditionMap[key];
@@ -10839,6 +10947,7 @@ class BattleUIComponent {
         const selfMirrorEffect = actionEffects.find(effect => effect?.机制 === '自身也受影响') || null;
         const directRandomTargetEffect = actionEffects.find(effect => effect?.机制 === '随机目标') || null;
         const directSelfSacrificeEffect = actionEffects.find(effect => effect?.机制 === '自残换收益') || null;
+        const directRingBurstEffect = actionEffects.find(effect => effect?.机制 === '炸环') || null;
         const skillName = String(
           playerAction?.skill?.name || playerAction?.skill?.技能名称 || playerAction?.action_type || '',
         );
@@ -10987,7 +11096,20 @@ class BattleUIComponent {
           attackerConditionEffects.reduce((sum, ce) => sum + Number(ce.hit_penalty || 0), 0) +
           (attackerIsBlinded ? 0.35 : 0);
 
+        const 炸环增幅状态 = (() => {
+          if (!attacker?.状态效果 || typeof attacker.状态效果 !== 'object') return null;
+          const 匹配键 = Object.keys(attacker.状态效果).find(键 => /^炸环增幅/.test(String(键 || '')));
+          if (!匹配键) return null;
+          const 状态 = attacker.状态效果[匹配键];
+          if (!状态 || typeof 状态 !== 'object') return null;
+          return { 键: 匹配键, 状态 };
+        })();
         let remainPower = pClash.威力倍率 || 0;
+        const 炸环威力倍率 = Math.max(1, Number(炸环增幅状态?.状态?.炸环增幅参数?.威力倍率 || 1));
+        if (炸环威力倍率 > 1 && remainPower > 0) {
+          remainPower *= 炸环威力倍率;
+          result.desc += ` [炸环增幅] 下次技能威力倍率 x${炸环威力倍率.toFixed(2)}。`;
+        }
 
         if (npcAction.type === '强势对轰') {
           remainPower -= nClash.威力倍率 || 0;
@@ -11232,6 +11354,15 @@ class BattleUIComponent {
         if (directSelfSacrificeEffect && Number(directSelfSacrificeEffect.体力代价 || 0) > 0) {
           result.desc += ` [自残换收益] 额外献祭 ${Number(directSelfSacrificeEffect.体力代价 || 0)} 点体力，换取 x${Number(directSelfSacrificeEffect.增伤倍率 || 1.25).toFixed(2)} 威力。`;
         }
+        if (炸环增幅状态) {
+          delete attacker.状态效果[炸环增幅状态.键];
+          if (attacker.持续效果) {
+            Object.keys(attacker.持续效果).forEach(持续键 => {
+              if (attacker.持续效果[持续键]?.related_condition === 炸环增幅状态.键) delete attacker.持续效果[持续键];
+            });
+          }
+          result.desc += ` [炸环增幅] 增幅已在本次技能后消耗。`;
+        }
         if (isAOE && Array.isArray(result.targetResults) && result.targetResults.length > 1) {
           result.desc += ` [群体索敌] 共锁定 ${result.targetResults.length} 个目标，逐个独立结算。`;
         }
@@ -11437,6 +11568,82 @@ class BattleUIComponent {
             result.desc += ` [护盾生成] ${targetObj === attacker ? '自身' : targetObj.name}获得 ${shieldAmount} 点护盾。`;
           });
           return totalShield;
+        };
+
+        const applyRingBurstEffect = effect => {
+          if (!effect || !attacker || !playerAction?.skill) return false;
+          const 魂环路径 = Array.isArray(playerAction.skill.__魂环路径) ? playerAction.skill.__魂环路径 : [];
+          if (!魂环路径.length) {
+            result.desc += ` [炸环失败] 当前技能未绑定魂环路径。`;
+            return false;
+          }
+          const 恢复检查 = 读取技能魂环恢复标记_V1(playerAction.skill, attacker);
+          if (恢复检查.恢复中) {
+            result.desc += ` [炸环失败] 魂环恢复中，剩余${Math.max(1, Math.floor(Number(恢复检查.剩余tick || 0)))}tick。`;
+            return false;
+          }
+          const 当前tick = 读取当前世界tick_V1();
+          const 恢复时长tick = Math.max(1, Math.floor(Number(effect?.恢复时长tick || effect?.恢复tick || 4320)));
+          const 恢复截止tick = 当前tick + 恢复时长tick;
+          const 恢复时间文本 = formatBattleTickToCalendarDateText(恢复截止tick);
+          const 写回成功 = 写入角色魂环恢复标记_V1(attacker, 魂环路径, 恢复截止tick, 恢复时间文本);
+          if (!写回成功) {
+            result.desc += ` [炸环失败] 魂环路径写回失败。`;
+            return false;
+          }
+          const 角色名 = String(attacker?.name || '').trim();
+          if (角色名) {
+            result.extraPatchOps.push(...构建魂环恢复标记补丁_V1(角色名, 魂环路径, 恢复截止tick, 恢复时间文本));
+          }
+          if (!attacker.状态效果) attacker.状态效果 = {};
+          const 魂环数据 = 按路径读取对象_V1(attacker, 魂环路径);
+          const 当前技能年限 = Math.max(
+            100,
+            Number(魂环数据?.年限 || playerAction.skill?.年限 || 0) || 100,
+          );
+          const 年限档位倍率 = (() => {
+            if (当前技能年限 >= 1000000) return 2.3;
+            if (当前技能年限 >= 100000) return 1.9;
+            if (当前技能年限 >= 10000) return 1.6;
+            if (当前技能年限 >= 1000) return 1.35;
+            return 1.15;
+          })();
+          const 年限增幅系数 = Math.max(0.01, Number(effect?.年限增幅系数 || 0.18));
+          const 额外倍率 = Math.max(1.01, Number((1 + 年限增幅系数 * 年限档位倍率).toFixed(4)));
+          const 计算字段模板 = createEmptyCombatEffectMap();
+          const 禁止字段正则 = /(次数|段数|触发次数|命中次数)/;
+          const 字段文本 = String(effect?.增幅字段 || '').trim();
+          const 指定字段 = 字段文本
+            ? 字段文本
+                .split(/[，,、\s]+/)
+                .map(字段 => String(字段 || '').trim())
+                .filter(Boolean)
+            : ['威力倍率', 'final_damage_mult', 'final_heal_mult', 'shield_gain_mult'];
+          const 可用字段 = 指定字段.filter(字段 => {
+            if (!字段 || 禁止字段正则.test(字段)) return false;
+            if (字段 === '威力倍率') return true;
+            if (!(字段 in 计算字段模板)) return false;
+            return typeof 计算字段模板[字段] === 'number';
+          });
+          const 增幅状态键 = `炸环增幅:${playerAction.skill.name || playerAction.skill.魂技名 || '技能'}`;
+          const 增幅战斗效果 = { ...createEmptyCombatEffectMap() };
+          const 增幅参数 = {};
+          可用字段.forEach(字段 => {
+            if (字段 === '威力倍率') 增幅参数.威力倍率 = 额外倍率;
+            else if (字段 in 增幅战斗效果 && /_mult$/.test(字段)) 增幅战斗效果[字段] = 额外倍率;
+            else if (字段 in 增幅战斗效果) 增幅战斗效果[字段] = Math.max(0, Number((额外倍率 - 1).toFixed(4)));
+          });
+          attacker.状态效果[增幅状态键] = {
+            类型: 'buff',
+            层数: 1,
+            描述: `由[${playerAction.skill.name || '炸环'}]触发，下次技能增幅`,
+            duration: 999,
+            面板修改比例: {},
+            战斗效果: 增幅战斗效果,
+            炸环增幅参数: 增幅参数,
+          };
+          result.desc += ` [炸环] 魂环已炸毁，预计于${恢复时间文本}恢复。下次技能增幅倍率 x${额外倍率.toFixed(2)}。`;
+          return true;
         };
 
         const applyFieldEffect = effect => {
@@ -11890,6 +12097,7 @@ class BattleUIComponent {
           shield_steal: applyStealShieldEffect,
           resource_drain: applyResourceDrainEffect,
           resource_refeed: applyResourceRefeedEffect,
+          ring_burst_gain: applyRingBurstEffect,
           copy_status: effect => applyCopyEffect(effect),
           damage_share: applyLifeLinkEffect,
           cost_increase: applyResourceLockEffect,
@@ -12111,6 +12319,7 @@ class BattleUIComponent {
             directDotDetonateEffect,
             directShieldBreakEffect,
             directShieldStealEffect,
+            directRingBurstEffect,
             directResourceDrainEffect,
             directResourceRefeedEffect,
             directResourceBurnEffect,
@@ -15815,10 +16024,12 @@ class BattleUIComponent {
           return toUiNumber(system?.cast_time, 10);
         }
 
-        function pushUiSkillAction(actions, skill, fallbackName, source) {
+        function pushUiSkillAction(actions, skill, fallbackName, source, 魂环路径 = null) {
           if (!skill || typeof skill !== 'object') return;
           const name = String(skill.魂技名 || skill.name || fallbackName || '').trim();
           if (!name) return;
+          const runtimeSkill = normalizeSkillData(skill, name);
+          if (Array.isArray(魂环路径) && 魂环路径.length) runtimeSkill.__魂环路径 = [...魂环路径];
           const 技能来源 = String(getBattleSkillSourceCategory(skill) || skill?.技能来源 || source || '魂技').trim() || '魂技';
           actions.push({
             id: `skill_${source}_${name}_${actions.length}`,
@@ -15831,8 +16042,8 @@ class BattleUIComponent {
             cost_text: findUiSkillCost(skill),
             enabled: true,
             reason: '',
-            raw_skill: skill,
-            skill,
+            raw_skill: runtimeSkill,
+            skill: runtimeSkill,
           });
         }
 
@@ -15841,9 +16052,15 @@ class BattleUIComponent {
           const char = charData && typeof charData === 'object' ? charData : {};
           Object.entries(char.武魂 || {}).forEach(([spiritName, spirit]) => {
             Object.entries(spirit?.魂灵 || {}).forEach(([soulSpiritName, soulSpirit]) => {
-          Object.entries(soulSpirit?.魂环 || {}).forEach(([ringIndex, ring]) => {
+              Object.entries(soulSpirit?.魂环 || {}).forEach(([ringIndex, ring]) => {
                 Object.entries(ring?.魂技 || {}).forEach(([skillName, skill]) => {
-                  pushUiSkillAction(actions, skill, skillName, spirit?.表象名称 || spiritName || soulSpiritName || `第${ringIndex}魂环`);
+                  pushUiSkillAction(
+                    actions,
+                    skill,
+                    skillName,
+                    spirit?.表象名称 || spiritName || soulSpiritName || `第${ringIndex}魂环`,
+                    ['武魂', spiritName, '魂灵', soulSpiritName, '魂环', ringIndex],
+                  );
                 });
               });
             });

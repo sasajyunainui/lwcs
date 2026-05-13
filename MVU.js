@@ -2748,6 +2748,22 @@ const SKILL_MECHANISM_META_V1 = (() => {
     运行时消费器: 'self_sacrifice_gain',
     摘要提示: { skillType: '辅助', mainType: '特殊规则类' },
   });
+  register('炸环', {
+    可主机制: true,
+    可副机制: true,
+    目标语义: '仅自身',
+    仅自身: true,
+    运行时消费器: 'ring_burst_gain',
+    摘要提示: { skillType: '辅助', mainType: '特殊规则类' },
+    designerMainHint: '特殊规则类',
+    designerSubHint: '炸环',
+    designerSecondaryHint: '炸环',
+    设计台参数定义: [
+      num('恢复时长tick', '恢复时长tick', '4320', '1'),
+      num('年限增幅系数', '年限增幅系数', '0.18'),
+      text('增幅字段', '增幅字段', '威力倍率,final_damage_mult,final_heal_mult,shield_gain_mult'),
+    ],
+  });
   register('引爆持续伤害', {
     可主机制: true,
     可副机制: true,
@@ -19025,6 +19041,18 @@ function 固化本轮魂环年限变化_V1(新变量 = {}, 旧变量 = {}) {
   });
 }
 
+function 清理到期炸环恢复标记_V1(新变量 = {}) {
+  const 新数据 = 读取事件变量数据根_V1(新变量);
+  const 当前tick = Math.max(0, Number(新数据?.world?.时间?.tick || 0));
+  遍历数据魂环_V1(新数据, 魂环数据 => {
+    if (!魂环数据 || typeof 魂环数据 !== 'object') return;
+    const 恢复tick = Math.max(0, Number(魂环数据?.炸环恢复tick || 0));
+    if (!(恢复tick > 0 && 恢复tick <= 当前tick)) return;
+    delete 魂环数据.炸环恢复tick;
+    if (Object.prototype.hasOwnProperty.call(魂环数据, '炸环恢复时间')) delete 魂环数据.炸环恢复时间;
+  });
+}
+
 function 同步七九辅助魂技基础效果_V1(新变量 = {}) {
   const 新数据 = 读取事件变量数据根_V1(新变量);
   Object.values(新数据?.char || {}).forEach(角色数据 => {
@@ -19117,6 +19145,7 @@ async function 注册魂技年限与突破事件_V1() {
     globalThis.__LWCS_魂技年限事件已注册__ = true;
     监听函数(事件名, (新变量, 旧变量) => {
       固化本轮魂环年限变化_V1(新变量, 旧变量);
+      清理到期炸环恢复标记_V1(新变量);
       同步七九辅助魂技基础效果_V1(新变量);
       处理七字武魂八十级突破更新_V1(新变量, 旧变量);
     });

@@ -9948,7 +9948,6 @@
       safeSkill['消耗'] = normalized.cost;
       delete safeSkill['加成属性'];
       safeSkill['主定位'] = normalized.mainRole;
-      delete safeSkill['标签'];
       safeSkill['画面描述'] = normalized.visualDesc;
       safeSkill['效果描述'] = normalized.effectDesc;
       if ('描述' in safeSkill || (previewMeta && ['art', '武魂融合技'].includes(previewMeta.scope))) safeSkill['描述'] = normalized.effectDesc;
@@ -10094,9 +10093,8 @@
       const basePath = Array.isArray(options && options.basePath) ? options.basePath : [];
       const category = normalizeSkillUiText(options && options.category, '技能');
       const scope = normalizeSkillUiText(options && options.scope, 'skill');
-        const skills = safeEntries(skillObj).map(([rawName, skill]) => {
-          const effectArray = Array.isArray(skill && skill['_效果数组']) ? skill['_效果数组'] : [];
-          const tacticalTags = Array.isArray(deepGet(skill, '战斗语义.战术标签', [])) ? deepGet(skill, '战斗语义.战术标签', []) : [];
+      const skills = safeEntries(skillObj).map(([rawName, skill]) => {
+        const effectArray = Array.isArray(skill && skill['_效果数组']) ? skill['_效果数组'] : [];
         const systemBase = effectArray.find(effect => toText(effect && effect['机制'], '').trim() === '系统基础') || {};
         const draft = readSkillDesignerDraft(skill, rawName);
         const effectCount = effectArray.filter(effect => {
@@ -10136,12 +10134,9 @@
 if (clash && clash['基础威力倍率'] > 0) desc += `${desc ? '<br/>' : ''}<span class="skill-effect-tag skill-effect-tag--power">[威力倍率: ${clash['基础威力倍率']}% | 伤害类型: ${clash['伤害类型'] || '无'} | 护盾: ${clash['护盾绝对值'] || 0}]</span>`;
 if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<span class="skill-effect-tag skill-effect-tag--state">[附加状态: ${state['状态名称']} | 机制: ${state['特殊机制标识'] || '无'} | 持续: ${state['持续回合']}回]</span>`;
         const tags = Array.from(new Set(
-          tacticalTags.map(tag => normalizeSkillUiText(tag, ''))
-            .concat(
-              effectArray
-                .map(effect => normalizeSkillUiText(effect && effect['机制'], ''))
-                .filter(name => name && name !== '系统基础' && !SKILL_SUMMARY_EFFECT_MECHANISM_SET.has(name))
-            )
+          effectArray
+            .map(effect => normalizeSkillUiText(effect && effect['机制'], ''))
+            .filter(name => name && name !== '系统基础' && !SKILL_SUMMARY_EFFECT_MECHANISM_SET.has(name))
             .concat(type && type !== '未知' ? [type] : [])
             .concat(mainRole && mainRole !== '未知' ? [mainRole] : [])
             .concat(draft.primaryMain ? [draft.primaryMain] : [])
