@@ -1,0 +1,459 @@
+    ]);
+    const WUXING_ATTRIBUTE_TOKEN_OPTIONS = Object.freeze(['金', '木', '水', '火', '土']);
+    const STATUS_ACTION_RUNTIME_OPTIONS = Object.freeze([
+      '日常',
+      '冥想',
+      '睡眠',
+      '战斗',
+      '肉体训练',
+      '精神训练',
+    ]);
+    const RING_COLOR_META = Object.freeze({
+      white: Object.freeze({ label: '白', glyph: '白', aliases: ['白色'] }),
+      yellow: Object.freeze({ label: '黄', glyph: '黄', aliases: ['黄色'] }),
+      purple: Object.freeze({ label: '紫', glyph: '紫', aliases: ['紫色'] }),
+      black: Object.freeze({ label: '黑', glyph: '黑', aliases: ['黑色'] }),
+      red: Object.freeze({ label: '红', glyph: '红', aliases: ['红色'] }),
+      gold: Object.freeze({ label: '金', glyph: '金', aliases: ['金色'] }),
+      orangegold: Object.freeze({ label: '橙金', glyph: '橙', aliases: ['橙', '橙色', '橙金色'] }),
+      whitegold: Object.freeze({ label: '白金', glyph: '铂', aliases: ['白金色', '铂金'] }),
+      silver: Object.freeze({ label: '银', glyph: '银', aliases: ['银色', '白银'] }),
+      frostsilver: Object.freeze({ label: '霜银', glyph: '霜', aliases: ['霜银色'] }),
+      moonwhite: Object.freeze({ label: '月白', glyph: '月', aliases: ['月白色'] }),
+      iceblue: Object.freeze({ label: '冰蓝', glyph: '冰', aliases: ['冰蓝色', '冰青'] }),
+      starblue: Object.freeze({ label: '星蓝', glyph: '星', aliases: ['星蓝色', '湛蓝'] }),
+      cyan: Object.freeze({ label: '青', glyph: '青', aliases: ['青色', '天青'] }),
+      teal: Object.freeze({ label: '海青', glyph: '海', aliases: ['海青色', '青碧'] }),
+      jade: Object.freeze({ label: '碧玉', glyph: '碧', aliases: ['碧', '玉色', '青玉'] }),
+      emerald: Object.freeze({ label: '翡翠', glyph: '翠', aliases: ['翡翠色', '翠绿', '翠色'] }),
+      'green-gold': Object.freeze({ label: '绿金', glyph: '绿', aliases: ['绿金色', '翠金', '苍翠金'] }),
+      'blue-gold': Object.freeze({ label: '蓝金', glyph: '蓝', aliases: ['蓝金色', '青金', '海金'] }),
+      'purple-gold': Object.freeze({ label: '紫金', glyph: '鎏', aliases: ['紫金色'] }),
+      'scarlet-gold': Object.freeze({ label: '赤金', glyph: '赤', aliases: ['赤金色', '绯金'] }),
+      'rose-gold': Object.freeze({ label: '玫金', glyph: '玫', aliases: ['玫金色', '玫瑰金'] }),
+      'amber-gold': Object.freeze({ label: '琥珀金', glyph: '琥', aliases: ['琥珀金色', '蜜金'] }),
+      'obsidian-gold': Object.freeze({ label: '曜黑金', glyph: '曜', aliases: ['曜黑金色', '黑金', '玄金'] }),
+      aurora: Object.freeze({ label: '极光', glyph: '极', aliases: ['极光色'] }),
+      rainbow: Object.freeze({ label: '虹彩', glyph: '虹', aliases: ['虹彩色', '七彩', '幻彩'] }),
+      crimson: Object.freeze({ label: '绯红', glyph: '绯', aliases: ['绯红色', '猩红', '血红'] }),
+    });
+    const RING_COLOR_OPTIONS = Object.freeze(Object.values(RING_COLOR_META).map(meta => meta.label));
+    const RING_COLOR_ALIAS_MAP = Object.freeze(
+      Object.entries(RING_COLOR_META).reduce((bucket, [key, meta]) => {
+        [meta.label, ...(Array.isArray(meta.aliases) ? meta.aliases : [])].forEach(alias => {
+          const label = toText(alias, '').trim();
+          if (label) bucket[label] = key;
+        });
+        return bucket;
+      }, {})
+    );
+
+    function normalizeSpiritAttributeTokenList(value = []) {
+      'blue-gold': Object.freeze({ label: '蓝金', glyph: '蓝', aliases: ['蓝金色', '青金', '海金'] }),
+      'purple-gold': Object.freeze({ label: '紫金', glyph: '鎏', aliases: ['紫金色'] }),
+      'scarlet-gold': Object.freeze({ label: '赤金', glyph: '赤', aliases: ['赤金色', '绯金'] }),
+      'rose-gold': Object.freeze({ label: '玫金', glyph: '玫', aliases: ['玫金色', '玫瑰金'] }),
+      'amber-gold': Object.freeze({ label: '琥珀金', glyph: '琥', aliases: ['琥珀金色', '蜜金'] }),
+      'obsidian-gold': Object.freeze({ label: '曜黑金', glyph: '曜', aliases: ['曜黑金色', '黑金', '玄金'] }),
+      aurora: Object.freeze({ label: '极光', glyph: '极', aliases: ['极光色'] }),
+      rainbow: Object.freeze({ label: '虹彩', glyph: '虹', aliases: ['虹彩色', '七彩', '幻彩'] }),
+      crimson: Object.freeze({ label: '绯红', glyph: '绯', aliases: ['绯红色', '猩红', '血红'] }),
+    });
+    const RING_COLOR_OPTIONS = Object.freeze(Object.values(RING_COLOR_META).map(meta => meta.label));
+    const RING_COLOR_ALIAS_MAP = Object.freeze(
+      Object.entries(RING_COLOR_META).reduce((bucket, [key, meta]) => {
+        [meta.label, ...(Array.isArray(meta.aliases) ? meta.aliases : [])].forEach(alias => {
+          const label = toText(alias, '').trim();
+          if (label) bucket[label] = key;
+        });
+        return bucket;
+      }, {})
+    );
+
+    function normalizeSpiritAttributeTokenList(value = []) {
+      return normalizeEditorStringList(value).filter(token => SPIRIT_ATTRIBUTE_TOKEN_OPTIONS.includes(token));
+    }
+
+    function resolveSpiritAttributeUiState(spiritData = {}) {
+      const rawSystem = normalizeSkillUiText(spiritData && spiritData['属性体系'], '无');
+      const attributeSystem = SPIRIT_ATTRIBUTE_SYSTEM_OPTIONS.includes(rawSystem) ? rawSystem : '无';
+      const unlockedAttrs = normalizeSpiritAttributeTokenList(spiritData && spiritData['已解锁属性']);
+      let capacityAttrs = normalizeSpiritAttributeTokenList(spiritData && spiritData['可容纳属性']);
+      if (!capacityAttrs.length) {
+        if (attributeSystem === '五行') capacityAttrs = [...WUXING_ATTRIBUTE_TOKEN_OPTIONS];
+        else if (attributeSystem === '元素' && unlockedAttrs.length) capacityAttrs = [...unlockedAttrs];
+      }
+      return {
+        attributeSystem,
+        unlockedAttrs,
+        capacityAttrs,
+      };
+    }
+
+    function resolveArmorPartData(armor, slotLabel) {
+      const source = armor && typeof armor === 'object' ? armor : {};
+      const aliasMap = {
+        '头盔': ['头盔', '头部', 'helmet'],
+        '胸铠': ['胸铠', '胸甲', 'chest'],
+        '左肩': ['左肩', '肩甲左', 'left_shoulder'],
+        '右肩': ['右肩', '肩甲右', 'right_shoulder'],
+        '左臂': ['左臂', '臂甲左', 'left_arm'],
+        '右臂': ['右臂', '臂甲右', 'right_arm'],
+        '左腿': ['左腿', '腿甲左', 'left_leg'],
+      'purple-gold': Object.freeze({ label: '紫金', glyph: '鎏', aliases: ['紫金色'] }),
+      'scarlet-gold': Object.freeze({ label: '赤金', glyph: '赤', aliases: ['赤金色', '绯金'] }),
+      'rose-gold': Object.freeze({ label: '玫金', glyph: '玫', aliases: ['玫金色', '玫瑰金'] }),
+      'amber-gold': Object.freeze({ label: '琥珀金', glyph: '琥', aliases: ['琥珀金色', '蜜金'] }),
+      'obsidian-gold': Object.freeze({ label: '曜黑金', glyph: '曜', aliases: ['曜黑金色', '黑金', '玄金'] }),
+      aurora: Object.freeze({ label: '极光', glyph: '极', aliases: ['极光色'] }),
+      rainbow: Object.freeze({ label: '虹彩', glyph: '虹', aliases: ['虹彩色', '七彩', '幻彩'] }),
+      crimson: Object.freeze({ label: '绯红', glyph: '绯', aliases: ['绯红色', '猩红', '血红'] }),
+    });
+    const RING_COLOR_OPTIONS = Object.freeze(Object.values(RING_COLOR_META).map(meta => meta.label));
+    const RING_COLOR_ALIAS_MAP = Object.freeze(
+      Object.entries(RING_COLOR_META).reduce((bucket, [key, meta]) => {
+        [meta.label, ...(Array.isArray(meta.aliases) ? meta.aliases : [])].forEach(alias => {
+          const label = toText(alias, '').trim();
+          if (label) bucket[label] = key;
+        });
+        return bucket;
+      }, {})
+    );
+
+    function normalizeSpiritAttributeTokenList(value = []) {
+      return normalizeEditorStringList(value).filter(token => SPIRIT_ATTRIBUTE_TOKEN_OPTIONS.includes(token));
+    }
+
+    function resolveSpiritAttributeUiState(spiritData = {}) {
+      const rawSystem = normalizeSkillUiText(spiritData && spiritData['属性体系'], '无');
+      const attributeSystem = SPIRIT_ATTRIBUTE_SYSTEM_OPTIONS.includes(rawSystem) ? rawSystem : '无';
+      const unlockedAttrs = normalizeSpiritAttributeTokenList(spiritData && spiritData['已解锁属性']);
+      let capacityAttrs = normalizeSpiritAttributeTokenList(spiritData && spiritData['可容纳属性']);
+      if (!capacityAttrs.length) {
+        if (attributeSystem === '五行') capacityAttrs = [...WUXING_ATTRIBUTE_TOKEN_OPTIONS];
+        else if (attributeSystem === '元素' && unlockedAttrs.length) capacityAttrs = [...unlockedAttrs];
+      }
+      return {
+        attributeSystem,
+        unlockedAttrs,
+        capacityAttrs,
+      };
+    }
+
+    function resolveArmorPartData(armor, slotLabel) {
+      const source = armor && typeof armor === 'object' ? armor : {};
+      const aliasMap = {
+        '头盔': ['头盔', '头部', 'helmet'],
+        '胸铠': ['胸铠', '胸甲', 'chest'],
+        '左肩': ['左肩', '肩甲左', 'left_shoulder'],
+        '右肩': ['右肩', '肩甲右', 'right_shoulder'],
+        '左臂': ['左臂', '臂甲左', 'left_arm'],
+        '右臂': ['右臂', '臂甲右', 'right_arm'],
+        '左腿': ['左腿', '腿甲左', 'left_leg'],
+        '右腿': ['右腿', '腿甲右', 'right_leg'],
+      'scarlet-gold': Object.freeze({ label: '赤金', glyph: '赤', aliases: ['赤金色', '绯金'] }),
+      'rose-gold': Object.freeze({ label: '玫金', glyph: '玫', aliases: ['玫金色', '玫瑰金'] }),
+      'amber-gold': Object.freeze({ label: '琥珀金', glyph: '琥', aliases: ['琥珀金色', '蜜金'] }),
+      'obsidian-gold': Object.freeze({ label: '曜黑金', glyph: '曜', aliases: ['曜黑金色', '黑金', '玄金'] }),
+      aurora: Object.freeze({ label: '极光', glyph: '极', aliases: ['极光色'] }),
+      rainbow: Object.freeze({ label: '虹彩', glyph: '虹', aliases: ['虹彩色', '七彩', '幻彩'] }),
+      crimson: Object.freeze({ label: '绯红', glyph: '绯', aliases: ['绯红色', '猩红', '血红'] }),
+    });
+    const RING_COLOR_OPTIONS = Object.freeze(Object.values(RING_COLOR_META).map(meta => meta.label));
+    const RING_COLOR_ALIAS_MAP = Object.freeze(
+      Object.entries(RING_COLOR_META).reduce((bucket, [key, meta]) => {
+        [meta.label, ...(Array.isArray(meta.aliases) ? meta.aliases : [])].forEach(alias => {
+          const label = toText(alias, '').trim();
+          if (label) bucket[label] = key;
+        });
+        return bucket;
+      }, {})
+    );
+
+    function normalizeSpiritAttributeTokenList(value = []) {
+      return normalizeEditorStringList(value).filter(token => SPIRIT_ATTRIBUTE_TOKEN_OPTIONS.includes(token));
+    }
+
+    function resolveSpiritAttributeUiState(spiritData = {}) {
+      const rawSystem = normalizeSkillUiText(spiritData && spiritData['属性体系'], '无');
+      const attributeSystem = SPIRIT_ATTRIBUTE_SYSTEM_OPTIONS.includes(rawSystem) ? rawSystem : '无';
+      const unlockedAttrs = normalizeSpiritAttributeTokenList(spiritData && spiritData['已解锁属性']);
+      let capacityAttrs = normalizeSpiritAttributeTokenList(spiritData && spiritData['可容纳属性']);
+      if (!capacityAttrs.length) {
+        if (attributeSystem === '五行') capacityAttrs = [...WUXING_ATTRIBUTE_TOKEN_OPTIONS];
+        else if (attributeSystem === '元素' && unlockedAttrs.length) capacityAttrs = [...unlockedAttrs];
+      }
+      return {
+        attributeSystem,
+        unlockedAttrs,
+        capacityAttrs,
+      };
+    }
+
+    function resolveArmorPartData(armor, slotLabel) {
+      const source = armor && typeof armor === 'object' ? armor : {};
+      const aliasMap = {
+        '头盔': ['头盔', '头部', 'helmet'],
+        '胸铠': ['胸铠', '胸甲', 'chest'],
+        '左肩': ['左肩', '肩甲左', 'left_shoulder'],
+        '右肩': ['右肩', '肩甲右', 'right_shoulder'],
+        '左臂': ['左臂', '臂甲左', 'left_arm'],
+        '右臂': ['右臂', '臂甲右', 'right_arm'],
+        '左腿': ['左腿', '腿甲左', 'left_leg'],
+        '右腿': ['右腿', '腿甲右', 'right_leg'],
+        '战裙': ['战裙', '裙甲', 'skirt'],
+      return '未定';
+    }
+
+    function shortenText(value, max = 18) {
+      const text = toText(value, '');
+      if (!text) return '';
+      return text.length > max ? `${text.slice(0, Math.max(1, max - 1))}…` : text;
+    }
+
+    function getRingColorKey(color = '') {
+      return RING_COLOR_ALIAS_MAP[toText(color, '').trim()] || '';
+    }
+
+    function resolveRingTier(color, age, options = {}) {
+      const key = getRingColorKey(color);
+      const years = toNumber(age, NaN);
+      const forceGold = !!(options && options.forceGold);
+
+      if (forceGold) return 'gold';
+      if (key) return key;
+
+      if (Number.isFinite(years) && years > 0) {
+        if (years >= 200000) return 'orangegold';
+        if (years >= 100000) return 'red';
+        if (years >= 10000) return 'black';
+        if (years >= 1000) return 'purple';
+        if (years >= 100) return 'yellow';
+        return 'white';
+      }
+      return 'white';
+    }
+
+    function mapRingClass(color, age, options = {}) {
+      return `ring-${resolveRingTier(color, age, options)}`;
+    }
+
+    function getRingDisplayColorLabel(color, age, options = {}) {
+      const directKey = getRingColorKey(color);
+      if (directKey && RING_COLOR_META[directKey]) return RING_COLOR_META[directKey].label;
+      const tier = resolveRingTier(color, age, options);
+      return RING_COLOR_META[tier] ? RING_COLOR_META[tier].label : normalizeSkillUiText(color, '未定');
+    }
+
+    function ringGlyph(color, index, age, options = {}) {
+      const tier = resolveRingTier(color, age, options);
+      const directKey = getRingColorKey(color);
+      const resolvedKey = directKey || tier;
+      return (RING_COLOR_META[resolvedKey] && RING_COLOR_META[resolvedKey].glyph) || String(index || '环');
+    }
+
+    function getMvuHost() {
+      }
+      return 'white';
+    }
+
+    function mapRingClass(color, age, options = {}) {
+      return `ring-${resolveRingTier(color, age, options)}`;
+    }
+
+    function getRingDisplayColorLabel(color, age, options = {}) {
+      const directKey = getRingColorKey(color);
+      if (directKey && RING_COLOR_META[directKey]) return RING_COLOR_META[directKey].label;
+      const tier = resolveRingTier(color, age, options);
+      return RING_COLOR_META[tier] ? RING_COLOR_META[tier].label : normalizeSkillUiText(color, '未定');
+    }
+
+    function ringGlyph(color, index, age, options = {}) {
+      const tier = resolveRingTier(color, age, options);
+      const directKey = getRingColorKey(color);
+      const resolvedKey = directKey || tier;
+      return (RING_COLOR_META[resolvedKey] && RING_COLOR_META[resolvedKey].glyph) || String(index || '环');
+    }
+
+    function getMvuHost() {
+      const candidates = [];
+      const bridgedHost = ensureBridgedMvuHost();
+      if (bridgedHost) candidates.push(bridgedHost);
+      try {
+        if (window.Mvu) candidates.push(window.Mvu);
+      } catch (err) {}
+      try {
+        if (window.top && window.top !== window && window.top.Mvu) candidates.push(window.top.Mvu);
+      } catch (err) {}
+      try {
+        if (typeof Mvu !== 'undefined' && Mvu) candidates.push(Mvu);
+      } catch (err) {}
+      return candidates.find(item => item) || null;
+    }
+
+    function collectMvuProviderCandidates() {
+      const providers = [];
+      const seen = new Set();
+      const pushProvider = (label, candidate) => {
+        if (!candidate || (typeof candidate !== 'object' && typeof candidate !== 'function')) return;
+        if (seen.has(candidate)) return;
+        const hasRead =
+          typeof candidate.getAllVariables === 'function' ||
+          typeof candidate.getVariables === 'function' ||
+          typeof candidate.getMvuData === 'function';
+        const hasWrite =
+          typeof candidate.replaceVariables === 'function' ||
+          typeof candidate.replaceMvuData === 'function';
+    }
+
+    function mapRingClass(color, age, options = {}) {
+      return `ring-${resolveRingTier(color, age, options)}`;
+    }
+
+    function getRingDisplayColorLabel(color, age, options = {}) {
+      const directKey = getRingColorKey(color);
+      if (directKey && RING_COLOR_META[directKey]) return RING_COLOR_META[directKey].label;
+      const tier = resolveRingTier(color, age, options);
+      return RING_COLOR_META[tier] ? RING_COLOR_META[tier].label : normalizeSkillUiText(color, '未定');
+    }
+
+    function ringGlyph(color, index, age, options = {}) {
+      const tier = resolveRingTier(color, age, options);
+      const directKey = getRingColorKey(color);
+      const resolvedKey = directKey || tier;
+      return (RING_COLOR_META[resolvedKey] && RING_COLOR_META[resolvedKey].glyph) || String(index || '环');
+    }
+
+    function getMvuHost() {
+      const candidates = [];
+      const bridgedHost = ensureBridgedMvuHost();
+      if (bridgedHost) candidates.push(bridgedHost);
+      try {
+        if (window.Mvu) candidates.push(window.Mvu);
+      } catch (err) {}
+      try {
+        if (window.top && window.top !== window && window.top.Mvu) candidates.push(window.top.Mvu);
+      } catch (err) {}
+      try {
+        if (typeof Mvu !== 'undefined' && Mvu) candidates.push(Mvu);
+      } catch (err) {}
+      return candidates.find(item => item) || null;
+    }
+
+    function collectMvuProviderCandidates() {
+      const providers = [];
+      const seen = new Set();
+      const pushProvider = (label, candidate) => {
+        if (!candidate || (typeof candidate !== 'object' && typeof candidate !== 'function')) return;
+        if (seen.has(candidate)) return;
+        const hasRead =
+          typeof candidate.getAllVariables === 'function' ||
+          typeof candidate.getVariables === 'function' ||
+          typeof candidate.getMvuData === 'function';
+        const hasWrite =
+          typeof candidate.replaceVariables === 'function' ||
+          typeof candidate.replaceMvuData === 'function';
+        if (!hasRead || !hasWrite) return;
+        seen.add(candidate);
+      const directKey = getRingColorKey(color);
+      if (directKey && RING_COLOR_META[directKey]) return RING_COLOR_META[directKey].label;
+      const tier = resolveRingTier(color, age, options);
+      return RING_COLOR_META[tier] ? RING_COLOR_META[tier].label : normalizeSkillUiText(color, '未定');
+    }
+
+    function ringGlyph(color, index, age, options = {}) {
+      const tier = resolveRingTier(color, age, options);
+      const directKey = getRingColorKey(color);
+      const resolvedKey = directKey || tier;
+      return (RING_COLOR_META[resolvedKey] && RING_COLOR_META[resolvedKey].glyph) || String(index || '环');
+    }
+
+    function getMvuHost() {
+      const candidates = [];
+      const bridgedHost = ensureBridgedMvuHost();
+      if (bridgedHost) candidates.push(bridgedHost);
+      try {
+        if (window.Mvu) candidates.push(window.Mvu);
+      } catch (err) {}
+      try {
+        if (window.top && window.top !== window && window.top.Mvu) candidates.push(window.top.Mvu);
+      } catch (err) {}
+      try {
+        if (typeof Mvu !== 'undefined' && Mvu) candidates.push(Mvu);
+      } catch (err) {}
+      return candidates.find(item => item) || null;
+    }
+
+    function collectMvuProviderCandidates() {
+      const providers = [];
+      const seen = new Set();
+      const pushProvider = (label, candidate) => {
+        if (!candidate || (typeof candidate !== 'object' && typeof candidate !== 'function')) return;
+        if (seen.has(candidate)) return;
+        const hasRead =
+          typeof candidate.getAllVariables === 'function' ||
+          typeof candidate.getVariables === 'function' ||
+          typeof candidate.getMvuData === 'function';
+        const hasWrite =
+          typeof candidate.replaceVariables === 'function' ||
+          typeof candidate.replaceMvuData === 'function';
+        if (!hasRead || !hasWrite) return;
+        seen.add(candidate);
+        providers.push({ label, candidate });
+      };
+
+      try { pushProvider('当前窗口', window); } catch (err) {}
+      try {
+        if (window.parent && window.parent !== window) pushProvider('父窗口', window.parent);
+      } catch (err) {}
+      };
+    }
+
+    function buildRingHoverMetaMarkup(ring) {
+      const rows = [];
+      const colorMarkup = ring && Array.isArray(ring.path) && ring.path.length
+        ? makeInlineEditableValue(toText(ring.colorText, '未定'), {
+            path: [...ring.path, '颜色'],
+            kind: 'enum_select',
+            rawValue: toText(ring.colorValue, toText(ring.colorText, '未定')),
+            editorMeta: { options: RING_COLOR_OPTIONS }
+          })
+        : htmlEscape(toText(ring && ring.colorText, '未定'));
+      rows.push(`<div class="ring-hover-meta-row"><em>颜色</em><strong>${colorMarkup}</strong></div>`);
+      rows.push(`<div class="ring-hover-meta-row"><em>年限</em><strong>${htmlEscape(toText(ring && ring.ageText, '未定'))}</strong></div>`);
+      if (ring && ring.carrierText) {
+        rows.push(`<div class="ring-hover-meta-row"><em>承载</em><strong>${htmlEscape(toText(ring.carrierText, '未定'))}</strong></div>`);
+      }
+      if ((ring && ring.sourcePath && ring.sourcePath.length) || (ring && ring.sourceText)) {
+        const sourceMarkup = ring && ring.sourcePath && ring.sourcePath.length
+          ? makeInlineEditableValue(toText(ring.sourceText, '未记录'), {
+              path: ring.sourcePath,
+              kind: 'string',
+              rawValue: toText(ring.sourceValue, toText(ring.sourceText, '未记录')),
+            })
+          : htmlEscape(toText(ring && ring.sourceText, '未记录'));
+        rows.push(`<div class="ring-hover-meta-row"><em>来源</em><strong>${sourceMarkup}</strong></div>`);
+      }
+      return rows.length ? `<div class="ring-hover-meta">${rows.join('')}</div>` : '';
+    }
+
+    function buildRingHoverCardMarkup(ring) {
+      const skills = (ring && Array.isArray(ring.skills) ? ring.skills : []).map(skill => `
+        <div class=\"ring-hover-skill ${skill && skill.preview ? 'clickable' : ''}\"${skill && skill.preview ? ` data-preview=\"${escapeHtmlAttr(skill.preview)}\"` : ''}>
+          <b>${htmlEscape(skill && skill.name ? skill.name : '未命名技能')}</b>
+          <div class=\"ring-hover-copy\"><em>画面描述</em><span>${htmlEscape(skill && skill.visualDesc ? skill.visualDesc : '未知')}</span></div>
+          <div class=\"ring-hover-copy\"><em>效果描述</em><span>${htmlEscape(skill && skill.effectDesc ? skill.effectDesc : '未知')}</span></div>
+          ${skill && skill.constructActionHtml ? skill.constructActionHtml : ''}
+        </div>
+      `).join('');
+      return `<div class=\"ring-hover-card\"><div class=\"ring-hover-title\">${htmlEscape(toText(ring && ring.title, '魂环技能'))}</div><div class=\"ring-hover-desc\">${htmlEscape(toText(ring && ring.desc, ''))}</div>${buildRingHoverMetaMarkup(ring)}${skills}</div>`;
+    }
+
+    function buildSpiritConfig(slotName, spiritData, previewKey, badgeText, badgeClass, spiritBasePath = []) {
+      const spiritPath = Array.isArray(spiritBasePath) ? spiritBasePath : [];
+      const soulEntries = safeEntries(spiritData && spiritData.魂灵);
+      const summaryRings = [];
+      const souls = soulEntries.map(([soulName, soulData]) => {
+        const soulPath = [...spiritPath, '魂灵', soulName];
+        const soulDisplayName = normalizeSkillUiText(soulData && soulData['表象名称'], soulName);
+        const ringEntries = safeEntries(soulData && soulData.魂环)
