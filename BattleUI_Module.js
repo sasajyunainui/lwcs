@@ -1762,7 +1762,7 @@ class BattleUIComponent {
       actions.push(
         { id: 'basic_attack', name: '普通攻击', type: 'tactical', action_type: '常规攻击', category: '战术', cast_time: 10, cost_text: '无', enabled: true, skill: { name: '普通攻击' } },
         { id: 'guard', name: '防御', type: 'tactical', action_type: '防御', category: '战术', cast_time: 10, cost_text: '无', enabled: true, skill: { name: '防御' } },
-        { id: 'evade', name: '闪避', type: 'tactical', action_type: '闪避', category: '战术', cast_time: 12, cost_text: '体力', enabled: true, skill: { name: '闪避' } },
+        { id: 'evade', name: '闪避', type: 'tactical', action_type: '闪避', category: '战术', cast_time: 12, cost_text: '体力:5%', enabled: true, skill: { name: '闪避', 消耗: '体力:5%' } },
         { id: 'flee', name: '撤离', type: 'tactical', action_type: '撤离', category: '战术', cast_time: 20, cost_text: '无', enabled: true, skill: { name: '撤离' } },
       );
       return actions;
@@ -1799,9 +1799,11 @@ class BattleUIComponent {
       const resolvedTargetName = resolveIntentTargetNameFromAction(safeAction, combatData);
       const queue = [{
         type: safeAction.action_type || safeAction.type || '常规攻击',
+        action_type: safeAction.action_type || safeAction.type || '常规攻击',
         skill: safeAction.raw_skill || safeAction.skill || { name: safeAction.name || '普通攻击' },
         cast_time: fallbackNumber(safeAction.cast_time, 10),
         target_name: resolvedTargetName,
+        前摇已结算: safeAction.前摇已结算 === true,
       }];
       return `${safeAction.name || '普通攻击'}\n[动作队列]${JSON.stringify(queue)}[/动作队列]\n[目标]${resolvedTargetName || '对手'}[/目标]`;
     }
@@ -2652,7 +2654,83 @@ class BattleUIComponent {
     }
 
     function getSoulDriveScale(attacker, defender) {
-      return Math.max(1, attacker?.sp_max || 1) / Math.max(1, defender?.sp_max || 1);
+      const 攻方魂力上限 = Math.max(1, Number(attacker?.sp_max || attacker?.魂力上限 || 1));
+      const 守方魂力上限 = Math.max(1, Number(defender?.sp_max || defender?.魂力上限 || 1));
+      const 原始倍率 = 攻方魂力上限 / 守方魂力上限;
+      const 柔化倍率 = Math.pow(原始倍率, 0.55);
+      return Math.max(0.55, Math.min(1.85, 柔化倍率));
+    }
+
+    function 读取单位战斗效果列表(单位 = {}) {
+      if (!单位?.状态效果 || typeof 单位.状态效果 !== 'object') return [];
+      return Object.values(单位.状态效果)
+        .map(状态 => 状态?.战斗效果 || {})
+        .filter(战斗效果 => 战斗效果 && typeof 战斗效果 === 'object');
+    }
+
+    function 读取状态穿透比例(战斗效果列表 = []) {
+      return 战斗效果列表.reduce((总和, 战斗效果) => {
+        const 原始值 = Number(战斗效果?.armor_pen || 0);
+        return 总和 + (Math.abs(原始值) <= 1 ? 原始值 * 100 : 原始值);
+      }, 0);
+    }
+
+    function 计算有效穿透比例(技能穿透 = 0, 状态穿透 = 0) {
+      const 原始穿透 = Math.max(0, Number(技能穿透 || 0) + Number(状态穿透 || 0));
+      if (原始穿透 <= 70) return 原始穿透;
+      return Math.min(92, 70 + (原始穿透 - 70) * 0.35);
+    }
+
+    function 计算穿透后防御值(基础防御 = 1, 技能穿透 = 0, 状态穿透 = 0) {
+      const 有效穿透 = 计算有效穿透比例(技能穿透, 状态穿透);
+      return Math.max(1, Number(基础防御 || 1) * (1 - 有效穿透 / 100));
+    }
+
+    function 计算有效闪避加值(原始加值 = 0) {
+      const 数值 = Number(原始加值 || 0);
+      if (!(数值 > 0)) return 数值;
+      if (数值 <= 0.25) return 数值;
+      return Math.min(0.45, 0.25 + (数值 - 0.25) * 0.4);
+    }
+
+    function 获取施法消耗倍率(单位 = {}) {
+      const 战斗效果列表 = 读取单位战斗效果列表(单位);
+      return 战斗效果列表.reduce((倍率, 战斗效果) => {
+        const 显式倍率 = Number(战斗效果?.cost_ratio || 1);
+        const 资源封锁倍率 = 1 + Math.max(0, Number(战斗效果?.resource_block_ratio || 0));
+        return Math.max(倍率, Number.isFinite(显式倍率) && 显式倍率 > 0 ? 显式倍率 : 1, 资源封锁倍率);
+      }, 1);
+    }
+
+    function 获取动作前摇倍率(单位 = {}) {
+      const 战斗效果列表 = 读取单位战斗效果列表(单位);
+      const 速度加成 = 战斗效果列表.reduce((总和, 战斗效果) => 总和 + Number(战斗效果?.cast_speed_bonus || 0), 0);
+      const 速度惩罚 = 战斗效果列表.reduce((总和, 战斗效果) => 总和 + Number(战斗效果?.cast_speed_penalty || 0), 0);
+      const 直接倍率 = 战斗效果列表.reduce((倍率, 战斗效果) => {
+        const 前摇倍率 = Number(战斗效果?.windup_ratio || 1);
+        return Number.isFinite(前摇倍率) && 前摇倍率 > 0 ? 倍率 * 前摇倍率 : 倍率;
+      }, 1);
+      const 合成倍率 = 直接倍率 * (1 - 速度加成 + 速度惩罚);
+      return Math.max(0.25, Math.min(3, 合成倍率));
+    }
+
+    function 套用动作实际前摇(单位, 动作) {
+      if (!动作 || typeof 动作 !== 'object' || 动作.前摇已结算 === true) return 动作;
+      const 基础前摇 = Number(动作.cast_time ?? 动作.skill?.cast_time ?? 0) || 0;
+      if (!(基础前摇 > 0)) {
+        动作.前摇已结算 = true;
+        return 动作;
+      }
+      const 前摇倍率 = 获取动作前摇倍率(单位);
+      动作.cast_time = Math.max(1, Math.round(基础前摇 * 前摇倍率));
+      动作.前摇已结算 = true;
+      return 动作;
+    }
+
+    function 套用动作队列实际前摇(单位, 动作) {
+      if (!动作 || typeof 动作 !== 'object') return 动作;
+      if (Array.isArray(动作.pre_actions)) 动作.pre_actions.forEach(副动作 => 套用动作实际前摇(单位, 副动作));
+      return 套用动作实际前摇(单位, 动作);
     }
 
     function isSupportLikeSkill(skill) {
@@ -2704,6 +2782,8 @@ class BattleUIComponent {
         heal_block_ratio: 0,
         hot_heal_ratio: 0,
         resource_block_ratio: 0,
+        cost_ratio: 1.0,
+        windup_ratio: 1.0,
         random_target_rate: 0,
         stealth_level: 0,
         min_hp_floor: 0,
@@ -2738,7 +2818,7 @@ class BattleUIComponent {
           result[key] = !!result[key] || !!value;
           return;
         }
-        if (['control_resist_mult', 'final_damage_mult', 'final_heal_mult', 'shield_gain_mult'].includes(key)) {
+        if (['control_resist_mult', 'final_damage_mult', 'final_heal_mult', 'shield_gain_mult', 'cost_ratio', 'windup_ratio'].includes(key)) {
           result[key] = Number(result[key] ?? 1) * Number(value ?? 1);
           return;
         }
@@ -3396,7 +3476,7 @@ class BattleUIComponent {
         },
       );
 
-      ['final_damage_mult', 'final_heal_mult', 'shield_gain_mult', 'control_resist_mult'].forEach(key => {
+      ['final_damage_mult', 'final_heal_mult', 'shield_gain_mult', 'control_resist_mult', 'cost_ratio', 'windup_ratio'].forEach(key => {
         if (next[key] !== undefined) next[key] = scaleBattleFactor(next[key], ratio, 1);
       });
 
@@ -5448,12 +5528,17 @@ class BattleUIComponent {
 
       const hasSystemBaseEffect = normalized._效果数组.some(effect => effect?.机制 === '系统基础');
       if (!hasSystemBaseEffect) {
+        const 注入目标模型 = normalizeBattleSkillTargetModel(
+          normalized.对象 || explicitSemanticTarget || '敌方单体',
+          '敌方单体',
+        );
         normalized._效果数组.unshift({
           机制: '系统基础',
           技能来源: normalized.技能来源 || normalized.source_tag || '魂技',
-          消耗: '无',
-          目标模型: normalizeBattleSkillTargetModel(normalized.对象 || explicitSemanticTarget || '敌方单体', '敌方单体'),
-          结算策略: deriveBattleTargetResolutionStrategy(normalizeBattleSkillTargetModel(normalized.对象 || explicitSemanticTarget || '敌方单体', '敌方单体')),
+          消耗: normalized.消耗 || '无',
+          对象: normalized.对象 || mapBattleTargetModelToCombatTarget(注入目标模型),
+          目标模型: 注入目标模型,
+          结算策略: deriveBattleTargetResolutionStrategy(注入目标模型),
           技能类型: normalized.技能类型,
           cast_time: normalized.cast_time,
         });
@@ -5723,6 +5808,7 @@ class BattleUIComponent {
           : skill && char && skill.__targetForSupportCost && isSupportLikeSkill(skill)
             ? getSupportCostScale(char, skill.__targetForSupportCost)
             : 1;
+      const statusCostScale = 获取施法消耗倍率(char);
       const rawReqSp = parseResourceCostValue(
         costStr,
         '魂力',
@@ -5741,13 +5827,13 @@ class BattleUIComponent {
         stats.men ?? stats.精神力,
         stats.men_max ?? stats.精神力上限,
       );
-      const reqSp = Math.floor(rawReqSp * costScale);
+      const reqSp = Math.floor(rawReqSp * costScale * statusCostScale);
       const hpRatio =
         Math.max(0, Number(stats.hp ?? stats.HP ?? 0)) /
         Math.max(1, Number(stats.hp_max ?? stats.HP上限 ?? 1));
       const staminaCostScale = hpRatio <= 0.2 ? 2 : 1;
-      const reqVit = Math.floor(rawReqVit * costScale * staminaCostScale);
-      const reqMen = Math.floor(rawReqMen * costScale);
+      const reqVit = Math.floor(rawReqVit * costScale * statusCostScale * staminaCostScale);
+      const reqMen = Math.floor(rawReqMen * costScale * statusCostScale);
       const selfCanCast =
         ((stats.sp ?? stats.魂力) || 0) >= reqSp &&
         ((stats.sta ?? stats.体力 ?? stats.vit) || 0) >= reqVit &&
@@ -5757,7 +5843,7 @@ class BattleUIComponent {
         reqSp,
         reqVit,
         reqMen,
-        costScale,
+        costScale: costScale * statusCostScale,
         canCast: selfCanCast,
         failureReason: selfCanCast ? '' : '自身状态不足',
         partnerCosts: [],
@@ -6269,6 +6355,8 @@ class BattleUIComponent {
           heal_block_ratio: stateModule.计算层效果?.heal_block_ratio ?? 0,
           hot_heal_ratio: stateModule.计算层效果?.hot_heal_ratio ?? 0,
           resource_block_ratio: stateModule.计算层效果?.resource_block_ratio ?? 0,
+          cost_ratio: stateModule.计算层效果?.cost_ratio ?? 1.0,
+          windup_ratio: stateModule.计算层效果?.windup_ratio ?? 1.0,
           stealth_level: stateModule.计算层效果?.stealth_level ?? 0,
           min_hp_floor: stateModule.计算层效果?.min_hp_floor ?? 0,
           death_save_count: stateModule.计算层效果?.death_save_count ?? 0,
@@ -7437,6 +7525,7 @@ class BattleUIComponent {
             }
           } else {
             playerAction = parsePlayerIntent(playerInput);
+            套用动作队列实际前摇(attacker, playerAction);
             if (!visiblePlayerInput) visiblePlayerInput = buildVisibleBattlePlayerInput(playerInput, playerAction, combatData);
 
             // 💥【终极动作序列时间片机制】一回合能做出的总行动上限为 cast_time = 40！
@@ -7474,7 +7563,7 @@ class BattleUIComponent {
 
             // 执行成功挤入本回合时间片的副动作
             validPreActions.forEach(preAct => {
-              let preCostLog = applyActionCost(attacker, preAct);
+              let preCostLog = applyActionCost(attacker, preAct, defender);
               if (preCostLog) roundLog += preCostLog + ' ';
               if (preAct.action_type === '穿戴装备') {
                 const 装备槽 = ensureBattleEquipmentSlot(attacker, preAct.equip_target);
@@ -7493,7 +7582,7 @@ class BattleUIComponent {
               playerAction = { action_type: '蓄力挨打', cast_time: 100, skill: null };
             } else {
               if (playerAction.action_type !== '施法失败') {
-                let costLog = applyActionCost(attacker, playerAction);
+                let costLog = applyActionCost(attacker, playerAction, defender);
                 if (costLog) roundLog += costLog + ' ';
               }
             }
@@ -8011,7 +8100,7 @@ class BattleUIComponent {
         return attackerChar || null;
       }
 
-      function applyActionCost(attackerChar, playerAction) {
+      function applyActionCost(attackerChar, playerAction, defenderChar = null) {
         const stats = attackerChar.属性 || attackerChar;
         const status = attackerChar.状态 || {};
         let log = '';
@@ -8078,6 +8167,9 @@ class BattleUIComponent {
           if (!hasBattleUnlockedAttributeSet(attackerChar, ['水', '火', '风', '土'])) {
             playerAction.action_type = '法则失败';
             log = `[权限不足] 尚未集齐水火风土四基础调用权，无法发动元素剥离！`;
+          } else if (!defenderChar) {
+            playerAction.action_type = '法则失败';
+            log = `[目标丢失] 当前没有可被元素剥离锁定的目标！`;
           } else {
             applyStateToCharacter(
               defenderChar,
@@ -8097,6 +8189,9 @@ class BattleUIComponent {
           if (!hasBattleUnlockedAttributeSet(attackerChar, ['金', '木', '水', '火', '土'])) {
             playerAction.action_type = '法则失败';
             log = `[权限不足] 尚未集齐金木水火土五行调用权，无法发动五行剥离！`;
+          } else if (!defenderChar) {
+            playerAction.action_type = '法则失败';
+            log = `[目标丢失] 当前没有可被五行剥离锁定的目标！`;
           } else {
             applyStateToCharacter(
               defenderChar,
@@ -8716,6 +8811,28 @@ class BattleUIComponent {
           .sort((a, b) => b.shieldValue - a.shieldValue);
       }
 
+      function 读取当前护盾总量(char) {
+        if (!char?.状态效果 || typeof char.状态效果 !== 'object') return 0;
+        return Object.values(char.状态效果).reduce((总量, 状态) => 总量 + Math.max(0, Number(状态?.shield_value || 0)), 0);
+      }
+
+      function 计算护盾软上限(char) {
+        const 生命上限 = Math.max(1, Number(char?.hp_max || char?.HP上限 || char?.vit_max || char?.体力上限 || 1));
+        const 魂力上限 = Math.max(1, Number(char?.sp_max || char?.魂力上限 || 1));
+        return Math.max(300, Math.floor(生命上限 * 1.2 + 魂力上限 * 0.35));
+      }
+
+      function 计算护盾实得值(char, shieldAmount) {
+        const 新增护盾 = Math.max(0, Math.floor(Number(shieldAmount || 0)));
+        if (!(新增护盾 > 0)) return 0;
+        const 当前护盾 = 读取当前护盾总量(char);
+        const 软上限 = 计算护盾软上限(char);
+        const 常规空间 = Math.max(0, 软上限 - 当前护盾);
+        const 常规获得 = Math.min(新增护盾, 常规空间);
+        const 超额获得 = Math.max(0, 新增护盾 - 常规获得);
+        return Math.max(0, Math.floor(常规获得 + 超额获得 * 0.35));
+      }
+
       function triggerReviveEffect(targetChar, label = '目标') {
         if (!targetChar?.状态效果) return null;
         if (isMechanismSuppressionBlocking(targetChar, ['复苏', '回复机制', '防御机制'])) {
@@ -8739,7 +8856,7 @@ class BattleUIComponent {
       }
 
       function applyShieldToCharacter(targetChar, shieldAmount, duration = 1, sourceName = '护盾') {
-        const amount = Math.max(0, Math.floor(Number(shieldAmount || 0)));
+        const amount = 计算护盾实得值(targetChar, shieldAmount);
         if (!targetChar || amount <= 0) return 0;
         if (isMechanismSuppressionBlocking(targetChar, ['护盾', '防御机制', '增益'])) return 0;
         if (!targetChar.状态效果) targetChar.状态效果 = {};
@@ -8780,8 +8897,8 @@ class BattleUIComponent {
           if (!belowThreshold) continue;
           const quota = consumeDailyMechanismTrigger(
             defender,
-            `${defender.name || '目标'}:${key}:无敌金身`,
-            Number(ce.daily_trigger_limit || 0),
+            `${defender.name || '目标'}:无敌金身`,
+            Math.max(1, Number(ce.daily_trigger_limit || 3)),
             currentTick,
           );
           if (!quota.allowed) {
@@ -9597,13 +9714,9 @@ class BattleUIComponent {
           : [];
         const skillPower = Math.max(0, Number(pClash?.威力倍率 || 0));
         const dmgType = String(pClash?.伤害类型 || '物理近战');
-        const conditionArmorPen = attackerConditionEffects.reduce((sum, ce) => {
-          const raw = Number(ce.armor_pen || 0);
-          return sum + (Math.abs(raw) <= 1 ? raw * 100 : raw);
-        }, 0);
+        const conditionArmorPen = 读取状态穿透比例(attackerConditionEffects);
         let projectedDamage = 0;
-        let actualDef = Number(defenderFinalStat.def || defender.def || 1) * (1 - ((pClash?.穿透修饰 || 0) + conditionArmorPen) / 100);
-        actualDef = Math.max(1, actualDef);
+        let actualDef = 计算穿透后防御值(Number(defenderFinalStat.def || defender.def || 1), pClash?.穿透修饰 || 0, conditionArmorPen);
         const soulDriveScale = getSoulDriveScale(attacker, defender);
         if (dmgType === '物理近战') {
           projectedDamage = skillPower * (Number(attackerFinalStat.str || attacker.str || 0) / actualDef) * soulDriveScale;
@@ -10062,10 +10175,7 @@ class BattleUIComponent {
 
         let dmgType = pClash.伤害类型 || '物理近战';
 
-        const conditionArmorPen = attackerConditionEffects.reduce((sum, ce) => {
-          const raw = Number(ce.armor_pen || 0);
-          return sum + (Math.abs(raw) <= 1 ? raw * 100 : raw);
-        }, 0);
+        const conditionArmorPen = 读取状态穿透比例(attackerConditionEffects);
         const isAOE =
           resolvedDamageTargets.length > 1 || damageTargetContext.targetModel === '全场' || pClash.伤害类型 === '纯精神冲击';
         let fluctuation = 0.9 + Math.random() * 0.2;
@@ -10116,7 +10226,7 @@ class BattleUIComponent {
           const targetUsesReactionAction =
             targetObj === primaryResolvedTarget && !targetsFriendlySkill && targetObj !== attacker;
           const targetEffectiveAgi = Number(targetFinalStat.agi || targetObj.agi || 0) * Number(targetObj.temp_agi_mult || 1);
-          const targetDodgeBonus = Number(targetObj.temp_dodge_bonus || 0);
+          const targetDodgeBonus = 计算有效闪避加值(Number(targetObj.temp_dodge_bonus || 0));
           const targetDodgePenalty = Number(targetObj.temp_dodge_penalty || 0) + currentSkillDodgePenalty;
           const targetLockLevel = Number(targetObj.temp_lock_level || 0) + currentSkillLockLevel;
           const localLogParts = [];
@@ -10173,8 +10283,7 @@ class BattleUIComponent {
             }
           }
 
-          let actualDef = Number(targetFinalStat.def || targetObj.def || 1) * (1 - ((pClash.穿透修饰 || 0) + conditionArmorPen) / 100);
-          actualDef = Math.max(1, actualDef);
+          let actualDef = 计算穿透后防御值(Number(targetFinalStat.def || targetObj.def || 1), pClash.穿透修饰 || 0, conditionArmorPen);
           const soulDriveScale = getSoulDriveScale(attacker, targetObj);
           let projectedDamage = 0;
           if (dmgType === '物理近战') projectedDamage = remainPower * (aStr / actualDef) * soulDriveScale;
@@ -11310,6 +11419,8 @@ class BattleUIComponent {
                   heal_block_ratio: scaledCalc?.heal_block_ratio ?? 0,
                   hot_heal_ratio: scaledCalc?.hot_heal_ratio ?? 0,
                   resource_block_ratio: scaledCalc?.resource_block_ratio ?? 0,
+                  cost_ratio: scaledCalc?.cost_ratio ?? 1.0,
+                  windup_ratio: scaledCalc?.windup_ratio ?? 1.0,
                   heal_inversion_ratio: scaledCalc?.heal_inversion_ratio ?? 0,
                   random_target_rate: scaledCalc?.random_target_rate ?? 0,
                   stealth_level: scaledCalc?.stealth_level ?? 0,
@@ -12895,6 +13006,7 @@ class BattleUIComponent {
             action_type: actionType,
             cast_time: Number(entry.cast_time ?? rawSkill.cast_time ?? 10) || 10,
             is_charged: entry.is_charged === true,
+            前摇已结算: entry.前摇已结算 === true,
             skill: normalizeSkillData(rawSkill, skillName),
           };
           if (entry.equip_target) nextAction.equip_target = String(entry.equip_target || '').trim();
@@ -12953,7 +13065,7 @@ class BattleUIComponent {
           if (/闪避/.test(playerInput)) {
             action.action_type = '闪避';
             action.cast_time = 12;
-            action.skill = normalizeSkillData({ name: '闪避', 技能类型: '防御', 消耗: '体力', cast_time: 12 }, '闪避');
+            action.skill = normalizeSkillData({ name: '闪避', 技能类型: '防御', 消耗: '体力:5%', cast_time: 12 }, '闪避');
             return action;
           }
           if (/撤离|逃跑|逃走|脱离/.test(playerInput)) {
@@ -13688,6 +13800,7 @@ class BattleUIComponent {
             }
           } else {
             action = buildAutoActionForActor(actorEntry, targets, battleState);
+            套用动作队列实际前摇(actor, action);
 
             let totalTimeCost = 0;
             let validPreActions = [];
@@ -13717,7 +13830,7 @@ class BattleUIComponent {
             }
 
             validPreActions.forEach(preAct => {
-              const preCostLog = applyActionCost(actor, preAct);
+              const preCostLog = applyActionCost(actor, preAct, targets.enemyTarget);
               if (preCostLog) actionLog += preCostLog + ' ';
               if (preAct.action_type === '穿戴装备') {
                 const 装备槽 = ensureBattleEquipmentSlot(actor, preAct.equip_target);
@@ -13740,7 +13853,7 @@ class BattleUIComponent {
             }
 
             if (action.action_type !== '施法失败') {
-              const costLog = applyActionCost(actor, action);
+              const costLog = applyActionCost(actor, action, targets.enemyTarget);
               if (action.decision_log) actionLog += action.decision_log + ' ';
               if (costLog) actionLog += costLog + ' ';
             }
@@ -14143,13 +14256,61 @@ class BattleUIComponent {
           });
 
           const actions = [];
+          actions.push(
+            {
+              id: 'basic_attack',
+              type: 'tactical',
+              action_type: '常规攻击',
+              name: '普通攻击',
+              category: '战术',
+              cast_time: 10,
+              cost_text: '无',
+              enabled: true,
+              reason: '',
+              raw_skill: normalizeSkillData(
+                {
+                  name: '普通攻击',
+                  _效果数组: [
+                    { 机制: '系统基础', 消耗: '无', 对象: '敌方/单体', 技能类型: '输出', cast_time: 10 },
+                    { 机制: '直接伤害', 目标: '敌方单体', 威力倍率: 100, 伤害类型: '物理近战', 穿透修饰: 0 },
+                  ],
+                },
+                '普通攻击',
+              ),
+            },
+            {
+              id: 'guard',
+              type: 'tactical',
+              action_type: '防御',
+              name: '防御',
+              category: '战术',
+              cast_time: 10,
+              cost_text: '无',
+              enabled: true,
+              reason: '',
+              raw_skill: normalizeSkillData({ name: '防御', 技能类型: '防御', 消耗: '无', cast_time: 10 }, '防御'),
+            },
+            {
+              id: 'evade',
+              type: 'tactical',
+              action_type: '闪避',
+              name: '闪避',
+              category: '战术',
+              cast_time: 12,
+              cost_text: '体力:5%',
+              enabled: parseSkillCostForChar(normalizeSkillData({ name: '闪避', 技能类型: '防御', 消耗: '体力:5%', cast_time: 12 }, '闪避'), charData).canCast,
+              reason: '',
+              raw_skill: normalizeSkillData({ name: '闪避', 技能类型: '防御', 消耗: '体力:5%', cast_time: 12 }, '闪避'),
+            },
+          );
 
           availableSkills.forEach(skill => {
             const costParsed = parseSkillCostForChar(skill, charData);
             const 技能来源 = String(getBattleSkillSourceCategory(skill) || skill.技能来源 || skill.source_tag || '魂技').trim() || '魂技';
-            actions.push({
+            const 技能动作 = {
               id: `skill_${skill.name}`,
               type: 'skill',
+              action_type: 技能来源 === '武魂融合技' ? '武魂融合技' : '释放魂技',
               name: skill.name,
               category: 技能来源,
               source_detail: skill.source_tag || 技能来源,
@@ -14160,18 +14321,44 @@ class BattleUIComponent {
               enabled: costParsed.canCast,
               reason: costParsed.canCast ? '' : (costParsed.failureReason || '状态不足'),
               raw_skill: skill,
-            });
+            };
+            套用动作实际前摇(charData, 技能动作);
+            actions.push(技能动作);
           });
 
           if (charData.装备?.斗铠?.等级 > 0 && charData.装备?.斗铠?.装备状态 !== '已装备') {
-            actions.push({
+            const 斗铠等级 = Number(charData.装备?.斗铠?.等级 || 1);
+            const 已排异 = charData.装备?.斗铠?._已排异 || false;
+            let 最低品质 = Infinity;
+            let 部件数量 = 0;
+            Object.values(charData.装备?.斗铠?.parts || {}).forEach(部件 => {
+              if (部件?.状态 !== '未打造' && 部件?.状态 !== '重创') {
+                if (Number(部件?.品质系数 || 0) < 最低品质) 最低品质 = Number(部件?.品质系数 || 0);
+                部件数量++;
+              }
+            });
+            let 斗铠前摇 = Math.max(0, 20 - 斗铠等级 * 5);
+            if (斗铠等级 === 1 && !已排异 && 最低品质 > 1.2 && 部件数量 > 0) 斗铠前摇 = Math.max(0, 斗铠前摇 - 5);
+            const 斗铠动作 = {
               id: 'equip_armor',
               type: 'equip',
+              action_type: '穿戴装备',
               name: '斗铠附体',
               category: '特殊动作',
+              cast_time: 斗铠前摇,
+              cost_text: '无',
               enabled: true,
               reason: '',
-            });
+              equip_target: 'armor',
+              raw_skill: normalizeSkillData({
+                name: 斗铠前摇 <= 0 ? '斗铠瞬间附体' : '斗铠附体读条',
+                技能类型: '辅助',
+                消耗: '无',
+                cast_time: 斗铠前摇,
+              }),
+            };
+            套用动作实际前摇(charData, 斗铠动作);
+            actions.push(斗铠动作);
           }
 
           if (
@@ -14180,25 +14367,41 @@ class BattleUIComponent {
             charData.装备?.机甲?.装备状态 !== '已装备' &&
             charData.装备?.机甲?.状态 !== '重创'
           ) {
-            actions.push({
+            const 机甲前摇 = charData.装备?.机甲?.等级 === '红级' ? 0 : 50;
+            const 机甲动作 = {
               id: 'equip_mech',
               type: 'equip',
+              action_type: '穿戴装备',
               name: '召唤机甲',
               category: '特殊动作',
+              cast_time: 机甲前摇,
+              cost_text: '无',
               enabled: true,
               reason: '',
-            });
+              equip_target: 'mech',
+              raw_skill: normalizeSkillData({ name: '召唤机甲', 技能类型: '辅助', 消耗: '无', cast_time: 机甲前摇 }),
+            };
+            套用动作实际前摇(charData, 机甲动作);
+            actions.push(机甲动作);
           }
 
           if (charData.血脉之力?.技能?.['点燃生命之火'] && !charData.血脉之力?.生命之火) {
-            actions.push({
+            const 生命之火技能 = normalizeSkillData(charData.血脉之力?.技能?.['点燃生命之火'], '点燃生命之火');
+            const 生命之火消耗 = parseSkillCostForChar(生命之火技能, charData);
+            const 生命之火动作 = {
               id: 'special_lifefire',
               type: 'special',
+              action_type: '点燃生命之火',
               name: '点燃生命之火',
               category: '特殊动作',
-              enabled: true,
-              reason: '',
-            });
+              cast_time: 5,
+              cost_text: getSkillCostText(生命之火技能),
+              enabled: 生命之火消耗.canCast,
+              reason: 生命之火消耗.canCast ? '' : (生命之火消耗.failureReason || '状态不足'),
+              raw_skill: 生命之火技能,
+            };
+            套用动作实际前摇(charData, 生命之火动作);
+            actions.push(生命之火动作);
           }
 
           if (hasBattleUnlockedAttributeSet(charData, ['水', '火', '风', '土'])) {
@@ -14212,6 +14415,7 @@ class BattleUIComponent {
             actions.push({
               id: 'special_element_strip',
               type: 'special',
+              action_type: '元素剥离',
               name: '元素剥离',
               category: '纯操控',
               semantic_role: '控制',
@@ -14241,6 +14445,7 @@ class BattleUIComponent {
             actions.push({
               id: 'special_wuxing_strip',
               type: 'special',
+              action_type: '五行剥离',
               name: '五行剥离',
               category: '纯操控',
               semantic_role: '控制',
@@ -14253,6 +14458,7 @@ class BattleUIComponent {
             actions.push({
               id: 'special_wuxing_escape',
               type: 'special',
+              action_type: '五行遁法',
               name: '五行遁法',
               category: '纯操控',
               semantic_role: '辅助',
@@ -14267,12 +14473,17 @@ class BattleUIComponent {
           actions.push({
             id: 'action_flee',
             type: 'tactical',
+            action_type: '撤离',
             name: '亡命奔逃',
             category: '特殊动作',
+            cast_time: 20,
+            cost_text: '无',
             enabled: true,
             reason: '',
+            raw_skill: normalizeSkillData({ name: '撤离', 技能类型: '辅助', 消耗: '无', cast_time: 20 }, '撤离'),
           });
 
+          actions.forEach(动作 => 套用动作实际前摇(charData, 动作));
           return actions;
         }
 
@@ -14593,7 +14804,7 @@ class BattleUIComponent {
             window.BattleUIBridge?.getMVU(`char.${player.name}`) ||
             window.BattleUIBridge?.getMVU(`char.${window.BattleUIBridge?.getMVU('sys.玩家名') || ''}`) ||
             combatData.参战者.player;
-          const availableActions = collectUiSkillActions(charData);
+          const availableActions = ui_getAvailableActions(charData, combatData);
           const previousState = window.BattleUI?.state || {};
           const activeCategory = previousState.activeCategory || '全部';
           const currentIntentMode = previousState.currentIntentMode || combatData.战斗意图 || '点到为止';
@@ -14636,9 +14847,11 @@ class BattleUIComponent {
           const resolvedTargetName = resolveIntentTargetNameFromAction(action, window.BattleUI?.state?.combatData || {});
           const actionObj = {
             type,
+            action_type: type,
             skill,
             cast_time: Number(action.cast_time ?? skill.cast_time ?? 0) || 0,
             target_name: resolvedTargetName,
+            前摇已结算: action.前摇已结算 === true,
           };
           if (type === '穿戴装备') actionObj.equip_target = /机甲/.test(name) ? 'mech' : 'armor';
           if (type === '吸血反哺') actionObj.heal_ratio = action.heal_ratio || 0.3;

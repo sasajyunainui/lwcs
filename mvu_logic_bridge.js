@@ -100,7 +100,8 @@
         '\u50a8\u7269\u4ed3\u5e93\u8be6\u7ec6\u9875': '\u4ed3\u5e93',
         '\u793e\u4f1a\u6863\u6848\u8be6\u60c5\u9875': '\u793e\u4f1a',
         '\u793e\u4f1a\u6863\u6848\u8be6\u7ec6\u9875': '\u793e\u4f1a',
-        '\u6240\u5c5e\u52bf\u529b\u8be6\u60c5\u9875': '\u52bf\u529b',
+        '\u6240\u5c5e\u52bf\u529b\u8be6\u60c5\u9875': '\u6240\u5c5e\u52bf\u529b',
+        '\u6240\u5c5e\u52bf\u529b\u8be6\u7ec6\u9875': '\u6240\u5c5e\u52bf\u529b',
         '\u4eba\u7269\u5173\u7cfb\u8be6\u60c5\u9875': '\u5173\u7cfb',
         '\u60c5\u62a5\u5e93\u8be6\u60c5\u9875': '\u60c5\u62a5\u5e93',
         '\u7b2c\u4e00\u6b66\u9b42\u8be6\u60c5\u9875': '\u7b2c\u4e00\u6b66\u9b42',
@@ -116,7 +117,7 @@
         '\u7f16\u5e74\u53f2\u6863\u6848': '\u7f16\u5e74',
         '\u62cd\u5356\u4e0e\u8b66\u62a5': '\u8b66\u62a5',
         '\u52bf\u529b\u77e9\u9635\u603b\u89c8': '\u52bf\u529b',
-        '\u6211\u7684\u9635\u8425\u8be6\u60c5': '\u6211\u7684\u9635\u8425',
+        '\u6211\u7684\u9635\u8425\u8be6\u60c5': '\u9635\u8425\u8eab\u4efd',
         '\u672c\u5730\u636e\u70b9\u8be6\u60c5': '\u672c\u5730\u636e\u70b9',
         '\u7cfb\u7edf\u64ad\u62a5\u4e0e\u65e5\u5fd7': '\u64ad\u62a5',
         '\u9b42\u73af\u751f\u6210\u786e\u8ba4': '\u9b42\u73af',
@@ -217,7 +218,7 @@
         actions: ['切换到关系/阵营/情报子页', '保留声望来源说明']
       },
       '所属势力详细页': {
-        title: '阵营身份弹窗',
+        title: '所属势力',
         summary: '由“所属势力”芯片进入，直接展示该角色在各势力中的身份。',
         fields: ['activeChar.社交.势力'],
         duties: ['展示所属势力列表', '显示身份与权限级', '在势力矩阵中高亮当前归属'],
@@ -308,7 +309,7 @@
         actions: ['按阵营筛选', '查看势力档案', '查看本地据点与交易关联']
       },
       '我的阵营详情': {
-        title: '我的阵营弹窗',
+        title: '阵营身份',
         summary: '聚焦当前查看角色在各势力中的身份与权限。',
         fields: ['activeChar.社交.势力', 'activeChar.社交.主身份', 'activeChar.社交.称号'],
         duties: ['展示所属势力', '展示身份与权限级', '补充主身份与头衔'],
@@ -487,15 +488,15 @@
       const compactIntelGrid =
         tileItems.length === 2
         && tileItems.every(item => ['线索', '影响'].includes(toText(item && item.label, '')));
-      const gridStyle = compactIntelGrid ? ' style="grid-template-columns:minmax(0, 2.2fr) minmax(120px, 0.8fr); gap:12px;"' : '';
-      const tileStyle = compactIntelGrid ? ' style="min-height:0; padding:12px 14px;"' : '';
-      const valueStyle = compactIntelGrid ? ' style="line-height:1.7;"' : '';
+      const 紧凑情报网格类 = compactIntelGrid ? ' archive-tile-grid--compact-intel' : '';
+      const 紧凑情报格类 = compactIntelGrid ? ' archive-tile--compact-intel' : '';
+      const 紧凑情报值类 = compactIntelGrid ? ' class="archive-tile-value--compact-intel"' : '';
       return `
-        <div class="archive-tile-grid ${className}"${gridStyle}>
+        <div class="archive-tile-grid ${className}${紧凑情报网格类}">
           ${tileItems.map(item => `
-            <div class="archive-tile"${tileStyle}>
+            <div class="archive-tile${紧凑情报格类}">
               <b>${item.label}</b>
-              <span${valueStyle}>${item.value}</span>
+              <span${紧凑情报值类}>${item.value}</span>
             </div>
           `).join('')}
         </div>
@@ -932,8 +933,8 @@
         <div class="dossier-row-grid ${className}">
           ${paddedItems.map(item => `
             <div class="dossier-row ${item && item.className ? item.className : ''}">
-              <b>${htmlEscape(toText(item && item.label, ''))}</b>
-              <span>${item && item.value !== undefined && item.value !== null ? item.value : ''}</span>
+              <b class="dossier-field-label">${htmlEscape(toText(item && item.label, ''))}</b>
+              <span class="dossier-field-value">${item && item.value !== undefined && item.value !== null ? item.value : ''}</span>
             </div>
           `).join('')}
         </div>
@@ -954,8 +955,8 @@
         <div class="dossier-list ${className}">
           ${listItems.map(item => `
             <div class="dossier-list-row ${item && item.className ? item.className : ''} ${item && item.preview ? 'clickable' : ''}"${item && item.preview ? ` data-preview="${escapeHtmlAttr(item.preview)}"` : ''}>
-              <b>${htmlEscape(toText(item && item.title, ''))}</b>
-              <span>${item && item.desc !== undefined && item.desc !== null ? item.desc : ''}</span>
+              <b class="dossier-field-label">${htmlEscape(toText(item && item.title, ''))}</b>
+              <span class="dossier-field-value">${item && item.desc !== undefined && item.desc !== null ? item.desc : ''}</span>
             </div>
           `).join('')}
         </div>
@@ -995,7 +996,7 @@
     function makeModalPaginationControls(sectionKey, page, totalPages, total) {
       if (totalPages <= 1) return '';
       return `
-        <div class="tag-cloud armory-quick-actions" style="margin-top:12px;justify-content:flex-end;">
+        <div class="tag-cloud armory-quick-actions mvu-detail-toolbar">
           <button type="button" class="tag-chip clickable" data-page-nav="prev" data-page-section="${escapeHtmlAttr(sectionKey)}" ${page <= 1 ? 'disabled' : ''}>上一页</button>
           <span class="tag-chip">第 ${page} / ${totalPages} 页 · 共 ${total} 条</span>
           <button type="button" class="tag-chip clickable" data-page-nav="next" data-page-section="${escapeHtmlAttr(sectionKey)}" ${page >= totalPages ? 'disabled' : ''}>下一页</button>
@@ -1053,7 +1054,7 @@
                     </div>
                   </div>
                   <div class="status-card">
-                    <h4 style="margin:0 0 6px;font-size:13px;font-family:var(--font-title);color:var(--white);">当前状态</h4>
+                    <h4 class="status-card-title">当前状态</h4>
                     <div class="status-list">
                       <div class="status-row"><b>行动状态</b><span></span></div>
                       <div class="status-row"><b>伤势</b><span></span></div>
@@ -1073,7 +1074,7 @@
         return {
           title: '社会档案弹窗',
           body: `
-            <div class="archive-modal-grid">
+            <div class="archive-modal-grid mvu-spirit-detail-grid">
               <div class="archive-card">
                 <div class="archive-card-head"><div class="archive-card-title">身份名片</div></div>
                 <div class="profile-snapshot"><div class="identity-card"><h3>当前角色</h3>${makeTileGrid([
@@ -1105,7 +1106,7 @@
 
       if (key === '所属势力详细页' || key === '我的阵营详情') {
         return {
-          title: key === '我的阵营详情' ? '我的阵营弹窗' : '阵营身份弹窗',
+          title: key === '我的阵营详情' ? '阵营身份' : '所属势力',
           body: `
             <div class="archive-modal-grid faction-matrix-grid">
               <div class="archive-card full">
@@ -1135,10 +1136,10 @@
         return {
           title: '人物关系弹窗',
           body: `
-            <div class="archive-modal-grid" style="grid-template-columns:1fr;">
+            <div class="archive-modal-grid mvu-detail-grid--single">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">羁绊星轨图</div></div>
-                <div class="topology-board" style="min-height:280px;">
+                <div class="topology-board topology-board--detail">
                   <svg class="topology-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
                     <line class="topology-link cyan" x1="50" y1="50" x2="20" y2="25"></line>
                     <line class="topology-link gold" x1="50" y1="50" x2="50" y2="18"></line>
@@ -1167,17 +1168,17 @@
         return {
           title: '情报库弹窗',
           body: `
-            <div class="archive-modal-grid" style="grid-template-columns:1fr;">
+            <div class="archive-modal-grid mvu-detail-grid--single">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">线索拓扑网络</div></div>
                 <div class="intel-network-board"></div>
               </div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">情报概览</div></div>
-                <div class="intel-progress-slots" style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px;">
-                  <div class="intel-slot" style="min-height:0; padding:12px 14px;"><div class="intel-slot-name">已解锁情报</div><div class="intel-slot-bar-wrap" style="height:6px; margin:8px 0 10px;"><div class="intel-slot-bar" style="width:0%;"></div></div><div class="intel-slot-value">0</div></div>
-                  <div class="intel-slot" style="min-height:0; padding:12px 14px;"><div class="intel-slot-name">最新情报</div><div class="intel-slot-bar-wrap" style="height:6px; margin:8px 0 10px;"><div class="intel-slot-bar gold" style="width:0%;"></div></div><div class="intel-slot-value" style="color:var(--gold);">0</div></div>
-                  <div class="intel-slot" style="min-height:0; padding:12px 14px;"><div class="intel-slot-name">任务记录</div><div class="intel-slot-bar-wrap" style="height:6px; margin:8px 0 10px;"><div class="intel-slot-bar" style="width:0%; background:var(--red); box-shadow:0 0 8px var(--red);"></div></div><div class="intel-slot-value" style="color:var(--red);">0</div></div>
+                <div class="intel-progress-slots mvu-intel-progress-slots">
+                  <div class="intel-slot mvu-intel-slot"><div class="intel-slot-name">已解锁情报</div><div class="intel-slot-bar-wrap"><div class="intel-slot-bar is-empty"></div></div><div class="intel-slot-value">0</div></div>
+                  <div class="intel-slot mvu-intel-slot"><div class="intel-slot-name">最新情报</div><div class="intel-slot-bar-wrap"><div class="intel-slot-bar gold is-empty"></div></div><div class="intel-slot-value gold">0</div></div>
+                  <div class="intel-slot mvu-intel-slot"><div class="intel-slot-name">任务记录</div><div class="intel-slot-bar-wrap"><div class="intel-slot-bar red is-empty"></div></div><div class="intel-slot-value red">0</div></div>
                 </div>
               </div>
             </div>
@@ -1225,7 +1226,7 @@
         return {
           title: '储物仓库',
           body: `
-            <div class="archive-modal-grid">
+            <div class="archive-modal-grid mvu-spirit-detail-grid">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">钱包条</div></div>
                 ${makeWalletStrip([
@@ -1251,7 +1252,7 @@
         return {
           title: '武魂',
           body: `
-            <div class="archive-modal-grid">
+            <div class="archive-modal-grid mvu-spirit-detail-grid">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">武魂</div></div>
                 <div class="spirit-main-card"><h4></h4><div class="spirit-head-tags"><span class="tag-chip ${key === '第一武魂详细页' ? 'live' : 'warn'}">${badge}</span></div></div>
@@ -1319,7 +1320,7 @@
         return {
           title: '编年史弹窗',
           body: `
-            <div class="archive-modal-grid" style="grid-template-columns:1fr;">
+            <div class="archive-modal-grid mvu-detail-grid--single">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">宏观时间轴</div></div>
                 <div class="history-timeline-wrap"><div class="history-timeline-track"><div class="history-node major"><div class="history-node-date"></div><div class="history-node-dot"></div><div class="history-node-label"></div></div><div class="history-node"><div class="history-node-date"></div><div class="history-node-dot"></div><div class="history-node-label"></div></div><div class="history-node"><div class="history-node-date"></div><div class="history-node-dot"></div><div class="history-node-label"></div></div></div></div>
@@ -1335,7 +1336,7 @@
         return {
           title: isMapNode ? `本地据点 / ${nodeName}` : (key === '当前节点详情' ? '当前节点详情' : '本地据点 / 当前节点'),
           body: `
-            <div class="intel-layout">
+            <div class="archive-modal-grid mvu-detail-grid--two">
               <div class="archive-card"><div class="archive-card-head"><div class="archive-card-title">据点概览</div></div>${makeTileGrid([
                 { label: '所在地点', value: '' },
                 { label: '掌控势力', value: '' },
@@ -1354,7 +1355,7 @@
         return {
           title: '近期安排',
           body: `
-            <div class="archive-modal-grid" style="grid-template-columns:1fr;">
+            <div class="archive-modal-grid mvu-detail-grid--single">
               <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">当前动作</div></div>${makeTileGrid([
                 { label: '当前行动', value: '' },
                 { label: '所在位置', value: '' },
@@ -1371,7 +1372,7 @@
         return {
           title: '试炼与情报',
           body: `
-            <div class="intel-layout">
+            <div class="archive-modal-grid mvu-detail-grid--two">
               <div class="archive-card"><div class="archive-card-head"><div class="archive-card-title">可前往试炼</div></div>${makeTileGrid([
                 { label: '升灵台门票', value: '' },
                 { label: '魂灵塔最高', value: '' },
@@ -1388,7 +1389,7 @@
         return {
           title: '近期见闻 / 城内简报',
           body: `
-            <div class="archive-modal-grid" style="grid-template-columns:1fr;">
+            <div class="archive-modal-grid mvu-detail-grid--single">
               <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">城内简报</div></div>${makeTimelineStack([
                 { title: '学院', desc: '' },
                 { title: '地区', desc: '' },
@@ -1404,8 +1405,7 @@
         return {
           title: '世界状态弹窗',
           body: `
-            <div class="archive-modal-grid">
-            <div class="archive-modal-grid" style="grid-template-columns:1fr;">
+            <div class="archive-modal-grid mvu-detail-grid--single">
               <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">势力梯阵</div></div>${makeFactionLadder([
                 { name: '学院', desc: '', className: 'highlight' },
                 { name: '宗门', desc: '', className: '' },
@@ -1421,7 +1421,7 @@
         return {
           title: '系统播报 / 日志弹窗',
           body: `
-            <div class="archive-modal-grid" style="grid-template-columns:1fr;">
+            <div class="archive-modal-grid mvu-detail-grid--single">
               <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">系统广播</div></div>${makeTimelineStack([
                 { title: '最近播报', desc: '' },
                 { title: '最近事件', desc: '' },
@@ -10149,7 +10149,7 @@
       if (!Array.isArray(skillPath) || !skillPath.length) return '';
       const actionLabel = /食物/.test(toText(itemType, '')) ? '日常制作' : '日常施展';
       return `
-        <div class="tag-cloud armory-quick-actions" style="margin-top:8px;justify-content:flex-end;">
+        <div class="tag-cloud armory-quick-actions mvu-detail-toolbar mvu-detail-toolbar--tight">
           <button type="button" class="tag-chip live skill-inline-action-btn" data-skill-action="cast-construct" data-skill-path="${escapeHtmlAttr(JSON.stringify(skillPath))}">${actionLabel}</button>
         </div>
       `;
@@ -10198,8 +10198,8 @@
         let desc = descSegments.join('<br/>');
         const clash = deepGet(skill, '仲裁逻辑.瞬间交锋模块');
         const state = deepGet(skill, '仲裁逻辑.状态挂载模块');
-        if (clash && clash['基础威力倍率'] > 0) desc += `${desc ? '<br/>' : ''}<span style="color:var(--cyan);">[威力倍率: ${clash['基础威力倍率']}% | 伤害类型: ${clash['伤害类型'] || '无'} | 护盾: ${clash['护盾绝对值'] || 0}]</span>`;
-        if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<span style="color:var(--gold);">[附加状态: ${state['状态名称']} | 机制: ${state['特殊机制标识'] || '无'} | 持续: ${state['持续回合']}回]</span>`;
+if (clash && clash['基础威力倍率'] > 0) desc += `${desc ? '<br/>' : ''}<span class="skill-effect-tag skill-effect-tag--power">[威力倍率: ${clash['基础威力倍率']}% | 伤害类型: ${clash['伤害类型'] || '无'} | 护盾: ${clash['护盾绝对值'] || 0}]</span>`;
+if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<span class="skill-effect-tag skill-effect-tag--state">[附加状态: ${state['状态名称']} | 机制: ${state['特殊机制标识'] || '无'} | 持续: ${state['持续回合']}回]</span>`;
         const tags = Array.from(new Set(
           (Array.isArray(skill && skill['标签']) ? skill['标签'] : [])
             .map(tag => normalizeSkillUiText(tag, ''))
@@ -10711,7 +10711,7 @@
         return `<div class="relation-card"><b>${htmlEscape(emptyTitle)}</b><span>${htmlEscape(emptyDesc)}</span></div>`;
       }
       return `
-        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px;">
+        <div class="mvu-detail-card-grid mvu-detail-card-grid--two">
           ${relationEntries.map(([relationName, relationData]) => {
             const safeRelData = relationData && typeof relationData === 'object' ? relationData : {};
             const relationMeta = buildFactionRelationMeta(relationName, safeRelData);
@@ -10736,10 +10736,10 @@
                 })
               : htmlEscape(relationValue);
             return `
-              <div class="archive-tile" style="min-height:96px;justify-content:flex-start;">
+              <div class="archive-tile mvu-detail-relation-tile">
                 <b>${htmlEscape(relationMeta.name)}</b>
-                <span style="color:var(--cyan);font-size:16px;font-weight:700;line-height:1.35;">${editableValue}</span>
-                ${detailText ? `<div style="margin-top:8px;font-size:12px;line-height:1.45;color:var(--color-text-secondary);">${htmlEscape(detailText)}</div>` : ''}
+                <span class="mvu-detail-relation-value">${editableValue}</span>
+                ${detailText ? `<div class="mvu-detail-relation-note">${htmlEscape(detailText)}</div>` : ''}
               </div>
             `;
           }).join('')}
@@ -11839,7 +11839,7 @@
 
     function renderHeader(snapshot) {
       const worldTimeText = toText(deepGet(snapshot, 'rootData.world.时间._calendar', deepGet(snapshot, 'rootData.world.时间.calendar', '斗罗历未同步')), '斗罗历未同步');
-      const headerComboHtml = `<span style="opacity:1;font-size:12px;color:#fff;">${worldTimeText}</span><span style="opacity:0.65;font-size:11px;">${snapshot.currentLoc}</span>`;
+      const headerComboHtml = `<span class="mvu-header-time">${htmlEscape(worldTimeText)}</span><span class="mvu-header-location">${htmlEscape(snapshot.currentLoc)}</span>`;
       setLiveHtml('.header-loc span', headerComboHtml);
       setLiveText('.char-name', snapshot.activeName);
       syncPrivateArchiveLongPressTargets(snapshot);
@@ -12468,6 +12468,7 @@
             </div>
           `).join('')}
         </div>
+        ${构建首页当前位置页脚(snapshot, { 右侧文本: `行动 ${toText(status.行动, '日常')}` })}
         `;
     }
 
@@ -12893,6 +12894,42 @@
         return shortenText(currentLoc || normalizedLoc, fullLimit);
       }
       return `${shortenText(normalizedLoc, trailLimit)} · ${shortenText(currentLoc || normalizedLoc, trailLimit)}`;
+    }
+
+    function 获取首页当前位置摘要(snapshot, options = {}) {
+      const 完整限制 = Math.max(12, toNumber(options.完整限制, 34));
+      const 地图限制 = Math.max(8, toNumber(options.地图限制, 16));
+      const 原始位置 = toText(
+        deepGet(snapshot, 'activeChar.状态.位置', snapshot && snapshot.currentLoc),
+        snapshot && snapshot.currentLoc ? snapshot.currentLoc : '未知地点',
+      )
+        .replace(/^斗罗大陆-/, '')
+        .replace(/^斗灵大陆-/, '');
+      const 标准位置 = toText(snapshot && snapshot.normalizedLoc, '').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
+      const 展示位置 = 标准位置 && 原始位置 && 原始位置 !== 标准位置
+        ? `${shortenText(标准位置, 12)} / ${shortenText(原始位置, 完整限制)}`
+        : shortenText(原始位置 || 标准位置 || '未知地点', 完整限制);
+      const 地图名称 = shortenText(getMapDisplayName(snapshot), 地图限制);
+      return {
+        展示位置,
+        完整位置: 原始位置 || 标准位置 || '未知地点',
+        地图名称,
+      };
+    }
+
+    function 构建首页当前位置页脚(snapshot, options = {}) {
+      const 摘要 = 获取首页当前位置摘要(snapshot, options);
+      const 右侧文本 = toText(options && options.右侧文本, '').trim();
+      const 右侧样式 = toText(options && options.右侧样式, '').trim();
+      return `
+        <div class="module-foot module-foot--location">
+          <button type="button" class="mvu-home-location-link clickable" data-preview="当前节点详情" title="${escapeHtmlAttr(`当前位置 / ${摘要.完整位置}`)}">
+            <b>当前位置</b>
+            <span>${htmlEscape(摘要.展示位置)}</span>
+          </button>
+          ${右侧文本 ? `<span class="enter-chip mvu-home-location-chip ${htmlEscape(右侧样式)}">${htmlEscape(右侧文本)}</span>` : `<span class="enter-chip mvu-home-location-chip">${htmlEscape(摘要.地图名称)}</span>`}
+        </div>
+      `;
     }
 
     function buildShellHomeMapCard(snapshot) {
@@ -13483,7 +13520,7 @@
       const factionName = primaryFaction ? primaryFaction[0] : primaryFactionEntry.name;
       const factionData = primaryFaction ? primaryFaction[1] : primaryFactionEntry.data;
       return buildShellSummaryCard({
-        kicker: '我的阵营',
+        kicker: '阵营身份',
         title: shortenText(toText(factionName, '未加入'), 14),
         value: shortenText(toText(deepGet(factionData, '身份', '未加入'), '未加入'), 10),
         meta: shortenText(toText(deepGet(factionData, '状态', '正常'), '正常'), 18),
@@ -14476,7 +14513,7 @@
           setUnifiedCardMarkup('org-hero', buildOrgHeroCard(snapshot), { preview: '势力矩阵总览', surface: normalizedSurface });
           const 当前阵营条目 = getPrimaryFactionEntry(snapshot);
           const 本地人物数量 = getShellLocalCharacterEntries(snapshot, 12).length;
-          setUnifiedCardMarkup('org-faction', buildSimpleCard('我的阵营', null, [
+          setUnifiedCardMarkup('org-faction', buildSimpleCard('阵营身份', null, [
             { label: '当前所属', value: snapshot.势力[0] ? snapshot.势力[0][0] : '无' },
             { label: '身份', value: snapshot.势力[0] ? toText(deepGet(snapshot.势力[0][1], '身份', '无'), '无') : '未加入' },
             { label: '权限级', value: snapshot.势力[0] ? toText(deepGet(snapshot.势力[0][1], '权限级', 0), '0') : '0' },
@@ -14814,9 +14851,7 @@
             <i><span style="width:${forestRatio}%;"></span></i>
           </div>
         </div>
-        <div class="module-foot world-core-foot">
-          <span class="foot-hint">风险摘要：${htmlEscape(snapshot.worldAlert)}</span>
-        </div>
+        ${构建首页当前位置页脚(snapshot, { 右侧文本: `风险 ${shortenText(toText(snapshot.worldAlert, '无'), 18)}`, 右侧样式: deviation >= 40 ? 'warn-chip' : '' })}
       `;
     }
 
@@ -14837,10 +14872,7 @@
           <div class="org-power-grid__wide"><b>势力关系</b><strong>${htmlEscape(relationSummary)}</strong></div>
         </div>
         `; })()}
-        <div class="module-foot org-core-foot">
-          <span class="foot-hint">本地高亮：${htmlEscape(toText(deepGet(snapshot, 'locationData.掌控势力', snapshot.势力[0] ? snapshot.势力[0][0] : '未知'), '未知'))}</span>
-          <span class="enter-chip gold-chip">${htmlEscape(`${snapshot.orgEntries.length || 0} 个势力`)}</span>
-        </div>
+        ${构建首页当前位置页脚(snapshot, { 右侧文本: `${snapshot.orgEntries.length || 0} 个势力`, 右侧样式: 'gold-chip' })}
       `;
     }
 
@@ -14878,6 +14910,7 @@
           <span><b>见闻</b><strong>${htmlEscape(String((recentNews.cards || []).length))}</strong></span>
           <span><b>图鉴</b><strong>${htmlEscape(String((snapshot.bestiaryEntries || []).length))}</strong></span>
         </div>
+        ${构建首页当前位置页脚(snapshot, { 右侧文本: `${(snapshot.pendingRequests || []).length || 0} 待办` })}
       `;
     }
 
@@ -15091,7 +15124,7 @@
           { label: '生态警报', value: snapshot.worldAlert }
         ]));
         setLiveHtml('[data-preview="势力矩阵总览"].hero-card', buildOrgHeroCard(snapshot));
-        setLiveHtml('[data-preview="我的阵营详情"].mvu-simple-card', buildSimpleCard('我的阵营', null, [
+        setLiveHtml('[data-preview="我的阵营详情"].mvu-simple-card', buildSimpleCard('阵营身份', null, [
           { label: '当前所属', value: snapshot.势力[0] ? snapshot.势力[0][0] : '无' },
           { label: '身份', value: snapshot.势力[0] ? toText(deepGet(snapshot.势力[0][1], '身份', '无'), '无') : '未加入' }
         ]));
@@ -15175,7 +15208,7 @@
       return `
         <div class="archive-card full" data-lwcs-option-panel="${escapeHtmlAttr(toText(来源标记, ''))}">
           <div class="archive-card-head"><div class="archive-card-title">可选行动</div></div>
-          <div class="request-console-row" style="display:flex; gap:8px; flex-wrap:wrap;">
+          <div class="request-console-row mvu-detail-action-row">
             ${按钮Html}
           </div>
         </div>
@@ -15857,16 +15890,16 @@
             };
           },
           body: `
-            <div class="archive-modal-grid" style="grid-template-columns:1fr;">
+            <div class="archive-modal-grid mvu-detail-grid--single">
               <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">查看状态</div></div>${makeTileGrid([{ label: '当前查看', value: snapshot.activeName }, { label: '玩家角色', value: playerName || snapshot.activeName }, { label: '角色总数', value: `${charEntries.length} 名` }, { label: '当前地点', value: snapshot.currentLoc }], 'two')}</div>
-              <div class="archive-card full">
+              <div class="archive-card full role-switch-list-card mvu-detail-scroll-card">
                 <div class="archive-card-head"><div class="archive-card-title">角色列表</div></div>
-                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;">
-                  <input type="search" class="role-switch-search-input" placeholder="搜索角色 / 身份 / 地点 / 状态" style="flex:1 1 240px;min-width:220px;height:36px;padding:0 12px;border-radius:10px;border:1px solid rgba(120,220,255,0.24);background:rgba(8,20,30,0.72);color:#dff7ff;outline:none;" />
-                  <span class="role-switch-search-count" style="font-size:12px;color:rgba(220,245,255,0.72);">共 ${charEntries.length} 名</span>
+                <div class="mvu-detail-search-row">
+                  <input type="search" class="request-console-input role-switch-search-input" placeholder="搜索角色 / 身份 / 地点 / 状态" />
+                  <span class="role-switch-search-count">共 ${charEntries.length} 名</span>
                 </div>
-                <div class="role-switch-grid">${switchCards}</div>
-                <div class="tag-cloud armory-quick-actions" style="margin-top:12px;justify-content:flex-end;">
+                <div class="role-switch-grid mvu-detail-scroll-list">${switchCards}</div>
+                <div class="tag-cloud armory-quick-actions mvu-detail-toolbar">
                   <button type="button" class="tag-chip role-switch-page-btn" data-role-page-nav="prev">上一页</button>
                   <span class="tag-chip role-switch-page-indicator">第 1 / 1 页</span>
                   <button type="button" class="tag-chip role-switch-page-btn" data-role-page-nav="next">下一页</button>
@@ -15925,7 +15958,7 @@
                       <div class="nsfw-fill-dev" style="width: ${Math.min(100, Math.max(0, toNumber(nsfw.开发度, 0)))}%;"></div>
                     </div>
                   </div>
-                  <div class="identity-growth-grid" style="grid-template-columns: 1fr;">
+                  <div class="identity-growth-grid identity-growth-grid--one">
                     <div class="nsfw-meta-item">
                       <b>敏感度基础值</b>
                       <span>${makeInlineEditableValue(toText(nsfw.敏感度, '10'), { path: [...nsfwPath, '敏感度'], kind: 'number' })}</span>
@@ -15940,7 +15973,7 @@
                   <div class="nsfw-theme-title">👙 肉体密码与私密着装</div>
                 </div>
                 <div class="nsfw-theme-body">
-                  <div class="identity-growth-grid" style="grid-template-columns: 1fr 1fr;">
+                  <div class="identity-growth-grid identity-growth-grid--two">
                     <div class="nsfw-meta-item">
                       <b>罩杯</b>
                       <span>${makeInlineEditableValue(toText(deepGet(nsfw, '身材数据.罩杯'), '未知'), { path: [...nsfwPath, '身材数据', '罩杯'], kind: 'string' })}</span>
@@ -15962,7 +15995,7 @@
                       <span>${makeInlineEditableValue(toText(deepGet(nsfw, '贴身衣物.内裤'), '未知'), { path: [...nsfwPath, '贴身衣物', '内裤'], kind: 'string' })}</span>
                     </div>
                   </div>
-                  <div class="nsfw-meta-item" style="margin-top:8px;">
+                  <div class="nsfw-meta-item nsfw-meta-item--spaced">
                     <b>身材描述</b>
                     <span class="nsfw-text-wrap">${makeInlineEditableValue(toText(deepGet(nsfw, '身材数据.身材描述'), '无'), { path: [...nsfwPath, '身材数据', '身材描述'], kind: 'string' })}</span>
                   </div>
@@ -15975,7 +16008,7 @@
                   <div class="nsfw-theme-title">🩸 生理节律</div>
                 </div>
                 <div class="nsfw-theme-body">
-                  <div class="identity-growth-grid" style="grid-template-columns: 1fr 1fr;">
+                  <div class="identity-growth-grid identity-growth-grid--two">
                     <div class="nsfw-meta-item">
                       <b>当前生理阶段</b>
                       <span class="nsfw-highlight-red">${makeInlineEditableValue(toText(nsfw._生理阶段, '安全期'), { path: [...nsfwPath, '_生理阶段'], kind: 'string' })}</span>
@@ -15992,7 +16025,7 @@
                       <b>当前怀孕天数</b>
                       <span>${makeInlineEditableValue(String(toNumber(nsfw._怀孕天数, 0)), { path: [...nsfwPath, '_怀孕天数'], kind: 'number' })}</span>
                     </div>
-                    <div class="nsfw-meta-item" style="grid-column: span 2;">
+                    <div class="nsfw-meta-item nsfw-meta-item--wide">
                       <b>孕父</b>
                       <span>${makeInlineEditableValue(toText(nsfw.受孕对象, '无'), { path: [...nsfwPath, '受孕对象'], kind: 'string' })}</span>
                     </div>
@@ -16006,7 +16039,7 @@
                   <div class="nsfw-theme-title">📈 开发履历</div>
                 </div>
                 <div class="nsfw-theme-body">
-                  <div class="identity-growth-grid" style="grid-template-columns: repeat(3, 1fr);">
+                  <div class="identity-growth-grid identity-growth-grid--three">
                     ${['高潮', '颜射', '内射', '吞精', '宠物扮演', '自慰', '性交', '手交', '足交', '口交', '素股', '发交', 'SM', 'COSPLAY'].map(exp => `
                       <div class="nsfw-meta-item">
                         <b>${exp}</b>
@@ -16023,17 +16056,17 @@
                   <div class="nsfw-theme-title">😈 深层性癖</div>
                 </div>
                 <div class="nsfw-theme-body">
-                  <div style="margin-bottom: 8px;">
-                    <b style="font-size: 11px; color: #ffb3c1; display: block; margin-bottom: 6px;">癖好</b>
-                    <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                  <div class="nsfw-tag-section">
+                    <b class="nsfw-tag-label">癖好</b>
+                    <div class="nsfw-tag-list">
                       ${(Array.isArray(nsfw.癖好) ? nsfw.癖好 : []).map((f, i) => `
                         <span class="nsfw-tag">${makeInlineEditableValue(toText(f), { path: [...nsfwPath, '癖好', i], kind: 'string' })}</span>
                       `).join('')}
                     </div>
                   </div>
                   <div>
-                    <b style="font-size: 11px; color: #ffb3c1; display: block; margin-bottom: 6px;">幻想</b>
-                    <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                    <b class="nsfw-tag-label">幻想</b>
+                    <div class="nsfw-tag-list">
                       ${(Array.isArray(nsfw.幻想) ? nsfw.幻想 : []).map((f, i) => `
                         <span class="nsfw-tag">${makeInlineEditableValue(toText(f), { path: [...nsfwPath, '幻想', i], kind: 'string' })}</span>
                       `).join('')}
@@ -16061,7 +16094,7 @@
                               <b>外观特征</b>
                               <span class="nsfw-text-wrap">${makeInlineEditableValue(toText(deepGet(partData, '外观特征', '无'), '无'), { path: [...nsfwPath, '身体部位', partName, '外观特征'], kind: 'string' })}</span>
                             </div>
-                            <div class="identity-growth-grid" style="grid-template-columns: 1fr 1fr;">
+                            <div class="identity-growth-grid identity-growth-grid--two">
                               <div class="nsfw-meta-item">
                                 <b>敏感度加成</b>
                                 <span>${makeInlineEditableValue(String(toNumber(deepGet(partData, '敏感度加成', 0), 0)), { path: [...nsfwPath, '身体部位', partName, '敏感度加成'], kind: 'number' })}</span>
@@ -16764,9 +16797,9 @@
         });
         const unlockedIntelHtml = unlockedIntelPage.items.length
           ? unlockedIntelPage.items.map(item => `
-              <div class="intel-card" style="min-height:132px; display:flex; flex-direction:column; justify-content:space-between;">
-                <div style="display:flex; gap:8px; align-items:flex-start; justify-content:space-between;">
-                  <b style="flex:1 1 auto;">${activeCharKey
+              <div class="intel-card mvu-intel-record-card">
+                <div class="mvu-intel-record-head">
+                  <b>${activeCharKey
                     ? makeInlineEditableValue(toText(item && item.text, '未知'), {
                         path: ['char', activeCharKey, '已掌握情报', toNumber(item && item.index, 0)],
                         kind: 'string',
@@ -16778,10 +16811,10 @@
                     ? `<button type="button" class="tag-chip" data-collection-action="delete-intel" data-collection-char="${escapeHtmlAttr(activeCharKey)}" data-collection-index="${escapeHtmlAttr(String(toNumber(item && item.index, 0)))}">删除</button>`
                     : ''}
                 </div>
-                <span style="margin-top:10px; color:var(--color-text-secondary); font-size:12px; line-height:1.55;">情报序号 #${toNumber(item && item.index, 0) + 1}</span>
+                <span class="mvu-intel-record-index">情报序号 #${toNumber(item && item.index, 0) + 1}</span>
               </div>
             `).join('')
-          : '<div class="intel-card" style="min-height:132px;"><b>暂无情报</b></div>';
+          : '<div class="intel-card mvu-intel-record-card"><b>暂无情报</b></div>';
         return {
           title: '情报库弹窗',
           summary: '当前已解锁情报、任务记录与交战档案概览。',
@@ -16790,7 +16823,7 @@
               <div class="archive-card intel-pending-card intel-pending-card--empty">
                 <div class="archive-card-head">
                   <div class="archive-card-title">最新情报</div>
-                  <span class="state-tag" style="opacity: 0.5;">已整理</span>
+                  <span class="state-tag state-tag--dim">已整理</span>
                 </div>
 
                 <div class="intel-pending-shell is-empty">
@@ -16824,7 +16857,7 @@
                   { label: '最近结果', value: latestCombatResult }
                 ], 'two')}
                 <div class="intel-combat-summary">
-                  <div class="simple-sub" style="margin: 0 0 6px;">按目标聚合</div>
+                  <div class="simple-sub simple-sub--compact">按目标聚合</div>
                   <div class="intel-combat-list">
                     ${combatHistoryCards.map(c => `
                       <div class="intel-combat-row">
@@ -16837,12 +16870,12 @@
               </div>
             </div>
 
-            <div class="archive-card intel-unlocked-card" style="margin-top: 12px;">
+            <div class="archive-card intel-unlocked-card mvu-detail-stack-gap mvu-detail-scroll-card">
               <div class="archive-card-head">
                 <div class="archive-card-title">已解锁情报列表</div>
                 <span class="state-tag live">${unlockedIntelPage.items.length} 条</span>
               </div>
-              <div class="intel-list-grid" style="padding: 10px; display: grid; gap: 10px;">
+              <div class="intel-list-grid mvu-detail-scroll-list">
                 ${activeCharKey ? `
                   <div class="intel-card intel-card-add">
                     <div class="request-console-row intel-add-row" data-collection-panel="intel-create">
@@ -16854,10 +16887,10 @@
                 ${unlockedIntelHtml}
                 
                 ${unlockedIntelPage.totalPages > 1 ? `
-                  <div class="tag-cloud" style="margin-top: 8px; justify-content: flex-end;">
-                    <button type="button" class="tag-chip" data-pagination="intel-records" data-page="${unlockedIntelPage.currentPage - 1}" ${unlockedIntelPage.currentPage <= 1 ? 'disabled style="opacity:0.3;"' : ''}>上一页</button>
+                  <div class="tag-cloud mvu-detail-toolbar mvu-detail-toolbar--tight">
+                    <button type="button" class="tag-chip" data-pagination="intel-records" data-page="${unlockedIntelPage.currentPage - 1}" ${unlockedIntelPage.currentPage <= 1 ? 'disabled' : ''}>上一页</button>
                     <span class="tag-chip">第 ${unlockedIntelPage.currentPage} / ${unlockedIntelPage.totalPages} 页</span>
-                    <button type="button" class="tag-chip" data-pagination="intel-records" data-page="${unlockedIntelPage.currentPage + 1}" ${unlockedIntelPage.currentPage >= unlockedIntelPage.totalPages ? 'disabled style="opacity:0.3;"' : ''}>下一页</button>
+                    <button type="button" class="tag-chip" data-pagination="intel-records" data-page="${unlockedIntelPage.currentPage + 1}" ${unlockedIntelPage.currentPage >= unlockedIntelPage.totalPages ? 'disabled' : ''}>下一页</button>
                   </div>
                 ` : ''}
               </div>
@@ -16974,7 +17007,7 @@
                 </div>
                 ${isPlayerControlled && armorExists ? `
                   <div class="archive-card full">
-                    <div class="tag-cloud armory-quick-actions" style="justify-content:flex-end;">
+                    <div class="tag-cloud armory-quick-actions mvu-detail-toolbar">
                       <button type="button" class="relation-action-btn equipment-action-btn" data-equipment-action="unequip" data-equipment-char="${escapeHtmlAttr(activeCharKey)}" data-equipment-kind="armor">卸下斗铠</button>
                     </div>
                   </div>
@@ -17045,7 +17078,7 @@
                 </div>
                 ${isPlayerControlled && mechExists ? `
                   <div class="archive-card full">
-                    <div class="tag-cloud armory-quick-actions" style="justify-content:flex-end;">
+                    <div class="tag-cloud armory-quick-actions mvu-detail-toolbar">
                       <button type="button" class="relation-action-btn equipment-action-btn" data-equipment-action="unequip" data-equipment-char="${escapeHtmlAttr(activeCharKey)}" data-equipment-kind="mech">卸下机甲</button>
                     </div>
                   </div>
@@ -17102,7 +17135,7 @@
                 </div>
                 ${isPlayerControlled && (weapon && (weapon.名称 || weapon['名称'])) ? `
                   <div class="archive-card full">
-                    <div class="tag-cloud armory-quick-actions" style="justify-content:flex-end;">
+                    <div class="tag-cloud armory-quick-actions mvu-detail-toolbar">
                       <button type="button" class="relation-action-btn equipment-action-btn" data-equipment-action="unequip" data-equipment-char="${escapeHtmlAttr(activeCharKey)}" data-equipment-kind="wpn">卸下主武器</button>
                     </div>
                   </div>
@@ -17126,7 +17159,7 @@
             title: `${slotName}详情`,
             summary: '',
             body: `
-              <div class="archive-modal-grid" style="grid-template-columns:1fr;">
+              <div class="archive-modal-grid mvu-detail-grid--single">
                 <div class="archive-card full">
                   <div class="archive-card-head"><div class="archive-card-title">${slotName}</div></div>
                   ${makeTileGrid(partData ? [
@@ -17209,11 +17242,10 @@
             });
             const skillsHtml = parsedSkills.map(skill => `
               <div
-                class="ring-hover-skill${skill && skill.preview ? ' clickable' : ''}"
+                class="ring-hover-skill mvu-soul-bone-skill${skill && skill.preview ? ' clickable' : ''}"
                 ${skill && skill.preview ? `data-preview="${escapeHtmlAttr(skill.preview)}"` : ''}
-                style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05); margin-top:8px; padding:8px; border-radius:8px;"
               >
-                <b style="color:var(--gold);font-size:11px;display:block;margin-bottom:6px;">${htmlEscape(skill && skill.name ? skill.name : '未命名技能')}</b>
+                <b class="mvu-soul-bone-skill-title">${htmlEscape(skill && skill.name ? skill.name : '未命名技能')}</b>
                 <div class="ring-hover-copy"><em>画面描述</em><span>${htmlEscape(skill && skill.visualDesc ? skill.visualDesc : '未知')}</span></div>
                 <div class="ring-hover-copy"><em>效果描述</em><span>${htmlEscape(skill && skill.effectDesc ? skill.effectDesc : '未知')}</span></div>
               </div>
@@ -17228,7 +17260,7 @@
           title: '武装工坊弹窗',
           summary: '',
           body: `
-            <div class="equipment-layout armory-layout-single">
+            <div class="equipment-layout armory-layout-single mvu-armory-detail-grid">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">当前武装</div></div>
                 ${makeInteractiveTileGrid([
@@ -17239,18 +17271,18 @@
                   { label: '战斗形态', value: battleForm }
                 ])}
               </div>
-              <div class="archive-card full">
+              <div class="archive-card full mvu-detail-scroll-card">
                 <div class="archive-card-head"><div class="archive-card-title">魂骨装载</div></div>
-                ${makeTimelineStack(soulBoneCards)}
+                <div class="mvu-detail-scroll-list">${makeTimelineStack(soulBoneCards)}</div>
               </div>
-              <div class="archive-card full">
+              <div class="archive-card full mvu-detail-embed-card">
                 <div class="archive-card-head"><div class="archive-card-title">副职业工坊</div></div>
                 ${makeTileGrid(jobs.length ? [
                   { label: '主副职', value: jobSummary },
                   { label: '核心技术', value: jobCoreTechSummary },
                   { label: '工坊上限', value: jobLimitSummary }
                 ] : [{ label: '主副职', value: '未展开' }, { label: '核心技术', value: '暂无' }, { label: '工坊上限', value: '暂无' }], 'three')}
-                ${isPlayerControlled ? '<div id="armoryProfessionMount"></div>' : '<div class="tag-cloud armory-quick-actions"><span class="tag-chip">仅玩家角色可进行锻造/工坊操作</span></div>'}
+                ${isPlayerControlled ? '<div id="armoryProfessionMount" class="mvu-detail-embed"></div>' : '<div class="tag-cloud armory-quick-actions"><span class="tag-chip">仅玩家角色可进行锻造/工坊操作</span></div>'}
               </div>
             </div>
           `,
@@ -17385,7 +17417,7 @@
           const useActionLabel = /食物/.test(typeValue) || /食用/.test(triggerValue) ? '食用' : '使用';
           const actionLine = itemPath.length
             ? `
-              <div class="request-console-row" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+               <div class="request-console-row mvu-detail-action-row">
                 ${canUseItem
                   ? `<button type="button" class="tag-chip live inventory-hover-action-btn" data-inventory-action="use" data-inventory-char="${escapeHtmlAttr(activeCharKey)}" data-inventory-item="${escapeHtmlAttr(name)}">${useActionLabel}</button>`
                   : ''}
@@ -17420,11 +17452,11 @@
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">物资细项总览</div><span class="state-tag ${snapshot.inventoryEntries.length ? 'live' : 'warn'}">${snapshot.inventoryEntries.length ? `${snapshot.inventoryEntries.length} 件` : '空'}</span></div>
                 ${activeCharKey ? `
-                  <div class="request-console-row" data-collection-panel="inventory-create" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
-                    <input class="request-console-input" style="margin:0; flex:1 1 180px;" data-collection-input="item-name" value="" placeholder="物品名" />
-                    <input type="number" min="1" class="request-console-input" style="margin:0; width:90px; flex:0 0 90px;" data-collection-input="item-qty" value="1" placeholder="数量" />
-                    <input class="request-console-input" style="margin:0; flex:0 1 140px;" data-collection-input="item-type" value="物品" placeholder="类型" />
-                    <input class="request-console-input" style="margin:0; flex:1 1 220px;" data-collection-input="item-desc" value="" placeholder="描述" />
+                  <div class="request-console-row mvu-detail-form-row" data-collection-panel="inventory-create">
+                    <input class="request-console-input" data-collection-input="item-name" value="" placeholder="物品名" />
+                    <input type="number" min="1" class="request-console-input request-console-input--compact" data-collection-input="item-qty" value="1" placeholder="数量" />
+                    <input class="request-console-input request-console-input--medium" data-collection-input="item-type" value="物品" placeholder="类型" />
+                    <input class="request-console-input" data-collection-input="item-desc" value="" placeholder="描述" />
                     <button type="button" class="tag-chip live" data-collection-action="add-item" data-collection-char="${escapeHtmlAttr(activeCharKey)}">新增</button>
                   </div>
                 ` : ''}
@@ -17461,7 +17493,7 @@
             title: '魂环生成',
             summary: '当前没有待处理的魂环生成请求。',
             body: `
-              <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
+            <div class="archive-modal-grid mvu-detail-grid--single">
                 <div class="archive-card full">
                   <div class="archive-card-head"><div class="archive-card-title">暂无待处理请求</div></div>
                   <div class="dossier-empty-note">当前没有待处理的魂环生成选择。</div>
@@ -17488,11 +17520,11 @@
                   <div class="meta-item"><b>本次颜色</b><span>${htmlEscape(candidate.nextRingColorLabel)}</span></div>
                   <div class="meta-item"><b>生成后剩余</b><span>${htmlEscape(String(candidate.remainingAfterGenerate))}</span></div>
                 </div>
-                <div style="margin-top:12px;font-size:12px;line-height:1.8;color:var(--color-text-secondary);">
-                  <b style="display:block;margin-bottom:6px;color:var(--white);font-size:12px;">魂灵描述</b>
+                <div class="mvu-detail-text mvu-detail-text--framed">
+                  <b>魂灵描述</b>
                   ${htmlEscape(candidate.description)}
                 </div>
-                <div class="ring-hover-actions" style="margin-top:14px;">
+                <div class="ring-hover-actions mvu-detail-action-row">
                   <button type="button" class="tag-chip live" data-soul-ring-action="generate" data-soul-ring-candidate="${escapeHtmlAttr(candidate.soulName)}">使用该魂灵生成</button>
                 </div>
               </div>
@@ -17502,7 +17534,7 @@
           title: '魂环生成',
           summary: '检测到修为突破后的魂环生成选择。',
           body: `
-            <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
+            <div class="archive-modal-grid mvu-detail-grid--single">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">待处理魂环</div></div>
                 ${makeDossierRows([
@@ -17511,10 +17543,10 @@
                   { label: '魂环位', value: htmlEscape(`第 ${pendingSoulRing.ringIndex} 魂环`) },
                   { label: '状态', value: htmlEscape(pendingSoulRing.status) },
                 ], 'dossier-row-grid--two')}
-                <div style="margin-top:12px;font-size:12px;line-height:1.8;color:var(--color-text-secondary);">
+                <div class="mvu-detail-text mvu-detail-text--framed">
                   当前已达到魂环门槛。请选择是否使用现有魂灵衍生这一枚魂环；若暂缓处理，系统会保持挂起，不会继续自动突破。
                 </div>
-                <div style="margin-top:10px;font-size:12px;line-height:1.7;color:var(--color-text-secondary);">
+                <div class="mvu-detail-note">
                   确认生成后会自动跳转回【${htmlEscape(pendingSoulRing.spiritName)}】对应武魂详情页。
                 </div>
               </div>
@@ -17523,7 +17555,7 @@
                 <div class="soul-expand-stack">
                   ${candidateCards}
                 </div>
-                <div class="ring-hover-actions" style="margin-top:14px;">
+                <div class="ring-hover-actions mvu-detail-action-row">
                   <button type="button" class="tag-chip" data-soul-ring-action="defer">暂不生成</button>
                 </div>
               </div>
@@ -17545,7 +17577,7 @@
           title: '武魂',
           summary: '武魂、魂灵、魂环与魂技的实时展开。',
           body: `
-            <div class="archive-modal-grid">
+            <div class="archive-modal-grid mvu-spirit-detail-grid">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">武魂</div></div>
                 <div class="spirit-main-card">
@@ -17569,13 +17601,13 @@
                     <span class="tag-chip">${htmlEscape(`独立环：${toNumber(config.independentRingCount, 0)}`)}</span>
                     ${hasPendingSoulRingForCurrentSpirit ? `<button type="button" class="tag-chip warn clickable" data-preview="${escapeHtmlAttr(PENDING_SOUL_RING_PREVIEW_KEY)}">待生成魂环</button>` : ''}
                   </div>
-                  <div style="margin-top:12px;font-size:12px;line-height:1.8;color:var(--color-text-secondary);">
-                    <b style="display:block;margin-bottom:6px;color:var(--white);font-size:12px;">武魂描述</b>
+                  <div class="mvu-detail-text mvu-detail-text--framed">
+                    <b>武魂描述</b>
                     ${config.spiritPath && config.spiritPath.length
                       ? makeInlineEditableValue(config.spiritDesc, { path: [...config.spiritPath, '描述'], kind: 'string', rawValue: config.spiritDesc, multiline: true })
                       : htmlEscape(config.spiritDesc)}
                   </div>
-                  <div class="soul-meta" style="margin-top:12px;">
+                  <div class="soul-meta mvu-detail-meta">
                     <div class="meta-item"><b>已解锁属性</b><span>${config.spiritPath && config.spiritPath.length
                       ? makeInlineEditableValue(config.spiritUnlockedAttrs.join('、') || '未设置', {
                         path: [...config.spiritPath, '已解锁属性'],
@@ -17595,9 +17627,9 @@
                   </div>
                 </div>
               </div>
-              <div class="archive-card full spirit-flow-card">
+              <div class="archive-card full spirit-flow-card mvu-detail-scroll-card">
                 <div class="archive-card-head"><div class="archive-card-title">魂灵</div></div>
-                <div class="soul-expand-stack">
+                <div class="soul-expand-stack mvu-detail-scroll-list">
                   ${config.souls.map(soul => `
                     <div class="soul-expand-card">
                       <div class="soul-expand-head">
@@ -17622,8 +17654,8 @@
                           ? makeInlineEditableValue(soul.comp, { path: [...soul.path, '契合度'], kind: 'number', rawValue: soul.compValue, editorMeta: { min: 0, max: 100, integer: true, hint: '范围 0 - 100 · 整数' } })
                           : htmlEscape(soul.comp)}</span></div>
                       </div>
-                      <div style="margin-top:12px;font-size:12px;line-height:1.8;color:var(--color-text-secondary);">
-                        <b style="display:block;margin-bottom:6px;color:var(--white);font-size:12px;">魂灵描述</b>
+                      <div class="mvu-detail-text mvu-detail-text--framed">
+                        <b>魂灵描述</b>
                         ${soul.path && soul.path.length
                           ? makeInlineEditableValue(soul.description, { path: [...soul.path, '描述'], kind: 'string', rawValue: soul.description, multiline: true })
                           : htmlEscape(soul.description)}
@@ -17924,7 +17956,7 @@
           title: '编年史弹窗',
           summary: '横向时间轴与最近事件。',
           body: `
-            <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
+            <div class="archive-modal-grid mvu-detail-grid--single">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">宏观时间轴</div></div>
                 <div class="history-timeline-wrap"><div class="history-timeline-track">
@@ -18146,11 +18178,11 @@
             <div class="archive-modal-grid">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">势力梯阵</div></div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 10px;">
+                <div class="mvu-detail-card-grid mvu-detail-scroll-list">
                   ${snapshot.orgEntries.map(([name, item]) => `
-                    <button type="button" class="role-switch-tile clickable" data-preview="org_detail_${escapeHtmlAttr(name)}" style="text-align:left; border:1px solid rgba(255,255,255,0.08); background:rgba(0,0,0,0.2); padding:12px; border-radius:8px; cursor:pointer;">
-                      <div class="role-switch-head" style="margin-bottom:6px;font-size:15px;"><b>${htmlEscape(name)}</b><span class="state-tag">点击详情</span></div>
-                      <div class="role-switch-meta" style="font-size:12px;color:var(--text-muted);">
+                    <button type="button" class="role-switch-tile clickable mvu-detail-list-tile" data-preview="org_detail_${escapeHtmlAttr(name)}">
+                      <div class="role-switch-head mvu-detail-list-head"><b>${htmlEscape(name)}</b><span class="state-tag">点击详情</span></div>
+                      <div class="role-switch-meta mvu-detail-list-meta">
                         规模：${formatNumber(item && item.规模 || 0)} ｜ 状态：${toText(item && item.状态, '正常')} <br>
                         顶尖战力：${toText(deepGet(item, '战力统计.封号斗罗', 0), '0')} 位封号斗罗
                       </div>
@@ -18192,7 +18224,7 @@
           title: `${targetOrgName} / 势力档案`,
           summary: '展示该势力的规模战力、对外关系以及已知成员名册。',
           body: `
-            <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
+            <div class="archive-modal-grid mvu-detail-grid--single">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">势力概况</div></div>
                 ${makeTileGrid([
@@ -18258,15 +18290,15 @@
               </div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">角色名册</div></div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 10px;">
+                <div class="mvu-detail-card-grid mvu-detail-scroll-list">
                   ${orgMembers.length > 0 ? orgMembers.map(m => `
-                    <button type="button" class="role-switch-tile clickable" data-preview="角色档案：${escapeHtmlAttr(m.name)}" style="text-align:left; border:1px solid rgba(255,255,255,0.08); background:rgba(0,0,0,0.2); padding:12px; border-radius:8px; cursor:pointer;">
-                      <div class="role-switch-head" style="margin-bottom:6px;font-size:15px;"><b>${htmlEscape(m.name)}</b><span class="state-tag">角色</span></div>
-                      <div class="role-switch-meta" style="font-size:12px;color:var(--text-muted);">
+                    <button type="button" class="role-switch-tile clickable mvu-detail-list-tile" data-preview="角色档案：${escapeHtmlAttr(m.name)}">
+                      <div class="role-switch-head mvu-detail-list-head"><b>${htmlEscape(m.name)}</b><span class="state-tag">角色</span></div>
+                      <div class="role-switch-meta mvu-detail-list-meta">
                         ${htmlEscape(m.desc)}
                       </div>
                     </button>
-                  `).join('') : '<div style="padding:12px; color:var(--text-muted);">未搜索到属于该势力的已知角色。</div>'}
+                  `).join('') : '<div class="mvu-detail-empty">未搜索到属于该势力的已知角色。</div>'}
                 </div>
               </div>
             </div>
@@ -18289,7 +18321,7 @@
             const npcLoc = toText(deepGet(char, '状态.位置', ''), '');
             return npcLoc ? isLocationCompatible(nodeName, npcLoc) : false;
           })
-          .slice(0, 4);
+          .slice(0, 12);
         const primaryNpc = localNpcEntries[0]
           ? toText(deepGet(localNpcEntries[0][1], 'name', deepGet(localNpcEntries[0][1], 'base.name', localNpcEntries[0][0])), localNpcEntries[0][0])
           : '';
@@ -18373,7 +18405,7 @@
                       ...(travelPlan.routePlan ? [{ label: '路径说明', value: htmlEscape(toText(travelPlan.routePlan, '')), className: 'dossier-row--wide' }] : []),
                       ...(!travelPlan.canAfford && travelPlan.reason ? [{ label: '当前限制', value: htmlEscape(toText(travelPlan.reason, '资源不足')), className: 'dossier-row--wide' }] : [])
                     ], 'dossier-row-grid--two')}
-                    <div class="tag-cloud armory-quick-actions" style="margin-top:12px;justify-content:flex-start;">
+                    <div class="tag-cloud armory-quick-actions mvu-detail-action-row mvu-detail-action-row--start">
                       <button type="button" class="relation-action-btn action-primary" data-map-travel-node="${escapeHtmlAttr(nodeName)}" ${travelPlan.canAfford ? '' : 'disabled'}>${htmlEscape(travelPlan.canAfford ? `移动到 ${nodeName}` : '资源不足，暂不能移动')}</button>
                     </div>`
                   : `<div class="dossier-empty-note">${htmlEscape(toText(travelPlan && travelPlan.reason, '当前无法规划前往该节点的移动。'))}</div>`}
@@ -18387,7 +18419,7 @@
             `)
           : `<div class="relation-card"><b>旁观视角</b><span>${htmlEscape(actionSummaryText ? `可见入口：${actionSummaryText}` : '无本地操作')}</span></div>`;
         const localNpcCardsHtml = localNpcEntries.length
-          ? `<div class="location-npc-list">${localNpcEntries.map(([name, char]) => {
+          ? `<div class="location-npc-list mvu-detail-scroll-list">${localNpcEntries.map(([name, char]) => {
               const displayName = toText(deepGet(char, 'name', deepGet(char, 'base.name', name)), name);
               const identityRaw = toText(deepGet(char, '社交.主身份', '未知身份'), '未知身份');
               const identity = identityRaw && identityRaw !== displayName ? identityRaw : '未标注';
@@ -18505,19 +18537,21 @@
                   </div>
                 </div>
               ${localNpcEntries.length > 0 ? `
-                <div class="archive-card">
+                <div class="archive-card mvu-detail-scroll-card">
                   <div class="archive-card-head"><div class="archive-card-title">${htmlEscape(actionCardTitle)}</div></div>
-                  ${actionButtonsHtml}
+                  <div class="mvu-detail-scroll-list">${actionButtonsHtml}</div>
                 </div>
-                <div class="archive-card">
+                <div class="archive-card mvu-detail-scroll-card">
                   <div class="archive-card-head"><div class="archive-card-title">本地可接触人物</div></div>
                   ${localNpcCardsHtml}
                 </div>
               ` : `
                 <div class="archive-card full">
                   <div class="archive-card-head"><div class="archive-card-title">${htmlEscape(actionCardTitle)}</div></div>
-                  ${actionButtonsHtml}
-                  <div class="location-empty-note">当前节点未扫描到可直接互动的本地角色。</div>
+                  <div class="mvu-detail-scroll-list">
+                    ${actionButtonsHtml}
+                    <div class="location-empty-note">当前节点未扫描到可直接互动的本地角色。</div>
+                  </div>
                 </div>
               `}
             </div>
@@ -18533,7 +18567,7 @@
           title: '图层控制 / 跑图弹窗',
           summary: '当前位置、可见层级与跑图仲裁状态。',
           body: `
-            <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
+            <div class="archive-modal-grid mvu-detail-grid--single">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">当前位置与视图</div></div>
                 ${makeTileGrid([
@@ -18556,7 +18590,7 @@
           title: '动态地点弹窗',
           summary: '剧情推进生成的扩展节点。',
           body: `
-            <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
+            <div class="archive-modal-grid mvu-detail-grid--single">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">动态节点列表</div></div>
                 ${makeTimelineStack(dynamicLocationEntries.length ? dynamicLocationEntries.map(([name, item]) => {
@@ -18748,10 +18782,10 @@
           title: '终端',
           summary: '',
           body: `
-            <div class="archive-modal-grid terminal-detail-grid">
-              <div class="archive-card full">
+            <div class="archive-modal-grid terminal-detail-grid mvu-detail-grid--terminal">
+              <div class="archive-card full mvu-detail-scroll-card">
                 <div class="archive-card-head"><div class="archive-card-title">系统广播</div></div>
-                ${makeTimelineStack(终端条目)}
+                <div class="mvu-detail-scroll-list">${makeTimelineStack(终端条目)}</div>
               </div>
             </div>
           `
@@ -18764,7 +18798,7 @@
           title: '近期安排',
           summary: '',
           body: `
-            <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
+            <div class="archive-modal-grid mvu-detail-grid--terminal">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">当前状态</div></div>
                 ${makeTileGrid([
@@ -18777,22 +18811,22 @@
                 ], 'two')}
               </div>
               ${构建可玩选项卡区(snapshot, '操作总线')}
-              <div class="archive-card full">
+              <div class="archive-card full mvu-detail-scroll-card">
                 <div class="archive-card-head"><div class="archive-card-title">世界日程</div></div>
-                ${makeTimelineStack(planSummary.worldPlans.length ? planSummary.worldPlans : [{ title: '暂无世界安排', desc: '暂无', className: 'timeline-card--single' }])}
+                <div class="mvu-detail-scroll-list">${makeTimelineStack(planSummary.worldPlans.length ? planSummary.worldPlans : [{ title: '暂无世界安排', desc: '暂无', className: 'timeline-card--single' }])}</div>
               </div>
-              <div class="archive-card full">
+              <div class="archive-card full mvu-detail-scroll-card">
                 <div class="archive-card-head"><div class="archive-card-title">个人待办</div></div>
-                ${makeTimelineStack(planSummary.personalPlans.length ? planSummary.personalPlans : [{ title: '暂无个人待办', desc: '暂无', className: 'timeline-card--single' }])}
+                <div class="mvu-detail-scroll-list">${makeTimelineStack(planSummary.personalPlans.length ? planSummary.personalPlans : [{ title: '暂无个人待办', desc: '暂无', className: 'timeline-card--single' }])}</div>
               </div>
-              <div class="archive-card full">
+              <div class="archive-card full mvu-detail-scroll-card">
                 <div class="archive-card-head"><div class="archive-card-title">请求摘要</div></div>
-                ${makeTimelineStack((snapshot.pendingRequests.length ? snapshot.pendingRequests : ['暂无请求摘要']).map((item, index) => ({
+                <div class="mvu-detail-scroll-list">${makeTimelineStack((snapshot.pendingRequests.length ? snapshot.pendingRequests : ['暂无请求摘要']).map((item, index) => ({
                   title: `请求 ${index + 1}`,
                   desc: shortenText(toText(item, '暂无请求摘要'), 28),
                   descTitle: toText(item, '暂无请求摘要'),
                   className: 'timeline-card--single',
-                })))}
+                })))}</div>
               </div>
             </div>
           `
@@ -18832,7 +18866,7 @@
           title: '试炼与情报',
           summary: '',
           body: `
-            <div class="archive-modal-grid" style="grid-template-columns: repeat(2, minmax(0, 1fr)); align-items:stretch;">
+            <div class="archive-modal-grid mvu-detail-grid--trial">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">试炼总览</div></div>
                 ${makeTileGrid([
@@ -18862,13 +18896,13 @@
                 ], 'two')}
               </div>
 
-              <div class="archive-card full">
+              <div class="archive-card full mvu-detail-scroll-card">
                 <div class="archive-card-head"><div class="archive-card-title">门票与资格</div></div>
-                <div class="intel-layout" style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px;">
-                  ${ticketCards.map(item => `<div class="intel-card ${item.className || ''}" style="min-height:116px;"><b>${htmlEscape(item.title)}</b><span${item.descTitle ? ` title="${escapeHtmlAttr(item.descTitle)}"` : ''}>${htmlEscape(item.desc)}</span></div>`).join('')}
+                <div class="intel-layout mvu-detail-intel-grid mvu-detail-scroll-list">
+                  ${ticketCards.map(item => `<div class="intel-card ${item.className || ''} mvu-detail-intel-card"><b>${htmlEscape(item.title)}</b><span${item.descTitle ? ` title="${escapeHtmlAttr(item.descTitle)}"` : ''}>${htmlEscape(item.desc)}</span></div>`).join('')}
                 </div>
                 ${soulTowerEligible ? `
-                  <div style="margin-top:12px;">
+                  <div class="mvu-detail-scroll-list mvu-detail-stack-gap">
                     ${makeTimelineStack(hasActiveSoulTowerDiscountSpirit(towerDiscountSpirit)
                       ? [{
                         title: '当前可五折魂灵',
@@ -18882,10 +18916,10 @@
               </div>
               ${构建可玩选项卡区(snapshot, '试炼与情报')}
 
-              <div class="archive-card full">
+              <div class="archive-card full mvu-detail-scroll-card">
                 <div class="archive-card-head"><div class="archive-card-title">近期情报</div></div>
-                <div class="intel-layout" style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px;">
-                  ${(snapshot.unlockedKnowledges.length ? snapshot.unlockedKnowledges.slice(-4).reverse() : ['情报仍待收集']).map(item => `<div class="intel-card intel-card--single" style="min-height:116px;"><b>${htmlEscape(shortenText(item, 20))}</b><span title="${escapeHtmlAttr(item)}">${htmlEscape(shortenText(item, 24))}</span></div>`).join('')}
+                <div class="intel-layout mvu-detail-intel-grid mvu-detail-scroll-list">
+                  ${(snapshot.unlockedKnowledges.length ? snapshot.unlockedKnowledges.slice(-4).reverse() : ['情报仍待收集']).map(item => `<div class="intel-card intel-card--single mvu-detail-intel-card"><b>${htmlEscape(shortenText(item, 20))}</b><span title="${escapeHtmlAttr(item)}">${htmlEscape(shortenText(item, 24))}</span></div>`).join('')}
                 </div>
               </div>
             </div>
@@ -18931,27 +18965,27 @@
         const 委托类型选项 = ['悬赏委托', '支线委托', '资源委托', '情报委托', '工坊委托', '试炼委托'];
         const 下拉选项 = (列表, 当前值 = '') => 列表.map(项 => `<option value="${escapeHtmlAttr(项)}" ${项 === 当前值 ? 'selected' : ''}>${htmlEscape(项)}</option>`).join('');
         const questCreateFormHtml = activeCharKey ? `
-          <div class="request-console-row quest-guided-row" data-collection-panel="quest-record-create" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
-            <input class="request-console-input" style="margin:0; flex:1 1 180px;" data-collection-input="record-name" value="" placeholder="任务名：调查失踪机甲" aria-label="任务名" />
-            <select class="request-console-input" style="margin:0; flex:0 1 132px;" data-collection-input="record-type" aria-label="任务类型">${下拉选项(任务类型选项, '支线任务')}</select>
-            <input type="number" min="1" step="1" inputmode="numeric" class="request-console-input" style="margin:0; width:86px; flex:0 0 86px;" data-collection-input="record-target" value="3" placeholder="阶段" aria-label="目标阶段" />
-            <input type="number" min="0" step="1" inputmode="numeric" class="request-console-input" style="margin:0; width:96px; flex:0 0 96px;" data-collection-input="record-rewardCoin" value="0" placeholder="联邦币" aria-label="奖励联邦币" />
-            <input type="number" min="0" step="1" inputmode="numeric" class="request-console-input" style="margin:0; width:96px; flex:0 0 96px;" data-collection-input="record-rewardRep" value="0" placeholder="声望" aria-label="奖励声望" />
-            <input class="request-console-input" style="margin:0; flex:1 1 240px;" data-collection-input="record-desc" value="" placeholder="目标：找到线索 / 护送到东门" aria-label="任务目标" />
+          <div class="request-console-row quest-guided-row mvu-detail-form-row" data-collection-panel="quest-record-create">
+            <input class="request-console-input" data-collection-input="record-name" value="" placeholder="任务名：调查失踪机甲" aria-label="任务名" />
+            <select class="request-console-input request-console-input--medium" data-collection-input="record-type" aria-label="任务类型">${下拉选项(任务类型选项, '支线任务')}</select>
+            <input type="number" min="1" step="1" inputmode="numeric" class="request-console-input request-console-input--compact" data-collection-input="record-target" value="3" placeholder="阶段" aria-label="目标阶段" />
+            <input type="number" min="0" step="1" inputmode="numeric" class="request-console-input request-console-input--compact" data-collection-input="record-rewardCoin" value="0" placeholder="联邦币" aria-label="奖励联邦币" />
+            <input type="number" min="0" step="1" inputmode="numeric" class="request-console-input request-console-input--compact" data-collection-input="record-rewardRep" value="0" placeholder="声望" aria-label="奖励声望" />
+            <input class="request-console-input" data-collection-input="record-desc" value="" placeholder="目标：找到线索 / 护送到东门" aria-label="任务目标" />
             <button type="button" class="tag-chip live" data-collection-action="add-record" data-collection-char="${escapeHtmlAttr(activeCharKey)}">记录任务</button>
           </div>
         ` : '';
         const boardCreateFormHtml = `
-          <div class="request-console-row quest-guided-row" data-collection-panel="quest-board-create" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
-            <input class="request-console-input" style="margin:0; flex:1 1 180px;" data-collection-input="board-name" value="" placeholder="委托名：护送样本" aria-label="委托名" />
-            <select class="request-console-input" style="margin:0; flex:0 1 132px;" data-collection-input="board-type" aria-label="委托类型">${下拉选项(委托类型选项, '悬赏委托')}</select>
-            <input class="request-console-input" style="margin:0; flex:0 1 132px;" data-collection-input="board-publisher" value="传灵塔" placeholder="发布者" aria-label="发布者" />
-            <input type="number" min="1" step="1" inputmode="numeric" class="request-console-input" style="margin:0; width:86px; flex:0 0 86px;" data-collection-input="board-target" value="3" placeholder="阶段" aria-label="预计阶段" />
-            <select class="request-console-input" style="margin:0; flex:0 1 88px;" data-collection-input="board-difficulty" aria-label="难度">${下拉选项(['低', '中', '高', '极高'], '中')}</select>
-            <select class="request-console-input" style="margin:0; flex:0 1 96px;" data-collection-input="board-resource" aria-label="资源级别">${下拉选项(['无', '低', '中', '高', '稀有'], '无')}</select>
-            <input type="number" min="0" step="1" inputmode="numeric" class="request-console-input" style="margin:0; width:96px; flex:0 0 96px;" data-collection-input="board-rewardCoin" value="0" placeholder="联邦币" aria-label="奖励联邦币" />
-            <input type="number" min="0" step="1" inputmode="numeric" class="request-console-input" style="margin:0; width:96px; flex:0 0 96px;" data-collection-input="board-rewardRep" value="0" placeholder="声望" aria-label="奖励声望" />
-            <input class="request-console-input" style="margin:0; flex:1 1 260px;" data-collection-input="board-desc" value="" placeholder="目标：取回材料 / 核实情报" aria-label="委托目标" />
+          <div class="request-console-row quest-guided-row mvu-detail-form-row" data-collection-panel="quest-board-create">
+            <input class="request-console-input" data-collection-input="board-name" value="" placeholder="委托名：护送样本" aria-label="委托名" />
+            <select class="request-console-input request-console-input--medium" data-collection-input="board-type" aria-label="委托类型">${下拉选项(委托类型选项, '悬赏委托')}</select>
+            <input class="request-console-input request-console-input--medium" data-collection-input="board-publisher" value="传灵塔" placeholder="发布者" aria-label="发布者" />
+            <input type="number" min="1" step="1" inputmode="numeric" class="request-console-input request-console-input--compact" data-collection-input="board-target" value="3" placeholder="阶段" aria-label="预计阶段" />
+            <select class="request-console-input request-console-input--compact" data-collection-input="board-difficulty" aria-label="难度">${下拉选项(['低', '中', '高', '极高'], '中')}</select>
+            <select class="request-console-input request-console-input--compact" data-collection-input="board-resource" aria-label="资源级别">${下拉选项(['无', '低', '中', '高', '稀有'], '无')}</select>
+            <input type="number" min="0" step="1" inputmode="numeric" class="request-console-input request-console-input--compact" data-collection-input="board-rewardCoin" value="0" placeholder="联邦币" aria-label="奖励联邦币" />
+            <input type="number" min="0" step="1" inputmode="numeric" class="request-console-input request-console-input--compact" data-collection-input="board-rewardRep" value="0" placeholder="声望" aria-label="奖励声望" />
+            <input class="request-console-input" data-collection-input="board-desc" value="" placeholder="目标：取回材料 / 核实情报" aria-label="委托目标" />
             <button type="button" class="tag-chip live" data-collection-action="add-board">发布委托</button>
           </div>
         `;
@@ -18961,9 +18995,9 @@
               const progress = `${toNumber(item && item['当前进度'], 0)}/${toNumber(item && item['目标进度'], 1)}`;
               const badgeClass = status === '已完成' ? 'live' : (status === '已放弃' ? 'warn' : '');
               return `
-                <button type="button" class="role-switch-tile ${name === focusQuestName ? 'active' : ''}" data-quest-focus="${escapeHtmlAttr(name)}" style="text-align:left;">
-                  <div class="role-switch-head" style="margin-bottom:6px;font-size:15px;"><b>${htmlEscape(name)}</b><span class="state-tag ${badgeClass}">${htmlEscape(status)}</span></div>
-                  <div style="display:grid;gap:4px;">
+                <button type="button" class="role-switch-tile mvu-detail-list-tile ${name === focusQuestName ? 'active' : ''}" data-quest-focus="${escapeHtmlAttr(name)}">
+                  <div class="role-switch-head mvu-detail-list-head"><b>${htmlEscape(name)}</b><span class="state-tag ${badgeClass}">${htmlEscape(status)}</span></div>
+                  <div class="mvu-detail-mini-stack">
                     <span>${htmlEscape(`进度：${progress}`)}</span>
                     <span>${htmlEscape(`奖励：${formatNumber(toNumber(item && item['奖励币'], 0))} 币 / ${formatNumber(toNumber(item && item['奖励声望'], 0))} 声望`)}</span>
                     <span>${htmlEscape(toText(item && item['描述'], '无说明'))}</span>
@@ -18971,7 +19005,7 @@
                 </button>
               `;
             }).join('')
-          : '<div style="padding: 12px 16px; color: var(--color-text-secondary); text-align: center; font-size: 13px;">暂无任务</div>';
+          : '<div class="mvu-detail-empty">暂无任务</div>';
         const boardListHtml = boardPage.items.length
           ? boardPage.items.map(([id, item]) => {
               const title = toText(item && item['标题'], id);
@@ -18979,9 +19013,9 @@
               const publisher = toText(item && item['发布者'], '系统');
               const badgeClass = status === '待接取' ? 'live' : (status === '进行中' || status === '可提交' ? 'warn' : '');
               return `
-                <button type="button" class="role-switch-tile ${id === focusBoardId ? 'active' : ''}" data-quest-board-focus="${escapeHtmlAttr(id)}" style="text-align:left;">
-                  <div class="role-switch-head" style="margin-bottom:6px;font-size:15px;"><b>${htmlEscape(title)}</b><span class="state-tag ${badgeClass}">${htmlEscape(status)}</span></div>
-                  <div style="display:grid;gap:4px;">
+                <button type="button" class="role-switch-tile mvu-detail-list-tile ${id === focusBoardId ? 'active' : ''}" data-quest-board-focus="${escapeHtmlAttr(id)}">
+                  <div class="role-switch-head mvu-detail-list-head"><b>${htmlEscape(title)}</b><span class="state-tag ${badgeClass}">${htmlEscape(status)}</span></div>
+                  <div class="mvu-detail-mini-stack">
                     <span>${htmlEscape(`发布者：${publisher}`)}</span>
                     <span>${htmlEscape(`难度：${toText(item && item['难度'], '中')} / 资源：${toText(item && item['资源级别'], '无')}`)}</span>
                     <span>${htmlEscape(`奖励：${formatNumber(toNumber(item && item['奖励币'], 0))} 币 / ${formatNumber(toNumber(item && item['奖励声望'], 0))} 声望`)}</span>
@@ -18989,7 +19023,7 @@
                 </button>
               `;
             }).join('')
-          : '<div style="padding: 12px 16px; color: var(--color-text-secondary); text-align: center; font-size: 13px;">暂无委托</div>';
+          : '<div class="mvu-detail-empty">暂无委托</div>';
         const questDetailHtml = focusQuest
           ? `
               ${makeTileGrid([
@@ -19041,17 +19075,17 @@
                     })
                   : htmlEscape(formatNumber(toNumber(focusQuest['奖励声望'], 0))) }
               ], 'two')}
-              <div style="margin-top: 16px;">
-                <div style="font-size: 11px; color: var(--color-text-secondary); margin-bottom: 6px; font-weight: 500;">当前进度 <span style="float: right; color: var(--cyan);">${toNumber(focusQuest['当前进度'], 0)} / ${toNumber(focusQuest['目标进度'], 1)}</span></div>
-                <div style="height: 6px; background: rgba(0, 229, 255, 0.1); border-radius: 3px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);">
-                  <div style="height: 100%; background: linear-gradient(90deg, rgba(0,229,255,0.6), rgba(0,229,255,1)); width: ${ratioPercent(toNumber(focusQuest['当前进度'], 0), toNumber(focusQuest['目标进度'], 1))}%; border-radius: 3px; box-shadow: 0 0 8px rgba(0,229,255,0.8); transition: width 0.3s ease;"></div>
+              <div class="mvu-detail-progress">
+                <div class="mvu-detail-progress-head"><span>当前进度</span><span>${toNumber(focusQuest['当前进度'], 0)} / ${toNumber(focusQuest['目标进度'], 1)}</span></div>
+                <div class="mvu-detail-progress-track">
+                  <div class="mvu-detail-progress-fill" style="width:${ratioPercent(toNumber(focusQuest['当前进度'], 0), toNumber(focusQuest['目标进度'], 1))}%;"></div>
                 </div>
               </div>
             `
           : makeTileGrid([{ label: '状态', value: '未选择' }], 'two');
         const questActionHtml = focusQuestPath.length
           ? `
-              <div class="request-console-row" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:16px;">
+              <div class="request-console-row mvu-detail-action-row">
                 <button type="button" class="tag-chip" data-collection-action="delete-record" data-collection-char="${escapeHtmlAttr(activeCharKey)}" data-collection-key="${escapeHtmlAttr(focusQuestName)}">删除任务</button>
                 ${focusQuest && isPlayerControlled && !['已完成', '已放弃', '失败', '已失败'].includes(focusQuestStatus)
                   ? `${focusQuestStatus === '可提交' ? `<button type="button" class="relation-action-btn quest-action-btn" data-quest-action="submit" data-quest-target="${escapeHtmlAttr(focusQuestName)}">提交任务</button>` : ''}<button type="button" class="relation-action-btn quest-action-btn" data-quest-action="abandon" data-quest-target="${escapeHtmlAttr(focusQuestName)}">放弃任务</button>`
@@ -19145,7 +19179,7 @@
           : makeTileGrid([{ label: '状态', value: '未选择' }], 'two');
         const boardActionHtml = focusBoardPath.length
           ? `
-              <div class="request-console-row" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:16px;">
+              <div class="request-console-row mvu-detail-action-row">
                 <button type="button" class="tag-chip" data-collection-action="delete-board" data-collection-key="${escapeHtmlAttr(focusBoardId)}">删除委托</button>
                 ${focusBoard && isPlayerControlled && focusBoardStatus === '待接取'
                   ? `<button type="button" class="relation-action-btn quest-action-btn" data-quest-action="accept" data-quest-target="${escapeHtmlAttr(focusBoardId)}">接取委托</button>`
@@ -19157,20 +19191,20 @@
           title: '任务界面',
           summary: '我的任务记录与世界委托板。',
           body: `
-            <div class="archive-modal-grid">
-                <div class="archive-card">
+            <div class="archive-modal-grid mvu-detail-grid--quest">
+                <div class="archive-card mvu-detail-scroll-card">
                   <div class="archive-card-head"><div class="archive-card-title">我的任务</div><span class="state-tag ${questRecords.length ? 'live' : 'warn'}">${questRecords.length ? `共 ${questRecords.length} 项` : '空'}</span></div>
                   ${questCreateFormHtml}
-                  <div class="relation-directory-grid">${questListHtml}</div>
+                  <div class="relation-directory-grid mvu-detail-scroll-list">${questListHtml}</div>
                   ${makeModalPaginationControls('quest-records', questPage.page, questPage.totalPages, questPage.total)}
                 </div>
-                <div class="archive-card">
+                <div class="archive-card mvu-detail-scroll-card">
                   <div class="archive-card-head"><div class="archive-card-title">焦点任务详情</div><span class="state-tag ${focusQuestName ? 'live' : 'warn'}">${htmlEscape(focusQuestName || '未选中')}</span></div>
                   ${questDetailHtml}
                   ${questActionHtml}
-                  <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed rgba(255,255,255,0.1);">
-                    <div style="font-size: 13px; color: var(--color-text-secondary); margin-bottom: 4px;">任务说明</div>
-                    <div style="font-size: 14px; line-height: 1.5; color: var(--color-text-primary);">${focusQuest && focusQuestPath.length
+                  <div class="mvu-detail-description-block">
+                    <b>任务说明</b>
+                    <div class="mvu-detail-text">${focusQuest && focusQuestPath.length
                       ? makeInlineEditableValue(toText(focusQuest['描述'], '未知'), {
                           path: [...focusQuestPath, '描述'],
                           kind: 'string',
@@ -19180,19 +19214,19 @@
                       : htmlEscape(focusQuest ? toText(focusQuest['描述'], '未知') : '未知')}</div>
                   </div>
                 </div>
-                <div class="archive-card">
+                <div class="archive-card mvu-detail-scroll-card">
                   <div class="archive-card-head"><div class="archive-card-title">委托板</div><span class="state-tag ${questBoardEntries.length ? 'live' : 'warn'}">${questBoardEntries.length ? `共 ${questBoardEntries.length} 条` : '空'}</span></div>
                   ${boardCreateFormHtml}
-                  <div class="relation-directory-grid">${boardListHtml}</div>
+                  <div class="relation-directory-grid mvu-detail-scroll-list">${boardListHtml}</div>
                   ${makeModalPaginationControls('quest-board', boardPage.page, boardPage.totalPages, boardPage.total)}
                 </div>
-                <div class="archive-card">
+                <div class="archive-card mvu-detail-scroll-card">
                   <div class="archive-card-head"><div class="archive-card-title">焦点委托详情</div><span class="state-tag ${focusBoardId ? 'live' : 'warn'}">${htmlEscape(focusBoardId || '未选中')}</span></div>
                   ${boardDetailHtml}
                   ${boardActionHtml}
-                  <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed rgba(255,255,255,0.1);">
-                    <div style="font-size: 13px; color: var(--color-text-secondary); margin-bottom: 4px;">${htmlEscape(focusBoardStatus === '待接取' ? '委托框架' : '委托说明')}</div>
-                    <div style="font-size: 14px; line-height: 1.5; color: var(--color-text-primary);">${focusBoard && focusBoardDescPath.length
+                  <div class="mvu-detail-description-block">
+                    <b>${htmlEscape(focusBoardStatus === '待接取' ? '委托框架' : '委托说明')}</b>
+                    <div class="mvu-detail-text">${focusBoard && focusBoardDescPath.length
                       ? makeInlineEditableValue(focusBoardDesc, {
                           path: focusBoardDescPath,
                           kind: 'string',
@@ -19213,14 +19247,14 @@
           title: '近期见闻 / 城内简报',
           summary: '全局剧情备忘录与个人情报库的合并简报。',
           body: `
-            <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
-              <div class="archive-card full">
+            <div class="archive-modal-grid mvu-detail-grid--single">
+              <div class="archive-card full mvu-detail-scroll-card">
                 <div class="archive-card-head"><div class="archive-card-title">全局见闻</div></div>
-                ${makeTimelineStack(newsSummary.globalNews.length ? newsSummary.globalNews : [{ title: '暂无全局见闻', desc: '当前未记录新的世界事件。' }])}
+                <div class="mvu-detail-scroll-list">${makeTimelineStack(newsSummary.globalNews.length ? newsSummary.globalNews : [{ title: '暂无全局见闻', desc: '当前未记录新的世界事件。' }])}</div>
               </div>
-              <div class="archive-card full">
+              <div class="archive-card full mvu-detail-scroll-card">
                 <div class="archive-card-head"><div class="archive-card-title">个人见闻</div></div>
-                ${makeTimelineStack(newsSummary.personalNews.length ? newsSummary.personalNews : [{ title: '暂无个人见闻', desc: '当前角色尚未收录新的情报。' }])}
+                <div class="mvu-detail-scroll-list">${makeTimelineStack(newsSummary.personalNews.length ? newsSummary.personalNews : [{ title: '暂无个人见闻', desc: '当前角色尚未收录新的情报。' }])}</div>
               </div>
             </div>
           `
@@ -19259,7 +19293,7 @@
           title: '怪物图鉴',
           summary: '已遭遇深渊生物与魂兽的标准化记录。',
           body: `
-            <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
+            <div class="archive-modal-grid mvu-detail-grid--single">
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">图鉴总览</div></div>
                 ${makeTileGrid([
@@ -19269,13 +19303,13 @@
                   { label: '字段覆盖', value: snapshot.bestiaryEntries[0] ? `${safeEntries(snapshot.bestiaryEntries[0][1]).length} 项` : '0 项' }
                 ], 'two')}
               </div>
-              <div class="archive-card full">
+              <div class="archive-card full mvu-detail-scroll-card">
                 <div class="archive-card-head"><div class="archive-card-title">最近收录详情</div></div>
-                ${makeTimelineStack(latestBestiaryCard ? [latestBestiaryCard] : [{ title: '暂无最近收录', desc: '当前图鉴仍为空。' }])}
+                <div class="mvu-detail-scroll-list">${makeTimelineStack(latestBestiaryCard ? [latestBestiaryCard] : [{ title: '暂无最近收录', desc: '当前图鉴仍为空。' }])}</div>
               </div>
-              <div class="archive-card full">
+              <div class="archive-card full mvu-detail-scroll-card">
                 <div class="archive-card-head"><div class="archive-card-title">已记录物种</div></div>
-                ${makeTimelineStack(bestiaryCards)}
+                <div class="mvu-detail-scroll-list">${makeTimelineStack(bestiaryCards)}</div>
               </div>
             </div>
           `
@@ -19290,8 +19324,15 @@
           title: '森林仇恨值',
           summary: '星斗大森林累计击杀年限与兽潮阈值监控。',
           body: `
-            <div class="archive-modal-grid" style="grid-template-columns: 1fr;">
-              <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">仇恨累计</div></div>${makeTileGrid([{ label: '累计击杀年限', value: makeInlineEditableValue(formatNumber(snapshot.forestKilledAge), { path: ['world', '累计击杀年限'], kind: 'number', rawValue: snapshot.forestKilledAge, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数 · 1000000 为兽潮阈值参考，不是硬上限' } }) }, { label: '兽潮阈值', value: '1000000' }, { label: '剩余安全空间', value: remaining > 0 ? formatNumber(remaining) : '0' }, { label: '当前阶段', value: stage }], 'two')}<div style="margin-top:12px;"><div style="display:flex;justify-content:space-between;font-size:12px;color:#bfdde4;margin-bottom:6px;"><span>阈值进度</span><span>${progress}%</span></div><div style="height:10px;border-radius:999px;background:rgba(255,255,255,0.08);overflow:hidden;border:1px solid rgba(150,217,228,0.12);"><div style="height:100%;width:${progress}%;background:${progress >= 100 ? 'linear-gradient(90deg,#ff6b6b,#ffb36b)' : (progress >= 70 ? 'linear-gradient(90deg,#ffd36b,#ff8a5b)' : 'linear-gradient(90deg,#72e6ff,#7dffb2)')};box-shadow:0 0 12px rgba(255,180,107,0.35);"></div></div></div></div>
+            <div class="archive-modal-grid mvu-detail-grid--single">
+              <div class="archive-card full">
+                <div class="archive-card-head"><div class="archive-card-title">仇恨累计</div></div>
+                ${makeTileGrid([{ label: '累计击杀年限', value: makeInlineEditableValue(formatNumber(snapshot.forestKilledAge), { path: ['world', '累计击杀年限'], kind: 'number', rawValue: snapshot.forestKilledAge, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数 · 1000000 为兽潮阈值参考，不是硬上限' } }) }, { label: '兽潮阈值', value: '1000000' }, { label: '剩余安全空间', value: remaining > 0 ? formatNumber(remaining) : '0' }, { label: '当前阶段', value: stage }], 'two')}
+                <div class="mvu-detail-progress mvu-detail-progress--forest ${progress >= 100 ? 'is-critical' : (progress >= 70 ? 'is-warn' : '')}">
+                  <div class="mvu-detail-progress-head"><span>阈值进度</span><span>${progress}%</span></div>
+                  <div class="mvu-detail-progress-track"><div class="mvu-detail-progress-fill" style="width:${progress}%;"></div></div>
+                </div>
+              </div>
               <div class="archive-card full">
                 <div class="archive-card-head"><div class="archive-card-title">阶段说明</div></div>
                 ${makeTimelineStack([
@@ -21279,7 +21320,7 @@
           </button>
           ` : ''}
           ${cell.dataset.hoverTitle ? `
-          <div class="tag-cloud armory-quick-actions" style="margin-top:10px;justify-content:flex-end;">
+          <div class="tag-cloud armory-quick-actions mvu-detail-toolbar mvu-detail-toolbar--tight">
             <button type="button" class="inventory-hover-action-btn" data-inventory-action="discard" data-inventory-mode="one" data-inventory-char="${escapeHtmlAttr(cell.dataset.hoverChar || '')}" data-inventory-item="${escapeHtmlAttr(cell.dataset.hoverTitle || '')}">丢弃1件</button>
             ${toNumber(cell.dataset.hoverCount, 1) > 1 ? `<button type="button" class="inventory-hover-action-btn" data-inventory-action="discard" data-inventory-mode="all" data-inventory-char="${escapeHtmlAttr(cell.dataset.hoverChar || '')}" data-inventory-item="${escapeHtmlAttr(cell.dataset.hoverTitle || '')}">全部丢弃</button>` : ''}
           </div>
@@ -22209,7 +22250,7 @@ ${extraRequirement}
         ? (snapshot.orgEntries.find(([name]) => name === currentFactionName) || [currentFactionName, {}])
         : ['', {}];
       const factionRows = snapshot.势力.length ? snapshot.势力 : [['未加入势力', { 身份: '无', 权限级: 0 }]];
-      const title = previewKey === '我的阵营详情' ? '我的阵营弹窗' : '阵营身份弹窗';
+      const title = previewKey === '我的阵营详情' ? '阵营身份' : '所属势力';
 
       return {
         title,
@@ -22415,7 +22456,7 @@ ${extraRequirement}
                         <button class="mode-btn active" type="button" data-mode="single_round">单回合</button>
                         <button class="mode-btn" type="button" data-mode="multi_round">连续推演</button>
                       </div>
-                      <select class="request-console-input" id="ui-intent-mode" style="flex:0 0 124px;">
+                      <select class="request-console-input battle-intent-select" id="ui-intent-mode">
                         <option value="点到为止" selected>点到为止</option>
                         <option value="尽量生擒">尽量生擒</option>
                         <option value="重伤压制">重伤压制</option>
