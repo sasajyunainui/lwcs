@@ -2094,8 +2094,9 @@
     .map-node-label {
       position: absolute;
       left: 50%;
-      top: 100%;
-      transform: translate(calc(-50% + var(--label-offset-x, 0px)), calc(2px + var(--label-offset-y, 0px)));
+      top: var(--label-top, 100%);
+      bottom: var(--label-bottom, auto);
+      transform: translate(calc(var(--label-shift-x, -50%) + var(--label-offset-x, 0px)), calc(var(--label-shift-y, 2px) + var(--label-offset-y, 0px)));
       padding: 0;
       border-radius: 0;
       font-family: var(--font-ui);
@@ -2113,6 +2114,24 @@
       -webkit-font-smoothing: antialiased;
       pointer-events: none;
       user-select: none;
+    }
+
+    .map-node.edge-left {
+      --label-shift-x: 4px;
+    }
+
+    .map-node.edge-right {
+      --label-shift-x: calc(-100% - 4px);
+    }
+
+    .map-node.edge-bottom {
+      --label-top: auto;
+      --label-bottom: 100%;
+      --label-shift-y: -4px;
+    }
+
+    .map-node.edge-top {
+      --label-shift-y: 8px;
     }
 
     .map-node.custom-node .map-dot {
@@ -2375,39 +2394,6 @@
       box-shadow: 0 12px 28px rgba(0,0,0,0.18), inset 0 0 0 1px rgba(255,255,255,0.03);
     }
 
-    .map-travel-panel {
-      margin-top: 8px;
-      padding: 8px 10px;
-      border: 1px solid rgba(125, 211, 252, 0.2);
-      border-radius: 10px;
-      font-size: 11px;
-      line-height: 1.45;
-      color: #b3cddf;
-      background: rgba(5, 17, 28, 0.18);
-      cursor: pointer;
-      display: flex !important;
-      flex-direction: column !important;
-      gap: 4px;
-      flex: 0 0 auto !important;
-      align-self: stretch !important;
-      min-height: 0 !important;
-      height: auto !important;
-    }
-
-    .map-travel-panel-title {
-      margin-bottom: 2px;
-      color: #d8f3ff;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-    }
-
-    .map-travel-panel-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-    }
-
     .map-side-badge {
       border-radius: 999px;
       padding: 4px 7px;
@@ -2442,24 +2428,6 @@
       border-color: rgba(101,151,197,0.32);
       background: rgba(18,41,60,0.92);
       color: #eef8ff;
-    }
-
-    .map-travel-panel-row b {
-      color: #9cc9df;
-      font-weight: 600;
-      flex: 0 0 auto;
-    }
-
-    .map-travel-panel-row span {
-      flex: 1 1 auto;
-      min-width: 0;
-      text-align: right;
-      word-break: break-word;
-    }
-
-    .map-travel-panel.actionable:hover {
-      border-color: rgba(146, 217, 255, 0.34);
-      background: rgba(7, 24, 38, 0.32);
     }
 
     .map-layer-pills,
@@ -2666,41 +2634,145 @@
       overflow-y: auto;
     }
 
-    .map-action-slots {
-      display: flex;
-      flex-direction: column;
+    .map-action-control-row {
+      display: grid;
+      grid-template-columns: minmax(108px, 0.34fr) minmax(0, 1fr);
+      align-items: stretch;
       gap: 6px;
-      margin-bottom: 8px;
+      min-width: 0;
+      margin-bottom: 5px;
     }
 
-    .simple-row.actionable.map-interaction-row.is-hidden {
-      display: none !important;
+    .map-action-primary,
+    .map-action-select-wrap,
+    .map-action-detail-cell {
+      min-width: 0;
+      border: 1px solid rgba(134,171,201,0.14);
+      background: rgba(7,18,27,0.56);
+      color: #dcecf7;
+      font: inherit;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.025);
     }
 
-    .simple-row.actionable.map-interaction-row.disabled,
-    .map-travel-panel.disabled {
-      opacity: 0.45;
+    .map-action-primary {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      gap: 6px;
+      border-radius: 8px;
+      padding: 6px 9px;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .map-action-primary b,
+    .map-action-select-wrap b,
+    .map-action-detail-cell b {
+      color: rgba(150,200,218,0.78);
+      font-size: 10px;
+      line-height: 1;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .map-action-primary span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #f2fbff;
+      font-size: 11px;
+      line-height: 1;
+      font-weight: 700;
+    }
+
+    .map-action-select-wrap {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      gap: 7px;
+      border-radius: 8px;
+      padding: 5px 8px;
+    }
+
+    .map-action-select {
+      min-width: 0;
+      width: 100%;
+      border: 0;
+      outline: none;
+      background: transparent;
+      color: #f1fbff;
+      font: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .map-action-select option {
+      background: #06111c;
+      color: #eef8ff;
+    }
+
+    .map-action-primary:hover:not(.disabled),
+    .map-action-primary:focus-visible,
+    .map-action-select-wrap:focus-within,
+    .map-method-select:hover:not(.disabled),
+    .map-method-select:focus-visible {
+      border-color: rgba(118,226,255,0.32);
+      background: rgba(12,36,52,0.72);
+      outline: none;
+    }
+
+    .map-action-detail-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.8fr) minmax(0, 1.2fr);
+      gap: 1px;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .map-action-detail-row.has-method {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: repeat(2, minmax(28px, auto));
+    }
+
+    .map-action-detail-cell {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      gap: 6px;
+      border-radius: 0;
+      padding: 5px 9px;
+    }
+
+    .map-action-detail-cell span {
+      min-width: 0;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      text-overflow: clip;
+      white-space: normal;
+      color: #e9f9ff;
+      font-size: 10.5px;
+      line-height: 1.18;
+      text-align: left;
+    }
+
+    .map-method-select {
+      cursor: pointer;
+    }
+
+    .map-action-primary.disabled,
+    .map-action-detail-row.disabled,
+    .map-method-select.disabled {
+      opacity: 0.5;
       cursor: default;
     }
 
-    .simple-row.actionable.map-action-slot {
-      margin: 0;
-      padding: 7px 8px;
-      border-color: rgba(255,255,255,0.06);
-      background: rgba(255,255,255,0.025);
-    }
-
-    .simple-row.actionable.map-action-slot.is-hidden {
+    .map-method-select.is-hidden {
       display: none;
-    }
-
-    .simple-row.actionable.map-action-slot b {
-      color: #9db7c6;
-      min-width: 48px;
-    }
-
-    .simple-row.actionable.map-action-slot.disabled span {
-      color: #ff5252;
     }
 
     .simple-row.actionable {
@@ -2851,22 +2923,25 @@
         </div>
         <div class='mvu-simple-card map-side-card map-route-card map-left-route-card map-command-card'>
           <div class='simple-head'>
-            <div class='simple-title'>移动与行动</div>
+            <div class='simple-title'>行动</div>
             <span class='map-side-badge gold' data-map-request-chip>停留中</span>
           </div>
-          <div class='map-action-slots'>
-            <div class='simple-row actionable map-action-slot' data-map-action-slot='0'><b data-map-action-slot-label='0'>动作</b><span data-map-action-slot-value='0'>点击切换动作</span></div>
-            <div class='simple-row actionable map-action-slot is-hidden' data-map-action-slot='1'><b data-map-action-slot-label='1'>动作</b><span data-map-action-slot-value='1'></span></div>
-            <div class='simple-row actionable map-action-slot is-hidden' data-map-action-slot='2'><b data-map-action-slot-label='2'>动作</b><span data-map-action-slot-value='2'></span></div>
-            <div class='simple-row actionable map-action-slot is-hidden' data-map-action-slot='3'><b data-map-action-slot-label='3'>动作</b><span data-map-action-slot-value='3'></span></div>
-            <div class='simple-row actionable map-action-slot is-hidden' data-map-action-slot='4'><b data-map-action-slot-label='4'>动作</b><span data-map-action-slot-value='4'></span></div>
+          <div class='map-action-control-row'>
+            <button type='button' class='map-action-primary' data-map-action-execute title='执行当前行动'>
+              <b>行动</b><span data-map-selected-action data-map-request-panel-hint>待命</span>
+            </button>
+            <label class='map-action-select-wrap'>
+              <b>选择</b>
+              <select class='map-action-select' data-map-action-select aria-label='选择行动'>
+                <option value=''>待命</option>
+              </select>
+            </label>
           </div>
-          <div class='simple-row actionable map-interaction-row is-hidden' data-map-travel-cycle title='点击切换移动方式'><b>选择移动方式</b><span data-map-request-method>无</span></div>
-          <div class='map-travel-panel actionable' data-map-travel-panel>
-            <div class='map-travel-panel-title' data-map-request-panel-hint>先选择动作</div>
-            <div class='map-travel-panel-row'><b data-map-request-label='0'>动作目标</b><span data-map-request-targetloc>无</span></div>
-            <div class='map-travel-panel-row'><b data-map-request-label='1'>执行说明</b><span data-map-request-coord>无</span></div>
-            <div class='map-travel-panel-row'><b data-map-request-label='2'>补充信息</b><span data-map-request-cost>无</span></div>
+          <div class='map-action-detail-row' data-map-travel-panel>
+            <div class='map-action-detail-cell'><b data-map-request-label='0'>目标</b><span data-map-request-targetloc>无</span></div>
+            <button type='button' class='map-action-detail-cell map-method-select is-hidden' data-map-travel-cycle title='切换移动方式'><b>方式</b><span data-map-request-method>无</span></button>
+            <div class='map-action-detail-cell'><b data-map-request-label='1'>说明</b><span data-map-request-coord>无</span></div>
+            <div class='map-action-detail-cell'><b data-map-request-label='2'>消耗</b><span data-map-request-cost>无</span></div>
           </div>
         </div>
         <div class='map-status-strip'>
@@ -3645,10 +3720,10 @@
       return 'hub';
     }
     if (/拍卖|黑市|商店|杂货|交易/.test(text)) return 'commerce';
-    if (/图书馆|教学/.test(text)) return 'study';
-    if (/实验|研究|工坊|暗器/.test(text)) return 'craft';
-    if (/修炼|训练|演武|斗魂|实训/.test(text)) return 'training';
-    if (/宿舍|生活/.test(text)) return 'rest';
+    if (/图书馆|教学|藏书|静室|修炼室/.test(text)) return 'study';
+    if (/锻造师协会|制造师协会|设计师协会|修理师协会|副职业|实验|研究|工坊|暗器|锻造|制造|修理|设计/.test(text)) return 'craft';
+    if (/修炼|训练|训练场|演武|斗魂|实训|健身|锻炼/.test(text)) return 'training';
+    if (/宿舍|寝室|营房|休息|生活|大本营|营地/.test(text)) return 'rest';
     if (/指挥|情报|巡防/.test(text)) return 'intel';
     if (/议政|政务/.test(text)) return 'administration';
     return 'landmark';
@@ -3670,15 +3745,15 @@
   function inferNodeActionSlots(nodeKind, name, type, canEnter, interactions = [], services = []) {
     const text = `${toText(name, '')} ${toText(type, '')}`;
     if (canEnter) return ['enter', 'inspect'];
-    if (nodeKind === 'commerce') return /拍卖/.test(text) ? ['bid', 'talk', 'inspect'] : ['trade', 'talk', 'inspect'];
-    if (nodeKind === 'study') return /图书馆|藏书|静室|冥想/.test(text) ? ['study', 'meditate', 'inspect'] : ['study', 'talk', 'inspect'];
-    if (nodeKind === 'craft') return ['talk', 'inspect'];
-    if (nodeKind === 'training') return (services.includes('battle') || /演武|斗魂|擂台|实战/.test(text)) ? ['train', 'battle', 'inspect'] : ['train', 'inspect', 'talk'];
-    if (nodeKind === 'rest') return ['rest', 'meditate', 'inspect'];
-    if (nodeKind === 'intel') return ['intel', 'talk', 'inspect'];
-    if (nodeKind === 'administration') return ['brief', 'talk', 'inspect'];
-    if (interactions.length) return interactions.slice(0, 3);
-    return ['inspect'];
+    if (nodeKind === 'commerce') return /拍卖/.test(text) ? ['bid', 'trade'] : ['trade'];
+    if (nodeKind === 'study') return /图书馆|藏书|静室|冥想|修炼/.test(text) ? ['study', 'meditate'] : ['study'];
+    if (nodeKind === 'craft') return ['craft'];
+    if (nodeKind === 'training') return (services.includes('battle') || /演武|斗魂|擂台|实战/.test(text)) ? ['train', 'battle'] : ['train'];
+    if (nodeKind === 'rest') return ['rest', 'meditate'];
+    if (nodeKind === 'intel') return ['intel'];
+    if (nodeKind === 'administration') return ['brief', 'intel'];
+    if (interactions.length) return interactions.filter(action => !['talk', 'battle', 'inspect', 'enter'].includes(toText(action, ''))).slice(0, 4);
+    return [];
   }
 
   function inferNodeServices(nodeKind, name, type, canEnter) {
@@ -3686,7 +3761,7 @@
     if (canEnter) return ['preview'];
     if (nodeKind === 'commerce') return /黑市/.test(text) ? ['black_market'] : (/拍卖/.test(text) ? ['auction'] : ['shop']);
     if (nodeKind === 'study') return ['study'];
-    if (nodeKind === 'craft') return [];
+    if (nodeKind === 'craft') return ['craft'];
     if (nodeKind === 'training') return ['train'];
     if (nodeKind === 'rest') return ['rest'];
     if (nodeKind === 'intel') return ['intel'];
@@ -4098,7 +4173,7 @@
       characterDigest: characterIndexPayload.characterDigest
     };
     snapshot.items = buildRuntimeMapItems(snapshot);
-    snapshot.bounds = isPreview ? 计算地图显示边界(snapshot.items, 190) : { ...DEFAULT_IMAGE_BOUNDS };
+    snapshot.bounds = isPreview ? 计算地图显示边界(snapshot.items, 240) : { ...DEFAULT_IMAGE_BOUNDS };
     return snapshot;
   }
 
@@ -4539,7 +4614,7 @@
         delete root.dataset.mapBound;
         delete root.dataset.mapMiniBound;
       }
-      root.querySelectorAll('[data-map-bound], [data-map-mini-bound], .map-canvas.interactive-map, .map-mini-world, [data-map-node-layer], [data-map-control], [data-map-action-slot], [data-map-npc-select], [data-map-travel-cycle], [data-map-travel-panel], [data-map-layer-pill]').forEach(el => {
+      root.querySelectorAll('[data-map-bound], [data-map-mini-bound], .map-canvas.interactive-map, .map-mini-world, [data-map-node-layer], [data-map-control], [data-map-action-select], [data-map-action-execute], [data-map-npc-select], [data-map-travel-cycle], [data-map-layer-pill]').forEach(el => {
         if (el.dataset) {
           delete el.dataset.mapBound;
           delete el.dataset.mapMiniBound;
@@ -6400,6 +6475,25 @@
     return { x: 0, y: 0 };
   }
 
+  function 更新地图节点标签边缘状态(指定画布 = null) {
+    const 画布列表 = 指定画布 ? [指定画布] : getMapUiElements('.map-canvas.interactive-map');
+    画布列表.forEach(画布 => {
+      if (!画布 || !画布.getBoundingClientRect) return;
+      const 画布矩形 = 画布.getBoundingClientRect();
+      const 边缘余量 = 8;
+      getScopedMapUiElements(画布, '.map-node').forEach(节点 => {
+        const 标签 = 节点.querySelector('.map-node-label');
+        节点.classList.remove('edge-left', 'edge-right', 'edge-top', 'edge-bottom');
+        if (!标签 || !标签.getBoundingClientRect) return;
+        const 标签矩形 = 标签.getBoundingClientRect();
+        节点.classList.toggle('edge-left', 标签矩形.left < 画布矩形.left + 边缘余量);
+        节点.classList.toggle('edge-right', 标签矩形.right > 画布矩形.right - 边缘余量);
+        节点.classList.toggle('edge-top', 标签矩形.top < 画布矩形.top + 边缘余量);
+        节点.classList.toggle('edge-bottom', 标签矩形.bottom > 画布矩形.bottom - 边缘余量);
+      });
+    });
+  }
+
   function updateNodeHtmlClasses(el, item, isCurrent, isOrigin) {
     const isEnterable = !!(item && item.canEnter);
     setMapNodeClass(el, 'current', isCurrent);
@@ -6441,6 +6535,8 @@
           updateNodeHtmlClasses(nodeEl, item, !mapState.selectedFreePoint && item.name === mapState.selectedNode, !mapState.currentFreePoint && item.name === visibleCurrentNode);
         }
       }
+      const 关联画布 = el.closest('.map-canvas.interactive-map');
+      if (关联画布) 更新地图节点标签边缘状态(关联画布);
     });
   }
 
@@ -7754,7 +7850,7 @@ ${logMsg}
     setMapText('[data-map-request-targetloc]', actionTargetText);
     setMapText('[data-map-request-coord]', actionMoveText);
     setMapText('[data-map-request-cost]', actionCostText);
-    setMapText('[data-map-request-panel-hint]', pendingForSelection ? '点击此框即可动身' : (previewRequest ? '点击此框即可移动' : '先选择目标'));
+    setMapText('[data-map-request-panel-hint]', pendingForSelection ? '确认前往' : (previewRequest ? '开始移动' : '选择目标'));
     setMapText('[data-map-request-json]', travelNote);
     setMapText('[data-map-request-state]', pending ? `待前往 ${pendingTarget} / ${pending.method}${pending.route_plan ? ` / ${pending.route_plan}` : ''} / ${pending.est_duration}` : previewRequest ? `可前往 ${previewTarget} / ${previewRequest.method}${previewRequest.route_plan ? ` / ${previewRequest.route_plan}` : ''} / ${previewRequest.est_duration}` : '留驻当前地点');
     setMapText('[data-map-request-chip]', pending ? '已规划' : previewRequest ? '待确认' : '停留中');
@@ -7764,6 +7860,41 @@ ${logMsg}
           : (canPreviewEnter ? '远端子图预览 · 双击节点继续查看结构，当前位置不会改变' : '远端子图预览 · 仅供查看，需先移动到该城市后再执行动作'))
       : (travelPreview ? (pendingForSelection ? `再次点击即可动身 · ${travelPreview.method} · ${travelPreview.duration}${travelPreview.routePlanText ? ` · ${travelPreview.routePlanText}` : ''}` : `已选定目标 · ${travelPreview.method} · 预计 ${travelPreview.duration}${travelPreview.routePlanText ? ` · ${travelPreview.routePlanText}` : ''}`) : `${mapState.lastTravelNote || `display_map 已接入 · 当前地图 ${snapshot.currentMapId} · 可视 ${getVisibleMapNodeCount()} 个节点`}`));
     setMapText('[data-map-action-label]', actionLabel);
+
+    try {
+      const 星图焦点详情 = {
+        焦点名称: focusName,
+        地图名称: currentMapDisplayName,
+        类型: focusTypeDisplay,
+        功能: focusActionDisplay,
+        可用: focusAvailableText,
+        状态: focusStateText,
+        地形: focusTerrainText || panelTerrainText,
+        说明: focusDescBaseText,
+        自由坐标: isFreeSelection,
+        是否当前位置: !isFreeSelection && !!(focusItem && [
+          currentActionNodeName,
+          currentVisibleName,
+          currentName,
+          rawCurrentName,
+        ].filter(Boolean).some(名称 => 名称 === focusItem.name || 名称.includes(focusItem.name) || focusItem.name.includes(名称))),
+      };
+      const 星图焦点签名 = [
+        星图焦点详情.焦点名称,
+        星图焦点详情.地图名称,
+        星图焦点详情.类型,
+        星图焦点详情.功能,
+        星图焦点详情.可用,
+        星图焦点详情.状态,
+        星图焦点详情.地形,
+        星图焦点详情.自由坐标 ? '1' : '0',
+        星图焦点详情.是否当前位置 ? '1' : '0',
+      ].join('|');
+      if (renderMapInfoState.上一焦点签名 !== 星图焦点签名) {
+        renderMapInfoState.上一焦点签名 = 星图焦点签名;
+        window.dispatchEvent(new CustomEvent('sheep-map-focus-change', { detail: 星图焦点详情 }));
+      }
+    } catch (错误) {}
 
     const actionSlotCandidates = [];
     const pushActionSlot = (action, text, options = {}) => {
@@ -7790,25 +7921,25 @@ ${logMsg}
       const normalized = toText(action, '');
       if (!normalized || ['inspect', 'enter'].includes(normalized)) return;
       if (normalized === 'train') {
-        const bodyPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'train_body');
-        const mindPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'train_mind');
+        const bodyPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'train_body', focusItem);
+        const mindPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'train_mind', focusItem);
         pushActionSlot('train_body', '肉体训练', { reason: 构建动作摘要文本(bodyPreview, '肉体训练') });
         pushActionSlot('train_mind', '精神训练', { reason: 构建动作摘要文本(mindPreview, '精神训练') });
         return;
       }
       if (normalized === 'meditate') {
-        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, normalized);
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, normalized, focusItem);
         pushActionSlot('meditate', '冥想', { reason: 构建动作摘要文本(actionPreview, '冥想') });
         return;
       }
       if (normalized === 'study') {
-        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, normalized);
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, normalized, focusItem);
         pushActionSlot('study', '研读', { reason: 构建动作摘要文本(actionPreview, '阅读/学习类动作') });
         return;
       }
       if (normalized === 'rest') {
-        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, normalized);
-        pushActionSlot('rest', '休整', { reason: 构建动作摘要文本(actionPreview, '休整/恢复类动作') });
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, normalized, focusItem);
+        pushActionSlot('rest', '休息 / 睡眠', { reason: 构建动作摘要文本(actionPreview, '休整/恢复类动作') });
         return;
       }
       pushActionSlot(normalized, getNodeInteractionLabel(normalized));
@@ -7823,40 +7954,53 @@ ${logMsg}
       pushActionSlot('travel', pendingForSelection ? '确认前往' : '规划路线', { reason: '', disabled: travelDisabled });
     }
     if (allowLocalActions && !canPreviewEnter) {
-      const preferredActions = Array.isArray(focusItem.actionSlots) && focusItem.actionSlots.length
-        ? focusItem.actionSlots
-        : (Array.isArray(focusItem.interactions) ? focusItem.interactions : []);
-      preferredActions.forEach(pushMappedActionSlot);
-      if (!preferredActions.length) pushMappedActionSlot(getPrimaryNodeInteraction(focusItem));
-      if (focusItem.nodeKind === 'training') {
-        pushMappedActionSlot('train');
-      } else if (focusItem.nodeKind === 'study') {
-        pushMappedActionSlot('study');
-        pushMappedActionSlot('meditate');
-      } else if (focusItem.nodeKind === 'rest') {
-        pushMappedActionSlot('rest');
-        pushMappedActionSlot('meditate');
+      const 地点行动集合 = new Set();
+      const 加入地点行动 = 动作 => {
+        const 标准动作 = toText(动作, '');
+        if (!标准动作 || ['inspect', 'enter', 'talk'].includes(标准动作)) return;
+        if (标准动作 === 'shop' || 标准动作 === 'black_market') 地点行动集合.add('trade');
+        else if (标准动作 === 'auction') 地点行动集合.add('bid');
+        else if (标准动作 === 'briefing') 地点行动集合.add('brief');
+        else if (标准动作 === 'craft') 地点行动集合.add('craft');
+        else if (标准动作 === 'train') 地点行动集合.add('train');
+        else if (['trade', 'bid', 'study', 'meditate', 'rest', 'intel', 'brief', 'battle', 'train_body', 'train_mind'].includes(标准动作)) 地点行动集合.add(标准动作);
+      };
+      const 显式地点行动 = []
+        .concat(Array.isArray(focusItem.actionSlots) ? focusItem.actionSlots : [])
+        .concat(Array.isArray(focusItem.interactions) ? focusItem.interactions : [])
+        .concat(Array.isArray(focusItem.services) ? focusItem.services : []);
+      显式地点行动.forEach(加入地点行动);
+      const 节点类型 = toText(focusItem.nodeKind, '');
+      if (节点类型 === 'commerce') {
+        加入地点行动(/拍卖/.test(`${focusName} ${focusTypeDisplay}`) ? 'bid' : 'trade');
+      } else if (节点类型 === 'craft') {
+        加入地点行动('craft');
+      } else if (节点类型 === 'training') {
+        加入地点行动('train');
+      } else if (节点类型 === 'study') {
+        加入地点行动('study');
+        加入地点行动('meditate');
+      } else if (节点类型 === 'rest') {
+        加入地点行动('rest');
+        加入地点行动('meditate');
+      } else if (节点类型 === 'intel') {
+        加入地点行动('intel');
+      } else if (节点类型 === 'administration') {
+        加入地点行动('brief');
+        加入地点行动('intel');
       }
-      const npcDrivenActions = getNpcActionCandidates(focusItem, charactersHere.length);
-      npcDrivenActions.forEach(action => {
-        const actionLabel = getNodeInteractionLabel(action);
-        const crowdHint = selectedNpc || (charactersHere.length === 1
-          ? charactersHere[0]
-          : (charactersHere.length > 1 ? `${charactersHere.slice(0, 2).join(' / ')}${charactersHere.length > 2 ? ` 等${charactersHere.length}人` : ''}` : '当前节点'));
-        const serviceHint = focusServiceText !== '无' ? focusServiceText : crowdHint;
-        if (action === 'talk') {
-          pushActionSlot('talk', selectedNpc ? `对话 · ${selectedNpc}` : (charactersHere.length === 1 ? `对话 · ${charactersHere[0]}` : '对话'), { reason: crowdHint });
-          return;
-        }
-        if (action === 'battle') {
-          pushActionSlot('battle', selectedNpc ? `切磋 · ${selectedNpc}` : '切磋', { reason: selectedNpc || (charactersHere.length === 1 ? charactersHere[0] : `${charactersHere.length}名对手可选`) });
-          return;
-        }
-        if (['trade', 'bid', 'craft', 'brief', 'intel'].includes(action)) {
-          const titleText = selectedNpc ? `${actionLabel} · ${selectedNpc}` : actionLabel;
-          pushActionSlot(action, titleText, { reason: selectedNpc || serviceHint });
-        }
-      });
+      if (/大本营|营地|营房|宿舍|休息区|寝室/.test(`${focusName} ${focusTypeDisplay}`)) {
+        加入地点行动('rest');
+        加入地点行动('meditate');
+      }
+      if (/训练场|演武|斗魂|实训|锻炼|健身/.test(`${focusName} ${focusTypeDisplay}`)) {
+        加入地点行动('train');
+      }
+      if (/锻造师协会|制造师协会|设计师协会|修理师协会|副职业|工坊/.test(`${focusName} ${focusTypeDisplay}`)) {
+        加入地点行动('craft');
+      }
+      if (!地点行动集合.size) 加入地点行动(getPrimaryNodeInteraction(focusItem));
+      地点行动集合.forEach(pushMappedActionSlot);
     }
 
     let selectedAction = toText(mapState.selectedAction, '');
@@ -7868,18 +8012,18 @@ ${logMsg}
     const selectedActionSlot = actionSlotCandidates.find(slot => slot.action === selectedAction) || null;
     const selectedActionLabel = selectedAction ? getNodeInteractionLabel(selectedAction) : '动作';
     const selectedActionDetail = {
-      title: '先选择动作',
-      labels: ['动作目标', '执行说明', '补充信息'],
+      title: '待命',
+      labels: ['目标', '说明', '消耗'],
       values: ['无', '无', '无'],
       panelDisabled: !selectedActionSlot,
       showTravelMethod: selectedAction === 'travel',
-      travelMethodLabel: '选择移动方式'
+      travelMethodLabel: '方式'
     };
 
     if (inPreview && !previewCurrentBranch) {
       if (selectedAction === 'travel_anchor' && selectedActionSlot) {
         selectedActionDetail.title = `点击前往${previewTrailNames[0] || previewAnchorName}`;
-        selectedActionDetail.labels = ['移动目标', '当前状态', '补充说明'];
+        selectedActionDetail.labels = ['目标', '状态', '说明'];
         selectedActionDetail.values = [
           previewTrailNames[0] || previewAnchorName,
           '远端预览',
@@ -7888,7 +8032,7 @@ ${logMsg}
         selectedActionDetail.panelDisabled = false;
       } else {
         selectedActionDetail.title = '当前为远端区域预览';
-        selectedActionDetail.labels = ['预览节点', '执行条件', '补充说明'];
+        selectedActionDetail.labels = ['节点', '条件', '说明'];
         selectedActionDetail.values = [
           focusName,
           `需先移动到【${previewTrailNames[0] || previewAnchorName}】`,
@@ -7899,16 +8043,16 @@ ${logMsg}
         selectedAction = '';
       }
     } else if (!selectedActionSlot && focusItem && canPreviewEnter) {
-      selectedActionDetail.title = '双击节点进入子图';
-      selectedActionDetail.labels = ['当前节点', '进入方式', '补充说明'];
-      selectedActionDetail.values = [focusName, '双击节点', '仅进入预览，不会改变你的真实位置'];
+      selectedActionDetail.title = '进入子图';
+      selectedActionDetail.labels = ['节点', '方式', '说明'];
+      selectedActionDetail.values = [focusName, '双击', '预览，不改位置'];
       selectedActionDetail.panelDisabled = true;
       mapState.selectedAction = '';
       selectedAction = '';
     } else if (!selectedActionSlot && focusItem && !canPreviewEnter) {
       if (!isFocusCurrentNode) {
         selectedActionDetail.title = '需先移动到该节点';
-        selectedActionDetail.labels = ['当前节点', '执行条件', '补充说明'];
+        selectedActionDetail.labels = ['节点', '条件', '说明'];
         selectedActionDetail.values = [
           focusName,
           currentActionNodeName ? `你当前位于【${currentActionNodeName}】` : '需要先移动到该节点',
@@ -7916,7 +8060,7 @@ ${logMsg}
         ];
       } else {
         selectedActionDetail.title = '当前节点无可执行动作';
-        selectedActionDetail.labels = ['当前节点', '状态', '补充说明'];
+        selectedActionDetail.labels = ['节点', '状态', '说明'];
         selectedActionDetail.values = [focusName, '无动作', focusDescBaseText || '可先切换节点或返回上级'];
       }
       selectedActionDetail.panelDisabled = true;
@@ -7924,53 +8068,53 @@ ${logMsg}
       selectedAction = '';
     } else if (selectedActionSlot) {
       if (selectedAction === 'travel') {
-        selectedActionDetail.title = pendingForSelection ? '点击此框确认前往' : (previewRequest ? '点击此框开始移动' : '先选择目标');
-        selectedActionDetail.labels = ['移动目标', '所耗时间', '资源消耗'];
+        selectedActionDetail.title = pendingForSelection ? '确认前往' : (previewRequest ? '开始移动' : '选择目标');
+        selectedActionDetail.labels = ['目标', '时间', '消耗'];
         selectedActionDetail.values = [actionTargetText, actionMoveText, actionCostText];
         selectedActionDetail.panelDisabled = !travelPreview || !!selectedActionSlot.disabled;
       } else if (selectedAction === 'meditate') {
-        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'meditate');
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'meditate', focusItem);
         const 结算说明 = 合并动作说明文本(actionPreview.detailText || '推进 1 小时并恢复状态。', actionPreview.mimicHint);
-        selectedActionDetail.title = '点击此框进行 1 小时冥想';
-        selectedActionDetail.labels = ['执行项目', '单次耗时', '结算说明'];
-        selectedActionDetail.values = ['冥想', '1小时（6 tick）', 结算说明];
+        selectedActionDetail.title = '冥想';
+        selectedActionDetail.labels = ['地点', '耗时', '收益'];
+        selectedActionDetail.values = [focusName, '1小时（6 tick）', 结算说明];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedAction === 'train_body') {
-        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'train_body');
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'train_body', focusItem);
         const 结算说明 = 合并动作说明文本(actionPreview.detailText || '推进 1 小时并进行肉体训练。', actionPreview.mimicHint);
-        selectedActionDetail.title = '点击此框进行 1 小时肉体训练';
-        selectedActionDetail.labels = ['训练项目', '单次耗时', '结算说明'];
-        selectedActionDetail.values = ['肉体训练', '1小时（6 tick）', 结算说明];
+        selectedActionDetail.title = '肉体训练';
+        selectedActionDetail.labels = ['地点', '耗时', '收益'];
+        selectedActionDetail.values = [focusName, '1小时（6 tick）', 结算说明];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedAction === 'train_mind') {
-        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'train_mind');
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'train_mind', focusItem);
         const 结算说明 = 合并动作说明文本(actionPreview.detailText || '推进 1 小时并进行精神训练。', actionPreview.mimicHint);
-        selectedActionDetail.title = '点击此框进行 1 小时精神训练';
-        selectedActionDetail.labels = ['训练项目', '单次耗时', '结算说明'];
-        selectedActionDetail.values = ['精神训练', '1小时（6 tick）', 结算说明];
+        selectedActionDetail.title = '精神训练';
+        selectedActionDetail.labels = ['地点', '耗时', '收益'];
+        selectedActionDetail.values = [focusName, '1小时（6 tick）', 结算说明];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedAction === 'study') {
-        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'study');
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'study', focusItem);
         const 结算说明 = 合并动作说明文本(actionPreview.detailText || '推进 1 小时时间并进行学习。', actionPreview.mimicHint);
-        selectedActionDetail.title = '点击此框进行 1 小时研读';
-        selectedActionDetail.labels = ['执行项目', '单次耗时', '结算说明'];
-        selectedActionDetail.values = ['研读', '1小时（6 tick）', 结算说明];
+        selectedActionDetail.title = '研读';
+        selectedActionDetail.labels = ['地点', '耗时', '收益'];
+        selectedActionDetail.values = [focusName, '1小时（6 tick）', 结算说明];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedAction === 'rest') {
-        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'rest');
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'rest', focusItem);
         const 结算说明 = 合并动作说明文本(actionPreview.detailText || '推进 1 小时时间并恢复状态。', actionPreview.mimicHint);
-        selectedActionDetail.title = '点击此框进行 1 小时休整';
-        selectedActionDetail.labels = ['执行项目', '单次耗时', '结算说明'];
-        selectedActionDetail.values = ['休整', '1小时（6 tick）', 结算说明];
+        selectedActionDetail.title = '休息 / 睡眠';
+        selectedActionDetail.labels = ['地点', '耗时', '恢复'];
+        selectedActionDetail.values = [focusName, '1小时（6 tick）', 结算说明];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedAction === 'talk') {
-        selectedActionDetail.title = selectedNpc ? `点击此框与${selectedNpc}对话` : '点击此框发起对话';
-        selectedActionDetail.labels = ['对话对象', '当前地点', '交互说明'];
+        selectedActionDetail.title = selectedNpc ? `对话 · ${selectedNpc}` : '对话';
+        selectedActionDetail.labels = ['对象', '地点', '说明'];
         selectedActionDetail.values = [selectedNpc || selectedActionSlot.reason || focusCharactersText, focusName, selectedNpc ? `将在当前节点与【${selectedNpc}】交谈` : '将在当前节点发起人物交谈'];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedAction === 'battle') {
-        selectedActionDetail.title = selectedNpc ? `点击此框与${selectedNpc}切磋` : '点击此框发起切磋';
-        selectedActionDetail.labels = ['切磋对象', '当前地点', '交互说明'];
+        selectedActionDetail.title = selectedNpc ? `切磋 · ${selectedNpc}` : '切磋';
+        selectedActionDetail.labels = ['对象', '地点', '说明'];
         selectedActionDetail.values = [selectedNpc || selectedActionSlot.reason || focusCharactersText, focusName, selectedNpc ? `将在当前节点与【${selectedNpc}】切磋` : '将在当前节点触发切磋分发'];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedNpc && ['trade', 'bid', 'craft', 'brief', 'intel'].includes(selectedAction)) {
@@ -7979,8 +8123,8 @@ ${logMsg}
           focusEventText !== '无' ? `事件 ${focusEventText}` : '',
           selectedActionSlot.reason && selectedActionSlot.reason !== selectedNpc ? selectedActionSlot.reason : ''
         ].filter(Boolean).join(' · ') || `将在当前节点与【${selectedNpc}】进行${selectedActionLabel}`;
-        selectedActionDetail.title = `点击此框与${selectedNpc}进行${selectedActionLabel}`;
-        selectedActionDetail.labels = ['交互对象', '当前地点', '交互说明'];
+        selectedActionDetail.title = `${selectedActionLabel} · ${selectedNpc}`;
+        selectedActionDetail.labels = ['对象', '地点', '说明'];
         selectedActionDetail.values = [selectedNpc, focusName, npcActionInfo];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else {
@@ -7990,8 +8134,8 @@ ${logMsg}
           focusEventText !== '无' ? `事件 ${focusEventText}` : '',
           focusItem ? toText(focusItem.desc, '') : ''
         ].filter(Boolean).join(' · ') || '无';
-        selectedActionDetail.title = `点击此框执行${selectedActionLabel}`;
-        selectedActionDetail.labels = ['执行动作', '当前节点', '补充信息'];
+        selectedActionDetail.title = selectedActionLabel;
+        selectedActionDetail.labels = ['动作', '节点', '信息'];
         selectedActionDetail.values = [selectedActionLabel, focusName, extraInfo];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       }
@@ -8001,24 +8145,64 @@ ${logMsg}
       }
     }
 
-    getMapUiElements('[data-map-action-slot]').forEach(row => {
-      const slotIndex = Math.max(0, parseInt(row.dataset.mapActionSlot, 10) || 0);
-      const slot = actionSlotCandidates[slotIndex] || null;
-      row.classList.toggle('is-hidden', !slot);
-      row.classList.toggle('disabled', !slot || !!slot.disabled);
-      row.classList.toggle('active', !!slot && slot.action === selectedAction);
-      row.dataset.mapActionBtn = slot ? slot.action : '';
-      row.title = slot ? `点击切换到 ${slot.text}` : '';
-      setMapText(`[data-map-action-slot-label='${slotIndex}']`, slot ? slot.text : '动作');
-      setMapText(`[data-map-action-slot-value='${slotIndex}']`, slot ? toText(slot.reason, '') : '');
+    const 当前行动展示槽 = selectedActionSlot
+      ? selectedActionSlot
+      : (selectedActionDetail.title
+        ? {
+            action: selectedAction || '',
+            text: selectedActionDetail.title,
+            disabled: true,
+            reason: selectedActionDetail.values.filter(Boolean).join(' · ')
+          }
+        : null);
+    const 当前行动标题 = 当前行动展示槽 ? toText(当前行动展示槽.text, selectedActionDetail.title) : selectedActionDetail.title;
+    const 行动选择签名 = actionSlotCandidates.map(slot => [
+      slot.action,
+      slot.text,
+      slot.disabled ? '1' : '0',
+      slot.reason
+    ].join('::')).join('|');
+    getMapUiElements('[data-map-action-select]').forEach(选择框 => {
+      if (!(选择框 instanceof HTMLSelectElement)) return;
+      if (选择框.dataset.mapActionOptionsSignature !== 行动选择签名) {
+        选择框.innerHTML = '';
+        if (!actionSlotCandidates.length) {
+          const 空选项 = document.createElement('option');
+          空选项.value = '';
+          空选项.textContent = '暂无可用行动';
+          空选项.disabled = true;
+          选择框.appendChild(空选项);
+        } else {
+          actionSlotCandidates.forEach(slot => {
+            const 行动选项 = document.createElement('option');
+            行动选项.value = slot.action;
+            行动选项.textContent = slot.disabled ? `${slot.text}（不可用）` : slot.text;
+            行动选项.disabled = !!slot.disabled && slot.action !== selectedAction;
+            行动选项.title = slot.reason || slot.text;
+            选择框.appendChild(行动选项);
+          });
+        }
+        选择框.dataset.mapActionOptionsSignature = 行动选择签名;
+      }
+      选择框.disabled = !actionSlotCandidates.length;
+      选择框.value = actionSlotCandidates.some(slot => slot.action === selectedAction) ? selectedAction : '';
+      选择框.title = 当前行动展示槽 ? [当前行动展示槽.text, 当前行动展示槽.reason].filter(Boolean).join(' · ') : '暂无可用行动';
     });
+    getMapUiElements('[data-map-action-execute]').forEach(按钮 => {
+      按钮.classList.toggle('disabled', !当前行动展示槽 || !!selectedActionDetail.panelDisabled);
+      按钮.disabled = !当前行动展示槽 || !!selectedActionDetail.panelDisabled;
+      按钮.dataset.mapActionBtn = 当前行动展示槽 && 当前行动展示槽.action ? 当前行动展示槽.action : '';
+      按钮.title = 当前行动展示槽 && !selectedActionDetail.panelDisabled ? `执行 ${当前行动标题}` : '当前行动不可执行';
+    });
+    setMapText('[data-map-selected-action]', 当前行动标题 || '待命');
     getMapUiElements('[data-map-travel-cycle]').forEach(row => {
       row.classList.toggle('is-hidden', !selectedActionDetail.showTravelMethod);
       row.classList.toggle('disabled', !selectedActionDetail.showTravelMethod || !travelPreview);
-      row.title = selectedActionDetail.showTravelMethod ? '点击切换移动方式' : '';
+      row.title = selectedActionDetail.showTravelMethod ? '切换移动方式' : '';
     });
     getMapUiElements('[data-map-travel-panel]').forEach(panel => {
       panel.classList.toggle('disabled', !!selectedActionDetail.panelDisabled);
+      panel.classList.toggle('has-method', !!selectedActionDetail.showTravelMethod);
     });
     setMapText('[data-map-request-method]', travelMethodDisplay);
     setMapText('[data-map-request-panel-hint]', selectedActionDetail.title);
@@ -8048,6 +8232,8 @@ ${logMsg}
       const nodeUiScale = clamp(1 / Math.max(renderZoom, 1), 0.08, 1);
       setMapNodeStyle(world, 'transform', `translate3d(${panX}px, ${panY}px, 0) scale(${Number(renderZoom.toFixed(3))})`);
       setMapNodeStyle(world, '--node-ui-scale', String(nodeUiScale));
+      const 关联画布 = world.closest('.map-canvas.interactive-map');
+      if (关联画布) 更新地图节点标签边缘状态(关联画布);
     });
     if (updateReadout) updateMapCoordinateReadout();
     if (updateMiniMap) renderMiniMapState();
@@ -8421,15 +8607,25 @@ ${logMsg}
       });
     });
 
-    getMapUiElements('[data-map-action-slot]').forEach(row => {
-      if (row.dataset.mapBound === '1') return;
-      row.dataset.mapBound = '1';
-      row.addEventListener('click', event => {
+    getMapUiElements('[data-map-action-select]').forEach(选择框 => {
+      if (选择框.dataset.mapBound === '1') return;
+      选择框.dataset.mapBound = '1';
+      选择框.addEventListener('change', event => {
         event.preventDefault();
         event.stopPropagation();
-        if (row.classList.contains('disabled') || !row.dataset.mapActionBtn) return;
-        mapState.selectedAction = row.dataset.mapActionBtn;
-        syncInteractiveMapUI({ center: false });
+        mapState.selectedAction = toText(选择框.value, '');
+        syncInteractiveMapUI({ center: false, infoOnly: true });
+      });
+    });
+
+    getMapUiElements('[data-map-action-execute]').forEach(按钮 => {
+      if (按钮.dataset.mapBound === '1') return;
+      按钮.dataset.mapBound = '1';
+      按钮.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (按钮.classList.contains('disabled') || 按钮.disabled) return;
+        performMapAction(toText(mapState.selectedAction, '') || toText(按钮.dataset.mapActionBtn, '') || 'travel');
       });
     });
 
@@ -8460,17 +8656,6 @@ ${logMsg}
         event.stopPropagation();
         if (row.classList.contains('disabled') || row.classList.contains('is-hidden')) return;
         cycleTravelMethod();
-      });
-    });
-
-    getMapUiElements('[data-map-travel-panel]').forEach(panel => {
-      if (panel.dataset.mapBound === '1') return;
-      panel.dataset.mapBound = '1';
-      panel.addEventListener('click', event => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (panel.classList.contains('disabled')) return;
-        performMapAction(toText(mapState.selectedAction, '') || 'travel');
       });
     });
 

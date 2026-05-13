@@ -2631,8 +2631,31 @@ class BattleUIComponent {
         .filter(Boolean);
     }
 
+    function 读取角色系别列表(char) {
+      const 系别集合 = new Set();
+      const 属性系别 = String(char?.属性?.系别 || char?.type || char?.系别 || '').trim();
+      if (属性系别) 系别集合.add(属性系别);
+      Object.values(char?.武魂 || {}).forEach(武魂数据 => {
+        const 武魂系别 = String(武魂数据?.type || 武魂数据?.系别 || '').trim();
+        if (武魂系别) 系别集合.add(武魂系别);
+      });
+      return Array.from(系别集合);
+    }
+
+    function 是否辅助系角色(char) {
+      return 读取角色系别列表(char).includes('辅助系');
+    }
+
+    function 是否七九武魂角色(char) {
+      return getSpiritNameList(char).some(名称 => /[七九]/.test(String(名称 || '')));
+    }
+
     function isSpecialSupportMartialSoul(char) {
-      return getSpiritNameList(char).some(name => /^(七宝|九宝)/.test(String(name || '')));
+      return 是否辅助系角色(char) && 是否七九武魂角色(char);
+    }
+
+    function 是否七九辅助单体语义(char, skill) {
+      return isSpecialSupportMartialSoul(char) && isSupportLikeSkill(skill);
     }
 
     function getSupportEffectScale(caster, target) {
@@ -2646,7 +2669,13 @@ class BattleUIComponent {
     }
 
     function getSupportCostScale(caster, target) {
-      if (isSpecialSupportMartialSoul(caster)) return 1;
+      if (isSpecialSupportMartialSoul(caster)) {
+        const 施术者魂力 = Math.max(1, Number(caster?.sp_max || caster?.属性?.魂力上限 || 1));
+        const 目标魂力 = Math.max(1, Number(target?.sp_max || target?.属性?.魂力上限 || 1));
+        const 越级倍率 = 目标魂力 / 施术者魂力;
+        if (!Number.isFinite(越级倍率) || 越级倍率 <= 1) return 1;
+        return Math.min(8, Math.max(1, Math.pow(越级倍率, 0.65)));
+      }
       const effectScale = getSupportEffectScale(caster, target);
       if (!(effectScale > 0)) return 1;
       if (effectScale >= 1) return Math.min(1.05, 1 + (effectScale - 1) * 0.2);
@@ -2714,7 +2743,36 @@ class BattleUIComponent {
       return Math.max(0.25, Math.min(3, 合成倍率));
     }
 
-    function 套用动作实际前摇(单位, 动作) {
+    function 动作免除经验前摇折扣(动作 = {}) {
+      const 技能 = 动作?.skill && typeof 动作.skill === 'object' ? 动作.skill : {};
+      const 动作类型 = String(动作?.action_type || 动作?.type || 技能?.name || '').trim();
+      const 技能来源 = String(getBattleSkillSourceCategory(技能) || 技能?.技能来源 || 技能?.source_tag || '').trim();
+      return (
+        /领域/.test(动作类型) ||
+        动作类型 === '穿戴装备' ||
+        /斗铠|机甲/.test(动作类型) ||
+        动作类型 === '武魂融合技' ||
+        技能来源 === '武魂融合技'
+      );
+    }
+
+    function 计算行为经验前摇折扣(单位 = {}, 目标 = null, 战斗数据 = null) {
+      if (!单位 || !目标) return 0;
+      const 战斗经验 = 计算行为战斗经验(单位, 目标, 战斗数据 || {});
+      const 稳定度 = Math.max(0, Math.min(1, Number(战斗经验?.稳定度 ?? 0)));
+      const 超出基准 = Math.max(0, 稳定度 - 0.45);
+      return Math.min(0.2, (超出基准 / 0.55) * 0.2);
+    }
+
+    function 计算行为经验反应倍率(单位 = {}, 目标 = null, 战斗数据 = null) {
+      if (!单位 || !目标) return 1;
+      const 战斗经验 = 计算行为战斗经验(单位, 目标, 战斗数据 || {});
+      const 稳定度 = Math.max(0, Math.min(1, Number(战斗经验?.稳定度 ?? 0)));
+      const 超出基准 = Math.max(0, 稳定度 - 0.45);
+      return 1 + Math.min(0.2, (超出基准 / 0.55) * 0.2);
+    }
+
+    function 套用动作实际前摇(单位, 动作, 目标 = null, 战斗数据 = null) {
       if (!动作 || typeof 动作 !== 'object' || 动作.前摇已结算 === true) return 动作;
       const 基础前摇 = Number(动作.cast_time ?? 动作.skill?.cast_time ?? 0) || 0;
       if (!(基础前摇 > 0)) {
@@ -2722,15 +2780,17 @@ class BattleUIComponent {
         return 动作;
       }
       const 前摇倍率 = 获取动作前摇倍率(单位);
-      动作.cast_time = Math.max(1, Math.round(基础前摇 * 前摇倍率));
+      const 经验目标 = 目标 || 战斗数据?.参战者?.enemy || null;
+      const 经验折扣 = 动作免除经验前摇折扣(动作) ? 0 : 计算行为经验前摇折扣(单位, 经验目标, 战斗数据);
+      动作.cast_time = Math.max(1, Math.round(基础前摇 * 前摇倍率 * (1 - 经验折扣)));
       动作.前摇已结算 = true;
       return 动作;
     }
 
-    function 套用动作队列实际前摇(单位, 动作) {
+    function 套用动作队列实际前摇(单位, 动作, 目标 = null, 战斗数据 = null) {
       if (!动作 || typeof 动作 !== 'object') return 动作;
-      if (Array.isArray(动作.pre_actions)) 动作.pre_actions.forEach(副动作 => 套用动作实际前摇(单位, 副动作));
-      return 套用动作实际前摇(单位, 动作);
+      if (Array.isArray(动作.pre_actions)) 动作.pre_actions.forEach(副动作 => 套用动作实际前摇(单位, 副动作, 目标, 战斗数据));
+      return 套用动作实际前摇(单位, 动作, 目标, 战斗数据);
     }
 
     function isSupportLikeSkill(skill) {
@@ -4518,24 +4578,19 @@ class BattleUIComponent {
       const consumer = getFallbackBattleMechanismConsumer(normalizedLabel);
       if (!consumer) return null;
       const summaryHints = {};
-      const aiRoleTags = [];
       if (BATTLE_OUTPUT_RUNTIME_CONSUMERS.has(consumer)) {
         summaryHints.skillType = '输出';
         summaryHints.mainType = BATTLE_SPECIAL_RULE_RUNTIME_CONSUMERS.has(consumer) ? '特殊规则类' : '伤害类';
-        aiRoleTags.push('规则压制型');
       } else if (BATTLE_CONTROL_RUNTIME_CONSUMERS.has(consumer)) {
         summaryHints.skillType = '控制';
         summaryHints.mainType = BATTLE_MOBILITY_RUNTIME_CONSUMERS.has(consumer) ? '位移类' : BATTLE_SPECIAL_RULE_RUNTIME_CONSUMERS.has(consumer) ? '特殊规则类' : '控制类';
         summaryHints.controlStrength = ['hard_control', 'judge_effect'].includes(consumer) && ['硬控', '催眠'].includes(normalizedLabel) ? '硬控' : '软控';
-        aiRoleTags.push('规则压制型');
       } else if (BATTLE_DEFENSE_RUNTIME_CONSUMERS.has(consumer)) {
         summaryHints.skillType = '防御';
         summaryHints.mainType = BATTLE_SPECIAL_RULE_RUNTIME_CONSUMERS.has(consumer) ? '特殊规则类' : '防御类';
-        aiRoleTags.push('保命型');
       } else if (BATTLE_SUPPORT_RUNTIME_CONSUMERS.has(consumer)) {
         summaryHints.skillType = ['recover_vit', 'recover_sp', 'recover_men', 'recover_over_time', 'cleanse', 'resource_refeed'].includes(consumer) ? '辅助' : '辅助';
         summaryHints.mainType = BATTLE_MOBILITY_RUNTIME_CONSUMERS.has(consumer) ? '位移类' : BATTLE_SPECIAL_RULE_RUNTIME_CONSUMERS.has(consumer) ? '特殊规则类' : ['recover_vit', 'recover_sp', 'recover_men', 'recover_over_time', 'cleanse', 'resource_refeed'].includes(consumer) ? '回复类' : '增益类';
-        aiRoleTags.push('团队保护型');
       }
       if (LOCAL_BATTLE_DEFENSE_NATURE_BY_LABEL[normalizedLabel]) summaryHints.defenseNature = LOCAL_BATTLE_DEFENSE_NATURE_BY_LABEL[normalizedLabel];
       if (LOCAL_BATTLE_RECOVER_NATURE_BY_LABEL[normalizedLabel]) summaryHints.recoverNature = LOCAL_BATTLE_RECOVER_NATURE_BY_LABEL[normalizedLabel];
@@ -4550,7 +4605,6 @@ class BattleUIComponent {
         目标语义: inferFallbackBattleMechanismSemantic(normalizedLabel),
         群体赋予: LOCAL_BATTLE_GROUP_GRANTABLE_CONSUMERS.has(consumer),
         仅自身: LOCAL_BATTLE_SELF_ONLY_CONSUMERS.has(consumer),
-        决策标签: aiRoleTags,
         摘要提示: summaryHints,
       };
     }
@@ -4603,23 +4657,63 @@ class BattleUIComponent {
       return getSkillRuntimeConsumerKeys(skill).some(key => keySet.has(key));
     }
 
-    function getSkillAiRoleTags(skill) {
-      return Array.from(
-        new Set(
-          getSkillMechanismLabels(skill)
-            .map(label => getBattleSkillMechanismMeta(label))
-            .filter(meta => meta && Array.isArray(meta.决策标签))
-            .flatMap(meta => meta.决策标签)
-            .map(tag => String(tag || '').trim())
-            .filter(Boolean),
-        ),
+    function 技能具有保命倾向(skill, context = {}) {
+      const summary = context.summary || deriveBattleSummaryFromEffects(skill);
+      return (
+        summary.防御性质 !== '无' ||
+        summary.回复性质 === '复苏' ||
+        hasBattleSkillRuntimeConsumer(skill, [...BATTLE_DEFENSE_RUNTIME_CONSUMERS]) ||
+        hasBattleSkillRuntimeConsumer(skill, ['recover_vit', 'cleanse', 'recover_over_time']) && skillTargetsFriendlySide(skill)
       );
     }
 
-    function hasSkillAiRoleTag(skill, tag = '') {
-      const normalizedTag = String(tag || '').trim();
-      if (!normalizedTag) return false;
-      return getSkillAiRoleTags(skill).includes(normalizedTag);
+    function 技能具有团队保护倾向(skill, context = {}) {
+      const summary = context.summary || deriveBattleSummaryFromEffects(skill);
+      const 技能来源 = context.技能来源 || getBattleSkillSourceCategory(skill);
+      const 友方目标 = skillTargetsFriendlySide(skill);
+      return (
+        skillCanGrantFriendlyMechanism(skill) ||
+        summary.协同性 === '高' ||
+        summary.回复性质 !== '无' && 友方目标 ||
+        技能具有保命倾向(skill, { summary }) && 友方目标 ||
+        hasBattleSkillRuntimeConsumer(skill, [
+          'guard',
+          'damage_share',
+          'substitute',
+          'revive',
+          'shield',
+          'damage_reduce',
+          'death_save',
+          'invincible',
+          'resource_refeed',
+          'shared_vision',
+        ]) && 友方目标 ||
+        (技能来源 === '武魂融合技' && ['辅助', '防御'].includes(getSkillType(skill)))
+      );
+    }
+
+    function 技能具有规则压制倾向(skill, context = {}) {
+      const summary = context.summary || deriveBattleSummaryFromEffects(skill);
+      const mainType = context.mainType || inferMainTypeFromEffects(skill);
+      const damage = context.damage || getPrimaryDamageEffect(skill);
+      return (
+        ['伤害类', '控制类', '削弱类', '特殊规则类'].includes(mainType) ||
+        summary.控制强度 !== '无' ||
+        summary.爆发级别 !== '无' ||
+        skillTargetsEnemySide(skill) && hasSkillMechanismSemantic(skill, '敌对') ||
+        hasBattleSkillRuntimeConsumer(skill, [
+          ...BATTLE_OUTPUT_RUNTIME_CONSUMERS,
+          ...BATTLE_CONTROL_RUNTIME_CONSUMERS,
+          'dot_detonate',
+          'shield_break',
+          'shield_steal',
+          'resource_drain',
+          'mechanism_suppress',
+          'effect_reverse',
+          'heal_to_damage',
+        ]) ||
+        Number(damage?.威力倍率 || 0) > 0
+      );
     }
 
     function getSkillSummaryHint(skill, key = '', fallback = '') {
@@ -4645,8 +4739,8 @@ class BattleUIComponent {
         mainType === '防御类' ||
         summary.防御性质 !== '无' ||
         summary.回复性质 === '复苏' ||
-        hasSkillAiRoleTag(skill, '保命型') ||
-        hasSkillAiRoleTag(skill, '团队保护型') ||
+        技能具有保命倾向(skill, { summary }) ||
+        技能具有团队保护倾向(skill, { summary, 技能来源 }) ||
         (技能来源 === '武魂融合技' && ['防御', '辅助'].includes(skillType))
       );
     }
@@ -4671,7 +4765,7 @@ class BattleUIComponent {
       return (
         mainType === '控制类' ||
         mainType === '削弱类' ||
-        hasSkillAiRoleTag(skill, '规则压制型') ||
+        技能具有规则压制倾向(skill, { summary, mainType }) ||
         summary.控制强度 === '硬控' ||
         summary.控制强度 === '软控' ||
         (skillTargetsEnemySide(skill) && hasSkillMechanismSemantic(skill, '敌对')) ||
@@ -4692,7 +4786,7 @@ class BattleUIComponent {
         skillCanGrantFriendlyMechanism(skill) ||
         summary.协同性 === '高' ||
         summary.回复性质 !== '无' ||
-        hasSkillAiRoleTag(skill, '团队保护型') ||
+        技能具有团队保护倾向(skill, { summary, 技能来源 }) ||
         (技能来源 === '武魂融合技' && ['辅助', '防御'].includes(skillType))
       );
     }
@@ -4705,7 +4799,7 @@ class BattleUIComponent {
       const 团队防御性质 = ['护盾', '减伤', '格挡', '免死', '无敌', '复苏', '替身', '分摊', '护卫'].includes(防御性质);
       return (
         (友方目标 && 团队防御性质) ||
-        hasSkillAiRoleTag(skill, '团队保护型') ||
+        (友方目标 && 技能具有团队保护倾向(skill, { summary })) ||
         (友方目标 && hasBattleSkillRuntimeConsumer(skill, ['guard', 'damage_share', 'substitute', 'revive', 'shield', 'damage_reduce', 'death_save', 'invincible']))
       );
     }
@@ -4805,7 +4899,7 @@ class BattleUIComponent {
       const summary = context.summary || deriveBattleSummaryFromEffects(skill);
       return (
         isBattleSkillDefensiveProfile(skill, context) ||
-        hasSkillAiRoleTag(skill, '保命型') ||
+        技能具有保命倾向(skill, { summary }) ||
         ['护盾', '减伤', '格挡', '霸体', '免死', '无敌', '复苏', '替身', '分摊', '反射', '护卫'].includes(summary.防御性质)
       );
     }
@@ -4872,9 +4966,6 @@ class BattleUIComponent {
       if (hasBattleSkillRuntimeConsumer(skill, [...BATTLE_OUTPUT_RUNTIME_CONSUMERS]) || Number(getPrimaryDamageEffect(skill)?.威力倍率 || 0) > 0)
         return '输出';
       if (skillTargetsEnemySide(skill) && hasSkillMechanismSemantic(skill, '敌对')) return '控制';
-      if (hasSkillAiRoleTag(skill, '团队保护型')) return '辅助';
-      if (hasSkillAiRoleTag(skill, '保命型')) return '防御';
-      if (hasSkillAiRoleTag(skill, '规则压制型')) return '控制';
       return '无';
     }
 
@@ -5488,7 +5579,6 @@ class BattleUIComponent {
       normalized.技能来源 = String(normalized.技能来源 || normalized.source_tag || '魂技').trim() || '魂技';
       normalized.战斗摘要 = { ...createEmptyBattleSummary(), ...(normalized.战斗摘要 || {}) };
       normalized.主定位 = normalized.主定位 || normalized.战斗语义?.主定位 || normalized.技能类型 || '无';
-      normalized.标签 = Array.isArray(normalized.标签) ? normalized.标签 : [];
       normalized.战斗语义 = { ...createEmptySkillSemantics(), ...(normalized.战斗语义 || {}) };
       const explicitSemanticTarget = skill?.战斗语义?.作用目标;
       const explicitPrimaryRole = skill?.主定位 || skill?.战斗语义?.主定位;
@@ -5772,9 +5862,6 @@ class BattleUIComponent {
         partnerCostText !== '无' && partnerNames.length
           ? `${actorCostText} | 共耗(${partnerNames.join('、')}): ${partnerCostText}`
           : actorCostText;
-      skill.标签 = Array.isArray(skill.标签) ? skill.标签 : [];
-      if (!skill.标签.includes('武魂融合技')) skill.标签.push('武魂融合技');
-      if (!skill.标签.includes(mode === 'self' ? '自体融合' : '搭档融合')) skill.标签.push(mode === 'self' ? '自体融合' : '搭档融合');
       return skill;
     }
 
@@ -5821,16 +5908,44 @@ class BattleUIComponent {
         : parseInt(baseMatch[1], 10);
     }
 
+    function 读取运行态批量目标列表(skill) {
+      if (!skill || !Array.isArray(skill.__批量目标列表)) return [];
+      return dedupeCombatTargetList(skill.__批量目标列表.filter(Boolean));
+    }
+
+    function 计算辅助目标数量倍率(skill) {
+      if (!skill || !isSupportLikeSkill(skill)) return 1;
+      const 目标数量 = Math.max(1, Math.floor(Number(skill.__辅助目标数量 || 1)));
+      return 1 + 0.1 * (Math.min(12, 目标数量) - 1);
+    }
+
+    function 计算运行态辅助消耗倍率(skill, char, 默认单体倍率 = 1) {
+      if (!skill || !isSupportLikeSkill(skill)) return Math.max(1, Number(默认单体倍率 || 1));
+      const 批量目标列表 = 读取运行态批量目标列表(skill);
+      const 批量模式 = String(skill.__批量消耗模式 || '').trim();
+      const 七九单体语义 = 是否七九辅助单体语义(char, skill);
+      if (批量目标列表.length > 0 && (批量模式 === '单体批量' || 七九单体语义)) {
+        return 批量目标列表.reduce((总和, 目标) => 总和 + getSupportCostScale(char, 目标), 0);
+      }
+      if (批量目标列表.length > 0) {
+        const 最高单体倍率 = 批量目标列表.reduce((最高, 目标) => Math.max(最高, getSupportCostScale(char, 目标)), 1);
+        return 最高单体倍率 * (1 + 0.1 * (Math.min(12, 批量目标列表.length) - 1));
+      }
+      if (七九单体语义) return Math.max(1, Number(默认单体倍率 || 1));
+      return Math.max(1, Number(默认单体倍率 || 1)) * 计算辅助目标数量倍率(skill);
+    }
+
     function parseSkillCostForChar(skill, char) {
       const stats = char?.属性 || char || {};
       const costStr = normalizeSkillData(skill).消耗 || getSkillCostText(skill);
       const presetCostScale = Number(skill?.__battleSupportCostScale);
-      const costScale =
+      const 单体辅助消耗倍率 =
         Number.isFinite(presetCostScale) && presetCostScale > 0
           ? presetCostScale
           : skill && char && skill.__targetForSupportCost && isSupportLikeSkill(skill)
             ? getSupportCostScale(char, skill.__targetForSupportCost)
             : 1;
+      const costScale = 计算运行态辅助消耗倍率(skill, char, 单体辅助消耗倍率);
       const statusCostScale = 获取施法消耗倍率(char);
       const rawReqSp = parseResourceCostValue(
         costStr,
@@ -6475,7 +6590,12 @@ class BattleUIComponent {
           targetSet = attacker ? [attacker] : [];
           break;
         case '友方群体':
-          targetSet = alliedUnits;
+          if (是否七九辅助单体语义(attacker, skill)) {
+            const alliedTarget = findCombatTargetInSet(alliedUnits, attacker) || attacker || alliedUnits[0] || null;
+            targetSet = alliedTarget ? [alliedTarget] : [];
+          } else {
+            targetSet = alliedUnits;
+          }
           break;
         case '友方单体': {
           const alliedTarget = findCombatTargetInSet(alliedUnits, defender) || findCombatTargetInSet(alliedUnits, attacker) || attacker;
@@ -6491,6 +6611,14 @@ class BattleUIComponent {
           targetSet = hostileTarget ? [hostileTarget] : [];
           break;
         }
+      }
+      const 运行态批量目标列表 = 读取运行态批量目标列表(skill).filter(isCombatUnitAlive);
+      if (
+        运行态批量目标列表.length > 0 &&
+        isSupportLikeSkill(skill) &&
+        ['自身', '友方单体', '友方群体'].includes(effectiveTargetModel)
+      ) {
+        targetSet = 运行态批量目标列表;
       }
       if (targetModifiers.includes('受隐身筛选') && !canBypassStealth(attacker, skill)) {
         const visibleTargets = targetSet.filter(target => !buildConditionTacticalSnapshot(target).hasStealthed);
@@ -7361,7 +7489,6 @@ class BattleUIComponent {
             目标模型: '友方单体',
             消耗: '无',
             cast_time: 6,
-            标签: ['团队保护型', '保命型'],
             战斗摘要: {
               防御性质: '护卫',
               协同性: '高',
@@ -7372,7 +7499,6 @@ class BattleUIComponent {
             战斗语义: {
               主定位: '防御',
               作用目标: '友方单体',
-              战术标签: ['团队保护型', '保命型'],
             },
             _效果数组: [
               {
@@ -7783,7 +7909,8 @@ class BattleUIComponent {
             }
           } else {
             playerAction = parsePlayerIntent(playerInput);
-            套用动作队列实际前摇(attacker, playerAction);
+            playerAction = 去重动作队列友方辅助(attacker, playerAction);
+            套用动作队列实际前摇(attacker, playerAction, defender, combatData);
             if (!visiblePlayerInput) visiblePlayerInput = buildVisibleBattlePlayerInput(playerInput, playerAction, combatData);
 
             // 💥【终极动作序列时间片机制】一回合能做出的总行动上限为 cast_time = 40！
@@ -7827,7 +7954,13 @@ class BattleUIComponent {
                 const 装备槽 = ensureBattleEquipmentSlot(attacker, preAct.equip_target);
                 if (装备槽) 装备槽.装备状态 = '已装备';
                 roundLog += `[连招生效] 玩家在电光火石间成功穿戴了${preAct.equip_target === 'armor' ? '斗铠' : '机甲'}！ `;
+              } else {
+                const 前置结算 = 执行连放前置动作结算(attacker, defender, preAct, combatData);
+                if (前置结算.log) roundLog += `${前置结算.log} `;
+                if (Array.isArray(前置结算.extraPatchOps) && 前置结算.extraPatchOps.length)
+                  clashExtraPatchOps.push(...前置结算.extraPatchOps);
               }
+              清理动作运行态字段(preAct);
             });
             // 为了让后续流程还能认得出主动作，必须将原本的 pre_actions 覆写为实际生效的这几个
             playerAction.pre_actions = validPreActions;
@@ -7960,6 +8093,7 @@ class BattleUIComponent {
           }
           const fusionAftermathLog = applyFusionActionAftermath(attacker, playerAction, combatData);
           if (fusionAftermathLog) roundLog += ` ${fusionAftermathLog}`;
+          清理动作运行态字段(playerAction);
 
           // --- 第五步：装备护主与战损结算 ---
           let combatType = combatData.战斗类型 || '突发遭遇';
@@ -8123,6 +8257,8 @@ class BattleUIComponent {
           intentText: visiblePlayerInput || String(playerInput || '战斗行动'),
           mode: 'engine_arbitrated',
           battleMode: mode,
+          logs: [...battleLog],
+          roundsExecuted: roundCount,
           aiRequest: root.__lastBattleAIRequest || null,
         };
       }
@@ -8350,39 +8486,146 @@ class BattleUIComponent {
         return `[融合反噬] ${affectedNames.join('、')}施展[${skillName}]后经络与精神同步透支，全部陷入[融合后虚弱]。`;
       }
 
-      function resolveSupportCostTarget(attackerChar, playerAction) {
+      function 读取施术者队伍列表(battleContext, attackerChar, 读取友方 = true) {
+        const 玩家队伍 = Array.isArray(battleContext?.参战者?.team_player) ? battleContext.参战者.team_player : [];
+        const 敌方队伍 = Array.isArray(battleContext?.参战者?.team_enemy) ? battleContext.参战者.team_enemy : [];
+        const 在玩家队 = 玩家队伍.some(单位 => isCombatUnitIdentityMatch(单位, attackerChar?.name || attackerChar?.名称 || attackerChar));
+        const 基础队伍 = 在玩家队 ? 玩家队伍 : 敌方队伍;
+        const 对侧队伍 = 在玩家队 ? 敌方队伍 : 玩家队伍;
+        const 目标队伍 = 读取友方 ? 基础队伍 : 对侧队伍;
+        const 候选队伍 = 读取友方 ? [attackerChar, ...目标队伍] : [...目标队伍];
+        return dedupeCombatTargetList(候选队伍.filter(Boolean)).filter(isCombatUnitAlive);
+      }
+
+      function 读取动作批量目标原始列表(playerAction = {}) {
+        const 候选列表 = [
+          playerAction.__批量目标列表,
+          playerAction.__批量目标名称列表,
+          playerAction.目标列表,
+          playerAction.目标名称列表,
+        ];
+        const 结果 = [];
+        候选列表.forEach(候选 => {
+          if (Array.isArray(候选)) {
+            候选.forEach(项目 => {
+              if (项目 !== undefined && 项目 !== null && 项目 !== '') 结果.push(项目);
+            });
+          } else if (typeof 候选 === 'string' && 候选.trim()) {
+            候选
+              .split(/[、,，;；\s]+/)
+              .map(项目 => 项目.trim())
+              .filter(Boolean)
+              .forEach(项目 => 结果.push(项目));
+          }
+        });
+        return 结果;
+      }
+
+      function 解析动作批量目标列表(battleContext, attackerChar, playerAction, 读取友方 = true) {
+        const 原始列表 = 读取动作批量目标原始列表(playerAction);
+        if (!原始列表.length) return [];
+        const 默认队伍 = 读取施术者队伍列表(battleContext, attackerChar, 读取友方);
+        const 全体命中 = 原始列表.some(项目 => /全队|全体|所有人|所有队友|全部队友/.test(String(项目 || '')));
+        if (全体命中) return 默认队伍;
+        const 全部单位 = dedupeCombatTargetList([
+          ...(battleContext?.参战者?.team_player || []),
+          ...(battleContext?.参战者?.team_enemy || []),
+          battleContext?.参战者?.player,
+          battleContext?.参战者?.enemy,
+          attackerChar,
+        ]).filter(Boolean);
+        return dedupeCombatTargetList(
+          原始列表
+            .map(项目 => {
+              if (项目 && typeof 项目 === 'object') {
+                const 名称 = String(项目?.name || 项目?.名称 || '').trim();
+                return 名称 ? findCombatUnitByName(battleContext, 名称) || 全部单位.find(单位 => isCombatUnitIdentityMatch(单位, 名称)) || 项目 : 项目;
+              }
+              const 名称 = String(项目 || '').trim();
+              return findCombatUnitByName(battleContext, 名称) || 全部单位.find(单位 => isCombatUnitIdentityMatch(单位, 名称)) || null;
+            })
+            .filter(Boolean),
+        ).filter(isCombatUnitAlive);
+      }
+
+      function 选取最高魂力单位(队伍 = []) {
+        return (
+          [...(Array.isArray(队伍) ? 队伍 : [])].sort(
+            (左, 右) => Number(右?.sp_max || 右?.属性?.魂力上限 || 0) - Number(左?.sp_max || 左?.属性?.魂力上限 || 0),
+          )[0] || null
+        );
+      }
+
+      function 建立辅助消耗上下文(目标列表 = [], 批量模式 = '', 兜底目标 = null) {
+        const 有效目标列表 = dedupeCombatTargetList((Array.isArray(目标列表) ? 目标列表 : []).filter(Boolean)).filter(isCombatUnitAlive);
+        const 目标 = 选取最高魂力单位(有效目标列表) || 兜底目标 || 有效目标列表[0] || null;
+        return {
+          目标,
+          目标数量: Math.max(1, 有效目标列表.length || (目标 ? 1 : 0)),
+          目标列表: 有效目标列表,
+          批量模式,
+        };
+      }
+
+      function resolveSupportCostContext(attackerChar, playerAction) {
         const skill = playerAction?.skill;
-        if (!skill || !isSupportLikeSkill(skill)) return null;
+        if (!skill || !isSupportLikeSkill(skill)) return { 目标: null, 目标数量: 1, 目标列表: [], 批量模式: '' };
         const targetText = String(getSkillTarget(skill) || '').trim();
-        if (!targetText) return null;
-        if (/自身/.test(targetText)) return attackerChar || null;
+        if (!targetText) return { 目标: null, 目标数量: 1, 目标列表: [], 批量模式: '' };
+        if (/自身/.test(targetText)) return 建立辅助消耗上下文([attackerChar].filter(Boolean), '', attackerChar || null);
         const battleContext = window.BattleUIBridge?.getBattleContext?.() || window.BattleUIBridge?.getMVU?.('world.战斗') || null;
         const preferredName = String(playerAction?.target_name || '').trim();
         if (/己方|友方/.test(targetText)) {
+          const 友方队伍 = 读取施术者队伍列表(battleContext, attackerChar, true);
+          const 七九单体语义 = 是否七九辅助单体语义(attackerChar, skill);
+          if (/群体/.test(targetText) && !七九单体语义) {
+            return 建立辅助消耗上下文(友方队伍, '原生群体', attackerChar || null);
+          }
+          const 批量目标列表 = 解析动作批量目标列表(battleContext, attackerChar, playerAction, true);
+          if (批量目标列表.length > 0) return 建立辅助消耗上下文(批量目标列表, '单体批量', attackerChar || null);
           const ally = findCombatUnitByName(battleContext, preferredName);
-          return ally || attackerChar || null;
+          return 建立辅助消耗上下文([ally || attackerChar].filter(Boolean), '', attackerChar || null);
         }
         if (/敌/.test(targetText)) {
-          return findCombatUnitByName(battleContext, preferredName) || battleContext?.参战者?.enemy || null;
+          const 敌方队伍 = 读取施术者队伍列表(battleContext, attackerChar, false);
+          if (/群体/.test(targetText)) {
+            return 建立辅助消耗上下文(敌方队伍, '原生群体', null);
+          }
+          const 敌方目标 = findCombatUnitByName(battleContext, preferredName) || battleContext?.参战者?.enemy || null;
+          return 建立辅助消耗上下文([敌方目标].filter(Boolean), '', 敌方目标);
         }
-        return attackerChar || null;
+        return 建立辅助消耗上下文([attackerChar].filter(Boolean), '', attackerChar || null);
+      }
+
+      function resolveSupportCostTarget(attackerChar, playerAction) {
+        return resolveSupportCostContext(attackerChar, playerAction).目标;
       }
 
       function applyActionCost(attackerChar, playerAction, defenderChar = null) {
         const stats = attackerChar.属性 || attackerChar;
         const status = attackerChar.状态 || {};
         let log = '';
+        let supportCostContext = { 目标: null, 目标数量: 1, 目标列表: [], 批量模式: '' };
+
+        if (playerAction.skill && isSupportLikeSkill(playerAction.skill)) {
+          supportCostContext = resolveSupportCostContext(attackerChar, playerAction);
+          if (supportCostContext.目标) playerAction.skill.__targetForSupportCost = supportCostContext.目标;
+          playerAction.skill.__辅助目标数量 = Math.max(1, Math.floor(Number(supportCostContext.目标数量 || 1)));
+          if (Array.isArray(supportCostContext.目标列表) && supportCostContext.目标列表.length > 0) {
+            playerAction.skill.__批量目标列表 = supportCostContext.目标列表;
+            playerAction.skill.__批量消耗模式 = supportCostContext.批量模式 || '';
+          }
+        }
 
         // 💥 1. 通用真实面板扣费逻辑 (支持固定值与百分比，绝不硬编码！)
         if (playerAction.skill && playerAction.skill.消耗 !== '无') {
-          const supportCostTarget = resolveSupportCostTarget(attackerChar, playerAction);
-          if (supportCostTarget) playerAction.skill.__targetForSupportCost = supportCostTarget;
           const costParts = splitSkillCostModes(playerAction.skill.消耗);
           const parsedCost = parseSkillCostForChar(
             { ...playerAction.skill, 消耗: costParts.upfront || '无' },
             attackerChar,
           );
           delete playerAction.skill.__targetForSupportCost;
+          delete playerAction.skill.__辅助目标数量;
 
           if (parsedCost.canCast) {
             deductParsedCostFromUnit(attackerChar, parsedCost);
@@ -8580,6 +8823,56 @@ class BattleUIComponent {
         }
 
         return log;
+      }
+
+      function 清理动作运行态字段(playerAction) {
+        if (!playerAction || typeof playerAction !== 'object') return;
+        delete playerAction.__批量目标列表;
+        delete playerAction.__批量目标名称列表;
+        delete playerAction.__批量消耗模式;
+        delete playerAction.__连放来源;
+        if (playerAction.skill && typeof playerAction.skill === 'object') {
+          delete playerAction.skill.__targetForSupportCost;
+          delete playerAction.skill.__辅助目标数量;
+          delete playerAction.skill.__批量目标列表;
+          delete playerAction.skill.__批量消耗模式;
+        }
+        if (Array.isArray(playerAction.pre_actions)) playerAction.pre_actions.forEach(副动作 => 清理动作运行态字段(副动作));
+      }
+
+      function 动作是否仅前置挂载(action = {}) {
+        const 动作类型 = String(action?.action_type || action?.type || '').trim();
+        return 动作类型 === '穿戴装备' || /领域/.test(动作类型) || 动作类型 === '点燃生命之火';
+      }
+
+      function 执行连放前置动作结算(攻击方, 默认目标, action, combatData = {}) {
+        if (!action?.skill || action.action_type === '施法失败' || 动作是否仅前置挂载(action)) {
+          return { log: '', extraPatchOps: [] };
+        }
+        const targetContext = resolveSkillTargetContext(action.skill, 攻击方, 默认目标, combatData, getPrimaryDamageEffect(action.skill));
+        const targetsFriendly = ['自身', '友方单体', '友方群体'].includes(targetContext.targetModel);
+        const primaryTarget = targetContext.primaryTarget || (targetsFriendly ? 攻击方 : 默认目标);
+        if (!primaryTarget) return { log: '', extraPatchOps: [] };
+        const reactionAction = targetsFriendly
+          ? { type: '配合', log: `${primaryTarget.name || '目标'}接受了${攻击方.name || '施术者'}的连放辅助。`, skill: null, def_mult: 1.0 }
+          : determineNpcAction(combatData, action, calculateReactionRatio(攻击方, primaryTarget, action, combatData));
+        const settleResult = executeClash(action, reactionAction, combatData);
+        const damagePackage = applyResolvedDamagePackage(攻击方, action, settleResult, {
+          primaryTarget,
+          combatData,
+        });
+        const 防反日志 = targetsFriendly
+          ? ''
+          : 执行行为防反结算(攻击方, primaryTarget, action, reactionAction, settleResult, damagePackage, combatData);
+        const fusionAftermathLog = applyFusionActionAftermath(攻击方, action, combatData);
+        const 伤害日志 = damagePackage.log ? ` ${damagePackage.log}` : '';
+        const 防反文本 = 防反日志 ? ` ${防反日志}` : '';
+        const 融合文本 = fusionAftermathLog ? ` ${fusionAftermathLog}` : '';
+        const log = `[连放结算] ${攻击方.name || '施术者'}追加[${action.skill?.name || action.action_type}]指向[${primaryTarget.name || '目标'}]。 ${reactionAction.log || ''} ${settleResult.desc || ''}${伤害日志}${防反文本}${融合文本}`;
+        return {
+          log,
+          extraPatchOps: Array.isArray(settleResult?.extraPatchOps) ? settleResult.extraPatchOps : [],
+        };
       }
 
       function settleBattle(attackerChar, defenderChar, battleOutcome = {}, options = {}) {
@@ -10008,6 +10301,7 @@ class BattleUIComponent {
           defender.men_max +
           (defender.temp_reaction_bonus || 0) -
           (defender.temp_reaction_penalty || 0);
+        defenderReaction *= 计算行为经验反应倍率(defender, attacker, combatData);
         let ratio = defenderReaction / Math.max(1, attackerSpeed);
 
         if (defender.temp_cannot_react) ratio = 0;
@@ -12416,7 +12710,6 @@ class BattleUIComponent {
 
               const summary = deriveBattleSummaryFromEffects(skill);
               const mainType = inferMainTypeFromEffects(skill) || '无';
-              const 决策标签 = getSkillAiRoleTags(skill);
               const 技能来源 = String(getSkillRuntimeMeta(skill).技能来源 || '魂技').trim() || '魂技';
               const enemyHpRatio = getCombatHpRatio(attacker);
               const selfHpRatio = getCombatHpRatio(defender);
@@ -12431,6 +12724,8 @@ class BattleUIComponent {
               const hasFriendlyGrantable = skillCanGrantFriendlyMechanism(skill);
               const hasHostileSemantic = skillTargetsEnemySide(skill) && hasSkillMechanismSemantic(skill, '敌对');
               const 是团队保护 = 是团队保护技能(skill, { summary });
+              const 是保命技能 = 技能具有保命倾向(skill, { summary });
+              const 是规则压制 = 技能具有规则压制倾向(skill, { summary, mainType });
               const hasAntiHeal = isBattleSkillAntiHealProfile(skill, { summary });
               const defenseNature = String(summary.防御性质 || '无');
               const hasSharedVision = isBattleSkillSharedVisionProfile(skill);
@@ -12469,21 +12764,21 @@ class BattleUIComponent {
               if (['控制类', '削弱类'].includes(mainType)) weight += 15;
               if (mainType === '增益类' && behaviorState.round <= 2) weight += 20;
               if (mainType === '特殊规则类') weight -= 5;
-              if (决策标签.includes('保命型') && (selfHpRatio < 0.55 || isChargingHighThreat)) weight += 12;
-              if (决策标签.includes('团队保护型') && allyCount > 1) weight += 10;
+              if (是保命技能 && (selfHpRatio < 0.55 || isChargingHighThreat)) weight += 12;
+              if (是团队保护 && allyCount > 1) weight += 10;
               if (是团队保护 && allyCount > 1) {
                 const 护援压力 = Math.max(0, Number(behaviorState.团队护援压力 || 0));
                 weight += 22 + Math.floor(护援压力 * 0.65);
                 if (getSkillTargetModel(skill) !== '自身') weight += 18;
                 if (defender.type === '防御系') weight += 18;
               }
-              if (决策标签.includes('规则压制型') && (isChargingHighThreat || enemySnapshot.hasShielded || enemySnapshot.hasHealingTrend))
+              if (是规则压制 && (isChargingHighThreat || enemySnapshot.hasShielded || enemySnapshot.hasHealingTrend))
                 weight += 10;
               if (技能来源 === '武魂融合技') {
                 if (isChargingHighThreat || enemyHpRatio < 0.42 || selfHpRatio < 0.42) weight += 36;
                 else weight -= 18;
               } else if (技能来源 === '自创魂技') {
-                if (决策标签.includes('规则压制型') || hasHostileSemantic) weight += 12;
+                if (是规则压制 || hasHostileSemantic) weight += 12;
                 if (hasFriendlyGrantable && allyCount > 1) weight += 8;
               }
 
@@ -13637,6 +13932,35 @@ class BattleUIComponent {
           }
         }
 
+        function 读取序列化批量目标(entry = {}) {
+          const 名称列表 = [];
+          const 对象列表 = [];
+          [
+            entry.__批量目标列表,
+            entry.__批量目标名称列表,
+            entry.目标列表,
+            entry.目标名称列表,
+          ].forEach(候选 => {
+            if (Array.isArray(候选)) {
+              候选.forEach(项目 => {
+                if (!项目) return;
+                if (typeof 项目 === 'object') 对象列表.push(项目);
+                else 名称列表.push(String(项目 || '').trim());
+              });
+            } else if (typeof 候选 === 'string') {
+              候选
+                .split(/[、,，;；\s]+/)
+                .map(项目 => 项目.trim())
+                .filter(Boolean)
+                .forEach(项目 => 名称列表.push(项目));
+            }
+          });
+          return {
+            名称列表: [...new Set(名称列表.filter(Boolean))],
+            对象列表: dedupeCombatTargetList(对象列表),
+          };
+        }
+
         function buildPlayerActionFromSerializedEntry(entry) {
           if (!entry || typeof entry !== 'object') return null;
           const actionType = String(entry.action_type || entry.type || entry.skill?.技能类型 || '常规攻击').trim() || '常规攻击';
@@ -13653,11 +13977,65 @@ class BattleUIComponent {
           };
           if (entry.equip_target) nextAction.equip_target = String(entry.equip_target || '').trim();
           if (entry.heal_ratio !== undefined) nextAction.heal_ratio = Number(entry.heal_ratio || 0) || 0;
+          const 批量目标 = 读取序列化批量目标(entry);
+          if (批量目标.对象列表.length) nextAction.__批量目标列表 = 批量目标.对象列表;
+          if (批量目标.名称列表.length) nextAction.__批量目标名称列表 = 批量目标.名称列表;
+          if (entry.__批量消耗模式) {
+            nextAction.__批量消耗模式 = String(entry.__批量消耗模式 || '').trim();
+          }
           if (Array.isArray(entry.fusionElements)) {
             nextAction.fusionElements = normalizeBattleSkillAttributeTokens(entry.fusionElements);
           }
           if (entry.fusionPattern) nextAction.fusionPattern = String(entry.fusionPattern || '').trim();
           return nextAction;
+        }
+
+        function 动作允许同名连放(单位 = {}, 动作 = {}) {
+          const 技能 = 动作?.skill && typeof 动作.skill === 'object' ? 动作.skill : {};
+          if (String(单位?.type || 单位?.系别 || '').trim() === '食物系') return true;
+          const 技能文本 = `${动作?.action_type || ''} ${技能?.name || ''} ${技能?.魂技名 || ''} ${JSON.stringify(技能?._效果数组 || [])}`;
+          if (/生成造物|造物生成|产物类型":"食物|食物/.test(技能文本)) return true;
+          const 目标模型 = getSkillTargetModel(技能);
+          if (!['自身', '友方单体', '友方群体'].includes(目标模型)) return true;
+          return !isSupportLikeSkill(技能);
+        }
+
+        function 读取动作去重目标键(动作 = {}) {
+          const 批量名称 = 读取动作批量目标原始列表(动作)
+            .map(项目 => (typeof 项目 === 'object' ? String(项目?.name || 项目?.名称 || '') : String(项目 || '')))
+            .map(名称 => 名称.trim())
+            .filter(Boolean);
+          if (批量名称.length) return 批量名称.sort().join('/');
+          return String(动作.target_name || 动作.skill?.目标 || 动作.skill?.对象 || '默认目标').trim() || '默认目标';
+        }
+
+        function 去重动作队列友方辅助(单位, 动作) {
+          if (!动作 || typeof 动作 !== 'object') return 动作;
+          const 原队列 = [...(Array.isArray(动作.pre_actions) ? 动作.pre_actions : []), 动作];
+          const 已见 = new Set();
+          const 保留 = [];
+          原队列.forEach(候选动作 => {
+            if (!候选动作 || typeof 候选动作 !== 'object') return;
+            if (动作允许同名连放(单位, 候选动作)) {
+              保留.push(候选动作);
+              return;
+            }
+            const 技能名 = String(候选动作.skill?.name || 候选动作.skill?.魂技名 || 候选动作.action_type || '').trim();
+            const 去重键 = `${技能名}:${读取动作去重目标键(候选动作)}`;
+            if (已见.has(去重键)) return;
+            已见.add(去重键);
+            保留.push(候选动作);
+          });
+          if (!保留.length) {
+            return {
+              action_type: '观察',
+              cast_time: 1,
+              skill: normalizeSkillData({ name: '观察', 技能类型: '辅助', 消耗: '无', cast_time: 1 }, '观察'),
+            };
+          }
+          const 主动作 = 保留[保留.length - 1];
+          主动作.pre_actions = 保留.slice(0, -1);
+          return 主动作;
         }
 
         function parsePlayerIntent(playerInput) {
@@ -13694,7 +14072,7 @@ class BattleUIComponent {
               const mainAction = queueActions[queueActions.length - 1];
               const preActions = queueActions.slice(0, -1);
               if (preActions.length) mainAction.pre_actions = preActions;
-              return mainAction;
+              return 去重动作队列友方辅助(attacker, mainAction);
             }
           }
 
@@ -13750,6 +14128,15 @@ class BattleUIComponent {
             action.action_type = matchedSkillName.includes('武魂融合技') ? '武魂融合技' : '释放魂技';
             action.cast_time = getSkillCastTime(matchedSkill) || 10;
             action.skill = normalizeSkillData(matchedSkill, matchedSkillName);
+            if (
+              /全队|全体|所有人|所有队友|全部队友/.test(playerInput) &&
+              isSupportLikeSkill(action.skill) &&
+              getSkillTargetModel(action.skill) === '友方单体'
+            ) {
+              action.__批量目标名称列表 = ['全队'];
+              action.__批量消耗模式 = '单体批量';
+              action.__连放来源 = '玩家声明批量辅助';
+            }
           }
 
           // 💥 [核心改造] 副动作(Pre-Actions)多维复合解析引擎
@@ -13904,7 +14291,7 @@ class BattleUIComponent {
             }
           }
 
-          return action;
+          return 去重动作队列友方辅助(attacker, action);
         }
 
         // ==========================================
@@ -14026,7 +14413,8 @@ class BattleUIComponent {
           const snapshot = buildConditionTacticalSnapshot(target);
           const attackerSnapshot = buildConditionTacticalSnapshot(attackerChar);
           const summary = deriveBattleSummaryFromEffects(skill);
-          const 决策标签 = getSkillAiRoleTags(skill);
+          const mainType = inferMainTypeFromEffects(skill) || '无';
+          const 是规则压制 = 技能具有规则压制倾向(skill, { summary, mainType });
           const 技能来源 = String(getSkillRuntimeMeta(skill).技能来源 || '魂技').trim() || '魂技';
           const dmg = getPrimaryDamageEffect(skill);
           const hpRatio = getCombatHpRatio(target);
@@ -14101,7 +14489,7 @@ class BattleUIComponent {
               weight += 36 + snapshot.buffCount * 6;
             if (suppressTargets.includes('防御机制') && snapshot.hasReactiveDefense) weight += 38;
           }
-          if (决策标签.includes('规则压制型')) {
+          if (是规则压制) {
             if (snapshot.hasShielded || snapshot.hasHealingTrend || target.蓄力技能) weight += 12;
           }
           if (技能来源 === '自创魂技') {
@@ -14211,6 +14599,42 @@ class BattleUIComponent {
           return picked?.target || fallbackTarget || validAllies[0] || actorChar;
         }
 
+        function 准备自动批量辅助动作(actorChar, action, allyTeam = [], battleState = null) {
+          if (!actorChar || !action?.skill || !isSupportLikeSkill(action.skill)) return action;
+          if (getSkillTargetModel(action.skill) !== '友方单体') return action;
+          if (String(actorChar?.type || '').trim() === '食物系') return action;
+          const 系别 = String(actorChar?.type || actorChar?.系别 || '').trim();
+          const 允许批量 =
+            ['防御系', '辅助系', '治疗系'].includes(系别) ||
+            是团队保护技能(action.skill) ||
+            getSkillEffects(action.skill).some(effect => isBattleRecoverEffect(effect));
+          if (!允许批量) return action;
+          const 候选队伍 = dedupeCombatTargetList([actorChar, ...(Array.isArray(allyTeam) ? allyTeam : [])])
+            .filter(target => target && isCombatUnitAlive(target));
+          if (候选队伍.length <= 1) return action;
+          const 排序队伍 = [...候选队伍].sort(
+            (左, 右) => scoreAllyTargetForSkill(actorChar, 右, action.skill) - scoreAllyTargetForSkill(actorChar, 左, action.skill),
+          );
+          const 最大数量 = Math.min(排序队伍.length, 系别 === '防御系' ? 4 : 3);
+          for (let 数量 = 最大数量; 数量 >= 2; 数量 -= 1) {
+            const 批量目标列表 = 排序队伍.slice(0, 数量);
+            const 测试技能 = {
+              ...action.skill,
+              __批量目标列表: 批量目标列表,
+              __批量消耗模式: '单体批量',
+            };
+            const 扣费 = parseSkillCostForChar(测试技能, actorChar);
+            if (!扣费.canCast) continue;
+            action.__批量目标列表 = 批量目标列表;
+            action.__批量消耗模式 = '单体批量';
+            action.__连放来源 = 'NPC批量辅助';
+            action.target_name = 批量目标列表[0]?.name || 批量目标列表[0]?.名称 || action.target_name || null;
+            action.decision_log = `${action.decision_log || ''} [批量辅助] ${actorChar.name || 'NPC'}将[${action.skill.name || action.action_type}]同时覆盖${批量目标列表.map(单位 => 单位.name || 单位.名称 || '队友').join('、')}。`;
+            break;
+          }
+          return action;
+        }
+
         function chooseTargetForActor(actorEntry, battleState) {
           if (!actorEntry || !battleState?.combatData) return null;
           const enemyTeam =
@@ -14307,7 +14731,7 @@ class BattleUIComponent {
               decisionAction.type || '战术动作',
             );
 
-            return {
+            const 回合动作 = {
               action_type: decisionAction.type || '释放技能',
               cast_time: decisionAction.skill?.cast_time || 10,
               skill: decisionAction.skill || neutralSkill,
@@ -14315,6 +14739,7 @@ class BattleUIComponent {
               decision_log: decisionAction.log,
               def_mult: decisionAction.def_mult || 1.0,
             };
+            return 准备自动批量辅助动作(actor, 回合动作, [actor, ...allyTeam], battleState);
           };
           if (strategicAction) return convertDecisionToTurnAction(strategicAction);
 
@@ -14431,6 +14856,7 @@ class BattleUIComponent {
 
           let action = null;
           let actionLog = '';
+          const turnExtraPatchOps = [];
           if (actor.蓄力技能) {
             action = actor.蓄力技能;
             if ((action.cast_time || 0) <= 40) {
@@ -14449,7 +14875,8 @@ class BattleUIComponent {
             }
           } else {
             action = buildAutoActionForActor(actorEntry, targets, battleState);
-            套用动作队列实际前摇(actor, action);
+            action = 去重动作队列友方辅助(actor, action);
+            套用动作队列实际前摇(actor, action, targets.enemyTarget, battleState.combatData);
 
             let totalTimeCost = 0;
             let validPreActions = [];
@@ -14485,7 +14912,13 @@ class BattleUIComponent {
                 const 装备槽 = ensureBattleEquipmentSlot(actor, preAct.equip_target);
                 if (装备槽) 装备槽.装备状态 = '已装备';
                 actionLog += `[连招生效] ${actor.name}趁隙穿戴了${preAct.equip_target === 'armor' ? '斗铠' : '机甲'}！`;
+              } else {
+                const 前置结算 = 执行连放前置动作结算(actor, targets.enemyTarget, preAct, createActorTurnCombatData(actorEntry, targets.enemyTarget, battleState));
+                if (前置结算.log) actionLog += `${前置结算.log} `;
+                if (Array.isArray(前置结算.extraPatchOps) && 前置结算.extraPatchOps.length)
+                  turnExtraPatchOps.push(...前置结算.extraPatchOps);
               }
+              清理动作运行态字段(preAct);
             });
             action.pre_actions = validPreActions;
 
@@ -14577,6 +15010,7 @@ class BattleUIComponent {
           if (行为防反日志) turnLog += ` ${行为防反日志}`;
           const fusionAftermathLog = applyFusionActionAftermath(actor, action, actorTurnCombatData);
           if (fusionAftermathLog) turnLog += ` ${fusionAftermathLog}`;
+          清理动作运行态字段(action);
 
           if (reactionAction.type === '穿戴装备') {
             const actorStateCalc = getPrimaryStateCalc(action.skill);
@@ -14643,7 +15077,10 @@ class BattleUIComponent {
             reactionAction,
             settleResult,
             log: turnLog,
-            extraPatchOps: Array.isArray(settleResult?.extraPatchOps) ? settleResult.extraPatchOps : [],
+            extraPatchOps: [
+              ...turnExtraPatchOps,
+              ...(Array.isArray(settleResult?.extraPatchOps) ? settleResult.extraPatchOps : []),
+            ],
             actorVit: getCombatHpValue(actor),
             targetVit: getCombatHpValue(finalTarget),
           };
@@ -14931,6 +15368,54 @@ class BattleUIComponent {
           if (!charData) return [];
           bindCombatParticipant(charData);
           const allyTeam = 获取同队可行动单位(combatData, charData);
+          const 读取UI单位标识 = 单位 =>
+            String(单位?.name || 单位?.名称 || 单位?.charKey || 单位?.char_key || 单位?.key || '').trim();
+          const UI单位相同 = (左, 右) => {
+            if (!左 || !右) return false;
+            const 左标识 = 读取UI单位标识(左);
+            const 右标识 = 读取UI单位标识(右);
+            return 左 === 右 || (!!左标识 && !!右标识 && 左标识 === 右标识);
+          };
+          const 去重UI存活队伍 = 队伍 => {
+            const 已见 = new Set();
+            return (Array.isArray(队伍) ? 队伍 : [])
+              .filter(Boolean)
+              .filter(单位 => {
+                const 标识 = 读取UI单位标识(单位);
+                if (标识 && 已见.has(标识)) return false;
+                if (标识) 已见.add(标识);
+                return isCombatUnitAlive(单位);
+              });
+          };
+          const 读取UI辅助消耗上下文 = skill => {
+            if (!skill || !isSupportLikeSkill(skill)) return { 目标: null, 目标数量: 1, 目标列表: [], 批量模式: '' };
+            const 目标文本 = String(getSkillTarget(skill) || '').trim();
+            if (!目标文本 || /自身/.test(目标文本)) return { 目标: charData, 目标数量: 1, 目标列表: [charData], 批量模式: '' };
+            const 玩家队伍 = Array.isArray(combatData?.参战者?.team_player) ? combatData.参战者.team_player : [];
+            const 敌方队伍 = Array.isArray(combatData?.参战者?.team_enemy) ? combatData.参战者.team_enemy : [];
+            const 在玩家队 = 玩家队伍.some(单位 => UI单位相同(单位, charData));
+            const 友方队伍 = 去重UI存活队伍([charData, ...(在玩家队 ? 玩家队伍 : 敌方队伍), ...allyTeam]);
+            const 对方队伍 = 去重UI存活队伍(在玩家队 ? 敌方队伍 : 玩家队伍);
+            const 取最高魂力目标 = 队伍 =>
+              [...队伍].sort((左, 右) => Number(右?.sp_max || 右?.属性?.魂力上限 || 0) - Number(左?.sp_max || 左?.属性?.魂力上限 || 0))[0] ||
+              null;
+            if (/己方|友方/.test(目标文本)) {
+              if (/群体/.test(目标文本) && !是否七九辅助单体语义(charData, skill)) {
+                return { 目标: 取最高魂力目标(友方队伍) || charData, 目标数量: Math.max(1, 友方队伍.length), 目标列表: 友方队伍, 批量模式: '原生群体' };
+              }
+              return { 目标: 取最高魂力目标(友方队伍) || charData, 目标数量: 1, 目标列表: [], 批量模式: '' };
+            }
+            if (/敌/.test(目标文本)) {
+              if (/群体/.test(目标文本)) return { 目标: 取最高魂力目标(对方队伍), 目标数量: Math.max(1, 对方队伍.length), 目标列表: 对方队伍, 批量模式: '原生群体' };
+              return { 目标: combatData?.参战者?.enemy || 取最高魂力目标(对方队伍), 目标数量: 1, 目标列表: [], 批量模式: '' };
+            }
+            return { 目标: charData, 目标数量: 1, 目标列表: [charData], 批量模式: '' };
+          };
+          const 读取UI经验目标 = skill => {
+            const 目标模型 = getSkillTargetModel(skill);
+            if (['自身', '友方单体', '友方群体'].includes(目标模型)) return charData;
+            return combatData?.参战者?.enemy || null;
+          };
           const availableSkills = collectUnifiedSkillEntries(charData, allyTeam, {
             includePassive: false,
             includeActive: true,
@@ -14987,7 +15472,26 @@ class BattleUIComponent {
           );
 
           availableSkills.forEach(skill => {
-            const costParsed = parseSkillCostForChar(skill, charData);
+            let costParsed = null;
+            try {
+              if (skill && isSupportLikeSkill(skill)) {
+                const 辅助消耗上下文 = 读取UI辅助消耗上下文(skill);
+                if (辅助消耗上下文.目标) skill.__targetForSupportCost = 辅助消耗上下文.目标;
+                skill.__辅助目标数量 = Math.max(1, Math.floor(Number(辅助消耗上下文.目标数量 || 1)));
+                if (Array.isArray(辅助消耗上下文.目标列表) && 辅助消耗上下文.目标列表.length > 0) {
+                  skill.__批量目标列表 = 辅助消耗上下文.目标列表;
+                  skill.__批量消耗模式 = 辅助消耗上下文.批量模式 || '';
+                }
+              }
+              costParsed = parseSkillCostForChar(skill, charData);
+            } finally {
+              if (skill && isSupportLikeSkill(skill)) {
+                delete skill.__targetForSupportCost;
+                delete skill.__辅助目标数量;
+                delete skill.__批量目标列表;
+                delete skill.__批量消耗模式;
+              }
+            }
             const 技能来源 = String(getBattleSkillSourceCategory(skill) || skill.技能来源 || skill.source_tag || '魂技').trim() || '魂技';
             const 技能动作 = {
               id: `skill_${skill.name}`,
@@ -14997,14 +15501,14 @@ class BattleUIComponent {
               category: 技能来源,
               source_detail: skill.source_tag || 技能来源,
               semantic_role: getSkillType(skill) || '输出',
-              tags: skill.标签 || [],
+              tags: getSkillMechanismLabels(skill),
               cast_time: getSkillCastTime(skill),
               cost_text: getFusionSkillDisplayCostText(skill),
               enabled: costParsed.canCast,
               reason: costParsed.canCast ? '' : (costParsed.failureReason || '状态不足'),
               raw_skill: skill,
             };
-            套用动作实际前摇(charData, 技能动作);
+            套用动作实际前摇(charData, 技能动作, 读取UI经验目标(skill), combatData);
             actions.push(技能动作);
           });
 
@@ -15165,7 +15669,7 @@ class BattleUIComponent {
             raw_skill: normalizeSkillData({ name: '撤离', 技能类型: '辅助', 消耗: '无', cast_time: 20 }, '撤离'),
           });
 
-          actions.forEach(动作 => 套用动作实际前摇(charData, 动作));
+          actions.forEach(动作 => 套用动作实际前摇(charData, 动作, 读取UI经验目标(动作.raw_skill || 动作.skill || {}), combatData));
           return actions;
         }
 

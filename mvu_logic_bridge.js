@@ -1110,7 +1110,7 @@
 
       if (key === '所属势力详细页' || key === '我的阵营详情') {
         return {
-          title: key === '我的阵营详情' ? '阵营身份' : '所属势力',
+          title: key === '我的阵营详情' ? '阵营权限' : '所属势力',
           body: `
             <div class="archive-modal-grid faction-matrix-grid">
               <div class="archive-card full">
@@ -3601,13 +3601,13 @@
       const presets = 读取AI维护API预设列表();
       const selected = 读取AI维护有效API预设();
       const options = [
-        `<option value=""${selected ? '' : ' selected'}>默认API</option>`,
+        `<option value=""${selected ? '' : ' selected'}>默认接口</option>`,
         ...presets.map(name => `<option value="${escapeHtmlAttr(name)}"${name === selected ? ' selected' : ''}>${htmlEscape(name)}</option>`),
       ].join('');
       return `
-        <label class="mvu-ai-maintenance-api" title="选择AI维护调用的API">
-          <b>AI API</b>
-          <select data-ai-maintenance-api-select aria-label="AI维护API" title="选择AI维护调用的API">${options}</select>
+        <label class="mvu-ai-maintenance-api" title="选择维护调用接口">
+          <b>模型接口</b>
+          <select data-ai-maintenance-api-select aria-label="AI维护接口" title="选择维护调用接口">${options}</select>
         </label>
       `;
     }
@@ -4119,7 +4119,7 @@
       }
       const api = 获取AI维护数据库API();
       if (!api) {
-        showUiToast('数据库 AI API 不可用。', 'error', 3600);
+        showUiToast('数据库维护接口不可用。', 'error', 3600);
         return;
       }
       const parseHost = 获取AI维护Mvu解析宿主();
@@ -5341,29 +5341,6 @@
       '施法僵直',
       '状态溢出',
     ]);
-    const 技能设计台标签候选_V1 = Object.freeze([
-      '输出',
-      '爆发',
-      '持续',
-      '控制',
-      '削弱',
-      '增益',
-      '回复',
-      '防御',
-      '位移',
-      '召唤',
-      '造物',
-      '标记',
-      '反制',
-      '护盾',
-      '净化',
-      '复苏',
-      '破甲',
-      '追击',
-      '融合',
-      '食物系',
-      '规则',
-    ]);
     const SKILL_DESIGNER_TARGET_SCALE_OPTIONS = Object.freeze(['自身', '单体', '群体', '全场']);
     const SKILL_DESIGNER_DIRECTION_TARGET_SEMANTIC_OPTIONS = Object.freeze(['可赋予', '敌对', '上下文', '仅自身']);
     const SKILL_DESIGNER_DIRECTION_TAG_OPTIONS = Object.freeze(['增幅', '压制', '锁定', '限制', '转译', '置换']);
@@ -5395,11 +5372,6 @@
         ));
       }
       return [];
-    }
-
-    function 规范化技能设计台标签勾选_V1(value = []) {
-      const 候选集合 = new Set(技能设计台标签候选_V1);
-      return normalizeSkillDesignerArray(value).filter(item => 候选集合.has(item));
     }
 
     function 提取技能设计台副作用类型勾选_V1(value = []) {
@@ -5943,10 +5915,6 @@
       }) || {};
     }
 
-    function getSkillDesignerSystemBaseTags(effectArray = []) {
-      return normalizeSkillDesignerArray(getSkillDesignerSystemBaseEffect(effectArray)['标签']);
-    }
-
     function analyzeSkillDesignerPackedEffects(effectArray = []) {
       const effectEntries = getSkillDesignerEffectEntries(effectArray);
       const analysis = {
@@ -6423,9 +6391,6 @@
       const effectAnalysis = analyzeSkillDesignerPackedEffects(effectArray);
       const effectHint = buildSkillDesignerEffectBasedPrimaryMechanic(effectAnalysis);
       const typeHint = inferSkillDesignerMainMechanicFromType(type, target, effectEntries);
-      const systemTagHints = getSkillDesignerSystemBaseTags(effectArray)
-        .map(tag => SKILL_DESIGNER_PRIMARY_MECHANISM_HINTS[normalizeSkillUiText(tag, '')])
-        .filter(Boolean);
       let primaryMain = normalizeSkillUiText(effectHint.main, '');
       let primarySub = normalizeSkillUiText(effectHint.sub, '');
       const secondaryCandidates = [...normalizeSkillDesignerArray(effectAnalysis.secondaryHints)];
@@ -6436,15 +6401,6 @@
         if (!primarySub && primaryHint.sub && (!primaryMain || normalizeSkillUiText(primaryHint.main, '') === primaryMain)) {
           primarySub = normalizeSkillUiText(primaryHint.sub, '');
         }
-      });
-
-      systemTagHints.forEach(primaryHint => {
-        if (!primaryHint || typeof primaryHint !== 'object') return;
-        if (!primaryMain && primaryHint.main) primaryMain = normalizeSkillUiText(primaryHint.main, '');
-        if (!primarySub && primaryHint.sub && (!primaryMain || normalizeSkillUiText(primaryHint.main, '') === primaryMain)) {
-          primarySub = normalizeSkillUiText(primaryHint.sub, '');
-        }
-        if (primaryHint.secondary) secondaryCandidates.push(primaryHint.secondary);
       });
 
       if (!primaryMain && typeHint.main) primaryMain = normalizeSkillUiText(typeHint.main, '');
@@ -6515,27 +6471,6 @@
         return '特殊规则';
       if (/自身|使用者|食用者/.test(normalizedTarget)) return '增益辅助';
       return '未知';
-    }
-
-    function inferSkillDesignerTags(effectArray = [], skill = {}, draft = {}) {
-      const explicitTags = 规范化技能设计台标签勾选_V1((skill && skill['标签']) || (draft && draft['标签']) || []);
-      if (explicitTags.length) return explicitTags;
-      const systemTags = 规范化技能设计台标签勾选_V1(getSkillDesignerSystemBaseTags(effectArray));
-      if (systemTags.length) return systemTags.slice(0, 8);
-      return 规范化技能设计台标签勾选_V1(
-        getSkillDesignerEffectEntries(effectArray)
-          .map(effect => normalizeSkillUiText(effect && effect['机制'], ''))
-          .filter(Boolean),
-      ).slice(0, 8);
-    }
-
-    function compactSkillDesignerStoredTags(tags = []) {
-      const genericTags = new Set([
-        ...Object.keys(SKILL_DESIGNER_MAIN_MECHANIC_POOL || {}),
-        ...(Array.isArray(SKILL_DESIGNER_DELIVERY_FORM_POOL) ? SKILL_DESIGNER_DELIVERY_FORM_POOL : []),
-        ...(Array.isArray(SKILL_DESIGNER_SKILL_TYPES) ? SKILL_DESIGNER_SKILL_TYPES : []),
-      ].map(label => normalizeSkillUiText(label, '')).filter(Boolean));
-      return normalizeSkillDesignerArray(tags).filter(label => !genericTags.has(normalizeSkillUiText(label, '')));
     }
 
     function getSkillSummaryEffectByMechanism(effectArray, mechanism = '') {
@@ -6873,7 +6808,6 @@
             secondaryMechanics: resolvedSecondaryMechanics,
           },
         ),
-        tags: inferSkillDesignerTags(effectArray, safeSkill, designDraft),
         visualDesc: normalizeSkillUiText(safeSkill['画面描述'], '未知'),
         effectDesc: normalizeSkillUiText(safeSkill['效果描述'] || safeSkill['描述'], '未知'),
         summaryText: normalizeSkillUiText(safeSkill['特效量化参数'] || designDraft['设计摘要'], ''),
@@ -8227,7 +8161,6 @@
         attributeSource: '无',
         attributeRole: '无',
         coeff: normalizeSkillDesignerCoeffMap({}),
-        tags: 规范化技能设计台标签勾选_V1(baseDraft.tags),
         visualDesc: normalizeSkillUiText(baseDraft.visualDesc, ''),
         effectDesc: normalizeSkillUiText(baseDraft.effectDesc, ''),
         artStage: normalizeSkillUiText(baseDraft.artStage, '未入门'),
@@ -8314,7 +8247,6 @@
         attributeSource: '无',
         attributeRole: '无',
         coeff: normalizeSkillDesignerCoeffMap({}),
-        tags: 规范化技能设计台标签勾选_V1(readCheckedValues('skill-tag')),
         visualDesc: readField('visualDesc'),
         effectDesc: readField('effectDesc'),
         artStage: readField('artStage') || '未入门',
@@ -10016,7 +9948,7 @@
       safeSkill['消耗'] = normalized.cost;
       delete safeSkill['加成属性'];
       safeSkill['主定位'] = normalized.mainRole;
-      safeSkill['标签'] = compactSkillDesignerStoredTags(normalized.tags);
+      delete safeSkill['标签'];
       safeSkill['画面描述'] = normalized.visualDesc;
       safeSkill['效果描述'] = normalized.effectDesc;
       if ('描述' in safeSkill || (previewMeta && ['art', '武魂融合技'].includes(previewMeta.scope))) safeSkill['描述'] = normalized.effectDesc;
@@ -10042,7 +9974,6 @@
         '机制参数': cloneJsonValue(normalizeSkillDesignerMechanicParamMap(normalized.mechanicParams, normalized)),
         '副作用列表': cloneJsonValue(normalizeSkillDesignerSideEffectList(normalized['副作用列表'])),
         '附带属性': [...normalized.attachedAttributes],
-        '标签': compactSkillDesignerStoredTags(normalized.tags),
         '技能类型': normalized.type,
         '目标模型': normalizeSkillDesignerTargetForForm(normalized.target, '敌方单体'),
         '结算策略': ['敌方群体', '友方群体', '全场'].includes(normalizeSkillDesignerTargetForForm(normalized.target, '敌方单体'))
@@ -10163,9 +10094,9 @@
       const basePath = Array.isArray(options && options.basePath) ? options.basePath : [];
       const category = normalizeSkillUiText(options && options.category, '技能');
       const scope = normalizeSkillUiText(options && options.scope, 'skill');
-      const skills = safeEntries(skillObj).map(([rawName, skill]) => {
-        const effectArray = Array.isArray(skill && skill['_效果数组']) ? skill['_效果数组'] : [];
-        const tacticalTags = Array.isArray(deepGet(skill, '战斗语义.战术标签', [])) ? deepGet(skill, '战斗语义.战术标签', []) : [];
+        const skills = safeEntries(skillObj).map(([rawName, skill]) => {
+          const effectArray = Array.isArray(skill && skill['_效果数组']) ? skill['_效果数组'] : [];
+          const tacticalTags = Array.isArray(deepGet(skill, '战斗语义.战术标签', [])) ? deepGet(skill, '战斗语义.战术标签', []) : [];
         const systemBase = effectArray.find(effect => toText(effect && effect['机制'], '').trim() === '系统基础') || {};
         const draft = readSkillDesignerDraft(skill, rawName);
         const effectCount = effectArray.filter(effect => {
@@ -10205,9 +10136,7 @@
 if (clash && clash['基础威力倍率'] > 0) desc += `${desc ? '<br/>' : ''}<span class="skill-effect-tag skill-effect-tag--power">[威力倍率: ${clash['基础威力倍率']}% | 伤害类型: ${clash['伤害类型'] || '无'} | 护盾: ${clash['护盾绝对值'] || 0}]</span>`;
 if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<span class="skill-effect-tag skill-effect-tag--state">[附加状态: ${state['状态名称']} | 机制: ${state['特殊机制标识'] || '无'} | 持续: ${state['持续回合']}回]</span>`;
         const tags = Array.from(new Set(
-          (Array.isArray(skill && skill['标签']) ? skill['标签'] : [])
-            .map(tag => normalizeSkillUiText(tag, ''))
-            .concat(tacticalTags.map(tag => normalizeSkillUiText(tag, '')))
+          tacticalTags.map(tag => normalizeSkillUiText(tag, ''))
             .concat(
               effectArray
                 .map(effect => normalizeSkillUiText(effect && effect['机制'], ''))
@@ -12412,19 +12341,12 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       const status = deepGet(snapshot, 'activeChar.状态', {});
       const hpPair = getDisplayHpPair(stat);
       const woundLabel = getDisplayWoundLabel(stat);
-      const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '当前角色');
       const nextLevelSoul = getNextLevelSoulRequirementWithCap(stat, deepGet(snapshot, 'activeChar', {}));
       const allowNsfwLongPress = canOpenPrivateArchive(snapshot);
       const mentalRealmText = toText(stat._men_realm, toText(stat.精神力_realm, '灵元境'));
-      const actionText = toText(status.行动, '日常');
-      const actionDisplay = activeCharKey
-        ? makeInlineEditableValue(actionText, {
-            path: ['char', activeCharKey, '状态', '行动'],
-            kind: 'enum_select',
-            rawValue: actionText,
-            editorMeta: { options: getStatusActionEditorOptions(actionText) },
-          })
-        : htmlEscape(actionText);
+      const 伤势显示 = woundLabel && woundLabel !== '无' ? woundLabel : '无伤';
+      const 领域文本 = toText(status.当前领域, '常态');
+      const 领域显示 = 领域文本 && 领域文本 !== '无' ? 领域文本 : '常态';
       const nextSoulDisplayText = nextLevelSoul.isMax
         ? '下级魂力 已满级'
         : nextLevelSoul.blocked
@@ -12457,8 +12379,8 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             <strong class="cyan">${htmlEscape(formatCultivationLevelBadge(stat.等级, '0'))}</strong>
           </div>
           <div class="archive-core-tile">
-            <b>状态概览</b>
-            <strong>${actionDisplay} / ${htmlEscape(woundLabel)}</strong>
+            <b>身体状态</b>
+            <strong>${htmlEscape(`${伤势显示} / ${领域显示}`)}</strong>
           </div>
           <div class="archive-core-tile">
             <b>下级魂力</b>
@@ -12472,7 +12394,6 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             </div>
           `).join('')}
         </div>
-        ${构建首页当前位置页脚(snapshot, { 右侧文本: `行动 ${toText(status.行动, '日常')}` })}
         `;
     }
 
@@ -12484,17 +12405,18 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       const jobSummary = jobs.length ? `${jobs[0][0]} Lv.${toText(deepGet(jobs[0][1], 'lv', 0), '0')}` : '未展开';
       const jobCoreTechSummary = jobs.length ? (Object.keys(deepGet(jobs[0][1], '核心技艺', {})).slice(0, 2).join(' / ') || '暂无核心技术') : '暂无核心技术';
       const jobLimitSummary = jobs.length ? `融锻上限 ${toText(deepGet(jobs[0][1], '限制.最大融合数', 1), '1')} / 成功率 ${toText(deepGet(jobs[0][1], '限制.成功率', 0), '0')}%` : '暂无工坊上限';
-      const armorSummary = toNumber(armor.等级, 0) > 0 ? `${toText(armor.名称, `${armor.等级}字斗铠`)} / ${toText(armor.装备状态, '未装备')}` : '未装备';
-      const mechSummary = toText(mech.等级, '无') !== '无' ? `${toText(mech.等级, '无')}·${toText(mech.型号, '未定型')} / ${toText(mech.装备状态, '未装备')}` : '无';
+      const 斗铠名称 = toText(armor.名称 || armor['名称'], '');
+      const armorSummary = toNumber(armor.等级, 0) > 0 || 斗铠名称 ? (斗铠名称 || `${armor.等级}字斗铠`) : '无';
+      const mechSummary = toText(mech.等级, '无') !== '无' ? `${toText(mech.等级, '无')}·${toText(mech.型号, '未定型')}` : '无';
       const boneCount = snapshot.soulBoneEntries ? snapshot.soulBoneEntries.length : 0;
-      const 武器摘要 = toText(weapon.名称, '') || toText(weapon.类型, '') || '未装备';
+      const 武器摘要 = toText(weapon.名称, '') || toText(weapon.类型, '') || '无';
       return `
         <div class="module-name">武装工坊</div>
         <div class="module-grid armory-grid">
           <div class="mini-box"><b>当前斗铠</b><span>${htmlEscape(armorSummary)}</span></div>
           <div class="mini-box"><b>当前机甲</b><span>${htmlEscape(mechSummary)}</span></div>
           <div class="mini-box"><b>武器</b><span>${htmlEscape(shortenText(武器摘要, 28))}</span></div>
-          <div class="mini-box"><b>装载魂骨</b><span>${htmlEscape(boneCount ? `${boneCount} 块` : '未装配')}</span></div>
+          <div class="mini-box"><b>装载魂骨</b><span>${htmlEscape(boneCount ? `${boneCount} 块` : '0 块')}</span></div>
         </div>
         <div class="module-foot">
           <span class="foot-hint">${htmlEscape(jobSummary)} · ${htmlEscape(jobCoreTechSummary)}</span>
@@ -13050,11 +12972,11 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       const primaryFactionRole = snapshot.primaryFaction ? toText(deepGet(snapshot.primaryFaction[1], '身份', '未加入'), '未加入') : '未加入';
       const titleText = Array.isArray(snapshot.recentTitles) && snapshot.recentTitles.length ? snapshot.recentTitles[0] : '';
       const nextLevelSoul = getNextLevelSoulRequirementWithCap(stat, deepGet(snapshot, 'activeChar', {}));
-      const placeText = buildShellLocationLabel(snapshot, { fullLimit: 18, trailLimit: 8 });
       const hasSoulPowerMeter = toNumber(stat.魂力上限, 0) > 0;
       const hasVitalityMeter = toNumber(stat.体力上限, 0) > 0;
       const hasMentalMeter = toNumber(stat.精神力上限, 0) > 0;
       const ageMetric = toNumber(stat.年龄, 0);
+      const 性别文本 = toText(stat.性别, '未知');
       const talentMetric = shortenText(toText(stat.talent_tier, '未定'), 8);
       const typeMetric = shortenText(toText(stat.系别, '未定'), 8);
       const factionJoined = primaryFactionName !== '未加入';
@@ -13062,9 +12984,9 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       const hpPair = getDisplayHpPair(stat);
       const woundText = getDisplayWoundLabel(stat);
       const injurySummary = buildInjurySummaryText(status, { limit: 2, empty: '无' });
-      const statusSummary = !woundText || /^(无)$/i.test(woundText)
-        ? toText(status.行动, '日常')
-        : `${toText(status.行动, '日常')} / ${woundText}`;
+      const 体征摘要 = injurySummary && injurySummary !== '无'
+        ? injurySummary
+        : (woundText && woundText !== '无' ? woundText : '无伤');
       const identitySummary = summarizeShellIdentityText(social.主身份, { limit: 12 }) || shortenText(toText(social.主身份, ''), 14);
       const factionSummary = factionJoined
         ? `${shortenText(primaryFactionName, 8)} / ${shortenText(primaryFactionRole, 8)}`
@@ -13075,7 +12997,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
         kicker: '角色首页',
         title: toText(snapshot.activeName, '当前角色'),
         value: formatCultivationLevelBadge(stat.等级, '0'),
-        meta: placeText,
+        meta: factionSummary || identitySummary || '档案',
         badges: [
           titleText ? { text: shortenText(titleText, 10), tone: 'gold' } : '',
           factionJoined ? { text: shortenText(primaryFactionName, 10), tone: 'live' } : '',
@@ -13088,10 +13010,10 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           hasMentalMeter ? { label: '精神', value: formatShellPair(stat.精神力, stat.精神力上限) } : { label: '年龄', value: ageMetric > 0 ? String(ageMetric) : '--' },
         ],
         rows: [
-          { label: '状态', value: statusSummary || '--' },
+          { label: '身体', value: 体征摘要 || '--' },
           { label: factionJoined ? '阵营' : '身份', value: factionSummary },
           { label: '名望', value: social.声望 ? `${fameLevelText} · ${formatNumber(social.声望)}` : fameLevelText },
-          { label: '伤处', value: injurySummary },
+          { label: '年龄', value: `${ageMetric > 0 ? ageMetric : '--'}岁 / ${性别文本}` },
         ],
         tone: 'hero',
         size: 'hero',
@@ -13127,14 +13049,14 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       const hasMech = !!toText(mech.等级, '').trim();
       const hasLoadout = hasArmor || hasWeapon || hasMech || (snapshot.soulBoneEntries || []).length;
       const armorSummary = toNumber(armor.等级, 0) > 0
-        ? `${toText(armor.名称, `${armor.等级}字斗铠`)} / ${toText(armor.装备状态, '已装配')}`
-        : '未装配';
-      const mechSummary = toText(mech.等级, '') ? `${toText(mech.等级, '')} · ${toText(mech.型号, '未定型')}` : '未挂载';
+        ? toText(armor.名称, `${armor.等级}字斗铠`)
+        : '无';
+      const mechSummary = toText(mech.等级, '') ? `${toText(mech.等级, '')} · ${toText(mech.型号, '未定型')}` : '无';
       if (!hasLoadout) {
         return buildShellSummaryCard({
           title: jobs.length ? '工坊' : '武装',
           value: jobs.length ? shortenText(jobSummary, 16) : '0',
-          meta: jobs.length ? '副职已记录' : '无装备',
+          meta: jobs.length ? '副职已记录' : '无武装',
           rows: [
             { label: jobs.length ? '副职' : '斗铠', value: jobs.length ? shortenText(jobSummary, 16) : '无' },
           ],
@@ -13143,7 +13065,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       return buildShellSummaryCard({
         kicker: '武装',
         title: '武装',
-        value: toNumber(armor.等级, 0) > 0 ? shortenText(toText(armor.名称, `${armor.等级}字斗铠`), 12) : '未装配',
+        value: toNumber(armor.等级, 0) > 0 ? shortenText(toText(armor.名称, `${armor.等级}字斗铠`), 12) : '无',
         meta: shortenText(armorSummary, 24),
         metrics: [
           { label: '机甲', value: toText(mech.等级, '--') || '--' },
@@ -13255,21 +13177,136 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       `;
     }
 
-    function getShellLocalCharacterEntries(snapshot, limit = 6) {
+    function getShellLocalCharacterEntries(snapshot, limit = 6, 选项 = {}) {
       if (!snapshot) return [];
       const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, ''));
       const activeDisplayName = toText(deepGet(snapshot, 'activeChar.name', deepGet(snapshot, 'activeChar.base.name', snapshot.activeName)), snapshot.activeName);
       const currentLoc = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc), snapshot.currentLoc);
       const normalizedLoc = toText(snapshot.normalizedLoc, currentLoc);
+      const 目标地点 = toText(选项 && 选项.目标地点, '').trim();
+      const 标准地点 = toText(选项 && 选项.标准地点, '').trim();
+      const 指定地点列表 = [目标地点, 标准地点]
+        .map(item => toText(item, '').trim())
+        .filter((item, index, list) => item && list.indexOf(item) === index);
+      const 默认地点列表 = [currentLoc, normalizedLoc]
+        .map(item => toText(item, '').trim())
+        .filter((item, index, list) => item && list.indexOf(item) === index);
+      const 匹配地点列表 = 指定地点列表.length ? 指定地点列表 : 默认地点列表;
       return safeEntries(deepGet(snapshot, 'rootData.char', {}))
         .filter(([name, char]) => {
           const displayName = toText(deepGet(char, 'name', deepGet(char, 'base.name', name)), name);
           if ((activeCharKey && name === activeCharKey) || (activeDisplayName && displayName === activeDisplayName)) return false;
           const npcLoc = toText(deepGet(char, '状态.位置', ''), '');
           if (!npcLoc) return false;
-          return isLocationCompatible(currentLoc, npcLoc) || isLocationCompatible(normalizedLoc, npcLoc);
+          return 匹配地点列表.some(地点 => isLocationCompatible(地点, npcLoc));
         })
         .slice(0, Math.max(1, toNumber(limit, 6)));
+    }
+
+    let 星图焦点态 = null;
+
+    function 读取星图焦点定位(snapshot, 焦点态 = null) {
+      const 当前地点 = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot && snapshot.currentLoc), snapshot && snapshot.currentLoc ? snapshot.currentLoc : '未知地点');
+      const 标准地点 = toText(snapshot && snapshot.normalizedLoc, 当前地点);
+      const 事件焦点 = 焦点态 && typeof 焦点态 === 'object' ? 焦点态 : null;
+      const 焦点名称 = toText(事件焦点 && 事件焦点.焦点名称, 标准地点 || 当前地点);
+      const 自由坐标 = !!(事件焦点 && 事件焦点.自由坐标);
+      const 事件当前位置 = 事件焦点 && typeof 事件焦点.是否当前位置 === 'boolean' ? 事件焦点.是否当前位置 : null;
+      const 是否当前位置 = 自由坐标
+        ? false
+        : (事件当前位置 !== null ? 事件当前位置 : (
+          isLocationCompatible(当前地点, 焦点名称)
+          || isLocationCompatible(标准地点, 焦点名称)
+        ));
+      return {
+        焦点名称: 焦点名称 || 标准地点 || 当前地点 || '未知地点',
+        当前地点,
+        标准地点,
+        地图名称: toText(事件焦点 && 事件焦点.地图名称, getMapDisplayName(snapshot)),
+        类型: toText(事件焦点 && 事件焦点.类型, ''),
+        功能: toText(事件焦点 && 事件焦点.功能, ''),
+        可用: toText(事件焦点 && 事件焦点.可用, ''),
+        状态: toText(事件焦点 && 事件焦点.状态, ''),
+        地形: toText(事件焦点 && 事件焦点.地形, ''),
+        说明: toText(事件焦点 && 事件焦点.说明, ''),
+        自由坐标,
+        是否当前位置,
+      };
+    }
+
+    function 读取星图焦点地点数据(snapshot, 定位) {
+      if (!snapshot || !定位 || 定位.自由坐标) return { name: 定位 ? 定位.焦点名称 : '', data: null };
+      const 解析结果 = resolveLocationData(snapshot.rootData || {}, 定位.焦点名称);
+      if (解析结果 && 解析结果.data) return 解析结果;
+      if (定位.是否当前位置 && snapshot.locationData) {
+        return { name: 定位.标准地点 || 定位.当前地点, data: snapshot.locationData };
+      }
+      return 解析结果 || { name: 定位.焦点名称, data: null };
+    }
+
+    function 判断星图焦点为当前位置(snapshot, 焦点态 = null) {
+      return !!读取星图焦点定位(snapshot, 焦点态).是否当前位置;
+    }
+
+    function 构建星图焦点元信息(标签, 值, 限制 = 34) {
+      const 原文 = toText(值, '无');
+      const 文本 = shortenText(原文, 限制);
+      return `<span class="mvu-map-focus-meta-item"><b>${htmlEscape(标签)}</b><em title="${escapeHtmlAttr(原文)}">${htmlEscape(文本 || '无')}</em></span>`;
+    }
+
+    function 构建星图焦点位置卡(snapshot, 焦点态 = null) {
+      const 定位 = 读取星图焦点定位(snapshot, 焦点态);
+      const 地点信息 = 读取星图焦点地点数据(snapshot, 定位);
+      const 地点数据 = 地点信息 && 地点信息.data && typeof 地点信息.data === 'object' ? 地点信息.data : {};
+      const 商店数量 = safeEntries(deepGet(地点数据, '商店', {})).length;
+      const 动态数量 = safeEntries(deepGet(snapshot, 'rootData.world.动态地点', {}))
+        .filter(([, item]) => {
+          const 动态地点 = toText(deepGet(item, 'location', deepGet(item, '地点', '')), '');
+          return 动态地点 && isLocationCompatible(定位.焦点名称, 动态地点);
+        }).length;
+      const 本地人物数量 = 定位.自由坐标 ? 0 : getShellLocalCharacterEntries(snapshot, 99, {
+        目标地点: 定位.焦点名称,
+        标准地点: 地点信息 && 地点信息.name ? 地点信息.name : 定位.标准地点,
+      }).length;
+      const 市场派生 = 构建市场派生模型(地点数据, snapshot && snapshot.rootData ? snapshot.rootData : {});
+      const 掌控势力 = toText(deepGet(地点数据, '掌控势力', 定位.是否当前位置 ? deepGet(snapshot, 'locationData.掌控势力', '未知') : '未知'), '未知');
+      const 经济状况 = toText(deepGet(地点数据, '经济状况', 定位.是否当前位置 ? deepGet(snapshot, 'locationData.经济状况', '未知') : '未知'), '未知');
+      const 守护军团 = toText(deepGet(地点数据, '守护军团', 定位.是否当前位置 ? deepGet(snapshot, 'locationData.守护军团', '未知') : '未知'), '未知');
+      const 类型文本 = 定位.类型 || toText(deepGet(地点数据, '类型', deepGet(地点数据, 'type', '节点')), '节点');
+      const 功能文本 = 定位.功能 || toText(deepGet(地点数据, '功能', deepGet(地点数据, '交互', '查看 / 移动')), '查看 / 移动');
+      const 可用文本 = 定位.可用 || [
+        商店数量 ? `${商店数量} 店` : '',
+        动态数量 ? `${动态数量} 动态` : '',
+        本地人物数量 ? `${本地人物数量} 人` : '',
+      ].filter(Boolean).join(' / ') || '无';
+      const 地貌摘要 = [类型文本, 定位.地形 || 市场派生.最近成交影响].filter(Boolean).join(' · ') || '节点';
+      const 市场摘要 = [市场派生.本地供给, 市场派生.价格带].filter(Boolean).join(' / ') || '未知';
+      const 元信息列表 = [
+        构建星图焦点元信息('通行', 功能文本, 26),
+        构建星图焦点元信息('附属', 可用文本, 26),
+        构建星图焦点元信息('掌控', 掌控势力, 28),
+        构建星图焦点元信息('防务', 守护军团, 28),
+        构建星图焦点元信息('经济', 经济状况, 24),
+        构建星图焦点元信息('市场', 市场摘要, 28),
+      ];
+      return `
+        <div class="mvu-map-focus-card">
+          <div class="mvu-map-focus-head">
+            <div>
+              <span>${htmlEscape(定位.是否当前位置 ? '当前位置' : '地图焦点')}</span>
+              <strong title="${escapeHtmlAttr(定位.焦点名称)}">${htmlEscape(shortenText(定位.焦点名称, 28))}</strong>
+            </div>
+            <b class="${定位.是否当前位置 ? 'is-live' : 'is-gold'}">${htmlEscape(定位.是否当前位置 ? '当前' : (定位.自由坐标 ? '坐标' : '选中'))}</b>
+          </div>
+          <div class="mvu-map-focus-summary">
+            <div class="mvu-map-focus-line is-primary">
+              <b title="${escapeHtmlAttr(定位.地图名称)}">${htmlEscape(shortenText(定位.地图名称, 32))}</b>
+              <span title="${escapeHtmlAttr(地貌摘要)}">${htmlEscape(shortenText(地貌摘要, 36))}</span>
+            </div>
+          </div>
+          <div class="mvu-map-focus-meta">${元信息列表.join('')}</div>
+        </div>
+      `;
     }
 
     function buildShellMapCurrentCard(snapshot) {
@@ -13380,6 +13417,33 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
         ],
       });
     }
+
+    function 处理星图焦点变更(event) {
+      const 详情 = event && event.detail && typeof event.detail === 'object' ? event.detail : {};
+      const 焦点名称 = toText(详情.焦点名称, '').trim();
+      if (!焦点名称) return;
+      星图焦点态 = {
+        焦点名称,
+        地图名称: toText(详情.地图名称, ''),
+        类型: toText(详情.类型, ''),
+        功能: toText(详情.功能, ''),
+        可用: toText(详情.可用, ''),
+        状态: toText(详情.状态, ''),
+        地形: toText(详情.地形, ''),
+        说明: toText(详情.说明, ''),
+        自由坐标: !!详情.自由坐标,
+        是否当前位置: !!详情.是否当前位置,
+      };
+      const 快照 = liveSnapshot || lastRenderableSnapshot;
+      if (!快照) return;
+      setUnifiedCardMarkup('map-current', 构建星图焦点位置卡(快照, 星图焦点态), {
+        preview: 判断星图焦点为当前位置(快照, 星图焦点态) ? '当前节点详情' : '',
+        surface: 'panel',
+      });
+      setUnifiedCardMarkup('map-locals', 构建星图在场人物卡(快照, 星图焦点态), { surface: 'panel' });
+    }
+
+    window.addEventListener('sheep-map-focus-change', 处理星图焦点变更);
 
     function buildShellWorldHeroCard(snapshot) {
       if (!snapshot) {
@@ -13524,7 +13588,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       const factionName = primaryFaction ? primaryFaction[0] : primaryFactionEntry.name;
       const factionData = primaryFaction ? primaryFaction[1] : primaryFactionEntry.data;
       return buildShellSummaryCard({
-        kicker: '阵营身份',
+        kicker: '阵营权限',
         title: shortenText(toText(factionName, '未加入'), 14),
         value: shortenText(toText(deepGet(factionData, '身份', '未加入'), '未加入'), 10),
         meta: shortenText(toText(deepGet(factionData, '状态', '正常'), '正常'), 18),
@@ -13882,11 +13946,11 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       const jobs = safeEntries(deepGet(snapshot, 'activeChar.职业', {}));
       const soulBoneEntries = Array.isArray(snapshot && snapshot.soulBoneEntries) ? snapshot.soulBoneEntries : [];
       const armorText = toNumber(armor.等级, 0) > 0
-        ? `${toText(armor.名称, `${armor.等级}字斗铠`)} / ${toText(armor.装备状态, '未装备')}`
-        : '未装配';
+        ? toText(armor.名称, `${armor.等级}字斗铠`)
+        : '无';
       const mechText = toText(mech.等级, '') && toText(mech.等级, '无') !== '无'
         ? `${toText(mech.等级, '无')} · ${toText(mech.型号, '未定型')}`
-        : '未挂载';
+        : '无';
       const weaponText = toText(weapon.名称 || weapon['名称'], '无');
       const jobItems = jobs.slice(0, 4).map(([name, info]) => ({
         title: name,
@@ -14458,29 +14522,11 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
         } else {
           ensureUnifiedSheepMapStage('panel');
           setUnifiedCardMarkup('map-hero', '', { enabled: false, surface: normalizedSurface });
-          const 本地人物条目列表 = getShellLocalCharacterEntries(snapshot, 99);
-          const 本地人物展示列表 = 本地人物条目列表;
-          const 本地人物位置 = toText(deepGet(snapshot, 'activeChar.状态.位置', snapshot.currentLoc), snapshot.currentLoc);
-          setUnifiedCardMarkup('map-current', buildSimpleCard('当前位置', { text: '当前' }, [
-            { label: '地点', value: snapshot.normalizedLoc !== snapshot.currentLoc ? `${snapshot.normalizedLoc} / ${snapshot.currentLoc}` : snapshot.currentLoc },
-            { label: '地图', value: getMapDisplayName(snapshot) },
-            { label: '供需', value: `${toText(snapshot && snapshot.本地供给, '无供给')} / ${toText(snapshot && snapshot.价格带, '无')}` },
-            { label: '成交', value: toText(snapshot && snapshot.最近成交影响, '平稳') },
-          ]), { preview: '当前节点详情', surface: normalizedSurface });
-          setUnifiedCardMarkup('map-locals', `
-            <div class="mvu-shell-roster-card">
-              <div class="mvu-shell-roster-head">
-                <div>
-                  <span>在场人物</span>
-                  <strong>${htmlEscape(shortenText(本地人物位置, 26))}</strong>
-                </div>
-                <b>${htmlEscape(`${本地人物条目列表.length} 名`)}</b>
-              </div>
-              <div class="mvu-shell-roster-list">
-                ${buildShellLocalRosterRows(本地人物展示列表, 99, { 启用操作: true, 当前地点: 本地人物位置 })}
-              </div>
-            </div>
-          `, { surface: normalizedSurface });
+          setUnifiedCardMarkup('map-current', 构建星图焦点位置卡(snapshot, 星图焦点态), {
+            preview: 判断星图焦点为当前位置(snapshot, 星图焦点态) ? '当前节点详情' : '',
+            surface: normalizedSurface,
+          });
+          setUnifiedCardMarkup('map-locals', 构建星图在场人物卡(snapshot, 星图焦点态), { surface: normalizedSurface });
         }
       }
 
@@ -14599,16 +14645,25 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       const stageKey = toText(stage, '').trim();
       if (!stageKey) return;
       const selector = `#mvu-unified-mount [data-mvu-map-stage="${stageKey}"]`;
+      const 清理旧状态条 = () => {
+        if (stageKey !== 'panel') return;
+        getLiveUiElements(selector).forEach(node => {
+          if (!(node instanceof Element)) return;
+          node.querySelectorAll('.map-status-strip').forEach(状态条 => 状态条.remove());
+        });
+      };
       getLiveUiElements(selector).forEach(node => {
         if (!(node instanceof Element)) return;
         const hasSheepMap = !!node.querySelector('.map-layout .map-canvas.interactive-map [data-map-node-layer]');
         if (!hasSheepMap) setLiveNodeHtml(node, '');
       });
+      清理旧状态条();
       if (typeof window.__sheepMapResync === 'function') {
         window.setTimeout(() => {
           try {
             window.__sheepMapResync({ center: false, syncVisual: false });
           } catch (err) {}
+          清理旧状态条();
           if (typeof scheduleUnifiedMapCanvasClamp === 'function') scheduleUnifiedMapCanvasClamp();
         }, 0);
       }
@@ -14861,6 +14916,29 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           </div>
         </div>
         ${构建首页当前位置页脚(snapshot, { 右侧文本: `风险 ${shortenText(toText(snapshot.worldAlert, '无'), 18)}`, 右侧样式: deviation >= 40 ? 'warn-chip' : '' })}
+      `;
+    }
+
+    function 构建星图在场人物卡(snapshot, 焦点态 = null) {
+      const 定位 = 读取星图焦点定位(snapshot, 焦点态);
+      const 地点信息 = 读取星图焦点地点数据(snapshot, 定位);
+      const 本地条目 = 定位.自由坐标 ? [] : getShellLocalCharacterEntries(snapshot, 99, {
+        目标地点: 定位.焦点名称,
+        标准地点: 地点信息 && 地点信息.name ? 地点信息.name : 定位.标准地点,
+      });
+      return `
+        <div class="mvu-shell-roster-card mvu-map-roster-card">
+          <div class="mvu-shell-roster-head">
+            <div>
+              <span>在场人物</span>
+              <strong title="${escapeHtmlAttr(定位.焦点名称)}">${htmlEscape(shortenText(定位.焦点名称, 24))}</strong>
+            </div>
+            <b>${htmlEscape(`${本地条目.length} 名`)}</b>
+          </div>
+          <div class="mvu-shell-roster-list">
+            ${buildShellLocalRosterRows(本地条目, 99, { 启用操作: true, 当前地点: 定位.焦点名称 })}
+          </div>
+        </div>
       `;
     }
 
@@ -15134,9 +15212,9 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           { label: '生态警报', value: snapshot.worldAlert }
         ]));
         setLiveHtml('[data-preview="势力矩阵总览"].hero-card', buildOrgHeroCard(snapshot));
-        setLiveHtml('[data-preview="我的阵营详情"].mvu-simple-card', buildSimpleCard('阵营身份', null, [
-          { label: '当前所属', value: snapshot.势力[0] ? snapshot.势力[0][0] : '无' },
-          { label: '身份', value: snapshot.势力[0] ? toText(deepGet(snapshot.势力[0][1], '身份', '无'), '无') : '未加入' }
+        setLiveHtml('[data-preview="我的阵营详情"].mvu-simple-card', buildSimpleCard('阵营权限', null, [
+          { label: '权限级', value: snapshot.势力[0] ? `Lv.${toText(deepGet(snapshot.势力[0][1], '权限级', 0), '0')}` : '未加入' },
+          { label: '当前职务', value: snapshot.势力[0] ? toText(deepGet(snapshot.势力[0][1], '身份', '无'), '无') : '未加入' }
         ]));
         setLiveHtml('[data-preview="本地据点详情"].mvu-simple-card', buildSimpleCard('本地据点', null, [
           { label: '掌控势力', value: toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知') },
@@ -15435,7 +15513,6 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                 progress: buildSkillDesignerArtProgressSummary(formState) || '未设置',
                 attribute: buildSkillDesignerAttributeSummary(formState) || '未设置',
                 summary: buildSkillDesignerCompactSummary(formState) || '未设置',
-                tags: normalizeSkillDesignerArray(formState.tags).join(' / ') || '无',
               };
               mountEl.querySelectorAll('[data-skill-designer-preview]').forEach(node => {
                 const key = node.getAttribute('data-skill-designer-preview') || '';
@@ -15660,16 +15737,6 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                           ${buildSkillDesignerSelectOptions(SKILL_DESIGNER_TARGET_SCALE_OPTIONS, designerDraft['目标规模'], '未设置')}
                         </select>
                       </label>
-                      <label class=\"mvu-editor-field mvu-editor-field-wide\">
-                        <span class=\"mvu-editor-label\">标签</span>
-                        <div class=\"skill-designer-chip-grid\">
-                          ${buildSkillDesignerCheckChipList(
-                            技能设计台标签候选_V1,
-                            规范化技能设计台标签勾选_V1(designerDraft.tags),
-                            'skill-tag',
-                          )}
-                        </div>
-                      </label>
                     </div>
                   </section>
 
@@ -15813,7 +15880,6 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                     : ''}
                   <div class=\"skill-designer-summary-row\"><em>附带属性</em><span data-skill-designer-preview=\"attribute\">${htmlEscape(buildSkillDesignerAttributeSummary(designerDraft) || '未设置')}</span></div>
                   <div class=\"skill-designer-summary-row\"><em>最终摘要</em><span data-skill-designer-preview=\"summary\">${htmlEscape(buildSkillDesignerCompactSummary(designerDraft) || '未设置')}</span></div>
-                  <div class=\"skill-designer-summary-row\"><em>标签</em><span data-skill-designer-preview=\"tags\">${htmlEscape((designerDraft.tags || []).join(' / ') || '无')}</span></div>
                 </div>
               </div>
             </div>
@@ -17776,7 +17842,6 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           const sourceSpiritText = getFusionRecordParticipantText(safeFusion);
           const effectDesc = toText(skillData['效果描述'] || skillData['描述'] || '未知', '未知');
           const visualDesc = toText(skillData['画面描述'] || '', '');
-          const tags = (Array.isArray(skillData['标签']) ? skillData['标签'] : []).filter(Boolean);
           const preview = activeCharKey
             ? buildSkillDesignerPreviewKey({
                 path: ['char', activeCharKey, '武魂融合技', recordKey, '技能数据'],
@@ -17790,7 +17855,6 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             `<small>参与武魂：${htmlEscape(sourceSpiritText)}</small>`,
             effectDesc !== '未知' ? `<small>${htmlEscape(effectDesc)}</small>` : '',
             visualDesc ? `<small>${htmlEscape(visualDesc)}</small>` : '',
-            tags.length ? `<small>${htmlEscape(tags.slice(0, 4).join(' / '))}</small>` : ''
           ].filter(Boolean);
           return {
             title: fusionName,
@@ -26758,7 +26822,7 @@ ${extraRequirement}
       const apiSelect = eventTarget ? eventTarget.closest('[data-ai-maintenance-api-select]') : null;
       if (!apiSelect) return;
       const presetName = 保存AI维护已选API预设(apiSelect.value || '');
-      showUiToast(presetName ? `AI维护API：${presetName}` : 'AI维护API：默认API', 'info', 1800);
+      showUiToast(presetName ? `维护接口：${presetName}` : '维护接口：默认接口', 'info', 1800);
     });
 
     function getFloatingHoverTrigger(eventTarget) {
@@ -26823,6 +26887,8 @@ ${extraRequirement}
     let floatingHoverClearTimer = 0;
     let floatingHoverAutoHideTimer = 0;
     const 浮窗自动隐藏毫秒 = 0;
+    const 浮窗关闭延迟毫秒 = 240;
+    const 浮窗通道余量 = 18;
     const 顶层浮窗层级 = '320';
 
     function cancelFloatingHoverClearTimer() {
@@ -26848,7 +26914,7 @@ ${extraRequirement}
       floatingHoverClearTimer = window.setTimeout(() => {
         floatingHoverClearTimer = 0;
         clearFloatingHoverCard(trigger);
-      }, 80);
+      }, 浮窗关闭延迟毫秒);
     }
 
     function scheduleFloatingHoverAutoHide(trigger) {
@@ -26876,6 +26942,21 @@ ${extraRequirement}
         && y <= rect.bottom + 余量;
     }
 
+    function 指针在浮窗通道坐标(x, y, 余量 = 浮窗通道余量) {
+      const 触发节点 = activeFloatingHoverTrigger;
+      if (!(触发节点 instanceof Element) || !(顶层浮窗卡片 instanceof HTMLElement)) return false;
+      const 触发矩形 = 触发节点.getBoundingClientRect();
+      const 浮窗矩形 = 顶层浮窗卡片.getBoundingClientRect();
+      if (坐标在矩形内(x, y, 触发矩形, 余量) || 坐标在矩形内(x, y, 浮窗矩形, 余量)) return true;
+      const 通道矩形 = {
+        left: Math.min(触发矩形.left, 浮窗矩形.left),
+        right: Math.max(触发矩形.right, 浮窗矩形.right),
+        top: Math.min(触发矩形.top, 浮窗矩形.top),
+        bottom: Math.max(触发矩形.bottom, 浮窗矩形.bottom),
+      };
+      return 坐标在矩形内(x, y, 通道矩形, 余量);
+    }
+
     function 指针仍在浮窗区域(event) {
       if (!(event instanceof PointerEvent)) return false;
       const 触发节点 = activeFloatingHoverTrigger;
@@ -26883,7 +26964,8 @@ ${extraRequirement}
       const 触发矩形 = 触发节点.getBoundingClientRect();
       const 浮窗矩形 = 顶层浮窗卡片 instanceof HTMLElement ? 顶层浮窗卡片.getBoundingClientRect() : null;
       return 坐标在矩形内(event.clientX, event.clientY, 触发矩形, 2)
-        || 坐标在矩形内(event.clientX, event.clientY, 浮窗矩形, 2);
+        || 坐标在矩形内(event.clientX, event.clientY, 浮窗矩形, 2)
+        || 指针在浮窗通道坐标(event.clientX, event.clientY);
     }
 
     function 指针命中浮窗链路() {
@@ -26952,7 +27034,14 @@ ${extraRequirement}
       顶层卡片.style.left = '0px';
       顶层卡片.style.top = '0px';
       顶层卡片.addEventListener('pointerenter', cancelFloatingHoverClearTimer);
-      顶层卡片.addEventListener('pointerleave', () => scheduleClearFloatingHoverCard(trigger));
+      顶层卡片.addEventListener('pointerleave', event => {
+        if (指针在浮窗通道坐标(event.clientX, event.clientY)) {
+          cancelFloatingHoverClearTimer();
+          取消浮窗离区复核计时器();
+          return;
+        }
+        scheduleClearFloatingHoverCard(trigger);
+      });
       顶层卡片.addEventListener('click', event => {
         const eventTarget = event.target instanceof Element ? event.target : null;
         const 预览入口 = eventTarget ? eventTarget.closest('.clickable[data-preview]') : null;
@@ -27028,6 +27117,11 @@ ${extraRequirement}
           取消浮窗离区复核计时器();
           return;
         }
+        if (activeFloatingHoverTrigger && 指针在浮窗通道坐标(event.clientX, event.clientY)) {
+          cancelFloatingHoverClearTimer();
+          取消浮窗离区复核计时器();
+          return;
+        }
         if (activeFloatingHoverTrigger) scheduleClearFloatingHoverCard(activeFloatingHoverTrigger);
         return;
       }
@@ -27042,6 +27136,11 @@ ${extraRequirement}
       const trigger = getFloatingHoverTrigger(event.target);
       if (!trigger) return;
       if (isPointerStillWithinFloatingHover(trigger, event)) return;
+      if (指针在浮窗通道坐标(event.clientX, event.clientY)) {
+        cancelFloatingHoverClearTimer();
+        取消浮窗离区复核计时器();
+        return;
+      }
       scheduleClearFloatingHoverCard(trigger);
       安排浮窗离区复核(trigger);
     }, true);

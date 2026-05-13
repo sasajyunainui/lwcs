@@ -800,6 +800,23 @@ function getCharacterActualSoulRingCount(char = {}) {
   return Math.max(0, total);
 }
 
+function 计算武魂当前魂环数量_V1(spiritData = {}) {
+  let 总数 = 0;
+  Object.values(spiritData?.魂灵 || {}).forEach(魂灵数据 => {
+    if (!魂灵数据 || typeof 魂灵数据 !== 'object') return;
+    总数 += Object.values(魂灵数据?.魂环 || {}).filter(魂环数据 => 魂环数据 && typeof 魂环数据 === 'object').length;
+  });
+  总数 += Object.values(spiritData?.独立魂环 || {}).filter(魂环数据 => 魂环数据 && typeof 魂环数据 === 'object').length;
+  return Math.max(0, 总数);
+}
+
+function 角色存在七字武魂_V1(char = {}) {
+  return Object.entries(char?.武魂 || {}).some(([武魂键, 武魂数据]) => {
+    const 名称 = String(武魂数据?.表象名称 || 武魂键 || '').trim();
+    return 名称.includes('七');
+  });
+}
+
 function getCharacterSoulRingLevelCap(char = {}) {
   const ringCount = getCharacterActualSoulRingCount(char);
   return Math.min(100, Math.max(10, (ringCount + 1) * 10));
@@ -1798,7 +1815,6 @@ const SKILL_MECHANISM_DEFAULT_META_V1 = Object.freeze({
   仅自身: false,
   副作用模板: Object.freeze([]),
   运行时消费器: '',
-  决策标签: Object.freeze([]),
   摘要提示: Object.freeze({}),
   设计台参数定义: Object.freeze([]),
   designerMainHint: '',
@@ -1820,7 +1836,6 @@ function createSkillMechanismMetaV1(meta = {}) {
   return Object.freeze({
     ...SKILL_MECHANISM_DEFAULT_META_V1,
     ...meta,
-    决策标签: Object.freeze(Array.from(new Set(Array.isArray(meta.决策标签) ? meta.决策标签.filter(Boolean) : []))),
     摘要提示: Object.freeze(meta.摘要提示 && typeof meta.摘要提示 === 'object' ? meta.摘要提示 : {}),
     设计台参数定义: Object.freeze(Array.isArray(meta.设计台参数定义) ? meta.设计台参数定义.filter(Boolean) : []),
     副作用模板: Object.freeze(
@@ -1953,7 +1968,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '敌对',
     运行时消费器: 'direct_damage',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '输出', mainType: '伤害类', effectMode: '瞬发' },
     designerMainHint: '伤害类',
     designerSubHint: '单体伤害',
@@ -1963,7 +1977,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '敌对',
     运行时消费器: 'direct_damage',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '输出', mainType: '伤害类', cooperation: '高', effectMode: '瞬发' },
     designerMainHint: '伤害类',
     designerSubHint: '群体伤害',
@@ -1973,7 +1986,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '敌对',
     运行时消费器: 'multi_damage',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '输出', mainType: '伤害类', effectMode: '持续' },
     designerMainHint: '伤害类',
     designerSubHint: '多段伤害',
@@ -1987,7 +1999,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '敌对',
     运行时消费器: 'delay_burst',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '输出', mainType: '伤害类', effectMode: '延迟' },
     designerMainHint: '伤害类',
     designerSubHint: '延迟爆发',
@@ -2001,7 +2012,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '敌对',
     运行时消费器: 'dot_damage',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '输出', mainType: '伤害类', effectMode: '持续' },
     designerMainHint: '伤害类',
     designerSubHint: '持续伤害',
@@ -2015,7 +2025,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '敌对',
     运行时消费器: 'hard_control',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '控制类', controlStrength: '硬控' },
     designerMainHint: '控制类',
     designerSubHint: '硬控',
@@ -2029,7 +2038,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '敌对',
     运行时消费器: 'soft_control',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
     designerMainHint: '控制类',
     designerSubHint: '软控',
@@ -2039,7 +2047,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '敌对',
     运行时消费器: 'position_lock',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
     designerMainHint: '控制类',
     designerSubHint: '位移限制',
@@ -2054,7 +2061,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'interrupt',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '控制类', effectMode: '瞬发' },
     designerMainHint: '控制类',
     designerSubHint: '节奏打断',
@@ -2066,7 +2072,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'skill_seal',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
     designerMainHint: '控制类',
     designerSubHint: '封技',
@@ -2077,7 +2082,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '敌对',
     运行时消费器: 'attribute_debuff',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '削弱类' },
     designerMainHint: '削弱类',
     designerSubHint: '单属性削弱',
@@ -2091,7 +2095,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '敌对',
     运行时消费器: 'attribute_debuff',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '削弱类' },
     designerMainHint: '削弱类',
     designerSubHint: '多属性削弱',
@@ -2106,7 +2109,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'anti_heal',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '削弱类', controlStrength: '软控' },
     designerMainHint: '削弱类',
     designerSubHint: '禁疗',
@@ -2118,7 +2120,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'heal_inversion',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '削弱类', controlStrength: '软控' },
     designerMainHint: '削弱类',
     designerSubHint: '治疗反转',
@@ -2129,7 +2130,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '敌对',
     运行时消费器: 'cost_increase',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '削弱类' },
     designerMainHint: '削弱类',
     designerSubHint: '消耗提高',
@@ -2139,7 +2139,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '敌对',
     运行时消费器: 'windup_increase',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '削弱类' },
     designerMainHint: '削弱类',
     designerSubHint: '前摇拉长',
@@ -2149,7 +2148,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '敌对',
     运行时消费器: 'mastery_reduce',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '削弱类' },
     designerMainHint: '削弱类',
     designerSubHint: '掌控压制',
@@ -2159,7 +2157,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'speed_reduce',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '削弱类' },
     designerSecondaryHint: '减速',
     设计台参数定义: [num('slowRatio', '压制幅度', '0.3'), num('duration', '持续回合', '2', '1')],
@@ -2168,7 +2165,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '可赋予',
     运行时消费器: 'attribute_buff',
-    决策标签: ['团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '增益类', cooperation: '中' },
     designerMainHint: '增益类',
     designerSubHint: '单属性增益',
@@ -2182,7 +2178,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '可赋予',
     运行时消费器: 'attribute_buff',
-    决策标签: ['团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '增益类', cooperation: '高' },
     designerMainHint: '增益类',
     designerSubHint: '多属性增益',
@@ -2196,7 +2191,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '可赋予',
     运行时消费器: 'attribute_buff',
-    决策标签: ['团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '增益类', cooperation: '高' },
     designerMainHint: '增益类',
     designerSubHint: '全属性增益',
@@ -2206,7 +2200,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '可赋予',
     运行时消费器: 'cost_reduce',
-    决策标签: ['团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '增益类' },
     designerMainHint: '增益类',
     designerSubHint: '消耗降低',
@@ -2216,7 +2209,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '可赋予',
     运行时消费器: 'windup_reduce',
-    决策标签: ['团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '增益类' },
     designerMainHint: '增益类',
     designerSubHint: '前摇缩短',
@@ -2226,7 +2218,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '可赋予',
     运行时消费器: 'mastery_raise',
-    决策标签: ['团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '增益类' },
     designerMainHint: '增益类',
     designerSubHint: '掌控提升',
@@ -2236,7 +2227,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '可赋予',
     运行时消费器: 'speed_raise',
-    决策标签: ['团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '增益类' },
     designerMainHint: '增益类',
     designerSubHint: '速度提升',
@@ -2247,7 +2237,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '可赋予',
     运行时消费器: 'cultivation_boost',
-    决策标签: ['团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '增益类', effectMode: '持续' },
     designerMainHint: '增益类',
     designerSubHint: '修炼增益',
@@ -2259,7 +2248,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '可赋予',
     运行时消费器: 'shield',
-    决策标签: ['团队保护型'],
     摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '护盾', effectMode: '持续' },
     designerMainHint: '防御类',
     designerSubHint: '护盾',
@@ -2274,7 +2262,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '可赋予',
     运行时消费器: 'damage_reduce',
-    决策标签: ['团队保护型', '保命型'],
     摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '减伤', effectMode: '持续' },
     designerMainHint: '防御类',
     designerSubHint: '减伤',
@@ -2288,7 +2275,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '可赋予',
     运行时消费器: 'block',
-    决策标签: ['保命型'],
     摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '格挡', effectMode: '触发' },
     designerMainHint: '防御类',
     designerSubHint: '格挡/抵消',
@@ -2302,7 +2288,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '可赋予',
     运行时消费器: 'super_armor',
-    决策标签: ['保命型'],
     摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '霸体', effectMode: '持续' },
     designerMainHint: '防御类',
     designerSubHint: '霸体',
@@ -2316,7 +2301,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '可赋予',
     运行时消费器: 'death_save',
-    决策标签: ['保命型'],
     摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '免死', effectMode: '触发' },
     designerMainHint: '防御类',
     designerSubHint: '免死/锁血',
@@ -2331,7 +2315,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '可赋予',
     运行时消费器: 'invincible',
-    决策标签: ['保命型', '团队保护型'],
     摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '无敌', effectMode: '触发' },
     designerMainHint: '防御类',
     designerSubHint: '无敌金身',
@@ -2348,7 +2331,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '可赋予',
     运行时消费器: 'damage_reflect',
-    决策标签: ['保命型', '团队保护型'],
     摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '反射', effectMode: '触发' },
     designerMainHint: '防御类',
     designerSubHint: '伤害反射',
@@ -2365,7 +2347,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     目标语义: '可赋予',
     群体赋予: true,
     运行时消费器: 'damage_share',
-    决策标签: ['团队保护型'],
     摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '分摊', cooperation: '高', effectMode: '触发' },
     designerMainHint: '防御类',
     designerSubHint: '伤害分摊',
@@ -2381,7 +2362,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '可赋予',
     运行时消费器: 'substitute',
-    决策标签: ['保命型', '团队保护型'],
     摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '替身', effectMode: '触发' },
     designerMainHint: '防御类',
     designerSubHint: '替身抵消',
@@ -2397,7 +2377,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '可赋予',
     运行时消费器: 'revive',
-    决策标签: ['保命型', '团队保护型'],
     摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '复苏', recoverNature: '复苏', effectMode: '触发' },
     designerMainHint: '防御类',
     designerSubHint: '复苏',
@@ -2412,7 +2391,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '可赋予',
     运行时消费器: 'recover_vit',
-    决策标签: ['团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '回复类', recoverNature: '体力恢复' },
     designerMainHint: '回复类',
     designerSubHint: '体力恢复',
@@ -2423,7 +2401,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '可赋予',
     运行时消费器: 'recover_sp',
-    决策标签: ['团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '回复类', recoverNature: '资源回复' },
     designerMainHint: '回复类',
     designerSubHint: '魂力恢复',
@@ -2435,7 +2412,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '可赋予',
     运行时消费器: 'recover_men',
-    决策标签: ['团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '回复类', recoverNature: '资源回复' },
     designerMainHint: '回复类',
     designerSubHint: '精神恢复',
@@ -2446,7 +2422,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '可赋予',
     运行时消费器: 'recover_over_time',
-    决策标签: ['团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '回复类', recoverNature: '持续恢复', effectMode: '持续' },
     designerMainHint: '回复类',
     designerSubHint: '持续恢复',
@@ -2461,7 +2436,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '可赋予',
     运行时消费器: 'cleanse',
-    决策标签: ['团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '回复类', recoverNature: '净化' },
     designerMainHint: '回复类',
     designerSubHint: '净化/解控',
@@ -2476,7 +2450,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '敌对',
     运行时消费器: 'perception_disturb',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '感知/认知类', controlStrength: '软控' },
     designerMainHint: '感知/认知类',
     designerSubHint: '感知干扰',
@@ -2486,7 +2459,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '敌对',
     运行时消费器: 'judge_effect',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '感知/认知类', controlStrength: '软控' },
     designerMainHint: '感知/认知类',
     designerSubHint: '标记锁定',
@@ -2501,7 +2473,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '上下文',
     运行时消费器: 'shared_vision',
-    决策标签: ['团队保护型', '规则压制型'],
     摘要提示: { skillType: '辅助', mainType: '感知/认知类', cooperation: '高', effectMode: '持续' },
     designerMainHint: '感知/认知类',
     designerSubHint: '共享视野',
@@ -2516,7 +2487,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '敌对',
     运行时消费器: 'judge_effect',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '感知/认知类', controlStrength: '硬控' },
     designerMainHint: '感知/认知类',
     designerSubHint: '幻境',
@@ -2530,7 +2500,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '敌对',
     运行时消费器: 'judge_effect',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '感知/认知类', controlStrength: '硬控' },
     designerMainHint: '感知/认知类',
     designerSubHint: '催眠',
@@ -2544,7 +2513,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '敌对',
     运行时消费器: 'judge_effect',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '感知/认知类', controlStrength: '软控' },
     designerMainHint: '感知/认知类',
     designerSubHint: '认知扭曲',
@@ -2554,7 +2522,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'target_lock',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '感知/认知类', controlStrength: '软控' },
     designerMainHint: '感知/认知类',
     designerSubHint: '标记锁定',
@@ -2569,7 +2536,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '可赋予',
     运行时消费器: 'self_shift',
-    决策标签: ['保命型', '团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '位移类', effectMode: '持续' },
     designerMainHint: '位移类',
     designerSubHint: '自身位移',
@@ -2579,7 +2545,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '敌对',
     运行时消费器: 'hostile_shift',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '位移类', controlStrength: '软控' },
     designerMainHint: '位移类',
     designerSubHint: '强制位移',
@@ -2589,7 +2554,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '敌对',
     运行时消费器: 'position_exchange',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '位移类', controlStrength: '软控' },
     designerMainHint: '位移类',
     designerSubHint: '位移交换',
@@ -2603,7 +2567,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '可赋予',
     运行时消费器: 'pursuit_shift',
-    决策标签: ['规则压制型', '团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '位移类', effectMode: '持续' },
     designerMainHint: '位移类',
     designerSubHint: '追击位移',
@@ -2617,7 +2580,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '可赋予',
     运行时消费器: 'disengage_shift',
-    决策标签: ['保命型', '团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '位移类', effectMode: '持续' },
     designerMainHint: '位移类',
     designerSubHint: '脱离位移',
@@ -2631,7 +2593,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'pursuit_mark',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '辅助', mainType: '位移类', effectMode: '持续' },
     designerMainHint: '位移类',
     designerSubHint: '追击位移',
@@ -2646,7 +2607,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '可赋予',
     运行时消费器: 'clone',
-    决策标签: ['保命型', '团队保护型'],
     摘要提示: { skillType: '防御', mainType: '特殊规则类', defenseNature: '分身', effectMode: '持续' },
     designerMainHint: '特殊规则类',
     designerSubHint: '分身',
@@ -2663,7 +2623,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '上下文',
     运行时消费器: 'copy_status',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '辅助', mainType: '特殊规则类' },
     designerMainHint: '特殊规则类',
     designerSubHint: '复制',
@@ -2677,7 +2636,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '可赋予',
     运行时消费器: 'counter',
-    决策标签: ['保命型', '团队保护型'],
     摘要提示: { skillType: '防御', mainType: '特殊规则类', defenseNature: '反制', effectMode: '触发' },
     designerMainHint: '特殊规则类',
     designerSubHint: '反制',
@@ -2692,7 +2650,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '可赋予',
     运行时消费器: 'damage_to_heal',
-    决策标签: ['团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '特殊规则类' },
     designerMainHint: '特殊规则类',
     designerSubHint: '转化',
@@ -2702,7 +2659,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: false,
     目标语义: '敌对',
     运行时消费器: 'heal_to_damage',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '特殊规则类' },
     designerMainHint: '特殊规则类',
     designerSubHint: '转化',
@@ -2712,7 +2668,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '上下文',
     运行时消费器: 'status_exchange',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '辅助', mainType: '特殊规则类' },
     designerMainHint: '特殊规则类',
     designerSubHint: '状态交换',
@@ -2727,7 +2682,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'status_transfer',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '特殊规则类' },
     designerMainHint: '特殊规则类',
     designerSubHint: '状态转移',
@@ -2738,7 +2692,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '敌对',
     运行时消费器: 'hard_lock',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '特殊规则类', controlStrength: '软控' },
     designerMainHint: '特殊规则类',
     designerSubHint: '强制绑定/锁定',
@@ -2752,7 +2705,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     目标语义: '上下文',
     运行时消费器: 'judge_effect',
-    决策标签: ['保命型', '规则压制型'],
     摘要提示: { skillType: '辅助', mainType: '特殊规则类', effectMode: '触发' },
     designerMainHint: '特殊规则类',
     designerSubHint: '条件触发',
@@ -2767,7 +2719,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     目标语义: '仅自身',
     仅自身: true,
     运行时消费器: 'self_rule_rewrite',
-    决策标签: ['保命型', '规则压制型'],
     摘要提示: { skillType: '辅助', mainType: '特殊规则类', effectMode: '触发' },
     designerMainHint: '特殊规则类',
     designerSubHint: '规则改写',
@@ -2777,28 +2728,24 @@ const SKILL_MECHANISM_META_V1 = (() => {
     目标语义: '仅自身',
     仅自身: true,
     运行时消费器: 'self_random_variance',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '辅助', mainType: '特殊规则类' },
   });
   register('自身也受影响', {
     目标语义: '仅自身',
     仅自身: true,
     运行时消费器: 'self_mirror',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '辅助', mainType: '特殊规则类' },
   });
   register('随机目标', {
     目标语义: '仅自身',
     仅自身: true,
     运行时消费器: 'random_target_shift',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '特殊规则类' },
   });
   register('自残换收益', {
     目标语义: '仅自身',
     仅自身: true,
     运行时消费器: 'self_sacrifice_gain',
-    决策标签: ['保命型', '规则压制型'],
     摘要提示: { skillType: '辅助', mainType: '特殊规则类' },
   });
   register('引爆持续伤害', {
@@ -2806,7 +2753,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'dot_detonate',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '输出', mainType: '特殊规则类', effectMode: '瞬发' },
     designerMainHint: '特殊规则类',
     designerSubHint: '引爆持续伤害',
@@ -2818,7 +2764,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'shield_break',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '输出', mainType: '特殊规则类' },
     designerMainHint: '特殊规则类',
     designerSubHint: '斩盾',
@@ -2830,7 +2775,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'shield_steal',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '特殊规则类' },
     designerMainHint: '特殊规则类',
     designerSubHint: '窃取护盾',
@@ -2842,7 +2786,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'resource_drain',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '特殊规则类', controlStrength: '软控' },
     designerMainHint: '特殊规则类',
     designerSubHint: '吞噬',
@@ -2859,7 +2802,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     目标语义: '可赋予',
     群体赋予: true,
     运行时消费器: 'resource_refeed',
-    决策标签: ['团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '回复类', recoverNature: '资源回复', cooperation: '高' },
     designerMainHint: '特殊规则类',
     designerSubHint: '能力共享',
@@ -2874,7 +2816,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'mechanism_suppress',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '特殊规则类', controlStrength: '软控', effectMode: '持续' },
     designerMainHint: '特殊规则类',
     designerSubHint: '机制抹消',
@@ -2888,14 +2829,12 @@ const SKILL_MECHANISM_META_V1 = (() => {
   register('效果反转', {
     目标语义: '敌对',
     运行时消费器: 'effect_reverse',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '特殊规则类' },
   });
   register('驱散增益', {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'dispel_buff',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '削弱类' },
     designerMainHint: '削弱类',
     designerSubHint: '单属性削弱',
@@ -2906,7 +2845,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'steal_buff',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '特殊规则类' },
     designerMainHint: '特殊规则类',
     designerSubHint: '复制',
@@ -2917,7 +2855,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '可赋予',
     运行时消费器: 'stealth',
-    决策标签: ['保命型', '团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '增益类', effectMode: '持续' },
     designerMainHint: '增益类',
     designerSubHint: '单属性增益',
@@ -2934,7 +2871,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     目标语义: '可赋予',
     群体赋予: true,
     运行时消费器: 'guard',
-    决策标签: ['团队保护型'],
     摘要提示: { skillType: '防御', mainType: '防御类', cooperation: '高', effectMode: '持续' },
     designerMainHint: '防御类',
     designerSubHint: '伤害分摊',
@@ -2945,7 +2881,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'taunt',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
     designerMainHint: '控制类',
     designerSubHint: '软控',
@@ -2956,7 +2891,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'reveal',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '控制类' },
     designerMainHint: '控制类',
     designerSubHint: '节奏打断',
@@ -2967,7 +2901,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'slow',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
     designerMainHint: '控制类',
     designerSubHint: '软控',
@@ -2978,7 +2911,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'blind',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
     designerMainHint: '控制类',
     designerSubHint: '软控',
@@ -2989,7 +2921,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'silence',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
     designerMainHint: '控制类',
     designerSubHint: '软控',
@@ -3000,7 +2931,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'disarm',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '控制类', controlStrength: '软控' },
     designerMainHint: '控制类',
     designerSubHint: '软控',
@@ -3011,7 +2941,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'expose_weakness',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '削弱类' },
     designerMainHint: '削弱类',
     designerSubHint: '单属性削弱',
@@ -3022,7 +2951,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'judge_effect',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '输出', mainType: '伤害类' },
     designerMainHint: '伤害类',
     designerSubHint: '单体伤害',
@@ -3033,7 +2961,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'armor_penetration',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '输出', mainType: '伤害类' },
     designerMainHint: '伤害类',
     designerSubHint: '单体伤害',
@@ -3047,7 +2974,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '上下文',
     运行时消费器: 'lifesteal',
-    决策标签: ['保命型', '规则压制型'],
     摘要提示: { skillType: '输出', mainType: '伤害类' },
     designerMainHint: '伤害类',
     designerSubHint: '单体伤害',
@@ -3061,7 +2987,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'dot_damage',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '输出', mainType: '伤害类', effectMode: '持续' },
     designerMainHint: '伤害类',
     designerSubHint: '持续伤害',
@@ -3073,7 +2998,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'dot_detonate',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '输出', mainType: '特殊规则类', effectMode: '触发' },
     designerMainHint: '特殊规则类',
     designerSubHint: '伤害链',
@@ -3089,7 +3013,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '上下文',
     运行时消费器: 'damage_share',
-    决策标签: ['团队保护型', '规则压制型'],
     摘要提示: { skillType: '防御', mainType: '特殊规则类', defenseNature: '分摊', cooperation: '高', effectMode: '持续' },
     designerMainHint: '特殊规则类',
     designerSubHint: '生命链接',
@@ -3105,7 +3028,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'dot_damage',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '特殊规则类', effectMode: '持续' },
     designerMainHint: '特殊规则类',
     designerSubHint: '延长持续伤害',
@@ -3121,7 +3043,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'dot_detonate',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '输出', mainType: '特殊规则类', effectMode: '瞬发' },
     designerMainHint: '特殊规则类',
     designerSubHint: '压缩持续伤害',
@@ -3137,7 +3058,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '上下文',
     运行时消费器: 'copy_status',
-    决策标签: ['规则压制型', '团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '特殊规则类', effectMode: '触发' },
     designerMainHint: '特殊规则类',
     designerSubHint: '拆层转存',
@@ -3153,7 +3073,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'resource_drain',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '特殊规则类', controlStrength: '软控', effectMode: '持续' },
     designerMainHint: '特殊规则类',
     designerSubHint: '资源燃烧',
@@ -3169,7 +3088,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '敌对',
     运行时消费器: 'cost_increase',
-    决策标签: ['规则压制型'],
     摘要提示: { skillType: '控制', mainType: '特殊规则类', controlStrength: '软控', effectMode: '持续' },
     designerMainHint: '特殊规则类',
     designerSubHint: '资源锁定',
@@ -3184,7 +3102,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '可赋予',
     运行时消费器: 'on_hit_counter',
-    决策标签: ['保命型', '团队保护型'],
     摘要提示: { skillType: '防御', mainType: '防御类', defenseNature: '反制', effectMode: '触发' },
     designerMainHint: '防御类',
     designerSubHint: '伤害反射',
@@ -3195,7 +3112,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     目标语义: '仅自身',
     仅自身: true,
     运行时消费器: 'construct_create',
-    决策标签: ['团队保护型'],
     摘要提示: { skillType: '辅助', mainType: '特殊规则类' },
   });
   register('召唤与场地', {
@@ -3203,7 +3119,6 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可副机制: true,
     目标语义: '上下文',
     运行时消费器: 'construct_create',
-    决策标签: ['团队保护型', '规则压制型'],
     摘要提示: { skillType: '辅助', mainType: '特殊规则类', cooperation: '高', effectMode: '持续' },
     designerMainHint: '特殊规则类',
     designerSubHint: '召唤与场地',
@@ -3337,6 +3252,355 @@ function getSecondaryRingScale(ringIndex = 1) {
   if (ring === 7) return 1.0;
   if (ring === 8) return 1.15;
   return 1.3;
+}
+
+const 魂技年限档位阈值_V1 = Object.freeze([100, 1000, 10000, 100000, 1000000]);
+const 魂技年限次数进阶阈值_V1 = Object.freeze([1000, 10000, 100000, 1000000]);
+const 魂技年限次数字段集合_V1 = new Set([
+  '命中次数',
+  '触发次数',
+  '每日触发上限',
+  '抵消次数',
+  '复苏次数',
+  '分摊人数',
+  '驱散数量',
+  '窃取数量',
+  '转移数量',
+  '复制数量',
+  '清除层级',
+  'death_save_count',
+  'revive_count',
+  'substitute_count',
+  'damage_share_count',
+  'daily_trigger_limit',
+]);
+
+function 限幅数值_V1(值, 下限 = -Infinity, 上限 = Infinity) {
+  const 数值 = Number(值);
+  if (!Number.isFinite(数值)) return Math.max(下限, Math.min(上限, 0));
+  return Math.max(下限, Math.min(上限, 数值));
+}
+
+function 四舍五入技能数值_V1(值, 位数 = 2) {
+  const 数值 = Number(值);
+  if (!Number.isFinite(数值)) return 0;
+  return Number(数值.toFixed(位数));
+}
+
+function 获取魂技位伤害倍率_V1(魂环位 = 1) {
+  const 魂技位 = Math.max(1, Math.floor(Number(魂环位 || 1)));
+  const 倍率表 = Object.freeze({
+    1: 1,
+    2: 1.55,
+    3: 2.35,
+    4: 3.55,
+    5: 5.35,
+    6: 8,
+    7: 1,
+    8: 14.5,
+    9: 25,
+  });
+  if (倍率表[魂技位]) return 倍率表[魂技位];
+  return 四舍五入技能数值_V1(25 * Math.pow(1.22, 魂技位 - 9), 2);
+}
+
+function 获取魂技位防御倍率_V1(魂环位 = 1) {
+  const 魂技位 = Math.max(1, Math.floor(Number(魂环位 || 1)));
+  const 倍率表 = Object.freeze({
+    1: 1,
+    2: 1.25,
+    3: 1.6,
+    4: 2.05,
+    5: 2.65,
+    6: 3.4,
+    7: 1,
+    8: 4.4,
+    9: 5.6,
+  });
+  if (倍率表[魂技位]) return 倍率表[魂技位];
+  return 四舍五入技能数值_V1(5.6 * Math.pow(1.15, 魂技位 - 9), 2);
+}
+
+function 获取年限档位信息_V1(年限 = 0) {
+  const 安全年限 = Math.max(0, Math.floor(Number(年限 || 0)));
+  let 档位起点 = 0;
+  let 档位终点 = 100;
+  for (let 序号 = 0; 序号 < 魂技年限档位阈值_V1.length; 序号 += 1) {
+    const 当前阈值 = 魂技年限档位阈值_V1[序号];
+    if (安全年限 >= 当前阈值) {
+      档位起点 = 当前阈值;
+      档位终点 = 魂技年限档位阈值_V1[序号 + 1] || 当前阈值 * 10;
+    }
+  }
+  const 档内跨度 = Math.max(1, 档位终点 - 档位起点);
+  const 档内进度 = 档位起点 > 0 ? 限幅数值_V1((安全年限 - 档位起点) / 档内跨度, 0, 1) : 0;
+  return { 年限: 安全年限, 档位起点, 档位终点, 档内进度 };
+}
+
+function 计算年限档内消耗系数_V1(年限 = 0) {
+  const 档位 = 获取年限档位信息_V1(年限);
+  if (档位.档位起点 <= 0) return 1;
+  return 四舍五入技能数值_V1(1 - 0.5 * 档位.档内进度, 4);
+}
+
+function 计算年限跨档次数增量_V1(旧年限 = 0, 新年限 = 0) {
+  const 旧值 = Math.max(0, Math.floor(Number(旧年限 || 0)));
+  const 新值 = Math.max(0, Math.floor(Number(新年限 || 0)));
+  if (!(新值 > 旧值)) return 0;
+  return 魂技年限次数进阶阈值_V1.filter(阈值 => 旧值 < 阈值 && 新值 >= 阈值).length;
+}
+
+function 缩放消耗文本数值_V1(消耗文本 = '', 倍率 = 1) {
+  const 系数 = Number(倍率);
+  if (!Number.isFinite(系数) || Math.abs(系数 - 1) <= 0.0001) return 消耗文本;
+  return String(消耗文本 || '无').replace(/(魂力|体力|精神力)([:：])(\d+)(%?)/g, (原文, 名称, 分隔, 数字, 百分号) => {
+    if (百分号) return 原文;
+    const 新值 = Math.max(0, Math.round(Number(数字 || 0) * 系数));
+    return `${名称}${分隔}${新值}`;
+  });
+}
+
+function 缩放消耗结构数值_V1(消耗值, 倍率 = 1) {
+  if (typeof 消耗值 === 'string') return 缩放消耗文本数值_V1(消耗值, 倍率);
+  if (Array.isArray(消耗值)) return 消耗值.map(条目 => 缩放消耗结构数值_V1(条目, 倍率));
+  if (消耗值 && typeof 消耗值 === 'object') {
+    Object.keys(消耗值).forEach(键名 => {
+      const 原值 = 消耗值[键名];
+      if (['魂力', '体力', '精神力', 'sp', 'vit', 'men'].includes(String(键名))) {
+        const 数值 = Number(原值);
+        if (Number.isFinite(数值)) 消耗值[键名] = Math.max(0, Math.round(数值 * 倍率));
+        return;
+      }
+      消耗值[键名] = 缩放消耗结构数值_V1(原值, 倍率);
+    });
+  }
+  return 消耗值;
+}
+
+function 遍历技能效果数值容器_V1(效果 = {}, 回调 = () => {}) {
+  if (!效果 || typeof 效果 !== 'object') return;
+  const 已访问 = new Set();
+  const 访问 = 容器 => {
+    if (!容器 || typeof 容器 !== 'object' || 已访问.has(容器)) return;
+    已访问.add(容器);
+    回调(容器);
+  };
+  访问(效果);
+  访问(效果.参数);
+  访问(效果.计算层效果);
+  访问(效果.成功参数);
+  访问(效果.失败参数);
+  访问(效果.面板修改比例);
+}
+
+function 缩放容器数值字段_V1(容器 = {}, 字段 = '', 倍率 = 1, 选项 = {}) {
+  if (!容器 || typeof 容器 !== 'object' || !(字段 in 容器)) return;
+  const 原值 = Number(容器[字段]);
+  if (!Number.isFinite(原值) || 原值 <= 0) return;
+  const 下限 = Number.isFinite(Number(选项.下限)) ? Number(选项.下限) : 0;
+  const 上限 = Number.isFinite(Number(选项.上限)) ? Number(选项.上限) : Infinity;
+  const 位数 = Number.isFinite(Number(选项.位数)) ? Number(选项.位数) : 2;
+  容器[字段] = 四舍五入技能数值_V1(限幅数值_V1(原值 * 倍率, 下限, 上限), 位数);
+}
+
+function 缩放倍率型字段_V1(容器 = {}, 字段 = '', 倍率 = 1, 上限 = 8) {
+  if (!容器 || typeof 容器 !== 'object' || !(字段 in 容器)) return;
+  const 原值 = Number(容器[字段]);
+  if (!Number.isFinite(原值) || Math.abs(原值 - 1) <= 0.001) return;
+  const 增幅倍率 = Math.sqrt(Math.max(0.01, Number(倍率 || 1)));
+  容器[字段] = 四舍五入技能数值_V1(限幅数值_V1(1 + (原值 - 1) * 增幅倍率, 0, 上限), 2);
+}
+
+function 放大比例型字段_V1(容器 = {}, 字段 = '', 倍率 = 1, 上限 = 0.85) {
+  if (!容器 || typeof 容器 !== 'object' || !(字段 in 容器)) return;
+  const 原值 = Number(容器[字段]);
+  if (!Number.isFinite(原值) || 原值 <= 0) return;
+  const 基础比例 = 限幅数值_V1(原值, 0, 上限);
+  const 指数 = Math.sqrt(Math.max(0.01, Number(倍率 || 1)));
+  容器[字段] = 四舍五入技能数值_V1(限幅数值_V1(1 - Math.pow(1 - 基础比例, 指数), 0, 上限), 4);
+}
+
+function 技能效果是伤害结算相关_V1(效果 = {}) {
+  const 机制 = String(效果?.机制 || '').trim();
+  if (/伤害|DOT|斩杀|引爆|斩盾|追击|破甲|输出/.test(机制)) return true;
+  let 命中 = false;
+  遍历技能效果数值容器_V1(效果, 容器 => {
+    if (
+      容器.威力倍率 !== undefined ||
+      容器.dot_damage !== undefined ||
+      容器.每回合伤害 !== undefined ||
+      容器.持续伤害 !== undefined ||
+      容器.引爆倍率 !== undefined ||
+      容器.斩盾倍率 !== undefined
+    )
+      命中 = true;
+    if (String(容器.属性 || '').trim() === '威力') 命中 = true;
+  });
+  return 命中;
+}
+
+function 技能效果是防御结算相关_V1(效果 = {}) {
+  const 机制 = String(效果?.机制 || '').trim();
+  if (/护盾|防御|减伤|格挡|霸体|免死|无敌|反射|分摊|替身|复苏|护卫/.test(机制)) return true;
+  let 命中 = false;
+  遍历技能效果数值容器_V1(效果, 容器 => {
+    if (
+      容器.护盾值 !== undefined ||
+      容器.damage_reduction !== undefined ||
+      容器.减伤比例 !== undefined ||
+      容器.damage_reflect_ratio !== undefined ||
+      容器.反射比例 !== undefined ||
+      容器.damage_share_ratio !== undefined ||
+      容器.分摊比例 !== undefined
+    )
+      命中 = true;
+    if (String(容器.属性 || '').trim() === 'def') 命中 = true;
+  });
+  return 命中;
+}
+
+function 应用伤害类魂技位倍率_V1(效果 = {}, 倍率 = 1) {
+  遍历技能效果数值容器_V1(效果, 容器 => {
+    ['威力倍率', 'dot_damage', '每回合伤害', '持续伤害', 'final_damage_bonus'].forEach(字段 =>
+      缩放容器数值字段_V1(容器, 字段, 倍率, { 下限: 0, 位数: 2 }),
+    );
+    ['引爆倍率', '斩盾倍率'].forEach(字段 => 缩放容器数值字段_V1(容器, 字段, Math.sqrt(倍率), { 下限: 0, 位数: 2 }));
+    缩放倍率型字段_V1(容器, 'final_damage_mult', 倍率, 12);
+    if (String(容器.属性 || '').trim() === '威力' && Number(容器.数值 || 0) > 1) 缩放倍率型字段_V1(容器, '数值', 倍率, 12);
+  });
+}
+
+function 应用防御类魂技位倍率_V1(效果 = {}, 倍率 = 1) {
+  遍历技能效果数值容器_V1(效果, 容器 => {
+    ['护盾值', 'shield_gain_bonus', 'final_heal_bonus'].forEach(字段 =>
+      缩放容器数值字段_V1(容器, 字段, 倍率, { 下限: 0, 位数: 2 }),
+    );
+    ['damage_reduction', '减伤比例'].forEach(字段 => 放大比例型字段_V1(容器, 字段, 倍率, 0.82));
+    ['damage_reflect_ratio', '反射比例'].forEach(字段 => 放大比例型字段_V1(容器, 字段, 倍率, 0.9));
+    ['damage_share_ratio', '分摊比例'].forEach(字段 => 放大比例型字段_V1(容器, 字段, 倍率, 0.88));
+    ['revive_heal_ratio', '复苏回血比例'].forEach(字段 => 放大比例型字段_V1(容器, 字段, 倍率, 0.75));
+    缩放倍率型字段_V1(容器, 'shield_gain_mult', 倍率, 10);
+    缩放倍率型字段_V1(容器, 'final_heal_mult', Math.sqrt(倍率), 8);
+    if (String(容器.属性 || '').trim() === 'def' && Number(容器.数值 || 0) > 1) 缩放倍率型字段_V1(容器, '数值', 倍率, 10);
+  });
+}
+
+function 是否七九武魂名称_V1(武魂名称 = '') {
+  return /[七九]/.test(String(武魂名称 || '').trim());
+}
+
+function 是否辅助系名称_V1(系别 = '') {
+  return String(系别 || '').trim() === '辅助系';
+}
+
+function 读取七九辅助单体目标模型_V1(值 = '') {
+  const 文本 = String(值 || '').trim();
+  if (!文本) return '';
+  const 目标模型 = normalizeSkillTargetModel(文本, '');
+  if (['自身', '友方单体', '友方群体', '全场'].includes(目标模型)) return '友方单体';
+  if (/自身|友方单体|友方群体|己方\/单体|己方\/群体|己方单体|己方群体|全员|全体|全场/.test(文本)) return '友方单体';
+  return '';
+}
+
+function 写入七九辅助单体目标_V1(容器 = {}) {
+  if (!容器 || typeof 容器 !== 'object' || Array.isArray(容器)) return;
+  ['目标模型', '目标'].forEach(字段 => {
+    if (!(字段 in 容器)) return;
+    const 单体目标 = 读取七九辅助单体目标模型_V1(容器[字段]);
+    if (单体目标) 容器[字段] = 单体目标;
+  });
+  if ('对象' in 容器) {
+    const 单体目标 = 读取七九辅助单体目标模型_V1(容器.对象);
+    if (单体目标) 容器.对象 = mapSkillTargetModelToCombatTarget(单体目标);
+  }
+  if (String(容器.机制 || '').trim() === '系统基础') {
+    容器.目标模型 = '友方单体';
+    容器.对象 = mapSkillTargetModelToCombatTarget('友方单体');
+    容器.结算策略 = getSkillTargetResolutionStrategy('友方单体');
+  }
+}
+
+function 应用七九辅助魂技基础效果_V1(效果数组 = [], 上下文 = {}) {
+  const 当前魂环数量 = Math.max(1, Math.floor(Number(上下文.当前魂环数量 || 1)));
+  const 基础倍率 = 四舍五入技能数值_V1(1 + 当前魂环数量 * 0.1, 2);
+  const 基础比例 = 四舍五入技能数值_V1(当前魂环数量 * 0.1, 2);
+  效果数组.forEach(效果 => {
+    写入七九辅助单体目标_V1(效果);
+    遍历技能效果数值容器_V1(效果, 容器 => {
+      写入七九辅助单体目标_V1(容器);
+      const 属性 = String(容器.属性 || '').trim();
+      const 动作 = String(容器.动作 || '').trim();
+      if (['str', 'def', 'agi', 'men_max', 'sp_max', 'vit_max', '威力', '控制', '掌控', '速度'].includes(属性) && /倍率提升|提升/.test(动作)) {
+        容器.数值 = 基础倍率;
+      }
+      if (容器.面板修改比例 && typeof 容器.面板修改比例 === 'object') {
+        Object.keys(容器.面板修改比例).forEach(键名 => {
+          if (Number(容器.面板修改比例[键名] || 0) > 1) 容器.面板修改比例[键名] = 基础倍率;
+        });
+      }
+      ['final_heal_mult', 'shield_gain_mult', 'control_resist_mult', 'mastery_ratio', 'speed_ratio'].forEach(字段 => {
+        if (Number(容器[字段] || 0) > 1) 容器[字段] = Math.max(Number(容器[字段] || 1), 基础倍率);
+      });
+      ['sp_gain_ratio', 'men_gain_ratio', 'hot_heal_ratio'].forEach(字段 => {
+        if (Number(容器[字段] || 0) > 0) 容器[字段] = Math.max(Number(容器[字段] || 0), 基础比例);
+      });
+    });
+  });
+}
+
+function 应用生成魂技固化数值规则_V1(效果数组 = [], 上下文 = {}) {
+  if (!Array.isArray(效果数组) || !效果数组.length) return 效果数组;
+  const 来源类别 = String(上下文.来源类别 || 上下文.sourceCategory || '').trim() || '魂技';
+  if (来源类别 !== '魂技') return 效果数组;
+  const 魂环位 = Math.max(1, Math.floor(Number(上下文.魂环位 || 上下文.ringIndex || 1)));
+  if (魂环位 === 7) return 效果数组;
+  const 系别 = String(上下文.系别 || 上下文.type || '').trim();
+  const 武魂名称 = String(上下文.武魂名称 || 上下文.martialSoulName || '').trim();
+  if (是否辅助系名称_V1(系别) && 是否七九武魂名称_V1(武魂名称)) {
+    应用七九辅助魂技基础效果_V1(效果数组, 上下文);
+    return 效果数组;
+  }
+  const 伤害倍率 = 获取魂技位伤害倍率_V1(魂环位);
+  const 防御倍率 = 获取魂技位防御倍率_V1(魂环位);
+  效果数组.forEach(效果 => {
+    if (技能效果是伤害结算相关_V1(效果)) 应用伤害类魂技位倍率_V1(效果, 伤害倍率);
+    if (技能效果是防御结算相关_V1(效果)) 应用防御类魂技位倍率_V1(效果, 防御倍率);
+  });
+  if (!是否辅助系名称_V1(系别) && 是否七九武魂名称_V1(武魂名称)) {
+    效果数组.forEach(效果 => {
+      if (技能效果是伤害结算相关_V1(效果)) 应用伤害类魂技位倍率_V1(效果, 1.4);
+    });
+  }
+  return 效果数组;
+}
+
+function 应用年限变化到技能效果数组_V1(skill = {}, 旧年限 = 0, 新年限 = 0) {
+  if (!skill || typeof skill !== 'object' || !Array.isArray(skill._效果数组)) return false;
+  const 旧值 = Math.max(0, Math.floor(Number(旧年限 || 0)));
+  const 新值 = Math.max(0, Math.floor(Number(新年限 || 0)));
+  if (!(新值 > 旧值)) return false;
+  const 旧消耗系数 = 计算年限档内消耗系数_V1(旧值);
+  const 新消耗系数 = 计算年限档内消耗系数_V1(新值);
+  const 消耗倍率 = 旧消耗系数 > 0 ? 新消耗系数 / 旧消耗系数 : 1;
+  if (Math.abs(消耗倍率 - 1) > 0.0001) {
+    if (skill.消耗 !== undefined) skill.消耗 = 缩放消耗结构数值_V1(skill.消耗, 消耗倍率);
+    const 系统基础 = skill._效果数组.find(效果 => String(效果?.机制 || '').trim() === '系统基础');
+    if (系统基础 && 系统基础.消耗 !== undefined) 系统基础.消耗 = 缩放消耗结构数值_V1(系统基础.消耗, 消耗倍率);
+  }
+  const 次数增量 = 计算年限跨档次数增量_V1(旧值, 新值);
+  if (次数增量 > 0) {
+    skill._效果数组.forEach(效果 => {
+      遍历技能效果数值容器_V1(效果, 容器 => {
+        魂技年限次数字段集合_V1.forEach(字段 => {
+          if (!(字段 in 容器)) return;
+          const 原值 = Number(容器[字段]);
+          if (!Number.isFinite(原值) || 原值 <= 0) return;
+          容器[字段] = Math.max(1, Math.round(原值 + 次数增量));
+        });
+      });
+    });
+  }
+  return Math.abs(消耗倍率 - 1) > 0.0001 || 次数增量 > 0;
 }
 
 function getPotentialSecondaryOptionsByType(type = '强攻系') {
@@ -4894,7 +5158,6 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
   const secondary = Array.isArray(blueprint?.副机制) ? blueprint.副机制 : [];
   const mutation = Array.isArray(blueprint?.变异机制) ? blueprint.变异机制 : [];
   const quality = qualityCtx.quality || 'B级_普通';
-  const ringAge = Math.max(0, Number(qualityCtx.ringAge || 0));
   const ringIndex = Number(qualityCtx.ringIndex || 1);
   const type = blueprint?.系别来源 || qualityCtx.type || '强攻系';
   const fuelModel = blueprint?.燃料模型 || buildFuelModelByType(type, main);
@@ -4908,29 +5171,9 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
     全场: '全场',
   };
 
-  const resolveRingAgeEffectScale = age => {
-    if (age >= 1_000_000) return 1.58;
-    if (age >= 100_000) return 1.42;
-    if (age >= 10_000) return 1.26;
-    if (age >= 1_000) return 1.14;
-    if (age >= 100) return 1.03;
-    if (age > 0) return 0.92;
-    return 1.0;
-  };
-  const resolveRingAgeCostScale = age => {
-    if (age >= 1_000_000) return 0.7;
-    if (age >= 100_000) return 0.78;
-    if (age >= 10_000) return 0.86;
-    if (age >= 1_000) return 0.94;
-    if (age >= 100) return 1.0;
-    if (age > 0) return 1.08;
-    return 1.0;
-  };
-  const 年限效果系数 = resolveRingAgeEffectScale(ringAge);
-  const 年限消耗系数 = resolveRingAgeCostScale(ringAge);
   const powerMap = { D级_粗糙: 40, C级_劣质: 60, B级_普通: 120, A级_优秀: 200, S级_极品: 300 };
   const castMap = { D级_粗糙: [0, 6], C级_劣质: [0, 8], B级_普通: [5, 15], A级_优秀: [15, 30], S级_极品: [30, 55] };
-  const powerBase = Math.max(1, Math.round((powerMap[quality] || 120) * 年限效果系数));
+  const powerBase = Math.max(1, Math.round(powerMap[quality] || 120));
   const castRange = castMap[quality] || [5, 15];
   const randInt = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
   const randomRangeRaw = (min, max) => (min === max ? min : min + Math.random() * (max - min));
@@ -5832,7 +6075,7 @@ function buildSkillCombatProfile(blueprint, qualityCtx = {}) {
       .filter(v => v && v !== '无')
       .join('/');
 
-  const baseCost = Math.max(10, Math.round((60 + powerBase * 0.42 + ringIndex * 8) * 年限消耗系数));
+  const baseCost = Math.max(10, Math.round(60 + powerBase * 0.42 + ringIndex * 8));
   let spCost = 0,
     vitCost = 0,
     menCost = 0,
@@ -7296,7 +7539,6 @@ function buildSeventhRingTrueBodySkill(
         对象: '自身',
         技能类型: '真身/增幅',
         cast_time: 20,
-        标签: ['第七魂环', '武魂真身', quality],
         级别: quality,
       },
       ...trueBodyEffects.filter(Boolean),
@@ -7329,6 +7571,17 @@ function autoGenerateSkill(
   const quality = overrideQuality || gradeInfo.quality;
   const roll = gradeInfo.scoreRoll;
   const skillSourceCategory = String(options?.sourceCategory || options?.技能来源 || '魂技').trim() || '魂技';
+  if (skillSourceCategory === '魂技' && Math.max(1, Number(ringIndex || 1)) === 7 && options?.forceTrueBody !== false) {
+    return buildSeventhRingTrueBodySkill(
+      type,
+      talentTier,
+      ringAge,
+      ringIndex,
+      compatibility,
+      options?.textContext || {},
+      String(options?.sourceQuality || options?.来源品质 || '').trim(),
+    );
+  }
 
   const blueprint =
     options?.blueprintOverride && typeof options.blueprintOverride === 'object'
@@ -7358,14 +7611,6 @@ function autoGenerateSkill(
   const secondaryDurationScale = Math.max(0.7, secondaryEffectScale);
   const passiveMode = options?.passiveMode === true;
   const passiveNameHint = String(options?.passiveName || '').trim();
-  const tagList = [
-    blueprint.主机制大类,
-    blueprint.主机制原型,
-    blueprint.释放形态,
-    ...(blueprint.副机制 || []),
-    ...(blueprint.变异机制 || []),
-    ...(blueprint.独占主机制 ? ['独占主机制'] : []),
-  ].filter(Boolean);
   const reverseTargetMap = {
     自身: '自身',
     '己方/单体': '友方单体',
@@ -8466,9 +8711,26 @@ function autoGenerateSkill(
       if (分支效果.length > 0) {
         packedEffects.length = 0;
         packedEffects.push(...基础公共效果, ...分支效果);
-        tagList.push('分支并行');
       }
     }
+  }
+
+  应用生成魂技固化数值规则_V1(packedEffects, {
+    来源类别: skillSourceCategory,
+    系别: type,
+    魂环位: ringIndex,
+    武魂名称: String(options?.martialSoulName || options?.textContext?.martialSoulName || options?.textContext?.spiritName || '').trim(),
+    当前魂环数量: Math.max(1, Math.floor(Number(options?.当前魂环数量 || options?.ringCount || 1))),
+  });
+
+  if (
+    skillSourceCategory === '魂技' &&
+    是否辅助系名称_V1(type) &&
+    是否七九武魂名称_V1(String(options?.martialSoulName || options?.textContext?.martialSoulName || options?.textContext?.spiritName || '').trim())
+  ) {
+    战斗.目标模型 = '友方单体';
+    战斗.结算策略 = getSkillTargetResolutionStrategy('友方单体');
+    战斗.对象 = mapSkillTargetModelToCombatTarget('友方单体');
   }
 
   if (passiveMode) {
@@ -8610,7 +8872,6 @@ function autoGenerateSkill(
     结算策略: String(战斗.结算策略 || getSkillTargetResolutionStrategy(战斗.目标模型 || targetModel)).trim() || '单目标独立',
     消耗: 战斗.消耗 || '无',
     cast_time: 战斗.cast_time || 0,
-    标签: tagList,
     _效果数组: [systemBaseEffect, ...packedEffects],
   };
   return 收口技能执行结构_V1(生成结果, { 目标模型: 战斗.目标模型 || normalizeSkillTargetModel(targetModel, '敌方单体') });
@@ -8707,7 +8968,12 @@ function buildGenerationCheckSkillCase(options = {}) {
     gradeOverride: grade,
     qualityOverride: String(options?.品质 || options?.quality || grade).trim() || grade,
     blueprintOverride: blueprint,
-    textContext: { spiritName: String(options?.sourceName || options?.spiritName || '').trim() },
+    当前魂环数量: Math.max(1, Math.floor(Number(options?.当前魂环数量 || options?.ringCount || ringIndex || 1))),
+    martialSoulName: String(options?.武魂名称 || options?.martialSoulName || options?.sourceName || options?.spiritName || '').trim(),
+    textContext: {
+      spiritName: String(options?.sourceName || options?.spiritName || '').trim(),
+      martialSoulName: String(options?.武魂名称 || options?.martialSoulName || options?.sourceName || options?.spiritName || '').trim(),
+    },
   });
   return { blueprint, skill };
 }
@@ -8732,15 +8998,12 @@ function runSkillGenerationRuleChecks(options = {}) {
       },
     });
     const blueprint = checkCase.blueprint;
-    const skill = checkCase.skill;
-    const tagList = Array.isArray(skill?.标签) ? skill.标签 : [];
     const passed =
       blueprint?.独占主机制 === true &&
       Array.isArray(blueprint?.副机制) &&
       blueprint.副机制.length === 0 &&
       Array.isArray(blueprint?.变异机制) &&
-      blueprint.变异机制.length === 0 &&
-      tagList.includes('独占主机制');
+      blueprint.变异机制.length === 0;
     return {
       机制: mechanism,
       系别: type,
@@ -8748,7 +9011,6 @@ function runSkillGenerationRuleChecks(options = {}) {
       独占主机制: blueprint?.独占主机制 === true,
       副机制数量: Array.isArray(blueprint?.副机制) ? blueprint.副机制.length : -1,
       变异机制数量: Array.isArray(blueprint?.变异机制) ? blueprint.变异机制.length : -1,
-      标签: tagList,
     };
   });
 
@@ -10800,6 +11062,8 @@ function 按候选方案回填技能效果数组_V1(skill = {}, context = {}) {
       sourceCategory: 来源类别,
       sourceQuality: 来源品质,
       textContext: context?.textContext || {},
+      martialSoulName: String(context?.martialSoulName || context?.textContext?.martialSoulName || '').trim(),
+      当前魂环数量: Math.max(1, Math.floor(Number(context?.当前魂环数量 || context?.ringCount || 1))),
       elementProfile: context?.elementProfile || null,
       unlockedAttributes: Array.isArray(context?.unlockedAttributes) ? context.unlockedAttributes : [],
       attributeCapacity: Array.isArray(context?.attributeCapacity) ? context.attributeCapacity : [],
@@ -10896,7 +11160,7 @@ function ensureSkillStructGenerated(skill, context = {}) {
         context.sourceQuality || '',
       );
       const preservedSkillName = String(skill?.魂技名 || '').trim();
-      skill.魂技名 = preservedSkillName || generated.魂技名 || AI_TODO_SKILL_NAME;
+      skill.魂技名 = preservedSkillName && !isSkillTodoText(preservedSkillName) ? preservedSkillName : generated.魂技名 || AI_TODO_SKILL_NAME;
       skill.画面描述 = generated.画面描述 || AI_TODO_SKILL_VISUAL_STAGE1;
       skill.效果描述 = generated.效果描述 || AI_TODO_SKILL_EFFECT;
       skill._效果数组 = clonePackedSkillEffects(generated._效果数组 || []);
@@ -12883,11 +13147,15 @@ const CharacterSchema = z
 
         _(武魂.魂环 || {}).forEach((ring, ringIndexStr) => {
           const ringIndex = parseInt(ringIndexStr) || 1;
+          const 当前魂环数量 = 计算武魂当前魂环数量_V1(spiritData);
+          const 武魂名称 = String(spiritData?.表象名称 || spiritKey || '').trim();
           ensureSkillMapGenerated(ring.魂技, (_, skillName) => ({
             type: char.属性.系别,
             talentTier: char.属性.天赋梯队,
             age: ring.年限,
             ringIndex,
+            当前魂环数量,
+            martialSoulName: 武魂名称,
             compatibility: 武魂.契合度 || 100,
             sourceQuality: 来源品质,
             preferredSecondary: [],
@@ -12904,7 +13172,7 @@ const CharacterSchema = z
                   : spiritData?.表象名称 || skillName,
               type: char.属性.系别,
               spiritDesc: String(武魂?.描述 || '').trim(),
-              martialSoulName: String(spiritData?.表象名称 || spiritKey || '').trim(),
+              martialSoulName: 武魂名称,
               ringSource: String(ring?.来源 || '').trim(),
             },
           }));
@@ -12913,6 +13181,8 @@ const CharacterSchema = z
 
       _(spiritData?.独立魂环 || {}).forEach((ring, ringIndexStr) => {
         const ringIndex = parseInt(ringIndexStr) || 1;
+        const 当前魂环数量 = 计算武魂当前魂环数量_V1(spiritData);
+        const 武魂名称 = String(spiritData?.表象名称 || spiritKey || '').trim();
         const 来源品质 =
           normalizeSoulSpiritQuality(spiritData?.品质 || '') ||
           inferSoulSpiritQuality(spiritData) ||
@@ -12924,6 +13194,8 @@ const CharacterSchema = z
           talentTier: char.属性.天赋梯队,
           age: ring?.年限,
           ringIndex,
+          当前魂环数量,
+          martialSoulName: 武魂名称,
           compatibility: 100,
           sourceQuality: 来源品质,
           preferredSecondary: [],
@@ -12937,7 +13209,7 @@ const CharacterSchema = z
             spiritName: spiritData?.表象名称 || skillName,
             type: char.属性.系别,
             spiritDesc: String(spiritData?.描述 || '').trim(),
-            martialSoulName: String(spiritData?.表象名称 || spiritKey || '').trim(),
+            martialSoulName: 武魂名称,
             ringSource: String(ring?.来源 || '').trim(),
           },
         }));
@@ -13491,6 +13763,20 @@ const ShrekAcademyShopProducts = {
     描述: '万年级别的仙品，服用后可百毒不侵。',
     需求: { 势力: '史莱克学院', 阶级: ['内院弟子', '史莱克七怪', '老师', '宿老', '阁主'] },
     效果: [{ 目标: '状态.吸收灵物年限', 类型: 'set', 数值: 10000 }],
+  },
+  十万年绮罗郁金香: {
+    价格: 3000000,
+    货币: '学院积分',
+    类型: '灵物',
+    描述: '十万年级别的仙品，七字武魂突破八十级的重要门槛灵物。',
+    需求: { 势力: '史莱克学院', 阶级: ['宿老', '阁主', '史莱克七怪'] },
+    效果: [
+      {
+        目标: '背包',
+        类型: 'add',
+        数值: { 十万年绮罗郁金香: { 数量: 1, 类型: '灵物', 品质: '十万年', 描述: '七字武魂突破八十级的重要门槛灵物。' } },
+      },
+    ],
   },
   万年魂骨兑换凭证: {
     价格: 300000,
@@ -18689,7 +18975,160 @@ export const Schema = z
     return data;
   });
 
-$(() => { registerMvuSchema(Schema); });
+function 读取事件变量数据根_V1(变量包 = {}) {
+  if (变量包?.stat_data && typeof 变量包.stat_data === 'object') return 变量包.stat_data;
+  return 变量包 && typeof 变量包 === 'object' ? 变量包 : {};
+}
+
+function 按路径读取对象_V1(根对象 = {}, 路径 = []) {
+  let 当前 = 根对象;
+  for (const 片段 of 路径) {
+    if (!当前 || typeof 当前 !== 'object') return undefined;
+    当前 = 当前[片段];
+  }
+  return 当前;
+}
+
+function 遍历数据魂环_V1(数据根 = {}, 回调 = () => {}) {
+  Object.entries(数据根?.char || {}).forEach(([角色名, 角色数据]) => {
+    if (!角色数据 || typeof 角色数据 !== 'object') return;
+    Object.entries(角色数据?.武魂 || {}).forEach(([武魂键, 武魂数据]) => {
+      if (!武魂数据 || typeof 武魂数据 !== 'object') return;
+      Object.entries(武魂数据?.魂灵 || {}).forEach(([魂灵键, 魂灵数据]) => {
+        if (!魂灵数据 || typeof 魂灵数据 !== 'object') return;
+        Object.entries(魂灵数据?.魂环 || {}).forEach(([魂环键, 魂环数据]) => {
+          if (!魂环数据 || typeof 魂环数据 !== 'object') return;
+          回调(魂环数据, ['char', 角色名, '武魂', 武魂键, '魂灵', 魂灵键, '魂环', 魂环键], 角色数据);
+        });
+      });
+      Object.entries(武魂数据?.独立魂环 || {}).forEach(([魂环键, 魂环数据]) => {
+        if (!魂环数据 || typeof 魂环数据 !== 'object') return;
+        回调(魂环数据, ['char', 角色名, '武魂', 武魂键, '独立魂环', 魂环键], 角色数据);
+      });
+    });
+  });
+}
+
+function 固化本轮魂环年限变化_V1(新变量 = {}, 旧变量 = {}) {
+  const 新数据 = 读取事件变量数据根_V1(新变量);
+  const 旧数据 = 读取事件变量数据根_V1(旧变量);
+  遍历数据魂环_V1(新数据, (新魂环, 魂环路径) => {
+    const 旧魂环 = 按路径读取对象_V1(旧数据, 魂环路径);
+    const 新年限 = Math.max(0, Math.floor(Number(新魂环?.年限 || 0)));
+    if (!(新年限 > 0)) return;
+    const 旧年限原始 = Number(旧魂环?.年限);
+    const 旧年限 = Number.isFinite(旧年限原始) && 旧年限原始 > 0 ? Math.max(100, Math.floor(旧年限原始)) : 100;
+    if (!(新年限 > 旧年限)) return;
+    Object.values(新魂环?.魂技 || {}).forEach(技能数据 => {
+      应用年限变化到技能效果数组_V1(技能数据, 旧年限, 新年限);
+    });
+  });
+}
+
+function 同步七九辅助魂技基础效果_V1(新变量 = {}) {
+  const 新数据 = 读取事件变量数据根_V1(新变量);
+  Object.values(新数据?.char || {}).forEach(角色数据 => {
+    if (!角色数据 || typeof 角色数据 !== 'object') return;
+    if (String(角色数据?.属性?.系别 || '').trim() !== '辅助系') return;
+    Object.entries(角色数据?.武魂 || {}).forEach(([武魂键, 武魂数据]) => {
+      if (!武魂数据 || typeof 武魂数据 !== 'object') return;
+      const 武魂名称 = String(武魂数据?.表象名称 || 武魂键 || '').trim();
+      if (!是否七九武魂名称_V1(武魂名称)) return;
+      const 当前魂环数量 = Math.max(1, 计算武魂当前魂环数量_V1(武魂数据));
+      const 应用到魂技表 = 魂技表 => {
+        Object.values(魂技表 || {}).forEach(技能数据 => {
+          if (!技能数据 || typeof 技能数据 !== 'object' || !Array.isArray(技能数据._效果数组)) return;
+          应用七九辅助魂技基础效果_V1(技能数据._效果数组, { 当前魂环数量 });
+        });
+      };
+      Object.values(武魂数据?.魂灵 || {}).forEach(魂灵数据 => {
+        Object.values(魂灵数据?.魂环 || {}).forEach(魂环数据 => 应用到魂技表(魂环数据?.魂技));
+      });
+      Object.values(武魂数据?.独立魂环 || {}).forEach(魂环数据 => 应用到魂技表(魂环数据?.魂技));
+    });
+  });
+}
+
+function 扣减背包物品数量_V1(背包 = {}, 物品名 = '', 数量 = 1) {
+  const 条目 = 背包?.[物品名];
+  if (!条目 || typeof 条目 !== 'object') return false;
+  const 当前数量 = Math.max(0, Number(条目.数量 || 0));
+  if (当前数量 < 数量) return false;
+  条目.数量 = 当前数量 - 数量;
+  if (条目.数量 <= 0) delete 背包[物品名];
+  return true;
+}
+
+function 是十万年灵物条目_V1(物品名 = '', 物品数据 = {}) {
+  if (!物品数据 || typeof 物品数据 !== 'object') return false;
+  if (!(Number(物品数据.数量 || 0) > 0)) return false;
+  const 名称文本 = String(物品名 || '').trim();
+  const 合并文本 = [
+    名称文本,
+    物品数据.类型,
+    物品数据.品质,
+    物品数据.品阶,
+    物品数据.描述,
+    ...(Array.isArray(物品数据.标签) ? 物品数据.标签 : []),
+  ].join(' ');
+  const 是十万年 = /十万年/.test(合并文本) || Number(物品数据.年限 || 0) >= 100000;
+  const 是灵物 = /灵物|仙草|药草|绮罗郁金香/.test(合并文本) || String(物品数据.类型 || '').trim() === '灵物';
+  return 是十万年 && 是灵物;
+}
+
+function 消耗七字武魂八十级突破材料_V1(char = {}) {
+  const 背包 = char?.背包 && typeof char.背包 === 'object' ? char.背包 : {};
+  if (扣减背包物品数量_V1(背包, '十万年绮罗郁金香', 1)) return { 成功: true, 材料: ['十万年绮罗郁金香'] };
+  const 灵物列表 = Object.entries(背包)
+    .filter(([物品名, 物品数据]) => 是十万年灵物条目_V1(物品名, 物品数据))
+    .map(([物品名]) => 物品名);
+  const 不同灵物 = Array.from(new Set(灵物列表)).slice(0, 3);
+  if (不同灵物.length < 3) return { 成功: false, 材料: [] };
+  不同灵物.forEach(物品名 => 扣减背包物品数量_V1(背包, 物品名, 1));
+  return { 成功: true, 材料: 不同灵物 };
+}
+
+function 处理七字武魂八十级突破更新_V1(新变量 = {}, 旧变量 = {}) {
+  const 新数据 = 读取事件变量数据根_V1(新变量);
+  const 旧数据 = 读取事件变量数据根_V1(旧变量);
+  Object.entries(新数据?.char || {}).forEach(([角色名, 角色数据]) => {
+    if (!角色数据 || typeof 角色数据 !== 'object' || !角色存在七字武魂_V1(角色数据)) return;
+    const 新等级 = Math.max(0, Number(角色数据?.属性?.等级 || 0));
+    const 旧等级 = Math.max(0, Number(旧数据?.char?.[角色名]?.属性?.等级 || 0));
+    if (!(旧等级 < 80 && 新等级 >= 80)) return;
+    const 消耗结果 = 消耗七字武魂八十级突破材料_V1(角色数据);
+    if (消耗结果.成功) {
+      追加系统播报文本(新数据, `[七字武魂突破] ${角色名}消耗${消耗结果.材料.map(名称 => `【${名称}】`).join('、')}，突破 80 级门槛。`);
+      return;
+    }
+    if (!角色数据.属性 || typeof 角色数据.属性 !== 'object') 角色数据.属性 = {};
+    角色数据.属性.等级 = 79;
+    追加系统播报文本(新数据, `[七字武魂瓶颈] ${角色名}缺少十万年绮罗郁金香或三种不同十万年灵物，等级上限暂卡在 79。`);
+  });
+}
+
+async function 注册魂技年限与突破事件_V1() {
+  try {
+    if (globalThis.__LWCS_魂技年限事件已注册__) return;
+    if (typeof waitGlobalInitialized === 'function') await waitGlobalInitialized('Mvu');
+    const 事件名 = globalThis.Mvu?.events?.VARIABLE_UPDATE_ENDED || globalThis.window?.Mvu?.events?.VARIABLE_UPDATE_ENDED;
+    const 监听函数 = typeof eventOn === 'function' ? eventOn : null;
+    if (!事件名 || !监听函数) return;
+    globalThis.__LWCS_魂技年限事件已注册__ = true;
+    监听函数(事件名, (新变量, 旧变量) => {
+      固化本轮魂环年限变化_V1(新变量, 旧变量);
+      同步七九辅助魂技基础效果_V1(新变量);
+      处理七字武魂八十级突破更新_V1(新变量, 旧变量);
+    });
+  } catch (错误) {
+    console.warn('LWCS 魂技年限事件注册失败', 错误);
+  }
+}
+
+$(() => {
+  registerMvuSchema(Schema);
+  注册魂技年限与突破事件_V1();
+});
 
 
 
