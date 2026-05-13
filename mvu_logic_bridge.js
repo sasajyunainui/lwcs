@@ -89,6 +89,10 @@
           return '技能设计';
         }
       }
+      if (key.startsWith('org_detail_')) {
+        const 势力名 = key.replace('org_detail_', '').trim();
+        return 势力名 ? `势力档案 / ${势力名}` : '势力档案';
+      }
       const previewTitleMap = {
         '\u89d2\u8272\u5207\u6362\u5668': '\u89d2\u8272',
         '\u751f\u547d\u56fe\u8c31\u8be6\u60c5\u9875': '\u8be6\u7ec6\u6863\u6848',
@@ -117,7 +121,7 @@
         '\u7f16\u5e74\u53f2\u6863\u6848': '\u7f16\u5e74',
         '\u62cd\u5356\u4e0e\u8b66\u62a5': '\u8b66\u62a5',
         '\u52bf\u529b\u77e9\u9635\u603b\u89c8': '\u52bf\u529b',
-        '\u6211\u7684\u9635\u8425\u8be6\u60c5': '\u9635\u8425\u8eab\u4efd',
+        '\u6211\u7684\u9635\u8425\u8be6\u60c5': '\u9635\u8425\u6743\u9650',
         '\u672c\u5730\u636e\u70b9\u8be6\u60c5': '\u672c\u5730\u636e\u70b9',
         '\u7cfb\u7edf\u64ad\u62a5\u4e0e\u65e5\u5fd7': '\u64ad\u62a5',
         '\u9b42\u73af\u751f\u6210\u786e\u8ba4': '\u9b42\u73af',
@@ -309,10 +313,10 @@
         actions: ['按阵营筛选', '查看势力档案', '查看本地据点与交易关联']
       },
       '我的阵营详情': {
-        title: '阵营身份',
-        summary: '聚焦当前查看角色在各势力中的身份与权限。',
+        title: '阵营权限',
+        summary: '聚焦当前查看角色在阵营内的权限、职务与晋升状态。',
         fields: ['activeChar.社交.势力', 'activeChar.社交.主身份', 'activeChar.社交.称号'],
-        duties: ['展示所属势力', '展示身份与权限级', '补充主身份与头衔'],
+        duties: ['展示权限级', '展示阵营职务', '补充晋升状态与头衔'],
         actions: ['跳转势力矩阵', '查看晋升入口']
       },
       '本地据点详情': {
@@ -14460,9 +14464,8 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           setUnifiedCardMarkup('map-current', buildSimpleCard('当前位置', { text: '当前' }, [
             { label: '地点', value: snapshot.normalizedLoc !== snapshot.currentLoc ? `${snapshot.normalizedLoc} / ${snapshot.currentLoc}` : snapshot.currentLoc },
             { label: '地图', value: getMapDisplayName(snapshot) },
-            { label: '本地供给', value: toText(snapshot && snapshot.本地供给, '无供给') },
-            { label: '价格带', value: toText(snapshot && snapshot.价格带, '无') },
-            { label: '最近成交', value: toText(snapshot && snapshot.最近成交影响, '平稳') },
+            { label: '供需', value: `${toText(snapshot && snapshot.本地供给, '无供给')} / ${toText(snapshot && snapshot.价格带, '无')}` },
+            { label: '成交', value: toText(snapshot && snapshot.最近成交影响, '平稳') },
           ]), { preview: '当前节点详情', surface: normalizedSurface });
           setUnifiedCardMarkup('map-locals', `
             <div class="mvu-shell-roster-card">
@@ -14513,13 +14516,19 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           setUnifiedCardMarkup('org-hero', buildOrgHeroCard(snapshot), { preview: '势力矩阵总览', surface: normalizedSurface });
           const 当前阵营条目 = getPrimaryFactionEntry(snapshot);
           const 本地人物数量 = getShellLocalCharacterEntries(snapshot, 12).length;
-          setUnifiedCardMarkup('org-faction', buildSimpleCard('阵营身份', null, [
-            { label: '当前所属', value: snapshot.势力[0] ? snapshot.势力[0][0] : '无' },
-            { label: '身份', value: snapshot.势力[0] ? toText(deepGet(snapshot.势力[0][1], '身份', '无'), '无') : '未加入' },
-            { label: '权限级', value: snapshot.势力[0] ? toText(deepGet(snapshot.势力[0][1], '权限级', 0), '0') : '0' },
-            { label: '影响力', value: formatNumber(deepGet(当前阵营条目, 'data.影响力', 0)) },
-            { label: '名望', value: `${toText(deepGet(snapshot, 'activeChar.社交.名望等级', '无'), '无')} / ${formatNumber(deepGet(snapshot, 'activeChar.社交.声望', 0))}` },
-            { label: '关系焦点', value: snapshot.topRelation ? `${shortenText(snapshot.topRelation[0], 8)} / ${toText(deepGet(snapshot.topRelation[1], '关系', '陌生'), '陌生')}` : '暂无' },
+          const 当前阵营 = snapshot.势力[0] || null;
+          const 当前阵营名 = 当前阵营 ? 当前阵营[0] : '';
+          const 当前阵营资料 = 当前阵营 ? (当前阵营[1] || {}) : {};
+          const 当前权限级 = 当前阵营 ? toText(deepGet(当前阵营资料, '权限级', 0), '0') : '0';
+          const 当前阵营身份 = 当前阵营 ? toText(deepGet(当前阵营资料, '身份', '未加入'), '未加入') : '未加入';
+          const 晋升状态 = 当前阵营 ? `${当前阵营身份} / Lv.${当前权限级}` : '未绑定阵营';
+          setUnifiedCardMarkup('org-faction', buildSimpleCard('阵营权限', null, [
+            { label: '权限级', value: 当前阵营 ? `Lv.${当前权限级}` : '未加入' },
+            { label: '当前职务', value: 当前阵营身份 },
+            { label: '阵营声望', value: `${toText(deepGet(snapshot, 'activeChar.社交.名望等级', '无'), '无')} / ${formatNumber(deepGet(snapshot, 'activeChar.社交.声望', 0))}` },
+            { label: '晋升状态', value: 晋升状态 },
+            { label: '阵营影响', value: 当前阵营名 ? formatNumber(deepGet(当前阵营条目, 'data.影响力', 0)) : '0' },
+            { label: '社交焦点', value: snapshot.topRelation ? `${shortenText(snapshot.topRelation[0], 8)} / ${toText(deepGet(snapshot.topRelation[1], '关系', '陌生'), '陌生')}` : '暂无' },
           ]), { preview: '我的阵营详情', surface: normalizedSurface });
           setUnifiedCardMarkup('org-node', buildSimpleCard('本地据点', null, [
             { label: '掌控势力', value: toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知') },
@@ -14856,22 +14865,23 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
     }
 
     function buildOrgHeroCard(snapshot) {
-      const topOrgs = snapshot.orgEntries.slice(0, 4);
-      const primaryFactionEntry = getPrimaryFactionEntry(snapshot);
-      const relationSummary = buildFactionRelationSummary(primaryFactionEntry && primaryFactionEntry.data ? primaryFactionEntry.data : {}, 3) || '暂无';
+      const 当前阵营 = snapshot.势力[0] || null;
+      const 当前阵营名 = 当前阵营 ? 当前阵营[0] : '未加入';
+      const 当前阵营身份 = 当前阵营 ? toText(deepGet(当前阵营[1], '身份', '成员'), '成员') : '未加入';
+      const 本地掌控势力 = toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知');
+      const 战力焦点 = getPrimaryFactionPowerStats(snapshot);
+      const 关系焦点 = getPrimaryFactionEntry(snapshot);
+      const relationSummary = buildFactionRelationSummary(关系焦点 && 关系焦点.data ? 关系焦点.data : {}, 3) || '暂无';
+      const 战力摘要 = `${toText(战力焦点.name, '未知')} · 极限 ${formatNumber(战力焦点.limit)} / 超级 ${formatNumber(战力焦点.super)} / 封号 ${formatNumber(战力焦点.title)}`;
       return `
         <div class="module-name">势力矩阵</div>
-        <div class="matrix-board org-matrix-board">
-          ${topOrgs.map(([name, data], index) => `<div class="matrix-node ${snapshot.势力.some(([fac]) => fac === name) || index === 0 ? 'gold' : ''}"><b>${htmlEscape(name)}</b><span>${htmlEscape(`影响力 ${formatNumber(data && data.影响力)} / ${toText(data && data.状态, '正常')}`)}</span></div>`).join('')}
+        <div class="org-matrix-summary">
+          <div class="org-matrix-summary-row"><b>矩阵范围</b><span>${htmlEscape(`总览 ${snapshot.orgEntries.length || 0} 个势力`)}</span></div>
+          <div class="org-matrix-summary-row"><b>当前阵营</b><span>${htmlEscape(`${当前阵营名} / ${当前阵营身份}`)}</span></div>
+          <div class="org-matrix-summary-row"><b>本地掌控</b><span>${htmlEscape(本地掌控势力)}</span></div>
+          <div class="org-matrix-summary-row"><b>战力焦点</b><span>${htmlEscape(战力摘要)}</span></div>
+          <div class="org-matrix-summary-row org-matrix-summary-row--wide"><b>关系摘要</b><span>${htmlEscape(relationSummary)}</span></div>
         </div>
-        ${(() => { const factionStats = getPrimaryFactionPowerStats(snapshot); return `
-        <div class="org-power-grid">
-          <div><b>极限斗罗</b><strong>${htmlEscape(String(factionStats.limit))}</strong></div>
-          <div><b>超级斗罗</b><strong>${htmlEscape(String(factionStats.super))}</strong></div>
-          <div><b>封号斗罗</b><strong>${htmlEscape(String(factionStats.title))}</strong></div>
-          <div class="org-power-grid__wide"><b>势力关系</b><strong>${htmlEscape(relationSummary)}</strong></div>
-        </div>
-        `; })()}
         ${构建首页当前位置页脚(snapshot, { 右侧文本: `${snapshot.orgEntries.length || 0} 个势力`, 右侧样式: 'gold-chip' })}
       `;
     }
@@ -18207,7 +18217,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           emptyDesc: '当前势力未记录对外关系。'
         });
 
-        // Automatically gather characters belonging to this organization
+        // 收集已归属该势力的角色。
         const orgMembers = [];
         for (const [charName, charInfo] of snapshot.charEntries) {
            const factions = safeEntries(deepGet(charInfo, '社交.势力', {}));
@@ -18221,7 +18231,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
         }
 
         return {
-          title: `${targetOrgName} / 势力档案`,
+          title: targetOrgName ? `势力档案 / ${targetOrgName}` : '势力档案',
           summary: '展示该势力的规模战力、对外关系以及已知成员名册。',
           body: `
             <div class="archive-modal-grid mvu-detail-grid--single">
@@ -22250,7 +22260,7 @@ ${extraRequirement}
         ? (snapshot.orgEntries.find(([name]) => name === currentFactionName) || [currentFactionName, {}])
         : ['', {}];
       const factionRows = snapshot.势力.length ? snapshot.势力 : [['未加入势力', { 身份: '无', 权限级: 0 }]];
-      const title = previewKey === '我的阵营详情' ? '阵营身份' : '所属势力';
+      const title = previewKey === '我的阵营详情' ? '阵营权限' : '所属势力';
 
       return {
         title,

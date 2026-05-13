@@ -7895,23 +7895,68 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-name-button:focus-vi
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row {
   display: grid;
-  grid-template-columns: minmax(92px, 0.58fr) minmax(0, 1fr);
-  gap: 6px;
+  grid-template-columns: minmax(128px, 0.46fr) minmax(0, 1fr);
+  gap: 7px;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > span {
-  display: block;
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
   min-width: 0;
-  padding: 5px 7px;
+  padding: 6px 8px;
   border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.035);
-  color: rgba(215, 236, 242, 0.88);
+  border: 1px solid rgba(77, 240, 255, 0.14);
+  background:
+    radial-gradient(circle at 12px 50%, rgba(77, 240, 255, 0.16), transparent 42%),
+    linear-gradient(180deg, rgba(77, 240, 255, 0.075), rgba(255, 255, 255, 0.018));
+  color: rgba(222, 242, 247, 0.9);
   font-size: 11px;
   line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > span::before {
+  content: '';
+  display: block;
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  border: 1px solid rgba(118, 226, 255, 0.7);
+  filter: drop-shadow(0 0 6px rgba(77, 240, 255, 0.34));
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > .is-time::before {
+  border-radius: 50%;
+  background:
+    linear-gradient(90deg, transparent 47%, rgba(118, 226, 255, 0.92) 48%, rgba(118, 226, 255, 0.92) 54%, transparent 55%),
+    linear-gradient(0deg, transparent 48%, rgba(118, 226, 255, 0.7) 49%, rgba(118, 226, 255, 0.7) 53%, transparent 54%),
+    rgba(4, 18, 28, 0.68);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > .is-place::before {
+  width: 13px;
+  height: 13px;
+  border-radius: 50% 50% 50% 2px;
+  background: rgba(4, 18, 28, 0.68);
+  transform: rotate(-45deg);
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > .is-place::after {
+  content: '';
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(118, 226, 255, 0.86);
+  transform: translateY(-50%);
+  box-shadow: 0 0 7px rgba(77, 240, 255, 0.7);
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > .is-place {
@@ -8130,10 +8175,9 @@ body.mvu-layout-unified #mvu-unified-mount .hero-list,
 body.mvu-layout-unified #mvu-unified-mount .module-grid,
 body.mvu-layout-unified #mvu-unified-mount .terminal-home-log,
 body.mvu-layout-unified #mvu-unified-mount .terminal-plan-grid,
-body.mvu-layout-unified #mvu-unified-mount .matrix-board,
 body.mvu-layout-unified #mvu-unified-mount .archive-core-grid,
 body.mvu-layout-unified #mvu-unified-mount .world-core-grid,
-body.mvu-layout-unified #mvu-unified-mount .org-power-grid,
+body.mvu-layout-unified #mvu-unified-mount .org-matrix-summary,
 body.mvu-layout-unified #mvu-unified-mount .mvu-social-entry-grid {
   display: grid !important;
   min-width: 0 !important;
@@ -8153,7 +8197,7 @@ body.mvu-layout-unified #mvu-unified-mount .hero-row,
 body.mvu-layout-unified #mvu-unified-mount .archive-core-tile,
 body.mvu-layout-unified #mvu-unified-mount .world-core-tile,
 body.mvu-layout-unified #mvu-unified-mount .mini-box,
-body.mvu-layout-unified #mvu-unified-mount .org-power-grid > div,
+body.mvu-layout-unified #mvu-unified-mount .org-matrix-summary-row,
 body.mvu-layout-unified #mvu-unified-mount .terminal-plan-item {
   min-width: 0 !important;
   min-height: 0 !important;
@@ -8179,7 +8223,7 @@ body.mvu-layout-unified #mvu-unified-mount .hero-row b,
 body.mvu-layout-unified #mvu-unified-mount .mini-box b,
 body.mvu-layout-unified #mvu-unified-mount .archive-core-tile b,
 body.mvu-layout-unified #mvu-unified-mount .world-core-tile b,
-body.mvu-layout-unified #mvu-unified-mount .org-power-grid b,
+body.mvu-layout-unified #mvu-unified-mount .org-matrix-summary-row b,
 body.mvu-layout-unified #mvu-unified-mount .terminal-plan-item b,
 body.mvu-layout-unified #mvu-unified-mount .terminal-home-line b {
   min-width: 0 !important;
@@ -8196,7 +8240,7 @@ body.mvu-layout-unified #mvu-unified-mount .hero-row span,
 body.mvu-layout-unified #mvu-unified-mount .mini-box span,
 body.mvu-layout-unified #mvu-unified-mount .archive-core-tile strong,
 body.mvu-layout-unified #mvu-unified-mount .world-core-tile strong,
-body.mvu-layout-unified #mvu-unified-mount .org-power-grid strong,
+body.mvu-layout-unified #mvu-unified-mount .org-matrix-summary-row span,
 body.mvu-layout-unified #mvu-unified-mount .terminal-plan-item span,
 body.mvu-layout-unified #mvu-unified-mount .terminal-home-line span {
   min-width: 0 !important;

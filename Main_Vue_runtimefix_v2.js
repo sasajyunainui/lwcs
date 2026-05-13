@@ -305,6 +305,10 @@ function resolveShellPreviewTitle(previewKey, fallback = '') {
       return '技能设计';
     }
   }
+  if (key.startsWith('org_detail_')) {
+    const 势力名 = key.replace('org_detail_', '').trim();
+    return 势力名 ? `势力档案 / ${势力名}` : '势力档案';
+  }
   const previewTitleMap = {
     '\u89d2\u8272\u5207\u6362\u5668': '\u89d2\u8272',
     '\u751f\u547d\u56fe\u8c31\u8be6\u60c5\u9875': '\u8be6\u7ec6\u6863\u6848',
@@ -337,7 +341,7 @@ function resolveShellPreviewTitle(previewKey, fallback = '') {
     '\u7f16\u5e74\u53f2\u6863\u6848': '\u7f16\u5e74',
     '\u62cd\u5356\u4e0e\u8b66\u62a5': '\u8b66\u62a5',
     '\u52bf\u529b\u77e9\u9635\u603b\u89c8': '\u52bf\u529b',
-    '\u6211\u7684\u9635\u8425\u8be6\u60c5': '\u9635\u8425\u8eab\u4efd',
+    '\u6211\u7684\u9635\u8425\u8be6\u60c5': '\u9635\u8425\u6743\u9650',
     '\u672c\u5730\u636e\u70b9\u8be6\u60c5': '\u672c\u5730\u636e\u70b9',
     '\u7cfb\u7edf\u64ad\u62a5\u4e0e\u65e5\u5fd7': '\u64ad\u62a5',
     '\u8bd5\u70bc\u4e0e\u60c5\u62a5': '\u60c5\u62a5',

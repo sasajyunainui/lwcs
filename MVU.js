@@ -4804,9 +4804,20 @@ function buildConstructUsableEffects(baseEffects, defaultTarget, skillType = '')
       });
       return;
     }
-    if (['属性变化', '持续恢复', '消耗修正', '前摇修正', '掌控修正', '速度修正'].includes(mechanism)) {
+    if (
+      [
+        '属性变化',
+        '持续恢复',
+        '消耗提高',
+        '消耗降低',
+        '前摇拉长',
+        '前摇缩短',
+        '掌控修正',
+        '速度修正',
+      ].includes(mechanism)
+    ) {
       const property = String(effect.属性 || '').trim();
-      const action = String(effect.动作 || '').trim();
+      const action = String(effect.动作 || mechanism).trim();
       const value = Number(effect.数值 || 0);
       const duration = getSkillEffectDuration(effect);
       if (['vit', 'sp', 'men'].includes(property) && (action === '加值' || mechanism === '持续恢复')) {
@@ -4825,7 +4836,7 @@ function buildConstructUsableEffects(baseEffects, defaultTarget, skillType = '')
       }
       usable.push({
         target,
-        type: /倍率压制|消耗提高|前摇拉长/.test(action) ? 'debuff' : 'buff',
+        type: /倍率压制|消耗提高|前摇拉长/.test(action || mechanism) ? 'debuff' : 'buff',
         description: effect.描述 || summaryText || mechanism,
         value: {
           属性: property,
@@ -6171,19 +6182,21 @@ function buildSingleSkillEffectSummary(effect) {
         '回合'
       );
     }
-    case '消耗修正': {
+    case '消耗提高':
+    case '消耗降低': {
       const value = Number(effect?.数值 || 0);
       const duration = getSkillEffectDuration(effect);
       const durationText = duration > 0 ? `，持续${formatSkillNumber(duration)}回合` : '';
-      if (String(effect?.动作 || '').trim() === '消耗提高')
+      if (机甲 === '消耗提高')
         return '使' + target + '的自身能力消耗提高' + formatSkillPercent(Math.abs(value - 1)) + durationText;
       return '使' + target + '的自身能力消耗降低' + formatSkillPercent(Math.abs(1 - value)) + durationText;
     }
-    case '前摇修正': {
+    case '前摇拉长':
+    case '前摇缩短': {
       const value = Number(effect?.数值 || 0);
       const duration = getSkillEffectDuration(effect);
       const durationText = duration > 0 ? `，持续${formatSkillNumber(duration)}回合` : '';
-      if (String(effect?.动作 || '').trim() === '前摇拉长')
+      if (机甲 === '前摇拉长')
         return '使' + target + '的自身能力前摇拉长' + formatSkillPercent(Math.abs(value - 1)) + durationText;
       return '使' + target + '的自身能力前摇缩短' + formatSkillPercent(Math.abs(1 - value)) + durationText;
     }
@@ -7557,11 +7570,12 @@ function autoGenerateSkill(
     }
   }
   if (Math.abs(Number(stateCalc.cost_ratio || 1) - 1) > 0.001) {
+    const 消耗机制 = Number(stateCalc.cost_ratio || 1) > 1 ? '消耗提高' : '消耗降低';
     const effect = buildPackedAttributeEffect(
-      '消耗修正',
+      消耗机制,
       normalizedTarget,
       '消耗',
-      Number(stateCalc.cost_ratio || 1) > 1 ? '消耗提高' : '消耗降低',
+      消耗机制,
       Number(stateCalc.cost_ratio || 1),
       state.持续回合 || 0,
       '状态持续',
@@ -7569,11 +7583,12 @@ function autoGenerateSkill(
     if (effect) packedEffects.push(effect);
   }
   if (Math.abs(Number(stateCalc.windup_ratio || 1) - 1) > 0.001) {
+    const 前摇机制 = Number(stateCalc.windup_ratio || 1) > 1 ? '前摇拉长' : '前摇缩短';
     const effect = buildPackedAttributeEffect(
-      '前摇修正',
+      前摇机制,
       normalizedTarget,
       '前摇',
-      Number(stateCalc.windup_ratio || 1) > 1 ? '前摇拉长' : '前摇缩短',
+      前摇机制,
       Number(stateCalc.windup_ratio || 1),
       state.持续回合 || 0,
       '状态持续',
@@ -8472,8 +8487,10 @@ function autoGenerateSkill(
     const passiveFriendlyMechs = new Set([
       '属性变化',
       '持续恢复',
-      '消耗修正',
-      '前摇修正',
+      '消耗提高',
+      '消耗降低',
+      '前摇拉长',
+      '前摇缩短',
       '掌控修正',
       '速度修正',
       '属性永久强化',
@@ -8500,7 +8517,7 @@ function autoGenerateSkill(
     });
 
     const hasStablePassiveCore = passiveEffects.some(effect =>
-      ['属性变化', '持续恢复', '消耗修正', '前摇修正', '掌控修正', '速度修正', '属性永久强化'].includes(
+      ['属性变化', '持续恢复', '消耗提高', '消耗降低', '前摇拉长', '前摇缩短', '掌控修正', '速度修正', '属性永久强化'].includes(
         String(effect?.机制 || ''),
       ),
     );
@@ -8515,8 +8532,8 @@ function autoGenerateSkill(
           const effect = buildPackedAttributeEffect(mechanism, '自身', property, action, value, 999, '常驻');
           if (effect) passiveCoreEffects.push(effect);
         };
-        pushPassiveRatioEffect('消耗修正', '消耗', Number(stateCalc.cost_ratio || 1) > 1 ? '消耗提高' : '消耗降低', stateCalc.cost_ratio || 1);
-        pushPassiveRatioEffect('前摇修正', '前摇', Number(stateCalc.windup_ratio || 1) > 1 ? '前摇拉长' : '前摇缩短', stateCalc.windup_ratio || 1);
+        pushPassiveRatioEffect(Number(stateCalc.cost_ratio || 1) > 1 ? '消耗提高' : '消耗降低', '消耗', Number(stateCalc.cost_ratio || 1) > 1 ? '消耗提高' : '消耗降低', stateCalc.cost_ratio || 1);
+        pushPassiveRatioEffect(Number(stateCalc.windup_ratio || 1) > 1 ? '前摇拉长' : '前摇缩短', '前摇', Number(stateCalc.windup_ratio || 1) > 1 ? '前摇拉长' : '前摇缩短', stateCalc.windup_ratio || 1);
         pushPassiveRatioEffect('掌控修正', '掌控', Number(stateCalc.mastery_ratio || 1) > 1 ? '倍率提升' : '倍率压制', stateCalc.mastery_ratio || 1);
         pushPassiveRatioEffect('速度修正', '速度', Number(stateCalc.speed_ratio || 1) > 1 ? '倍率提升' : '倍率压制', stateCalc.speed_ratio || 1);
         if (passiveCoreEffects.length > 0) {
