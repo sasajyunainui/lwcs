@@ -1182,7 +1182,7 @@ class ProfessionUIComponent {
       note: `由${this.activeName}亲自执行，按当前角色职业熟练度仲裁。`, error: null, targetChar: null, hasEnoughFunds: true
     };
 
-    if (!this.charData?.职业?.[cfg.jobName]) { ctx.error = `${this.activeName}未掌握【${cfg.jobName}】副职业，无法发起该类操作。`; return ctx; }
+    if (type === 'self' && !this.charData?.职业?.[cfg.jobName]) { ctx.error = `${this.activeName}未掌握【${cfg.jobName}】副职业，无法发起该类操作。`; return ctx; }
 
     if (ctx.isOfficial) {
       ctx.executorName = `${cfg.jobName}协会`; ctx.executorRuntime = this.buildOfficialCommissionRuntime(cfg.jobName); ctx.validationRuntime = ctx.executorRuntime;

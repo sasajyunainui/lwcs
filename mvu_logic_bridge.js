@@ -4836,7 +4836,7 @@
       const contextMeta = getCurrentChatContextMeta();
       const sortedEntries = sortCharacterEntries(charEntries, { playerName: sysPlayerName, currentName: preferredName });
       const realPlayerEntry = findRealPlayerEntry(charEntries, sysPlayerName);
-      
+
       // 如果有偏好名字并且存在
       if (preferredName && chars[preferredName]) {
         // 如果当前偏好的不是玩家，但宇宙里已经有了真正的玩家，且并非用户显式固定的，就自动退位让贤
@@ -5672,8 +5672,78 @@
       const 目标模型 = normalizeSkillDesignerExecutionTargetModel(value['目标模型'] || value['目标'] || value['对象'], fallbackTargetModel);
       const 持续回合 = Math.max(0, parseSkillDesignerIntegerInputValue(value['持续回合'] ?? value['持续'], 0, 0));
       const 触发时机 = normalizeSkillUiText(value['触发时机'] || value['触发'], '');
+      const 英文机制键中文名 = {
+        hit_bonus: '增加命中',
+        hit_penalty: '降低命中',
+        dodge_bonus: '增加闪避',
+        dodge_penalty: '降低闪避',
+        reaction_bonus: '增加反应',
+        reaction_penalty: '降低反应',
+        attacker_speed_bonus: '增加攻速',
+        cast_speed_bonus: '加快施放',
+        cast_speed_penalty: '减慢施放',
+        lock_level: '锁定层级',
+        control_success_bonus: '增加控制成功',
+        control_success_penalty: '降低控制成功',
+        random_target_rate: '随机偏转率',
+        skip_turn: '跳过回合',
+        cannot_react: '无法反应',
+        dot_damage: '每回合伤害',
+        final_damage_mult: '最终伤害倍率',
+        final_heal_mult: '最终治疗倍率',
+        damage_reduction: '减伤比例',
+        damage_reflect_ratio: '反射比例',
+        damage_share_ratio: '分摊比例',
+        damage_share_count: '分摊人数',
+        substitute_count: '抵消次数',
+        block_count: '格挡次数',
+        revive_count: '复苏次数',
+        revive_heal_ratio: '复苏回血比例',
+        heal_block_ratio: '禁疗比例',
+        heal_inversion_ratio: '反转比例',
+        resource_block_ratio: '资源封锁比例',
+        counter_attack_ratio: '反击倍率',
+        life_steal_ratio: '吸血比例',
+        interrupt_bonus: '中断概率',
+        armor_pen: '破甲比例',
+        agi_ratio: '敏捷倍率',
+        stealth_level: '隐蔽度',
+        daily_trigger_limit: '每日触发上限',
+        invincible_tier_threshold: '免疫等级阈值',
+        death_save_count: '免死次数',
+        min_hp_floor: '最低生命保留',
+        super_armor: '霸体',
+        invincible: '无敌',
+        skill_seal: '封技',
+        disarm: '缴械',
+        silence: '沉默',
+        blind: '致盲',
+        stat_mods: '面板修改比例',
+        str: '力量',
+        def: '防御',
+        agi: '敏捷',
+        vit: '体力',
+        vit_max: '体力上限',
+        hp: '生命',
+        hp_ratio: '生命比例',
+        sp: '魂力',
+        sp_max: '魂力上限',
+        sp_ratio: '魂力比例',
+        men: '精神力',
+        men_max: '精神力上限',
+        men_ratio: '精神力比例',
+      };
+      const 中文化机制键 = source => {
+        if (Array.isArray(source)) return source.map(item => 中文化机制键(item));
+        if (!source || typeof source !== 'object') return source;
+        const result = {};
+        safeEntries(source).forEach(([key, raw]) => {
+          result[英文机制键中文名[key] || key] = 中文化机制键(raw);
+        });
+        return result;
+      };
       const 参数 = value['参数'] && typeof value['参数'] === 'object' && !Array.isArray(value['参数'])
-        ? cloneJsonValue(value['参数'])
+        ? 中文化机制键(cloneJsonValue(value['参数']))
         : {};
       safeEntries(value).forEach(([key, raw]) => {
         if (['机制', '目标模型', '目标', '对象', '持续回合', '持续', '触发时机', '触发', '参数', '对象差异规则'].includes(key))
@@ -5681,7 +5751,7 @@
         if (技能执行黑名单键集合_V1.has(key)) return;
         if (raw === undefined || raw === null) return;
         if (typeof raw === 'string' && !raw.trim()) return;
-        参数[key] = cloneJsonValue(raw);
+        参数[英文机制键中文名[key] || key] = 中文化机制键(cloneJsonValue(raw));
       });
       const 对象差异规则 = normalizeSkillDesignerExecutionObjectDiffRuleList(value['对象差异规则'] || [], recordViolation);
       const 分支标记 = normalizeSkillUiText(value['分支标记'], '');
@@ -5699,7 +5769,6 @@
       safeEntries(source).forEach(([key]) => {
         if (技能执行黑名单键集合_V1.has(key)) recordViolation(`系统基础.${key}`);
       });
-      const 目标模型 = normalizeSkillDesignerExecutionTargetModel(source['目标模型'] || source['对象'], fallbackTargetModel);
       const 副作用列表 = normalizeSkillDesignerSideEffectList(source['副作用列表'] || [])
         .map(item => {
           if (!item || typeof item !== 'object') return null;
@@ -5720,13 +5789,6 @@
         .filter(Boolean);
       const normalized = {
         '机制': '系统基础',
-        '技能来源': normalizeSkillUiText(source['技能来源'], '魂技') || '魂技',
-        '技能类型': normalizeSkillUiText(source['技能类型'], '无') || '无',
-        '目标模型': 目标模型,
-        '结算策略': normalizeSkillUiText(
-          source['结算策略'],
-          ['敌方群体', '友方群体', '全场'].includes(目标模型) ? '全目标独立' : '单目标独立',
-        ) || '单目标独立',
         '消耗': source['消耗'] === undefined ? '无' : cloneJsonValue(source['消耗']),
         'cast_time': Math.max(0, toNumber(source['cast_time'], 0)),
       };
@@ -5743,9 +5805,10 @@
       };
       const rawSystemBase = source.find(effect => normalizeSkillUiText(effect && effect['机制'], '') === '系统基础') || {};
       const systemBase = normalizeSkillDesignerExecutionSystemBase(rawSystemBase, fallbackTargetModel, recordViolation);
+      const 系统基础目标模型 = normalizeSkillDesignerExecutionTargetModel(rawSystemBase['目标模型'] || rawSystemBase['对象'], fallbackTargetModel);
       const effectList = source
         .filter(effect => normalizeSkillUiText(effect && effect['机制'], '') !== '系统基础')
-        .map(effect => normalizeSkillDesignerExecutionEffectEntry(effect, systemBase['目标模型'], recordViolation))
+        .map(effect => normalizeSkillDesignerExecutionEffectEntry(effect, 系统基础目标模型, recordViolation))
         .filter(Boolean);
       if (violationList.length) {
         const uniqueList = Array.from(new Set(violationList));
@@ -5994,7 +6057,7 @@
           pushParamHint('无敌金身', {
             duration: durationText,
             dailyLimit: formatSkillDesignerNumericInput(effect && effect['每日触发上限'], 3),
-            tierThreshold: formatSkillDesignerNumericInput(effect && effect['免疫位阶阈值'], 100),
+            tierThreshold: formatSkillDesignerNumericInput(effect && effect['免疫等级阈值'], 100),
             reduceRatio: formatSkillDesignerNumericInput(effect && effect['damage_reduction']),
           });
           return;
@@ -8681,20 +8744,9 @@
       const isPassive = /被动/.test(normalizeSkillUiText(draft && draft.type, '')) || toText(previewMeta && previewMeta.scope, '') === 'blood_passive';
       const fallbackCastTime = SKILL_DESIGNER_RUNTIME_CAST_TIME_BY_DELIVERY[normalizeSkillUiText(draft && draft.deliveryForm, '直接生效')] || 10;
       const existingCastTime = Number(existing['cast_time']);
-      const skillTypeText = (() => {
-        const baseType = normalizeSkillUiText(draft && draft.type, '技能');
-        if (isPassive && !/被动/.test(baseType)) return `被动/${baseType}`;
-        return baseType || '技能';
-      })();
       const sideEffects = normalizeSkillDesignerSideEffectList(draft && draft['副作用列表']);
       return buildSkillDesignerRuntimeObject({
         '机制': '系统基础',
-        '技能来源': resolveSkillDesignerSourceCategory(previewMeta),
-        '技能类型': skillTypeText,
-        '目标模型': normalizeSkillDesignerTargetForForm(draft && draft.target, '敌方单体'),
-        '结算策略': ['敌方群体', '友方群体', '全场'].includes(normalizeSkillDesignerTargetForForm(draft && draft.target, '敌方单体'))
-          ? '全目标独立'
-          : '单目标独立',
         '消耗': isPassive ? '无' : (draft && draft.cost) || '无',
         'cast_time': isPassive ? 0 : (Number.isFinite(existingCastTime) ? existingCastTime : fallbackCastTime),
         '副作用列表': sideEffects,
@@ -9024,7 +9076,7 @@
               '目标': grantableTarget,
               '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
               '每日触发上限': parseSkillDesignerIntegerInputValue(params['dailyLimit'], 3, 1),
-              '免疫位阶阈值': parseSkillDesignerNumericInputValue(params['tierThreshold'], 100, 1),
+              '免疫等级阈值': parseSkillDesignerNumericInputValue(params['tierThreshold'], 100, 1),
               'damage_reduction': parseSkillDesignerPercentRatio(params['reduceRatio'], 0.18),
             }),
           ].filter(effect => safeEntries(effect).length);
@@ -9739,7 +9791,7 @@
             '目标': grantableTarget,
             '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
             '每日触发上限': parseSkillDesignerIntegerInputValue(params['dailyLimit'], 3, 1),
-            '免疫位阶阈值': parseSkillDesignerNumericInputValue(params['tierThreshold'], 100, 1),
+            '免疫等级阈值': parseSkillDesignerNumericInputValue(params['tierThreshold'], 100, 1),
             'damage_reduction': parseSkillDesignerPercentRatio(params['reduceRatio'], 0.18),
           }));
           break;
@@ -9999,15 +10051,7 @@
         [cloneJsonValue(systemBase), ...cloneJsonValue(runtimeEffects)],
         normalizeSkillDesignerTargetForForm(normalized.target, '敌方单体'),
       );
-      const 已收口系统基础 = safeSkill['_效果数组'][0] && typeof safeSkill['_效果数组'][0] === 'object'
-        ? safeSkill['_效果数组'][0]
-        : {};
-      safeSkill['技能来源'] = normalizeSkillUiText(已收口系统基础['技能来源'], safeSkill['技能来源']);
-      safeSkill['技能类型'] = normalizeSkillUiText(已收口系统基础['技能类型'], safeSkill['技能类型']);
-      safeSkill['目标模型'] = normalizeSkillUiText(已收口系统基础['目标模型'], safeSkill['目标模型'] || normalized.target);
-      safeSkill['结算策略'] = normalizeSkillUiText(已收口系统基础['结算策略'], safeSkill['结算策略'] || '单目标独立');
-      safeSkill['消耗'] = 已收口系统基础['消耗'] === undefined ? safeSkill['消耗'] : cloneJsonValue(已收口系统基础['消耗']);
-      safeSkill['cast_time'] = Math.max(0, toNumber(已收口系统基础['cast_time'], safeSkill['cast_time']));
+      ['技能来源', '技能类型', '目标模型', '结算策略', '消耗', 'cast_time'].forEach(字段名 => delete safeSkill[字段名]);
       return safeSkill;
     }
 
@@ -10882,9 +10926,12 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
 
     function 构建叙事三段文案({ 现象 = '', 后果 = '', 钩子 = '', 回退 = '暂无记录' } = {}) {
       const 现象文本 = toText(现象, '').trim() || 回退;
-      const 后果文本 = toText(后果, '').trim() || '局势仍在演化';
-      const 钩子文本 = toText(钩子, '').trim() || '可继续跟进相关人物或地点';
-      return `${现象文本} ｜ 后果：${后果文本} ｜ 下一钩子：${钩子文本}`;
+      const 片段 = [];
+      const 后果文本 = toText(后果, '').trim();
+      const 线索文本 = toText(钩子, '').trim();
+      if (后果文本) 片段.push(`影响：${后果文本}`);
+      if (线索文本) 片段.push(`线索：${线索文本}`);
+      return 片段.length ? `${现象文本} ｜ ${片段.join(' ｜ ')}` : 现象文本;
     }
 
     function 构建安排文案({ 内容 = '', 时间 = '', 状态 = '', 线索 = '', 回退 = '暂无安排' } = {}) {
@@ -12870,6 +12917,17 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             <span>${htmlEscape(摘要.展示位置)}</span>
           </button>
           ${右侧文本 ? `<span class="enter-chip mvu-home-location-chip ${htmlEscape(右侧样式)}">${htmlEscape(右侧文本)}</span>` : `<span class="enter-chip mvu-home-location-chip">${htmlEscape(摘要.地图名称)}</span>`}
+        </div>
+      `;
+    }
+
+    function 构建首页状态页脚({ 文本 = '', 样式 = '' } = {}) {
+      const 状态文本 = toText(文本, '').trim();
+      if (!状态文本) return '';
+      const 状态样式 = toText(样式, '').trim();
+      return `
+        <div class="module-foot module-foot--location">
+          <span class="enter-chip mvu-home-location-chip ${htmlEscape(状态样式)}">${htmlEscape(状态文本)}</span>
         </div>
       `;
     }
@@ -14924,7 +14982,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             <i><span style="width:${forestRatio}%;"></span></i>
           </div>
         </div>
-        ${构建首页当前位置页脚(snapshot, { 右侧文本: `风险 ${shortenText(toText(snapshot.worldAlert, '无'), 18)}`, 右侧样式: deviation >= 40 ? 'warn-chip' : '' })}
+        ${构建首页状态页脚({ 文本: `风险 ${shortenText(toText(snapshot.worldAlert, '无'), 18)}`, 样式: deviation >= 40 ? 'warn-chip' : '' })}
       `;
     }
 
@@ -14969,7 +15027,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           <div class="org-matrix-summary-row"><b>战力焦点</b><span>${htmlEscape(战力摘要)}</span></div>
           <div class="org-matrix-summary-row org-matrix-summary-row--wide"><b>关系摘要</b><span>${htmlEscape(relationSummary)}</span></div>
         </div>
-        ${构建首页当前位置页脚(snapshot, { 右侧文本: `${snapshot.orgEntries.length || 0} 个势力`, 右侧样式: 'gold-chip' })}
+        ${构建首页状态页脚({ 文本: `${snapshot.orgEntries.length || 0} 个势力`, 样式: 'gold-chip' })}
       `;
     }
 
@@ -16003,7 +16061,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           },
           body: `
             <div class="nsfw-modal-grid">
-              
+
               <!-- 1. 核心欲念 -->
               <div class="nsfw-theme-card">
                 <div class="nsfw-theme-head">
@@ -16955,7 +17013,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                   </div>
                 ` : ''}
                 ${unlockedIntelHtml}
-                
+
                 ${unlockedIntelPage.totalPages > 1 ? `
                   <div class="tag-cloud mvu-detail-toolbar mvu-detail-toolbar--tight">
                     <button type="button" class="tag-chip" data-pagination="intel-records" data-page="${unlockedIntelPage.currentPage - 1}" ${unlockedIntelPage.currentPage <= 1 ? 'disabled' : ''}>上一页</button>
@@ -17290,7 +17348,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           const quality = toText(bone && (bone['品质'] || bone['品阶']), '');
           let descText = `${toText(bone && (bone['状态']), '已装载')}`;
           if (age || quality) descText += ` ｜ ${[age ? `${age}年` : '', quality].filter(Boolean).join(' ')}`;
-          
+
           const realAge = toNumber(age, 0);
           if (realAge > 0) {
             const stats = getBoneBonus(realAge, slot);
@@ -19529,7 +19587,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
         syncPrivateArchiveLongPressTargets(liveSnapshot);
         maybeOpenTradeRequestFromAI(liveSnapshot);
         maybeAutoOpenPendingSoulRingPreview(liveSnapshot, options);
-        
+
         syncBattleUiForSnapshot(liveSnapshot, options);
 
         const effectiveUnifiedPreviewKey = getEffectiveUnifiedPreviewKey();
@@ -21314,7 +21372,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       closeModal();
     }
 
-    
+
     const initialMainTab = (() => {
       try {
         const currentTab = window.__MVU_TAB_STATE__ && typeof window.__MVU_TAB_STATE__.current === 'string'
@@ -22482,7 +22540,10 @@ ${extraRequirement}
 
       const target = toText(detail.target, '');
       let preferredStore = '';
-      if (target && storeMap && typeof storeMap === 'object' && storeMap[target]) {
+      const 地图指定商店 = toText(detail.preferredStore || detail.storeName || '', '');
+      if (地图指定商店) {
+        preferredStore = 地图指定商店;
+      } else if (target && storeMap && typeof storeMap === 'object' && storeMap[target]) {
         preferredStore = target;
       } else if (initialTab === 'tab-shop') {
         const storeNames = Object.keys(storeMap || {});
@@ -24700,6 +24761,37 @@ ${extraRequirement}
       return '';
     }
 
+    function 获取地图工坊委托模式(职业名 = '') {
+      const 文本 = toText(职业名, '');
+      if (/锻造/.test(文本)) return 'forge';
+      if (/制造/.test(文本)) return 'manufacture';
+      if (/设计/.test(文本)) return 'design';
+      if (/修理|维修/.test(文本)) return 'repair';
+      return '';
+    }
+
+    function 构建地图工坊面板上下文(snapshot, detail = {}) {
+      const currentLoc = toText(detail.currentLoc, 读取快照当前位置(snapshot || {}));
+      const targetLoc = toText(detail.target, currentLoc);
+      const executorType = toText(detail.executorType, '').trim() || (toText(detail.npcTarget, '') ? 'private' : 'official');
+      const 职业名 = executorType === 'official' ? 解析官方工坊委托职业(targetLoc || currentLoc) : '';
+      const 模式 = 获取地图工坊委托模式(职业名 || toText(detail.profession, ''));
+      const 请求 = {
+        模式,
+        职业: 职业名,
+        状态: 'ready',
+      };
+      if (toText(detail.npcTarget, '')) 请求.执行者 = toText(detail.npcTarget, '');
+      return {
+        ...detail,
+        action: 'commission',
+        executorType,
+        currentLoc,
+        target: targetLoc,
+        professionRequest: 请求,
+      };
+    }
+
     function 获取官方工坊委托能力摘要(地点名 = '') {
       const 职业名 = 解析官方工坊委托职业(地点名);
       if (!职业名) return [];
@@ -24799,10 +24891,8 @@ ${extraRequirement}
       mapDispatchContext = { ...detail, action: 归一化动作, services };
 
       if (归一化动作 === 'commission') {
-        const commissionInit = 构建地图工坊委托请求(liveSnapshot || lastRenderableSnapshot || {}, detail);
-        if (commissionInit) {
-          dispatchUiAiRequest(commissionInit.playerInput, commissionInit.systemPrompt, { requestKind: commissionInit.requestKind });
-        }
+        mapDispatchContext = 构建地图工坊面板上下文(liveSnapshot || lastRenderableSnapshot || {}, detail);
+        打开地图工坊面板();
         return;
       }
 
@@ -24883,6 +24973,14 @@ ${extraRequirement}
       openModal('交易网络', { preserveMapDispatchContext: true });
     }
 
+    function 打开地图工坊面板() {
+      if (document.body && document.body.classList.contains('mvu-layout-unified') && typeof window.__MVU_OPEN_UNIFIED_PREVIEW__ === 'function') {
+        window.__MVU_OPEN_UNIFIED_PREVIEW__('武装工坊详细页', { preserveMapDispatchContext: true, replace: true });
+        return;
+      }
+      openModal('武装工坊详细页', { preserveMapDispatchContext: true });
+    }
+
     async function handleMapAiRequest(event) {
       const detail = event && event.detail && typeof event.detail === 'object' ? event.detail : {};
       const playerInput = toText(detail.playerInput || detail.input || '', '').trim();
@@ -24896,6 +24994,24 @@ ${extraRequirement}
     }
 
     window.addEventListener('map-ai-request', handleMapAiRequest);
+
+    async function handleMapMaintenanceRequest(event) {
+      const detail = event && event.detail && typeof event.detail === 'object' ? event.detail : {};
+      const patchOps = Array.isArray(detail.patchOps) ? detail.patchOps : [];
+      if (!patchOps.length) return;
+      try {
+        await applyJsonPatchOpsByEditor(patchOps, { force: true });
+        detail.delivery = { ok: true, channel: 'mvu_editor_patch', patchCount: patchOps.length };
+        await refreshLiveSnapshot({ force: true });
+        showUiToast(toText(detail.message, '地图维护已写入。'), 'info', 2400);
+      } catch (error) {
+        detail.delivery = { ok: false, channel: 'mvu_editor_patch', error: String(error && error.message || error) };
+        showUiToast(error && error.message ? error.message : '地图维护写入失败。', 'error', 4200);
+        console.warn('[DragonUI] 地图维护写入失败', error);
+      }
+    }
+
+    window.addEventListener('map-maintenance-request', handleMapMaintenanceRequest);
 
     async function handleBattleMvuUpdateRequest(event) {
       const detail = event && event.detail && typeof event.detail === 'object' ? event.detail : {};
@@ -25056,7 +25172,7 @@ ${extraRequirement}
       if (shellMode) {
         notifyShellPreviewChange(currentModalPreviewKey);
       }
-      
+
       if (currentModalPreviewKey) {
         renderModalContent(currentModalPreviewKey, refs, { ...options, displayMode: currentModalDisplayMode });
       }
@@ -27404,7 +27520,7 @@ window.MVU_Toast = {
       container.className = 'mvu-toast-container';
       document.body.appendChild(container);
     }
-    
+
     const toast = document.createElement('div');
     toast.className = `mvu-toast ${type === 'error' ? 'error' : ''}`;
     toast.innerHTML = htmlEscape(msg).replace(/\n/g, '<br/>');
@@ -27416,7 +27532,7 @@ window.MVU_Toast = {
       closeToast();
     };
     toast.appendChild(closeBtn);
-    
+
     container.appendChild(toast);
 
     let hideTimeout;
@@ -28015,7 +28131,7 @@ window.EquipmentManager = {
     if (/战裙/.test(tName)) return { mainSlot: 'armor', subSlot: '战裙' };
     if (/战靴/.test(tName)) return { mainSlot: 'armor', subSlot: '战靴' };
     if (/戒指/.test(tName)) return { mainSlot: 'armor', subSlot: '戒指' };
-    
+
     // 匹配魂骨
     if (tName.includes('头部魂骨') || /头骨/.test(tName)) return { mainSlot: 'soul_bone', subSlot: '头部魂骨' };
     if (tName.includes('躯干魂骨') || /躯干骨/.test(tName)) return { mainSlot: 'soul_bone', subSlot: '躯干魂骨' };
@@ -28023,11 +28139,11 @@ window.EquipmentManager = {
     if (tName.includes('右臂魂骨') || /右臂骨/.test(tName)) return { mainSlot: 'soul_bone', subSlot: '右臂魂骨' };
     if (tName.includes('左腿魂骨') || /左腿骨/.test(tName)) return { mainSlot: 'soul_bone', subSlot: '左腿魂骨' };
     if (tName.includes('右腿魂骨') || /右腿骨/.test(tName)) return { mainSlot: 'soul_bone', subSlot: '右腿魂骨' };
-    
+
     // 匹配其他品类
     if (/机甲/.test(tName)) return { mainSlot: 'mech', subSlot: null };
     if (/(剑|刀|枪|炮|弓|盾|锤|暗器|匕首)$/.test(tName)) return { mainSlot: 'wpn', subSlot: null };
-    
+
     return null;
   },
 
@@ -28102,13 +28218,9 @@ window.EquipmentManager = {
     installVueModalDelegationObserver();
 
     initLiveBindings();
-  
+
 window.mvuSetMainTabExternal = setMainTab;
 window.mvuSetMainTab = setMainTab;
 
 
 })();
-
-
-
-

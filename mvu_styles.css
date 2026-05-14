@@ -8033,9 +8033,14 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-page {
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-page-stack {
   overflow-y: auto !important;
-  padding-right: 6px !important;
-  scrollbar-width: thin !important;
-  scrollbar-color: rgba(117, 235, 255, 0.32) rgba(255, 255, 255, 0.04) !important;
+  padding-right: 0 !important;
+  scrollbar-width: none !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-page-stack::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-page {
@@ -8256,11 +8261,19 @@ body.mvu-layout-unified #mvu-unified-mount .terminal-home-line span,
 body.mvu-layout-unified #mvu-unified-mount .terminal-plan-item span,
 body.mvu-layout-unified #mvu-unified-mount .mini-box span {
   display: block !important;
+  min-height: 1.34em !important;
   max-height: 3.9em !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
-  scrollbar-width: thin !important;
-  scrollbar-color: rgba(117, 235, 255, 0.28) transparent !important;
+  scrollbar-width: none !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .terminal-home-line span::-webkit-scrollbar,
+body.mvu-layout-unified #mvu-unified-mount .terminal-plan-item span::-webkit-scrollbar,
+body.mvu-layout-unified #mvu-unified-mount .mini-box span::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .module-foot {
@@ -9012,7 +9025,7 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-dashboard--map [data-uni
   border-radius: 0 !important;
   box-shadow: none !important;
   overflow: hidden !important;
-  scrollbar-width: thin !important;
+  scrollbar-width: none !important;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-dashboard--map [data-unified-card="map-current"] .mvu-map-focus-head {
@@ -9225,9 +9238,14 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-shell-roster-list {
   min-height: 0 !important;
   max-height: min(360px, calc(var(--mvu-hud-frame-height) - 260px)) !important;
   overflow-y: auto !important;
-  padding-right: 2px !important;
-  scrollbar-width: thin !important;
-  scrollbar-color: rgba(118, 226, 255, 0.34) rgba(255, 255, 255, 0.04) !important;
+  padding-right: 0 !important;
+  scrollbar-width: none !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-shell-roster-list::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-shell-roster-row,
@@ -9276,6 +9294,7 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-shell-roster-name:focus-visible 
 body.mvu-layout-unified #mvu-unified-mount .mvu-shell-roster-meta,
 body.mvu-layout-unified #mvu-unified-mount .mvu-shell-roster-state {
   min-width: 0 !important;
+  color: rgba(204, 231, 240, 0.86) !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
@@ -9389,9 +9408,9 @@ body.mvu-layout-unified #mvu-unified-mount .org-matrix-summary-row span {
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-dashboard--terminal {
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  grid-template-rows: minmax(210px, 1.1fr) minmax(150px, 0.78fr) minmax(150px, 0.78fr) !important;
+  grid-template-rows: minmax(164px, 0.9fr) minmax(164px, 0.9fr) minmax(220px, 1.22fr) !important;
   min-height: 0 !important;
-  height: min(620px, calc(var(--mvu-hud-frame-height) - 148px), calc(100svh - 284px)) !important;
+  height: min(680px, calc(var(--mvu-hud-frame-height) - 132px), calc(100svh - 252px)) !important;
   grid-template-areas:
     "broadcast plan"
     "intel news"
@@ -9423,6 +9442,7 @@ body.mvu-layout-unified #mvu-unified-mount .terminal-home-line {
   min-width: 0 !important;
   min-height: auto !important;
   padding: 9px 11px !important;
+  box-sizing: border-box !important;
   border-radius: 11px !important;
   border: 1px solid rgba(77, 240, 255, 0.13) !important;
   background: rgba(77, 240, 255, 0.045) !important;
@@ -9461,7 +9481,14 @@ body.mvu-layout-unified #mvu-unified-mount .terminal-plan-grid {
   grid-auto-rows: auto !important;
   max-height: 100% !important;
   overflow-y: auto !important;
-  padding-right: 2px !important;
+  padding-right: 0 !important;
+  scrollbar-width: none !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .terminal-plan-grid::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .terminal-plan-item {
@@ -9469,6 +9496,7 @@ body.mvu-layout-unified #mvu-unified-mount .terminal-plan-item {
   align-content: center !important;
   gap: 6px !important;
   min-height: auto !important;
+  padding-block: 9px !important;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .terminal-plan-item--wide {
@@ -9478,12 +9506,22 @@ body.mvu-layout-unified #mvu-unified-mount .terminal-plan-item--wide {
 body.mvu-layout-unified #mvu-unified-mount .terminal-quest-grid {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  grid-auto-rows: minmax(42px, auto) !important;
-  gap: 8px !important;
+  grid-auto-rows: minmax(48px, auto) !important;
+  gap: 10px !important;
+  align-content: start !important;
+  min-height: 0 !important;
   height: auto !important;
-  max-height: none !important;
-  overflow: visible !important;
+  max-height: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
   padding: 0 !important;
+  scrollbar-width: none !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .terminal-quest-grid::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .terminal-quest-item {
@@ -9492,8 +9530,8 @@ body.mvu-layout-unified #mvu-unified-mount .terminal-quest-item {
   align-items: center !important;
   gap: 8px !important;
   min-width: 0 !important;
-  min-height: 42px !important;
-  padding: 8px 10px !important;
+  min-height: 48px !important;
+  padding: 9px 12px !important;
   border-radius: 10px !important;
   border: 1px solid rgba(77, 240, 255, 0.12) !important;
   background: rgba(255, 255, 255, 0.04) !important;
@@ -9530,9 +9568,16 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-dashboard--terminal > [d
   height: 100% !important;
   max-height: 100% !important;
   overflow-y: auto !important;
-  padding-right: 2px !important;
-  scrollbar-width: thin !important;
-  scrollbar-color: rgba(118, 226, 255, 0.34) rgba(255, 255, 255, 0.04) !important;
+  padding-right: 0 !important;
+  scrollbar-width: none !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-dashboard--world > [data-unified-card] .simple-list::-webkit-scrollbar,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-dashboard--org > [data-unified-card] .simple-list::-webkit-scrollbar,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-dashboard--terminal > [data-unified-card] .simple-list::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host {
@@ -9545,8 +9590,13 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host {
   color: rgba(244, 250, 252, 0.98) !important;
   font-size: 12px !important;
   line-height: 1.4 !important;
-  scrollbar-width: thin !important;
-  scrollbar-color: rgba(117, 235, 255, 0.32) rgba(255, 255, 255, 0.04) !important;
+  scrollbar-width: none !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-root,
@@ -9626,8 +9676,18 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .mvu-detail-
   max-height: min(560px, calc(var(--mvu-hud-frame-height, 760px) - 170px)) !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
-  scrollbar-width: thin !important;
-  scrollbar-color: rgba(117, 235, 255, 0.32) rgba(255, 255, 255, 0.04) !important;
+  scrollbar-width: none !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .mvu-armory-detail-grid > .archive-card::-webkit-scrollbar,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-shell--social > .dossier-card::-webkit-scrollbar,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-shell--relation > .dossier-card::-webkit-scrollbar,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-shell--faction > .dossier-card::-webkit-scrollbar,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid:not(.location-detail-grid--refined) > .archive-card::-webkit-scrollbar,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .mvu-detail-grid--quest > .archive-card::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid--refined {
@@ -10156,9 +10216,25 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
   max-height: min(360px, calc(var(--mvu-hud-frame-height, 760px) - 292px)) !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
-  padding-right: 2px !important;
-  scrollbar-width: thin !important;
-  scrollbar-color: rgba(117, 235, 255, 0.32) rgba(255, 255, 255, 0.04) !important;
+  padding-right: 0 !important;
+  scrollbar-width: none !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .mvu-detail-scroll-list::-webkit-scrollbar,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .mvu-detail-embed::-webkit-scrollbar,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .mvu-detail-form-grid::-webkit-scrollbar,
+#detailModal.mvu-modal-display-unified .mvu-detail-scroll-list::-webkit-scrollbar,
+#detailModal.mvu-modal-display-unified .mvu-detail-embed::-webkit-scrollbar,
+#detailModal.mvu-modal-display-unified .mvu-detail-form-grid::-webkit-scrollbar,
+#detailModal.mvu-modal-display-shell .mvu-detail-scroll-list::-webkit-scrollbar,
+#detailModal.mvu-modal-display-shell .mvu-detail-embed::-webkit-scrollbar,
+#detailModal.mvu-modal-display-shell .mvu-detail-form-grid::-webkit-scrollbar,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .mvu-detail-scroll-list::-webkit-scrollbar,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .mvu-detail-embed::-webkit-scrollbar,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .mvu-detail-form-grid::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .mvu-detail-embed,
@@ -10441,8 +10517,23 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-car
   max-height: min(560px, calc(var(--mvu-hud-frame-height, 760px) - 170px)) !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
-  scrollbar-width: thin !important;
-  scrollbar-color: rgba(117, 235, 255, 0.32) rgba(255, 255, 255, 0.04) !important;
+  scrollbar-width: none !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-card--relation-focus::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount [data-unified-card] *::-webkit-scrollbar,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host *::-webkit-scrollbar,
+#detailModal.mvu-modal-display-unified *::-webkit-scrollbar,
+#detailModal.mvu-modal-display-shell *::-webkit-scrollbar,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host *::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-card--life-profile,
@@ -10644,6 +10735,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
   }
 
   body.mvu-layout-unified #mvu-unified-mount .mvu-unified-dashboard--terminal {
+    grid-template-rows: minmax(164px, 0.9fr) minmax(164px, 0.9fr) minmax(220px, 1.22fr) !important;
     grid-template-areas:
       "broadcast plan"
       "intel news"
@@ -11039,8 +11131,13 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
   max-height: min(560px, calc(86svh - 170px)) !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
-  scrollbar-width: thin !important;
-  scrollbar-color: rgba(117, 235, 255, 0.32) rgba(255, 255, 255, 0.04) !important;
+  scrollbar-width: none !important;
+}
+
+#detailModal.mvu-modal-display-unified .dossier-card--relation-focus::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 
 #detailModal.mvu-modal-display-unified .dossier-card--life-profile,
@@ -11245,8 +11342,18 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
   max-height: min(560px, calc(86svh - 170px)) !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
-  scrollbar-width: thin !important;
-  scrollbar-color: rgba(117, 235, 255, 0.32) rgba(255, 255, 255, 0.04) !important;
+  scrollbar-width: none !important;
+}
+
+#detailModal.mvu-modal-display-unified .mvu-armory-detail-grid > .archive-card::-webkit-scrollbar,
+#detailModal.mvu-modal-display-unified .dossier-shell--social > .dossier-card::-webkit-scrollbar,
+#detailModal.mvu-modal-display-unified .dossier-shell--relation > .dossier-card::-webkit-scrollbar,
+#detailModal.mvu-modal-display-unified .dossier-shell--faction > .dossier-card::-webkit-scrollbar,
+#detailModal.mvu-modal-display-unified .location-detail-grid > .archive-card::-webkit-scrollbar,
+#detailModal.mvu-modal-display-unified .mvu-detail-grid--quest > .archive-card::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 
 #detailModal.mvu-modal-display-unified .skill-designer-layout {
@@ -14410,8 +14517,20 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .archive-red
   max-height: min(560px, calc(100svh - 170px));
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(117, 235, 255, 0.32) rgba(255, 255, 255, 0.04);
+  scrollbar-width: none;
+}
+
+#detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .mvu-armory-detail-grid > .archive-card::-webkit-scrollbar,
+#detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .dossier-shell--social > .dossier-card::-webkit-scrollbar,
+#detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .dossier-shell--relation > .dossier-card::-webkit-scrollbar,
+#detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .dossier-shell--faction > .dossier-card::-webkit-scrollbar,
+#detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .location-detail-grid > .archive-card::-webkit-scrollbar,
+#detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .mvu-detail-grid--quest > .archive-card::-webkit-scrollbar,
+body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .dossier-card--relation-focus::-webkit-scrollbar,
+#detailModal.mvu-modal-display-shell .dossier-card--relation-focus::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 
 #detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .dossier-shell .archive-card-head {
@@ -17069,7 +17188,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
   max-height: min(460px, calc(100svh - 260px)) !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
-  scrollbar-width: thin !important;
+  scrollbar-width: none !important;
 }
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .archive-card-head,
@@ -18151,7 +18270,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
   max-height: min(460px, calc(100svh - 260px)) !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
-  scrollbar-width: thin !important;
+  scrollbar-width: none !important;
 }
 
 #detailModal.mvu-modal-display-shell .archive-card-head,
@@ -18493,6 +18612,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-roster-name {
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-roster-meta {
   font-family: var(--mvu-mobile-shell-font) !important;
+  color: rgba(51, 82, 103, 0.84) !important;
   font-size: 11px;
   line-height: 1.3;
   font-weight: 400 !important;
@@ -18501,6 +18621,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-roster-meta {
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-roster-state {
   font-family: var(--mvu-mobile-shell-font) !important;
+  color: rgba(51, 82, 103, 0.76) !important;
   font-size: 10px;
   line-height: 1.28;
   font-weight: 400 !important;

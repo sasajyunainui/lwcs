@@ -809,6 +809,32 @@ class TradeUIComponent {
     return `斗罗历${20000 + years}年${months}月${currentDay}日 ${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
   }
 
+  getCurrentWorldHour() {
+    const 当前tick = Math.max(0, Number(this.worldData?.时间?.tick || 0));
+    const 当日分钟 = ((当前tick * 10) % (24 * 60) + (24 * 60)) % (24 * 60);
+    return Math.floor(当日分钟 / 60);
+  }
+
+  getCurrentWorldTimeParts() {
+    const 当前tick = Math.max(0, Number(this.worldData?.时间?.tick || 0));
+    const 当日分钟 = ((当前tick * 10) % (24 * 60) + (24 * 60)) % (24 * 60);
+    return {
+      小时: Math.floor(当日分钟 / 60),
+      分钟: Math.floor(当日分钟 % 60),
+    };
+  }
+
+  isShopOpenNow() {
+    const 当前小时 = this.getCurrentWorldHour();
+    return 当前小时 >= 9 && 当前小时 < 22;
+  }
+
+  getShopOpenStateText() {
+    const 当前时间 = this.getCurrentWorldTimeParts();
+    const 时间文本 = `${String(当前时间.小时).padStart(2, '0')}:${String(当前时间.分钟).padStart(2, '0')}`;
+    return this.isShopOpenNow() ? `营业中 ${时间文本}` : `已关门 ${时间文本}`;
+  }
+
   resolveTradeItemInfo(itemName, item = {}, fallback = {}) {
     const safeItem = item && typeof item === 'object' ? item : {};
     const type = String(safeItem.类型 || fallback.type || '物品');
@@ -1070,6 +1096,7 @@ class TradeUIComponent {
 
     const item = this.currentStores[storeName].库存[itemName];
     const storeData = this.currentStores[storeName] || {};
+    const 商店营业中 = this.isShopOpenNow();
     const isSoulTowerDiscountTrade = item && item._tower_discount_virtual === true;
     const unitPrice = this.getMarketAdjustedPrice(Number(item.价格 || 0), 'buy', { fixed: isSoulTowerDiscountTrade });
     const total = unitPrice * qty;
@@ -1078,7 +1105,7 @@ class TradeUIComponent {
     const userCoin = Number(this.charData?.财富?.[currency] || 0);
 
     this.$('#shop-price').textContent = `${unitPrice.toLocaleString()} ${this.getCurrencyLabel(currency)}`;
-    this.$('#shop-market').textContent = this.getMarketAdjustmentText('buy', { fixed: isSoulTowerDiscountTrade });
+    this.$('#shop-market').textContent = 商店营业中 ? this.getMarketAdjustmentText('buy', { fixed: isSoulTowerDiscountTrade }) : this.getShopOpenStateText();
     
     const totalEl = this.$('#shop-total');
     totalEl.textContent = `${total.toLocaleString()} ${this.getCurrencyLabel(currency)}`;
@@ -1092,7 +1119,12 @@ class TradeUIComponent {
     stockEl.textContent = Number(item.库存 || 0);
     stockEl.className = (Number(item.库存 || 0) >= qty) ? "val-highlight" : "val-warn";
 
-    this.updateTradeMetaPanel('shop', this.resolveTradeItemInfo(itemName, item, { source: storeName, desc: item.描述 || `可在 ${storeName} 购得` }));
+    this.updateTradeMetaPanel('shop', this.resolveTradeItemInfo(itemName, item, { source: storeName, desc: 商店营业中 ? (item.描述 || `可在 ${storeName} 购得`) : `${storeName} 当前关门，营业时间 09:00-22:00。` }));
+
+    if (!商店营业中) {
+      btn.disabled = true;
+      return;
+    }
 
     if (!this.isCurrencySpendable(currency)) {
       totalEl.className = "val-warn";
@@ -1108,6 +1140,7 @@ class TradeUIComponent {
     const storeName = this.$('#shop-store-sel').value;
     const itemName = this.$('#shop-item-sel').value;
     const qty = parseInt(this.$('#shop-qty').value) || 1;
+    if (!this.isShopOpenNow()) return alert('商店已关门，营业时间 09:00-22:00。');
     const item = this.currentStores[storeName].库存[itemName];
     const storeData = this.currentStores[storeName] || {};
     const currency = this.resolveTradeCurrency(item, storeName, this.charData?.状态?.位置 || '', storeData);

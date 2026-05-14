@@ -2033,8 +2033,8 @@
       box-shadow: 0 0 0 2px rgba(13,42,24,0.42), 0 0 0 4px rgba(97,194,129,0.14), 0 3px 10px rgba(14,49,24,0.30);
     }
 
-    .map-node.point.point-kind-settlement .map-node-label { color: rgba(255,236,182,0.96); }
-    .map-node.point.point-kind-terrain .map-node-label { color: rgba(223,245,249,0.94); }
+    .map-node.point.point-kind-settlement .map-node-label { color: #fff2bf; }
+    .map-node.point.point-kind-terrain .map-node-label { color: #f4fcff; }
     .map-node.state-ruins .map-node-label { color: rgba(255,202,194,0.97); }
     .map-node.state-rebuild .map-node-label { color: rgba(255,233,181,0.97); }
     .map-node.state-rebuilt .map-node-label { color: rgba(207,248,219,0.97); }
@@ -2097,19 +2097,19 @@
       top: var(--label-top, 100%);
       bottom: var(--label-bottom, auto);
       transform: translate(calc(var(--label-shift-x, -50%) + var(--label-offset-x, 0px)), calc(var(--label-shift-y, 2px) + var(--label-offset-y, 0px)));
-      padding: 0;
-      border-radius: 0;
+      padding: 2px 4px;
+      border-radius: 6px;
       font-family: var(--font-ui);
       font-size: 10px;
       line-height: 1.15;
       font-weight: 700;
       letter-spacing: 0.12px;
-      color: rgba(248,252,255,0.98);
+      color: #f8fcff;
       white-space: nowrap;
-      background: transparent;
-      border: none;
-      box-shadow: none;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.96), 0 0 6px rgba(0,0,0,0.74);
+      background: rgba(4, 10, 14, 0.42);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.22);
+      text-shadow: 0 1px 1px rgba(0,0,0,1), 0 0 4px rgba(0,0,0,0.95), 0 0 9px rgba(0,0,0,0.82);
       text-rendering: geometricPrecision;
       -webkit-font-smoothing: antialiased;
       pointer-events: none;
@@ -2581,7 +2581,8 @@
 
     .map-npc-card.current .map-npc-actions,
     .map-npc-card:hover .map-npc-actions,
-    .map-npc-card:focus-within .map-npc-actions {
+    .map-npc-card:focus-within .map-npc-actions,
+    .map-npc-actions.is-visible {
       display: grid;
     }
 
@@ -2956,7 +2957,7 @@
       <div class='stack-3 map-side-stack'>
         <div class='mvu-simple-card map-side-card'>
           <div class='simple-head'>
-            <div class='simple-title'>详细信息</div>
+            <div class='simple-title' data-map-primary-panel-title>详细信息</div>
             <span class='map-side-badge' data-map-panel-mode-badge>跟随</span>
           </div>
           <div class='map-panel-mode-strip'>
@@ -2973,8 +2974,8 @@
 
         <div class='mvu-simple-card map-side-card'>
           <div class='simple-head'>
-            <div class='simple-title'>在场人物</div>
-            <span class='map-side-badge'><span data-map-npc-count>0</span> 人</span>
+            <div class='simple-title' data-map-secondary-panel-title>在场人物</div>
+            <span class='map-side-badge' data-map-secondary-panel-badge><span data-map-npc-count>0</span> 人</span>
           </div>
           <div class='map-npc-list' data-map-npc-list><div class='map-npc-empty'>点击当前节点后，在此浏览在场人物与可执行互动。</div></div>
         </div>
@@ -2992,6 +2993,7 @@
     selectedFreePoint: null,
     currentFreePoint: null,
     pendingTravelRequest: null,
+    待移动后动作: null,
     cursorClientX: null,
     cursorClientY: null,
     hoverLocalX: null,
@@ -3525,6 +3527,7 @@
     bid: '竞拍',
     craft: '委托工坊',
     rest: '休整',
+    sleep: '睡眠',
     intel: '情报',
     brief: '汇报',
     search: '搜索',
@@ -3688,6 +3691,18 @@
       };
     }
 
+    if (safeAction === 'sleep') {
+      const menGain = Math.max(0, Math.min(menMax, Math.floor(currentMen + menMax * 0.01 * 6)) - currentMen);
+      const vitGain = Math.max(0, Math.min(vitMax, Math.floor(currentVit + vitMax * 0.01 * 6)) - currentVit);
+      const spGain = Math.max(0, Math.min(spMax, Math.floor(currentSp + spMax * 0.01 * 6)) - currentSp);
+      return {
+        slotReason: `单次 1小时（6 tick） · 精神+${formatRoutineDeltaValue(menGain)} / 体力+${formatRoutineDeltaValue(vitGain)} / 魂力+${formatRoutineDeltaValue(spGain)}`,
+        detailText: `推进 1 小时时间，预计恢复精神 ${formatRoutineDeltaValue(menGain)}、体力 ${formatRoutineDeltaValue(vitGain)}、魂力 ${formatRoutineDeltaValue(spGain)}。`,
+        logText: `角色睡眠休整约 1 小时，预计恢复精神 ${formatRoutineDeltaValue(menGain)}、体力 ${formatRoutineDeltaValue(vitGain)}、魂力 ${formatRoutineDeltaValue(spGain)}。`,
+        mimicHint: 拟态来源提示,
+      };
+    }
+
     if (safeAction === 'study') {
       return {
         slotReason: '单次 1小时（6 tick） · 阅读/学习推进',
@@ -3795,6 +3810,220 @@
       ? item.actionSlots.filter(Boolean)
       : (Array.isArray(item.interactions) ? item.interactions.filter(Boolean) : []);
     return list[0] || (item.canEnter ? 'enter' : 'inspect');
+  }
+
+  function 获取当前小时(snapshot = mapState.baseSnapshot || mapState.snapshot) {
+    const 当前tick = Math.max(0, toNumber(deepGet(snapshot, 'rootData.world.时间.tick', 0), 0));
+    const 当日分钟 = ((当前tick * 10) % (24 * 60) + (24 * 60)) % (24 * 60);
+    return Math.floor(当日分钟 / 60);
+  }
+
+  function 获取当前时分(snapshot = mapState.baseSnapshot || mapState.snapshot) {
+    const 当前tick = Math.max(0, toNumber(deepGet(snapshot, 'rootData.world.时间.tick', 0), 0));
+    const 当日分钟 = ((当前tick * 10) % (24 * 60) + (24 * 60)) % (24 * 60);
+    return {
+      小时: Math.floor(当日分钟 / 60),
+      分钟: Math.floor(当日分钟 % 60)
+    };
+  }
+
+  function 判断商店营业中(snapshot = mapState.baseSnapshot || mapState.snapshot) {
+    const 当前小时 = 获取当前小时(snapshot);
+    return 当前小时 >= 9 && 当前小时 < 22;
+  }
+
+  function 格式化营业状态(snapshot = mapState.baseSnapshot || mapState.snapshot) {
+    const 当前时间 = 获取当前时分(snapshot);
+    const 时间文本 = `${String(当前时间.小时).padStart(2, '0')}:${String(当前时间.分钟).padStart(2, '0')}`;
+    return 判断商店营业中(snapshot) ? `营业中 ${时间文本}` : `已关门 ${时间文本}`;
+  }
+
+  function 归一地点名(地点 = '') {
+    return toText(地点, '').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '').trim();
+  }
+
+  function 拆分地点路径(地点 = '') {
+    return 归一地点名(地点).split('-').map(片段 => 片段.trim()).filter(Boolean);
+  }
+
+  function 获取地点节点及父级(节点名 = '', snapshot = mapState.baseSnapshot || mapState.snapshot) {
+    const 目标名 = toText(节点名, '').trim();
+    const 根地点 = deepGet(snapshot, 'rootData.world.地点', {}) || {};
+    const 访问 = (地点表, 父名 = '', 父节点 = null, 路径 = [], 指针路径 = ['world', '地点']) => {
+      if (!地点表 || typeof 地点表 !== 'object') return null;
+      for (const [当前名, 当前节点] of Object.entries(地点表)) {
+        const 显示名 = toText(当前节点 && 当前节点.name, 当前名);
+        const 当前路径 = [...路径, 当前名];
+        const 当前指针路径 = [...指针路径, 当前名];
+        if (当前名 === 目标名 || 显示名 === 目标名) {
+          return { 名称: 当前名, 节点: 当前节点 || {}, 父名, 父节点, 路径: 当前路径, 指针路径: 当前指针路径 };
+        }
+        const 子节点 = getMapNodeChildren(当前节点);
+        const 子字段 = 当前节点 && 当前节点.children ? 'children'
+          : 当前节点 && 当前节点['子节点'] ? '子节点'
+            : 当前节点 && 当前节点.child_nodes ? 'child_nodes'
+              : 当前节点 && 当前节点.childNodes ? 'childNodes'
+                : 'children';
+        const 子结果 = 子节点 ? 访问(子节点, 当前名, 当前节点 || null, 当前路径, [...当前指针路径, 子字段]) : null;
+        if (子结果) return 子结果;
+      }
+      return null;
+    };
+    return 访问(根地点);
+  }
+
+  function 构建地图维护指针路径(片段列表 = []) {
+    return `/${片段列表.map(片段 => escapeJsonPointer(片段)).join('/')}`;
+  }
+
+  function 获取地图维护父节点名() {
+    const 预览锚点 = toText(mapState.snapshot && mapState.snapshot.previewMeta && mapState.snapshot.previewMeta.anchor_name, '');
+    if (预览锚点) return 预览锚点;
+    return toText(mapState.selectedNode || mapState.currentNode || mapState.snapshot?.currentLoc, '斗罗大陆');
+  }
+
+  function 获取地图维护焦点项() {
+    const 焦点名 = toText(mapState.selectedNode || mapState.currentNode, '');
+    if (焦点名 && mapState.itemMap && typeof mapState.itemMap.get === 'function') return mapState.itemMap.get(焦点名) || null;
+    return Array.isArray(mapState.items) && mapState.items.length ? mapState.items[0] : null;
+  }
+
+  function 获取地图维护坐标() {
+    const 焦点项 = 获取地图维护焦点项();
+    if (焦点项 && Number.isFinite(toNumber(焦点项.x, NaN)) && Number.isFinite(toNumber(焦点项.y, NaN))) {
+      return { x: roundCoord(toNumber(焦点项.x, 0) + 18), y: roundCoord(toNumber(焦点项.y, 0) + 18) };
+    }
+    const 焦点坐标 = mapState.currentFreePoint || mapState.snapshot?.currentFocusCoord || {};
+    return {
+      x: Number.isFinite(toNumber(焦点坐标.x, NaN)) ? roundCoord(toNumber(焦点坐标.x, 0) + 18) : 120,
+      y: Number.isFinite(toNumber(焦点坐标.y, NaN)) ? roundCoord(toNumber(焦点坐标.y, 0) + 18) : 120
+    };
+  }
+
+  function 派发地图维护补丁(patchOps = [], message = '地图维护已写入。') {
+    if (!Array.isArray(patchOps) || !patchOps.length) return;
+    window.dispatchEvent(new CustomEvent('map-maintenance-request', { detail: { patchOps, message } }));
+  }
+
+  function 执行地图维护操作(操作 = '') {
+    const 当前操作 = toText(操作, '');
+    const 焦点项 = 获取地图维护焦点项();
+    const 焦点名 = toText(焦点项 && 焦点项.name, mapState.selectedNode || mapState.currentNode || '');
+    if (当前操作 === 'add') {
+      const 输入名 = typeof window.prompt === 'function' ? window.prompt('新增动态地点名称', '临时地点') : '临时地点';
+      const 地点名 = toText(输入名, '').trim();
+      if (!地点名) return;
+      const 父节点 = 获取地图维护父节点名();
+      const 坐标 = 获取地图维护坐标();
+      const 新地点 = {
+        name: 地点名,
+        type: '动态地点',
+        状态: '可见',
+        描述: '调试新增地点',
+        x: 坐标.x,
+        y: 坐标.y,
+        归属父节点: 父节点,
+        交互: ['inspect'],
+        服务: []
+      };
+      派发地图维护补丁([{ op: 'add', path: 构建地图维护指针路径(['world', '动态地点', 地点名]), value: 新地点 }], `已新增动态地点：${地点名}`);
+      return;
+    }
+    if (!焦点名) return;
+    const 动态地点 = deepGet(mapState.baseSnapshot || mapState.snapshot, ['rootData', 'world', '动态地点', 焦点名], null);
+    const 状态值 = 当前操作 === 'damage' ? 'ruins' : 当前操作 === 'repair' ? 'intact' : '';
+    if (!状态值) return;
+    const 状态路径 = 动态地点
+      ? 构建地图维护指针路径(['world', '动态地点', 焦点名, '状态'])
+      : (() => {
+          const 命中 = 获取地点节点及父级(焦点名, mapState.baseSnapshot || mapState.snapshot);
+          return 命中 && Array.isArray(命中.指针路径) ? 构建地图维护指针路径([...命中.指针路径, '状态']) : '';
+        })();
+    if (!状态路径) return;
+    派发地图维护补丁([{ op: 'add', path: 状态路径, value: 状态值 }], `${焦点名} 已标记为${状态值}`);
+  }
+
+  function 规范商店匹配文本(文本 = '') {
+    return toText(文本, '')
+      .replace(/分会/g, '')
+      .replace(/分店/g, '')
+      .replace(/东海/g, '')
+      .replace(/协会/g, '')
+      .replace(/商店|店铺|商城/g, '')
+      .replace(/[^\u4e00-\u9fa5a-z0-9]/gi, '')
+      .trim();
+  }
+
+  function 获取节点商店上下文(节点项 = null, snapshot = mapState.baseSnapshot || mapState.snapshot) {
+    const 节点名 = toText(节点项 && 节点项.name, '');
+    const 命中 = 获取地点节点及父级(节点名, snapshot);
+    const 直接商店 = 命中 && 命中.节点 && 命中.节点.商店 && typeof 命中.节点.商店 === 'object' ? 命中.节点.商店 : {};
+    const 父商店 = 命中 && 命中.父节点 && 命中.父节点.商店 && typeof 命中.父节点.商店 === 'object' ? 命中.父节点.商店 : {};
+    const 商店表 = Object.keys(直接商店).length ? 直接商店 : 父商店;
+    const 商店名列表 = Object.keys(商店表 || {});
+    if (!商店名列表.length) return { 商店表: {}, 商店名: '', 商品列表: [], 来源地点: 命中 ? (Object.keys(直接商店).length ? 命中.名称 : 命中.父名) : '' };
+    const 节点匹配键 = 规范商店匹配文本(节点名);
+    const 类型匹配键 = 规范商店匹配文本(toText(节点项 && (节点项.type || 节点项.nodeKind), ''));
+    const 商店名 = 商店名列表.find(候选名 => {
+      const 商店匹配键 = 规范商店匹配文本(候选名);
+      return 商店匹配键 && (商店匹配键.includes(节点匹配键) || 节点匹配键.includes(商店匹配键) || 商店匹配键.includes(类型匹配键));
+    }) || (/商店|店铺|杂货/.test(`${节点名} ${toText(节点项 && 节点项.type, '')}`) ? 商店名列表[0] : '');
+    const 商品表 = 商店名 && 商店表[商店名] && 商店表[商店名].库存 && typeof 商店表[商店名].库存 === 'object'
+      ? 商店表[商店名].库存
+      : {};
+    const 商品列表 = Object.entries(商品表)
+      .filter(([, 商品]) => Number(商品 && 商品.库存 || 0) > 0)
+      .slice(0, 5)
+      .map(([商品名, 商品]) => ({
+        名称: 商品名,
+        库存: Number(商品 && 商品.库存 || 0),
+        价格: Number(商品 && 商品.价格 || 0),
+        货币: toText(商品 && 商品.货币, '联邦币')
+      }));
+    return { 商店表, 商店名, 商品列表, 来源地点: 命中 ? (Object.keys(直接商店).length ? 命中.名称 : 命中.父名) : '' };
+  }
+
+  function 获取节点本地动作(节点项 = null, snapshot = mapState.baseSnapshot || mapState.snapshot) {
+    if (!节点项) return [];
+    const 动作集合 = new Set();
+    const 节点文本 = `${toText(节点项.name, '')} ${toText(节点项.type, '')} ${toText(节点项.nodeKind, '')}`;
+    const 商店上下文 = 获取节点商店上下文(节点项, snapshot);
+    const 加入动作 = 动作 => {
+      const 标准动作 = toText(动作, '');
+      if (!标准动作 || ['inspect', 'enter', 'preview'].includes(标准动作)) return;
+      if (标准动作 === 'shop' || 标准动作 === 'black_market') 动作集合.add('trade');
+      else if (标准动作 === 'auction') 动作集合.add('bid');
+      else if (标准动作 === 'briefing') 动作集合.add('brief');
+      else if (标准动作 === 'train') {
+        动作集合.add('train_body');
+        动作集合.add('train_mind');
+      } else 动作集合.add(标准动作);
+    };
+    []
+      .concat(Array.isArray(节点项.actionSlots) ? 节点项.actionSlots : [])
+      .concat(Array.isArray(节点项.interactions) ? 节点项.interactions : [])
+      .concat(Array.isArray(节点项.services) ? 节点项.services : [])
+      .forEach(加入动作);
+    if (商店上下文.商店名) 加入动作('trade');
+    if (/拍卖/.test(节点文本)) 加入动作('bid');
+    if (/锻造师协会|制造师协会|设计师协会|修理师协会|副职业|工坊/.test(节点文本)) {
+      加入动作('craft');
+      加入动作('trade');
+    }
+    if (/训练场|演武|斗魂|实训|锻炼|健身/.test(节点文本)) 加入动作('train');
+    if (/图书馆|藏书|静室|冥想|修炼/.test(节点文本)) {
+      加入动作('study');
+      加入动作('meditate');
+    }
+    if (/宿舍|寝室|营房|休息区|大本营|营地|客栈|旅馆/.test(节点文本)) {
+      加入动作('rest');
+      加入动作('sleep');
+      加入动作('meditate');
+    }
+    if (/情报|指挥|巡防/.test(节点文本)) 加入动作('intel');
+    if (/政务|议政/.test(节点文本)) 加入动作('brief');
+    if (!动作集合.size) 加入动作(getPrimaryNodeInteraction(节点项));
+    return Array.from(动作集合).filter(动作 => 动作 && !['talk'].includes(动作));
   }
 
   function createRenderItem(name, rawItem, extra = {}) {
@@ -4614,7 +4843,7 @@
         delete root.dataset.mapBound;
         delete root.dataset.mapMiniBound;
       }
-      root.querySelectorAll('[data-map-bound], [data-map-mini-bound], .map-canvas.interactive-map, .map-mini-world, [data-map-node-layer], [data-map-control], [data-map-action-select], [data-map-action-execute], [data-map-npc-select], [data-map-travel-cycle], [data-map-layer-pill]').forEach(el => {
+      root.querySelectorAll('[data-map-bound], [data-map-mini-bound], .map-canvas.interactive-map, .map-mini-world, [data-map-node-layer], [data-map-control], [data-map-action-select], [data-map-action-execute], [data-map-node-action], [data-map-maintenance], [data-map-npc-select], [data-map-travel-cycle], [data-map-layer-pill]').forEach(el => {
         if (el.dataset) {
           delete el.dataset.mapBound;
           delete el.dataset.mapMiniBound;
@@ -6330,10 +6559,10 @@
   }
 
   function resolveMapNpcCraftExecutorType(item, npcTarget = '') {
-    if (npcTarget) return 'private';
     const nodeName = toText(item && item.name, '');
     const officialCommissionLocations = ['锻造师协会', '制造师协会', '设计师协会', '修理师协会'];
     if (officialCommissionLocations.some(name => nodeName && (nodeName.includes(name) || name.includes(nodeName)))) return 'official';
+    if (npcTarget) return 'private';
     return 'self';
   }
 
@@ -7136,6 +7365,24 @@
     return request;
   }
 
+  function 设置移动后待执行动作(actionType = '', item = null) {
+    const 动作 = toText(actionType, '');
+    if (!动作 || 动作 === 'travel' || 动作 === 'inspect') {
+      mapState.待移动后动作 = null;
+      return null;
+    }
+    const 节点名 = toText(item && item.name, mapState.selectedNode);
+    const 商店上下文 = item ? 获取节点商店上下文(item, mapState.baseSnapshot || mapState.snapshot) : { 商店名: '' };
+    mapState.待移动后动作 = {
+      action: 动作,
+      target: 节点名,
+      label: getNodeInteractionLabel(动作),
+      preferredStore: 商店上下文.商店名,
+      at: Date.now()
+    };
+    return mapState.待移动后动作;
+  }
+
   function commitMapTravel(options = {}) {
     const request = hasPendingTravelRequestForTarget() ? mapState.pendingTravelRequest : queueMapTravelRequest();
     if (!request) return;
@@ -7157,12 +7404,15 @@
     if (request.costs && request.costs.canAfford === false) {
       mapState.lastTravelNote = `[地图移动失败] ${request.method} → ${finalLocName} · ${toText(request.costs.reason, '资源不足')}`;
       mapState.pendingTravelRequest = null;
+      mapState.待移动后动作 = null;
       syncInteractiveMapUI({ center: false });
       return;
     }
 
     const targetTerrainInfo = resolveTerrainInfoByCoord(targetCoord, mapState.currentMapId);
-    const targetTerrainBrief = formatTerrainNarrative(targetTerrainInfo, mapState.currentMapId, { fallback: '', includeDifficulty: false });
+    const targetTerrainBrief = targetTerrainInfo
+      ? formatTerrainNarrative(targetTerrainInfo, mapState.currentMapId, { fallback: '', includeDifficulty: false })
+      : '';
     const targetTerrainShort = targetTerrainInfo ? ` · ${toText(targetTerrainInfo.name, '未知地形')}` : '';
     if (isFreeTravel) {
       mapState.currentNode = '';
@@ -7221,9 +7471,14 @@
           );
         }
         
+        const 出行方式 = toText(request.method, '步行');
+        const 抵达地点名 = finalLocName.replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '');
+        const 移动动作 = 出行方式 === '步行' ? '步行' : `乘坐${出行方式}`;
+        const 启程句 = `${移动动作}前往【${finalLocName}】${targetTerrainLine ? ` · 地形：${targetTerrainBrief}` : ''}`;
+
         patchOps.push(
           { op: 'replace', path: `/world/时间/tick`, value: (Number(deepGet(mapState.baseSnapshot.rootData, 'world.时间.tick', 0)) + request.est_ticks) },
-          { op: 'replace', path: `/sys/系统播报`, value: `[地图移动完成] 玩家乘坐 ${request.method} 抵达 ${finalLocName.replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '')}${targetTerrainInfo ? `（${toText(targetTerrainInfo.name, '未知地形')}）` : ''}，历时 ${request.est_duration}。` }
+          { op: 'replace', path: `/sys/系统播报`, value: `[地图移动完成] 玩家${移动动作}抵达 ${抵达地点名}${targetTerrainInfo ? `（${toText(targetTerrainInfo.name, '未知地形')}）` : ''}，历时 ${request.est_duration}。` }
         );
 
         if (request.costs) {
@@ -7255,19 +7510,20 @@
           }
         }
 
-        const logMsg = `[系统仲裁] 玩家乘坐 ${request.method}，经过 ${request.est_duration} 的跋涉，现已抵达新地点：【${finalLocName}】。${targetTerrainLine ? `\n${targetTerrainLine}` : ''}`;
+        const logMsg = `[系统仲裁] 玩家${移动动作}，经过 ${request.est_duration} 的跋涉，现已抵达新地点：【${finalLocName}】。${targetTerrainLine ? `\n${targetTerrainLine}` : ''}`;
         const followUpAction = toText(options && options.followUpAction, '');
         const followUpLabel = followUpAction ? getNodeInteractionLabel(followUpAction) : '';
         const followUpLine = followUpLabel
-          ? `\n[抵达后意图]\n玩家刚才点击的是【${followUpLabel}】。本轮只完成移动与到达描写；不要直接结算交易、工坊或战斗胜负，抵达后由玩家再次发起对应模块。`
+          ? `\n[抵达后意图]\n玩家刚才点击的是【${followUpLabel}】。本轮只完成移动与到达描写；不要直接结算交易、工坊、商店购买或战斗胜负，抵达后由玩家再次发起对应模块。若抵达时已超过商店营业时间，剧情中只写到店铺关门。`
           : '';
         const sysPrompt = `${HIDDEN_RULES}\n\n${logMsg}${followUpLine}\n\n${buildMapUpdateVariableBlock('Travel completed.', patchOps, '以下为本次地图移动结算的完整 MVU 更新，请将上面的隐藏结算转写为自然剧情，正文不要直接复述 JSONPatch 或系统术语。')}`;
-        dispatchMapAiRequest(`[启程前往] 我乘坐 ${request.method} 前往【${finalLocName}】${targetTerrainLine ? ` 目标地形：${targetTerrainBrief}` : ''}`, sysPrompt, { requestKind: 'map_travel_confirm' });
+        dispatchMapAiRequest(`[启程前往] ${启程句}`, sysPrompt, { requestKind: 'map_travel_confirm' });
       } catch (e) {
         console.error('Send map travel to AI failed:', e);
       }
     }
     mapState.pendingTravelRequest = null;
+    mapState.待移动后动作 = null;
     syncInteractiveMapUI({ center: true });
   }
 
@@ -7277,6 +7533,7 @@
     const actionLabel = getNodeInteractionLabel(action);
     const snapshot = mapState.snapshot || buildFallbackSnapshot();
     const itemServices = Array.isArray(item.services) ? item.services : [];
+    const 商店上下文 = 获取节点商店上下文(item, snapshot);
     const serviceText = formatBehaviorLabels(itemServices, getNodeServiceLabel);
     const eventText = toText(item.eventId, '无');
     const talkTargets = [];
@@ -7294,8 +7551,9 @@
       }
     }
     const selectedNpc = toText(mapState.selectedNpc, '');
-    const npcTarget = selectedNpc && talkTargets.includes(selectedNpc) ? selectedNpc : (talkTargets.length === 1 ? talkTargets[0] : '');
-    const executorType = action === 'craft' ? resolveMapNpcCraftExecutorType(item, npcTarget) : '';
+    const 初始对象 = selectedNpc && talkTargets.includes(selectedNpc) ? selectedNpc : (talkTargets.length === 1 ? talkTargets[0] : '');
+    const executorType = action === 'craft' ? resolveMapNpcCraftExecutorType(item, 初始对象) : '';
+    const npcTarget = action === 'craft' && executorType === 'official' ? '' : 初始对象;
     const talkSuffix = action === 'talk'
       ? (npcTarget ? ` · 对象 ${npcTarget}` : (talkTargets.length ? ` · 对象 ${talkTargets.join('、')}` : ''))
       : (npcTarget ? ` · 对象 ${npcTarget}` : '');
@@ -7305,10 +7563,16 @@
 
     // ====== MVU 前端结果结算与指令注入 (轻量交互) ======
     // 对于需要走统一桥接的动作（交易、工坊、战斗与社交互动等），直接抛出事件交给 MVU 逻辑桥处理
-    if (['trade', 'bid', 'craft', 'black_market', 'auction', 'shop', 'battle', 'talk', 'brief', 'intel'].includes(action) || itemServices.some(s => ['shop', 'auction', 'black_market', 'craft', 'battle', 'talk', 'brief', 'intel'].includes(s))) {
+    if ((['trade', 'shop', 'black_market'].includes(action) || itemServices.some(s => ['shop', 'black_market'].includes(s)) || 商店上下文.商店名) && !判断商店营业中(mapState.baseSnapshot || snapshot)) {
+      mapState.lastTravelNote = `【${item.name}】商店已关门，营业时间 09:00-22:00。`;
+      if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('商店已关门，营业时间 09:00-22:00。', 'warning');
+      return mapState.lastNodeAction;
+    }
+
+    if (['trade', 'bid', 'craft', 'black_market', 'auction', 'shop', 'battle', 'talk', 'brief', 'intel'].includes(action) || itemServices.some(s => ['shop', 'auction', 'black_market', 'craft', 'battle', 'talk', 'brief', 'intel'].includes(s)) || 商店上下文.商店名) {
       try {
         window.dispatchEvent(new CustomEvent('map-action-dispatch', {
-          detail: { target: item.name, action, services: itemServices, actionSlots: item.actionSlots || [], eventId: item.eventId, nodeKind: item.nodeKind, mapId: mapState.currentMapId, currentLoc: toText(snapshot.currentLocFull, snapshot.currentLoc), npcTargets: talkTargets, npcTarget, executorType }
+          detail: { target: item.name, action: action === 'shop' ? 'trade' : action, services: itemServices, actionSlots: item.actionSlots || [], eventId: item.eventId, nodeKind: item.nodeKind, mapId: mapState.currentMapId, currentLoc: toText(snapshot.currentLocFull, snapshot.currentLoc), npcTargets: talkTargets, npcTarget, executorType, preferredStore: 商店上下文.商店名, storeSource: 商店上下文.来源地点 }
         }));
       } catch (e) {}
       return mapState.lastNodeAction;
@@ -7347,6 +7611,10 @@
           baseTicks = 6;
           logMsg += ` ${actionPreview.logText}`;
           playerInput = `[节点交互] 我想在【${item.name}】休整 1 小时。`;
+        } else if (action === 'sleep') {
+          baseTicks = 6;
+          logMsg += ` ${actionPreview.logText}`;
+          playerInput = `[节点交互] 我想在【${item.name}】睡眠休整 1 小时。`;
         } else if (action === 'talk') {
           baseTicks = 2;
           playerInput = npcTarget
@@ -7363,6 +7631,24 @@
             ? `我想在【${item.name}】向【${npcTarget}】请教情报。`
             : `我想在【${item.name}】向在场人员收集情报。`;
         }
+        const 行动模式映射 = {
+          meditate: '冥想',
+          train_body: '肉体训练',
+          train: '肉体训练',
+          train_mind: '精神训练',
+          rest: '睡眠',
+          sleep: '睡眠',
+          study: '日常'
+        };
+        const 角色名 = toText(actorName, toText(snapshot.activeName, '主角'));
+        const 角色路径 = escapeJsonPointer(角色名);
+        const 当前tick = Math.max(0, toNumber(deepGet(mapState.baseSnapshot || snapshot, 'rootData.world.时间.tick', 0), 0));
+        const patchOps = [
+          { op: 'replace', path: `/char/${角色路径}/状态/行动`, value: 行动模式映射[action] || getNodeInteractionLabel(action) || '日常' },
+          { op: 'replace', path: `/world/时间/tick`, value: 当前tick + Math.max(1, baseTicks) },
+          { op: 'replace', path: `/sys/系统播报`, value: `[地图节点动作] ${角色名} 在【${item.name}】执行【${actionLabel}】，耗时约 ${Math.max(1, baseTicks) * 10} 分钟。` }
+        ];
+
         const sysPrompt = `${HIDDEN_RULES}
 
 [节点动作]
@@ -7376,7 +7662,9 @@
 
 ${logMsg}
 
-请结合当前设施、在场角色与地点功能，自然写出这次行动的过程、收获与后续推进；若当前节点并不适合该动作，也请在剧情里明确说明阻碍原因。`;
+${buildMapUpdateVariableBlock('Map node routine action completed.', patchOps, '以下为本次节点动作结算的完整 MVU 更新。')}
+
+请结合当前设施、在场角色与地点功能，自然写出这次行动的过程、收获与后续推进；若当前节点并不适合该动作，也请在剧情里明确说明阻碍原因。正文不要直接复述 JSONPatch 或系统术语。`;
 
         dispatchMapAiRequest(playerInput, sysPrompt, { requestKind: `map_action_${action}` });
       } catch (e) {
@@ -7415,7 +7703,13 @@ ${logMsg}
     if (!focusItem || mapState.selectedFreePoint) return false;
     if (actionType !== 'inspect' && !isFocusCurrentNode) {
       if (getMapTravelPreview()) {
-        commitMapTravel({ followUpAction: actionType });
+        设置移动后待执行动作(actionType, focusItem);
+        if (hasPendingTravelRequestForTarget() && mapState.待移动后动作 && mapState.待移动后动作.target === focusItem.name) {
+          commitMapTravel({ followUpAction: actionType });
+        } else {
+          queueMapTravelRequest();
+          syncInteractiveMapUI({ center: false, infoOnly: true });
+        }
         return true;
       }
       return false;
@@ -7942,6 +8236,11 @@ ${logMsg}
         pushActionSlot('rest', '休息 / 睡眠', { reason: 构建动作摘要文本(actionPreview, '休整/恢复类动作') });
         return;
       }
+      if (normalized === 'sleep') {
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, normalized, focusItem);
+        pushActionSlot('sleep', '睡眠', { reason: 构建动作摘要文本(actionPreview, '睡眠/恢复类动作') });
+        return;
+      }
       pushActionSlot(normalized, getNodeInteractionLabel(normalized));
     };
     const isFocusCurrentNode = !!(!isFreeSelection && focusItem && focusItem.name === currentActionNodeName);
@@ -7970,6 +8269,7 @@ ${logMsg}
         .concat(Array.isArray(focusItem.interactions) ? focusItem.interactions : [])
         .concat(Array.isArray(focusItem.services) ? focusItem.services : []);
       显式地点行动.forEach(加入地点行动);
+      获取节点本地动作(focusItem, mapState.baseSnapshot || snapshot).forEach(加入地点行动);
       const 节点类型 = toText(focusItem.nodeKind, '');
       if (节点类型 === 'commerce') {
         加入地点行动(/拍卖/.test(`${focusName} ${focusTypeDisplay}`) ? 'bid' : 'trade');
@@ -7991,6 +8291,7 @@ ${logMsg}
       }
       if (/大本营|营地|营房|宿舍|休息区|寝室/.test(`${focusName} ${focusTypeDisplay}`)) {
         加入地点行动('rest');
+        加入地点行动('sleep');
         加入地点行动('meditate');
       }
       if (/训练场|演武|斗魂|实训|锻炼|健身/.test(`${focusName} ${focusTypeDisplay}`)) {
@@ -8107,6 +8408,13 @@ ${logMsg}
         selectedActionDetail.labels = ['地点', '耗时', '恢复'];
         selectedActionDetail.values = [focusName, '1小时（6 tick）', 结算说明];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
+      } else if (selectedAction === 'sleep') {
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'sleep', focusItem);
+        const 结算说明 = 合并动作说明文本(actionPreview.detailText || '推进 1 小时时间并睡眠恢复。', actionPreview.mimicHint);
+        selectedActionDetail.title = '睡眠';
+        selectedActionDetail.labels = ['地点', '耗时', '恢复'];
+        selectedActionDetail.values = [focusName, '1小时（6 tick）', 结算说明];
+        selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedAction === 'talk') {
         selectedActionDetail.title = selectedNpc ? `对话 · ${selectedNpc}` : '对话';
         selectedActionDetail.labels = ['对象', '地点', '说明'];
@@ -8117,7 +8425,18 @@ ${logMsg}
         selectedActionDetail.labels = ['对象', '地点', '说明'];
         selectedActionDetail.values = [selectedNpc || selectedActionSlot.reason || focusCharactersText, focusName, selectedNpc ? `将在当前节点与【${selectedNpc}】切磋` : '将在当前节点触发切磋分发'];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
-      } else if (selectedNpc && ['trade', 'bid', 'craft', 'brief', 'intel'].includes(selectedAction)) {
+      } else if (selectedAction === 'craft') {
+        const extraInfo = [
+          selectedActionSlot.reason,
+          focusServiceText !== '无' ? `提供 ${focusServiceText}` : '',
+          focusEventText !== '无' ? `事件 ${focusEventText}` : '',
+          focusItem ? toText(focusItem.desc, '') : ''
+        ].filter(Boolean).join(' · ') || '将在当前地点办理工坊委托';
+        selectedActionDetail.title = selectedActionLabel;
+        selectedActionDetail.labels = ['动作', '地点', '说明'];
+        selectedActionDetail.values = [selectedActionLabel, focusName, extraInfo];
+        selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
+      } else if (selectedNpc && ['trade', 'bid', 'brief', 'intel'].includes(selectedAction)) {
         const npcActionInfo = [
           focusServiceText !== '无' ? `提供 ${focusServiceText}` : '',
           focusEventText !== '无' ? `事件 ${focusEventText}` : '',
@@ -8212,6 +8531,52 @@ ${logMsg}
     setMapText('[data-map-request-targetloc]', selectedActionDetail.values[0]);
     setMapText('[data-map-request-coord]', selectedActionDetail.values[1]);
     setMapText('[data-map-request-cost]', selectedActionDetail.values[2]);
+
+    if (inPreview && focusItem && !isFreeSelection) {
+      const 节点动作列表 = 获取节点本地动作(focusItem, mapState.baseSnapshot || snapshot);
+      const 商店上下文 = 获取节点商店上下文(focusItem, mapState.baseSnapshot || snapshot);
+      const 当前营业中 = 判断商店营业中(mapState.baseSnapshot || snapshot);
+      const 待执行 = mapState.待移动后动作 && mapState.待移动后动作.target === focusItem.name ? mapState.待移动后动作 : null;
+      const 动作预览HTML = 节点动作列表.length
+        ? `<div class="map-npc-roster-head"><span>${escapeMapHtml(focusName)}</span><span>${escapeMapHtml(待执行 ? `待前往后${待执行.label}` : `${节点动作列表.length} 项`)}</span></div>${节点动作列表.map(动作 => {
+            const 动作标签 = getNodeInteractionLabel(动作);
+            const 是商店动作 = ['trade', 'shop', 'black_market'].includes(动作) || (动作 === 'bid' && 商店上下文.商店名);
+            const 禁用 = 是商店动作 && !当前营业中 && isFocusCurrentNode;
+            const 预览 = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 动作, focusItem);
+            const 说明 = 是商店动作
+              ? (商店上下文.商店名 ? `${商店上下文.商店名} · ${格式化营业状态(mapState.baseSnapshot || snapshot)}` : 格式化营业状态(mapState.baseSnapshot || snapshot))
+              : (预览 && 预览.slotReason ? 预览.slotReason : (isFocusCurrentNode ? '可直接执行' : '需先选择方式前往'));
+            const 当前类 = selectedAction === 动作 || (待执行 && 待执行.action === 动作) ? ' current' : '';
+            return `<button type="button" class="map-npc-card map-node-action-preview${当前类}" data-map-node-action="${escapeMapHtml(动作)}" ${禁用 ? 'disabled' : ''}><div class="map-npc-card-head"><span class="map-npc-name${当前类}">${escapeMapHtml(isFocusCurrentNode ? 动作标签 : `前往并${动作标签}`)}</span><span class="map-event-chip${禁用 ? ' warn' : (当前类 ? ' live' : '')}">${escapeMapHtml(禁用 ? '关门' : (isFocusCurrentNode ? '可执行' : '需移动'))}</span></div><div class="map-npc-meta">${escapeMapHtml(说明)}</div></button>`;
+          }).join('')}`
+        : `<div class="map-npc-empty">${escapeMapHtml(focusName)} 暂无可预览动作。</div>`;
+      const 商品预览HTML = 商店上下文.商店名
+        ? `<div class="map-npc-roster-head"><span>${escapeMapHtml(商店上下文.商店名)}</span><span>${escapeMapHtml(格式化营业状态(mapState.baseSnapshot || snapshot))}</span></div>${商店上下文.商品列表.length
+            ? 商店上下文.商品列表.map(商品 => `<div class="map-npc-meta">${escapeMapHtml(`${商品.名称} · 库存 ${商品.库存} · ${商品.价格.toLocaleString()} ${商品.货币}`)}</div>`).join('')
+            : '<div class="map-npc-meta">当前无可售库存。</div>'}`
+        : '';
+      const 维护HTML = `<div class="map-npc-roster-head"><span>调试维护</span><span>${escapeMapHtml(focusName)}</span></div><div class="map-npc-actions is-visible"><button type="button" class="map-npc-action-btn" data-map-maintenance="add">新增地点</button><button type="button" class="map-npc-action-btn" data-map-maintenance="damage">破坏</button><button type="button" class="map-npc-action-btn" data-map-maintenance="repair">修复</button></div>`;
+      setMapText('[data-map-primary-panel-title]', '节点动作');
+      setMapText('[data-map-panel-mode-badge]', isFocusCurrentNode ? '本地' : '远端');
+      setMapText('[data-map-panel-primary-label]', 待执行 ? '待执行' : '当前动作');
+      setMapText('[data-map-current-name]', 待执行 ? `${待执行.label} · ${focusName}` : selectedActionDetail.title);
+      setMapText('[data-map-focus-type]', 节点动作列表.map(getNodeInteractionLabel).join(' / ') || '无动作');
+      setMapText('[data-map-focus-faction]', isFocusCurrentNode ? '同节点可直接触发' : '需先选择移动方式');
+      setMapText('[data-map-focus-childmap]', 商店上下文.商店名 ? `${商店上下文.商店名} · ${当前营业中 ? '可交易' : '已关门'}` : selectedActionDetail.values[2]);
+      setMapText('[data-map-secondary-panel-title]', 商店上下文.商店名 ? '动作与库存' : '动作预览');
+      setMapText('[data-map-npc-count]', String(节点动作列表.length));
+      getMapUiElements('[data-map-secondary-panel-badge]').forEach(徽章 => {
+        徽章.innerHTML = 商店上下文.商店名 ? (当前营业中 ? '营业' : '关门') : `${节点动作列表.length} 项`;
+      });
+      setMapHtml('[data-map-npc-list]', `${动作预览HTML}${商品预览HTML}${维护HTML}`);
+    } else {
+      setMapText('[data-map-primary-panel-title]', '详细信息');
+      setMapText('[data-map-secondary-panel-title]', '在场人物');
+      getMapUiElements('[data-map-secondary-panel-badge]').forEach(徽章 => {
+        徽章.innerHTML = `<span data-map-npc-count>${characterEntries.length}</span> 人`;
+      });
+    }
+
     getMapUiElements('[data-map-travel-action]').forEach(card => {
       card.classList.toggle('disabled', !travelPreview || (inPreview && !previewCurrentBranch));
     });
@@ -8408,6 +8773,7 @@ ${logMsg}
     mapState.selectedFreePoint = freePoint;
     mapState.infoPanelMode = 'selection';
     if (!hasPendingTravelRequestForTarget()) mapState.pendingTravelRequest = null;
+    mapState.待移动后动作 = null;
     syncInteractiveMapUI({ center: false, updateInfo: true });
   }
 
@@ -8452,6 +8818,7 @@ ${logMsg}
     const nextNode = node.dataset.node;
     mapState.selectedFreePoint = null;
     if (!hasPendingTravelRequestForTarget()) mapState.pendingTravelRequest = null;
+    if (mapState.待移动后动作 && mapState.待移动后动作.target !== nextNode) mapState.待移动后动作 = null;
     mapState.selectedNode = nextNode;
     mapState.infoPanelMode = 'selection';
     mapState.travelMethodOverride = null;
@@ -8626,6 +8993,30 @@ ${logMsg}
         event.stopPropagation();
         if (按钮.classList.contains('disabled') || 按钮.disabled) return;
         performMapAction(toText(mapState.selectedAction, '') || toText(按钮.dataset.mapActionBtn, '') || 'travel');
+      });
+    });
+
+    getMapUiElements('[data-map-node-action]').forEach(按钮 => {
+      if (按钮.dataset.mapBound === '1') return;
+      按钮.dataset.mapBound = '1';
+      按钮.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (按钮.disabled) return;
+        const 动作 = toText(按钮.dataset.mapNodeAction, '');
+        if (!动作) return;
+        mapState.selectedAction = 动作;
+        performMapAction(动作);
+      });
+    });
+
+    getMapUiElements('[data-map-maintenance]').forEach(按钮 => {
+      if (按钮.dataset.mapBound === '1') return;
+      按钮.dataset.mapBound = '1';
+      按钮.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        执行地图维护操作(按钮.dataset.mapMaintenance || '');
       });
     });
 
