@@ -1,8 +1,7 @@
 !(function () {
   'use strict';
 
-  const 载入版本标记 = '20260510_lwcs_稳定优先懒加载';
-  const 加载器键 = 'mvu_external_ui_vue_loader_' + 载入版本标记;
+  const 加载器键 = 'mvu_external_ui_vue_loader';
   const 宿主窗口 = (() => {
     try {
       if (window.parent && window.parent !== window && window.parent.document) return window.parent;
@@ -15,7 +14,7 @@
   宿主窗口[加载器键] = true;
 
   const 资源基础地址 = 'http://localhost:5501/lwcs/';
-  const 资源版本后缀 = '?v=' + encodeURIComponent(载入版本标记);
+  const 资源版本后缀 = '';
   const Vue远程地址 = 'https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js';
   const 首次重试延迟毫秒 = 260;
   const 二次重试延迟毫秒 = 560;
@@ -55,7 +54,6 @@
   };
 
   const 加载状态 = {
-    版本: 载入版本标记,
     阶段: 加载阶段.待启动,
     启动时间: Date.now(),
     首屏可交互时间: 0,

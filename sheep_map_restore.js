@@ -7873,8 +7873,11 @@ ${buildMapUpdateVariableBlock('Map node routine action completed.', patchOps, '�
     const isFreeSelection = !!mapState.selectedFreePoint;
     const panelMode = getMapInfoPanelMode();
     const focusItem = isFreeSelection ? null : (getItemByName(mapState.selectedNode) || getItemByName(resolveSelectedNodeForLayer(mapState.layer)) || snapshot.items[0] || null);
-    const inPreview = hasActivePreview();
     const previewMeta = snapshot.previewMeta || null;
+    const inPreview = hasActivePreview();
+    const isSubMapView = inPreview
+      || !!previewMeta
+      || (toText(snapshot.currentMapId || mapState.currentMapId, '') && toText(snapshot.currentMapId || mapState.currentMapId, '') !== 'map_douluo_world');
     const previewCurrentBranch = isPreviewCurrentBranch();
     const currentVisibleName = getVisibleCurrentNode();
     const currentActionNodeName = resolveActionableCurrentNodeName(snapshot);
@@ -8532,7 +8535,7 @@ ${buildMapUpdateVariableBlock('Map node routine action completed.', patchOps, '�
     setMapText('[data-map-request-coord]', selectedActionDetail.values[1]);
     setMapText('[data-map-request-cost]', selectedActionDetail.values[2]);
 
-    if (inPreview && focusItem && !isFreeSelection) {
+    if (isSubMapView && focusItem && !isFreeSelection) {
       const 节点动作列表 = 获取节点本地动作(focusItem, mapState.baseSnapshot || snapshot);
       const 商店上下文 = 获取节点商店上下文(focusItem, mapState.baseSnapshot || snapshot);
       const 当前营业中 = 判断商店营业中(mapState.baseSnapshot || snapshot);
@@ -8910,6 +8913,31 @@ ${buildMapUpdateVariableBlock('Map node routine action completed.', patchOps, '�
       window.addEventListener('pointerup', handleMiniMapPointerUp);
       window.addEventListener('pointercancel', handleMapPointerUp);
       window.addEventListener('pointercancel', handleMiniMapPointerUp);
+    }
+
+    if (!mapState.全局动作委托已绑定) {
+      mapState.全局动作委托已绑定 = true;
+      document.addEventListener('click', event => {
+        const 目标 = event.target instanceof Element ? event.target : null;
+        if (!目标) return;
+        const 动作按钮 = 目标.closest('[data-map-node-action]');
+        if (动作按钮 && !动作按钮.dataset.mapBound) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (动作按钮.disabled) return;
+          const 动作 = toText(动作按钮.dataset.mapNodeAction, '');
+          if (!动作) return;
+          mapState.selectedAction = 动作;
+          performMapAction(动作);
+          return;
+        }
+        const 维护按钮 = 目标.closest('[data-map-maintenance]');
+        if (维护按钮 && !维护按钮.dataset.mapBound) {
+          event.preventDefault();
+          event.stopPropagation();
+          执行地图维护操作(维护按钮.dataset.mapMaintenance || '');
+        }
+      });
     }
 
     getMapUiElements('.map-mini-world').forEach(miniWorldEl => {

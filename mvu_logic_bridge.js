@@ -13376,6 +13376,199 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       `;
     }
 
+    function 规范星图商店匹配文本(文本 = '') {
+      return toText(文本, '')
+        .replace(/协会分会|协会分店|分会|分店|协会/g, '协会')
+        .replace(/商店|店铺|商城/g, '')
+        .replace(/\s+/g, '')
+        .trim();
+    }
+
+    function 读取星图时间状态(snapshot) {
+      const 当前tick = Math.max(0, toNumber(deepGet(snapshot, 'rootData.world.时间.tick', 0), 0));
+      const 当日分钟 = ((当前tick * 10) % 1440 + 1440) % 1440;
+      const 小时 = Math.floor(当日分钟 / 60);
+      const 分钟 = Math.floor(当日分钟 % 60);
+      const 时间文本 = `${String(小时).padStart(2, '0')}:${String(分钟).padStart(2, '0')}`;
+      return {
+        小时,
+        分钟,
+        时间文本,
+        商店营业中: 小时 >= 9 && 小时 < 22,
+      };
+    }
+
+    function 解析星图节点动作上下文(snapshot, 焦点态 = null) {
+      const 定位 = 读取星图焦点定位(snapshot, 焦点态);
+      const 地点信息 = 读取星图焦点地点数据(snapshot, 定位);
+      const 父地点数据 = snapshot && snapshot.locationData && typeof snapshot.locationData === 'object' ? snapshot.locationData : {};
+      const 子节点数据 = deepGet(父地点数据, ['子节点', 定位.焦点名称], {});
+      const 地点数据 = 地点信息 && 地点信息.data && typeof 地点信息.data === 'object'
+        ? 地点信息.data
+        : (子节点数据 && typeof 子节点数据 === 'object' ? 子节点数据 : {});
+      const 节点文本 = [
+        定位.焦点名称,
+        定位.类型,
+        定位.功能,
+        定位.可用,
+        deepGet(地点数据, '类型', ''),
+        deepGet(地点数据, '描述', ''),
+        deepGet(地点数据, '掌控势力', ''),
+      ].map(值 => toText(值, '')).join(' ');
+      const 直接商店 = deepGet(地点数据, '商店', {});
+      const 父级商店 = deepGet(父地点数据, '商店', {});
+      const 商店表 = 直接商店 && typeof 直接商店 === 'object' && Object.keys(直接商店).length ? 直接商店 : (父级商店 || {});
+      const 商店名列表 = Object.keys(商店表 || {});
+      const 节点匹配键 = 规范星图商店匹配文本(定位.焦点名称);
+      const 类型匹配键 = 规范星图商店匹配文本(节点文本);
+      const 商店名 = 商店名列表.find(候选名 => {
+        const 商店匹配键 = 规范星图商店匹配文本(候选名);
+        return 商店匹配键 && (
+          商店匹配键.includes(节点匹配键)
+          || 节点匹配键.includes(商店匹配键)
+          || 类型匹配键.includes(商店匹配键)
+        );
+      }) || (/商店|店铺|杂货/.test(节点文本) ? 商店名列表[0] : '');
+      const 商品表 = 商店名 && 商店表[商店名] && 商店表[商店名].库存 && typeof 商店表[商店名].库存 === 'object'
+        ? 商店表[商店名].库存
+        : {};
+      const 商品列表 = safeEntries(商品表).slice(0, 5).map(([名称, 数据]) => ({
+        名称,
+        库存: toNumber(deepGet(数据, '库存', deepGet(数据, '数量', 0)), 0),
+        价格: toNumber(deepGet(数据, '价格', 0), 0),
+        货币: toText(deepGet(数据, '货币', '联邦币'), '联邦币'),
+      }));
+      const 动作集合 = new Set();
+      const 加入动作 = 动作 => {
+        const 标准动作 = toText(动作, '');
+        if (!标准动作 || ['inspect', 'enter', 'preview', 'talk'].includes(标准动作)) return;
+        if (标准动作 === 'shop' || 标准动作 === 'black_market') 动作集合.add('trade');
+        else if (标准动作 === 'auction') 动作集合.add('bid');
+        else if (标准动作 === 'briefing') 动作集合.add('brief');
+        else if (标准动作 === 'train') {
+          动作集合.add('train_body');
+          动作集合.add('train_mind');
+        } else 动作集合.add(标准动作);
+      };
+      []
+        .concat(Array.isArray(deepGet(地点数据, '行动槽', [])) ? deepGet(地点数据, '行动槽', []) : [])
+        .concat(Array.isArray(deepGet(地点数据, 'actionSlots', [])) ? deepGet(地点数据, 'actionSlots', []) : [])
+        .concat(Array.isArray(deepGet(地点数据, '交互', [])) ? deepGet(地点数据, '交互', []) : [])
+        .concat(Array.isArray(deepGet(地点数据, '服务', [])) ? deepGet(地点数据, '服务', []) : [])
+        .forEach(加入动作);
+      if (商店名) 加入动作('trade');
+      if (/拍卖/.test(节点文本)) 加入动作('bid');
+      if (/锻造师协会|制造师协会|设计师协会|修理师协会|副职业|工坊/.test(节点文本)) {
+        加入动作('craft');
+        加入动作('trade');
+      }
+      if (/训练场|演武|斗魂|实训|锻炼|健身/.test(节点文本)) 加入动作('train');
+      if (/图书馆|藏书|静室|冥想|修炼/.test(节点文本)) {
+        加入动作('study');
+        加入动作('meditate');
+      }
+      if (/宿舍|寝室|营房|休息区|大本营|营地|客栈|旅馆/.test(节点文本)) {
+        加入动作('rest');
+        加入动作('sleep');
+        加入动作('meditate');
+      }
+      if (/情报|指挥|巡防/.test(节点文本)) 加入动作('intel');
+      if (/政务|议政/.test(节点文本)) 加入动作('brief');
+      const 时间状态 = 读取星图时间状态(snapshot);
+      return {
+        定位,
+        地点数据,
+        商店名,
+        商品列表,
+        动作列表: Array.from(动作集合),
+        时间状态,
+      };
+    }
+
+    function 取星图节点动作标签(动作 = '') {
+      return {
+        study: '研读',
+        meditate: '冥想',
+        train_body: '肉体训练',
+        train_mind: '精神训练',
+        battle: '战斗',
+        trade: '交易',
+        bid: '竞拍',
+        craft: '委托工坊',
+        rest: '休整',
+        sleep: '睡眠',
+        intel: '情报',
+        brief: '汇报',
+      }[toText(动作, '')] || toText(动作, '查看');
+    }
+
+    function 构建星图节点动作卡(snapshot, 焦点态 = null) {
+      const 上下文 = 解析星图节点动作上下文(snapshot, 焦点态);
+      const 是否当前节点 = !!上下文.定位.是否当前位置;
+      const 动作标题 = 上下文.动作列表.length ? `${上下文.动作列表.length} 项` : '无动作';
+      const 动作按钮 = 上下文.动作列表.length
+        ? 上下文.动作列表.map(动作 => {
+          const 标签 = 取星图节点动作标签(动作);
+          const 是商店动作 = ['trade', 'bid'].includes(动作) && !!上下文.商店名;
+          const 禁用 = 是商店动作 && 是否当前节点 && !上下文.时间状态.商店营业中;
+          const 状态 = 禁用 ? '关门' : (是否当前节点 ? '可执行' : '需移动');
+          const 说明 = 是商店动作
+            ? `${上下文.商店名} · ${上下文.时间状态.商店营业中 ? '营业中' : '已关门'} ${上下文.时间状态.时间文本}`
+            : (动作 === 'craft' ? '官方工坊委托' : (['study', 'meditate', 'train_body', 'train_mind', 'rest', 'sleep'].includes(动作) ? '约 1 小时' : '节点动作'));
+          return `
+            <button type="button" class="location-action-row map-node-action-preview" data-map-node-action="${escapeHtmlAttr(动作)}" ${禁用 ? 'disabled' : ''}>
+              <b>${htmlEscape(是否当前节点 ? 标签 : `前往并${标签}`)}</b>
+              <span>${htmlEscape(`${状态} · ${说明}`)}</span>
+            </button>
+          `;
+        }).join('')
+        : '<div class="location-empty-note">暂无节点动作。</div>';
+      return `
+        <div class="mvu-map-focus-card">
+          <div class="mvu-map-focus-head">
+            <div>
+              <span>节点动作</span>
+              <strong title="${escapeHtmlAttr(上下文.定位.焦点名称)}">${htmlEscape(shortenText(上下文.定位.焦点名称, 24))}</strong>
+            </div>
+            <b class="${是否当前节点 ? 'is-live' : 'is-gold'}">${htmlEscape(是否当前节点 ? '当前' : '远端')}</b>
+          </div>
+          <div class="location-action-list">${动作按钮}</div>
+          <div class="tag-cloud armory-quick-actions mvu-detail-action-row mvu-detail-action-row--start">
+            <button type="button" class="relation-action-btn" data-map-maintenance="add">新增地点</button>
+            <button type="button" class="relation-action-btn" data-map-maintenance="damage">破坏</button>
+            <button type="button" class="relation-action-btn" data-map-maintenance="repair">修复</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function 构建星图节点库存卡(snapshot, 焦点态 = null) {
+      const 上下文 = 解析星图节点动作上下文(snapshot, 焦点态);
+      const 库存HTML = 上下文.商店名
+        ? (上下文.商品列表.length
+          ? 上下文.商品列表.map(商品 => `
+            <div class="mvu-shell-roster-row">
+              <b>${htmlEscape(shortenText(商品.名称, 18))}</b>
+              <div class="mvu-shell-roster-meta">${htmlEscape(`库存 ${商品.库存}`)}</div>
+              <div class="mvu-shell-roster-state">${htmlEscape(`${商品.价格.toLocaleString()} ${商品.货币}`)}</div>
+            </div>
+          `).join('')
+          : '<div class="mvu-shell-roster-empty">当前无可售库存</div>')
+        : '<div class="mvu-shell-roster-empty">暂无库存</div>';
+      return `
+        <div class="mvu-shell-roster-card mvu-map-roster-card">
+          <div class="mvu-shell-roster-head">
+            <div>
+              <span>${htmlEscape(上下文.商店名 ? '动作与库存' : '动作预览')}</span>
+              <strong>${htmlEscape(上下文.商店名 || 上下文.定位.焦点名称)}</strong>
+            </div>
+            <b>${htmlEscape(上下文.商店名 ? (上下文.时间状态.商店营业中 ? '营业' : '关门') : `${上下文.动作列表.length} 项`)}</b>
+          </div>
+          <div class="mvu-shell-roster-list">${库存HTML}</div>
+        </div>
+      `;
+    }
+
     function buildShellMapCurrentCard(snapshot) {
       const currentMapDisplayName = getMapDisplayName(snapshot);
       const localFaction = toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知');
@@ -13503,11 +13696,11 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       };
       const 快照 = liveSnapshot || lastRenderableSnapshot;
       if (!快照) return;
-      setUnifiedCardMarkup('map-current', 构建星图焦点位置卡(快照, 星图焦点态), {
+      setUnifiedCardMarkup('map-current', 构建星图节点动作卡(快照, 星图焦点态), {
         preview: 判断星图焦点为当前位置(快照, 星图焦点态) ? '当前节点详情' : '',
         surface: 'panel',
       });
-      setUnifiedCardMarkup('map-locals', 构建星图在场人物卡(快照, 星图焦点态), { surface: 'panel' });
+      setUnifiedCardMarkup('map-locals', 构建星图节点库存卡(快照, 星图焦点态), { surface: 'panel' });
     }
 
     window.addEventListener('sheep-map-focus-change', 处理星图焦点变更);
@@ -14589,11 +14782,11 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
         } else {
           ensureUnifiedSheepMapStage('panel');
           setUnifiedCardMarkup('map-hero', '', { enabled: false, surface: normalizedSurface });
-          setUnifiedCardMarkup('map-current', 构建星图焦点位置卡(snapshot, 星图焦点态), {
+          setUnifiedCardMarkup('map-current', 构建星图节点动作卡(snapshot, 星图焦点态), {
             preview: 判断星图焦点为当前位置(snapshot, 星图焦点态) ? '当前节点详情' : '',
             surface: normalizedSurface,
           });
-          setUnifiedCardMarkup('map-locals', 构建星图在场人物卡(snapshot, 星图焦点态), { surface: normalizedSurface });
+          setUnifiedCardMarkup('map-locals', 构建星图节点库存卡(snapshot, 星图焦点态), { surface: normalizedSurface });
         }
       }
 
@@ -27038,8 +27231,9 @@ ${extraRequirement}
     let floatingHoverClearTimer = 0;
     let floatingHoverAutoHideTimer = 0;
     const 浮窗自动隐藏毫秒 = 0;
-    const 浮窗关闭延迟毫秒 = 240;
-    const 浮窗通道余量 = 18;
+    const 浮窗关闭延迟毫秒 = 650;
+    const 浮窗离区复核延迟毫秒 = 180;
+    const 浮窗通道余量 = 42;
     const 顶层浮窗层级 = '320';
 
     function cancelFloatingHoverClearTimer() {
@@ -27080,9 +27274,9 @@ ${extraRequirement}
     function isPointerStillWithinFloatingHover(trigger, event) {
       if (!(trigger instanceof Element) || !(event instanceof PointerEvent)) return false;
       const pointTarget = document.elementFromPoint(event.clientX, event.clientY);
-      if (!(pointTarget instanceof Element)) return false;
+      if (!(pointTarget instanceof Element)) return 指针在浮窗通道坐标(event.clientX, event.clientY);
       if (顶层浮窗卡片 && 顶层浮窗卡片.contains(pointTarget)) return true;
-      return trigger.contains(pointTarget);
+      return trigger.contains(pointTarget) || 指针在浮窗通道坐标(event.clientX, event.clientY);
     }
 
     function 坐标在矩形内(x, y, rect, 余量 = 0) {
@@ -27121,6 +27315,7 @@ ${extraRequirement}
 
     function 指针命中浮窗链路() {
       if (!最近指针坐标 || !activeFloatingHoverTrigger) return false;
+      if (指针在浮窗通道坐标(最近指针坐标.x, 最近指针坐标.y)) return true;
       const 命中节点 = document.elementFromPoint(最近指针坐标.x, 最近指针坐标.y);
       if (!(命中节点 instanceof Element)) return false;
       if (activeFloatingHoverTrigger.contains(命中节点)) return true;
@@ -27133,7 +27328,7 @@ ${extraRequirement}
         浮窗离区复核计时器 = 0;
         if (!trigger || activeFloatingHoverTrigger !== trigger) return;
         if (!指针命中浮窗链路()) clearFloatingHoverCard(trigger);
-      }, 120);
+      }, 浮窗离区复核延迟毫秒);
     }
 
     function clampHoverValue(value, min, max) {
@@ -27184,7 +27379,10 @@ ${extraRequirement}
       顶层卡片.style.maxHeight = `${maxHeight}px`;
       顶层卡片.style.left = '0px';
       顶层卡片.style.top = '0px';
-      顶层卡片.addEventListener('pointerenter', cancelFloatingHoverClearTimer);
+      顶层卡片.addEventListener('pointerenter', () => {
+        cancelFloatingHoverClearTimer();
+        取消浮窗离区复核计时器();
+      });
       顶层卡片.addEventListener('pointerleave', event => {
         if (指针在浮窗通道坐标(event.clientX, event.clientY)) {
           cancelFloatingHoverClearTimer();
