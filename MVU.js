@@ -7113,7 +7113,7 @@ function normalizeNoSoulPowerCharacterData(char = {}) {
   if (char.血脉之力 && typeof char.血脉之力 === 'object') {
     char.血脉之力.核心 = '未凝聚';
     char.血脉之力.解封层数 = 0;
-    char.血脉之力.skills = {};
+    char.血脉之力.技能 = {};
     char.血脉之力.被动 = {};
     char.血脉之力.气血魂环 = {};
     char.血脉之力.永久加成 = {};
@@ -9587,7 +9587,7 @@ function buildCharacterCustomSkillAttributeState(char = {}) {
   safeEntries(char?.魂骨 || {}).forEach(([, boneData]) => {
     追加技能图谱附带属性(boneData?.附带技能);
   });
-  追加技能图谱附带属性(char?.血脉之力?.skills);
+  追加技能图谱附带属性(char?.血脉之力?.技能);
   追加技能图谱附带属性(char?.血脉之力?.被动);
   追加技能图谱附带属性(char?.自创魂技);
 
@@ -11136,6 +11136,52 @@ function 尝试按机制决策回填技能效果数组_V1(skill = {}, context = 
   return 按候选方案回填技能效果数组_V1(skill, context);
 }
 
+function 直接自动生成技能结构_V1(skill = {}, context = {}) {
+  if (!skill || typeof skill !== 'object') return false;
+  const 系别 = String(context?.type || '强攻系').trim() || '强攻系';
+  const 天赋层级 = String(context?.talentTier || '正常').trim() || '正常';
+  const 魂环年限 = Math.max(100, Number(context?.age || 1000));
+  const 魂环位 = Math.max(1, Number(context?.ringIndex || 1));
+  const 契合度 = Math.max(0, Math.min(100, Number(context?.compatibility || 100)));
+  const 偏好副机制 = Array.isArray(context?.preferredSecondary) ? context.preferredSecondary : [];
+  const 当前tick = Number(context?.currentTick || 0);
+  const 生成结果 = context?.forceTrueBody === true
+    ? buildSeventhRingTrueBodySkill(
+        系别,
+        天赋层级,
+        魂环年限,
+        魂环位,
+        契合度,
+        context?.textContext || {},
+        String(context?.sourceQuality || '').trim(),
+      )
+    : autoGenerateSkill(系别, 天赋层级, 魂环年限, 魂环位, 契合度, 偏好副机制, 当前tick, {
+        passiveMode: context?.passiveMode === true,
+        passiveName: String(context?.passiveName || skill?.魂技名 || '').trim(),
+        sourceCategory: String(context?.sourceCategory || context?.技能来源 || '魂技').trim() || '魂技',
+        sourceQuality: String(context?.sourceQuality || context?.来源品质 || '').trim(),
+        textContext: context?.textContext || {},
+        martialSoulName: String(context?.martialSoulName || context?.textContext?.martialSoulName || '').trim(),
+        当前魂环数量: Math.max(1, Math.floor(Number(context?.当前魂环数量 || context?.ringCount || 1))),
+        elementProfile: context?.elementProfile || null,
+        unlockedAttributes: Array.isArray(context?.unlockedAttributes) ? context.unlockedAttributes : [],
+        attributeCapacity: Array.isArray(context?.attributeCapacity) ? context.attributeCapacity : [],
+        elementTrigger: String(context?.elementTrigger || '').trim(),
+      });
+  const 效果数组 = Array.isArray(生成结果?._效果数组) ? clonePackedSkillEffects(生成结果._效果数组) : [];
+  if (!效果数组.length) return false;
+
+  skill._效果数组 = clonePackedSkillEffects(效果数组);
+  ['技能来源', '技能类型', '目标模型', '结算策略', '消耗', 'cast_time'].forEach(字段名 => {
+    if (生成结果 && 生成结果[字段名] !== undefined) skill[字段名] = cloneJsonValue(生成结果[字段名], 生成结果[字段名]);
+  });
+  if (!Array.isArray(skill.附带属性)) skill.附带属性 = [];
+  delete skill[技能机制决策临时字段_V1];
+  applySkillElementInheritance(skill, context);
+  syncConstructSkillMetadata(skill);
+  return skill;
+}
+
 function ensureSkillStructGenerated(skill, context = {}) {
   if (!skill || typeof skill !== 'object') return skill;
   if (!Array.isArray(skill._效果数组)) skill._效果数组 = [];
@@ -11143,7 +11189,6 @@ function ensureSkillStructGenerated(skill, context = {}) {
     skill.魂技名 = buildSkillNameTodoText(context?.textContext || context);
   }
   let hasPackedEffects = Array.isArray(skill._效果数组) && skill._效果数组.length > 0;
-  const shouldDeferGeneration = !hasPackedEffects && context.deferGenerationUntilSecondaryReady === true;
   if (hasPackedEffects && skill?.[技能机制决策临时字段_V1] && typeof skill[技能机制决策临时字段_V1] === 'object') {
     delete skill[技能机制决策临时字段_V1];
   }
@@ -11161,32 +11206,6 @@ function ensureSkillStructGenerated(skill, context = {}) {
       skill.画面描述 = AI_TODO_SKILL_VISUAL;
     if (typeof skill.效果描述 !== 'string' || !skill.效果描述.trim() || isSkillTodoText(skill.效果描述))
       skill.效果描述 = AI_TODO_SKILL_EFFECT;
-  }
-
-  const shouldGenerate = skill._效果数组.length === 0 && context.enableGenerate !== false && !shouldDeferGeneration;
-  if (shouldGenerate) {
-    if (context.forceTrueBody === true) {
-      const generated = buildSeventhRingTrueBodySkill(
-        context.type || '强攻系',
-        context.talentTier || '正常',
-        Math.max(100, Number(context.age || 1000)),
-        Math.max(1, Number(context.ringIndex || 1)),
-        Math.max(0, Math.min(100, Number(context.compatibility || 100))),
-        context.textContext || {},
-        context.sourceQuality || '',
-      );
-      const preservedSkillName = String(skill?.魂技名 || '').trim();
-      skill.魂技名 = preservedSkillName && !isSkillTodoText(preservedSkillName) ? preservedSkillName : generated.魂技名 || AI_TODO_SKILL_NAME;
-      skill.画面描述 = generated.画面描述 || AI_TODO_SKILL_VISUAL_STAGE1;
-      skill.效果描述 = generated.效果描述 || AI_TODO_SKILL_EFFECT;
-      skill._效果数组 = clonePackedSkillEffects(generated._效果数组 || []);
-      delete skill[技能机制决策临时字段_V1];
-    } else if (
-      context?.允许注入机制决策临时 === true &&
-      (!skill?.[技能机制决策临时字段_V1] || typeof skill[技能机制决策临时字段_V1] !== 'object')
-    ) {
-      skill[技能机制决策临时字段_V1] = 构建技能机制决策临时数据_V1(skill, context);
-    }
   }
 
   if (typeof skill.魂技名 !== 'string' || !skill.魂技名.trim() || isSkillTodoText(skill.魂技名)) {
@@ -11212,9 +11231,221 @@ function ensureSkillMapGenerated(skillMap, contextFactory = () => ({})) {
     ) {
       skill.魂技名 = String(skillName);
     }
-    ensureSkillStructGenerated(skill, contextFactory(skill, skillName) || {});
+    const 技能上下文 = contextFactory(skill, skillName) || {};
+    if (!技能上下文.技能键) 技能上下文.技能键 = String(skillName || '').trim();
+    ensureSkillStructGenerated(skill, 技能上下文);
   });
   return skillMap || {};
+}
+
+function 初始化补齐角色技能效果数组_V1(rootData = {}) {
+  const 角色集 = rootData && rootData.char && typeof rootData.char === 'object' ? rootData.char : {};
+  const 补齐技能 = (skill, context = {}) => {
+    if (!skill || typeof skill !== 'object') return;
+    if (Array.isArray(skill._效果数组) && skill._效果数组.length > 0) return;
+    直接自动生成技能结构_V1(skill, context || {});
+  };
+  const 补齐技能映射 = (skillMap = {}, contextFactory = () => ({})) => {
+    _(skillMap || {}).forEach((skill, skillName) => {
+      if (!skill || typeof skill !== 'object') return;
+      const 技能上下文 = contextFactory(skill, skillName) || {};
+      if (!技能上下文.技能键) 技能上下文.技能键 = String(skillName || '').trim();
+      补齐技能(skill, 技能上下文);
+    });
+  };
+
+  _(角色集 || {}).forEach((char, charName) => {
+    if (!char || typeof char !== 'object') return;
+    const 通用技能年限 = Math.max(1000, Number(char?.属性?.等级 || 1) * 200);
+    const 系别 = char?.属性?.系别 || '强攻系';
+    const 天赋梯队 = char?.属性?.天赋梯队 || '正常';
+
+    _(char.武魂 || {}).forEach((spiritData, spiritKey) => {
+      if (!spiritData || typeof spiritData !== 'object') return;
+      const 武魂属性状态 = normalizeSpiritAttributeState(spiritData, spiritKey, char);
+      const 武魂元素画像 = buildElementProfileFromAttributeState(武魂属性状态);
+      _(spiritData?.魂灵 || {}).forEach(武魂 => {
+        if (!武魂 || typeof 武魂 !== 'object') return;
+        const 来源品质 =
+          normalizeSoulSpiritQuality(武魂?.品质 || '') ||
+          inferSoulSpiritQuality(武魂) ||
+          normalizeSoulSpiritQuality(spiritData?.品质 || '') ||
+          inferSoulSpiritQuality(spiritData) ||
+          '';
+        _(武魂.魂环 || {}).forEach((ring, ringIndexStr) => {
+          const 魂环位 = parseInt(ringIndexStr) || 1;
+          const 当前魂环数量 = 计算武魂当前魂环数量_V1(spiritData);
+          const 武魂名称 = String(spiritData?.表象名称 || spiritKey || '').trim();
+          补齐技能映射(ring?.魂技, (_, skillName) => ({
+            type: 系别,
+            talentTier: 天赋梯队,
+            age: ring?.年限,
+            ringIndex: 魂环位,
+            当前魂环数量,
+            martialSoulName: 武魂名称,
+            compatibility: 武魂.契合度 || 100,
+            sourceQuality: 来源品质,
+            preferredSecondary: [],
+            elementProfile: 武魂元素画像,
+            unlockedAttributes: 武魂属性状态.已解锁属性,
+            attributeCapacity: 武魂属性状态.可容纳属性,
+            elementTrigger: '继承武魂',
+            sourceCategory: '魂技',
+            forceTrueBody: 魂环位 === 7,
+            textContext: {
+              spiritName:
+                !isAiTodoText(武魂.表象名称) && 武魂.表象名称 !== '未展露'
+                  ? 武魂.表象名称
+                  : spiritData?.表象名称 || skillName,
+              type: 系别,
+              spiritDesc: String(武魂?.描述 || '').trim(),
+              martialSoulName: 武魂名称,
+              ringSource: String(ring?.来源 || '').trim(),
+            },
+          }));
+        });
+      });
+
+      _(spiritData?.独立魂环 || {}).forEach((ring, ringIndexStr) => {
+        const 魂环位 = parseInt(ringIndexStr) || 1;
+        const 当前魂环数量 = 计算武魂当前魂环数量_V1(spiritData);
+        const 武魂名称 = String(spiritData?.表象名称 || spiritKey || '').trim();
+        const 来源品质 =
+          normalizeSoulSpiritQuality(spiritData?.品质 || '') ||
+          inferSoulSpiritQuality(spiritData) ||
+          '';
+        补齐技能映射(ring?.魂技, (_, skillName) => ({
+          type: 系别,
+          talentTier: 天赋梯队,
+          age: ring?.年限,
+          ringIndex: 魂环位,
+          当前魂环数量,
+          martialSoulName: 武魂名称,
+          compatibility: 100,
+          sourceQuality: 来源品质,
+          preferredSecondary: [],
+          elementProfile: 武魂元素画像,
+          unlockedAttributes: 武魂属性状态.已解锁属性,
+          attributeCapacity: 武魂属性状态.可容纳属性,
+          elementTrigger: '继承武魂',
+          sourceCategory: '魂技',
+          forceTrueBody: 魂环位 === 7,
+          textContext: {
+            spiritName: spiritData?.表象名称 || skillName,
+            type: 系别,
+            spiritDesc: String(spiritData?.描述 || '').trim(),
+            martialSoulName: 武魂名称,
+            ringSource: String(ring?.来源 || '').trim(),
+          },
+        }));
+      });
+    });
+
+    _(char.魂骨 || {}).forEach((bone, bonePart) => {
+      补齐技能映射(bone?.附带技能, (_, skillName) => ({
+        type: 系别,
+        talentTier: 天赋梯队,
+        age: bone?.年限 || bone?.age || 通用技能年限,
+        ringIndex: 1,
+        compatibility: 100,
+        preferredSecondary: getBonePreferredSecondary(bonePart),
+        textContext: {
+          spiritName: bone?.名称 || bonePart || skillName,
+          type: 系别,
+        },
+      }));
+    });
+
+    const 自创属性状态 = buildCharacterCustomSkillAttributeState(char);
+    const 自创元素画像 = buildElementProfileFromAttributeState(自创属性状态);
+    补齐技能映射(char.自创魂技, (_, skillName) => ({
+      type: 系别,
+      talentTier: 天赋梯队,
+      age: Math.max(1000, 通用技能年限),
+      ringIndex: Math.max(1, Math.ceil(Number(char?.属性?.等级 || 1) / 10)),
+      compatibility: 100,
+      preferredSecondary: [],
+      elementProfile: 自创元素画像,
+      unlockedAttributes: 自创属性状态.已解锁属性,
+      attributeCapacity: 自创属性状态.可容纳属性,
+      elementTrigger: '自创',
+      sourceCategory: '自创魂技',
+      textContext: {
+        spiritName: skillName,
+        type: 系别,
+      },
+    }));
+
+    补齐技能映射(char.血脉之力?.被动, (_, skillName) => ({
+      type: 系别,
+      talentTier: 天赋梯队,
+      age: Math.max(10000, 通用技能年限),
+      ringIndex: Math.max(1, Number(char.血脉之力?.解封层数 || 1)),
+      compatibility: 100,
+      passiveMode: true,
+      passiveName: skillName,
+      preferredSecondary: [],
+      elementTrigger: '继承血脉',
+      textContext: {
+        spiritName: char.血脉之力?.血脉 || skillName,
+        type: 系别,
+      },
+    }));
+
+    补齐技能映射(char.血脉之力?.技能, (_, skillName) => ({
+      type: 系别,
+      talentTier: 天赋梯队,
+      age: Math.max(10000, 通用技能年限),
+      ringIndex: Math.max(1, Number(char.血脉之力?.解封层数 || 1)),
+      compatibility: 100,
+      preferredSecondary: [],
+      elementTrigger: '继承血脉',
+      textContext: {
+        spiritName: char.血脉之力?.血脉 || skillName,
+        type: 系别,
+      },
+    }));
+
+    _(char.血脉之力?.气血魂环 || {}).forEach((ringData, ringIndexStr) => {
+      const 魂环位 = parseInt(ringIndexStr) || 1;
+      补齐技能映射(ringData?.魂技, (_, skillName) => ({
+        type: 系别,
+        talentTier: 天赋梯队,
+        age: Math.max(1000, 魂环位 * 5000),
+        ringIndex: 魂环位,
+        compatibility: 100,
+        preferredSecondary: [],
+        elementTrigger: '继承血脉',
+        textContext: {
+          spiritName: char.血脉之力?.血脉 || skillName,
+          type: 系别,
+        },
+      }));
+    });
+
+    _(char.武魂融合技 || {}).forEach((fusionData, fusionName) => {
+      if (!fusionData || typeof fusionData !== 'object') return;
+      const 融合元素画像 = getFusionSkillElementProfile(fusionData, char);
+      补齐技能(fusionData?.技能数据, {
+        type: 系别,
+        talentTier: 天赋梯队,
+        age: Math.max(10000, 通用技能年限),
+        ringIndex: Math.max(1, Math.ceil(Number(char?.属性?.等级 || 1) / 10)),
+        compatibility: 100,
+        preferredSecondary: [],
+        elementProfile: 融合元素画像,
+        unlockedAttributes: 融合元素画像?.elements || [],
+        attributeCapacity: 融合元素画像?.elements || [],
+        elementTrigger: '融合',
+        sourceCategory: '武魂融合技',
+        textContext: {
+          spiritName: fusionName,
+          type: 系别,
+        },
+      });
+    });
+  });
+  return rootData;
 }
 
 const TANGMEN_SECRET_SKILL_TEMPLATES = {
@@ -13285,7 +13516,7 @@ const CharacterSchema = z
       },
     }));
 
-    ensureSkillMapGenerated(char.血脉之力?.skills, (_, skillName) => ({
+    ensureSkillMapGenerated(char.血脉之力?.技能, (_, skillName) => ({
       type: char.属性.系别,
       talentTier: char.属性.天赋梯队,
       age: Math.max(10000, genericSkillAge),
@@ -14373,6 +14604,8 @@ export const Schema = z
     if (typeof data.sys.玩家名 !== 'string' || !data.sys.玩家名.trim()) data.sys.玩家名 = '无名氏';
     if (typeof data.sys.系统播报 !== 'string' || !data.sys.系统播报.trim()) data.sys.系统播报 = '初始化';
     data.sys.最近检定 = Number(data.sys.最近检定 || 0);
+    const 是否角色初始化补齐阶段 =
+      data.sys.系统播报 === '初始化' && Math.max(0, Number(data.world?.时间?.tick || 0)) === 0;
 
     const appendSystemReasonText = text => {
       const safeText = String(text || '').trim();
@@ -16913,6 +17146,7 @@ export const Schema = z
     } else {
       autoBreakthrough(data);
     }
+    if (是否角色初始化补齐阶段) 初始化补齐角色技能效果数组_V1(data);
 
     _(data.char).forEach((c, charName) => {
       const trainedBonus = ensureNumericStatBonusMap(c.属性, '训练加成');
@@ -18281,9 +18515,7 @@ export const Schema = z
           skill.效果描述 = hasPackedEffects ? AI_TODO_SKILL_EFFECT : SKILL_TEXT_UNKNOWN;
         if (!Array.isArray(skill.附带属性) && (skill.附带属性 === undefined || skill.附带属性 === null || skill.附带属性 === ''))
           skill.附带属性 = [];
-        if (!hasPackedEffects) {
-          skill[技能机制决策临时字段_V1] = 构建技能机制决策临时数据_V1(skill, context || textContext);
-        } else if (skill?.[技能机制决策临时字段_V1] && typeof skill[技能机制决策临时字段_V1] === 'object') {
+        if (skill?.[技能机制决策临时字段_V1] && typeof skill[技能机制决策临时字段_V1] === 'object') {
           delete skill[技能机制决策临时字段_V1];
         }
       };

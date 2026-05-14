@@ -10887,6 +10887,18 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       return `${现象文本} ｜ 后果：${后果文本} ｜ 下一钩子：${钩子文本}`;
     }
 
+    function 构建安排文案({ 内容 = '', 时间 = '', 状态 = '', 线索 = '', 回退 = '暂无安排' } = {}) {
+      const 内容文本 = toText(内容, '').trim() || 回退;
+      const 片段 = [];
+      const 时间文本 = toText(时间, '').trim();
+      const 状态文本 = toText(状态, '').trim();
+      const 线索文本 = toText(线索, '').trim();
+      if (时间文本) 片段.push(`时间：${时间文本}`);
+      if (状态文本) 片段.push(`状态：${状态文本}`);
+      if (线索文本) 片段.push(`线索：${线索文本}`);
+      return 片段.length ? `${内容文本} ｜ ${片段.join(' ｜ ')}` : 内容文本;
+    }
+
     function 归一化情报叙事文案(source = '') {
       const 句段 = 提取叙事句段(source);
       return 构建叙事三段文案({
@@ -10925,21 +10937,38 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
 
     function buildRecentPlanSummary(snapshot, options = {}) {
       const { worldLimit = 2, recordLimit = 2 } = options || {};
-      const worldPlans = (snapshot.timelineEntries || []).filter(([, item]) => !/done|handled|完成|已处理|取消|cancel/i.test(toText(deepGet(item, '状态', 'pending'), 'pending'))).slice(0, Math.max(1, worldLimit)).map(([name, item]) => ({
-        title: `世界 / ${name}`,
-        desc: 构建叙事三段文案({
-          现象: toText(deepGet(item, '事件', '无'), '无'),
-          后果: `预计 Tick ${toText(deepGet(item, '触发tick', 0), '0')} 触发，当前 ${toText(deepGet(item, '状态', 'pending'), 'pending')}`,
-          钩子: toText(deepGet(item, '下一步', deepGet(item, '后续', '')), ''),
-          回退: '暂无安排'
+      const 当前tick = Math.max(0, toNumber(deepGet(snapshot, 'rootData.world.时间.tick', 0), 0));
+      const worldPlans = (snapshot.timelineEntries || [])
+        .filter(([, item]) => {
+          const 状态文本 = toText(deepGet(item, '状态', 'pending'), 'pending');
+          const 触发tick = toNumber(deepGet(item, '触发tick', 0), 0);
+          return 触发tick > 当前tick && !/done|handled|完成|已处理|取消|cancel/i.test(状态文本);
         })
-      }));
+        .sort((a, b) => toNumber(deepGet(a[1], '触发tick', 0), 0) - toNumber(deepGet(b[1], '触发tick', 0), 0))
+        .slice(0, Math.max(1, worldLimit))
+        .map(([name, item]) => {
+          const 触发tick = toNumber(deepGet(item, '触发tick', 0), 0);
+          const 剩余tick = Math.max(0, 触发tick - 当前tick);
+          const 剩余天 = Math.floor((剩余tick * 10) / (24 * 60));
+          const 剩余小时 = Math.floor(((剩余tick * 10) % (24 * 60)) / 60);
+          const 距离文本 = 剩余天 > 0 ? `约${剩余天}天${剩余小时 > 0 ? `${剩余小时}小时` : ''}后` : (剩余小时 > 0 ? `约${剩余小时}小时后` : '即将触发');
+          return {
+            title: `世界 / ${name}`,
+            desc: 构建安排文案({
+              内容: toText(deepGet(item, '事件', '无'), '无'),
+              时间: `${formatTickToCalendarDateText(触发tick)}（${距离文本}）`,
+              状态: toText(deepGet(item, '状态', 'pending'), 'pending'),
+              线索: toText(deepGet(item, '下一步', deepGet(item, '后续', '')), ''),
+              回退: '暂无安排'
+            })
+          };
+        });
       const personalPlans = (snapshot.recordEntries || []).filter(([, item]) => toText(item && item['状态'], '进行中') !== '已完成' && toText(item && item['状态'], '进行中') !== '已放弃').slice(0, Math.max(1, recordLimit)).map(([name, item]) => ({
         title: `个人 / ${name}`,
-        desc: 构建叙事三段文案({
-          现象: toText(item && item['描述'], '无描述'),
-          后果: `进度 ${toNumber(item && item['当前进度'], 0)}/${toNumber(item && item['目标进度'], 1)}，当前 ${toText(item && item['状态'], '进行中')}`,
-          钩子: toText(item && (item['下一步'] || item['后续'] || item['建议']), ''),
+        desc: 构建安排文案({
+          内容: toText(item && item['描述'], '无描述'),
+          状态: `${toText(item && item['状态'], '进行中')} · ${toNumber(item && item['当前进度'], 0)}/${toNumber(item && item['目标进度'], 1)}`,
+          线索: toText(item && (item['下一步'] || item['后续'] || item['建议']), ''),
           回退: '暂无安排'
         })
       }));
@@ -11705,19 +11734,11 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
         <div class="module-name">系统播报</div>
         <div class="terminal-log terminal-log--single-pane" data-terminal-tab-host="terminal-hero">
           <div class="terminal-tab-strip">
-            <button type="button" class="terminal-tab active terminal-skeleton-row" data-terminal-tab="状态">状态</button>
             <button type="button" class="terminal-tab terminal-skeleton-row" data-terminal-tab="播报">播报</button>
-            <button type="button" class="terminal-tab terminal-skeleton-row" data-terminal-tab="总览">总览</button>
           </div>
           <div class="terminal-tab-panels">
-            <div class="terminal-tab-panel active terminal-skeleton-row" data-terminal-tab-panel="状态">
-              <div class="log-line sys log-line--single"><b>[状态]</b> 加载中...</div>
-            </div>
-            <div class="terminal-tab-panel terminal-skeleton-row" data-terminal-tab-panel="播报">
+            <div class="terminal-tab-panel active terminal-skeleton-row" data-terminal-tab-panel="播报">
               <div class="log-line roll log-line--single"><b>[播报]</b> 加载中...</div>
-            </div>
-            <div class="terminal-tab-panel terminal-skeleton-row" data-terminal-tab-panel="总览">
-              <div class="log-line sys log-line--single"><b>[总览]</b> 加载中...</div>
             </div>
           </div>
         </div>
@@ -13268,21 +13289,14 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       const 经济状况 = toText(deepGet(地点数据, '经济状况', 定位.是否当前位置 ? deepGet(snapshot, 'locationData.经济状况', '未知') : '未知'), '未知');
       const 守护军团 = toText(deepGet(地点数据, '守护军团', 定位.是否当前位置 ? deepGet(snapshot, 'locationData.守护军团', '未知') : '未知'), '未知');
       const 类型文本 = 定位.类型 || toText(deepGet(地点数据, '类型', deepGet(地点数据, 'type', '节点')), '节点');
-      const 功能文本 = 定位.功能 || toText(deepGet(地点数据, '功能', deepGet(地点数据, '交互', '查看 / 移动')), '查看 / 移动');
-      const 可用文本 = 定位.可用 || [
-        商店数量 ? `${商店数量} 店` : '',
-        动态数量 ? `${动态数量} 动态` : '',
-        本地人物数量 ? `${本地人物数量} 人` : '',
-      ].filter(Boolean).join(' / ') || '无';
       const 地貌摘要 = [类型文本, 定位.地形 || 市场派生.最近成交影响].filter(Boolean).join(' · ') || '节点';
-      const 市场摘要 = [市场派生.本地供给, 市场派生.价格带].filter(Boolean).join(' / ') || '未知';
       const 元信息列表 = [
-        构建星图焦点元信息('通行', 功能文本, 26),
-        构建星图焦点元信息('附属', 可用文本, 26),
         构建星图焦点元信息('掌控', 掌控势力, 28),
         构建星图焦点元信息('防务', 守护军团, 28),
         构建星图焦点元信息('经济', 经济状况, 24),
-        构建星图焦点元信息('市场', 市场摘要, 28),
+        构建星图焦点元信息('供给', 市场派生.本地供给, 24),
+        构建星图焦点元信息('价格', 市场派生.价格带, 24),
+        构建星图焦点元信息('成交', 市场派生.最近成交影响, 24),
       ];
       return `
         <div class="mvu-map-focus-card">
@@ -14623,12 +14637,12 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           `, { preview: '怪物图鉴', surface: normalizedSurface });
           setUnifiedCardMarkup('terminal-quest', `
             <div class="simple-head"><div class="simple-title">任务界面</div></div>
-            <div class="simple-list">
-              <div class="simple-row"><b>我的任务</b><span>${htmlEscape(`${(snapshot.recordEntries || []).length} 项任务`)}</span></div>
-              <div class="simple-row"><b>委托板</b><span>${htmlEscape(`${safeEntries(deepGet(snapshot, 'rootData.world.委托板', {})).length} 条委托`)}</span></div>
-              <div class="simple-row"><b>当前路线</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务路线, '无'))}</span></div>
-              <div class="simple-row"><b>风险级别</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务风险级别, '无'))}</span></div>
-              <div class="simple-row"><b>下一节点</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务下一节点进度, '--'))}</span></div>
+            <div class="terminal-quest-grid">
+              <div class="terminal-quest-item"><b>我的任务</b><span>${htmlEscape(`${(snapshot.recordEntries || []).length} 项`)}</span></div>
+              <div class="terminal-quest-item"><b>委托板</b><span>${htmlEscape(`${safeEntries(deepGet(snapshot, 'rootData.world.委托板', {})).length} 条`)}</span></div>
+              <div class="terminal-quest-item"><b>路线</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务路线, '无'))}</span></div>
+              <div class="terminal-quest-item"><b>风险</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务风险级别, '无'))}</span></div>
+              <div class="terminal-quest-item terminal-quest-item--wide"><b>下一节点</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务下一节点进度, '--'))}</span></div>
             </div>
           `, { preview: '任务界面', surface: normalizedSurface });
         }
@@ -14963,37 +14977,18 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       const sys = deepGet(snapshot, 'rootData.sys', {});
       const recentNews = buildRecentNewsSummary(snapshot, { seqLimit: 2, intelLimit: 1 });
       const latestBroadcast = toText(sys.系统播报, '暂无播报');
-      const latestEvent = recentNews.cards[0] ? recentNews.cards[0].desc : '暂无事件';
-      const 核心状态摘要 = shortenText(`${snapshot.worldAlert.includes('高危') ? '高压同步' : '稳定同步'} · ${toText(snapshot.currentLoc, '未知地点')}`, 44);
-      const 最近播报摘要 = shortenText(latestBroadcast, 58);
-      const 最近事件摘要 = shortenText(latestEvent, 58);
-      const 情报任务摘要 = shortenText(`待核实 ${toNumber(snapshot && snapshot.情报待核实数量, 0)} · 任务 ${(snapshot.recordEntries || []).length} · 图鉴 ${(snapshot.bestiaryEntries || []).length}`, 58);
-      const 终端行候选 = [
-        { 标签: '[状态]', 内容: 核心状态摘要, 预览: '世界状态总览', 样式: 'sys' },
-        { 标签: '[播报]', 内容: 最近播报摘要, 预览: '系统播报与日志', 样式: 'roll' },
-        { 标签: '[事件]', 内容: 最近事件摘要, 预览: '近期见闻', 样式: 'sys' },
-        { 标签: '[总览]', 内容: 情报任务摘要, 预览: '试炼与情报', 样式: 'sys' },
-      ];
-      const 终端行去重 = new Set();
-      const 终端行列表 = 终端行候选.filter(条目 => {
-        const 内容键 = toText(条目 && 条目.内容, '').replace(/\s+/g, ' ').trim();
-        if (!内容键) return false;
-        if (终端行去重.has(内容键)) return false;
-        终端行去重.add(内容键);
-        return true;
-      });
+      const 最近播报摘要 = shortenText(latestBroadcast, 88);
       return `
         <div class="module-name">系统播报</div>
         <div class="terminal-home-log">
-          ${终端行列表.map(条目 => `<button type="button" class="terminal-home-line ${htmlEscape(条目.样式)} clickable" data-preview="${escapeHtmlAttr(条目.预览)}"><b>${htmlEscape(条目.标签)}</b><span>${htmlEscape(条目.内容)}</span></button>`).join('')}
+          <button type="button" class="terminal-home-line roll clickable" data-preview="系统播报与日志"><b>[播报]</b><span>${htmlEscape(最近播报摘要)}</span></button>
         </div>
         <div class="terminal-home-metrics">
           <span><b>待核实</b><strong>${htmlEscape(String(toNumber(snapshot && snapshot.情报待核实数量, 0)))}</strong></span>
           <span><b>任务</b><strong>${htmlEscape(String((snapshot.recordEntries || []).length))}</strong></span>
-          <span><b>见闻</b><strong>${htmlEscape(String((recentNews.cards || []).length))}</strong></span>
+          <span><b>见闻</b><strong>${htmlEscape(String((recentNews.globalNews || []).length + (recentNews.personalNews || []).length))}</strong></span>
           <span><b>图鉴</b><strong>${htmlEscape(String((snapshot.bestiaryEntries || []).length))}</strong></span>
         </div>
-        ${构建首页当前位置页脚(snapshot, { 右侧文本: `${(snapshot.pendingRequests || []).length || 0} 待办` })}
       `;
     }
 
@@ -15004,8 +14999,8 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       return `
         <div class="simple-head"><div class="simple-title">近期安排</div></div>
         <div class="terminal-plan-grid">
-          <div class="terminal-plan-item terminal-plan-item--wide"><b>世界</b><span>${htmlEscape(shortenText(worldText, 72))}</span></div>
-          <div class="terminal-plan-item terminal-plan-item--wide"><b>个人</b><span>${htmlEscape(shortenText(personalText, 72))}</span></div>
+          <div class="terminal-plan-item terminal-plan-item--wide"><b>世界</b><span>${htmlEscape(worldText)}</span></div>
+          <div class="terminal-plan-item terminal-plan-item--wide"><b>个人</b><span>${htmlEscape(personalText)}</span></div>
           <div class="terminal-plan-item"><b>世界待办</b><span>${htmlEscape(String((planSummary.worldPlans || []).length))}</span></div>
           <div class="terminal-plan-item"><b>个人待办</b><span>${htmlEscape(String((planSummary.personalPlans || []).length))}</span></div>
         </div>
@@ -15019,8 +15014,10 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             <div class="mvu-unified-top-name">当前聊天</div>
           </div>
           <div class="mvu-unified-top-chip-row">
-            <span class="is-time">时间未同步</span>
-            <span class="is-place">地点未同步</span>
+            <span class="is-context">
+              <i class="is-time">时间未同步</i>
+              <i class="is-place">地点未同步</i>
+            </span>
           </div>
           <div class="mvu-ai-maintenance-home-api mvu-ai-maintenance-home-api--top" data-ai-maintenance-home-api>${构建AI维护API选择器()}</div>
         `;
@@ -15038,8 +15035,10 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           <button type="button" class="mvu-unified-top-name mvu-unified-top-name-button clickable" data-preview="角色切换器" title="${escapeHtmlAttr(`切换当前查看角色：${角色名}`)}">${htmlEscape(角色名)}</button>
         </div>
         <div class="mvu-unified-top-chip-row">
-          <span class="is-time" title="${escapeHtmlAttr(世界时间)}">${htmlEscape(世界时间)}</span>
-          <span class="is-place" title="${escapeHtmlAttr(当前位置)}">${htmlEscape(当前位置)}</span>
+          <span class="is-context" title="${escapeHtmlAttr(`${世界时间}｜${当前位置}`)}">
+            <i class="is-time">${htmlEscape(世界时间)}</i>
+            <i class="is-place">${htmlEscape(当前位置)}</i>
+          </span>
         </div>
         <div class="mvu-ai-maintenance-home-api mvu-ai-maintenance-home-api--top" data-ai-maintenance-home-api>${构建AI维护API选择器()}</div>
       `;
@@ -15223,8 +15222,8 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
         <div class="simple-head"><div class="simple-title">近期安排</div></div>
         <div class="simple-list">
           ${(() => { const planSummary = buildRecentPlanSummary(snapshot, { worldLimit: 1, recordLimit: 1 }); return `
-          <div class="simple-row"><b>世界安排</b><span>${htmlEscape(shortenText(planSummary.worldPlans[0] ? planSummary.worldPlans[0].desc : '暂无', 24))}</span></div>
-          <div class="simple-row"><b>个人待办</b><span>${htmlEscape(shortenText(planSummary.personalPlans[0] ? planSummary.personalPlans[0].desc : '暂无', 24))}</span></div>
+          <div class="simple-row"><b>世界安排</b><span>${htmlEscape(planSummary.worldPlans[0] ? planSummary.worldPlans[0].desc : '暂无')}</span></div>
+          <div class="simple-row"><b>个人待办</b><span>${htmlEscape(planSummary.personalPlans[0] ? planSummary.personalPlans[0].desc : '暂无')}</span></div>
           `; })()}
         </div>
       `);
@@ -15263,12 +15262,12 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
         const openBoardCount = questBoardEntries.filter(([, item]) => toText(item && item['状态'], '待接取') === '待接取').length;
         setLiveHtml('[data-preview="任务界面"].terminal-side-card, [data-preview="任务界面"].mvu-simple-card, [data-preview="任务界面"].simple-card', `
           <div class="simple-head"><div class="simple-title">任务界面</div></div>
-          <div class="simple-list">
-            <div class="simple-row"><b>我的任务</b><span>${htmlEscape(questRecords.length ? `${questRecords.length} 项 / 当前 ${activeQuestName || '已归档'}` : '暂无任务')}</span></div>
-            <div class="simple-row"><b>委托板</b><span>${htmlEscape(questBoardEntries.length ? `${questBoardEntries.length} 条 / 待接取 ${openBoardCount}` : '暂无委托')}</span></div>
-            <div class="simple-row"><b>当前路线</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务路线, activeQuestState))}</span></div>
-            <div class="simple-row"><b>风险级别</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务风险级别, '无'))}</span></div>
-            <div class="simple-row"><b>下一节点</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务下一节点进度, '--'))}</span></div>
+          <div class="terminal-quest-grid">
+            <div class="terminal-quest-item"><b>我的任务</b><span>${htmlEscape(questRecords.length ? `${questRecords.length} 项` : '暂无')}</span></div>
+            <div class="terminal-quest-item"><b>委托板</b><span>${htmlEscape(questBoardEntries.length ? `${questBoardEntries.length} 条` : '暂无')}</span></div>
+            <div class="terminal-quest-item"><b>路线</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务路线, activeQuestState))}</span></div>
+            <div class="terminal-quest-item"><b>风险</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务风险级别, '无'))}</span></div>
+            <div class="terminal-quest-item terminal-quest-item--wide"><b>下一节点</b><span>${htmlEscape(toText(snapshot && snapshot.当前任务下一节点进度, '--'))}</span></div>
           </div>
         `);
       }
@@ -18457,10 +18456,23 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             desc: toText(btn.desc, '') || (metaParts.length ? metaParts.join(' / ') : '抵达后可直接发起')
           };
         });
+        const 构建据点操作列表 = (按钮列表 = []) => {
+          const 列表 = Array.isArray(按钮列表) ? 按钮列表 : [];
+          if (!列表.length) return `<div class="location-empty-note">暂无可立即发起的本地行动。</div>`;
+          return `<div class="location-action-list">${列表.map(btn => {
+            const 说明 = toText(btn.desc, '') || (btn.disabled ? '条件未满足' : '可执行');
+            return `
+              <button type="button" class="location-action-row map-dispatch-action-btn ${htmlEscape(btn.className || '')}" data-action="${htmlEscape(btn.action || '')}" data-target="${htmlEscape(btn.target || nodeName)}" data-current-loc="${htmlEscape(nodeName)}" data-npc-target="${htmlEscape(btn.npcTarget || '')}" data-executor-type="${htmlEscape(btn.executorType || '')}" data-services="${htmlEscape(Array.isArray(btn.services) ? btn.services.join('|') : '')}" ${btn.disabled ? 'disabled' : ''}>
+                <b>${htmlEscape(btn.text || '执行操作')}</b>
+                <span>${htmlEscape(说明)}</span>
+              </button>
+            `;
+          }).join('')}</div>`;
+        };
         const actionButtonsHtml = isPlayerControlled
           ? (canDispatchHere
             ? (actionButtons.length
-              ? `<div class="map-action-grid">${actionButtons.map(btn => `<button type="button" class="map-dispatch-action-btn ${htmlEscape(btn.className || '')}" data-action="${htmlEscape(btn.action || '')}" data-target="${htmlEscape(btn.target || nodeName)}" data-current-loc="${htmlEscape(nodeName)}" data-npc-target="${htmlEscape(btn.npcTarget || '')}" data-executor-type="${htmlEscape(btn.executorType || '')}" data-services="${htmlEscape(Array.isArray(btn.services) ? btn.services.join('|') : '')}" ${btn.disabled ? 'disabled' : ''}>${htmlEscape(btn.text || '执行操作')}</button>`).join('')}</div>`
+              ? 构建据点操作列表(actionButtons)
               : `<div class="relation-card"><b>暂无可执行操作</b><span>这里暂时没有能立刻发起的交易或互动。</span></div>`)
             : `
               <section class="dossier-section">
@@ -18520,49 +18532,92 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             }).join('')}</div>`
           : '<div class="location-empty-note">当前节点未扫描到可直接互动的本地角色。</div>';
         const travelTags = (snapshot.mapTravelCandidates.length ? snapshot.mapTravelCandidates : snapshot.dynamicLocationNames).filter(name => name !== nodeName).slice(0, 6);
+        const 地图简报文本 = toText(deepGet(nodeInfo.data, 'desc', mapNode ? mapNode.desc : '无扫描数据'), mapNode ? mapNode.desc : '无扫描数据');
+        const 地图简报内容 = locationBasePath.length
+          ? makeInlineEditableValue(地图简报文本, {
+              path: [...locationBasePath, 'desc'],
+              kind: 'string',
+              rawValue: 地图简报文本,
+              multiline: true,
+            })
+          : htmlEscape(地图简报文本);
+        const 经济文本 = toText(nodeInfo.data && nodeInfo.data['经济状况'], '未知');
+        const 守备文本 = toText(nodeInfo.data && nodeInfo.data['守护军团'], '无军团驻扎');
+        const 掌控势力文本 = toText(nodeInfo.data && nodeInfo.data['掌控势力'], '未知');
+        const 人口文本 = formatNumber(nodeInfo.data && nodeInfo.data['人口']);
+        const 速览卡片 = `
+          <div class="location-glance-grid">
+            <div class="location-glance-tile">
+              <b>掌控</b>
+              <strong>${locationBasePath.length
+                ? makeInlineEditableValue(掌控势力文本, {
+                    path: [...locationBasePath, '掌控势力'],
+                    kind: 'string',
+                    rawValue: 掌控势力文本,
+                  })
+                : htmlEscape(掌控势力文本)}</strong>
+            </div>
+            <div class="location-glance-tile">
+              <b>人口</b>
+              <strong>${locationBasePath.length
+                ? makeInlineEditableValue(人口文本, {
+                    path: [...locationBasePath, '人口'],
+                    kind: 'number',
+                    rawValue: toNumber(nodeInfo.data && nodeInfo.data['人口'], 0),
+                    editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
+                  })
+                : htmlEscape(人口文本)}</strong>
+            </div>
+            <div class="location-glance-tile">
+              <b>经济</b>
+              <strong>${locationBasePath.length
+                ? makeInlineEditableValue(经济文本, {
+                    path: [...locationBasePath, '经济状况'],
+                    kind: 'enum_select',
+                    rawValue: 经济文本,
+                    editorMeta: { options: ['繁荣', '普通', '萧条', '未知'] },
+                  })
+                : htmlEscape(经济文本)}</strong>
+            </div>
+            <div class="location-glance-tile">
+              <b>守备</b>
+              <strong>${locationBasePath.length
+                ? makeInlineEditableValue(toText(nodeInfo.data && nodeInfo.data['守护军团'], '无'), {
+                    path: [...locationBasePath, '守护军团'],
+                    kind: 'string',
+                    rawValue: toText(nodeInfo.data && nodeInfo.data['守护军团'], '无'),
+                  })
+                : htmlEscape(toText(nodeInfo.data && nodeInfo.data['守护军团'], '无'))}</strong>
+            </div>
+            <div class="location-glance-tile location-glance-tile--wide">
+              <b>商店</b>
+              <strong>${htmlEscape(`${nodeStores.length} 处`)}</strong>
+            </div>
+          </div>
+        `;
+        const 据点概览行 = makeDossierRows([
+          { label: '所在地', value: nodeName, className: 'dossier-row--wide' },
+          { label: '简报', value: 地图简报内容, className: 'dossier-row--wide location-brief-row' },
+        ], 'dossier-row-grid--two location-dossier-rows');
+        const 驻地状态行 = makeDossierRows([
+          { label: '综合', value: htmlEscape(经济文本) },
+          { label: '补给', value: htmlEscape(nodeStores.length ? `${nodeStores.length} 处贸易站或设施` : '无可见商店') },
+          { label: '守备', value: htmlEscape(守备文本) },
+          { label: '供给', value: htmlEscape(toText(snapshot && snapshot.本地供给, '无供给')) },
+          { label: '价格', value: htmlEscape(toText(snapshot && snapshot.价格带, '无')) },
+          { label: '成交', value: htmlEscape(toText(snapshot && snapshot.最近成交影响, '平稳')) },
+        ], 'dossier-row-grid--two location-dossier-rows location-status-rows');
         return {
           title: `本地据点 / ${nodeName}`,
           summary: '当前节点的地图属性、势力资料与可去方向。',
           body: `
-            <div class="archive-modal-grid location-detail-grid">
-                <div class="archive-card">
+            <div class="archive-modal-grid location-detail-grid location-detail-grid--refined">
+            <div class="archive-card location-card--overview">
                   <div class="archive-card-head"><div class="archive-card-title">据点概览</div></div>
-                  ${makeTileGrid([
-                    { label: '所在地点', value: nodeName },
-                    { label: '掌控势力', value: locationBasePath.length
-                      ? makeInlineEditableValue(toText(nodeInfo.data && nodeInfo.data['掌控势力'], '未知'), {
-                          path: [...locationBasePath, '掌控势力'],
-                          kind: 'string',
-                          rawValue: toText(nodeInfo.data && nodeInfo.data['掌控势力'], '未知'),
-                        })
-                      : htmlEscape(toText(nodeInfo.data && nodeInfo.data['掌控势力'], '未知')) },
-                    { label: '常住人口', value: locationBasePath.length
-                      ? makeInlineEditableValue(formatNumber(nodeInfo.data && nodeInfo.data['人口']), {
-                          path: [...locationBasePath, '人口'],
-                          kind: 'number',
-                          rawValue: toNumber(nodeInfo.data && nodeInfo.data['人口'], 0),
-                          editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
-                        })
-                      : htmlEscape(formatNumber(nodeInfo.data && nodeInfo.data['人口'])) },
-                    { label: '经济状况', value: locationBasePath.length
-                      ? makeInlineEditableValue(toText(nodeInfo.data && nodeInfo.data['经济状况'], '未知'), {
-                          path: [...locationBasePath, '经济状况'],
-                          kind: 'enum_select',
-                          rawValue: toText(nodeInfo.data && nodeInfo.data['经济状况'], '未知'),
-                          editorMeta: { options: ['繁荣', '普通', '萧条', '未知'] },
-                        })
-                      : htmlEscape(toText(nodeInfo.data && nodeInfo.data['经济状况'], '未知')) },
-                    { label: '守护军团', value: locationBasePath.length
-                      ? makeInlineEditableValue(toText(nodeInfo.data && nodeInfo.data['守护军团'], '无'), {
-                          path: [...locationBasePath, '守护军团'],
-                          kind: 'string',
-                          rawValue: toText(nodeInfo.data && nodeInfo.data['守护军团'], '无'),
-                        })
-                      : htmlEscape(toText(nodeInfo.data && nodeInfo.data['守护军团'], '无')) },
-                    { label: '商店数量', value: `${nodeStores.length} 处` },
-                  ], 'two')}
+                  ${速览卡片}
+                  ${据点概览行}
                 </div>
-                <div class="archive-card">
+                <div class="archive-card location-card--status">
                   <div class="archive-card-head"><div class="archive-card-title">驻地状态</div></div>
                   <div class="location-status-layout">
                     ${(() => {
@@ -18587,35 +18642,20 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                         </div>
                       `;
                     })()}
-                    <div class="location-status-summary">
-                      <div class="location-summary-card location-summary-card--highlight"><b>综合评级</b><span>${htmlEscape(toText(nodeInfo.data && nodeInfo.data['经济状况'], '未知'))}</span></div>
-                      <div class="location-summary-card"><b>守备评估</b><span>${htmlEscape(toText(nodeInfo.data && nodeInfo.data['守护军团'], '无军团驻扎'))}</span></div>
-                      <div class="location-summary-card"><b>补给节点</b><span>${htmlEscape(nodeStores.length ? `${nodeStores.length} 处贸易站或设施` : '无可见商店')}</span></div>
-                      <div class="location-summary-card"><b>本地供给</b><span>${htmlEscape(toText(snapshot && snapshot.本地供给, '无供给'))}</span></div>
-                      <div class="location-summary-card"><b>价格带</b><span>${htmlEscape(toText(snapshot && snapshot.价格带, '无'))}</span></div>
-                      <div class="location-summary-card"><b>最近成交</b><span>${htmlEscape(toText(snapshot && snapshot.最近成交影响, '平稳'))}</span></div>
-                      <div class="location-summary-card location-summary-card--note"><b>地图简报</b><span>${locationBasePath.length
-                        ? makeInlineEditableValue(toText(deepGet(nodeInfo.data, 'desc', mapNode ? mapNode.desc : '无扫描数据'), mapNode ? mapNode.desc : '无扫描数据'), {
-                            path: [...locationBasePath, 'desc'],
-                            kind: 'string',
-                            rawValue: toText(deepGet(nodeInfo.data, 'desc', mapNode ? mapNode.desc : '无扫描数据'), mapNode ? mapNode.desc : '无扫描数据'),
-                            multiline: true,
-                          })
-                        : htmlEscape(mapNode ? mapNode.desc : '无扫描数据')}</span></div>
-                    </div>
+                    <div class="location-status-summary">${驻地状态行}</div>
                   </div>
                 </div>
               ${localNpcEntries.length > 0 ? `
-                <div class="archive-card mvu-detail-scroll-card">
+                <div class="archive-card mvu-detail-scroll-card location-card--actions">
                   <div class="archive-card-head"><div class="archive-card-title">${htmlEscape(actionCardTitle)}</div></div>
                   <div class="mvu-detail-scroll-list">${actionButtonsHtml}</div>
                 </div>
-                <div class="archive-card mvu-detail-scroll-card">
+                <div class="archive-card mvu-detail-scroll-card location-card--people">
                   <div class="archive-card-head"><div class="archive-card-title">本地可接触人物</div></div>
                   ${localNpcCardsHtml}
                 </div>
               ` : `
-                <div class="archive-card full">
+                <div class="archive-card full location-card--actions">
                   <div class="archive-card-head"><div class="archive-card-title">${htmlEscape(actionCardTitle)}</div></div>
                   <div class="mvu-detail-scroll-list">
                     ${actionButtonsHtml}

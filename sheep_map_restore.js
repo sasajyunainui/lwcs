@@ -4113,7 +4113,7 @@
     if (isPreview && payload.visible_dynamic_locations && typeof payload.visible_dynamic_locations === 'object') {
       Object.assign(visibleDynamics, payload.visible_dynamic_locations);
     }
-    const dynamicSource = deepGet(rootData, 'world.dynamic_locations', {});
+    const dynamicSource = deepGet(rootData, 'world.动态地点', {});
     for (const [dynName, dynData] of Object.entries(dynamicSource)) {
       if (dynData && (isPreview ? dynData['归属父节点'] === payload.preview_meta?.anchor_name : (dynData['归属父节点'] === '斗罗大陆' || !dynData['归属父节点']))) {
          visibleDynamics[dynName] = dynData;
@@ -4317,7 +4317,7 @@
     const childEntries = children ? Object.entries(children) : [];
     const dynamicSource = deepGet(
       (mapState.baseSnapshot && mapState.baseSnapshot.rootData) || (mapState.snapshot && mapState.snapshot.rootData) || {},
-      'world.dynamic_locations',
+      'world.动态地点',
       {}
     );
     const dynamicEntries = getDynamicEntriesByParent(dynamicSource, nodeName);
@@ -4834,7 +4834,7 @@
        }
        
        // 最后如果是在动态地点字典里
-       const dynLoc = deepGet(sd, `world.dynamic_locations.${targetName}`);
+       const dynLoc = deepGet(sd, ['world', '动态地点', targetName]);
        if (dynLoc && Number.isFinite(dynLoc.x) && Number.isFinite(dynLoc.y) && dynLoc.x >= 0 && dynLoc.y >= 0) {
           return { x: dynLoc.x, y: dynLoc.y };
        }

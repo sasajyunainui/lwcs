@@ -7468,7 +7468,7 @@
 .nsfw-fill-arousal { height: 100%; background: linear-gradient(90deg, #d53369, #f093fb); box-shadow: 0 0 12px #d53369; border-radius: 3px; }
 .nsfw-fill-dev { height: 100%; background: linear-gradient(90deg, #5f0a87, #a4508b); box-shadow: 0 0 12px #5f0a87; border-radius: 3px; }
 
-/* 5. 鏁版嵁椤?(瀛椾綋璋冨ぇ銆佸幓绮椾綋) */
+/* 5. 数据页（字体调大、去粗体） */
 .nsfw-meta-item {
   background: linear-gradient(90deg, rgba(224, 86, 253, 0.06), transparent);
   border-left: 2px solid #e056fd;
@@ -7793,14 +7793,14 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-title-action {
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-status {
   display: grid;
-  grid-template-columns: minmax(78px, 0.13fr) minmax(0, 1fr) minmax(118px, 0.2fr);
-  grid-template-areas: "identity chips api";
+  grid-template-columns: minmax(92px, max-content) minmax(132px, 0.22fr) minmax(0, 1fr);
+  grid-template-areas: "identity api chips";
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
   min-width: 0;
-  min-height: 38px;
-  padding: 6px 8px;
+  min-height: 42px;
+  padding: 7px 10px;
   border: 1px solid rgba(77, 240, 255, 0.14);
   border-radius: 12px;
   background:
@@ -7827,6 +7827,7 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-identity {
   display: grid;
   align-items: center;
   grid-area: identity;
+  min-width: 92px;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-name-button {
@@ -7846,7 +7847,7 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-name {
   min-width: 0;
   overflow: hidden;
   color: rgba(238, 251, 253, 0.98);
-  font-size: 14px;
+  font-size: 13.5px;
   line-height: 1.24;
   font-weight: 800;
   text-overflow: ellipsis;
@@ -7862,18 +7863,19 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-name-button:focus-vi
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row {
   display: grid;
   grid-area: chips;
-  grid-template-columns: minmax(198px, 0.46fr) minmax(0, 1fr);
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
 }
 
-body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > span {
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > .is-context {
   position: relative;
   display: grid;
-  grid-template-columns: 15px minmax(0, 1fr);
+  grid-template-columns: max-content minmax(0, 1fr);
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   min-width: 0;
-  padding: 5px 7px;
+  min-height: 30px;
+  padding: 3px 6px;
   border-radius: 9px;
   border: 1px solid rgba(77, 240, 255, 0.20);
   background:
@@ -7883,11 +7885,27 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > span {
   font-size: 11px;
   line-height: 1.25;
   overflow: hidden;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > .is-context > i {
+  position: relative;
+  display: grid;
+  grid-template-columns: 15px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 22px;
+  padding: 0 6px;
+  border-radius: 7px;
+  overflow: hidden;
+  color: rgba(222, 242, 247, 0.9);
+  background: rgba(4, 20, 30, 0.18);
+  font-style: normal;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > span::before {
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > .is-context > i::before {
   content: '';
   display: block;
   width: 13px;
@@ -7897,7 +7915,7 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > span::bef
   filter: drop-shadow(0 0 6px rgba(77, 240, 255, 0.34));
 }
 
-body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > .is-time::before {
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row .is-time::before {
   border-radius: 50%;
   background:
     linear-gradient(90deg, transparent 47%, rgba(118, 226, 255, 0.92) 48%, rgba(118, 226, 255, 0.92) 54%, transparent 55%),
@@ -7905,7 +7923,7 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > .is-time:
     rgba(4, 18, 28, 0.68);
 }
 
-body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > .is-place::before {
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row .is-place::before {
   width: 13px;
   height: 13px;
   border-radius: 50% 50% 50% 2px;
@@ -7913,10 +7931,10 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > .is-place
   transform: rotate(-45deg);
 }
 
-body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > .is-place::after {
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row .is-place::after {
   content: '';
   position: absolute;
-  left: 13px;
+  left: 12px;
   top: 50%;
   width: 4px;
   height: 4px;
@@ -7926,38 +7944,48 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > .is-place
   box-shadow: 0 0 7px rgba(77, 240, 255, 0.7);
 }
 
-body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > .is-place {
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row .is-place {
   color: rgba(238, 250, 252, 0.96);
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-ai-maintenance-home-api--top .mvu-ai-maintenance-api {
+  width: auto;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(68px, max-content);
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+  min-width: 0;
+  min-height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-ai-maintenance-home-api--top {
   grid-area: api;
+  align-self: center;
 }
 
-body.mvu-layout-unified #mvu-unified-mount .mvu-ai-maintenance-home-api--top .mvu-ai-maintenance-api > span {
+body.mvu-layout-unified #mvu-unified-mount .mvu-ai-maintenance-home-api--top .mvu-ai-maintenance-api > b {
   color: rgba(183, 211, 222, 0.76);
-  font-size: 10.5px;
+  font-size: 10px;
   line-height: 1;
+  font-weight: 800;
   white-space: nowrap;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-ai-maintenance-home-api--top select {
   width: 100%;
   min-width: 0;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid rgba(77, 240, 255, 0.16);
-  border-radius: 9px;
-  background: rgba(3, 12, 20, 0.84);
+  height: 24px;
+  padding: 0 18px 0 4px;
+  border: 1px solid rgba(77, 240, 255, 0.10);
+  border-radius: 7px;
+  background: rgba(3, 12, 20, 0.34);
   color: rgba(236, 251, 253, 0.94);
   font-size: 11px;
+  font-weight: 700;
   line-height: 1;
 }
 
@@ -8227,10 +8255,12 @@ body.mvu-layout-unified #mvu-unified-mount .terminal-home-line span {
 body.mvu-layout-unified #mvu-unified-mount .terminal-home-line span,
 body.mvu-layout-unified #mvu-unified-mount .terminal-plan-item span,
 body.mvu-layout-unified #mvu-unified-mount .mini-box span {
-  display: -webkit-box !important;
-  -webkit-line-clamp: 2 !important;
-  -webkit-box-orient: vertical !important;
-  overflow: hidden !important;
+  display: block !important;
+  max-height: 3.9em !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(117, 235, 255, 0.28) transparent !important;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .module-foot {
@@ -9379,8 +9409,8 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-dashboard--terminal > [d
 body.mvu-layout-unified #mvu-unified-mount .terminal-home-log {
   grid-auto-rows: auto !important;
   max-height: 100% !important;
-  overflow-y: auto !important;
-  padding-right: 2px !important;
+  overflow: hidden !important;
+  padding-right: 0 !important;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .terminal-home-line {
@@ -9389,9 +9419,10 @@ body.mvu-layout-unified #mvu-unified-mount .terminal-home-line {
   display: grid !important;
   grid-template-columns: max-content minmax(0, 1fr) !important;
   gap: 8px !important;
-  align-items: start !important;
+  align-items: center !important;
   min-width: 0 !important;
-  padding: 8px 9px !important;
+  min-height: auto !important;
+  padding: 9px 11px !important;
   border-radius: 11px !important;
   border: 1px solid rgba(77, 240, 255, 0.13) !important;
   background: rgba(77, 240, 255, 0.045) !important;
@@ -9402,14 +9433,15 @@ body.mvu-layout-unified #mvu-unified-mount .terminal-home-line {
 body.mvu-layout-unified #mvu-unified-mount .terminal-home-metrics {
   display: grid !important;
   grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-  gap: 6px !important;
+  gap: 8px !important;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .terminal-home-metrics span {
   display: grid !important;
   gap: 3px !important;
   min-width: 0 !important;
-  padding: 7px !important;
+  min-height: 58px !important;
+  padding: 9px 10px !important;
   border-radius: 10px !important;
   background: rgba(255, 255, 255, 0.04) !important;
 }
@@ -9434,12 +9466,62 @@ body.mvu-layout-unified #mvu-unified-mount .terminal-plan-grid {
 
 body.mvu-layout-unified #mvu-unified-mount .terminal-plan-item {
   display: grid !important;
-  align-content: start !important;
-  gap: 5px !important;
+  align-content: center !important;
+  gap: 6px !important;
+  min-height: auto !important;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .terminal-plan-item--wide {
   grid-column: 1 / -1 !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .terminal-quest-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  grid-auto-rows: minmax(42px, auto) !important;
+  gap: 8px !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 0 !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .terminal-quest-item {
+  display: grid !important;
+  grid-template-columns: minmax(58px, max-content) minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 8px !important;
+  min-width: 0 !important;
+  min-height: 42px !important;
+  padding: 8px 10px !important;
+  border-radius: 10px !important;
+  border: 1px solid rgba(77, 240, 255, 0.12) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .terminal-quest-item--wide {
+  grid-column: 1 / -1 !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .terminal-quest-item b,
+body.mvu-layout-unified #mvu-unified-mount .terminal-quest-item span {
+  min-width: 0 !important;
+  line-height: 1.24 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .terminal-quest-item b {
+  color: var(--mvu-hud-muted) !important;
+  font-size: 10.5px !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .terminal-quest-item span {
+  color: var(--mvu-hud-text) !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  text-align: right !important;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-dashboard--world > [data-unified-card] .simple-list,
@@ -9527,7 +9609,7 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .mvu-armory-
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-shell--social,
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-shell--relation,
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-shell--faction,
-body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid:not(.location-detail-grid--refined),
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .mvu-detail-grid--quest {
   align-items: stretch !important;
 }
@@ -9536,7 +9618,7 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .mvu-armory-
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-shell--social > .dossier-card,
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-shell--relation > .dossier-card,
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .dossier-shell--faction > .dossier-card,
-body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid > .archive-card,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid:not(.location-detail-grid--refined) > .archive-card,
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .mvu-detail-grid--quest > .archive-card {
   align-self: stretch !important;
   height: 100% !important;
@@ -9546,6 +9628,163 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .mvu-detail-
   overflow-y: auto !important;
   scrollbar-width: thin !important;
   scrollbar-color: rgba(117, 235, 255, 0.32) rgba(255, 255, 255, 0.04) !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid--refined {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.82fr) !important;
+  align-items: start !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid--refined > .archive-card {
+  align-self: start !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid--refined .location-card--actions,
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid--refined .location-card--people {
+  max-height: min(420px, calc(var(--mvu-hud-frame-height, 760px) - 260px)) !important;
+  overflow: hidden !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid--refined .location-card--overview {
+  grid-column: 1 !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid--refined .location-card--status {
+  grid-column: 2 !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid--refined .location-glance-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  margin: 2px 0 10px !important;
+  min-width: 0 !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid--refined .location-glance-tile {
+  display: grid !important;
+  gap: 4px !important;
+  min-width: 0 !important;
+  min-height: 58px !important;
+  padding: 9px 10px !important;
+  border-radius: 10px !important;
+  border: 1px solid rgba(77, 240, 255, 0.14) !important;
+  background:
+    linear-gradient(135deg, rgba(77, 240, 255, 0.1), rgba(255, 255, 255, 0.02)),
+    rgba(4, 16, 25, 0.54) !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid--refined .location-glance-tile--wide {
+  grid-column: 1 / -1 !important;
+  min-height: 44px !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid--refined .location-glance-tile b {
+  min-width: 0 !important;
+  color: rgba(164, 199, 211, 0.8) !important;
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+  font-weight: 800 !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid--refined .location-glance-tile strong {
+  min-width: 0 !important;
+  color: rgba(242, 252, 253, 0.98) !important;
+  font-size: 13px !important;
+  line-height: 1.28 !important;
+  font-weight: 850 !important;
+  overflow-wrap: anywhere !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid--refined .location-status-layout {
+  grid-template-columns: minmax(150px, 0.68fr) minmax(0, 1fr) !important;
+  gap: 10px !important;
+  align-items: start !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid--refined .location-radar-panel {
+  min-height: 178px !important;
+  padding: 8px !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid--refined .location-status-summary {
+  display: block !important;
+  min-width: 0 !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid--refined .location-dossier-rows {
+  border-radius: 10px !important;
+  background: rgba(3, 14, 22, 0.18) !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid--refined .location-dossier-rows .dossier-row {
+  min-height: 34px !important;
+  padding: 8px 10px !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-detail-grid--refined .location-brief-row > span {
+  -webkit-line-clamp: unset !important;
+  max-height: 92px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-action-list {
+  display: grid !important;
+  gap: 8px !important;
+  min-width: 0 !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-action-row {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: minmax(96px, 0.34fr) minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 10px !important;
+  min-width: 0 !important;
+  min-height: 44px !important;
+  padding: 8px 11px !important;
+  border-radius: 10px !important;
+  border: 1px solid rgba(77, 240, 255, 0.18) !important;
+  background: linear-gradient(180deg, rgba(10, 36, 52, 0.58), rgba(5, 18, 29, 0.72)) !important;
+  color: rgba(238, 250, 252, 0.96) !important;
+  text-align: left !important;
+  cursor: pointer !important;
+  box-shadow: none !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-action-row.warn {
+  border-color: rgba(243, 201, 105, 0.28) !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-action-row:disabled {
+  opacity: 0.48 !important;
+  cursor: default !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-action-row b {
+  min-width: 0 !important;
+  color: rgba(244, 252, 253, 0.98) !important;
+  font-size: 13px !important;
+  line-height: 1.22 !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-action-row span {
+  min-width: 0 !important;
+  color: rgba(184, 213, 224, 0.84) !important;
+  font-size: 11px !important;
+  line-height: 1.34 !important;
+  overflow-wrap: anywhere !important;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .skill-designer-layout {
@@ -10336,21 +10575,18 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
 }
 @media (max-width: 1180px) {
   body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-status {
-    grid-template-columns: minmax(72px, 1fr) minmax(126px, 1.2fr);
-    grid-template-areas:
-      "identity api"
-      "chips chips";
-    min-height: 68px;
-    align-items: stretch;
+    grid-template-columns: minmax(82px, max-content) minmax(118px, 0.24fr) minmax(0, 1fr) !important;
+    grid-template-areas: "identity api chips" !important;
+    min-height: 42px !important;
+    align-items: center !important;
   }
 
-  body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-identity,
-  body.mvu-layout-unified #mvu-unified-mount .mvu-ai-maintenance-home-api--top {
+  body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-identity {
     align-self: center;
   }
 
   body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row {
-    align-self: stretch;
+    align-self: center;
   }
 
   body.mvu-layout-unified #mvu-unified-mount .mvu-unified-dashboard--archive {
@@ -10541,11 +10777,21 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
+  body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > .is-context {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 4px !important;
+    padding: 4px !important;
+  }
+
+  body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-chip-row > .is-context > i {
+    padding: 0 7px !important;
+  }
+
   body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-status {
     grid-template-areas:
       "identity"
-      "chips"
-      "api" !important;
+      "api"
+      "chips" !important;
     min-height: 0 !important;
   }
 
@@ -10592,7 +10838,8 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
   body.mvu-layout-unified #mvu-unified-mount .world-core-grid,
   body.mvu-layout-unified #mvu-unified-mount .org-matrix-summary,
   body.mvu-layout-unified #mvu-unified-mount .terminal-home-metrics,
-  body.mvu-layout-unified #mvu-unified-mount .terminal-plan-grid {
+  body.mvu-layout-unified #mvu-unified-mount .terminal-plan-grid,
+  body.mvu-layout-unified #mvu-unified-mount .terminal-quest-grid {
     grid-template-columns: minmax(0, 1fr) !important;
     grid-template-rows: auto !important;
     height: auto !important;
@@ -12549,6 +12796,44 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
   display: grid;
   gap: 12px;
   align-content: start;
+}
+
+#detailModal .location-glance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 2px 0 10px;
+}
+
+#detailModal .location-glance-tile {
+  display: grid;
+  gap: 4px;
+  min-height: 56px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(77, 240, 255, 0.14);
+  background: linear-gradient(135deg, rgba(77, 240, 255, 0.1), rgba(255,255,255,0.02)), rgba(4, 16, 25, 0.54);
+}
+
+#detailModal .location-glance-tile--wide {
+  grid-column: 1 / -1;
+  min-height: 44px;
+}
+
+#detailModal .location-glance-tile b {
+  margin: 0;
+  color: rgba(164, 199, 211, 0.8);
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 800;
+}
+
+#detailModal .location-glance-tile strong {
+  color: rgba(242, 252, 253, 0.98);
+  font-size: 13px;
+  line-height: 1.28;
+  font-weight: 850;
+  overflow-wrap: anywhere;
 }
 
 #detailModal .location-summary-card--highlight span {

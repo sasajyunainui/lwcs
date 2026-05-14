@@ -1,7 +1,7 @@
-﻿/* TradeUI_Module.js - 浜ゆ槗缃戠粶缁勪欢 (JS 妯″潡鐗? */
+/* TradeUI_Module.js - 交易网络组件 (JS 模块版) */
 
 const TradeStyles = `
-  /* 灞€閮ㄩ殧绂伙細纭繚鎵€鏈夋牱寮忓彧鍦?.trade-module-scope 涓嬬敓鏁?*/
+  /* 局部隔离：确保所有样式只在 .trade-module-scope 下生效 */
   .trade-module-scope {
     --panel: rgba(18, 56, 69, 0.20);
     --panel-strong: rgba(23, 68, 84, 0.26);
@@ -186,132 +186,132 @@ const TradeStyles = `
 const TradeTemplate = `
 <div class="trade-module-scope">
   <div class="wealth-display">
-    <span>鍦扮偣锛?span class="val-highlight" id="ui-loc">鏈煡</span></span>
-    <span>鑱旈偊甯侊細<span class="wealth-amt" id="ui-fedcoin">0</span></span>
-    <span>澹版湜锛?span class="wealth-amt" id="ui-fame">0</span></span>
+    <span>地点：<span class="val-highlight" id="ui-loc">未知</span></span>
+    <span>联邦币：<span class="wealth-amt" id="ui-fedcoin">0</span></span>
+    <span>声望：<span class="wealth-amt" id="ui-fame">0</span></span>
   </div>
 
   <div class="trade-tabs">
-    <div class="trade-tab active" data-target="tab-shop">鍟嗗簵閲囪喘</div>
-    <div class="trade-tab" data-target="tab-sell">璧勪骇鍑哄敭</div>
-    <div class="trade-tab" data-target="tab-private">绉佷笅浜ゆ槗</div>
-    <div class="trade-tab" data-target="tab-auction">鎷嶅崠琛?/div>
+    <div class="trade-tab active" data-target="tab-shop">商店采购</div>
+    <div class="trade-tab" data-target="tab-sell">资产出售</div>
+    <div class="trade-tab" data-target="tab-private">私下交易</div>
+    <div class="trade-tab" data-target="tab-auction">拍卖行</div>
   </div>
 
   <div class="trade-body">
-    <!-- 鍟嗗簵閲囪喘 -->
+    <!-- 商店采购 -->
     <div id="tab-shop" class="tab-content active">
       <div class="form-group">
-        <label>閫夋嫨鍟嗗簵</label>
+        <label>选择商店</label>
         <select id="shop-store-sel" class="tech-select"></select>
       </div>
       <div class="form-group">
-        <label>鍟嗗搧鍒楄〃</label>
+        <label>商品列表</label>
         <select id="shop-item-sel" class="tech-select"></select>
       </div>
       <div class="form-group">
-        <label>璐拱鏁伴噺</label>
+        <label>购买数量</label>
         <input type="number" id="shop-qty" class="tech-input" value="1" min="1">
       </div>
       <div class="info-panel">
-        <div class="info-row"><span>鍗曚环:</span><span class="val-highlight" id="shop-price">-</span></div>
+        <div class="info-row"><span>单价:</span><span class="val-highlight" id="shop-price">-</span></div>
         <div class="info-row"><span>市场调整:</span><span class="market-adjust" id="shop-market">-</span></div>
-        <div class="info-row"><span>鎬昏:</span><span class="val-highlight" id="shop-total">-</span></div>
-        <div class="info-row"><span>闇€姹傚０鏈?</span><span class="val-highlight" id="shop-fame">-</span></div>
-        <div class="info-row"><span>褰撳墠搴撳瓨:</span><span class="val-highlight" id="shop-stock">-</span></div>
-        <div class="info-row"><span>瑙﹀彂鏂瑰紡:</span><span class="val-highlight" id="shop-trigger">-</span></div>
-        <div class="info-row"><span>鏈夋晥鏈熻嚦:</span><span class="val-highlight" id="shop-expiry">-</span></div>
-        <div class="info-row"><span>鏉ユ簮:</span><span class="val-highlight" id="shop-source">-</span></div>
-        <div class="info-row"><span>鐗╁搧璇存槑:</span><span class="val-highlight" style="white-space: normal; text-align: right;" id="shop-desc">-</span></div>
+        <div class="info-row"><span>总计:</span><span class="val-highlight" id="shop-total">-</span></div>
+        <div class="info-row"><span>需求声望:</span><span class="val-highlight" id="shop-fame">-</span></div>
+        <div class="info-row"><span>当前库存:</span><span class="val-highlight" id="shop-stock">-</span></div>
+        <div class="info-row"><span>触发方式:</span><span class="val-highlight" id="shop-trigger">-</span></div>
+        <div class="info-row"><span>有效期至:</span><span class="val-highlight" id="shop-expiry">-</span></div>
+        <div class="info-row"><span>来源:</span><span class="val-highlight" id="shop-source">-</span></div>
+        <div class="info-row"><span>物品说明:</span><span class="val-highlight" style="white-space: normal; text-align: right;" id="shop-desc">-</span></div>
       </div>
-      <button class="action-btn" id="btn-buy">纭璐拱</button>
+      <button class="action-btn" id="btn-buy">确认购买</button>
     </div>
 
-    <!-- 璧勪骇鍑哄敭 -->
+    <!-- 资产出售 -->
     <div id="tab-sell" class="tab-content">
       <div class="form-group">
-        <label>鑳屽寘鐗╁搧</label>
+        <label>背包物品</label>
         <select id="sell-item-sel" class="tech-select"></select>
       </div>
       <div class="form-group">
-        <label>鍑哄敭鏁伴噺</label>
+        <label>出售数量</label>
         <input type="number" id="sell-qty" class="tech-input" value="1" min="1">
       </div>
       <div class="info-panel">
-        <div class="info-row"><span>绯荤粺浼板€?鍗曚环):</span><span class="val-highlight" id="sell-base-price">-</span></div>
+        <div class="info-row"><span>系统估值(单价):</span><span class="val-highlight" id="sell-base-price">-</span></div>
         <div class="info-row"><span>市场调整:</span><span class="market-adjust" id="sell-market">-</span></div>
-        <div class="info-row"><span>鍑哄敭鎬绘敹鐩?</span><span class="val-highlight" id="sell-total">-</span></div>
-        <div class="info-row"><span>瑙﹀彂鏂瑰紡:</span><span class="val-highlight" id="sell-trigger">-</span></div>
-        <div class="info-row"><span>鏈夋晥鏈熻嚦:</span><span class="val-highlight" id="sell-expiry">-</span></div>
-        <div class="info-row"><span>鏉ユ簮:</span><span class="val-highlight" id="sell-source">-</span></div>
-        <div class="info-row"><span>鐗╁搧璇存槑:</span><span class="val-highlight" style="white-space: normal; text-align: right;" id="sell-desc">-</span></div>
+        <div class="info-row"><span>出售总收益:</span><span class="val-highlight" id="sell-total">-</span></div>
+        <div class="info-row"><span>触发方式:</span><span class="val-highlight" id="sell-trigger">-</span></div>
+        <div class="info-row"><span>有效期至:</span><span class="val-highlight" id="sell-expiry">-</span></div>
+        <div class="info-row"><span>来源:</span><span class="val-highlight" id="sell-source">-</span></div>
+        <div class="info-row"><span>物品说明:</span><span class="val-highlight" style="white-space: normal; text-align: right;" id="sell-desc">-</span></div>
       </div>
-      <button class="action-btn" id="btn-sell">纭鍑哄敭</button>
+      <button class="action-btn" id="btn-sell">确认出售</button>
     </div>
 
-    <!-- 绉佷笅浜ゆ槗 -->
+    <!-- 私下交易 -->
     <div id="tab-private" class="tab-content">
       <div class="form-group">
-        <label>浜ゆ槗绫诲瀷</label>
+        <label>交易类型</label>
         <select id="priv-action" class="tech-select">
-          <option value="绉佷笅涔板叆">绉佷笅涔板叆 (鍚慛PC姹傝喘)</option>
-          <option value="绉佷笅鍗栧嚭">绉佷笅鍗栧嚭 (鍚慛PC鎺ㄩ攢)</option>
+          <option value="私下买入">私下买入 (向NPC求购)</option>
+          <option value="私下卖出">私下卖出 (向NPC推销)</option>
         </select>
       </div>
       <div class="form-group">
-        <label>浜ゆ槗瀵硅薄</label>
-        <input type="text" id="priv-npc" class="tech-input" placeholder="杈撳叆NPC鍚嶅瓧">
+        <label>交易对象</label>
+        <input type="text" id="priv-npc" class="tech-input" placeholder="输入NPC名字">
       </div>
       <div class="form-group">
-        <label>鐗╁搧鍚嶇О</label>
-        <input type="text" id="priv-item" class="tech-input" placeholder="杈撳叆鐗╁搧鍏ㄥ悕">
+        <label>物品名称</label>
+        <input type="text" id="priv-item" class="tech-input" placeholder="输入物品全名">
       </div>
       <div class="form-group">
-        <label>鏁伴噺</label>
+        <label>数量</label>
         <input type="number" id="priv-qty" class="tech-input" value="1" min="1">
       </div>
       <div class="form-group">
-        <label>浣犵殑鍑轰环 / 鍗曚环</label>
+        <label>你的出价 / 单价</label>
         <input type="number" id="priv-price" class="tech-input" value="1000" min="1">
       </div>
       <div class="info-panel">
-        <div class="info-row"><span>绯荤粺浼板€?鍙傝€?:</span><span class="val-highlight" id="priv-base-price">-</span></div>
+        <div class="info-row"><span>系统估值(参考):</span><span class="val-highlight" id="priv-base-price">-</span></div>
         <div class="info-row"><span>市场调整:</span><span class="market-adjust" id="priv-market">-</span></div>
-        <div class="info-row"><span>鎬婚噾棰?</span><span class="val-highlight" id="priv-total">-</span></div>
-        <div class="info-row"><span>NPC鎬佸害棰勬祴:</span><span id="priv-attitude">-</span></div>
-        <div class="info-row"><span>瑙﹀彂鏂瑰紡:</span><span class="val-highlight" id="priv-trigger">-</span></div>
-        <div class="info-row"><span>鏈夋晥鏈熻嚦:</span><span class="val-highlight" id="priv-expiry">-</span></div>
-        <div class="info-row"><span>鏉ユ簮:</span><span class="val-highlight" id="priv-source">-</span></div>
-        <div class="info-row"><span>鐗╁搧璇存槑:</span><span class="val-highlight" style="white-space: normal; text-align: right;" id="priv-desc">-</span></div>
+        <div class="info-row"><span>总金额:</span><span class="val-highlight" id="priv-total">-</span></div>
+        <div class="info-row"><span>NPC态度预测:</span><span id="priv-attitude">-</span></div>
+        <div class="info-row"><span>触发方式:</span><span class="val-highlight" id="priv-trigger">-</span></div>
+        <div class="info-row"><span>有效期至:</span><span class="val-highlight" id="priv-expiry">-</span></div>
+        <div class="info-row"><span>来源:</span><span class="val-highlight" id="priv-source">-</span></div>
+        <div class="info-row"><span>物品说明:</span><span class="val-highlight" style="white-space: normal; text-align: right;" id="priv-desc">-</span></div>
       </div>
-      <button class="action-btn" id="btn-private">鎵ц浜ゆ槗</button>
+      <button class="action-btn" id="btn-private">执行交易</button>
     </div>
 
-    <!-- 鎷嶅崠琛?-->
+    <!-- 拍卖行 -->
     <div id="tab-auction" class="tab-content">
       <div class="form-group">
-        <label>褰撳墠鎷嶅搧</label>
+        <label>当前拍品</label>
         <select id="auc-item-sel" class="tech-select"></select>
       </div>
       <div class="form-group">
-        <label>绔炴媿鍑轰环</label>
+        <label>竞拍出价</label>
         <input type="number" id="auc-bid" class="tech-input" value="0" min="1">
       </div>
       <div class="info-panel">
-        <div class="info-row"><span>褰撳墠璧锋媿/鏈€楂樹环:</span><span class="val-highlight" id="auc-current-price">-</span></div>
-        <div class="info-row"><span>鎷嶅搧鎻忚堪:</span><span class="val-highlight" style="white-space: normal; text-align: right;" id="auc-desc">-</span></div>
+        <div class="info-row"><span>当前起拍/最高价:</span><span class="val-highlight" id="auc-current-price">-</span></div>
+        <div class="info-row"><span>拍品描述:</span><span class="val-highlight" style="white-space: normal; text-align: right;" id="auc-desc">-</span></div>
       </div>
-      <button class="action-btn" id="btn-auc">鍙備笌绔炴媿</button>
+      <button class="action-btn" id="btn-auc">参与竞拍</button>
     </div>
   </div>
 </div>
 `;
 
 const HIDDEN_ARBITRATION_NARRATION_RULES = `
-[鍓嶇浠茶鍣ㄨ鏄嶿
-浠ヤ笅鍐呭灞炰簬闅愯棌浠茶缁撴灉锛屼笉瑕佸湪姝ｆ枃涓洿鎺ュ杩扳€滄垚鍔熺巼 / Roll / 浠茶缁撴潫 / JSONPatch / 绯荤粺鍒嗘瀽鈥濈瓑瀛楁牱銆?
-璇峰皢浠茶缁撹杞啓鎴愯嚜鐒跺墽鎯咃紝鍙弿鍐欎氦鏄撳姩浣溿€佽浠疯繕浠枫€佺珵鎷嶈繃绋嬨€佺墿璧勬祦杞笌瑙掕壊鍙嶅簲銆?
-鐜╁搴斿綋鐪嬪埌鐨勬槸缁忚繃淇グ鍚庣殑鍓ф儏鏂囨湰锛岃€屼笉鏄郴缁熻瀹氭棩蹇椼€?
+[前端仲裁器说明]
+以下内容属于隐藏仲裁结果，不要在正文中直接复述“成功率 / Roll / 仲裁结果 / JSONPatch / 系统分析”等字样。
+请将仲裁结论转写成自然剧情，只描写交易动作、议价还价、竞拍过程、物资流转与角色反应。
+玩家应当看到的是经过修饰后的剧情文本，而不是系统裁定日志。
 `.trim();
 
 const SOUL_TOWER_DISCOUNT_STORE_NAME = '魂灵塔特许兑换';
@@ -384,7 +384,7 @@ class TradeUIComponent {
       shopQty: this.$('#shop-qty')?.value || '1',
       sellItem: this.$('#sell-item-sel')?.value || '',
       sellQty: this.$('#sell-qty')?.value || '1',
-      privAction: this.$('#priv-action')?.value || '绉佷笅涔板叆',
+      privAction: this.$('#priv-action')?.value || '私下买入',
       privNpc: this.$('#priv-npc')?.value || '',
       privItem: this.$('#priv-item')?.value || '',
       privQty: this.$('#priv-qty')?.value || '1',
@@ -410,7 +410,7 @@ class TradeUIComponent {
     this.setSelectIfExists('#sell-item-sel', state.sellItem);
     if (this.$('#sell-qty')) this.$('#sell-qty').value = state.sellQty || '1';
 
-    if (this.$('#priv-action')) this.$('#priv-action').value = state.privAction || '绉佷笅涔板叆';
+    if (this.$('#priv-action')) this.$('#priv-action').value = state.privAction || '私下买入';
     if (this.$('#priv-npc')) this.$('#priv-npc').value = state.privNpc || '';
     if (this.$('#priv-item')) this.$('#priv-item').value = state.privItem || '';
     if (this.$('#priv-qty')) this.$('#priv-qty').value = state.privQty || '1';
@@ -451,7 +451,7 @@ class TradeUIComponent {
 
     const prefillAction = String(this.options.prefillAction || '').trim();
     if (prefillAction && this.$('#priv-action')) {
-      const actionText = /鍗東鍑哄敭|sell/i.test(prefillAction) ? '绉佷笅鍗栧嚭' : '绉佷笅涔板叆';
+      const actionText = /出售|卖出|sell/i.test(prefillAction) ? '私下卖出' : '私下买入';
       this.$('#priv-action').value = actionText;
     }
 
@@ -463,14 +463,14 @@ class TradeUIComponent {
       if (initialTab === 'tab-auction') this.setSelectIfExists('#auc-item-sel', prefillItem);
     }
 
-    const prefillQty = Math.max(1, Number(this.options.prefillQty || this.options.鏁伴噺 || 0));
+    const prefillQty = Math.max(1, Number(this.options.prefillQty || this.options.数量 || 0));
     if (prefillQty > 0) {
       if (this.$('#shop-qty')) this.$('#shop-qty').value = String(prefillQty);
       if (this.$('#sell-qty')) this.$('#sell-qty').value = String(prefillQty);
       if (this.$('#priv-qty')) this.$('#priv-qty').value = String(prefillQty);
     }
 
-    const prefillPrice = Math.max(0, Number(this.options.prefillPrice || this.options.浠锋牸 || 0));
+    const prefillPrice = Math.max(0, Number(this.options.prefillPrice || this.options.价格 || 0));
     if (prefillPrice > 0) {
       if (this.$('#priv-price')) this.$('#priv-price').value = String(prefillPrice);
       if (this.$('#auc-bid')) this.$('#auc-bid').value = String(prefillPrice);
@@ -559,10 +559,10 @@ class TradeUIComponent {
 
     const playerName = String(this.snapshot?.sd?.sys?.玩家名 || this.snapshot?.rootData?.sys?.玩家名 || '').trim();
     if (playerName && chars[playerName]) return playerName;
-    if (chars['涓昏']) return '涓昏';
+    if (chars['主角']) return '主角';
 
     const firstName = Object.keys(chars)[0];
-    return firstName || '涓昏';
+    return firstName || '主角';
   }
 
   get activeCharBasePath() {
@@ -629,8 +629,8 @@ class TradeUIComponent {
     this.updatePrivPreview();
   }
 
-  // --- 浼板€间笌涓婁笅鏂?(澶嶅埢鍘熺増) ---
-  estimateBasePrice(itemName, itemType = "鐗╁搧") {
+  // --- 估值与上下文 ---
+  estimateBasePrice(itemName, itemType = "物品") {
     if (/斗铠/.test(itemName)) return 0;
     if (/机甲/.test(itemName)) {
       if (/红级/.test(itemName)) return 5000000000;
@@ -696,7 +696,7 @@ class TradeUIComponent {
   }
 
   normalizeLocForMatch(location) {
-    const raw = String(location || '').replace(/^鏂楃綏澶ч檰-/, '').replace(/^鏂楃伒澶ч檰-/, '').trim();
+    const raw = String(location || '').replace(/^斗罗大陆-/, '').replace(/^斗灵大陆-/, '').trim();
     const segments = raw.split('-').filter(Boolean);
     return {
       raw,
@@ -1007,12 +1007,12 @@ class TradeUIComponent {
     }
   }
 
-  // --- 鍟嗗簵閲囪喘妯″潡 ---
+  // --- 商店采购模块 ---
   populateShopData() {
     const storeSel = this.$('#shop-store-sel');
     storeSel.innerHTML = '';
     if (Object.keys(this.currentStores).length === 0) {
-      storeSel.innerHTML = '<option value="">[褰撳墠鍖哄煙鏃犲晢搴梋</option>';
+      storeSel.innerHTML = '<option value="">[当前区域无商店]</option>';
       this.updateShopItems();
       return;
     }
@@ -1031,7 +1031,7 @@ class TradeUIComponent {
     itemSel.innerHTML = '';
     
     if (!storeName || !this.currentStores[storeName] || !this.currentStores[storeName].库存) {
-      itemSel.innerHTML = '<option value="">[璇ュ晢搴楁棤璐</option>';
+      itemSel.innerHTML = '<option value="">[该商店无货]</option>';
       this.updateShopPreview();
       return;
     }
@@ -1047,7 +1047,7 @@ class TradeUIComponent {
         hasItem = true;
       }
     }
-    if (!hasItem) itemSel.innerHTML = '<option value="">[鍟嗗搧宸插敭缃刔</option>';
+    if (!hasItem) itemSel.innerHTML = '<option value="">[商品已售罄]</option>';
     this.updateShopPreview();
   }
 
@@ -1117,8 +1117,8 @@ class TradeUIComponent {
     if (!this.isCurrencySpendable(currency)) return alert(this.getCurrencyBlockedMessage(currency));
 
     let loc = this.charData?.状态?.位置 || "";
-    let isTier4_5 = /澶╅敾|鍥涘瓧|绾㈢骇|鍗佷竾骞磡榄傞敾|涓夊瓧|榛戠骇|涓囧勾/.test(itemName);
-    let isTier2_3 = /鐏甸敾|浜屽瓧|绱骇|鍗冨勾|鍗冮敾|涓€瀛梶榛勭骇|鐧惧勾/.test(itemName);
+    let isTier4_5 = /天锻|四字|红级|十万年|魂锻|三字|黑级|万年/.test(itemName);
+    let isTier2_3 = /灵锻|二字|紫级|千年|千锻|一字|黄级|百年/.test(itemName);
     const locMeta = this.worldData?.地点?.[loc] || {};
     const economy = String(locMeta['经济状况'] || '未知');
     let isTier1City = economy === '繁荣';
@@ -1167,7 +1167,7 @@ class TradeUIComponent {
     this.submitAction(`我要在【${storeName}】购买 ${qty} 份【${itemName}】。`, sysPrompt, 'trade_shop_buy', patchOps);
   }
 
-  // --- 璧勪骇鍑哄敭妯″潡 ---
+  // --- 资产出售模块 ---
   populateSellData() {
     const invSel = this.$('#sell-item-sel');
     invSel.innerHTML = '';
@@ -1248,7 +1248,7 @@ class TradeUIComponent {
     this.submitAction(`我要卖出 ${qty} 份【${itemName}】换钱。`, sysPrompt, 'trade_system_sell', patchOps);
   }
 
-  // --- 绉佷笅浜ゆ槗妯″潡 ---
+  // --- 私下交易模块 ---
   updatePrivPreview() {
     const action = this.$('#priv-action').value;
     const itemName = this.$('#priv-item').value;
@@ -1346,7 +1346,7 @@ class TradeUIComponent {
     this.submitAction(`我要和【${targetNpc}】${action} ${qty} 份【${itemName}】，单价 ${price} 联邦币。`, sysPrompt, 'trade_private', patchOps);
   }
 
-  // --- 鎷嶅崠琛屾ā鍧?---
+  // --- 拍卖行模块 ---
   populateAuctionData() {
     const sel = this.$('#auc-item-sel');
     sel.innerHTML = '';
@@ -1421,7 +1421,7 @@ class TradeUIComponent {
   }
 }
 
-// 鍚戝叏灞€鎸傝浇
+// 向全局挂载
 window.mountTradeUI = function(containerElement, snapshot, options = {}) {
   return new TradeUIComponent(containerElement, snapshot, options);
 };
