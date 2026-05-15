@@ -3095,7 +3095,7 @@ class BattleUIComponent {
       const 攻方系别 = String(攻击方?.type || '').trim();
       const 守方系别 = String(防御方?.type || '').trim();
       const 类型 = String(伤害类型 || '').trim();
-      if (攻方系别 === '强攻系' && ['辅助系', '治疗系', '食物系'].includes(守方系别)) {
+      if (攻方系别 === '强攻系' && ['辅助系', '治疗系', '食物系', '召唤系'].includes(守方系别)) {
         return /物理|近战|能量|AOE/.test(类型) ? 1.9 : 1.45;
       }
       if (攻方系别 === '强攻系' && 守方系别 === '防御系') return 0.92;
@@ -5316,7 +5316,18 @@ class BattleUIComponent {
           'shield_break',
           'shield_steal',
           'resource_drain',
+          'resource_refeed',
           'mechanism_suppress',
+          'mechanism_steal',
+          'copy',
+          'copy_status',
+          'ring_burst_gain',
+          'time_rewind',
+          'luck_interference',
+          'misfortune_backlash',
+          'element_seal',
+          'power_amplify',
+          'skill_effect_amplify',
           'effect_reverse',
           'heal_to_damage',
         ]) ||
@@ -5500,7 +5511,7 @@ class BattleUIComponent {
     }
 
     function isBattleSkillMechanismSuppressProfile(skill) {
-      return hasBattleSkillRuntimeConsumer(skill, ['mechanism_suppress']);
+      return hasBattleSkillRuntimeConsumer(skill, ['mechanism_suppress', 'mechanism_steal']);
     }
 
     function isBattleSkillReactiveDefenseProfile(skill, context = {}) {
@@ -6853,6 +6864,7 @@ class BattleUIComponent {
 
       Object.entries(charData?.状态效果 || {}).forEach(([状态名, 状态]) => {
         if (!状态 || Number(状态.duration ?? 1) <= 0 || !Array.isArray(状态.复刻技能列表)) return;
+        if (状态.可用次数 !== undefined && Number(状态.可用次数 || 0) <= 0) return;
         状态.复刻技能列表.forEach((技能, 序号) => {
           if (!技能 || typeof 技能 !== 'object') return;
           const 原名 = String(技能.name || 技能.魂技名 || 技能.技能名称 || `复刻技能${序号 + 1}`).trim();
@@ -6863,6 +6875,8 @@ class BattleUIComponent {
           复刻技能.source_tag = 状态名;
           复刻技能.__复刻来源 = String(状态.复刻来源 || 状态名 || '').trim();
           复刻技能.__复刻倍率 = Number(状态.复刻倍率 || 1);
+          复刻技能.__复刻状态名 = 状态名;
+          复刻技能.__复刻可用次数 = 状态.可用次数 === undefined ? 1 : Math.max(0, Math.floor(Number(状态.可用次数 || 0)));
           套用复刻技能倍率(复刻技能, 复刻技能.__复刻倍率);
           const 是否被动 = isPassiveSkillData(复刻技能);
           if (是否被动 && !collectOptions.includePassive) return;
@@ -8547,7 +8561,7 @@ class BattleUIComponent {
         const 队友快照 = buildConditionTacticalSnapshot(队友);
         const 队友血量 = getCombatHpRatio(队友);
         let 压力 = Math.floor((1 - 队友血量) * 90);
-        if (['辅助系', '治疗系', '食物系', '控制系'].includes(队友.type)) 压力 += 28;
+        if (['辅助系', '治疗系', '食物系', '召唤系', '控制系'].includes(队友.type)) 压力 += 28;
         else if (['强攻系', '敏攻系', '精神系', '元素系'].includes(队友.type)) 压力 += 14;
         else if (队友.type === '防御系') 压力 -= 10;
         if (队友快照.hasBadCondition || 队友快照.isLockedOrControlled) 压力 += 18;
@@ -11475,7 +11489,7 @@ class BattleUIComponent {
           if (系别 === '防御系') return 0.16;
           if (系别 === '强攻系') return 0.12;
           if (系别 === '敏攻系') return -0.03;
-          if (['辅助系', '治疗系', '食物系'].includes(系别)) return -0.06;
+          if (['辅助系', '治疗系', '食物系', '召唤系'].includes(系别)) return -0.06;
         }
         return 0;
       }
@@ -11835,6 +11849,76 @@ class BattleUIComponent {
         return !!构建食物即食技能(skill, action);
       }
 
+      function 消耗复刻技能次数(角色 = {}, 技能 = {}) {
+        const 状态名 = String(技能?.__复刻状态名 || 技能?.source_tag || '').trim();
+        if (!状态名 || !角色?.状态效果?.[状态名]) return { 可释放: true, 日志: '' };
+        const 状态 = 角色.状态效果[状态名];
+        const 剩余次数 = 状态.可用次数 === undefined ? 1 : Math.max(0, Math.floor(Number(状态.可用次数 || 0)));
+        if (剩余次数 <= 0) return { 可释放: false, 日志: ` [技能复刻] [${状态名}]可用次数已耗尽。` };
+        状态.可用次数 = 剩余次数 - 1;
+        if (状态.可用次数 <= 0) {
+          delete 角色.状态效果[状态名];
+          if (角色.持续效果) {
+            Object.keys(角色.持续效果).forEach(持续键 => {
+              if (角色.持续效果[持续键]?.related_condition === 状态名) delete 角色.持续效果[持续键];
+            });
+          }
+          return { 可释放: true, 日志: ` [技能复刻] 消耗[${状态名}]最后1次复刻。` };
+        }
+        return { 可释放: true, 日志: ` [技能复刻] [${状态名}]剩余${状态.可用次数}次。` };
+      }
+
+      function 触发行动前机制授予(角色 = {}, 技能 = {}, 敌方 = null) {
+        if (!角色?.状态效果 || typeof 角色.状态效果 !== 'object') return { skill: 技能, 日志: '' };
+        const 授予条目 = Object.entries(角色.状态效果).filter(([, 状态]) => {
+          if (!状态 || typeof 状态 !== 'object') return false;
+          return 状态.机制授予状态 === true || 状态.战斗效果?.mechanism_grant === true;
+        });
+        if (!授予条目.length) return { skill: 技能, 日志: '' };
+        const 追加效果 = [];
+        const 日志 = [];
+        授予条目.forEach(([状态名, 状态]) => {
+          const 原效果列表 = Array.isArray(状态.授予效果) ? 状态.授予效果 : [];
+          const 可执行效果 = 原效果列表
+            .filter(effect => effect && typeof effect === 'object')
+            .filter(effect => String(effect?.机制 || '').trim() !== '机制授予')
+            .map(effect => {
+              const next = deepClone(effect);
+              const 机制名 = String(next?.机制 || '').trim();
+              const meta = getBattleSkillMechanismMeta(机制名) || {};
+              const 目标语义 = String(meta?.目标语义 || '').trim();
+              if (目标语义 === '敌对') {
+                next.目标 = '敌方单体';
+                next.对象 = '敌方单体';
+              } else if (目标语义 === '仅自身' || meta?.仅自身 === true) {
+                next.目标 = '自身';
+                next.对象 = '自身';
+              } else if (['食用者', '使用者'].includes(String(next.目标 || next.对象 || '').trim())) {
+                next.目标 = '自身';
+                next.对象 = '自身';
+              }
+              return next;
+            });
+          const 需要敌方 = 可执行效果.some(effect => {
+            const 机制名 = String(effect?.机制 || '').trim();
+            const meta = getBattleSkillMechanismMeta(机制名) || {};
+            const 目标文本 = String(effect?.目标 || effect?.对象 || '').trim();
+            return meta?.目标语义 === '敌对' || /敌方/.test(目标文本);
+          });
+          if (需要敌方 && !敌方) return;
+          if (!可执行效果.length) return;
+          追加效果.push(...可执行效果);
+          const 剩余次数 = Math.max(1, Math.floor(Number(状态.可用次数 ?? 1))) - 1;
+          if (剩余次数 <= 0) delete 角色.状态效果[状态名];
+          else 状态.可用次数 = 剩余次数;
+          日志.push(`[${状态名}]`);
+        });
+        if (!追加效果.length) return { skill: 技能, 日志: '' };
+        const nextSkill = deepClone(技能 || {});
+        nextSkill._效果数组 = [...(Array.isArray(nextSkill._效果数组) ? nextSkill._效果数组 : []), ...追加效果];
+        return { skill: nextSkill, 日志: ` [机制授予] 触发${日志.join('、')}。` };
+      }
+
       function executeClash(playerAction, npcAction, combatData) {
         hydrateCombatData(combatData);
         let attacker = combatData.参战者.player;
@@ -11854,6 +11938,13 @@ class BattleUIComponent {
           },
           playerAction.skill?.name || '普通攻击',
         );
+        const 复刻次数结果 = 消耗复刻技能次数(attacker, playerAction.skill);
+        if (!复刻次数结果.可释放) {
+          result.desc += 复刻次数结果.日志;
+          playerAction.action_type = '施法失败';
+          return result;
+        }
+        if (复刻次数结果.日志) result.desc += 复刻次数结果.日志;
         if (npcAction.skill) {
           npcAction.skill = normalizeSkillData(
             npcAction.skill,
@@ -11866,6 +11957,14 @@ class BattleUIComponent {
             playerAction.skill = normalizeSkillData(即食技能, 即食技能.name || 即食技能.魂技名 || '食物系魂技·即食');
             result.desc += ` [食物即食] ${playerAction.target_name ? `目标:${playerAction.target_name}。` : '自身食用。'}`;
           }
+        }
+        const 授予触发结果 = 触发行动前机制授予(attacker, playerAction.skill, defender);
+        if (授予触发结果.日志) {
+          playerAction.skill = normalizeSkillData(
+            授予触发结果.skill,
+            授予触发结果.skill?.name || 授予触发结果.skill?.魂技名 || playerAction.skill?.name || '技能',
+          );
+          result.desc += 授予触发结果.日志;
         }
 
         const 施放分支 = String(playerAction?.分支标记 || playerAction?.skill?._runtime_分支标记 || '').trim();
@@ -12044,6 +12143,7 @@ class BattleUIComponent {
         const directFieldEffect = actionEffects.find(effect => effect?.机制 === '召唤与场地') || null;
         const directSummonEffect = actionEffects.find(effect => effect?.机制 === '召唤') || null;
         const directCopyEffect = actionEffects.find(effect => effect?.机制 === '复制') || null;
+        const directGrantEffect = actionEffects.find(effect => effect?.机制 === '机制授予') || null;
         const directStateExchangeEffect = actionEffects.find(effect => effect?.机制 === '状态交换') || null;
         const selfMirrorEffect = actionEffects.find(effect => effect?.机制 === '自身也受影响') || null;
         const directRandomTargetEffect = actionEffects.find(effect => effect?.机制 === '随机目标') || null;
@@ -13334,6 +13434,14 @@ class BattleUIComponent {
           if (!effect) return false;
           const sourceObj = resolveSkillEffectTargetCharacter(playerAction.skill, effect, attacker, defender);
           const 复制类型 = String(effect?.复制类型 || '技能').trim() || '技能';
+          const 复制条件 = String(effect?.复制条件 || '可强行判定').trim() || '可强行判定';
+          const 复制方式 = String(effect?.复制方式 || '战斗照镜子').trim() || '战斗照镜子';
+          const 可用次数 = Math.max(1, Math.floor(Number(effect?.可用次数 || 1)));
+          const 复制次数 = Math.max(1, Math.floor(Number(effect?.技能个数 || 1)));
+          const 来源名称 = sourceObj?.name || '目标';
+          const 来源等级 = Number(sourceObj?.魂环年限 || sourceObj?.年限 || sourceObj?.等级 || sourceObj?.level || 0);
+          const 自身等级 = Number(attacker?.魂环年限 || attacker?.年限 || attacker?.等级 || attacker?.level || 0);
+          const 等级差 = Math.max(0, 来源等级 - 自身等级);
           const 读取削减比例 = value => {
             const text = String(value ?? '').trim();
             const n = Number(text.replace('%', ''));
@@ -13342,7 +13450,38 @@ class BattleUIComponent {
           };
           const 削减比例 = 读取削减比例(effect?.削减比例);
           const 复制倍率 = Number((1 - 削减比例).toFixed(3));
+          const 能强行判定 = 复制条件 !== '需要配合';
+          const 是否敌方复制 = sourceObj && sourceObj !== attacker;
+          const 目标状态效果 = sourceObj?.状态效果 && typeof sourceObj.状态效果 === 'object' ? Object.values(sourceObj.状态效果) : [];
+          const 目标战斗效果 = 目标状态效果.map(状态 => 状态?.战斗效果 || {});
+          const 目标被控制 = 目标战斗效果.some(效果 => 效果?.cannot_react || 效果?.skip_turn);
+          const 锁定层级 = Math.max(0, ...目标战斗效果.map(效果 => Number(效果?.lock_level || 0)));
+          const 接触成立 = /近战|接触|贴身|抓取/.test(`${String(pClash?.伤害类型 || '')}${String(playerAction?.action_type || '')}${String(skillName || '')}`);
+          const 满足条件 = (() => {
+            if (复制条件 === '需要配合') {
+              const 条件文字 = `${来源名称}${String(effect?.复制条件描述 || effect?.复制方式 || '')}`;
+              return !是否敌方复制 || /配合/.test(条件文字) || /样本|血液|毛发|魂力残留|控制/.test(条件文字);
+            }
+            if (/技能/.test(复制类型) && 复制方式 === '战斗照镜子') return true;
+            if (/属性/.test(复制类型) && sourceObj && attacker) return true;
+            return true;
+          })();
+          const 判定修正 = (目标被控制 ? -0.18 : 0) + Math.min(0.18, 锁定层级 * -0.04) + (接触成立 ? -0.08 : 0);
+          const 强行判定失败概率 = Math.max(0.08, Math.min(0.8, 0.24 + 等级差 * 0.08 + 判定修正));
           let 已复制 = false;
+          if (!满足条件) {
+            if (!能强行判定) {
+              result.desc += ` [复制失败] 复制条件不满足。`;
+              return false;
+            }
+          }
+          if (是否敌方复制 && 能强行判定 && 复制方式 === '战斗照镜子') {
+            if (Math.random() < 强行判定失败概率) {
+              result.desc += ` [复制失败] 强行判定未过，损失动作。`;
+              return false;
+            }
+            result.desc += ` [复制判定] 强行照镜通过。`;
+          }
           if (复制类型 === '属性' || 复制类型 === '全部') {
             const sourceStats = sourceObj?.final || sourceObj?.属性 || sourceObj || {};
             const selfStats = attacker?.final || attacker?.属性 || attacker || {};
@@ -13368,6 +13507,7 @@ class BattleUIComponent {
                 duration: Math.max(1, Number(effect?.持续回合 || 1)),
                 面板修改比例,
                 战斗效果: { ...createEmptyCombatEffectMap() },
+                可用次数,
               });
               result.desc += ` [属性复制] 获得${Object.keys(面板修改比例).join('/')}属性镜像，削减${Math.round(削减比例 * 100)}%，进入[${copiedKey}]。`;
               已复制 = true;
@@ -13377,14 +13517,16 @@ class BattleUIComponent {
           }
           if (复制类型 === '技能' || 复制类型 === '全部') {
             const 指定技能 = String(effect?.目标技能 || effect?.复制技能 || effect?.技能名称 || '').trim();
-            const 技能个数 = 复制类型 === '全部' ? Infinity : Math.max(1, Math.floor(Number(effect?.技能个数 || 1)));
+            const 技能个数 = 复制类型 === '全部' ? Infinity : 复制次数;
             const 可复刻技能 = collectUnifiedSkillEntries(sourceObj, [], { includePassive: false, includeActive: true })
               .filter(skill => {
                 const 技能名 = String(skill?.name || skill?.魂技名 || skill?.技能名称 || '').trim();
                 if (/^复刻·/.test(技能名) || String(skill?.技能来源 || '') === '复刻') return false;
                 if (指定技能 && !技能名.includes(指定技能)) return false;
                 const 文本 = `${技能名} ${String(skill?.技能类型 || '')} ${JSON.stringify(skill?._效果数组 || [])}`;
-                return !/领域|场地|真身|炸环|免死|复苏|回溯/.test(文本);
+                if (/领域|场地|真身|炸环|免死|复苏|回溯/.test(文本)) return false;
+                if (复制方式 === '预先复刻') return true;
+                return !/状态效果|持续效果/.test(文本);
               })
               .slice(0, 指定技能 ? 1 : 技能个数);
             if (!可复刻技能.length) {
@@ -13401,8 +13543,9 @@ class BattleUIComponent {
               复刻来源: sourceObj?.name || '目标',
               复刻倍率: 复制类型 === '全部' ? 复制倍率 : 1,
               复刻技能列表: 可复刻技能.map(skill => deepClonePlain(skill)),
+              可用次数,
             });
-            result.desc += ` [技能复刻] 获得${可复刻技能.length}个复刻招式${复制类型 === '全部' ? `，削减${Math.round(削减比例 * 100)}%` : ''}，进入[${copiedKey}]。`;
+            result.desc += ` [技能复刻] 获得${可复刻技能.length}个复刻招式${复制类型 === '全部' ? `，削减${Math.round(削减比例 * 100)}%` : ''}，剩余${可用次数}次，进入[${copiedKey}]。`;
             已复制 = true;
           }
           if (!已复制 && !['技能', '属性', '全部'].includes(复制类型)) result.desc += ` [复制失败] 复制类型必须是技能、属性或全部。`;
@@ -13594,6 +13737,39 @@ class BattleUIComponent {
           }
           if (directCopyEffect) {
             applyCopyEffect(directCopyEffect);
+          }
+          if (directGrantEffect) {
+            const grantTargets = resolveSkillEffectTargetCharacters(
+              playerAction.skill,
+              directGrantEffect,
+              attacker,
+              defender,
+              combatData,
+            );
+            const grantEffects = (Array.isArray(directGrantEffect.授予效果) ? directGrantEffect.授予效果 : [])
+              .filter(effect => effect && typeof effect === 'object')
+              .filter(effect => String(effect?.机制 || '').trim() !== '机制授予');
+            if (grantEffects.length > 0) {
+              grantTargets.forEach(targetObj => {
+                if (!targetObj) return;
+                const grantName = String(directGrantEffect.授予名称 || playerAction.skill?.name || '临时机制').trim() || '临时机制';
+                const stateName = putConditionWithUniqueKey(targetObj, `机制授予:${grantName}`, {
+                  类型: 'buff',
+                  层数: 1,
+                  描述: `由[${playerAction.skill.name || '技能'}]预付成本授予`,
+                  duration: Math.max(0, Number(directGrantEffect.持续回合 || directGrantEffect.持续 || 0)),
+                  机制授予状态: true,
+                  触发条件: String(directGrantEffect.触发条件 || '下次有效行动'),
+                  可用次数: Math.max(1, Math.floor(Number(directGrantEffect.可用次数 || 1))),
+                  授予效果: deepClone(grantEffects),
+                  战斗效果: {
+                    ...createEmptyCombatEffectMap(),
+                    mechanism_grant: true,
+                  },
+                });
+                result.desc += ` [机制授予] ${targetObj === attacker ? '自身' : targetObj.name || '目标'}获得[${stateName}]。`;
+              });
+            }
           }
           if (directStateExchangeEffect) {
             applyStateExchangeEffect(directStateExchangeEffect);
@@ -14219,7 +14395,7 @@ class BattleUIComponent {
                 if (skillType2 === '输出') weight += 10;
               } else if (defender.type === '控制系') {
                 if (skillType2 === '控制') weight += 80;
-              } else if (['辅助系', '治疗系', '食物系'].includes(defender.type)) {
+              } else if (['辅助系', '治疗系', '食物系', '召唤系'].includes(defender.type)) {
                 if (skillType2 === '辅助') weight += 24;
                 if (skillType2 === '防御') weight += 18;
                 if (skillType2 === '控制') weight += 12;
@@ -14303,6 +14479,12 @@ class BattleUIComponent {
               const hasDelayBurst = hasBattleSkillRuntimeConsumer(skill, ['delay_burst']);
               const hasVolatile = hasBattleSkillRuntimeConsumer(skill, ['self_random_variance']);
               const hasReflectiveConvert = hasBattleSkillRuntimeConsumer(skill, ['damage_to_heal', 'heal_to_damage', 'effect_reverse']);
+              const 有复制机制 = hasBattleSkillRuntimeConsumer(skill, ['copy', 'copy_status']);
+              const 有机制窃取 = hasBattleSkillRuntimeConsumer(skill, ['mechanism_steal']);
+              const 有炸环 = hasBattleSkillRuntimeConsumer(skill, ['ring_burst_gain']);
+              const 有时光回溯 = hasBattleSkillRuntimeConsumer(skill, ['time_rewind']);
+              const 有气运控制 = hasBattleSkillRuntimeConsumer(skill, ['luck_interference', 'misfortune_backlash']);
+              const 有元素封禁 = hasBattleSkillRuntimeConsumer(skill, ['element_seal']);
               const penetrationValue = Number(getPrimaryDamageEffect(skill)?.穿透修饰 || 0);
               const actorMemory = ensureActorDecisionMemory(defender);
               const counterPenalty = getActorSkillCounterPenalty(defender, skill.name || skill.技能名称 || '');
@@ -14462,7 +14644,7 @@ class BattleUIComponent {
               if (summary.回复性质 === '净化' && selfSnapshot.hasBadCondition) weight += 60;
               if (
                 对手攻击压制 &&
-                ['辅助系', '治疗系', '食物系'].includes(defender.type) &&
+                ['辅助系', '治疗系', '食物系', '召唤系'].includes(defender.type) &&
                 (mainType === '增益类' || hasFriendlyGrantable || hasResourceRecover) &&
                 selfHpRatio > 0.45
               ) {
@@ -14490,7 +14672,7 @@ class BattleUIComponent {
 
               if (hasAntiHeal) {
                 if (enemySnapshot.hasAntiHeal) weight -= 35;
-                else if (['辅助系', '治疗系', '食物系'].includes(attacker.type) || enemySnapshot.hasHealingTrend)
+                else if (['辅助系', '治疗系', '食物系', '召唤系'].includes(attacker.type) || enemySnapshot.hasHealingTrend)
                   weight += 45;
                 else if (enemyHpRatio > 0.55) weight += 20;
               }
@@ -14514,7 +14696,7 @@ class BattleUIComponent {
               if (hasRevive && selfHpRatio < 0.3) weight += 62;
               if (hasExecute && enemyHpRatio < 0.35) weight += 40;
               if (hasSkillSeal && isChargingHighThreat) weight += 58;
-              if (hasHealInvert && (enemySnapshot.hasHealingTrend || ['辅助系', '治疗系', '食物系'].includes(attacker.type)))
+              if (hasHealInvert && (enemySnapshot.hasHealingTrend || ['辅助系', '治疗系', '食物系', '召唤系'].includes(attacker.type)))
                 weight += 42;
               if (hasDotDetonate && enemySnapshot.debuffCount > 0) weight += 38 + enemySnapshot.debuffCount * 6;
               if (hasShieldBreak && enemySnapshot.hasShielded) weight += 44;
@@ -14531,6 +14713,29 @@ class BattleUIComponent {
                 if ((suppressTargets.includes('增益') || suppressTargets.includes('特殊规则')) && enemySnapshot.buffCount > 0)
                   weight += 14 + enemySnapshot.buffCount * 4;
                 if (suppressTargets.includes('防御机制') && enemySnapshot.hasReactiveDefense) weight += 20;
+              }
+              if (有复制机制) {
+                if (enemySnapshot.buffCount > 0 || enemyHpRatio < 0.72 || 久攻不下) weight += 16;
+                if (behaviorState.round <= 2 && selfHpRatio > 0.7) weight += 8;
+              }
+              if (有机制窃取) {
+                if (enemySnapshot.hasReactiveDefense || enemySnapshot.hasHealingTrend || enemySnapshot.buffCount > 0) weight += 30;
+                if (isChargingHighThreat || 久攻不下) weight += 18;
+              }
+              if (有炸环) {
+                if (behaviorState.isDesperateNoEscape || selfHpRatio < 0.4 || enemyHpRatio < 0.38 || 久攻不下) weight += 34;
+                else weight -= 22;
+              }
+              if (有时光回溯) {
+                if (threatProfile.targetHitsDefender && (threatProfile.lethalRisk || threatProfile.severeDamage)) weight += 54;
+                else if (selfHpRatio < 0.45 || isChargingHighThreat) weight += 24;
+                else weight -= 12;
+              }
+              if (有气运控制) {
+                if (isChargingHighThreat || enemySnapshot.hasReactiveDefense || enemySnapshot.hasShielded || 久攻不下) weight += 18;
+              }
+              if (有元素封禁) {
+                if (isChargingHighThreat || /元素/.test(String(attacker.type || '')) || enemySnapshot.buffCount > 0) weight += 24;
               }
               if (hasResourceRecover && (selfSpRatio < 0.4 || selfMenRatio < 0.4))
                 weight += selfSnapshot.hasHealingTrend ? 10 : 30;
@@ -15078,7 +15283,7 @@ class BattleUIComponent {
           ) {
             const 强攻压制下续航价值 =
               ['强攻系', '敏攻系'].includes(attacker.type) &&
-              ['辅助系', '治疗系', '食物系'].includes(defender.type) &&
+              ['辅助系', '治疗系', '食物系', '召唤系'].includes(defender.type) &&
               selfHpRatio > 0.45
                 ? 0.62
                 : 1;
@@ -15297,7 +15502,7 @@ class BattleUIComponent {
           }
 
           if (
-            ['辅助系', '治疗系', '食物系'].includes(defender.type) &&
+            ['辅助系', '治疗系', '食物系', '召唤系'].includes(defender.type) &&
             allyCount > 1 &&
             teamSupportSkill &&
             !selfSnapshot.hasSharedVision
@@ -15510,7 +15715,7 @@ class BattleUIComponent {
             !!attacker.蓄力技能 ||
             playerAction.action_type === '蓄力挨打' ||
             ((playerAction.cast_time || 0) >= 20 && playerPower >= 120);
-          const isSupport = ['辅助系', '治疗系', '食物系'].includes(defender.type);
+          const isSupport = ['辅助系', '治疗系', '食物系', '召唤系'].includes(defender.type);
           const isLowHealth = getCombatHpRatio(defender) < 0.3;
           const activeBuffs = Object.keys(defender.状态效果 || {});
           const allyTeam = combatData.参战者.team_enemy || [];
@@ -16128,7 +16333,7 @@ class BattleUIComponent {
           let totalWeight = 0;
           let weightedTargets = validTargets.map(target => {
             let weight = 10;
-            let isSupport = ['辅助系', '治疗系', '食物系', '控制系'].includes(target.type);
+            let isSupport = ['辅助系', '治疗系', '食物系', '召唤系', '控制系'].includes(target.type);
             let isTank = ['防御系', '强攻系'].includes(target.type);
             let hpRatio = getCombatHpRatio(target);
 
@@ -16191,7 +16396,7 @@ class BattleUIComponent {
           const menRatio = Math.max(0, Number(target.men || 0)) / Math.max(1, Number(target.men_max || 1));
           const power = Number(dmg?.威力倍率 || 0);
           const penetration = Number(dmg?.穿透修饰 || 0);
-          const isSupport = ['辅助系', '治疗系', '食物系', '控制系'].includes(target.type);
+          const isSupport = ['辅助系', '治疗系', '食物系', '召唤系', '控制系'].includes(target.type);
           const isTank = ['防御系', '强攻系'].includes(target.type);
           let weight = 10;
 
@@ -16344,7 +16549,7 @@ class BattleUIComponent {
           if (summary.防御性质 === '护卫' && ally.name !== actorChar.name) weight += Math.floor((1 - hpRatio) * 120) + 36;
           if (是团队保护技能(skill, { summary }) && ally.name !== actorChar.name) {
             weight += Math.floor((1 - hpRatio) * 80) + 18;
-            if (['辅助系', '治疗系', '食物系', '控制系'].includes(ally.type)) weight += 22;
+            if (['辅助系', '治疗系', '食物系', '召唤系', '控制系'].includes(ally.type)) weight += 22;
             if (snapshot.isLockedOrControlled || snapshot.hasBadCondition) weight += 16;
             if (snapshot.hasShielded || snapshot.hasReactiveDefense) weight -= 12;
           }
@@ -16354,7 +16559,7 @@ class BattleUIComponent {
             if (hpRatio < 0.5) weight += 20;
           }
           if (技能来源 === '武魂融合技' && ally.name !== actorChar.name) weight += 12;
-          if (['辅助系', '治疗系', '食物系', '控制系'].includes(ally.type)) weight += 10;
+          if (['辅助系', '治疗系', '食物系', '召唤系', '控制系'].includes(ally.type)) weight += 10;
           return Math.max(1, weight);
         }
 
@@ -16480,7 +16685,7 @@ class BattleUIComponent {
             allyTeam,
             makeActorAction,
           );
-          const isSupport = ['辅助系', '治疗系', '食物系'].includes(actor.type);
+          const isSupport = ['辅助系', '治疗系', '食物系', '召唤系'].includes(actor.type);
           const isLowHealth = getCombatHpRatio(actor) < 0.3;
 
           const strategicAction = chooseAndBuildActorAction(
@@ -16552,7 +16757,7 @@ class BattleUIComponent {
                   isLowHealth ? skillContext.reactiveDefenseSkill : null,
                   isLowHealth ? skillContext.defSkill : null,
                 ]
-              : ['辅助系', '治疗系', '食物系'].includes(actor.type)
+              : ['辅助系', '治疗系', '食物系', '召唤系'].includes(actor.type)
                 ? [
                     skillContext.recoverSkill,
                     skillContext.teamSupportSkill,
@@ -18208,3 +18413,4 @@ window.BattleUIComponent = BattleUIComponent;
 window.mountBattleUI = function(containerElement, snapshot, options = {}) {
   return new BattleUIComponent(containerElement, snapshot, options);
 };
+
