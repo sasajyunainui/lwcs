@@ -10,7 +10,7 @@
   })();
   const 宿主文档 = 宿主窗口.document;
 
-  if (宿主窗口[加载器键]) return;
+  const 调试热更新模式 = !!宿主窗口[加载器键];
   宿主窗口[加载器键] = true;
 
   const 资源基础地址 = 'http://localhost:5501/lwcs/';
@@ -23,6 +23,7 @@
     样式核心: { 类型: 'css', 地址: 资源基础地址 + 'mvu_styles.css' + 资源版本后缀, 关键: true, 分组: 'core' },
     Vue核心: { 类型: 'remote-js', 地址: Vue远程地址, 关键: true, 分组: 'core' },
     壳层运行时: { 类型: 'inline-js', 地址: 资源基础地址 + 'Main_Vue_runtimefix_v2.js' + 资源版本后缀, 关键: true, 分组: 'core' },
+    变量规则: { 类型: 'wait-global', 全局键: '__LWCS_GET_BASE_STATS__', 关键: true, 分组: 'core' },
     逻辑桥接: { 类型: 'inline-js', 地址: 资源基础地址 + 'mvu_logic_bridge.js' + 资源版本后缀, 关键: true, 分组: 'core' },
     地图模块: { 类型: 'inline-js', 地址: 资源基础地址 + 'sheep_map_restore.js' + 资源版本后缀, 关键: false, 分组: 'lazy' },
     交易模块: { 类型: 'inline-js', 地址: 资源基础地址 + 'TradeUI_Module.js' + 资源版本后缀, 关键: false, 分组: 'lazy' },
@@ -116,7 +117,9 @@
 
   async function 加载样式(地址) {
     const 样式标记 = 取样式标记(地址);
-    if (宿主文档.getElementById(样式标记)) return 地址;
+    const 旧样式 = 宿主文档.getElementById(样式标记);
+    if (旧样式 && !调试热更新模式) return 地址;
+    if (旧样式) 旧样式.remove();
 
     const 响应 = await fetch(地址, { cache: 'no-store' });
     if (!响应.ok) throw new Error(`CSS load failed: ${地址} [${响应.status}]`);
@@ -147,7 +150,9 @@
 
   async function 加载内联脚本(地址) {
     const 脚本标记 = 取内联脚本标记(地址);
-    if (宿主文档.getElementById(脚本标记)) return 地址;
+    const 旧脚本 = 宿主文档.getElementById(脚本标记);
+    if (旧脚本 && !调试热更新模式) return 地址;
+    if (旧脚本) 旧脚本.remove();
 
     const 响应 = await fetch(地址, { cache: 'no-store' });
     if (!响应.ok) throw new Error(`JS load failed: ${地址} [${响应.status}]`);
@@ -159,11 +164,41 @@
     return 地址;
   }
 
+  async function 执行调试热更新() {
+    try {
+      记录阶段(加载阶段.核心加载中);
+      await waitForMountsReady(10000);
+      ensureGetAllVariablesShim();
+      await 加载样式(模块注册表.样式核心.地址);
+      try {
+        宿主窗口.__sheepMapRestoreLoaded = false;
+        if (window !== 宿主窗口) window.__sheepMapRestoreLoaded = false;
+      } catch (错误) {}
+      const 地图内置样式 = 宿主文档.getElementById('sheep-map-restore-style');
+      if (地图内置样式) 地图内置样式.remove();
+      宿主文档.querySelectorAll('#page-map .map-layout').forEach(节点 => 节点.remove());
+      宿主文档.querySelectorAll([
+        ".split-left-page[data-target='page-map']",
+        ".split-right-page[data-target='page-map']",
+        '[data-mvu-map-stage]'
+      ].join(',')).forEach(节点 => { 节点.innerHTML = ''; });
+      await 加载内联脚本(模块注册表.地图模块.地址);
+      记录阶段(加载阶段.完成);
+      加载状态.结束时间 = Date.now();
+      setTimeout(triggerMvuRefresh, 0);
+      setTimeout(triggerMvuRefresh, 260);
+    } catch (错误) {
+      记录阶段(加载阶段.失败, 错误 && 错误.message ? 错误.message : String(错误 || 'unknown_hot_reload_error'));
+      console.error('[MVU] External UI hot reload failed:', 错误);
+    }
+  }
+
   async function 执行模块加载(模块名) {
     const 模块 = 模块注册表[模块名];
     if (!模块) throw new Error(`unknown_module:${模块名}`);
     if (模块.类型 === 'css') return 加载样式(模块.地址);
     if (模块.类型 === 'remote-js') return 加载远程脚本(模块.地址);
+    if (模块.类型 === 'wait-global') return 等待全局函数(模块.全局键, 12000);
     return 加载内联脚本(模块.地址);
   }
 
@@ -387,6 +422,38 @@
     throw new Error('Mount points not ready');
   }
 
+  async function 等待全局函数(函数名, timeout) {
+    const start = Date.now();
+    const limit = timeout || 10000;
+    const 安全函数名 = String(函数名 || '').trim();
+    if (!安全函数名) throw new Error('global function name missing');
+    const 查找函数 = () => {
+      const 窗口列表 = [宿主窗口];
+      try {
+        if (window && !窗口列表.includes(window)) 窗口列表.push(window);
+      } catch (错误) {}
+      for (const 当前窗口 of [...窗口列表]) {
+        try {
+          Array.from(当前窗口.frames || []).forEach(子窗口 => {
+            if (子窗口 && !窗口列表.includes(子窗口)) 窗口列表.push(子窗口);
+          });
+        } catch (错误) {}
+      }
+      return 窗口列表.some(当前窗口 => {
+        try {
+          return typeof 当前窗口[安全函数名] === 'function';
+        } catch (错误) {
+          return false;
+        }
+      });
+    };
+    while (Date.now() - start < limit) {
+      if (查找函数()) return 安全函数名;
+      await 睡眠(100);
+    }
+    throw new Error(`Global function not ready: ${安全函数名}`);
+  }
+
   async function waitForVueMounted(timeout) {
     const start = Date.now();
     const limit = timeout || 10000;
@@ -435,7 +502,7 @@
         ensureGetAllVariablesShim();
 
         记录阶段(加载阶段.核心加载中);
-        const 核心模块顺序 = ['样式核心', 'Vue核心', '壳层运行时', '逻辑桥接', '数据库模块'];
+        const 核心模块顺序 = ['样式核心', 'Vue核心', '壳层运行时', '变量规则', '逻辑桥接', '数据库模块'];
         for (const 模块名 of 核心模块顺序) {
           await 确保模块已加载(模块名, { 来源: 'bootstrap_core', 允许失败降级: false });
         }
@@ -465,6 +532,10 @@
 
   function 监控并启动引导() {
     const tryBoot = () => {
+      if (调试热更新模式) {
+        if (!引导承诺) 引导承诺 = 执行调试热更新();
+        return;
+      }
       if (!引导承诺) 引导加载();
     };
     if (宿主文档.body && 宿主文档.readyState !== 'loading') {

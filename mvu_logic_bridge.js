@@ -1,4 +1,4 @@
-﻿
+
 (() => {
   const __mvuBridgeRoot = typeof globalThis !== 'undefined' ? globalThis : window;
   const resolveSharedSkillMechanismRegistry = () => {
@@ -1520,6 +1520,13 @@
       try {
         if (window.top && window.top !== window && !列表.includes(window.top)) 列表.push(window.top);
       } catch (错误) {}
+      for (const 当前窗口 of [...列表]) {
+        try {
+          Array.from(当前窗口.frames || []).forEach(子窗口 => {
+            if (子窗口 && !列表.includes(子窗口)) 列表.push(子窗口);
+          });
+        } catch (错误) {}
+      }
       return 列表;
     }
 
@@ -1693,20 +1700,11 @@
     }
 
     function getBaseSpMaxForLevel(lv) {
-      const level = toNumber(lv, 0);
-      let spBase = 100;
-      if (level <= 10) spBase = 100 + (level - 1) * 73.66;
-      else if (level <= 30) spBase = 763 + (level - 10) * 161.85;
-      else if (level <= 50) spBase = 4000 + Math.pow(level - 30, 2) * 27.5;
-      else if (level <= 70) spBase = 15000 + (level - 50) * 1000;
-      else if (level <= 90) spBase = 35000 + (level - 70) * 1250;
-      else if (level <= 95) spBase = 60000 + (level - 90) * 6818;
-      else if (level < 98) spBase = 94090 + (level - 95) * 15303.3;
-      else if (level === 98) spBase = 140000;
-      else if (level === 99) spBase = 200000;
-      else if (level === 99.5) spBase = 400000;
-      else if (level >= 100) spBase = 700000;
-      return Math.floor(spBase);
+      const 基础属性函数 = 读取窗口函数('__LWCS_GET_BASE_STATS__');
+      if (typeof 基础属性函数 !== 'function') {
+        throw new Error('MVU基础属性函数未加载');
+      }
+      return Math.floor(toNumber(基础属性函数(lv)?.sp_max, 0));
     }
 
     function getCharacterBaseSoulPowerTypeMultiplierForUi(charData = {}) {
@@ -4993,6 +4991,14 @@
       ].filter(Boolean).join(' / ');
     }
 
+    function summarizeSummonEffectUi(effect) {
+      const name = normalizeSkillUiText(effect && effect['召唤物名称'], '召唤物');
+      const count = Math.max(1, toNumber(effect && effect['召唤数量'], 1));
+      const duration = Math.max(0, toNumber(effect && effect['持续回合'], 0));
+      const mode = normalizeSkillUiText(effect && effect['行动模式'], '');
+      return [`召唤【${name}】×${count}`, mode, duration > 0 ? `持续:${duration}回合` : ''].filter(Boolean).join(' / ');
+    }
+
     function extractConstructEffectMeta(effectArray) {
       const createEffect = (Array.isArray(effectArray) ? effectArray : []).find(effect => {
         const mech = toText(effect && effect['机制'], '').trim();
@@ -5021,7 +5027,7 @@
       '回复类': Object.freeze(['体力恢复', '魂力恢复', '精神恢复', '持续恢复', '净化/解控']),
       '感知/认知类': Object.freeze(['感知干扰', '标记锁定', '共享视野', '幻境', '催眠', '认知扭曲']),
       '位移类': Object.freeze(['自身位移', '强制位移', '位移交换', '追击位移', '脱离位移']),
-      '特殊规则类': Object.freeze(['分身', '复制', '反制', '转化', '状态交换', '状态转移', '强制绑定/锁定', '条件触发', '规则改写', '引爆持续伤害', '斩盾', '窃取护盾', '吞噬', '能力共享', '机制抹消']),
+      '特殊规则类': Object.freeze(['召唤', '分身', '复制', '反制', '转化', '状态交换', '状态转移', '强制绑定/锁定', '条件触发', '规则改写', '引爆持续伤害', '斩盾', '窃取护盾', '吞噬', '能力共享', '机制抹消']),
     });
     const SKILL_DESIGNER_DELIVERY_FORM_POOL = Object.freeze(['直接生效', '自身附体', '远程命中', '范围展开', '召唤承载', '造物承载', '标记触发', '延迟触发']);
     const SKILL_DESIGNER_DELIVERY_FORM_BY_TYPE = Object.freeze({
@@ -5281,7 +5287,7 @@
     const SKILL_DESIGNER_PARAM_INFO_DEPTH_OPTIONS = Object.freeze(['位置', '视野', '状态', '位置+视野', '完整共享']);
     const SKILL_DESIGNER_PARAM_WAKE_RULE_OPTIONS = Object.freeze(['受伤', '净化', '时间结束']);
     const SKILL_DESIGNER_PARAM_ESCAPE_GAIN_OPTIONS = Object.freeze(['隐匿', '护盾', '加速']);
-    const SKILL_DESIGNER_PARAM_COPY_TARGET_OPTIONS = Object.freeze(['招式', '状态', '属性']);
+    const SKILL_DESIGNER_PARAM_COPY_TARGET_OPTIONS = Object.freeze(['技能', '属性', '全部']);
     const SKILL_DESIGNER_PARAM_COUNTER_TARGET_OPTIONS = Object.freeze(['远程', '控制', '召唤', '近战']);
     const SKILL_DESIGNER_PARAM_EXCHANGE_TARGET_OPTIONS = Object.freeze(['增益', '减益', '标记']);
     const SKILL_DESIGNER_PARAM_TRIGGER_RESULT_OPTIONS = Object.freeze(['爆发', '刷新', '召唤']);
@@ -6053,6 +6059,17 @@
           return;
         }
 
+        if (mechanism === '召唤') {
+          pushParamHint('召唤', {
+            duration: durationText,
+            summonName: normalizeSkillUiText(effect && effect['召唤物名称'], ''),
+            summonCount: formatSkillDesignerNumericInput(effect && effect['召唤数量'], 0),
+            inheritRatio: formatSkillDesignerNumericInput(effect && effect['继承属性比例']),
+            summonMode: normalizeSkillUiText(effect && effect['行动模式'], ''),
+          });
+          return;
+        }
+
         if (mechanism === '无敌金身') {
           pushParamHint('无敌金身', {
             duration: durationText,
@@ -6500,7 +6517,7 @@
       const normalizedType = normalizeSkillUiText(type, '');
       const normalizedTarget = normalizeSkillUiText(target, '');
       if (mechanisms.includes('造物生成') || /食物系/.test(normalizedType)) return '造物承载';
-      if (mechanisms.includes('分身')) return '召唤承载';
+      if (mechanisms.includes('分身') || mechanisms.includes('召唤')) return '召唤承载';
       if (mechanisms.includes('召唤与场地')) return '召唤承载';
       if (mechanisms.includes('条件触发') || mechanisms.includes('延迟爆发')) return '延迟触发';
       if (mechanisms.includes('标记锁定') || mechanisms.includes('标记弱点')) return '标记触发';
@@ -7875,10 +7892,21 @@
             createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
             createSkillDesignerTextParam('cloneName', '分身称谓', '影分身 / 心像'),
           ];
+        case '召唤':
+          return [
+            createSkillDesignerTextParam('summonName', '召唤物名称', '本命召唤兽'),
+            createSkillDesignerNumberParam('summonCount', '召唤数量', '1', '1'),
+            createSkillDesignerNumberParam('inheritRatio', '继承比例', '0.35'),
+            createSkillDesignerNumberParam('duration', '持续回合', '3', '1'),
+            createSkillDesignerTextParam('summonMode', '行动模式', '协同攻击'),
+            createSkillDesignerTextParam('damageRule', '承伤规则', '不替主承伤'),
+            createSkillDesignerTextParam('templateSource', '模板来源', '技能固定模板'),
+          ];
         case '复制':
           return [
-            createSkillDesignerSelectParam('copyTarget', '复制对象', SKILL_DESIGNER_PARAM_COPY_TARGET_OPTIONS),
-            createSkillDesignerNumberParam('fidelity', '保真度', '0.8'),
+            createSkillDesignerSelectParam('copyTarget', '复制类型', SKILL_DESIGNER_PARAM_COPY_TARGET_OPTIONS),
+            createSkillDesignerNumberParam('skillCount', '技能个数', '1', '1'),
+            createSkillDesignerNumberParam('reductionRatio', '削减比例', '0.2'),
             createSkillDesignerTextParam('duration', '维持时长', '2回合'),
           ];
         case '反制':
@@ -9383,15 +9411,30 @@
             }),
           ].filter(effect => safeEntries(effect).length);
         }
+        case '召唤':
+          return [
+            buildSkillDesignerRuntimeObject({
+              '机制': '召唤',
+              '目标': '自身',
+              '召唤物名称': normalizeSkillUiText(params['summonName'], '本命召唤兽'),
+              '召唤数量': parseSkillDesignerIntegerInputValue(params['summonCount'], 1, 1),
+              '继承属性比例': parseSkillDesignerPercentRatio(params['inheritRatio'], 0.35),
+              '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 3, 1),
+              '行动模式': normalizeSkillUiText(params['summonMode'], '协同攻击'),
+              '承伤规则': normalizeSkillUiText(params['damageRule'], '不替主承伤'),
+              '召唤模板来源': normalizeSkillUiText(params['templateSource'], '技能固定模板'),
+            }),
+          ].filter(effect => safeEntries(effect).length);
         case '复制':
+          const copyTargetText = toText(params['copyTarget'], '');
           return [
             buildSkillDesignerRuntimeObject({
               '机制': '复制',
               '目标': target,
               '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
-              '复制类型': /减益|debuff/i.test(toText(params['copyTarget'], '')) ? 'debuff' : 'buff',
-              '复制数量': 1,
-              '保真度': parseSkillDesignerFactorInputValue(params['fidelity'], 0.8),
+              '复制类型': /全部/.test(copyTargetText) ? '全部' : /属性/.test(copyTargetText) ? '属性' : '技能',
+              '技能个数': parseSkillDesignerIntegerInputValue(params['skillCount'], 1, 1),
+              '削减比例': parseSkillDesignerPercentRatio(params['reductionRatio'], 0.2),
             }),
           ].filter(effect => safeEntries(effect).length);
         case '反制':
@@ -9923,7 +9966,7 @@
           if (mechanism === '持续恢复') cloned['触发'] = '每回合';
           else if (!toText(cloned['触发'], '').trim() || cloned['触发'] === '立即生效') cloned['触发'] = '常驻';
         }
-        if (['护盾', '减伤', '格挡', '霸体', '免死', '共享视野', '受击反击', '反制', '分身', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏', '隐身', '护卫', '追击'].includes(mechanism)) {
+        if (['护盾', '减伤', '格挡', '霸体', '免死', '共享视野', '受击反击', '反制', '召唤', '分身', '无敌金身', '伤害反射', '伤害分摊', '替身抵消', '复苏', '隐身', '护卫', '追击'].includes(mechanism)) {
           cloned['目标'] = cloned['目标'] || '自身';
           if (cloned['持续回合'] === undefined || Number(cloned['持续回合'] || 0) <= 0) cloned['持续回合'] = 999;
         }
@@ -10099,6 +10142,7 @@
           if (!name || name === '系统基础' || isSkillSummaryEffect(effect)) return '';
           if (name === '生成造物' || name === '造物生成') return summarizeConstructEffectUi(effect);
           if (name === '分身') return summarizeCloneEffectUi(effect);
+          if (name === '召唤') return summarizeSummonEffectUi(effect);
           if (name === '状态挂载') return normalizeSkillUiText(effect && (effect['状态名称'] || effect['特殊机制标识']), '状态挂载');
           return name;
         })
@@ -13376,199 +13420,6 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       `;
     }
 
-    function 规范星图商店匹配文本(文本 = '') {
-      return toText(文本, '')
-        .replace(/协会分会|协会分店|分会|分店|协会/g, '协会')
-        .replace(/商店|店铺|商城/g, '')
-        .replace(/\s+/g, '')
-        .trim();
-    }
-
-    function 读取星图时间状态(snapshot) {
-      const 当前tick = Math.max(0, toNumber(deepGet(snapshot, 'rootData.world.时间.tick', 0), 0));
-      const 当日分钟 = ((当前tick * 10) % 1440 + 1440) % 1440;
-      const 小时 = Math.floor(当日分钟 / 60);
-      const 分钟 = Math.floor(当日分钟 % 60);
-      const 时间文本 = `${String(小时).padStart(2, '0')}:${String(分钟).padStart(2, '0')}`;
-      return {
-        小时,
-        分钟,
-        时间文本,
-        商店营业中: 小时 >= 9 && 小时 < 22,
-      };
-    }
-
-    function 解析星图节点动作上下文(snapshot, 焦点态 = null) {
-      const 定位 = 读取星图焦点定位(snapshot, 焦点态);
-      const 地点信息 = 读取星图焦点地点数据(snapshot, 定位);
-      const 父地点数据 = snapshot && snapshot.locationData && typeof snapshot.locationData === 'object' ? snapshot.locationData : {};
-      const 子节点数据 = deepGet(父地点数据, ['子节点', 定位.焦点名称], {});
-      const 地点数据 = 地点信息 && 地点信息.data && typeof 地点信息.data === 'object'
-        ? 地点信息.data
-        : (子节点数据 && typeof 子节点数据 === 'object' ? 子节点数据 : {});
-      const 节点文本 = [
-        定位.焦点名称,
-        定位.类型,
-        定位.功能,
-        定位.可用,
-        deepGet(地点数据, '类型', ''),
-        deepGet(地点数据, '描述', ''),
-        deepGet(地点数据, '掌控势力', ''),
-      ].map(值 => toText(值, '')).join(' ');
-      const 直接商店 = deepGet(地点数据, '商店', {});
-      const 父级商店 = deepGet(父地点数据, '商店', {});
-      const 商店表 = 直接商店 && typeof 直接商店 === 'object' && Object.keys(直接商店).length ? 直接商店 : (父级商店 || {});
-      const 商店名列表 = Object.keys(商店表 || {});
-      const 节点匹配键 = 规范星图商店匹配文本(定位.焦点名称);
-      const 类型匹配键 = 规范星图商店匹配文本(节点文本);
-      const 商店名 = 商店名列表.find(候选名 => {
-        const 商店匹配键 = 规范星图商店匹配文本(候选名);
-        return 商店匹配键 && (
-          商店匹配键.includes(节点匹配键)
-          || 节点匹配键.includes(商店匹配键)
-          || 类型匹配键.includes(商店匹配键)
-        );
-      }) || (/商店|店铺|杂货/.test(节点文本) ? 商店名列表[0] : '');
-      const 商品表 = 商店名 && 商店表[商店名] && 商店表[商店名].库存 && typeof 商店表[商店名].库存 === 'object'
-        ? 商店表[商店名].库存
-        : {};
-      const 商品列表 = safeEntries(商品表).slice(0, 5).map(([名称, 数据]) => ({
-        名称,
-        库存: toNumber(deepGet(数据, '库存', deepGet(数据, '数量', 0)), 0),
-        价格: toNumber(deepGet(数据, '价格', 0), 0),
-        货币: toText(deepGet(数据, '货币', '联邦币'), '联邦币'),
-      }));
-      const 动作集合 = new Set();
-      const 加入动作 = 动作 => {
-        const 标准动作 = toText(动作, '');
-        if (!标准动作 || ['inspect', 'enter', 'preview', 'talk'].includes(标准动作)) return;
-        if (标准动作 === 'shop' || 标准动作 === 'black_market') 动作集合.add('trade');
-        else if (标准动作 === 'auction') 动作集合.add('bid');
-        else if (标准动作 === 'briefing') 动作集合.add('brief');
-        else if (标准动作 === 'train') {
-          动作集合.add('train_body');
-          动作集合.add('train_mind');
-        } else 动作集合.add(标准动作);
-      };
-      []
-        .concat(Array.isArray(deepGet(地点数据, '行动槽', [])) ? deepGet(地点数据, '行动槽', []) : [])
-        .concat(Array.isArray(deepGet(地点数据, 'actionSlots', [])) ? deepGet(地点数据, 'actionSlots', []) : [])
-        .concat(Array.isArray(deepGet(地点数据, '交互', [])) ? deepGet(地点数据, '交互', []) : [])
-        .concat(Array.isArray(deepGet(地点数据, '服务', [])) ? deepGet(地点数据, '服务', []) : [])
-        .forEach(加入动作);
-      if (商店名) 加入动作('trade');
-      if (/拍卖/.test(节点文本)) 加入动作('bid');
-      if (/锻造师协会|制造师协会|设计师协会|修理师协会|副职业|工坊/.test(节点文本)) {
-        加入动作('craft');
-        加入动作('trade');
-      }
-      if (/训练场|演武|斗魂|实训|锻炼|健身/.test(节点文本)) 加入动作('train');
-      if (/图书馆|藏书|静室|冥想|修炼/.test(节点文本)) {
-        加入动作('study');
-        加入动作('meditate');
-      }
-      if (/宿舍|寝室|营房|休息区|大本营|营地|客栈|旅馆/.test(节点文本)) {
-        加入动作('rest');
-        加入动作('sleep');
-        加入动作('meditate');
-      }
-      if (/情报|指挥|巡防/.test(节点文本)) 加入动作('intel');
-      if (/政务|议政/.test(节点文本)) 加入动作('brief');
-      const 时间状态 = 读取星图时间状态(snapshot);
-      return {
-        定位,
-        地点数据,
-        商店名,
-        商品列表,
-        动作列表: Array.from(动作集合),
-        时间状态,
-      };
-    }
-
-    function 取星图节点动作标签(动作 = '') {
-      return {
-        study: '研读',
-        meditate: '冥想',
-        train_body: '肉体训练',
-        train_mind: '精神训练',
-        battle: '战斗',
-        trade: '交易',
-        bid: '竞拍',
-        craft: '委托工坊',
-        rest: '休整',
-        sleep: '睡眠',
-        intel: '情报',
-        brief: '汇报',
-      }[toText(动作, '')] || toText(动作, '查看');
-    }
-
-    function 构建星图节点动作卡(snapshot, 焦点态 = null) {
-      const 上下文 = 解析星图节点动作上下文(snapshot, 焦点态);
-      const 是否当前节点 = !!上下文.定位.是否当前位置;
-      const 动作标题 = 上下文.动作列表.length ? `${上下文.动作列表.length} 项` : '无动作';
-      const 动作按钮 = 上下文.动作列表.length
-        ? 上下文.动作列表.map(动作 => {
-          const 标签 = 取星图节点动作标签(动作);
-          const 是商店动作 = ['trade', 'bid'].includes(动作) && !!上下文.商店名;
-          const 禁用 = 是商店动作 && 是否当前节点 && !上下文.时间状态.商店营业中;
-          const 状态 = 禁用 ? '关门' : (是否当前节点 ? '可执行' : '需移动');
-          const 说明 = 是商店动作
-            ? `${上下文.商店名} · ${上下文.时间状态.商店营业中 ? '营业中' : '已关门'} ${上下文.时间状态.时间文本}`
-            : (动作 === 'craft' ? '官方工坊委托' : (['study', 'meditate', 'train_body', 'train_mind', 'rest', 'sleep'].includes(动作) ? '约 1 小时' : '节点动作'));
-          return `
-            <button type="button" class="location-action-row map-node-action-preview" data-map-node-action="${escapeHtmlAttr(动作)}" ${禁用 ? 'disabled' : ''}>
-              <b>${htmlEscape(是否当前节点 ? 标签 : `前往并${标签}`)}</b>
-              <span>${htmlEscape(`${状态} · ${说明}`)}</span>
-            </button>
-          `;
-        }).join('')
-        : '<div class="location-empty-note">暂无节点动作。</div>';
-      return `
-        <div class="mvu-map-focus-card">
-          <div class="mvu-map-focus-head">
-            <div>
-              <span>节点动作</span>
-              <strong title="${escapeHtmlAttr(上下文.定位.焦点名称)}">${htmlEscape(shortenText(上下文.定位.焦点名称, 24))}</strong>
-            </div>
-            <b class="${是否当前节点 ? 'is-live' : 'is-gold'}">${htmlEscape(是否当前节点 ? '当前' : '远端')}</b>
-          </div>
-          <div class="location-action-list">${动作按钮}</div>
-          <div class="tag-cloud armory-quick-actions mvu-detail-action-row mvu-detail-action-row--start">
-            <button type="button" class="relation-action-btn" data-map-maintenance="add">新增地点</button>
-            <button type="button" class="relation-action-btn" data-map-maintenance="damage">破坏</button>
-            <button type="button" class="relation-action-btn" data-map-maintenance="repair">修复</button>
-          </div>
-        </div>
-      `;
-    }
-
-    function 构建星图节点库存卡(snapshot, 焦点态 = null) {
-      const 上下文 = 解析星图节点动作上下文(snapshot, 焦点态);
-      const 库存HTML = 上下文.商店名
-        ? (上下文.商品列表.length
-          ? 上下文.商品列表.map(商品 => `
-            <div class="mvu-shell-roster-row">
-              <b>${htmlEscape(shortenText(商品.名称, 18))}</b>
-              <div class="mvu-shell-roster-meta">${htmlEscape(`库存 ${商品.库存}`)}</div>
-              <div class="mvu-shell-roster-state">${htmlEscape(`${商品.价格.toLocaleString()} ${商品.货币}`)}</div>
-            </div>
-          `).join('')
-          : '<div class="mvu-shell-roster-empty">当前无可售库存</div>')
-        : '<div class="mvu-shell-roster-empty">暂无库存</div>';
-      return `
-        <div class="mvu-shell-roster-card mvu-map-roster-card">
-          <div class="mvu-shell-roster-head">
-            <div>
-              <span>${htmlEscape(上下文.商店名 ? '动作与库存' : '动作预览')}</span>
-              <strong>${htmlEscape(上下文.商店名 || 上下文.定位.焦点名称)}</strong>
-            </div>
-            <b>${htmlEscape(上下文.商店名 ? (上下文.时间状态.商店营业中 ? '营业' : '关门') : `${上下文.动作列表.length} 项`)}</b>
-          </div>
-          <div class="mvu-shell-roster-list">${库存HTML}</div>
-        </div>
-      `;
-    }
-
     function buildShellMapCurrentCard(snapshot) {
       const currentMapDisplayName = getMapDisplayName(snapshot);
       const localFaction = toText(deepGet(snapshot, 'locationData.掌控势力', '未知'), '未知');
@@ -13696,11 +13547,15 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       };
       const 快照 = liveSnapshot || lastRenderableSnapshot;
       if (!快照) return;
-      setUnifiedCardMarkup('map-current', 构建星图节点动作卡(快照, 星图焦点态), {
-        preview: 判断星图焦点为当前位置(快照, 星图焦点态) ? '当前节点详情' : '',
+      const 地图节点面板 = 读取地图模块星图节点面板(星图焦点态);
+      setUnifiedCardMarkup('map-current', 地图节点面板 ? 地图节点面板.primaryHtml : 构建星图焦点位置卡(快照, 星图焦点态), {
+        preview: 地图节点面板 ? toText(地图节点面板.primaryPreview, '') : (判断星图焦点为当前位置(快照, 星图焦点态) ? '当前节点详情' : ''),
         surface: 'panel',
       });
-      setUnifiedCardMarkup('map-locals', 构建星图节点库存卡(快照, 星图焦点态), { surface: 'panel' });
+      setUnifiedCardMarkup('map-locals', 构建星图在场人物卡(快照, 星图焦点态), {
+        preview: 地图节点面板 ? toText(地图节点面板.secondaryPreview, '') : '',
+        surface: 'panel'
+      });
     }
 
     window.addEventListener('sheep-map-focus-change', 处理星图焦点变更);
@@ -14782,11 +14637,15 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
         } else {
           ensureUnifiedSheepMapStage('panel');
           setUnifiedCardMarkup('map-hero', '', { enabled: false, surface: normalizedSurface });
-          setUnifiedCardMarkup('map-current', 构建星图节点动作卡(snapshot, 星图焦点态), {
-            preview: 判断星图焦点为当前位置(snapshot, 星图焦点态) ? '当前节点详情' : '',
+          const 地图节点面板 = 读取地图模块星图节点面板(星图焦点态);
+          setUnifiedCardMarkup('map-current', 地图节点面板 ? 地图节点面板.primaryHtml : 构建星图焦点位置卡(snapshot, 星图焦点态), {
+            preview: 地图节点面板 ? toText(地图节点面板.primaryPreview, '') : (判断星图焦点为当前位置(snapshot, 星图焦点态) ? '当前节点详情' : ''),
             surface: normalizedSurface,
           });
-          setUnifiedCardMarkup('map-locals', 构建星图节点库存卡(snapshot, 星图焦点态), { surface: normalizedSurface });
+          setUnifiedCardMarkup('map-locals', 构建星图在场人物卡(snapshot, 星图焦点态), {
+            preview: 地图节点面板 ? toText(地图节点面板.secondaryPreview, '') : '',
+            surface: normalizedSurface
+          });
         }
       }
 
@@ -14926,6 +14785,20 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           清理旧状态条();
           if (typeof scheduleUnifiedMapCanvasClamp === 'function') scheduleUnifiedMapCanvasClamp();
         }, 0);
+      }
+    }
+
+    function 读取地图模块星图节点面板(焦点态 = null) {
+      const 地图桥 = window.__sheepMapBridge;
+      if (!地图桥 || typeof 地图桥.buildUnifiedNodePanels !== 'function') return null;
+      try {
+        const 面板 = 地图桥.buildUnifiedNodePanels(焦点态 && typeof 焦点态 === 'object' ? {
+          焦点名称: toText(焦点态.焦点名称, ''),
+        } : {});
+        return 面板 && 面板.ok ? 面板 : null;
+      } catch (错误) {
+        console.warn('[LWCS] build unified map node panels failed:', 错误);
+        return null;
       }
     }
 
@@ -20914,11 +20787,11 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             消耗: '无',
             _效果数组: Object.freeze([
               createSkillFixtureSystemBase('敌方/单体'),
-              Object.freeze({ 机制: '拆层转存', 目标: '敌方单体', 拆层数量: 1, 复制类型: 'debuff', 持续回合: 2 }),
+              Object.freeze({ 机制: '拆层转存', 目标: '敌方单体', 拆层数量: 1, 持续回合: 2 }),
             ]),
           }),
           预期: Object.freeze({
-            玩家新增状态: Object.freeze(['火毒灼烧·复制']),
+            玩家新增状态: Object.freeze(['火毒灼烧·转存']),
             要求补丁输出: true,
           }),
         }),
@@ -21037,6 +20910,42 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             要求补丁输出: true,
           }),
         }),
+        召唤: Object.freeze({
+          skillName: '夹具_召唤',
+          targetName: '云冥',
+          battle: Object.freeze({
+            进行中: true,
+            战斗类型: '擂台切磋',
+            战斗意图: '点到为止',
+            先攻: '无',
+            允许撤离: true,
+            回合: 0,
+            环境: '固定夹具场',
+            裁断结果: '',
+            参战者: Object.freeze({
+              player: Object.freeze({ name: '曹德智' }),
+              enemy: Object.freeze({ name: '云冥' }),
+              team_player: Object.freeze([]),
+              team_enemy: Object.freeze([]),
+            }),
+          }),
+          skillData: Object.freeze({
+            name: '夹具_召唤',
+            魂技名: '夹具_召唤',
+            技能来源: '自创魂技',
+            技能类型: '辅助',
+            对象: '自身',
+            消耗: '无',
+            _效果数组: Object.freeze([
+              createSkillFixtureSystemBase('自身'),
+              Object.freeze({ 机制: '召唤', 目标: '自身', 召唤物名称: '白虎影', 召唤数量: 2, 继承属性比例: 0.35, 持续回合: 3, 行动模式: '协同攻击', 承伤规则: '不替主承伤', 召唤模板来源: '技能固定模板' }),
+            ]),
+          }),
+          预期: Object.freeze({
+            玩家新增状态: Object.freeze(['召唤:白虎影']),
+            要求补丁输出: true,
+          }),
+        }),
       });
     }
 
@@ -21053,6 +20962,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           { 类目: '持续层数操控', 机制: Object.freeze(['延长持续伤害', '压缩持续伤害', '拆层转存']), 状态: '已验证' },
           { 类目: '资源规则', 机制: Object.freeze(['资源燃烧', '资源锁定']), 状态: '已验证' },
           { 类目: '场地', 机制: Object.freeze(['召唤与场地']), 状态: '已验证' },
+          { 类目: '召唤', 机制: Object.freeze(['召唤']), 状态: '已验证' },
         ]),
         当前缺口: Object.freeze([]),
       });
@@ -21207,7 +21117,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       const 战斗夹具键列表 =
         Array.isArray(options?.战斗夹具键列表) && options.战斗夹具键列表.length
           ? options.战斗夹具键列表
-          : ['吞噬', '能力共享', '对象差异_食物自服禁用', '对象差异_神圣逆邪', '机制抹消_复苏', '机制抹消_回复机制', '机制抹消_护盾', '机制抹消_隐身', '状态转移', '引爆持续伤害', '斩盾', '窃取护盾'];
+          : ['吞噬', '能力共享', '对象差异_食物自服禁用', '对象差异_神圣逆邪', '机制抹消_复苏', '机制抹消_回复机制', '机制抹消_护盾', '机制抹消_隐身', '状态转移', '引爆持续伤害', '斩盾', '窃取护盾', '召唤'];
       const 战斗侧结果 = await window.__LWCS_RUN_SKILL_FIXTURE_BATCH__(战斗夹具键列表, {
         waitMs: Number(options?.waitMs || 260),
         settleWaitMs: Number(options?.settleWaitMs || 420),
@@ -23068,55 +22978,34 @@ ${extraRequirement}
       食物系: { sp_max: 1.2, men_max: 1.2, str: 0.7, def: 0.6, agi: 0.8, vit_max: 0.7 },
       治疗系: { sp_max: 1.2, men_max: 1.2, str: 0.7, def: 0.6, agi: 0.8, vit_max: 0.7 },
     });
+    const 临时装备等效锚点 = Object.freeze({
+      斗铠: Object.freeze({
+        1: Object.freeze({ 起始等级: 50, 目标等级: 70 }),
+        2: Object.freeze({ 起始等级: 70, 目标等级: 90 }),
+        3: Object.freeze({ 起始等级: 80, 目标等级: 93 }),
+        4: Object.freeze({ 起始等级: 90, 目标等级: 98 }),
+      }),
+      机甲: Object.freeze({
+        黄级: Object.freeze({ 起始等级: 40, 目标等级: 47.5 }),
+        紫级: Object.freeze({ 起始等级: 50, 目标等级: 56.8 }),
+        黑级: Object.freeze({ 起始等级: 60, 目标等级: 77 }),
+        红级: Object.freeze({ 起始等级: 94, 目标等级: 96 }),
+      }),
+    });
 
     function getTemporaryBattleBaseStats(level = 1) {
-      const lv = Math.max(1, Number(level) || 1);
-      let spBase = 100;
-      if (lv <= 10) spBase = 100 + (lv - 1) * 73.66;
-      else if (lv <= 30) spBase = 763 + (lv - 10) * 161.85;
-      else if (lv <= 50) spBase = 4000 + Math.pow(lv - 30, 2) * 27.5;
-      else if (lv <= 70) spBase = 15000 + (lv - 50) * 1000;
-      else if (lv <= 90) spBase = 35000 + (lv - 70) * 1250;
-      else if (lv <= 95) spBase = 60000 + (lv - 90) * 6818;
-      else if (lv < 98) spBase = 94090 + (lv - 95) * 15303.3;
-      else if (lv === 98) spBase = 140000;
-      else if (lv === 99) spBase = 200000;
-      else if (lv === 99.5) spBase = 400000;
-      else if (lv >= 100) spBase = 700000;
-
-      let strBase = 10;
-      if (lv <= 10) strBase = 10 + (lv - 1) * 4.66;
-      else if (lv <= 30) strBase = 52 + (lv - 10) * 22.4;
-      else if (lv <= 50) strBase = 500 + Math.pow(lv - 30, 2) * 3.75;
-      else if (lv <= 70) strBase = 2000 + Math.pow(lv - 50, 2) * 12.5;
-      else if (lv <= 90) strBase = 7000 + (lv - 70) * 400;
-      else if (lv <= 95) strBase = 15000 + (lv - 90) * 2157;
-      else if (lv < 98) strBase = 25785 + (lv - 95) * 3071.6;
-      else if (lv === 98) strBase = 35000;
-      else if (lv === 99) strBase = 43000;
-      else if (lv === 99.5) strBase = 60000;
-      else if (lv >= 100) strBase = 80000;
-
-      let menBase = lv;
-      if (lv <= 20) menBase = lv;
-      else if (lv <= 30) menBase = 20 + (lv - 20) * 3;
-      else if (lv <= 50) menBase = 50 + Math.pow(lv - 30, 2) * 1.125;
-      else if (lv <= 70) menBase = 500 + Math.pow(lv - 50, 2) * 6.25;
-      else if (lv <= 90) menBase = 3000 + (lv - 70) * 100;
-      else if (lv <= 95) menBase = 5000 + (lv - 90) * 600;
-      else if (lv < 98) menBase = 8000 + (lv - 95) * 2000;
-      else if (lv === 98) menBase = 15000;
-      else if (lv === 99) menBase = 19000;
-      else if (lv === 99.5) menBase = 23000;
-      else if (lv >= 100) menBase = 50000;
-
+      const 基础属性函数 = 读取窗口函数('__LWCS_GET_BASE_STATS__');
+      if (typeof 基础属性函数 !== 'function') {
+        throw new Error('MVU基础属性函数未加载');
+      }
+      const 基础 = 基础属性函数(level);
       return {
-        sp_max: Math.floor(spBase),
-        men_max: Math.floor(menBase),
-        str: Math.floor(strBase),
-        def: Math.floor(strBase),
-        agi: Math.floor(strBase / 2),
-        vit_max: Math.floor(strBase),
+        sp_max: Math.floor(Number(基础.sp_max || 0)),
+        men_max: Math.floor(Number(基础.men_max || 0)),
+        str: Math.floor(Number(基础.str || 0)),
+        def: Math.floor(Number(基础.def || 0)),
+        agi: Math.floor(Number(基础.agi || 0)),
+        vit_max: Math.floor(Number(基础.vit_max || 0)),
       };
     }
 
@@ -23258,6 +23147,33 @@ ${extraRequirement}
       return 1;
     }
 
+    function 计算临时装备等效属性包(起始等级 = 1, 目标等级 = 1) {
+      const 起始等级值 = Math.max(1, Number(起始等级) || 1);
+      const 目标等级值 = Math.max(起始等级值, Number(目标等级) || 起始等级值);
+      const 起始基准 = getTemporaryBattleBaseStats(起始等级值);
+      const 目标基准 = getTemporaryBattleBaseStats(目标等级值);
+      return {
+        sp_max: Math.max(0, Math.floor(目标基准.sp_max - 起始基准.sp_max)),
+        men_max: Math.max(0, Math.floor(目标基准.men_max - 起始基准.men_max)),
+        str: Math.max(0, Math.floor(目标基准.str - 起始基准.str)),
+        def: Math.max(0, Math.floor(目标基准.def - 起始基准.def)),
+        agi: Math.max(0, Math.floor(目标基准.agi - 起始基准.agi)),
+        vit_max: Math.max(0, Math.floor(目标基准.vit_max - 起始基准.vit_max)),
+      };
+    }
+
+    function 获取临时斗铠等效属性包(斗铠等级 = 1) {
+      const 斗铠等级值 = Number(斗铠等级) || 1;
+      const 锚点 = 临时装备等效锚点.斗铠[斗铠等级值] || 临时装备等效锚点.斗铠[1];
+      return 计算临时装备等效属性包(锚点.起始等级, 锚点.目标等级);
+    }
+
+    function 获取临时机甲等效属性包(机甲等级 = '黄级') {
+      const 机甲等级值 = String(机甲等级 || '黄级');
+      const 锚点 = 临时装备等效锚点.机甲[机甲等级值] || 临时装备等效锚点.机甲.黄级;
+      return 计算临时装备等效属性包(锚点.起始等级, 锚点.目标等级);
+    }
+
     function applyTemporaryHumanEquipment(stats, equipment, identity = '魂师', level = 1, rng = Math.random) {
       if (identity === '普通人') return stats;
       const safeStats = stats;
@@ -23270,12 +23186,13 @@ ${extraRequirement}
         equipment.机甲.等级 = mechGrade;
         equipment.机甲.型号 = `${mechGrade}制式机甲`;
         equipment.机甲.装备状态 = '已装备';
-        const mechMult = mechGrade === '红级' ? 1.35 : mechGrade === '黑级' ? 1.22 : mechGrade === '紫级' ? 1.14 : 1.08;
-        safeStats.sp_max = Math.floor(safeStats.sp_max * mechMult);
-        safeStats.men_max = Math.floor(safeStats.men_max * Math.max(1.02, mechMult - 0.03));
-        safeStats.def = Math.floor(safeStats.def * (mechMult + 0.08));
-        safeStats.agi = Math.floor(safeStats.agi * Math.max(1.02, mechMult - 0.01));
-        safeStats.vit_max = Math.floor(safeStats.vit_max * (mechMult + 0.05));
+        const 机甲加成 = 获取临时机甲等效属性包(mechGrade);
+        safeStats.sp_max = Math.max(1, Math.floor((safeStats.sp_max || 0) + 机甲加成.sp_max));
+        safeStats.men_max = Math.max(1, Math.floor((safeStats.men_max || 0) + 机甲加成.men_max));
+        safeStats.str = Math.max(1, Math.floor((safeStats.str || 0) + 机甲加成.str));
+        safeStats.def = Math.max(1, Math.floor((safeStats.def || 0) + 机甲加成.def));
+        safeStats.agi = Math.max(1, Math.floor((safeStats.agi || 0) + 机甲加成.agi));
+        safeStats.vit_max = Math.max(1, Math.floor((safeStats.vit_max || 0) + 机甲加成.vit_max));
       }
 
       const allowArmor =
@@ -23287,11 +23204,13 @@ ${extraRequirement}
         equipment.斗铠.等级 = armorLevel;
         equipment.斗铠.名称 = `${armorLevel}字斗铠`;
         equipment.斗铠.装备状态 = '已装备';
-        const armorMult = armorLevel === 4 ? 1.42 : armorLevel === 3 ? 1.28 : armorLevel === 2 ? 1.18 : 1.1;
-        safeStats.str = Math.floor(safeStats.str * armorMult);
-        safeStats.def = Math.floor(safeStats.def * (armorMult + 0.1));
-        safeStats.vit_max = Math.floor(safeStats.vit_max * (armorMult + 0.05));
-        safeStats.sp_max = Math.floor(safeStats.sp_max * Math.max(1.03, armorMult - 0.08));
+        const 斗铠加成 = 获取临时斗铠等效属性包(armorLevel);
+        safeStats.sp_max = Math.max(1, Math.floor((safeStats.sp_max || 0) + 斗铠加成.sp_max));
+        safeStats.men_max = Math.max(1, Math.floor((safeStats.men_max || 0) + 斗铠加成.men_max));
+        safeStats.str = Math.max(1, Math.floor((safeStats.str || 0) + 斗铠加成.str));
+        safeStats.def = Math.max(1, Math.floor((safeStats.def || 0) + 斗铠加成.def));
+        safeStats.agi = Math.max(1, Math.floor((safeStats.agi || 0) + 斗铠加成.agi));
+        safeStats.vit_max = Math.max(1, Math.floor((safeStats.vit_max || 0) + 斗铠加成.vit_max));
       }
       return safeStats;
     }
@@ -24677,7 +24596,51 @@ ${extraRequirement}
       if (/battle|combat|战斗|切磋|单挑/.test(文本)) return 'battle';
       if (/trade|交易|购买|出售|竞拍|拍卖/.test(文本)) return 'trade';
       if (/craft|profession|job|副职业|工坊|锻造|制造|设计|修理|维修/.test(文本)) return 'profession';
+      if (/routine|daily|日常|修炼|冥想|拟态/.test(文本)) return 'routine';
       return '';
+    }
+
+    function 解析日常模块意图请求(snapshot, payload = {}, narrativeText = '') {
+      const 动作文本 = toText(payload.动作, '');
+      const 识别文本 = `${动作文本}|${toText(narrativeText, '')}`;
+      if (!/地点拟态修炼|拟态修炼|mimic|mimetic/.test(识别文本)) return null;
+      const 启用 = payload.启用 === true;
+      return {
+        动作: '地点拟态修炼',
+        启用,
+        理由: toText(payload.理由, '当前地点与修炼状态形成拟态契合'),
+        位置: toText(payload.地点, 读取快照当前位置(snapshot)),
+      };
+    }
+
+    function 构建地点拟态修炼补丁(snapshot, request = {}) {
+      const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot && snapshot.activeName, '')) || toText(snapshot && snapshot.activeName, '');
+      if (!activeCharKey) return { ok: false, reason: 'active_character_unresolved', patchOps: [] };
+      const 当前tick = Math.max(0, Math.floor(toNumber(deepGet(snapshot, 'rootData.world.时间.tick', 0), 0)));
+      const 当前状态效果 = cloneJsonValue(deepGet(snapshot, ['rootData', 'char', activeCharKey, '属性', '状态效果'], {}), {});
+      当前状态效果.地点拟态修炼 = {
+        类型: 'buff',
+        结算模式: '本轮冥想',
+        生效tick: 当前tick,
+        修炼速度倍率: 1.2,
+        修炼倍率说明: '地点拟态修炼',
+        描述: toText(request && request.理由, '当前地点与武魂修炼环境契合'),
+      };
+      return {
+        ok: true,
+        patchOps: [
+          {
+            op: 'replace',
+            path: `/char/${escapeJsonPointerValue(activeCharKey)}/属性/状态效果`,
+            value: 当前状态效果,
+          },
+          {
+            op: 'replace',
+            path: '/sys/系统播报',
+            value: `[日常结算] ${toText(snapshot && snapshot.activeName, activeCharKey)} 本轮冥想触发地点拟态修炼，修炼速度倍率固定为 1.2。`,
+          },
+        ],
+      };
     }
 
     function 解析试炼入场意图请求(snapshot, payload = {}, kind = '', narrativeText = '') {
@@ -24827,6 +24790,8 @@ ${extraRequirement}
         request = buildTradeRequestFromObject(snapshot, payload);
       } else if (moduleKind === 'profession') {
         request = buildDirectProfessionRequest(snapshot, payload);
+      } else if (moduleKind === 'routine') {
+        request = 解析日常模块意图请求(snapshot, payload, text);
       } else {
         request = null;
         moduleKind = '';
@@ -24879,6 +24844,30 @@ ${extraRequirement}
           'trade_inline_action_unavailable',
           'trade_continuation_dispatch_failed',
         );
+      }
+
+      if (moduleKind === 'routine') {
+        if (request.启用 !== true) {
+          return 构建模块路由成功结果(moduleKind, request, {
+            dispatchMode: 'patch',
+            skipped: true,
+            reason: 'routine_mimic_disabled',
+          });
+        }
+        const 补丁结果 = 构建地点拟态修炼补丁(snapshot, request);
+        if (!补丁结果.ok || !补丁结果.patchOps.length) {
+          return 构建模块路由失败结果(moduleKind, request, 补丁结果.reason || 'routine_patch_unavailable');
+        }
+        try {
+          await applyJsonPatchOpsByEditor(补丁结果.patchOps, { force: true });
+          await refreshLiveSnapshot({ force: true });
+          return 构建模块路由成功结果(moduleKind, request, {
+            dispatchMode: 'patch',
+            patchOps: 补丁结果.patchOps,
+          });
+        } catch (error) {
+          return 构建模块路由失败结果(moduleKind, request, error && error.message ? error.message : 'routine_patch_failed');
+        }
       }
 
       return await 执行内联模块意图路由(
@@ -27179,8 +27168,6 @@ ${extraRequirement}
 
     let activeFloatingHoverTrigger = null;
     let 顶层浮窗卡片 = null;
-    let 浮窗离区复核计时器 = 0;
-    let 最近指针坐标 = null;
 
     function 移除顶层浮窗卡片() {
       if (顶层浮窗卡片 && 顶层浮窗卡片.parentNode) {
@@ -27222,7 +27209,6 @@ ${extraRequirement}
     function clearAllFloatingHoverCards() {
       cancelFloatingHoverClearTimer();
       cancelFloatingHoverAutoHideTimer();
-      取消浮窗离区复核计时器();
       document.querySelectorAll('.interactive-ring.mvu-hover-floating-active').forEach(clearFloatingHoverCard);
       移除顶层浮窗卡片();
       activeFloatingHoverTrigger = null;
@@ -27231,9 +27217,8 @@ ${extraRequirement}
     let floatingHoverClearTimer = 0;
     let floatingHoverAutoHideTimer = 0;
     const 浮窗自动隐藏毫秒 = 0;
-    const 浮窗关闭延迟毫秒 = 650;
-    const 浮窗离区复核延迟毫秒 = 180;
-    const 浮窗通道余量 = 42;
+    const 浮窗关闭延迟毫秒 = 1500;
+    const 浮窗通道余量 = 120;
     const 顶层浮窗层级 = '320';
 
     function cancelFloatingHoverClearTimer() {
@@ -27246,12 +27231,6 @@ ${extraRequirement}
       if (!floatingHoverAutoHideTimer) return;
       window.clearTimeout(floatingHoverAutoHideTimer);
       floatingHoverAutoHideTimer = 0;
-    }
-
-    function 取消浮窗离区复核计时器() {
-      if (!浮窗离区复核计时器) return;
-      window.clearTimeout(浮窗离区复核计时器);
-      浮窗离区复核计时器 = 0;
     }
 
     function scheduleClearFloatingHoverCard(trigger) {
@@ -27313,24 +27292,6 @@ ${extraRequirement}
         || 指针在浮窗通道坐标(event.clientX, event.clientY);
     }
 
-    function 指针命中浮窗链路() {
-      if (!最近指针坐标 || !activeFloatingHoverTrigger) return false;
-      if (指针在浮窗通道坐标(最近指针坐标.x, 最近指针坐标.y)) return true;
-      const 命中节点 = document.elementFromPoint(最近指针坐标.x, 最近指针坐标.y);
-      if (!(命中节点 instanceof Element)) return false;
-      if (activeFloatingHoverTrigger.contains(命中节点)) return true;
-      return !!(顶层浮窗卡片 && 顶层浮窗卡片.contains(命中节点));
-    }
-
-    function 安排浮窗离区复核(trigger) {
-      取消浮窗离区复核计时器();
-      浮窗离区复核计时器 = window.setTimeout(() => {
-        浮窗离区复核计时器 = 0;
-        if (!trigger || activeFloatingHoverTrigger !== trigger) return;
-        if (!指针命中浮窗链路()) clearFloatingHoverCard(trigger);
-      }, 浮窗离区复核延迟毫秒);
-    }
-
     function clampHoverValue(value, min, max) {
       if (!Number.isFinite(value)) return min;
       if (!Number.isFinite(max) || max < min) return min;
@@ -27381,12 +27342,10 @@ ${extraRequirement}
       顶层卡片.style.top = '0px';
       顶层卡片.addEventListener('pointerenter', () => {
         cancelFloatingHoverClearTimer();
-        取消浮窗离区复核计时器();
       });
       顶层卡片.addEventListener('pointerleave', event => {
         if (指针在浮窗通道坐标(event.clientX, event.clientY)) {
           cancelFloatingHoverClearTimer();
-          取消浮窗离区复核计时器();
           return;
         }
         scheduleClearFloatingHoverCard(trigger);
@@ -27457,53 +27416,40 @@ ${extraRequirement}
     window.__MVU_CLEAR_FLOATING_HOVER__ = clearAllFloatingHoverCards;
 
     document.addEventListener('pointerover', event => {
-      最近指针坐标 = { x: event.clientX, y: event.clientY };
       const eventTarget = event.target instanceof Element ? event.target : null;
       const trigger = getFloatingHoverTrigger(eventTarget);
       if (!trigger) {
         if (eventTarget && 顶层浮窗卡片 && 顶层浮窗卡片.contains(eventTarget)) {
           cancelFloatingHoverClearTimer();
-          取消浮窗离区复核计时器();
           return;
         }
         if (activeFloatingHoverTrigger && 指针在浮窗通道坐标(event.clientX, event.clientY)) {
           cancelFloatingHoverClearTimer();
-          取消浮窗离区复核计时器();
           return;
         }
-        if (activeFloatingHoverTrigger) scheduleClearFloatingHoverCard(activeFloatingHoverTrigger);
         return;
       }
       cancelFloatingHoverClearTimer();
-      取消浮窗离区复核计时器();
       positionFloatingHoverCard(trigger);
       scheduleFloatingHoverAutoHide(trigger);
     }, true);
 
     document.addEventListener('pointerout', event => {
-      最近指针坐标 = { x: event.clientX, y: event.clientY };
       const trigger = getFloatingHoverTrigger(event.target);
       if (!trigger) return;
       if (isPointerStillWithinFloatingHover(trigger, event)) return;
       if (指针在浮窗通道坐标(event.clientX, event.clientY)) {
         cancelFloatingHoverClearTimer();
-        取消浮窗离区复核计时器();
         return;
       }
-      scheduleClearFloatingHoverCard(trigger);
-      安排浮窗离区复核(trigger);
     }, true);
 
     document.addEventListener('pointermove', event => {
-      最近指针坐标 = { x: event.clientX, y: event.clientY };
       if (!activeFloatingHoverTrigger || !顶层浮窗卡片) return;
       if (指针仍在浮窗区域(event)) {
         cancelFloatingHoverClearTimer();
-        取消浮窗离区复核计时器();
         return;
       }
-      scheduleClearFloatingHoverCard(activeFloatingHoverTrigger);
-      安排浮窗离区复核(activeFloatingHoverTrigger);
     }, true);
 
     document.addEventListener('focusin', event => {
@@ -28093,6 +28039,35 @@ window.EquipmentManager = {
     return true;
   },
 
+  buildInventoryEffectFromPackedEffect(effect = {}) {
+    const mechanism = toText(effect && effect['机制'], '').trim();
+    if (!mechanism || mechanism === '系统基础' || mechanism === '造物生成' || mechanism === '生成造物') return null;
+    const target = toText(effect['目标'] || effect['对象'], '食用者');
+    const description = toText(effect['描述'] || effect['特殊机制标识'], mechanism);
+    if (['直接伤害', '多段伤害', '持续伤害', '延迟爆发'].includes(mechanism)) return null;
+    if (mechanism === '护盾' || Number(effect['护盾值'] || 0) > 0) {
+      return { target, type: 'shield', description, value: Math.max(0, toNumber(effect['护盾值'], 0)) };
+    }
+    if (mechanism === '属性变化' || mechanism === '持续恢复') {
+      const 属性 = toText(effect['属性'], '');
+      const 动作 = toText(effect['动作'], mechanism === '持续恢复' ? '持续恢复' : '加值');
+      const 数值 = toNumber(effect['数值'], 0);
+      const 持续 = toNumber(effect['持续'] ?? effect['持续回合'], 0);
+      if (['vit', 'sp', 'men', '体力', '魂力', '精神力'].includes(属性) && (动作 === '加值' || mechanism === '持续恢复')) {
+        return { target, type: 'heal', description, value: { 属性, 动作, 数值, 持续 } };
+      }
+      return { target, type: /压制|提高|拉长/.test(动作) ? 'debuff' : 'buff', description, value: { 属性, 动作, 数值, 持续 } };
+    }
+    const value = {};
+    if (effect['面板修改比例'] && typeof effect['面板修改比例'] === 'object') value.statMods = cloneJsonValue(effect['面板修改比例'], {});
+    if (effect['计算层效果'] && typeof effect['计算层效果'] === 'object') value.combatEffects = cloneJsonValue(effect['计算层效果'], {});
+    if (Number(effect['持续回合'] || 0) > 0) value.durationRounds = toNumber(effect['持续回合'], 0);
+    if (Number(effect['清除层级'] || 0) > 0) value.cleanseLevel = toNumber(effect['清除层级'], 0);
+    if (effect['修炼速度倍率'] !== undefined) value.修炼速度倍率 = toNumber(effect['修炼速度倍率'], 0);
+    if (!Object.keys(value).length && !description) return null;
+    return { target, type: /禁疗|削弱|封禁|沉默|缴械|嘲讽|抹消|改写/.test(mechanism) ? 'debuff' : 'buff', description, value };
+  },
+
   getSkillSystemBase(skill = {}) {
     const effectArray = Array.isArray(skill?._效果数组) ? skill._效果数组 : [];
     return effectArray.find(effect => toText(effect && effect['机制'], '').trim() === '系统基础') || {};
@@ -28199,13 +28174,15 @@ window.EquipmentManager = {
         const 当前tick = Math.max(0, toNumber(deepGet(statData, 'world.时间.tick', 0), 0));
         (Array.isArray(itemData.使用效果) ? itemData.使用效果 : []).forEach((effect, index) => {
           if (!effect || typeof effect !== 'object') return;
-          if (!this.isSelfResolvableUsageTarget(effect.target)) return;
-          if (effect.type === 'heal') {
-            if (this.applyInventoryHealEffect(charData.属性, effect, logs)) appliedCount += 1;
+          const usableEffect = effect.type ? effect : this.buildInventoryEffectFromPackedEffect(effect);
+          if (!usableEffect || typeof usableEffect !== 'object') return;
+          if (!this.isSelfResolvableUsageTarget(usableEffect.target)) return;
+          if (usableEffect.type === 'heal') {
+            if (this.applyInventoryHealEffect(charData.属性, usableEffect, logs)) appliedCount += 1;
             return;
           }
-          if (['buff', 'debuff', 'shield', 'custom'].includes(String(effect.type || ''))) {
-            if (this.appendInventoryStatusEffect(charData.属性.状态效果, itemName, effect, index, logs, 当前tick)) appliedCount += 1;
+          if (['buff', 'debuff', 'shield', 'custom'].includes(String(usableEffect.type || ''))) {
+            if (this.appendInventoryStatusEffect(charData.属性.状态效果, itemName, usableEffect, index, logs, 当前tick)) appliedCount += 1;
             return;
           }
         });
