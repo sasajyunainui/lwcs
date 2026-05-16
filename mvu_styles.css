@@ -4194,13 +4194,13 @@
       position: absolute;
       top: calc(100% - 10px);
       left: 50%;
-      width: 236px;
+      width: 220px;
       box-sizing: border-box;
-      padding: 12px;
-      border-radius: 14px;
-      background: rgba(6,16,30,0.98);
-      border: 1px solid rgba(143,233,255,0.18);
-      box-shadow: 0 14px 36px rgba(0,0,0,0.28), inset 0 0 16px rgba(143,233,255,0.06);
+      padding: 10px;
+      border-radius: 12px;
+      background: rgba(6,16,30,0.97);
+      border: 1px solid rgba(143,233,255,0.16);
+      box-shadow: 0 14px 30px rgba(0,0,0,0.24), inset 0 0 12px rgba(143,233,255,0.05);
       z-index: 100;
       text-align: left;
       opacity: 0;
@@ -4231,8 +4231,8 @@
 
     .topology-node.interactive-ring .relation-hover-title {
       display: block;
-      margin-bottom: 4px;
-      font-size: 13px;
+      margin-bottom: 3px;
+      font-size: 12px;
       line-height: 1.25;
       color: var(--white);
       font-weight: 700;
@@ -4240,36 +4240,47 @@
 
     .topology-node.interactive-ring .relation-hover-desc {
       display: block;
-      margin-bottom: 8px;
-      font-size: 10px;
-      line-height: 1.4;
+      margin-bottom: 7px;
+      font-size: 9px;
+      line-height: 1.35;
       color: var(--text-sub);
       white-space: normal;
     }
 
     .topology-node.interactive-ring .relation-hover-skill > span {
       display: block;
-      margin-bottom: 10px;
-      font-size: 11px;
-      line-height: 1.55;
+      margin: 0;
+      padding: 5px 7px;
+      border-radius: 8px;
+      border: 1px solid rgba(77,240,255,0.10);
+      background: rgba(77,240,255,0.05);
+      font-size: 9px;
+      line-height: 1.3;
       color: var(--white);
       white-space: normal;
       word-break: break-word;
     }
 
+    .topology-node.interactive-ring .relation-hover-skill {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 5px 6px;
+      margin-top: 2px;
+    }
+
     .topology-node.interactive-ring .relation-hover-tags {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
-      margin-bottom: 10px;
+      gap: 5px;
+      margin-bottom: 8px;
     }
 
     .topology-node.interactive-ring .relation-hover-chip {
       display: inline-flex;
       align-items: center;
-      padding: 4px 8px;
+      padding: 3px 7px;
       border-radius: 999px;
-      font-size: 9px;
+      font-size: 8px;
       line-height: 1;
       color: var(--cyan);
       background: rgba(77,240,255,0.08);
@@ -4278,7 +4289,7 @@
     }
 
     .topology-node.interactive-ring .relation-hover-card .energy-stack {
-      margin-top: 12px;
+      margin-top: 8px;
       margin-bottom: 0;
     }
 
@@ -4286,12 +4297,12 @@
       display: flex;
       justify-content: space-between;
       gap: 8px;
-      margin-bottom: 6px;
+      margin-bottom: 5px;
     }
 
     .topology-node.interactive-ring .relation-hover-card .energy-headline b {
       margin: 0;
-      font-size: 10px;
+      font-size: 9px;
       line-height: 1.3;
       color: var(--text-sub);
       font-weight: 500;
@@ -4299,7 +4310,7 @@
 
     .topology-node.interactive-ring .relation-hover-card .energy-headline span {
       display: block;
-      font-size: 10px;
+      font-size: 9px;
       line-height: 1.3;
       color: var(--white);
     }
@@ -4990,7 +5001,6 @@
     .skill-designer-layout {
       gap: 16px;
       grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.82fr);
-      grid-template-rows: auto minmax(0, 1fr);
       min-width: 0;
       min-height: 0;
       align-items: stretch;
@@ -5000,10 +5010,6 @@
       display: grid;
       gap: 8px;
       margin-top: 10px;
-    }
-
-    .skill-designer-anchor-card {
-      grid-column: 1 / -1;
     }
 
     .skill-designer-form-card {
@@ -5033,6 +5039,36 @@
 
     .skill-designer-shell .archive-card-head {
       align-items: center;
+    }
+
+    .skill-designer-toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 4;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(120,220,255,0.10);
+      background: linear-gradient(180deg, rgba(7, 24, 35, 0.98), rgba(7, 24, 35, 0.88));
+      backdrop-filter: blur(10px);
+    }
+
+    .skill-designer-toolbar .mvu-editor-actions {
+      margin-left: auto;
+      justify-content: flex-end;
+    }
+
+    .skill-designer-toolbar .tag-chip {
+      min-height: 40px;
+      padding: 0 18px;
+      border-radius: 999px;
+      border-color: rgba(164, 221, 234, 0.22);
+      color: rgba(244, 251, 253, 0.96);
+    }
+
+    .skill-designer-toolbar .tag-chip.live {
+      border-color: rgba(77, 240, 255, 0.36);
+      background: rgba(0, 194, 255, 0.16);
+      color: #f9feff;
+      box-shadow: 0 0 0 1px rgba(77, 240, 255, 0.10) inset;
     }
 
     .skill-designer-shell .archive-card-title {
@@ -5071,7 +5107,7 @@
       border-radius: 14px;
       border-color: rgba(120,220,255,0.16);
       background: linear-gradient(180deg, rgba(6, 18, 27, 0.92), rgba(7, 19, 28, 0.86));
-      color: rgba(244, 249, 251, 0.96);
+      color: #fbfeff;
       padding: 10px 14px;
       box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
     }
@@ -5089,6 +5125,27 @@
     .skill-designer-shell .mvu-editor-input::placeholder,
     .skill-designer-shell .mvu-editor-textarea::placeholder {
       color: rgba(182, 206, 214, 0.54);
+    }
+
+    .skill-designer-param-label {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .skill-designer-param-label i {
+      flex: 0 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      color: rgba(184, 215, 224, 0.74);
+      font-style: normal;
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1.2;
+      text-align: right;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .skill-designer-shell .mvu-editor-input:focus,
@@ -5252,6 +5309,43 @@
       color: rgba(244, 249, 251, 0.96);
       white-space: normal;
       word-break: break-word;
+    }
+
+    .skill-designer-trial-card > div {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .skill-designer-trial-row {
+      display: grid;
+      grid-template-columns: minmax(96px, 0.58fr) minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+      min-height: 32px;
+      padding: 7px 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(120,220,255,0.12);
+      background: rgba(5, 18, 27, 0.58);
+    }
+
+    .skill-designer-trial-row em {
+      min-width: 0;
+      overflow: hidden;
+      color: rgba(213, 238, 245, 0.86);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .skill-designer-trial-row span {
+      color: #fbfeff;
+      font-weight: 700;
+      text-align: right;
+    }
+
+    .skill-designer-trial-row.muted span {
+      color: rgba(190, 214, 222, 0.78);
+      font-weight: 560;
     }
 
     .skill-designer-shell .mvu-editor-actions .tag-chip {
@@ -10039,14 +10133,9 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .location-ac
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .skill-designer-layout {
   grid-template-columns: minmax(0, 1.12fr) minmax(300px, 0.88fr) !important;
-  grid-template-rows: auto minmax(0, 1fr) !important;
   height: calc(var(--mvu-unified-detail-max-height, calc(var(--mvu-hud-frame-height) - 64px)) - 18px) !important;
   align-items: stretch !important;
   align-content: stretch !important;
-}
-
-body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .skill-designer-anchor-card {
-  grid-column: 1 / -1 !important;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-detail-host .skill-designer-form-card,
@@ -10854,6 +10943,27 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
   gap: 6px !important;
   margin: 8px 0 10px !important;
 }
+
+.relation-hover-card.mvu-hover-card-floating--portal {
+  width: min(300px, calc(100vw - 24px)) !important;
+  max-height: min(72vh, 560px) !important;
+}
+
+.relation-hover-card.mvu-hover-card-floating--portal .relation-hover-skill {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 5px 6px !important;
+}
+
+.relation-hover-card.mvu-hover-card-floating--portal .relation-hover-skill > span {
+  margin: 0 !important;
+  padding: 5px 7px !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(77,240,255,0.10) !important;
+  background: rgba(77,240,255,0.05) !important;
+  font-size: 9px !important;
+  line-height: 1.3 !important;
+}
 @media (max-width: 1180px) {
   body.mvu-layout-unified #mvu-unified-mount .mvu-unified-top-status {
     grid-template-columns: minmax(82px, max-content) minmax(118px, 0.24fr) minmax(0, 1fr) !important;
@@ -11364,10 +11474,6 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
   grid-column: auto !important;
 }
 
-#detailModal.mvu-modal-display-unified .skill-designer-anchor-card.archive-card.full {
-  grid-column: 1 / -1 !important;
-}
-
 #detailModal.mvu-modal-display-unified .skill-designer-form-card.archive-card.full {
   grid-column: 1 !important;
 }
@@ -11548,15 +11654,10 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
 
 #detailModal.mvu-modal-display-unified .skill-designer-layout {
   grid-template-columns: minmax(0, 1.12fr) minmax(280px, 0.88fr) !important;
-  grid-template-rows: auto minmax(0, 1fr) !important;
   height: min(680px, calc(86svh - 132px)) !important;
   align-items: stretch !important;
   align-content: stretch !important;
   gap: 12px !important;
-}
-
-#detailModal.mvu-modal-display-unified .skill-designer-anchor-card {
-  grid-column: 1 / -1 !important;
 }
 
 #detailModal.mvu-modal-display-unified .skill-designer-form-card,
@@ -15459,10 +15560,6 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
   height: min(700px, calc(100svh - 154px));
   align-items: stretch;
   align-content: stretch;
-}
-
-#detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .skill-designer-anchor-card.archive-card.full {
-  grid-column: 1 / -1;
 }
 
 #detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .skill-designer-form-card.archive-card.full {

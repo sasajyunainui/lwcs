@@ -329,8 +329,8 @@
       '系统播报与日志': {
         title: '系统播报 / 日志弹窗',
         summary: '终端页左侧主模块，集中展示系统广播与最近日志。',
-        fields: ['sd.sys.系统播报', 'sd.sys.最近检定', 'sd.sys.最终成功率', 'sd.world.时间线'],
-        duties: ['显示最新播报', '显示最近全局事件', '显示检定结果'],
+        fields: ['sd.sys.系统播报', 'sd.sys.最终成功率', 'sd.world.时间线'],
+        duties: ['显示最新播报', '显示最近全局事件', '显示成功率'],
         actions: ['按时间倒序', '保留日志筛选与复制能力']
       },
       '操作总线': {
@@ -5116,6 +5116,154 @@
       '创造', '毁灭'
     ]);
     const SKILL_DESIGNER_RESOURCE_TYPE_OPTIONS = Object.freeze(['无', '魂力', '精神力', '体力', '混合']);
+    const 技能设计台参数提示表 = Object.freeze({
+      威力倍率: '打出去的基础威力',
+      强度倍率: '这招压出去的力道',
+      命中次数: '会结算几次',
+      作用范围: '能打到哪里',
+      作用半径: '能覆盖多大',
+      段数: '分成几段结算',
+      单段倍率: '每一段的力道',
+      每段倍率: '每一段的力道',
+      段间间隔: '两段之间隔多久',
+      延迟时长: '多久后爆发',
+      爆发倍率: '爆发时的力道',
+      触发条件: '什么时候生效',
+      触发次数: '最多触发几次',
+      每跳倍率: '每次跳伤的力道',
+      持续回合: '能维持多久',
+      控制回合: '能控多久',
+      沉默回合: '能封多久',
+      缴械回合: '能限制多久',
+      睡眠回合: '能睡多久',
+      叠层上限: '最多叠几层',
+      控制强度: '越高越难挣脱',
+      控制幅度: '压低对方行动',
+      命中条件: '怎样才算打中',
+      解除条件: '怎样能摆脱',
+      降低倍率: '压低到多少',
+      削弱幅度: '削弱多少',
+      压制倍率: '压低到多少',
+      统一倍率: '统一压到多少',
+      增益幅度: '提高多少',
+      增幅倍率: '提高到多少',
+      全属性倍率: '全属性提高多少',
+      提高倍率: '提高到多少',
+      提升倍率: '提高到多少',
+      拉长倍率: '拖慢到多少',
+      缩短倍率: '加快到多少',
+      防护强度: '挡下多少压力',
+      护盾倍率: '护盾厚度',
+      护盾上限: '护盾按什么封顶',
+      减伤比例: '少吃多少伤害',
+      格挡次数: '能挡几次',
+      单次上限: '单次最多挡多少',
+      免控级别: '能挡住哪类控制',
+      额外减伤: '额外少吃多少伤害',
+      触发阈值: '低到哪里触发',
+      锁血下限: '最低保留多少',
+      冷却次数: '多久能再用',
+      每日触发: '一天能触发几次',
+      免疫位阶: '能挡住的最高层级',
+      附带减伤: '附带少吃多少伤害',
+      反射比例: '反弹多少伤害',
+      分摊比例: '分走多少伤害',
+      分摊人数: '由几个人承担',
+      抵消次数: '能抵消几次',
+      复苏次数: '能救回几次',
+      复苏回血: '救回时回多少',
+      回复倍率: '一次回多少',
+      每回合倍率: '每回合回多少',
+      生效次数: '会生效几次',
+      清除条目数: '能清掉几项',
+      净化优先级: '先清哪一类',
+      附带收益: '清掉后附带什么',
+      干扰强度: '干扰对方判断',
+      标记时长: '标记保留多久',
+      锁定目标数: '能锁几个目标',
+      追踪规则: '目标怎么被追踪',
+      共享范围: '能共享给谁',
+      共享深度: '能看见多少',
+      幻境范围: '幻境覆盖哪里',
+      幻术强度: '幻境压迫程度',
+      唤醒条件: '怎样醒来',
+      扭曲强度: '认知被扭曲多少',
+      命中增益: '更容易打中',
+      锁定层级: '越高越难躲开',
+      位移距离: '移动多远',
+      交换范围: '多远内可交换',
+      交换条件: '怎样交换',
+      追击距离: '追出去多远',
+      追击窗口: '多久内能追上',
+      追加倍率: '追击附带力道',
+      脱离距离: '撤开多远',
+      脱离条件: '怎样触发撤离',
+      脱离收益: '撤离后获得什么',
+      分身类型: '生成哪类分身',
+      分身数量: '生成几个分身',
+      隐蔽度: '越高越难发现',
+      实力继承: '分身继承多少实力',
+      分身称谓: '分身的名字',
+      召唤物名称: '召唤出的对象',
+      召唤数量: '召唤几个',
+      继承比例: '继承本体多少实力',
+      行动模式: '召唤物怎么行动',
+      承伤规则: '召唤物怎么承伤',
+      模板来源: '召唤物按什么生成',
+      复制类型: '复制什么',
+      复制条件: '怎样复制成功',
+      复制方式: '复制后的用法',
+      技能个数: '能复制几个技能',
+      削减比例: '复制后削弱多少',
+      可用次数: '能用几次',
+      反制对象: '反制哪类动作',
+      反制倍率: '反制时的力道',
+      转化方向: '把什么转成什么',
+      转化比率: '转化多少',
+      交换对象: '交换哪类状态',
+      交换层数: '交换几层',
+      转移模式: '状态怎么转移',
+      转移条件: '怎样发生转移',
+      绑定回合: '绑定多久',
+      绑定目标数: '能绑几个',
+      触发结果: '触发后发生什么',
+      改写幅度: '规则被改写多少',
+      引爆倍率: '引爆时的力道',
+      消耗规则: '引爆会消耗什么',
+      斩盾倍率: '破盾的力道',
+      窃盾比例: '偷走多少护盾',
+      吞噬资源: '吞噬哪种资源',
+      吞噬比例: '吞噬多少',
+      共享资源: '共享哪种资源',
+      共享比例: '共享多少',
+      抹消目标: '要抹掉什么',
+      抹消方式: '怎样抹掉',
+      穿透比例: '无视多少防护',
+      穿透对象: '穿透哪类防护',
+      吸取比例: '吸回多少',
+      吸取资源: '吸取哪种资源',
+      触发血线: '低到哪里触发',
+      补伤倍率: '补上的力道',
+      打断时机: '什么时候打断',
+      追加僵直: '让对方多停多久',
+      反击条件: '什么时候反击',
+      反击倍率: '反击时的力道',
+      追击倍率: '追击时的力道',
+      限制范围: '限制哪些动作',
+      减速幅度: '减慢多少',
+      影响内容: '影响哪类行动',
+      禁疗幅度: '压住多少治疗',
+      反转倍率: '治疗反成多少伤害',
+      弱点类型: '暴露哪类弱点',
+      驱散数量: '能驱散几项',
+      窃取数量: '能偷几项',
+      闪避增益: '更容易躲开',
+      反应增益: '更容易反应',
+      护卫减伤: '护卫时少吃多少',
+      聚火规则: '敌人会优先打谁',
+      中心等级: '发挥一半左右',
+      圆满等级: '接近完整释放',
+    });
     const SKILL_ATTRIBUTE_DIM_KEYS = Object.freeze(['掌控', '威力', '消耗', '前摇', '控制', '速度']);
     const SKILL_ATTRIBUTE_SOURCE_VALUES = Object.freeze(['无', '自身操控', '魂技调用']);
     const SKILL_ATTRIBUTE_ROLE_VALUES = Object.freeze(['无', '增幅器', '结构术式']);
@@ -6707,15 +6855,11 @@
       if (scope === 'art') {
         return {
           studioTitle: '功法设计台',
-          anchorTitle: '功法锚点',
           parameterTitle: '功法参数',
           summaryTitle: '功法速览',
-          nameCardLabel: '功法名称',
-          typeCardLabel: '功法类别',
           nameFieldLabel: '功法名',
           targetLabel: '运转对象',
           deliveryLabel: '运转方式',
-          roleLabel: '功法定位',
           visualLabel: '运转表现',
           effectLabel: '功法描述',
         };
@@ -6723,15 +6867,11 @@
       if (scope === '自创魂技') {
         return {
           studioTitle: '自创魂技设计台',
-          anchorTitle: '自创魂技锚点',
           parameterTitle: '自创魂技参数',
           summaryTitle: '自创魂技速览',
-          nameCardLabel: '自创魂技名称',
-          typeCardLabel: '自创魂技类别',
           nameFieldLabel: '自创魂技名',
           targetLabel: '作用对象',
           deliveryLabel: '施展方式',
-          roleLabel: '魂技定位',
           visualLabel: '表现描述',
           effectLabel: '魂技描述',
         };
@@ -6739,30 +6879,22 @@
       if (scope === '武魂融合技') {
         return {
           studioTitle: '武魂融合技设计台',
-          anchorTitle: '武魂融合锚点',
           parameterTitle: '武魂融合结构',
           summaryTitle: '武魂融合速览',
-          nameCardLabel: '武魂融合技名称',
-          typeCardLabel: '技能归属',
           nameFieldLabel: '武魂融合技名',
           targetLabel: '作用对象',
           deliveryLabel: '施放形式',
-          roleLabel: '战斗定位',
           visualLabel: '融合表现',
           effectLabel: '融合效果',
         };
       }
       return {
         studioTitle: '技能设计台',
-        anchorTitle: '技能锚点',
         parameterTitle: '设计参数',
         summaryTitle: '设计速览',
-        nameCardLabel: '技能名称',
-        typeCardLabel: '技能归属',
         nameFieldLabel: '技能名',
         targetLabel: '作用对象',
         deliveryLabel: '释放形式',
-        roleLabel: '战斗定位',
         visualLabel: '画面描述',
         effectLabel: '效果描述',
       };
@@ -6821,11 +6953,31 @@
       };
     }
 
+    function normalizeSkillDesignerLevelControl(数值 = {}) {
+      const 来源 = 数值 && typeof 数值 === 'object' && !Array.isArray(数值) ? 数值 : {};
+      const 中心等级 = Number(来源.中心等级 ?? 来源.centerLevel ?? 来源['中心']);
+      const 圆满等级 = Number(来源.圆满等级 ?? 来源.fullLevel ?? 来源['圆满']);
+      if (!Number.isFinite(中心等级) || !Number.isFinite(圆满等级) || 圆满等级 <= 中心等级) return null;
+      return {
+        中心等级: Number(中心等级.toFixed(2)),
+        圆满等级: Number(圆满等级.toFixed(2)),
+      };
+    }
+
+    function buildSkillDesignerLevelControlFromDraft(草稿 = {}) {
+      return normalizeSkillDesignerLevelControl(草稿 && 草稿.等级掌控)
+        || normalizeSkillDesignerLevelControl({
+          中心等级: 草稿 && 草稿.等级掌控中心等级,
+          圆满等级: 草稿 && 草稿.等级掌控圆满等级,
+        });
+    }
+
     function readSkillDesignerDraft(skill = {}, rawName = '') {
       const safeSkill = skill && typeof skill === 'object' ? skill : {};
       const effectArray = Array.isArray(safeSkill['_效果数组']) ? safeSkill['_效果数组'] : [];
       const designDraft = safeSkill['设计稿'] && typeof safeSkill['设计稿'] === 'object' ? safeSkill['设计稿'] : {};
       const systemBase = effectArray.find(effect => toText(effect && effect['机制'], '').trim() === '系统基础') || {};
+      const levelControl = normalizeSkillDesignerLevelControl(systemBase['等级掌控']);
       const resolvedType = normalizeSkillUiText(
         designDraft['技能类型'] || systemBase['技能类型'],
         '未知',
@@ -6917,6 +7069,9 @@
         summaryText: normalizeSkillUiText(safeSkill['特效量化参数'] || designDraft['设计摘要'], ''),
         副作用列表: resolvedSideEffects,
         目标规模: resolvedTargetScale,
+        等级掌控: levelControl,
+        等级掌控中心等级: levelControl ? String(levelControl.中心等级) : '',
+        等级掌控圆满等级: levelControl ? String(levelControl.圆满等级) : '',
         阵营判定: '自动',
       };
     }
@@ -7042,6 +7197,213 @@
         .join(' ｜ ');
     }
 
+    function 计算技能设计台等级掌控完整度(施术等级 = 1, 等级掌控 = null) {
+      const levelControl = normalizeSkillDesignerLevelControl(等级掌控);
+      if (!levelControl) return 1;
+      const level = Math.max(1, Number(施术等级 || 1));
+      const 标准差 = (levelControl.圆满等级 - levelControl.中心等级) / 1.8807936081512509;
+      const x = (level - levelControl.中心等级) / Math.max(0.0001, 标准差);
+      const t = 1 / (1 + Math.exp(-1.702 * x));
+      return Math.max(0, Math.min(1, Number(t.toFixed(4))));
+    }
+
+    function 按技能设计台掌控缩放倍率(数值, 完整度 = 1) {
+      const 原值 = Number(数值);
+      if (!Number.isFinite(原值)) return 数值;
+      return Number((1 + (原值 - 1) * 完整度).toFixed(4));
+    }
+
+    function 按技能设计台掌控缩放数值(数值, 完整度 = 1) {
+      const 原值 = Number(数值);
+      if (!Number.isFinite(原值)) return 数值;
+      return Number((原值 * 完整度).toFixed(4));
+    }
+
+    function 构建技能设计台标准战斗属性(等级 = 1, 系别 = '强攻系') {
+      const level = Math.max(1, Number(等级 || 1));
+      const 基准 = level * level;
+      const 系数 = {
+        str: /强攻|敏攻/.test(系别) ? 1.14 : /防御/.test(系别) ? 0.86 : 1,
+        def: /防御/.test(系别) ? 1.24 : /敏攻/.test(系别) ? 0.82 : 1,
+        agi: /敏攻/.test(系别) ? 1.28 : 1,
+        men: /精神|控制/.test(系别) ? 1.22 : 1,
+        hp: /防御/.test(系别) ? 1.18 : 1,
+        sp: /辅助|治疗|食物/.test(系别) ? 1.16 : 1,
+      };
+      const 属性 = {
+        name: `标准${Math.round(level)}级`,
+        type: 系别 || '强攻系',
+        lv: level,
+        等级: level,
+        str: Math.max(1, Math.round(基准 * 1.02 * 系数.str)),
+        def: Math.max(1, Math.round(基准 * 0.88 * 系数.def)),
+        agi: Math.max(1, Math.round(基准 * 0.82 * 系数.agi)),
+        men_max: Math.max(1, Math.round(基准 * 1.05 * 系数.men)),
+        sp_max: Math.max(1, Math.round(基准 * 1.18 * 系数.sp)),
+        vit_max: Math.max(1, Math.round(基准 * 13.2 * 系数.hp)),
+      };
+      属性.sp = 属性.sp_max;
+      属性.men = 属性.men_max;
+      属性.hp_max = 属性.vit_max;
+      属性.HP上限 = 属性.vit_max;
+      属性.HP = 属性.vit_max;
+      属性.final = { ...属性 };
+      return 属性;
+    }
+
+    function 读取技能设计台当前等级(snapshot = {}) {
+      return Math.max(1, Number(
+        deepGet(snapshot, 'activeChar.属性.等级', 0)
+        || deepGet(snapshot, 'activeChar.lv', 0)
+        || deepGet(snapshot, 'activeChar.等级', 0)
+        || 1
+      ) || 1);
+    }
+
+    function 读取技能设计台伤害效果(effectArray = []) {
+      return (Array.isArray(effectArray) ? effectArray : []).find(effect =>
+        effect && typeof effect === 'object'
+        && ['直接伤害', '多段伤害', '持续伤害', '延迟爆发'].includes(toText(effect['机制'], '').trim())
+        && Number(effect['威力倍率'] || 0) > 0
+      ) || null;
+    }
+
+    function 应用于技能设计台试算属性(属性 = {}, 修改比例 = {}) {
+      const next = { ...属性 };
+      ['str', 'def', 'agi', 'vit_max', 'sp_max', 'men_max'].forEach(key => {
+        const ratio = Number(修改比例 && 修改比例[key]);
+        if (Number.isFinite(ratio) && ratio > 0) next[key] = Number((Number(next[key] || 0) * ratio).toFixed(2));
+      });
+      next.hp_max = next.vit_max || next.hp_max;
+      next.HP上限 = next.hp_max;
+      next.HP = next.hp_max;
+      next.sp = Math.min(Number(next.sp || next.sp_max || 1), Number(next.sp_max || 1));
+      next.men = Math.min(Number(next.men || next.men_max || 1), Number(next.men_max || 1));
+      next.final = { ...next };
+      return next;
+    }
+
+    function 构建技能设计台试算效果列表(draft = {}, 施术等级 = 1) {
+      const normalized = buildSkillDesignerFormStateFromDraft(draft, {});
+      const systemBase = buildSkillDesignerSystemBaseEffect({}, normalized, {});
+      const levelControl = normalizeSkillDesignerLevelControl(systemBase['等级掌控']);
+      const 完整度 = 计算技能设计台等级掌控完整度(施术等级, levelControl);
+      const effectArray = [systemBase, ...buildSkillDesignerRuntimeEffects(normalized, {}, {})];
+      if (!levelControl || 完整度 >= 0.9999) return effectArray;
+      return cloneJsonValue(effectArray).map(effect => {
+        if (!effect || typeof effect !== 'object' || toText(effect['机制'], '').trim() === '系统基础') return effect;
+        if (effect['数值'] !== undefined) {
+          const action = toText(effect['动作'], '');
+          effect['数值'] = ['倍率提升', '倍率压制'].includes(action)
+            ? 按技能设计台掌控缩放倍率(effect['数值'], 完整度)
+            : 按技能设计台掌控缩放数值(effect['数值'], 完整度);
+        }
+        ['护盾值', '每回合伤害', 'dot_damage', 'final_damage_bonus', 'final_heal_bonus', 'shield_gain_bonus'].forEach(key => {
+          if (effect[key] !== undefined) effect[key] = 按技能设计台掌控缩放数值(effect[key], 完整度);
+        });
+        const statMods = effect['面板修改比例'] && typeof effect['面板修改比例'] === 'object' ? effect['面板修改比例'] : null;
+        if (statMods) {
+          ['str', 'def', 'agi', 'vit_max', 'sp_max', 'men_max'].forEach(key => {
+            if (statMods[key] !== undefined) statMods[key] = 按技能设计台掌控缩放倍率(statMods[key], 完整度);
+          });
+        }
+        const calc = effect['计算层效果'] && typeof effect['计算层效果'] === 'object' ? effect['计算层效果'] : null;
+        if (calc) {
+          ['final_damage_mult', 'final_heal_mult', 'shield_gain_mult', 'control_resist_mult', 'cost_ratio', 'windup_ratio'].forEach(key => {
+            if (calc[key] !== undefined) calc[key] = 按技能设计台掌控缩放倍率(calc[key], 完整度);
+          });
+          ['final_damage_bonus', 'final_heal_bonus', 'shield_gain_bonus', 'dot_damage', 'reaction_bonus', 'reaction_penalty', 'attacker_speed_bonus', 'cast_speed_bonus', 'cast_speed_penalty', 'dodge_bonus', 'dodge_penalty', 'control_success_bonus', 'control_success_penalty', 'control_resist_bonus', 'interrupt_bonus'].forEach(key => {
+            if (calc[key] !== undefined) calc[key] = 按技能设计台掌控缩放数值(calc[key], 完整度);
+          });
+        }
+        return effect;
+      });
+    }
+
+    function 计算技能设计台资源压制倍率(attacker = {}, defender = {}, resourceKey = 'sp') {
+      const attackerCurrent = Math.max(1, Number(attacker[resourceKey] || attacker[`${resourceKey}_max`] || 1));
+      const defenderCurrent = Math.max(1, Number(defender[resourceKey] || defender[`${resourceKey}_max`] || 1));
+      const attackerMax = Math.max(1, Number(attacker[`${resourceKey}_max`] || attackerCurrent));
+      const remainRatio = Math.max(0, Math.min(1, attackerCurrent / attackerMax));
+      const pressure = Math.pow(Math.max(0.01, attackerCurrent / defenderCurrent), 0.45);
+      return Math.max(0.35, Math.min(1.85, pressure * (0.45 + 0.55 * remainRatio)));
+    }
+
+    function 估算技能设计台伤害占比(draft = {}, 施术等级 = 1, 目标等级 = 1) {
+      const effectArray = 构建技能设计台试算效果列表(draft, 施术等级);
+      const damageEffect = 读取技能设计台伤害效果(effectArray);
+      if (!damageEffect) return { ok: false, reason: '缺少伤害倍率', ratio: 0 };
+      let attacker = 构建技能设计台标准战斗属性(施术等级, normalizeSkillUiText(draft.type, '强攻系'));
+      let defender = 构建技能设计台标准战斗属性(目标等级, '强攻系');
+      let finalDamageMult = Number(damageEffect['final_damage_mult'] || 1);
+      let finalDamageBonus = Number(damageEffect['final_damage_bonus'] || 0);
+      effectArray.forEach(effect => {
+        if (!effect || typeof effect !== 'object' || effect === damageEffect) return;
+        const statMods = effect['面板修改比例'] && typeof effect['面板修改比例'] === 'object' ? effect['面板修改比例'] : null;
+        const targetText = normalizeSkillUiText(effect['目标'] || effect['对象'], '自身');
+        if (statMods) {
+          const hostile = /敌方|受术|目标/.test(targetText);
+          const buffLike = Object.values(statMods).some(value => Number(value) > 1);
+          if (hostile && !buffLike) defender = 应用于技能设计台试算属性(defender, statMods);
+          else attacker = 应用于技能设计台试算属性(attacker, statMods);
+        }
+        const calc = effect['计算层效果'] && typeof effect['计算层效果'] === 'object' ? effect['计算层效果'] : effect;
+        if (calc && typeof calc === 'object') {
+          finalDamageMult *= Number(calc['final_damage_mult'] || 1);
+          finalDamageBonus += Number(calc['final_damage_bonus'] || 0);
+        }
+      });
+      const rawPower = Math.max(0, Number(damageEffect['威力倍率'] || 0));
+      const power = rawPower > 0 && rawPower <= 20 ? rawPower * 100 : rawPower;
+      const penetration = Math.max(0, Number(damageEffect['穿透修饰'] || 0));
+      const defense = Math.max(1, Number(defender.def || 1) * (1 - Math.min(92, penetration) / 100));
+      const damageType = normalizeSkillUiText(damageEffect['伤害类型'], '物理近战');
+      const driveScale = /精神/.test(damageType)
+        ? 计算技能设计台资源压制倍率(attacker, defender, 'men')
+        : 计算技能设计台资源压制倍率(attacker, defender, 'sp');
+      const attackValue = /精神/.test(damageType)
+        ? Math.max(Number(attacker.men_max || 1), Number(attacker.sp_max || 1) * 0.7)
+        : Number(attacker.str || 1);
+      const damage = Math.max(0, power * (attackValue / defense) * driveScale * finalDamageMult + finalDamageBonus);
+      const targetHp = Math.max(1, Number(defender.hp_max || defender.vit_max || 1));
+      return { ok: true, ratio: damage / targetHp, damage };
+    }
+
+    function 计算技能设计台可重创最高等级(draft = {}, 施术等级 = 1) {
+      const first = 估算技能设计台伤害占比(draft, 施术等级, 1);
+      if (!first.ok) return { ok: false, reason: first.reason };
+      let highest = 0;
+      for (let level = 1; level <= 120; level += 1) {
+        const result = 估算技能设计台伤害占比(draft, 施术等级, level);
+        if (result.ok && result.ratio >= 0.5) highest = level;
+      }
+      if (highest <= 0) return { ok: true, text: '不足50%' };
+      return { ok: true, text: highest >= 120 ? '可重创 Lv.120+' : `可重创 Lv.${highest}` };
+    }
+
+    function buildSkillDesignerSimulationHtml(draft = {}, snapshot = {}) {
+      const currentLevel = 读取技能设计台当前等级(snapshot);
+      const rows = [];
+      const pushRow = (label, level) => {
+        const result = 计算技能设计台可重创最高等级(draft, level);
+        rows.push(`
+          <div class=\"skill-designer-trial-row\">
+            <em>${htmlEscape(label)}</em>
+            <span>${htmlEscape(result.ok ? result.text : result.reason)}</span>
+          </div>
+        `);
+      };
+      pushRow(`当前 Lv.${Number(currentLevel.toFixed(1)).toString()}`, currentLevel);
+      const levelControl = buildSkillDesignerLevelControlFromDraft(draft);
+      if (levelControl) {
+        pushRow(`中心 Lv.${levelControl.中心等级}`, levelControl.中心等级);
+        pushRow(`圆满 Lv.${levelControl.圆满等级}`, levelControl.圆满等级);
+      } else {
+        rows.push('<div class=\"skill-designer-trial-row muted\"><em>释放掌控</em><span>缺少释放等级</span></div>');
+      }
+      return rows.join('');
+    }
+
     function buildSkillDesignerRuntimeSummaryEffects(draft = {}) {
       void draft;
       return [];
@@ -7105,30 +7467,53 @@
         });
     }
 
-    function buildSkillDesignerSelectOptions(options = [], selected = '', blankLabel = '未设置') {
-      const rawOptions = Array.isArray(options) ? options : [];
-      const normalizedOptions = rawOptions.map(option => {
-        if (option && typeof option === 'object') {
-          const value = toText(option.value ?? option.label, '').trim();
-          const label = toText(option.label ?? option.value, value).trim();
-          return value ? { value, label: label || value } : null;
+    function normalizeSkillDesignerOptionList(选项列表 = []) {
+      const 原始选项列表 = Array.isArray(选项列表) ? 选项列表 : [];
+      return 原始选项列表.map(选项 => {
+        if (选项 && typeof 选项 === 'object') {
+          const 值 = toText(选项.value ?? 选项.label, '').trim();
+          const 标签 = toText(选项.label ?? 选项.value, 值).trim();
+          return 值 ? { value: 值, label: 标签 || 值 } : null;
         }
-        const value = toText(option, '').trim();
-        return value ? { value, label: value } : null;
+        const 值 = toText(选项, '').trim();
+        return 值 ? { value: 值, label: 值 } : null;
       }).filter(Boolean);
-      const optionList = [];
-      const seen = new Set();
-      if (blankLabel) optionList.push({ value: '', label: blankLabel });
-      normalizedOptions.forEach(option => {
-        if (seen.has(option.value)) return;
-        seen.add(option.value);
-        optionList.push(option);
+    }
+
+    function getSkillDesignerFirstOptionValue(选项列表 = [], 回退值 = '') {
+      const 首项 = normalizeSkillDesignerOptionList(选项列表)[0] || null;
+      return 首项 ? 首项.value : normalizeSkillUiText(回退值, '');
+    }
+
+    function normalizeSkillDesignerSelectValue(当前值 = '', 选项列表 = [], 回退值 = '') {
+      const 规范选项列表 = normalizeSkillDesignerOptionList(选项列表);
+      const 选中值 = normalizeSkillUiText(当前值, '');
+      if (选中值 && 规范选项列表.some(选项 => 选项.value === 选中值)) return 选中值;
+      return 规范选项列表[0] ? 规范选项列表[0].value : normalizeSkillUiText(回退值, '');
+    }
+
+    function buildSkillDesignerSelectOptions(选项列表 = [], 当前值 = '', 空状态文本 = '') {
+      const 规范选项列表 = normalizeSkillDesignerOptionList(选项列表);
+      if (!规范选项列表.length) {
+        const 空文本 = normalizeSkillUiText(空状态文本, '') && !/未设置/.test(normalizeSkillUiText(空状态文本, ''))
+          ? normalizeSkillUiText(空状态文本, '')
+          : '暂无可选';
+        return `<option value=\"\" selected disabled>${htmlEscape(空文本)}</option>`;
+      }
+      const 输出选项列表 = [];
+      const 已见 = new Set();
+      规范选项列表.forEach(选项 => {
+        if (已见.has(选项.value)) return;
+        已见.add(选项.value);
+        输出选项列表.push(选项);
       });
-      const selectedText = toText(selected, '');
-      return optionList.map(option => {
-        const safeValue = toText(option.value, '');
-        const label = toText(option.label, safeValue);
-        return `<option value=\"${escapeHtmlAttr(safeValue)}\"${safeValue === selectedText ? ' selected' : ''}>${htmlEscape(label)}</option>`;
+      const 选中值 = 输出选项列表.some(选项 => 选项.value === toText(当前值, '').trim())
+        ? toText(当前值, '').trim()
+        : 输出选项列表[0].value;
+      return 输出选项列表.map(选项 => {
+        const 安全值 = toText(选项.value, '');
+        const 标签 = toText(选项.label, 安全值);
+        return `<option value=\"${escapeHtmlAttr(安全值)}\"${安全值 === 选中值 ? ' selected' : ''}>${htmlEscape(标签)}</option>`;
       }).join('');
     }
 
@@ -7471,14 +7856,14 @@
                 `
                 : `
                   <select class=\"mvu-editor-select\" data-skill-designer-fusion-char data-skill-designer-disableable>
-                    ${buildSkillDesignerSelectOptions(charOptions, participant.charKey, '未设置')}
+                    ${buildSkillDesignerSelectOptions(charOptions, participant.charKey, '暂无对象')}
                   </select>
                 `}
             </label>
             <label class=\"mvu-editor-field skill-designer-fusion-spirit-field\">
               <span class=\"mvu-editor-label\">武魂</span>
               <select class=\"mvu-editor-select\" data-skill-designer-fusion-spirit data-skill-designer-disableable>
-                ${buildSkillDesignerSelectOptions(spiritOptions, participant.spirit, spiritOptions.length ? '未设置' : '未接入武魂')}
+                ${buildSkillDesignerSelectOptions(spiritOptions, participant.spirit, spiritOptions.length ? '' : '未接入武魂')}
               </select>
             </label>
             <div class=\"skill-designer-fusion-row-actions\">
@@ -7541,16 +7926,22 @@
       return [规范化技能设计台融合用法模式(draft['用法模式']), formatSkillDesignerFusionModeLabel(derivedFields.fusionMode, derivedFields.fusionParticipants), participantText || derivedFields.fusionPartner || fallbackSourceText].filter(Boolean).join(' / ');
     }
 
-    function createSkillDesignerTextParam(key, label, placeholder = '') {
-      return Object.freeze({ key, label, type: 'text', placeholder });
+    function getSkillDesignerParamHint(标签 = '', 字段键 = '') {
+      const 标题 = normalizeSkillUiText(标签, '');
+      const 规范字段键 = normalizeSkillUiText(字段键, '');
+      return 技能设计台参数提示表[标题] || 技能设计台参数提示表[规范字段键] || '';
     }
 
-    function createSkillDesignerNumberParam(key, label, placeholder = '', step = '0.1') {
-      return Object.freeze({ key, label, type: 'number', placeholder, step });
+    function createSkillDesignerTextParam(key, label, placeholder = '', hint = '') {
+      return Object.freeze({ key, label, type: 'text', placeholder, hint: normalizeSkillUiText(hint, getSkillDesignerParamHint(label, key)) });
     }
 
-    function createSkillDesignerSelectParam(key, label, options = [], placeholder = '未设置') {
-      return Object.freeze({ key, label, type: 'select', options, placeholder });
+    function createSkillDesignerNumberParam(key, label, placeholder = '', step = '0.1', hint = '') {
+      return Object.freeze({ key, label, type: 'number', placeholder, step, hint: normalizeSkillUiText(hint, getSkillDesignerParamHint(label, key)) });
+    }
+
+    function createSkillDesignerSelectParam(key, label, options = [], placeholder = '', hint = '') {
+      return Object.freeze({ key, label, type: 'select', options, placeholder, hint: normalizeSkillUiText(hint, getSkillDesignerParamHint(label, key)) });
     }
 
     function parseSkillDesignerCostConfig(rawCost = '', explicitType = '', explicitValue = '') {
@@ -8204,19 +8595,25 @@
             <div class=\"mvu-editor-field-grid\">
               ${defs.map(def => {
                 const currentValue = normalizeSkillUiText(paramState[def.key], '');
+                const paramHint = normalizeSkillUiText(def.hint, getSkillDesignerParamHint(def.label, def.key));
+                const labelHtml = `
+                      <span class=\"mvu-editor-label skill-designer-param-label\"${paramHint ? ` title=\"${escapeHtmlAttr(paramHint)}\"` : ''}>
+                        ${htmlEscape(def.label)}
+                        ${paramHint ? `<i>${htmlEscape(paramHint)}</i>` : ''}
+                      </span>`;
                 if (def.type === 'select') {
                   return `
                     <label class=\"mvu-editor-field\">
-                      <span class=\"mvu-editor-label\">${htmlEscape(def.label)}</span>
+                      ${labelHtml}
                       <select class=\"mvu-editor-select\" data-skill-designer-mechanic=\"${escapeHtmlAttr(label)}\" data-skill-designer-param-key=\"${escapeHtmlAttr(def.key)}\" data-skill-designer-disableable>
-                        ${buildSkillDesignerSelectOptions(def.options || [], currentValue, def.placeholder || '未设置')}
+                        ${buildSkillDesignerSelectOptions(def.options || [], currentValue, def.placeholder || '')}
                       </select>
                     </label>
                   `;
                 }
                 return `
                   <label class=\"mvu-editor-field\">
-                    <span class=\"mvu-editor-label\">${htmlEscape(def.label)}</span>
+                    ${labelHtml}
                     <input class=\"mvu-editor-input\" type=\"${def.type === 'number' ? 'number' : 'text'}\"${def.type === 'number' ? ` step=\"${escapeHtmlAttr(def.step || '0.1')}\"` : ''} value=\"${escapeHtmlAttr(currentValue)}\"${def.placeholder ? ` placeholder=\"${escapeHtmlAttr(def.placeholder)}\"` : ''} data-skill-designer-mechanic=\"${escapeHtmlAttr(label)}\" data-skill-designer-param-key=\"${escapeHtmlAttr(def.key)}\" data-skill-designer-disableable />
                   </label>
                 `;
@@ -8252,8 +8649,12 @@
       const baseDraft = draft && typeof draft === 'object' ? draft : {};
       const typeMeta = resolveSkillDesignerTypeMeta(previewMeta, baseDraft.type);
       const costConfig = parseSkillDesignerCostConfig(baseDraft.cost, baseDraft.resourceType, baseDraft.resourceValue);
-      const resolvedPrimaryMain = normalizeSkillUiText(baseDraft.primaryMain, '');
-      let resolvedTarget = normalizeSkillDesignerTargetForForm(baseDraft.target, getSkillDesignerDefaultTarget(previewMeta, typeMeta.value));
+      const resolvedPrimaryMain = normalizeSkillDesignerSelectValue(baseDraft.primaryMain, Object.keys(SKILL_DESIGNER_MAIN_MECHANIC_POOL));
+      let resolvedTarget = normalizeSkillDesignerSelectValue(
+        normalizeSkillDesignerTargetForForm(baseDraft.target, getSkillDesignerDefaultTarget(previewMeta, typeMeta.value)),
+        SKILL_DESIGNER_TARGET_OPTIONS,
+        getSkillDesignerFirstOptionValue(SKILL_DESIGNER_TARGET_OPTIONS),
+      );
       if (/^(未知|未设置|无)$/.test(resolvedTarget)) resolvedTarget = getSkillDesignerDefaultTarget(previewMeta, typeMeta.value);
       const isFusionScope = toText(previewMeta && previewMeta.scope, '') === '武魂融合技';
       const rawFusionMode = isFusionScope ? normalizeSkillDesignerFusionMode(baseDraft.fusionMode || baseDraft['融合模式']) : '';
@@ -8263,9 +8664,15 @@
       const derivedFusionFields = isFusionScope
         ? deriveSkillDesignerFusionFields(rawFusionMode, rawFusionParticipants, rawFusionPartner)
         : { fusionMode: '', fusionPartner: '', fusionSourceSpirits: [], fusionParticipants: [] };
-      const resolvedPrimarySub = normalizeSkillUiText(
+      const resolvedPrimarySub = normalizeSkillDesignerSelectValue(
         baseDraft.primarySub,
+        getSkillDesignerChildMechanicOptions(resolvedPrimaryMain),
         getSkillDesignerDefaultPrimarySub(resolvedPrimaryMain, resolvedTarget, typeMeta.value),
+      );
+      const resolvedDeliveryForm = normalizeSkillDesignerSelectValue(
+        baseDraft.deliveryForm,
+        getSkillDesignerDeliveryOptions(typeMeta.value),
+        getSkillDesignerFirstOptionValue(getSkillDesignerDeliveryOptions(typeMeta.value), '直接生效'),
       );
       const derivedMainRole = inferSkillDesignerMainRole(
         typeMeta.value,
@@ -8277,19 +8684,20 @@
         baseDraft['目标规模'],
         deriveSkillDesignerTargetScaleFromTarget(resolvedTarget),
       );
+      const levelControl = buildSkillDesignerLevelControlFromDraft(baseDraft);
       const coreState = {
         name: normalizeSkillUiText(baseDraft.name, toText(previewMeta && previewMeta.label, '未命名技能')),
         type: typeMeta.value,
         typeDisplay: typeMeta.display,
         target: resolvedTarget,
         cost: formatSkillDesignerCostText(costConfig.resourceType, costConfig.resourceValue),
-        costType: costConfig.resourceType,
+        costType: normalizeSkillDesignerSelectValue(costConfig.resourceType, SKILL_DESIGNER_RESOURCE_TYPE_OPTIONS, '无'),
         costValue: costConfig.resourceValue,
         bonus: '无',
         mainRole: normalizeSkillUiText(derivedMainRole, '未知'),
         primaryMain: resolvedPrimaryMain,
         primarySub: resolvedPrimarySub,
-        deliveryForm: normalizeSkillUiText(baseDraft.deliveryForm, ''),
+        deliveryForm: resolvedDeliveryForm,
         secondaryMechanics: normalizeSkillDesignerSecondarySelection(resolvedPrimaryMain, baseDraft.secondaryMechanics, typeMeta.value),
         attachedAttributes: normalizeSkillDesignerArray(baseDraft.attachedAttributes),
         attributeSource: '无',
@@ -8309,6 +8717,9 @@
         fusionParticipants: derivedFusionFields.fusionParticipants,
         副作用列表: 构建技能设计台副作用列表_V1(提取技能设计台副作用类型勾选_V1(baseDraft['副作用列表'] || [])),
         目标规模: resolvedTargetScale,
+        等级掌控: levelControl,
+        等级掌控中心等级: levelControl ? String(levelControl.中心等级) : '',
+        等级掌控圆满等级: levelControl ? String(levelControl.圆满等级) : '',
         阵营判定: '自动',
       };
       const implicitAttributeConfig = resolveSkillDesignerImplicitAttributeConfig(coreState, previewMeta);
@@ -8395,6 +8806,12 @@
         fusionParticipants: derivedFusionFields.fusionParticipants,
         副作用列表: 构建技能设计台副作用列表_V1(readCheckedValues('skill-side-effect')),
         目标规模: resolvedTargetScale,
+        等级掌控: normalizeSkillDesignerLevelControl({
+          中心等级: readField('等级掌控中心等级'),
+          圆满等级: readField('等级掌控圆满等级'),
+        }),
+        等级掌控中心等级: readField('等级掌控中心等级'),
+        等级掌控圆满等级: readField('等级掌控圆满等级'),
         阵营判定: '自动',
       };
       const implicitAttributeConfig = resolveSkillDesignerImplicitAttributeConfig(baseState, previewMeta);
@@ -8819,10 +9236,12 @@
       const fallbackCastTime = SKILL_DESIGNER_RUNTIME_CAST_TIME_BY_DELIVERY[normalizeSkillUiText(draft && draft.deliveryForm, '直接生效')] || 10;
       const existingCastTime = Number(existing['cast_time']);
       const sideEffects = normalizeSkillDesignerSideEffectList(draft && draft['副作用列表']);
+      const levelControl = buildSkillDesignerLevelControlFromDraft(draft);
       return buildSkillDesignerRuntimeObject({
         '机制': '系统基础',
         '消耗': isPassive ? '无' : (draft && draft.cost) || '无',
         'cast_time': isPassive ? 0 : (Number.isFinite(existingCastTime) ? existingCastTime : fallbackCastTime),
+        '等级掌控': levelControl || undefined,
         '副作用列表': sideEffects,
       });
     }
@@ -8845,6 +9264,7 @@
         0
       );
       switch (primaryLabel) {
+        case '直接伤害':
         case '单体伤害':
         case '群体伤害':
         case '多段伤害':
@@ -15928,7 +16348,6 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           { ...rawDesignerDraft, ...fusionDraftSeed },
           previewMeta
         );
-        const pathTail = formatSkillDesignerWritebackLabel(previewMeta);
         const scopeLabels = getSkillDesignerScopeLabels(previewMeta);
         const recommendedAttrs = new Set(normalizeSkillDesignerArray(SKILL_DESIGNER_ATTRIBUTE_HINTS_BY_TYPE[designerDraft.type] || []));
         const isFusionDesigner = previewMeta.scope === '武魂融合技';
@@ -16094,6 +16513,8 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                 const key = node.getAttribute('data-skill-designer-preview') || '';
                 node.textContent = previewMap[key] || '未设置';
               });
+              const simulationNode = mountEl.querySelector('[data-skill-designer-simulation]');
+              if (simulationNode) simulationNode.innerHTML = buildSkillDesignerSimulationHtml(formState, snapshot);
               mountEl.querySelectorAll('[data-skill-designer-construct-row]').forEach(node => {
                 node.hidden = normalizeSkillUiText(formState.deliveryForm, '') !== '造物承载';
               });
@@ -16119,8 +16540,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                 );
               primarySubInput.innerHTML = buildSkillDesignerSelectOptions(
                 optionList,
-                nextValue,
-                '未设置'
+                nextValue
               );
             };
 
@@ -16129,8 +16549,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
               const currentValue = toText(deliveryFormInput.value, '').trim();
               deliveryFormInput.innerHTML = buildSkillDesignerSelectOptions(
                 getSkillDesignerDeliveryOptions(typeInput.value),
-                currentValue,
-                '未设置'
+                currentValue
               );
             };
 
@@ -16289,21 +16708,8 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           },
           body: `
             <div class=\"archive-modal-grid skill-designer-layout skill-designer-shell\">
-              <div class=\"archive-card full skill-designer-anchor-card\">
-                <div class=\"archive-card-head\">
-                  <div class=\"archive-card-title\">${htmlEscape(scopeLabels.anchorTitle)}</div>
-                  <span class=\"state-tag live\">${htmlEscape(designerDraft.typeDisplay || designerDraft.type || previewMeta.category || '技能')}</span>
-                </div>
-                ${makeTileGrid([
-                  { label: scopeLabels.nameCardLabel, value: designerDraft.name },
-                  { label: scopeLabels.typeCardLabel, value: designerDraft.typeDisplay || designerDraft.type },
-                  { label: scopeLabels.targetLabel, value: designerDraft.target },
-                  { label: '写回位置', value: pathTail }
-                ], 'two')}
-              </div>
-
               <form class=\"archive-card full mvu-editor-form skill-designer-form skill-designer-form-card\" data-skill-designer-form>
-                <div class=\"archive-card-head\">
+                <div class=\"archive-card-head skill-designer-toolbar\">
                   <div class=\"archive-card-title\">${htmlEscape(scopeLabels.parameterTitle)}</div>
                   <div class=\"mvu-editor-actions\">
                     <button type=\"button\" class=\"tag-chip\" data-skill-designer-refresh data-skill-designer-disableable>重新读取</button>
@@ -16322,13 +16728,13 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                       <label class=\"mvu-editor-field\">
                         <span class=\"mvu-editor-label\">${htmlEscape(scopeLabels.targetLabel)}</span>
                         <select class=\"mvu-editor-select\" data-skill-designer-field=\"target\" data-skill-designer-disableable>
-                          ${buildSkillDesignerSelectOptions(SKILL_DESIGNER_TARGET_OPTIONS, designerDraft.target, '未设置')}
+                          ${buildSkillDesignerSelectOptions(SKILL_DESIGNER_TARGET_OPTIONS, designerDraft.target)}
                         </select>
                       </label>
                       <label class=\"mvu-editor-field\">
                         <span class=\"mvu-editor-label\">目标规模</span>
                         <select class=\"mvu-editor-select\" data-skill-designer-field=\"targetScale\" data-skill-designer-disableable>
-                          ${buildSkillDesignerSelectOptions(SKILL_DESIGNER_TARGET_SCALE_OPTIONS, designerDraft['目标规模'], '未设置')}
+                          ${buildSkillDesignerSelectOptions(SKILL_DESIGNER_TARGET_SCALE_OPTIONS, designerDraft['目标规模'])}
                         </select>
                       </label>
                     </div>
@@ -16362,19 +16768,19 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                       <label class=\"mvu-editor-field\">
                         <span class=\"mvu-editor-label\">主机制</span>
                         <select class=\"mvu-editor-select\" data-skill-designer-field=\"primaryMain\" data-skill-designer-disableable>
-                          ${buildSkillDesignerSelectOptions(Object.keys(SKILL_DESIGNER_MAIN_MECHANIC_POOL), designerDraft.primaryMain, '未设置')}
+                          ${buildSkillDesignerSelectOptions(Object.keys(SKILL_DESIGNER_MAIN_MECHANIC_POOL), designerDraft.primaryMain)}
                         </select>
                       </label>
                       <label class=\"mvu-editor-field\">
                         <span class=\"mvu-editor-label\">细分机制</span>
                         <select class=\"mvu-editor-select\" data-skill-designer-field=\"primarySub\" data-skill-designer-disableable>
-                          ${buildSkillDesignerSelectOptions(getSkillDesignerChildMechanicOptions(designerDraft.primaryMain), designerDraft.primarySub, '未设置')}
+                          ${buildSkillDesignerSelectOptions(getSkillDesignerChildMechanicOptions(designerDraft.primaryMain), designerDraft.primarySub)}
                         </select>
                       </label>
                       <label class=\"mvu-editor-field\">
                         <span class=\"mvu-editor-label\">${htmlEscape(scopeLabels.deliveryLabel)}</span>
                         <select class=\"mvu-editor-select\" data-skill-designer-field=\"deliveryForm\" data-skill-designer-disableable>
-                          ${buildSkillDesignerSelectOptions(getSkillDesignerDeliveryOptions(designerDraft.type), designerDraft.deliveryForm, '未设置')}
+                          ${buildSkillDesignerSelectOptions(getSkillDesignerDeliveryOptions(designerDraft.type), designerDraft.deliveryForm)}
                         </select>
                       </label>
                     </div>
@@ -16420,12 +16826,26 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                       <label class=\"mvu-editor-field\">
                         <span class=\"mvu-editor-label\">消耗资源</span>
                         <select class=\"mvu-editor-select\" data-skill-designer-field=\"costType\" data-skill-designer-disableable>
-                          ${buildSkillDesignerSelectOptions(SKILL_DESIGNER_RESOURCE_TYPE_OPTIONS, designerDraft.costType, '未设置')}
+                          ${buildSkillDesignerSelectOptions(SKILL_DESIGNER_RESOURCE_TYPE_OPTIONS, designerDraft.costType)}
                         </select>
                       </label>
                       <label class=\"mvu-editor-field\">
                         <span class=\"mvu-editor-label\">消耗数值</span>
                         <input class=\"mvu-editor-input\" type=\"text\" value=\"${escapeHtmlAttr(designerDraft.costValue || '')}\" placeholder=\"20 / 15% / 魂力30+精神力10\" data-skill-designer-field=\"costValue\" data-skill-designer-disableable />
+                      </label>
+                    </div>
+                  </section>
+
+                  <section class=\"mvu-editor-section\">
+                    <div class=\"mvu-editor-section-title\">释放掌控</div>
+                    <div class=\"mvu-editor-field-grid\">
+                      <label class=\"mvu-editor-field\">
+                        <span class=\"mvu-editor-label skill-designer-param-label\" title=\"发挥一半左右\">中心等级<i>发挥一半左右</i></span>
+                        <input class=\"mvu-editor-input\" type=\"number\" min=\"1\" step=\"1\" value=\"${escapeHtmlAttr(designerDraft.等级掌控中心等级 || '')}\" placeholder=\"85\" data-skill-designer-field=\"等级掌控中心等级\" data-skill-designer-disableable />
+                      </label>
+                      <label class=\"mvu-editor-field\">
+                        <span class=\"mvu-editor-label skill-designer-param-label\" title=\"接近完整释放\">圆满等级<i>接近完整释放</i></span>
+                        <input class=\"mvu-editor-input\" type=\"number\" min=\"1\" step=\"1\" value=\"${escapeHtmlAttr(designerDraft.等级掌控圆满等级 || '')}\" placeholder=\"99\" data-skill-designer-field=\"等级掌控圆满等级\" data-skill-designer-disableable />
                       </label>
                     </div>
                   </section>
@@ -16469,6 +16889,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                   </div>
                   <div class=\"skill-designer-summary-row\"><em>执行摘要</em><span data-skill-designer-preview=\"execution\">${htmlEscape(buildSkillDesignerExecutionSummary(designerDraft) || '未设置')}</span></div>
                   <div class=\"skill-designer-summary-row\"><em>副作用</em><span data-skill-designer-preview=\"sideEffects\">${htmlEscape(buildSkillDesignerSideEffectSummary(designerDraft) || '无')}</span></div>
+                  <div class=\"skill-designer-summary-row skill-designer-trial-card\"><em>试算</em><div data-skill-designer-simulation>${buildSkillDesignerSimulationHtml(designerDraft, snapshot)}</div></div>
                   ${previewMeta.scope === 'art'
                     ? `<div class=\"skill-designer-summary-row\"><em>功法进度</em><span data-skill-designer-preview=\"progress\">${htmlEscape(buildSkillDesignerArtProgressSummary(designerDraft) || '未设置')}</span></div>`
                     : ''}
@@ -17114,16 +17535,16 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                   <span class="relation-hover-chip">${htmlEscape(`相关度 ${相关度视图.总分值}`)}</span>
                 </div>
                 <div class="relation-hover-skill">
-                  <span>${htmlEscape(toText(rel && rel['好感加成'], '暂无额外关系加成说明'))}</span>
-                  <span>${htmlEscape(toText(rel && rel['_推进提示'], '暂无推进提示'))}</span>
-                  <span>${htmlEscape(`下一阶段：${toText(rel && rel['_下一阶段'], '无')} / ${toNumber(rel && rel['_下一阶段阈值'], 0)}`)}</span>
-                  <span>${htmlEscape(`最近互动：${toText(rel && rel['上次互动动作'], '无')} / ${toNumber(rel && rel['最近好感变化'], 0)}`)}</span>
-                  <span>${htmlEscape(`当前加成：${toText(rel && rel['_当前关系加成'], toText(rel && rel['好感加成'], '无'))}`)}</span>
-                  <span>${htmlEscape(`下一解锁：${toText(rel && rel['_下档解锁加成'], '无')}`)}</span>
-                  <span>${htmlEscape(`关系状态：${toText(rel && rel['_维护优先级'], '未知')} / ${toText(rel && rel['_切线限制原因'], '无')}`)}</span>
-                  <span>${htmlEscape(`基础相关度：${相关度视图.基础显示值} / 关系加成：+${相关度视图.关系加成值}`)}</span>
-                  <span>${htmlEscape(`融合判定：${相关度视图.融合触发状态} (总分${相关度视图.总分值})`)}</span>
-                  <span>${htmlEscape(`同修效率：x${相关度视图.同修效率倍率}`)}</span>
+                  <span>${htmlEscape(`加成 ${toText(rel && rel['好感加成'], '暂无')}`)}</span>
+                  <span>${htmlEscape(`推进 ${toText(rel && rel['_推进提示'], '暂无')}`)}</span>
+                  <span>${htmlEscape(`阶段 ${toText(rel && rel['_下一阶段'], '无')} / ${toNumber(rel && rel['_下一阶段阈值'], 0)}`)}</span>
+                  <span>${htmlEscape(`互动 ${toText(rel && rel['上次互动动作'], '无')} / ${toNumber(rel && rel['最近好感变化'], 0)}`)}</span>
+                  <span>${htmlEscape(`当前 ${toText(rel && rel['_当前关系加成'], toText(rel && rel['好感加成'], '无'))}`)}</span>
+                  <span>${htmlEscape(`解锁 ${toText(rel && rel['_下档解锁加成'], '无')}`)}</span>
+                  <span>${htmlEscape(`维护 ${toText(rel && rel['_维护优先级'], '未知')} / ${toText(rel && rel['_切线限制原因'], '无')}`)}</span>
+                  <span>${htmlEscape(`相关 基础 ${相关度视图.基础显示值} / +${相关度视图.关系加成值}`)}</span>
+                  <span>${htmlEscape(`融合 ${相关度视图.融合触发状态} / 总分 ${相关度视图.总分值}`)}</span>
+                  <span>${htmlEscape(`同修 x${相关度视图.同修效率倍率}`)}</span>
                 </div>
                 <div class="energy-stack">
                   <div class="energy-row-block">
@@ -27825,7 +28246,7 @@ ${extraRequirement}
     let 浮窗最后指针坐标 = null;
     const 浮窗自动隐藏毫秒 = 0;
     const 浮窗关闭延迟毫秒 = 350;
-    const 浮窗通道余量 = 120;
+    const 浮窗通道余量 = 18;
     const 顶层浮窗层级 = '100000';
 
     function cancelFloatingHoverClearTimer() {
@@ -27851,6 +28272,11 @@ ${extraRequirement}
         }
         clearFloatingHoverCard(trigger);
       }, 浮窗关闭延迟毫秒);
+    }
+
+    function 确保浮窗准备关闭(trigger) {
+      if (floatingHoverClearTimer) return;
+      scheduleClearFloatingHoverCard(trigger);
     }
 
     function scheduleFloatingHoverAutoHide(trigger) {
@@ -28059,6 +28485,7 @@ ${extraRequirement}
         cancelFloatingHoverClearTimer();
         return;
       }
+      确保浮窗准备关闭(trigger);
     }, true);
 
     document.addEventListener('pointermove', event => {
@@ -28068,6 +28495,7 @@ ${extraRequirement}
         cancelFloatingHoverClearTimer();
         return;
       }
+      确保浮窗准备关闭(activeFloatingHoverTrigger);
     }, true);
 
     document.addEventListener('focusin', event => {

@@ -127,10 +127,6 @@ const MAP_IMAGE_HEIGHT = 2246;
 const MAP_COORD_SYSTEM_IMAGE = 'image';
 const MAP_COORD_SYSTEM_LOCAL = 'local';
 
-function isWorldMapId(mapId = 'map_douluo_world') {
-  return !mapId || mapId === 'map_douluo_world';
-}
-
 const MAP_TRAVEL_SCALE_BY_LEVEL = {
   world: 1,
   city: 0.07,
@@ -207,7 +203,6 @@ let FLAT_LOCATIONS = {};
 function refreshFlatLocationsFromTree(node, name) {
   if (node.x !== undefined && node.y !== undefined) {
     FLAT_LOCATIONS[name] = { x: node.x, y: node.y };
-    if (!node.coord_system) node.coord_system = node.level <= 2 ? MAP_COORD_SYSTEM_IMAGE : MAP_COORD_SYSTEM_LOCAL;
   }
   if (node.子节点) {
     for (const childName in node.子节点) {
@@ -345,6 +340,18 @@ function findMapNodeEntry(targetName, sd) {
               node: currentNode,
               path: currentPath,
             };
+          } else if (currentPath.length) {
+            const matchedNode = currentPath.reduce((node, seg, index) => {
+              if (index === 0) return sd.world.地点[seg];
+              return node?.子节点?.[seg];
+            }, null);
+            if (matchedNode) {
+              found = {
+                name: currentPath[currentPath.length - 1],
+                node: matchedNode,
+                path: currentPath,
+              };
+            }
           }
         }
       }
@@ -357,7 +364,7 @@ function findMapNodeEntry(targetName, sd) {
 function isWorldLocationName(locName, sd) {
   if (!locName || !sd) return false;
   if (sd?.world?.动态地点?.[locName]) {
-    return isWorldMapId(sd.world.动态地点[locName].地图ID || 'map_douluo_world');
+    return Number(sd.world.动态地点[locName].层级 || 4) <= 2;
   }
   const entry = findMapNodeEntry(locName, sd);
   return !!(entry && Array.isArray(entry.path) && entry.path.length <= 1);
@@ -755,12 +762,12 @@ function autoBreakthrough(data) {
             });
             const realmLimit =
               { 灵元境: 1, 灵通境: 2, 灵海境: 5, 灵渊境: 9, 灵域境: 99, 神元境: 999 }[
-                c.属性.精神境界 || c.属性.精神力_realm
+                c.属性.精神境界
               ] || 1;
 
             if (data.sys.系统播报 === '初始化' || !data.sys.系统播报) data.sys.系统播报 = '';
             if (currentSpiritsCount >= realmLimit) {
-              data.sys.系统播报 += ` [修为突破] ${charName} 踏入 ${newLvText}！但精神力仅为【${c.属性.精神境界 || c.属性.精神力_realm}】，无法承载更多魂灵，【${spiritKey}】暂缓附加魂环！`;
+              data.sys.系统播报 += ` [修为突破] ${charName} 踏入 ${newLvText}！但精神力仅为【${c.属性.精神境界}】，无法承载更多魂灵，【${spiritKey}】暂缓附加魂环！`;
             } else if (isPlayer) {
               data.sys.系统播报 += ` [修为突破] ${charName} 踏入 ${newLvText}！达到魂环门槛，但当前未有可继续产环的魂灵，需通过剧情吸收新魂灵后方可附环。`;
             } else if (isNearPlayer) {
@@ -786,7 +793,7 @@ function getCharacterBaseSoulPowerTypeMultiplier(char = {}) {
   const spiritKeys = Object.keys(char?.武魂 || {});
   if (spiritKeys.length > 0) {
     spiritKeys.forEach(key => {
-      const 系别 = String(char?.武魂?.[key]?.type || '强攻系').trim();
+      const 系别 = String(char?.武魂?.[key]?.系别 || '强攻系').trim();
       修炼难度列表.push(Number(修炼难度系数表[系别] || 1));
     });
   }
@@ -5604,7 +5611,6 @@ function buildConstructUsableEffects(baseEffects, defaultTarget, skillType = '')
     }
     const stateValue = {};
     if (effect.面板修改比例 && typeof effect.面板修改比例 === 'object') stateValue.statMods = effect.面板修改比例;
-    if (effect.stat_mods && typeof effect.stat_mods === 'object') stateValue.statMods = effect.stat_mods;
     if (effect.计算层效果 && typeof effect.计算层效果 === 'object') stateValue.combatEffects = effect.计算层效果;
     if (effect.成功参数 && typeof effect.成功参数 === 'object') stateValue.success = effect.成功参数;
     if (effect.失败参数 && typeof effect.失败参数 === 'object') stateValue.fail = effect.失败参数;
@@ -10897,7 +10903,6 @@ function settleInternalSoulBeastReward(data = {}, winner = {}, winnerName = '', 
 
   const dropRate = age >= 100000 ? 100 : (age / 100000) * 100;
   const roll = Math.floor(Math.random() * 100) + 1;
-  data.sys.最近检定 = roll;
   if (roll <= dropRate) {
     const boneName = `${age}年魂骨`;
     if (!winner.背包[boneName]) {
@@ -13325,7 +13330,7 @@ function buildCompactDynamicLocationDisplayPayload(dynData = {}) {
     描述: dynData.描述,
     x: dynData.x,
     y: dynData.y,
-    节点类型: normalizeDynamicLocationNodeType(dynData.节点类型 || dynData.nodeKind, dynData.层级, dynData.描述),
+    节点类型: normalizeDynamicLocationNodeType(dynData.节点类型, dynData.层级, dynData.描述),
   };
 
   const faction = String(dynData.势力 || '').trim();
@@ -13337,71 +13342,23 @@ function buildCompactDynamicLocationDisplayPayload(dynData = {}) {
   const status = String(dynData.状态 || dynData.state || '').trim();
   if (status && status !== 'intact') nextData.状态 = status;
 
-  const nodeCategory = String(dynData.节点类别 || dynData.nodeKind || '').trim();
-  if (nodeCategory) nextData.节点类别 = nodeCategory;
-
-  const interactions = normalizeDynamicLocationTextList(dynData.交互 || dynData.interactions);
-  if (interactions.length) nextData.交互 = interactions;
-
-  const services = normalizeDynamicLocationTextList(dynData.服务 || dynData.services);
-  if (services.length) nextData.服务 = services;
-
   return nextData;
 }
 
 function pruneDynamicLocationStorageFields(locData = {}) {
   if (!locData || typeof locData !== 'object' || Array.isArray(locData)) return locData;
 
-  const mapId = String(locData.地图ID || '').trim();
-  if (mapId && mapId !== '无' && mapId !== 'map_douluo_world') locData.地图ID = mapId;
-  else delete locData.地图ID;
-
-  const icon = String(locData.图标 || locData.icon || '').trim();
-  if (icon && icon !== '无' && icon !== 'marker') locData.图标 = icon;
-  else delete locData.图标;
-  delete locData.icon;
-
-  const settlementId = String(locData.所属城镇ID || '').trim();
-  if (settlementId && settlementId !== '无') locData.所属城镇ID = settlementId;
-  else delete locData.所属城镇ID;
-
   const faction = String(locData.势力 || '').trim();
   if (faction && faction !== '未知') locData.势力 = faction;
   else delete locData.势力;
 
-  const importance = Number(locData.重要度 ?? locData.importance ?? 0);
+  const importance = Number(locData.重要度 ?? 0);
   if (Number.isFinite(importance) && importance > 0) locData.重要度 = importance;
   else delete locData.重要度;
-  delete locData.importance;
 
-  const status = String(locData.状态 || locData.state || '').trim();
+  const status = String(locData.状态 || '').trim();
   if (status && status !== 'intact') locData.状态 = status;
   else delete locData.状态;
-  delete locData.state;
-
-  const nodeCategory = String(locData.节点类别 || locData.nodeKind || '').trim();
-  if (nodeCategory) locData.节点类别 = nodeCategory;
-  else delete locData.节点类别;
-  delete locData.nodeKind;
-
-  const eventId = String(locData.事件ID || locData.eventId || '').trim();
-  if (eventId) locData.事件ID = eventId;
-  else delete locData.事件ID;
-  delete locData.eventId;
-
-  const interactions = normalizeDynamicLocationTextList(locData.交互 || locData.interactions);
-  if (interactions.length) locData.交互 = interactions;
-  else delete locData.交互;
-  delete locData.interactions;
-
-  const services = normalizeDynamicLocationTextList(locData.服务 || locData.services);
-  if (services.length) locData.服务 = services;
-  else delete locData.服务;
-  delete locData.services;
-
-  delete locData.行动槽;
-  delete locData.actionSlots;
-  delete locData.action_slots;
   return locData;
 }
 
@@ -13642,7 +13599,7 @@ const CharacterSchema = z
           .object({
             表象名称: z.string().prefault(AI_TODO_SPIRIT_NAME).describe('武魂名'),
             描述: z.string().prefault(AI_TODO_SPIRIT_DESC).describe('武魂的具体形态与能力描述'),
-            type: z.string().prefault('强攻系'),
+            系别: z.string().prefault('强攻系'),
             属性体系: z.string().prefault(AI_TODO_ATTRIBUTE_SYSTEM).describe('武魂属性体系：无/元素/五行'),
             已解锁属性: z.array(z.string()).prefault([]).describe('当前已经真正获得的属性列表'),
             可容纳属性: z.array(z.string()).prefault([AI_TODO_ATTRIBUTE_CAPACITY]).describe('武魂理论可承载的属性上限'),
@@ -13704,7 +13661,7 @@ const CharacterSchema = z
           .object({
             表象名称: z.string().prefault('未展露').describe('第二武魂名'),
             描述: z.string().prefault('无').describe('第二武魂描述'),
-            type: z.string().prefault('强攻系'),
+            系别: z.string().prefault('强攻系'),
             属性体系: z.string().prefault(AI_TODO_ATTRIBUTE_SYSTEM).describe('武魂属性体系：无/元素/五行'),
             已解锁属性: z.array(z.string()).prefault([]).describe('当前已经真正获得的属性列表'),
             可容纳属性: z.array(z.string()).prefault([AI_TODO_ATTRIBUTE_CAPACITY]).describe('武魂理论可承载的属性上限'),
@@ -14554,7 +14511,7 @@ const CharacterSchema = z
     let spiritKeys = Object.keys(char.武魂 || {});
     if (spiritKeys.length > 0) {
       spiritKeys.forEach(k => {
-        let tm = TypeMultipliers[char.武魂[k].type] || TypeMultipliers['强攻系'];
+        let tm = TypeMultipliers[char.武魂[k].系别] || TypeMultipliers['强攻系'];
         maxTypeMult.sp_max = Math.max(maxTypeMult.sp_max, tm.sp_max);
         maxTypeMult.men_max = Math.max(maxTypeMult.men_max, tm.men_max);
         maxTypeMult.str = Math.max(maxTypeMult.str, tm.str);
@@ -14901,7 +14858,7 @@ const CharacterSchema = z
 
     const realmLimit =
       { 灵元境: 1, 灵通境: 2, 灵海境: 5, 灵渊境: 9, 灵域境: 99, 神元境: 999 }[
-        char.属性.精神境界 || char.属性.精神力_realm
+        char.属性.精神境界
       ] || 1;
     if (totalSpirits > realmLimit) {
       char.属性.状态效果['精神超载'] = { 类型: 'debuff', 层数: 1, 描述: '魂灵数量超出精神力承载极限，面临崩溃风险' };
@@ -15093,9 +15050,9 @@ const CharacterSchema = z
           类型: 'debuff',
           层数: 1,
           描述: '斗铠各部件材质品质差距过大，能量回路产生排斥，气血不畅！',
-          duration: 99,
-          stat_mods: { str: 0.9, def: 0.9, agi: 0.9, sp_max: 0.9 },
-          combat_effects: { dot_damage: 0, skip_turn: false, armor_pen: 0 },
+          持续回合: 99,
+          面板倍率: { 力量: 0.9, 防御: 0.9, 敏捷: 0.9, 魂力上限: 0.9 },
+          战斗效果: { 持续伤害: 0, 跳过回合: false, 破防比例: 0 },
         };
       }
     } else {
@@ -15200,7 +15157,7 @@ const BaseProductPool = {
       {
         目标: '属性.状态效果',
         类型: 'add',
-        数值: { 力量增幅: { 类型: 'buff', 层数: 1, 描述: '力量临时提升15%，持续3回合。', stat_mods: { str: 1.15 } } },
+        数值: { 力量增幅: { 类型: 'buff', 层数: 1, 描述: '力量临时提升15%，持续3回合。', 面板倍率: { 力量: 1.15 } } },
       },
     ],
   },
@@ -15550,7 +15507,6 @@ const SchemaRootObject = z
       .object({
         玩家名: z.string().prefault('无名氏').describe('当前玩家角色姓名'),
         系统播报: z.string().prefault('初始化').describe('最近一次系统广播、突破提示或结算摘要'),
-        最近检定: z.coerce.number().prefault(0).describe('最近一次D100物理检定客观点数'),
         最终成功率: z.coerce.number().prefault(0).describe('当前交互行为的最终成功率'),
       })
       .prefault({}),
@@ -15676,12 +15632,6 @@ const SchemaRootObject = z
                 类型: z.string().prefault('地图节点'),
                 描述: z.string().prefault('无'),
                 状态: z.string().prefault('intact'),
-                图标: z.string().prefault('node'),
-                节点类别: z.string().prefault(''),
-                交互: z.array(z.string()).prefault([]),
-                服务: z.array(z.string()).prefault([]),
-                行动槽: z.array(z.string()).prefault([]),
-                事件ID: z.string().prefault(''),
                 子节点: z.record(z.string(), z.any()).prefault({}),
                 商店: z
                   .record(
@@ -15731,21 +15681,14 @@ const SchemaRootObject = z
                 描述: z.string().prefault('无'),
                 x: z.coerce.number().prefault(-1).describe('地图坐标X'),
                 y: z.coerce.number().prefault(-1).describe('地图坐标Y'),
-                地图ID: z.string().prefault('无'),
                 节点类型: z
                   .any()
                   .transform(value => normalizeDynamicLocationNodeType(value))
                   .prefault('未知')
                   .describe('地点类型'),
-                图标: z.string().prefault('marker').describe('前端渲染使用的图标标识'),
-                所属城镇ID: z.string().prefault('无').describe('归属城市ID'),
                 势力: z.string().prefault('未知'),
                 重要度: z.coerce.number().prefault(0),
                 状态: z.string().prefault('intact'),
-                节点类别: z.string().prefault(''),
-                交互: z.array(z.string()).prefault([]),
-                服务: z.array(z.string()).prefault([]),
-                事件ID: z.string().prefault(''),
               })
               .prefault({}),
           )
@@ -15928,9 +15871,6 @@ export const Schema = z
 
     if (typeof data.sys.玩家名 !== 'string' || !data.sys.玩家名.trim()) data.sys.玩家名 = '无名氏';
     if (typeof data.sys.系统播报 !== 'string' || !data.sys.系统播报.trim()) data.sys.系统播报 = '初始化';
-    data.sys.最近检定 = Number(data.sys.最近检定 || 0);
-    const 是否角色初始化补齐阶段 =
-      data.sys.系统播报 === '初始化' && Math.max(0, Number(data.world?.时间?.tick || 0)) === 0;
 
     const appendSystemReasonText = text => {
       const safeText = String(text || '').trim();
@@ -16340,11 +16280,11 @@ export const Schema = z
         类型: 'buff',
         层数: 1,
         描述: `由图鉴研究积累带来的稳定增益(探索+${Math.round(探索加成 * 100)}%/战斗+${Math.round(战斗加成 * 100)}%)`,
-        stat_mods: {
-          str: Number((1 + 战斗加成).toFixed(4)),
-          def: Number((1 + 战斗加成 * 0.7).toFixed(4)),
-          agi: Number((1 + 探索加成).toFixed(4)),
-          sp_max: Number((1 + 探索加成 * 0.7).toFixed(4)),
+        面板倍率: {
+          力量: Number((1 + 战斗加成).toFixed(4)),
+          防御: Number((1 + 战斗加成 * 0.7).toFixed(4)),
+          敏捷: Number((1 + 探索加成).toFixed(4)),
+          魂力上限: Number((1 + 探索加成 * 0.7).toFixed(4)),
         },
       };
       if (!角色.状态 || typeof 角色.状态 !== 'object') 角色.状态 = {};
@@ -16469,8 +16409,8 @@ export const Schema = z
                 类型: 'buff',
                 层数: 1,
                 描述: '核实到关键情报，短时提升行动效率',
-                duration: 2,
-                stat_mods: { str: 1.01, def: 1.0, agi: 1.02, sp_max: 1.02 },
+                持续回合: 2,
+                面板倍率: { 力量: 1.01, 防御: 1.0, 敏捷: 1.02, 魂力上限: 1.02 },
               };
             }
             节点播报.push(`${String(情报条目.标题 || 情报键).trim()} 核实成功(净值${净证据值.toFixed(1)})`);
@@ -16667,7 +16607,7 @@ export const Schema = z
       const 词集合 = new Set();
       Object.entries(角色?.武魂 || {}).forEach(([槽位名, 武魂数据]) => {
         const 属性状态 = normalizeSpiritAttributeState(武魂数据 || {}, 槽位名, 角色);
-        [武魂数据?.type, 武魂数据?.表象名称, 武魂数据?.属性体系, 武魂数据?.描述, ...(属性状态?.已解锁属性 || [])]
+        [武魂数据?.系别, 武魂数据?.表象名称, 武魂数据?.属性体系, 武魂数据?.描述, ...(属性状态?.已解锁属性 || [])]
           .map(项 => String(项 || '').trim())
           .filter(Boolean)
           .forEach(词 => 词集合.add(词));
@@ -17116,8 +17056,8 @@ export const Schema = z
       if (hasNoSoulPowerTalent) spRate = 0;
       c.属性.魂力 = Math.min(c.属性.魂力上限, roundRuntimeGrowthValue_ACU(c.属性.魂力 + c.属性.魂力上限 * spRate * safeDelta));
 
-      const bloodCore = c.血脉之力?.core || '未凝聚';
-      if (bloodCore !== '未凝聚') {
+      const 血脉核心 = c.血脉之力?.核心 || '未凝聚';
+      if (血脉核心 !== '未凝聚') {
         c.属性.体力 = Math.min(c.属性.体力上限, roundRuntimeGrowthValue_ACU(c.属性.体力 + c.属性.体力上限 * 0.05 * safeDelta));
       }
 
@@ -18077,7 +18017,7 @@ export const Schema = z
         if (spiritKeys.length === 0) {
           char.武魂[firstSpiritName] = {
             表象名称: '未展露',
-            type: char.属性.系别,
+            系别: char.属性.系别,
             魂灵: {},
             独立魂环: {},
             领域: {},
@@ -18098,7 +18038,7 @@ export const Schema = z
 
           const realmLimit =
             { 灵元境: 1, 灵通境: 2, 灵海境: 5, 灵渊境: 9, 灵域境: 99, 神元境: 999 }[
-              char.属性.精神境界 || char.属性.精神力_realm
+              char.属性.精神境界
             ] || 1;
 
           let currentTotalSpirits = 0;
@@ -18110,7 +18050,7 @@ export const Schema = z
               char.属性.天赋梯队,
               char.属性.等级,
               spiritIndex,
-              char.属性.精神境界 || char.属性.精神力_realm,
+              char.属性.精神境界,
             );
 
             if (spData.age <= lastAge) {
@@ -18417,7 +18357,7 @@ export const Schema = z
                   类型: 'debuff',
                   层数: Math.max(1, daysPassed),
                   描述: `缺乏资金购买食物，体力额外流失 ${starvationLoss} 点，力量/防御/敏捷与魂力上限下降。`,
-                  stat_mods: { str: 0.92, def: 0.92, agi: 0.9, sp_max: 0.95 },
+                  面板倍率: { 力量: 0.92, 防御: 0.92, 敏捷: 0.9, 魂力上限: 0.95 },
                 };
               }
             }
@@ -18459,7 +18399,7 @@ export const Schema = z
     } else {
       autoBreakthrough(data);
     }
-    if (是否角色初始化补齐阶段) 初始化补齐角色技能效果数组_V1(data);
+    初始化补齐角色技能效果数组_V1(data);
 
     _(data.char).forEach((c, charName) => {
       const trainedBonus = ensureNumericStatBonusMap(c.属性, '训练加成');
@@ -18661,7 +18601,7 @@ export const Schema = z
         strMult = 1.0,
         allMult = 1.0,
         menMult = 1.0;
-      if (c.血脉之力?.core !== '未凝聚') {
+      if (c.血脉之力?.核心 !== '未凝聚') {
         vitMult = Math.max(vitMult, 1.5);
         strMult = Math.max(strMult, 1.5);
       }
@@ -18740,11 +18680,11 @@ export const Schema = z
 
       let buffMods = { str: 0, def: 0, agi: 0, sp_max: 0 };
       _(c.属性.状态效果).forEach(cond => {
-        if (cond.stat_mods) {
-          if (cond.stat_mods.str !== 1.0) buffMods.str += cond.stat_mods.str - 1.0;
-          if (cond.stat_mods.def !== 1.0) buffMods.def += cond.stat_mods.def - 1.0;
-          if (cond.stat_mods.agi !== 1.0) buffMods.agi += cond.stat_mods.agi - 1.0;
-          if (cond.stat_mods.sp_max !== 1.0) buffMods.sp_max += cond.stat_mods.sp_max - 1.0;
+        if (cond.面板倍率) {
+          if (cond.面板倍率.力量 !== 1.0) buffMods.str += cond.面板倍率.力量 - 1.0;
+          if (cond.面板倍率.防御 !== 1.0) buffMods.def += cond.面板倍率.防御 - 1.0;
+          if (cond.面板倍率.敏捷 !== 1.0) buffMods.agi += cond.面板倍率.敏捷 - 1.0;
+          if (cond.面板倍率.魂力上限 !== 1.0) buffMods.sp_max += cond.面板倍率.魂力上限 - 1.0;
         }
       });
       if (buffMods.str !== 0) c.属性.力量 = Math.floor(c.属性.力量 * Math.max(0.1, 1.0 + buffMods.str));
@@ -19084,7 +19024,7 @@ export const Schema = z
         let mechLvStr = c.装备.机甲.等级;
         let mechLv = mechLvStr === '紫级' ? 2 : mechLvStr === '黑级' ? 3 : mechLvStr === '红级' ? 4 : 0;
         let age = c.属性.年龄;
-        let realm = c.属性.精神境界 || c.属性.精神力_realm;
+        let realm = c.属性.精神境界;
 
         let pts = c.财富.唐门积分 || 0;
         if (fac === '史莱克学院') pts = c.财富.学院积分 || 0;
@@ -19126,7 +19066,7 @@ export const Schema = z
               c.属性.年龄 <= 20 &&
               armorLv >= 1 &&
               lv >= 50 &&
-              ['灵海境', '灵渊境', '灵域境', '神元境'].includes(c.属性.精神境界 || c.属性.精神力_realm)
+              ['灵海境', '灵渊境', '灵域境', '神元境'].includes(c.属性.精神境界)
             ) {
               success = true;
               cost = 0;
@@ -19652,10 +19592,7 @@ export const Schema = z
       _(data.world.动态地点).forEach((locData, locName) => {
         if (locData.x === undefined) locData.x = FLAT_LOCATIONS[locData.归属父节点]?.x ?? -1;
         if (locData.y === undefined) locData.y = FLAT_LOCATIONS[locData.归属父节点]?.y ?? -1;
-        if (!locData.地图ID || locData.地图ID === '无') locData.地图ID = 'map_douluo_world';
         locData.节点类型 = normalizeDynamicLocationNodeType(locData.节点类型, locData.层级, locName);
-        if (!locData.icon || locData.icon === '无') locData.icon = 'marker';
-        if (!locData.所属城镇ID || locData.所属城镇ID === '无') locData.所属城镇ID = '无';
       });
 
       // 先清空存储态占位文本，再在 display_all 打包阶段按需注入显示占位词。
@@ -19932,7 +19869,7 @@ export const Schema = z
 
         _(charData.武魂 || {}).forEach((spiritData, spiritKey) => {
           if (!spiritData || typeof spiritData !== 'object') return;
-          const spiritType = spiritData?.type || charData?.属性?.系别 || '强攻系';
+          const 武魂系别 = spiritData?.系别 || charData?.属性?.系别 || '强攻系';
           const isSecondarySpirit = spiritKey === '第二武魂';
           ensureDisplayText(spiritData, '表象名称', isSecondarySpirit ? '未展露' : AI_TODO_SPIRIT_NAME);
           ensureDisplayText(spiritData, '描述', isSecondarySpirit ? '无' : AI_TODO_SPIRIT_DESC);
@@ -19965,7 +19902,7 @@ export const Schema = z
               if (!ringData || typeof ringData !== 'object') return;
               ensureDisplayText(ringData, '颜色', '无');
               injectDisplaySkillMapDefaults(ringData.魂技, skillName => ({
-                type: spiritType,
+                type: 武魂系别,
                 textContext: {
                   spiritName:
                     (!isAiTodoText(soulSpirit.表象名称) && soulSpirit.表象名称 !== '未展露'
@@ -19973,7 +19910,7 @@ export const Schema = z
                       : !isAiTodoText(spiritData.表象名称) && spiritData.表象名称 !== '未展露'
                         ? spiritData.表象名称
                         : spiritKey || soulSpiritKey || skillName),
-                  type: spiritType,
+                  type: 武魂系别,
                 },
               }));
             });
@@ -19984,13 +19921,13 @@ export const Schema = z
             ensureDisplayText(ringData, '来源', '无');
             if (Object.prototype.hasOwnProperty.call(ringData, '附机制候选')) delete ringData.附机制候选;
             injectDisplaySkillMapDefaults(ringData.魂技, skillName => ({
-              type: spiritType,
+              type: 武魂系别,
               textContext: {
                 spiritName:
                   !isAiTodoText(spiritData.表象名称) && spiritData.表象名称 !== '未展露'
                     ? spiritData.表象名称
                     : spiritKey || skillName,
-                type: spiritType,
+                type: 武魂系别,
               },
             }));
           });
@@ -20380,11 +20317,7 @@ export const Schema = z
               类型: locData.类型,
               描述: locData.描述,
               状态: locData.状态,
-              节点类别: locData.节点类别,
-              交互: cloneValue(locData.交互, []),
-              服务: cloneValue(locData.服务, []),
-              行动槽: cloneValue(locData.行动槽, []),
-              子节点: cloneValue(locData.子节点 || {}, {}),
+              子节点: sanitizeDisplayLocationChildMap(locData.子节点 || {}),
               商店: Object.keys(locData.商店 || {}),
             }
           : {
@@ -20393,21 +20326,22 @@ export const Schema = z
               状态: locData.状态,
               已知子节点: Object.keys(locData.子节点 || {}),
             };
+      const sanitizeDisplayLocationChildMap = (childMap = {}) => {
+        const result = {};
+        Object.entries(childMap || {}).forEach(([childName, childData]) => {
+          if (!childData || typeof childData !== 'object') return;
+          const child = {
+            类型: childData.类型,
+            描述: childData.描述,
+            状态: childData.状态,
+            掌控势力: childData.掌控势力,
+          };
+          result[childName] = child;
+        });
+        return result;
+      };
       const sanitizeDisplayDynamicLocation = (dynData = {}) =>
         buildCompactDynamicLocationDisplayPayload(dynData);
-      const buildWorldReadOnlySummary = (baseWorld = {}, visibleWorld = {}) => {
-        const visibleStores = {};
-        Object.keys(visibleWorld.地点 || {}).forEach(locName => {
-          const storeNames = Object.keys(baseWorld.地点?.[locName]?.商店 || {});
-          if (storeNames.length > 0) visibleStores[locName] = storeNames;
-        });
-        return {
-          当前日期: baseWorld.时间?._calendar || '未知',
-          当前地点: currentLoc,
-          可见商店: visibleStores,
-        };
-      };
-
       Object.keys(data.char).forEach(charName => {
         const realCharData = data.char[charName];
         const charLoc = realCharData.状态?.位置 || '未知';
@@ -20423,7 +20357,7 @@ export const Schema = z
             if (fakeCharData.血脉之力) fakeCharData.血脉之力.血脉 = '未知隐性变异(尚未觉醒)';
           }
           if (charName === '古月' && !unlocked.includes('event_ch3_07')) {
-            if (fakeCharData.武魂 && fakeCharData.武魂['元素使']) fakeCharData.武魂['元素使'].type = '元素系';
+            if (fakeCharData.武魂 && fakeCharData.武魂['元素使']) fakeCharData.武魂['元素使'].系别 = '元素系';
           }
           injectDisplayCharacterTodoDefaults(fakeCharData, charName, realCharData);
           const charSummary = buildCharReadOnlySummary(realCharData, fakeCharData);
@@ -20470,9 +20404,7 @@ export const Schema = z
       });
 
       const filtered_sys = {
-        玩家名: data.sys?.玩家名,
         系统播报: data.sys?.系统播报,
-        最近检定: Number(data.sys?.最近检定 || 0),
       };
 
       const filtered_world = {
@@ -20500,15 +20432,24 @@ export const Schema = z
         ? currentLocInfo.path[currentLocInfo.path.length - 1]
         : currentLoc;
 
-      if (
-        data.world.动态地点[currentLoc]?.地图ID &&
-        data.world.动态地点[currentLoc].地图ID !== '无'
-      ) {
+      if (data.world.动态地点[currentLoc]?.归属父节点) {
         currentContextNodeName =
           data.world.动态地点[currentLoc].归属父节点 ||
           currentLocInfo?.path?.[currentLocInfo.path.length - 1] ||
           '斗罗大陆';
       }
+      const currentPathSegments = Array.isArray(currentLocInfo?.path) ? currentLocInfo.path : [];
+      const currentLocSegments = normalizeLocForMatch(currentLoc).segments;
+      const currentScopeNames = new Set([currentContextNodeName, ...currentPathSegments, ...currentLocSegments].filter(Boolean));
+      const isDynamicLocationInCurrentScope = (dynName = '', dynData = {}) => {
+        const parentName = String(dynData?.归属父节点 || '').trim();
+        const parentSegments = normalizeLocForMatch(parentName).segments;
+        const dynSegments = normalizeLocForMatch(dynName).segments;
+        if (parentName && currentScopeNames.has(parentName)) return true;
+        if (parentSegments.some(seg => currentScopeNames.has(seg))) return true;
+        if (dynSegments.some(seg => currentScopeNames.has(seg))) return true;
+        return false;
+      };
 
       _(data.world.地点).forEach((locData, locName) => {
         if (locName === currentContextNodeName || (currentLocInfo?.path && currentLocInfo.path.includes(locName))) {
@@ -20519,12 +20460,10 @@ export const Schema = z
       });
 
       _(data.world.动态地点).forEach((dynData, dynName) => {
-        if (dynData.归属父节点 === currentContextNodeName) {
+        if (isDynamicLocationInCurrentScope(dynName, dynData)) {
           filtered_world.动态地点[dynName] = sanitizeDisplayDynamicLocation(dynData);
         }
       });
-
-      filtered_world._summary = buildWorldReadOnlySummary(data.world, filtered_world);
 
       delete data.display_chars;
       data.display_all = {

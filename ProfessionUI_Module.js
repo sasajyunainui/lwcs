@@ -1564,7 +1564,6 @@ class ProfessionUIComponent {
   buildSystemResultPatches(resultLog, roll, successRate) {
     return [
       { op: 'replace', path: '/sys/系统播报', value: String(resultLog || '') },
-      { op: 'replace', path: '/sys/最近检定', value: Number.isFinite(Number(roll)) ? Number(roll) : 0 },
       { op: 'replace', path: '/sys/最终成功率', value: Number.isFinite(Number(successRate)) ? Number(successRate) : 0 }
     ];
   }

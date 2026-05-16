@@ -953,9 +953,6 @@ class TradeUIComponent {
     const patches = [
       { op: "replace", path: `/sys/系统播报`, value: String(logText || '') }
     ];
-    if (Number.isFinite(Number(options.roll))) {
-      patches.push({ op: "replace", path: `/sys/最近检定`, value: Number(options.roll) });
-    }
     if (Number.isFinite(Number(options.successRate))) {
       patches.push({ op: "replace", path: `/sys/最终成功率`, value: Number(options.successRate) });
     }
