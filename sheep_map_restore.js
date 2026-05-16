@@ -2743,11 +2743,21 @@
       margin-top: 0;
       font-size: 10px;
       line-height: 1.35;
-      color: #8fb1c3;
+      color: #b8d4e3;
       grid-column: 2;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .map-npc-meta.is-location {
+      color: #d9eef8;
+      font-weight: 600;
+    }
+
+    .mvu-map-node-roster {
+      max-height: min(310px, 34vh);
+      margin-top: 8px;
     }
 
     .map-npc-actions {
@@ -2952,7 +2962,14 @@
     }
 
     .map-method-select.is-hidden,
-    .map-duration-select-wrap.is-hidden {
+    .map-duration-select-wrap.is-hidden,
+    .map-inline-duration-select.is-hidden,
+    .map-inline-training-select.is-hidden {
+      display: none;
+    }
+
+    .map-action-detail-cell.duration-active [data-map-request-coord],
+    .map-action-detail-cell.training-active [data-map-request-targetloc] {
       display: none;
     }
 
@@ -3117,9 +3134,24 @@
                 <option value=''>待命</option>
               </select>
             </label>
-            <label class='map-action-select-wrap map-duration-select-wrap is-hidden' data-map-duration-wrap>
-              <b>时长</b>
-              <select class='map-action-select' data-map-duration-select aria-label='选择行动时长'>
+          </div>
+          <div class='map-action-detail-row' data-map-travel-panel>
+            <div class='map-action-detail-cell' data-map-training-cell>
+              <b data-map-request-label='0'>目标</b>
+              <span data-map-request-targetloc>无</span>
+              <select class='map-action-select map-inline-training-select is-hidden' data-map-training-select aria-label='选择训练内容'>
+                <option value='力量'>力量</option>
+                <option value='防御'>防御</option>
+                <option value='敏捷'>敏捷</option>
+                <option value='体魄'>体魄</option>
+                <option value='精神'>精神</option>
+              </select>
+            </div>
+            <button type='button' class='map-action-detail-cell map-method-select is-hidden' data-map-travel-cycle title='切换移动方式'><b>方式</b><span data-map-request-method>无</span></button>
+            <div class='map-action-detail-cell' data-map-duration-cell>
+              <b data-map-request-label='1'>说明</b>
+              <span data-map-request-coord>无</span>
+              <select class='map-action-select map-inline-duration-select is-hidden' data-map-duration-select aria-label='选择行动时长'>
                 <option value='1'>10分</option>
                 <option value='3'>30分</option>
                 <option value='6' selected>1小时</option>
@@ -3127,12 +3159,7 @@
                 <option value='24'>4小时</option>
                 <option value='48'>8小时</option>
               </select>
-            </label>
-          </div>
-          <div class='map-action-detail-row' data-map-travel-panel>
-            <div class='map-action-detail-cell'><b data-map-request-label='0'>目标</b><span data-map-request-targetloc>无</span></div>
-            <button type='button' class='map-action-detail-cell map-method-select is-hidden' data-map-travel-cycle title='切换移动方式'><b>方式</b><span data-map-request-method>无</span></button>
-            <div class='map-action-detail-cell'><b data-map-request-label='1'>说明</b><span data-map-request-coord>无</span></div>
+            </div>
             <div class='map-action-detail-cell'><b data-map-request-label='2'>消耗</b><span data-map-request-cost>无</span></div>
           </div>
         </div>
@@ -3195,6 +3222,7 @@
     selectedAction: '',
     selectedNpc: '',
     routineTicks: 6,
+    训练项目: '力量',
     lastNodeAction: null,
     snapshot: null,
     bounds: { ...DEFAULT_IMAGE_BOUNDS },
@@ -3619,7 +3647,7 @@
       父级链.forEach(父节点名 => {
         写入人物地点索引(父节点名, {
           ...基础条目,
-          meta: [npcMetaParts.join(' · '), `位于：${具体地点名}`].filter(Boolean).join(' · '),
+          meta: `位于：${具体地点名}`,
           可交互: false
         });
       });
@@ -3628,6 +3656,18 @@
     charactersByLoc.forEach(entries => entries.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN')));
     digestParts.sort();
     return { charactersByLoc, characterDigest: digestParts.join('||') };
+  }
+
+  function 格式化人物卡信息(人物条目 = null) {
+    const 原文 = toText(人物条目 && 人物条目.meta, '').trim();
+    if (!原文) return '';
+    const 片段列表 = 原文.split(' · ').map(片段 => 片段.trim()).filter(Boolean);
+    const 精简片段列表 = [];
+    片段列表.forEach(片段 => {
+      if (片段列表.some(其他片段 => 其他片段 !== 片段 && 其他片段.startsWith(`${片段}/`))) return;
+      if (!精简片段列表.includes(片段)) 精简片段列表.push(片段);
+    });
+    return 精简片段列表.join(' · ');
   }
 
   function resolveActiveCharacter(sd) {
@@ -3847,7 +3887,20 @@
   }
 
   function 是否地图可变时长动作(action = '') {
-    return ['meditate', 'train_body', 'train_mind', 'rest', 'sleep'].includes(toText(action, ''));
+    return ['meditate', 'train', 'train_body', 'train_mind', 'rest', 'sleep'].includes(toText(action, ''));
+  }
+
+  function 获取地图训练项目() {
+    const 项目 = toText(mapState.训练项目, '力量');
+    return ['力量', '防御', '敏捷', '体魄', '精神'].includes(项目) ? 项目 : '力量';
+  }
+
+  function 获取地图训练执行动作() {
+    return 获取地图训练项目() === '精神' ? 'train_mind' : 'train_body';
+  }
+
+  function 获取地图训练项目标题() {
+    return `${获取地图训练项目()}训练`;
   }
 
   function 构建拟态来源提示(snapshot, 节点项 = null) {
@@ -3882,6 +3935,7 @@
     const activeChar = deepGet(snapshot, 'activeChar', {}) || {};
     const stat = deepGet(activeChar, '属性', {}) || {};
     const 拟态来源提示 = 构建拟态来源提示(snapshot, 节点项);
+    const 训练项目标题 = 获取地图训练项目标题();
     const multiplier = Math.max(0, toNumber(deepGet(stat, '训练加成.修炼倍率', 1), 1));
     const currentMen = Math.max(0, toNumber(stat.精神力, 0));
     const menMax = Math.max(0, toNumber(stat.精神力上限, 0));
@@ -3911,8 +3965,8 @@
         spMaxGain = Math.floor(spMaxGain);
       }
       return {
-        slotReason: `${时长文本}（${持续tick} tick） · 精神+${formatRoutineDeltaValue(menGain)} / 体力+${formatRoutineDeltaValue(vitGain)} / 魂力+${formatRoutineDeltaValue(spGain)} / 魂力上限+${formatRoutineDeltaValue(spMaxGain)}`,
-        detailText: `本次预计恢复精神 ${formatRoutineDeltaValue(menGain)}、体力 ${formatRoutineDeltaValue(vitGain)}、魂力 ${formatRoutineDeltaValue(spGain)}，并推动魂力上限成长 ${formatRoutineDeltaValue(spMaxGain)}。`,
+        slotReason: `精神+${formatRoutineDeltaValue(menGain)} / 体力+${formatRoutineDeltaValue(vitGain)} / 魂力+${formatRoutineDeltaValue(spGain)} / 魂力上限+${formatRoutineDeltaValue(spMaxGain)}`,
+        detailText: `精神+${formatRoutineDeltaValue(menGain)} / 体力+${formatRoutineDeltaValue(vitGain)} / 魂力+${formatRoutineDeltaValue(spGain)} / 魂力上限+${formatRoutineDeltaValue(spMaxGain)}`,
         logText: `角色进行了约 ${时长文本}的冥想，本次预计恢复精神 ${formatRoutineDeltaValue(menGain)}、体力 ${formatRoutineDeltaValue(vitGain)}、魂力 ${formatRoutineDeltaValue(spGain)}，并让魂力上限成长 ${formatRoutineDeltaValue(spMaxGain)}。`,
         mimicHint: 拟态来源提示,
       };
@@ -3924,14 +3978,14 @@
       const gain = 0.05 * Math.floor(持续tick / 6) * multiplier;
       return {
         slotReason: canTrain
-          ? `${时长文本}（${持续tick} tick） · 力/防/敏/体训练加成各 +${formatRoutineDeltaValue(gain)}`
-          : `${时长文本}（${持续tick} tick） · 需要体力 ${formatRoutineDeltaValue(requiredVit)} 以上`,
+          ? `${训练项目标题}+${formatRoutineDeltaValue(gain)}`
+          : `体力需达到 ${formatRoutineDeltaValue(requiredVit)}`,
         detailText: canTrain
-          ? `需要体力至少 ${formatRoutineDeltaValue(requiredVit)}。完成后力量、防御、敏捷、体魄训练加成各 +${formatRoutineDeltaValue(gain)}。`
-          : `当前体力 ${formatRoutineDeltaValue(currentVit)}，不足以完成一整轮肉体训练；至少需要 ${formatRoutineDeltaValue(requiredVit)}。`,
+          ? `${训练项目标题}+${formatRoutineDeltaValue(gain)}`
+          : `体力不足：${formatRoutineDeltaValue(currentVit)} / ${formatRoutineDeltaValue(requiredVit)}`,
         logText: canTrain
-          ? `角色进行了约 ${时长文本}的肉体训练，消耗了高强度体能，并使力量、防御、敏捷、体魄训练加成各提升 ${formatRoutineDeltaValue(gain)}。`
-          : `角色尝试进行肉体训练，但当前体力只有 ${formatRoutineDeltaValue(currentVit)}，不足以完成一整轮训练。`,
+          ? `角色进行了约 ${时长文本}的${训练项目标题}，消耗体力，并使${训练项目标题}加成提升 ${formatRoutineDeltaValue(gain)}。`
+          : `角色尝试进行${训练项目标题}，但当前体力只有 ${formatRoutineDeltaValue(currentVit)}，不足以完成训练。`,
         mimicHint: 拟态来源提示,
       };
     }
@@ -3943,11 +3997,11 @@
       if (hasPurpleDemonEye) gain = Math.floor(gain * 1.1);
       return {
         slotReason: canTrain
-          ? `${时长文本}（${持续tick} tick） · 精神上限训练加成 +${formatRoutineDeltaValue(gain)}`
-          : `${时长文本}（${持续tick} tick） · 需要精神高于 ${formatRoutineDeltaValue(requiredMen)}`,
+          ? `精神训练+${formatRoutineDeltaValue(gain)}`
+          : `精神需高于 ${formatRoutineDeltaValue(requiredMen)}`,
         detailText: canTrain
-          ? `需要精神保持高于 ${formatRoutineDeltaValue(requiredMen)}。完成后精神上限训练加成 +${formatRoutineDeltaValue(gain)}。`
-          : `当前精神 ${formatRoutineDeltaValue(currentMen)}，不足以完成本轮精神训练；需要高于 ${formatRoutineDeltaValue(requiredMen)}。`,
+          ? `精神训练+${formatRoutineDeltaValue(gain)}`
+          : `精神不足：${formatRoutineDeltaValue(currentMen)} / ${formatRoutineDeltaValue(requiredMen)}`,
         logText: canTrain
           ? `角色进行了约 ${时长文本}的精神训练，消耗了大量精神力，并使精神上限训练加成提升 ${formatRoutineDeltaValue(gain)}。`
           : `角色尝试进行精神训练，但当前精神只有 ${formatRoutineDeltaValue(currentMen)}，不足以支撑完整训练。`,
@@ -3958,8 +4012,8 @@
     if (safeAction === 'rest') {
       const spGain = Math.max(0, Math.min(spMax, Math.floor(currentSp + spMax * 0.01 * 持续tick)) - currentSp);
       return {
-        slotReason: `${时长文本}（${持续tick} tick） · 魂力+${formatRoutineDeltaValue(spGain)}`,
-        detailText: `推进 ${时长文本}。当前规则下主要恢复魂力 ${formatRoutineDeltaValue(spGain)}。`,
+        slotReason: `魂力+${formatRoutineDeltaValue(spGain)}`,
+        detailText: `魂力+${formatRoutineDeltaValue(spGain)}`,
         logText: `角色进行了约 ${时长文本}的休整，本次主要恢复魂力 ${formatRoutineDeltaValue(spGain)}。`,
         mimicHint: 拟态来源提示,
       };
@@ -3970,8 +4024,8 @@
       const vitGain = Math.max(0, Math.min(vitMax, Math.floor(currentVit + vitMax * 0.01 * 持续tick)) - currentVit);
       const spGain = Math.max(0, Math.min(spMax, Math.floor(currentSp + spMax * 0.01 * 持续tick)) - currentSp);
       return {
-        slotReason: `${时长文本}（${持续tick} tick） · 精神+${formatRoutineDeltaValue(menGain)} / 体力+${formatRoutineDeltaValue(vitGain)} / 魂力+${formatRoutineDeltaValue(spGain)}`,
-        detailText: `推进 ${时长文本}，预计恢复精神 ${formatRoutineDeltaValue(menGain)}、体力 ${formatRoutineDeltaValue(vitGain)}、魂力 ${formatRoutineDeltaValue(spGain)}。`,
+        slotReason: `精神+${formatRoutineDeltaValue(menGain)} / 体力+${formatRoutineDeltaValue(vitGain)} / 魂力+${formatRoutineDeltaValue(spGain)}`,
+        detailText: `精神+${formatRoutineDeltaValue(menGain)} / 体力+${formatRoutineDeltaValue(vitGain)} / 魂力+${formatRoutineDeltaValue(spGain)}`,
         logText: `角色睡眠休整约 ${时长文本}，预计恢复精神 ${formatRoutineDeltaValue(menGain)}、体力 ${formatRoutineDeltaValue(vitGain)}、魂力 ${formatRoutineDeltaValue(spGain)}。`,
         mimicHint: 拟态来源提示,
       };
@@ -3979,16 +4033,16 @@
 
     if (safeAction === 'study') {
       return {
-        slotReason: '单次 1小时（6 tick） · 阅读/学习推进',
-        detailText: '推进 1 小时时间，适合图书馆与学术节点，不直接追加训练加成。',
+        slotReason: '研读',
+        detailText: '研读',
         logText: '角色进行了约 1 小时的研读与学习，主要推进阅读与知识积累类内容。',
         mimicHint: 拟态来源提示,
       };
     }
 
     return {
-      slotReason: `${时长文本}（${持续tick} tick）`,
-      detailText: `按 ${时长文本}推进时间。`,
+      slotReason: 时长文本,
+      detailText: 时长文本,
       logText: `角色在当前节点完成了【${getNodeInteractionLabel(safeAction)}】动作。`,
       mimicHint: 拟态来源提示,
     };
@@ -4518,76 +4572,33 @@
     if (!focusItem) return null;
 
     const focusName = toText(focusItem.name, '未知地点');
-    const 已损毁 = 地图节点已损毁(focusItem);
-    const currentVisibleName = getVisibleCurrentNode();
-    const currentActionNodeName = resolveActionableCurrentNodeName(snapshot);
-    const currentName = getActualCurrentLoc();
-    const rawCurrentName = getRawActualCurrentLoc();
-    const isFocusCurrentNode = [
-      currentActionNodeName,
-      currentVisibleName,
-      currentName,
-      rawCurrentName,
-    ].filter(Boolean).some(名称 => 名称 === focusName || 名称.includes(focusName) || focusName.includes(名称));
-    const 节点动作列表 = 获取节点本地动作(focusItem, mapState.baseSnapshot || snapshot);
-    const 商店上下文 = 获取节点商店上下文(focusItem, mapState.baseSnapshot || snapshot);
-    const 当前营业中 = 判断商店营业中(mapState.baseSnapshot || snapshot);
-    const 待执行 = mapState.待移动后动作 && mapState.待移动后动作.target === focusName ? mapState.待移动后动作 : null;
-    const 动作按钮HTML = 已损毁
-      ? '<div class="mvu-map-stock-empty">地点已损毁，节点动作暂停</div>'
-      : 节点动作列表.length
-      ? 节点动作列表.map(动作 => {
-          const 动作标签 = getNodeInteractionLabel(动作);
-          const 是商店动作 = ['trade', 'shop', 'black_market'].includes(动作) || (动作 === 'bid' && 商店上下文.商店名);
-          const 禁用 = 是商店动作 && !当前营业中 && isFocusCurrentNode;
-          const 预览 = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 动作, focusItem, 获取地图日常动作tick());
-          const 说明 = 是商店动作
-            ? (商店上下文.商店名 ? `${商店上下文.商店名} · ${格式化营业状态(mapState.baseSnapshot || snapshot)}` : 格式化营业状态(mapState.baseSnapshot || snapshot))
-            : (预览 && 预览.slotReason ? 预览.slotReason : (isFocusCurrentNode ? '可直接执行' : '需先选择方式前往'));
-          const 当前类 = mapState.selectedAction === 动作 || (待执行 && 待执行.action === 动作) ? ' is-current' : '';
+    const 人物条目列表 = snapshot.charactersByLoc instanceof Map ? (snapshot.charactersByLoc.get(focusName) || []) : [];
+    const 人物列表HTML = 人物条目列表.length
+      ? 人物条目列表.map(人物条目 => {
+          const 人物名 = toText(人物条目 && 人物条目.name, '');
+          const 可交互人物 = 人物条目 && 人物条目.可交互 === true;
+          const 信息 = 格式化人物卡信息(人物条目);
           return `
-            <button type="button" class="mvu-map-node-action-row${当前类}" data-map-node-action="${escapeMapHtml(动作)}" ${禁用 ? 'disabled' : ''}>
-              <b>${escapeMapHtml(动作标签)}</b>
-              <span>${escapeMapHtml(说明)}</span>
-              <em>${escapeMapHtml(禁用 ? '关门' : (isFocusCurrentNode ? '可执行' : '需移动'))}</em>
-            </button>
+            <div class="map-npc-card">
+              <div class="map-npc-card-head">
+                <span class="map-npc-name">${escapeMapHtml(人物名)}</span>
+                <span class="map-event-chip${可交互人物 ? ' live' : ''}">${escapeMapHtml(可交互人物 ? '在场' : '子节点')}</span>
+              </div>
+              ${信息 ? `<div class="map-npc-meta${可交互人物 ? '' : ' is-location'}">${escapeMapHtml(信息)}</div>` : ''}
+            </div>
           `;
         }).join('')
-      : '<div class="mvu-shell-roster-empty">暂无节点动作</div>';
-    const 商品列表HTML = 商店上下文.商品列表.length
-      ? 商店上下文.商品列表.map(商品 => `
-          <div class="mvu-map-stock-row">
-            <b>${escapeMapHtml(商品.名称)}</b>
-            <span>库存 ${escapeMapHtml(String(商品.库存))}</span>
-            <em>${escapeMapHtml(`${商品.价格.toLocaleString()} ${商品.货币}`)}</em>
-          </div>
-        `).join('')
-      : '';
-    const 库存预览HTML = 商店上下文.商店名 && 商店上下文.商品列表.length
-      ? `
-        <div class="mvu-map-stock-panel">
-          <div class="mvu-map-stock-head">
-            <div>
-              <span>库存</span>
-              <strong title="${escapeMapHtml(商店上下文.商店名)}">${escapeMapHtml(商店上下文.商店名)}</strong>
-            </div>
-            <b>${escapeMapHtml(当前营业中 ? '营业' : '关门')}</b>
-          </div>
-          <div class="mvu-map-stock-list">${商品列表HTML}</div>
-        </div>
-      `
-      : '';
+      : `<div class="map-npc-empty">${escapeMapHtml(focusName)} 暂未发现人物。</div>`;
     const primaryHtml = `
       <div class="mvu-map-focus-card mvu-map-node-panel">
         <div class="mvu-map-focus-head">
           <div>
-            <span>${escapeMapHtml(isFocusCurrentNode ? '可执行' : '前往后')}</span>
+            <span>在场人物</span>
             <strong title="${escapeMapHtml(focusName)}">${escapeMapHtml(focusName)}</strong>
           </div>
-          <b class="${已损毁 ? 'is-gold' : (isFocusCurrentNode ? 'is-live' : 'is-gold')}">${escapeMapHtml(已损毁 ? '损毁' : (isFocusCurrentNode ? '当前' : '前往'))}</b>
+          <b class="${人物条目列表.length ? 'is-live' : 'is-gold'}">${escapeMapHtml(`${人物条目列表.length} 人`)}</b>
         </div>
-        <div class="mvu-map-node-action-list">${动作按钮HTML}</div>
-        ${库存预览HTML}
+        <div class="map-npc-list mvu-map-node-roster">${人物列表HTML}</div>
       </div>
     `;
     return {
@@ -5446,7 +5457,7 @@
         delete root.dataset.mapBound;
         delete root.dataset.mapMiniBound;
       }
-      root.querySelectorAll('[data-map-bound], [data-map-mini-bound], .map-canvas.interactive-map, .map-mini-world, [data-map-node-layer], [data-map-control], [data-map-action-select], [data-map-duration-select], [data-map-action-execute], [data-map-node-action], [data-map-maintenance], [data-map-npc-select], [data-map-travel-cycle], [data-map-layer-pill]').forEach(el => {
+      root.querySelectorAll('[data-map-bound], [data-map-mini-bound], .map-canvas.interactive-map, .map-mini-world, [data-map-node-layer], [data-map-control], [data-map-action-select], [data-map-duration-select], [data-map-training-select], [data-map-action-execute], [data-map-node-action], [data-map-maintenance], [data-map-npc-select], [data-map-travel-cycle], [data-map-layer-pill]').forEach(el => {
         if (el.dataset) {
           delete el.dataset.mapBound;
           delete el.dataset.mapMiniBound;
@@ -8155,8 +8166,9 @@
       if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('地点已损毁，节点动作暂停。', 'warning');
       return null;
     }
-    const action = toText(explicitAction, '') || getPrimaryNodeInteraction(item);
-    const actionLabel = getNodeInteractionLabel(action);
+    const 原始动作 = toText(explicitAction, '') || getPrimaryNodeInteraction(item);
+    const action = 原始动作 === 'train' ? 获取地图训练执行动作() : 原始动作;
+    const actionLabel = action === 'train_body' ? 获取地图训练项目标题() : getNodeInteractionLabel(action);
     const snapshot = mapState.snapshot || buildFallbackSnapshot();
     const itemServices = Array.isArray(item.services) ? item.services : [];
     const 商店上下文 = 获取节点商店上下文(item, snapshot);
@@ -8225,7 +8237,7 @@
         } else if (action === 'train_body' || action === 'train' || action === '训练') {
           baseTicks = 日常动作tick;
           logMsg += ` ${actionPreview.logText}`;
-          playerInput = `[节点交互] 我想在【${item.name}】进行 ${日常时长文本}肉体训练。`;
+          playerInput = `[节点交互] 我想在【${item.name}】进行 ${日常时长文本}${获取地图训练项目标题()}。`;
         } else if (action === 'train_mind') {
           baseTicks = 日常动作tick;
           logMsg += ` ${actionPreview.logText}`;
@@ -8256,8 +8268,8 @@
         }
         const 行动模式映射 = {
           meditate: '冥想',
-          train_body: '肉体训练',
-          train: '肉体训练',
+          train_body: 获取地图训练项目标题(),
+          train: 获取地图训练项目标题(),
           train_mind: '精神训练',
           rest: '睡眠',
           sleep: '睡眠',
@@ -8299,22 +8311,24 @@ ${buildMapUpdateVariableBlock('Map node routine action completed.', patchOps, '�
   }
 
   function performMapAction(actionType) {
+    const 原始动作 = toText(actionType, '');
+    const 执行动作 = 原始动作 === 'train' ? 获取地图训练执行动作() : 原始动作;
     const snapshot = mapState.snapshot || buildFallbackSnapshot();
     const focusItem = getItemByName(mapState.selectedNode) || getItemByName(resolveSelectedNodeForLayer(mapState.layer)) || snapshot.items[0] || null;
     const canPreviewEnter = !mapState.selectedFreePoint && !!(focusItem && canEnterPreviewNode(focusItem.name, snapshot));
     const previewCurrentBranch = isPreviewCurrentBranch();
     const actionableCurrentNodeName = resolveActionableCurrentNodeName(snapshot);
     const isFocusCurrentNode = !!(focusItem && focusItem.name === actionableCurrentNodeName);
-    if (actionType === 'enter') {
+    if (原始动作 === 'enter') {
       if (!focusItem || mapState.selectedFreePoint || !canPreviewEnter) return false;
       if (enterPreviewMode(focusItem.name)) syncInteractiveMapUI({ center: true });
       return true;
     }
-    if (actionType === 'travel_anchor') {
+    if (原始动作 === 'travel_anchor') {
       return 执行预览入口移动();
     }
     if (hasActivePreview() && !previewCurrentBranch) return false;
-    if (actionType === 'travel') {
+    if (原始动作 === 'travel') {
       if (!getMapTravelPreview()) return false;
       if (hasPendingTravelRequestForTarget()) commitMapTravel();
       else {
@@ -8324,11 +8338,11 @@ ${buildMapUpdateVariableBlock('Map node routine action completed.', patchOps, '�
       return true;
     }
     if (!focusItem || mapState.selectedFreePoint) return false;
-    if (actionType !== 'inspect' && !isFocusCurrentNode) {
+    if (原始动作 !== 'inspect' && !isFocusCurrentNode) {
       if (getMapTravelPreview()) {
-        设置移动后待执行动作(actionType, focusItem);
+        设置移动后待执行动作(原始动作, focusItem);
         if (hasPendingTravelRequestForTarget() && mapState.待移动后动作 && mapState.待移动后动作.target === focusItem.name) {
-          commitMapTravel({ followUpAction: actionType });
+          commitMapTravel({ followUpAction: 原始动作 });
         } else {
           queueMapTravelRequest();
           syncInteractiveMapUI({ center: false, infoOnly: true });
@@ -8337,7 +8351,7 @@ ${buildMapUpdateVariableBlock('Map node routine action completed.', patchOps, '�
       }
       return false;
     }
-    triggerPreviewNodeInteraction(focusItem, actionType);
+    triggerPreviewNodeInteraction(focusItem, 执行动作);
     syncInteractiveMapUI({ center: false });
     return true;
   }
@@ -8708,7 +8722,8 @@ ${buildMapUpdateVariableBlock('Map node routine action completed.', patchOps, '�
           ? `<div class="map-npc-empty">${escapeMapHtml(focusName)} 暂未发现人物。</div>`
           : `<div class="map-npc-roster-head"><span>${escapeMapHtml(在场人物节点文本)}</span><span>${escapeMapHtml(selectedNpc ? `已选 ${selectedNpc}` : `全部 ${characterEntries.length} 人`)}</span></div>${characterEntries.map(entry => {
             const selectedClass = entry.name === selectedNpc ? ' current' : '';
-            const metaHtml = entry.meta ? `<div class="map-npc-meta">${escapeMapHtml(entry.meta)}</div>` : '';
+            const 人物信息 = 格式化人物卡信息(entry);
+            const metaHtml = 人物信息 ? `<div class="map-npc-meta${entry && entry.可交互 === true ? '' : ' is-location'}">${escapeMapHtml(人物信息)}</div>` : '';
             const 可交互人物 = entry && entry.可交互 === true;
             const actionHtml = 可交互人物 && npcBrowserActions.length
               ? `<div class="map-npc-actions">${npcBrowserActions.map(action => {
@@ -8778,7 +8793,7 @@ ${buildMapUpdateVariableBlock('Map node routine action completed.', patchOps, '�
     setMapText('[data-map-request-chip]', pending ? '已规划' : previewRequest ? '待确认' : '停留中');
     setMapText('[data-map-foot-hint]', inPreview
       ? (previewCurrentBranch
-          ? (canPreviewEnter ? '当前区域子图 · 双击节点继续进入，当前位置不会改变' : '当前区域子图 · 左侧动作默认按 1 小时（6 tick）结算')
+          ? (canPreviewEnter ? '当前区域子图 · 双击节点继续进入，当前位置不会改变' : '当前区域子图 · 使用下方操作台行动')
           : (canPreviewEnter ? '远端子图预览 · 双击节点继续查看结构，当前位置不会改变' : '远端子图预览 · 仅供查看，需先移动到该城市后再执行动作'))
       : (travelPreview ? (pendingForSelection ? `再次点击即可动身 · ${travelPreview.method} · ${travelPreview.duration}${travelPreview.routePlanText ? ` · ${travelPreview.routePlanText}` : ''}` : `已选定目标 · ${travelPreview.method} · 预计 ${travelPreview.duration}${travelPreview.routePlanText ? ` · ${travelPreview.routePlanText}` : ''}`) : `${mapState.lastTravelNote || `display_map 已接入 · 当前地图 ${snapshot.currentMapId} · 可视 ${getVisibleMapNodeCount()} 个节点`}`));
     setMapText('[data-map-action-label]', actionLabel);
@@ -8830,7 +8845,7 @@ ${buildMapUpdateVariableBlock('Map node routine action completed.', patchOps, '�
       });
     };
 
-    const timedHint = description => ['单次 1小时（6 tick）', toText(description, '')].filter(Boolean).join(' · ');
+    const timedHint = description => toText(description, '');
     const 合并动作说明文本 = (...文本列表) => 文本列表
       .map(text => toText(text, '').trim())
       .filter(Boolean)
@@ -8842,11 +8857,9 @@ ${buildMapUpdateVariableBlock('Map node routine action completed.', patchOps, '�
     const pushMappedActionSlot = action => {
       const normalized = toText(action, '');
       if (!normalized || ['inspect', 'enter'].includes(normalized)) return;
-      if (normalized === 'train') {
-        const bodyPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'train_body', focusItem, 获取地图日常动作tick());
-        const mindPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'train_mind', focusItem, 获取地图日常动作tick());
-        pushActionSlot('train_body', '肉体训练', { reason: 构建动作摘要文本(bodyPreview, '肉体训练') });
-        pushActionSlot('train_mind', '精神训练', { reason: 构建动作摘要文本(mindPreview, '精神训练') });
+      if (['train', 'train_body', 'train_mind'].includes(normalized)) {
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 获取地图训练执行动作(), focusItem, 获取地图日常动作tick());
+        pushActionSlot('train', '训练', { reason: 构建动作摘要文本(actionPreview, '训练') });
         return;
       }
       if (normalized === 'meditate') {
@@ -8856,7 +8869,7 @@ ${buildMapUpdateVariableBlock('Map node routine action completed.', patchOps, '�
       }
       if (normalized === 'rest') {
         const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, normalized, focusItem, 获取地图日常动作tick());
-        pushActionSlot('rest', '休息 / 睡眠', { reason: 构建动作摘要文本(actionPreview, '休整/恢复类动作') });
+        pushActionSlot('rest', '休息', { reason: 构建动作摘要文本(actionPreview, '休息') });
         return;
       }
       if (normalized === 'sleep') {
@@ -8882,6 +8895,10 @@ ${buildMapUpdateVariableBlock('Map node routine action completed.', patchOps, '�
     }
 
     let selectedAction = toText(mapState.selectedAction, '');
+    if (['train_body', 'train_mind'].includes(selectedAction)) {
+      selectedAction = 'train';
+      mapState.selectedAction = 'train';
+    }
     if (!selectedAction || !actionSlotCandidates.some(slot => slot.action === selectedAction)) {
       const fallbackSlot = actionSlotCandidates.find(slot => !slot.disabled) || actionSlotCandidates[0] || null;
       selectedAction = fallbackSlot ? fallbackSlot.action : '';
@@ -8959,38 +8976,32 @@ ${buildMapUpdateVariableBlock('Map node routine action completed.', patchOps, '�
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedAction === 'meditate') {
         const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'meditate', focusItem, 当前日常tick);
-        const 结算说明 = 合并动作说明文本(actionPreview.detailText || `推进 ${当前日常时长文本}并恢复状态。`, actionPreview.mimicHint);
+        const 结算说明 = actionPreview.detailText || '恢复状态';
         selectedActionDetail.title = '冥想';
-        selectedActionDetail.labels = ['地点', '耗时', '收益'];
-        selectedActionDetail.values = [focusName, `${当前日常时长文本}（${当前日常tick} tick）`, 结算说明];
+        selectedActionDetail.labels = ['行动', '时长', '收益'];
+        selectedActionDetail.values = ['冥想', 当前日常时长文本, 结算说明];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
-      } else if (selectedAction === 'train_body') {
-        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'train_body', focusItem, 当前日常tick);
-        const 结算说明 = 合并动作说明文本(actionPreview.detailText || `推进 ${当前日常时长文本}并进行肉体训练。`, actionPreview.mimicHint);
-        selectedActionDetail.title = '肉体训练';
-        selectedActionDetail.labels = ['地点', '耗时', '收益'];
-        selectedActionDetail.values = [focusName, `${当前日常时长文本}（${当前日常tick} tick）`, 结算说明];
-        selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
-      } else if (selectedAction === 'train_mind') {
-        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'train_mind', focusItem, 当前日常tick);
-        const 结算说明 = 合并动作说明文本(actionPreview.detailText || `推进 ${当前日常时长文本}并进行精神训练。`, actionPreview.mimicHint);
-        selectedActionDetail.title = '精神训练';
-        selectedActionDetail.labels = ['地点', '耗时', '收益'];
-        selectedActionDetail.values = [focusName, `${当前日常时长文本}（${当前日常tick} tick）`, 结算说明];
+      } else if (selectedAction === 'train') {
+        const 训练动作 = 获取地图训练执行动作();
+        const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 训练动作, focusItem, 当前日常tick);
+        const 结算说明 = actionPreview.detailText || `${获取地图训练项目标题()}收益`;
+        selectedActionDetail.title = '训练';
+        selectedActionDetail.labels = ['内容', '时长', '收益'];
+        selectedActionDetail.values = [获取地图训练项目标题(), 当前日常时长文本, 结算说明];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedAction === 'rest') {
         const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'rest', focusItem, 当前日常tick);
-        const 结算说明 = 合并动作说明文本(actionPreview.detailText || `推进 ${当前日常时长文本}并恢复状态。`, actionPreview.mimicHint);
-        selectedActionDetail.title = '休息 / 睡眠';
-        selectedActionDetail.labels = ['地点', '耗时', '恢复'];
-        selectedActionDetail.values = [focusName, `${当前日常时长文本}（${当前日常tick} tick）`, 结算说明];
+        const 结算说明 = actionPreview.detailText || '恢复状态';
+        selectedActionDetail.title = '休息';
+        selectedActionDetail.labels = ['行动', '时长', '恢复'];
+        selectedActionDetail.values = ['休息', 当前日常时长文本, 结算说明];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedAction === 'sleep') {
         const actionPreview = buildRoutineActionPreview(mapState.baseSnapshot || snapshot, 'sleep', focusItem, 当前日常tick);
-        const 结算说明 = 合并动作说明文本(actionPreview.detailText || `推进 ${当前日常时长文本}并睡眠恢复。`, actionPreview.mimicHint);
+        const 结算说明 = actionPreview.detailText || '恢复状态';
         selectedActionDetail.title = '睡眠';
-        selectedActionDetail.labels = ['地点', '耗时', '恢复'];
-        selectedActionDetail.values = [focusName, `${当前日常时长文本}（${当前日常tick} tick）`, 结算说明];
+        selectedActionDetail.labels = ['行动', '时长', '恢复'];
+        selectedActionDetail.values = ['睡眠', 当前日常时长文本, 结算说明];
         selectedActionDetail.panelDisabled = !!selectedActionSlot.disabled;
       } else if (selectedAction === 'talk') {
         selectedActionDetail.title = selectedNpc ? `对话 · ${selectedNpc}` : '对话';
@@ -9087,9 +9098,16 @@ ${buildMapUpdateVariableBlock('Map node routine action completed.', patchOps, '�
     getMapUiElements('[data-map-duration-wrap]').forEach(容器 => {
       容器.classList.toggle('is-hidden', !是否地图可变时长动作(selectedAction));
     });
+    getMapUiElements('[data-map-duration-cell]').forEach(容器 => {
+      容器.classList.toggle('duration-active', 是否地图可变时长动作(selectedAction));
+    });
+    getMapUiElements('[data-map-training-cell]').forEach(容器 => {
+      容器.classList.toggle('training-active', selectedAction === 'train');
+    });
     getMapUiElements('[data-map-duration-select]').forEach(选择框 => {
       if (!(选择框 instanceof HTMLSelectElement)) return;
       选择框.disabled = !是否地图可变时长动作(selectedAction);
+      选择框.classList.toggle('is-hidden', !是否地图可变时长动作(selectedAction));
       选择框.value = String(当前日常tick);
       if (选择框.value !== String(当前日常tick)) {
         const 自定义选项 = document.createElement('option');
@@ -9098,6 +9116,12 @@ ${buildMapUpdateVariableBlock('Map node routine action completed.', patchOps, '�
         选择框.appendChild(自定义选项);
         选择框.value = String(当前日常tick);
       }
+    });
+    getMapUiElements('[data-map-training-select]').forEach(选择框 => {
+      if (!(选择框 instanceof HTMLSelectElement)) return;
+      选择框.disabled = selectedAction !== 'train';
+      选择框.classList.toggle('is-hidden', selectedAction !== 'train');
+      选择框.value = 获取地图训练项目();
     });
     getMapUiElements('[data-map-action-execute]').forEach(按钮 => {
       按钮.classList.toggle('disabled', !当前行动展示槽 || !!selectedActionDetail.panelDisabled);
@@ -9663,6 +9687,18 @@ ${buildMapUpdateVariableBlock('Map node routine action completed.', patchOps, '�
         event.preventDefault();
         event.stopPropagation();
         mapState.routineTicks = Math.max(1, Math.min(144, Math.floor(toNumber(选择框.value, 6))));
+        syncInteractiveMapUI({ center: false, infoOnly: true });
+      });
+    });
+
+    getMapUiElements('[data-map-training-select]').forEach(选择框 => {
+      if (选择框.dataset.mapBound === '1') return;
+      选择框.dataset.mapBound = '1';
+      注册地图元素事件(选择框, 'mapBound', 'change', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        const 项目 = toText(选择框.value, '力量');
+        mapState.训练项目 = ['力量', '防御', '敏捷', '体魄', '精神'].includes(项目) ? 项目 : '力量';
         syncInteractiveMapUI({ center: false, infoOnly: true });
       });
     });
