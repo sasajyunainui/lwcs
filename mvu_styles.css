@@ -1199,7 +1199,7 @@
       position: absolute;
       left: 50%;
       right: auto;
-      top: calc(100% + 8px);
+      top: calc(100% - 10px);
       bottom: auto;
       width: 204px;
       max-width: min(220px, calc(100vw - 48px));
@@ -1226,7 +1226,7 @@
       visibility: visible !important;
       pointer-events: auto !important;
       transform: none !important;
-      z-index: 320 !important;
+      z-index: 100000 !important;
     }
 
     .interactive-ring:hover .ring-hover-card {
@@ -4192,7 +4192,7 @@
 
     .topology-node.interactive-ring .relation-hover-card {
       position: absolute;
-      top: calc(100% + 10px);
+      top: calc(100% - 10px);
       left: 50%;
       width: 236px;
       box-sizing: border-box;
@@ -4219,7 +4219,7 @@
 
     .topology-node.interactive-ring.hover-up .relation-hover-card {
       top: auto;
-      bottom: calc(100% + 10px);
+      bottom: calc(100% - 10px);
       transform: translate(-50%, 6px);
     }
 
@@ -10830,7 +10830,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
 
 .ring-hover-card.mvu-hover-card-floating--portal,
 .relation-hover-card.mvu-hover-card-floating--portal {
-  z-index: 320 !important;
+  z-index: 100000 !important;
   width: min(460px, calc(100vw - 24px)) !important;
   max-height: min(78vh, 720px) !important;
   overflow: auto !important;
@@ -15388,7 +15388,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
 #detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .dossier-card--relation-overview .topology-node.hover-up.hover-right .relation-hover-card,
 #detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .dossier-card--relation-overview .topology-node.hover-up.hover-left .relation-hover-card {
   top: auto;
-  bottom: calc(100% + 10px);
+  bottom: calc(100% - 10px);
 }
 
 #detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .dossier-topology-board {

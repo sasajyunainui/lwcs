@@ -8374,6 +8374,12 @@ function 构建武魂真身消耗文本_V1(type = '强攻系', grade = 'B', ring
   const 释放倍率 = delivery === '造物承载' ? 0.32 : delivery === '范围展开' || delivery === '召唤承载' ? 0.42 : 0.5;
   const 维持倍率 = delivery === '造物承载' ? 0.1 : delivery === '范围展开' || delivery === '召唤承载' ? 0.14 : 0.16;
   const 工具倍率 = 工具分支 ? 1.18 : 1;
+  const 分摊表 = {
+    精神主导: { 魂力: 0.3, 精神力: 0.7 },
+    附加微量精神力: { 魂力: 0.9, 精神力: 0.1 },
+    魂神平摊: { 魂力: 0.5, 精神力: 0.5 },
+    纯耗魂力: { 魂力: 1 },
+  };
   const 燃料模型 =
     系别 === '精神系' || 系别 === '召唤系'
       ? '精神主导'
@@ -8382,8 +8388,17 @@ function 构建武魂真身消耗文本_V1(type = '强攻系', grade = 'B', ring
         : ['辅助系', '食物系', '治疗系'].includes(系别)
           ? '附加微量精神力'
           : '纯耗魂力';
-  const 释放消耗 = 构建魂技消耗文本_V1(燃料模型, Math.max(6, Math.round(品质基准 * 释放倍率 * 工具倍率)), ringIndex);
-  const 维持消耗 = 构建魂技消耗文本_V1(燃料模型, Math.max(2, Math.round(品质基准 * 维持倍率 * 工具倍率)), ringIndex);
+  const 构建比例消耗 = 消耗基准 => {
+    const 基准 = Math.max(1, Number(消耗基准 || 0));
+    return Object.entries(分摊表[燃料模型] || 分摊表.纯耗魂力)
+      .map(([资源名, 分摊比例]) => {
+        const 百分比 = Math.max(1, Math.round(基准 * Math.max(0, Number(分摊比例 || 0))));
+        return `${资源名}:${百分比}%`;
+      })
+      .join(' | ') || '无';
+  };
+  const 释放消耗 = 构建比例消耗(Math.max(6, Math.round(品质基准 * 释放倍率 * 工具倍率)));
+  const 维持消耗 = 构建比例消耗(Math.max(2, Math.round(品质基准 * 维持倍率 * 工具倍率)));
   return `${释放消耗} 维持:${维持消耗}`;
 }
 
@@ -11659,11 +11674,12 @@ function normalizeFusionRuntimeParticipants(participants = []) {
   return participants
     .map(participant => {
       const safeParticipant = participant && typeof participant === 'object' ? participant : {};
+      const 类型文本 = String(safeParticipant.role || safeParticipant.类型 || safeParticipant.身份 || '').trim();
       return {
-        role: safeParticipant.role === 'self' ? 'self' : 'partner',
-        charKey: String(safeParticipant.charKey || '').trim(),
-        charName: String(safeParticipant.charName || '').trim(),
-        spirit: String(safeParticipant.spirit || '').trim(),
+        role: 类型文本 === 'self' || /自身|自体|本体|自己/.test(类型文本) ? 'self' : 'partner',
+        charKey: String(safeParticipant.charKey || safeParticipant.角色键 || '').trim(),
+        charName: String(safeParticipant.charName || safeParticipant.角色名 || '').trim(),
+        spirit: String(safeParticipant.spirit || safeParticipant.武魂 || safeParticipant.来源武魂 || '').trim(),
       };
     })
     .filter(participant => participant.charKey || participant.charName || participant.spirit);
@@ -11798,6 +11814,12 @@ const FUSION_SPIRIT_SLOTS = ['第一武魂', '第二武魂'];
 
 function getNormalizedFusionMode(fusionSkill = {}) {
   return fusionSkill?.融合模式 === 'self' ? 'self' : 'partner';
+}
+
+function 获取规范化武魂融合技用法模式(fusionSkill = {}) {
+  const text = String(fusionSkill?.用法模式 || fusionSkill?.融合用法 || '').trim();
+  if (/增幅|共享|持续/.test(text)) return '融合增幅';
+  return '一次性释放';
 }
 
 function getNormalizedFusionSourceSpirits(fusionSkill = {}, char = {}) {
@@ -13771,10 +13793,25 @@ const CharacterSchema = z
               .prefault('partner')
               .describe('融合模式：partner=普通武魂融合技；self=自体武魂融合技'),
             融合对象: z.string().prefault('无').describe('partner模式下的融合对象/羁绊队友姓名；self模式固定为"无"'),
+            用法模式: z
+              .enum(['一次性释放', '融合增幅'])
+              .prefault('一次性释放')
+              .describe('武魂融合技用法二选一：一次性释放=融合后打一招；融合增幅=持续融合态并共享双方魂技'),
             来源武魂: z
               .array(z.enum(['第一武魂', '第二武魂']))
               .prefault([])
               .describe('参与融合的武魂槽位。自体融合通常为[第一武魂, 第二武魂]'),
+            融合参与者: z
+              .array(
+                z.object({
+                  类型: z.string().prefault('搭档').describe('自身/搭档'),
+                  角色键: z.string().prefault('无').describe('参与者在 char 表中的键名'),
+                  角色名: z.string().prefault('无').describe('参与者显示名'),
+                  武魂: z.string().prefault('第一武魂').describe('参与融合的武魂槽位或武魂名'),
+                }),
+              )
+              .prefault([])
+              .describe('武魂融合技实际参与者列表，用于跨角色属性继承与可用性判定'),
             技能数据: SkillStructSchema,
           })
           .prefault({}),
@@ -14838,6 +14875,7 @@ const CharacterSchema = z
     _(char.武魂融合技 || {}).forEach((fusionData, fusionName) => {
       if (!fusionData || typeof fusionData !== 'object') return;
       fusionData.融合模式 = getNormalizedFusionMode(fusionData);
+      fusionData.用法模式 = 获取规范化武魂融合技用法模式(fusionData);
       fusionData.来源武魂 = getNormalizedFusionSourceSpirits(fusionData, char);
       if (fusionData.融合模式 === 'self') fusionData.融合对象 = '无';
       const fusionElementProfile = getFusionSkillElementProfile(fusionData, char);
@@ -17263,6 +17301,10 @@ export const Schema = z
     };
 
     let lastTick = data.world.时间._上次结算tick ?? data.world.时间.上次结算tick ?? currentTick;
+    if (data.sys.系统播报 === '初始化' && currentTick > 0 && Number(lastTick || 0) <= 0) {
+      lastTick = currentTick;
+      data.world.时间._上次结算tick = currentTick;
+    }
     let delta = currentTick - lastTick;
     if (delta > 0 && data.sys.系统播报 && data.sys.系统播报 !== '初始化') {
       data.sys.系统播报 = '初始化';
@@ -19651,6 +19693,7 @@ export const Schema = z
         _(charData.武魂融合技 || {}).forEach((fusionData, fusionName) => {
           if (!fusionData || typeof fusionData !== 'object') return;
           fusionData.融合模式 = getNormalizedFusionMode(fusionData);
+          fusionData.用法模式 = 获取规范化武魂融合技用法模式(fusionData);
           if (fusionData.融合模式 === 'self') fusionData.融合对象 = '无';
           const fusionAttributeState = buildFusionSkillAttributeStateFromData(fusionData, charName, data);
           const fusionElementProfile = buildElementProfileFromAttributeState(fusionAttributeState);

@@ -6900,6 +6900,7 @@
         artLevel: Math.max(0, toNumber(safeSkill['lv'] ?? designDraft['lv'], 0)),
         artExp: Math.max(0, toNumber(safeSkill['exp'] ?? designDraft['exp'], 0)),
         fusionMode: (designDraft['融合模式'] || safeSkill['融合模式']) ? normalizeSkillDesignerFusionMode(designDraft['融合模式'] || safeSkill['融合模式']) : '',
+        用法模式: 规范化技能设计台融合用法模式(designDraft['用法模式'] || safeSkill['用法模式']),
         fusionPartner: normalizeSkillUiText(designDraft['融合对象'] || safeSkill['融合对象'], ''),
         fusionSourceSpirits: normalizeSkillDesignerArray(designDraft['来源武魂'] || safeSkill['来源武魂']),
         fusionParticipants: getSkillDesignerRawFusionParticipants(designDraft, safeSkill),
@@ -7151,6 +7152,12 @@
       if (!raw) return 'partner';
       if (raw === 'self' || /自体|自身|自己|双生|双武魂/.test(raw)) return 'self';
       return 'partner';
+    }
+
+    function 规范化技能设计台融合用法模式(value = '') {
+      const raw = normalizeSkillUiText(value, '').trim();
+      if (/增幅|共享|持续/.test(raw)) return '融合增幅';
+      return '一次性释放';
     }
 
     function formatSkillDesignerFusionModeLabel(mode = '', participants = []) {
@@ -7420,6 +7427,7 @@
     function assertSkillDesignerFusionState(draft = {}) {
       const fields = deriveSkillDesignerFusionFields(draft.fusionMode, draft.fusionParticipants, draft.fusionPartner);
       const participants = fields.fusionParticipants;
+      const 用法模式 = 规范化技能设计台融合用法模式(draft['用法模式']);
       if (participants.length < 2) throw new Error('融合技至少需要两个参与武魂。');
       const incomplete = participants.some(participant =>
         (isSkillDesignerFusionBlankText(participant.charKey) && isSkillDesignerFusionBlankText(participant.charName))
@@ -7430,6 +7438,13 @@
         const spirits = participants.map(participant => participant.spirit).filter(spirit => !isSkillDesignerFusionBlankText(spirit));
         if (new Set(spirits).size < 2) throw new Error('自体融合需要选择两个不同武魂。');
       }
+      if (
+        用法模式 === '融合增幅'
+        && (
+          ['伤害类', '控制类'].includes(normalizeSkillUiText(draft.primaryMain, ''))
+          || ['直接伤害', '单体伤害', '群体伤害', '多段伤害', '延迟爆发', '持续伤害', '硬控', '软控', '封技'].includes(normalizeSkillUiText(draft.primarySub, ''))
+        )
+      ) throw new Error('融合增幅模式不能混入一次性伤害或封控主机制。');
       return fields;
     }
 
@@ -7505,6 +7520,7 @@
       const derivedFields = deriveSkillDesignerFusionFields(fusionMode, fusionParticipants, fusionPartner);
       return {
         fusionMode: derivedFields.fusionMode,
+        用法模式: 规范化技能设计台融合用法模式(baseDraft['用法模式'] || fusionRecord['用法模式']),
         fusionPartner: derivedFields.fusionPartner,
         fusionSourceSpirits: derivedFields.fusionSourceSpirits.length ? derivedFields.fusionSourceSpirits : fusionSourceSpirits,
         fusionParticipants: derivedFields.fusionParticipants,
@@ -7522,7 +7538,7 @@
         })
         .join(' + ');
       const fallbackSourceText = normalizeSkillDesignerArray(draft.fusionSourceSpirits).join('/');
-      return [formatSkillDesignerFusionModeLabel(derivedFields.fusionMode, derivedFields.fusionParticipants), participantText || derivedFields.fusionPartner || fallbackSourceText].filter(Boolean).join(' / ');
+      return [规范化技能设计台融合用法模式(draft['用法模式']), formatSkillDesignerFusionModeLabel(derivedFields.fusionMode, derivedFields.fusionParticipants), participantText || derivedFields.fusionPartner || fallbackSourceText].filter(Boolean).join(' / ');
     }
 
     function createSkillDesignerTextParam(key, label, placeholder = '') {
@@ -8241,6 +8257,7 @@
       if (/^(未知|未设置|无)$/.test(resolvedTarget)) resolvedTarget = getSkillDesignerDefaultTarget(previewMeta, typeMeta.value);
       const isFusionScope = toText(previewMeta && previewMeta.scope, '') === '武魂融合技';
       const rawFusionMode = isFusionScope ? normalizeSkillDesignerFusionMode(baseDraft.fusionMode || baseDraft['融合模式']) : '';
+      const 原始融合用法模式 = isFusionScope ? 规范化技能设计台融合用法模式(baseDraft['用法模式']) : '';
       const rawFusionPartner = isFusionScope ? normalizeSkillUiText(baseDraft.fusionPartner || baseDraft['融合对象'], '') : '';
       const rawFusionParticipants = isFusionScope ? normalizeSkillDesignerFusionParticipantList(getSkillDesignerRawFusionParticipants(baseDraft)) : [];
       const derivedFusionFields = isFusionScope
@@ -8284,6 +8301,7 @@
         artLevel: Math.max(0, toNumber(baseDraft.artLevel, 0)),
         artExp: Math.max(0, toNumber(baseDraft.artExp, 0)),
         fusionMode: derivedFusionFields.fusionMode,
+        用法模式: 原始融合用法模式,
         fusionPartner: derivedFusionFields.fusionPartner,
         fusionSourceSpirits: derivedFusionFields.fusionSourceSpirits.length
           ? derivedFusionFields.fusionSourceSpirits
@@ -8333,6 +8351,7 @@
       const resolvedTarget = normalizeSkillDesignerTargetForForm(readField('target'), getSkillDesignerDefaultTarget(previewMeta, typeMeta.value));
       const isFusionScope = toText(previewMeta && previewMeta.scope, '') === '武魂融合技';
       const fusionMode = isFusionScope ? normalizeSkillDesignerFusionMode(readField('fusionMode')) : '';
+      const 用法模式 = isFusionScope ? 规范化技能设计台融合用法模式(readField('用法模式')) : '';
       const fusionParticipants = isFusionScope ? readFusionParticipants() : [];
       const derivedFusionFields = isFusionScope
         ? deriveSkillDesignerFusionFields(fusionMode, fusionParticipants, '')
@@ -8370,6 +8389,7 @@
         artLevel: Math.max(0, toNumber(readField('artLevel'), 0)),
         artExp: Math.max(0, toNumber(readField('artExp'), 0)),
         fusionMode,
+        用法模式,
         fusionPartner: derivedFusionFields.fusionPartner,
         fusionSourceSpirits: derivedFusionFields.fusionSourceSpirits,
         fusionParticipants: derivedFusionFields.fusionParticipants,
@@ -10456,6 +10476,7 @@
       }
       if (previewMeta && previewMeta.scope === '武魂融合技') {
         safeSkill['融合模式'] = normalizedFusionFields.fusionMode;
+        safeSkill['用法模式'] = normalized['用法模式'];
         safeSkill['融合对象'] = normalizedFusionFields.fusionPartner;
         safeSkill['来源武魂'] = [...normalizedFusionFields.fusionSourceSpirits];
         safeSkill['融合参与者'] = cloneJsonValue(normalizedFusionFields.fusionParticipants);
@@ -10485,6 +10506,7 @@
         'exp': Math.max(0, toNumber(normalized.artExp, 0)),
         ...(previewMeta && previewMeta.scope === '武魂融合技' ? {
           '融合模式': normalizedFusionFields.fusionMode,
+          '用法模式': normalized['用法模式'],
           '融合对象': normalizedFusionFields.fusionPartner,
           '来源武魂': [...normalizedFusionFields.fusionSourceSpirits],
           '融合参与者': cloneJsonValue(normalizedFusionFields.fusionParticipants),
@@ -10515,6 +10537,7 @@
         const canUseSelfFusion = spiritOptions.length >= 2;
         let fusionMode = normalizeSkillDesignerFusionMode(designDraft['融合模式'] || nextSkill['融合模式'] || existingFusion.融合模式 || 'partner');
         if (fusionMode === 'self' && !canUseSelfFusion) fusionMode = 'partner';
+        const 用法模式 = 规范化技能设计台融合用法模式(designDraft['用法模式'] || nextSkill['用法模式'] || existingFusion['用法模式']);
         const rawParticipants = getSkillDesignerRawFusionParticipants(designDraft, nextSkill).length
           ? getSkillDesignerRawFusionParticipants(designDraft, nextSkill)
           : getSkillDesignerRawFusionParticipants({}, existingFusion);
@@ -10531,6 +10554,7 @@
         if (fusionMode === 'self' && !sourceSpirits.length) sourceSpirits = spiritOptions.slice(0, 2);
         updates.push({ path: [...fusionRecordPath, '名称'], value: fusionName });
         updates.push({ path: [...fusionRecordPath, '融合模式'], value: fusionMode });
+        updates.push({ path: [...fusionRecordPath, '用法模式'], value: 用法模式 });
         updates.push({ path: [...fusionRecordPath, '融合对象'], value: partnerValue });
         updates.push({ path: [...fusionRecordPath, '来源武魂'], value: sourceSpirits });
         updates.push({ path: [...fusionRecordPath, '融合参与者'], value: cloneJsonValue(fusionFields.fusionParticipants) });
@@ -15918,10 +15942,22 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                 : []),
             ]
           : [];
+        const 融合用法模式选项 = isFusionDesigner
+          ? [
+              { value: '一次性释放', label: '一次性释放' },
+              { value: '融合增幅', label: '融合增幅' },
+            ]
+          : [];
         const fusionStructureSection = isFusionDesigner ? `
                     <section class=\"mvu-editor-section skill-designer-fusion-section\">
                       <div class=\"mvu-editor-section-title\">融合对象</div>
                       <div class=\"mvu-editor-field-grid skill-designer-fusion-mode-grid\">
+                        <label class=\"mvu-editor-field\">
+                          <span class=\"mvu-editor-label\">用法</span>
+                          <select class=\"mvu-editor-select\" data-skill-designer-field=\"用法模式\" data-skill-designer-disableable>
+                            ${buildSkillDesignerSelectOptions(融合用法模式选项, designerDraft['用法模式'], '')}
+                          </select>
+                        </label>
                         <label class=\"mvu-editor-field\">
                           <span class=\"mvu-editor-label\">模式</span>
                           <select class=\"mvu-editor-select\" data-skill-designer-field=\"fusionMode\" data-skill-designer-disableable>
@@ -18494,6 +18530,14 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                               editorMeta: { hint: '可填 self 或 partner' },
                             })
                           : htmlEscape(leadModeText) },
+                        { label: '用法模式', value: activeCharKey && leadRecordKey
+                          ? makeInlineEditableValue(toText(leadFusion['用法模式'], '一次性释放'), {
+                              path: ['char', activeCharKey, '武魂融合技', leadRecordKey, '用法模式'],
+                              kind: 'string',
+                              rawValue: toText(leadFusion['用法模式'], '一次性释放'),
+                              editorMeta: { hint: '一次性释放 / 融合增幅' },
+                            })
+                          : htmlEscape(toText(leadFusion['用法模式'], '一次性释放')) },
                         { label: '搭档', value: activeCharKey && leadRecordKey
                           ? makeInlineEditableValue(leadPartnerRaw, {
                               path: ['char', activeCharKey, '武魂融合技', leadRecordKey, '融合对象'],
@@ -25016,7 +25060,7 @@ ${extraRequirement}
           }, timeoutMs);
           const 内联失败 = 详情 => {
             window.clearTimeout(timer);
-            const 失败原因 = toText(详情 && 详情.reason ? 详情.reason : 详情, '模块校验未通过。');
+            const 失败原因 = toText(详情 && 详情.原因 ? 详情.原因 : 详情, '模块校验未通过。');
             finish({ ok: false, reason: 失败原因, detail: 详情 });
           };
           try {
@@ -25062,7 +25106,7 @@ ${extraRequirement}
         prefillPrice: launchOptions.prefillPrice,
         autoExecute: true,
         onTradeAction: 完成,
-        onInlineActionFailed: 失败
+        内联动作失败: 失败
       }), { timeoutMs: 1400 });
       if (!capture.ok) return capture;
       const inlineAction = normalizeInlineModuleAction(capture.actionData, 'trade', tradeRequest);
@@ -25083,7 +25127,7 @@ ${extraRequirement}
         professionRequest: cloneJsonValue(professionRequest, {}),
         autoExecute: true,
         onAction: 完成,
-        onInlineActionFailed: 失败
+        内联动作失败: 失败
       }), { timeoutMs: 1600 });
       if (!capture.ok) return capture;
       const inlineAction = normalizeInlineModuleAction(capture.actionData, 'profession', professionRequest);
@@ -27778,10 +27822,11 @@ ${extraRequirement}
 
     let floatingHoverClearTimer = 0;
     let floatingHoverAutoHideTimer = 0;
+    let 浮窗最后指针坐标 = null;
     const 浮窗自动隐藏毫秒 = 0;
-    const 浮窗关闭延迟毫秒 = 1500;
+    const 浮窗关闭延迟毫秒 = 350;
     const 浮窗通道余量 = 120;
-    const 顶层浮窗层级 = '320';
+    const 顶层浮窗层级 = '100000';
 
     function cancelFloatingHoverClearTimer() {
       if (!floatingHoverClearTimer) return;
@@ -27799,6 +27844,11 @@ ${extraRequirement}
       cancelFloatingHoverClearTimer();
       floatingHoverClearTimer = window.setTimeout(() => {
         floatingHoverClearTimer = 0;
+        if (activeFloatingHoverTrigger === trigger) {
+          if (浮窗最后指针坐标 && 指针在浮窗通道坐标(浮窗最后指针坐标.x, 浮窗最后指针坐标.y)) return;
+          if (顶层浮窗卡片 instanceof HTMLElement && 顶层浮窗卡片.matches(':hover')) return;
+          if (trigger.matches(':hover')) return;
+        }
         clearFloatingHoverCard(trigger);
       }, 浮窗关闭延迟毫秒);
     }
@@ -27873,10 +27923,10 @@ ${extraRequirement}
       const viewportHeight = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
       if (!viewportWidth || !viewportHeight) return;
 
-      const margin = 12;
-      const gap = 8;
-      const maxWidth = Math.max(300, Math.min(preferSidePlacement ? 460 : 430, viewportWidth - margin * 2));
-      const maxHeight = Math.max(260, Math.min(Math.floor(viewportHeight * 0.78), viewportHeight - margin * 2));
+      const 屏幕边距 = 12;
+      const 浮窗贴边间距 = -12;
+      const maxWidth = Math.max(300, Math.min(preferSidePlacement ? 460 : 430, viewportWidth - 屏幕边距 * 2));
+      const maxHeight = Math.max(260, Math.min(Math.floor(viewportHeight * 0.78), viewportHeight - 屏幕边距 * 2));
 
       trigger.classList.add('mvu-hover-floating-active');
       activeFloatingHoverTrigger = trigger;
@@ -27902,10 +27952,13 @@ ${extraRequirement}
       顶层卡片.style.maxHeight = `${maxHeight}px`;
       顶层卡片.style.left = '0px';
       顶层卡片.style.top = '0px';
-      顶层卡片.addEventListener('pointerenter', () => {
+      顶层卡片.style.setProperty('z-index', 顶层浮窗层级, 'important');
+      顶层卡片.addEventListener('pointerenter', event => {
+        浮窗最后指针坐标 = { x: event.clientX, y: event.clientY };
         cancelFloatingHoverClearTimer();
       });
       顶层卡片.addEventListener('pointerleave', event => {
+        浮窗最后指针坐标 = { x: event.clientX, y: event.clientY };
         if (指针在浮窗通道坐标(event.clientX, event.clientY)) {
           cancelFloatingHoverClearTimer();
           return;
@@ -27937,14 +27990,14 @@ ${extraRequirement}
       let top = 0;
       const centeredTop = clampHoverValue(
         triggerRect.top + triggerRect.height / 2 - height / 2,
-        margin,
-        viewportHeight - height - margin
+        屏幕边距,
+        viewportHeight - height - 屏幕边距
       );
 
       if (preferSidePlacement) {
         const minSideWidth = Math.min(340, maxWidth);
-        const rightSpace = Math.max(0, viewportWidth - triggerRect.right - margin - gap);
-        const leftSpace = Math.max(0, triggerRect.left - margin - gap);
+        const rightSpace = Math.max(0, viewportWidth - triggerRect.right - 屏幕边距 - 浮窗贴边间距);
+        const leftSpace = Math.max(0, triggerRect.left - 屏幕边距 - 浮窗贴边间距);
         const canUseRight = rightSpace >= minSideWidth;
         const canUseLeft = leftSpace >= minSideWidth;
 
@@ -27952,7 +28005,7 @@ ${extraRequirement}
           const useRight = canUseRight && (!canUseLeft || rightSpace >= leftSpace);
           const sideSpace = useRight ? rightSpace : leftSpace;
           width = Math.min(width, sideSpace);
-          left = useRight ? triggerRect.right + gap : triggerRect.left - width - gap;
+          left = useRight ? triggerRect.right + 浮窗贴边间距 : triggerRect.left - width - 浮窗贴边间距;
           top = centeredTop;
         }
       }
@@ -27960,14 +28013,14 @@ ${extraRequirement}
       if (!(left || top)) {
         left = clampHoverValue(
           triggerRect.left + triggerRect.width / 2 - width / 2,
-          margin,
-          viewportWidth - width - margin
+          屏幕边距,
+          viewportWidth - width - 屏幕边距
         );
-        const belowTop = triggerRect.bottom + gap;
-        const aboveTop = triggerRect.top - height - gap;
-        top = belowTop + height <= viewportHeight - margin
+        const belowTop = triggerRect.bottom + 浮窗贴边间距;
+        const aboveTop = triggerRect.top - height - 浮窗贴边间距;
+        top = belowTop + height <= viewportHeight - 屏幕边距
           ? belowTop
-          : (aboveTop >= margin ? aboveTop : clampHoverValue(belowTop, margin, viewportHeight - height - margin));
+          : (aboveTop >= 屏幕边距 ? aboveTop : clampHoverValue(belowTop, 屏幕边距, viewportHeight - height - 屏幕边距));
       }
 
       顶层卡片.style.width = `${width}px`;
@@ -27978,6 +28031,7 @@ ${extraRequirement}
     window.__MVU_CLEAR_FLOATING_HOVER__ = clearAllFloatingHoverCards;
 
     document.addEventListener('pointerover', event => {
+      浮窗最后指针坐标 = { x: event.clientX, y: event.clientY };
       const eventTarget = event.target instanceof Element ? event.target : null;
       const trigger = getFloatingHoverTrigger(eventTarget);
       if (!trigger) {
@@ -27997,6 +28051,7 @@ ${extraRequirement}
     }, true);
 
     document.addEventListener('pointerout', event => {
+      浮窗最后指针坐标 = { x: event.clientX, y: event.clientY };
       const trigger = getFloatingHoverTrigger(event.target);
       if (!trigger) return;
       if (isPointerStillWithinFloatingHover(trigger, event)) return;
@@ -28007,6 +28062,7 @@ ${extraRequirement}
     }, true);
 
     document.addEventListener('pointermove', event => {
+      浮窗最后指针坐标 = { x: event.clientX, y: event.clientY };
       if (!activeFloatingHoverTrigger || !顶层浮窗卡片) return;
       if (指针仍在浮窗区域(event)) {
         cancelFloatingHoverClearTimer();
@@ -28038,7 +28094,15 @@ ${extraRequirement}
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) clearAllFloatingHoverCards();
     });
-    document.documentElement.addEventListener('mouseleave', clearAllFloatingHoverCards, true);
+    document.documentElement.addEventListener('mouseleave', 事件 => {
+      if (
+        事件.target === document.documentElement
+        || 事件.clientX <= 0
+        || 事件.clientY <= 0
+        || 事件.clientX >= window.innerWidth
+        || 事件.clientY >= window.innerHeight
+      ) clearAllFloatingHoverCards();
+    }, true);
     document.addEventListener('scroll', event => {
       const target = event.target instanceof Element ? event.target : null;
       if (target && target.closest('.ring-hover-card.mvu-hover-card-floating, .relation-hover-card.mvu-hover-card-floating')) return;

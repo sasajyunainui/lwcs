@@ -4452,6 +4452,92 @@ class BattleUIComponent {
       return (Array.isArray(skill?._效果数组) ? skill._效果数组 : []).find(effect => effect?.机制 === '系统基础') || {};
     }
 
+    function 计算等级掌控完整度(施术者 = {}, 等级掌控 = null) {
+      if (!等级掌控 || typeof 等级掌控 !== 'object' || Array.isArray(等级掌控)) return 1;
+      const 中心等级 = Number(等级掌控.中心等级);
+      const 圆满等级 = Number(等级掌控.圆满等级);
+      if (!Number.isFinite(中心等级) || !Number.isFinite(圆满等级) || 圆满等级 <= 中心等级) return 1;
+      const 施术等级 = Math.max(1, Number(施术者?.lv ?? 施术者?.等级 ?? 施术者?.属性?.等级 ?? 1) || 1);
+      const 标准差 = (圆满等级 - 中心等级) / 1.8807936081512509;
+      const x = (施术等级 - 中心等级) / Math.max(0.0001, 标准差);
+      const t = 1 / (1 + Math.exp(-1.702 * x));
+      return Math.max(0, Math.min(1, Number(t.toFixed(4))));
+    }
+
+    function 按等级掌控缩放倍率(数值, 完整度 = 1) {
+      const 原值 = Number(数值);
+      if (!Number.isFinite(原值)) return 数值;
+      return roundBattleScaledNumber(1 + (原值 - 1) * 完整度, 4);
+    }
+
+    function 按等级掌控缩放数值(数值, 完整度 = 1) {
+      const 原值 = Number(数值);
+      if (!Number.isFinite(原值)) return 数值;
+      return roundBattleScaledNumber(原值 * 完整度, 4);
+    }
+
+    function 按等级掌控缩放技能(skill = {}, 施术者 = {}) {
+      if (skill?.__等级掌控已缩放 === true) return skill;
+      const 系统基础 = getSystemBaseEffect(skill);
+      const 等级掌控 = 系统基础?.等级掌控 || skill?.等级掌控;
+      const 完整度 = 计算等级掌控完整度(施术者, 等级掌控);
+      if (完整度 >= 0.9999) return skill;
+      const nextSkill = deepClone(skill || {});
+      nextSkill.__等级掌控完整度 = 完整度;
+      nextSkill.__等级掌控已缩放 = true;
+      (Array.isArray(nextSkill._效果数组) ? nextSkill._效果数组 : []).forEach(effect => {
+        if (!effect || typeof effect !== 'object' || String(effect.机制 || '').trim() === '系统基础') return;
+        if (effect.数值 !== undefined) {
+          const 动作 = String(effect.动作 || '').trim();
+          effect.数值 = ['倍率提升', '倍率压制'].includes(动作)
+            ? 按等级掌控缩放倍率(effect.数值, 完整度)
+            : 按等级掌控缩放数值(effect.数值, 完整度);
+        }
+        ['护盾值', '每回合伤害', 'dot_damage', 'final_damage_bonus', 'final_heal_bonus', 'shield_gain_bonus'].forEach(key => {
+          if (effect[key] !== undefined) effect[key] = 按等级掌控缩放数值(effect[key], 完整度);
+        });
+        const 面板修改比例 = effect.面板修改比例 && typeof effect.面板修改比例 === 'object' ? effect.面板修改比例 : null;
+        if (面板修改比例) {
+          ['str', 'def', 'agi', 'vit_max', 'sp_max', 'men_max'].forEach(key => {
+            if (面板修改比例[key] !== undefined) 面板修改比例[key] = 按等级掌控缩放倍率(面板修改比例[key], 完整度);
+          });
+        }
+        const 计算层效果 = effect.计算层效果 && typeof effect.计算层效果 === 'object' ? effect.计算层效果 : null;
+        if (计算层效果) {
+          ['final_damage_mult', 'final_heal_mult', 'shield_gain_mult', 'control_resist_mult', 'cost_ratio', 'windup_ratio'].forEach(key => {
+            if (计算层效果[key] !== undefined) 计算层效果[key] = 按等级掌控缩放倍率(计算层效果[key], 完整度);
+          });
+          [
+            'final_damage_bonus',
+            'final_heal_bonus',
+            'shield_gain_bonus',
+            'dot_damage',
+            'sp_gain_ratio',
+            'men_gain_ratio',
+            'hot_heal_ratio',
+            'heal_block_ratio',
+            'resource_block_ratio',
+            'bonus_true_damage_ratio',
+            'life_steal_ratio',
+            'reaction_bonus',
+            'reaction_penalty',
+            'attacker_speed_bonus',
+            'cast_speed_bonus',
+            'cast_speed_penalty',
+            'dodge_bonus',
+            'dodge_penalty',
+            'control_success_bonus',
+            'control_success_penalty',
+            'control_resist_bonus',
+            'interrupt_bonus',
+          ].forEach(key => {
+            if (计算层效果[key] !== undefined) 计算层效果[key] = 按等级掌控缩放数值(计算层效果[key], 完整度);
+          });
+        }
+      });
+      return nextSkill;
+    }
+
     function 推断战斗技能目标模型(skill = {}, systemBase = {}) {
       const 效果列表 = Array.isArray(skill?._效果数组) ? skill._效果数组 : [];
       const 首个目标效果 = 效果列表.find(effect =>
@@ -4643,6 +4729,53 @@ class BattleUIComponent {
 
     function getPrimaryStateCalc(skill) {
       return getPrimaryStateEffect(skill)?.计算层效果 || createEmptyCombatEffectMap();
+    }
+
+    function 是否一次性武魂融合基础属性前置(状态效果 = {}) {
+      if (!状态效果 || typeof 状态效果 !== 'object') return false;
+      const 标识 = String(状态效果.特殊机制标识 || '').trim();
+      const 目标 = String(状态效果.目标 || 状态效果.对象 || '').trim();
+      if (目标 && !/自身|使用者|施术者/.test(目标)) return false;
+      return 标识.includes('武魂融合技') && 标识.includes('一次性释放') && 标识.includes('基础属性融合');
+    }
+
+    function 套用一次性武魂融合前置属性(基础最终属性 = {}, 状态效果 = {}) {
+      const 结果 = { ...(基础最终属性 || {}) };
+      const 面板修改比例 =
+        状态效果?.面板修改比例 && typeof 状态效果.面板修改比例 === 'object' ? 状态效果.面板修改比例 : {};
+      ['str', 'def', 'agi'].forEach(属性 => {
+        if (结果[属性] !== undefined && 面板修改比例[属性] !== undefined) {
+          结果[属性] = Math.round(Number(结果[属性] || 0) * Number(面板修改比例[属性] || 1));
+        }
+      });
+      ['vit_max', 'sp_max', 'men_max'].forEach(属性 => {
+        if (结果[属性] !== undefined && 面板修改比例[属性] !== undefined) {
+          结果[属性] = Math.round(Number(结果[属性] || 0) * Number(面板修改比例[属性] || 1));
+        }
+      });
+      [
+        ['vit', 'vit_max'],
+        ['sta', 'vit_max'],
+        ['sp', 'sp_max'],
+        ['men', 'men_max'],
+      ].forEach(([当前属性, 上限属性]) => {
+        const 倍率 = Number(面板修改比例[上限属性] ?? 1);
+        if (结果[当前属性] !== undefined && Number.isFinite(倍率)) {
+          结果[当前属性] = Math.min(
+            Number(结果[上限属性] || Infinity),
+            Math.round(Number(结果[当前属性] || 0) * 倍率),
+          );
+        }
+      });
+      return 结果;
+    }
+
+    function 读取一次性武魂融合前置战斗效果(状态效果 = {}) {
+      if (!是否一次性武魂融合基础属性前置(状态效果)) return null;
+      const 计算层效果 = 状态效果?.计算层效果 && typeof 状态效果.计算层效果 === 'object' ? 状态效果.计算层效果 : {};
+      const 即时效果 = { ...createEmptyCombatEffectMap(), ...计算层效果 };
+      即时效果.skill_effect_mult = 1;
+      return 即时效果;
     }
 
     function getPrimaryStateName(skill) {
@@ -11592,7 +11725,7 @@ class BattleUIComponent {
       }
 
       function estimateIncomingActionThreat(attacker, defender, playerAction, combatData) {
-        const skill = playerAction?.skill && typeof playerAction.skill === 'object' ? playerAction.skill : null;
+        let skill = playerAction?.skill && typeof playerAction.skill === 'object' ? playerAction.skill : null;
         const defaultThreat = {
           targetHitsDefender: false,
           projectedDamage: 0,
@@ -11611,17 +11744,23 @@ class BattleUIComponent {
           bypassesInvincible: getCombatUnitTierNumber(attacker) >= 100,
         };
         if (!attacker || !defender || !skill) return defaultThreat;
+        skill = 按等级掌控缩放技能(skill, attacker);
 
         const runtimeMeta = getSkillRuntimeMeta(skill);
         const targetContext = resolveSkillTargetContext(skill, attacker, defender, combatData, getPrimaryDamageEffect(skill));
         const targetHitsDefender = targetContext.targetSet.some(target => isCombatUnitIdentityMatch(target, defender?.name || defender));
         if (!targetHitsDefender) return defaultThreat;
 
-        const attackerFinalStat = attacker.final || buildCombatFinalStats(attacker);
+        let attackerFinalStat = attacker.final || buildCombatFinalStats(attacker);
         const defenderFinalStat = defender.final || buildCombatFinalStats(defender);
         const pClash = getPrimaryDamageEffect(skill);
+        const pStateEffect = getPrimaryStateEffect(skill);
         const pStateCalc = getPrimaryStateCalc(skill);
         const pStateFlags = getPrimaryStateFlags(skill);
+        const fusionPrecastEffect = 读取一次性武魂融合前置战斗效果(pStateEffect);
+        if (fusionPrecastEffect) {
+          attackerFinalStat = 套用一次性武魂融合前置属性(attackerFinalStat, pStateEffect);
+        }
         const skillSummary = deriveBattleSummaryFromEffects(skill);
         const mainType = inferMainTypeFromEffects(skill);
         const incomingAttackIntent =
@@ -11634,6 +11773,7 @@ class BattleUIComponent {
         const attackerConditionEffects = attacker.状态效果
           ? Object.values(attacker.状态效果).map(c => c?.战斗效果 || {})
           : [];
+        if (fusionPrecastEffect) attackerConditionEffects.push(fusionPrecastEffect);
         const defenderConditionEffects = defender.状态效果
           ? Object.values(defender.状态效果).map(c => c?.战斗效果 || {})
           : [];
@@ -11642,8 +11782,8 @@ class BattleUIComponent {
         const conditionArmorPen = 读取状态穿透比例(attackerConditionEffects);
         let projectedDamage = 0;
         let actualDef = 计算穿透后防御值(Number(defenderFinalStat.def || defender.def || 1), pClash?.穿透修饰 || 0, conditionArmorPen);
-        const soulDriveScale = getSoulDriveScale(attacker, defender);
-        const spiritDriveScale = getSpiritDriveScale(attacker, defender);
+        const soulDriveScale = getSoulDriveScale({ ...attacker, final: attackerFinalStat }, defender);
+        const spiritDriveScale = getSpiritDriveScale({ ...attacker, final: attackerFinalStat }, defender);
         const 定位伤害倍率 = 计算定位伤害倍率(attacker, defender, dmgType);
         if (dmgType === '物理近战') {
           projectedDamage =
@@ -11938,6 +12078,7 @@ class BattleUIComponent {
           },
           playerAction.skill?.name || '普通攻击',
         );
+        playerAction.skill = 按等级掌控缩放技能(playerAction.skill, attacker);
         const 复刻次数结果 = 消耗复刻技能次数(attacker, playerAction.skill);
         if (!复刻次数结果.可释放) {
           result.desc += 复刻次数结果.日志;
@@ -11964,6 +12105,7 @@ class BattleUIComponent {
             授予触发结果.skill,
             授予触发结果.skill?.name || 授予触发结果.skill?.魂技名 || playerAction.skill?.name || '技能',
           );
+          playerAction.skill = 按等级掌控缩放技能(playerAction.skill, attacker);
           result.desc += 授予触发结果.日志;
         }
 
@@ -12001,6 +12143,12 @@ class BattleUIComponent {
           pState,
         );
 
+        const fusionPrecastEffect = 读取一次性武魂融合前置战斗效果(pState);
+        if (fusionPrecastEffect) {
+          attackerFinalStat = 套用一次性武魂融合前置属性(attackerFinalStat, pState);
+          result.desc += ` [武魂融合] 基础属性融合先于本次释放生效。`;
+        }
+
         let aStr = attackerFinalStat.str;
         let aAgi = attackerFinalStat.agi;
         let dAgi = defenderFinalStat.agi;
@@ -12037,6 +12185,7 @@ class BattleUIComponent {
         let attackerConditionEffects = attacker.状态效果
           ? Object.values(attacker.状态效果).map(c => c?.战斗效果 || {})
           : [];
+        if (fusionPrecastEffect) attackerConditionEffects.push(fusionPrecastEffect);
         const defenderConditionEffects = defender.状态效果
           ? Object.values(defender.状态效果).map(c => c?.战斗效果 || {})
           : [];
@@ -12056,6 +12205,14 @@ class BattleUIComponent {
           if (!pState.计算层效果 || typeof pState.计算层效果 !== 'object')
             pState.计算层效果 = createEmptyCombatEffectMap();
           if (typeof pState.持续回合 !== 'number') pState.持续回合 = Number(pState.持续回合 || 0);
+          const branchFusionPrecastEffect = 读取一次性武魂融合前置战斗效果(pState);
+          if (!fusionPrecastEffect && branchFusionPrecastEffect) {
+            attackerFinalStat = 套用一次性武魂融合前置属性(attackerFinalStat, pState);
+            attackerConditionEffects.push(branchFusionPrecastEffect);
+            aStr = attackerFinalStat.str;
+            aAgi = attackerFinalStat.agi;
+            result.desc += ` [武魂融合] 基础属性融合先于本次释放生效。`;
+          }
           result.desc += ` [技能效果增幅] 本次技能效果倍率 x${技能效果增幅结果.效果倍率.toFixed(2)}，有数量时优先生效。`;
         }
 
@@ -12451,8 +12608,8 @@ class BattleUIComponent {
           }
 
           let actualDef = 计算穿透后防御值(Number(targetFinalStat.def || targetObj.def || 1), pClash.穿透修饰 || 0, conditionArmorPen);
-          const soulDriveScale = getSoulDriveScale(attacker, targetObj);
-          const spiritDriveScale = getSpiritDriveScale(attacker, targetObj);
+          const soulDriveScale = getSoulDriveScale({ ...attacker, final: attackerFinalStat }, targetObj);
+          const spiritDriveScale = getSpiritDriveScale({ ...attacker, final: attackerFinalStat }, targetObj);
           const 定位伤害倍率 = 计算定位伤害倍率(attacker, targetObj, dmgType);
           let projectedDamage = 0;
           if (dmgType === '物理近战') projectedDamage = remainPower * (aStr / actualDef) * soulDriveScale * 定位伤害倍率;
