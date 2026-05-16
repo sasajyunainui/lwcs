@@ -5037,33 +5037,15 @@
       scrollbar-width: thin;
     }
 
-    .skill-designer-form-top {
-      position: sticky;
-      top: 0;
-      z-index: 4;
-      display: grid;
-      gap: 8px;
-      margin-bottom: 10px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid rgba(120,220,255,0.10);
-      background: linear-gradient(180deg, rgba(7, 24, 35, 0.98), rgba(7, 24, 35, 0.88));
-      backdrop-filter: blur(10px);
-    }
-
-    .skill-designer-actionbar {
+    .skill-designer-title-actions {
       display: flex;
       justify-content: flex-end;
       align-items: center;
-      min-height: 40px;
+      gap: 8px;
+      min-width: max-content;
     }
 
-    .skill-designer-actionbar .mvu-editor-actions {
-      margin-left: auto;
-      justify-content: flex-end;
-      flex-wrap: nowrap;
-    }
-
-    .skill-designer-actionbar .tag-chip {
+    .skill-designer-title-actions .tag-chip {
       min-height: 40px;
       padding: 0 18px;
       border-radius: 999px;
@@ -5071,15 +5053,31 @@
       color: rgba(244, 251, 253, 0.96);
     }
 
-    .skill-designer-actionbar .tag-chip.live {
+    .skill-designer-title-actions .tag-chip.live {
       border-color: rgba(77, 240, 255, 0.36);
       background: rgba(0, 194, 255, 0.16);
       color: #f9feff;
       box-shadow: 0 0 0 1px rgba(77, 240, 255, 0.10) inset;
     }
 
-    .skill-designer-toolbar {
-      margin-bottom: 0;
+    #detailModal .modal-title-wrap:has(.skill-designer-title-actions) {
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      column-gap: 12px;
+    }
+
+    #detailModal .modal-title-wrap:has(.skill-designer-title-actions) .modal-title {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    #detailModal .modal-title-wrap:has(.skill-designer-title-actions) .modal-subtitle {
+      grid-column: 1 / -1;
+    }
+
+    #detailModal .modal-title-wrap:has(.skill-designer-title-actions) .skill-designer-title-actions {
+      grid-column: 2;
+      grid-row: 1;
     }
 
     .skill-designer-shell .mvu-editor-grid {

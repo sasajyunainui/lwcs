@@ -3614,6 +3614,7 @@
     function 构建AI维护标题按钮(previewKey = '') {
       const key = toText(previewKey, '').trim();
       if (!key || key === BATTLE_INLINE_PREVIEW_KEY) return '';
+      if (isSkillDesignerPreviewKey(key)) return '';
       return `<button type="button" class="tag-chip mvu-ai-maintenance-toggle mvu-ai-maintenance-title-button" data-ai-maintenance-toggle data-ai-maintenance-preview="${escapeHtmlAttr(key)}">AI维护</button>`;
     }
 
@@ -3669,6 +3670,10 @@
         return;
       }
       const buttonHtml = 构建AI维护标题按钮(key);
+      if (!buttonHtml) {
+        同步AI维护标题按钮状态();
+        return;
+      }
       const unifiedMain = document.querySelector('#mvu-unified-mount .mvu-unified-toolbar.is-detail .mvu-unified-toolbar-main');
       if (unifiedMain) {
         unifiedMain.insertAdjacentHTML('beforeend', `<div class="mvu-ai-maintenance-title-slot" data-ai-maintenance-title-slot>${buttonHtml}</div>`);
@@ -14172,6 +14177,28 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       const 指定地点列表 = [目标地点, 标准地点]
         .map(item => toText(item, '').trim())
         .filter((item, index, list) => item && list.indexOf(item) === index);
+      const 地图快照 = window.__sheepMapSnapshot && typeof window.__sheepMapSnapshot === 'object' ? window.__sheepMapSnapshot : null;
+      if (指定地点列表.length && 地图快照 && 地图快照.charactersByLoc instanceof Map) {
+        const 已收录人物 = new Set();
+        const 角色表 = deepGet(snapshot, 'rootData.char', {});
+        return 指定地点列表
+          .flatMap(地点 => 地图快照.charactersByLoc.get(地点) || [])
+          .filter(人物条目 => {
+            const 人物名 = toText(人物条目 && 人物条目.name, '');
+            if (!人物名 || 已收录人物.has(人物名)) return false;
+            已收录人物.add(人物名);
+            return true;
+          })
+          .map(人物条目 => {
+            const 人物名 = toText(人物条目 && 人物条目.name, '');
+            return [
+              toText(人物条目 && 人物条目.id, 人物名),
+              (人物条目 && 人物条目.raw) || 角色表[人物名] || {},
+              人物条目
+            ];
+          })
+          .slice(0, Math.max(1, toNumber(limit, 6)));
+      }
       const 默认地点列表 = [currentLoc, normalizedLoc]
         .map(item => toText(item, '').trim())
         .filter((item, index, list) => item && list.indexOf(item) === index);
@@ -14312,13 +14339,17 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       if (!entries.length) {
         return '<div class="mvu-shell-roster-empty">暂无本地角色</div>';
       }
-      return entries.map(([name, char]) => {
+      return entries.map(([name, char, 地图人物条目]) => {
         const displayName = toText(deepGet(char, 'name', deepGet(char, 'base.name', name)), name);
         const identity = summarizeShellIdentityText(deepGet(char, '社交.主身份', ''), { limit: 14 })
           || shortenText(toText(deepGet(char, '社交.主身份', '未知身份'), '未知身份'), 14);
         const action = resolveShellText(deepGet(char, '状态.行动', ''), '日常') || '日常';
         const 可委托 = 获取角色工坊委托能力摘要(char).length > 0;
-        const 操作按钮 = 启用操作
+        const 允许人物操作 = 启用操作 && (!地图人物条目 || 地图人物条目.可交互 === true);
+        const 摘要状态 = 地图人物条目 && 地图人物条目.可交互 === false
+          ? toText(地图人物条目.meta, `位于：${toText(地图人物条目.所在子节点, '子节点')}`)
+          : action;
+        const 操作按钮 = 允许人物操作
           ? `
             <div class="mvu-shell-roster-actions">
               <button type="button" class="mvu-shell-roster-action clickable" data-preview="角色档案：${escapeHtmlAttr(displayName)}">档案</button>
@@ -14334,7 +14365,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           <div class="mvu-shell-roster-row${启用操作 ? ' mvu-shell-roster-row--interactive' : ''}">
             <button type="button" class="mvu-shell-roster-name clickable" data-preview="角色档案：${escapeHtmlAttr(displayName)}">${htmlEscape(shortenText(displayName, 12))}</button>
             <div class="mvu-shell-roster-meta">${htmlEscape(shortenText(identity, 18))}</div>
-            <div class="mvu-shell-roster-state">${htmlEscape(shortenText(action, 16))}</div>
+            <div class="mvu-shell-roster-state">${htmlEscape(shortenText(摘要状态, 22))}</div>
             ${操作按钮}
           </div>
         `;
@@ -16397,7 +16428,6 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           summary: '',
           onMount: mountEl => {
             const form = mountEl.querySelector('[data-skill-designer-form]');
-            const refreshBtn = mountEl.querySelector('[data-skill-designer-refresh]');
             const primaryMainInput = mountEl.querySelector('[data-skill-designer-field=\"primaryMain\"]');
             const primarySubInput = mountEl.querySelector('[data-skill-designer-field=\"primarySub\"]');
             const typeInput = mountEl.querySelector('[data-skill-designer-field=\"type\"]');
@@ -16410,12 +16440,19 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             const mechanicParamGrid = mountEl.querySelector('[data-skill-designer-mechanic-param-grid]');
             let destroyed = false;
             let busy = false;
+            let 标题操作槽 = null;
+            let 重新读取按钮 = null;
 
             const setBusy = nextBusy => {
               busy = !!nextBusy;
               mountEl.querySelectorAll('[data-skill-designer-disableable]').forEach(node => {
                 node.disabled = busy;
               });
+              if (标题操作槽) {
+                标题操作槽.querySelectorAll('[data-skill-designer-disableable]').forEach(node => {
+                  node.disabled = busy;
+                });
+              }
             };
 
             const readCheckedValues = name => Array.from(mountEl.querySelectorAll(`input[name=\"${name}\"]:checked`)).map(node => toText(node.value, '').trim()).filter(Boolean);
@@ -16607,6 +16644,25 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
               }, '已经重新读取当前技能。');
             };
 
+            const 挂载技能设计标题操作 = () => {
+              document.querySelectorAll('[data-skill-designer-title-actions]').forEach(node => {
+                if (node && node.parentNode) node.parentNode.removeChild(node);
+              });
+              const 标题容器 = currentUnifiedPreviewKey
+                ? document.querySelector('#mvu-unified-mount .mvu-unified-toolbar.is-detail .mvu-unified-toolbar-main')
+                : document.querySelector('#detailModal .modal-title-wrap');
+              if (!标题容器) return null;
+              const 操作槽 = document.createElement('div');
+              操作槽.className = 'skill-designer-title-actions';
+              操作槽.setAttribute('data-skill-designer-title-actions', '1');
+              操作槽.innerHTML = `
+                <button type="button" class="tag-chip" data-skill-designer-refresh data-skill-designer-disableable>重新读取</button>
+                <button type="submit" class="tag-chip live" form="skill-designer-form" data-skill-designer-disableable>保存设计</button>
+              `;
+              标题容器.appendChild(操作槽);
+              return 操作槽;
+            };
+
             const handleSubmit = async event => {
               event.preventDefault();
               await runDesignerTask(async () => {
@@ -16689,8 +16745,10 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             };
 
             handleInteractiveRefresh();
+            标题操作槽 = 挂载技能设计标题操作();
+            重新读取按钮 = 标题操作槽 ? 标题操作槽.querySelector('[data-skill-designer-refresh]') : null;
             if (form) form.addEventListener('submit', handleSubmit);
-            if (refreshBtn) refreshBtn.addEventListener('click', handleRefresh);
+            if (重新读取按钮) 重新读取按钮.addEventListener('click', handleRefresh);
             mountEl.addEventListener('change', handleChange);
             mountEl.addEventListener('input', handleInput);
             mountEl.addEventListener('click', handleClick);
@@ -16699,7 +16757,8 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
               destroy() {
                 destroyed = true;
                 if (form) form.removeEventListener('submit', handleSubmit);
-                if (refreshBtn) refreshBtn.removeEventListener('click', handleRefresh);
+                if (重新读取按钮) 重新读取按钮.removeEventListener('click', handleRefresh);
+                if (标题操作槽 && 标题操作槽.parentNode) 标题操作槽.parentNode.removeChild(标题操作槽);
                 mountEl.removeEventListener('change', handleChange);
                 mountEl.removeEventListener('input', handleInput);
                 mountEl.removeEventListener('click', handleClick);
@@ -16708,18 +16767,8 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           },
           body: `
             <div class=\"archive-modal-grid skill-designer-layout skill-designer-shell\">
-              <form class=\"archive-card full mvu-editor-form skill-designer-form skill-designer-form-card\" data-skill-designer-form>
-                <div class=\"skill-designer-form-top\">
-                  <div class=\"skill-designer-actionbar\">
-                    <div class=\"mvu-editor-actions\">
-                      <button type=\"button\" class=\"tag-chip\" data-skill-designer-refresh data-skill-designer-disableable>重新读取</button>
-                      <button type=\"submit\" class=\"tag-chip live\" data-skill-designer-disableable>保存设计</button>
-                    </div>
-                  </div>
-                  <div class=\"archive-card-head skill-designer-toolbar\">
-                    <div class=\"archive-card-title\">${htmlEscape(scopeLabels.parameterTitle)}</div>
-                  </div>
-                </div>
+              <form id=\"skill-designer-form\" class=\"archive-card full mvu-editor-form skill-designer-form skill-designer-form-card\" data-skill-designer-form>
+                <div class=\"archive-card-head\"><div class=\"archive-card-title\">${htmlEscape(scopeLabels.parameterTitle)}</div></div>
                 <div class=\"mvu-editor-grid\">
                   <section class=\"mvu-editor-section\">
                     <div class=\"mvu-editor-section-title\">基础信息</div>
