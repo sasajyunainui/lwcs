@@ -427,6 +427,34 @@ class ProfessionUIComponent {
   $(selector) { return this.container.querySelector(selector); }
   $$(selector) { return this.container.querySelectorAll(selector); }
 
+  显示提示(消息, 类型 = 'error') {
+    const 文本 = String(消息 || '').trim();
+    if (!文本) return;
+    if (typeof this.options.onInlineActionFailed === 'function') {
+      try { this.options.onInlineActionFailed({ reason: 文本, type: 类型 }); } catch (错误) {}
+    }
+    const 窗口列表 = [];
+    try { 窗口列表.push(window); } catch (错误) {}
+    try {
+      if (window.parent && window.parent !== window) 窗口列表.push(window.parent);
+    } catch (错误) {}
+    for (const 目标窗口 of 窗口列表) {
+      try {
+        if (目标窗口.MVU_Toast && typeof 目标窗口.MVU_Toast.show === 'function') {
+          目标窗口.MVU_Toast.show(文本, 类型);
+          return;
+        }
+        const 提示器 = 目标窗口.toastr;
+        if (提示器 && typeof 提示器[类型] === 'function') {
+          提示器[类型](文本);
+          return;
+        }
+      } catch (错误) {}
+    }
+    if (类型 === 'error') console.warn(文本);
+    else console.info(文本);
+  }
+
   bindEvents() {
     this.$$('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => this.setActiveMode(btn.dataset.mode));
@@ -1602,7 +1630,7 @@ class ProfessionUIComponent {
       ruleError = this.validateGenericRules(cfg, effectiveRuntime, tier, materialNames, targetName);
     }
     if (ruleError) {
-      alert(ruleError);
+      this.显示提示(ruleError);
       return;
     }
 

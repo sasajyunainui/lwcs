@@ -632,6 +632,17 @@ function formatBreakthroughLevelText(level) {
   return Number.isFinite(numericLevel) && Math.abs(numericLevel - 99.5) < 0.001 ? text : `${text}级`;
 }
 
+function 是否同地图节点组(数据, 左角色, 右角色) {
+  if (!左角色 || !右角色) return false;
+  const 左位置 = 左角色.状态?.位置 || '';
+  const 右位置 = 右角色.状态?.位置 || '';
+  if (左位置 && 右位置 && 左位置 === 右位置) return true;
+  const 动态地点 = 数据?.world?.动态地点 || {};
+  const 左父节点 = 动态地点[左位置]?.归属父节点 || 左位置.split('-').slice(0, -1).join('-');
+  const 右父节点 = 动态地点[右位置]?.归属父节点 || 右位置.split('-').slice(0, -1).join('-');
+  return !!(左父节点 && 右父节点 && 左父节点 === 右父节点);
+}
+
 function autoBreakthrough(data) {
   _(data.char).forEach((c, charName) => {
     if (!c.状态?.存活) return;
@@ -639,17 +650,6 @@ function autoBreakthrough(data) {
     if (isBeast) return;
     const pendingRingState = String(c.状态?.待选魂环?.状态 || '').trim();
     if (pendingRingState && !['已处理', 'handled', '无'].includes(pendingRingState)) return;
-
-    const isSameNodeGroup = (c1, c2) => {
-      if (!c1 || !c2) return false;
-      const loc1 = c1.状态?.位置 || '';
-      const loc2 = c2.状态?.位置 || '';
-      if (loc1 && loc2 && loc1 === loc2) return true;
-      const dyn = data.world?.动态地点 || {};
-      const p1 = dyn[loc1]?.归属父节点 || loc1.split('-').slice(0, -1).join('-');
-      const p2 = dyn[loc2]?.归属父节点 || loc2.split('-').slice(0, -1).join('-');
-      return p1 && p2 && p1 === p2;
-    };
 
     while (true) {
       const currentLv = Math.max(0, Number(c.属性?.等级 || 0));
@@ -683,7 +683,7 @@ function autoBreakthrough(data) {
 
         const isPlayer = charName === data.sys?.玩家名;
         const playerChar = data.char[data.sys?.玩家名];
-        const isNearPlayer = !isPlayer && isSameNodeGroup(c, playerChar);
+        const isNearPlayer = !isPlayer && 是否同地图节点组(data, c, playerChar);
 
         for (const spiritKey of spiritKeys) {
           const targetSpirit = c.武魂[spiritKey];
@@ -18026,17 +18026,7 @@ export const Schema = z
 
       const isPlayer = charName === data.sys?.玩家名;
       const playerChar = data.char[data.sys?.玩家名];
-      const isSameNodeGroup = (c1, c2) => {
-        if (!c1 || !c2) return false;
-        const loc1 = c1.状态?.位置 || '';
-        const loc2 = c2.状态?.位置 || '';
-        if (loc1 && loc2 && loc1 === loc2) return true;
-        const dyn = data.world?.动态地点 || {};
-        const p1 = dyn[loc1]?.归属父节点 || loc1.split('-').slice(0, -1).join('-');
-        const p2 = dyn[loc2]?.归属父节点 || loc2.split('-').slice(0, -1).join('-');
-        return p1 && p2 && p1 === p2;
-      };
-      const isNearPlayer = !isPlayer && isSameNodeGroup(char, playerChar);
+      const isNearPlayer = !isPlayer && 是否同地图节点组(data, char, playerChar);
 
       if (currentRings === 0 && expectedRings > 0 && currentSpirits === 0) {
         if (isPlayer && data.sys?.系统播报 !== '初始化') return;

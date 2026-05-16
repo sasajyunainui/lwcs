@@ -17687,6 +17687,31 @@ class BattleUIComponent {
             .replace(/'/g, '&#39;');
         }
 
+        function 显示战斗提示(消息, 类型 = 'error') {
+          const 文本 = String(消息 || '').trim();
+          if (!文本) return;
+          const 窗口列表 = [];
+          try { 窗口列表.push(window); } catch (错误) {}
+          try {
+            if (window.parent && window.parent !== window) 窗口列表.push(window.parent);
+          } catch (错误) {}
+          for (const 目标窗口 of 窗口列表) {
+            try {
+              if (目标窗口.MVU_Toast && typeof 目标窗口.MVU_Toast.show === 'function') {
+                目标窗口.MVU_Toast.show(文本, 类型);
+                return;
+              }
+              const 提示器 = 目标窗口.toastr;
+              if (提示器 && typeof 提示器[类型] === 'function') {
+                提示器[类型](文本);
+                return;
+              }
+            } catch (错误) {}
+          }
+          if (类型 === 'error') console.warn(文本);
+          else console.info(文本);
+        }
+
         function flattenUiCombatant(unit) {
           const safeUnit = unit && typeof unit === 'object' ? unit : {};
           const stat = safeUnit.属性 && typeof safeUnit.属性 === 'object' ? safeUnit.属性 : {};
@@ -17959,7 +17984,7 @@ class BattleUIComponent {
           if (!炸环效果) return true;
           const 候选列表 = 构建炸环候选列表_V1(action, state);
           if (!候选列表.length) {
-            alert('当前没有可炸的魂环。');
+            显示战斗提示('当前没有可炸的魂环。');
             return false;
           }
           const 默认已选路径 = Array.isArray(action?.skill?.__炸环选择路径列表)
@@ -17983,12 +18008,12 @@ class BattleUIComponent {
             .filter(数值 => Number.isFinite(数值) && 数值 >= 1 && 数值 <= 候选列表.length);
           const 去重索引 = Array.from(new Set(选择索引));
           if (!去重索引.length) {
-            alert('未选择有效魂环，本次炸环取消。');
+            显示战斗提示('未选择有效魂环，本次炸环取消。');
             return false;
           }
           const 选择路径列表 = 去重索引.map(索引 => 候选列表[索引 - 1]?.路径).filter(路径 => Array.isArray(路径));
           if (!Array.isArray(action.skill.__魂环路径) || !action.skill.__魂环路径.length) {
-            alert('当前技能未绑定魂环路径，无法执行炸环。');
+            显示战斗提示('当前技能未绑定魂环路径，无法执行炸环。');
             return false;
           }
           if (!选择路径列表.some(路径 => 路径相同_V1(路径, action.skill.__魂环路径))) {

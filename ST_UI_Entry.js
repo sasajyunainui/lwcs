@@ -171,6 +171,9 @@
       ensureGetAllVariablesShim();
       await 加载样式(模块注册表.样式核心.地址);
       try {
+        if (typeof 宿主窗口.__sheepMapDispose === 'function') 宿主窗口.__sheepMapDispose();
+      } catch (错误) {}
+      try {
         宿主窗口.__sheepMapRestoreLoaded = false;
         if (window !== 宿主窗口) window.__sheepMapRestoreLoaded = false;
       } catch (错误) {}

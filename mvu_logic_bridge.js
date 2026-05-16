@@ -2603,9 +2603,8 @@
       } catch (error) {}
       if (type === 'error') {
         console.warn('[DragonUI]', message);
-        if (typeof window.alert === 'function') window.alert(message);
       } else {
-        console.log('[DragonUI]', message);
+        console.info('[DragonUI]', message);
       }
     }
 
@@ -16509,8 +16508,9 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
               if (prevBtn) prevBtn.disabled = currentPage <= 1;
               if (nextBtn) nextBtn.disabled = currentPage >= totalPages;
             };
+            const 处理角色搜索输入 = () => { currentPage = 1; applyFilter(); };
             if (inputEl) {
-              inputEl.addEventListener('input', () => { currentPage = 1; applyFilter(); });
+              inputEl.addEventListener('input', 处理角色搜索输入);
               setTimeout(() => {
                 try { inputEl.focus(); } catch (_) {}
               }, 0);
@@ -16520,7 +16520,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             applyFilter();
             return {
               destroy() {
-                if (inputEl) inputEl.removeEventListener('input', applyFilter);
+                if (inputEl) inputEl.removeEventListener('input', 处理角色搜索输入);
               }
             };
           },
@@ -21917,10 +21917,6 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       }).join('');
     }
 
-    function buildRingHoverMarkup(ring) {
-      return buildRingHoverCardMarkup(ring);
-    }
-
     function renderArchiveSpiritEntry(config, isPrimary = false) {
       const head = isPrimary
         ? `<div class="dual-side-top"><div class="strip-head"><div class="strip-title cyan">武魂档案</div></div><span class="badge ${config.badgeClass || 'cyan'}">${config.badge}</span></div>`
@@ -25005,14 +25001,9 @@ ${extraRequirement}
       container.className = 'mvu-inline-module-capture';
       container.style.cssText = 'position:fixed;left:-10000px;top:-10000px;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;';
       let component = null;
-      let alertMessage = '';
-      const originalAlert = window.alert;
 
       try {
         document.body.appendChild(container);
-        window.alert = (message) => {
-          alertMessage = toText(message, '模块校验未通过。');
-        };
         const result = await new Promise(resolve => {
           let settled = false;
           const finish = value => {
@@ -25021,22 +25012,26 @@ ${extraRequirement}
             resolve(value);
           };
           const timer = window.setTimeout(() => {
-            finish({ ok: false, reason: alertMessage || 'inline_action_timeout' });
+            finish({ ok: false, reason: 'inline_action_timeout' });
           }, timeoutMs);
+          const 内联失败 = 详情 => {
+            window.clearTimeout(timer);
+            const 失败原因 = toText(详情 && 详情.reason ? 详情.reason : 详情, '模块校验未通过。');
+            finish({ ok: false, reason: 失败原因, detail: 详情 });
+          };
           try {
             component = mountRunner(container, actionData => {
               window.clearTimeout(timer);
               finish({ ok: true, actionData });
-            });
+            }, 内联失败);
           } catch (error) {
             window.clearTimeout(timer);
             finish({ ok: false, reason: error && error.message ? error.message : 'inline_mount_failed', error });
           }
         });
         if (result && result.ok && result.actionData) return result;
-        return { ok: false, reason: alertMessage || (result && result.reason) || 'inline_action_unavailable', error: result && result.error };
+        return { ok: false, reason: (result && result.reason) || 'inline_action_unavailable', error: result && result.error, detail: result && result.detail };
       } finally {
-        window.alert = originalAlert;
         try {
           if (component && typeof component.destroy === 'function') component.destroy();
         } catch (error) {}
@@ -25056,7 +25051,7 @@ ${extraRequirement}
       }
       const dispatchDetail = buildTradeDispatchFromRequest(snapshot, tradeRequest);
       const launchOptions = buildMapTradeModalOptions(snapshot, dispatchDetail);
-      const capture = await captureInlineModuleAction((container, done) => window.mountTradeUI(container, snapshot, {
+      const capture = await captureInlineModuleAction((容器, 完成, 失败) => window.mountTradeUI(容器, snapshot, {
         initialTab: launchOptions.initialTab,
         prefillNpc: launchOptions.prefillNpc,
         lockNpc: launchOptions.lockNpc,
@@ -25066,7 +25061,8 @@ ${extraRequirement}
         prefillQty: launchOptions.prefillQty,
         prefillPrice: launchOptions.prefillPrice,
         autoExecute: true,
-        onTradeAction: done
+        onTradeAction: 完成,
+        onInlineActionFailed: 失败
       }), { timeoutMs: 1400 });
       if (!capture.ok) return capture;
       const inlineAction = normalizeInlineModuleAction(capture.actionData, 'trade', tradeRequest);
@@ -25082,11 +25078,12 @@ ${extraRequirement}
         return { ok: false, reason: 'profession_ui_unavailable' };
       }
       const dispatchContext = buildCraftDispatchFromRequest(snapshot, professionRequest);
-      const capture = await captureInlineModuleAction((container, done) => window.mountProfessionUI(container, snapshot, {
+      const capture = await captureInlineModuleAction((容器, 完成, 失败) => window.mountProfessionUI(容器, snapshot, {
         dispatchContext,
         professionRequest: cloneJsonValue(professionRequest, {}),
         autoExecute: true,
-        onAction: done
+        onAction: 完成,
+        onInlineActionFailed: 失败
       }), { timeoutMs: 1600 });
       if (!capture.ok) return capture;
       const inlineAction = normalizeInlineModuleAction(capture.actionData, 'profession', professionRequest);
@@ -25999,20 +25996,6 @@ ${extraRequirement}
       return true;
     }
 
-    /*
-    function syncModalTitleLongPress(previewKey, unifiedMode) {
-      if (!modalTitle) return;
-      modalTitle.classList.remove('nsfw-trigger-title');
-      modalTitle.removeAttribute('data-longpress');
-      modalTitle.removeAttribute('data-longpress-delay');
-      if (unifiedMode && previewKey === '生命图谱详细页' && canOpenPrivateArchive(liveSnapshot)) {
-        modalTitle.classList.add('nsfw-trigger-title');
-        modalTitle.setAttribute('data-longpress', PRIVATE_ARCHIVE_PREVIEW_KEY);
-        modalTitle.setAttribute('data-longpress-delay', '600');
-      }
-    }
-
-    */
     function syncModalTitleLongPress(previewKey, unifiedMode) {
       if (!modalTitle) return;
       modalTitle.classList.remove('nsfw-trigger-title');
@@ -27076,7 +27059,7 @@ ${extraRequirement}
         event.preventDefault();
         event.stopPropagation();
         if (!isSnapshotPlayerControlled(liveSnapshot)) {
-          if (typeof window.alert === 'function') window.alert('旁观视角不可操作。');
+          showUiToast('旁观视角不可操作。', 'error');
           return;
         }
         const actionData = buildArmoryActionRequest(liveSnapshot, actionBtn.dataset.armoryAction || '');
@@ -27094,8 +27077,7 @@ ${extraRequirement}
         const targetName = switchCharBtn.getAttribute('data-mvu-switch-char') || '';
         const switched = applyActiveCharacterSelection(targetName, { closeModal: false });
         if (!switched) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show(`切换角色失败：找不到【${targetName}】。`, 'error');
-          else if (typeof window.alert === 'function') window.alert(`切换角色失败：找不到【${targetName}】。`);
+          showUiToast(`切换角色失败：找不到【${targetName}】。`, 'error');
         }
         return;
       }
@@ -27145,8 +27127,7 @@ ${extraRequirement}
         const itemName = inventoryActionBtn.getAttribute('data-inventory-item') || '';
         const mode = inventoryActionBtn.getAttribute('data-inventory-mode') || 'one';
         if (!window.EquipmentManager || !charKey || !itemName) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('当前物品动作缺少必要信息，无法执行。', 'error');
-          else if (typeof window.alert === 'function') window.alert('当前物品动作缺少必要信息，无法执行。');
+          showUiToast('当前物品动作缺少必要信息，无法执行。', 'error');
           return;
         }
         hideInventoryHoverPanel();
@@ -27194,8 +27175,7 @@ ${extraRequirement}
         const kind = equipmentActionBtn.getAttribute('data-equipment-kind') || '';
         const targetName = equipmentActionBtn.getAttribute('data-equipment-name') || '';
         if (!window.EquipmentManager || !charKey || !kind) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('当前装备动作缺少必要信息，无法执行。', 'error');
-          else if (typeof window.alert === 'function') window.alert('当前装备动作缺少必要信息，无法执行。');
+          showUiToast('当前装备动作缺少必要信息，无法执行。', 'error');
           return;
         }
         if (action === 'unequip') {
@@ -27562,8 +27542,7 @@ ${extraRequirement}
         event.preventDefault();
         event.stopPropagation();
         if (!isSnapshotPlayerControlled(liveSnapshot)) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('旁观视角不可操作。', 'error');
-          else if (typeof window.alert === 'function') window.alert('旁观视角不可操作。');
+          showUiToast('旁观视角不可操作。', 'error');
           return;
         }
         const actionType = questActionBtn.getAttribute('data-quest-action') || '';
@@ -27584,8 +27563,7 @@ ${extraRequirement}
           progressAdd: toNumber(progressInput && progressInput.value, 1)
         });
         if (!actionData) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('任务请求参数不完整，请检查任务名称与说明。', 'error');
-          else if (typeof window.alert === 'function') window.alert('任务请求参数不完整，请检查任务名称与说明。');
+          showUiToast('任务请求参数不完整，请检查任务名称与说明。', 'error');
           return;
         }
         dispatchUiAiRequest(actionData.playerInput, actionData.systemPrompt, {
@@ -27600,8 +27578,7 @@ ${extraRequirement}
         event.preventDefault();
         event.stopPropagation();
         if (!isSnapshotPlayerControlled(liveSnapshot)) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('旁观视角不可操作。', 'error');
-          else if (typeof window.alert === 'function') window.alert('旁观视角不可操作。');
+          showUiToast('旁观视角不可操作。', 'error');
           return;
         }
 
@@ -27609,8 +27586,7 @@ ${extraRequirement}
         const targetName = relationActionBtn.getAttribute('data-relation-target') || '';
         const resolvedTarget = resolveSnapshotCharacter(liveSnapshot, targetName);
         if (!resolvedTarget.char) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show(`找不到关系对象【${targetName}】。`, 'error');
-          else if (typeof window.alert === 'function') window.alert(`找不到关系对象【${targetName}】。`);
+          showUiToast(`找不到关系对象【${targetName}】。`, 'error');
           return;
         }
 
@@ -27625,23 +27601,19 @@ ${extraRequirement}
         const routeSwitchable = !!deepGet(relationData, '_可切线', false);
 
         if (!isContactable || !isSameLocation) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show(`【${targetName}】当前不在你身边，无法进行当面关系互动。`, 'error');
-          else if (typeof window.alert === 'function') window.alert(`【${targetName}】当前不在你身边，无法进行当面关系互动。`);
+          showUiToast(`【${targetName}】当前不在你身边，无法进行当面关系互动。`, 'error');
           return;
         }
         if (actionType === 'ask' && favor < 30) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show(`向【${targetName}】请教需要好感度达到 30。`, 'error');
-          else if (typeof window.alert === 'function') window.alert(`向【${targetName}】请教需要好感度达到 30。`);
+          showUiToast(`向【${targetName}】请教需要好感度达到 30。`, 'error');
           return;
         }
         if (actionType === 'confess' && !(route === '恋人线' || routeSwitchable || favor >= 80)) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show(`【${targetName}】当前尚未达到适合表白的关系阶段。`, 'error');
-          else if (typeof window.alert === 'function') window.alert(`【${targetName}】当前尚未达到适合表白的关系阶段。`);
+          showUiToast(`【${targetName}】当前尚未达到适合表白的关系阶段。`, 'error');
           return;
         }
         if (actionType === 'dual' && !(route === '恋人线' && favor >= 80)) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('双修仅在高好感恋人线关系下开放。', 'error');
-          else if (typeof window.alert === 'function') window.alert('双修仅在高好感恋人线关系下开放。');
+          showUiToast('双修仅在高好感恋人线关系下开放。', 'error');
           return;
         }
 
@@ -27655,8 +27627,7 @@ ${extraRequirement}
             const giftSelect = actionPanel ? actionPanel.querySelector('.relation-gift-select') : null;
             itemUsed = toText(giftSelect && giftSelect.value, '');
             if (!itemUsed) {
-              if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('请先选择要赠送的物品。', 'error');
-              else if (typeof window.alert === 'function') window.alert('请先选择要赠送的物品。');
+              showUiToast('请先选择要赠送的物品。', 'error');
               return;
             }
           }
@@ -27699,8 +27670,7 @@ ${extraRequirement}
         event.preventDefault();
         event.stopPropagation();
         if (!isSnapshotPlayerControlled(liveSnapshot)) {
-          if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('旁观视角不可操作。', 'error');
-          else if (typeof window.alert === 'function') window.alert('旁观视角不可操作。');
+          showUiToast('旁观视角不可操作。', 'error');
           return;
         }
         const factionAction = factionActionBtn.getAttribute('data-faction-action') || '';
@@ -27716,8 +27686,7 @@ ${extraRequirement}
             quantity: toNumber(qtyInput && qtyInput.value, 1)
           });
           if (!actionData) {
-            if (window.MVU_Toast && typeof window.MVU_Toast.show === 'function') window.MVU_Toast.show('请确认捐献物品、目标势力与数量，并确保背包库存充足。', 'error');
-            else if (typeof window.alert === 'function') window.alert('请确认捐献物品、目标势力与数量，并确保背包库存充足。');
+            showUiToast('请确认捐献物品、目标势力与数量，并确保背包库存充足。', 'error');
             return;
           }
         }

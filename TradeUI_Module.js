@@ -363,6 +363,34 @@ class TradeUIComponent {
     return this.container.querySelectorAll(selector);
   }
 
+  显示提示(消息, 类型 = 'error') {
+    const 文本 = String(消息 || '').trim();
+    if (!文本) return;
+    if (typeof this.options.onInlineActionFailed === 'function') {
+      try { this.options.onInlineActionFailed({ reason: 文本, type: 类型 }); } catch (错误) {}
+    }
+    const 窗口列表 = [];
+    try { 窗口列表.push(window); } catch (错误) {}
+    try {
+      if (window.parent && window.parent !== window) 窗口列表.push(window.parent);
+    } catch (错误) {}
+    for (const 目标窗口 of 窗口列表) {
+      try {
+        if (目标窗口.MVU_Toast && typeof 目标窗口.MVU_Toast.show === 'function') {
+          目标窗口.MVU_Toast.show(文本, 类型);
+          return;
+        }
+        const 提示器 = 目标窗口.toastr;
+        if (提示器 && typeof 提示器[类型] === 'function') {
+          提示器[类型](文本);
+          return;
+        }
+      } catch (错误) {}
+    }
+    if (类型 === 'error') console.warn(文本);
+    else console.info(文本);
+  }
+
   setActiveTab(targetId, shouldSync = true) {
     const safeTarget = String(targetId || '').trim();
     if (!safeTarget || !this.$(`#${safeTarget}`)) return false;
@@ -1140,14 +1168,14 @@ class TradeUIComponent {
     const storeName = this.$('#shop-store-sel').value;
     const itemName = this.$('#shop-item-sel').value;
     const qty = parseInt(this.$('#shop-qty').value) || 1;
-    if (!this.isShopOpenNow()) return alert('商店已关门，营业时间 09:00-22:00。');
+    if (!this.isShopOpenNow()) return this.显示提示('商店已关门，营业时间 09:00-22:00。');
     const item = this.currentStores[storeName].库存[itemName];
     const storeData = this.currentStores[storeName] || {};
     const currency = this.resolveTradeCurrency(item, storeName, this.charData?.状态?.位置 || '', storeData);
     const isSoulTowerDiscountTrade = item && item._tower_discount_virtual === true;
     const total = this.getMarketAdjustedPrice(Number(item.价格 || 0), 'buy', { fixed: isSoulTowerDiscountTrade }) * qty;
 
-    if (!this.isCurrencySpendable(currency)) return alert(this.getCurrencyBlockedMessage(currency));
+    if (!this.isCurrencySpendable(currency)) return this.显示提示(this.getCurrencyBlockedMessage(currency));
 
     let loc = this.charData?.状态?.位置 || "";
     let isTier4_5 = /天锻|四字|红级|十万年|魂锻|三字|黑级|万年/.test(itemName);
@@ -1157,8 +1185,8 @@ class TradeUIComponent {
     let isTier1City = economy === '繁荣';
     let isTier2_3City = economy === '繁荣' || economy === '普通';
 
-    if (!isSoulTowerDiscountTrade && isTier4_5 && !isTier1City) return alert('当前城市级别不足，4-5阶战略资源请前往一线主城购买。');
-    if (!isSoulTowerDiscountTrade && isTier2_3 && !isTier2_3City) return alert('偏远地区物资匮乏，无法提供 2-3 阶资源。');
+    if (!isSoulTowerDiscountTrade && isTier4_5 && !isTier1City) return this.显示提示('当前城市级别不足，4-5阶战略资源请前往一线主城购买。');
+    if (!isSoulTowerDiscountTrade && isTier2_3 && !isTier2_3City) return this.显示提示('偏远地区物资匮乏，无法提供 2-3 阶资源。');
 
     let patchOps = [];
     let newWealth = (this.charData.财富?.[currency] || 0) - total;
@@ -1322,7 +1350,7 @@ class TradeUIComponent {
     const qty = parseInt(this.$('#priv-qty').value) || 1;
     const price = parseInt(this.$('#priv-price').value) || 1;
     const ctx = this.getPrivateTradeContext(action, targetNpc, itemName, qty, price);
-    if (ctx.error) return alert(ctx.error);
+    if (ctx.error) return this.显示提示(ctx.error);
 
     let patchOps = [];
     let log = "";
@@ -1428,7 +1456,7 @@ class TradeUIComponent {
     const item = this.currentAuction.拍品[itemName];
     const currency = this.resolveTradeCurrency(item, '拍卖行', this.charData?.状态?.位置 || '', this.currentAuction || {});
 
-    if (!this.isCurrencySpendable(currency)) return alert(this.getCurrencyBlockedMessage(currency));
+    if (!this.isCurrencySpendable(currency)) return this.显示提示(this.getCurrencyBlockedMessage(currency));
 
     let patchOps = [];
     patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/财富/${this.escapeJsonPointer(currency)}`, value: (this.charData.财富?.[currency] || 0) - bid });
