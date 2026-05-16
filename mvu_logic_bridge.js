@@ -16709,11 +16709,15 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           body: `
             <div class=\"archive-modal-grid skill-designer-layout skill-designer-shell\">
               <form class=\"archive-card full mvu-editor-form skill-designer-form skill-designer-form-card\" data-skill-designer-form>
-                <div class=\"archive-card-head skill-designer-toolbar\">
-                  <div class=\"archive-card-title\">${htmlEscape(scopeLabels.parameterTitle)}</div>
-                  <div class=\"mvu-editor-actions\">
-                    <button type=\"button\" class=\"tag-chip\" data-skill-designer-refresh data-skill-designer-disableable>重新读取</button>
-                    <button type=\"submit\" class=\"tag-chip live\" data-skill-designer-disableable>保存设计</button>
+                <div class=\"skill-designer-form-top\">
+                  <div class=\"skill-designer-actionbar\">
+                    <div class=\"mvu-editor-actions\">
+                      <button type=\"button\" class=\"tag-chip\" data-skill-designer-refresh data-skill-designer-disableable>重新读取</button>
+                      <button type=\"submit\" class=\"tag-chip live\" data-skill-designer-disableable>保存设计</button>
+                    </div>
+                  </div>
+                  <div class=\"archive-card-head skill-designer-toolbar\">
+                    <div class=\"archive-card-title\">${htmlEscape(scopeLabels.parameterTitle)}</div>
                   </div>
                 </div>
                 <div class=\"mvu-editor-grid\">

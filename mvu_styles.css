@@ -5037,26 +5037,33 @@
       scrollbar-width: thin;
     }
 
-    .skill-designer-shell .archive-card-head {
-      align-items: center;
-    }
-
-    .skill-designer-toolbar {
+    .skill-designer-form-top {
       position: sticky;
       top: 0;
       z-index: 4;
-      padding-bottom: 12px;
+      display: grid;
+      gap: 8px;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
       border-bottom: 1px solid rgba(120,220,255,0.10);
       background: linear-gradient(180deg, rgba(7, 24, 35, 0.98), rgba(7, 24, 35, 0.88));
       backdrop-filter: blur(10px);
     }
 
-    .skill-designer-toolbar .mvu-editor-actions {
-      margin-left: auto;
+    .skill-designer-actionbar {
+      display: flex;
       justify-content: flex-end;
+      align-items: center;
+      min-height: 40px;
     }
 
-    .skill-designer-toolbar .tag-chip {
+    .skill-designer-actionbar .mvu-editor-actions {
+      margin-left: auto;
+      justify-content: flex-end;
+      flex-wrap: nowrap;
+    }
+
+    .skill-designer-actionbar .tag-chip {
       min-height: 40px;
       padding: 0 18px;
       border-radius: 999px;
@@ -5064,15 +5071,15 @@
       color: rgba(244, 251, 253, 0.96);
     }
 
-    .skill-designer-toolbar .tag-chip.live {
+    .skill-designer-actionbar .tag-chip.live {
       border-color: rgba(77, 240, 255, 0.36);
       background: rgba(0, 194, 255, 0.16);
       color: #f9feff;
       box-shadow: 0 0 0 1px rgba(77, 240, 255, 0.10) inset;
     }
 
-    .skill-designer-shell .archive-card-title {
-      letter-spacing: 0.02em;
+    .skill-designer-toolbar {
+      margin-bottom: 0;
     }
 
     .skill-designer-shell .mvu-editor-grid {
@@ -8218,6 +8225,13 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-dashboard {
   align-content: start !important;
 }
 
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-page:has(.mvu-unified-dashboard--map),
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-section--dashboard:has(.mvu-unified-dashboard--map) {
+  height: 100% !important;
+  min-height: 0 !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+}
+
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-card,
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-map-stage {
   min-width: 0 !important;
@@ -8813,9 +8827,10 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-dashboard--map {
   grid-template-areas:
     "stage current"
     "stage locals" !important;
-  height: min(560px, calc(var(--mvu-hud-frame-height) - 160px), calc(100svh - 296px)) !important;
+  height: 100% !important;
   min-height: 0 !important;
   align-items: stretch !important;
+  align-content: stretch !important;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-dashboard--map > .mvu-unified-map-stage { grid-area: stage !important; }
@@ -8896,6 +8911,37 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-unified-map-stage .map-control-s
   gap: 6px !important;
   min-width: 0 !important;
   max-width: calc(100% - 160px) !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-map-stage .map-tool-btn {
+  width: 34px !important;
+  min-width: 34px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  border: 1px solid rgba(180, 240, 255, 0.72) !important;
+  border-radius: 8px !important;
+  background: linear-gradient(180deg, rgba(26, 50, 66, 0.98), rgba(16, 33, 48, 0.98)) !important;
+  color: #ffffff !important;
+  font-family: 'Segoe UI Symbol', 'Noto Sans Symbols 2', var(--font-ui), sans-serif !important;
+  font-size: 20px !important;
+  line-height: 1 !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72) !important;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28), inset 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+  transition: transform 0.12s ease, filter 0.12s ease, opacity 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, background 0.12s ease, color 0.12s ease !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-unified-map-stage .map-tool-btn:hover {
+  transform: translateY(-1px) !important;
+  filter: brightness(1.08) contrast(1.04) !important;
+  border-color: rgba(191, 239, 255, 0.86) !important;
 }
 
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-map-stage .map-mini-panel {
@@ -11018,7 +11064,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
     grid-template-areas:
       "stage current"
       "stage locals" !important;
-    height: min(560px, calc(var(--mvu-hud-frame-height) - 182px), calc(100svh - 326px)) !important;
+    height: 100% !important;
     align-content: stretch !important;
   }
 
@@ -11078,7 +11124,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
     grid-template-areas:
       "stage current"
       "stage locals" !important;
-    height: min(560px, calc(var(--mvu-hud-frame-height) - 160px), calc(100svh - 296px)) !important;
+    height: 100% !important;
     min-height: 0 !important;
   }
 
