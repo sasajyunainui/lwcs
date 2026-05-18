@@ -5010,6 +5010,68 @@
       display: grid;
       gap: 8px;
       margin-top: 10px;
+      position: relative;
+      padding: 12px;
+      border: 1px solid rgba(164, 221, 234, 0.14);
+      border-left: 3px solid rgba(77, 240, 255, 0.28);
+      border-radius: 10px;
+      background: rgba(5, 24, 34, 0.30);
+    }
+
+    .skill-designer-subsection[data-skill-designer-condition-branch-row] {
+      border-left-color: rgba(245, 186, 92, 0.38);
+    }
+
+    .skill-designer-condition-row {
+      position: relative;
+      padding: 10px 42px 10px 10px;
+      border: 1px solid rgba(164, 221, 234, 0.12);
+      border-left: 3px solid rgba(114, 230, 170, 0.34);
+      border-radius: 9px;
+      background: rgba(7, 31, 42, 0.26);
+    }
+
+    .skill-designer-condition-preview {
+      grid-column: 1 / -1;
+      color: rgba(210, 232, 238, 0.68);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .skill-designer-nested-prototype-field {
+      padding: 10px;
+      border: 1px solid rgba(164, 221, 234, 0.10);
+      border-left: 3px solid rgba(173, 149, 255, 0.28);
+      border-radius: 9px;
+      background: rgba(3, 18, 27, 0.28);
+    }
+
+    .skill-designer-remove-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 2;
+      display: inline-grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      padding: 0;
+      border: 1px solid rgba(255, 132, 156, 0.28);
+      border-radius: 50%;
+      background: rgba(57, 18, 31, 0.44);
+      color: #ffd5dd;
+      font-size: 17px;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .skill-designer-remove-btn:hover:not(:disabled) {
+      border-color: rgba(255, 132, 156, 0.52);
+      background: rgba(98, 28, 48, 0.58);
+    }
+
+    .skill-designer-remove-btn:disabled {
+      display: none;
     }
 
     .skill-designer-form-card {
@@ -5165,6 +5227,89 @@
       box-shadow:
         inset 0 1px 0 rgba(255,255,255,0.04),
         0 0 0 2px rgba(0,229,255,0.10);
+    }
+
+    .skill-designer-filter-select {
+      min-width: 0;
+    }
+
+    .skill-designer-filter-select-box {
+      position: relative;
+    }
+
+    .skill-designer-filter-select-box summary {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      padding: 10px 14px;
+      border: 1px solid rgba(120,220,255,0.16);
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(6, 18, 27, 0.92), rgba(7, 19, 28, 0.86));
+      color: #fbfeff;
+      cursor: pointer;
+      list-style: none;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+    }
+
+    .skill-designer-filter-select-box summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .skill-designer-filter-select-box summary::after {
+      content: "⌄";
+      margin-left: auto;
+      color: rgba(184, 215, 224, 0.74);
+    }
+
+    .skill-designer-filter-select-box[open] summary {
+      border-color: rgba(123, 220, 239, 0.34);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.04),
+        0 0 0 2px rgba(0,229,255,0.10);
+    }
+
+    .skill-designer-filter-select-box[open] summary::after {
+      content: "⌃";
+    }
+
+    .skill-designer-filter-select-box summary span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .skill-designer-filter-options {
+      max-height: 176px;
+      overflow: auto;
+      margin-top: 8px;
+      border: 1px solid rgba(120,220,255,0.12);
+      border-radius: 14px;
+      background: rgba(4, 14, 22, 0.92);
+    }
+
+    .skill-designer-filter-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      padding: 8px 12px;
+      color: rgba(232, 244, 248, 0.92);
+      cursor: pointer;
+    }
+
+    .skill-designer-filter-option + .skill-designer-filter-option {
+      border-top: 1px solid rgba(120,220,255,0.08);
+    }
+
+    .skill-designer-filter-option:hover {
+      background: rgba(85, 210, 230, 0.08);
+    }
+
+    .skill-designer-filter-option input {
+      width: 14px;
+      height: 14px;
+      accent-color: #65d9ef;
     }
 
     .skill-designer-chip-grid {
