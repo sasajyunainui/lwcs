@@ -5174,8 +5174,7 @@
 
     .skill-designer-shell .mvu-editor-input,
     .skill-designer-shell .mvu-editor-select,
-    .skill-designer-shell .mvu-editor-textarea,
-    .skill-designer-shell .mvu-editor-static {
+    .skill-designer-shell .mvu-editor-textarea {
       border-radius: 14px;
       border-color: rgba(120,220,255,0.16);
       background: linear-gradient(180deg, rgba(6, 18, 27, 0.92), rgba(7, 19, 28, 0.86));
@@ -5188,6 +5187,74 @@
     .skill-designer-shell .mvu-editor-select,
     .skill-designer-shell .mvu-editor-static {
       min-height: 44px;
+    }
+
+    .skill-designer-shell .skill-designer-static-token {
+      width: max-content;
+      min-width: 0;
+      min-height: 30px;
+      border-radius: 999px;
+      border-color: rgba(120,220,255,0.18);
+      background: rgba(120,220,255,0.08);
+      color: rgba(236, 250, 255, 0.92);
+      padding: 5px 10px;
+      font-weight: 650;
+      box-shadow: none;
+    }
+
+    .skill-designer-section-title-row,
+    .skill-designer-inline-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .skill-designer-inline-toggle {
+      margin-bottom: 8px;
+    }
+
+    .skill-designer-check-toggle {
+      position: relative;
+      display: inline-flex;
+      flex: 0 0 auto;
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .skill-designer-check-toggle input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .skill-designer-check-toggle span {
+      width: 18px;
+      height: 18px;
+      box-sizing: border-box;
+      border-radius: 5px;
+      border: 1px solid rgba(120,220,255,0.28);
+      background: rgba(5, 14, 24, 0.78);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+
+    .skill-designer-check-toggle input:checked + span {
+      border-color: rgba(92, 230, 255, 0.68);
+      background: rgba(44, 190, 220, 0.30);
+    }
+
+    .skill-designer-check-toggle input:checked + span::after {
+      content: "";
+      position: absolute;
+      left: 6px;
+      top: 3px;
+      width: 4px;
+      height: 8px;
+      border: solid #f2fdff;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
     }
 
     .skill-designer-shell .mvu-editor-textarea {
@@ -9772,7 +9839,7 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-shell-roster-name:focus-visible 
 body.mvu-layout-unified #mvu-unified-mount .mvu-shell-roster-meta,
 body.mvu-layout-unified #mvu-unified-mount .mvu-shell-roster-state {
   min-width: 0 !important;
-  color: rgba(204, 231, 240, 0.86) !important;
+  color: rgba(226, 244, 250, 0.92) !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
@@ -9800,6 +9867,27 @@ body.mvu-layout-unified #mvu-unified-mount .mvu-shell-roster-action {
   line-height: 1 !important;
   font-weight: 750 !important;
   cursor: pointer !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-shell-roster-action:hover,
+body.mvu-layout-unified #mvu-unified-mount .mvu-shell-roster-action:focus-visible {
+  border-color: rgba(118, 226, 255, 0.36) !important;
+  background: rgba(18, 54, 74, 0.88) !important;
+  color: #f6fdff !important;
+  outline: none !important;
+  box-shadow: inset 0 0 0 1px rgba(118, 226, 255, 0.10), 0 6px 16px rgba(0, 0, 0, 0.18) !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-shell-roster-action.live:hover,
+body.mvu-layout-unified #mvu-unified-mount .mvu-shell-roster-action.live:focus-visible {
+  border-color: rgba(91, 225, 196, 0.42) !important;
+  background: rgba(18, 70, 66, 0.88) !important;
+}
+
+body.mvu-layout-unified #mvu-unified-mount .mvu-shell-roster-action.warn:hover,
+body.mvu-layout-unified #mvu-unified-mount .mvu-shell-roster-action.warn:focus-visible {
+  border-color: rgba(248, 190, 112, 0.42) !important;
+  background: rgba(74, 48, 22, 0.88) !important;
 }
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-dashboard--world,
 body.mvu-layout-unified #mvu-unified-mount .mvu-unified-dashboard--org {
@@ -15804,8 +15892,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
 
 #detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .skill-designer-shell .mvu-editor-input,
 #detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .skill-designer-shell .mvu-editor-select,
-#detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .skill-designer-shell .mvu-editor-textarea,
-#detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .skill-designer-shell .mvu-editor-static {
+#detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .skill-designer-shell .mvu-editor-textarea {
   border-color: rgba(214, 236, 243, 0.18) !important;
   background: rgba(3, 12, 20, 0.76) !important;
   color: var(--dossier-text-strong) !important;
@@ -15895,8 +15982,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-mobile-shell-modal-host .
 
 #detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .skill-designer-shell .mvu-editor-input,
 #detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .skill-designer-shell .mvu-editor-select,
-#detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .skill-designer-shell .mvu-editor-textarea,
-#detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .skill-designer-shell .mvu-editor-static {
+#detailModal.archive-redesign-mode.mvu-modal-display-split .archive-redesign-root .skill-designer-shell .mvu-editor-textarea {
   border-color: rgba(214, 236, 243, 0.24) !important;
   background: rgba(2, 9, 15, 0.88) !important;
   color: #fbfeff !important;
@@ -19093,7 +19179,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-roster-name {
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-roster-meta {
   font-family: var(--mvu-mobile-shell-font) !important;
-  color: rgba(51, 82, 103, 0.84) !important;
+  color: rgba(216, 238, 247, 0.9) !important;
   font-size: 11px;
   line-height: 1.3;
   font-weight: 400 !important;
@@ -19102,7 +19188,7 @@ body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-roster-meta {
 
 body.mvu-shell-overlay-enabled #mvu-unified-mount .mvu-shell-roster-state {
   font-family: var(--mvu-mobile-shell-font) !important;
-  color: rgba(51, 82, 103, 0.76) !important;
+  color: rgba(191, 219, 232, 0.84) !important;
   font-size: 10px;
   line-height: 1.28;
   font-weight: 400 !important;

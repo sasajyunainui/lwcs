@@ -120,7 +120,7 @@ export const IntelEvents = [
     "tick": 0,
     "content": "弑神级定装魂导炮弹‘永恒天国’存放在战神殿总部，即明都西山第十八层最深处。",
     "source": "联邦军方最高机密",
-    "knowers": ["陈新杰", "战神殿高层", "斗罗联邦高层"],
+    "knowers": ["陈新杰", "战神殿高层"],
     "trigger_flag": "弑神级武器永恒天国存放于战神殿",
     "trigger_step": 1,
     "secret_level": "SSS级(位面级)"

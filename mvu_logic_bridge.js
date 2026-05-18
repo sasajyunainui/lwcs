@@ -1681,10 +1681,18 @@
       return formatTickToCalendarDateText(deepGet(snapshot, 'rootData.world.时间.tick', 0));
     }
 
+    function 格式化情报展示文本(source = '', fallback = '暂无') {
+      const 原文 = toText(source, '').trim();
+      if (!原文 || 原文 === '无') return fallback;
+      const 去前缀文本 = 原文.replace(/^intel_+/, '').trim();
+      if (!去前缀文本) return fallback;
+      return /^[A-Za-z0-9_.:/-]+$/.test(去前缀文本) ? 去前缀文本.replace(/[_-]+/g, ' ').trim() || fallback : 去前缀文本;
+    }
+
     function getLatestUnlockedIntelText(snapshot, limit = 12, fallback = '暂无') {
       const list = Array.isArray(snapshot && snapshot.unlockedKnowledges) ? snapshot.unlockedKnowledges : [];
       if (!list.length) return fallback;
-      return shortenText(toText(list[list.length - 1], fallback), limit) || fallback;
+      return shortenText(格式化情报展示文本(list[list.length - 1], fallback), limit) || fallback;
     }
 
     function getStatusActionEditorOptions(currentValue = '') {
@@ -9658,10 +9666,13 @@
       void 原型;
       return `
         <div class=\"mvu-editor-field mvu-editor-field-wide\" data-skill-designer-condition-branch>
-          <span class=\"mvu-editor-label\">条件分支</span>
-          <select class=\"mvu-editor-select\" data-skill-designer-condition-branch-enabled data-skill-designer-disableable>
-            ${buildSkillDesignerSelectOptions(['无', '启用'], branches.length ? '启用' : '无')}
-          </select>
+          <div class=\"skill-designer-inline-toggle\">
+            <span class=\"mvu-editor-label\">条件分支</span>
+            <label class=\"skill-designer-check-toggle\">
+              <input type=\"checkbox\"${branches.length ? ' checked' : ''} data-skill-designer-condition-branch-enabled data-skill-designer-disableable />
+              <span></span>
+            </label>
+          </div>
           <div class=\"skill-designer-preview-stack\" data-skill-designer-condition-branch-list${branches.length ? '' : ' hidden'}${branches.length ? '' : ' style=\"display:none\"'}>
             ${branches.map(branch => 构建技能设计台条件分支条目编辑器(branch, fallbackTarget)).join('')}
           </div>
@@ -9702,7 +9713,7 @@
       if (key === '条件分支' && options && options.禁用条件分支) return '';
       if (key === '条件分支') return 构建技能设计台条件分支编辑器(原型, value, fallbackTarget);
       if (类型 === '原型列表') return 构建技能设计台嵌套原型列表编辑器(key, value, fallbackTarget);
-      const 是必填 = key === '目标' || 技能设计台原型字段是否必填(原型, key);
+      const 是必填 = key === '目标' || key === '生效方式' || 技能设计台原型字段是否必填(原型, key);
       if (类型 === '枚举') {
         const 下拉选项 = 构建技能设计台原型字段下拉选项(key, 选项, 是必填);
         return `
@@ -9855,7 +9866,10 @@
         });
         (字段容器 || row).querySelectorAll('[data-skill-designer-condition-branch]').forEach(block => {
           if (block.closest('[data-skill-designer-prototype-row]') !== row) return;
-          const enabled = normalizeSkillUiText(block.querySelector(':scope > [data-skill-designer-condition-branch-enabled]')?.value, '无') === '启用';
+          const enabledInput = block.querySelector(':scope [data-skill-designer-condition-branch-enabled]');
+          const enabled = enabledInput instanceof HTMLInputElement && enabledInput.type === 'checkbox'
+            ? enabledInput.checked
+            : normalizeSkillUiText(enabledInput?.value, '无') === '启用';
           if (!enabled) return;
           const branches = Array.from(block.querySelectorAll(':scope [data-skill-designer-condition-branch-row]')).map(branchRow => {
             if (branchRow.closest('[data-skill-designer-prototype-row]') !== row) return null;
@@ -10107,6 +10121,7 @@
     function readSkillDesignerFormState(mountEl, previewMeta = {}) {
       const readField = key => {
         const input = mountEl ? mountEl.querySelector(`[data-skill-designer-field=\"${key}\"]`) : null;
+        if (input instanceof HTMLInputElement && input.type === 'checkbox') return input.checked ? '启用' : '无';
         return input ? toText(input.value, '').trim() : '';
       };
       const readCheckedValues = name => Array.from(mountEl ? mountEl.querySelectorAll(`input[name=\"${name}\"]:checked`) : []).map(node => toText(node.value, '').trim()).filter(Boolean);
@@ -13170,9 +13185,10 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
     }
 
     function 归一化情报叙事文案(source = '') {
-      const 句段 = 提取叙事句段(source);
+      const 展示文本 = 格式化情报展示文本(source, '暂无记录');
+      const 句段 = 提取叙事句段(展示文本);
       return 构建叙事三段文案({
-        现象: 句段[0] || toText(source, '暂无记录'),
+        现象: 句段[0] || 展示文本,
         后果: 句段[1] || '情报已入档',
         钩子: 句段[2] || '建议继续核实线索来源',
         回退: '暂无记录'
@@ -16569,7 +16585,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
 
     function buildShellIntelView(snapshot) {
       const unlocked = (snapshot.unlockedKnowledges || []).slice(-5).reverse().map(item => ({
-        title: item,
+        title: 格式化情报展示文本(item),
         meta: '已掌握',
         note: '',
       }));
@@ -17726,10 +17742,6 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
               { value: '融合增幅', label: '融合增幅' },
             ]
           : [];
-        const 技能掌控度选项 = [
-          { value: '无', label: '无' },
-          { value: '启用', label: '启用' },
-        ];
         const 是造物承载 = normalizeSkillUiText(designerDraft.deliveryForm, '') === '造物承载';
         const 消耗值 = designerDraft.costValues && typeof designerDraft.costValues === 'object' ? designerDraft.costValues : {};
         const 构建消耗输入 = 资源 => {
@@ -18261,7 +18273,9 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
               }
               if (target && target.matches('[data-skill-designer-condition-branch-enabled]')) {
                 const block = target.closest('[data-skill-designer-condition-branch]');
-                const enabled = normalizeSkillUiText(target.value, '无') === '启用';
+                const enabled = target instanceof HTMLInputElement && target.type === 'checkbox'
+                  ? target.checked
+                  : normalizeSkillUiText(target.value, '无') === '启用';
                 const list = block ? block.querySelector(':scope > [data-skill-designer-condition-branch-list]') : null;
                 const actions = block ? block.querySelector(':scope > [data-skill-designer-condition-branch-actions]') : null;
                 const row = block ? block.closest('[data-skill-designer-prototype-row]') : null;
@@ -18516,7 +18530,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                       </label>
                       <label class=\"mvu-editor-field\">
                         <span class=\"mvu-editor-label\">技能定位</span>
-                        <div class=\"mvu-editor-static\" data-skill-designer-type-display>${htmlEscape(designerDraft.typeDisplay || designerDraft.type || '输出')}</div>
+                        <div class=\"mvu-editor-static skill-designer-static-token\" data-skill-designer-type-display>${htmlEscape(designerDraft.typeDisplay || designerDraft.type || '输出')}</div>
                         <input type=\"hidden\" value=\"${escapeHtmlAttr(designerDraft.type || '输出')}\" data-skill-designer-field=\"type\" />
                       </label>
                     </div>
@@ -18591,7 +18605,13 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                   </section>
 
                   <section class=\"mvu-editor-section\">
-                    <div class=\"mvu-editor-section-title\">释放设置</div>
+                    <div class=\"mvu-editor-section-title skill-designer-section-title-row\">
+                      <span>释放设置</span>
+                      <label class=\"skill-designer-check-toggle\" title=\"技能掌控度\">
+                        <input type=\"checkbox\"${启用技能掌控度 ? ' checked' : ''} value=\"启用\" data-skill-designer-field=\"启用技能掌控度\" data-skill-designer-disableable />
+                        <span></span>
+                      </label>
+                    </div>
                     <div class=\"mvu-editor-field-grid\">
                       <label class=\"mvu-editor-field\">
                         <span class=\"mvu-editor-label\">消耗资源</span>
@@ -18608,12 +18628,6 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                         <span class=\"mvu-editor-label\">承载方式</span>
                         <select class=\"mvu-editor-select\" data-skill-designer-field=\"deliveryForm\" data-skill-designer-disableable>
                           ${buildSkillDesignerSelectOptions(getSkillDesignerDeliveryOptions(designerDraft.type), designerDraft.deliveryForm || '直接生效')}
-                        </select>
-                      </label>
-                      <label class=\"mvu-editor-field\">
-                        <span class=\"mvu-editor-label\">启用技能掌控度</span>
-                        <select class=\"mvu-editor-select\" data-skill-designer-field=\"启用技能掌控度\" data-skill-designer-disableable>
-                          ${buildSkillDesignerSelectOptions(技能掌控度选项, designerDraft.启用技能掌控度 || '无')}
                         </select>
                       </label>
                     </div>
@@ -19621,14 +19635,14 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
 
       if (previewKey === '情报库详细页') {
         const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
-        const intelNodes = snapshot.unlockedKnowledges.slice(-5).reverse().filter(item => item && item !== '无');
+        const intelNodes = snapshot.unlockedKnowledges.slice(-5).reverse().map(item => 格式化情报展示文本(item, '')).filter(Boolean);
         const coreIntel = intelNodes[0] || '暂无核心情报';
         const sideIntels = intelNodes.slice(1, 5);
         const unlockedIntelEntries = (snapshot.unlockedKnowledges || []).map((text, index) => ({ text, index })).slice().reverse();
         const unlockedIntelPageSize = 6;
         const unlockedIntelPage = paginateModalItems(unlockedIntelEntries, previewKey, 'intel-records', unlockedIntelPageSize);
         const latestUnlockedIntel = snapshot.unlockedKnowledges.length
-          ? toText(snapshot.unlockedKnowledges[snapshot.unlockedKnowledges.length - 1], '暂无')
+          ? 格式化情报展示文本(snapshot.unlockedKnowledges[snapshot.unlockedKnowledges.length - 1], '暂无')
           : '暂无';
         const intelOverviewText = latestUnlockedIntel;
         const combatHistoryTotalCount = snapshot.combatHistoryEntries.reduce((total, [, info]) => total + Math.max(0, toNumber(info && info.次数, 0)), 0);
@@ -19659,13 +19673,13 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
               <div class="intel-card mvu-intel-record-card">
                 <div class="mvu-intel-record-head">
                   <b>${activeCharKey
-                    ? makeInlineEditableValue(toText(item && item.text, '未知'), {
+                    ? makeInlineEditableValue(格式化情报展示文本(item && item.text, '未知'), {
                         path: ['char', activeCharKey, '已掌握情报', toNumber(item && item.index, 0)],
                         kind: 'string',
                         rawValue: toText(item && item.text, '未知'),
                         multiline: true,
                       })
-                    : htmlEscape(toText(item && item.text, '未知'))}</b>
+                    : htmlEscape(格式化情报展示文本(item && item.text, '未知'))}</b>
                   ${activeCharKey
                     ? `<button type="button" class="tag-chip" data-collection-action="delete-intel" data-collection-char="${escapeHtmlAttr(activeCharKey)}" data-collection-index="${escapeHtmlAttr(String(toNumber(item && item.index, 0)))}">删除</button>`
                     : ''}
@@ -21861,7 +21875,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
               <div class="archive-card full mvu-detail-scroll-card">
                 <div class="archive-card-head"><div class="archive-card-title">近期情报</div></div>
                 <div class="intel-layout mvu-detail-intel-grid mvu-detail-scroll-list">
-                  ${(snapshot.unlockedKnowledges.length ? snapshot.unlockedKnowledges.slice(-4).reverse() : ['情报仍待收集']).map(item => `<div class="intel-card intel-card--single mvu-detail-intel-card"><b>${htmlEscape(shortenText(item, 20))}</b><span title="${escapeHtmlAttr(item)}">${htmlEscape(shortenText(item, 24))}</span></div>`).join('')}
+                  ${(snapshot.unlockedKnowledges.length ? snapshot.unlockedKnowledges.slice(-4).reverse().map(item => 格式化情报展示文本(item)) : ['情报仍待收集']).map(item => `<div class="intel-card intel-card--single mvu-detail-intel-card"><b>${htmlEscape(shortenText(item, 20))}</b><span title="${escapeHtmlAttr(item)}">${htmlEscape(shortenText(item, 24))}</span></div>`).join('')}
                 </div>
               </div>
             </div>
