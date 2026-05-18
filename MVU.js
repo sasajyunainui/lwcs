@@ -13866,7 +13866,7 @@ const StatsSchema = z
       .prefault(1),
     上次灵物等级: z.coerce.number().prefault(-20).describe('上次吸收灵物的等级'),
     等级惩罚: z.coerce.number().prefault(0).describe('违规吸收导致的等级上限永久扣除'),
-    系别: z.string().prefault('强攻系').describe('魂师系别'),
+    系别: z.string().prefault('未知系').describe('魂师系别'),
     天赋梯队: z.string().prefault('正常').describe('天赋梯队'),
     天赋评级: z.union([z.coerce.number(), z.string()]).optional().describe('AI输出的1-100天赋评分，仅用于初始化天赋判定，判定后删除'),
     背景: z.string().prefault(AI_TODO_BACKGROUND).describe('家世或出身背景描述'),
@@ -14312,7 +14312,7 @@ const CharacterSchema = z
           .object({
             表象名称: z.string().prefault(AI_TODO_SPIRIT_NAME).describe('武魂名'),
             描述: z.string().prefault(AI_TODO_SPIRIT_DESC).describe('武魂的具体形态与能力描述'),
-            系别: z.string().prefault('强攻系'),
+            系别: z.string().prefault('未知系'),
             属性体系: z.string().prefault(AI_TODO_ATTRIBUTE_SYSTEM).describe('武魂属性体系：无/元素/五行'),
             已解锁属性: z.array(z.string()).prefault([]).describe('当前已经真正获得的属性列表'),
             可容纳属性: z.array(z.string()).prefault([AI_TODO_ATTRIBUTE_CAPACITY]).describe('武魂理论可承载的属性上限'),
@@ -14374,7 +14374,7 @@ const CharacterSchema = z
           .object({
             表象名称: z.string().prefault('未展露').describe('第二武魂名'),
             描述: z.string().prefault('无').describe('第二武魂描述'),
-            系别: z.string().prefault('强攻系'),
+            系别: z.string().prefault('未知系'),
             属性体系: z.string().prefault(AI_TODO_ATTRIBUTE_SYSTEM).describe('武魂属性体系：无/元素/五行'),
             已解锁属性: z.array(z.string()).prefault([]).describe('当前已经真正获得的属性列表'),
             可容纳属性: z.array(z.string()).prefault([AI_TODO_ATTRIBUTE_CAPACITY]).describe('武魂理论可承载的属性上限'),

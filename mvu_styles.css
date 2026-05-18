@@ -24,9 +24,9 @@
 
     * { box-sizing: border-box; }
 
-    
 
-    
+
+
 
     .mvu-viewport {
       width: 100%;
@@ -2549,10 +2549,10 @@
       cursor: pointer;
       transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
     }
-    
+
     .split-shell .mvu-module-card:not(.clickable) { cursor: default; pointer-events: none; }
     .split-shell .mvu-module-card:not(.clickable) * { pointer-events: none; }
-    
+
     .split-shell .mvu-panel.clickable:hover,
     .split-shell .mvu-module-card.clickable:hover,
     .split-shell .mvu-simple-card.clickable:hover {
@@ -3888,7 +3888,7 @@
       gap: 6px;
       margin-bottom: 8px;
     }
-    
+
     .archive-tile-grid .archive-tile {
       background: rgba(255,255,255,0.02);
       border: 1px solid rgba(255,255,255,0.06);
@@ -3899,7 +3899,7 @@
       flex-direction: column;
       justify-content: center;
     }
-    
+
     .archive-tile-grid .archive-tile b {
       font-size: 10px;
       color: var(--text-dim);
@@ -3907,13 +3907,13 @@
       font-weight: 500;
       letter-spacing: 0.5px;
     }
-    
+
     .archive-tile-grid .archive-tile span {
       font-size: 12px;
       color: var(--white);
       line-height: 1.2;
     }
-    
+
     .figure-board {
       position: relative;
       width: 100%;
@@ -3921,7 +3921,7 @@
       background: radial-gradient(circle at center, rgba(0,229,255,0.04) 0%, transparent 65%);
       margin: 10px 0;
     }
-    
+
     .figure-core {
       position: absolute;
       top: 50%;
@@ -3940,7 +3940,7 @@
       z-index: 2;
       box-shadow: 0 0 15px rgba(0,229,255,0.15);
     }
-    
+
     .figure-slot {
       position: absolute;
       transform: translate(-50%, -50%);
@@ -3954,14 +3954,14 @@
       z-index: 3;
       transition: .2s ease;
     }
-    
+
     .figure-slot.on {
       background: rgba(0,229,255,0.08);
       border-color: rgba(0,229,255,0.25);
       color: var(--cyan);
       box-shadow: 0 0 10px rgba(0,229,255,0.1);
     }
-    
+
     .figure-slot.warn {
       background: rgba(255,77,122,0.08);
       border-color: rgba(255,77,122,0.25);
@@ -3974,7 +3974,7 @@
       background: rgba(255,255,255,0.01);
       border-color: rgba(255,255,255,0.05);
     }
-    
+
     .figure-slot.clickable:hover,
     .figure-core.clickable:hover {
       background: rgba(255,215,0,0.15);
@@ -3983,7 +3983,7 @@
       box-shadow: 0 0 10px rgba(255,215,0,0.2);
       cursor: pointer;
     }
-    
+
     .armory-quick-actions {
       display: flex;
       flex-wrap: wrap;
@@ -5075,6 +5075,7 @@
     }
 
     .skill-designer-form-card {
+      background: transparent !important;
       display: grid;
       align-content: start;
       gap: 8px;
@@ -5087,6 +5088,7 @@
     }
 
     .skill-designer-summary-card {
+      background: transparent !important;
       display: grid;
       align-content: start;
       grid-column: 2;
@@ -5150,10 +5152,12 @@
     .skill-designer-shell .mvu-editor-section {
       gap: 14px;
       padding: 14px;
-      border-radius: 16px;
-      border: 1px solid rgba(120,220,255,0.10);
-      background: linear-gradient(180deg, rgba(18, 44, 59, 0.72), rgba(10, 27, 38, 0.78));
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+      border-radius: 2px;
+      border: 1px solid rgba(92, 230, 255, 0.15);
+      background: linear-gradient(180deg, rgba(4, 16, 25, 0.85), rgba(2, 10, 16, 0.9));
+      background-image: linear-gradient(rgba(0, 243, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 243, 255, 0.03) 1px, transparent 1px);
+      background-size: 20px 20px;
+      position: relative;
     }
 
     .skill-designer-shell .mvu-editor-section[hidden] {
@@ -5162,25 +5166,33 @@
 
     .skill-designer-shell .mvu-editor-section-title {
       font-size: 14px;
-      color: rgba(243, 248, 250, 0.96);
-      letter-spacing: 0.02em;
+      color: #00f3ff;
+      letter-spacing: 0.1em;
+      text-shadow: 0 0 8px rgba(0, 243, 255, 0.4);
     }
 
     .skill-designer-shell .mvu-editor-label {
       font-size: 12px;
       color: rgba(232, 244, 248, 0.92);
       letter-spacing: 0;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .mvu-editor-micro-copy {
+      color: rgba(0, 243, 255, 0.5);
+      font-size: 11px;
     }
 
     .skill-designer-shell .mvu-editor-input,
     .skill-designer-shell .mvu-editor-select,
     .skill-designer-shell .mvu-editor-textarea {
-      border-radius: 14px;
-      border-color: rgba(120,220,255,0.16);
-      background: linear-gradient(180deg, rgba(6, 18, 27, 0.92), rgba(7, 19, 28, 0.86));
+      border-radius: 0;
+      border-color: rgba(92, 230, 255, 0.2);
+      background: rgba(4, 16, 25, 0.6);
       color: #fbfeff;
       padding: 10px 14px;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
 
     .skill-designer-shell .mvu-editor-input,
@@ -5290,10 +5302,9 @@
     .skill-designer-shell .mvu-editor-input:focus,
     .skill-designer-shell .mvu-editor-select:focus,
     .skill-designer-shell .mvu-editor-textarea:focus {
-      border-color: rgba(123, 220, 239, 0.34);
-      box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.04),
-        0 0 0 2px rgba(0,229,255,0.10);
+      border-color: #00f3ff;
+      box-shadow: 0 0 10px rgba(0, 243, 255, 0.2), inset 0 0 5px rgba(0, 243, 255, 0.1);
+      outline: none;
     }
 
     .skill-designer-filter-select {
@@ -5510,25 +5521,30 @@
     .skill-designer-summary-row {
       display: grid;
       gap: 5px;
-      padding: 12px 14px;
-      border-radius: 14px;
-      border: 1px solid rgba(120,220,255,0.10);
-      background: linear-gradient(180deg, rgba(16, 42, 57, 0.70), rgba(10, 25, 36, 0.76));
+      padding: 10px 14px;
+      border-radius: 0;
+      border: none;
+      border-left: 2px solid rgba(0, 243, 255, 0.4);
+      background: linear-gradient(90deg, rgba(0, 243, 255, 0.1), transparent);
+      position: relative;
     }
 
     .skill-designer-summary-row em {
       font-style: normal;
-      font-size: 11px;
+      font-size: 10px;
+      font-family: monospace;
+      text-transform: uppercase;
       line-height: 1.35;
-      color: rgba(216, 234, 240, 0.88);
-      letter-spacing: 0;
+      color: rgba(0, 243, 255, 0.6);
+      letter-spacing: 0.1em;
     }
 
     .skill-designer-summary-row span {
       display: block;
-      font-size: 13px;
+      font-size: 14px;
       line-height: 1.55;
-      color: rgba(244, 249, 251, 0.96);
+      color: #fff;
+      text-shadow: 0 0 5px rgba(0, 243, 255, 0.3);
       white-space: normal;
       word-break: break-word;
     }
@@ -5545,29 +5561,62 @@
       gap: 8px;
       align-items: center;
       min-height: 32px;
-      padding: 7px 10px;
-      border-radius: 12px;
-      border: 1px solid rgba(120,220,255,0.12);
-      background: rgba(5, 18, 27, 0.58);
+      padding: 4px 0;
+      border: none;
+      border-bottom: 1px dashed rgba(0, 243, 255, 0.2);
+      background: transparent;
     }
 
     .skill-designer-trial-row em {
       min-width: 0;
       overflow: hidden;
-      color: rgba(213, 238, 245, 0.86);
+      color: rgba(0, 243, 255, 0.8);
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
     .skill-designer-trial-row span {
-      color: #fbfeff;
-      font-weight: 700;
+      color: #00f3ff;
+      font-weight: bold;
+      text-shadow: 0 0 5px rgba(0, 243, 255, 0.5);
       text-align: right;
     }
 
     .skill-designer-trial-row.muted span {
       color: rgba(190, 214, 222, 0.78);
       font-weight: 560;
+    }
+
+    /* 空状态引导 HUD 样式 */
+    .skill-designer-empty-guide {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 30px 20px;
+      text-align: center;
+      border: 1px dashed rgba(0, 243, 255, 0.3);
+      background: rgba(0, 243, 255, 0.05);
+      margin-bottom: 15px;
+    }
+    .skill-designer-empty-guide .guide-icon {
+      font-size: 24px;
+      color: #00f3ff;
+      margin-bottom: 10px;
+      text-shadow: 0 0 10px #00f3ff;
+    }
+    .skill-designer-empty-guide .guide-title {
+      font-size: 15px;
+      color: #fff;
+      font-weight: bold;
+      margin-bottom: 8px;
+      letter-spacing: 0.1em;
+    }
+    .skill-designer-empty-guide .guide-desc {
+      font-size: 12px;
+      color: rgba(0, 243, 255, 0.7);
+      line-height: 1.5;
+      max-width: 80%;
     }
 
     .skill-designer-shell .mvu-editor-actions .tag-chip {
@@ -6672,13 +6721,13 @@
     .intel-slot-value.red { color: var(--red); }
 
     @media (max-width: 760px) {
-      
+
       .mvu-scale-wrap {
         width: 1060px;
         height: 770px;
       }
     }
-  
+
     .shell-bg-sibling {
       position: absolute;
       top: 0;
@@ -6733,7 +6782,7 @@
       z-index: 20;
     }
 
-  
+
 .mvu-vue-wrapper {
   position: fixed;
   top: 0;
@@ -7604,7 +7653,7 @@
   padding: 4px;
   overflow-x: hidden;
 }
- 
+
 /* Dark red tech glow card base */
 .nsfw-theme-card {
   background: linear-gradient(145deg, rgba(35,10,20,0.9), rgba(15,0,5,0.95));
@@ -7615,13 +7664,13 @@
   display: flex;
   flex-direction: column;
 }
- 
+
 /* Card header */
 .nsfw-theme-head {
   padding: 10px 12px;
   border-bottom: 1px solid rgba(255,71,87,0.15);
 }
- 
+
 .nsfw-theme-title {
   font-size: 13px;
   color: #ff758c;
@@ -7631,11 +7680,11 @@
   align-items: center;
   gap: 6px;
 }
- 
+
 .nsfw-theme-body {
   padding: 10px;
 }
- 
+
 /* Fluid pink progress bar series */
 .nsfw-progress-container { margin-bottom: 12px; }
 .nsfw-progress-label {
@@ -7646,7 +7695,7 @@
   margin-bottom: 4px;
 }
 .nsfw-progress-label span:last-child { color: #fff; }
- 
+
 .nsfw-progress-track {
   height: 6px;
   background: rgba(0,0,0,0.6);
@@ -7655,7 +7704,7 @@
 }
 .nsfw-progress-track.arousal { border: 1px solid rgba(255,71,87,0.2); }
 .nsfw-progress-track.dev { border: 1px solid rgba(155,89,182,0.3); }
- 
+
 .nsfw-fill-arousal {
   height: 100%;
   background: linear-gradient(90deg, #ff4757, #ff758c);
@@ -7668,7 +7717,7 @@
   box-shadow: 0 0 8px #9b59b6;
   transition: width 0.3s ease;
 }
- 
+
 /* Data grid item */
 .nsfw-meta-item {
   background: linear-gradient(90deg, rgba(255,71,87,0.1), transparent);
@@ -7689,11 +7738,11 @@
   color: #fff;
   line-height: 1.32;
 }
- 
+
 /* Special highlight text */
 .nsfw-highlight-red { color: #ff4757 !important; font-weight: bold; }
 .nsfw-text-wrap { white-space: normal !important; line-height: 1.4 !important; }
- 
+
 /* Long-press title effect */
 .nsfw-trigger-title {
   cursor: inherit;
@@ -7754,9 +7803,9 @@
 }
 
 /* 2. Inner layout typography override */
-.nsfw-modal-grid { 
-  display: flex; flex-direction: column; gap: 14px; padding: 6px 4px; 
-  font-family: 'STKaiti', 'KaiTi', 'Georgia', serif !important; 
+.nsfw-modal-grid {
+  display: flex; flex-direction: column; gap: 14px; padding: 6px 4px;
+  font-family: 'STKaiti', 'KaiTi', 'Georgia', serif !important;
 }
 
 /* 3. Card base */
@@ -7785,10 +7834,10 @@
   align-items: center;
   gap: 8px;
 }
-.nsfw-theme-body { 
-  padding: 12px 14px; 
-  max-height: 400px; 
-  overflow-y: auto;  
+.nsfw-theme-body {
+  padding: 12px 14px;
+  max-height: 400px;
+  overflow-y: auto;
 }
 
 .nsfw-theme-body::-webkit-scrollbar {

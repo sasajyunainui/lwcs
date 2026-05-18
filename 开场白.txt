@@ -831,7 +831,7 @@ window.submitForm = function() {
         spiritObj[slot] = {
             "表象名称": spiritsArray[i],
             "描述": d,
-            "type": t,
+            "系别": t,
             "属性体系": "无",
             "魂灵": {}
         };

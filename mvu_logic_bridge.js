@@ -12670,7 +12670,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       const soulCount = soulEntries.length;
       const independentRingCount = independentRings.length;
       const displayName = normalizeSkillUiText(spiritData && spiritData['表象名称'], slotName);
-      const spiritType = normalizeSkillUiText(spiritData && spiritData['type'], '未知系');
+      const spiritType = normalizeSkillUiText(spiritData && spiritData['系别'], '未知系');
       const spiritDesc = normalizeSkillUiText(spiritData && spiritData['描述'], '未设置');
       const attributeState = resolveSpiritAttributeUiState(spiritData);
 
@@ -18522,11 +18522,11 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                 <div class=\"archive-card-head\"><div class=\"archive-card-title\">${htmlEscape(scopeLabels.parameterTitle)}</div></div>
                 <div class=\"mvu-editor-grid\">
                   <section class=\"mvu-editor-section\">
-                    <div class=\"mvu-editor-section-title\">基础信息</div>
+                    <div class=\"mvu-editor-section-title\">[ 01 ] 基础框架载体</div>
                     <div class=\"mvu-editor-field-grid\">
                       <label class=\"mvu-editor-field\">
-                        <span class=\"mvu-editor-label\">${htmlEscape(scopeLabels.nameFieldLabel)}</span>
-                        <input class=\"mvu-editor-input\" type=\"text\" value=\"${escapeHtmlAttr(designerDraft.name)}\" data-skill-designer-field=\"name\" data-skill-designer-disableable />
+                        <span class=\"mvu-editor-label\">${htmlEscape(scopeLabels.nameFieldLabel)} <span class=\"mvu-editor-micro-copy\">// 设定术式呼出指令</span></span>
+                        <input class=\"mvu-editor-input\" type=\"text\" value=\"${escapeHtmlAttr(designerDraft.name)}\" placeholder=\"请输入技能/术式名称\" data-skill-designer-field=\"name\" data-skill-designer-disableable />
                       </label>
                       <label class=\"mvu-editor-field\">
                         <span class=\"mvu-editor-label\">技能定位</span>
@@ -18559,7 +18559,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                   ` : ''}
 
                   <section class=\"mvu-editor-section\" data-skill-designer-construct-section${是造物承载 ? '' : ' hidden style=\"display:none\"'}>
-                    <div class=\"mvu-editor-section-title\">物品模板</div>
+                    <div class=\"mvu-editor-section-title\">[ 02 ] 实体凝结参数</div>
                     <div class=\"mvu-editor-field-grid\">
                       <label class=\"mvu-editor-field\">
                         <span class=\"mvu-editor-label\">物品类型</span>
@@ -18576,16 +18576,19 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                         <input class=\"mvu-editor-input\" type=\"number\" min=\"0\" step=\"1\" value=\"${escapeHtmlAttr(String(Math.max(0, toNumber(designerDraft.constructDurationTick, 0))))}\" placeholder=\"默认无\" data-skill-designer-field=\"constructDurationTick\" data-skill-designer-disableable />
                       </label>
                       <label class=\"mvu-editor-field mvu-editor-field-wide\">
-                        <span class=\"mvu-editor-label\">物品描述</span>
-                        <input class=\"mvu-editor-input\" type=\"text\" value=\"${escapeHtmlAttr(designerDraft.constructDescription || '')}\" placeholder=\"默认无\" data-skill-designer-field=\"constructDescription\" data-skill-designer-disableable />
+                        <span class=\"mvu-editor-label\">物品描述 <span class=\"mvu-editor-micro-copy\">// 生成造物的具体表现与特征</span></span>
+                        <input class=\"mvu-editor-input\" type=\"text\" value=\"${escapeHtmlAttr(designerDraft.constructDescription || '')}\" placeholder=\"例如：闪烁着暗金光芒的晶体\" data-skill-designer-field=\"constructDescription\" data-skill-designer-disableable />
                       </label>
                     </div>
                   </section>
 
                   <section class=\"mvu-editor-section\">
-                    <div class=\"mvu-editor-section-title\" data-skill-designer-prototype-title>${是造物承载 ? '使用效果' : '原型设计'}</div>
+                    <div class=\"mvu-editor-section-title\" data-skill-designer-prototype-title>${是造物承载 ? '[ 03 ] 使用效果阵列' : '[ 02 ] 核心术式阵列'}</div>
                     <div class=\"skill-designer-preview-stack\" data-skill-designer-prototype-grid=\"main\">
-                      ${构建技能设计台原型效果行列表(designerDraft.prototypeEffects, designerDraft.target)}
+                      ${designerDraft.prototypeEffects && designerDraft.prototypeEffects.length > 0
+                        ? 构建技能设计台原型效果行列表(designerDraft.prototypeEffects, designerDraft.target)
+                        : '<div class=\"skill-designer-empty-guide\"><div class=\"guide-icon\">✦</div><div class=\"guide-title\">术式阵列未装配</div><div class=\"guide-desc\">请点击下方按钮，为该技能添加基础机制（如：伤害、判定修正、状态授予等）。您可以组合多个原型来构建复杂技能。</div></div>'
+                      }
                     </div>
                     <div class=\"mvu-editor-actions\">
                       <button type=\"button\" class=\"tag-chip\" data-skill-designer-add-prototype=\"main\" data-skill-designer-disableable>新增原型</button>
@@ -18593,7 +18596,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                   </section>
 
                   <section class=\"mvu-editor-section\">
-                    <div class=\"mvu-editor-section-title\">副作用</div>
+                    <div class=\"mvu-editor-section-title\">[ 04 ] 附属限制节点</div>
                     <div class=\"skill-designer-preview-stack\" data-skill-designer-prototype-grid=\"side\">
                       ${(Array.isArray(designerDraft.sideEffectPrototypeEffects) && designerDraft.sideEffectPrototypeEffects.length)
                         ? 构建技能设计台原型效果行列表(designerDraft.sideEffectPrototypeEffects, '自身', true)
@@ -18606,7 +18609,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
 
                   <section class=\"mvu-editor-section\">
                     <div class=\"mvu-editor-section-title skill-designer-section-title-row\">
-                      <span>释放设置</span>
+                      <span>[ 05 ] 运转能量配置</span>
                       <label class=\"skill-designer-check-toggle\" title=\"技能掌控度\">
                         <input type=\"checkbox\"${启用技能掌控度 ? ' checked' : ''} value=\"启用\" data-skill-designer-field=\"启用技能掌控度\" data-skill-designer-disableable />
                         <span></span>
@@ -18625,7 +18628,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                         <input class=\"mvu-editor-input\" type=\"number\" min=\"0\" step=\"1\" value=\"${escapeHtmlAttr(String(Math.max(0, toNumber(designerDraft['前摇'], 0))))}\" data-skill-designer-field=\"前摇\" data-skill-designer-disableable />
                       </label>
                       <label class=\"mvu-editor-field\">
-                        <span class=\"mvu-editor-label\">承载方式</span>
+                        <span class=\"mvu-editor-label\">承载方式 <span class=\"mvu-editor-micro-copy\">// 决定术式的生效媒介</span></span>
                         <select class=\"mvu-editor-select\" data-skill-designer-field=\"deliveryForm\" data-skill-designer-disableable>
                           ${buildSkillDesignerSelectOptions(getSkillDesignerDeliveryOptions(designerDraft.type), designerDraft.deliveryForm || '直接生效')}
                         </select>
@@ -18636,7 +18639,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                   ${技能掌控度区块}
 
                   <section class=\"mvu-editor-section\">
-                    <div class=\"mvu-editor-section-title\">属性设计</div>
+                    <div class=\"mvu-editor-section-title\">[ 06 ] 元属性特征</div>
                     <div class=\"skill-designer-subsection\">
                       <div class=\"mvu-editor-label\">附带属性</div>
                       <div class=\"skill-designer-chip-grid\" data-skill-designer-attribute-grid>
@@ -18646,15 +18649,15 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                   </section>
 
                   <section class=\"mvu-editor-section\">
-                    <div class=\"mvu-editor-section-title\">文本描述</div>
+                    <div class=\"mvu-editor-section-title\">[ 07 ] 终端解析图谱</div>
                     <div class=\"mvu-editor-field-grid\">
                       <label class=\"mvu-editor-field mvu-editor-field-wide\">
-                        <span class=\"mvu-editor-label\">${htmlEscape(scopeLabels.visualLabel)}</span>
-                        <textarea class=\"mvu-editor-textarea\" data-skill-designer-field=\"visualDesc\" data-skill-designer-disableable>${htmlEscape(designerDraft.visualDesc)}</textarea>
+                        <span class=\"mvu-editor-label\">${htmlEscape(scopeLabels.visualLabel)} <span class=\"mvu-editor-micro-copy\">// 释放时的光影、声音与声势表现</span></span>
+                        <textarea class=\"mvu-editor-textarea\" placeholder=\"例如：空间剧烈震荡，一柄漆黑如墨的巨刃破空而出...\" data-skill-designer-field=\"visualDesc\" data-skill-designer-disableable>${htmlEscape(designerDraft.visualDesc)}</textarea>
                       </label>
                       <label class=\"mvu-editor-field mvu-editor-field-wide\">
-                        <span class=\"mvu-editor-label\">${htmlEscape(scopeLabels.effectLabel)}</span>
-                        <textarea class=\"mvu-editor-textarea\" data-skill-designer-field=\"effectDesc\" data-skill-designer-disableable>${htmlEscape(designerDraft.effectDesc)}</textarea>
+                        <span class=\"mvu-editor-label\">${htmlEscape(scopeLabels.effectLabel)} <span class=\"mvu-editor-micro-copy\">// 总结性的机制说明（面向玩家阅读）</span></span>
+                        <textarea class=\"mvu-editor-textarea\" placeholder=\"总结技能的实际作用，如：造成中等伤害并附带破甲效果\" data-skill-designer-field=\"effectDesc\" data-skill-designer-disableable>${htmlEscape(designerDraft.effectDesc)}</textarea>
                       </label>
                     </div>
                   </section>
@@ -24394,7 +24397,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       Object.entries(角色数据?.武魂 || {}).forEach(([槽位名, 武魂]) => {
         if (!武魂 || typeof 武魂 !== 'object') return;
         const 表象名称 = toText(武魂.表象名称, 槽位名);
-        const 系别 = toText(武魂.type, '未知系');
+        const 系别 = toText(武魂.系别, '未知系');
         const 属性体系 = toText(武魂.属性体系, '无');
         const 已解锁属性 = Array.isArray(武魂.已解锁属性) ? 武魂.已解锁属性.map(item => toText(item, '')).filter(Boolean) : [];
         const 描述 = toText(武魂.描述, '');
@@ -24411,7 +24414,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       const 主角属性词 = new Set();
       Object.values(主角数据?.武魂 || {}).forEach(武魂 => {
         if (!武魂 || typeof 武魂 !== 'object') return;
-        [武魂.type, 武魂.属性体系, ...(Array.isArray(武魂.已解锁属性) ? 武魂.已解锁属性 : [])]
+        [武魂.系别, 武魂.属性体系, ...(Array.isArray(武魂.已解锁属性) ? 武魂.已解锁属性 : [])]
           .map(item => toText(item, ''))
           .filter(Boolean)
           .forEach(item => 主角属性词.add(item));
@@ -24419,7 +24422,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       const 对象属性词 = new Set();
       Object.values(对象数据?.武魂 || {}).forEach(武魂 => {
         if (!武魂 || typeof 武魂 !== 'object') return;
-        [武魂.type, 武魂.属性体系, ...(Array.isArray(武魂.已解锁属性) ? 武魂.已解锁属性 : [])]
+        [武魂.系别, 武魂.属性体系, ...(Array.isArray(武魂.已解锁属性) ? 武魂.已解锁属性 : [])]
           .map(item => toText(item, ''))
           .filter(Boolean)
           .forEach(item => 对象属性词.add(item));
