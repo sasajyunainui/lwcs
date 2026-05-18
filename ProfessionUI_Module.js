@@ -1561,6 +1561,26 @@ class ProfessionUIComponent {
       oldLv: runtime.lv, newLv: derived.lv
     };
   }
+  getProfessionExpGainMultiplier() {
+    const statusMap = this.charData?.属性?.状态效果;
+    if (!statusMap || typeof statusMap !== 'object') return 1;
+    const currentTick = Math.max(0, Number(this.snapshot?.sd?.world?.时间?.tick || 0));
+    let mult = 1;
+    Object.values(statusMap).forEach(status => {
+      if (!status || typeof status !== 'object') return;
+      if (String(status.成长项 || '').trim() !== '副职业经验') return;
+      const expireTick = Math.max(0, Number(status.结束tick || 0));
+      if (expireTick > 0 && currentTick >= expireTick) return;
+      const value = Number(status.成长收益倍率 || 0);
+      if (Number.isFinite(value) && value > 0) mult *= value;
+    });
+    return Math.max(0.1, Math.min(5, Number(mult.toFixed(4))));
+  }
+  applyProfessionExpGainMultiplier(expGain) {
+    const base = Number(expGain || 0);
+    if (!(base > 0)) return 0;
+    return Math.max(1, Math.round(base * this.getProfessionExpGainMultiplier()));
+  }
   buildSystemResultPatches(resultLog, roll, successRate) {
     return [
       { op: 'replace', path: '/sys/系统播报', value: String(resultLog || '') },
@@ -1684,6 +1704,7 @@ class ProfessionUIComponent {
           if (isGreatSuccess) 统计.大成功次数 += 1;
           let 本次经验 = Number(cfg.expGain[tier] || 50);
           if (isGreatSuccess && !是否委托) 本次经验 *= 2;
+          本次经验 = this.applyProfessionExpGainMultiplier(本次经验);
           if (!是否委托) 统计.累计经验 += 本次经验;
 
           if (this.activeMode === 'forge') {
@@ -1832,6 +1853,7 @@ class ProfessionUIComponent {
         const feeMsg = commissionCtx.isCommission ? (commissionCtx.commissionFee > 0 ? ` 已支付代工费 ${this.formatFedCoin(commissionCtx.commissionFee)}。` : ' 本次代工因好感度优惠免单。') : '';
         resultLog = `${commissionCtx.isCommission ? '[委托成功]' : '[打造成功]'} ${commissionCtx.executorName}成功完成【${targetName}】的锻造，品质系数 ${finalQ.toFixed(2)}。${feeMsg}`;
       }
+      expGain = this.applyProfessionExpGainMultiplier(expGain);
     } else {
       resultLog = `${commissionCtx.isCommission ? '[委托失败]' : '[打造失败]'} ${commissionCtx.executorName}尝试打造【${targetName}】失败。Roll ${roll} > 成功率 ${successRate}。`;
     }
@@ -1880,6 +1902,7 @@ class ProfessionUIComponent {
     const finalQ = isSuccess ? (commissionCtx.isOfficial ? 1.0 : this.getGenericQuality(commissionCtx.executorRuntime || runtime, tier, isGreatSuccess)) : 0;
     let expGain = cfg.expGain[tier] || 50;
     if (isGreatSuccess && !commissionCtx.isCommission) expGain *= 2;
+    expGain = this.applyProfessionExpGainMultiplier(expGain);
 
     let patchOps = [];
     if (commissionCtx.isCommission) patchOps.push(...this.buildCommissionFeePatches(commissionCtx.commissionFee));

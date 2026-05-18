@@ -2470,6 +2470,12 @@ class BattleUIComponent {
         const [字段名, 模式] = 结算字段表[结算] || [];
         写字段(字段名, 模式 || '增量', 结算 === '受到伤害' ? Math.abs(数值) : 数值);
         if (结算 === '持续伤害引爆') hydrated.引爆倍率 = 数值 > 0 && 数值 < 1 && /^\+/.test(原始数值) ? 1 + 数值 : Math.max(0.1, 数值 || 1);
+        const 随机下限 = Number(effect?.随机下限);
+        const 随机上限 = Number(effect?.随机上限);
+        if (Number.isFinite(随机下限) && Number.isFinite(随机上限) && 随机上限 > 随机下限) {
+          hydrated.波动下限 = 随机下限;
+          hydrated.波动上限 = 随机上限;
+        }
       } else if (原型 === '属性修正') {
         const 属性 = 战斗机制中文键英文名[String(effect?.属性 || '').trim()] || String(effect?.属性 || '').trim();
         if (属性) {
@@ -2579,7 +2585,6 @@ class BattleUIComponent {
           判断干扰: ['control_success_penalty', '增量'],
           判断抵抗: ['control_resist_bonus', '增量'],
           感知: ['hit_penalty', '增量'],
-          自身随机波动: ['random_target_rate', '增量'],
           概率偏移: ['luck_modifier', '增量'],
           厄运反噬: ['misfortune_check_rate', '增量'],
         };
@@ -2587,6 +2592,25 @@ class BattleUIComponent {
         写字段(字段名, 模式 || '增量', Math.abs(数值));
       } else if (原型 === '时光回溯') {
         写字段('time_rewind_count', '次数', 读取原型字段数值(effect, 1));
+      } else if (原型 === '位移执行') {
+        const 位移 = String(effect?.位移类型 || effect?.位移 || effect?.方向 || effect?.类型 || '').trim();
+        const 位移强度 = Math.abs(数值) || Math.max(1, Number(effect?.层级 || 1)) * 0.08;
+        if (位移 === '拉近') {
+          写字段('hit_bonus', '增量', 位移强度);
+          写字段('lock_level', '次数', 1);
+        } else if (位移 === '击退') {
+          写字段('hit_penalty', '增量', 位移强度);
+          写字段('dodge_bonus', '增量', 位移强度);
+        } else if (位移 === '换位') {
+          写字段('random_target_rate', '增量', Math.min(1, 位移强度));
+          写字段('reaction_bonus', '增量', 位移强度);
+        } else if (位移 === '瞬移') {
+          写字段('dodge_bonus', '增量', 位移强度);
+          写字段('reaction_bonus', '增量', 位移强度);
+        } else if (位移 === '脱离') {
+          写字段('dodge_bonus', '增量', 位移强度);
+          写字段('random_target_rate', '增量', Math.min(1, 位移强度));
+        }
       }
       if (hasMeaningfulCombatEffect(计算层效果)) {
         hydrated.计算层效果 = mergeCombatEffectMaps(hydrated.计算层效果 || createEmptyCombatEffectMap(), 计算层效果);
@@ -3017,11 +3041,9 @@ class BattleUIComponent {
       mechanism_steal(ctx) {
         const state = ctx.state || {};
         const 缩放 = 计算规则机制缩放系数(ctx.attacker, ctx.attackerFinalStat, ctx.defender, ctx.defenderFinalStat, 1);
-        state.机制抹消目标 = normalizeBattleMechanismSuppressionTargets(
-          ctx.effect?.窃取目标 || ctx.effect?.抹消目标 || '复苏',
-        );
+        state.机制抹消目标 = normalizeBattleMechanismSuppressionTargets(ctx.effect?.机制 || '复苏');
         state.机制抹消方式 = normalizeBattleMechanismSuppressionMode('仅封锁后续');
-        ctx.directPayload.mechanism_steal_ratio = Number((Number(ctx.effect?.窃取比例 || ctx.effect?.mechanism_steal_ratio || 0.35) * 缩放).toFixed(4));
+        ctx.directPayload.mechanism_steal_ratio = Number(((Math.abs(读取战斗数值正负(ctx.effect?.数值 || '+35%')) || 0.35) * 缩放).toFixed(4));
         ctx.ensureStateShell(ctx.effect?.状态名称 || '机制窃取', ['机制窃取']);
       },
       power_amplify(ctx) {
@@ -3045,14 +3067,14 @@ class BattleUIComponent {
       },
       rule_rewrite(ctx) {
         const 缩放 = 计算规则机制缩放系数(ctx.attacker, ctx.attackerFinalStat, ctx.defender, ctx.defenderFinalStat, 1);
-        const 比例 = Math.max(0, Math.min(1, Number(ctx.effect?.改写强度 || ctx.effect?.rule_rewrite_ratio || 0.3) * 缩放));
-        const 类型 = String(ctx.effect?.改写类型 || '治疗反转').trim();
+        const 比例 = Math.max(0, Math.min(1, (Math.abs(读取战斗数值正负(ctx.effect?.数值 || '+30%')) || 0.3) * 缩放));
+        const 类型 = String(ctx.effect?.规则 || '效果反转').trim();
         ctx.directPayload.rule_rewrite_ratio = 比例;
-        if (/治疗|综合/.test(类型)) ctx.directPayload.heal_inversion_ratio = Math.max(Number(ctx.directPayload.heal_inversion_ratio || 0), 比例);
-        if (/护盾|综合/.test(类型)) ctx.directPayload.shield_gain_mult = Math.max(0.1, 1 - 比例);
-        if (/消耗|综合/.test(类型)) ctx.directPayload.cost_ratio = Math.max(0.1, 1 - 比例);
-        if (/前摇|综合/.test(类型)) ctx.directPayload.windup_ratio = Math.max(0.1, 1 - 比例);
-        if (/目标|综合/.test(类型)) ctx.directPayload.random_target_rate = Math.max(Number(ctx.directPayload.random_target_rate || 0), 比例);
+        if (类型 === '治疗转伤害') ctx.directPayload.heal_inversion_ratio = Math.max(Number(ctx.directPayload.heal_inversion_ratio || 0), 比例);
+        if (类型 === '效果反转') {
+          ctx.directPayload.heal_inversion_ratio = Math.max(Number(ctx.directPayload.heal_inversion_ratio || 0), 比例);
+          ctx.directPayload.random_target_rate = Math.max(Number(ctx.directPayload.random_target_rate || 0), 比例);
+        }
         ctx.ensureStateShell(ctx.effect?.状态名称 || '规则改写', ['规则改写']);
       },
       luck_interference(ctx) {
@@ -4676,7 +4698,6 @@ class BattleUIComponent {
         '修炼速度倍率',
         '修炼倍率',
         '封禁强度',
-        '改写强度',
         '气运修正',
         '反噬系数',
       ];
@@ -5410,7 +5431,6 @@ class BattleUIComponent {
           '追击位移',
           '脱离位移',
           '反制',
-          '条件触发',
           '转化',
           '复制',
           '状态交换',
@@ -5715,13 +5735,11 @@ class BattleUIComponent {
       状态交换: 'status_exchange',
       状态转移: 'status_transfer',
       '强制绑定/锁定': 'hard_lock',
-      条件触发: 'judge_effect',
       规则改写: 'rule_rewrite',
       炸环: 'ring_burst_gain',
       时光回溯: 'time_rewind',
       气运干涉: 'luck_interference',
       厄运反噬: 'misfortune_backlash',
-      高波动随机值: 'self_random_variance',
       随机目标: 'random_target_shift',
       引爆持续伤害: 'dot_detonate',
       斩盾: 'shield_break',
@@ -12731,14 +12749,30 @@ class BattleUIComponent {
         const directDotCompressEffect = actionEffects.find(effect => effect?.机制 === '压缩持续伤害') || null;
         const directDotSplitStoreEffect = actionEffects.find(effect => effect?.机制 === '拆层转存') || null;
         const directDotDetonateEffect = actionEffects.find(effect => effect?.机制 === '引爆持续伤害') || null;
-        const directStatusTransferEffect = actionEffects.find(effect => effect?.机制 === '状态转移') || null;
-        const directVolatileEffect = actionEffects.find(effect => effect?.机制 === '高波动随机值') || null;
+        const directStatusTransferEffect = actionEffects.find(effect => effect?.原型 === '状态转移') || null;
+        const directVolatileEffect = actionEffects.find(effect =>
+          String(effect?.原型 || '').trim() === '结算修正' &&
+          Number.isFinite(Number(effect?.随机下限 ?? effect?.波动下限)) &&
+          Number.isFinite(Number(effect?.随机上限 ?? effect?.波动上限)) &&
+          Number(effect?.随机上限 ?? effect?.波动上限) > Number(effect?.随机下限 ?? effect?.波动下限),
+        ) || null;
         const directExecuteEffect = actionEffects.find(effect =>
           String(effect?.原型 || '').trim() === '结算修正' &&
           String(effect?.结算 || '').trim() === '最终伤害' &&
           String(effect?.驱动属性 || '').trim() === '体力上限',
         ) || null;
-        const directDamageToHealEffect = actionEffects.find(effect => effect?.机制 === '伤害转回复') || null;
+        const directDamageToHealEffect = actionEffects.find(effect =>
+          String(effect?.原型 || '').trim() === '规则改写' &&
+          String(effect?.规则 || '').trim() === '伤害转治疗',
+        ) || null;
+        const directHealToDamageEffect = actionEffects.find(effect =>
+          String(effect?.原型 || '').trim() === '规则改写' &&
+          String(effect?.规则 || '').trim() === '治疗转伤害',
+        ) || null;
+        const directEffectReverseEffect = actionEffects.find(effect =>
+          String(effect?.原型 || '').trim() === '规则改写' &&
+          String(effect?.规则 || '').trim() === '效果反转',
+        ) || null;
         const directShieldEffect = actionEffects.find(effect =>
           effect?.机制 === '护盾' || (effect?.原型 === '护盾变化' && 读取战斗数值正负(effect?.数值) > 0 && !是原型窃盾自增(effect)),
         ) || null;
@@ -12753,20 +12787,25 @@ class BattleUIComponent {
           actionEffects.find(effect => effect?.机制 === '召唤') ||
           actionEffects.find(effect => 是指定原型(effect, '召唤生成') && !是场地召唤原型(effect)) ||
           null;
-        const directCopyEffect = actionEffects.find(effect => effect?.机制 === '复制') || null;
-        const directGrantEffect = actionEffects.find(effect => effect?.机制 === '机制授予') || null;
-        const directStateExchangeEffect = actionEffects.find(effect => effect?.机制 === '状态交换') || null;
+        const directCopyEffect = actionEffects.find(effect => effect?.原型 === '复制执行') || null;
+        const directGrantEffect = actionEffects.find(effect => effect?.原型 === '机制授予') || null;
+        const directMechanismSuppressEffect = actionEffects.find(effect => effect?.原型 === '机制抹消') || null;
+        const directMechanismStealEffect = actionEffects.find(effect => effect?.原型 === '机制窃取') || null;
+        const directStateExchangeEffect = actionEffects.find(effect => effect?.原型 === '状态交换' || effect?.机制 === '状态交换') || null;
         const directPrototypeEffects = actionEffects.filter(effect =>
           effect?.原型 && (
             (effect.原型 === '资源变化' && 读取战斗数值正负(effect?.数值) < 0) ||
             (effect.原型 === '护盾变化' && 读取战斗数值正负(effect?.数值) < 0 && effect !== directPrototypeShieldStealEffect) ||
             (effect.原型 === '结算修正' && ['持续伤害引爆', '分摊'].includes(String(effect?.结算 || '').trim()) && effect !== directDotDetonateEffect) ||
-            (effect.原型 === '规则改写' && String(effect?.规则 || '').trim() === '条件触发') ||
-            (effect.原型 === '状态转移' && effect !== directStatusTransferEffect)
+            (effect.原型 === '状态转移' && effect !== directStatusTransferEffect) ||
+            effect.原型 === '位移执行'
           ),
         );
         const selfMirrorEffect = actionEffects.find(effect => effect?.机制 === '自身也受影响') || null;
-        const directRandomTargetEffect = actionEffects.find(effect => effect?.机制 === '随机目标') || null;
+        const directRandomTargetEffect = actionEffects.find(effect =>
+          String(effect?.原型 || '').trim() === '目标选择修正' &&
+          String(effect?.选择 || '').trim() === '随机目标偏转',
+        ) || null;
         const directSelfSacrificeEffect = actionEffects.find(effect => effect?.机制 === '自残换收益') || null;
         const directRingBurstEffect = actionEffects.find(effect => effect?.机制 === '炸环') || null;
         const skillName = String(
@@ -12860,7 +12899,7 @@ class BattleUIComponent {
           0,
           ...attackerConditionEffects.map(ce => Number(ce?.random_target_rate || 0)),
         );
-        const directRandomTargetRate = Number(directRandomTargetEffect?.偏移概率 || 0);
+        const directRandomTargetRate = Math.max(0, 读取战斗数值正负(directRandomTargetEffect?.数值 || 0));
         const effectiveRandomTargetRate = Math.max(directRandomTargetRate, conditionRandomTargetRate);
         if (effectiveRandomTargetRate > 0) {
           const originalTargetModel = normalizeBattleSkillTargetModel(skillRuntimeMeta.目标模型 || '敌方单体', '敌方单体');
@@ -12945,11 +12984,11 @@ class BattleUIComponent {
           resolvedDamageTargets.length > 1 || damageTargetContext.targetModel === '全场' || pClash.伤害类型 === '纯精神冲击';
         let fluctuation = 0.9 + Math.random() * 0.2;
         if (directVolatileEffect) {
-          const low = Number(directVolatileEffect.波动下限 ?? 0.5);
-          const high = Number(directVolatileEffect.波动上限 ?? 1.8);
+          const low = Number(directVolatileEffect.随机下限 ?? directVolatileEffect.波动下限 ?? 0.5);
+          const high = Number(directVolatileEffect.随机上限 ?? directVolatileEffect.波动上限 ?? 1.8);
           if (Number.isFinite(low) && Number.isFinite(high) && high > low) {
             fluctuation = low + Math.random() * (high - low);
-            result.desc += ` [高波动] 技能威力剧烈波动，本次倍率:${fluctuation.toFixed(2)}。`;
+            result.desc += ` [结算波动] 技能威力本次倍率:${fluctuation.toFixed(2)}。`;
           }
         }
         const totalFinalDamageMult = attackerConditionEffects.reduce(
@@ -12964,7 +13003,9 @@ class BattleUIComponent {
           (sum, ce) => sum + Number(ce.bonus_true_damage_ratio || 0),
           0,
         );
-        const directDamageToHealRatio = Number(directDamageToHealEffect?.转换比例 || 0);
+        const directDamageToHealRatio = directDamageToHealEffect || directEffectReverseEffect
+          ? Math.max(0, Math.abs(读取战斗数值正负((directDamageToHealEffect || directEffectReverseEffect)?.数值 || '100%')) || 1)
+          : 0;
         const totalLifeStealRatio =
           attackerConditionEffects.reduce((sum, ce) => sum + Number(ce.life_steal_ratio || 0), 0) +
           Number(pClash.吸血比例 || 0) +
@@ -13636,11 +13677,16 @@ class BattleUIComponent {
           return score;
         };
 
-        const pickTransferableCondition = (char, preferredTypes = ['any']) => {
+        const pickTransferableCondition = (char, preferredTypes = ['any'], expectedState = '') => {
           if (!char?.状态效果) return null;
+          const stateText = String(expectedState || '').trim();
           for (const expectedType of preferredTypes) {
             const candidates = Object.entries(char.状态效果)
               .filter(entry => isTransferableConditionEntry(entry, expectedType))
+              .filter(([key, cond]) => {
+                if (!stateText || ['任意状态', '任意增益', '任意负面'].includes(stateText)) return true;
+                return `${String(key || '')} ${String(cond?.状态 || '')} ${String(cond?.状态名称 || '')} ${String(cond?.描述 || '')}`.includes(stateText);
+              })
               .sort((a, b) => scoreTransferableCondition(b[1]) - scoreTransferableCondition(a[1]));
             if (candidates.length > 0) return { key: candidates[0][0], cond: candidates[0][1] };
           }
@@ -13654,30 +13700,19 @@ class BattleUIComponent {
             result.desc += ` [状态转移] 缺少有效转移目标。`;
             return false;
           }
-          const transferMode = String(effect?.转移类型 || '自身负面->目标').trim() || '自身负面->目标';
-          const transferCount = Math.max(1, Number(effect?.转移数量 || effect?.transfer_count || 1));
+          const rawTransferCount = String(effect?.数量 || '').trim();
+          const transferCount = rawTransferCount === '全部' ? 99 : Math.max(1, Math.floor(Number(effect?.数量 || 1)) || 1);
+          const 目标状态 = String(effect?.状态 || '').trim();
           const 显式来源 = String(effect?.来源 || '').trim();
           const 显式去向 = String(effect?.去向 || '').trim();
           const 构建转移方案 = () => {
             const 指向角色 = 值 => (/目标/.test(值) ? targetObj : attacker);
-            if (显式来源 || 显式去向) {
-              return [{
-                sourceChar: 指向角色(显式来源 || '自身'),
-                receiver: 指向角色(显式去向 || '目标'),
-                preferredTypes: ['debuff', 'buff'],
-                keySuffix: '',
-              }];
-            }
-            if (/目标正面->自身/.test(transferMode)) {
-              return [{ sourceChar: targetObj, receiver: attacker, preferredTypes: ['buff'], keySuffix: '' }];
-            }
-            if (String(transferMode).startsWith('目标')) {
-              return [{ sourceChar: targetObj, receiver: attacker, preferredTypes: ['debuff', 'buff'], keySuffix: '' }];
-            }
-            return [
-              { sourceChar: attacker, receiver: targetObj, preferredTypes: ['debuff', 'buff'], keySuffix: '' },
-              { sourceChar: targetObj, receiver: attacker, preferredTypes: ['debuff', 'buff'], keySuffix: '·转存' },
-            ];
+            return [{
+              sourceChar: 指向角色(显式来源 || '自身'),
+              receiver: 指向角色(显式去向 || '目标'),
+              preferredTypes: ['debuff', 'buff'],
+              keySuffix: '',
+            }];
           };
           const transferLogs = [];
           for (let index = 0; index < transferCount; index += 1) {
@@ -13686,7 +13721,7 @@ class BattleUIComponent {
               const sourceChar = plan.sourceChar;
               const receiver = plan.receiver;
               if (!sourceChar || !receiver || sourceChar === receiver) continue;
-              const candidate = pickTransferableCondition(sourceChar, plan.preferredTypes);
+              const candidate = pickTransferableCondition(sourceChar, plan.preferredTypes, 目标状态);
               if (!candidate) continue;
               const moved = removeConditionWithSustain(sourceChar, candidate.key);
               if (!moved) continue;
@@ -14022,6 +14057,109 @@ class BattleUIComponent {
           return applied;
         };
 
+        const applyMechanismSuppressEffect = effect => {
+          if (!effect) return false;
+          const targetUnits = resolveSkillEffectTargetCharacters(playerAction.skill, effect, attacker, defender, combatData);
+          const tags = normalizeBattleMechanismSuppressionTargets(effect?.机制 || effect?.抹消目标 || effect?.机制抹消目标 || []);
+          if (!targetUnits.length || !tags.length) return false;
+          let applied = false;
+          targetUnits.forEach(targetObj => {
+            if (!targetObj) return;
+            const stateKey = putConditionWithUniqueKey(targetObj, `机制抹消:${tags.join('/')}`, {
+              类型: 'debuff',
+              层数: 1,
+              描述: `由[${skillName || '技能'}]抹消机制`,
+              duration: Math.max(1, Number(effect?.持续回合 || 1)),
+              机制抹消目标: tags,
+              机制抹消方式: normalizeBattleMechanismSuppressionMode(effect?.抹消方式 || '移除并封锁'),
+              战斗效果: { ...createEmptyCombatEffectMap() },
+            });
+            const removed = /移除/.test(String(effect?.抹消方式 || '移除并封锁'))
+              ? removeSuppressedMechanismStates(targetObj, tags, { excludeKeys: [stateKey] })
+              : [];
+            result.desc += ` [机制抹消] ${targetObj === attacker ? '自身' : targetObj.name || '目标'}被封锁[${tags.join('/')}]。`;
+            if (removed.length) result.desc += ` 已移除[${removed.join('/')}]。`;
+            applied = true;
+          });
+          return applied;
+        };
+
+        const applyMechanismStealEffect = effect => {
+          if (!effect) return false;
+          const sourceUnits = resolveSkillEffectTargetCharacters(playerAction.skill, effect, attacker, defender, combatData)
+            .filter(targetObj => targetObj && targetObj !== attacker);
+          const tags = normalizeBattleMechanismSuppressionTargets(effect?.机制 || []);
+          const stealCount = Math.max(1, Math.floor(Number(effect?.数量 || 1)));
+          const keepTurns = Math.max(1, Number(effect?.保留回合 || effect?.持续回合 || 1));
+          let moved = 0;
+          sourceUnits.forEach(sourceObj => {
+            if (moved >= stealCount || !sourceObj?.状态效果) return;
+            Object.entries(sourceObj.状态效果).some(([key, cond]) => {
+              if (moved >= stealCount) return true;
+              const conditionTags = collectBattleMechanismTagsFromDescriptor(key, cond);
+              if (tags.length && !tags.some(tag => conditionTags.includes(tag))) return false;
+              const copied = deepClone(cond);
+              copied.类型 = copied.类型 || 'buff';
+              copied.duration = keepTurns;
+              copied.描述 = `由[${skillName || '技能'}]自${sourceObj.name || '目标'}窃取`;
+              putConditionWithUniqueKey(attacker, `${key}·窃取`, copied);
+              delete sourceObj.状态效果[key];
+              moved += 1;
+              return false;
+            });
+          });
+          if (moved > 0) {
+            result.desc += ` [机制窃取] 窃取${moved}项机制，保留${keepTurns}回合。`;
+            return true;
+          }
+          result.desc += ` [机制窃取] 没有找到可窃取机制。`;
+          return false;
+        };
+
+        const applyMovementEffect = effect => {
+          if (!effect) return false;
+          const movementType = String(effect?.位移类型 || '').trim();
+          const strength = Math.max(
+            0.04,
+            Math.min(0.8, Math.abs(读取战斗数值正负(effect?.数值 || 0)) || Math.max(1, Number(effect?.距离 || 1)) * 0.08),
+          );
+          const combatEffect = createEmptyCombatEffectMap();
+          if (movementType === '拉近') {
+            combatEffect.hit_bonus = strength;
+            combatEffect.lock_level = 1;
+          } else if (movementType === '击退') {
+            combatEffect.hit_penalty = strength;
+            combatEffect.dodge_bonus = strength;
+          } else if (movementType === '换位') {
+            combatEffect.random_target_rate = strength;
+            combatEffect.reaction_bonus = strength;
+          } else if (movementType === '瞬移') {
+            combatEffect.dodge_bonus = strength;
+            combatEffect.reaction_bonus = strength;
+          } else if (movementType === '脱离') {
+            combatEffect.dodge_bonus = strength;
+            combatEffect.random_target_rate = strength;
+          } else {
+            return false;
+          }
+          const targetUnits = resolveSkillEffectTargetCharacters(playerAction.skill, effect, attacker, defender, combatData);
+          let applied = false;
+          targetUnits.forEach(targetObj => {
+            if (!targetObj) return;
+            const friendly = targetObj === attacker || String(effect?.目标 || '').trim() === '自身';
+            putConditionWithUniqueKey(targetObj, `位移:${movementType}`, {
+              类型: friendly ? 'buff' : 'debuff',
+              层数: 1,
+              描述: `由[${skillName || '技能'}]造成${movementType}`,
+              duration: Math.max(1, Number(effect?.持续回合 || 1)),
+              战斗效果: { ...combatEffect },
+            });
+            applied = true;
+          });
+          if (applied) result.desc += ` [位移执行] ${movementType}转化为命中、闪避或反应影响。`;
+          return applied;
+        };
+
         let applyCopyEffect = effect => {
           void effect;
           return false;
@@ -14039,6 +14177,8 @@ class BattleUIComponent {
           resource_drain: applyResourceDrainEffect,
           resource_refeed: applyResourceRefeedEffect,
           ring_burst_gain: applyRingBurstEffect,
+          mechanism_suppress: applyMechanismSuppressEffect,
+          mechanism_steal: applyMechanismStealEffect,
           copy: effect => applyCopyEffect(effect),
           copy_status: effect => applyLayerStoreEffect(effect),
           summon: applySummonEffect,
@@ -14054,21 +14194,9 @@ class BattleUIComponent {
           if (effect?.原型 === '结算修正' && String(effect?.结算 || '').trim() === '持续伤害引爆') return applyDotDetonateEffect(effect);
           if (effect?.原型 === '结算修正' && String(effect?.结算 || '').trim() === '分摊') return applyLifeLinkEffect(effect);
           if (effect?.原型 === '状态转移') return applyStatusTransferEffect(effect);
-          if (effect?.原型 === '规则改写' && String(effect?.规则 || '').trim() === '条件触发') {
-            const value = 读取战斗数值正负(effect?.数值);
-            if (value < 0) return applyResourceLockEffect(effect);
-            const hasDotTarget = resolveDirectMechanismTargetList(effect).some(targetObj =>
-              Object.values(targetObj?.状态效果 || {}).some(cond => Number(cond?.战斗效果?.dot_damage || 0) > 0),
-            );
-            if (hasDotTarget && Math.abs(value) >= 1) {
-              return applyDotDurationAdjustEffect({
-                ...effect,
-                机制: '延长持续伤害',
-                延长回合: Math.max(1, Math.round(Math.abs(value))),
-              });
-            }
-            return applyDamageChainEffect(effect);
-          }
+          if (effect?.原型 === '机制抹消') return applyMechanismSuppressEffect(effect);
+          if (effect?.原型 === '机制窃取') return applyMechanismStealEffect(effect);
+          if (effect?.原型 === '位移执行') return applyMovementEffect(effect);
           const mechanism = String(effect?.机制 || effect?.名称 || effect?.类型 || '').trim();
           if (mechanism === '伤害链') return applyDamageChainEffect(effect);
           if (mechanism === '生命链接') return applyLifeLinkEffect(effect);
@@ -14084,7 +14212,12 @@ class BattleUIComponent {
 
         applyCopyEffect = effect => {
           if (!effect) return false;
-          const sourceObj = resolveSkillEffectTargetCharacter(playerAction.skill, effect, attacker, defender);
+          const 复制来源 = String(effect?.复制来源 || '目标').trim() || '目标';
+          const sourceObj = 复制来源 === '自身'
+            ? attacker
+            : 复制来源 === '最近技能'
+              ? defender || attacker
+              : resolveSkillEffectTargetCharacter(playerAction.skill, { ...effect, 目标: 复制来源 === '目标' ? '单体' : effect?.目标 }, attacker, defender);
           const 复制类型 = String(effect?.复制类型 || '技能').trim() || '技能';
           const 复制条件 = String(effect?.复制条件 || '可强行判定').trim() || '可强行判定';
           const 复制方式 = String(effect?.复制方式 || '战斗照镜子').trim() || '战斗照镜子';
@@ -14134,9 +14267,12 @@ class BattleUIComponent {
             }
             result.desc += ` [复制判定] 强行照镜通过。`;
           }
-          if (复制类型 === '属性' || 复制类型 === '全部') {
+          if (复制类型 === '属性') {
             const sourceStats = sourceObj?.final || sourceObj?.属性 || sourceObj || {};
             const selfStats = attacker?.final || attacker?.属性 || attacker || {};
+            const 复制字段文本 = Array.isArray(effect?.复制字段)
+              ? effect.复制字段.join('/')
+              : String(effect?.复制字段 || effect?.复制属性 || '全部');
             const 面板修改比例 = {};
             [
               ['str', '力量'],
@@ -14146,7 +14282,12 @@ class BattleUIComponent {
               ['sp_max', '魂力上限'],
               ['men_max', '精神力上限'],
             ].forEach(([key, label]) => {
-              if (effect?.复制属性 && !String(effect.复制属性).includes(label) && !String(effect.复制属性).includes(key)) return;
+              if (
+                复制字段文本 &&
+                !['全部', '属性'].some(token => 复制字段文本.includes(token)) &&
+                !复制字段文本.includes(label) &&
+                !复制字段文本.includes(key)
+              ) return;
               const sourceValue = Number(sourceStats[key] || 0);
               const selfValue = Math.max(1, Number(selfStats[key] || 0));
               if (sourceValue > 0) 面板修改比例[key] = Number(Math.max(0.1, Math.min(1.8, (sourceValue * 复制倍率) / selfValue)).toFixed(3));
@@ -14167,9 +14308,45 @@ class BattleUIComponent {
               result.desc += ` [属性复制] 未找到可复制属性。`;
             }
           }
-          if (复制类型 === '技能' || 复制类型 === '全部') {
+          if (复制类型 === '状态') {
+            const 状态数量 = Math.max(1, Math.floor(Number(effect?.数量 || effect?.技能个数 || 1)));
+            const 状态日志 = [];
+            for (let index = 0; index < 状态数量; index += 1) {
+              const candidate = pickTransferableCondition(sourceObj, ['buff', 'debuff'], String(effect?.状态 || '').trim());
+              if (!candidate) break;
+              const copied = deepClone(candidate.cond);
+              copied.duration = Math.max(1, Number(effect?.持续回合 || copied.duration || 1));
+              copied.描述 = `由[${skillName || '技能'}]复制自${sourceObj === attacker ? '自身' : sourceObj?.name || '目标'}的[${candidate.key}]`;
+              const copiedKey = putConditionWithUniqueKey(attacker, `${candidate.key}·复制`, copied);
+              状态日志.push(`${candidate.key}->${copiedKey}`);
+            }
+            if (状态日志.length) {
+              result.desc += ` [状态复制] ${状态日志.join('，')}。`;
+              已复制 = true;
+            } else {
+              result.desc += ` [状态复制] 未找到可复制状态。`;
+            }
+          }
+          if (复制类型 === '自身镜像') {
+            const mirrorKey = putConditionWithUniqueKey(attacker, `自身镜像:${skillName || '技能'}`, {
+              类型: 'buff',
+              层数: 1,
+              描述: `由[${skillName || '技能'}]形成战斗镜像`,
+              duration: Math.max(1, Number(effect?.持续回合 || effect?.保留回合 || 1)),
+              战斗效果: {
+                ...createEmptyCombatEffectMap(),
+                dodge_bonus: 0.12,
+                reaction_bonus: 0.12,
+                random_target_rate: 0.18,
+              },
+              可用次数,
+            });
+            result.desc += ` [自身镜像] 镜像扰乱目标判断，进入[${mirrorKey}]。`;
+            已复制 = true;
+          }
+          if (复制类型 === '技能') {
             const 指定技能 = String(effect?.目标技能 || effect?.复制技能 || effect?.技能名称 || '').trim();
-            const 技能个数 = 复制类型 === '全部' ? Infinity : 复制次数;
+            const 技能个数 = 复制次数;
             const 可复刻技能 = collectUnifiedSkillEntries(sourceObj, [], { includePassive: false, includeActive: true })
               .filter(skill => {
                 const 技能名 = String(skill?.name || skill?.魂技名 || skill?.技能名称 || '').trim();
@@ -14193,14 +14370,14 @@ class BattleUIComponent {
               面板修改比例: { str: 1, def: 1, agi: 1, sp_max: 1 },
               战斗效果: { ...createEmptyCombatEffectMap() },
               复刻来源: sourceObj?.name || '目标',
-              复刻倍率: 复制类型 === '全部' ? 复制倍率 : 1,
+              复刻倍率: 1,
               复刻技能列表: 可复刻技能.map(skill => deepClonePlain(skill)),
               可用次数,
             });
-            result.desc += ` [技能复刻] 获得${可复刻技能.length}个复刻招式${复制类型 === '全部' ? `，削减${Math.round(削减比例 * 100)}%` : ''}，剩余${可用次数}次，进入[${copiedKey}]。`;
+            result.desc += ` [技能复刻] 获得${可复刻技能.length}个复刻招式，剩余${可用次数}次，进入[${copiedKey}]。`;
             已复制 = true;
           }
-          if (!已复制 && !['技能', '属性', '全部'].includes(复制类型)) result.desc += ` [复制失败] 复制类型必须是技能、属性或全部。`;
+          if (!已复制 && !['技能', '属性', '状态', '自身镜像'].includes(复制类型)) result.desc += ` [复制失败] 复制类型无效。`;
           return 已复制;
         };
 
@@ -14261,8 +14438,9 @@ class BattleUIComponent {
             result.desc += ` [状态交换] 缺少有效交换目标。`;
             return false;
           }
-          const ownCandidate = pickTransferableCondition(attacker, ['debuff', 'buff']);
-          const targetCandidate = pickTransferableCondition(targetObj, ['buff', 'debuff']);
+          const 目标状态 = String(effect?.状态 || '').trim();
+          const ownCandidate = pickTransferableCondition(attacker, ['debuff', 'buff'], 目标状态);
+          const targetCandidate = pickTransferableCondition(targetObj, ['buff', 'debuff'], 目标状态);
           if (!ownCandidate || !targetCandidate) {
             result.desc += ` [状态交换] 双方没有形成可交换的状态组合。`;
             return false;
@@ -14282,9 +14460,27 @@ class BattleUIComponent {
         };
 
         if (directHealEffect) {
-          applyImmediateRecoveryEffect(directHealEffect, 'vit', 'HP');
+          const healRewriteEffect = directHealToDamageEffect || directEffectReverseEffect;
+          const healEffectForApply = healRewriteEffect
+            ? {
+                ...directHealEffect,
+                机制: '直接伤害',
+                数值: (() => {
+                  const ratio = Math.max(0, Math.abs(读取战斗数值正负(healRewriteEffect?.数值 || '100%')) || 1);
+                  const raw = directHealEffect.数值 ?? directHealEffect.恢复比例 ?? directHealEffect.回复比例 ?? 0;
+                  const text = String(raw ?? '').trim();
+                  if (/%$/.test(text)) {
+                    const numeric = Number(text.replace('%', ''));
+                    return Number.isFinite(numeric) ? `${Number((numeric * ratio).toFixed(2))}%` : raw;
+                  }
+                  const numeric = Number(raw);
+                  return Number.isFinite(numeric) ? Number((numeric * ratio).toFixed(4)) : raw;
+                })(),
+              }
+            : directHealEffect;
+          applyImmediateRecoveryEffect(healEffectForApply, 'vit', 'HP');
           if (selfMirrorEffect && !effectTargetsSelf(directHealEffect))
-            applyImmediateRecoveryEffect(mirrorEffectToSelf(directHealEffect), 'vit', 'HP');
+            applyImmediateRecoveryEffect(mirrorEffectToSelf(healEffectForApply), 'vit', 'HP');
         }
 
         if (directSpEffect) {
@@ -14405,6 +14601,12 @@ class BattleUIComponent {
           if (directSummonEffect) {
             applySummonEffect(directSummonEffect);
           }
+          if (directMechanismSuppressEffect) {
+            applyMechanismSuppressEffect(directMechanismSuppressEffect);
+          }
+          if (directMechanismStealEffect) {
+            applyMechanismStealEffect(directMechanismStealEffect);
+          }
           if (directCopyEffect) {
             applyCopyEffect(directCopyEffect);
           }
@@ -14418,7 +14620,7 @@ class BattleUIComponent {
             );
             const grantEffects = (Array.isArray(directGrantEffect.授予效果) ? directGrantEffect.授予效果 : [])
               .filter(effect => effect && typeof effect === 'object')
-              .filter(effect => String(effect?.机制 || '').trim() !== '机制授予');
+              .filter(effect => String(effect?.原型 || '').trim() !== '机制授予');
             if (grantEffects.length > 0) {
               grantTargets.forEach(targetObj => {
                 if (!targetObj) return;
@@ -14429,7 +14631,7 @@ class BattleUIComponent {
                   描述: `由[${playerAction.skill.name || '技能'}]预付成本授予`,
                   duration: Math.max(0, Number(directGrantEffect.持续回合 || directGrantEffect.持续 || 0)),
                   机制授予状态: true,
-                  触发条件: String(directGrantEffect.触发条件 || '下次有效行动'),
+                  触发条件: String(directGrantEffect.触发 || directGrantEffect.触发条件 || '下次有效行动'),
                   可用次数: Math.max(1, Math.floor(Number(directGrantEffect.可用次数 || 1))),
                   授予效果: deepClone(grantEffects),
                   战斗效果: {

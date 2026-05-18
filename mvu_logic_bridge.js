@@ -1501,6 +1501,16 @@
       return Number.isFinite(parsed) ? parsed : fallback;
     }
 
+    function toMultiplierValue(value, fallback = 1) {
+      const text = String(value ?? '').trim();
+      if (/%$/.test(text)) {
+        const parsed = Number(text.replace('%', ''));
+        if (!Number.isFinite(parsed)) return fallback;
+        return /^[+-]/.test(text) ? 1 + parsed / 100 : parsed / 100;
+      }
+      return toNumber(value, fallback);
+    }
+
     const 模块依赖映射 = Object.freeze({
       交易网络: ['交易模块'],
       交易模块弹窗: ['交易模块'],
@@ -5055,7 +5065,7 @@
       '回复类': Object.freeze(['体力恢复', '魂力恢复', '精神恢复', '持续恢复', '净化/解控']),
       '感知/认知类': Object.freeze(['感知干扰', '标记锁定', '共享视野', '幻境', '催眠', '认知扭曲']),
       '位移类': Object.freeze(['自身位移', '强制位移', '位移交换', '追击位移', '脱离位移']),
-      '特殊规则类': Object.freeze(['召唤', '分身', '复制', '反制', '转化', '状态交换', '状态转移', '强制绑定/锁定', '条件触发', '规则改写', '引爆持续伤害', '斩盾', '窃取护盾', '吞噬', '能力共享', '机制抹消']),
+      '特殊规则类': Object.freeze(['召唤', '分身', '复制', '反制', '转化', '状态交换', '状态转移', '强制绑定/锁定', '规则改写', '引爆持续伤害', '斩盾', '窃取护盾', '吞噬', '能力共享', '机制抹消']),
     });
     const SKILL_DESIGNER_DELIVERY_FORM_POOL = Object.freeze(['直接生效', '自身附体', '远程命中', '范围展开', '召唤承载', '造物承载', '标记触发', '延迟触发']);
     const SKILL_DESIGNER_DELIVERY_FORM_BY_TYPE = Object.freeze({
@@ -5117,7 +5127,7 @@
       目标语义表: SKILL_DESIGNER_TARGET_SEMANTICS,
     });
     const SKILL_GENERATION_CHECK_FORBIDDEN_FIELDS = Object.freeze(['系统基础', '目标模型', '对象', '结算策略', '动作', '触发方式', '状态持续', 'cast_time', '应用' + '原型', '参数', '判定属性', '判定阈值', '成功参数', '失败参数']);
-    const SKILL_GENERATION_CHECK_ARRAY_FIELDS = Object.freeze(['原型', '属性', '资源', '判定', '结算', '状态', '类型']);
+    const SKILL_GENERATION_CHECK_ARRAY_FIELDS = Object.freeze(['原型', '属性', '资源', '状态', '类型']);
 
     function runBridgeSkillGenerationRuleChecks(options = {}) {
       const registry = __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__ && typeof __mvuBridgeRoot.__LWCS_SKILL_MECHANISM_REGISTRY__ === 'object'
@@ -5343,7 +5353,6 @@
       绑定回合: '绑定多久',
       绑定目标数: '能绑几个',
       触发结果: '触发后发生什么',
-      改写幅度: '规则被改写多少',
       引爆倍率: '引爆时的力道',
       消耗规则: '引爆会消耗什么',
       斩盾倍率: '破盾的力道',
@@ -5441,7 +5450,6 @@
       '状态交换': Object.freeze({ main: '特殊规则类', sub: '状态交换' }),
       '状态转移': Object.freeze({ main: '特殊规则类', sub: '状态转移', secondary: '状态转移' }),
       '强制绑定/锁定': Object.freeze({ main: '特殊规则类', sub: '强制绑定/锁定' }),
-      '条件触发': Object.freeze({ main: '特殊规则类', sub: '条件触发' }),
       '引爆持续伤害': Object.freeze({ main: '特殊规则类', sub: '引爆持续伤害', secondary: '引爆持续伤害' }),
       '斩盾': Object.freeze({ main: '特殊规则类', sub: '斩盾', secondary: '斩盾' }),
       '窃取护盾': Object.freeze({ main: '特殊规则类', sub: '窃取护盾', secondary: '窃取护盾' }),
@@ -5555,13 +5563,13 @@
     const SKILL_DESIGNER_PARAM_INFO_DEPTH_OPTIONS = Object.freeze(['位置', '视野', '状态', '位置+视野', '完整共享']);
     const SKILL_DESIGNER_PARAM_WAKE_RULE_OPTIONS = Object.freeze(['受伤', '净化', '时间结束']);
     const SKILL_DESIGNER_PARAM_ESCAPE_GAIN_OPTIONS = Object.freeze(['隐匿', '护盾', '加速']);
-    const SKILL_DESIGNER_PARAM_COPY_TARGET_OPTIONS = Object.freeze(['技能', '属性', '全部']);
+    const SKILL_DESIGNER_PARAM_COPY_TARGET_OPTIONS = Object.freeze(['技能', '属性', '状态', '自身镜像']);
     const 技能设计器参数复制条件选项 = Object.freeze(['需要配合', '可强行判定']);
     const 技能设计器参数复制方式选项 = Object.freeze(['预先复刻', '战斗照镜子']);
     const SKILL_DESIGNER_PARAM_COUNTER_TARGET_OPTIONS = Object.freeze(['远程', '控制', '召唤', '近战']);
     const SKILL_DESIGNER_PARAM_EXCHANGE_TARGET_OPTIONS = Object.freeze(['增益', '减益', '标记']);
     const SKILL_DESIGNER_PARAM_TRIGGER_RESULT_OPTIONS = Object.freeze(['爆发', '刷新', '召唤']);
-    const SKILL_DESIGNER_PARAM_REWRITE_DEPTH_OPTIONS = Object.freeze(['部分改写', '完整覆盖']);
+    const SKILL_DESIGNER_PARAM_RULE_REWRITE_OPTIONS = Object.freeze(['治疗转伤害', '伤害转治疗', '效果反转']);
     const SKILL_DESIGNER_PARAM_CLONE_TYPE_OPTIONS = Object.freeze(['物理分身', '精神力分身']);
     const SKILL_DESIGNER_PARAM_PENETRATION_TARGET_OPTIONS = Object.freeze(['防御', '护盾', '抗性']);
     const SKILL_DESIGNER_PARAM_LIFESTEAL_RESOURCE_OPTIONS = Object.freeze(['生命', '魂力', '精神力']);
@@ -5590,7 +5598,7 @@
       COUNTER_TARGET: SKILL_DESIGNER_PARAM_COUNTER_TARGET_OPTIONS,
       EXCHANGE_TARGET: SKILL_DESIGNER_PARAM_EXCHANGE_TARGET_OPTIONS,
       TRIGGER_RESULT: SKILL_DESIGNER_PARAM_TRIGGER_RESULT_OPTIONS,
-      REWRITE_DEPTH: SKILL_DESIGNER_PARAM_REWRITE_DEPTH_OPTIONS,
+      RULE_REWRITE: SKILL_DESIGNER_PARAM_RULE_REWRITE_OPTIONS,
       CLONE_TYPE: SKILL_DESIGNER_PARAM_CLONE_TYPE_OPTIONS,
       PENETRATION_TARGET: SKILL_DESIGNER_PARAM_PENETRATION_TARGET_OPTIONS,
       LIFESTEAL_RESOURCE: SKILL_DESIGNER_PARAM_LIFESTEAL_RESOURCE_OPTIONS,
@@ -6052,7 +6060,7 @@
       return [];
     }
 
-    const SKILL_DESIGNER_BATCH_EFFECT_FIELD_KEYS = Object.freeze(['原型', '属性', '资源', '判定', '结算', '状态', '类型']);
+    const SKILL_DESIGNER_BATCH_EFFECT_FIELD_KEYS = Object.freeze(['原型', '属性', '资源', '状态', '类型']);
     const SKILL_DESIGNER_PROTOTYPE_FORBIDDEN_FIELDS = new Set(['目标模型', '对象', '结算策略', '动作', '触发方式', '状态持续', 'cast_time', '应用' + '原型', '参数', '判定属性', '判定阈值', '成功参数', '失败参数']);
 
     function fillSkillDesignerPrototypeValueFromTemplate(原型 = '', 字段 = {}, source = {}) {
@@ -6190,11 +6198,10 @@
         if (字段['数量'] === undefined) 字段['数量'] = Math.max(1, parseSkillDesignerIntegerInputValue(source['数量'] || source['抹消数量'], 1, 1));
         return;
       } else if (原型 === '状态转移') {
-        if (字段['状态'] === undefined) 字段['状态'] = normalizeSkillUiText(source['状态'] || source['状态类型'], '任意负面');
-        if (字段['数量'] === undefined) 字段['数量'] = Math.max(1, parseSkillDesignerIntegerInputValue(source['转移数量'] || source['数量'], 1, 1));
-        const 转移类型 = normalizeSkillUiText(source['转移类型'], '');
-        if (字段['来源'] === undefined) 字段['来源'] = /目标/.test(转移类型) && !/^自身/.test(转移类型) ? '目标' : '自身';
-        if (字段['去向'] === undefined) 字段['去向'] = /目标$|->目标/.test(转移类型) ? '目标' : '自身';
+        if (字段['状态'] === undefined) 字段['状态'] = normalizeSkillUiText(source['状态'], '任意状态');
+        if (字段['数量'] === undefined) 字段['数量'] = Math.max(1, parseSkillDesignerIntegerInputValue(source['数量'], 1, 1));
+        if (字段['来源'] === undefined) 字段['来源'] = normalizeSkillUiText(source['来源'], '自身');
+        if (字段['去向'] === undefined) 字段['去向'] = normalizeSkillUiText(source['去向'], '目标');
         return;
       } else if (原型 === '召唤生成') {
         if (字段['召唤物名称'] === undefined) 字段['召唤物名称'] = normalizeSkillUiText(source['召唤物名称'] || source['实体名称'] || source['状态名称'] || source['特殊机制标识'] || source['机制'], '召唤物');
@@ -7070,7 +7077,7 @@
       if (normalizedMain === '回复类') return '体力恢复';
       if (normalizedMain === '感知/认知类') return '标记锁定';
       if (normalizedMain === '位移类') return '自身位移';
-      if (normalizedMain === '特殊规则类') return /反制/.test(normalizedType) ? '反制' : '条件触发';
+      if (normalizedMain === '特殊规则类') return /反制/.test(normalizedType) ? '反制' : '规则改写';
       return '';
     }
 
@@ -7152,7 +7159,7 @@
       if (effectEntries.some(effect => !normalizeSkillUiText(effect && effect['原型'], '') && normalizeSkillUiText(effect && effect['物品类型'], '')) || /食物系/.test(normalizedType)) return '造物承载';
       if (mechanisms.includes('分身') || mechanisms.includes('召唤')) return '召唤承载';
       if (mechanisms.includes('召唤与场地')) return '召唤承载';
-      if (mechanisms.includes('条件触发') || mechanisms.includes('延迟爆发')) return '延迟触发';
+      if (mechanisms.includes('延迟爆发')) return '延迟触发';
       if (mechanisms.includes('标记锁定') || mechanisms.includes('标记弱点')) return '标记触发';
       if (/群体|全场/.test(normalizedTarget)) return '范围展开';
 
@@ -7192,11 +7199,22 @@
       return null;
     }
 
+    function isSkillDesignerSlotLabel(value = '') {
+      return /^第(?:\d+|[一二三四五六七八九十百]+)魂技$/u.test(toText(value, '').trim());
+    }
+
+    function getSkillDesignerNameFallback(previewMeta = {}) {
+      const scope = toText(previewMeta && previewMeta.scope, '魂技');
+      const label = toText(previewMeta && previewMeta.label, '').replace(/\[后台推演\]\s*/g, '').trim();
+      if (scope === '魂技' && isSkillDesignerSlotLabel(label)) return '';
+      return label;
+    }
+
     function cleanSkillDisplayName(skill, rawName = '') {
-      return normalizeSkillUiText(
-        (skill && skill['魂技名']) || (skill && skill['name']) || rawName.replace(/\[后台推演\]\s*/g, ''),
-        '未命名魂技'
-      );
+      const explicitName = normalizeSkillUiText((skill && skill['魂技名']) || (skill && skill['name']), '');
+      if (explicitName) return explicitName;
+      const cleanName = toText(rawName, '').replace(/\[后台推演\]\s*/g, '').trim();
+      return isSkillDesignerSlotLabel(cleanName) ? '' : cleanName;
     }
 
     function buildSkillDesignerPreviewKey(meta = {}) {
@@ -7345,7 +7363,7 @@
       if (防御状态.some(state => 状态类型.has(state))) return '防御';
       if (负面状态.some(state => 状态类型.has(state))) return '控制';
       if (有原型('护盾变化') || 有原型('规则防御')) return '防御';
-      if (有原型('状态移除') || 有原型('修炼速度修正') || 有原型('成长收益修正') || 有原型('外貌改写') || 有原型('伪装改写')) return '辅助';
+      if (有原型('状态移除') || 有原型('修炼速度修正') || 有原型('成长收益修正')) return '辅助';
       const 读取数值方向 = effect => {
         const text = normalizeSkillUiText(effect && effect['数值'], '');
         if (/^-/.test(text)) return -1;
@@ -7410,9 +7428,9 @@
       }
       return {
         studioTitle: '技能设计台',
-        parameterTitle: '技能设置',
+        parameterTitle: '魂技设置',
         summaryTitle: '设计速览',
-        nameFieldLabel: '技能名',
+        nameFieldLabel: '魂技名',
         targetLabel: '目标',
         deliveryLabel: '释放形式',
         visualLabel: '画面描述',
@@ -7694,6 +7712,24 @@
     function buildSkillDesignerAttributeSummary(draft = {}) {
       const attachedAttributes = normalizeSkillDesignerArray(draft.attachedAttributes);
       return attachedAttributes.length ? `附带属性：${attachedAttributes.join('/')}` : '';
+    }
+
+    function buildSkillDesignerCurrentAttributeSummaryHtml(snapshot = {}) {
+      const stat = deepGet(snapshot, 'activeChar.属性', {}) || {};
+      const hpMax = stat.HP上限 ?? stat.hp_max ?? 0;
+      const items = [
+        ['生命', hpMax],
+        ['魂力', stat.魂力上限],
+        ['精神', stat.精神力上限],
+        ['体力', stat.体力上限],
+        ['力量', stat.力量],
+        ['防御', stat.防御],
+        ['敏捷', stat.敏捷],
+      ].filter(([, value]) => value !== undefined && value !== null && value !== '');
+      if (!items.length) return '<span>未知</span>';
+      return `<div class="skill-designer-attribute-grid">${items.map(([label, value]) => `
+                      <span class="skill-designer-attribute-cell"><b>${htmlEscape(label)}</b><strong>${htmlEscape(formatNumber(value))}</strong></span>`).join('')}
+                    </div>`;
     }
 
     function buildSkillDesignerCompactSummary(draft = {}) {
@@ -9047,15 +9083,10 @@
             createSkillDesignerNumberParam('targetCap', '绑定目标数', '1', '1'),
             createSkillDesignerTextParam('releaseRule', '解除条件', '超距离 / 净化'),
           ];
-        case '条件触发':
-          return [
-            createSkillDesignerTextParam('triggerRule', '触发条件', '受击 / 低血 / 计时结束'),
-            createSkillDesignerNumberParam('triggerCount', '触发次数', '1', '1'),
-            createSkillDesignerSelectParam('triggerResult', '触发结果', SKILL_DESIGNER_PARAM_TRIGGER_RESULT_OPTIONS),
-          ];
         case '规则改写':
           return [
-            createSkillDesignerSelectParam('rewriteDepth', '改写幅度', SKILL_DESIGNER_PARAM_REWRITE_DEPTH_OPTIONS),
+            createSkillDesignerSelectParam('rewriteRule', '规则', SKILL_DESIGNER_PARAM_RULE_REWRITE_OPTIONS),
+            createSkillDesignerNumberParam('rewriteValue', '数值', '100%'),
           ];
         case '引爆持续伤害':
           return [
@@ -9526,7 +9557,6 @@
       const meta = 读取技能设计台原型摘要(prototype);
       if (meta.类别 !== '战斗外') return true;
       if (['修炼速度修正', '成长收益修正', '召唤生成'].includes(prototype)) return true;
-      if (['外貌改写', '伪装改写'].includes(prototype)) return Math.max(0, toNumber(effect && effect['有效期tick'], 0)) > 0;
       return false;
     }
 
@@ -9714,13 +9744,23 @@
       if (key === '条件分支') return 构建技能设计台条件分支编辑器(原型, value, fallbackTarget);
       if (类型 === '原型列表') return 构建技能设计台嵌套原型列表编辑器(key, value, fallbackTarget);
       const 是必填 = key === '目标' || key === '生效方式' || 技能设计台原型字段是否必填(原型, key);
+      if (key === '生效方式' && options && options.固定生效方式) {
+        const 固定值 = normalizeSkillUiText(options.固定生效方式, '独立生效');
+        return `
+          <label class=\"mvu-editor-field\">
+            ${标签}
+            <div class=\"mvu-editor-static skill-designer-static-token\">${htmlEscape(固定值)}</div>
+          </label>
+        `;
+      }
       if (类型 === '枚举') {
         const 下拉选项 = 构建技能设计台原型字段下拉选项(key, 选项, 是必填);
+        const 当前值 = value || (key === '生效方式' && options && options.默认生效方式 ? options.默认生效方式 : '') || (是必填 ? 选项[0] : '无') || '';
         return `
           <label class=\"mvu-editor-field\">
             ${标签}
             <select class=\"mvu-editor-select\" data-skill-designer-prototype-field=\"${escapeHtmlAttr(key)}\" data-skill-designer-disableable>
-              ${buildSkillDesignerSelectOptions(下拉选项, value || (是必填 ? 选项[0] : '无') || '')}
+              ${buildSkillDesignerSelectOptions(下拉选项, 当前值)}
             </select>
           </label>
         `;
@@ -9814,9 +9854,14 @@
       const source = Array.isArray(effects) ? effects : [];
       const normalized = 允许删空 && !source.length ? [] : 规范化技能设计台原型效果列表(source, fallbackTarget);
       const prototypeOptions = 读取技能设计台原型名称列表();
-      return normalized.map(effect => {
+      return normalized.map((effect, index) => {
         const prototype = normalizeSkillUiText(effect['原型'], prototypeOptions[0] || '伤害结算');
         const 允许删除当前原型 = 允许删空 || normalized.length > 1;
+        const 行选项 = {
+          ...options,
+          默认生效方式: options && options.默认生效方式 ? options.默认生效方式 : '跟随主原型',
+          固定生效方式: options && options.固定首个独立生效 && index === 0 ? '独立生效' : options && options.固定生效方式,
+        };
         return `
           <div class=\"skill-designer-subsection\" data-skill-designer-prototype-row>
             ${允许删除当前原型 ? '<button type=\"button\" class=\"skill-designer-remove-btn\" data-skill-designer-remove-prototype data-skill-designer-disableable aria-label=\"删除原型\">×</button>' : ''}
@@ -9829,7 +9874,7 @@
               </label>
             </div>
             <div class=\"mvu-editor-field-grid\" data-skill-designer-prototype-fields>
-              ${构建技能设计台原型字段编辑器(effect, options)}
+              ${构建技能设计台原型字段编辑器(effect, 行选项)}
             </div>
           </div>
         `;
@@ -9975,9 +10020,7 @@
         if (prototype === '行动判断修正') return `判断：${简写(effect['判断'], '判断')} ${数值文本(effect, '+0')}${持续文本(effect)}${条件文本(effect)}`;
         if (prototype === '召唤生成') return `召唤：${简写(effect['召唤物名称'], '召唤物')} ×${简写(effect['数量'], '1')}${持续文本(effect)}${条件文本(effect)}`;
         if (prototype === '修炼速度修正') return `修炼 ${数值文本(effect, '+0')}${持续文本(effect)}${条件文本(effect)}`;
-        if (prototype === '成长收益修正') return `成长 ${数值文本(effect, '+0')}${持续文本(effect)}${条件文本(effect)}`;
-        if (prototype === '外貌改写') return `外貌：${简写(effect['字段'], '字段')}→${简写(effect['值'], '变化')}${持续文本(effect)}${条件文本(effect)}`;
-        if (prototype === '伪装改写') return `伪装：${简写(effect['伪装类型'], '类型')}→${简写(effect['值'], '变化')}${持续文本(effect)}${条件文本(effect)}`;
+        if (prototype === '成长收益修正') return `成长：${简写(effect['成长项'], '成长项')} ${数值文本(effect, '+0')}${持续文本(effect)}${条件文本(effect)}`;
         return [prototype, 数值文本(effect), 持续文本(effect).replace(/^，/, '')].filter(Boolean).join(' ');
       };
       return 规范化技能设计台原型效果列表(draft.prototypeEffects, draft.target)
@@ -10048,7 +10091,7 @@
       const levelControl = 启用技能掌控度 ? buildSkillDesignerLevelControlFromDraft(baseDraft) : null;
       const 显式原型效果 = 筛选技能设计台显式原型效果列表(baseDraft.prototypeEffects, resolvedTarget);
       const coreState = {
-        name: normalizeSkillUiText(baseDraft.name, toText(previewMeta && previewMeta.label, '未命名技能')),
+        name: normalizeSkillUiText(baseDraft.name, getSkillDesignerNameFallback(previewMeta)),
         type: typeMeta.value,
         typeDisplay: typeMeta.display,
         target: resolvedTarget,
@@ -11262,10 +11305,10 @@
           const 复制方式文本 = toText(params['copyMode'], '战斗照镜子');
           return [
             buildSkillDesignerRuntimeObject({
-              '机制': '复制',
+              '原型': '复制执行',
               '目标': target,
-              '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
-              '复制类型': /全部/.test(复制类型文本) ? '全部' : /属性/.test(复制类型文本) ? '属性' : '技能',
+              '保留回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+              '复制类型': /自身镜像/.test(复制类型文本) ? '自身镜像' : /状态/.test(复制类型文本) ? '状态' : /属性/.test(复制类型文本) ? '属性' : '技能',
               '复制条件': /需要配合/.test(复制条件文本) ? '需要配合' : '可强行判定',
               '复制方式': /预先复刻/.test(复制方式文本) ? '预先复刻' : '战斗照镜子',
               '技能个数': parseSkillDesignerIntegerInputValue(params['skillCount'], 1, 1),
@@ -11287,42 +11330,43 @@
           ].filter(effect => safeEntries(effect).length);
         case '转化': {
           const convertPath = normalizeSkillUiText(params['convertPath'], '');
-          const mechanism = /回复.*伤害|healing?.*damage/i.test(convertPath) ? '回复转伤害' : '伤害转回复';
+          const rule = /回复.*伤害|healing?.*damage/i.test(convertPath) ? '治疗转伤害' : '伤害转治疗';
           return [
             buildSkillDesignerRuntimeObject({
-              '机制': mechanism,
-              '目标': resolveSkillDesignerMechanismTargetForRuntime(draft && draft.target, mechanism),
-              '转换比例': parseSkillDesignerPercentRatio(params['convertRatio'], 0.6),
-              '转化方向': convertPath,
+              '原型': '规则改写',
+              '目标': target,
+              '规则': rule,
+              '数值': `${Math.round(parseSkillDesignerPercentRatio(params['convertRatio'], 0.6) * 100)}%`,
             }),
           ].filter(effect => safeEntries(effect).length);
         }
         case '回复转伤害':
           return [
             buildSkillDesignerRuntimeObject({
-              '机制': '回复转伤害',
+              '原型': '规则改写',
               '目标': target,
-              '转换比例': parseSkillDesignerPercentRatio(params['convertRatio'], 0.6),
-              '转化方向': normalizeSkillUiText(params['convertPath'], '回复→伤害'),
+              '规则': '治疗转伤害',
+              '数值': `${Math.round(parseSkillDesignerPercentRatio(params['convertRatio'], 0.6) * 100)}%`,
             }),
           ].filter(effect => safeEntries(effect).length);
         case '状态交换':
           return [
             buildSkillDesignerRuntimeObject({
-              '机制': '状态交换',
+              '原型': '状态交换',
               '目标': target,
-              '交换数量': parseSkillDesignerIntegerInputValue(params['exchangeCount'], 1, 1),
-              '优先策略': normalizeSkillUiText(params['exchangeTarget'], '自身负面换目标正面'),
-              '交换条件': normalizeSkillUiText(params['triggerRule'], ''),
+              '状态': '任意状态',
+              '数量': parseSkillDesignerIntegerInputValue(params['exchangeCount'], 1, 1),
             }),
           ].filter(effect => safeEntries(effect).length);
         case '状态转移':
           return [
             buildSkillDesignerRuntimeObject({
-              '机制': '状态转移',
+              '原型': '状态转移',
               '目标': target,
-              '转移类型': normalizeSkillUiText(params['transferMode'], '自身负面->目标'),
-              '触发条件': normalizeSkillUiText(params['triggerRule'], ''),
+              '状态': '任意状态',
+              '来源': '自身',
+              '去向': '目标',
+              '数量': 1,
             }),
           ].filter(effect => safeEntries(effect).length);
         case '强制绑定/锁定':
@@ -11337,50 +11381,13 @@
               '解除条件': normalizeSkillUiText(params['releaseRule'], ''),
             }),
           ].filter(effect => safeEntries(effect).length);
-        case '条件触发': {
-          const triggerRule = normalizeSkillUiText(params['triggerRule'], '');
-          return [
-            buildSkillDesignerRuntimeObject({
-              '原型': '规则改写',
-              '目标': target,
-              '规则': '条件触发',
-              '数值': `+${parseSkillDesignerIntegerInputValue(params['triggerCount'], 1, 1)}`,
-              '驱动属性': /低血|生命|血量/.test(triggerRule) ? '体力上限' : '精神力上限',
-              '影响方向': '成功率',
-            }),
-            buildSkillDesignerRuntimeObject({
-              '原型': '结算修正',
-              '目标': target,
-              '结算': '最终伤害',
-              '数值': '+20%',
-              '驱动属性': /低血|生命|血量/.test(triggerRule) ? '体力上限' : '精神力上限',
-              '影响方向': '效果强度',
-            }),
-            buildSkillDesignerRuntimeObject({
-              '原型': '判定修正',
-              '目标': target,
-              '判定': '命中',
-              '数值': '+10%',
-            }),
-          ].filter(effect => safeEntries(effect).length);
-        }
         case '规则改写': {
-          const rewriteDepth = normalizeSkillUiText(params['rewriteDepth'], '');
-          const effects = [
-            buildSkillDesignerRuntimeObject({
-              '机制': '高波动随机值',
-              '目标': '自身',
-              '波动下限': 0.6,
-              '波动上限': rewriteDepth.includes('完整') ? 1.8 : 1.5,
-            }),
-          ];
-          if (/完整|覆盖/.test(rewriteDepth)) {
-            effects.push(buildSkillDesignerRuntimeObject({ '机制': '随机目标', '目标': '随机目标', '偏移概率': 0.35 }));
-          }
-          if (/完整/.test(rewriteDepth)) {
-            effects.push(buildSkillDesignerRuntimeObject({ '机制': '自身也受影响', '目标': '自身', '双向生效': true }));
-          }
-          return effects.filter(effect => safeEntries(effect).length);
+          return [buildSkillDesignerRuntimeObject({
+            '原型': '规则改写',
+            '目标': target,
+            '规则': normalizeSkillUiText(params['rewriteRule'], '治疗转伤害'),
+            '数值': normalizeSkillUiText(params['rewriteValue'], '100%'),
+          })].filter(effect => safeEntries(effect).length);
         }
         case '重力倍率调整':
           return [
@@ -11479,19 +11486,20 @@
         case '机制窃取':
           return [
             buildSkillDesignerRuntimeObject({
-              '机制': '机制窃取',
+              '原型': '机制窃取',
               '目标': target,
-              '窃取目标': normalizeSkillUiText(params['stealTarget'], '复苏'),
-              '窃取比例': parseSkillDesignerPercentRatio(params['stealRatio'], 0.4),
-              '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+              '机制': normalizeSkillUiText(params['stealTarget'], '复苏'),
+              '数值': `${Math.round(parseSkillDesignerPercentRatio(params['stealRatio'], 0.4) * 100)}%`,
+              '保留回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
             }),
           ].filter(effect => safeEntries(effect).length);
         case '效果反转':
           return [
             buildSkillDesignerRuntimeObject({
-              '机制': '效果反转',
+              '原型': '规则改写',
               '目标': target,
-              '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+              '规则': '效果反转',
+              '数值': '100%',
             }),
           ].filter(effect => safeEntries(effect).length);
         case '拆层转存':
@@ -11943,18 +11951,20 @@
           break;
         case '状态转移':
           effects.push(buildSkillDesignerRuntimeObject({
-            '机制': '状态转移',
+            '原型': '状态转移',
             '目标': offensiveTarget,
-            '转移类型': normalizeSkillUiText(params['transferMode'], '自身负面->目标'),
-            '触发条件': normalizeSkillUiText(params['triggerRule'], ''),
+            '状态': '任意状态',
+            '来源': '自身',
+            '去向': '目标',
+            '数量': 1,
           }));
           break;
         case '回复转伤害':
           effects.push(buildSkillDesignerRuntimeObject({
-            '机制': '回复转伤害',
+            '原型': '规则改写',
             '目标': offensiveTarget,
-            '转换比例': parseSkillDesignerPercentRatio(params['convertRatio'], 0.6),
-            '转化方向': normalizeSkillUiText(params['convertPath'], '回复→伤害'),
+            '规则': '治疗转伤害',
+            '数值': `${Math.round(parseSkillDesignerPercentRatio(params['convertRatio'], 0.6) * 100)}%`,
           }));
           break;
         case '引爆持续伤害':
@@ -12093,18 +12103,19 @@
           break;
         case '机制窃取':
           effects.push(buildSkillDesignerRuntimeObject({
-            '机制': '机制窃取',
+            '原型': '机制窃取',
             '目标': offensiveTarget,
-            '窃取目标': normalizeSkillUiText(params['stealTarget'], '复苏'),
-            '窃取比例': parseSkillDesignerPercentRatio(params['stealRatio'], 0.4),
-            '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+            '机制': normalizeSkillUiText(params['stealTarget'], '复苏'),
+            '数值': `${Math.round(parseSkillDesignerPercentRatio(params['stealRatio'], 0.4) * 100)}%`,
+            '保留回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
           }));
           break;
         case '效果反转':
           effects.push(buildSkillDesignerRuntimeObject({
-            '机制': '效果反转',
+            '原型': '规则改写',
             '目标': offensiveTarget,
-            '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+            '规则': '效果反转',
+            '数值': '100%',
           }));
           break;
         case '拆层转存':
@@ -12252,6 +12263,7 @@
       const normalizedFusionFields = previewMeta && previewMeta.scope === '武魂融合技'
         ? assertSkillDesignerFusionState(normalized)
         : null;
+      if (!normalizeSkillUiText(normalized.name, '')) throw new Error(`请填写${getSkillDesignerScopeLabels(previewMeta).nameFieldLabel || '技能名'}。`);
       const designSummary = buildSkillDesignerCompactSummary(normalized);
       const skillSourceCategory = resolveSkillDesignerSourceCategory(previewMeta);
       safeSkill['魂技名'] = normalized.name;
@@ -17779,9 +17791,16 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                     </section>
                   ` : '';
         const 技能掌控度区块 = `
-                  <section class=\"mvu-editor-section\" data-skill-designer-mastery-section${启用技能掌控度 ? '' : ' hidden'}>
-                    <div class=\"mvu-editor-section-title\">技能掌控度</div>
-                    <div class=\"mvu-editor-field-grid\">
+                  <section class=\"mvu-editor-section\">
+                    <div class=\"mvu-editor-section-title\">[ 06 ] 技能掌控度</div>
+                    <div class=\"skill-designer-inline-toggle\">
+                      <span class=\"mvu-editor-label\">技能掌控度</span>
+                      <label class=\"skill-designer-check-toggle\" title=\"技能掌控度\">
+                        <input type=\"checkbox\"${启用技能掌控度 ? ' checked' : ''} value=\"启用\" data-skill-designer-field=\"启用技能掌控度\" data-skill-designer-disableable />
+                        <span></span>
+                      </label>
+                    </div>
+                    <div class=\"mvu-editor-field-grid\" data-skill-designer-mastery-section${启用技能掌控度 ? '' : ' hidden'}>
                       <label class=\"mvu-editor-field\">
                         <span class=\"mvu-editor-label\">中心等级</span>
                         <input class=\"mvu-editor-input\" type=\"number\" min=\"1\" step=\"1\" value=\"${escapeHtmlAttr(designerDraft.技能掌控度中心等级 || '')}\" placeholder=\"85\" data-skill-designer-field=\"技能掌控度中心等级\" data-skill-designer-disableable />
@@ -17795,7 +17814,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                   `;
         const 技能试算内容 = buildSkillDesignerSimulationHtml(designerDraft, snapshot);
         return {
-          title: `${scopeLabels.studioTitle} / ${designerDraft.name}`,
+          title: `${scopeLabels.studioTitle} / ${designerDraft.name || previewMeta.label || '未命名'}`,
           summary: '',
           onMount: mountEl => {
             const form = mountEl.querySelector('[data-skill-designer-form]');
@@ -17948,7 +17967,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             const rebuildPrototypeGrid = (draftOverride = null) => {
               if (!prototypeGrid) return;
               const currentDraft = draftOverride || syncDraftCache();
-              prototypeGrid.innerHTML = 构建技能设计台原型效果行列表(currentDraft.prototypeEffects, currentDraft.target);
+              prototypeGrid.innerHTML = 构建技能设计台原型效果行列表(currentDraft.prototypeEffects, currentDraft.target, false, { 固定首个独立生效: true });
             };
 
             const rebuildSidePrototypeGrid = (draftOverride = null) => {
@@ -17971,7 +17990,12 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
               const currentEffect = currentEffects[rowIndex] || { '原型': select.value, '目标': currentTarget };
               currentEffect['原型'] = select.value;
               const 禁用条件分支 = !!row.closest('[data-skill-designer-condition-effect]');
-              fields.innerHTML = 构建技能设计台原型字段编辑器(currentEffect, { 禁用条件分支 });
+              const gridName = normalizeSkillUiText(grid && grid.getAttribute('data-skill-designer-prototype-grid'), '');
+              fields.innerHTML = 构建技能设计台原型字段编辑器(currentEffect, {
+                禁用条件分支,
+                固定生效方式: gridName === 'main' && rowIndex === 0 ? '独立生效' : '',
+                默认生效方式: gridName === 'main' && rowIndex === 0 ? '独立生效' : '跟随主原型',
+              });
               fields.querySelectorAll('[data-skill-designer-condition-row]').forEach(syncConditionRow);
               fields.querySelectorAll('[data-skill-designer-scaling-field]').forEach(syncScalingField);
             };
@@ -18409,7 +18433,9 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                 const row = addConditionEffect.closest('[data-skill-designer-prototype-row]');
                 const targetValue = normalizeSkillUiText(row?.querySelector('[data-skill-designer-prototype-field="目标"]')?.value, '单体');
                 if (grid) {
-                  grid.insertAdjacentHTML('beforeend', 构建技能设计台原型效果行列表([创建技能设计台默认原型效果('伤害结算', targetValue)], targetValue, true, { 禁用条件分支: true }));
+                  const nextEffect = 创建技能设计台默认原型效果('伤害结算', targetValue);
+                  nextEffect['生效方式'] = '跟随主原型';
+                  grid.insertAdjacentHTML('beforeend', 构建技能设计台原型效果行列表([nextEffect], targetValue, true, { 禁用条件分支: true }));
                   refreshPreview();
                 }
                 return;
@@ -18421,6 +18447,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                 const grid = block ? block.querySelector('[data-skill-designer-prototype-grid]') : null;
                 if (grid) {
                   const nextEffect = 创建技能设计台默认原型效果('判定修正', '单体');
+                  nextEffect['生效方式'] = '跟随主原型';
                   grid.insertAdjacentHTML('beforeend', 构建技能设计台原型效果行列表([nextEffect], '单体', true));
                   refreshPreview();
                 }
@@ -18433,6 +18460,9 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                 const currentDraft = syncDraftCache();
                 const firstPrototype = gridName === 'side' ? '判定修正' : (读取技能设计台原型名称列表()[0] || '伤害结算');
                 const nextEffect = 创建技能设计台默认原型效果(firstPrototype, gridName === 'side' ? '自身' : currentDraft.target);
+                if (gridName === 'side' || (Array.isArray(currentDraft.prototypeEffects) && currentDraft.prototypeEffects.length > 0)) {
+                  nextEffect['生效方式'] = '跟随主原型';
+                }
                 if (gridName === 'side') {
                   nextEffect['判定'] = nextEffect['判定'] || '命中';
                   nextEffect['数值'] = /^-/.test(String(nextEffect['数值'] || '')) ? nextEffect['数值'] : '-10%';
@@ -18523,12 +18553,18 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                 <div class=\"mvu-editor-grid\">
                   <section class=\"mvu-editor-section\">
                     <div class=\"mvu-editor-section-title\">[ 01 ] 基础框架载体</div>
-                    <div class=\"mvu-editor-field-grid\">
+                    <div class=\"mvu-editor-field-grid skill-designer-basic-grid\">
                       <label class=\"mvu-editor-field\">
-                        <span class=\"mvu-editor-label\">${htmlEscape(scopeLabels.nameFieldLabel)} <span class=\"mvu-editor-micro-copy\">// 设定术式呼出指令</span></span>
-                        <input class=\"mvu-editor-input\" type=\"text\" value=\"${escapeHtmlAttr(designerDraft.name)}\" placeholder=\"请输入技能/术式名称\" data-skill-designer-field=\"name\" data-skill-designer-disableable />
+                        <span class=\"mvu-editor-label\">${htmlEscape(scopeLabels.nameFieldLabel)}</span>
+                        <input class=\"mvu-editor-input\" type=\"text\" value=\"${escapeHtmlAttr(designerDraft.name)}\" placeholder=\"请输入${escapeHtmlAttr(scopeLabels.nameFieldLabel)}\" data-skill-designer-field=\"name\" data-skill-designer-disableable />
                       </label>
                       <label class=\"mvu-editor-field\">
+                        <span class=\"mvu-editor-label\">承载方式</span>
+                        <select class=\"mvu-editor-select\" data-skill-designer-field=\"deliveryForm\" data-skill-designer-disableable>
+                          ${buildSkillDesignerSelectOptions(getSkillDesignerDeliveryOptions(designerDraft.type), designerDraft.deliveryForm || '直接生效')}
+                        </select>
+                      </label>
+                      <label class=\"mvu-editor-field skill-designer-type-field\">
                         <span class=\"mvu-editor-label\">技能定位</span>
                         <div class=\"mvu-editor-static skill-designer-static-token\" data-skill-designer-type-display>${htmlEscape(designerDraft.typeDisplay || designerDraft.type || '输出')}</div>
                         <input type=\"hidden\" value=\"${escapeHtmlAttr(designerDraft.type || '输出')}\" data-skill-designer-field=\"type\" />
@@ -18576,7 +18612,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                         <input class=\"mvu-editor-input\" type=\"number\" min=\"0\" step=\"1\" value=\"${escapeHtmlAttr(String(Math.max(0, toNumber(designerDraft.constructDurationTick, 0))))}\" placeholder=\"默认无\" data-skill-designer-field=\"constructDurationTick\" data-skill-designer-disableable />
                       </label>
                       <label class=\"mvu-editor-field mvu-editor-field-wide\">
-                        <span class=\"mvu-editor-label\">物品描述 <span class=\"mvu-editor-micro-copy\">// 生成造物的具体表现与特征</span></span>
+                        <span class=\"mvu-editor-label\">物品描述</span>
                         <input class=\"mvu-editor-input\" type=\"text\" value=\"${escapeHtmlAttr(designerDraft.constructDescription || '')}\" placeholder=\"例如：闪烁着暗金光芒的晶体\" data-skill-designer-field=\"constructDescription\" data-skill-designer-disableable />
                       </label>
                     </div>
@@ -18586,7 +18622,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                     <div class=\"mvu-editor-section-title\" data-skill-designer-prototype-title>${是造物承载 ? '[ 03 ] 使用效果阵列' : '[ 02 ] 核心术式阵列'}</div>
                     <div class=\"skill-designer-preview-stack\" data-skill-designer-prototype-grid=\"main\">
                       ${designerDraft.prototypeEffects && designerDraft.prototypeEffects.length > 0
-                        ? 构建技能设计台原型效果行列表(designerDraft.prototypeEffects, designerDraft.target)
+                      ? 构建技能设计台原型效果行列表(designerDraft.prototypeEffects, designerDraft.target, false, { 固定首个独立生效: true })
                         : '<div class=\"skill-designer-empty-guide\"><div class=\"guide-icon\">✦</div><div class=\"guide-title\">术式阵列未装配</div><div class=\"guide-desc\">请点击下方按钮，为该技能添加基础机制（如：伤害、判定修正、状态授予等）。您可以组合多个原型来构建复杂技能。</div></div>'
                       }
                     </div>
@@ -18608,13 +18644,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                   </section>
 
                   <section class=\"mvu-editor-section\">
-                    <div class=\"mvu-editor-section-title skill-designer-section-title-row\">
-                      <span>[ 05 ] 运转能量配置</span>
-                      <label class=\"skill-designer-check-toggle\" title=\"技能掌控度\">
-                        <input type=\"checkbox\"${启用技能掌控度 ? ' checked' : ''} value=\"启用\" data-skill-designer-field=\"启用技能掌控度\" data-skill-designer-disableable />
-                        <span></span>
-                      </label>
-                    </div>
+                    <div class=\"mvu-editor-section-title\">[ 05 ] 运转能量配置</div>
                     <div class=\"mvu-editor-field-grid\">
                       <label class=\"mvu-editor-field\">
                         <span class=\"mvu-editor-label\">消耗资源</span>
@@ -18627,19 +18657,13 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                         <span class=\"mvu-editor-label\">前摇</span>
                         <input class=\"mvu-editor-input\" type=\"number\" min=\"0\" step=\"1\" value=\"${escapeHtmlAttr(String(Math.max(0, toNumber(designerDraft['前摇'], 0))))}\" data-skill-designer-field=\"前摇\" data-skill-designer-disableable />
                       </label>
-                      <label class=\"mvu-editor-field\">
-                        <span class=\"mvu-editor-label\">承载方式 <span class=\"mvu-editor-micro-copy\">// 决定术式的生效媒介</span></span>
-                        <select class=\"mvu-editor-select\" data-skill-designer-field=\"deliveryForm\" data-skill-designer-disableable>
-                          ${buildSkillDesignerSelectOptions(getSkillDesignerDeliveryOptions(designerDraft.type), designerDraft.deliveryForm || '直接生效')}
-                        </select>
-                      </label>
                     </div>
                   </section>
 
                   ${技能掌控度区块}
 
                   <section class=\"mvu-editor-section\">
-                    <div class=\"mvu-editor-section-title\">[ 06 ] 元属性特征</div>
+                    <div class=\"mvu-editor-section-title\">[ 07 ] 元属性特征</div>
                     <div class=\"skill-designer-subsection\">
                       <div class=\"mvu-editor-label\">附带属性</div>
                       <div class=\"skill-designer-chip-grid\" data-skill-designer-attribute-grid>
@@ -18649,14 +18673,14 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                   </section>
 
                   <section class=\"mvu-editor-section\">
-                    <div class=\"mvu-editor-section-title\">[ 07 ] 终端解析图谱</div>
+                    <div class=\"mvu-editor-section-title\">[ 08 ] 终端解析图谱</div>
                     <div class=\"mvu-editor-field-grid\">
                       <label class=\"mvu-editor-field mvu-editor-field-wide\">
-                        <span class=\"mvu-editor-label\">${htmlEscape(scopeLabels.visualLabel)} <span class=\"mvu-editor-micro-copy\">// 释放时的光影、声音与声势表现</span></span>
+                        <span class=\"mvu-editor-label\">${htmlEscape(scopeLabels.visualLabel)}</span>
                         <textarea class=\"mvu-editor-textarea\" placeholder=\"例如：空间剧烈震荡，一柄漆黑如墨的巨刃破空而出...\" data-skill-designer-field=\"visualDesc\" data-skill-designer-disableable>${htmlEscape(designerDraft.visualDesc)}</textarea>
                       </label>
                       <label class=\"mvu-editor-field mvu-editor-field-wide\">
-                        <span class=\"mvu-editor-label\">${htmlEscape(scopeLabels.effectLabel)} <span class=\"mvu-editor-micro-copy\">// 总结性的机制说明（面向玩家阅读）</span></span>
+                        <span class=\"mvu-editor-label\">${htmlEscape(scopeLabels.effectLabel)}</span>
                         <textarea class=\"mvu-editor-textarea\" placeholder=\"总结技能的实际作用，如：造成中等伤害并附带破甲效果\" data-skill-designer-field=\"effectDesc\" data-skill-designer-disableable>${htmlEscape(designerDraft.effectDesc)}</textarea>
                       </label>
                     </div>
@@ -18672,6 +18696,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                     : ''}
                   <div class=\"skill-designer-summary-row\"><em>原型列表</em><span data-skill-designer-preview=\"mechanic\">${htmlEscape(构建技能设计台原型摘要(designerDraft) || '未设置')}</span></div>
                   <div class=\"skill-designer-summary-row\"><em>执行摘要</em><span data-skill-designer-preview=\"execution\">${htmlEscape(buildSkillDesignerExecutionSummary(designerDraft) || '未设置')}</span></div>
+                  <div class=\"skill-designer-summary-row\"><em>当前属性</em>${buildSkillDesignerCurrentAttributeSummaryHtml(snapshot)}</div>
                   <div class=\"skill-designer-summary-row\"><em>副作用</em><span data-skill-designer-preview=\"sideEffects\">${htmlEscape(buildSkillDesignerSideEffectSummary(designerDraft) || '无')}</span></div>
                   <div class=\"skill-designer-summary-row skill-designer-trial-card\" data-skill-designer-trial-row ${技能试算内容 ? '' : 'hidden'}><em>试算</em><div data-skill-designer-simulation>${技能试算内容}</div></div>
                   ${previewMeta.scope === 'art'
@@ -23305,7 +23330,8 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             目标: '单体',
             消耗: '无',
             _效果数组: Object.freeze([
-              Object.freeze({ 原型: '规则改写', 目标: '单体', 规则: '条件触发', 数值: '+50%' }),
+              Object.freeze({ 原型: '资源变化', 目标: '单体', 资源: '生命', 数值: '+20%' }),
+              Object.freeze({ 原型: '规则改写', 目标: '单体', 规则: '治疗转伤害', 数值: '100%' }),
             ]),
           }),
           预期: Object.freeze({
@@ -23391,7 +23417,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             目标: '单体',
             消耗: '无',
             _效果数组: Object.freeze([
-              Object.freeze({ 原型: '规则改写', 目标: '单体', 规则: '条件触发', 数值: '+2' }),
+              Object.freeze({ 原型: '状态施加', 目标: '单体', 状态: '灼烧', 层级: 1, 持续回合: 2 }),
             ]),
           }),
           预期: Object.freeze({
@@ -23570,7 +23596,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             目标: '单体',
             消耗: '无',
             _效果数组: Object.freeze([
-              Object.freeze({ 原型: '规则改写', 目标: '单体', 规则: '条件触发', 数值: '-45%' }),
+              Object.freeze({ 原型: '状态施加', 目标: '单体', 状态: '封技', 层级: 1, 持续回合: 1 }),
             ]),
           }),
           预期: Object.freeze({
@@ -30858,6 +30884,10 @@ window.EquipmentManager = {
         mechanism_grant: true,
       };
     }
+    if (effect?.type === 'growth_gain') {
+      record.成长项 = toText(value.成长项, '');
+      record.成长收益倍率 = Math.max(0.1, toNumber(value.成长收益倍率, 1));
+    }
     if (value && value.statMods && typeof value.statMods === 'object') {
       record.stat_mods = cloneJsonValue(value.statMods, {});
     } else {
@@ -30907,12 +30937,25 @@ window.EquipmentManager = {
     if (prototype === '护盾变化') {
       return { target, type: 'shield', description, value: Math.max(0, toNumber(effect['数值'], 0)) };
     }
-    if (prototype === '资源变化' || prototype === '属性修正' || prototype === '修炼速度修正') {
+    if (prototype === '资源变化' || prototype === '属性修正' || prototype === '修炼速度修正' || prototype === '成长收益修正') {
       const 属性 = toText(effect['资源'] || effect['属性'], '');
       const 数值 = toNumber(effect['数值'], 0);
       const 持续 = toNumber(effect['持续回合'], 0);
       if (prototype === '修炼速度修正') {
-        return { target, type: 'buff', description, value: { 修炼速度倍率: toNumber(effect['数值'], 1.2), 持续tick: toNumber(effect['有效期tick'] ?? effect['持续tick'], 0), 持续 } };
+        return { target, type: 'buff', description, value: { 修炼速度倍率: toMultiplierValue(effect['数值'], 1.2), 持续tick: toNumber(effect['有效期tick'] ?? effect['持续tick'], 0), 持续 } };
+      }
+      if (prototype === '成长收益修正') {
+        return {
+          target,
+          type: 'growth_gain',
+          description,
+          value: {
+            成长项: toText(effect['成长项'], '肉体训练收益'),
+            成长收益倍率: Math.max(0.1, toMultiplierValue(effect['数值'], 1.2)),
+            持续tick: toNumber(effect['有效期tick'] ?? effect['持续tick'], 0),
+            持续,
+          },
+        };
       }
       if (prototype === '资源变化' && ['体力', '生命', '魂力', '精神力'].includes(属性) && 数值 > 0) {
         return { target, type: 'heal', description, value: { 属性: 属性 === '生命' ? '体力' : 属性, 数值, 持续 } };
@@ -31166,7 +31209,7 @@ window.EquipmentManager = {
             if (this.applyInventoryHealEffect(charData.属性, usableEffect, logs)) appliedCount += 1;
             return;
           }
-          if (['buff', 'debuff', 'shield', 'custom', 'mechanism_grant'].includes(String(usableEffect.type || ''))) {
+          if (['buff', 'debuff', 'shield', 'custom', 'mechanism_grant', 'growth_gain'].includes(String(usableEffect.type || ''))) {
             if (this.appendInventoryStatusEffect(charData.属性.状态效果, itemName, usableEffect, index, logs, 当前tick)) appliedCount += 1;
             return;
           }
