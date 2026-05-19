@@ -1862,6 +1862,18 @@
       return '无';
     }
 
+    function 读取显示精神境界(stat = {}) {
+      const 显式境界 = toText(stat && (stat.精神境界 ?? stat._men_realm ?? stat.精神力_realm), '').trim();
+      if (显式境界) return 显式境界;
+      const 精神力上限 = Math.max(0, toNumber(stat && (stat.精神力上限 ?? stat.men_max), 0));
+      if (精神力上限 >= 50000) return '神元境';
+      if (精神力上限 >= 20000) return '灵域境';
+      if (精神力上限 >= 3000) return '灵渊境';
+      if (精神力上限 >= 500) return '灵海境';
+      if (精神力上限 >= 50) return '灵通境';
+      return '灵元境';
+    }
+
     function normalizeInjurySeverity(value) {
       const text = toText(value, '轻').trim();
       if (['轻', '中', '重'].includes(text)) return text;
@@ -4208,11 +4220,8 @@
       const parsedEnvelope = normalizeMvuDataEnvelopeForEditor(parsedMvuData);
       const nextMvuData = cloneJsonValue(oldMvuData, {});
       const nextStatData = buildSafeStatDataForEditorWrite(parsedEnvelope.stat_data, oldMvuData.stat_data);
-      if (oldMvuData && oldMvuData.stat_data && Object.prototype.hasOwnProperty.call(oldMvuData.stat_data, 'display_all')) {
-        nextStatData.display_all = cloneJsonValue(oldMvuData.stat_data.display_all, {});
-      } else {
-        delete nextStatData.display_all;
-      }
+      delete nextStatData.display_all;
+      delete nextStatData.display_chars;
       nextMvuData.stat_data = nextStatData;
       return nextMvuData;
     }
@@ -4222,7 +4231,9 @@
       const oldStat = cloneJsonValue(oldMvuData && oldMvuData.stat_data, {});
       const nextStat = cloneJsonValue(nextMvuData && nextMvuData.stat_data, {});
       delete oldStat.display_all;
+      delete oldStat.display_chars;
       delete nextStat.display_all;
+      delete nextStat.display_chars;
       const changedPaths = 收集AI维护差异路径(oldStat, nextStat, []);
       if (!changedPaths.length) return { ok: false, reason: 'AI 未生成有效变量改动。', changedPaths };
       const outOfRange = changedPaths.filter(path => !allowedPaths.some(allowed => 路径是否在AI维护边界内(path, allowed)));
@@ -6166,7 +6177,7 @@
       return [];
     }
 
-    const SKILL_DESIGNER_BATCH_EFFECT_FIELD_KEYS = Object.freeze(['原型', '资源', '状态', '类型']);
+    const SKILL_DESIGNER_BATCH_EFFECT_FIELD_KEYS = Object.freeze(['原型', '属性', '资源', '状态', '类型']);
     const SKILL_DESIGNER_PROTOTYPE_FORBIDDEN_FIELDS = new Set(['目标模型', '对象', '结算策略', '动作', '触发方式', '状态持续', 'cast_time', '应用' + '原型', '参数', '判定属性', '判定阈值', '成功参数', '失败参数']);
 
     function fillSkillDesignerPrototypeValueFromTemplate(原型 = '', 字段 = {}, source = {}) {
@@ -6490,6 +6501,7 @@
           delete 字段[key];
         }
       });
+      if (原型 === '状态施加') 字段['层级'] = Math.max(1, parseSkillDesignerIntegerInputValue(字段['层级'], 1, 1));
       ['使用效果', '授予效果', '状态效果'].forEach(key => {
         const nested = Array.isArray(value[key]) ? value[key] : [];
         if (!nested.length) return;
@@ -9541,6 +9553,9 @@
       if (prototype === '状态施加' && key === '数值') {
         return 读取技能设计台多枚举值(effect && effect['状态']).some(state => ['中毒', '流血', '灼烧', '冻伤', '禁疗', '治疗反转', '护盾'].includes(state));
       }
+      if (prototype === '状态施加' && key === '状态效果') {
+        return Array.isArray(effect && effect['状态效果']) && effect['状态效果'].length > 0;
+      }
       if (prototype === '状态移除' && ['资源', '数值方向'].includes(key)) return valueOf('匹配原型') === '资源变化';
       if (prototype === '目标选择修正' && key === '层级') return valueOf('选择') === '嘲讽';
       if (prototype === '行动判断修正' && key === '层级') return false;
@@ -9945,10 +9960,12 @@
       }
       if (类型 === '数字' || 类型 === '整数') {
         const 最大值属性 = key === '防御穿透' ? ' max=\"100\"' : '';
+        const 当前数值 = 原型 === '状态施加' && key === '层级' && (value === undefined || value === null || value === '') ? '1' : value;
+        const 占位文本 = 原型 === '状态移除' && key === '层级' ? '不限制' : '默认无';
         return `
           <label class=\"mvu-editor-field\">
             ${标签}
-            <input class=\"mvu-editor-input\" type=\"number\" ${类型 === '整数' || key === '防御穿透' ? 'step=\"1\"' : 'step=\"0.01\"'} min=\"0\"${最大值属性} value=\"${escapeHtmlAttr(value)}\" placeholder=\"默认无\" data-skill-designer-prototype-field=\"${escapeHtmlAttr(key)}\" data-skill-designer-disableable />
+            <input class=\"mvu-editor-input\" type=\"number\" ${类型 === '整数' || key === '防御穿透' ? 'step=\"1\"' : 'step=\"0.01\"'} min=\"0\"${最大值属性} value=\"${escapeHtmlAttr(当前数值)}\" placeholder=\"${escapeHtmlAttr(占位文本)}\" data-skill-designer-prototype-field=\"${escapeHtmlAttr(key)}\" data-skill-designer-disableable />
           </label>
         `;
       }
@@ -14886,7 +14903,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       const woundLabel = getDisplayWoundLabel(stat);
       const nextLevelSoul = getNextLevelSoulRequirementWithCap(stat, deepGet(snapshot, 'activeChar', {}));
       const allowNsfwLongPress = canOpenPrivateArchive(snapshot);
-      const mentalRealmText = toText(stat._men_realm, toText(stat.精神力_realm, '灵元境'));
+      const mentalRealmText = 读取显示精神境界(stat);
       const 伤势显示 = woundLabel && woundLabel !== '无' ? woundLabel : '无伤';
       const 领域文本 = toText(status.当前领域, '常态');
       const 领域显示 = 领域文本 && 领域文本 !== '无' ? 领域文本 : '常态';
@@ -16500,7 +16517,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                 { label: '力量', value: formatNumber(stat.力量) },
                 { label: '防御', value: formatNumber(stat.防御) },
                 { label: '敏捷', value: formatNumber(stat.敏捷) },
-                { label: '精神境界', value: toText(stat.精神境界, '灵元境') },
+                { label: '精神境界', value: 读取显示精神境界(stat) },
               ], { className: 'mvu-shell-lite-grid--two' })}
             </section>
             <section class="mvu-shell-lite-card">
@@ -19320,7 +19337,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                     <div class="dossier-section-title">成长信息</div>
                     ${makeDossierRows([
                       { label: '等级', value: htmlEscape(formatCultivationLevelBadge(stat.等级, '0')) },
-                      { label: '精神境界', value: htmlEscape(toText(stat._men_realm, toText(stat.精神力_realm, '灵元境'))) },
+                      { label: '精神境界', value: htmlEscape(读取显示精神境界(stat)) },
                       { label: '天赋梯队', value: htmlEscape(toText(stat.talent_tier, '未定')) },
                       { label: '系别', value: activeCharKey
                         ? makeInlineEditableValue(toText(stat.系别, '未知'), {

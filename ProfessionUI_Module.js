@@ -1567,6 +1567,7 @@ class ProfessionUIComponent {
       使用条件: safeItem.使用条件 && typeof safeItem.使用条件 === 'object' && !Array.isArray(safeItem.使用条件) ? safeItem.使用条件 : {},
       使用效果: Array.isArray(safeItem.使用效果) ? safeItem.使用效果 : [],
       属性加成: safeItem.属性加成 && typeof safeItem.属性加成 === 'object' && !Array.isArray(safeItem.属性加成) ? safeItem.属性加成 : {},
+      装备技能: safeItem.装备技能 && typeof safeItem.装备技能 === 'object' && !Array.isArray(safeItem.装备技能) ? safeItem.装备技能 : {},
       副职业参数: {
         ...(safeItem.副职业参数 && typeof safeItem.副职业参数 === 'object' && !Array.isArray(safeItem.副职业参数) ? safeItem.副职业参数 : {}),
         ...(safeItem.品质系数 ? { 品质系数: safeItem.品质系数 } : {}),
@@ -1845,6 +1846,7 @@ class ProfessionUIComponent {
             使用条件: definition.使用条件 && typeof definition.使用条件 === 'object' ? definition.使用条件 : {},
             使用效果: Array.isArray(definition.使用效果) ? definition.使用效果 : [],
             属性加成: definition.属性加成 && typeof definition.属性加成 === 'object' ? definition.属性加成 : {},
+            装备技能: definition.装备技能 && typeof definition.装备技能 === 'object' ? definition.装备技能 : {},
             副职业参数: definition.副职业参数 && typeof definition.副职业参数 === 'object' ? definition.副职业参数 : {}
           }
         });
@@ -2007,6 +2009,7 @@ class ProfessionUIComponent {
               使用条件: definition.使用条件 && typeof definition.使用条件 === 'object' ? definition.使用条件 : {},
               使用效果: Array.isArray(definition.使用效果) ? definition.使用效果 : [],
               属性加成: definition.属性加成 && typeof definition.属性加成 === 'object' ? definition.属性加成 : {},
+              装备技能: definition.装备技能 && typeof definition.装备技能 === 'object' ? definition.装备技能 : {},
               副职业参数: definition.副职业参数 && typeof definition.副职业参数 === 'object' ? definition.副职业参数 : {}
             }
           });

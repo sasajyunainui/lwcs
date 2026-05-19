@@ -3567,7 +3567,7 @@
       ? rawSd.map
       : ((rawSd.display_map && typeof rawSd.display_map === 'object' && Object.keys(rawSd.display_map).length)
         ? rawSd.display_map
-        : (deepGet(rawSd, '_display_all.map', deepGet(rawSd, 'display_all.map', {})) || {}));
+        : {});
     return {
       rootData: {
         sys: rawSd.sys || {},

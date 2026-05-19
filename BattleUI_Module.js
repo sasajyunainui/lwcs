@@ -14872,7 +14872,7 @@ class BattleUIComponent {
               targetObj.状态效果[pState.状态名称] = {
                 类型: isBuff ? 'buff' : 'debuff',
                 层数: 1,
-                层级: Math.max(0, Number(pState.层级 || 0)),
+                层级: Math.max(1, Number(pState.层级 || 1)),
                 描述: `由[${playerAction.skill.name}]附加`,
                 duration: pState.持续回合,
                 状态效果: Array.isArray(pState.状态效果) ? deepClone(pState.状态效果) : [],

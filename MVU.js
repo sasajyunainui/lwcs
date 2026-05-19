@@ -143,6 +143,527 @@ function cloneJsonValue(值, 回退值 = {}) {
   return 回退值;
 }
 
+const MVU_RUNTIME_VIEW_PLACEHOLDER_V1 = '{{MVU_RUNTIME_VIEW}}';
+const MVU_RUNTIME_ITEM_HINTS_V1 = Object.freeze({
+  使用效果:
+    '数组。每项格式：{原型,目标,属性,数值,持续tick,描述}。原型可用：恢复/伤害/状态修正/资源消耗/传送/解锁/获得物品/触发请求。用于服用/投掷/激活/消耗；一次性攻击物品也写这里。',
+  属性加成:
+    '对象。格式：{魂力上限:number,精神力上限:number,力量:number,防御:number,敏捷:number,体力上限:number}。只写装备或持有期间持续生效的被动数值加成。',
+  装备技能:
+    '对象。键为技能名，值按技能结构：{魂技名,类型,效果描述,消耗,冷却tick,_效果数组}。只写装备后授予的固定主动技能。',
+  副职业参数: '对象。只写锻造/设计/制作/修理等副职业模块读取的参数；普通物品留空。',
+});
+
+function 转义运行时正则文本_V1(文本 = '') {
+  return String(文本 || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function 运行时文本命中名称_V1(文本 = '', 名称 = '') {
+  const 安全名称 = String(名称 || '').trim();
+  if (!安全名称 || 安全名称 === '无' || 安全名称 === '未知') return false;
+  return String(文本 || '').includes(安全名称);
+}
+
+function 读取运行时Mvu数据根_V1(变量包 = null) {
+  const 来源 = 变量包 && typeof 变量包 === 'object' ? 变量包 : null;
+  if (来源?.stat_data && typeof 来源.stat_data === 'object') return 来源.stat_data;
+  if (来源?.display_data && typeof 来源.display_data === 'object') return 来源.display_data;
+  return 来源 && typeof 来源 === 'object' ? 来源 : {};
+}
+
+function 获取最新运行时Mvu数据根_V1() {
+  try {
+    const 接口 = globalThis.Mvu && typeof globalThis.Mvu.getMvuData === 'function' ? globalThis.Mvu : null;
+    const 变量包 = 接口 ? 接口.getMvuData({ type: 'message', message_id: 'latest' }) : null;
+    return 读取运行时Mvu数据根_V1(变量包);
+  } catch (错误) {
+    return {};
+  }
+}
+
+function 取运行时玩家名_V1(数据根 = {}) {
+  const 玩家名 = String(数据根?.sys?.玩家名 || '').trim();
+  if (玩家名) return 玩家名;
+  const 首个角色名 = Object.keys(数据根?.char || {})[0] || '';
+  return 首个角色名;
+}
+
+function 标准化运行时地点片段_V1(地点 = '') {
+  const raw = String(地点 || '')
+    .replace(/^斗罗大陆-/, '')
+    .replace(/^斗灵大陆-/, '')
+    .trim();
+  const segments = raw.split('-').filter(Boolean);
+  return { raw, leaf: segments[segments.length - 1] || raw, segments };
+}
+
+function 运行时地点兼容_V1(当前地点 = '', 目标地点 = '') {
+  const 当前 = 标准化运行时地点片段_V1(当前地点);
+  const 目标 = 标准化运行时地点片段_V1(目标地点);
+  if (!当前.raw || !目标.raw) return 当前.raw === 目标.raw;
+  if (当前.raw === 目标.raw || 当前.leaf === 目标.leaf) return true;
+  return 当前.segments.some(片段 => 目标.segments.includes(片段));
+}
+
+function 取运行时当前范围_V1(数据根 = {}) {
+  const 玩家名 = 取运行时玩家名_V1(数据根);
+  const 玩家 = 数据根?.char?.[玩家名] || {};
+  const 当前地点 = 玩家?.状态?.位置 || '未知';
+  const 当前地点信息 = typeof findMapNodeEntry === 'function' ? findMapNodeEntry(当前地点, 数据根) : null;
+  let 当前上下文节点 = 当前地点信息?.path?.length ? 当前地点信息.path[当前地点信息.path.length - 1] : 当前地点;
+  if (数据根?.world?.动态地点?.[当前地点]?.归属父节点) {
+    当前上下文节点 = 数据根.world.动态地点[当前地点].归属父节点 || 当前上下文节点 || '斗罗大陆';
+  }
+  const 路径片段 = Array.isArray(当前地点信息?.path) ? 当前地点信息.path : [];
+  const 当前地点片段 = 标准化运行时地点片段_V1(当前地点).segments;
+  const 当前范围名集合 = new Set([当前上下文节点, ...路径片段, ...当前地点片段].filter(Boolean));
+  return { 玩家名, 玩家, 当前地点, 当前地点信息, 当前上下文节点, 当前范围名集合 };
+}
+
+function 运行时动态地点在当前范围_V1(动态地点名 = '', 动态地点数据 = {}, 当前范围名集合 = new Set()) {
+  const 父节点 = String(动态地点数据?.归属父节点 || '').trim();
+  const 父节点片段 = 标准化运行时地点片段_V1(父节点).segments;
+  const 动态片段 = 标准化运行时地点片段_V1(动态地点名).segments;
+  if (父节点 && 当前范围名集合.has(父节点)) return true;
+  if (父节点片段.some(片段 => 当前范围名集合.has(片段))) return true;
+  if (动态片段.some(片段 => 当前范围名集合.has(片段))) return true;
+  return false;
+}
+
+function 收集运行时命中名称_V1(数据根 = {}, 文本 = '') {
+  const 源文本 = String(文本 || '');
+  const 结果 = { 角色: new Set(), 地点: new Set(), 动态地点: new Set(), 势力: new Set(), 物品: new Set() };
+  Object.keys(数据根?.char || {}).forEach(名称 => {
+    if (运行时文本命中名称_V1(源文本, 名称)) 结果.角色.add(名称);
+  });
+  Object.keys(数据根?.world?.地点 || {}).forEach(名称 => {
+    if (运行时文本命中名称_V1(源文本, 名称)) 结果.地点.add(名称);
+  });
+  Object.keys(数据根?.world?.动态地点 || {}).forEach(名称 => {
+    if (运行时文本命中名称_V1(源文本, 名称)) 结果.动态地点.add(名称);
+  });
+  Object.keys(数据根?.org || {}).forEach(名称 => {
+    if (运行时文本命中名称_V1(源文本, 名称)) 结果.势力.add(名称);
+  });
+  Object.keys(数据根?.物品 || {}).forEach(名称 => {
+    if (运行时文本命中名称_V1(源文本, 名称)) 结果.物品.add(名称);
+  });
+  return 结果;
+}
+
+function 收集运行时相关物品名_V1(数据根 = {}, 文本 = '', 角色名集合 = new Set()) {
+  const 物品名集合 = new Set();
+  const 命中 = 收集运行时命中名称_V1(数据根, 文本);
+  命中.物品.forEach(名称 => 物品名集合.add(名称));
+  角色名集合.forEach(角色名 => {
+    const 角色 = 数据根?.char?.[角色名];
+    Object.keys(角色?.背包 || {}).forEach(物品名 => {
+      if (运行时文本命中名称_V1(文本, 物品名)) 物品名集合.add(物品名);
+    });
+    ['互动请求', '捐献请求'].forEach(键 => {
+      const 请求 = 角色?.[键];
+      const 物品名 = String(请求?.使用物品 || 请求?.物品名称 || '').trim();
+      if (物品名 && 物品名 !== '无') 物品名集合.add(物品名);
+    });
+  });
+  Object.values(数据根?.world?.地点 || {}).forEach(地点 => {
+    Object.values(地点?.商店 || {}).forEach(商店 => {
+      Object.keys(商店?.库存 || {}).forEach(物品名 => {
+        if (运行时文本命中名称_V1(文本, 物品名)) 物品名集合.add(物品名);
+      });
+    });
+  });
+  return 物品名集合;
+}
+
+function 取运行时基础角色名集合_V1(数据根 = {}, 文本 = '') {
+  const { 玩家名, 玩家, 当前地点 } = 取运行时当前范围_V1(数据根);
+  const 角色名集合 = new Set([玩家名].filter(Boolean));
+  const 关系 = 玩家?.社交?.关系 || {};
+  Object.entries(数据根?.char || {}).forEach(([角色名, 角色数据]) => {
+    const 角色地点 = 角色数据?.状态?.位置 || '未知';
+    if (角色地点 !== '未知' && 运行时地点兼容_V1(当前地点, 角色地点)) 角色名集合.add(角色名);
+    if (关系 && Object.prototype.hasOwnProperty.call(关系, 角色名)) 角色名集合.add(角色名);
+  });
+  收集运行时命中名称_V1(数据根, 文本).角色.forEach(角色名 => 角色名集合.add(角色名));
+  return 角色名集合;
+}
+
+function 取运行时地点名集合_V1(数据根 = {}, 文本 = '') {
+  const { 当前地点信息, 当前上下文节点 } = 取运行时当前范围_V1(数据根);
+  const 地点名集合 = new Set([当前上下文节点].filter(Boolean));
+  (Array.isArray(当前地点信息?.path) ? 当前地点信息.path : []).forEach(地点名 => 地点名集合.add(地点名));
+  收集运行时命中名称_V1(数据根, 文本).地点.forEach(地点名 => 地点名集合.add(地点名));
+  return 地点名集合;
+}
+
+function 取运行时动态地点名集合_V1(数据根 = {}, 文本 = '') {
+  const { 当前范围名集合 } = 取运行时当前范围_V1(数据根);
+  const 动态地点名集合 = new Set();
+  Object.entries(数据根?.world?.动态地点 || {}).forEach(([动态地点名, 动态地点数据]) => {
+    if (运行时动态地点在当前范围_V1(动态地点名, 动态地点数据, 当前范围名集合)) 动态地点名集合.add(动态地点名);
+  });
+  收集运行时命中名称_V1(数据根, 文本).动态地点.forEach(动态地点名 => 动态地点名集合.add(动态地点名));
+  return 动态地点名集合;
+}
+
+function 清理正文运行时值_V1(值) {
+  if (值 === undefined || 值 === null) return undefined;
+  if (typeof 值 === 'string') {
+    const 文本 = 值.trim();
+    if (!文本 || 文本 === '无' || 文本 === '未知' || 文本 === '待生成' || /^待补全/.test(文本)) return undefined;
+    return 文本;
+  }
+  if (typeof 值 === 'number') return Number(值) === 0 ? undefined : 值;
+  if (typeof 值 === 'boolean') return 值 ? 值 : undefined;
+  if (Array.isArray(值)) {
+    const 数组 = 值.map(清理正文运行时值_V1).filter(项 => 项 !== undefined);
+    return 数组.length ? 数组 : undefined;
+  }
+  if (typeof 值 === 'object') {
+    const 对象 = {};
+    Object.entries(值).forEach(([键, 子值]) => {
+      if (String(键 || '').startsWith('_')) return;
+      if (['使用效果', '属性加成', '装备技能', '副职业参数', '_效果数组', '消耗'].includes(键)) return;
+      const 清理后 = 清理正文运行时值_V1(子值);
+      if (清理后 !== undefined) 对象[键] = 清理后;
+    });
+    return Object.keys(对象).length ? 对象 : undefined;
+  }
+  return 值;
+}
+
+function 构建运行时物品摘要_V1(物品定义 = {}) {
+  return 清理正文运行时值_V1({
+    类型: 物品定义?.类型,
+    品质: 物品定义?.品质,
+    描述: 物品定义?.描述,
+    装备槽位: 物品定义?.装备槽位,
+  }) || {};
+}
+
+function 为运行时物品定义注入提示_V1(物品定义 = {}) {
+  if (!物品定义 || typeof 物品定义 !== 'object') return 物品定义;
+  if (!Array.isArray(物品定义.使用效果)) 物品定义.使用效果 = [];
+  if (!物品定义.属性加成 || typeof 物品定义.属性加成 !== 'object' || Array.isArray(物品定义.属性加成)) 物品定义.属性加成 = {};
+  if (!物品定义.装备技能 || typeof 物品定义.装备技能 !== 'object' || Array.isArray(物品定义.装备技能)) 物品定义.装备技能 = {};
+  if (!物品定义.副职业参数 || typeof 物品定义.副职业参数 !== 'object' || Array.isArray(物品定义.副职业参数)) 物品定义.副职业参数 = {};
+  物品定义._填写提示 = cloneJsonValue(MVU_RUNTIME_ITEM_HINTS_V1, {});
+  return 物品定义;
+}
+
+function 生成MVU正文视图_V1(数据输入 = null, userInput = '', plotText = '') {
+  const 数据根 = 读取运行时Mvu数据根_V1(数据输入) || {};
+  const 文本 = `${userInput || ''}\n${plotText || ''}`;
+  const 角色名集合 = 取运行时基础角色名集合_V1(数据根, 文本);
+  const 地点名集合 = 取运行时地点名集合_V1(数据根, 文本);
+  const 动态地点名集合 = 取运行时动态地点名集合_V1(数据根, 文本);
+  const 物品名集合 = 收集运行时相关物品名_V1(数据根, 文本, 角色名集合);
+  const 视图 = {
+    sys: 清理正文运行时值_V1({ 系统播报: 数据根?.sys?.系统播报 }) || {},
+    world: 清理正文运行时值_V1({
+      时间: 数据根?.world?.时间,
+      交易请求: 数据根?.world?.交易请求,
+      战斗: 数据根?.world?.战斗?.进行中 ? 数据根.world.战斗 : undefined,
+      地点: {},
+      动态地点: {},
+    }) || {},
+    char: {},
+    物品: {},
+  };
+  地点名集合.forEach(地点名 => {
+    const 地点 = 数据根?.world?.地点?.[地点名];
+    const 清理后 = 清理正文运行时值_V1(地点);
+    if (清理后) {
+      if (!视图.world.地点) 视图.world.地点 = {};
+      视图.world.地点[地点名] = 清理后;
+    }
+  });
+  动态地点名集合.forEach(地点名 => {
+    const 地点 = 数据根?.world?.动态地点?.[地点名];
+    const 清理后 = 清理正文运行时值_V1(地点);
+    if (清理后) {
+      if (!视图.world.动态地点) 视图.world.动态地点 = {};
+      视图.world.动态地点[地点名] = 清理后;
+    }
+  });
+  角色名集合.forEach(角色名 => {
+    const 清理后 = 清理正文运行时值_V1(数据根?.char?.[角色名]);
+    if (清理后) 视图.char[角色名] = 清理后;
+  });
+  物品名集合.forEach(物品名 => {
+    const 摘要 = 构建运行时物品摘要_V1(数据根?.物品?.[物品名] || {});
+    if (Object.keys(摘要).length) 视图.物品[物品名] = 摘要;
+  });
+  return 清理正文运行时值_V1(视图) || {};
+}
+
+function 生成MVU更新视图_V1(数据输入 = null, userInput = '', aiText = '', plotText = '') {
+  const 数据根 = 读取运行时Mvu数据根_V1(数据输入) || {};
+  const 文本 = `${userInput || ''}\n${aiText || ''}\n${plotText || ''}`;
+  const 角色名集合 = 取运行时基础角色名集合_V1(数据根, 文本);
+  const 地点名集合 = 取运行时地点名集合_V1(数据根, 文本);
+  const 动态地点名集合 = 取运行时动态地点名集合_V1(数据根, 文本);
+  const 命中 = 收集运行时命中名称_V1(数据根, 文本);
+  const 势力名集合 = new Set([...命中.势力]);
+  角色名集合.forEach(角色名 => {
+    Object.keys(数据根?.char?.[角色名]?.社交?.势力 || {}).forEach(势力名 => 势力名集合.add(势力名));
+  });
+  const 物品名集合 = 收集运行时相关物品名_V1(数据根, 文本, 角色名集合);
+  const 视图 = {
+    sys: cloneJsonValue({ 系统播报: 数据根?.sys?.系统播报 }, {}),
+    world: {
+      时间: cloneJsonValue(数据根?.world?.时间 || {}, {}),
+      偏差值: Number(数据根?.world?.偏差值 || 0),
+      偏差倍率: Number(数据根?.world?.偏差倍率 || 1),
+      累计击杀年限: Number(数据根?.world?.累计击杀年限 || 0),
+      时间线: cloneJsonValue(数据根?.world?.时间线 || {}, {}),
+      机密情报: cloneJsonValue(数据根?.world?.机密情报 || {}, {}),
+      拍卖: cloneJsonValue(数据根?.world?.拍卖 || {}, {}),
+      交易请求: cloneJsonValue(数据根?.world?.交易请求 || {}, {}),
+      委托板: cloneJsonValue(数据根?.world?.委托板 || {}, {}),
+      图鉴: cloneJsonValue(数据根?.world?.图鉴 || {}, {}),
+      战斗: cloneJsonValue(数据根?.world?.战斗 || {}, {}),
+      地点: {},
+      动态地点: {},
+    },
+    org: {},
+    char: {},
+    物品: {},
+  };
+  地点名集合.forEach(地点名 => {
+    if (数据根?.world?.地点?.[地点名]) 视图.world.地点[地点名] = cloneJsonValue(数据根.world.地点[地点名], {});
+  });
+  动态地点名集合.forEach(地点名 => {
+    if (数据根?.world?.动态地点?.[地点名]) 视图.world.动态地点[地点名] = cloneJsonValue(数据根.world.动态地点[地点名], {});
+  });
+  角色名集合.forEach(角色名 => {
+    const 角色 = cloneJsonValue(数据根?.char?.[角色名], null);
+    if (!角色 || typeof 角色 !== 'object') return;
+    injectRuntimeCharacterTodoDefaults_V1(角色, 角色名, 数据根?.char?.[角色名], 数据根);
+    视图.char[角色名] = 角色;
+    Object.keys(角色?.社交?.势力 || {}).forEach(势力名 => 势力名集合.add(势力名));
+  });
+  势力名集合.forEach(势力名 => {
+    if (数据根?.org?.[势力名]) 视图.org[势力名] = cloneJsonValue(数据根.org[势力名], {});
+  });
+  物品名集合.forEach(物品名 => {
+    const 定义 = cloneJsonValue(数据根?.物品?.[物品名], null);
+    if (定义 && typeof 定义 === 'object') 视图.物品[物品名] = 为运行时物品定义注入提示_V1(定义);
+  });
+  return 视图;
+}
+
+function 生成MVU剧情视图_V1(数据输入 = null, userInput = '') {
+  const 数据根 = 读取运行时Mvu数据根_V1(数据输入) || {};
+  const { 玩家名, 当前地点 } = 取运行时当前范围_V1(数据根);
+  const 文本 = String(userInput || '');
+  const 命中 = 收集运行时命中名称_V1(数据根, 文本);
+  const 角色名集合 = 取运行时基础角色名集合_V1(数据根, 文本);
+  const 近期时间线 = {};
+  Object.entries(数据根?.world?.时间线 || {}).slice(-12).forEach(([键, 值]) => {
+    const 状态 = String(值?.状态 || '').trim();
+    if (状态 === 'pending' || 状态 === '进行中' || 运行时文本命中名称_V1(文本, 键) || 运行时文本命中名称_V1(文本, 值?.事件)) {
+      近期时间线[键] = cloneJsonValue(值, {});
+    }
+  });
+  const 机密摘要 = {};
+  Object.entries(数据根?.world?.机密情报 || {}).forEach(([键, 值]) => {
+    if (运行时文本命中名称_V1(文本, 键) || 运行时文本命中名称_V1(文本, 值?.名称 || 值?.事件 || '')) {
+      机密摘要[键] = cloneJsonValue(值, {});
+    }
+  });
+  return {
+    当前: {
+      时间: cloneJsonValue(数据根?.world?.时间 || {}, {}),
+      地点: 当前地点,
+      玩家: 玩家名,
+      玩家行动: userInput || '',
+      系统播报: 数据根?.sys?.系统播报 || '',
+    },
+    剧情钩子: {
+      _引导: {
+        时间线预览: 数据根?.world?._引导?.时间线预览 || '',
+      },
+      时间线: 近期时间线,
+      机密情报: 机密摘要,
+      交易请求: cloneJsonValue(数据根?.world?.交易请求 || {}, {}),
+      委托板: cloneJsonValue(数据根?.world?.委托板 || {}, {}),
+      拍卖: cloneJsonValue(数据根?.world?.拍卖 || {}, {}),
+      战斗: cloneJsonValue(数据根?.world?.战斗 || {}, {}),
+    },
+    相关实体索引: {
+      角色: Array.from(角色名集合),
+      命中地点: Array.from(命中.地点),
+      命中动态地点: Array.from(命中.动态地点),
+      命中势力: Array.from(命中.势力),
+      命物品: Array.from(命中.物品),
+    },
+  };
+}
+
+function 序列化MVU运行时视图_V1(视图 = {}) {
+  try {
+    return JSON.stringify(视图 || {}, null, 2);
+  } catch (错误) {
+    return '{}';
+  }
+}
+
+function 替换MVU运行时视图占位符_V1(文本 = '', 视图类型 = 'empty', 上下文 = {}) {
+  const 源文本 = String(文本 || '');
+  if (!源文本.includes(MVU_RUNTIME_VIEW_PLACEHOLDER_V1)) return 源文本;
+  const 数据根 = 上下文?.statData || 获取最新运行时Mvu数据根_V1();
+  const userInput = 上下文?.userInput || '';
+  const aiText = 上下文?.aiText || '';
+  const plotText = 上下文?.plotText || '';
+  let 视图 = {};
+  if (视图类型 === 'story') 视图 = 生成MVU正文视图_V1(数据根, userInput, plotText);
+  else if (视图类型 === 'update') 视图 = 生成MVU更新视图_V1(数据根, userInput, aiText, plotText);
+  else if (视图类型 === 'plot') 视图 = 生成MVU剧情视图_V1(数据根, userInput);
+  const 替换后 = 源文本.replaceAll(MVU_RUNTIME_VIEW_PLACEHOLDER_V1, 序列化MVU运行时视图_V1(视图));
+  return 替换后.replace(/<status_current_variables>\s*(?:\{\}|\[\]|\s*)\s*<\/status_current_variables>/gi, '').trim();
+}
+
+function 注入运行时技能默认提示_V1(skill = {}, context = {}) {
+  if (!skill || typeof skill !== 'object') return;
+  const hasPackedEffects = Array.isArray(skill._效果数组) && skill._效果数组.length > 0;
+  const textContext = context?.textContext || context || {};
+  const 允许机制决策临时 = context?.允许机制决策临时 === true;
+  if (String(skill.魂技名 ?? '').trim() === '') skill.魂技名 = buildSkillNameTodoText(textContext);
+  if (String(skill.画面描述 ?? '').trim() === '') skill.画面描述 = hasPackedEffects ? AI_TODO_SKILL_VISUAL : AI_TODO_SKILL_VISUAL_STAGE1;
+  if (hasPackedEffects && String(skill.效果描述 ?? '').trim() === '') skill.效果描述 = AI_TODO_SKILL_EFFECT;
+  if (!Array.isArray(skill.附带属性) && (skill.附带属性 === undefined || skill.附带属性 === null || skill.附带属性 === '')) skill.附带属性 = [];
+  if (!hasPackedEffects && 允许机制决策临时) skill[技能机制决策临时字段_V1] = 构建技能机制决策临时数据_V1(skill, context);
+}
+
+function 注入运行时技能图默认提示_V1(skillMap = {}, contextFactory = () => ({})) {
+  Object.entries(skillMap || {}).forEach(([skillName, skill]) => {
+    if (!skill || typeof skill !== 'object') return;
+    注入运行时技能默认提示_V1(skill, contextFactory(skillName, skill) || {});
+  });
+}
+
+function 注入运行时文本默认值_V1(obj = {}, key = '', fallbackText = '') {
+  if (!obj || typeof obj !== 'object') return;
+  if (String(obj[key] ?? '').trim() === '') obj[key] = fallbackText;
+}
+
+function injectRuntimeCharacterTodoDefaults_V1(charData = {}, charName = '', sourceChar = null, rootData = {}) {
+  if (!charData || typeof charData !== 'object') return charData;
+  const 玩家名 = 取运行时玩家名_V1(rootData);
+  const { 玩家 } = 取运行时当前范围_V1(rootData);
+  const 允许机制决策临时 = charName === 玩家名 || 运行时地点兼容_V1(sourceChar?.状态?.位置 || '', 玩家?.状态?.位置 || '');
+  注入运行时文本默认值_V1(charData, '性格', AI_TODO_PERSONALITY);
+  if (charData.属性 && typeof charData.属性 === 'object') {
+    const 背景 = String(charData.属性.背景 ?? '').trim();
+    if (!背景 || 背景 === '无' || isAiTodoText(背景)) charData.属性.背景 = AI_TODO_BACKGROUND;
+    if (Object.prototype.hasOwnProperty.call(sourceChar?.属性 || {}, '天赋评级')) {
+      const 天赋评级 = String(charData.属性.天赋评级 ?? '').trim();
+      if (!天赋评级 || 天赋评级 === '无' || isAiTodoText(天赋评级)) charData.属性.天赋评级 = AI_TODO_TALENT_RATING;
+    }
+  }
+  if (charData.社交 && typeof charData.社交 === 'object') {
+    注入运行时文本默认值_V1(charData.社交, '主身份', AI_TODO_MAIN_IDENTITY);
+    Object.values(charData.社交.关系 || {}).forEach(relData => {
+      if (relData && typeof relData === 'object') 规范武魂相关度基础字段(relData);
+    });
+  }
+  if (charData.状态 && typeof charData.状态 === 'object') 注入运行时文本默认值_V1(charData.状态, '位置', AI_TODO_STATUS_LOC);
+  if (charData.外貌 && typeof charData.外貌 === 'object') {
+    注入运行时文本默认值_V1(charData.外貌, '发色', '待补全(根据角色外貌补全发色)');
+    注入运行时文本默认值_V1(charData.外貌, '发型', '待补全(根据角色发质与气质补全发型)');
+    注入运行时文本默认值_V1(charData.外貌, '瞳色', '待补全(根据角色外貌补全瞳色)');
+    注入运行时文本默认值_V1(charData.外貌, '身高', '待补全(根据角色设定补全身高)');
+    注入运行时文本默认值_V1(charData.外貌, '体型', '待补全(根据角色体态补全体型)');
+    注入运行时文本默认值_V1(charData.外貌, '长相描述', '待补全(根据角色面部特征补全长相描述)');
+  }
+  取角色武魂条目_V1(charData).forEach(([spiritKey, spiritData]) => {
+    if (!spiritData || typeof spiritData !== 'object') return;
+    const 武魂系别 = spiritData?.系别 || charData?.属性?.系别 || '强攻系';
+    const isSecondarySpirit = spiritKey === '第二武魂';
+    注入运行时文本默认值_V1(spiritData, '表象名称', isSecondarySpirit ? '未展露' : AI_TODO_SPIRIT_NAME);
+    注入运行时文本默认值_V1(spiritData, '描述', isSecondarySpirit ? '无' : AI_TODO_SPIRIT_DESC);
+    注入运行时文本默认值_V1(spiritData, '属性体系', AI_TODO_ATTRIBUTE_SYSTEM);
+    if (!Array.isArray(spiritData.可容纳属性) || !spiritData.可容纳属性.some(item => String(item ?? '').trim())) spiritData.可容纳属性 = [AI_TODO_ATTRIBUTE_CAPACITY];
+    取武魂魂灵条目_V1(spiritData).forEach(([soulSpiritKey, soulSpirit]) => {
+      if (!soulSpirit || typeof soulSpirit !== 'object') return;
+      注入运行时文本默认值_V1(soulSpirit, '表象名称', AI_TODO_SOUL_SPIRIT_NAME);
+      if (String(soulSpirit.描述 ?? '').trim() === '') soulSpirit.描述 = buildSoulSpiritDescriptionTodoText(soulSpirit);
+      注入运行时文本默认值_V1(soulSpirit, '品质', AI_TODO_SOUL_SPIRIT_QUALITY);
+      取魂灵魂环条目_V1(soulSpirit).forEach(([, ringData]) => {
+        注入运行时文本默认值_V1(ringData, '颜色', '无');
+        注入运行时技能图默认提示_V1(Object.fromEntries(取魂环魂技条目_V1(ringData)), skillName => ({
+          type: 武魂系别,
+          允许机制决策临时,
+          textContext: { spiritName: soulSpirit.表象名称 || spiritData.表象名称 || soulSpiritKey || skillName, type: 武魂系别 },
+        }));
+      });
+    });
+    取武魂直接魂环条目_V1(spiritData).forEach(([, ringData]) => {
+      注入运行时文本默认值_V1(ringData, '颜色', '无');
+      注入运行时文本默认值_V1(ringData, '来源', '无');
+      注入运行时技能图默认提示_V1(Object.fromEntries(取魂环魂技条目_V1(ringData)), skillName => ({
+        type: 武魂系别,
+        允许机制决策临时,
+        textContext: { spiritName: spiritData.表象名称 || spiritKey || skillName, type: 武魂系别 },
+      }));
+    });
+  });
+  Object.values(charData.魂骨 || {}).forEach(boneData => {
+    if (!boneData || typeof boneData !== 'object') return;
+    注入运行时技能图默认提示_V1(boneData.附带技能, skillName => ({
+      type: charData?.属性?.系别 || '强攻系',
+      允许机制决策临时,
+      textContext: { spiritName: boneData?.名称 || skillName, type: charData?.属性?.系别 || '强攻系' },
+    }));
+  });
+  if (charData.血脉之力 && typeof charData.血脉之力 === 'object') {
+    const bloodlineType = charData?.属性?.系别 || '强攻系';
+    注入运行时技能图默认提示_V1(charData.血脉之力.被动, skillName => ({
+      type: bloodlineType,
+      允许机制决策临时,
+      textContext: { spiritName: charData.血脉之力?.血脉 || skillName, type: bloodlineType },
+    }));
+    注入运行时技能图默认提示_V1(charData.血脉之力.技能, skillName => ({
+      type: bloodlineType,
+      允许机制决策临时,
+      textContext: { spiritName: charData.血脉之力?.血脉 || skillName, type: bloodlineType },
+    }));
+    取血脉气血魂环条目_V1(charData.血脉之力).forEach(([, ringData]) => {
+      注入运行时文本默认值_V1(ringData, '颜色', '金');
+      注入运行时技能图默认提示_V1(Object.fromEntries(取气血魂环魂技条目_V1(ringData)), skillName => ({
+        type: bloodlineType,
+        允许机制决策临时,
+        textContext: { spiritName: charData.血脉之力?.血脉 || skillName, type: bloodlineType },
+      }));
+    });
+  }
+  注入运行时技能图默认提示_V1(charData.自创魂技, skillName => ({
+    type: charData?.属性?.系别 || '强攻系',
+    允许机制决策临时,
+    textContext: { spiritName: skillName, type: charData?.属性?.系别 || '强攻系' },
+  }));
+  Object.entries(charData.武魂融合技 || {}).forEach(([fusionName, fusionData]) => {
+    if (fusionData?.技能数据) 注入运行时技能默认提示_V1(fusionData.技能数据, {
+      type: charData?.属性?.系别 || '强攻系',
+      允许机制决策临时,
+      textContext: { spiritName: fusionName, type: charData?.属性?.系别 || '强攻系' },
+    });
+  });
+  return charData;
+}
+
+try {
+  globalThis.__LWCS_MVU_RUNTIME_VIEW__ = Object.freeze({
+    占位符: MVU_RUNTIME_VIEW_PLACEHOLDER_V1,
+    生成MVU正文视图: 生成MVU正文视图_V1,
+    生成MVU更新视图: 生成MVU更新视图_V1,
+    生成MVU剧情视图: 生成MVU剧情视图_V1,
+    替换MVU运行时视图占位符: 替换MVU运行时视图占位符_V1,
+  });
+} catch (错误) {}
+
 function 追加系统播报文本(数据对象 = {}, 文本 = '', 分隔符 = ' ') {
   if (!数据对象 || typeof 数据对象 !== 'object') return '';
   if (!数据对象.sys || typeof 数据对象.sys !== 'object') 数据对象.sys = {};
@@ -5741,7 +6262,7 @@ function 读取机制编译原型列表_V1(机制 = '') {
   return [];
 }
 
-const 技能执行批量字段键表_V1 = Object.freeze(['原型', '资源', '状态', '类型']);
+const 技能执行批量字段键表_V1 = Object.freeze(['原型', '属性', '资源', '状态', '类型']);
 const 技能执行原型禁用字段集合_V1 = new Set(['目标模型', '对象', '结算策略', '动作', '触发方式', '状态持续', 'cast_time', '应用' + '原型', '参数', '判定属性', '判定阈值', '成功参数', '失败参数']);
 
 function 转换原型资源字段_V1(value = '') {
@@ -8870,7 +9391,8 @@ const GoldenDragonSkills = {
     消耗: { 体力: 150 },
     前摇: 10,
     _效果数组: [
-      { 原型: '伤害结算', 目标: '单体', 威力倍率: 200, 伤害类型: '物理近战', 防御穿透: 40 },
+      { 原型: '伤害结算', 目标: '单体', 生效方式: '独立生效', 威力倍率: 200, 伤害类型: '物理近战', 防御穿透: 40 },
+      { 原型: '护盾变化', 目标: '单体', 生效方式: '跟随主原型', 数值: '-100%' },
     ],
   },
   2: {
@@ -8882,8 +9404,8 @@ const GoldenDragonSkills = {
     消耗: { 启动: { 体力: 100 }, 维持: { 体力: 20 } },
     前摇: 5,
     _效果数组: [
-      { 原型: '状态施加', 目标: '自身', 状态: '霸体', 持续回合: 3 },
-      { 原型: '属性修正', 目标: '自身', 属性: ['力量', '防御'], 数值: '+50%', 持续回合: 3 },
+      { 原型: '状态施加', 目标: '自身', 生效方式: '独立生效', 状态: '霸体', 持续回合: 3 },
+      { 原型: '属性修正', 目标: '自身', 生效方式: '独立生效', 属性: ['力量', '防御'], 数值: '+50%', 持续回合: 3 },
     ],
   },
   3: {
@@ -8895,9 +9417,9 @@ const GoldenDragonSkills = {
     消耗: { 体力: 300 },
     前摇: 15,
     _效果数组: [
-      { 原型: '伤害结算', 目标: '群体', 威力倍率: 150, 伤害类型: '物理远程', 防御穿透: 10 },
-      { 原型: '状态施加', 目标: '群体', 状态: '眩晕', 持续回合: 1 },
-      { 原型: '属性修正', 目标: '群体', 属性: ['力量', '防御', '敏捷', '精神力上限'], 数值: '-20%', 持续回合: 2 },
+      { 原型: '伤害结算', 目标: '群体', 生效方式: '独立生效', 威力倍率: 150, 伤害类型: '物理远程', 防御穿透: 10 },
+      { 原型: '状态施加', 目标: '群体', 生效方式: '跟随主原型', 状态: '眩晕', 持续回合: 1 },
+      { 原型: '属性修正', 目标: '群体', 生效方式: '跟随主原型', 属性: ['力量', '防御', '敏捷', '精神力上限'], 数值: '-20%', 持续回合: 2 },
     ],
   },
   4: {
@@ -8909,9 +9431,9 @@ const GoldenDragonSkills = {
     消耗: { 体力: 500 },
     前摇: 5,
     _效果数组: [
-      { 原型: '护盾变化', 目标: '自身', 数值: '+5000', 持续回合: 2 },
-      { 原型: '规则防御', 目标: '自身', 规则: '免死', 次数: 1, 持续回合: 2 },
-      { 原型: '属性修正', 目标: '自身', 属性: '防御', 数值: '+100%', 持续回合: 2 },
+      { 原型: '护盾变化', 目标: '自身', 生效方式: '独立生效', 数值: '+5000', 持续回合: 2 },
+      { 原型: '规则防御', 目标: '自身', 生效方式: '独立生效', 规则: '免死', 次数: 1, 持续回合: 2 },
+      { 原型: '属性修正', 目标: '自身', 生效方式: '独立生效', 属性: '防御', 数值: '+100%', 持续回合: 2 },
     ],
   },
   5: {
@@ -8923,9 +9445,16 @@ const GoldenDragonSkills = {
     消耗: { 体力: 150 },
     前摇: 10,
     _效果数组: [
-      { 原型: '伤害结算', 目标: '单体', 威力倍率: 200, 伤害类型: '物理近战', 防御穿透: 20 },
-      { 原型: '伤害结算', 目标: '单体', 威力倍率: 1000, 伤害类型: '真实伤害', 触发: '每回合', 持续回合: 3 },
-      { 原型: '状态移除', 目标: '自身', 状态: '任意负面', 数量: 2, 层级: 2 },
+      { 原型: '伤害结算', 目标: '单体', 生效方式: '独立生效', 威力倍率: 200, 伤害类型: '物理近战', 防御穿透: 20 },
+      {
+        原型: '状态施加',
+        目标: '单体',
+        生效方式: '跟随主原型',
+        状态: '流血',
+        持续回合: 3,
+        状态效果: [{ 原型: '资源变化', 目标: '自身', 生效方式: '独立生效', 资源: '生命', 数值: '-8%', 触发: '每回合' }],
+      },
+      { 原型: '状态移除', 目标: '自身', 生效方式: '独立生效', 状态: '任意负面', 数量: 2, 层级: 2 },
     ],
   },
   6: {
@@ -8937,8 +9466,8 @@ const GoldenDragonSkills = {
     消耗: { 体力: 200, 精神力: 800 },
     前摇: 10,
     _效果数组: [
-      { 原型: '行动打断', 目标: '全场', 打断类型: '蓄力', 数值: '+100%' },
-      { 原型: '属性修正', 目标: '全场', 属性: ['力量', '防御', '敏捷', '精神力上限'], 数值: '-15%', 持续回合: 2 },
+      { 原型: '行动打断', 目标: '全场', 生效方式: '独立生效', 打断类型: '蓄力', 数值: '+100%' },
+      { 原型: '属性修正', 目标: '全场', 生效方式: '独立生效', 属性: ['力量', '防御', '敏捷', '精神力上限'], 数值: '-15%', 持续回合: 2 },
     ],
   },
   7: null,
@@ -8951,8 +9480,8 @@ const GoldenDragonSkills = {
     消耗: { 启动: { 体力: 500 }, 维持: { 体力: 100 } },
     前摇: 20,
     _效果数组: [
-      { 原型: '属性修正', 目标: '群体', 属性: ['力量', '防御', '体力上限'], 数值: '+15%', 持续回合: 5 },
-      { 原型: '资源变化', 目标: '群体', 资源: '魂力', 数值: '+10%', 触发: '每回合', 持续回合: 5 },
+      { 原型: '属性修正', 目标: '群体', 生效方式: '独立生效', 属性: ['力量', '防御', '体力上限'], 数值: '+15%', 持续回合: 5 },
+      { 原型: '资源变化', 目标: '群体', 生效方式: '独立生效', 资源: '魂力', 数值: '+10%', 触发: '每回合', 持续回合: 5 },
     ],
   },
   9: {
@@ -8964,7 +9493,7 @@ const GoldenDragonSkills = {
     消耗: {},
     前摇: 0,
     _效果数组: [
-      { 原型: '结算修正', 目标: '自身', 结算: '最终治疗', 数值: '+100%', 持续回合: 999 },
+      { 原型: '结算修正', 目标: '自身', 生效方式: '独立生效', 结算: '最终治疗', 数值: '+100%', 持续回合: 999 },
     ],
   },
   10: {
@@ -8976,9 +9505,9 @@ const GoldenDragonSkills = {
     消耗: { 体力: 1000 },
     前摇: 15,
     _效果数组: [
-      { 原型: '位移执行', 目标: '自身', 位移类型: '拉近' },
-      { 原型: '伤害结算', 目标: '单体', 威力倍率: 300, 伤害类型: '物理近战', 防御穿透: 50 },
-      { 原型: '伤害结算', 目标: '单体', 威力倍率: 15, 伤害类型: '真实伤害' },
+      { 原型: '位移执行', 目标: '自身', 生效方式: '独立生效', 位移类型: '拉近' },
+      { 原型: '伤害结算', 目标: '单体', 生效方式: '独立生效', 威力倍率: 300, 伤害类型: '物理近战', 防御穿透: 50 },
+      { 原型: '伤害结算', 目标: '单体', 生效方式: '独立生效', 威力倍率: 15, 伤害类型: '真实伤害' },
     ],
   },
   11: {
@@ -8990,7 +9519,7 @@ const GoldenDragonSkills = {
     消耗: {},
     前摇: 0,
     _效果数组: [
-      { 原型: '属性修正', 目标: '自身', 属性: '防御', 数值: '+20%', 持续回合: 999 },
+      { 原型: '属性修正', 目标: '自身', 生效方式: '独立生效', 属性: '防御', 数值: '+20%', 持续回合: 999 },
     ],
   },
   12: {
@@ -9002,8 +9531,15 @@ const GoldenDragonSkills = {
     消耗: { 体力: 2000, 精神力: 1000 },
     前摇: 30,
     _效果数组: [
-      { 原型: '伤害结算', 目标: '群体', 威力倍率: 400, 伤害类型: '物理远程', 防御穿透: 30 },
-      { 原型: '状态施加', 目标: '群体', 状态: '位移限制', 持续回合: 1, 状态效果: [{ 原型: '判定修正', 目标: '自身', 判定: '闪避', 数值: '-100%' }] },
+      { 原型: '伤害结算', 目标: '群体', 生效方式: '独立生效', 威力倍率: 400, 伤害类型: '物理远程', 防御穿透: 30 },
+      {
+        原型: '状态施加',
+        目标: '群体',
+        生效方式: '跟随主原型',
+        状态: '位移限制',
+        持续回合: 1,
+        状态效果: [{ 原型: '判定修正', 目标: '自身', 生效方式: '独立生效', 判定: '闪避', 数值: '-100%' }],
+      },
     ],
   },
   13: null,
@@ -9016,9 +9552,9 @@ const GoldenDragonSkills = {
     消耗: { 体力: 5000 },
     前摇: 20,
     _效果数组: [
-      { 原型: '规则防御', 目标: '自身', 规则: '免死', 次数: 99, 持续回合: 5 },
-      { 原型: '结算修正', 目标: '自身', 结算: '最终伤害', 数值: '+100%', 持续回合: 5 },
-      { 原型: '资源变化', 目标: '自身', 资源: '体力', 数值: '+100%' },
+      { 原型: '规则防御', 目标: '自身', 生效方式: '独立生效', 规则: '免死', 次数: 99, 持续回合: 5 },
+      { 原型: '结算修正', 目标: '自身', 生效方式: '独立生效', 结算: '最终伤害', 数值: '+100%', 持续回合: 5 },
+      { 原型: '资源变化', 目标: '自身', 生效方式: '独立生效', 资源: '体力', 数值: '+100%' },
     ],
   },
   15: null,
@@ -9031,8 +9567,8 @@ const GoldenDragonSkills = {
     消耗: { 体力: '10%' },
     前摇: 0,
     _效果数组: [
-      { 原型: '规则防御', 目标: '自身', 规则: '抵消', 次数: 1, 触发: '命中后', 持续回合: 999 },
-      { 原型: '规则防御', 目标: '自身', 规则: '免死', 次数: 99, 持续回合: 999 },
+      { 原型: '规则防御', 目标: '自身', 生效方式: '独立生效', 规则: '抵消', 次数: 1, 触发: '命中后', 持续回合: 999 },
+      { 原型: '规则防御', 目标: '自身', 生效方式: '独立生效', 规则: '免死', 次数: 99, 持续回合: 999 },
     ],
   },
 };
@@ -11669,6 +12205,7 @@ function settleInternalSoulBeastReward(data = {}, winner = {}, winnerName = '', 
       使用条件: {},
       使用效果: [],
       属性加成: {},
+      装备技能: {},
       副职业参数: { 年限: age },
     };
   }
@@ -11695,6 +12232,7 @@ function settleInternalSoulBeastReward(data = {}, winner = {}, winnerName = '', 
         使用条件: {},
         使用效果: [],
         属性加成: {},
+        装备技能: {},
         副职业参数: { 年限: age },
       };
     }
@@ -12544,6 +13082,10 @@ function cloneSkillStructData(skill = {}) {
     魂技名: String(skill?.魂技名 || skill?.技能名称 || skill?.name || AI_TODO_SKILL_NAME),
     画面描述: String(skill?.画面描述 || defaultText || AI_TODO_SKILL_VISUAL),
     效果描述: String(skill?.效果描述 || defaultText || AI_TODO_SKILL_EFFECT),
+    技能来源: String(skill?.技能来源 || '魂技').trim() || '魂技',
+    技能类型: String(skill?.技能类型 || '无').trim() || '无',
+    消耗: cloneJsonValue(skill?.消耗 ?? '无'),
+    前摇: Math.max(0, Number(skill?.前摇 ?? skill?.cast_time ?? 0) || 0),
     附带属性: attachedAttributes,
     _效果数组: packedEffects,
   };
@@ -12554,6 +13096,10 @@ function cloneSkillStructData(skill = {}) {
     魂技名: working.魂技名,
     画面描述: working.画面描述,
     效果描述: working.效果描述,
+    技能来源: working.技能来源,
+    技能类型: working.技能类型,
+    消耗: cloneJsonValue(working.消耗 ?? '无'),
+    前摇: Math.max(0, Number(working.前摇 || 0)),
     附带属性: normalizeSkillAttachedAttributeArray(working.附带属性 || []),
     _效果数组: clonePackedSkillEffects(working._效果数组 || []),
   };
@@ -13239,7 +13785,10 @@ function 初始化补齐角色技能效果数组_V1(rootData = {}) {
         age: bone?.年限 || bone?.age || 通用技能年限,
         ringIndex: 1,
         compatibility: 100,
+        passiveMode: true,
+        passiveName: skillName,
         preferredSecondary: getBonePreferredSecondary(bonePart),
+        sourceCategory: '魂骨技能',
         textContext: {
           spiritName: bone?.名称 || bonePart || skillName,
           type: 系别,
@@ -13586,6 +14135,10 @@ const SkillStructSchema = z
     魂技名: z.string().prefault(AI_TODO_SKILL_NAME),
     画面描述: z.string().prefault(AI_TODO_SKILL_VISUAL),
     效果描述: z.string().prefault(AI_TODO_SKILL_EFFECT),
+    技能来源: z.string().prefault('魂技'),
+    技能类型: z.string().prefault('无'),
+    消耗: z.any().prefault('无'),
+    前摇: z.coerce.number().prefault(0),
     附带属性: z.array(z.string()).prefault([]),
     _效果数组: z.array(z.any()).prefault([]).describe('打包后的_效果数组，供前端显示和后续战斗模块解析'),
     机制决策临时: z.any().optional().describe('展示层给AI选择机制模板的临时字段；真实执行前必须编译成原型效果'),
@@ -13764,6 +14317,7 @@ const ItemDefinitionSchema = z
       .prefault({}),
     使用效果: z.array(z.any()).prefault([]),
     属性加成: z.record(z.string(), z.any()).prefault({}),
+    装备技能: z.record(z.string(), SkillStructSchema).prefault({}),
     副职业参数: z.record(z.string(), z.any()).prefault({}),
   })
   .prefault({});
@@ -15072,7 +15626,7 @@ const CharacterSchema = z
           名称: 归一化魂骨名称_V1('', 魂骨来源文本, 骨部位),
           年限: char.属性.等级 >= 90 ? 50000 : 10000,
           来源: 魂骨来源文本,
-          附带技能: { 被动增幅: cloneSkillStructData() },
+          附带技能: { 被动增幅: cloneSkillStructData({ 技能来源: '魂骨技能', 技能类型: '被动' }) },
         };
       }
     }
@@ -15891,6 +16445,7 @@ function 规范化商品模板为物品定义_V1(商品名 = '', 商品模板 = 
     使用条件: 模板.使用条件 && typeof 模板.使用条件 === 'object' && !Array.isArray(模板.使用条件) ? cloneJsonValue(模板.使用条件, {}) : {},
     使用效果: Array.isArray(模板.使用效果) ? cloneJsonValue(模板.使用效果, []) : (Array.isArray(模板.效果) ? cloneJsonValue(模板.效果, []) : []),
     属性加成: 模板.属性加成 && typeof 模板.属性加成 === 'object' && !Array.isArray(模板.属性加成) ? cloneJsonValue(模板.属性加成, {}) : {},
+    装备技能: 模板.装备技能 && typeof 模板.装备技能 === 'object' && !Array.isArray(模板.装备技能) ? cloneJsonValue(模板.装备技能, {}) : {},
     副职业参数: 模板.副职业参数 && typeof 模板.副职业参数 === 'object' && !Array.isArray(模板.副职业参数) ? cloneJsonValue(模板.副职业参数, {}) : {},
   };
 }
@@ -19980,6 +20535,7 @@ export const Schema = z
           使用条件: {},
           使用效果: [],
           属性加成: {},
+          装备技能: {},
           副职业参数: metalCount > 1 ? { 融合参数: { 数量: metalCount } } : {},
         };
       }
@@ -20010,7 +20566,7 @@ export const Schema = z
         locData.节点类型 = normalizeDynamicLocationNodeType(locData.节点类型, locData.层级, locName);
       });
 
-      // 先清空存储态占位文本，再在 display_all 打包阶段按需注入显示占位词。
+      // 先清空存储态占位文本；AI 维护提示只在运行时更新视图中按需注入。
       // 仅改值，不删减变量结构。
       clearStorageTodoPlaceholders(data.char);
 
@@ -20890,13 +21446,7 @@ export const Schema = z
       });
 
       delete data.display_chars;
-      data.display_all = {
-        sys: filtered_sys,
-        world: filtered_world,
-        org: filtered_org,
-        char: visibleChars,
-      };
-      投影本轮模块结算只读字段(data.display_all, 读取本轮模块结算只读路径());
+      delete data.display_all;
     }
 
     _(data.world?.动态地点 || {}).forEach(locData => {

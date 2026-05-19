@@ -929,6 +929,7 @@ class TradeUIComponent {
       使用条件: safeItem.使用条件 && typeof safeItem.使用条件 === 'object' && !Array.isArray(safeItem.使用条件) ? safeItem.使用条件 : {},
       使用效果: Array.isArray(safeItem.使用效果) ? safeItem.使用效果 : [],
       属性加成: safeItem.属性加成 && typeof safeItem.属性加成 === 'object' && !Array.isArray(safeItem.属性加成) ? safeItem.属性加成 : {},
+      装备技能: safeItem.装备技能 && typeof safeItem.装备技能 === 'object' && !Array.isArray(safeItem.装备技能) ? safeItem.装备技能 : {},
       副职业参数: safeItem.副职业参数 && typeof safeItem.副职业参数 === 'object' && !Array.isArray(safeItem.副职业参数) ? safeItem.副职业参数 : {}
     };
     const resolvedExpiryTick = Number(safeItem.有效期至tick ?? fallback.expiryTick ?? 0);
@@ -1061,6 +1062,7 @@ class TradeUIComponent {
             使用条件: {},
             使用效果: [],
             属性加成: {},
+            装备技能: {},
             副职业参数: { 标准物种: record.标准物种, 年限: record.年限 },
           },
           _tower_discount_virtual: true,
