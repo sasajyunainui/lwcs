@@ -266,7 +266,7 @@
       '血脉封印详细页': {
         title: '血脉封印弹窗',
         summary: '承接血脉体系的状态模块，在 1 个页面内汇总封印层级与当前能力。',
-        fields: ['activeChar.武魂', 'activeChar.魂骨', 'activeChar.血脉之力.技能', 'activeChar.血脉之力.气血魂环', 'activeChar.功法 / 自创魂技'],
+        fields: ['activeChar.第一武魂 / activeChar.第二武魂', 'activeChar.魂骨', 'activeChar.血脉之力.技能', 'activeChar.血脉之力.第N气血魂环', 'activeChar.功法 / 自创魂技'],
         duties: ['展示血脉本体', '展示封印/魂环/魂技', '展示当前已固化能力'],
         actions: ['按页签查看魂环 / 能力 / 魂骨 / 血脉', '悬浮魂环查看技能说明', '查看封印层级']
       },
@@ -1739,9 +1739,9 @@
         精神系: 1.0,
         元素系: 1.0,
       };
-      Object.values(charData && charData.武魂 && typeof charData.武魂 === 'object' ? charData.武魂 : {}).forEach(spiritData => {
+      取角色武魂条目_桥接(charData).forEach(([, spiritData]) => {
         if (!spiritData || typeof spiritData !== 'object') return;
-        const spiritType = toText(spiritData.type, '');
+        const spiritType = toText(spiritData.type || spiritData.系别, '');
         maxTypeMult = Math.max(maxTypeMult, toNumber(typeMap[spiritType], 0));
       });
       if (maxTypeMult <= 0) {
@@ -1752,8 +1752,7 @@
     }
 
     function getCharacterDualSpiritSoulPowerCoeffForUi(charData = {}) {
-      const spiritEntries = Object.entries(charData && charData.武魂 && typeof charData.武魂 === 'object' ? charData.武魂 : {})
-        .filter(([, spiritData]) => spiritData && typeof spiritData === 'object');
+      const spiritEntries = 取角色武魂条目_桥接(charData);
       return spiritEntries.length >= 2 ? 1.2 : 1.0;
     }
 
@@ -1784,21 +1783,21 @@
 
     function getCharacterActualSoulRingCountForUi(charData = {}) {
       let total = 0;
-      Object.values(charData && charData.武魂 && typeof charData.武魂 === 'object' ? charData.武魂 : {}).forEach(spiritData => {
+      取角色武魂条目_桥接(charData).forEach(([, spiritData]) => {
         if (!spiritData || typeof spiritData !== 'object') return;
-        Object.values(spiritData.魂灵 && typeof spiritData.魂灵 === 'object' ? spiritData.魂灵 : {}).forEach(soulSpirit => {
+        取武魂魂灵条目_桥接(spiritData).forEach(([, soulSpirit]) => {
           if (!soulSpirit || typeof soulSpirit !== 'object') return;
-          Object.values(soulSpirit.魂环 && typeof soulSpirit.魂环 === 'object' ? soulSpirit.魂环 : {}).forEach(ringData => {
+          取魂灵魂环条目_桥接(soulSpirit).forEach(([, ringData]) => {
             if (!ringData || typeof ringData !== 'object') return;
             const hasAge = toNumber(ringData.年限, 0) > 0;
-            const hasSkill = Object.keys(ringData.魂技 && typeof ringData.魂技 === 'object' ? ringData.魂技 : {}).length > 0;
+            const hasSkill = 取魂环魂技条目_桥接(ringData).length > 0;
             if (hasAge || hasSkill) total += 1;
           });
         });
-        Object.values(spiritData.独立魂环 && typeof spiritData.独立魂环 === 'object' ? spiritData.独立魂环 : {}).forEach(ringData => {
+        取武魂直接魂环条目_桥接(spiritData).forEach(([, ringData]) => {
           if (!ringData || typeof ringData !== 'object') return;
           const hasAge = toNumber(ringData.年限, 0) > 0;
-          const hasSkill = Object.keys(ringData.魂技 && typeof ringData.魂技 === 'object' ? ringData.魂技 : {}).length > 0;
+          const hasSkill = 取魂环魂技条目_桥接(ringData).length > 0;
           if (hasAge || hasSkill) total += 1;
         });
       });
@@ -1977,6 +1976,113 @@
 
     function safeEntries(obj) {
       return obj && typeof obj === 'object' ? Object.entries(obj) : [];
+    }
+
+    function 读取槽位序号_桥接(槽位名 = '', 默认值 = 1) {
+      const 匹配 = String(槽位名 || '').match(/第(\d+)/);
+      return Math.max(1, Math.floor(Number(匹配 ? 匹配[1] : 默认值) || 默认值 || 1));
+    }
+
+    function 是武魂槽位键_桥接(键 = '') {
+      return /^(第一武魂|第二武魂|第\d+武魂)$/.test(String(键 || '').trim());
+    }
+
+    function 是魂灵槽位键_桥接(键 = '') {
+      return /^第\d+魂灵$/.test(String(键 || '').trim());
+    }
+
+    function 是魂环槽位键_桥接(键 = '') {
+      return /^第\d+魂环$/.test(String(键 || '').trim());
+    }
+
+    function 是魂技槽位键_桥接(键 = '') {
+      return /^第\d+魂技(?:·其二)?$/.test(String(键 || '').trim());
+    }
+
+    function 是气血魂环槽位键_桥接(键 = '') {
+      return /^第\d+气血魂环$/.test(String(键 || '').trim());
+    }
+
+    function 是血脉魂技槽位键_桥接(键 = '') {
+      return /^第\d+血脉魂技(?:·其二)?$/.test(String(键 || '').trim());
+    }
+
+    function 取槽位条目_桥接(对象 = {}, 判断函数 = () => false) {
+      return safeEntries(对象).filter(([键, 值]) => 判断函数(键) && 值 && typeof 值 === 'object' && !Array.isArray(值));
+    }
+
+    function 取角色武魂条目_桥接(角色 = {}) {
+      return 取槽位条目_桥接(角色, 是武魂槽位键_桥接);
+    }
+
+    function 取武魂魂灵条目_桥接(武魂 = {}) {
+      return 取槽位条目_桥接(武魂, 是魂灵槽位键_桥接);
+    }
+
+    function 取武魂直接魂环条目_桥接(武魂 = {}) {
+      return 取槽位条目_桥接(武魂, 是魂环槽位键_桥接);
+    }
+
+    function 取魂灵魂环条目_桥接(魂灵 = {}) {
+      return 取槽位条目_桥接(魂灵, 是魂环槽位键_桥接);
+    }
+
+    function 取魂环魂技条目_桥接(魂环 = {}) {
+      return 取槽位条目_桥接(魂环, 是魂技槽位键_桥接);
+    }
+
+    function 取血脉气血魂环条目_桥接(血脉 = {}) {
+      return 取槽位条目_桥接(血脉, 是气血魂环槽位键_桥接);
+    }
+
+    function 取气血魂环魂技条目_桥接(魂环 = {}) {
+      return 取槽位条目_桥接(魂环, 是血脉魂技槽位键_桥接);
+    }
+
+    function 取物品定义_桥接(rootData = {}, 物品名 = '') {
+      const 物品表 = rootData && rootData.物品 && typeof rootData.物品 === 'object' ? rootData.物品 : {};
+      const 定义 = 物品表[物品名];
+      return 定义 && typeof 定义 === 'object' && !Array.isArray(定义) ? 定义 : {};
+    }
+
+    function 合并物品定义与状态_桥接(rootData = {}, 物品名 = '', 状态 = {}) {
+      const 安全状态 = 状态 && typeof 状态 === 'object' && !Array.isArray(状态) ? 状态 : {};
+      return { ...取物品定义_桥接(rootData, 物品名), ...安全状态 };
+    }
+
+    function 构建物品定义记录_桥接(物品名 = '', 数据 = {}) {
+      const 来源 = 数据 && typeof 数据 === 'object' && !Array.isArray(数据) ? 数据 : {};
+      return {
+        类型: toText(来源.类型, '药剂'),
+        阶位: Math.max(0, Math.floor(toNumber(来源.阶位, toNumber(来源.品阶, 0)))),
+        品质: toText(来源.品质, '普通'),
+        描述: toText(来源.描述, `关于【${物品名}】的记录暂未展开。`),
+        基础价格: Math.max(0, Math.floor(toNumber(来源.基础价格, toNumber(deepGet(来源, '市场估值.价格', 0), 0)))),
+        默认货币: toText(来源.默认货币, toText(deepGet(来源, '市场估值.货币', '联邦币'), '联邦币')),
+        装备槽位: toText(来源.装备槽位, '无'),
+        基础耐久: Math.max(0, Math.floor(toNumber(来源.基础耐久, toNumber(deepGet(来源, '耐久.上限', 来源.耐久), 0)))),
+        使用条件: 来源.使用条件 && typeof 来源.使用条件 === 'object' && !Array.isArray(来源.使用条件) ? cloneJsonValue(来源.使用条件, {}) : {},
+        使用效果: Array.isArray(来源.使用效果) ? cloneJsonValue(来源.使用效果, []) : [],
+        属性加成: 来源.属性加成 && typeof 来源.属性加成 === 'object' && !Array.isArray(来源.属性加成) ? cloneJsonValue(来源.属性加成, {}) : {},
+        副职业参数: 来源.副职业参数 && typeof 来源.副职业参数 === 'object' && !Array.isArray(来源.副职业参数)
+          ? cloneJsonValue(来源.副职业参数, {})
+          : {}
+      };
+    }
+
+    function 构建背包状态记录_桥接(数据 = {}, 数量 = 1) {
+      const 来源 = 数据 && typeof 数据 === 'object' && !Array.isArray(数据) ? 数据 : {};
+      const 记录 = {
+        数量: Math.max(1, Math.floor(toNumber(数量, toNumber(来源.数量, 1)))),
+        耐久: Math.max(0, Math.floor(toNumber(来源.耐久, toNumber(deepGet(来源, '耐久.当前', 0), 0)))),
+        绑定者: toText(来源.绑定者, ''),
+        有效期至tick: Math.max(0, Math.floor(toNumber(来源.有效期至tick, 0))),
+        来源: toText(来源.来源, toText(来源.来源技能, ''))
+      };
+      Object.keys(记录).forEach(键 => {
+        if (键 !== '数量' && (记录[键] === '' || 记录[键] === 0)) delete 记录[键];
+      });
+      return 记录;
     }
 
     function cloneJsonValue(value, fallback = {}) {
@@ -2921,7 +3027,7 @@
     installBattleUiHostSendBridge();
 
     const MVU_EDITOR_STORE_COMMIT_DELAY = 140;
-    const MVU_EDITOR_ROOT_OBJECT_KEYS = ['sys', 'world', 'org', 'char'];
+    const MVU_EDITOR_ROOT_OBJECT_KEYS = ['sys', 'world', 'org', 'char', '物品'];
     const MVU_WRAPPER_ROOT_KEYS = ['display_data', 'delta_data', 'initialized_lorebooks', 'schema', 'stat_data'];
     const MVU_WRAPPER_PREFIX_KEYS = new Set(['stat_data', 'display_data', 'data', 'variables', 'payload', 'root', 'mvu', 'state']);
     const MVU_RECENT_MESSAGE_SCAN_DEPTH = 24;
@@ -3000,14 +3106,14 @@
     function normalizeSpiritSkillSlotsInStatDataForEditor(statData = {}) {
       const chars = isPlainObjectValue(statData && statData.char) ? statData.char : {};
       Object.values(chars).forEach(charData => {
-        const spirits = isPlainObjectValue(charData && charData.武魂) ? charData.武魂 : {};
-        Object.values(spirits).forEach(spiritData => {
-          const soulSpirits = isPlainObjectValue(spiritData && spiritData.魂灵) ? spiritData.魂灵 : {};
-          Object.values(soulSpirits).forEach(soulSpirit => {
-            const rings = isPlainObjectValue(soulSpirit && soulSpirit.魂环) ? soulSpirit.魂环 : {};
-            Object.entries(rings).forEach(([ringIndex, ringData]) => {
-              normalizeSingleSpiritSkillSlotMapForEditor(ringData && ringData['魂技'], ringIndex);
+        取角色武魂条目_桥接(charData).forEach(([, spiritData]) => {
+          取武魂魂灵条目_桥接(spiritData).forEach(([, soulSpirit]) => {
+            取魂灵魂环条目_桥接(soulSpirit).forEach(([ringIndex, ringData]) => {
+              normalizeSingleSpiritSkillSlotMapForEditor(ringData, 读取槽位序号_桥接(ringIndex, 1));
             });
+          });
+          取武魂直接魂环条目_桥接(spiritData).forEach(([ringIndex, ringData]) => {
+            normalizeSingleSpiritSkillSlotMapForEditor(ringData, 读取槽位序号_桥接(ringIndex, 1));
           });
         });
       });
@@ -3763,7 +3869,7 @@
         }
         if (key === '社会档案详细页') add('社会档案', ['char', activeCharKey, '社交'], ['社会', '名望', '称号']);
         if (key === '第一武魂详细页' || key === '第二武魂详细页' || key === '武魂融合技详细页') {
-          add('武魂', ['char', activeCharKey, '武魂'], ['武魂', '魂灵', '魂环']);
+          add('武魂', ['char', activeCharKey], ['第一武魂', '第二武魂', '第1魂灵', '第1魂环', '第1魂技']);
           add('融合技', ['char', activeCharKey, '武魂融合技'], ['融合']);
         }
         if (key === '血脉封印详细页') add('血脉', ['char', activeCharKey, '血脉之力'], ['血脉', '封印']);
@@ -8230,7 +8336,7 @@
     }
 
     function getSkillDesignerSpiritNameOptions(charData = {}) {
-      const names = safeEntries(deepGet(charData, '武魂', {}))
+      const names = 取角色武魂条目_桥接(charData)
         .map(([slotName, spiritData]) => resolveSkillDesignerSpiritDisplayName(slotName, spiritData))
         .map(name => normalizeSkillUiText(name, '').trim())
         .filter(name => name && !/^(未设置|未知|无)$/.test(name));
@@ -12597,22 +12703,22 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
 
     function buildSpiritConfig(slotName, spiritData, previewKey, badgeText, badgeClass, spiritBasePath = []) {
       const spiritPath = Array.isArray(spiritBasePath) ? spiritBasePath : [];
-      const soulEntries = safeEntries(spiritData && spiritData.魂灵);
+      const soulEntries = 取武魂魂灵条目_桥接(spiritData);
       const summaryRings = [];
       const souls = soulEntries.map(([soulName, soulData]) => {
-        const soulPath = [...spiritPath, '魂灵', soulName];
+        const soulPath = [...spiritPath, soulName];
         const soulDisplayName = normalizeSkillUiText(soulData && soulData['表象名称'], soulName);
-        const ringEntries = safeEntries(soulData && soulData.魂环)
-          .sort((a, b) => toNumber(a[0], 0) - toNumber(b[0], 0))
+        const ringEntries = 取魂灵魂环条目_桥接(soulData)
+          .sort((a, b) => 读取槽位序号_桥接(a[0], 1) - 读取槽位序号_桥接(b[0], 1))
           .map(([ringIndex, ring]) => {
-            const skills = buildSkillList(ring && ring['魂技'], {
-              basePath: [...soulPath, '魂环', ringIndex, '魂技'],
+            const skills = buildSkillList(Object.fromEntries(取魂环魂技条目_桥接(ring)), {
+              basePath: [...soulPath, ringIndex],
               category: '魂环魂技',
             scope: '魂技',
             });
             const ringInfo = buildSpiritRingInfo(ringIndex, ring, skills, {
-              path: [...soulPath, '魂环', ringIndex],
-              title: `第${ringIndex}魂环 · ${skills[0] ? skills[0].name : soulDisplayName}`,
+              path: [...soulPath, ringIndex],
+              title: `${ringIndex} · ${skills[0] ? skills[0].name : soulDisplayName}`,
               sourceText: soulDisplayName,
               carrierText: `魂灵 · ${soulDisplayName}`,
             });
@@ -12641,12 +12747,12 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           魂环: ringEntries
         };
       });
-      const independentRings = safeEntries(spiritData && spiritData['独立魂环'])
-        .sort((a, b) => toNumber(a[0], 0) - toNumber(b[0], 0))
+      const independentRings = 取武魂直接魂环条目_桥接(spiritData)
+        .sort((a, b) => 读取槽位序号_桥接(a[0], 1) - 读取槽位序号_桥接(b[0], 1))
         .map(([ringIndex, ring]) => {
-          const ringPath = [...spiritPath, '独立魂环', ringIndex];
-          const skills = buildSkillList(ring && ring['魂技'], {
-            basePath: [...ringPath, '魂技'],
+          const ringPath = [...spiritPath, ringIndex];
+          const skills = buildSkillList(Object.fromEntries(取魂环魂技条目_桥接(ring)), {
+            basePath: ringPath,
             category: '独立魂环魂技',
             scope: 'independent_ring_skill',
           });
@@ -12729,6 +12835,14 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       return skillMap;
     }
 
+    function buildDefaultBloodlineRingSkillMapForUi(ringIndex = 1, ringAge = 0) {
+      const safeRingIndex = Math.max(1, Math.floor(Number(ringIndex) || 1));
+      const baseSkillKey = `第${safeRingIndex}血脉魂技`;
+      const skillMap = { [baseSkillKey]: createDefaultRingSkillShellForUi() };
+      if (Math.floor(Number(ringAge) || 0) >= 100000) skillMap[`${baseSkillKey}·其二`] = createDefaultRingSkillShellForUi();
+      return skillMap;
+    }
+
     function getSoulSpiritRingCapacityForUi(ageValue = 0) {
       const years = Math.max(0, toNumber(ageValue, 0));
       if (years >= 10000) return 4;
@@ -12751,7 +12865,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       if (!status || !spiritSlot || !ringIndex) return null;
       const charKey = resolveSnapshotCharKey(safeSnapshot, toText(safeSnapshot.activeName, '')) || toText(safeSnapshot.activeName, '');
       if (!charKey) return null;
-      const spiritData = deepGet(safeSnapshot, ['rootData', 'char', charKey, '武魂', spiritSlot], {});
+      const spiritData = deepGet(safeSnapshot, ['rootData', 'char', charKey, spiritSlot], {});
       const spiritPreviewKey = spiritSlot === '第一武魂'
         ? '第一武魂详细页'
         : (spiritSlot === '第二武魂' ? '第二武魂详细页' : '第一武魂详细页');
@@ -12759,10 +12873,10 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
         ? pending.候选魂灵.map(name => toText(name, '').trim()).filter(Boolean)
         : [];
       const candidates = candidateNames.map(name => {
-        const soulData = deepGet(spiritData, ['魂灵', name], {});
+        const soulData = deepGet(spiritData, [name], {});
         const ageValue = toNumber(soulData && soulData.年限, 0);
         const displayName = normalizeSkillUiText(soulData && soulData.表象名称, name || '候选魂灵');
-        const ringCount = safeEntries(soulData && soulData.魂环).length;
+        const ringCount = 取魂灵魂环条目_桥接(soulData).length;
         const ringCapacity = getSoulSpiritRingCapacityForUi(ageValue);
         const nextRingColorLabel = getRingDisplayColorLabel('', ageValue);
         return {
@@ -12780,7 +12894,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           remainingAfterGenerate: Math.max(0, ringCapacity - ringCount - 1),
           nextRingColorLabel,
           nextRingClass: mapRingClass('', ageValue),
-          sourcePath: ['char', charKey, '武魂', spiritSlot, '魂灵', name],
+          sourcePath: ['char', charKey, spiritSlot, name],
         };
       });
       const signature = [
@@ -12833,7 +12947,8 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       const sealLv = toNumber(deepGet(activeChar, '血脉之力.解封层数', 0), 0);
       const core = normalizeSkillUiText(deepGet(activeChar, '血脉之力.核心', '未凝聚'), '未凝聚');
       const rawSkills = deepGet(activeChar, '血脉之力.技能', {});
-      const rawRings = deepGet(activeChar, '血脉之力.气血魂环', {});
+      const bloodlineData = deepGet(activeChar, '血脉之力', {});
+      const rawRings = Object.fromEntries(取血脉气血魂环条目_桥接(bloodlineData));
       const rawPassives = deepGet(activeChar, '血脉之力.被动', {});
       const rawPermanentBonuses = deepGet(activeChar, '血脉之力.永久加成', {});
       const hasBloodlineData = toText(bloodline, '无') !== '无'
@@ -12842,14 +12957,14 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
         || safeEntries(rawSkills).length > 0
         || safeEntries(rawPassives).length > 0
         || safeEntries(rawPermanentBonuses).length > 0;
-      const ringEntries = safeEntries(deepGet(activeChar, '血脉之力.气血魂环', {}))
-        .sort((a, b) => toNumber(a[0], 0) - toNumber(b[0], 0))
-        .map(([index, ring]) => buildSpiritRingInfo(index, ring, buildSkillList(ring && ring['魂技'], {
-            basePath: [...bloodlineBasePath, '气血魂环', index, '魂技'],
+      const ringEntries = 取血脉气血魂环条目_桥接(bloodlineData)
+        .sort((a, b) => 读取槽位序号_桥接(a[0], 1) - 读取槽位序号_桥接(b[0], 1))
+        .map(([index, ring]) => buildSpiritRingInfo(index, ring, buildSkillList(Object.fromEntries(取气血魂环魂技条目_桥接(ring)), {
+            basePath: [...bloodlineBasePath, index],
             category: '血脉魂环',
             scope: 'blood_ring_skill',
           }), {
-            path: [...bloodlineBasePath, '气血魂环', index],
+            path: [...bloodlineBasePath, index],
             title: `血脉环位 · ${index}`,
             sourceText: toText(activeChar && activeChar['血脉之力'] && activeChar['血脉之力']['血脉'], '血脉本体'),
             carrierText: '血脉魂环',
@@ -13434,7 +13549,8 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       const factions = safeEntries(deepGet(activeChar, '社交.势力', {}));
       const relations = safeEntries(deepGet(activeChar, '社交.关系', {})).sort((a, b) => toNumber(deepGet(b[1], '好感度', 0), 0) - toNumber(deepGet(a[1], '好感度', 0), 0));
       const unlockedKnowledges = Array.isArray(activeChar && activeChar.已掌握情报) ? activeChar.已掌握情报 : [];
-      const inventoryEntries = safeEntries(activeChar && activeChar.背包);
+      const inventoryEntries = safeEntries(activeChar && activeChar.背包)
+        .map(([name, item]) => [name, 合并物品定义与状态_桥接(sd, name, item)]);
       const flagEntries = [];
       if (deepGet(sd, 'world.兽潮已触发', false)) flagEntries.push(['兽潮已触发', true]);
       if (deepGet(sd, 'world.传灵塔千年魂灵开放', false)) flagEntries.push(['传灵塔千年魂灵开放', true]);
@@ -13445,12 +13561,12 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
         return toNumber(deepGet(b[1], '影响力', 0), 0) - toNumber(deepGet(a[1], '影响力', 0), 0);
       });
 
-      const spiritEntries = safeEntries(activeChar && activeChar.武魂);
+      const spiritEntries = 取角色武魂条目_桥接(activeChar);
       const primarySpirit = spiritEntries[0]
-        ? buildSpiritConfig(spiritEntries[0][0], spiritEntries[0][1], '第一武魂详细页', '第一武魂', 'cyan', ['char', activeName, '武魂', spiritEntries[0][0]])
+        ? buildSpiritConfig(spiritEntries[0][0], spiritEntries[0][1], '第一武魂详细页', '第一武魂', 'cyan', ['char', activeName, spiritEntries[0][0]])
         : buildSpiritConfig('第一武魂', {}, '第一武魂详细页', '第一武魂', 'cyan');
       const secondarySpirit = spiritEntries[1]
-        ? buildSpiritConfig(spiritEntries[1][0], spiritEntries[1][1], '第二武魂详细页', '第二武魂', 'gold', ['char', activeName, '武魂', spiritEntries[1][0]])
+        ? buildSpiritConfig(spiritEntries[1][0], spiritEntries[1][1], '第二武魂详细页', '第二武魂', 'gold', ['char', activeName, spiritEntries[1][0]])
         : null;
       const bloodline = buildBloodlineConfig(activeChar || {}, activeName, ['char', activeName, '血脉之力']);
 
@@ -13812,26 +13928,25 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
         if (!currentPending || typeof currentPending !== 'object') throw new Error('当前待选魂环状态已失效。');
         const spiritSlot = toText(currentPending.武魂槽位, pending.spiritSlot).trim();
         const ringIndex = Math.max(1, toNumber(currentPending.待生成魂环位, pending.ringIndex));
-        const spiritData = deepGet(charData, ['武魂', spiritSlot], null);
+        const spiritData = deepGet(charData, [spiritSlot], null);
         if (!spiritData || typeof spiritData !== 'object') throw new Error('未找到目标武魂槽位。');
-        const soulData = deepGet(spiritData, ['魂灵', wantedSoulName], null);
+        const soulData = deepGet(spiritData, [wantedSoulName], null);
         if (!soulData || typeof soulData !== 'object') throw new Error(`未找到候选魂灵【${wantedSoulName}】。`);
-        if (!soulData.魂环 || typeof soulData.魂环 !== 'object') soulData.魂环 = {};
-        const ringKey = String(ringIndex);
-        if (soulData.魂环[ringKey] && typeof soulData.魂环[ringKey] === 'object' && (toNumber(soulData.魂环[ringKey].年限, 0) > 0 || safeEntries(soulData.魂环[ringKey].魂技).length > 0)) {
+        const ringKey = `第${ringIndex}魂环`;
+        if (soulData[ringKey] && typeof soulData[ringKey] === 'object' && (toNumber(soulData[ringKey].年限, 0) > 0 || 取魂环魂技条目_桥接(soulData[ringKey]).length > 0)) {
           throw new Error(`第${ringIndex}魂环已存在。`);
         }
         const ringAge = Math.max(0, toNumber(soulData.年限, 0));
         const skillMap = buildDefaultRingSkillMapForUi(ringIndex, ringAge);
         const firstSkillName = Object.keys(skillMap)[0] || `第${ringIndex}魂技`;
-        soulData.魂环[ringKey] = {
+        soulData[ringKey] = {
           年限: ringAge,
           颜色: getRingDisplayColorLabel('', ringAge),
-          魂技: skillMap,
+          ...skillMap,
         };
         skillLabel = firstSkillName;
         skillPreviewKey = buildSkillDesignerPreviewKey({
-          path: ['char', pending.charKey, '武魂', spiritSlot, '魂灵', wantedSoulName, '魂环', ringKey, '魂技', firstSkillName],
+          path: ['char', pending.charKey, spiritSlot, wantedSoulName, ringKey, firstSkillName],
           label: firstSkillName,
           category: '魂技',
           scope: '魂技',
@@ -20228,7 +20343,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       if (previewKey === '储物仓库详细页') {
         const activeCharKey = resolveSnapshotCharKey(snapshot, toText(snapshot.activeName, '')) || toText(snapshot.activeName, '');
         const inventoryCells = snapshot.inventoryEntries
-          .sort((a, b) => toNumber(deepGet(b[1], '市场估值.价格', b[1] && b[1]['数量']), 0) - toNumber(deepGet(a[1], '市场估值.价格', a[1] && a[1]['数量']), 0))
+          .sort((a, b) => toNumber(b[1] && b[1]['基础价格'], 0) - toNumber(a[1] && a[1]['基础价格'], 0))
           .slice(0, 18)
           .map(([name, item]) => ({
             charKey: activeCharKey,
@@ -20237,9 +20352,9 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             qty: toNumber(item && item['数量'], 1),
             meta: `${toText(item && item['类型'], '物品')} · ${toText(item && (item['品质'] || item['品阶']), '常规')}`,
             className: /十万|天锻|神|红/.test(name + toText(item && item['品质'], '')) ? 'gold' : (/万年|魂骨|魂灵|紫/.test(name + toText(item && item['品质'], '')) ? 'purple' : ''),
-            type: `${toText(item && item['类型'], '物品')} / ${toText(item && item['品阶'], toText(item && item['品质'], '普通'))}`,
-            rarity: toText(item && (item['品质'] || item['品阶']), '普通'),
-            source: toText(item && item['来源技能'], toText(item && item['绑定者'], '背包持有')),
+            type: `${toText(item && item['类型'], '物品')} / ${toText(item && item['品质'], '普通')}`,
+            rarity: toText(item && item['品质'], '普通'),
+            source: toText(item && item['来源'], toText(item && item['绑定者'], '背包持有')),
             usage: toText(item && item['描述'], '暂无说明'),
             canEquip: !!(window.EquipmentManager && window.EquipmentManager.parseEquipSlot(name, item)),
             canUse: Array.isArray(item && item['使用效果']) && item['使用效果'].length > 0,
@@ -20247,7 +20362,6 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             tags: [
               toText(item && item['类型'], ''),
               toText(item && item['品质'], ''),
-              toText(item && item['品阶'], ''),
               Number(deepGet(item, '有效期至tick', 0)) > 0 ? '临时道具' : ''
             ].filter(Boolean)
           }));
@@ -20260,34 +20374,33 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             };
           }
           const itemPath = activeCharKey ? ['char', activeCharKey, '背包', name] : [];
+          const itemDefPath = ['物品', name];
           const typeValue = toText(item && item['类型'], '物品');
           const qtyValue = toNumber(item && item['数量'], 1);
           const qualityValue = toText(item && item['品质'], '无');
-          const tierValue = toText(item && item['品阶'], '无');
+          const tierValue = toText(item && item['阶位'], '0');
           const slotValue = toText(item && item['装备槽位'], '无');
-          const sourceValue = toText(item && item['来源技能'], '无');
+          const sourceValue = toText(item && item['来源'], '无');
           const binderValue = toText(item && item['绑定者'], '无');
-          const tagsValue = Array.isArray(item && item['标签']) ? item['标签'] : [];
           const descValue = toText(item && item['描述'], '暂无说明');
-          const priceValue = toNumber(deepGet(item, ['市场估值', '价格'], 0), 0);
-          const currencyValue = toText(deepGet(item, ['市场估值', '货币'], '联邦币'), '联邦币');
-          const durabilityCurrent = toNumber(deepGet(item, ['耐久', '当前'], 0), 0);
-          const durabilityMax = toNumber(deepGet(item, ['耐久', '上限'], 0), 0);
+          const priceValue = toNumber(item && item['基础价格'], 0);
+          const currencyValue = toText(item && item['默认货币'], '联邦币');
+          const durabilityCurrent = toNumber(item && item['耐久'], 0);
+          const durabilityMax = toNumber(item && item['基础耐久'], 0);
           const canEquipItem = !!(window.EquipmentManager && window.EquipmentManager.parseEquipSlot(name, item));
           const lineOne = [
             `数量 ${itemPath.length ? makeInlineEditableValue(String(qtyValue), { path: [...itemPath, '数量'], kind: 'number', rawValue: qtyValue, editorMeta: { min: 1, integer: true, hint: '最小 1 · 整数' } }) : htmlEscape(String(qtyValue))}`,
-            `类型 ${itemPath.length ? makeInlineEditableValue(typeValue, { path: [...itemPath, '类型'], kind: 'string', rawValue: typeValue }) : htmlEscape(typeValue)}`,
-            `槽位 ${itemPath.length ? makeInlineEditableValue(slotValue, { path: [...itemPath, '装备槽位'], kind: 'string', rawValue: slotValue }) : htmlEscape(slotValue)}`
+            `类型 ${makeInlineEditableValue(typeValue, { path: [...itemDefPath, '类型'], kind: 'string', rawValue: typeValue })}`,
+            `槽位 ${makeInlineEditableValue(slotValue, { path: [...itemDefPath, '装备槽位'], kind: 'string', rawValue: slotValue })}`
           ].join(' ｜ ');
           const lineTwo = [
-            `品质 ${itemPath.length ? makeInlineEditableValue(qualityValue, { path: [...itemPath, '品质'], kind: 'string', rawValue: qualityValue }) : htmlEscape(qualityValue)}`,
-            `品阶 ${itemPath.length ? makeInlineEditableValue(tierValue, { path: [...itemPath, '品阶'], kind: 'string', rawValue: tierValue }) : htmlEscape(tierValue)}`,
-            `来源技能 ${itemPath.length ? makeInlineEditableValue(sourceValue, { path: [...itemPath, '来源技能'], kind: 'string', rawValue: sourceValue }) : htmlEscape(sourceValue)}`,
+            `品质 ${makeInlineEditableValue(qualityValue, { path: [...itemDefPath, '品质'], kind: 'string', rawValue: qualityValue })}`,
+            `阶位 ${makeInlineEditableValue(tierValue, { path: [...itemDefPath, '阶位'], kind: 'number', rawValue: toNumber(tierValue, 0), editorMeta: { min: 0, max: 5, integer: true, hint: '0 - 5 · 整数' } })}`,
+            `来源 ${itemPath.length ? makeInlineEditableValue(sourceValue, { path: [...itemPath, '来源'], kind: 'string', rawValue: sourceValue }) : htmlEscape(sourceValue)}`,
             `绑定者 ${itemPath.length ? makeInlineEditableValue(binderValue, { path: [...itemPath, '绑定者'], kind: 'string', rawValue: binderValue }) : htmlEscape(binderValue)}`
           ].join(' ｜ ');
           const lineThree = [
-            `标签 ${itemPath.length ? makeInlineEditableValue(tagsValue.join('、') || '无', { path: [...itemPath, '标签'], kind: 'string_list', rawValue: tagsValue }) : htmlEscape(tagsValue.join('、') || '无')}`,
-            `市价 ${itemPath.length ? makeInlineEditableValue(String(priceValue), { path: [...itemPath, '市场估值', '价格'], kind: 'number', rawValue: priceValue, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } }) : htmlEscape(String(priceValue))}`,
+            `基础价格 ${makeInlineEditableValue(String(priceValue), { path: [...itemDefPath, '基础价格'], kind: 'number', rawValue: priceValue, editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' } })}`,
             `货币 ${htmlEscape(({
               fed_coin: '联邦币',
               star_coin: '星罗币',
@@ -20298,20 +20411,18 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           ].join(' ｜ ');
           const lineFour = (durabilityCurrent > 0 || durabilityMax > 0)
             ? [
-                `耐久当前 ${itemPath.length ? makeInlineEditableValue(String(durabilityCurrent), { path: [...itemPath, '耐久', '当前'], kind: 'number', rawValue: durabilityCurrent, editorMeta: { min: 0, max: durabilityMax > 0 ? durabilityMax : null, integer: true, hint: durabilityMax > 0 ? `范围 0 - ${formatNumber(durabilityMax)} · 整数` : '最小 0 · 整数' } }) : htmlEscape(String(durabilityCurrent))}`,
-                `耐久上限 ${itemPath.length ? makeInlineEditableValue(String(durabilityMax), { path: [...itemPath, '耐久', '上限'], kind: 'number', rawValue: durabilityMax, editorMeta: { min: Math.max(0, durabilityCurrent), integer: true, hint: `最小 ${formatNumber(Math.max(0, durabilityCurrent))} · 整数` } }) : htmlEscape(String(durabilityMax))}`
+                `耐久 ${itemPath.length ? makeInlineEditableValue(String(durabilityCurrent), { path: [...itemPath, '耐久'], kind: 'number', rawValue: durabilityCurrent, editorMeta: { min: 0, max: durabilityMax > 0 ? durabilityMax : null, integer: true, hint: durabilityMax > 0 ? `范围 0 - ${formatNumber(durabilityMax)} · 整数` : '最小 0 · 整数' } }) : htmlEscape(String(durabilityCurrent))}`,
+                `基础耐久 ${makeInlineEditableValue(String(durabilityMax), { path: [...itemDefPath, '基础耐久'], kind: 'number', rawValue: durabilityMax, editorMeta: { min: Math.max(0, durabilityCurrent), integer: true, hint: `最小 ${formatNumber(Math.max(0, durabilityCurrent))} · 整数` } })}`
               ].join(' ｜ ')
             : '';
-          const descLine = `描述 ${itemPath.length
-            ? makeInlineEditableValue(descValue, {
-                path: [...itemPath, '描述'],
+          const descLine = `描述 ${makeInlineEditableValue(descValue, {
+                path: [...itemDefPath, '描述'],
                 kind: 'string',
                 rawValue: descValue,
                 multiline: true,
-              })
-            : htmlEscape(descValue)}`;
+              })}`;
           const canUseItem = Array.isArray(item && item['使用效果']) && item['使用效果'].length > 0;
-          const useActionLabel = /食物/.test(typeValue) || /食用/.test(triggerValue) ? '食用' : '使用';
+          const useActionLabel = /食物/.test(typeValue) ? '食用' : '使用';
           const actionLine = itemPath.length
             ? `
                <div class="request-console-row mvu-detail-action-row">
@@ -20942,7 +21053,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
         const targetArmor = deepGet(targetChar, '装备.斗铠', {});
         const targetMech = deepGet(targetChar, '装备.机甲', {});
         const targetWeapon = deepGet(targetChar, '装备.武器', {});
-        const targetSpiritEntries = safeEntries(deepGet(targetChar, '武魂', {}));
+        const targetSpiritEntries = 取角色武魂条目_桥接(targetChar);
         return {
           title: `${targetName} / 角色基本信息`,
           summary: '角色轻量信息面板：属性、武魂与装备概览。',
@@ -20984,7 +21095,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                 ], 'three')}
               </div>
               <div class="archive-card full"><div class="archive-card-head"><div class="archive-card-title">武魂概览</div></div>${makeTimelineStack(targetSpiritEntries.length ? targetSpiritEntries.map(([spiritName, spirit]) => {
-                const spiritPath = targetCharPath.length ? [...targetCharPath, '武魂', spiritName] : [];
+                const spiritPath = targetCharPath.length ? [...targetCharPath, spiritName] : [];
                 return {
                   title: spiritName,
                   desc: [
@@ -21002,7 +21113,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                           rawValue: toText(spirit && spirit['属性体系'], '无'),
                         })
                       : htmlEscape(toText(spirit && spirit['属性体系'], '无'))}`,
-                    `魂灵 ${safeEntries(deepGet(spirit, '魂灵', {})).length}`,
+                    `魂灵 ${取武魂魂灵条目_桥接(spirit).length}`,
                   ].join(' / ')
                 };
               }) : [{ title: '暂无武魂记录', desc: targetChar ? '当前角色未记录武魂数据。' : '该角色暂无角色档案。' }])}</div>
@@ -24420,7 +24531,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
 
     function 提取武魂判定摘要文本(角色数据 = {}) {
       const 词条 = [];
-      Object.entries(角色数据?.武魂 || {}).forEach(([槽位名, 武魂]) => {
+      取角色武魂条目_桥接(角色数据).forEach(([槽位名, 武魂]) => {
         if (!武魂 || typeof 武魂 !== 'object') return;
         const 表象名称 = toText(武魂.表象名称, 槽位名);
         const 系别 = toText(武魂.系别, '未知系');
@@ -24438,7 +24549,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
       if (!主角词 || !对象词 || 主角词 === '无武魂信息' || 对象词 === '无武魂信息') return 0;
 
       const 主角属性词 = new Set();
-      Object.values(主角数据?.武魂 || {}).forEach(武魂 => {
+      取角色武魂条目_桥接(主角数据).forEach(([, 武魂]) => {
         if (!武魂 || typeof 武魂 !== 'object') return;
         [武魂.系别, 武魂.属性体系, ...(Array.isArray(武魂.已解锁属性) ? 武魂.已解锁属性 : [])]
           .map(item => toText(item, ''))
@@ -24446,7 +24557,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           .forEach(item => 主角属性词.add(item));
       });
       const 对象属性词 = new Set();
-      Object.values(对象数据?.武魂 || {}).forEach(武魂 => {
+      取角色武魂条目_桥接(对象数据).forEach(([, 武魂]) => {
         if (!武魂 || typeof 武魂 !== 'object') return;
         [武魂.系别, 武魂.属性体系, ...(Array.isArray(武魂.已解锁属性) ? 武魂.已解锁属性 : [])]
           .map(item => toText(item, ''))
@@ -29611,6 +29722,13 @@ ${extraRequirement}
             if (!charKey) throw new Error('缺少角色信息。');
             if (!itemName) throw new Error('请输入物品名。');
             await mutateStatDataByEditor(statData => {
+              if (!statData.物品 || typeof statData.物品 !== 'object' || Array.isArray(statData.物品)) statData.物品 = {};
+              statData.物品[itemName] = {
+                ...构建物品定义记录_桥接(itemName, statData.物品[itemName]),
+                类型: itemType,
+                描述: itemDesc,
+                品质: toText(deepGet(statData, ['物品', itemName, '品质'], '普通'), '普通')
+              };
               const inventoryPath = ['char', charKey, '背包'];
               let inventory = deepGet(statData, inventoryPath, null);
               if (!inventory || typeof inventory !== 'object' || Array.isArray(inventory)) {
@@ -29618,15 +29736,11 @@ ${extraRequirement}
                 inventory = deepGet(statData, inventoryPath, null);
               }
               const currentItem = inventory[itemName] && typeof inventory[itemName] === 'object'
-                ? cloneJsonValue(inventory[itemName], {})
+                ? inventory[itemName]
                 : {};
               inventory[itemName] = {
                 ...currentItem,
-                数量: Math.max(1, toNumber(currentItem['数量'], 0) + quantity),
-                类型: itemType || toText(currentItem['类型'], '物品'),
-                描述: itemDesc || toText(currentItem['描述'], '未知'),
-                品质: toText(currentItem['品质'], '普通') || '普通',
-                品阶: toText(currentItem['品阶'], '无') || '无'
+                数量: Math.max(1, toNumber(currentItem['数量'], 0) + quantity)
               };
             });
             showUiToast('已新增物品。');
@@ -30594,13 +30708,7 @@ window.EquipmentManager = {
 
   buildInventoryItemValue(itemName, itemData = {}, options = {}) {
     const safeItem = cloneJsonValue(itemData, {});
-    delete safeItem.装备状态;
-    if (safeItem.name === itemName) delete safeItem.name;
-    if (safeItem['名称'] === itemName) delete safeItem['名称'];
-    safeItem.数量 = Math.max(1, toNumber(options.quantity, 1));
-    if (!safeItem['类型'] && options.type) safeItem['类型'] = options.type;
-    if (!safeItem['品质'] && options.quality) safeItem['品质'] = options.quality;
-    return safeItem;
+    return 构建背包状态记录_桥接(safeItem, Math.max(1, toNumber(options.quantity, safeItem.数量 || 1)));
   },
 
   queueInventoryAdd(patches, charPath, inventoryBuffer, itemName, itemValue) {
@@ -30609,7 +30717,7 @@ window.EquipmentManager = {
     const existing = inventoryBuffer[itemName];
     if (existing) {
       const nextQty = Math.max(1, toNumber(existing.数量, 1) + toNumber(nextValue.数量, 1));
-      inventoryBuffer[itemName] = { ...existing, ...nextValue, 数量: nextQty };
+      inventoryBuffer[itemName] = { ...existing, 数量: nextQty };
       patches.push({ op: 'replace', path: `${charPath}/背包/${this.escapePtr(itemName)}`, value: cloneJsonValue(inventoryBuffer[itemName], {}) });
       return;
     }
@@ -30633,14 +30741,15 @@ window.EquipmentManager = {
 
   async performEquip(charRef, itemName) {
     try {
-      const { charKey, activeChar } = await this.resolveCharContext(charRef);
+      const { vars, charKey, activeChar } = await this.resolveCharContext(charRef);
       const inventory = activeChar.背包 || {};
       const 装备数据 = activeChar.装备 || {};
       const soulBone = activeChar.魂骨 || {};
-      const itemData = inventory[itemName];
-      if (!itemData || (itemData.数量 || 0) <= 0) {
+      const itemState = inventory[itemName];
+      if (!itemState || (itemState.数量 || 0) <= 0) {
         throw new Error(`背包中未找到物品: ${itemName}`);
       }
+      const itemData = 合并物品定义与状态_桥接(vars, itemName, itemState);
 
       const slotInfo = this.parseEquipSlot(itemName, itemData);
       if (!slotInfo) {
@@ -30689,9 +30798,9 @@ window.EquipmentManager = {
         let equipPath = `${charPath}/装备/${equipKey}`;
         if (slotInfo.subSlot) {
           equipPath += `/部件/${slotInfo.subSlot}`;
-          oldItem = equip[equipKey]?.部件?.[slotInfo.subSlot];
+          oldItem = 装备数据[equipKey]?.部件?.[slotInfo.subSlot];
         } else {
-          oldItem = equip[equipKey];
+          oldItem = 装备数据[equipKey];
         }
 
         if (oldItem && typeof oldItem === 'object' && oldItem['名称'] && toText(oldItem['名称'], '无') !== '无') {
@@ -30702,7 +30811,7 @@ window.EquipmentManager = {
         const newEquipData = Object.assign({}, itemData, { 名称: itemName });
         delete newEquipData.name;
         delete newEquipData.数量;
-        if (slotInfo.subSlot && (!equip[equipKey] || !equip[equipKey].部件)) {
+        if (slotInfo.subSlot && (!装备数据[equipKey] || !装备数据[equipKey].部件)) {
           patches.push({ op: 'add', path: `${charPath}/装备/${equipKey}/部件`, value: {} });
         }
         patches.push({ op: oldItem !== undefined ? 'replace' : 'add', path: equipPath, value: newEquipData });
@@ -31159,21 +31268,30 @@ window.EquipmentManager = {
     const itemName = toText(skill?.魂技名 || skill?.name, '临时造物');
     const itemType = toText(effect?.物品类型, '魂技造物');
     const relativeExpiryTick = Math.max(0, toNumber(effect?.有效期tick, 0));
-    const nextItem = {
-      数量: Math.max(1, toNumber(effect?.数量, 1)),
+    const itemDefinition = {
       类型: itemType,
+      阶位: Math.max(0, Math.floor(toNumber(effect?.阶位, 0))),
+      品质: toText(effect?.品质, '普通'),
+      描述: toText(effect?.描述 || skill?.效果描述, '使用后触发对应魂技效果'),
+      基础价格: Math.max(0, Math.floor(toNumber(effect?.基础价格, 0))),
+      默认货币: toText(effect?.默认货币, '联邦币'),
+      装备槽位: toText(effect?.装备槽位, '无'),
+      基础耐久: Math.max(0, Math.floor(toNumber(effect?.基础耐久, 0))),
+      使用条件: effect?.使用条件 && typeof effect.使用条件 === 'object' && !Array.isArray(effect.使用条件) ? cloneJsonValue(effect.使用条件, {}) : {},
       使用效果: cloneJsonValue(Array.isArray(effect?.使用效果) ? effect.使用效果 : [], []),
-      来源技能: itemName,
+      属性加成: effect?.属性加成 && typeof effect.属性加成 === 'object' && !Array.isArray(effect.属性加成) ? cloneJsonValue(effect.属性加成, {}) : {},
+      副职业参数: effect?.副职业参数 && typeof effect.副职业参数 === 'object' && !Array.isArray(effect.副职业参数) ? cloneJsonValue(effect.副职业参数, {}) : {}
+    };
+    const itemState = {
+      数量: Math.max(1, toNumber(effect?.数量, 1)),
+      来源: itemName,
     };
     if (relativeExpiryTick > 0) {
-      nextItem.有效期至tick = currentTick + relativeExpiryTick;
-      nextItem.有效期至 = formatTickToCalendarDateText(nextItem.有效期至tick);
+      itemState.有效期至tick = currentTick + relativeExpiryTick;
     } else {
-      nextItem.有效期至tick = 0;
-      nextItem.有效期至 = '无';
+      itemState.有效期至tick = 0;
     }
-    nextItem.描述 = toText(effect?.描述 || skill?.效果描述, '使用后触发对应魂技效果');
-    return { itemName, itemValue: nextItem };
+    return { itemName, itemDefinition, itemState };
   },
 
   async performUse(charRef, itemName) {
@@ -31186,8 +31304,8 @@ window.EquipmentManager = {
         if (!charData || typeof charData !== 'object') throw new Error('未找到目标角色信息。');
         const inventory = charData.背包 && typeof charData.背包 === 'object' ? charData.背包 : null;
         if (!inventory) throw new Error('当前角色没有背包数据。');
-        const itemData = inventory[itemName];
-        if (!itemData || typeof itemData !== 'object') throw new Error(`背包中未找到物品: ${itemName}`);
+        const itemData = 合并物品定义与状态_桥接(statData, itemName, inventory[itemName]);
+        if (!inventory[itemName] || typeof inventory[itemName] !== 'object') throw new Error(`背包中未找到物品: ${itemName}`);
         if (!this.isUsableInventoryItem(itemData)) throw new Error('当前物品没有可执行的使用效果。');
         actionLabel = this.getInventoryUseActionLabel(itemData);
         if (!charData.属性 || typeof charData.属性 !== 'object') charData.属性 = {};
@@ -31219,9 +31337,9 @@ window.EquipmentManager = {
           throw new Error('当前物品的使用效果无法在背包场景中结算。');
         }
 
-        const currentQty = Math.max(1, toNumber(itemData.数量, 1));
+        const currentQty = Math.max(1, toNumber(inventory[itemName].数量, 1));
         if (currentQty <= 1) delete inventory[itemName];
-        else itemData.数量 = currentQty - 1;
+        else inventory[itemName].数量 = currentQty - 1;
 
         if (!statData.sys || typeof statData.sys !== 'object') statData.sys = {};
         summaryText = logs.join('；') || '已触发物品效果';
@@ -31272,30 +31390,30 @@ window.EquipmentManager = {
         const currentTick = Math.max(0, toNumber(deepGet(statData, 'world.时间.tick', 0), 0));
         producedItems = [];
         itemTemplates.forEach(effect => {
-          const { itemName, itemValue } = this.buildConstructInventoryValue(scaledSkill, effect, currentTick);
+          const { itemName, itemDefinition, itemState } = this.buildConstructInventoryValue(scaledSkill, effect, currentTick);
           const 是否食物造物 =
-            /食物/.test(toText(itemValue?.类型, '')) ||
+            /食物/.test(toText(itemDefinition?.类型, '')) ||
             /食物系/.test(toText(deepGet(skill, '技能定位.类型', ''), ''));
-          const 使用效果列表 = Array.isArray(itemValue?.使用效果) ? itemValue.使用效果 : [];
+          const 使用效果列表 = Array.isArray(itemDefinition?.使用效果) ? itemDefinition.使用效果 : [];
           const 命中修炼增益效果 = 使用效果列表.some(使用效果项 => {
             if (!使用效果项 || typeof 使用效果项 !== 'object') return false;
             const 倍率值 = 使用效果项.原型 === '修炼速度修正' ? Number(使用效果项.数值 || 0) : 0;
             return Number.isFinite(倍率值) && 倍率值 > 1;
           });
           if (是否食物造物 && 命中修炼增益效果) {
-            itemValue.品级 = toText(itemValue.品级, 'S');
-            itemValue.品质 = toText(itemValue.品质, 'S');
+            itemDefinition.品质 = toText(itemDefinition.品质, 'S');
           }
+          if (!statData.物品 || typeof statData.物品 !== 'object' || Array.isArray(statData.物品)) statData.物品 = {};
+          statData.物品[itemName] = { ...构建物品定义记录_桥接(itemName, statData.物品[itemName]), ...itemDefinition };
           const existing = charData.背包[itemName] && typeof charData.背包[itemName] === 'object'
             ? charData.背包[itemName]
             : null;
           if (existing) {
-            existing.数量 = Math.max(1, toNumber(existing.数量, 1) + toNumber(itemValue.数量, 1));
-            Object.assign(existing, { ...itemValue, 数量: existing.数量 });
+            existing.数量 = Math.max(1, toNumber(existing.数量, 1) + toNumber(itemState.数量, 1));
           } else {
-            charData.背包[itemName] = cloneJsonValue(itemValue, {});
+            charData.背包[itemName] = cloneJsonValue(itemState, {});
           }
-          producedItems.push(`${itemName}×${toNumber(itemValue.数量, 1)}`);
+          producedItems.push(`${itemName}×${toNumber(itemState.数量, 1)}`);
         });
 
         if (!statData.sys || typeof statData.sys !== 'object') statData.sys = {};

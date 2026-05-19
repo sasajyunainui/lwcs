@@ -549,14 +549,103 @@ function createDefaultRingSkillShell() {
 
 function buildDefaultRingSkillMap(ringIndex, ringAge) {
   const safeRingIndex = Math.max(1, Math.floor(Number(ringIndex) || 1));
-  const baseSkillKey = `\u7b2c${safeRingIndex}\u9b42\u6280`;
+  const baseSkillKey = `第${safeRingIndex}魂技`;
   const skills = {
     [baseSkillKey]: createDefaultRingSkillShell(),
   };
   if (Math.floor(Number(ringAge) || 0) >= 100000) {
-    skills[`${baseSkillKey}\u00b7\u5176\u4e8c`] = createDefaultRingSkillShell();
+    skills[`${baseSkillKey}·其二`] = createDefaultRingSkillShell();
   }
   return skills;
+}
+
+function buildDefaultBloodlineRingSkillMap(ringIndex, ringAge) {
+  const safeRingIndex = Math.max(1, Math.floor(Number(ringIndex) || 1));
+  const baseSkillKey = `第${safeRingIndex}血脉魂技`;
+  const skills = { [baseSkillKey]: createDefaultRingSkillShell() };
+  if (Math.floor(Number(ringAge) || 0) >= 100000) skills[`${baseSkillKey}·其二`] = createDefaultRingSkillShell();
+  return skills;
+}
+
+function 读取槽位序号_V1(槽位名 = '', 默认值 = 1) {
+  const 数字匹配 = String(槽位名 || '').match(/第(\d+)/);
+  return Math.max(1, Math.floor(Number(数字匹配 ? 数字匹配[1] : 默认值) || 默认值 || 1));
+}
+
+function 是武魂槽位键_V1(键 = '') {
+  return /^(第一武魂|第二武魂|第\d+武魂)$/.test(String(键 || '').trim());
+}
+
+function 是魂灵槽位键_V1(键 = '') {
+  return /^第\d+魂灵$/.test(String(键 || '').trim());
+}
+
+function 是魂环槽位键_V1(键 = '') {
+  return /^第\d+魂环$/.test(String(键 || '').trim());
+}
+
+function 是魂技槽位键_V1(键 = '') {
+  return /^第\d+魂技(?:·其二)?$/.test(String(键 || '').trim());
+}
+
+function 是气血魂环槽位键_V1(键 = '') {
+  return /^第\d+气血魂环$/.test(String(键 || '').trim());
+}
+
+function 是血脉魂技槽位键_V1(键 = '') {
+  return /^第\d+血脉魂技(?:·其二)?$/.test(String(键 || '').trim());
+}
+
+function 取对象槽位条目_V1(对象 = {}, 判断函数 = () => false) {
+  return Object.entries(对象 || {}).filter(([, 值]) => 值 && typeof 值 === 'object' && !Array.isArray(值)).filter(([键]) => 判断函数(键));
+}
+
+function 取角色武魂条目_V1(char = {}) {
+  return 取对象槽位条目_V1(char, 是武魂槽位键_V1);
+}
+
+function 取武魂魂灵条目_V1(武魂数据 = {}) {
+  return 取对象槽位条目_V1(武魂数据, 是魂灵槽位键_V1);
+}
+
+function 取武魂直接魂环条目_V1(武魂数据 = {}) {
+  return 取对象槽位条目_V1(武魂数据, 是魂环槽位键_V1);
+}
+
+function 取魂灵魂环条目_V1(魂灵数据 = {}) {
+  return 取对象槽位条目_V1(魂灵数据, 是魂环槽位键_V1);
+}
+
+function 取魂环魂技条目_V1(魂环数据 = {}) {
+  return 取对象槽位条目_V1(魂环数据, 是魂技槽位键_V1);
+}
+
+function 取血脉气血魂环条目_V1(血脉数据 = {}) {
+  return 取对象槽位条目_V1(血脉数据, 是气血魂环槽位键_V1);
+}
+
+function 取气血魂环魂技条目_V1(魂环数据 = {}) {
+  return 取对象槽位条目_V1(魂环数据, 是血脉魂技槽位键_V1);
+}
+
+function 取武魂全部魂环条目_V1(武魂数据 = {}) {
+  const 结果 = [];
+  取武魂魂灵条目_V1(武魂数据).forEach(([魂灵键, 魂灵数据]) => {
+    取魂灵魂环条目_V1(魂灵数据).forEach(([魂环键, 魂环数据]) => {
+      结果.push({ 魂环键, 魂环数据, 魂灵键, 魂灵数据, 独立: false });
+    });
+  });
+  取武魂直接魂环条目_V1(武魂数据).forEach(([魂环键, 魂环数据]) => {
+    结果.push({ 魂环键, 魂环数据, 魂灵键: '', 魂灵数据: null, 独立: true });
+  });
+  return 结果;
+}
+
+function 创建默认魂环数据_V1(魂环位 = 1, 年限 = 0, 来源 = '') {
+  const 魂环 = { 年限: Math.max(0, Math.floor(Number(年限 || 0))), 颜色: getRingColorByAge(年限) };
+  if (String(来源 || '').trim()) 魂环.来源 = String(来源 || '').trim();
+  Object.assign(魂环, buildDefaultRingSkillMap(魂环位, 年限));
+  return 魂环;
 }
 
 function getBeastStats(age, species) {
@@ -685,22 +774,20 @@ function autoBreakthrough(data) {
       let shouldStopAfterThisBreak = false;
       if (isSoulRingGateLevel(newLv)) {
         const ringIndex = Math.round(newLv / 10);
-        const spiritKeys = Object.keys(c.武魂 || {});
-        if (spiritKeys.length === 0) return;
+        const spiritEntries = 取角色武魂条目_V1(c);
+        if (spiritEntries.length === 0) return;
 
         const isPlayer = charName === data.sys?.玩家名;
         const playerChar = data.char[data.sys?.玩家名];
         const isNearPlayer = !isPlayer && 是否同地图节点组(data, c, playerChar);
 
-        for (const spiritKey of spiritKeys) {
-          const targetSpirit = c.武魂[spiritKey];
+        for (const [spiritKey, targetSpirit] of spiritEntries) {
           if (!targetSpirit || typeof targetSpirit !== 'object') continue;
-          if (!targetSpirit.魂灵) targetSpirit.魂灵 = {};
 
           let ringAssigned = false;
           let candidateSpirit = null;
 
-          _(targetSpirit.魂灵).forEach((ss, ssName) => {
+          取武魂魂灵条目_V1(targetSpirit).forEach(([ssName, ss]) => {
             if (ringAssigned || candidateSpirit) return;
 
             let cap = 1;
@@ -708,7 +795,7 @@ function autoBreakthrough(data) {
             else if (ss.年限 >= 1000) cap = 3;
             else if (ss.年限 >= 100) cap = 2;
 
-            const currentRingsCount = Object.keys(ss.魂环 || {}).length;
+            const currentRingsCount = 取魂灵魂环条目_V1(ss).length;
             if (currentRingsCount < cap) {
               candidateSpirit = { ss, ssName };
             }
@@ -736,22 +823,12 @@ function autoBreakthrough(data) {
               data.sys.系统播报 += ` [修为突破] ${charName} 踏入 ${newLvText}！已达到第 ${ringIndex} 魂环门槛，但当前场景内请通过剧情决定其【${ssName}】是否为【${spiritKey}】衍生新魂环。`;
             } else {
               const newRingColor = getRingColorByAge(ss.年限);
-              ss.魂环[ringIndex.toString()] = {
-                年限: ss.年限,
-                颜色: newRingColor,
-                魂技: {
-                  [`第${ringIndex}魂技`]: {
-                    魂技名: AI_TODO_SKILL_NAME,
-                    画面描述: '未知',
-                    效果描述: '未知',
-                    _效果数组: [],
-                  },
-                },
-              };
-              ss.魂环[ringIndex.toString()].魂技 = buildDefaultRingSkillMap(ringIndex, ss.年限);
+              const ringKey = `第${ringIndex}魂环`;
+              ss[ringKey] = 创建默认魂环数据_V1(ringIndex, ss.年限);
+              ss[ringKey].颜色 = newRingColor;
               const 武魂属性状态 = normalizeSpiritAttributeState(targetSpirit, spiritKey, c);
               const 武魂元素画像 = buildElementProfileFromAttributeState(武魂属性状态);
-              ensureSkillMapGenerated(ss.魂环[ringIndex.toString()].魂技, (_, skillName) => ({
+              ensureSkillMapGenerated(Object.fromEntries(取魂环魂技条目_V1(ss[ringKey])), (_, skillName) => ({
                 type: c.属性?.系别 || '强攻系',
                 talentTier: c.属性?.天赋梯队 || '正常',
                 age: ss.年限,
@@ -776,7 +853,7 @@ function autoBreakthrough(data) {
                   type: c.属性?.系别 || '强攻系',
                   spiritDesc: String(ss?.描述 || '').trim(),
                   martialSoulName: String(targetSpirit?.表象名称 || spiritKey || '').trim(),
-                  ringSource: String(ss.魂环[ringIndex.toString()]?.来源 || '').trim(),
+                  ringSource: String(ss[ringKey]?.来源 || '').trim(),
                 },
               }));
               ringAssigned = true;
@@ -787,8 +864,8 @@ function autoBreakthrough(data) {
 
           if (!ringAssigned) {
             let currentSpiritsCount = 0;
-            _(c.武魂).forEach(sp => {
-              currentSpiritsCount += Object.keys(sp.魂灵 || {}).length;
+            取角色武魂条目_V1(c).forEach(([, sp]) => {
+              currentSpiritsCount += 取武魂魂灵条目_V1(sp).length;
             });
             const realmLimit =
               { 灵元境: 1, 灵通境: 2, 灵海境: 5, 灵渊境: 9, 灵域境: 99, 神元境: 999 }[
@@ -820,10 +897,10 @@ function autoBreakthrough(data) {
 
 function getCharacterBaseSoulPowerTypeMultiplier(char = {}) {
   let 修炼难度列表 = [];
-  const spiritKeys = Object.keys(char?.武魂 || {});
-  if (spiritKeys.length > 0) {
-    spiritKeys.forEach(key => {
-      const 系别 = String(char?.武魂?.[key]?.系别 || '强攻系').trim();
+  const spiritEntries = 取角色武魂条目_V1(char);
+  if (spiritEntries.length > 0) {
+    spiritEntries.forEach(([, spiritData]) => {
+      const 系别 = String(spiritData?.系别 || '强攻系').trim();
       修炼难度列表.push(Number(修炼难度系数表[系别] || 1));
     });
   }
@@ -852,18 +929,11 @@ function getCharacterCurrentRingAndBoneSoulPowerBonus_ACU(char = {}) {
   });
 
   let ringBonusTotal = 0;
-  _(char?.武魂 || {}).forEach(spiritData => {
-    _(spiritData?.魂灵 || {}).forEach(ss => {
-      const compMult = Math.max(0.1, (ss?.契合度 !== undefined ? ss.契合度 : 100) / 100);
-      _(ss?.魂环 || {}).forEach(ring => {
-        if (Number(ring?.年限 || 0) > 0) {
-          ringBonusTotal += Math.floor(getRingBonus(Number(ring.年限 || 0)).sp_max * compMult);
-        }
-      });
-    });
-    _(spiritData?.独立魂环 || {}).forEach(ring => {
+  取角色武魂条目_V1(char).forEach(([, spiritData]) => {
+    取武魂全部魂环条目_V1(spiritData).forEach(({ 魂环数据: ring, 魂灵数据: ss }) => {
+      const compMult = ss ? Math.max(0.1, (ss?.契合度 !== undefined ? ss.契合度 : 100) / 100) : 1;
       if (Number(ring?.年限 || 0) > 0) {
-        ringBonusTotal += Math.floor(getRingBonus(Number(ring.年限 || 0)).sp_max);
+        ringBonusTotal += Math.floor(getRingBonus(Number(ring.年限 || 0)).sp_max * compMult);
       }
     });
   });
@@ -872,21 +942,11 @@ function getCharacterCurrentRingAndBoneSoulPowerBonus_ACU(char = {}) {
 
 function getCharacterActualSoulRingCount(char = {}) {
   let total = 0;
-  Object.values(char?.武魂 || {}).forEach(spiritData => {
-    if (!spiritData || typeof spiritData !== 'object') return;
-    Object.values(spiritData?.魂灵 || {}).forEach(soulSpirit => {
-      if (!soulSpirit || typeof soulSpirit !== 'object') return;
-      Object.values(soulSpirit?.魂环 || {}).forEach(ringData => {
-        if (!ringData || typeof ringData !== 'object') return;
-        const hasAge = Number(ringData?.年限 || 0) > 0;
-        const hasSkill = Object.keys(ringData?.魂技 || {}).length > 0;
-        if (hasAge || hasSkill) total += 1;
-      });
-    });
-    Object.values(spiritData?.独立魂环 || {}).forEach(ringData => {
+  取角色武魂条目_V1(char).forEach(([, spiritData]) => {
+    取武魂全部魂环条目_V1(spiritData).forEach(({ 魂环数据: ringData }) => {
       if (!ringData || typeof ringData !== 'object') return;
       const hasAge = Number(ringData?.年限 || 0) > 0;
-      const hasSkill = Object.keys(ringData?.魂技 || {}).length > 0;
+      const hasSkill = 取魂环魂技条目_V1(ringData).length > 0;
       if (hasAge || hasSkill) total += 1;
     });
   });
@@ -894,17 +954,11 @@ function getCharacterActualSoulRingCount(char = {}) {
 }
 
 function 计算武魂当前魂环数量_V1(spiritData = {}) {
-  let 总数 = 0;
-  Object.values(spiritData?.魂灵 || {}).forEach(魂灵数据 => {
-    if (!魂灵数据 || typeof 魂灵数据 !== 'object') return;
-    总数 += Object.values(魂灵数据?.魂环 || {}).filter(魂环数据 => 魂环数据 && typeof 魂环数据 === 'object').length;
-  });
-  总数 += Object.values(spiritData?.独立魂环 || {}).filter(魂环数据 => 魂环数据 && typeof 魂环数据 === 'object').length;
-  return Math.max(0, 总数);
+  return Math.max(0, 取武魂全部魂环条目_V1(spiritData).length);
 }
 
 function 角色存在七字武魂_V1(char = {}) {
-  return Object.entries(char?.武魂 || {}).some(([武魂键, 武魂数据]) => {
+  return 取角色武魂条目_V1(char).some(([武魂键, 武魂数据]) => {
     const 名称 = String(武魂数据?.表象名称 || 武魂键 || '').trim();
     return 名称.includes('七');
   });
@@ -8522,7 +8576,6 @@ function canTalentContinueCultivating_ACU(char = {}) {
 function normalizeNoSoulPowerCharacterData(char = {}) {
   if (!char || typeof char !== 'object') return char;
   if (!char.属性 || typeof char.属性 !== 'object') char.属性 = {};
-  if (!char.武魂 || typeof char.武魂 !== 'object') char.武魂 = {};
   if (!char.装备 || typeof char.装备 !== 'object') char.装备 = {};
   if (!char.装备.斗铠 || typeof char.装备.斗铠 !== 'object') char.装备.斗铠 = {};
   if (!char.装备.机甲 || typeof char.装备.机甲 !== 'object') char.装备.机甲 = {};
@@ -8541,16 +8594,14 @@ function normalizeNoSoulPowerCharacterData(char = {}) {
 
   if (char.状态 && typeof char.状态 === 'object') delete char.状态.待选魂环;
 
-  const trimmedSpirits = {};
-  Object.keys(char.武魂 || {}).forEach(spiritKey => {
-    const spiritData = char.武魂?.[spiritKey];
+  取角色武魂条目_V1(char).forEach(([spiritKey, spiritData]) => {
     const spiritName = String(spiritData?.表象名称 || spiritData?.名称 || spiritKey || '无').trim() || '无';
-    trimmedSpirits[spiritKey] = {
+    char[spiritKey] = {
       名称: spiritName,
       表象名称: spiritName,
     };
   });
-  char.武魂 = trimmedSpirits;
+  delete char.武魂;
 
   char.魂核 = {};
   char.魂骨 = {};
@@ -8561,8 +8612,10 @@ function normalizeNoSoulPowerCharacterData(char = {}) {
     char.血脉之力.解封层数 = 0;
     char.血脉之力.技能 = {};
     char.血脉之力.被动 = {};
-    char.血脉之力.气血魂环 = {};
     char.血脉之力.永久加成 = {};
+    Object.keys(char.血脉之力).forEach(键 => {
+      if (是气血魂环槽位键_V1(键)) delete char.血脉之力[键];
+    });
   }
 
   char.装备.斗铠.等级 = 0;
@@ -8606,7 +8659,7 @@ function shouldIgnoreStaticRingBoneSoulPowerByFormula(char = {}, context = {}) {
 }
 
 function getDualSpiritSoulPowerCoeff(char = {}) {
-  const spiritEntries = Object.entries(char?.武魂 || {}).filter(([, spiritData]) => spiritData && typeof spiritData === 'object');
+  const spiritEntries = 取角色武魂条目_V1(char);
   return spiritEntries.length >= 2 ? 1.2 : 1.0;
 }
 
@@ -11295,7 +11348,9 @@ function pruneExtendedBloodlineData(charData = null, charName = '') {
   delete bloodline.技能;
   delete bloodline.被动;
   delete bloodline.永久加成;
-  delete bloodline.气血魂环;
+  Object.keys(bloodline).forEach(键 => {
+    if (是气血魂环槽位键_V1(键)) delete bloodline[键];
+  });
 }
 
 const LIFE_FIRE_STATE_CACHE = Object.create(null);
@@ -11345,7 +11400,7 @@ function safeEntries(obj) {
 }
 
 function buildCharacterCustomSkillAttributeState(char = {}) {
-  const spiritStates = safeEntries(char?.武魂 || {}).map(([spiritKey, spiritData]) =>
+  const spiritStates = 取角色武魂条目_V1(char).map(([spiritKey, spiritData]) =>
     normalizeSpiritAttributeState(spiritData, spiritKey, char),
   );
   const 基础属性状态 = mergeSpiritAttributeStates(spiritStates);
@@ -11353,14 +11408,9 @@ function buildCharacterCustomSkillAttributeState(char = {}) {
   const 追加技能图谱附带属性 = 技能图谱 => {
     技能附带属性集合.push(...collectSkillMapAttachedAttributes(技能图谱));
   };
-  safeEntries(char?.武魂 || {}).forEach(([, spiritData]) => {
-    safeEntries(spiritData?.魂灵 || {}).forEach(([, soulData]) => {
-      safeEntries(soulData?.魂环 || {}).forEach(([, ringData]) => {
-        追加技能图谱附带属性(ringData?.魂技);
-      });
-    });
-    safeEntries(spiritData?.独立魂环 || {}).forEach(([, ringData]) => {
-      追加技能图谱附带属性(ringData?.魂技);
+  取角色武魂条目_V1(char).forEach(([, spiritData]) => {
+    取武魂全部魂环条目_V1(spiritData).forEach(({ 魂环数据 }) => {
+      追加技能图谱附带属性(Object.fromEntries(取魂环魂技条目_V1(魂环数据)));
     });
   });
   safeEntries(char?.魂骨 || {}).forEach(([, boneData]) => {
@@ -11515,11 +11565,28 @@ function settleInternalSoulBeastReward(data = {}, winner = {}, winnerName = '', 
     追加系统播报文本(data, `[现实狩猎] ${winnerName} 击败了【${defeatedName}】，但未识别有效年限，背包无新增。`);
     return;
   }
+  if (!data.物品 || typeof data.物品 !== 'object' || Array.isArray(data.物品)) data.物品 = {};
   if (!winner.背包 || typeof winner.背包 !== 'object') winner.背包 = {};
 
   const ringName = `${age}年魂环`;
+  if (!data.物品[ringName]) {
+    data.物品[ringName] = {
+      类型: '魂技造物',
+      阶位: 0,
+      品质: '普通',
+      描述: '未吸收的无主魂环',
+      基础价格: 0,
+      默认货币: '联邦币',
+      装备槽位: '无',
+      基础耐久: 0,
+      使用条件: {},
+      使用效果: [],
+      属性加成: {},
+      副职业参数: { 年限: age },
+    };
+  }
   if (!winner.背包[ringName]) {
-    winner.背包[ringName] = { 数量: 0, 类型: '魂环', 品质: '标准', 描述: '未吸收的无主魂环' };
+    winner.背包[ringName] = { 数量: 0 };
   }
   winner.背包[ringName].数量 = Math.max(0, Number(winner.背包[ringName].数量 || 0) + 1);
   let msg = `[现实狩猎] ${winnerName} 击杀了【${defeatedName}】，获得【${ringName}】，背包已入账。`;
@@ -11528,13 +11595,24 @@ function settleInternalSoulBeastReward(data = {}, winner = {}, winnerName = '', 
   const roll = Math.floor(Math.random() * 100) + 1;
   if (roll <= dropRate) {
     const boneName = `${age}年魂骨`;
-    if (!winner.背包[boneName]) {
-      winner.背包[boneName] = {
-        数量: 0,
-        类型: '魂骨',
-        品质: age >= 100000 ? '极品' : '常规',
+    if (!data.物品[boneName]) {
+      data.物品[boneName] = {
+        类型: '材料',
+        阶位: age >= 100000 ? 5 : 4,
+        品质: age >= 100000 ? '传说' : '稀有',
         描述: '未吸收的无主魂骨',
+        基础价格: 0,
+        默认货币: '联邦币',
+        装备槽位: '无',
+        基础耐久: 0,
+        使用条件: {},
+        使用效果: [],
+        属性加成: {},
+        副职业参数: { 年限: age },
       };
+    }
+    if (!winner.背包[boneName]) {
+      winner.背包[boneName] = { 数量: 0 };
     }
     winner.背包[boneName].数量 = Math.max(0, Number(winner.背包[boneName].数量 || 0) + 1);
     msg += `【好运爆发】成功剥离出【${boneName}】！(Roll: ${roll} <= ${dropRate}%)`;
@@ -12315,11 +12393,11 @@ function normalizeFusionRuntimeParticipants(participants = []) {
 
 function findFusionSpiritDataByReference(charData = {}, spiritRef = '') {
   const safeRef = String(spiritRef || '').trim();
-  if (!safeRef || !charData?.武魂 || typeof charData.武魂 !== 'object') return null;
-  if (charData.武魂[safeRef] && typeof charData.武魂[safeRef] === 'object') {
-    return { spiritKey: safeRef, spiritData: charData.武魂[safeRef] };
+  if (!safeRef) return null;
+  if (charData[safeRef] && typeof charData[safeRef] === 'object' && 是武魂槽位键_V1(safeRef)) {
+    return { spiritKey: safeRef, spiritData: charData[safeRef] };
   }
-  const matchedEntry = Object.entries(charData.武魂).find(([spiritKey, spiritData]) => {
+  const matchedEntry = 取角色武魂条目_V1(charData).find(([spiritKey, spiritData]) => {
     if (!spiritData || typeof spiritData !== 'object') return false;
     return spiritKey === safeRef || String(spiritData.表象名称 || '').trim() === safeRef;
   });
@@ -12349,7 +12427,7 @@ function buildFusionSkillAttributeStateFromData(fusionSkill = {}, ownerCharKey =
   if (!mergedStates.length) {
     const slots = getNormalizedFusionSourceSpirits(fusionSkill, ownerChar);
     slots.forEach(slot => {
-      const spiritData = ownerChar?.武魂?.[slot];
+      const spiritData = ownerChar?.[slot];
       if (!spiritData || typeof spiritData !== 'object') return;
       mergedStates.push(normalizeSpiritAttributeState(spiritData, slot, ownerChar));
     });
@@ -12364,7 +12442,7 @@ function getFusionSkillElementProfile(fusionSkill = {}, char = {}, ownerCharKey 
   const slots = getNormalizedFusionSourceSpirits(fusionSkill, char);
   const mergedStates = [];
   slots.forEach(slot => {
-    const spiritData = char?.武魂?.[slot];
+    const spiritData = char?.[slot];
     if (!spiritData || typeof spiritData !== 'object') return;
     mergedStates.push(normalizeSpiritAttributeState(spiritData, slot, char));
   });
@@ -12986,11 +13064,11 @@ function 初始化补齐角色技能效果数组_V1(rootData = {}) {
     const 系别 = char?.属性?.系别 || '强攻系';
     const 天赋梯队 = char?.属性?.天赋梯队 || '正常';
 
-    _(char.武魂 || {}).forEach((spiritData, spiritKey) => {
+    取角色武魂条目_V1(char).forEach(([spiritKey, spiritData]) => {
       if (!spiritData || typeof spiritData !== 'object') return;
       const 武魂属性状态 = normalizeSpiritAttributeState(spiritData, spiritKey, char);
       const 武魂元素画像 = buildElementProfileFromAttributeState(武魂属性状态);
-      _(spiritData?.魂灵 || {}).forEach(武魂 => {
+      取武魂魂灵条目_V1(spiritData).forEach(([, 武魂]) => {
         if (!武魂 || typeof 武魂 !== 'object') return;
         const 来源品质 =
           normalizeSoulSpiritQuality(武魂?.品质 || '') ||
@@ -12998,11 +13076,11 @@ function 初始化补齐角色技能效果数组_V1(rootData = {}) {
           normalizeSoulSpiritQuality(spiritData?.品质 || '') ||
           inferSoulSpiritQuality(spiritData) ||
           '';
-        _(武魂.魂环 || {}).forEach((ring, ringIndexStr) => {
-          const 魂环位 = parseInt(ringIndexStr) || 1;
+        取魂灵魂环条目_V1(武魂).forEach(([ringIndexStr, ring]) => {
+          const 魂环位 = 读取槽位序号_V1(ringIndexStr, 1);
           const 当前魂环数量 = 计算武魂当前魂环数量_V1(spiritData);
           const 武魂名称 = String(spiritData?.表象名称 || spiritKey || '').trim();
-          补齐技能映射(ring?.魂技, (_, skillName) => ({
+          补齐技能映射(Object.fromEntries(取魂环魂技条目_V1(ring)), (_, skillName) => ({
             type: 系别,
             talentTier: 天赋梯队,
             age: ring?.年限,
@@ -13032,15 +13110,15 @@ function 初始化补齐角色技能效果数组_V1(rootData = {}) {
         });
       });
 
-      _(spiritData?.独立魂环 || {}).forEach((ring, ringIndexStr) => {
-        const 魂环位 = parseInt(ringIndexStr) || 1;
+      取武魂直接魂环条目_V1(spiritData).forEach(([ringIndexStr, ring]) => {
+        const 魂环位 = 读取槽位序号_V1(ringIndexStr, 1);
         const 当前魂环数量 = 计算武魂当前魂环数量_V1(spiritData);
         const 武魂名称 = String(spiritData?.表象名称 || spiritKey || '').trim();
         const 来源品质 =
           normalizeSoulSpiritQuality(spiritData?.品质 || '') ||
           inferSoulSpiritQuality(spiritData) ||
           '';
-        补齐技能映射(ring?.魂技, (_, skillName) => ({
+        补齐技能映射(Object.fromEntries(取魂环魂技条目_V1(ring)), (_, skillName) => ({
           type: 系别,
           talentTier: 天赋梯队,
           age: ring?.年限,
@@ -13132,9 +13210,9 @@ function 初始化补齐角色技能效果数组_V1(rootData = {}) {
       },
     }));
 
-    _(char.血脉之力?.气血魂环 || {}).forEach((ringData, ringIndexStr) => {
-      const 魂环位 = parseInt(ringIndexStr) || 1;
-      补齐技能映射(ringData?.魂技, (_, skillName) => ({
+    取血脉气血魂环条目_V1(char.血脉之力).forEach(([ringIndexStr, ringData]) => {
+      const 魂环位 = 读取槽位序号_V1(ringIndexStr, 1);
+      补齐技能映射(Object.fromEntries(取气血魂环魂技条目_V1(ringData)), (_, skillName) => ({
         type: 系别,
         talentTier: 天赋梯队,
         age: Math.max(1000, 魂环位 * 5000),
@@ -13475,8 +13553,86 @@ const BloodlinePermanentBonusSchema = z
     属性加成: AdditiveStatBonusSchema,
   })
   .prefault({});
+const SoulRingSchema = z
+  .looseObject({
+    年限: z.coerce.number().prefault(0),
+    颜色: z.string().prefault('无'),
+    来源: z.string().prefault('无'),
+    炸环恢复tick: z.coerce.number().optional(),
+    炸环恢复时间: z.string().optional(),
+  })
+  .transform(魂环 => {
+    Object.keys(魂环).forEach(键 => {
+      if (是魂技槽位键_V1(键)) 魂环[键] = SkillStructSchema.parse(魂环[键]);
+    });
+    delete 魂环.魂技;
+    return 魂环;
+  })
+  .prefault({});
+const SoulSpiritSchema = z
+  .looseObject({
+    表象名称: z.string().prefault(AI_TODO_SOUL_SPIRIT_NAME).describe('魂灵物种名'),
+    描述: z.string().prefault(AI_TODO_SOUL_SPIRIT_DESC).describe('魂灵描述，由 AI 维护'),
+    年限: z.coerce.number().prefault(0),
+    品质: z.string().prefault(AI_TODO_SOUL_SPIRIT_QUALITY).describe('魂灵品质：F/D/C/B/A/S/S+'),
+    契合度: z.coerce.number().prefault(60).describe('与武魂的契合度(0-100)，影响融合难度与发挥'),
+    状态: z.string().prefault('沉睡'),
+    战力面板: z
+      .object({
+        对标等级: z.coerce.number().prefault(0),
+        str: z.coerce.number().prefault(0),
+        def: z.coerce.number().prefault(0),
+        agi: z.coerce.number().prefault(0),
+        vit_max: z.coerce.number().prefault(0),
+        men_max: z.coerce.number().prefault(0),
+        sp_max: z.coerce.number().prefault(0),
+      })
+      .optional()
+      .describe('魂灵战力面板'),
+  })
+  .transform(魂灵 => {
+    Object.keys(魂灵).forEach(键 => {
+      if (是魂环槽位键_V1(键)) 魂灵[键] = SoulRingSchema.parse(魂灵[键]);
+    });
+    delete 魂灵.魂环;
+    return 魂灵;
+  })
+  .prefault({});
+const MartialSoulSchema = z
+  .looseObject({
+    表象名称: z.string().prefault(AI_TODO_SPIRIT_NAME).describe('武魂名'),
+    描述: z.string().prefault(AI_TODO_SPIRIT_DESC).describe('武魂的具体形态与能力描述'),
+    系别: z.string().prefault('未知系'),
+    属性体系: z.string().prefault(AI_TODO_ATTRIBUTE_SYSTEM).describe('武魂属性体系：无/元素/五行'),
+    已解锁属性: z.array(z.string()).prefault([]).describe('当前已经真正获得的属性列表'),
+    可容纳属性: z.array(z.string()).prefault([AI_TODO_ATTRIBUTE_CAPACITY]).describe('武魂理论可承载的属性上限'),
+  })
+  .transform(武魂 => {
+    Object.keys(武魂).forEach(键 => {
+      if (是魂灵槽位键_V1(键)) 武魂[键] = SoulSpiritSchema.parse(武魂[键]);
+      else if (是魂环槽位键_V1(键)) 武魂[键] = SoulRingSchema.parse(武魂[键]);
+    });
+    delete 武魂.魂灵;
+    delete 武魂.独立魂环;
+    return 武魂;
+  })
+  .prefault({});
+const BloodlineRingSchema = z
+  .looseObject({
+    颜色: z.string().prefault('无'),
+    炸环恢复tick: z.coerce.number().optional(),
+    炸环恢复时间: z.string().optional(),
+  })
+  .transform(魂环 => {
+    Object.keys(魂环).forEach(键 => {
+      if (是血脉魂技槽位键_V1(键)) 魂环[键] = SkillStructSchema.parse(魂环[键]);
+    });
+    delete 魂环.魂技;
+    return 魂环;
+  })
+  .prefault({});
 const BloodlinePowerSchema = z
-  .object({
+  .looseObject({
     血脉: z.string().prefault('无').describe('血脉名称'),
     解封层数: z.coerce.number().prefault(0).describe('血脉封印解除层数'),
     核心: z.string().prefault('未凝聚').describe('气血魂核状态'),
@@ -13487,18 +13643,41 @@ const BloodlinePowerSchema = z
       .record(z.string(), BloodlinePermanentBonusSchema)
       .prefault({})
       .describe('血脉永久成长节点，按解封时当前属性固化为固定数值'),
-    气血魂环: z
-      .record(
-        z.string(),
-        z
-          .object({
-            颜色: z.string().prefault('无'),
-            魂技: z.record(z.string(), SkillStructSchema).prefault({}),
-          })
-          .prefault({}),
-      )
-      .prefault({})
-      .describe('气血魂环与附带魂技'),
+  })
+  .transform(血脉 => {
+    Object.keys(血脉).forEach(键 => {
+      if (是气血魂环槽位键_V1(键)) 血脉[键] = BloodlineRingSchema.parse(血脉[键]);
+    });
+    delete 血脉.气血魂环;
+    return 血脉;
+  })
+  .prefault({});
+const ItemDefinitionSchema = z
+  .object({
+    类型: z.string().prefault('物品'),
+    阶位: z.coerce.number().transform(value => _.clamp(Math.floor(Number(value) || 0), 0, 5)).prefault(0),
+    品质: z.enum(['普通', '优秀', '稀有', '史诗', '传说']).prefault('普通'),
+    描述: z.string().prefault('无'),
+    基础价格: z.coerce.number().prefault(0),
+    默认货币: z.string().prefault('联邦币'),
+    装备槽位: z.string().prefault('无'),
+    基础耐久: z.coerce.number().prefault(0),
+    使用条件: z
+      .object({
+        最低等级: z.coerce.number().prefault(0),
+        最低年龄: z.coerce.number().prefault(0),
+        性别: z.string().prefault('无'),
+        最低魂力: z.coerce.number().prefault(0),
+        最低精神力: z.coerce.number().prefault(0),
+        需要地点: z.string().prefault('无'),
+        需要势力: z.string().prefault('无'),
+        需要副职业: z.string().prefault('无'),
+        最低副职业等级: z.coerce.number().prefault(0),
+      })
+      .prefault({}),
+    使用效果: z.array(z.any()).prefault([]),
+    属性加成: z.record(z.string(), z.any()).prefault({}),
+    副职业参数: z.record(z.string(), z.any()).prefault({}),
   })
   .prefault({});
 const StatsSchema = z
@@ -13956,135 +14135,8 @@ const CharacterSchema = z
         return jobs;
       }),
 
-    武魂: z
-      .object({
-        第一武魂: z
-          .object({
-            表象名称: z.string().prefault(AI_TODO_SPIRIT_NAME).describe('武魂名'),
-            描述: z.string().prefault(AI_TODO_SPIRIT_DESC).describe('武魂的具体形态与能力描述'),
-            系别: z.string().prefault('未知系'),
-            属性体系: z.string().prefault(AI_TODO_ATTRIBUTE_SYSTEM).describe('武魂属性体系：无/元素/五行'),
-            已解锁属性: z.array(z.string()).prefault([]).describe('当前已经真正获得的属性列表'),
-            可容纳属性: z.array(z.string()).prefault([AI_TODO_ATTRIBUTE_CAPACITY]).describe('武魂理论可承载的属性上限'),
-            魂灵: z
-              .record(
-                z.string().describe('魂灵槽位(如:第一魂灵)'),
-                z
-                  .object({
-                    表象名称: z.string().prefault(AI_TODO_SOUL_SPIRIT_NAME).describe('魂灵物种名'),
-                    描述: z.string().prefault(AI_TODO_SOUL_SPIRIT_DESC).describe('魂灵描述，由 AI 维护'),
-                    年限: z.coerce.number().prefault(0),
-                    品质: z.string().prefault(AI_TODO_SOUL_SPIRIT_QUALITY).describe('魂灵品质：F/D/C/B/A/S/S+'),
-                    契合度: z.coerce.number().prefault(60).describe('与武魂的契合度(0-100)，影响融合难度与发挥'),
-                    状态: z.string().prefault('沉睡'),
-                    战力面板: z
-                      .object({
-                        对标等级: z.coerce.number().prefault(0),
-                        str: z.coerce.number().prefault(0),
-                        def: z.coerce.number().prefault(0),
-                        agi: z.coerce.number().prefault(0),
-                        vit_max: z.coerce.number().prefault(0),
-                        men_max: z.coerce.number().prefault(0),
-                        sp_max: z.coerce.number().prefault(0),
-                      })
-                      .optional()
-                      .describe('魂灵战力面板'),
-                    魂环: z
-                      .record(
-                        z.string().describe('第几魂环'),
-                        z
-                          .object({
-                            年限: z.coerce.number().prefault(0),
-                            颜色: z.string().prefault('无'),
-                            魂技: z.record(z.string().describe('魂技名称'), SkillStructSchema).prefault({}),
-                          })
-                          .prefault({}),
-                      )
-                      .prefault({}),
-                  })
-                  .prefault({}),
-              )
-              .prefault({}),
-            独立魂环: z
-              .record(
-                z.string().describe('第几独立魂环'),
-                z
-                  .object({
-                    年限: z.coerce.number().prefault(0),
-                    颜色: z.string().prefault('无'),
-                    来源: z.string().prefault('无').describe('该独立魂环的来源，如吸收对象/无主魂环/特殊传承'),
-                    魂技: z.record(z.string().describe('魂技名称'), SkillStructSchema).prefault({}),
-                  })
-                  .prefault({}),
-              )
-              .prefault({}),
-          })
-          .prefault({}),
-        第二武魂: z
-          .object({
-            表象名称: z.string().prefault('未展露').describe('第二武魂名'),
-            描述: z.string().prefault('无').describe('第二武魂描述'),
-            系别: z.string().prefault('未知系'),
-            属性体系: z.string().prefault(AI_TODO_ATTRIBUTE_SYSTEM).describe('武魂属性体系：无/元素/五行'),
-            已解锁属性: z.array(z.string()).prefault([]).describe('当前已经真正获得的属性列表'),
-            可容纳属性: z.array(z.string()).prefault([AI_TODO_ATTRIBUTE_CAPACITY]).describe('武魂理论可承载的属性上限'),
-            魂灵: z
-              .record(
-                z.string().describe('魂灵槽位(如:第一魂灵)'),
-                z
-                  .object({
-                    表象名称: z.string().prefault(AI_TODO_SOUL_SPIRIT_NAME).describe('魂灵物种名'),
-                    描述: z.string().prefault(AI_TODO_SOUL_SPIRIT_DESC).describe('魂灵描述，由 AI 维护'),
-                    年限: z.coerce.number().prefault(0),
-                    品质: z.string().prefault(AI_TODO_SOUL_SPIRIT_QUALITY).describe('魂灵品质：F/D/C/B/A/S/S+'),
-                    契合度: z.coerce.number().prefault(60).describe('与武魂的契合度(0-100)，影响融合难度与发挥'),
-                    状态: z.string().prefault('沉睡'),
-                    战力面板: z
-                      .object({
-                        对标等级: z.coerce.number().prefault(0),
-                        str: z.coerce.number().prefault(0),
-                        def: z.coerce.number().prefault(0),
-                        agi: z.coerce.number().prefault(0),
-                        vit_max: z.coerce.number().prefault(0),
-                        men_max: z.coerce.number().prefault(0),
-                        sp_max: z.coerce.number().prefault(0),
-                      })
-                      .optional()
-                      .describe('魂灵战力面板'),
-                    魂环: z
-                      .record(
-                        z.string().describe('第几魂环'),
-                        z
-                          .object({
-                            年限: z.coerce.number().prefault(0),
-                            颜色: z.string().prefault('无'),
-                            魂技: z.record(z.string().describe('魂技名称'), SkillStructSchema).prefault({}),
-                          })
-                          .prefault({}),
-                      )
-                      .prefault({}),
-                  })
-                  .prefault({}),
-              )
-              .prefault({}),
-            独立魂环: z
-              .record(
-                z.string().describe('第几独立魂环'),
-                z
-                  .object({
-                    年限: z.coerce.number().prefault(0),
-                    颜色: z.string().prefault('无'),
-                    来源: z.string().prefault('无').describe('该独立魂环的来源，如吸收对象/无主魂环/特殊传承'),
-                    魂技: z.record(z.string().describe('魂技名称'), SkillStructSchema).prefault({}),
-                  })
-                  .prefault({}),
-              )
-              .prefault({}),
-          })
-          .optional(),
-      })
-      .describe('固定武魂槽位')
-      .prefault({}),
+    第一武魂: MartialSoulSchema,
+    第二武魂: MartialSoulSchema.optional(),
 
     功法: z
       .record(
@@ -14479,87 +14531,13 @@ const CharacterSchema = z
         z
           .object({
             数量: z.coerce.number().prefault(1),
-            类型: z.string().prefault('常规'),
-            装备槽位: z.string().prefault('无').describe('武器/头盔/胸铠/机甲等装备位；非装备可填无'),
-            品质: z.string().prefault('无'),
-            品阶: z.string().prefault('无'),
-            标签: z.array(z.string()).prefault([]).describe('用于筛选或展示的标签，如火属性/票据/任务物品/稀有'),
-            融合参数: z
-              .object({
-                数量: z.coerce.number().prefault(1).describe('融锻包含的金属种类数'),
-                契合度: z.coerce.number().prefault(0).describe('融锻契合度(0-100)'),
-              })
-              .prefault({})
-              .describe('仅用于记录融锻金属的特殊属性'),
-            特效: z.record(z.string(), z.boolean().prefault(true)).prefault({}),
-            词条: z
-              .record(
-                z.string(),
-                z
-                  .object({
-                    类型: z.string().prefault('效果'),
-                    数值: z.coerce.number().prefault(0),
-                    描述: z.string().prefault('无'),
-                  })
-                  .prefault({}),
-              )
-              .prefault({})
-              .describe('随机词条/铭刻/附魔/特性说明'),
-            属性加成: z
-              .object({
-                lv_equiv: z.coerce.number().prefault(0),
-                str: z.coerce.number().prefault(0),
-                def: z.coerce.number().prefault(0),
-                agi: z.coerce.number().prefault(0),
-                vit_max: z.coerce.number().prefault(0),
-                sp_max: z.coerce.number().prefault(0),
-                men_max: z.coerce.number().prefault(0),
-              })
-              .prefault({})
-              .describe('道具或装备提供的面板属性加成'),
-            耐久: z
-              .object({
-                当前: z.coerce.number().prefault(0),
-                上限: z.coerce.number().prefault(0),
-              })
-              .prefault({})
-              .describe('装备/工具耐久；0/0 表示未启用'),
+            耐久: z.coerce.number().prefault(0),
             绑定者: z.string().prefault('无'),
-            使用条件: z
-              .object({
-                最低等级: z.coerce.number().prefault(0),
-                所属势力: z.string().prefault('无'),
-                最低声望: z.coerce.number().prefault(0),
-                地点限制: z.string().prefault('无'),
-              })
-              .prefault({})
-              .describe('使用或交易该道具的限制条件'),
-            使用效果: z
-              .array(
-                z
-                  .object({
-                    目标: z.string().prefault('无'),
-                    类型: z.string().prefault('无'),
-                    描述: z.string().prefault('无'),
-                    数值: z.any().prefault(null),
-                    目标上限: z.string().prefault('无'),
-                  })
-                  .prefault({}),
-              )
-              .prefault([])
-              .describe('使用/激活该道具后产生的效果'),
-            可交易: z.boolean().prefault(true),
-            堆叠上限: z.coerce.number().prefault(9999),
-            来源技能: z.string().prefault('无'),
-            有效期至: z.string().prefault('无').describe('展示给玩家的过期日期文本，如斗罗历X年X月X日 HH:MM'),
             有效期至tick: z.coerce
               .number()
               .prefault(0)
               .describe('大于0时表示该临时道具会在指定 tick 自动失效并从背包删除'),
-            市场估值: z
-              .object({ 价格: z.coerce.number().prefault(0), 货币: z.string().prefault('联邦币') })
-              .prefault({}),
-            描述: z.string().prefault('无'),
+            来源: z.string().prefault('无'),
           })
           .prefault({}),
       )
@@ -14612,7 +14590,7 @@ const CharacterSchema = z
     if (char?.属性 && 需要初始化生日(char.属性.生日)) {
       char.属性.生日 = 随机生成生日();
     }
-    const secondarySpirit = char.武魂 && char.武魂['第二武魂'];
+    const secondarySpirit = char.第二武魂;
     if (secondarySpirit && typeof secondarySpirit === 'object') {
       const secondaryName = String(secondarySpirit['表象名称'] || '').trim();
       const secondaryDesc = String(secondarySpirit['描述'] || '').trim();
@@ -14622,7 +14600,7 @@ const CharacterSchema = z
         attr => attr && attr !== '无' && !isAiTodoText(attr),
       );
       const hasElementSystem = ['元素', '五行'].includes(String(secondaryAttributeState.属性体系 || '').trim());
-      const hasSoulSpirits = !!(secondarySpirit.魂灵 && Object.keys(secondarySpirit.魂灵).length);
+      const hasSoulSpirits = 取武魂魂灵条目_V1(secondarySpirit).length > 0;
       const hasRealSecondarySpirit =
         (secondaryName && secondaryName !== '未展露' && !isAiTodoText(secondaryName)) ||
         (secondaryDesc && secondaryDesc !== '无' && !isAiTodoText(secondaryDesc)) ||
@@ -14632,9 +14610,7 @@ const CharacterSchema = z
         hasSoulSpirits;
 
       if (!hasRealSecondarySpirit) {
-        const nextSpirit = { ...(char.武魂 || {}) };
-        delete nextSpirit['第二武魂'];
-        char.武魂 = nextSpirit;
+        delete char.第二武魂;
       }
     }
 
@@ -14870,10 +14846,10 @@ const CharacterSchema = z
 
     const base = getBaseStats(char.属性.等级);
     let maxTypeMult = { sp_max: 0, men_max: 0, str: 0, def: 0, agi: 0, vit_max: 0 };
-    let spiritKeys = Object.keys(char.武魂 || {});
-    if (spiritKeys.length > 0) {
-      spiritKeys.forEach(k => {
-        let tm = TypeMultipliers[char.武魂[k].系别] || TypeMultipliers['强攻系'];
+    const spiritEntriesForType = 取角色武魂条目_V1(char);
+    if (spiritEntriesForType.length > 0) {
+      spiritEntriesForType.forEach(([, spiritData]) => {
+        let tm = TypeMultipliers[spiritData.系别] || TypeMultipliers['强攻系'];
         maxTypeMult.sp_max = Math.max(maxTypeMult.sp_max, tm.sp_max);
         maxTypeMult.men_max = Math.max(maxTypeMult.men_max, tm.men_max);
         maxTypeMult.str = Math.max(maxTypeMult.str, tm.str);
@@ -15016,16 +14992,15 @@ const CharacterSchema = z
 
     let totalSpirits = 0;
     const genericSkillAge = Math.max(1000, Number(char.属性.等级 || 1) * 200);
-    _(char.武魂 || {}).forEach((spiritData, spiritKey) => {
+    取角色武魂条目_V1(char).forEach(([spiritKey, spiritData]) => {
       if (!(spiritData && typeof spiritData === 'object')) return;
-      if (!spiritData.独立魂环 || typeof spiritData.独立魂环 !== 'object') spiritData.独立魂环 = {};
       const spiritAttributeState = normalizeSpiritAttributeState(spiritData, spiritKey, char);
       spiritData.属性体系 = spiritAttributeState.属性体系;
       spiritData.已解锁属性 = spiritAttributeState.已解锁属性;
       spiritData.可容纳属性 = spiritAttributeState.可容纳属性;
       const runtimeElementProfile = buildElementProfileFromAttributeState(spiritAttributeState);
-      totalSpirits += Object.keys(spiritData?.魂灵 || {}).length;
-      _(spiritData?.魂灵 || {}).forEach(武魂 => {
+      totalSpirits += 取武魂魂灵条目_V1(spiritData).length;
+      取武魂魂灵条目_V1(spiritData).forEach(([, 武魂]) => {
         syncSoulSpiritRuntimeData(武魂);
         if (Object.prototype.hasOwnProperty.call(武魂, '附机制候选')) delete 武魂.附机制候选;
         const 来源品质 =
@@ -15035,11 +15010,11 @@ const CharacterSchema = z
           inferSoulSpiritQuality(spiritData) ||
           '';
 
-        _(武魂.魂环 || {}).forEach((ring, ringIndexStr) => {
-          const ringIndex = parseInt(ringIndexStr) || 1;
+        取魂灵魂环条目_V1(武魂).forEach(([ringIndexStr, ring]) => {
+          const ringIndex = 读取槽位序号_V1(ringIndexStr, 1);
           const 当前魂环数量 = 计算武魂当前魂环数量_V1(spiritData);
           const 武魂名称 = String(spiritData?.表象名称 || spiritKey || '').trim();
-          ensureSkillMapGenerated(ring.魂技, (_, skillName) => ({
+          ensureSkillMapGenerated(Object.fromEntries(取魂环魂技条目_V1(ring)), (_, skillName) => ({
             type: char.属性.系别,
             talentTier: char.属性.天赋梯队,
             age: ring.年限,
@@ -15069,8 +15044,8 @@ const CharacterSchema = z
         });
       });
 
-      _(spiritData?.独立魂环 || {}).forEach((ring, ringIndexStr) => {
-        const ringIndex = parseInt(ringIndexStr) || 1;
+      取武魂直接魂环条目_V1(spiritData).forEach(([ringIndexStr, ring]) => {
+        const ringIndex = 读取槽位序号_V1(ringIndexStr, 1);
         const 当前魂环数量 = 计算武魂当前魂环数量_V1(spiritData);
         const 武魂名称 = String(spiritData?.表象名称 || spiritKey || '').trim();
         const 来源品质 =
@@ -15079,7 +15054,7 @@ const CharacterSchema = z
           '';
         if (ring && typeof ring === 'object' && !String(ring.颜色 || '').trim()) ring.颜色 = getRingColorByAge(ring.年限);
         if (ring && typeof ring === 'object' && Object.prototype.hasOwnProperty.call(ring, '附机制候选')) delete ring.附机制候选;
-        ensureSkillMapGenerated(ring?.魂技, (_, skillName) => ({
+        ensureSkillMapGenerated(Object.fromEntries(取魂环魂技条目_V1(ring)), (_, skillName) => ({
           type: char.属性.系别,
           talentTier: char.属性.天赋梯队,
           age: ring?.年限,
@@ -15173,10 +15148,10 @@ const CharacterSchema = z
       },
     }));
 
-    _(char.血脉之力?.气血魂环 || {}).forEach((ringData, ringIndexStr) => {
-      const ringIndex = parseInt(ringIndexStr) || 1;
+    取血脉气血魂环条目_V1(char.血脉之力).forEach(([ringIndexStr, ringData]) => {
+      const ringIndex = 读取槽位序号_V1(ringIndexStr, 1);
       if (ringData && typeof ringData === 'object' && !String(ringData.颜色 || '').trim()) ringData.颜色 = '金';
-      ensureSkillMapGenerated(ringData?.魂技, (_, skillName) => ({
+      ensureSkillMapGenerated(Object.fromEntries(取气血魂环魂技条目_V1(ringData)), (_, skillName) => ({
         type: char.属性.系别,
         talentTier: char.属性.天赋梯队,
         age: Math.max(1000, ringIndex * 5000),
@@ -15302,37 +15277,20 @@ const CharacterSchema = z
       }
     });
     let ringTotalBonus = { str: 0, def: 0, agi: 0, vit_max: 0, men_max: 0, sp_max: 0 };
-    _(char.武魂).forEach(spiritData => {
-      _(spiritData.魂灵).forEach(ss => {
-        let compMult = Math.max(0.1, (ss.契合度 !== undefined ? ss.契合度 : 100) / 100);
-
-        _(ss.魂环).forEach(ring => {
-          if (Number(ring?.年限 || 0) > 0 && !String(ring?.颜色 || '').trim()) {
-            ring.颜色 = getRingColorByAge(ring.年限);
-          }
-          if (ring.年限 > 0) {
-            let bonus = getRingBonus(ring.年限);
-            ringTotalBonus.str += Math.floor(bonus.str * compMult);
-            ringTotalBonus.def += Math.floor(bonus.def * compMult);
-            ringTotalBonus.agi += Math.floor(bonus.agi * compMult);
-            ringTotalBonus.vit_max += Math.floor(bonus.vit_max * compMult);
-            ringTotalBonus.men_max += Math.floor(bonus.men_max * compMult);
-            ringTotalBonus.sp_max += Math.floor(bonus.sp_max * compMult);
-          }
-        });
-      });
-      _(spiritData.独立魂环).forEach(ring => {
+    取角色武魂条目_V1(char).forEach(([, spiritData]) => {
+      取武魂全部魂环条目_V1(spiritData).forEach(({ 魂环数据: ring, 魂灵数据: ss }) => {
+        let compMult = ss ? Math.max(0.1, (ss.契合度 !== undefined ? ss.契合度 : 100) / 100) : 1;
         if (Number(ring?.年限 || 0) > 0 && !String(ring?.颜色 || '').trim()) {
           ring.颜色 = getRingColorByAge(ring.年限);
         }
-        if (ring?.年限 > 0) {
+        if (ring.年限 > 0) {
           let bonus = getRingBonus(ring.年限);
-          ringTotalBonus.str += Math.floor(bonus.str);
-          ringTotalBonus.def += Math.floor(bonus.def);
-          ringTotalBonus.agi += Math.floor(bonus.agi);
-          ringTotalBonus.vit_max += Math.floor(bonus.vit_max);
-          ringTotalBonus.men_max += Math.floor(bonus.men_max);
-          ringTotalBonus.sp_max += Math.floor(bonus.sp_max);
+          ringTotalBonus.str += Math.floor(bonus.str * compMult);
+          ringTotalBonus.def += Math.floor(bonus.def * compMult);
+          ringTotalBonus.agi += Math.floor(bonus.agi * compMult);
+          ringTotalBonus.vit_max += Math.floor(bonus.vit_max * compMult);
+          ringTotalBonus.men_max += Math.floor(bonus.men_max * compMult);
+          ringTotalBonus.sp_max += Math.floor(bonus.sp_max * compMult);
         }
       });
     });
@@ -15832,6 +15790,43 @@ const AssociationShopProducts = {
   },
 };
 
+function 规范化商品模板为物品定义_V1(商品名 = '', 商品模板 = {}) {
+  const 模板 = 商品模板 && typeof 商品模板 === 'object' && !Array.isArray(商品模板) ? 商品模板 : {};
+  return {
+    类型: String(模板.类型 || '药剂').trim() || '药剂',
+    阶位: Math.max(0, Math.min(5, Math.floor(Number(模板.阶位 || 0)))),
+    品质: String(模板.品质 || 模板.品阶 || '普通').trim() || '普通',
+    描述: String(模板.描述 || `可交易物品【${商品名}】。`).trim(),
+    基础价格: Math.max(0, Math.floor(Number(模板.基础价格 || 模板.价格 || 0))),
+    默认货币: String(模板.默认货币 || 模板.货币 || '联邦币').trim() || '联邦币',
+    装备槽位: String(模板.装备槽位 || '无').trim() || '无',
+    基础耐久: Math.max(0, Math.floor(Number(模板.基础耐久 || 0))),
+    使用条件: 模板.使用条件 && typeof 模板.使用条件 === 'object' && !Array.isArray(模板.使用条件) ? cloneJsonValue(模板.使用条件, {}) : {},
+    使用效果: Array.isArray(模板.使用效果) ? cloneJsonValue(模板.使用效果, []) : (Array.isArray(模板.效果) ? cloneJsonValue(模板.效果, []) : []),
+    属性加成: 模板.属性加成 && typeof 模板.属性加成 === 'object' && !Array.isArray(模板.属性加成) ? cloneJsonValue(模板.属性加成, {}) : {},
+    副职业参数: 模板.副职业参数 && typeof 模板.副职业参数 === 'object' && !Array.isArray(模板.副职业参数) ? cloneJsonValue(模板.副职业参数, {}) : {},
+  };
+}
+
+function 写入物品定义并生成库存状态_V1(data = {}, 商品名 = '', 商品模板 = {}, 库存数量 = null) {
+  if (!data.物品 || typeof data.物品 !== 'object' || Array.isArray(data.物品)) data.物品 = {};
+  if (!data.物品[商品名]) data.物品[商品名] = 规范化商品模板为物品定义_V1(商品名, 商品模板);
+  const 模板 = 商品模板 && typeof 商品模板 === 'object' && !Array.isArray(商品模板) ? 商品模板 : {};
+  return {
+    库存: Math.max(0, Math.floor(Number(库存数量 ?? 模板.库存 ?? 1))),
+    价格倍率: Math.max(0, Number(模板.价格倍率 || 1)),
+    折扣: Math.max(0, Math.min(1, Number(模板.折扣 || 0))),
+    需求声望: Math.max(0, Math.floor(Number(模板.需求声望 || 0))),
+    需求: 模板.需求 && typeof 模板.需求 === 'object' && !Array.isArray(模板.需求) ? cloneJsonValue(模板.需求, {}) : {},
+  };
+}
+
+function 合并商品模板到库存_V1(data = {}, 库存 = {}, 商品模板表 = {}) {
+  _(商品模板表 || {}).forEach((商品模板, 商品名) => {
+    库存[商品名] = 写入物品定义并生成库存状态_V1(data, 商品名, 商品模板);
+  });
+}
+
 function markPlayerCharacterInSchemaInput(rawInput) {
   if (!rawInput || typeof rawInput !== 'object' || Array.isArray(rawInput)) return rawInput;
   const clonedInput = _.cloneDeep(rawInput);
@@ -15873,6 +15868,7 @@ const SchemaRootObject = z
       })
       .prefault({}),
     char: z.record(z.string(), CharacterSchema).prefault({}),
+    物品: z.record(z.string(), ItemDefinitionSchema).prefault({}),
     org: z.record(z.string(), FactionSchema).prefault({}),
     world: z
       .object({
@@ -16005,13 +16001,10 @@ const SchemaRootObject = z
                             z.string().describe('商品ID或名称'),
                             z
                               .object({
-                                价格: z.coerce.number().prefault(0).describe('价格'),
-                                货币: z.string().prefault('联邦币').describe('货币类型'),
-                                类型: z.string().prefault('物品').describe('商品类型'),
                                 库存: z.coerce.number().prefault(0).describe('库存'),
+                                价格倍率: z.coerce.number().prefault(1),
+                                折扣: z.coerce.number().prefault(0),
                                 需求声望: z.coerce.number().prefault(0).describe('声望要求'),
-                                描述: z.string().prefault('').describe('物品描述'),
-                                效果: z.array(z.any()).prefault([]).describe('购买效果'),
                                 需求: z.record(z.string(), z.any()).prefault({}).describe('额外兑换条件'),
                               })
                               .prefault({}),
@@ -16967,7 +16960,7 @@ export const Schema = z
 
     const 收集角色武魂属性词_ACU = 角色 => {
       const 词集合 = new Set();
-      Object.entries(角色?.武魂 || {}).forEach(([槽位名, 武魂数据]) => {
+      取角色武魂条目_V1(角色).forEach(([槽位名, 武魂数据]) => {
         const 属性状态 = normalizeSpiritAttributeState(武魂数据 || {}, 槽位名, 角色);
         [武魂数据?.系别, 武魂数据?.表象名称, 武魂数据?.属性体系, 武魂数据?.描述, ...(属性状态?.已解锁属性 || [])]
           .map(项 => String(项 || '').trim())
@@ -17593,17 +17586,6 @@ export const Schema = z
       Object.keys(charData.背包).forEach(itemName => {
         const item = charData.背包[itemName];
         const expiryTick = Number(item?.有效期至tick || 0);
-        if (expiryTick > 0) {
-          item.有效期至 = formatTickToCalendarDateLocal(expiryTick);
-          if (Array.isArray(item.使用效果) && item.使用效果.length > 0) {
-            item.描述 = buildTemporaryConstructDescription(
-              itemName,
-              item.使用效果,
-              Math.max(0, expiryTick - currentTick),
-              { type: item.类型 || '', expiryTick },
-            );
-          }
-        }
         if (expiryTick > 0 && currentTick >= expiryTick) {
           delete charData.背包[itemName];
         }
@@ -18382,19 +18364,18 @@ export const Schema = z
       let expectedRings = isBeast ? 0 : Math.floor(char.属性.等级 / 10);
       let currentRings = 0;
       let currentSpirits = 0;
-      let firstSpiritName = '未知武魂';
+      let firstSpiritName = '第一武魂';
       syncSoulTowerRecordEligibility(char);
 
-      if (!char.武魂) char.武魂 = {};
-      let spiritKeys = Object.keys(char.武魂);
-      if (spiritKeys.length > 0) {
-        firstSpiritName = spiritKeys[0];
-        let targetSpirit = char.武魂[firstSpiritName];
-        _(targetSpirit.魂灵 || {}).forEach(ss => {
+      let spiritEntries = 取角色武魂条目_V1(char);
+      if (spiritEntries.length > 0) {
+        firstSpiritName = spiritEntries[0][0];
+        let targetSpirit = spiritEntries[0][1];
+        取武魂魂灵条目_V1(targetSpirit).forEach(([, ss]) => {
           currentSpirits++;
-          if (ss.魂环) currentRings += Object.keys(ss.魂环).length;
+          currentRings += 取魂灵魂环条目_V1(ss).length;
         });
-        currentRings += Object.keys(targetSpirit.独立魂环 || {}).length;
+        currentRings += 取武魂直接魂环条目_V1(targetSpirit).length;
       }
 
       const isPlayer = charName === data.sys?.玩家名;
@@ -18405,22 +18386,17 @@ export const Schema = z
         if (isPlayer && data.sys?.系统播报 !== '初始化') return;
         if (isNearPlayer && data.sys?.系统播报 !== '初始化') return;
 
-        if (spiritKeys.length === 0) {
-          char.武魂[firstSpiritName] = {
+        if (spiritEntries.length === 0) {
+          char[firstSpiritName] = {
             表象名称: '未展露',
             系别: char.属性.系别,
-            魂灵: {},
-            独立魂环: {},
             领域: {},
           };
-          spiritKeys = [firstSpiritName];
+          spiritEntries = [[firstSpiritName, char[firstSpiritName]]];
         }
 
-        spiritKeys.forEach(spiritKey => {
-          let targetSpirit = char.武魂[spiritKey];
+        spiritEntries.forEach(([spiritKey, targetSpirit]) => {
           if (!targetSpirit.表象名称) targetSpirit.表象名称 = '未展露';
-          if (!targetSpirit.魂灵) targetSpirit.魂灵 = {};
-          if (!targetSpirit.独立魂环) targetSpirit.独立魂环 = {};
 
           let ringsNeeded = expectedRings;
           let currentRingIndex = 1;
@@ -18433,8 +18409,8 @@ export const Schema = z
             ] || 1;
 
           let currentTotalSpirits = 0;
-          _(char.武魂).forEach(sp => {
-            currentTotalSpirits += Object.keys(sp.魂灵 || {}).length;
+          取角色武魂条目_V1(char).forEach(([, sp]) => {
+            currentTotalSpirits += 取武魂魂灵条目_V1(sp).length;
           });
           while (ringsNeeded > 0 && spiritIndex < 9 && currentTotalSpirits < realmLimit) {
             let spData = rollSpirit(
@@ -18459,7 +18435,7 @@ export const Schema = z
             let indexBonus = spiritIndex * 5;
             let calculatedComp = Math.min(100, Math.max(0, 60 + talentBonus + indexBonus));
 
-            targetSpirit.魂灵[spiritName] = {
+            targetSpirit[spiritName] = {
               表象名称: AI_TODO_SOUL_SPIRIT_NAME,
               描述: buildSoulSpiritDescriptionTodoText({
                 表象名称: AI_TODO_SOUL_SPIRIT_NAME,
@@ -18471,23 +18447,10 @@ export const Schema = z
               品质: AI_TODO_SOUL_SPIRIT_QUALITY,
               契合度: calculatedComp,
               状态: '活跃',
-              魂环: {},
             };
 
             for (let i = 0; i < ringsToProvide; i++) {
-              targetSpirit.魂灵[spiritName].魂环[currentRingIndex.toString()] = {
-                年限: spData.age,
-                颜色: getRingColorByAge(spData.age),
-                魂技: {
-                  [`第${currentRingIndex}魂技`]: {
-                    魂技名: AI_TODO_SKILL_NAME,
-                    画面描述: '未知',
-                    效果描述: '未知',
-                    _效果数组: [],
-                  },
-                },
-              };
-              targetSpirit.魂灵[spiritName].魂环[currentRingIndex.toString()].魂技 = buildDefaultRingSkillMap(currentRingIndex, spData.age);
+              targetSpirit[spiritName][`第${currentRingIndex}魂环`] = 创建默认魂环数据_V1(currentRingIndex, spData.age);
               currentRingIndex++;
             }
             ringsNeeded -= ringsToProvide;
@@ -19001,7 +18964,7 @@ export const Schema = z
       }
 
       let hasDragon = false;
-      _(c.武魂).forEach(sp => {
+      取角色武魂条目_V1(c).forEach(([, sp]) => {
         if (/龙/.test(sp.表象名称)) hasDragon = true;
       });
       if (hasDragon) vitMult = Math.max(vitMult, 1.5);
@@ -19671,10 +19634,7 @@ export const Schema = z
         else if (economy === '萧条') stockMultiplier = 0.5;
 
         _(BaseProductPool).forEach((item, itemName) => {
-          newInventory[itemName] = {
-            ...item,
-            库存: Math.floor((Math.random() * 10 + 5) * stockMultiplier),
-          };
+          newInventory[itemName] = 写入物品定义并生成库存状态_V1(data, itemName, item, Math.floor((Math.random() * 10 + 5) * stockMultiplier));
         });
         groceryStore.库存 = newInventory;
         groceryStore.下次刷新tick = currentTick + REFRESH_INTERVAL;
@@ -19699,91 +19659,56 @@ export const Schema = z
           if (currentTick >= (store.下次刷新tick || 0)) {
             store.库存 = {};
 
-            if (factionName === '唐门') _.merge(store.库存, TangmenShopProducts);
-            else if (factionName === '史莱克学院') _.merge(store.库存, ShrekAcademyShopProducts);
+            if (factionName === '唐门') 合并商品模板到库存_V1(data, store.库存, TangmenShopProducts);
+            else if (factionName === '史莱克学院') 合并商品模板到库存_V1(data, store.库存, ShrekAcademyShopProducts);
             else if (AssociationShopProducts[factionName])
-              _.merge(store.库存, AssociationShopProducts[factionName]);
+              合并商品模板到库存_V1(data, store.库存, AssociationShopProducts[factionName]);
             else if (factionName === '传灵塔') {
-              store.库存['十年魂灵·随机型'] = {
+              store.库存['十年魂灵·随机型'] = 写入物品定义并生成库存状态_V1(data, '十年魂灵·随机型', {
                 价格: 50000,
                 货币: '联邦币',
                 类型: '魂灵',
                 库存: 5,
                 需求声望: 0,
                 描述: '最基础的人造魂灵，适合平民魂师。',
-                效果: [
-                  {
-                    目标: '背包',
-                    类型: 'add',
-                    数值: { '十年魂灵(随机)': { 数量: 1, 类型: '魂灵', 品质: '十年' } },
-                  },
-                ],
-              };
-              store.库存['百年魂灵·随机型'] = {
+              });
+              store.库存['百年魂灵·随机型'] = 写入物品定义并生成库存状态_V1(data, '百年魂灵·随机型', {
                 价格: 1000000,
                 货币: '联邦币',
                 类型: '魂灵',
                 库存: 3,
                 需求声望: 0,
                 描述: '品质尚可的百年魂灵。',
-                效果: [
-                  {
-                    目标: '背包',
-                    类型: 'add',
-                    数值: { '百年魂灵(随机)': { 数量: 1, 类型: '魂灵', 品质: '百年' } },
-                  },
-                ],
-              };
+              });
 
               let isWanNianUnlocked = !!data.world.传灵塔千年魂灵开放;
 
               if (isWanNianUnlocked) {
-                store.库存['千年魂灵·随机型'] = {
+                store.库存['千年魂灵·随机型'] = 写入物品定义并生成库存状态_V1(data, '千年魂灵·随机型', {
                   价格: 6000000,
                   货币: '联邦币',
                   类型: '魂灵',
                   库存: 2,
                   需求声望: 500,
                   描述: '技术成熟后的量产千年魂灵，价格已大幅下降。',
-                  效果: [
-                    {
-                      目标: '背包',
-                      类型: 'add',
-                      数值: { '千年魂灵(随机)': { 数量: 1, 类型: '魂灵', 品质: '千年' } },
-                    },
-                  ],
-                };
-                store.库存['万年魂灵·随机型'] = {
+                });
+                store.库存['万年魂灵·随机型'] = 写入物品定义并生成库存状态_V1(data, '万年魂灵·随机型', {
                   价格: 100000000,
                   货币: '联邦币',
                   类型: '魂灵',
                   库存: 1,
                   需求声望: 5000,
                   描述: '传灵塔尖端科技结晶，万年级别魂灵！',
-                  效果: [
-                    {
-                      目标: '背包',
-                      类型: 'add',
-                      数值: { '万年魂灵(随机)': { 数量: 1, 类型: '魂灵', 品质: '万年' } },
-                    },
-                  ],
-                };
+                });
               } else {
-                store.库存['千年魂灵·随机型'] = {
+                store.库存['千年魂灵·随机型'] = 写入物品定义并生成库存状态_V1(data, '千年魂灵·随机型', {
                   价格: 20000000,
                   货币: '联邦币',
                   类型: '魂灵',
                   库存: 1,
                   需求声望: 1000,
                   描述: '当前技术下极难培育的千年魂灵，造价高昂。',
-                  效果: [
-                    {
-                      目标: '背包',
-                      类型: 'add',
-                      数值: { '千年魂灵(随机)': { 数量: 1, 类型: '魂灵', 品质: '千年' } },
-                    },
-                  ],
-                };
+                });
               }
 
               const economy = cityData.经济状况 || '普通';
@@ -19792,48 +19717,48 @@ export const Schema = z
               else if (economy === '萧条') probMultiplier = 0.5;
 
               if (Math.random() * 100 <= 20 * probMultiplier) {
-                store.库存['初级升灵台门票'] = {
+                store.库存['初级升灵台门票'] = 写入物品定义并生成库存状态_V1(data, '初级升灵台门票', {
                   价格: 500000,
                   货币: '联邦币',
                   类型: '门票',
                   库存: 1,
                   需求声望: 0,
                   描述: '可进入初级升灵台，最高遭遇3千年以下虚拟魂兽。',
-                  效果: [],
-                };
+                  使用效果: [],
+                });
               }
               if (Math.random() * 100 <= 10 * probMultiplier) {
-                store.库存['中级升灵台门票'] = {
+                store.库存['中级升灵台门票'] = 写入物品定义并生成库存状态_V1(data, '中级升灵台门票', {
                   价格: 5000000,
                   货币: '联邦币',
                   类型: '门票',
                   库存: 1,
                   需求声望: 1000,
                   描述: '可进入中级升灵台，最高遭遇2万年以下虚拟魂兽。',
-                  效果: [],
-                };
+                  使用效果: [],
+                });
               }
               if (Math.random() * 100 <= 5 * probMultiplier) {
-                store.库存['高级升灵台门票'] = {
+                store.库存['高级升灵台门票'] = 写入物品定义并生成库存状态_V1(data, '高级升灵台门票', {
                   价格: 50000000,
                   货币: '联邦币',
                   类型: '门票',
                   库存: 1,
                   需求声望: 5000,
                   描述: '可进入高级升灵台，最高遭遇10万年以下虚拟魂兽。',
-                  效果: [],
-                };
+                  使用效果: [],
+                });
               }
               if (isHeadquartersStore) {
-                store.库存['魂灵塔门票'] = {
+                store.库存['魂灵塔门票'] = 写入物品定义并生成库存状态_V1(data, '魂灵塔门票', {
                   价格: 20000000,
                   货币: '联邦币',
                   类型: '门票',
                   库存: 1,
                   需求声望: 2000,
                   描述: '仅限史莱克城传灵塔总部核发，可进入魂灵塔挑战当前可冲击的下一层。',
-                  效果: [],
-                };
+                  使用效果: [],
+                });
               }
             }
 
@@ -19906,7 +19831,8 @@ export const Schema = z
         if (!(耗散量 > 0)) continue;
         const 新库存 = Math.max(0, 当前库存 - 耗散量);
         商品数据.库存 = 新库存;
-        const 价格值 = Math.max(0, Number(商品数据.价格 || 0));
+        const 商品定义 = data.物品 && typeof data.物品 === 'object' ? data.物品[商品名] : null;
+        const 价格值 = Math.max(0, Number(商品定义?.基础价格 || 0) * Number(商品数据.价格倍率 || 1) * Math.max(0, 1 - Number(商品数据.折扣 || 0)));
         const 高价值 = 价格值 >= 20000000 || /万年|十万|天锻|魂锻|四字斗铠|魂灵塔/.test(String(商品名 || ''));
         波动记录.push({
           城市名: String(城市名 || '').trim(),
@@ -19952,19 +19878,30 @@ export const Schema = z
       else if (tier === 4) reqFame = 5000;
       else if (tier === 5) reqFame = 20000;
 
+      const 物品名 = `${itemName}${nameSuffix}`;
+      if (!data.物品 || typeof data.物品 !== 'object' || Array.isArray(data.物品)) data.物品 = {};
+      if (!data.物品[物品名]) {
+        data.物品[物品名] = {
+          类型: '材料',
+          阶位: Math.max(0, Math.min(5, Math.floor(Number(tier || 0)))),
+          品质: '普通',
+          描述: `一批限时供应的${itemName}。`,
+          基础价格: finalPrice,
+          默认货币: '联邦币',
+          装备槽位: '无',
+          基础耐久: 0,
+          使用条件: {},
+          使用效果: [],
+          属性加成: {},
+          副职业参数: metalCount > 1 ? { 融合参数: { 数量: metalCount } } : {},
+        };
+      }
       背包[`[随机]${itemName}${nameSuffix}`] = {
-        价格: finalPrice,
-        货币: '联邦币',
         库存,
+        价格倍率: 1,
+        折扣: 0,
         需求声望: reqFame,
-        描述: `一批限时供应的${itemName}。`,
-        效果: [
-          {
-            目标: '背包',
-            类型: 'add',
-            数值: { [`${itemName}${nameSuffix}`]: { 数量: 1, 类型: '材料', 品质: '随机' } },
-          },
-        ],
+        需求: {},
       };
     }
 
@@ -20264,7 +20201,7 @@ export const Schema = z
           });
         }
 
-        _(charData.武魂 || {}).forEach((spiritData, spiritKey) => {
+        取角色武魂条目_V1(charData).forEach(([spiritKey, spiritData]) => {
           if (!spiritData || typeof spiritData !== 'object') return;
           const 武魂系别 = spiritData?.系别 || charData?.属性?.系别 || '强攻系';
           const isSecondarySpirit = spiritKey === '第二武魂';
@@ -20288,17 +20225,17 @@ export const Schema = z
             spiritData.可容纳属性 = [AI_TODO_ATTRIBUTE_CAPACITY];
           }
 
-          _(spiritData?.魂灵 || {}).forEach((soulSpirit, soulSpiritKey) => {
+          取武魂魂灵条目_V1(spiritData).forEach(([soulSpiritKey, soulSpirit]) => {
             if (!soulSpirit || typeof soulSpirit !== 'object') return;
             ensureDisplayText(soulSpirit, '表象名称', AI_TODO_SOUL_SPIRIT_NAME);
             if (isEmptyDisplayText(soulSpirit.描述))
               soulSpirit.描述 = buildSoulSpiritDescriptionTodoText(soulSpirit);
             ensureDisplayText(soulSpirit, '品质', AI_TODO_SOUL_SPIRIT_QUALITY);
             if (Object.prototype.hasOwnProperty.call(soulSpirit, '附机制候选')) delete soulSpirit.附机制候选;
-            _(soulSpirit?.魂环 || {}).forEach(ringData => {
+            取魂灵魂环条目_V1(soulSpirit).forEach(([, ringData]) => {
               if (!ringData || typeof ringData !== 'object') return;
               ensureDisplayText(ringData, '颜色', '无');
-              injectDisplaySkillMapDefaults(ringData.魂技, skillName => ({
+              injectDisplaySkillMapDefaults(Object.fromEntries(取魂环魂技条目_V1(ringData)), skillName => ({
                 type: 武魂系别,
                 允许机制决策临时,
                 textContext: {
@@ -20313,12 +20250,12 @@ export const Schema = z
               }));
             });
           });
-          _(spiritData?.独立魂环 || {}).forEach(ringData => {
+          取武魂直接魂环条目_V1(spiritData).forEach(([, ringData]) => {
             if (!ringData || typeof ringData !== 'object') return;
             ensureDisplayText(ringData, '颜色', '无');
             ensureDisplayText(ringData, '来源', '无');
             if (Object.prototype.hasOwnProperty.call(ringData, '附机制候选')) delete ringData.附机制候选;
-            injectDisplaySkillMapDefaults(ringData.魂技, skillName => ({
+            injectDisplaySkillMapDefaults(Object.fromEntries(取魂环魂技条目_V1(ringData)), skillName => ({
               type: 武魂系别,
               允许机制决策临时,
               textContext: {
@@ -20372,10 +20309,10 @@ export const Schema = z
                 type: bloodlineType,
               },
             }));
-            _(charData.血脉之力?.气血魂环 || {}).forEach(ringData => {
+            取血脉气血魂环条目_V1(charData.血脉之力).forEach(([, ringData]) => {
               if (!ringData || typeof ringData !== 'object') return;
               ensureDisplayText(ringData, '颜色', '金');
-              injectDisplaySkillMapDefaults(ringData?.魂技, skillName => ({
+              injectDisplaySkillMapDefaults(Object.fromEntries(取气血魂环魂技条目_V1(ringData)), skillName => ({
                 type: bloodlineType,
                 允许机制决策临时,
                 textContext: {
@@ -20463,13 +20400,8 @@ export const Schema = z
           if (!itemData || typeof itemData !== 'object') return;
           const summaryItem = { 物品: itemName };
           let hasContent = false;
-          if (Number(itemData.市场估值?.价格 || 0) > 0) {
-            summaryItem.市场估值_价格 = Number(itemData.市场估值?.价格 || 0);
-            summaryItem.市场估值_货币 = itemData.市场估值?.货币 || '联邦币';
-            hasContent = true;
-          }
-          if (itemData.有效期至 && itemData.有效期至 !== '无') {
-            summaryItem.有效期至 = itemData.有效期至;
+          if (Number(itemData.有效期至tick || 0) > 0) {
+            summaryItem.有效期至tick = Number(itemData.有效期至tick || 0);
             hasContent = true;
           }
           if (hasContent) inventoryExtraSummary.push(summaryItem);
@@ -20491,12 +20423,12 @@ export const Schema = z
           }
         });
 
-        _(sourceChar.武魂 || {}).forEach((spiritData, spiritKey) => {
-          const visibleSpirit = visibleChar.武魂?.[spiritKey] || spiritData || {};
-          _(spiritData?.魂灵 || {}).forEach((soulSpirit, slotName) => {
+        取角色武魂条目_V1(sourceChar).forEach(([spiritKey, spiritData]) => {
+          const visibleSpirit = visibleChar?.[spiritKey] || spiritData || {};
+          取武魂魂灵条目_V1(spiritData).forEach(([slotName, soulSpirit]) => {
             const powerPanel = soulSpirit?.战力面板;
             if (!powerPanel || typeof powerPanel !== 'object') return;
-            const visibleSlot = visibleChar.武魂?.[spiritKey]?.魂灵?.[slotName] || soulSpirit || {};
+            const visibleSlot = visibleChar?.[spiritKey]?.[slotName] || soulSpirit || {};
             spiritCombatSummary.push({
               武魂槽位: spiritKey,
               武魂名称: visibleSpirit.表象名称 || spiritData?.表象名称 || '无',
@@ -20682,8 +20614,8 @@ export const Schema = z
         if (nextChar.装备?.机甲) {
           delete nextChar.装备.机甲._属性加成;
         }
-        _(nextChar.武魂 || {}).forEach(spiritData => {
-          _(spiritData?.魂灵 || {}).forEach(soulSpirit => {
+        取角色武魂条目_V1(nextChar).forEach(([, spiritData]) => {
+          取武魂魂灵条目_V1(spiritData).forEach(([, soulSpirit]) => {
             delete soulSpirit.战力面板;
           });
         });
@@ -20904,18 +20836,18 @@ function 按路径读取对象_V1(根对象 = {}, 路径 = []) {
 function 遍历数据魂环_V1(数据根 = {}, 回调 = () => {}) {
   Object.entries(数据根?.char || {}).forEach(([角色名, 角色数据]) => {
     if (!角色数据 || typeof 角色数据 !== 'object') return;
-    Object.entries(角色数据?.武魂 || {}).forEach(([武魂键, 武魂数据]) => {
+    取角色武魂条目_V1(角色数据).forEach(([武魂键, 武魂数据]) => {
       if (!武魂数据 || typeof 武魂数据 !== 'object') return;
-      Object.entries(武魂数据?.魂灵 || {}).forEach(([魂灵键, 魂灵数据]) => {
+      取武魂魂灵条目_V1(武魂数据).forEach(([魂灵键, 魂灵数据]) => {
         if (!魂灵数据 || typeof 魂灵数据 !== 'object') return;
-        Object.entries(魂灵数据?.魂环 || {}).forEach(([魂环键, 魂环数据]) => {
+        取魂灵魂环条目_V1(魂灵数据).forEach(([魂环键, 魂环数据]) => {
           if (!魂环数据 || typeof 魂环数据 !== 'object') return;
-          回调(魂环数据, ['char', 角色名, '武魂', 武魂键, '魂灵', 魂灵键, '魂环', 魂环键], 角色数据);
+          回调(魂环数据, ['char', 角色名, 武魂键, 魂灵键, 魂环键], 角色数据);
         });
       });
-      Object.entries(武魂数据?.独立魂环 || {}).forEach(([魂环键, 魂环数据]) => {
+      取武魂直接魂环条目_V1(武魂数据).forEach(([魂环键, 魂环数据]) => {
         if (!魂环数据 || typeof 魂环数据 !== 'object') return;
-        回调(魂环数据, ['char', 角色名, '武魂', 武魂键, '独立魂环', 魂环键], 角色数据);
+        回调(魂环数据, ['char', 角色名, 武魂键, 魂环键], 角色数据);
       });
     });
   });
@@ -20931,7 +20863,7 @@ function 固化本轮魂环年限变化_V1(新变量 = {}, 旧变量 = {}) {
     const 旧年限原始 = Number(旧魂环?.年限);
     const 旧年限 = Number.isFinite(旧年限原始) && 旧年限原始 > 0 ? Math.max(100, Math.floor(旧年限原始)) : 100;
     if (!(新年限 > 旧年限)) return;
-    Object.values(新魂环?.魂技 || {}).forEach(技能数据 => {
+    取魂环魂技条目_V1(新魂环).forEach(([, 技能数据]) => {
       应用年限变化到技能效果数组_V1(技能数据, 旧年限, 新年限);
     });
   });
@@ -20954,7 +20886,7 @@ function 同步七九辅助魂技基础效果_V1(新变量 = {}) {
   Object.values(新数据?.char || {}).forEach(角色数据 => {
     if (!角色数据 || typeof 角色数据 !== 'object') return;
     if (String(角色数据?.属性?.系别 || '').trim() !== '辅助系') return;
-    Object.entries(角色数据?.武魂 || {}).forEach(([武魂键, 武魂数据]) => {
+    取角色武魂条目_V1(角色数据).forEach(([武魂键, 武魂数据]) => {
       if (!武魂数据 || typeof 武魂数据 !== 'object') return;
       const 武魂名称 = String(武魂数据?.表象名称 || 武魂键 || '').trim();
       if (!是否七九武魂名称_V1(武魂名称)) return;
@@ -20965,10 +20897,9 @@ function 同步七九辅助魂技基础效果_V1(新变量 = {}) {
           应用七九辅助魂技基础效果_V1(技能数据._效果数组, { 当前魂环数量 });
         });
       };
-      Object.values(武魂数据?.魂灵 || {}).forEach(魂灵数据 => {
-        Object.values(魂灵数据?.魂环 || {}).forEach(魂环数据 => 应用到魂技表(魂环数据?.魂技));
+      取武魂全部魂环条目_V1(武魂数据).forEach(({ 魂环数据 }) => {
+        应用到魂技表(Object.fromEntries(取魂环魂技条目_V1(魂环数据)));
       });
-      Object.values(武魂数据?.独立魂环 || {}).forEach(魂环数据 => 应用到魂技表(魂环数据?.魂技));
     });
   });
 }
@@ -20983,28 +20914,27 @@ function 扣减背包物品数量_V1(背包 = {}, 物品名 = '', 数量 = 1) {
   return true;
 }
 
-function 是十万年灵物条目_V1(物品名 = '', 物品数据 = {}) {
+function 是十万年灵物条目_V1(物品名 = '', 物品数据 = {}, 物品定义 = {}) {
   if (!物品数据 || typeof 物品数据 !== 'object') return false;
   if (!(Number(物品数据.数量 || 0) > 0)) return false;
   const 名称文本 = String(物品名 || '').trim();
   const 合并文本 = [
     名称文本,
-    物品数据.类型,
-    物品数据.品质,
-    物品数据.品阶,
-    物品数据.描述,
-    ...(Array.isArray(物品数据.标签) ? 物品数据.标签 : []),
+    物品定义.类型,
+    物品定义.品质,
+    物品定义.阶位,
+    物品定义.描述,
   ].join(' ');
-  const 是十万年 = /十万年/.test(合并文本) || Number(物品数据.年限 || 0) >= 100000;
-  const 是灵物 = /灵物|仙草|药草|绮罗郁金香/.test(合并文本) || String(物品数据.类型 || '').trim() === '灵物';
+  const 是十万年 = /十万年/.test(合并文本) || Number(物品定义.年限 || 0) >= 100000;
+  const 是灵物 = /灵物|仙草|药草|绮罗郁金香/.test(合并文本) || String(物品定义.类型 || '').trim() === '灵物';
   return 是十万年 && 是灵物;
 }
 
-function 消耗七字武魂八十级突破材料_V1(char = {}) {
+function 消耗七字武魂八十级突破材料_V1(char = {}, 物品定义表 = {}) {
   const 背包 = char?.背包 && typeof char.背包 === 'object' ? char.背包 : {};
   if (扣减背包物品数量_V1(背包, '十万年绮罗郁金香', 1)) return { 成功: true, 材料: ['十万年绮罗郁金香'] };
   const 灵物列表 = Object.entries(背包)
-    .filter(([物品名, 物品数据]) => 是十万年灵物条目_V1(物品名, 物品数据))
+    .filter(([物品名, 物品数据]) => 是十万年灵物条目_V1(物品名, 物品数据, 物品定义表?.[物品名] || {}))
     .map(([物品名]) => 物品名);
   const 不同灵物 = Array.from(new Set(灵物列表)).slice(0, 3);
   if (不同灵物.length < 3) return { 成功: false, 材料: [] };
@@ -21020,7 +20950,7 @@ function 处理七字武魂八十级突破更新_V1(新变量 = {}, 旧变量 = 
     const 新等级 = Math.max(0, Number(角色数据?.属性?.等级 || 0));
     const 旧等级 = Math.max(0, Number(旧数据?.char?.[角色名]?.属性?.等级 || 0));
     if (!(旧等级 < 80 && 新等级 >= 80)) return;
-    const 消耗结果 = 消耗七字武魂八十级突破材料_V1(角色数据);
+    const 消耗结果 = 消耗七字武魂八十级突破材料_V1(角色数据, 新数据?.物品 || {});
     if (消耗结果.成功) {
       追加系统播报文本(新数据, `[七字武魂突破] ${角色名}消耗${消耗结果.材料.map(名称 => `【${名称}】`).join('、')}，突破 80 级门槛。`);
       return;

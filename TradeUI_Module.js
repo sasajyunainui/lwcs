@@ -572,6 +572,15 @@ class TradeUIComponent {
     return this.snapshot?.sd?.world || this.snapshot?.rootData?.world || {};
   }
 
+  get rootData() {
+    return this.snapshot?.sd || this.snapshot?.rootData || {};
+  }
+
+  get itemDefinitions() {
+    const table = this.rootData?.物品;
+    return table && typeof table === 'object' ? table : {};
+  }
+
   get marketData() {
     return this.snapshot?.市场派生 || {};
   }
@@ -620,7 +629,7 @@ class TradeUIComponent {
   }
 
   resolveTradeCurrency(item = {}, storeName = '', loc = '', storeData = null) {
-    const explicit = String(item?.货币 || '').trim();
+    const explicit = String(item?.货币 || item?.默认货币 || '').trim();
     return explicit || this.getDefaultCurrencyByContext(storeName, loc, storeData);
   }
 
@@ -659,6 +668,8 @@ class TradeUIComponent {
 
   // --- 估值与上下文 ---
   estimateBasePrice(itemName, itemType = "物品") {
+    const definitionPrice = Number(this.itemDefinitions?.[itemName]?.基础价格 || 0);
+    if (Number.isFinite(definitionPrice) && definitionPrice > 0) return Math.floor(definitionPrice);
     if (/斗铠/.test(itemName)) return 0;
     if (/机甲/.test(itemName)) {
       if (/红级/.test(itemName)) return 5000000000;
@@ -864,13 +875,13 @@ class TradeUIComponent {
   }
 
   resolveTradeItemInfo(itemName, item = {}, fallback = {}) {
-    const safeItem = item && typeof item === 'object' ? item : {};
+    const safeItem = { ...(this.itemDefinitions?.[itemName] || {}), ...(item && typeof item === 'object' ? item : {}) };
     const type = String(safeItem.类型 || fallback.type || '物品');
-    const rarity = String(safeItem.品质 || safeItem.品阶 || fallback.rarity || '标准');
+    const rarity = String(safeItem.品质 || fallback.rarity || '普通');
     const expiryTick = Number(safeItem.有效期至tick ?? fallback.expiryTick ?? 0);
-    const expiry = expiryTick > 0 ? this.formatTickToCalendarDateText(expiryTick) : (String(safeItem.有效期至 || fallback.expiry || '').trim() || '无期限');
-    const trigger = String(safeItem.触发方式 || fallback.trigger || (/食物/.test(type) ? '食用' : '常规'));
-    const source = String(safeItem.来源技能 || safeItem.绑定者 || fallback.source || '常规流通');
+    const expiry = expiryTick > 0 ? this.formatTickToCalendarDateText(expiryTick) : (String(fallback.expiry || '').trim() || '无期限');
+    const trigger = String(fallback.trigger || (/食物/.test(type) ? '食用' : '常规'));
+    const source = String(safeItem.来源 || safeItem.绑定者 || fallback.source || '常规流通');
     const desc = String(safeItem.描述 || fallback.desc || '暂无说明');
     return {
       name: itemName,
@@ -905,44 +916,48 @@ class TradeUIComponent {
   }
 
   buildInventoryItemFromTradeSource(itemName, sourceItem = {}, qty = 1, fallback = {}) {
-    const safeItem = sourceItem && typeof sourceItem === 'object' ? JSON.parse(JSON.stringify(sourceItem)) : {};
-    const nextItem = {
-      数量: qty,
-      类型: safeItem.类型 || fallback.type || '物品',
-      品质: safeItem.品质 || safeItem.品阶 || fallback.rarity || '标准',
-      描述: safeItem.描述 || fallback.desc || `获得了【${itemName}】。`
+    const safeItem = { ...(this.itemDefinitions?.[itemName] || {}), ...(sourceItem && typeof sourceItem === 'object' ? JSON.parse(JSON.stringify(sourceItem)) : {}) };
+    const definition = {
+      类型: safeItem.类型 || fallback.type || '药剂',
+      阶位: Math.max(0, Math.floor(Number(safeItem.阶位 || 0))),
+      品质: safeItem.品质 || fallback.rarity || '普通',
+      描述: safeItem.描述 || fallback.desc || `获得了【${itemName}】。`,
+      基础价格: Math.max(0, Math.floor(Number(safeItem.基础价格 || safeItem.价格 || this.estimateBasePrice(itemName, safeItem.类型) || 0))),
+      默认货币: safeItem.默认货币 || safeItem.货币 || fallback.currency || '联邦币',
+      装备槽位: safeItem.装备槽位 || '无',
+      基础耐久: Math.max(0, Math.floor(Number(safeItem.基础耐久 || 0))),
+      使用条件: safeItem.使用条件 && typeof safeItem.使用条件 === 'object' && !Array.isArray(safeItem.使用条件) ? safeItem.使用条件 : {},
+      使用效果: Array.isArray(safeItem.使用效果) ? safeItem.使用效果 : [],
+      属性加成: safeItem.属性加成 && typeof safeItem.属性加成 === 'object' && !Array.isArray(safeItem.属性加成) ? safeItem.属性加成 : {},
+      副职业参数: safeItem.副职业参数 && typeof safeItem.副职业参数 === 'object' && !Array.isArray(safeItem.副职业参数) ? safeItem.副职业参数 : {}
     };
     const resolvedExpiryTick = Number(safeItem.有效期至tick ?? fallback.expiryTick ?? 0);
-    const resolvedExpiry = resolvedExpiryTick > 0 ? this.formatTickToCalendarDateText(resolvedExpiryTick) : String(safeItem.有效期至 || fallback.expiry || '').trim();
-    if (safeItem.品阶 !== undefined) nextItem.品阶 = safeItem.品阶;
-    if (safeItem.触发方式 !== undefined || fallback.trigger !== undefined) nextItem.触发方式 = safeItem.触发方式 || fallback.trigger || (/食物/.test(String(nextItem.类型 || '')) ? '食用' : '常规');
-    if (resolvedExpiry) nextItem.有效期至 = resolvedExpiry;
-    if (resolvedExpiryTick > 0) nextItem.有效期至tick = resolvedExpiryTick;
-    if (safeItem.来源技能 !== undefined || safeItem.绑定者 !== undefined || fallback.source !== undefined) nextItem.来源技能 = safeItem.来源技能 || safeItem.绑定者 || fallback.source;
-    if (Array.isArray(safeItem.使用效果)) nextItem.使用效果 = safeItem.使用效果;
-    else if (Array.isArray(safeItem.效果)) nextItem.使用效果 = safeItem.效果;
-    if (Array.isArray(safeItem.标签)) nextItem.标签 = safeItem.标签;
-    if (safeItem.市场估值 && typeof safeItem.市场估值 === 'object') nextItem.市场估值 = safeItem.市场估值;
-    if (safeItem.可交易 !== undefined) nextItem.可交易 = safeItem.可交易;
-    if (safeItem.年限 !== undefined) nextItem.年限 = safeItem.年限;
-    if (safeItem.标准物种 !== undefined) nextItem.标准物种 = safeItem.标准物种;
-    return nextItem;
+    const state = { 数量: qty };
+    if (resolvedExpiryTick > 0) state.有效期至tick = resolvedExpiryTick;
+    if (safeItem.绑定者 !== undefined) state.绑定者 = safeItem.绑定者;
+    if (fallback.source !== undefined || safeItem.来源 !== undefined) state.来源 = safeItem.来源 || fallback.source;
+    if (Number(safeItem.耐久 || 0) > 0) state.耐久 = Math.max(0, Math.floor(Number(safeItem.耐久 || 0)));
+    return { definition, state };
   }
 
   buildTradeItemMetadataPatches(itemPath, currentItem = {}, nextItem = {}) {
-    const patches = [];
-    ['类型', '品质', '品阶', '描述', '触发方式', '有效期至', '有效期至tick', '来源技能', '年限', '标准物种'].forEach(field => {
-      const nextVal = nextItem[field];
-      const curVal = currentItem ? currentItem[field] : undefined;
-      if (nextVal === undefined || nextVal === null || nextVal === '') return;
-      if (curVal === undefined || curVal === null || curVal === '' || curVal === '无') {
-        patches.push({ op: 'replace', path: `${itemPath}/${this.escapeJsonPointer(field)}`, value: nextVal });
-      }
-    });
-    if (Array.isArray(nextItem.使用效果) && (!Array.isArray(currentItem?.使用效果) || currentItem.使用效果.length === 0)) {
-      patches.push({ op: 'replace', path: `${itemPath}/${this.escapeJsonPointer('使用效果')}`, value: nextItem.使用效果 });
+    return [];
+  }
+
+  appendItemDefinitionPatch(patches, itemName, definition = {}) {
+    if (!itemName || !definition || typeof definition !== 'object') return;
+    if (this.itemDefinitions[itemName]) return;
+    patches.push({ op: 'replace', path: `/物品/${this.escapeJsonPointer(itemName)}`, value: definition });
+  }
+
+  appendInventoryGainPatches(patches, charBasePath, inventory = {}, itemName = '', tradeItem = {}) {
+    const current = inventory?.[itemName];
+    const itemPath = `${charBasePath}/背包/${this.escapeJsonPointer(itemName)}`;
+    if (current) {
+      patches.push({ op: 'replace', path: `${itemPath}/数量`, value: Number(current.数量 || 0) + Number(tradeItem.state?.数量 || 1) });
+    } else {
+      patches.push({ op: 'replace', path: itemPath, value: tradeItem.state || { 数量: 1 } });
     }
-    return patches;
   }
 
   escapeJsonPointer(str) {
@@ -1029,18 +1044,25 @@ class TradeUIComponent {
     return {
       库存: {
         [itemName]: {
-          价格: discountPrice,
-          原价: fullPrice,
-          货币: '联邦币',
-          类型: '魂灵',
           库存: 1,
+          价格倍率: 0.5,
+          折扣: 0,
           需求声望: 0,
-          触发方式: '购买',
-          描述: `魂灵塔第${record.层数}层守塔魂灵特许兑换，当前为五折价格。`,
-          标准物种: record.标准物种,
-          年限: record.年限,
-          品质: record.品质,
-          来源技能: SOUL_TOWER_DISCOUNT_STORE_NAME,
+          需求: {},
+          _临时定义: {
+            类型: '魂灵',
+            阶位: 0,
+            品质: record.品质,
+            描述: `魂灵塔第${record.层数}层守塔魂灵特许兑换，当前为五折价格。`,
+            基础价格: fullPrice,
+            默认货币: '联邦币',
+            装备槽位: '无',
+            基础耐久: 0,
+            使用条件: {},
+            使用效果: [],
+            属性加成: {},
+            副职业参数: { 标准物种: record.标准物种, 年限: record.年限 },
+          },
           _tower_discount_virtual: true,
         },
       },
@@ -1123,7 +1145,11 @@ class TradeUIComponent {
     const storeData = this.currentStores[storeName] || {};
     const 商店营业中 = this.isShopOpenNow();
     const isSoulTowerDiscountTrade = item && item._tower_discount_virtual === true;
-    const unitPrice = this.getMarketAdjustedPrice(Number(item.价格 || 0), 'buy', { fixed: isSoulTowerDiscountTrade });
+    const itemDefinition = item._临时定义 || this.itemDefinitions?.[itemName] || {};
+    const priceMultiplier = Number(item.价格倍率 || 1);
+    const discount = Number(item.折扣 || 0);
+    const baseUnitPrice = Math.max(0, Math.floor(Number(itemDefinition.基础价格 || 0) * priceMultiplier * Math.max(0, 1 - discount)));
+    const unitPrice = this.getMarketAdjustedPrice(baseUnitPrice, 'buy', { fixed: isSoulTowerDiscountTrade });
     const total = unitPrice * qty;
     const userFame = Number(this.charData?.社交?.声望 || 0);
     const currency = this.resolveTradeCurrency(item, storeName, this.charData?.状态?.位置 || '', storeData);
@@ -1144,7 +1170,7 @@ class TradeUIComponent {
     stockEl.textContent = Number(item.库存 || 0);
     stockEl.className = (Number(item.库存 || 0) >= qty) ? "val-highlight" : "val-warn";
 
-    this.updateTradeMetaPanel('shop', this.resolveTradeItemInfo(itemName, item, { source: storeName, desc: 商店营业中 ? (item.描述 || `可在 ${storeName} 购得`) : `${storeName} 当前关门，营业时间 09:00-22:00。` }));
+    this.updateTradeMetaPanel('shop', this.resolveTradeItemInfo(itemName, item, { source: storeName, desc: 商店营业中 ? (this.itemDefinitions?.[itemName]?.描述 || `可在 ${storeName} 购得`) : `${storeName} 当前关门，营业时间 09:00-22:00。` }));
 
     if (!商店营业中) {
       btn.disabled = true;
@@ -1170,7 +1196,9 @@ class TradeUIComponent {
     const storeData = this.currentStores[storeName] || {};
     const currency = this.resolveTradeCurrency(item, storeName, this.charData?.状态?.位置 || '', storeData);
     const isSoulTowerDiscountTrade = item && item._tower_discount_virtual === true;
-    const total = this.getMarketAdjustedPrice(Number(item.价格 || 0), 'buy', { fixed: isSoulTowerDiscountTrade }) * qty;
+    const itemDefinition = item._临时定义 || this.itemDefinitions?.[itemName] || {};
+    const baseUnitPrice = Math.max(0, Math.floor(Number(itemDefinition.基础价格 || 0) * Number(item.价格倍率 || 1) * Math.max(0, 1 - Number(item.折扣 || 0))));
+    const total = this.getMarketAdjustedPrice(baseUnitPrice, 'buy', { fixed: isSoulTowerDiscountTrade }) * qty;
 
     if (!this.isCurrencySpendable(currency)) return this.显示提示(this.getCurrencyBlockedMessage(currency));
 
@@ -1192,15 +1220,9 @@ class TradeUIComponent {
       patchOps.push({ op: "replace", path: `/world/地点/${this.escapeJsonPointer(loc)}/商店/${this.escapeJsonPointer(storeName)}/库存/${this.escapeJsonPointer(itemName)}/库存`, value: Number(item.库存 || 0) - qty });
     }
     
-    let invItem = this.charData.背包?.[itemName];
-    const nextItem = this.buildInventoryItemFromTradeSource(itemName, item, qty, { source: storeName, desc: item.描述 || `购自${storeName}` });
-    const itemPath = `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(itemName)}`;
-    if (invItem) {
-      patchOps.push({ op: "replace", path: `${itemPath}/数量`, value: (invItem.数量 || 0) + qty });
-      patchOps.push(...this.buildTradeItemMetadataPatches(itemPath, invItem, nextItem));
-    } else {
-      patchOps.push({ op: "replace", path: itemPath, value: nextItem });
-    }
+    const tradeItem = this.buildInventoryItemFromTradeSource(itemName, item._临时定义 || this.itemDefinitions?.[itemName] || {}, qty, { source: storeName, desc: (item._临时定义 || this.itemDefinitions?.[itemName])?.描述 || `购自${storeName}`, currency });
+    this.appendItemDefinitionPatch(patchOps, itemName, tradeItem.definition);
+    this.appendInventoryGainPatches(patchOps, this.activeCharBasePath, this.charData.背包 || {}, itemName, tradeItem);
 
     if (isSoulTowerDiscountTrade) {
       patchOps.push({
@@ -1258,12 +1280,12 @@ class TradeUIComponent {
       return;
     }
 
-    const item = this.charData.背包[itemName];
+    const item = { ...(this.itemDefinitions?.[itemName] || {}), ...(this.charData.背包[itemName] || {}) };
     const basePrice = this.estimateBasePrice(itemName, item.类型);
     const sellPrice = this.getMarketAdjustedPrice(Math.floor(basePrice * 0.5), 'sell');
     const total = sellPrice * qty;
 
-    this.updateTradeMetaPanel('sell', this.resolveTradeItemInfo(itemName, item, { source: item?.来源技能 || item?.绑定者 || '背包持有' }));
+    this.updateTradeMetaPanel('sell', this.resolveTradeItemInfo(itemName, item, { source: item?.来源 || item?.绑定者 || '背包持有' }));
 
     if (basePrice === 0) {
       this.$('#sell-base-price').textContent = "禁售物品";
@@ -1281,7 +1303,7 @@ class TradeUIComponent {
   executeSell() {
     const itemName = this.$('#sell-item-sel').value;
     const qty = parseInt(this.$('#sell-qty').value) || 1;
-    const itemType = this.charData.背包[itemName].类型;
+    const itemType = this.itemDefinitions?.[itemName]?.类型 || '物品';
     const basePrice = this.estimateBasePrice(itemName, itemType);
     const totalEarn = this.getMarketAdjustedPrice(Math.floor(basePrice * 0.5), 'sell') * qty;
 
@@ -1359,13 +1381,9 @@ class TradeUIComponent {
         log = `[私下交易失败] ${this.activeName} 向 ${targetNpc} 报价 ${price} 联邦币，但对方没有接受。`;
       } else {
         patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/财富/联邦币`, value: (this.charData.财富?.联邦币 || 0) - ctx.total });
-        let invItem = this.charData.背包?.[itemName];
-        const nextItem = this.buildInventoryItemFromTradeSource(itemName, ctx.npcItem, qty, { source: targetNpc, desc: `从 ${targetNpc} 处私下购得` });
-        const itemPath = `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(itemName)}`;
-        if (invItem) {
-          patchOps.push({ op: "replace", path: `${itemPath}/数量`, value: (invItem.数量 || 0) + qty });
-          patchOps.push(...this.buildTradeItemMetadataPatches(itemPath, invItem, nextItem));
-        } else patchOps.push({ op: "replace", path: itemPath, value: nextItem });
+        const tradeItem = this.buildInventoryItemFromTradeSource(itemName, ctx.npcItem, qty, { source: targetNpc, desc: `从 ${targetNpc} 处私下购得` });
+        this.appendItemDefinitionPatch(patchOps, itemName, tradeItem.definition);
+        this.appendInventoryGainPatches(patchOps, this.activeCharBasePath, this.charData.背包 || {}, itemName, tradeItem);
         const npcNextQty = Number(ctx.npcItem?.数量 || 0) - qty;
         if (npcNextQty <= 0) patchOps.push({ op: "remove", path: `/char/${this.escapeJsonPointer(targetNpc)}/背包/${this.escapeJsonPointer(itemName)}` });
         else patchOps.push({ op: "replace", path: `/char/${this.escapeJsonPointer(targetNpc)}/背包/${this.escapeJsonPointer(itemName)}/数量`, value: npcNextQty });
@@ -1382,11 +1400,8 @@ class TradeUIComponent {
         patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/财富/联邦币`, value: (this.charData.财富?.联邦币 || 0) + ctx.total });
         const npcInv = ctx.targetChar?.背包?.[itemName];
         const npcItem = this.buildInventoryItemFromTradeSource(itemName, this.charData.背包[itemName], qty, { source: this.activeName, desc: `从 ${this.activeName} 处私下收购` });
-        const npcItemPath = `/char/${this.escapeJsonPointer(targetNpc)}/背包/${this.escapeJsonPointer(itemName)}`;
-        if (npcInv) {
-          patchOps.push({ op: "replace", path: `${npcItemPath}/数量`, value: (npcInv.数量 || 0) + qty });
-          patchOps.push(...this.buildTradeItemMetadataPatches(npcItemPath, npcInv, npcItem));
-        } else patchOps.push({ op: "replace", path: npcItemPath, value: npcItem });
+        this.appendItemDefinitionPatch(patchOps, itemName, npcItem.definition);
+        this.appendInventoryGainPatches(patchOps, `/char/${this.escapeJsonPointer(targetNpc)}`, ctx.targetChar?.背包 || {}, itemName, npcItem);
         patchOps.push({ op: "replace", path: `/char/${this.escapeJsonPointer(targetNpc)}/财富/联邦币`, value: (ctx.targetChar?.财富?.联邦币 || 0) - ctx.total });
         log = `[私下交易成功][卖出热][交易触发待处理] ${this.activeName} 以单价 ${price} 联邦币向 ${targetNpc} 卖出 ${qty} 份【${itemName}】，获得 ${ctx.total} 联邦币。`;
       }
@@ -1436,15 +1451,17 @@ class TradeUIComponent {
 
     const item = this.currentAuction.拍品[itemName];
     const currency = this.resolveTradeCurrency(item, '拍卖行', this.charData?.状态?.位置 || '', this.currentAuction || {});
-    this.$('#auc-current-price').textContent = `${Number(item.价格 || 0).toLocaleString()} ${this.getCurrencyLabel(currency)}`;
-    this.$('#auc-desc').textContent = `[${item.品级 || '标准'}] ${item.背景 || item.描述 || '暂无说明'}`;
+    const itemDefinition = this.itemDefinitions?.[itemName] || item || {};
+    const currentPrice = Number(item.价格 || itemDefinition.基础价格 || 0);
+    this.$('#auc-current-price').textContent = `${currentPrice.toLocaleString()} ${this.getCurrencyLabel(currency)}`;
+    this.$('#auc-desc').textContent = `[${itemDefinition.品质 || item.品级 || '普通'}] ${itemDefinition.描述 || item.背景 || item.描述 || '暂无说明'}`;
 
     const userCoin = this.charData?.财富?.[currency] || 0;
     if (!this.isCurrencySpendable(currency)) {
       btn.disabled = true;
       return;
     }
-    btn.disabled = (bid <= Number(item.价格 || 0) || userCoin < bid);
+    btn.disabled = (bid <= currentPrice || userCoin < bid);
   }
 
   executeAuction() {
@@ -1458,12 +1475,9 @@ class TradeUIComponent {
     let patchOps = [];
     patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/财富/${this.escapeJsonPointer(currency)}`, value: (this.charData.财富?.[currency] || 0) - bid });
     
-    let invItem = this.charData.背包?.[itemName];
-    if (invItem) {
-      patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(itemName)}/数量`, value: (invItem.数量 || 0) + 1 });
-    } else {
-      patchOps.push({ op: "replace", path: `${this.activeCharBasePath}/背包/${this.escapeJsonPointer(itemName)}`, value: { 数量: 1, 类型: "拍品", 品质: item.品级 || '标准', 描述: item.背景 || item.描述 || '拍卖所得' } });
-    }
+    const tradeItem = this.buildInventoryItemFromTradeSource(itemName, item, 1, { source: '拍卖行', type: '拍品', rarity: item.品级 || '普通', desc: item.背景 || item.描述 || '拍卖所得', currency });
+    this.appendItemDefinitionPatch(patchOps, itemName, tradeItem.definition);
+    this.appendInventoryGainPatches(patchOps, this.activeCharBasePath, this.charData.背包 || {}, itemName, tradeItem);
     patchOps.push({ op: "remove", path: `/world/拍卖/拍品/${this.escapeJsonPointer(itemName)}` });
 
     const log = `[竞拍成功][竞拍热][交易触发待处理] ${this.activeName} 豪掷 ${bid} ${this.getCurrencyLabel(currency)} 拍下了【${itemName}】。`;

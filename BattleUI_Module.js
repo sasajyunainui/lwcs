@@ -1771,17 +1771,27 @@ class BattleUIComponent {
     function 收集角色可炸魂环列表_V1(角色数据 = {}) {
       if (!角色数据 || typeof 角色数据 !== 'object') return [];
       const 结果 = [];
-      Object.entries(角色数据?.武魂 || {}).forEach(([武魂键, 武魂数据]) => {
-        Object.entries(武魂数据?.魂灵 || {}).forEach(([魂灵键, 魂灵数据]) => {
-          Object.entries(魂灵数据?.魂环 || {}).forEach(([魂环键, 魂环数据]) => {
+      取角色武魂条目_战斗(角色数据).forEach(([武魂键, 武魂数据]) => {
+        取武魂魂灵条目_战斗(武魂数据).forEach(([魂灵键, 魂灵数据]) => {
+          取魂灵魂环条目_战斗(魂灵数据).forEach(([魂环键, 魂环数据]) => {
             if (!魂环数据 || typeof 魂环数据 !== 'object') return;
             const 年限 = Math.max(100, Number(魂环数据?.年限 || 100));
             结果.push({
-              路径: ['武魂', 武魂键, '魂灵', 魂灵键, '魂环', 魂环键],
+              路径: [武魂键, 魂灵键, 魂环键],
               年限,
               档位类型: 判定魂环档位类型_V1(年限),
               魂环键,
             });
+          });
+        });
+        取武魂直接魂环条目_战斗(武魂数据).forEach(([魂环键, 魂环数据]) => {
+          if (!魂环数据 || typeof 魂环数据 !== 'object') return;
+          const 年限 = Math.max(100, Number(魂环数据?.年限 || 100));
+          结果.push({
+            路径: [武魂键, 魂环键],
+            年限,
+            档位类型: 判定魂环档位类型_V1(年限),
+            魂环键,
           });
         });
       });
@@ -1854,18 +1864,23 @@ class BattleUIComponent {
     function fallbackCollectActions(charData) {
       const actions = [];
       const char = charData && typeof charData === 'object' ? charData : {};
-      Object.entries(char.武魂 || {}).forEach(([spiritName, spirit]) => {
-        Object.entries(spirit?.魂灵 || {}).forEach(([soulSpiritName, soulSpirit]) => {
-          Object.entries(soulSpirit?.魂环 || {}).forEach(([ringIndex, ring]) => {
-            Object.entries(ring?.魂技 || {}).forEach(([skillName, skill]) => {
+      取角色武魂条目_战斗(char).forEach(([spiritName, spirit]) => {
+        取武魂魂灵条目_战斗(spirit).forEach(([soulSpiritName, soulSpirit]) => {
+          取魂灵魂环条目_战斗(soulSpirit).forEach(([ringIndex, ring]) => {
+            取魂环魂技条目_战斗(ring).forEach(([skillName, skill]) => {
               fallbackPushSkill(
                 actions,
                 skill,
                 skillName,
                 spirit?.表象名称 || spiritName || `第${ringIndex}魂环`,
-                ['武魂', spiritName, '魂灵', soulSpiritName, '魂环', ringIndex],
+                [spiritName, soulSpiritName, ringIndex],
               );
             });
+          });
+        });
+        取武魂直接魂环条目_战斗(spirit).forEach(([ringIndex, ring]) => {
+          取魂环魂技条目_战斗(ring).forEach(([skillName, skill]) => {
+            fallbackPushSkill(actions, skill, skillName, spirit?.表象名称 || spiritName || `第${ringIndex}魂环`, [spiritName, ringIndex]);
           });
         });
       });
@@ -3504,6 +3519,67 @@ class BattleUIComponent {
       return data == null ? data : JSON.parse(JSON.stringify(data));
     }
 
+    function 读取槽位序号_战斗(槽位名 = '', 默认值 = 1) {
+      const 匹配 = String(槽位名 || '').match(/第(\d+)/);
+      return Math.max(1, Math.floor(Number(匹配 ? 匹配[1] : 默认值) || 默认值 || 1));
+    }
+
+    function 是武魂槽位键_战斗(键 = '') {
+      return /^(第一武魂|第二武魂|第\d+武魂)$/.test(String(键 || '').trim());
+    }
+
+    function 是魂灵槽位键_战斗(键 = '') {
+      return /^第\d+魂灵$/.test(String(键 || '').trim());
+    }
+
+    function 是魂环槽位键_战斗(键 = '') {
+      return /^第\d+魂环$/.test(String(键 || '').trim());
+    }
+
+    function 是魂技槽位键_战斗(键 = '') {
+      return /^第\d+魂技(?:·其二)?$/.test(String(键 || '').trim());
+    }
+
+    function 是气血魂环槽位键_战斗(键 = '') {
+      return /^第\d+气血魂环$/.test(String(键 || '').trim());
+    }
+
+    function 是血脉魂技槽位键_战斗(键 = '') {
+      return /^第\d+血脉魂技(?:·其二)?$/.test(String(键 || '').trim());
+    }
+
+    function 取槽位条目_战斗(对象 = {}, 判断函数 = () => false) {
+      return Object.entries(对象 || {}).filter(([键, 值]) => 判断函数(键) && 值 && typeof 值 === 'object' && !Array.isArray(值));
+    }
+
+    function 取角色武魂条目_战斗(角色 = {}) {
+      return 取槽位条目_战斗(角色, 是武魂槽位键_战斗);
+    }
+
+    function 取武魂魂灵条目_战斗(武魂 = {}) {
+      return 取槽位条目_战斗(武魂, 是魂灵槽位键_战斗);
+    }
+
+    function 取武魂直接魂环条目_战斗(武魂 = {}) {
+      return 取槽位条目_战斗(武魂, 是魂环槽位键_战斗);
+    }
+
+    function 取魂灵魂环条目_战斗(魂灵 = {}) {
+      return 取槽位条目_战斗(魂灵, 是魂环槽位键_战斗);
+    }
+
+    function 取魂环魂技条目_战斗(魂环 = {}) {
+      return 取槽位条目_战斗(魂环, 是魂技槽位键_战斗);
+    }
+
+    function 取血脉气血魂环条目_战斗(血脉 = {}) {
+      return 取槽位条目_战斗(血脉, 是气血魂环槽位键_战斗);
+    }
+
+    function 取气血魂环魂技条目_战斗(魂环 = {}) {
+      return 取槽位条目_战斗(魂环, 是血脉魂技槽位键_战斗);
+    }
+
     function formatBattleCultivationLevelText(value, fallback = '0') {
       const parsed = Number(value);
       if (Number.isFinite(parsed)) {
@@ -3515,7 +3591,8 @@ class BattleUIComponent {
     }
 
     function getSpiritNameList(char) {
-      return Object.values(char?.武魂 || {})
+      return 取角色武魂条目_战斗(char)
+        .map(([, sp]) => sp)
         .map(sp => sp?.表象名称 || '')
         .filter(Boolean);
     }
@@ -3524,7 +3601,7 @@ class BattleUIComponent {
       const 系别集合 = new Set();
       const 属性系别 = String(char?.属性?.系别 || char?.type || char?.系别 || '').trim();
       if (属性系别) 系别集合.add(属性系别);
-      Object.values(char?.武魂 || {}).forEach(武魂数据 => {
+      取角色武魂条目_战斗(char).forEach(([, 武魂数据]) => {
         const 武魂系别 = String(武魂数据?.type || 武魂数据?.系别 || '').trim();
         if (武魂系别) 系别集合.add(武魂系别);
       });
@@ -4401,7 +4478,7 @@ class BattleUIComponent {
 
     function collectBattleUnlockedAttributeTokens(char = {}) {
       const collected = [];
-      Object.values(char?.武魂 || {}).forEach(spiritData => {
+      取角色武魂条目_战斗(char).forEach(([, spiritData]) => {
         const unlocked = Array.isArray(spiritData?.已解锁调用权) ? spiritData.已解锁调用权 : [];
         collected.push(...normalizeBattleSkillAttributeTokens(unlocked));
       });
@@ -7221,7 +7298,7 @@ class BattleUIComponent {
     }
 
     function hasUsableSpiritSlot(charData, slot) {
-      return !!(charData?.武魂 && charData.武魂[slot]);
+      return !!(charData && charData[slot] && typeof charData[slot] === 'object');
     }
 
     function isFusionSkillAvailable(charData, fusionSkill, alliedTeam = []) {
@@ -7570,28 +7647,35 @@ class BattleUIComponent {
         includeUnavailableFusion: !!options.includeUnavailableFusion,
       };
 
-      if (charData?.武魂) {
-        Object.entries(charData.武魂).forEach(([spKey, sp]) => {
-          const spName = sp?.表象名称 || spKey || '武魂';
-          Object.entries(sp?.魂灵 || {}).forEach(([魂灵键, ss]) => {
-            Object.entries(ss?.魂环 || {}).forEach(([魂环键, ring]) => {
-              pushUnifiedSkillMapEntries(
-                skills,
-                ring?.魂技 || {},
-                spName,
-                collectOptions,
-                { 魂环路径: ['武魂', spKey, '魂灵', 魂灵键, '魂环', 魂环键] },
-              );
-            });
+      取角色武魂条目_战斗(charData).forEach(([spKey, sp]) => {
+        const spName = sp?.表象名称 || spKey || '武魂';
+        取武魂魂灵条目_战斗(sp).forEach(([魂灵键, ss]) => {
+          取魂灵魂环条目_战斗(ss).forEach(([魂环键, ring]) => {
+            pushUnifiedSkillMapEntries(
+              skills,
+              Object.fromEntries(取魂环魂技条目_战斗(ring)),
+              spName,
+              collectOptions,
+              { 魂环路径: [spKey, 魂灵键, 魂环键] },
+            );
           });
         });
-      }
+        取武魂直接魂环条目_战斗(sp).forEach(([魂环键, ring]) => {
+          pushUnifiedSkillMapEntries(
+            skills,
+            Object.fromEntries(取魂环魂技条目_战斗(ring)),
+            spName,
+            collectOptions,
+            { 魂环路径: [spKey, 魂环键] },
+          );
+        });
+      });
 
       if (charData?.血脉之力) {
         pushUnifiedSkillMapEntries(skills, charData.血脉之力.技能 || {}, '血脉之力', collectOptions);
         pushUnifiedSkillMapEntries(skills, charData.血脉之力.被动 || {}, '血脉被动', collectOptions);
-        Object.values(charData.血脉之力.气血魂环 || {}).forEach(ring => {
-          pushUnifiedSkillMapEntries(skills, ring?.魂技 || {}, '气血魂技', collectOptions);
+        取血脉气血魂环条目_战斗(charData.血脉之力).forEach(([, ring]) => {
+          pushUnifiedSkillMapEntries(skills, Object.fromEntries(取气血魂环魂技条目_战斗(ring)), '气血魂技', collectOptions);
         });
       }
 
@@ -8305,9 +8389,9 @@ class BattleUIComponent {
       const 清理到期炸环恢复标记 = () => {
         const 当前tick = 读取当前世界tick_V1();
         let 清理数量 = 0;
-        Object.entries(char?.武魂 || {}).forEach(([, 武魂数据]) => {
-          Object.entries(武魂数据?.魂灵 || {}).forEach(([, 魂灵数据]) => {
-            Object.entries(魂灵数据?.魂环 || {}).forEach(([魂环键, 魂环数据]) => {
+        取角色武魂条目_战斗(char).forEach(([, 武魂数据]) => {
+          取武魂魂灵条目_战斗(武魂数据).forEach(([, 魂灵数据]) => {
+            取魂灵魂环条目_战斗(魂灵数据).forEach(([魂环键, 魂环数据]) => {
               if (!魂环数据 || typeof 魂环数据 !== 'object') return;
               const 恢复tick = Math.max(0, Number(魂环数据?.炸环恢复tick || 0));
               if (!(恢复tick > 0 && 恢复tick <= 当前tick)) return;
@@ -8316,6 +8400,15 @@ class BattleUIComponent {
               清理数量 += 1;
               parts.push(`[炸环恢复] ${label}第${魂环键}魂环已恢复。`);
             });
+          });
+          取武魂直接魂环条目_战斗(武魂数据).forEach(([魂环键, 魂环数据]) => {
+            if (!魂环数据 || typeof 魂环数据 !== 'object') return;
+            const 恢复tick = Math.max(0, Number(魂环数据?.炸环恢复tick || 0));
+            if (!(恢复tick > 0 && 恢复tick <= 当前tick)) return;
+            delete 魂环数据.炸环恢复tick;
+            if (Object.prototype.hasOwnProperty.call(魂环数据, '炸环恢复时间')) delete 魂环数据.炸环恢复时间;
+            清理数量 += 1;
+            parts.push(`[炸环恢复] ${label}第${魂环键}魂环已恢复。`);
           });
         });
         return 清理数量;
@@ -10945,24 +11038,27 @@ class BattleUIComponent {
             let 无魂环成员数 = 0;
             let 有效增益样本 = 0;
             结算队伍.forEach(成员 => {
-              const 魂环表 = 成员.角色数据?.魂环 && typeof 成员.角色数据.魂环 === 'object'
-                ? 成员.角色数据.魂环
-                : {};
-              const 魂环序号列表 = Object.keys(魂环表).filter(魂环序号 => 魂环表[魂环序号] && typeof 魂环表[魂环序号] === 'object');
-              if (!魂环序号列表.length) {
+              const 魂环条目列表 = [];
+              取角色武魂条目_战斗(成员.角色数据).forEach(([武魂键, 武魂数据]) => {
+                取武魂魂灵条目_战斗(武魂数据).forEach(([魂灵键, 魂灵数据]) => {
+                  取魂灵魂环条目_战斗(魂灵数据).forEach(([魂环键, 魂环数据]) => 魂环条目列表.push({ 路径: [武魂键, 魂灵键, 魂环键], 魂环键, 魂环数据 }));
+                });
+                取武魂直接魂环条目_战斗(武魂数据).forEach(([魂环键, 魂环数据]) => 魂环条目列表.push({ 路径: [武魂键, 魂环键], 魂环键, 魂环数据 }));
+              });
+              if (!魂环条目列表.length) {
                 无魂环成员数 += 1;
                 return;
               }
               可结算成员数 += 1;
-              let 成员增益 = 非暴动期魂师战 ? 0 : Math.floor((killedAge / 参与人数 / 魂环序号列表.length) * rewardMultiplier);
+              let 成员增益 = 非暴动期魂师战 ? 0 : Math.floor((killedAge / 参与人数 / 魂环条目列表.length) * rewardMultiplier);
               if (!Number.isFinite(成员增益) || 成员增益 < 0) 成员增益 = 0;
               有效增益样本 += 成员增益;
-              魂环序号列表.forEach(魂环序号 => {
-                const 旧年限原值 = Number(魂环表[魂环序号]?.年限);
+              魂环条目列表.forEach(({ 路径, 魂环数据 }) => {
+                const 旧年限原值 = Number(魂环数据?.年限);
                 const 旧年限 = Number.isFinite(旧年限原值) && 旧年限原值 > 0 ? Math.floor(旧年限原值) : 10;
                 extraPatchOps.push({
                   op: 'replace',
-                  path: `/char/${escapeJsonPointerSegment(成员.角色键)}/魂环/${魂环序号}/年限`,
+                  path: `/char/${escapeJsonPointerSegment(成员.角色键)}/${路径.map(片段 => escapeJsonPointerSegment(片段)).join('/')}/年限`,
                   value: 旧年限 + 成员增益,
                 });
               });
@@ -12347,6 +12443,7 @@ class BattleUIComponent {
         const resolvedOwnerName = String(ownerName || preferredOwnerName || '').trim();
         if (!resolvedOwnerName) return { patchOps: [], log: '' };
         const ownerPath = `/char/${escapeJsonPointerSegment(resolvedOwnerName)}/背包`;
+        const rootItems = window.BattleUIBridge?.getMVU('物品') || {};
 
         itemTemplates.forEach((templateEffect, index) => {
           const baseItemName = String(skill?.魂技名 || skill?.name || '临时造物').trim() || '临时造物';
@@ -12355,21 +12452,29 @@ class BattleUIComponent {
           const addCount = Math.max(1, Number(templateEffect?.数量 || 1));
           const itemType = String(templateEffect?.物品类型 || '魂技造物');
           const relativeExpiryTick = Math.max(0, Number(templateEffect?.有效期tick || 0));
+          const itemDefinition = {
+            类型: itemType,
+            阶位: Math.max(0, Math.floor(Number(templateEffect?.阶位 || 0))),
+            品质: String(templateEffect?.品质 || '普通'),
+            描述: String(templateEffect?.描述 || skill?.效果描述 || skill?.描述 || '使用后触发对应魂技效果').trim(),
+            基础价格: Math.max(0, Math.floor(Number(templateEffect?.基础价格 || 0))),
+            默认货币: String(templateEffect?.默认货币 || '联邦币'),
+            装备槽位: String(templateEffect?.装备槽位 || '无'),
+            基础耐久: Math.max(0, Math.floor(Number(templateEffect?.基础耐久 || 0))),
+            使用条件: templateEffect?.使用条件 && typeof templateEffect.使用条件 === 'object' && !Array.isArray(templateEffect.使用条件) ? deepClone(templateEffect.使用条件) : {},
+            使用效果: deepClone(Array.isArray(templateEffect?.使用效果) ? templateEffect.使用效果 : []),
+            属性加成: templateEffect?.属性加成 && typeof templateEffect.属性加成 === 'object' && !Array.isArray(templateEffect.属性加成) ? deepClone(templateEffect.属性加成) : {},
+            副职业参数: templateEffect?.副职业参数 && typeof templateEffect.副职业参数 === 'object' && !Array.isArray(templateEffect.副职业参数) ? deepClone(templateEffect.副职业参数) : {},
+          };
           const nextItem = {
             数量: addCount,
-            类型: itemType,
-            使用效果: deepClone(Array.isArray(templateEffect?.使用效果) ? templateEffect.使用效果 : []),
-            来源技能: String(skill?.魂技名 || skill?.name || itemName),
+            来源: String(skill?.魂技名 || skill?.name || itemName),
           };
           if (relativeExpiryTick > 0) {
             nextItem.有效期至tick = currentTick + relativeExpiryTick;
-            nextItem.有效期至 = formatBattleTickToCalendarDateText(nextItem.有效期至tick);
           } else {
             nextItem.有效期至tick = 0;
-            nextItem.有效期至 = '无';
           }
-          if (String(templateEffect?.描述 || '').trim()) nextItem.描述 = String(templateEffect.描述).trim();
-          if (!nextItem.描述) nextItem.描述 = String(skill?.效果描述 || skill?.描述 || '使用后触发对应魂技效果');
 
           const currentItem = inventory[itemName];
           const itemPath = `${ownerPath}/${escapedItemName}`;
@@ -12377,10 +12482,12 @@ class BattleUIComponent {
             currentItem && typeof currentItem === 'object'
               ? {
                   ...deepClonePlain(currentItem),
-                  ...nextItem,
                   数量: Number(currentItem.数量 || 0) + addCount,
                 }
               : nextItem;
+          if (!rootItems[itemName]) {
+            patchOps.push({ op: 'replace', path: `/物品/${escapedItemName}`, value: itemDefinition });
+          }
           appendJsonPatchDiff(patchOps, itemPath, currentItem, nextItemValue);
 
           if (itemType === '食物') logs.push(`生成了可食用造物【${itemName}】×${addCount}`);
@@ -15093,8 +15200,8 @@ class BattleUIComponent {
 
           let bestSpirit = null;
           let maxSpiritLv = 0;
-          Object.values(defender.武魂 || {}).forEach(sp => {
-            Object.values(sp.魂灵 || {}).forEach(ss => {
+          取角色武魂条目_战斗(defender).forEach(([, sp]) => {
+            取武魂魂灵条目_战斗(sp).forEach(([, ss]) => {
               if (ss.状态 === '活跃' && ss.战力面板?.对标等级 > maxSpiritLv) {
                 maxSpiritLv = ss.战力面板.对标等级;
                 bestSpirit = ss;
@@ -16718,7 +16825,7 @@ class BattleUIComponent {
             let elementCount = fusionElements.length || 2;
             let isSilverDragon =
               attackerChar.血脉之力?.血脉?.includes('银龙王') ||
-              Object.values(attackerChar.武魂 || {}).some(sp => sp.表象名称?.includes('元素使'));
+              取角色武魂条目_战斗(attackerChar).some(([, sp]) => sp.表象名称?.includes('元素使'));
 
             let failRate = 0;
             if (!isSilverDragon) {
@@ -17094,7 +17201,7 @@ class BattleUIComponent {
               if (playerInput.includes('蓄力')) action.is_charged = true;
               let isSilverDragon =
                 charData.血脉之力?.血脉?.includes('银龙王') ||
-                Object.values(charData.武魂 || {}).some(sp => sp.表象名称?.includes('元素使'));
+                取角色武魂条目_战斗(charData).some(([, sp]) => sp.表象名称?.includes('元素使'));
               if (isSilverDragon) action.cast_time = 5;
               action.skill = normalizeSkillData({
                 name: '多元素融合',
@@ -18745,18 +18852,23 @@ class BattleUIComponent {
         function collectUiSkillActions(charData) {
           const actions = [];
           const char = charData && typeof charData === 'object' ? charData : {};
-          Object.entries(char.武魂 || {}).forEach(([spiritName, spirit]) => {
-            Object.entries(spirit?.魂灵 || {}).forEach(([soulSpiritName, soulSpirit]) => {
-              Object.entries(soulSpirit?.魂环 || {}).forEach(([ringIndex, ring]) => {
-                Object.entries(ring?.魂技 || {}).forEach(([skillName, skill]) => {
+          取角色武魂条目_战斗(char).forEach(([spiritName, spirit]) => {
+            取武魂魂灵条目_战斗(spirit).forEach(([soulSpiritName, soulSpirit]) => {
+              取魂灵魂环条目_战斗(soulSpirit).forEach(([ringIndex, ring]) => {
+                取魂环魂技条目_战斗(ring).forEach(([skillName, skill]) => {
                   pushUiSkillAction(
                     actions,
                     skill,
                     skillName,
                     spirit?.表象名称 || spiritName || soulSpiritName || `第${ringIndex}魂环`,
-                    ['武魂', spiritName, '魂灵', soulSpiritName, '魂环', ringIndex],
+                    [spiritName, soulSpiritName, ringIndex],
                   );
                 });
+              });
+            });
+            取武魂直接魂环条目_战斗(spirit).forEach(([ringIndex, ring]) => {
+              取魂环魂技条目_战斗(ring).forEach(([skillName, skill]) => {
+                pushUiSkillAction(actions, skill, skillName, spirit?.表象名称 || spiritName || `第${ringIndex}魂环`, [spiritName, ringIndex]);
               });
             });
           });
