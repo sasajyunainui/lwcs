@@ -4720,6 +4720,88 @@ function rollSpecialRuleArchetypeByContext(grade, type = '强攻系', roll = 1) 
 
 function rollSubModelByGrade(mainMechanic, grade, roll, context = {}) {
   const safeGrade = normalizeSkillTableGrade(grade);
+  const 系别 = String(context?.type || '强攻系').trim() || '强攻系';
+  const 增益表 = 系别 === '强攻系'
+    ? {
+      C: [
+        { value: '单属性增益', weight: 48 },
+        { value: '威力增幅', weight: 28 },
+        { value: '技能效果增幅', weight: 18 },
+        { value: '速度提升', weight: 2 },
+        { value: '消耗降低', weight: 2 },
+        { value: '前摇缩短', weight: 2 },
+      ],
+      B: [
+        { value: '单属性增益', weight: 38 },
+        { value: '威力增幅', weight: 28 },
+        { value: '技能效果增幅', weight: 18 },
+        { value: '多属性增益', weight: 8 },
+        { value: '速度提升', weight: 2 },
+        { value: '消耗降低', weight: 3 },
+        { value: '前摇缩短', weight: 3 },
+      ],
+      A: [
+        { value: '威力增幅', weight: 30 },
+        { value: '技能效果增幅', weight: 22 },
+        { value: '单属性增益', weight: 24 },
+        { value: '多属性增益', weight: 10 },
+        { value: '全属性增益', weight: 5 },
+        { value: '掌控提升', weight: 5 },
+        { value: '速度提升', weight: 2 },
+        { value: '消耗降低', weight: 1 },
+        { value: '前摇缩短', weight: 1 },
+      ],
+      S: [
+        { value: '威力增幅', weight: 28 },
+        { value: '技能效果增幅', weight: 24 },
+        { value: '单属性增益', weight: 18 },
+        { value: '多属性增益', weight: 12 },
+        { value: '全属性增益', weight: 8 },
+        { value: '掌控提升', weight: 6 },
+        { value: '速度提升', weight: 2 },
+        { value: '消耗降低', weight: 1 },
+        { value: '前摇缩短', weight: 1 },
+      ],
+    }
+    : 系别 === '敏攻系'
+      ? {
+        C: [
+          { value: '单属性增益', weight: 52 },
+          { value: '速度提升', weight: 22 },
+          { value: '前摇缩短', weight: 12 },
+          { value: '威力增幅', weight: 10 },
+          { value: '消耗降低', weight: 4 },
+        ],
+        B: [
+          { value: '单属性增益', weight: 34 },
+          { value: '速度提升', weight: 22 },
+          { value: '前摇缩短', weight: 16 },
+          { value: '威力增幅', weight: 14 },
+          { value: '多属性增益', weight: 8 },
+          { value: '技能效果增幅', weight: 6 },
+        ],
+        A: [
+          { value: '速度提升', weight: 22 },
+          { value: '前摇缩短', weight: 18 },
+          { value: '威力增幅', weight: 18 },
+          { value: '单属性增益', weight: 16 },
+          { value: '多属性增益', weight: 12 },
+          { value: '技能效果增幅', weight: 8 },
+          { value: '全属性增益', weight: 4 },
+          { value: '掌控提升', weight: 2 },
+        ],
+        S: [
+          { value: '速度提升', weight: 24 },
+          { value: '威力增幅', weight: 20 },
+          { value: '前摇缩短', weight: 16 },
+          { value: '技能效果增幅', weight: 14 },
+          { value: '多属性增益', weight: 12 },
+          { value: '单属性增益', weight: 8 },
+          { value: '全属性增益', weight: 4 },
+          { value: '掌控提升', weight: 2 },
+        ],
+      }
+      : null;
   const tables = {
     伤害类: {
       C: [
@@ -4811,7 +4893,7 @@ function rollSubModelByGrade(mainMechanic, grade, roll, context = {}) {
         { value: '速度压制', weight: 10 },
       ],
     },
-    增益类: {
+    增益类: 增益表 || {
       C: [
         { value: '单属性增益', weight: 70 },
         { value: '消耗降低', weight: 15 },
@@ -5109,6 +5191,7 @@ function rollTargetModelByGrade(mainMechanic, grade, roll, subModel = '', type =
       { value: '全场', weight: 15 },
     ],
   };
+  if (type === '强攻系' && mainMechanic === '增益类') return '自身';
   let tableSet = offensive;
   if (type === '食物系' && ['增益类', '防御类', '回复类', '特殊规则类'].includes(mainMechanic)) tableSet = foodSupport;
   else if (['增益类', '防御类', '回复类'].includes(mainMechanic)) tableSet = support;
@@ -5124,6 +5207,9 @@ function rollAttributeDirectionByType(type, subModel, roll) {
   void roll;
   const hints = SKILL_ATTRIBUTE_HINTS_BY_TYPE_V1[type] || ['魂力'];
   if (['全属性增益'].includes(subModel)) return ['力量', '防御', '敏捷', '精神力', '魂力'];
+  if (type === '强攻系' && ['单属性增益', '多属性增益'].includes(subModel)) {
+    return subModel === '多属性增益' ? ['力量', '魂力'] : ['力量'];
+  }
   if (['魂力恢复'].includes(subModel)) return ['魂力'];
   if (['精神恢复'].includes(subModel)) return ['精神力'];
   if (['体力恢复', '持续恢复', '净化/解控'].includes(subModel)) {
@@ -5655,7 +5741,7 @@ function 读取机制编译原型列表_V1(机制 = '') {
   return [];
 }
 
-const 技能执行批量字段键表_V1 = Object.freeze(['原型', '属性', '资源', '状态', '类型']);
+const 技能执行批量字段键表_V1 = Object.freeze(['原型', '资源', '状态', '类型']);
 const 技能执行原型禁用字段集合_V1 = new Set(['目标模型', '对象', '结算策略', '动作', '触发方式', '状态持续', 'cast_time', '应用' + '原型', '参数', '判定属性', '判定阈值', '成功参数', '失败参数']);
 
 function 转换原型资源字段_V1(value = '') {
@@ -5829,6 +5915,7 @@ function 补足机制模板原型数值_V1(原型 = '', 字段 = {}, source = {}
 
 function 展开技能执行批量字段_V1(value = {}) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+  if (String(value.原型 || '').trim() === '属性修正') return [value];
   const seed = cloneJsonValue(value);
   let entries = [seed];
   let expanded = false;
@@ -5911,7 +5998,7 @@ function 收口原型效果条目_V1(value = {}, fallbackTargetModel = '单体',
   if (原型字段.驱动属性 !== undefined) 原型字段.驱动属性 = 中文化技能机制参数值_V1(原型字段.驱动属性);
   if (原型字段.数值 !== undefined) 原型字段.数值 = 规范化执行效果数值_V1(原型字段.数值);
   if (原型字段.防御穿透 !== undefined) 原型字段.防御穿透 = Math.max(0, Math.min(100, Math.round(Number(原型字段.防御穿透) || 0)));
-  if (原型字段.生效方式 === '独立生效') delete 原型字段.生效方式;
+  if (!['独立生效', '跟随主原型'].includes(String(原型字段.生效方式 || '').trim())) 原型字段.生效方式 = '独立生效';
   if (原型字段.匹配原型 === '无') delete 原型字段.匹配原型;
   if (原型 !== '状态移除' || !原型字段.匹配原型) delete 原型字段.数值方向;
   补足机制模板原型数值_V1(原型, 原型字段, value);

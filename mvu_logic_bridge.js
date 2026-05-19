@@ -6166,7 +6166,7 @@
       return [];
     }
 
-    const SKILL_DESIGNER_BATCH_EFFECT_FIELD_KEYS = Object.freeze(['原型', '属性', '资源', '状态', '类型']);
+    const SKILL_DESIGNER_BATCH_EFFECT_FIELD_KEYS = Object.freeze(['原型', '资源', '状态', '类型']);
     const SKILL_DESIGNER_PROTOTYPE_FORBIDDEN_FIELDS = new Set(['目标模型', '对象', '结算策略', '动作', '触发方式', '状态持续', 'cast_time', '应用' + '原型', '参数', '判定属性', '判定阈值', '成功参数', '失败参数']);
 
     function fillSkillDesignerPrototypeValueFromTemplate(原型 = '', 字段 = {}, source = {}) {
@@ -6327,6 +6327,7 @@
 
     function expandSkillDesignerBatchEffectFields(value = {}) {
       if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+      if (normalizeSkillUiText(value['原型'], '') === '属性修正') return [value];
       let entries = [cloneJsonValue(value)];
       let expanded = false;
       const expandTopLevel = key => {
@@ -6468,6 +6469,7 @@
       if (字段['属性'] !== undefined) 字段['属性'] = getSkillDesignerPackedPropertyLabel(字段['属性']);
       if (字段['驱动属性'] !== undefined) 字段['驱动属性'] = getSkillDesignerPackedPropertyLabel(字段['驱动属性']);
       if (字段['数值'] !== undefined) 字段['数值'] = normalizeSkillDesignerEffectValue(字段['数值']);
+      if (!['独立生效', '跟随主原型'].includes(normalizeSkillUiText(字段['生效方式'], ''))) 字段['生效方式'] = '独立生效';
       if (字段['匹配原型'] === '无') delete 字段['匹配原型'];
       if (原型 !== '状态移除' || !字段['匹配原型']) delete 字段['数值方向'];
       fillSkillDesignerPrototypeValueFromTemplate(原型, 字段, value);
@@ -6590,6 +6592,7 @@
     }
 
     function getSkillDesignerPackedPropertyLabel(property = '') {
+      if (Array.isArray(property)) return property.map(item => getSkillDesignerPackedPropertyLabel(item)).filter(Boolean);
       const key = normalizeSkillUiText(property, '');
       return SKILL_DESIGNER_PACKED_PROPERTY_LABELS[key] || key;
     }
@@ -7872,28 +7875,41 @@
       return Number((原值 * 完整度).toFixed(4));
     }
 
-    function 构建技能设计台标准战斗属性(等级 = 1, 系别 = '强攻系') {
-      const level = Math.max(1, Number(等级 || 1));
-      const 基准 = level * level;
-      const 系数 = {
-        str: /强攻|敏攻/.test(系别) ? 1.14 : /防御/.test(系别) ? 0.86 : 1,
-        def: /防御/.test(系别) ? 1.24 : /敏攻/.test(系别) ? 0.82 : 1,
-        agi: /敏攻/.test(系别) ? 1.28 : 1,
-        men: /精神|控制/.test(系别) ? 1.22 : 1,
-        hp: /防御/.test(系别) ? 1.18 : 1,
-        sp: /辅助|治疗|食物/.test(系别) ? 1.16 : 1,
+    function 读取技能设计台天赋训练系数(天赋梯队 = '正常') {
+      return { 绝世妖孽: 1.6, 顶级天才: 1.2, 天才: 1, 优秀: 0.8, 正常: 0.5, 劣等: 0.2, 天赋极差: 0 }[String(天赋梯队 || '').trim()] ?? 0.5;
+    }
+
+    function 构建技能设计台标准战斗属性(等级 = 1, 系别 = '强攻系', 选项 = {}) {
+      const 等级值 = Math.max(1, Number(等级 || 1));
+      const 基础属性函数 = 读取窗口函数('__LWCS_GET_BASE_STATS__');
+      if (typeof 基础属性函数 !== 'function') throw new Error('MVU基础属性函数未加载');
+      const 基础 = 基础属性函数(等级值) || {};
+      const 系数表 = {
+        强攻系: { sp_max: 1, men_max: 1, str: 1, def: 1, agi: 1, vit_max: 1 },
+        防御系: { sp_max: 1, men_max: 1, str: 0.9, def: 1.5, agi: 0.7, vit_max: 1 },
+        敏攻系: { sp_max: 1, men_max: 1, str: 0.8, def: 0.7, agi: 1.6, vit_max: 0.8 },
+        控制系: { sp_max: 1, men_max: 1.2, str: 0.9, def: 0.8, agi: 1.1, vit_max: 0.9 },
+        辅助系: { sp_max: 1, men_max: 1.2, str: 0.7, def: 0.6, agi: 0.8, vit_max: 0.7 },
+        治疗系: { sp_max: 1, men_max: 1.2, str: 0.7, def: 0.6, agi: 0.8, vit_max: 0.7 },
+        食物系: { sp_max: 1, men_max: 1.2, str: 0.7, def: 0.6, agi: 0.8, vit_max: 0.7 },
+        精神系: { sp_max: 1, men_max: 1.7, str: 0.7, def: 0.6, agi: 0.8, vit_max: 0.7 },
+        元素系: { sp_max: 1, men_max: 1.5, str: 0.8, def: 0.6, agi: 0.8, vit_max: 0.7 },
+        召唤系: { sp_max: 1, men_max: 1.35, str: 0.8, def: 0.8, agi: 0.8, vit_max: 0.8 },
       };
+      const 系数 = 系数表[String(系别 || '').trim()] || 系数表.强攻系;
+      const 天赋训练系数 = 读取技能设计台天赋训练系数(选项?.天赋梯队 || '正常');
+      const 常规训练倍率 = 等级值 > 10 ? 1 + 0.005 * (等级值 - 10) * 天赋训练系数 : 1;
       const 属性 = {
-        name: `标准${Math.round(level)}级`,
+        name: `标准${Math.round(等级值)}级`,
         type: 系别 || '强攻系',
-        lv: level,
-        等级: level,
-        str: Math.max(1, Math.round(基准 * 1.02 * 系数.str)),
-        def: Math.max(1, Math.round(基准 * 0.88 * 系数.def)),
-        agi: Math.max(1, Math.round(基准 * 0.82 * 系数.agi)),
-        men_max: Math.max(1, Math.round(基准 * 1.05 * 系数.men)),
-        sp_max: Math.max(1, Math.round(基准 * 1.18 * 系数.sp)),
-        vit_max: Math.max(1, Math.round(基准 * 13.2 * 系数.hp)),
+        lv: 等级值,
+        等级: 等级值,
+        str: Math.max(1, Math.round(Number(基础.str || 1) * 系数.str * 常规训练倍率)),
+        def: Math.max(1, Math.round(Number(基础.def || 1) * 系数.def * 常规训练倍率)),
+        agi: Math.max(1, Math.round(Number(基础.agi || 1) * 系数.agi * 常规训练倍率)),
+        men_max: Math.max(1, Math.round(Number(基础.men_max || 1) * 系数.men_max * 常规训练倍率)),
+        sp_max: Math.max(1, Math.round(Number(基础.sp_max || 1) * 系数.sp_max)),
+        vit_max: Math.max(1, Math.round(Number(基础.vit_max || 1) * 系数.vit_max * 常规训练倍率)),
       };
       属性.sp = 属性.sp_max;
       属性.men = 属性.men_max;
@@ -7911,6 +7927,29 @@
         || deepGet(snapshot, 'activeChar.等级', 0)
         || 1
       ) || 1);
+    }
+
+    function 构建技能设计台当前战斗属性(snapshot = {}) {
+      const 来源 = deepGet(snapshot, 'activeChar.属性', {}) || {};
+      const 属性 = {
+        name: toText(deepGet(snapshot, 'activeName', ''), '当前角色'),
+        type: normalizeSkillUiText(来源.系别, '强攻系'),
+        lv: Math.max(1, Number(来源.等级 || 1)),
+        等级: Math.max(1, Number(来源.等级 || 1)),
+        str: Math.max(1, Number(来源.力量 || 1)),
+        def: Math.max(1, Number(来源.防御 || 1)),
+        agi: Math.max(1, Number(来源.敏捷 || 1)),
+        vit_max: Math.max(1, Number(来源.体力上限 || 来源.HP上限 || 1)),
+        sp_max: Math.max(1, Number(来源.魂力上限 || 1)),
+        men_max: Math.max(1, Number(来源.精神力上限 || 1)),
+      };
+      属性.sp = Math.max(0, Math.min(属性.sp_max, Number(来源.魂力 ?? 属性.sp_max)));
+      属性.men = Math.max(0, Math.min(属性.men_max, Number(来源.精神力 ?? 属性.men_max)));
+      属性.hp_max = 属性.vit_max;
+      属性.HP上限 = 属性.vit_max;
+      属性.HP = Math.max(0, Math.min(属性.vit_max, Number(来源.HP ?? 来源.体力 ?? 属性.vit_max)));
+      属性.final = { ...属性 };
+      return 属性;
     }
 
     function 读取技能设计台伤害效果列表(effectArray = []) {
@@ -8060,11 +8099,11 @@
       return extraDamage;
     }
 
-    function 估算技能设计台防御后承伤(draft = {}, 施术等级 = 1, 攻击等级 = 1) {
+    function 估算技能设计台防御后承伤(draft = {}, 施术等级 = 1, 攻击等级 = 1, 防御者属性 = null) {
       const effectArray = 构建技能设计台试算效果列表(draft, 施术等级);
       const defenseEffects = 读取技能设计台防御效果列表(effectArray);
       if (!defenseEffects.length) return { ok: false, reason: '非防御技能', damage: 0 };
-      const defender = 构建技能设计台标准战斗属性(施术等级, normalizeSkillUiText(draft.type, '防御系'));
+      const defender = 防御者属性 || 构建技能设计台标准战斗属性(施术等级, normalizeSkillUiText(draft.type, '防御系'));
       const attacker = 构建技能设计台标准战斗属性(攻击等级, '强攻系');
       let incoming = 计算技能设计台单段伤害(
         { 原型: '伤害结算', 威力倍率: 125, 伤害类型: '物理近战' },
@@ -8094,23 +8133,23 @@
       return { ok: true, damage: incoming, survivable: incoming < hp || deathSave > 0 };
     }
 
-    function 计算技能设计台可承受最高等级(draft = {}, 施术等级 = 1) {
-      const first = 估算技能设计台防御后承伤(draft, 施术等级, 1);
+    function 计算技能设计台可承受最高等级(draft = {}, 施术等级 = 1, 防御者属性 = null) {
+      const first = 估算技能设计台防御后承伤(draft, 施术等级, 1, 防御者属性);
       if (!first.ok) return { ok: false, reason: first.reason };
-      let highest = 0;
-      for (let level = 1; level <= 120; level += 1) {
-        const result = 估算技能设计台防御后承伤(draft, 施术等级, level);
-        if (result.ok && result.survivable) highest = level;
+      let 最高等级 = 0;
+      for (let 攻击等级值 = 1; 攻击等级值 <= 120; 攻击等级值 += 1) {
+        const result = 估算技能设计台防御后承伤(draft, 施术等级, 攻击等级值, 防御者属性);
+        if (result.ok && result.survivable) 最高等级 = 攻击等级值;
       }
-      if (highest <= 0) return { ok: true, text: '不足 Lv.1' };
-      return { ok: true, text: highest >= 120 ? '可承受 Lv.120+' : `可承受 Lv.${highest}` };
+      if (最高等级 <= 0) return { ok: true, text: '不足 Lv.1' };
+      return { ok: true, text: 最高等级 >= 120 ? '可承受 Lv.120+' : `可承受 Lv.${最高等级}` };
     }
 
-    function 估算技能设计台伤害占比(draft = {}, 施术等级 = 1, 目标等级 = 1) {
+    function 估算技能设计台伤害占比(draft = {}, 施术等级 = 1, 目标等级 = 1, 施术者属性 = null) {
       const effectArray = 构建技能设计台试算效果列表(draft, 施术等级);
       const damageEffects = 读取技能设计台伤害效果列表(effectArray);
       if (!damageEffects.length) return { ok: false, reason: '非伤害技能', ratio: 0 };
-      let attacker = 构建技能设计台标准战斗属性(施术等级, normalizeSkillUiText(draft.type, '强攻系'));
+      let attacker = 施术者属性 || 构建技能设计台标准战斗属性(施术等级, normalizeSkillUiText(draft.type, '强攻系'));
       let defender = 构建技能设计台标准战斗属性(目标等级, '强攻系');
       let finalDamageMult = 1;
       let finalDamageBonus = 0;
@@ -8144,44 +8183,55 @@
       return { ok: true, ratio: damage / targetHp, damage };
     }
 
-    function 计算技能设计台可重创最高等级(draft = {}, 施术等级 = 1) {
-      const first = 估算技能设计台伤害占比(draft, 施术等级, 1);
+    function 计算技能设计台可重创最高等级(draft = {}, 施术等级 = 1, 施术者属性 = null) {
+      const first = 估算技能设计台伤害占比(draft, 施术等级, 1, 施术者属性);
       if (!first.ok) return { ok: false, reason: first.reason };
-      let highest = 0;
-      for (let level = 1; level <= 120; level += 1) {
-        const result = 估算技能设计台伤害占比(draft, 施术等级, level);
-        if (result.ok && result.ratio >= 0.5) highest = level;
+      let 最高等级 = 0;
+      for (let 目标等级值 = 1; 目标等级值 <= 120; 目标等级值 += 1) {
+        const result = 估算技能设计台伤害占比(draft, 施术等级, 目标等级值, 施术者属性);
+        if (result.ok && result.ratio >= 0.5) 最高等级 = 目标等级值;
       }
-      if (highest <= 0) return { ok: true, text: '不足50%' };
-      return { ok: true, text: highest >= 120 ? '可重创 Lv.120+' : `可重创 Lv.${highest}` };
+      if (最高等级 <= 0) return { ok: true, text: '不足50%' };
+      return { ok: true, text: 最高等级 >= 120 ? '可重创 Lv.120+' : `可重创 Lv.${最高等级}` };
     }
 
     function buildSkillDesignerSimulationHtml(draft = {}, snapshot = {}) {
-      const trialType = 读取技能设计台试算类型(draft);
-      if (!trialType) return '';
-      const currentLevel = 读取技能设计台当前等级(snapshot);
-      const rows = [];
-      const pushRow = (label, level) => {
-        const result = trialType === '防御'
-          ? 计算技能设计台可承受最高等级(draft, level)
-          : 计算技能设计台可重创最高等级(draft, level);
-        rows.push(`
+      const 试算类型 = 读取技能设计台试算类型(draft);
+      if (!试算类型) return '';
+      const 当前等级 = 读取技能设计台当前等级(snapshot);
+      const 当前天赋梯队 = normalizeSkillUiText(deepGet(snapshot, 'activeChar.属性.天赋梯队', ''), '正常');
+      const 当前战斗属性 = 构建技能设计台当前战斗属性(snapshot);
+      const 行列表 = [];
+      const 添加试算行 = (标签, 等级值, 战斗属性 = null) => {
+        const 结果 = 试算类型 === '防御'
+          ? 计算技能设计台可承受最高等级(draft, 等级值, 战斗属性)
+          : 计算技能设计台可重创最高等级(draft, 等级值, 战斗属性);
+        行列表.push(`
           <div class=\"skill-designer-trial-row\">
-            <em>${htmlEscape(label)}</em>
-            <span>${htmlEscape(result.ok ? result.text : result.reason)}</span>
+            <em>${htmlEscape(标签)}</em>
+            <span>${htmlEscape(结果.ok ? 结果.text : 结果.reason)}</span>
           </div>
         `);
       };
-      pushRow(`当前 Lv.${Number(currentLevel.toFixed(1)).toString()}`, currentLevel);
-      if (!技能设计台启用技能掌控度({}, draft)) return rows.join('');
-      const levelControl = buildSkillDesignerLevelControlFromDraft(draft);
-      if (levelControl) {
-        pushRow(`中心 Lv.${levelControl.中心等级}`, levelControl.中心等级);
-        pushRow(`圆满 Lv.${levelControl.圆满等级}`, levelControl.圆满等级);
+      添加试算行(`当前 Lv.${Number(当前等级.toFixed(1)).toString()}`, 当前等级, 当前战斗属性);
+      if (!技能设计台启用技能掌控度({}, draft)) return 行列表.join('');
+      const 掌控等级 = buildSkillDesignerLevelControlFromDraft(draft);
+      if (掌控等级) {
+        const 系别 = normalizeSkillUiText(draft.type, 试算类型 === '防御' ? '防御系' : '强攻系');
+        添加试算行(
+          `中心 Lv.${掌控等级.中心等级}`,
+          掌控等级.中心等级,
+          构建技能设计台标准战斗属性(掌控等级.中心等级, 系别, { 天赋梯队: 当前天赋梯队 }),
+        );
+        添加试算行(
+          `圆满 Lv.${掌控等级.圆满等级}`,
+          掌控等级.圆满等级,
+          构建技能设计台标准战斗属性(掌控等级.圆满等级, 系别, { 天赋梯队: 当前天赋梯队 }),
+        );
       } else {
-        rows.push('<div class=\"skill-designer-trial-row muted\"><em>技能掌控度</em><span>缺少释放等级</span></div>');
+        行列表.push('<div class=\"skill-designer-trial-row muted\"><em>技能掌控度</em><span>缺少释放等级</span></div>');
       }
-      return rows.join('');
+      return 行列表.join('');
     }
 
     function buildSkillDesignerRuntimeSummaryEffects(draft = {}) {
@@ -9856,6 +9906,7 @@
           <label class=\"mvu-editor-field\">
             ${标签}
             <div class=\"mvu-editor-static skill-designer-static-token\">${htmlEscape(固定值)}</div>
+            <input type=\"hidden\" value=\"${escapeHtmlAttr(固定值)}\" data-skill-designer-prototype-field=\"生效方式\" />
           </label>
         `;
       }
@@ -9919,6 +9970,15 @@
     }
 
     function 构建技能设计台驱动判定属性编辑器(effect = {}) {
+      const 生效方式 = normalizeSkillUiText(effect && effect['生效方式'], '独立生效');
+      if (生效方式 === '跟随主原型') {
+        return `
+        <div class=\"mvu-editor-field-grid mvu-editor-field-wide skill-designer-scaling-field\" data-skill-designer-scaling-field hidden style=\"display:none\">
+          <input type=\"hidden\" value=\"无\" data-skill-designer-prototype-field=\"驱动属性\" data-skill-designer-scaling-driver />
+          <input type=\"hidden\" value=\"无\" data-skill-designer-prototype-field=\"影响方向\" />
+        </div>
+      `;
+      }
       const 驱动属性 = normalizeSkillUiText(effect && effect['驱动属性'], '无');
       const 有驱动 = 驱动属性 && 驱动属性 !== '无';
       const 影响方向 = 有驱动 ? normalizeSkillUiText(effect && effect['影响方向'], '效果强度') : '无';
@@ -9954,6 +10014,40 @@
       if (字段列表.includes('驱动属性') && 字段列表.includes('影响方向')) 字段内容.push(构建技能设计台驱动判定属性编辑器(effect));
       if (字段列表.includes('条件分支')) 字段内容.push(构建技能设计台原型字段输入(prototype, '条件分支', effect && effect['条件分支'], target, options));
       return 字段内容.join('');
+    }
+
+    function 规范化技能设计台原型生效方式列表(效果列表 = []) {
+      const 列表 = Array.isArray(效果列表) ? 效果列表 : [];
+      const 主目标 = normalizeSkillDesignerEffectTargetValue(列表[0] && 列表[0]['目标'], '');
+      return 列表.map((效果条目, 序号) => {
+        if (!效果条目 || typeof 效果条目 !== 'object') return 效果条目;
+        const 下一条 = { ...效果条目 };
+        const 当前目标 = normalizeSkillDesignerEffectTargetValue(下一条['目标'], 主目标 || '单体');
+        const 当前生效方式 = normalizeSkillUiText(下一条['生效方式'], 序号 === 0 ? '独立生效' : '跟随主原型');
+        下一条['生效方式'] = 序号 === 0 || (主目标 && 当前目标 !== 主目标) ? '独立生效' : 当前生效方式;
+        if (下一条['生效方式'] === '跟随主原型') {
+          delete 下一条['驱动属性'];
+          delete 下一条['影响方向'];
+        }
+        return 下一条;
+      });
+    }
+
+    function 规范化技能设计台运行效果生效方式(效果数组 = []) {
+      const 列表 = Array.isArray(效果数组) ? 效果数组 : [];
+      const 主目标 = normalizeSkillDesignerEffectTargetValue(列表[0] && 列表[0]['目标'], '');
+      return 列表.map((效果条目, 序号) => {
+        if (!效果条目 || typeof 效果条目 !== 'object' || Array.isArray(效果条目)) return 效果条目;
+        const 下一条 = { ...效果条目 };
+        const 当前目标 = normalizeSkillDesignerEffectTargetValue(下一条['目标'], 主目标 || '单体');
+        const 当前生效方式 = normalizeSkillUiText(下一条['生效方式'], 序号 === 0 ? '独立生效' : '跟随主原型');
+        下一条['生效方式'] = 序号 === 0 || (主目标 && 当前目标 !== 主目标) ? '独立生效' : 当前生效方式;
+        if (下一条['生效方式'] === '跟随主原型') {
+          delete 下一条['驱动属性'];
+          delete 下一条['影响方向'];
+        }
+        return 下一条;
+      });
     }
 
     function 构建技能设计台原型效果行列表(effects = [], fallbackTarget = '单体', 允许删空 = false, options = {}) {
@@ -10076,7 +10170,8 @@
         });
         return effect;
       }).filter(Boolean);
-      return 允许空列表 && !effects.length ? [] : 规范化技能设计台原型效果列表(effects, target);
+      const 规范后效果列表 = 规范化技能设计台原型生效方式列表(effects);
+      return 允许空列表 && !规范后效果列表.length ? [] : 规范化技能设计台原型效果列表(规范后效果列表, target);
     }
 
     function 构建技能设计台原型摘要(draft = {}) {
@@ -12360,7 +12455,7 @@
         : [];
       void skillSource;
       void previewMeta;
-      return [...prototypeEffects, ...sideEffectPrototypeEffects];
+      return 规范化技能设计台运行效果生效方式([...prototypeEffects, ...sideEffectPrototypeEffects]);
     }
 
     function buildSkillDesignerUpdatedSkill(skillSource = {}, formState = {}, previewMeta = {}) {
@@ -18115,6 +18210,18 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
               fields.querySelectorAll('[data-skill-designer-scaling-field]').forEach(syncScalingField);
             };
 
+            const 读取原型行目标 = row => normalizeSkillUiText(row?.querySelector('[data-skill-designer-prototype-field="目标"]')?.value, '单体');
+
+            const 计算新增原型生效方式 = (网格, 目标值 = '') => {
+              const 网格名 = normalizeSkillUiText(网格 && 网格.getAttribute('data-skill-designer-prototype-grid'), 'main');
+              if (网格名 !== 'main') return '独立生效';
+              const 行列表 = 网格 ? Array.from(网格.children).filter(node => node instanceof HTMLElement && node.matches('[data-skill-designer-prototype-row]')) : [];
+              if (!行列表.length) return '独立生效';
+              const 主目标 = 读取原型行目标(行列表[0]);
+              const 当前目标 = normalizeSkillUiText(目标值, 主目标 || '单体');
+              return 主目标 && 当前目标 === 主目标 ? '跟随主原型' : '独立生效';
+            };
+
             const rebuildPrimarySubOptions = () => {
               if (!primarySubInput || !primaryMainInput) return;
               const optionList = getSkillDesignerChildMechanicOptions(primaryMainInput.value);
@@ -18308,6 +18415,19 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
 
             const syncScalingField = block => {
               if (!block) return;
+              const row = block.closest('[data-skill-designer-prototype-row]');
+              const 生效方式 = normalizeSkillUiText(row?.querySelector('[data-skill-designer-prototype-field="生效方式"]')?.value, '独立生效');
+              if (生效方式 === '跟随主原型') {
+                block.hidden = true;
+                block.style.display = 'none';
+                const 驱动输入 = block.querySelector('[data-skill-designer-prototype-field="驱动属性"]');
+                const 方向输入 = block.querySelector('[data-skill-designer-prototype-field="影响方向"]');
+                if (驱动输入) 驱动输入.value = '无';
+                if (方向输入) 方向输入.value = '无';
+                return;
+              }
+              block.hidden = false;
+              block.style.display = '';
               const driver = block.querySelector('[data-skill-designer-scaling-driver]');
               const directionField = block.querySelector('[data-skill-designer-scaling-direction]');
               const direction = directionField ? directionField.querySelector('[data-skill-designer-prototype-field="影响方向"]') : null;
@@ -18397,7 +18517,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
               }
               if (target && target.matches('[data-skill-designer-prototype-field]')) {
                 const key = normalizeSkillUiText(target.getAttribute('data-skill-designer-prototype-field'), '');
-                if (['状态', '匹配原型', '选择', '触发', '规则', '判断'].includes(key)) {
+                if (['状态', '匹配原型', '选择', '触发', '规则', '判断', '生效方式'].includes(key)) {
                   rebuildPrototypeRowFields(target.closest('[data-skill-designer-prototype-row]'));
                 }
               }
@@ -18546,11 +18666,11 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                 const block = addConditionEffect.closest('[data-skill-designer-condition-effect]');
                 const grid = block ? block.querySelector('[data-skill-designer-prototype-grid]') : null;
                 const row = addConditionEffect.closest('[data-skill-designer-prototype-row]');
-                const targetValue = normalizeSkillUiText(row?.querySelector('[data-skill-designer-prototype-field="目标"]')?.value, '单体');
+                const 目标值 = normalizeSkillUiText(row?.querySelector('[data-skill-designer-prototype-field="目标"]')?.value, '单体');
                 if (grid) {
-                  const nextEffect = 创建技能设计台默认原型效果('伤害结算', targetValue);
-                  nextEffect['生效方式'] = '跟随主原型';
-                  grid.insertAdjacentHTML('beforeend', 构建技能设计台原型效果行列表([nextEffect], targetValue, true, { 禁用条件分支: true }));
+                  const 新效果 = 创建技能设计台默认原型效果('伤害结算', 目标值);
+                  新效果['生效方式'] = 计算新增原型生效方式(grid, 目标值);
+                  grid.insertAdjacentHTML('beforeend', 构建技能设计台原型效果行列表([新效果], 目标值, true, { 禁用条件分支: true }));
                   refreshPreview();
                 }
                 return;
@@ -18561,9 +18681,9 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                 const block = addNestedPrototype.closest('[data-skill-designer-nested-prototype-field]');
                 const grid = block ? block.querySelector('[data-skill-designer-prototype-grid]') : null;
                 if (grid) {
-                  const nextEffect = 创建技能设计台默认原型效果('判定修正', '单体');
-                  nextEffect['生效方式'] = '跟随主原型';
-                  grid.insertAdjacentHTML('beforeend', 构建技能设计台原型效果行列表([nextEffect], '单体', true));
+                  const 新效果 = 创建技能设计台默认原型效果('判定修正', '单体');
+                  新效果['生效方式'] = 计算新增原型生效方式(grid, '单体');
+                  grid.insertAdjacentHTML('beforeend', 构建技能设计台原型效果行列表([新效果], '单体', true));
                   refreshPreview();
                 }
                 return;
@@ -18571,34 +18691,35 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
               const addPrototype = target ? target.closest('[data-skill-designer-add-prototype]') : null;
               if (addPrototype) {
                 event.preventDefault();
-                const gridName = normalizeSkillUiText(addPrototype.getAttribute('data-skill-designer-add-prototype'), 'main');
+                const 网格名 = normalizeSkillUiText(addPrototype.getAttribute('data-skill-designer-add-prototype'), 'main');
                 const currentDraft = syncDraftCache();
-                const firstPrototype = gridName === 'side' ? '判定修正' : (读取技能设计台原型名称列表()[0] || '伤害结算');
-                const nextEffect = 创建技能设计台默认原型效果(firstPrototype, gridName === 'side' ? '自身' : currentDraft.target);
-                if (gridName === 'side' || (Array.isArray(currentDraft.prototypeEffects) && currentDraft.prototypeEffects.length > 0)) {
-                  nextEffect['生效方式'] = '跟随主原型';
+                const 首个原型 = 网格名 === 'side' ? '判定修正' : (读取技能设计台原型名称列表()[0] || '伤害结算');
+                const 新效果 = 创建技能设计台默认原型效果(首个原型, 网格名 === 'side' ? '自身' : currentDraft.target);
+                if (网格名 === 'side' || (Array.isArray(currentDraft.prototypeEffects) && currentDraft.prototypeEffects.length > 0)) {
+                  const 网格 = 网格名 === 'side' ? sidePrototypeGrid : prototypeGrid;
+                  新效果['生效方式'] = 计算新增原型生效方式(网格, 新效果['目标']);
                 }
-                if (gridName === 'side') {
-                  nextEffect['判定'] = nextEffect['判定'] || '命中';
-                  nextEffect['数值'] = /^-/.test(String(nextEffect['数值'] || '')) ? nextEffect['数值'] : '-10%';
+                if (网格名 === 'side') {
+                  新效果['判定'] = 新效果['判定'] || '命中';
+                  新效果['数值'] = /^-/.test(String(新效果['数值'] || '')) ? 新效果['数值'] : '-10%';
                 }
-                const nextDraft = gridName === 'side'
+                const nextDraft = 网格名 === 'side'
                   ? {
                     ...currentDraft,
                     sideEffectPrototypeEffects: [
                       ...(Array.isArray(currentDraft.sideEffectPrototypeEffects) ? currentDraft.sideEffectPrototypeEffects : []),
-                      nextEffect,
+                      新效果,
                     ],
                   }
                   : {
                     ...currentDraft,
                     prototypeEffects: [
                       ...规范化技能设计台原型效果列表(currentDraft.prototypeEffects, currentDraft.target),
-                      nextEffect,
+                      新效果,
                     ],
                   };
                 writeCachedSkillDesignerDraft(previewKey, nextDraft);
-                if (gridName === 'side') rebuildSidePrototypeGrid(nextDraft);
+                if (网格名 === 'side') rebuildSidePrototypeGrid(nextDraft);
                 else rebuildPrototypeGrid(nextDraft);
                 refreshPreview(nextDraft);
                 return;
