@@ -76,11 +76,40 @@ const statData = {
     累计击杀年限: 0,
     _引导: { 时间线预览: '近期关注：天斗城异动。' },
     时间线: { event1: { 事件: '天斗城异动', 状态: 'pending', 触发tick: 12 } },
-    机密情报: {},
+    机密情报: {
+      天斗城暗流: {
+        标题: '天斗城暗流',
+        内容: '天斗城附近有异常势力活动。',
+        知情规则: ['唐门高层'],
+        知情对象: ['唐舞麟'],
+        核实状态: '待核实',
+        核实进度: 2,
+        证据权重: 5,
+      },
+    },
     拍卖: {},
     交易请求: {},
-    委托板: {},
-    图鉴: {},
+    委托板: {
+      天斗城调查: {
+        标题: '天斗城调查',
+        类型: '委托',
+        描述: '调查天斗城异动。',
+        状态: '待接取',
+        承接者: '无',
+        奖励币: 1000,
+      },
+    },
+    图鉴: {
+      深渊蝙蝠: {
+        交手次数: 3,
+        击杀次数: 1,
+        图鉴档位: '熟悉',
+        当前档经验: 5,
+        下档需求: 10,
+        最近战斗标签: '速胜',
+        首次记录: '由唐舞麟遭遇',
+      },
+    },
     战斗: { 进行中: false },
     地点: {
       史莱克城: { 类型: '城市', 描述: '学院城', 状态: '正常', 商店: {}, 子节点: {} },
@@ -158,7 +187,7 @@ const storyStructureText = api.替换MVU运行时视图占位符('{{MVU_UPDATE_S
   userInput: '天斗城消息传来。',
 });
 const emptyText = api.替换MVU运行时视图占位符('<status_current_variables>\n{{MVU_RUNTIME_VIEW}}\n</status_current_variables>', 'empty', { statData });
-const plotText = api.替换MVU运行时视图占位符('<status_current_variables>\n{{MVU_RUNTIME_VIEW}}\n</status_current_variables>', 'plot', { statData });
+const plotText = api.替换MVU运行时视图占位符('<status_current_variables>\n{{MVU_RUNTIME_VIEW}}\n</status_current_variables>', 'plot', { statData, userInput: '天斗城调查提到深渊蝙蝠。' });
 
 if (storyText.includes('MVU_RUNTIME_VIEW')) throw new Error('正文视图占位符未替换');
 if (updateText.includes('MVU_RUNTIME_VIEW')) throw new Error('更新视图占位符未替换');
@@ -172,9 +201,13 @@ if (!structureText.includes('- 天斗城') || !structureText.includes('- 唐门'
 if (structureText.includes('林惜梦')) throw new Error('更新结构提示不应猜测新增实体');
 if (storyStructureText.trim()) throw new Error('正文阶段不应展开更新结构提示');
 if (!plotText.includes('"时间线预览"') || !plotText.includes('天斗城异动')) throw new Error('剧情视图未包含 _引导.时间线预览');
+if (plotText.includes('"时间线"')) throw new Error('剧情视图不应包含 world.时间线');
 if (storyText.includes('"时间线预览"')) throw new Error('正文视图不应包含 _引导.时间线预览');
 if (updateText.includes('"_引导"')) throw new Error('更新视图不应包含 _引导');
 if (updateText.includes('"_calendar"')) throw new Error('更新视图不应包含只读日历字段');
+if (updateText.includes('"核实进度"') || updateText.includes('"证据权重"') || updateText.includes('"承接者"') || updateText.includes('"奖励币"') || updateText.includes('"当前档经验"')) {
+  throw new Error('更新视图包含机密/委托/图鉴的脚本结算字段');
+}
 if (/"(魂力上限|精神力上限|体力上限|力量|防御|敏捷|训练加成|关系分析|_属性加成|战力面板|_填写提示)"/.test(updateText)) {
   throw new Error('更新视图包含不应发送的只读/派生字段');
 }

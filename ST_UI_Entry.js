@@ -23,7 +23,7 @@
     样式核心: { 类型: 'css', 地址: 资源基础地址 + 'mvu_styles.css' + 资源版本后缀, 关键: true, 分组: 'core' },
     Vue核心: { 类型: 'remote-js', 地址: Vue远程地址, 关键: true, 分组: 'core' },
     壳层运行时: { 类型: 'inline-js', 地址: 资源基础地址 + 'Main_Vue_runtimefix_v2.js' + 资源版本后缀, 关键: true, 分组: 'core' },
-    变量规则: { 类型: 'wait-global', 全局键: '__LWCS_GET_BASE_STATS__', 关键: true, 分组: 'core' },
+    变量规则: { 类型: 'module-js', 地址: 资源基础地址 + 'MVU.js' + 资源版本后缀, 关键: true, 分组: 'core' },
     魂技机制注册表: { 类型: 'wait-global', 全局键: '__LWCS_SKILL_MECHANISM_REGISTRY__', 值类型: 'object', 关键: true, 分组: 'core' },
     逻辑桥接: { 类型: 'inline-js', 地址: 资源基础地址 + 'mvu_logic_bridge.js' + 资源版本后缀, 关键: true, 分组: 'core' },
     地图模块: { 类型: 'inline-js', 地址: 资源基础地址 + 'sheep_map_restore.js' + 资源版本后缀, 关键: false, 分组: 'lazy' },
@@ -165,12 +165,56 @@
     return 地址;
   }
 
+  function 加载模块脚本(地址) {
+    return new Promise(async (resolve, reject) => {
+      const 脚本标记 = 取内联脚本标记(地址);
+      const 旧脚本 = 宿主文档.getElementById(脚本标记);
+      if (旧脚本 && !调试热更新模式) {
+        resolve(地址);
+        return;
+      }
+      if (旧脚本) 旧脚本.remove();
+
+      try {
+        const 响应 = await fetch(地址, { cache: 'no-store' });
+        if (!响应.ok) throw new Error(`Module JS load failed: ${地址} [${响应.status}]`);
+        const 代码文本 = await 响应.text();
+        const 脚本节点 = 宿主文档.createElement('script');
+        let 已完成 = false;
+        const 完成加载 = () => {
+          if (已完成) return;
+          已完成 = true;
+          resolve(地址);
+        };
+        脚本节点.id = 脚本标记;
+        脚本节点.type = 'module';
+        脚本节点.textContent = `${代码文本}\n//# sourceURL=${地址}`;
+        脚本节点.onload = 完成加载;
+        脚本节点.onerror = () => reject(new Error(`Module JS execute failed: ${地址}`));
+        (宿主文档.body || 宿主文档.documentElement).appendChild(脚本节点);
+        setTimeout(完成加载, 100);
+      } catch (错误) {
+        reject(错误);
+      }
+    });
+  }
+
   async function 执行调试热更新() {
     try {
       记录阶段(加载阶段.核心加载中);
       await waitForMountsReady(10000);
       ensureGetAllVariablesShim();
       await 加载样式(模块注册表.样式核心.地址);
+      ['变量规则', '魂技机制注册表', '逻辑桥接', '战斗模块', '数据库模块'].forEach(模块名 => {
+        if (!模块状态表[模块名]) return;
+        模块状态表[模块名].状态 = 'pending';
+        模块状态表[模块名].错误 = '';
+      });
+      await 确保模块已加载('变量规则', { 来源: 'hot_reload', 允许失败降级: false, 抛错: true });
+      await 确保模块已加载('魂技机制注册表', { 来源: 'hot_reload', 允许失败降级: false, 抛错: true });
+      await 确保模块已加载('逻辑桥接', { 来源: 'hot_reload', 允许失败降级: false, 抛错: true });
+      await 确保模块已加载('战斗模块', { 来源: 'hot_reload', 允许失败降级: true, 抛错: false });
+      await 确保模块已加载('数据库模块', { 来源: 'hot_reload', 允许失败降级: false, 抛错: true });
       try {
         if (typeof 宿主窗口.__sheepMapDispose === 'function') 宿主窗口.__sheepMapDispose();
       } catch (错误) {}
@@ -203,6 +247,7 @@
     if (模块.类型 === 'css') return 加载样式(模块.地址);
     if (模块.类型 === 'remote-js') return 加载远程脚本(模块.地址);
     if (模块.类型 === 'wait-global') return 等待全局函数(模块.全局键, 12000, 模块.值类型 || 'function');
+    if (模块.类型 === 'module-js') return 加载模块脚本(模块.地址);
     return 加载内联脚本(模块.地址);
   }
 
@@ -285,9 +330,28 @@
       结果[模块名] = { ...模块状态表[模块名] };
       return 结果;
     }, {});
-    return {
+      return {
       ...加载状态,
-      模块: 模块状态快照
+      模块: 模块状态快照,
+      技能夹具: {
+        机制注册表: !!宿主窗口.__LWCS_SKILL_MECHANISM_REGISTRY__,
+        机制数量: 宿主窗口.__LWCS_SKILL_MECHANISM_REGISTRY__ && typeof 宿主窗口.__LWCS_SKILL_MECHANISM_REGISTRY__ === 'object'
+          ? Object.keys(宿主窗口.__LWCS_SKILL_MECHANISM_REGISTRY__).length
+          : 0,
+        生成检查: typeof 宿主窗口.__LWCS_RUN_GENERATION_RULE_CHECKS__,
+        夹具列表: typeof 宿主窗口.__LWCS_LIST_SKILL_FIXTURES__,
+        夹具批跑: typeof 宿主窗口.__LWCS_RUN_SKILL_FIXTURE_BATCH__,
+        夹具数量: typeof 宿主窗口.__LWCS_LIST_SKILL_FIXTURES__ === 'function'
+          ? (() => {
+            try {
+              const 列表 = 宿主窗口.__LWCS_LIST_SKILL_FIXTURES__();
+              return Array.isArray(列表) ? 列表.length : 0;
+            } catch (错误) {
+              return -1;
+            }
+          })()
+          : 0
+      }
     };
   }
 
@@ -493,6 +557,7 @@
     空闲执行器(async () => {
       await 确保模块已加载('地图模块', { 来源: 'idle_prefetch:map' });
       await 确保模块已加载('战斗模块', { 来源: 'idle_prefetch:battle' });
+      await 确保模块已加载('逻辑桥接', { 来源: 'idle_prefetch:skill_fixture', 允许失败降级: false });
       记录阶段(加载阶段.完成);
       加载状态.结束时间 = Date.now();
     });
@@ -511,6 +576,7 @@
         for (const 模块名 of 核心模块顺序) {
           await 确保模块已加载(模块名, { 来源: 'bootstrap_core', 允许失败降级: false });
         }
+        确保模块已加载('战斗模块', { 来源: 'bootstrap_skill_fixture', 允许失败降级: true, 抛错: false });
 
         if (!宿主窗口.Vue || typeof 宿主窗口.Vue.compile !== 'function') {
           throw new Error('Vue full build load failed: compiler missing');

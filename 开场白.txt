@@ -1,4 +1,4 @@
-```
+```html
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -102,7 +102,14 @@
 </div>
 <div class="col form-group">
 <label>▶ 生日</label>
-<input type="text" id="char-birthday" class="form-control" placeholder="如: 3月12日 / 03-12">
+<div class="row">
+<div class="col">
+<select id="char-birthday-month" class="form-control"></select>
+</div>
+<div class="col">
+<select id="char-birthday-day" class="form-control"></select>
+</div>
+</div>
 </div>
 </div>
 <div class="form-group">
@@ -273,7 +280,7 @@ var timelineData = {
           },
           "机甲": {
             "等级": "无",
-            "状态": "完好"
+            "状态": "无"
           }
         },
         "魂核": {
@@ -329,7 +336,7 @@ var timelineData = {
           },
           "机甲": {
             "等级": "无",
-            "状态": "完好"
+            "状态": "无"
           }
         },
         "魂核": {
@@ -403,7 +410,7 @@ var timelineData = {
           },
           "机甲": {
             "等级": "无",
-            "状态": "完好"
+            "状态": "无"
           }
         },
         "魂核": {
@@ -474,7 +481,7 @@ var timelineData = {
           },
           "机甲": {
             "等级": "无",
-            "状态": "完好"
+            "状态": "无"
           }
         },
         "魂核": {
@@ -547,7 +554,7 @@ var timelineData = {
           },
           "机甲": {
             "等级": "无",
-            "状态": "完好"
+            "状态": "无"
           }
         },
         "魂核": {
@@ -639,7 +646,7 @@ var timelineData = {
           },
           "机甲": {
             "等级": "无",
-            "状态": "完好"
+            "状态": "无"
           }
         },
         "魂核": {
@@ -717,7 +724,7 @@ var timelineData = {
           },
           "机甲": {
             "等级": "无",
-            "状态": "完好"
+            "状态": "无"
           }
         },
         "魂核": {
@@ -818,7 +825,7 @@ var timelineData = {
           },
           "机甲": {
             "等级": "无",
-            "状态": "完好"
+            "状态": "无"
           }
         },
         "魂核": {
@@ -902,7 +909,7 @@ var timelineData = {
           },
           "机甲": {
             "等级": "无",
-            "状态": "完好"
+            "状态": "无"
           }
         },
         "魂核": {
@@ -969,7 +976,7 @@ var timelineData = {
           },
           "机甲": {
             "等级": "无",
-            "状态": "完好"
+            "状态": "无"
           }
         },
         "魂核": {
@@ -1042,7 +1049,7 @@ var timelineData = {
           },
           "机甲": {
             "等级": "无",
-            "状态": "完好"
+            "状态": "无"
           }
         },
         "魂核": {
@@ -1125,7 +1132,7 @@ var timelineData = {
           },
           "机甲": {
             "等级": "无",
-            "状态": "完好"
+            "状态": "无"
           }
         },
         "魂核": {
@@ -1212,7 +1219,7 @@ var timelineData = {
           },
           "机甲": {
             "等级": "无",
-            "状态": "完好"
+            "状态": "无"
           }
         },
         "魂核": {
@@ -1367,7 +1374,7 @@ var timelineData = {
           },
           "机甲": {
             "等级": "无",
-            "状态": "完好"
+            "状态": "无"
           }
         },
         "魂核": {
@@ -1468,7 +1475,7 @@ var timelineData = {
           },
           "机甲": {
             "等级": "无",
-            "状态": "完好"
+            "状态": "无"
           }
         },
         "魂核": {
@@ -1569,7 +1576,7 @@ var timelineData = {
           },
           "机甲": {
             "等级": "无",
-            "状态": "完好"
+            "状态": "无"
           }
         },
         "魂核": {
@@ -1670,7 +1677,7 @@ var timelineData = {
           },
           "机甲": {
             "等级": "无",
-            "状态": "完好"
+            "状态": "无"
           }
         },
         "魂核": {
@@ -1819,7 +1826,7 @@ var timelineData = {
           },
           "机甲": {
             "等级": "无",
-            "状态": "完好"
+            "状态": "无"
           }
         },
         "魂核": {
@@ -1920,7 +1927,7 @@ var timelineData = {
           },
           "机甲": {
             "等级": "无",
-            "状态": "完好"
+            "状态": "无"
           }
         },
         "魂核": {
@@ -1984,7 +1991,7 @@ var timelineData = {
           },
           "机甲": {
             "等级": "无",
-            "状态": "完好"
+            "状态": "无"
           }
         },
         "魂核": {
@@ -2067,6 +2074,44 @@ function 解析开场生日年内日序(生日) {
     var 月 = Math.max(1, Math.min(12, Math.floor(Number(匹配[1]) || 1)));
     var 日 = Math.max(1, Math.min(30, Math.floor(Number(匹配[2]) || 1)));
     return (月 - 1) * 30 + (日 - 1);
+}
+
+function 格式化开场生日(月, 日) {
+    var 月值 = Math.max(1, Math.min(12, Math.floor(Number(月) || 1)));
+    var 日值 = Math.max(1, Math.min(30, Math.floor(Number(日) || 1)));
+    return 月值 + '月' + 日值 + '日';
+}
+
+function 读取开场生日() {
+    var monthEl = document.getElementById('char-birthday-month');
+    var dayEl = document.getElementById('char-birthday-day');
+    return 格式化开场生日(monthEl && monthEl.value, dayEl && dayEl.value);
+}
+
+function 写入开场生日(生日) {
+    var monthEl = document.getElementById('char-birthday-month');
+    var dayEl = document.getElementById('char-birthday-day');
+    if (!monthEl || !dayEl) return;
+    var 匹配 = String(生日 || '').trim().match(/^(\d{1,2})\s*月\s*(\d{1,2})\s*日?$/) || String(生日 || '').trim().match(/^(\d{1,2})\s*[-/.]\s*(\d{1,2})$/);
+    monthEl.value = String(Math.max(1, Math.min(12, Math.floor(Number(匹配 && 匹配[1]) || 1))));
+    dayEl.value = String(Math.max(1, Math.min(30, Math.floor(Number(匹配 && 匹配[2]) || 1))));
+}
+
+function 初始化开场生日选项() {
+    var monthEl = document.getElementById('char-birthday-month');
+    var dayEl = document.getElementById('char-birthday-day');
+    if (!monthEl || !dayEl) return;
+    if (!monthEl.options.length) {
+        for (var 月 = 1; 月 <= 12; 月++) {
+            monthEl.appendChild(new Option(月 + '月', String(月)));
+        }
+    }
+    if (!dayEl.options.length) {
+        for (var 日 = 1; 日 <= 30; 日++) {
+            dayEl.appendChild(new Option(日 + '日', String(日)));
+        }
+    }
+    写入开场生日(读取开场生日());
 }
 
 function 计算开场tick年内日序(tick) {
@@ -2231,7 +2276,7 @@ function collectFormSnapshot() {
         name: (document.getElementById('char-name') || {}).value || '',
         gender: (document.getElementById('char-gender') || {}).value || '男',
         age: (document.getElementById('char-age') || {}).value || '13',
-        生日: (document.getElementById('char-birthday') || {}).value || '',
+        生日: 读取开场生日(),
         loc: (document.getElementById('char-loc') || {}).value || '',
         spirit: (document.getElementById('char-spirit') || {}).value || '',
         personality: (document.getElementById('char-personality') || {}).value || '',
@@ -2259,7 +2304,7 @@ function applyFormSnapshot(snapshot) {
     setValue('char-name', snapshot.name);
     setValue('char-gender', snapshot.gender);
     setValue('char-age', snapshot.age);
-    setValue('char-birthday', snapshot.生日);
+    写入开场生日(snapshot.生日);
     setValue('char-loc', snapshot.loc);
     setValue('char-spirit', snapshot.spirit);
     setValue('char-personality', snapshot.personality);
@@ -2519,7 +2564,7 @@ window.selectRadio = function(element) {
 window.submitForm = function() {
     var name = document.getElementById('char-name').value.trim().replace(/[\r\n]+/g, " ") || '无名氏';
     var age = parseInt(document.getElementById('char-age').value) || 6;
-    var 生日 = document.getElementById('char-birthday').value.trim().replace(/[\r\n]+/g, " ") || '待生成';
+    var 生日 = 读取开场生日();
     var loc = document.getElementById('char-loc').value.trim().replace(/[\r\n]+/g, " ") || '去向不明';
     var spirit = document.getElementById('char-spirit').value.trim().replace(/[\r\n]+/g, " ") || '未觉醒';
     var talent = document.getElementById('char-talent').value;
@@ -2663,7 +2708,7 @@ window.submitForm = function() {
             initPatch.push({
                 "op": "replace",
                 "path": "/world/时间/_上次结算tick",
-                "value": tlData.world.时间.tick
+                "value": 0
             });
         }
     }
@@ -2687,40 +2732,50 @@ window.submitForm = function() {
 
     var displayMessage = "开始剧情：" + name;
 
-    function decodeInitPatchPath(path) {
-        return String(path || "").split("/").slice(1).map(function(part) {
-            return part.replace(/~1/g, "/").replace(/~0/g, "~");
-        });
+    function getStartupRuntimeWindow() {
+        return window.parent || window.top || window;
     }
 
-    function setInitPatchValue(root, path, value) {
-        var parts = decodeInitPatchPath(path);
-        if (!parts.length) return;
-        var current = root;
-        for (var i = 0; i < parts.length - 1; i++) {
-            var key = parts[i];
-            if (!current[key] || typeof current[key] !== "object") current[key] = {};
-            current = current[key];
-        }
-        current[parts[parts.length - 1]] = value;
+    function buildInitUpdateVariableText(patchList) {
+        var tagStart = '<' + 'UpdateVariable' + '>';
+        var tagEnd = '<' + '/UpdateVariable' + '>';
+        var analysisStart = '<' + 'Analysis' + '>';
+        var analysisEnd = '<' + '/Analysis' + '>';
+        var patchStart = '<' + 'JSONPatch' + '>';
+        var patchEnd = '<' + '/JSONPatch' + '>';
+        return [
+            tagStart,
+            analysisStart + '[Startup] Apply internal character initialization patch.' + analysisEnd,
+            patchStart,
+            JSON.stringify(patchList),
+            patchEnd,
+            tagEnd
+        ].join('\n');
     }
 
-    async function applyInitPatchDirectly(patchList) {
-        var mvu = window.Mvu || (window.parent && window.parent.Mvu) || (window.top && window.top.Mvu);
-        if (!mvu || typeof mvu.getMvuData !== "function" || typeof mvu.replaceMvuData !== "function") {
-            throw new Error("MVU接口未就绪");
+    async function applyInitPatchByMvuParser(patchList) {
+        var runtimeWindow = getStartupRuntimeWindow();
+        var mvu = (runtimeWindow && runtimeWindow.Mvu) || window.Mvu;
+        if (!mvu || typeof mvu.getMvuData !== "function" || typeof mvu.replaceMvuData !== "function" || typeof mvu.parseMessage !== "function") {
+            throw new Error("MVU更新解析接口未就绪");
         }
         var currentData = await mvu.getMvuData({ type: "message", message_id: "latest" });
-        var nextData = JSON.parse(JSON.stringify(currentData || {}));
-        if (!nextData.stat_data || typeof nextData.stat_data !== "object") nextData.stat_data = {};
-        for (var i = 0; i < patchList.length; i++) {
-            var patch = patchList[i];
-            if (!patch || !patch.path) continue;
-            if (patch.op === "replace" || patch.op === "insert" || patch.op === "add") {
-                setInitPatchValue(nextData.stat_data, patch.path, patch.value);
-            }
-        }
+        var parsedData = await Promise.resolve(mvu.parseMessage(buildInitUpdateVariableText(patchList), currentData));
+        var nextData = parsedData && parsedData.stat_data ? parsedData : currentData;
+        if (!nextData || !nextData.stat_data) throw new Error("MVU初始化解析失败");
+        var normalizeStatData = runtimeWindow.__LWCS_NORMALIZE_MVU_STAT_DATA__ || window.__LWCS_NORMALIZE_MVU_STAT_DATA__;
+        if (typeof normalizeStatData !== "function") throw new Error("MVU结构规范化接口未就绪");
+        nextData.stat_data = normalizeStatData(nextData.stat_data);
+        delete nextData.stat_data.display_all;
+        delete nextData.stat_data.display_chars;
         await mvu.replaceMvuData(nextData, { type: "message", message_id: "latest" });
+        await verifyInitPatchLatest();
+    }
+
+    async function verifyInitPatchLatest() {
+        var runtimeWindow = getStartupRuntimeWindow();
+        var mvu = (runtimeWindow && runtimeWindow.Mvu) || window.Mvu;
+        if (!mvu || typeof mvu.getMvuData !== "function") throw new Error("MVU接口未就绪");
         var verifyData = await mvu.getMvuData({ type: "message", message_id: "latest" });
         var verifyRoot = verifyData && verifyData.stat_data ? verifyData.stat_data : {};
         if (verifyRoot.sys && verifyRoot.sys.玩家名 !== name) {
@@ -2764,8 +2819,9 @@ window.submitForm = function() {
                     ? window.parent.TavernHelper.triggerSlash.bind(window.parent.TavernHelper)
                     : null;
         if (!slash) throw new Error("triggerSlash 未就绪");
+        await applyInitPatchByMvuParser(initPatch);
         await slash('/send await=true ' + safeDisplayMessage);
-        await applyInitPatchDirectly(initPatch);
+        await verifyInitPatchLatest();
         await slash('/trigger await=true');
     }).catch(function(error) {
         console.error('[开场白] MVU初始化写入失败:', error);
@@ -2773,6 +2829,7 @@ window.submitForm = function() {
     });
 };
 $(function() {
+    初始化开场生日选项();
     window.updateSpiritTypes();
     refreshTemplateSelect();
     bindTemplateMemoryEvents();
