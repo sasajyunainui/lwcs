@@ -9886,7 +9886,7 @@
       return text;
     }
 
-    function 构建技能设计台条件分支条件编辑器(condition = {}, 允许删除 = false) {
+    function 构建技能设计台条件分支条件编辑器(condition = {}, 允许删除 = false, 追加动画 = false) {
       const 类型 = normalizeSkillUiText(condition['类型'], '生命比例');
       const 对象 = normalizeSkillUiText(condition['对象'], '目标');
       const 比较选项 = 读取技能设计台条件分支比较选项(类型);
@@ -9899,7 +9899,7 @@
       if (类型 === '目标') {
         return `
           <div class=\"mvu-editor-field-grid skill-designer-condition-row skill-designer-condition-row--target\" data-skill-designer-condition-row data-skill-designer-condition-type=\"${escapeHtmlAttr(类型)}\">
-            ${允许删除 ? '<button type=\"button\" class=\"skill-designer-remove-btn\" data-skill-designer-remove-condition data-skill-designer-disableable aria-label=\"删除条件\">×</button>' : ''}
+            ${允许删除 ? '<button type=\"button\" class=\"skill-designer-remove-btn\" data-skill-designer-remove-condition data-skill-designer-disableable aria-label=\"删除判定条件\" title=\"删除该判定条件\">×</button>' : ''}
             <label class=\"mvu-editor-field\">
               <span class=\"mvu-editor-label\">类型</span>
               <select class=\"mvu-editor-select\" data-skill-designer-condition-field=\"类型\" data-skill-designer-disableable>
@@ -9917,8 +9917,8 @@
         `;
       }
       return `
-        <div class=\"mvu-editor-field-grid skill-designer-condition-row\" data-skill-designer-condition-row data-skill-designer-condition-type=\"${escapeHtmlAttr(类型)}\">
-          ${允许删除 ? '<button type=\"button\" class=\"skill-designer-remove-btn\" data-skill-designer-remove-condition data-skill-designer-disableable aria-label=\"删除条件\">×</button>' : ''}
+        <div class=\"mvu-editor-field-grid skill-designer-condition-row${追加动画 ? ' skill-designer-fade-in' : ''}\" data-skill-designer-condition-row data-skill-designer-condition-type=\"${escapeHtmlAttr(类型)}\">
+          ${允许删除 ? '<button type=\"button\" class=\"skill-designer-remove-btn\" data-skill-designer-remove-condition data-skill-designer-disableable aria-label=\"删除判定条件\" title=\"删除该判定条件\">×</button>' : ''}
           <label class=\"mvu-editor-field\">
             <span class=\"mvu-editor-label\">类型</span>
             <select class=\"mvu-editor-select\" data-skill-designer-condition-field=\"类型\" data-skill-designer-disableable>
@@ -9952,14 +9952,14 @@
       `;
     }
 
-    function 构建技能设计台条件分支条目编辑器(branch = {}, fallbackTarget = '单体') {
+    function 构建技能设计台条件分支条目编辑器(branch = {}, fallbackTarget = '单体', 追加动画 = false) {
       const 处理 = normalizeSkillUiText(branch['处理'], '替换效果');
       const 条件 = Array.isArray(branch['条件']) && branch['条件'].length ? branch['条件'] : [{ 类型: '生命比例', 对象: '目标', 比较: '<=', 值: '20%' }];
       const 替换效果 = Array.isArray(branch['替换效果']) ? branch['替换效果'] : [];
       const 追加效果 = Array.isArray(branch['追加效果']) ? branch['追加效果'] : [];
       return `
-        <div class=\"skill-designer-subsection\" data-skill-designer-condition-branch-row>
-          <button type=\"button\" class=\"skill-designer-remove-btn\" data-skill-designer-remove-condition-branch data-skill-designer-disableable aria-label=\"删除分支\">×</button>
+        <div class=\"skill-designer-subsection${追加动画 ? ' skill-designer-fade-in' : ''}\" data-skill-designer-condition-branch-row>
+          <button type=\"button\" class=\"skill-designer-remove-btn\" data-skill-designer-remove-condition-branch data-skill-designer-disableable aria-label=\"删除逻辑分支\" title=\"删除该逻辑分支模块\">×</button>
           <div class=\"skill-designer-preview-stack\" data-skill-designer-condition-list>
             ${条件.map(item => 构建技能设计台条件分支条件编辑器(item, 条件.length > 1)).join('')}
           </div>
@@ -10197,7 +10197,7 @@
       });
     }
 
-    function 构建技能设计台原型效果行列表(effects = [], fallbackTarget = '单体', 允许删空 = false, options = {}) {
+    function 构建技能设计台原型效果行列表(effects = [], fallbackTarget = '单体', 允许删空 = false, options = {}, 追加动画 = false) {
       const source = Array.isArray(effects) ? effects : [];
       const normalized = 允许删空 && !source.length ? [] : 规范化技能设计台原型效果列表(source, fallbackTarget);
       const prototypeOptions = 读取技能设计台原型名称列表();
@@ -10210,8 +10210,8 @@
           固定生效方式: options && options.固定首个独立生效 && index === 0 ? '独立生效' : options && options.固定生效方式,
         };
         return `
-          <div class=\"skill-designer-subsection\" data-skill-designer-prototype-row>
-            ${允许删除当前原型 ? '<button type=\"button\" class=\"skill-designer-remove-btn\" data-skill-designer-remove-prototype data-skill-designer-disableable aria-label=\"删除原型\">×</button>' : ''}
+          <div class=\"skill-designer-subsection${追加动画 ? ' skill-designer-fade-in' : ''}\" data-skill-designer-prototype-row>
+            ${允许删除当前原型 ? '<button type=\"button\" class=\"skill-designer-remove-btn\" data-skill-designer-remove-prototype data-skill-designer-disableable aria-label=\"删除该原型机制\" title=\"删除该原型机制\">×</button>' : ''}
             <div class=\"mvu-editor-field-grid\">
               <label class=\"mvu-editor-field\">
                 <span class=\"mvu-editor-label\">原型</span>
@@ -18481,7 +18481,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                   1,
                   parseSkillDesignerIntegerInputValue(conditionRow.querySelector('[data-skill-designer-condition-field="层级"]')?.value, 1, 0),
                 );
-                conditionRow.insertAdjacentHTML('afterend', 构建技能设计台条件分支条件编辑器(nextCondition, !!conditionRow.querySelector('[data-skill-designer-remove-condition]')));
+                conditionRow.insertAdjacentHTML('afterend', 构建技能设计台条件分支条件编辑器(nextCondition, !!conditionRow.querySelector('[data-skill-designer-remove-condition]'), true));
                 const nextRow = conditionRow.nextElementSibling;
                 conditionRow.remove();
                 syncConditionRow(nextRow);
@@ -18858,11 +18858,11 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                 const row = addCondition.closest('[data-skill-designer-condition-branch-row]');
                 const list = row ? row.querySelector('[data-skill-designer-condition-list]') : null;
                 if (list) {
-                  list.insertAdjacentHTML('beforeend', 构建技能设计台条件分支条件编辑器({ 类型: '生命比例', 对象: '目标', 比较: '<=', 值: '20%' }));
+                  list.insertAdjacentHTML('beforeend', 构建技能设计台条件分支条件编辑器({ 类型: '生命比例', 对象: '目标', 比较: '<=', 值: '20%' }, true, true));
                   list.querySelectorAll('[data-skill-designer-condition-row]').forEach(conditionRow => {
                     const removeBtn = conditionRow.querySelector('[data-skill-designer-remove-condition]');
                     if (removeBtn) return;
-                    conditionRow.insertAdjacentHTML('afterbegin', '<button type=\"button\" class=\"skill-designer-remove-btn\" data-skill-designer-remove-condition data-skill-designer-disableable aria-label=\"删除条件\">×</button>');
+                    conditionRow.insertAdjacentHTML('afterbegin', '<button type=\"button\" class=\"skill-designer-remove-btn\" data-skill-designer-remove-condition data-skill-designer-disableable aria-label=\"删除判定条件\" title=\"删除该判定条件\">×</button>');
                   });
                   syncConditionRow(list.lastElementChild);
                   refreshPreview();
@@ -18876,7 +18876,20 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                 const list = conditionRow ? conditionRow.closest('[data-skill-designer-condition-list]') : null;
                 const count = list ? list.querySelectorAll('[data-skill-designer-condition-row]').length : 0;
                 if (conditionRow && count > 1) conditionRow.remove();
+                if (list && count === 2) {
+                  list.querySelectorAll('[data-skill-designer-remove-condition]').forEach(btn => btn.remove());
+                }
                 refreshPreview();
+                return;
+              }
+              const addBranch = target ? target.closest('[data-skill-designer-add-condition-branch]') : null;
+              if (addBranch) {
+                event.preventDefault();
+                const list = form.querySelector('[data-skill-designer-condition-branch-list]');
+                if (list) {
+                  list.insertAdjacentHTML('beforeend', 构建技能设计台条件分支条目编辑器({}, '单体', true));
+                  refreshPreview();
+                }
                 return;
               }
               const addConditionEffect = target ? target.closest('[data-skill-designer-add-condition-effect]') : null;
@@ -18889,7 +18902,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                 if (grid) {
                   const 新效果 = 创建技能设计台默认原型效果('伤害结算', 目标值);
                   新效果['生效方式'] = 计算新增原型生效方式(grid, 目标值);
-                  grid.insertAdjacentHTML('beforeend', 构建技能设计台原型效果行列表([新效果], 目标值, true, { 禁用条件分支: true }));
+                  grid.insertAdjacentHTML('beforeend', 构建技能设计台原型效果行列表([新效果], 目标值, true, { 禁用条件分支: true }, true));
                   refreshPreview();
                 }
                 return;
@@ -18902,7 +18915,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                 if (grid) {
                   const 新效果 = 创建技能设计台默认原型效果('判定修正', '单体');
                   新效果['生效方式'] = 计算新增原型生效方式(grid, '单体');
-                  grid.insertAdjacentHTML('beforeend', 构建技能设计台原型效果行列表([新效果], '单体', true));
+                  grid.insertAdjacentHTML('beforeend', 构建技能设计台原型效果行列表([新效果], '单体', true, {}, true));
                   refreshPreview();
                 }
                 return;

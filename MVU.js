@@ -553,6 +553,40 @@ function 删除运行时本轮模块结算字段_V1(视图 = {}, 只读路径列
   return 视图;
 }
 
+function 运行时记录命中文本_V1(键 = '', 记录 = {}, 文本 = '') {
+  if (运行时文本命中名称_V1(文本, 键)) return true;
+  if (!记录 || typeof 记录 !== 'object') return false;
+  return ['名称', '事件', '标题', '内容', '请求名', '委托名', '拍品名', '地点', '势力', '角色'].some(字段 =>
+    运行时文本命中名称_V1(文本, 记录?.[字段]),
+  );
+}
+
+function 复制运行时命中记录表_V1(记录表 = {}, 文本 = '', 最大数量 = 12) {
+  const 输出 = {};
+  Object.entries(记录表 || {}).forEach(([键, 记录]) => {
+    if (Object.keys(输出).length >= 最大数量) return;
+    if (运行时记录命中文本_V1(键, 记录, 文本)) 输出[键] = cloneJsonValue(记录, {});
+  });
+  return 输出;
+}
+
+function 复制运行时待处理时间线_V1(时间线 = {}, 文本 = '') {
+  const 输出 = {};
+  Object.entries(时间线 || {}).forEach(([键, 记录]) => {
+    if (Object.keys(输出).length >= 12) return;
+    const 状态 = String(记录?.状态 || '').trim();
+    if (运行时记录命中文本_V1(键, 记录, 文本) || 状态 === '进行中' || 状态 === '触发中') {
+      输出[键] = cloneJsonValue(记录, {});
+    }
+  });
+  return 输出;
+}
+
+function 运行时对象有内容_V1(值 = null) {
+  if (!值 || typeof 值 !== 'object') return false;
+  return Object.keys(值).length > 0;
+}
+
 function 生成MVU正文视图_V1(数据输入 = null, userInput = '', plotText = '') {
   const 数据根 = 读取运行时Mvu数据根_V1(数据输入) || {};
   const 文本 = `${userInput || ''}\n${plotText || ''}`;
@@ -613,6 +647,11 @@ function 生成MVU更新视图_V1(数据输入 = null, userInput = '', aiText = 
     Object.keys(数据根?.char?.[角色名]?.社交?.势力 || {}).forEach(势力名 => 势力名集合.add(势力名));
   });
   const 物品名集合 = 收集运行时相关物品名_V1(数据根, 文本, 角色名集合);
+  const 时间线视图 = 复制运行时待处理时间线_V1(数据根?.world?.时间线 || {}, 文本);
+  const 机密情报视图 = 复制运行时命中记录表_V1(数据根?.world?.机密情报 || {}, 文本, 8);
+  const 拍卖视图 = 复制运行时命中记录表_V1(数据根?.world?.拍卖 || {}, 文本, 8);
+  const 委托板视图 = 复制运行时命中记录表_V1(数据根?.world?.委托板 || {}, 文本, 8);
+  const 图鉴视图 = 复制运行时命中记录表_V1(数据根?.world?.图鉴 || {}, 文本, 8);
   const 视图 = {
     sys: cloneJsonValue({ 系统播报: 数据根?.sys?.系统播报 }, {}),
     world: {
@@ -620,13 +659,13 @@ function 生成MVU更新视图_V1(数据输入 = null, userInput = '', aiText = 
       偏差值: Number(数据根?.world?.偏差值 || 0),
       偏差倍率: Number(数据根?.world?.偏差倍率 || 1),
       累计击杀年限: Number(数据根?.world?.累计击杀年限 || 0),
-      时间线: cloneJsonValue(数据根?.world?.时间线 || {}, {}),
-      机密情报: cloneJsonValue(数据根?.world?.机密情报 || {}, {}),
-      拍卖: cloneJsonValue(数据根?.world?.拍卖 || {}, {}),
-      交易请求: cloneJsonValue(数据根?.world?.交易请求 || {}, {}),
-      委托板: cloneJsonValue(数据根?.world?.委托板 || {}, {}),
-      图鉴: cloneJsonValue(数据根?.world?.图鉴 || {}, {}),
-      战斗: cloneJsonValue(数据根?.world?.战斗 || {}, {}),
+      时间线: 运行时对象有内容_V1(时间线视图) ? 时间线视图 : undefined,
+      机密情报: 运行时对象有内容_V1(机密情报视图) ? 机密情报视图 : undefined,
+      拍卖: 运行时对象有内容_V1(拍卖视图) ? 拍卖视图 : undefined,
+      交易请求: 运行时对象有内容_V1(数据根?.world?.交易请求) ? cloneJsonValue(数据根.world.交易请求, {}) : undefined,
+      委托板: 运行时对象有内容_V1(委托板视图) ? 委托板视图 : undefined,
+      图鉴: 运行时对象有内容_V1(图鉴视图) ? 图鉴视图 : undefined,
+      战斗: 数据根?.world?.战斗?.进行中 ? cloneJsonValue(数据根.world.战斗, {}) : undefined,
       地点: {},
       动态地点: {},
     },
@@ -655,6 +694,9 @@ function 生成MVU更新视图_V1(数据输入 = null, userInput = '', aiText = 
   物品名集合.forEach(物品名 => {
     const 定义 = cloneJsonValue(数据根?.物品?.[物品名], null);
     if (定义 && typeof 定义 === 'object') 视图.物品[物品名] = 为运行时物品定义注入提示_V1(定义);
+  });
+  Object.keys(视图.world).forEach(键 => {
+    if (视图.world[键] === undefined) delete 视图.world[键];
   });
   删除运行时只读字段_V1(视图, new Set(['_效果数组']));
   return 删除运行时本轮模块结算字段_V1(视图, 读取运行时本轮模块结算只读路径_V1());
