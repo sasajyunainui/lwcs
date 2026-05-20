@@ -37,6 +37,10 @@ context.globalThis = context;
 Object.assign(context, {
   findMapNodeEntry: (loc) => ({ path: String(loc || '').split('-').filter(Boolean) }),
   取角色武魂条目_V1: char => Object.entries(char || {}).filter(([key]) => /^第\d+武魂$|^第[一二三四五六七八九十]+武魂$|^[一二三四五六七八九十]+武魂$/.test(key)),
+  取角色主武魂系别_V1: (char, fallback = '强攻系') => {
+    const 条目 = Object.entries(char || {}).find(([key, value]) => /^第\d+武魂$|^第[一二三四五六七八九十]+武魂$|^[一二三四五六七八九十]+武魂$/.test(key) && value && typeof value === 'object');
+    return String(条目?.[1]?.系别 || fallback).trim() || fallback;
+  },
   取武魂魂灵条目_V1: spirit => Object.entries(spirit || {}).filter(([key]) => /^第\d+魂灵$/.test(key)),
   取魂灵魂环条目_V1: soulSpirit => Object.entries(soulSpirit || {}).filter(([key]) => /^第\d+魂环$/.test(key)),
   取武魂直接魂环条目_V1: spirit => Object.entries(spirit || {}).filter(([key]) => /^第\d+魂环$/.test(key)),

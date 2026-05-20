@@ -6184,7 +6184,38 @@
         .filter(Boolean);
     }
 
-    function normalizeSkillDesignerConditionBranchList(value = [], fallbackTarget = '单体', recordViolation = () => {}) {
+    function 规范化技能设计台等价比较效果(effect = {}) {
+      if (!effect || typeof effect !== 'object' || Array.isArray(effect)) return effect;
+      const copy = cloneJsonValue(effect);
+      delete copy['条件分支'];
+      if (copy['目标'] === undefined || copy['目标'] === null || normalizeSkillUiText(copy['目标'], '') === '') delete copy['目标'];
+      Object.keys(copy).forEach(key => {
+        const value = copy[key];
+        if (value === undefined || value === null || (typeof value === 'string' && !value.trim())) delete copy[key];
+      });
+      return copy;
+    }
+
+    function 稳定序列化技能设计台效果(value) {
+      if (Array.isArray(value)) return `[${value.map(稳定序列化技能设计台效果).join(',')}]`;
+      if (value && typeof value === 'object') {
+        return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${稳定序列化技能设计台效果(value[key])}`).join(',')}}`;
+      }
+      return JSON.stringify(value);
+    }
+
+    function 技能设计台条件分支替换效果等价(parentEffect = {}, replacementEffects = []) {
+      const effects = Array.isArray(replacementEffects) ? replacementEffects : [];
+      if (effects.length !== 1) return false;
+      const base = 规范化技能设计台等价比较效果(parentEffect);
+      const replacement = 规范化技能设计台等价比较效果(effects[0]);
+      if (!replacement['目标'] && base['目标']) replacement['目标'] = base['目标'];
+      if (!base['目标'] && replacement['目标'] === '自身') delete replacement['目标'];
+      else if (!base['目标'] && replacement['目标']) base['目标'] = replacement['目标'];
+      return 稳定序列化技能设计台效果(base) === 稳定序列化技能设计台效果(replacement);
+    }
+
+    function normalizeSkillDesignerConditionBranchList(value = [], fallbackTarget = '单体', recordViolation = () => {}, parentEffect = {}) {
       return (Array.isArray(value) ? value : [])
         .map(branch => {
           if (!branch || typeof branch !== 'object' || Array.isArray(branch)) return null;
@@ -6198,6 +6229,7 @@
             const key = 处理 === '替换效果' ? '替换效果' : '追加效果';
             const effects = normalizeSkillDesignerExecutionEffectArray(branch[key] || [], fallbackTarget);
             if (!effects.length) return null;
+            if (处理 === '替换效果' && 技能设计台条件分支替换效果等价(parentEffect, effects)) return null;
             normalized[key] = effects;
           }
           return normalized;
@@ -6277,6 +6309,14 @@
         }
         return;
       }
+      const 构建缺少状态禁用条件分支 = (状态 = '持续创伤') => [{
+        条件: [{ 类型: '状态', 对象: '目标', 比较: '无', 状态 }],
+        处理: '禁用基础效果',
+      }];
+      const 构建缺少护盾禁用条件分支 = () => [{
+        条件: [{ 类型: '护盾', 对象: '目标', 比较: '无' }],
+        处理: '禁用基础效果',
+      }];
       if (原型 === '资源变化') {
         if (字段['资源'] === undefined) {
           const rawResource = normalizeSkillUiText(source['资源'] || source['属性'] || source['资源类型'], '');
@@ -6309,6 +6349,12 @@
           if (rawAttributeValue !== undefined) 字段['数值'] = normalizeSkillDesignerEffectValue(rawAttributeValue, source['动作'] || source.action || '');
         }
         return;
+      }
+      if (原型 === '结算修正' && normalizeSkillUiText(字段['结算'] || source['结算'], '') === '持续伤害引爆' && 字段['条件分支'] === undefined) {
+        字段['条件分支'] = 构建缺少状态禁用条件分支(normalizeSkillUiText(source['状态'] || source['状态名称'], '持续创伤'));
+      }
+      if (原型 === '状态时窗修正' && 字段['条件分支'] === undefined) {
+        字段['条件分支'] = 构建缺少状态禁用条件分支(normalizeSkillUiText(字段['状态'] || source['状态'] || source['状态名称'], '持续创伤'));
       }
       if (字段['数值'] !== undefined) return;
       let raw;
@@ -6357,6 +6403,7 @@
         if (raw !== undefined) {
           const 按倍率 = ['最终伤害', '最终治疗', '护盾获得', '消耗', '前摇', '技能效果'].includes(结算);
           字段['数值'] = 格式化技能设计台原型比例变化(raw, 1, 按倍率);
+          if (结算 === '持续伤害引爆' && 字段['条件分支'] === undefined) 字段['条件分支'] = 构建缺少状态禁用条件分支(normalizeSkillUiText(source['状态'] || source['状态名称'], '持续创伤'));
           return;
         }
       } else if (原型 === '状态时窗修正') {
@@ -6370,6 +6417,7 @@
           const rawRatio = pick(['结算倍率', '引爆倍率', '压缩倍率', 'compressRatio']);
           字段['结算倍率'] = rawRatio === undefined ? '+100%' : 格式化技能设计台原型比例变化(rawRatio, 1, true);
         }
+        if (字段['条件分支'] === undefined) 字段['条件分支'] = 构建缺少状态禁用条件分支(字段['状态'] || '持续创伤');
         return;
       } else if (原型 === '目标选择修正') {
         const 选择 = normalizeSkillUiText(字段['选择'], '');
@@ -6686,8 +6734,12 @@
         缺失字段.forEach(key => recordViolation(`${原型}.${key}.必填`));
         return null;
       }
+      const 条件分支源 = Array.isArray(字段['条件分支']) && 字段['条件分支'].length
+        ? [...(Array.isArray(value['条件分支']) ? value['条件分支'] : []), ...字段['条件分支']]
+        : (value['条件分支'] || []);
+      delete 字段['条件分支'];
       const normalized = { '原型': 原型, '目标': 目标, ...字段 };
-      const 条件分支 = normalizeSkillDesignerConditionBranchList(value['条件分支'] || [], 目标, recordViolation);
+      const 条件分支 = normalizeSkillDesignerConditionBranchList(条件分支源, 目标, recordViolation, normalized);
       if (持续回合 > 0) normalized['持续回合'] = 持续回合;
       if (持续tick > 0) normalized['持续tick'] = 持续tick;
       if (有效期tick > 0) normalized['有效期tick'] = 有效期tick;
@@ -9927,11 +9979,23 @@
     }
 
     function 技能设计台状态需要默认内部效果(状态 = '') {
-      return ['中毒', '流血', '灼烧', '冻伤', '持续创伤', '迟缓', '资源燃烧'].includes(normalizeSkillUiText(状态, ''));
+      return ['中毒', '流血', '灼烧', '冻伤', '持续创伤', '持续恢复', '迟缓', '资源燃烧'].includes(normalizeSkillUiText(状态, ''));
     }
 
     function 技能设计台创建状态内部默认效果(状态 = '') {
       const 状态名 = normalizeSkillUiText(状态, '持续创伤');
+      if (状态名 === '持续恢复') {
+        return {
+          原型: '资源变化',
+          目标: '自身',
+          生效方式: '独立生效',
+          资源: '生命',
+          数值: '+10%',
+          触发: '每回合',
+          驱动属性: '魂力上限',
+          影响方向: '效果强度',
+        };
+      }
       if (状态名 === '迟缓') {
         return {
           原型: '属性修正',
@@ -11246,15 +11310,19 @@
     function buildSkillDesignerPackedRecoverAttributeEffect(target, property, ratio, duration = 0, overtime = false) {
       const numericValue = Number(ratio);
       if (!Number.isFinite(numericValue) || numericValue <= 0) return null;
-      return buildSkillDesignerPackedAttributeEffect(
-        '属性变化',
-        target,
-        property,
-        '加值',
-        numericValue,
-        overtime ? duration : 0,
-        overtime ? '每回合' : '立即',
-      );
+      if (!overtime) {
+        return buildSkillDesignerPackedAttributeEffect('属性变化', target, property, '加值', numericValue, 0, '立即');
+      }
+      const 内部效果 = buildSkillDesignerPackedAttributeEffect('属性变化', '自身', property, '加值', numericValue, 0, '每回合');
+      if (!内部效果) return null;
+      return buildSkillDesignerRuntimeObject({
+        '原型': '状态施加',
+        '目标': normalizeSkillDesignerEffectTargetValue(target || '自身', '自身'),
+        '状态': '持续恢复',
+        '持续回合': Math.max(1, parseSkillDesignerIntegerInputValue(duration, 1, 1)),
+        '状态效果': [内部效果],
+        '生效方式': '独立生效',
+      });
     }
 
     function buildSkillDesignerAttributeEffectsForProperties(target, properties = [], action = '倍率提升', value = 1, duration = 0) {
@@ -11275,7 +11343,7 @@
       return buildSkillDesignerRuntimeObject({
         '原型': '状态施加',
         '目标': target || '自身',
-        '状态': ['中毒', '流血', '灼烧', '冻伤', '持续创伤', '迟缓', '资源燃烧', '眩晕', '沉默', '缴械', '致盲', '禁疗', '治疗反转', '隐匿', '护盾', '无敌', '霸体', '标记', '封技', '位移限制', '真身'].includes(normalizeSkillUiText(stateName, ''))
+        '状态': ['中毒', '流血', '灼烧', '冻伤', '持续创伤', '持续恢复', '迟缓', '资源燃烧', '眩晕', '沉默', '缴械', '致盲', '禁疗', '治疗反转', '隐匿', '护盾', '无敌', '霸体', '标记', '封技', '位移限制', '真身'].includes(normalizeSkillUiText(stateName, ''))
           ? normalizeSkillUiText(stateName, '')
           : '标记',
         '持续回合': Math.max(0, Number(duration || 0)),
@@ -12248,6 +12316,7 @@
               '调整方式': '延长',
               '调整回合': parseSkillDesignerIntegerInputValue(params['extendRounds'], 1, 1),
               '结算倍率': '+100%',
+              '条件分支': [{ 条件: [{ 类型: '状态', 对象: '目标', 比较: '无', 状态: '持续创伤' }], 处理: '禁用基础效果' }],
             }),
           ].filter(effect => safeEntries(effect).length);
         case '压缩持续伤害':
@@ -12259,6 +12328,7 @@
               '调整方式': '压缩',
               '调整回合': parseSkillDesignerIntegerInputValue(params['consumeRounds'], 1, 1),
               '结算倍率': normalizeSkillDesignerEffectValue(parseSkillDesignerFactorInputValue(params['compressRatio'], 1.35), '倍率提升'),
+              '条件分支': [{ 条件: [{ 类型: '状态', 对象: '目标', 比较: '无', 状态: '持续创伤' }], 处理: '禁用基础效果' }],
             }),
           ].filter(effect => safeEntries(effect).length);
         case '召唤与场地':
@@ -12284,14 +12354,19 @@
               '目标': target,
               '结算': '持续伤害引爆',
               '数值': normalizeSkillDesignerEffectValue(parseSkillDesignerFactorInputValue(params['detonateRatio'], 1.2), '倍率提升'),
+              '条件分支': [{ 条件: [{ 类型: '状态', 对象: '目标', 比较: '无', 状态: '持续创伤' }], 处理: '禁用基础效果' }],
             }),
           ].filter(effect => safeEntries(effect).length);
         case '斩盾':
           return [
             buildSkillDesignerRuntimeObject({
-              '机制': '斩盾',
+              '原型': '护盾变化',
               '目标': target,
-              '斩盾倍率': parseSkillDesignerFactorInputValue(params['shieldBreakRatio'], 0.6),
+              '数值': `-${Math.round(parseSkillDesignerPercentRatio(params['shieldBreakRatio'], 0.6) * 100)}%`,
+              '生效方式': '独立生效',
+              '驱动属性': '魂力上限',
+              '影响方向': '效果强度',
+              '条件分支': [{ 条件: [{ 类型: '护盾', 对象: '目标', 比较: '无' }], 处理: '禁用基础效果' }],
             }),
           ].filter(effect => safeEntries(effect).length);
         case '窃取护盾':
@@ -12302,6 +12377,7 @@
               '数值': `-${Math.round(parseSkillDesignerPercentRatio(params['shieldStealRatio'], 0.45) * 100)}%`,
               '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
               '生效方式': '独立生效',
+              '条件分支': [{ 条件: [{ 类型: '护盾', 对象: '目标', 比较: '无' }], 处理: '禁用基础效果' }],
             },
             {
               '原型': '护盾变化',
@@ -12704,13 +12780,18 @@
             '目标': offensiveTarget,
             '结算': '持续伤害引爆',
             '数值': normalizeSkillDesignerEffectValue(parseSkillDesignerFactorInputValue(params['detonateRatio'], 1.2), '倍率提升'),
+            '条件分支': [{ 条件: [{ 类型: '状态', 对象: '目标', 比较: '无', 状态: '持续创伤' }], 处理: '禁用基础效果' }],
           }));
           break;
         case '斩盾':
           effects.push(buildSkillDesignerRuntimeObject({
-            '机制': '斩盾',
+            '原型': '护盾变化',
             '目标': offensiveTarget,
-            '斩盾倍率': parseSkillDesignerFactorInputValue(params['shieldBreakRatio'], 0.6),
+            '数值': `-${Math.round(parseSkillDesignerPercentRatio(params['shieldBreakRatio'], 0.6) * 100)}%`,
+            '生效方式': '独立生效',
+            '驱动属性': '魂力上限',
+            '影响方向': '效果强度',
+            '条件分支': [{ 条件: [{ 类型: '护盾', 对象: '目标', 比较: '无' }], 处理: '禁用基础效果' }],
           }));
           break;
         case '窃取护盾':
@@ -12720,6 +12801,7 @@
             '数值': `-${Math.round(parseSkillDesignerPercentRatio(params['shieldStealRatio'], 0.45) * 100)}%`,
             '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
             '生效方式': '独立生效',
+            '条件分支': [{ 条件: [{ 类型: '护盾', 对象: '目标', 比较: '无' }], 处理: '禁用基础效果' }],
           }, {
             '原型': '护盾变化',
             '目标': '自身',
@@ -12926,6 +13008,7 @@
             '调整方式': '延长',
             '调整回合': parseSkillDesignerIntegerInputValue(params['extendRounds'], 1, 1),
             '结算倍率': '+100%',
+            '条件分支': [{ 条件: [{ 类型: '状态', 对象: '目标', 比较: '无', 状态: '持续创伤' }], 处理: '禁用基础效果' }],
           }));
           break;
         case '压缩持续伤害':
@@ -12936,6 +13019,7 @@
             '调整方式': '压缩',
             '调整回合': parseSkillDesignerIntegerInputValue(params['consumeRounds'], 1, 1),
             '结算倍率': normalizeSkillDesignerEffectValue(parseSkillDesignerFactorInputValue(params['compressRatio'], 1.35), '倍率提升'),
+            '条件分支': [{ 条件: [{ 类型: '状态', 对象: '目标', 比较: '无', 状态: '持续创伤' }], 处理: '禁用基础效果' }],
           }));
           break;
         case '召唤与场地':
@@ -15522,6 +15606,18 @@
         `;
     }
 
+    function 构建副职业工坊上限摘要(职业名 = '', 职业数据 = {}) {
+      if (!职业数据 || typeof 职业数据 !== 'object') return '暂无工坊上限';
+      const 等级 = Math.max(0, toNumber(职业数据.等级 ?? 职业数据.lv, 0));
+      const 成功率 = toNumber(deepGet(职业数据, '限制.成功率', 0), 0);
+      const 最大融合数 = toNumber(deepGet(职业数据, '限制.最大融合数', 1), 1);
+      if (职业名 === '锻造师') {
+        const 锻造档位 = 等级 >= 9 ? '天锻' : (等级 >= 7 ? '魂锻' : (等级 >= 5 ? '灵锻' : (等级 >= 3 ? '千锻' : '百锻')));
+        return 最大融合数 < 2 ? `${锻造档位}成功率 ${成功率}%` : `融锻上限 ${最大融合数}项 / 成功率 ${成功率}%`;
+      }
+      return 最大融合数 < 2 ? `单工序成功率 ${成功率}%` : `复合上限 ${最大融合数}项 / 成功率 ${成功率}%`;
+    }
+
     function buildArmoryCard(snapshot) {
       const armor = deepGet(snapshot, 'activeChar.装备.斗铠', {});
       const mech = deepGet(snapshot, 'activeChar.装备.机甲', {});
@@ -15529,7 +15625,7 @@
       const jobs = safeEntries(deepGet(snapshot, 'activeChar.职业', {}));
       const jobSummary = jobs.length ? `${jobs[0][0]} Lv.${toText(deepGet(jobs[0][1], 'lv', 0), '0')}` : '未展开';
       const jobCoreTechSummary = jobs.length ? (Object.keys(deepGet(jobs[0][1], '核心技艺', {})).slice(0, 2).join(' / ') || '暂无核心技术') : '暂无核心技术';
-      const jobLimitSummary = jobs.length ? `融锻上限 ${toText(deepGet(jobs[0][1], '限制.最大融合数', 1), '1')} / 成功率 ${toText(deepGet(jobs[0][1], '限制.成功率', 0), '0')}%` : '暂无工坊上限';
+      const jobLimitSummary = jobs.length ? 构建副职业工坊上限摘要(jobs[0][0], jobs[0][1]) : '暂无工坊上限';
       const 斗铠名称 = toText(armor.名称 || armor['名称'], '');
       const armorSummary = toNumber(armor.等级, 0) > 0 || 斗铠名称 ? (斗铠名称 || `${armor.等级}字斗铠`) : '无';
       const mechSummary = toText(mech.等级, '无') !== '无' ? `${toText(mech.名称 || mech['名称'], `${toText(mech.等级, '无')}机甲`)}·${toText(mech.型号, '均衡')}` : '无';
@@ -20728,7 +20824,7 @@
         const weaponSummary = weapon && (weapon.名称 || weapon['名称']) ? `${toText(weapon.名称 || weapon['名称'], '无')} / ${toText(weapon.品阶 || weapon['品阶'], '无品阶')}` : '无';
         const jobSummary = jobs.length ? jobs.slice(0, 2).map(([name, info]) => `${name} Lv.${toText(info && info.等级, 0)}`).join(' / ') : '未掌握';
         const jobCoreTechSummary = jobs.length ? (Object.keys(deepGet(jobs[0][1], '核心技艺', {})).slice(0, 2).join(' / ') || '暂无核心技术') : '暂无核心技术';
-        const jobLimitSummary = jobs.length ? `融锻上限 ${toText(deepGet(jobs[0][1], '限制.最大融合数', 1), '1')} / 成功率 ${toText(deepGet(jobs[0][1], '限制.成功率', 0), '0')}%` : '暂无工坊上限';
+        const jobLimitSummary = jobs.length ? 构建副职业工坊上限摘要(jobs[0][0], jobs[0][1]) : '暂无工坊上限';
         const battleForm = toText(deepGet(snapshot, 'activeChar.状态.行动', '日常'), '日常');
         const armorExists = toNumber(armor.等级, 0) > 0 || !!toText(armor.名称 || armor['名称'], '');
         const mechExists = toText(mech.等级, '无') !== '无' || !!toText(mech.名称 || mech['名称'] || mech.型号, '');
@@ -24640,6 +24736,25 @@
     window.__LWCS_SKILL_COVERAGE_MATRIX__ = buildSkillCoverageMatrix();
     window.__LWCS_GET_SKILL_COVERAGE_MATRIX__ = () => window.__LWCS_SKILL_COVERAGE_MATRIX__;
     window.__LWCS_LIST_SKILL_FIXTURES__ = () => Object.keys(window.__LWCS_SKILL_FIXTURE_LIBRARY__ || {});
+    window.__LWCS_RUN_SKILL_FIXTURE_CONTRACT_CHECK__ = function runSkillFixtureContractCheck(夹具键列表 = []) {
+      const 夹具库 = window.__LWCS_SKILL_FIXTURE_LIBRARY__ || {};
+      const 待检查键列表 = Array.isArray(夹具键列表) && 夹具键列表.length ? 夹具键列表 : Object.keys(夹具库);
+      const 结果列表 = 待检查键列表.map(夹具键 => {
+        const 夹具配置 = 夹具库[夹具键];
+        if (!夹具配置 || typeof 夹具配置 !== 'object') return { key: 夹具键, ok: false, error: 'skill_fixture_missing' };
+        const 结构校验 = 校验技能夹具摘要({ ...夹具配置, 预期: {} }, {});
+        const 失败项 = (结构校验.检查项 || [])
+          .filter(检查项 => !检查项.通过)
+          .map(检查项 => ({ 项目: 检查项.项目, 详情: 检查项.详情 }));
+        return { key: 夹具键, ok: 失败项.length === 0, failedChecks: 失败项 };
+      });
+      return {
+        total: 结果列表.length,
+        passed: 结果列表.filter(结果 => 结果.ok).length,
+        failed: 结果列表.filter(结果 => !结果.ok),
+        results: 结果列表,
+      };
+    };
     window.__LWCS_GET_SKILL_FIXTURE_DIAGNOSTICS__ = async function getSkillFixtureDiagnostics() {
       let 变量 = null;
       let 变量错误 = '';
@@ -24663,6 +24778,7 @@
           夹具列表: typeof window.__LWCS_LIST_SKILL_FIXTURES__,
           单夹具: typeof window.__LWCS_RUN_SKILL_FIXTURE__,
           批夹具: typeof window.__LWCS_RUN_SKILL_FIXTURE_BATCH__,
+          结构契约: typeof window.__LWCS_RUN_SKILL_FIXTURE_CONTRACT_CHECK__,
           生成检查: typeof window.__LWCS_RUN_GENERATION_RULE_CHECKS__,
         },
       };
@@ -32142,7 +32258,7 @@ window.EquipmentManager = {
     const value = effect && typeof effect === 'object' ? effect.value || {} : {};
     const record = this.createInventoryStatusRecord(itemName, effect, key, 当前tick);
     if (effect?.type === 'mechanism_grant') {
-      record.机制授予状态 = true;
+      record.效果授予状态 = true;
       record.触发条件 = toText(value.触发条件, '下次有效行动');
       record.可用次数 = Math.max(1, toNumber(value.可用次数, 1));
       record.授予效果 = cloneJsonValue(Array.isArray(value.授予效果) ? value.授予效果 : [], []);

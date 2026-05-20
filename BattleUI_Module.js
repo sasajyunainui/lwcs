@@ -2161,7 +2161,7 @@ class BattleUIComponent {
       const normalizedTargetModel = normalizeBattleSkillTargetModel(targetModel, '敌方单体');
       const effects = Array.isArray(skill?._效果数组) ? skill._效果数组 : [];
       const mechanisms = effects
-        .map(effect => String(effect?.原型 || effect?.运行机制 || '').trim())
+        .map(effect => String(effect?.原型 || '').trim())
         .filter(Boolean);
       const modifiers = [];
       if (['敌方单体', '敌方群体'].includes(normalizedTargetModel)) {
@@ -2593,13 +2593,14 @@ class BattleUIComponent {
         写字段('shield_gain_bonus', '增量');
       } else if (原型 === '状态时窗修正') {
         const 调整方式 = String(effect?.调整方式 || '').trim();
-        hydrated.运行机制 = 调整方式 === '压缩' ? '压缩持续伤害' : '延长持续伤害';
+        hydrated.运行机制 = '状态时窗修正';
+        hydrated.运行态调整方式 = 调整方式 === '压缩' ? '压缩' : '延长';
         hydrated.持续回合 = Math.max(1, Number(effect?.调整回合 || effect?.持续回合 || 1));
         hydrated.压缩回合 = Math.max(1, Number(effect?.调整回合 || 1));
         const 时窗倍率 = 读取战斗数值正负(effect?.结算倍率);
         hydrated.引爆倍率 = 时窗倍率 || 1;
       } else if (原型 === '场地施加') {
-        hydrated.运行机制 = '召唤与场地';
+        hydrated.运行机制 = '场地施加';
         hydrated.实体名称 = String(effect?.场地名称 || '场地效果').trim() || '场地效果';
         hydrated.核心机制描述 = Array.isArray(effect?.场地效果) && effect.场地效果.length ? '原型场地效果' : '场地效果';
         if (Array.isArray(effect?.场地效果)) hydrated.场地效果 = deepClonePlain(effect.场地效果);
@@ -3961,7 +3962,7 @@ class BattleUIComponent {
 
     function isBattleSkillSummaryEffect(effect = {}) {
       if (!effect || typeof effect !== 'object' || Array.isArray(effect)) return false;
-      const mechanism = String(effect?.原型 || effect?.运行机制 || '').trim();
+      const mechanism = String(effect?.原型 || '').trim();
       if (!mechanism || mechanism === '系统基础') return false;
       if (effect?.原型 && BATTLE_PROTOTYPE_REGISTRY[String(effect.原型).trim()]) return true;
         if (mechanism === '状态施加') {
@@ -3991,7 +3992,7 @@ class BattleUIComponent {
     }
 
     function 读取战斗效果标签(effect = {}) {
-      return String(effect?.原型 || effect?.运行机制 || '').trim();
+      return String(effect?.原型 || '').trim();
     }
 
     function getBattleSkillSummaryEffects(skill = {}) {
@@ -4226,7 +4227,24 @@ class BattleUIComponent {
       if (type === '状态' || type === '状态层级') {
         const stateMap = 读取条件分支状态表(unit);
         const stateName = String(condition.状态 || value || '').trim();
-        const entry = stateName ? stateMap[stateName] : null;
+        const entry = stateName
+          ? (
+              stateMap[stateName] ||
+              Object.values(stateMap).find(state => {
+                const safeState = state && typeof state === 'object' ? state : {};
+                if (String(safeState.状态 || safeState.状态名称 || '').trim() === stateName) return true;
+                const 状态效果列表 = Array.isArray(safeState.状态效果) ? safeState.状态效果 : [];
+                if (['持续创伤', '中毒', '流血', '灼烧', '冻伤'].includes(stateName)) {
+                  return 状态效果列表.some(item =>
+                    String(item?.原型 || '').trim() === '资源变化' &&
+                    String(item?.资源 || '').trim() === '生命' &&
+                    读取战斗数值正负(item?.数值) < 0,
+                  ) || Number(safeState?.战斗效果?.dot_damage || 0) > 0;
+                }
+                return false;
+              })
+            )
+          : null;
         if (type === '状态') return op === '无' ? !entry : !!entry;
         const layer = Number(entry?.层级 ?? entry?.层数 ?? 0);
         return !!entry && 比较条件分支数值(layer, op === '有' ? '>=' : op, condition.层级 || value || 1);
@@ -4822,7 +4840,7 @@ class BattleUIComponent {
         '反噬系数',
       ];
       effects.forEach(effect => {
-        const 机制名 = String(effect?.原型 || effect?.运行机制 || '').trim();
+        const 机制名 = String(effect?.原型 || '').trim();
         if (!effect || typeof effect !== 'object' || 机制名 === '系统基础' || 机制名 === '技能效果增幅') return;
         const 命中数量字段 = 数量字段.filter(字段 => Number.isFinite(Number(effect[字段])));
         if (命中数量字段.length > 0) {
@@ -4940,7 +4958,7 @@ class BattleUIComponent {
       skill.前摇 = skill.cast_time;
 
       effects.forEach(effect => {
-        const mechanism = String(effect?.原型 || effect?.运行机制 || '');
+        const mechanism = String(effect?.原型 || '');
         if (!mechanism) return;
 
         if (directDamageMechanisms.has(mechanism) && effect.威力倍率 !== undefined) {
@@ -5552,7 +5570,7 @@ class BattleUIComponent {
           '硬控',
           '霸体',
           '护盾',
-        ].includes(effect?.运行机制 || effect?.原型),
+        ].includes(effect?.原型),
       );
       return fallback ? 读取战斗效果标签(fallback) : '';
     }
@@ -6123,7 +6141,7 @@ class BattleUIComponent {
           getSkillEffects(skill)
             .flatMap(effect => {
               const direct = String(effect?.运行时消费器 || '').trim();
-              const labels = [effect?.原型, effect?.运行机制]
+              const labels = [effect?.原型]
                 .map(label => String(label || '').trim())
                 .filter(Boolean);
               return [direct, ...labels.map(label => String(getBattleSkillMechanismMeta(label)?.运行时消费器 || '').trim())];
@@ -6419,7 +6437,7 @@ class BattleUIComponent {
       const propertyMatched = allowAll || 属性列表.some(property => properties.includes(property));
       if (!propertyMatched) return false;
       if (String(effect?.原型 || '').trim() === '资源变化') return 读取战斗数值正负(effect?.数值) > 0 && 属性列表.some(property => ['vit', 'sp', 'men'].includes(property));
-      const mechanism = String(effect?.原型 || effect?.运行机制 || '').trim();
+      const mechanism = String(effect?.原型 || '').trim();
       if (mechanism === '持续恢复') return 属性列表.some(property => ['vit', 'sp', 'men'].includes(property));
       return (
         mechanism === '属性变化' &&
@@ -6429,22 +6447,12 @@ class BattleUIComponent {
     }
 
     function isBattleAttributeSupportEffect(effect) {
-      if (['属性修正', '判定修正', '结算修正', '护盾变化', '规则防御', '状态施加'].includes(String(effect?.原型 || '').trim())) return true;
-      const mechanism = String(effect?.运行机制 || '').trim();
-      return ['属性变化', '持续恢复', '消耗提高', '消耗降低', '前摇拉长', '前摇缩短', '掌控修正', '速度修正'].includes(mechanism);
+      return ['属性修正', '判定修正', '结算修正', '护盾变化', '规则防御', '状态施加', '资源变化'].includes(String(effect?.原型 || '').trim());
     }
 
     function isBattleDebuffAttributeEffect(effect) {
       const prototype = String(effect?.原型 || '').trim();
       if (['属性修正', '判定修正', '结算修正', '资源变化', '护盾变化'].includes(prototype)) return 读取战斗数值正负(effect?.数值) < 0;
-      const mechanism = String(effect?.运行机制 || '').trim();
-      const action = String(effect?.动作 || '').trim();
-      if (mechanism === '消耗提高' || mechanism === '前摇拉长') return true;
-      if (mechanism === '消耗降低' || mechanism === '前摇缩短') return false;
-      if (mechanism === '掌控修正' || mechanism === '速度修正')
-        return action === '倍率压制' || (!action && 读取战斗效果数值(effect?.数值, 0) < 0);
-      if (mechanism === '属性变化')
-        return ['减值', '倍率压制'].includes(action) || (!action && 读取战斗效果数值(effect?.数值, 0) < 0);
       return false;
     }
 
@@ -6686,7 +6694,7 @@ class BattleUIComponent {
       );
       const hasDotPressure = entries.some(
         ([name, cond]) =>
-          Number(cond?.战斗效果?.dot_damage || 0) > 0 || /流血|灼烧|腐蚀|中毒|撕裂|持续伤害/.test(name),
+          Number(cond?.战斗效果?.dot_damage || 0) > 0,
       );
       const hasBadCondition = entries.some(
         ([name, cond]) => cond?.类型 === 'debuff' && !/霸体|真身|增益|护盾/.test(name),
@@ -7817,7 +7825,7 @@ class BattleUIComponent {
       if (!char?.状态效果 || !skill) return;
       const sourceName = skill.name || skill.技能名称 || '被动技能';
       getSkillEffects(skill).forEach((effect, index) => {
-        const mechanism = effect?.原型 || effect?.运行机制 || '';
+        const mechanism = effect?.原型 || '';
         if (effect?.原型 === '状态施加' && effect?.状态名称 && effect.状态名称 !== '无') {
           const specialFlag = effect.特殊机制标识 || '无';
           const calc = effect.计算层效果 || {};
@@ -8377,7 +8385,7 @@ class BattleUIComponent {
         return true;
       })) return true;
       const ce = cond?.战斗效果 || {};
-      if (匹配原型 === '资源变化' && 资源 === '生命' && 数值方向 === '负向') return Number(ce.dot_damage || ce.持续伤害 || 0) > 0;
+      if (匹配原型 === '资源变化' && 资源 === '生命' && 数值方向 === '负向') return Number(ce.dot_damage || 0) > 0;
       if (匹配原型 === '护盾变化') return Number(cond?.shield_value || 0) > 0 || Number(ce.shield_gain_bonus || 0) > 0;
       return false;
     }
@@ -11360,16 +11368,16 @@ class BattleUIComponent {
         return 0;
       }
 
-      function ensureMechanismTriggerLedger(char) {
+      function ensureEffectTriggerLedger(char) {
         if (!char || typeof char !== 'object') return {};
-        if (!char.机制触发记录 || typeof char.机制触发记录 !== 'object') char.机制触发记录 = {};
-        return char.机制触发记录;
+        if (!char.效果触发记录 || typeof char.效果触发记录 !== 'object') char.效果触发记录 = {};
+        return char.效果触发记录;
       }
 
       function consumeDailyMechanismTrigger(char, mechanismKey = '', limitPerDay = 0, currentTick = null) {
         const safeLimit = Math.max(0, Number(limitPerDay || 0));
         if (!(safeLimit > 0)) return { allowed: true, remaining: Infinity, used: 0, dayKey: '' };
-        const ledger = ensureMechanismTriggerLedger(char);
+        const ledger = ensureEffectTriggerLedger(char);
         const dayKey = formatBattleDayKeyFromTick(
           currentTick == null ? Number(window.BattleUIBridge?.getMVU('world.时间.tick') || 0) : currentTick,
         );
@@ -12594,11 +12602,11 @@ class BattleUIComponent {
         return { 可释放: true, 日志: ` [技能复刻] [${状态名}]剩余${状态.可用次数}次。` };
       }
 
-      function 触发行动前机制授予(角色 = {}, 技能 = {}, 敌方 = null) {
+      function 触发行动前效果授予(角色 = {}, 技能 = {}, 敌方 = null) {
         if (!角色?.状态效果 || typeof 角色.状态效果 !== 'object') return { skill: 技能, 日志: '' };
         const 授予条目 = Object.entries(角色.状态效果).filter(([, 状态]) => {
           if (!状态 || typeof 状态 !== 'object') return false;
-          return 状态.机制授予状态 === true || 状态.战斗效果?.mechanism_grant === true;
+          return 状态.效果授予状态 === true || 状态.战斗效果?.mechanism_grant === true;
         });
         if (!授予条目.length) return { skill: 技能, 日志: '' };
         const 追加效果 = [];
@@ -12683,7 +12691,7 @@ class BattleUIComponent {
             result.desc += ` [食物即食] ${playerAction.target_name ? `目标:${playerAction.target_name}。` : '自身食用。'}`;
           }
         }
-        const 授予触发结果 = 触发行动前机制授予(attacker, playerAction.skill, defender);
+        const 授予触发结果 = 触发行动前效果授予(attacker, playerAction.skill, defender);
         if (授予触发结果.日志) {
           playerAction.skill = normalizeSkillData(
             授予触发结果.skill,
@@ -12701,8 +12709,7 @@ class BattleUIComponent {
         const 当前技能条件上下文 = { actor: attacker, caster: attacker, target: 条件分支目标, combatData };
         const getEffect = (sk, types) => getSkillEffects(sk, 当前技能条件上下文).find(e => {
           const 原型 = String(e?.原型 || '').trim();
-          const 运行机制 = String(e?.运行机制 || '').trim();
-          return types.includes(原型) || types.includes(运行机制);
+          return types.includes(原型);
         }) || {};
 
         let pClash = getEffect(playerAction.skill, ['伤害结算']);
@@ -12876,12 +12883,8 @@ class BattleUIComponent {
         const 是原型窃盾自增 = effect => 存在原型窃盾组合 && 护盾自增原型列表.includes(effect);
         const directPrototypeShieldStealEffect = 存在原型窃盾组合 ? 护盾削减原型列表[0] : null;
         const directPrototypeShieldStealGainEffect = 存在原型窃盾组合 ? 护盾自增原型列表[0] : null;
-        const directShieldBreakEffect =
-          actionEffects.find(effect => 读取战斗效果标签(effect) === '斩盾') ||
-          护盾削减原型列表.find(effect => effect !== directPrototypeShieldStealEffect) ||
-          null;
+        const directShieldBreakEffect = 护盾削减原型列表.find(effect => effect !== directPrototypeShieldStealEffect) || null;
         const directShieldStealEffect =
-          actionEffects.find(effect => 读取战斗效果标签(effect) === '窃取护盾') ||
           directPrototypeShieldStealEffect ||
           null;
         const 资源负向原型列表 = actionEffects.filter(effect => 是指定原型(effect, '资源变化') && 原型数值(effect) < 0);
@@ -12908,13 +12911,10 @@ class BattleUIComponent {
         const directResourceLockEffect = actionEffects.find(effect => effect?.原型 === '资源锁定') || null;
         const directDamageChainEffect = actionEffects.find(effect => effect?.原型 === '伤害链') || null;
         const directLifeLinkEffect = actionEffects.find(effect => 读取战斗效果标签(effect) === '生命链接') || null;
-        const directDotExtendEffect = actionEffects.find(effect => 读取战斗效果标签(effect) === '延长持续伤害' || (effect?.原型 === '状态时窗修正' && String(effect?.调整方式 || '').trim() === '延长')) || null;
-        const directDotCompressEffect = actionEffects.find(effect => 读取战斗效果标签(effect) === '压缩持续伤害' || (effect?.原型 === '状态时窗修正' && String(effect?.调整方式 || '').trim() === '压缩')) || null;
+        const directDotExtendEffect = actionEffects.find(effect => effect?.原型 === '状态时窗修正' && String(effect?.调整方式 || '').trim() === '延长') || null;
+        const directDotCompressEffect = actionEffects.find(effect => effect?.原型 === '状态时窗修正' && String(effect?.调整方式 || '').trim() === '压缩') || null;
         const directDotSplitStoreEffect = actionEffects.find(effect => effect?.原型 === '拆层转存') || null;
-        const directDotDetonateEffect = actionEffects.find(effect =>
-          读取战斗效果标签(effect) === '引爆持续伤害' ||
-          (effect?.原型 === '结算修正' && String(effect?.结算 || '').trim() === '持续伤害引爆')
-        ) || null;
+        const directDotDetonateEffect = actionEffects.find(effect => effect?.原型 === '结算修正' && String(effect?.结算 || '').trim() === '持续伤害引爆') || null;
         const directStatusTransferEffect = actionEffects.find(effect => effect?.原型 === '状态转移') || null;
         const directVolatileEffect = actionEffects.find(effect =>
           String(effect?.原型 || '').trim() === '结算修正' &&
@@ -13932,7 +13932,7 @@ class BattleUIComponent {
             let consumedDot = 0;
             const 目标标记名 = String(targetObj?.name || (targetObj === attacker ? '自身' : '') || '').trim();
             Object.entries(targetObj.状态效果).forEach(([key, cond]) => {
-              const dotDamage = Math.max(0, Number(cond?.战斗效果?.dot_damage || cond?.战斗效果?.持续伤害 || 0));
+              const dotDamage = Math.max(0, Number(cond?.战斗效果?.dot_damage || 0));
               if (!(dotDamage > 0)) return;
               consumedDot += dotDamage;
               if (effect?.消耗持续伤害 !== false) {
@@ -13955,9 +13955,7 @@ class BattleUIComponent {
 
         const applyDotDurationAdjustEffect = effect => {
           if (!effect) return false;
-          const mechanism = effect?.原型 === '状态时窗修正'
-            ? (String(effect?.调整方式 || '').trim() === '压缩' ? '压缩持续伤害' : '延长持续伤害')
-            : 读取战斗效果标签(effect);
+          const 调整方式 = String(effect?.调整方式 || '').trim() === '压缩' ? '压缩' : '延长';
           const targetUnits = resolveDirectMechanismTargetList(effect);
           if (!targetUnits.length) return false;
           let changed = false;
@@ -13967,13 +13965,13 @@ class BattleUIComponent {
               const ce = cond?.战斗效果 || {};
               if (!(Number(ce.dot_damage || 0) > 0)) return;
               const durationRaw = Number(cond?.duration || 0);
-              if (mechanism === '延长持续伤害') {
+              if (调整方式 === '延长') {
                 const addRounds = Math.max(1, Number(effect?.调整回合 || effect?.延长回合 || effect?.extend_rounds || effect?.持续回合 || 1));
                 cond.duration = Math.max(durationRaw, 1) + addRounds;
                 changed = true;
                 return;
               }
-              if (mechanism === '压缩持续伤害') {
+              if (调整方式 === '压缩') {
                 const consumeRounds = Math.max(1, Number(effect?.调整回合 || effect?.压缩回合 || effect?.consume_rounds || 1));
                 const 时窗数值 = 读取战斗数值正负(effect?.结算倍率);
                 const compressRatio = Math.max(1, Number(effect?.压缩倍率 || effect?.compress_ratio || 时窗数值 || 1.2));
@@ -13989,8 +13987,8 @@ class BattleUIComponent {
             });
           });
           if (changed) {
-            if (mechanism === '延长持续伤害') result.desc += ` [持续调制] 目标持续伤害时窗被延长。`;
-            if (mechanism === '压缩持续伤害') result.desc += ` [持续压缩] 已将部分持续伤害折算为即时打击。`;
+            if (调整方式 === '延长') result.desc += ` [持续调制] 目标持续伤害时窗被延长。`;
+            if (调整方式 === '压缩') result.desc += ` [持续压缩] 已将部分持续伤害折算为即时打击。`;
           }
           return changed;
         };
@@ -14384,12 +14382,9 @@ class BattleUIComponent {
           if (effect?.原型 === '状态施加' && String(effect?.状态 || effect?.状态名称 || '').trim() === '资源燃烧') return false;
           if (effect?.原型 === '场地施加') return applyFieldEffect(effect);
           if (effect?.原型 === '召唤生成') return applySummonEffect(effect);
-          const mechanism = String(effect?.原型 || effect?.运行机制 || '').trim();
+          const mechanism = String(effect?.原型 || '').trim();
           if (mechanism === '生命链接') return applyLifeLinkEffect(effect);
-          if (mechanism === '延长持续伤害' || mechanism === '压缩持续伤害') {
-            return applyDotDurationAdjustEffect(effect);
-          }
-          const 运行时消费器 = String(getBattleSkillMechanismMeta(effect?.原型 || effect?.运行机制 || '')?.运行时消费器 || '').trim();
+          const 运行时消费器 = String(getBattleSkillMechanismMeta(effect?.原型 || '')?.运行时消费器 || '').trim();
           const consumer = 运行时消费器 ? directMechanismConsumerMap[运行时消费器] : null;
           return consumer ? consumer(effect) : false;
         };
@@ -14815,7 +14810,7 @@ class BattleUIComponent {
                   层数: 1,
                   描述: `由[${playerAction.skill.name || '技能'}]预付成本授予`,
                   duration: Math.max(0, Number(directGrantEffect.持续回合 || directGrantEffect.持续 || 0)),
-                  机制授予状态: true,
+                  效果授予状态: true,
                   触发条件: String(directGrantEffect.触发 || directGrantEffect.触发条件 || '下次有效行动'),
                   可用次数: Math.max(1, Math.floor(Number(directGrantEffect.可用次数 || 1))),
                   授予效果: deepClone(grantEffects),
