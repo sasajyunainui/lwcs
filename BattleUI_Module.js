@@ -1885,6 +1885,10 @@ class BattleUIComponent {
         });
       });
       Object.entries(char.自创魂技 || {}).forEach(([name, skill]) => fallbackPushSkill(actions, skill, name, '自创魂技'));
+      Object.values(char.装备 || {}).forEach(equip => {
+        if (!equip || typeof equip !== 'object' || Array.isArray(equip)) return;
+        Object.entries(equip.装备技能 || {}).forEach(([name, skill]) => fallbackPushSkill(actions, skill, name, '装备技能'));
+      });
       Object.entries(char.武魂融合技 || {}).forEach(([name, fusion]) =>
         fallbackPushSkill(actions, buildFusionCombatSkill(fusion, name, char), `武魂融合技·${name}`, '武魂融合技'),
       );
@@ -2805,6 +2809,8 @@ class BattleUIComponent {
         Object.keys(directPayload).forEach(key => delete directPayload[key]);
         Object.assign(directPayload, scaled);
         if (directPayload.面板修改比例) directPayload.面板修改比例 = 缩放原型面板修改比例(directPayload.面板修改比例, 缩放系数);
+        if (hydrated.威力倍率 !== undefined) hydrated.威力倍率 = scaleBattleValue(hydrated.威力倍率, 缩放系数, { min: 0, digits: 2 });
+        if (hydrated.防御穿透 !== undefined) hydrated.防御穿透 = scaleBattleValue(hydrated.防御穿透, 缩放系数, { min: 0, max: 100, digits: 0 });
         return;
       }
       if (影响方向 === '成功率') {
@@ -2834,6 +2840,30 @@ class BattleUIComponent {
       if (影响方向 === '前摇') {
         directPayload.windup_ratio = Math.max(0.25, Number(directPayload.windup_ratio || 1) * 缩放系数);
       }
+    }
+
+    function 应用战斗原型驱动判定(effect = {}, context = {}) {
+      if (!effect || typeof effect !== 'object' || Array.isArray(effect)) return effect;
+      if (String(effect?.生效方式 || '').trim() === '跟随主原型') return effect;
+      if (!String(effect?.驱动属性 || '').trim() || !String(effect?.影响方向 || '').trim()) return effect;
+      const 攻方 = context?.actor || context?.caster || context?.attacker;
+      const 守方 = context?.target || context?.defender;
+      if (!攻方 || typeof 攻方 !== 'object' || !守方 || typeof 守方 !== 'object') return effect;
+      const 结果 = deepClonePlain(effect);
+      const 计算层效果 = 结果.计算层效果 && typeof 结果.计算层效果 === 'object'
+        ? deepClonePlain(结果.计算层效果)
+        : {};
+      原型驱动缩放(
+        结果,
+        计算层效果,
+        结果,
+        攻方,
+        context?.attackerFinalStat || 攻方.final || buildCombatFinalStats(攻方),
+        守方,
+        context?.defenderFinalStat || 守方.final || buildCombatFinalStats(守方),
+      );
+      if (Object.keys(计算层效果).length) 结果.计算层效果 = 计算层效果;
+      return 结果;
     }
 
     function mergeRuntimePayloadToState(payload, pState) {
@@ -4246,6 +4276,7 @@ class BattleUIComponent {
         .filter(shouldKeepByEffectiveMode)
         .flatMap(effect => 展开战斗原型数组字段(effect))
         .map(effect => hydrateBattleExecutionEffectEntry(effect, 运行时目标模型 || '敌方单体'))
+        .map(effect => 应用战斗原型驱动判定(effect, context))
         .filter(Boolean);
     }
 
@@ -5158,6 +5189,7 @@ class BattleUIComponent {
       const 圆满等级 = Number(技能掌控度.圆满等级);
       if (!Number.isFinite(中心等级) || !Number.isFinite(圆满等级) || 圆满等级 <= 中心等级) return 1;
       const 施术等级 = Math.max(1, Number(施术者?.lv ?? 施术者?.等级 ?? 施术者?.属性?.等级 ?? 1) || 1);
+      if (施术等级 >= 圆满等级) return 1;
       const 标准差 = (圆满等级 - 中心等级) / 1.8807936081512509;
       const x = (施术等级 - 中心等级) / Math.max(0.0001, 标准差);
       const t = 1 / (1 + Math.exp(-1.702 * x));
@@ -7681,6 +7713,11 @@ class BattleUIComponent {
 
       Object.values(charData?.魂骨 || {}).forEach(bone => {
         pushUnifiedSkillMapEntries(skills, bone?.附带技能 || {}, '魂骨技能', collectOptions);
+      });
+
+      Object.values(charData?.装备 || {}).forEach(equip => {
+        if (!equip || typeof equip !== 'object' || Array.isArray(equip)) return;
+        pushUnifiedSkillMapEntries(skills, equip.装备技能 || {}, '装备技能', collectOptions);
       });
 
       pushUnifiedSkillMapEntries(skills, charData?.自创魂技 || {}, '自创魂技', collectOptions);

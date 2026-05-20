@@ -2062,6 +2062,24 @@
       return { ...取物品定义_桥接(rootData, 物品名), ...安全状态 };
     }
 
+    function 取神器圆满掌控等级_桥接(itemData = {}) {
+      const 类型 = toText(itemData && itemData.类型, '');
+      return Math.max(0, toNumber(deepGet(itemData, '副职业参数.圆满掌控等级', 类型 === '超神器' ? 150 : 类型 === '神器' ? 120 : 0), 0));
+    }
+
+    function 补齐神器装备技能掌控_桥接(itemData = {}) {
+      const 圆满等级 = 取神器圆满掌控等级_桥接(itemData);
+      if (!(圆满等级 > 0)) return itemData;
+      const next = cloneJsonValue(itemData, {});
+      Object.values(next.装备技能 || {}).forEach(skill => {
+        if (!skill || typeof skill !== 'object' || Array.isArray(skill)) return;
+        if (!skill.技能掌控度 || typeof skill.技能掌控度 !== 'object' || Array.isArray(skill.技能掌控度)) {
+          skill.技能掌控度 = { 中心等级: Math.max(1, 圆满等级 - 35), 圆满等级 };
+        }
+      });
+      return next;
+    }
+
     function 构建物品定义记录_桥接(物品名 = '', 数据 = {}) {
       const 来源 = 数据 && typeof 数据 === 'object' && !Array.isArray(数据) ? 数据 : {};
       return {
@@ -6357,6 +6375,29 @@
       return expanded ? entries : [value];
     }
 
+    function 技能设计台原型值需要默认驱动判定(原型 = '', 字段 = {}) {
+      if (!字段 || typeof 字段 !== 'object') return false;
+      const 生效方式 = normalizeSkillUiText(字段['生效方式'], '');
+      if (生效方式 === '跟随主原型') return false;
+      if (normalizeSkillUiText(字段['驱动属性'], '无') !== '无') return false;
+      const 非固定文本 = 原值 => {
+        if (原值 === undefined || 原值 === null) return false;
+        if (Array.isArray(原值)) return 原值.some(非固定文本);
+        const 文本 = String(原值).trim();
+        return /%$/.test(文本) || /^x\d/i.test(文本);
+      };
+      if (['数值', '随机下限', '随机上限', '威力倍率'].some(key => 非固定文本(字段[key]))) return true;
+      if (Number(字段['威力倍率'] || 0) > 0) return true;
+      if (原型 === '伤害结算' && Number(字段['防御穿透'] || 0) > 0) return true;
+      return false;
+    }
+
+    function 补齐技能设计台非固定数值默认驱动判定(原型 = '', 字段 = {}) {
+      if (!技能设计台原型值需要默认驱动判定(原型, 字段)) return;
+      字段['驱动属性'] = '魂力上限';
+      字段['影响方向'] = '效果强度';
+    }
+
     function normalizeSkillDesignerPrototypeFieldValue(value) {
       if (Array.isArray(value)) return value.map(item => normalizeSkillDesignerPrototypeFieldValue(item));
       if (!value || typeof value !== 'object') return value;
@@ -6484,6 +6525,7 @@
       if (字段['匹配原型'] === '无') delete 字段['匹配原型'];
       if (原型 !== '状态移除' || !字段['匹配原型']) delete 字段['数值方向'];
       fillSkillDesignerPrototypeValueFromTemplate(原型, 字段, value);
+      补齐技能设计台非固定数值默认驱动判定(原型, 字段);
       safeEntries(字段).forEach(([key, raw]) => {
         const 字段定义 = 原型定义['字段定义'] && typeof 原型定义['字段定义'] === 'object' ? 原型定义['字段定义'][key] : null;
         const 类型 = normalizeSkillUiText(字段定义 && 字段定义['类型'], '');
@@ -7410,6 +7452,90 @@
       return cleanName;
     }
 
+    function 读取技能设计台槽位序号标签(槽位名 = '', 默认值 = '') {
+      const 文本 = toText(槽位名, '').trim();
+      const 匹配 = 文本.match(/^第(\d+)(血脉)?魂技(.*)$/u);
+      if (!匹配) return toText(默认值, '').trim();
+      return `${formatSkillDesignerChineseOrdinal(匹配[1], `${匹配[2] || ''}魂技`) || 文本}${匹配[3] || ''}`;
+    }
+
+    function 读取技能设计台技能显示名(技能 = {}, 备用名 = '') {
+      const 显式名称 = normalizeSkillUiText(技能 && (技能['魂技名'] || 技能.name || 技能['名称']), '');
+      return 显式名称 || cleanSkillDisplayName(技能, 备用名) || toText(备用名, '').trim() || '未命名技能';
+    }
+
+    function 获取技能设计台同组切换项(rootData = {}, previewMeta = {}) {
+      const path = Array.isArray(previewMeta && previewMeta.path) ? previewMeta.path : [];
+      if (path.length < 2) return [];
+      const scope = toText(previewMeta && previewMeta.scope, '');
+      const 当前键 = toText(path[path.length - 1], '').trim();
+      const 当前路径键 = path.join('\u0001');
+      const category = toText(previewMeta && previewMeta.category, '技能');
+      const 列表 = [];
+      const 加入技能 = (技能路径, 键, 技能, 环位名 = '') => {
+        if (!Array.isArray(技能路径) || !技能路径.length || !技能 || typeof 技能 !== 'object' || Array.isArray(技能)) return;
+        const 槽位标签 = 读取技能设计台槽位序号标签(键, 键);
+        const 技能名 = 读取技能设计台技能显示名(技能, 键);
+        const 环位标签 = 环位名 ? 读取技能设计台槽位序号标签(环位名.replace('魂环', '魂技'), '') : '';
+        const 前缀 = 槽位标签 || 环位标签;
+        const 显示标签 = 前缀 && 前缀 !== 技能名 ? `${前缀} / ${技能名}` : 技能名;
+        列表.push({
+          key: 键,
+          path: [...技能路径],
+          label: 显示标签,
+          title: 显示标签,
+          preview: buildSkillDesignerPreviewKey({
+            path: [...技能路径],
+            label: 技能名,
+            category,
+            scope: scope || '魂技',
+          }),
+          active: 技能路径.join('\u0001') === 当前路径键,
+          order: 读取槽位序号_桥接(环位名 || 键, 999) * 10 + (/其二/.test(键) ? 1 : 0),
+        });
+      };
+      if (['魂技', 'independent_ring_skill'].includes(scope)) {
+        const 环位索引 = path.findIndex(片段 => 是魂环槽位键_桥接(片段));
+        const 载体路径 = 环位索引 >= 0 ? path.slice(0, 环位索引) : path.slice(0, -2);
+        const 载体 = deepGet(rootData, 载体路径, null);
+        取魂灵魂环条目_桥接(载体)
+          .sort((a, b) => 读取槽位序号_桥接(a[0], 999) - 读取槽位序号_桥接(b[0], 999))
+          .forEach(([环位名, 魂环]) => {
+            取魂环魂技条目_桥接(魂环).forEach(([键, 技能]) => 加入技能([...载体路径, 环位名, 键], 键, 技能, 环位名));
+          });
+      } else if (scope === 'blood_ring_skill') {
+        const 环位索引 = path.findIndex(片段 => 是气血魂环槽位键_桥接(片段));
+        const 载体路径 = 环位索引 >= 0 ? path.slice(0, 环位索引) : path.slice(0, -2);
+        const 载体 = deepGet(rootData, 载体路径, null);
+        取血脉气血魂环条目_桥接(载体)
+          .sort((a, b) => 读取槽位序号_桥接(a[0], 999) - 读取槽位序号_桥接(b[0], 999))
+          .forEach(([环位名, 魂环]) => {
+            取气血魂环魂技条目_桥接(魂环).forEach(([键, 技能]) => 加入技能([...载体路径, 环位名, 键], 键, 技能, 环位名));
+          });
+      } else {
+        const parentPath = path.slice(0, -1);
+        const parent = deepGet(rootData, parentPath, null);
+        if (parent && typeof parent === 'object' && !Array.isArray(parent)) {
+          safeEntries(parent).forEach(([键, 技能]) => {
+            if (scope === '武魂融合技' && 键 !== 当前键) return;
+            if (scope !== '武魂融合技' && !['自创魂技', 'art', 'blood_skill', 'blood_passive'].includes(scope)) return;
+            加入技能([...parentPath, 键], 键, 技能);
+          });
+        }
+      }
+      return 列表.sort((a, b) => a.order - b.order || String(a.label).localeCompare(String(b.label), 'zh-Hans'));
+    }
+
+    function 获取技能设计台当前标题(rootData = {}, previewMeta = {}, skillSource = {}) {
+      const path = Array.isArray(previewMeta && previewMeta.path) ? previewMeta.path : [];
+      const 当前键 = toText(path[path.length - 1], '').trim();
+      const 槽位标签 = 读取技能设计台槽位序号标签(当前键, '');
+      const 技能名 = 读取技能设计台技能显示名(skillSource, toText(previewMeta && previewMeta.label, 当前键 || '技能'));
+      if (槽位标签 && 槽位标签 !== 技能名) return `${槽位标签} / ${技能名}`;
+      void rootData;
+      return 技能名;
+    }
+
     function formatSkillDesignerWritebackLabel(previewMeta = {}) {
       const path = Array.isArray(previewMeta && previewMeta.path) ? previewMeta.path : [];
       const scope = toText(previewMeta && previewMeta.scope, '魂技');
@@ -7869,6 +7995,7 @@
       const 掌控配置 = normalizeSkillDesignerLevelControl(技能掌控度);
       if (!掌控配置) return 1;
       const 等级 = Math.max(1, Number(施术等级 || 1));
+      if (等级 >= 掌控配置.圆满等级) return 1;
       const 标准差 = (掌控配置.圆满等级 - 掌控配置.中心等级) / 1.8807936081512509;
       const 偏移 = (等级 - 掌控配置.中心等级) / Math.max(0.0001, 标准差);
       const 完整度 = 1 / (1 + Math.exp(-1.702 * 偏移));
@@ -17962,6 +18089,15 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
           previewMeta
         );
         const scopeLabels = getSkillDesignerScopeLabels(previewMeta);
+        const 技能切换项列表 = 获取技能设计台同组切换项(snapshot.rootData, previewMeta);
+        const 当前技能标题 = 获取技能设计台当前标题(snapshot.rootData, previewMeta, skillSource);
+        const 技能切换控件 = 技能切换项列表.length > 1
+          ? `
+                <select class="skill-designer-title-switch" data-skill-designer-switch data-skill-designer-disableable title="切换技能">
+                  ${技能切换项列表.map(项目 => `<option value="${escapeHtmlAttr(项目.preview)}"${项目.active ? ' selected' : ''}>${htmlEscape(项目.label)}</option>`).join('')}
+                </select>
+            `
+          : '';
         const recommendedAttrs = new Set(normalizeSkillDesignerArray(SKILL_DESIGNER_ATTRIBUTE_HINTS_BY_TYPE[designerDraft.type] || []));
         const isFusionDesigner = previewMeta.scope === '武魂融合技';
         const 启用技能掌控度 = 技能设计台启用技能掌控度(previewMeta, designerDraft);
@@ -18041,7 +18177,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                   `;
         const 技能试算内容 = buildSkillDesignerSimulationHtml(designerDraft, snapshot);
         return {
-          title: `${scopeLabels.studioTitle} / ${designerDraft.name || previewMeta.label || '未命名'}`,
+          title: `${scopeLabels.studioTitle} / ${当前技能标题 || designerDraft.name || previewMeta.label || '未命名'}`,
           summary: '',
           onMount: mountEl => {
             const form = mountEl.querySelector('[data-skill-designer-form]');
@@ -18064,6 +18200,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             let busy = false;
             let 标题操作槽 = null;
             let 重新读取按钮 = null;
+            let 技能切换输入 = null;
 
             const setBusy = nextBusy => {
               busy = !!nextBusy;
@@ -18456,6 +18593,39 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
               if (direction) direction.value = hasDriver ? (direction.value === '无' ? '效果强度' : direction.value) : '无';
             };
 
+            const 读取原型行字段输入 = (行, 字段名) => {
+              if (!行) return null;
+              return Array.from(行.querySelectorAll('[data-skill-designer-prototype-field]'))
+                .find(节点 => normalizeSkillUiText(节点.getAttribute('data-skill-designer-prototype-field'), '') === 字段名) || null;
+            };
+
+            const 原型行字段值 = (行, 字段名) => normalizeSkillUiText(读取原型行字段输入(行, 字段名)?.value, '');
+
+            const 原型行非固定文本 = 原值 => {
+              const 文本 = String(原值 ?? '').trim();
+              return /%$/.test(文本) || /^x\d/i.test(文本);
+            };
+
+            const 原型行需要默认驱动判定 = 行 => {
+              if (!行) return false;
+              if (原型行字段值(行, '生效方式') === '跟随主原型') return false;
+              if (原型行字段值(行, '驱动属性') && 原型行字段值(行, '驱动属性') !== '无') return false;
+              const 原型 = normalizeSkillUiText(行.querySelector('[data-skill-designer-prototype-select]')?.value || 原型行字段值(行, '原型'), '');
+              if (['数值', '随机下限', '随机上限', '威力倍率'].some(字段名 => 原型行非固定文本(原型行字段值(行, 字段名)))) return true;
+              if (Number(原型行字段值(行, '威力倍率') || 0) > 0) return true;
+              if (原型 === '伤害结算' && Number(原型行字段值(行, '防御穿透') || 0) > 0) return true;
+              return false;
+            };
+
+            const 同步原型行默认驱动判定 = 行 => {
+              if (!行 || !原型行需要默认驱动判定(行)) return;
+              const 驱动输入 = 读取原型行字段输入(行, '驱动属性');
+              const 方向输入 = 读取原型行字段输入(行, '影响方向');
+              if (驱动输入) 驱动输入.value = '魂力上限';
+              if (方向输入) 方向输入.value = '效果强度';
+              syncScalingField(行.querySelector('[data-skill-designer-scaling-field]'));
+            };
+
             const runDesignerTask = async (task, successMessage = '') => {
               if (busy) return;
               setBusy(true);
@@ -18489,11 +18659,32 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
               操作槽.className = 'skill-designer-title-actions';
               操作槽.setAttribute('data-skill-designer-title-actions', '1');
               操作槽.innerHTML = `
+                ${技能切换控件}
                 <button type="button" class="tag-chip" data-skill-designer-refresh data-skill-designer-disableable>重新读取</button>
                 <button type="submit" class="tag-chip live" form="skill-designer-form" data-skill-designer-disableable>保存设计</button>
               `;
               标题容器.appendChild(操作槽);
               return 操作槽;
+            };
+
+            const 切换技能设计目标 = 目标预览 => {
+              const safePreview = normalizeSkillUiText(目标预览, '');
+              if (!safePreview || safePreview === previewKey || !isSkillDesignerPreviewKey(safePreview)) return;
+              syncDraftCache();
+              if (currentUnifiedPreviewKey && typeof window.__MVU_OPEN_UNIFIED_PREVIEW__ === 'function') {
+                window.__MVU_OPEN_UNIFIED_PREVIEW__(safePreview, { preserveMapDispatchContext: true, force: true });
+                return;
+              }
+              if (modalStack.length) modalStack[modalStack.length - 1] = safePreview;
+              else modalStack.push(safePreview);
+              currentModalPreviewKey = safePreview;
+              renderModalContent(safePreview, getModalRefs(), { force: true });
+            };
+
+            const handleSkillSwitch = event => {
+              const target = event && event.target instanceof HTMLSelectElement ? event.target : null;
+              if (!target || !target.matches('[data-skill-designer-switch]')) return;
+              切换技能设计目标(target.value);
             };
 
             const handleSubmit = async event => {
@@ -18531,18 +18722,24 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
               const target = event && event.target instanceof HTMLElement ? event.target : null;
               if (target && target.matches('[data-skill-designer-prototype-select]')) {
                 rebuildPrototypeRowFields(target.closest('[data-skill-designer-prototype-row]'));
+                同步原型行默认驱动判定(target.closest('[data-skill-designer-prototype-row]'));
               }
               if (target && target.matches('[data-skill-designer-prototype-field]')) {
                 const key = normalizeSkillUiText(target.getAttribute('data-skill-designer-prototype-field'), '');
                 if (['状态', '匹配原型', '选择', '触发', '规则', '判断', '生效方式'].includes(key)) {
                   rebuildPrototypeRowFields(target.closest('[data-skill-designer-prototype-row]'));
                 }
+                同步原型行默认驱动判定(target.closest('[data-skill-designer-prototype-row]'));
               }
               if (target && target.matches('[data-skill-designer-filter-checkbox]')) {
                 syncFilterSelect(target.closest('[data-skill-designer-filter-select]'));
               }
               if (target && target.matches('[data-skill-designer-field="costType"]')) {
                 syncCostFields();
+              }
+              if (target && target.matches('[data-skill-designer-switch]')) {
+                切换技能设计目标(target.value);
+                return;
               }
               if (target && target.matches('[data-skill-designer-scaling-driver]')) {
                 syncScalingField(target.closest('[data-skill-designer-scaling-field]'));
@@ -18618,7 +18815,9 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
 
             const handleInput = event => {
               const target = event && event.target instanceof HTMLElement ? event.target : null;
-              void target;
+              if (target && target.matches('[data-skill-designer-prototype-field]')) {
+                同步原型行默认驱动判定(target.closest('[data-skill-designer-prototype-row]'));
+              }
               syncChipState();
               refreshPreview();
             };
@@ -18777,12 +18976,15 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             handleInteractiveRefresh();
             syncCostFields();
             syncDeliverySections();
+            mountEl.querySelectorAll('[data-skill-designer-prototype-row]').forEach(同步原型行默认驱动判定);
             mountEl.querySelectorAll('[data-skill-designer-scaling-field]').forEach(syncScalingField);
             mountEl.querySelectorAll('[data-skill-designer-condition-row]').forEach(syncConditionRow);
             标题操作槽 = 挂载技能设计标题操作();
             重新读取按钮 = 标题操作槽 ? 标题操作槽.querySelector('[data-skill-designer-refresh]') : null;
+            技能切换输入 = 标题操作槽 ? 标题操作槽.querySelector('[data-skill-designer-switch]') : null;
             if (form) form.addEventListener('submit', handleSubmit);
             if (重新读取按钮) 重新读取按钮.addEventListener('click', handleRefresh);
+            if (技能切换输入) 技能切换输入.addEventListener('change', handleSkillSwitch);
             mountEl.addEventListener('change', handleChange);
             mountEl.addEventListener('input', handleInput);
             mountEl.addEventListener('click', handleClick);
@@ -18792,6 +18994,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
                 destroyed = true;
                 if (form) form.removeEventListener('submit', handleSubmit);
                 if (重新读取按钮) 重新读取按钮.removeEventListener('click', handleRefresh);
+                if (技能切换输入) 技能切换输入.removeEventListener('change', handleSkillSwitch);
                 if (标题操作槽 && 标题操作槽.parentNode) 标题操作槽.parentNode.removeChild(标题操作槽);
                 mountEl.removeEventListener('change', handleChange);
                 mountEl.removeEventListener('input', handleInput);
@@ -30887,7 +31090,7 @@ window.EquipmentManager = {
       if (!itemState || (itemState.数量 || 0) <= 0) {
         throw new Error(`背包中未找到物品: ${itemName}`);
       }
-      const itemData = 合并物品定义与状态_桥接(vars, itemName, itemState);
+      const itemData = 补齐神器装备技能掌控_桥接(合并物品定义与状态_桥接(vars, itemName, itemState));
 
       const slotInfo = this.parseEquipSlot(itemName, itemData);
       if (!slotInfo) {
@@ -31117,6 +31320,20 @@ window.EquipmentManager = {
     return true;
   },
 
+  applyInventoryStateSetEffect(charData = {}, effect = {}, logs = []) {
+    const value = effect && typeof effect === 'object' ? effect.value || {} : {};
+    const 属性 = toText(value.属性, '').replace(/^char\./, '').replace(/^自身\./, '');
+    const 数值 = toNumber(value.数值, 0);
+    if (!(数值 > 0)) return false;
+    if (属性 === '吸收灵物年限' || 属性 === '状态.吸收灵物年限') {
+      if (!charData.状态 || typeof charData.状态 !== 'object' || Array.isArray(charData.状态)) charData.状态 = {};
+      charData.状态.吸收灵物年限 = Math.max(toNumber(charData.状态.吸收灵物年限, 0), Math.floor(数值));
+      logs.push(`吸收灵物年限=${Math.floor(数值)}`);
+      return true;
+    }
+    return false;
+  },
+
   appendInventoryStatusEffect(statusMap = {}, itemName, effect = {}, index = 0, logs = [], 当前tick = 0) {
     const key = `${itemName}#${index + 1}`;
     const value = effect && typeof effect === 'object' ? effect.value || {} : {};
@@ -31183,6 +31400,12 @@ window.EquipmentManager = {
     if (prototype === '伤害结算') return null;
     if (prototype === '护盾变化') {
       return { target, type: 'shield', description, value: Math.max(0, toNumber(effect['数值'], 0)) };
+    }
+    if (prototype === '灵物吸收') {
+      return { target, type: 'state_set', description, value: { 属性: '吸收灵物年限', 数值: toNumber(effect['数值'], 0) } };
+    }
+    if (prototype === '状态修正' && /吸收灵物年限/.test(toText(effect['属性'] || effect['目标'], ''))) {
+      return { target, type: 'state_set', description, value: { 属性: '吸收灵物年限', 数值: toNumber(effect['数值'], 0) } };
     }
     if (prototype === '资源变化' || prototype === '属性修正' || prototype === '修炼速度修正' || prototype === '成长收益修正') {
       const 属性 = toText(effect['资源'] || effect['属性'], '');
@@ -31298,6 +31521,7 @@ window.EquipmentManager = {
     const full = Number(mastery.圆满等级);
     if (!Number.isFinite(center) || !Number.isFinite(full) || full <= center) return 1;
     const level = Math.max(1, toNumber(charData.lv ?? charData.等级 ?? charData.属性?.等级, 1));
+    if (level >= full) return 1;
     const standard = (full - center) / 1.8807936081512509;
     const x = (level - center) / Math.max(0.0001, standard);
     return Math.max(0, Math.min(1, Number((1 / (1 + Math.exp(-1.702 * x))).toFixed(4))));
@@ -31465,6 +31689,10 @@ window.EquipmentManager = {
             if (this.applyInventoryHealEffect(charData.属性, usableEffect, logs)) appliedCount += 1;
             return;
           }
+          if (usableEffect.type === 'state_set') {
+            if (this.applyInventoryStateSetEffect(charData, usableEffect, logs)) appliedCount += 1;
+            return;
+          }
           if (['buff', 'debuff', 'shield', 'custom', 'mechanism_grant', 'growth_gain'].includes(String(usableEffect.type || ''))) {
             if (this.appendInventoryStatusEffect(charData.属性.状态效果, itemName, usableEffect, index, logs, 当前tick)) appliedCount += 1;
             return;
@@ -31575,6 +31803,9 @@ window.EquipmentManager = {
 
   parseEquipSlot(name, data) {
     const tName = name || '';
+    const 槽位 = toText(data && data.装备槽位, '无');
+    if (槽位 === '武器') return { mainSlot: 'wpn', subSlot: null };
+    if (槽位 === '机甲') return { mainSlot: 'mech', subSlot: null };
     // 匹配斗铠部件
     if (/头盔|头骨/.test(tName)) return { mainSlot: 'armor', subSlot: '头盔' };
     if (/胸铠|躯干骨/.test(tName)) return { mainSlot: 'armor', subSlot: '胸铠' };
@@ -31600,7 +31831,7 @@ window.EquipmentManager = {
 
     // 匹配其他品类
     if (/机甲/.test(tName)) return { mainSlot: 'mech', subSlot: null };
-    if (/(剑|刀|枪|炮|弓|盾|锤|暗器|匕首)$/.test(tName)) return { mainSlot: 'wpn', subSlot: null };
+    if (/(剑|刀|枪|戟|炮|弓|盾|锤|暗器|匕首)$/.test(tName)) return { mainSlot: 'wpn', subSlot: null };
 
     return null;
   },

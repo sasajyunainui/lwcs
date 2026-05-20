@@ -5107,7 +5107,29 @@
       justify-content: flex-end;
       align-items: center;
       gap: 8px;
-      min-width: max-content;
+      min-width: 0;
+      max-width: min(52vw, 640px);
+    }
+
+    .skill-designer-title-switch {
+      width: min(300px, 28vw);
+      min-width: 150px;
+      height: 40px;
+      box-sizing: border-box;
+      border-radius: 999px;
+      border: 1px solid rgba(77, 240, 255, 0.28);
+      background: rgba(5, 18, 27, 0.92);
+      color: rgba(244, 251, 253, 0.96);
+      padding: 0 34px 0 14px;
+      font-size: 12px;
+      line-height: 40px;
+      outline: none;
+      text-overflow: ellipsis;
+    }
+
+    .skill-designer-title-switch:focus {
+      border-color: rgba(77, 240, 255, 0.52);
+      box-shadow: 0 0 0 2px rgba(77, 240, 255, 0.12);
     }
 
     .skill-designer-title-actions .tag-chip {
@@ -5134,6 +5156,10 @@
     #detailModal .modal-title-wrap:has(.skill-designer-title-actions) .modal-title {
       grid-column: 1;
       grid-row: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     #detailModal .modal-title-wrap:has(.skill-designer-title-actions) .modal-subtitle {

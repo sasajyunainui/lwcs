@@ -36,7 +36,7 @@ context.globalThis = context;
 
 Object.assign(context, {
   findMapNodeEntry: (loc) => ({ path: String(loc || '').split('-').filter(Boolean) }),
-  取角色武魂条目_V1: char => Object.entries(char || {}).filter(([key]) => /^第\d+武魂$|^[一二三四五六七八九十]+武魂$/.test(key)),
+  取角色武魂条目_V1: char => Object.entries(char || {}).filter(([key]) => /^第\d+武魂$|^第[一二三四五六七八九十]+武魂$|^[一二三四五六七八九十]+武魂$/.test(key)),
   取武魂魂灵条目_V1: spirit => Object.entries(spirit || {}).filter(([key]) => /^第\d+魂灵$/.test(key)),
   取魂灵魂环条目_V1: soulSpirit => Object.entries(soulSpirit || {}).filter(([key]) => /^第\d+魂环$/.test(key)),
   取武魂直接魂环条目_V1: spirit => Object.entries(spirit || {}).filter(([key]) => /^第\d+魂环$/.test(key)),
@@ -99,9 +99,40 @@ const statData = {
       属性: { 背景: '', 等级: 10 },
       社交: { 关系: { 古月: { 好感度: 50 } }, 势力: { 唐门: {} } },
       背包: { 回春丹: { 数量: 2 } },
-      第一武魂: { 表象名称: '', 描述: '', 第1魂环: { 颜色: '', 第1魂技: { 魂技名: '', 画面描述: '', 效果描述: '' } } },
+      第一武魂: {
+        表象名称: '',
+        描述: '',
+        第1魂环: {
+          颜色: '',
+          第1魂技: {
+            魂技名: '',
+            画面描述: '',
+            效果描述: '',
+            _效果数组: [{ 原型: '伤害', 目标: '敌方单体', 属性: '魂力', 数值: 10, 描述: '蓝银草抽击' }],
+          },
+        },
+      },
+      第二武魂: {
+        表象名称: '',
+        描述: '',
+        第1魂环: {
+          颜色: '',
+          第1魂技: {
+            魂技名: '潮汐斩',
+            画面描述: '水光凝成弧刃斩出。',
+            效果描述: '对敌方单体造成水属性伤害。',
+            _效果数组: [{ 原型: '伤害', 目标: '敌方单体', 属性: '魂力', 数值: 12, 描述: '水刃' }],
+          },
+        },
+      },
     },
-    古月: { 状态: { 位置: '斗罗大陆-史莱克城', HP: 90 }, 社交: { 关系: {} } },
+    古月: {
+      状态: { 位置: '斗罗大陆-史莱克城', HP: 90 },
+      属性: { 背景: '', 等级: 9 },
+      外貌: { 发色: '', 发型: '', 瞳色: '', 身高: '', 体型: '', 长相描述: '' },
+      社交: { 关系: {} },
+      第一武魂: { 表象名称: '', 描述: '', 第1魂环: { 颜色: '', 第1魂技: { 魂技名: '霜华刺', 画面描述: '' } } },
+    },
   },
   物品: {
     回春丹: { 类型: '药剂', 品质: '普通', 描述: '恢复药', 装备槽位: '无', 使用效果: [], 属性加成: {}, 副职业参数: {} },
@@ -117,20 +148,50 @@ const updateText = api.替换MVU运行时视图占位符('<status_current_variab
   statData,
   userInput: '听闻天斗城被摧毁，唐门震动；唐舞麟服用回春丹。',
 });
+const structureText = api.替换MVU运行时视图占位符('{{MVU_UPDATE_STRUCTURE_HINTS}}', 'update', {
+  statData,
+  userInput: '天斗城消息传来，唐门震动，唐舞麟提到回春丹。',
+  aiText: '林惜梦带队抵达史莱克城。',
+});
+const storyStructureText = api.替换MVU运行时视图占位符('{{MVU_UPDATE_STRUCTURE_HINTS}}', 'story', {
+  statData,
+  userInput: '天斗城消息传来。',
+});
 const emptyText = api.替换MVU运行时视图占位符('<status_current_variables>\n{{MVU_RUNTIME_VIEW}}\n</status_current_variables>', 'empty', { statData });
 const plotText = api.替换MVU运行时视图占位符('<status_current_variables>\n{{MVU_RUNTIME_VIEW}}\n</status_current_variables>', 'plot', { statData });
 
 if (storyText.includes('MVU_RUNTIME_VIEW')) throw new Error('正文视图占位符未替换');
 if (updateText.includes('MVU_RUNTIME_VIEW')) throw new Error('更新视图占位符未替换');
+if (structureText.includes('MVU_UPDATE_STRUCTURE_HINTS')) throw new Error('更新结构提示占位符未替换');
+if (!structureText.includes('[Existing MVU Entity Hits]') || !structureText.includes('[New Entity Table]')) {
+  throw new Error('更新结构提示缺少命中表或新增表');
+}
+if (!structureText.includes('- 天斗城') || !structureText.includes('- 唐门') || !structureText.includes('- 唐舞麟') || !structureText.includes('- 回春丹')) {
+  throw new Error('更新结构提示未包含本轮命中的已有实体');
+}
+if (structureText.includes('林惜梦')) throw new Error('更新结构提示不应猜测新增实体');
+if (storyStructureText.trim()) throw new Error('正文阶段不应展开更新结构提示');
 if (!plotText.includes('"时间线预览"') || !plotText.includes('天斗城异动')) throw new Error('剧情视图未包含 _引导.时间线预览');
 if (storyText.includes('"时间线预览"')) throw new Error('正文视图不应包含 _引导.时间线预览');
 if (updateText.includes('"_引导"')) throw new Error('更新视图不应包含 _引导');
+if (updateText.includes('"_calendar"')) throw new Error('更新视图不应包含只读日历字段');
+if (/"(魂力上限|精神力上限|体力上限|力量|防御|敏捷|训练加成|关系分析|_属性加成|战力面板|_填写提示)"/.test(updateText)) {
+  throw new Error('更新视图包含不应发送的只读/派生字段');
+}
 if (/使用效果|属性加成|装备技能|副职业参数|_效果数组/.test(storyText)) {
   throw new Error('正文视图包含机制字段');
 }
+const 效果数组次数 = (updateText.match(/"_效果数组"/g) || []).length;
+if (效果数组次数 !== 1) throw new Error(`更新视图应只为待补描述技能保留一次_效果数组：${效果数组次数}`);
+if (updateText.includes('水属性伤害') || updateText.includes('水光凝成弧刃斩出')) {
+  throw new Error('更新视图不应发送已补完的技能描述字段');
+}
+const 技能画面提示次数 = (updateText.match(/待补全（依据魂技名与_效果数组补全发动画面，保持与机制一致，不新增机制）/g) || []).length;
+if (技能画面提示次数 !== 1) throw new Error(`技能画面描述提示未按类型限流：${技能画面提示次数}`);
+const 角色性格提示次数 = (updateText.match(/待补全\(根据角色设定补全性格特征\)/g) || []).length;
+if (角色性格提示次数 !== 1) throw new Error(`角色性格提示未按类型限流：${角色性格提示次数}`);
 if (!updateText.includes('"天斗城"')) throw new Error('更新视图未包含远程命中地点');
 if (!updateText.includes('"唐门"')) throw new Error('更新视图未包含命中势力');
-if (!updateText.includes('"_填写提示"')) throw new Error('更新视图未包含物品填写提示');
 if ('display_all' in statData || 'display_chars' in statData) throw new Error('运行时视图污染 stat_data');
 if (emptyText.includes('status_current_variables') || emptyText.includes('MVU_RUNTIME_VIEW')) throw new Error('空视图没有剥离状态块');
 
