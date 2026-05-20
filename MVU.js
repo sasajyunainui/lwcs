@@ -190,9 +190,11 @@ function 标准化运行时地点片段_V1(地点 = '') {
 }
 
 function 运行时地点兼容_V1(当前地点 = '', 目标地点 = '') {
+  if (['', '无', '未知', '待生成'].includes(String(当前地点 || '').trim())) return false;
+  if (['', '无', '未知', '待生成'].includes(String(目标地点 || '').trim())) return false;
   const 当前 = 标准化运行时地点片段_V1(当前地点);
   const 目标 = 标准化运行时地点片段_V1(目标地点);
-  if (!当前.raw || !目标.raw) return 当前.raw === 目标.raw;
+  if (!当前.raw || !目标.raw) return false;
   if (当前.raw === 目标.raw || 当前.leaf === 目标.leaf) return true;
   return 当前.segments.some(片段 => 目标.segments.includes(片段));
 }
@@ -371,13 +373,117 @@ function 清理正文运行时值_V1(值) {
   return 值;
 }
 
+const 正文描述字段名_V1 = new Set([
+  '名称',
+  '表象名称',
+  '魂技名',
+  '类型',
+  '节点类型',
+  '品质',
+  '描述',
+  '简介',
+  '背景',
+  '性格',
+  '主身份',
+  '对方身份',
+  '身份',
+  '外貌',
+  '发色',
+  '发型',
+  '瞳色',
+  '身高',
+  '体型',
+  '长相描述',
+  '画面描述',
+  '效果描述',
+  '行动',
+  '位置',
+  '状态',
+  '关系',
+  '关系路线',
+  '上次互动动作',
+  '最近好感变化',
+  '来源',
+  '事件',
+  '标题',
+  '内容',
+  '请求名',
+  '委托名',
+  '拍品名',
+  '地点',
+  '势力',
+  '角色',
+  '系统播报',
+]);
+
+function 正文文本可发送_V1(值) {
+  const 文本 = String(值 ?? '').trim();
+  return !!文本 && 文本 !== '无' && 文本 !== '未知' && 文本 !== '待生成' && !/^待补全/.test(文本) && !/^AI_TODO/.test(文本);
+}
+
+function 是正文描述字段_V1(键 = '') {
+  const 字段 = String(键 || '').trim();
+  if (!字段 || 字段.startsWith('_')) return false;
+  if (正文描述字段名_V1.has(字段)) return true;
+  return /(?:描述|简介|背景|性格|身份|外貌|长相|画面|关系|行动|位置|来源|标题|内容|事件)$/.test(字段);
+}
+
+function 提取正文描述字段_V1(值, 当前键 = '') {
+  if (值 === undefined || 值 === null) return undefined;
+  if (['子节点', '商店', '库存', '需求', '使用条件', '交易请求', '任务请求'].includes(String(当前键 || '').trim())) return undefined;
+  if (typeof 值 === 'string') return 是正文描述字段_V1(当前键) && 正文文本可发送_V1(值) ? 值.trim() : undefined;
+  if (typeof 值 === 'number' || typeof 值 === 'boolean') return undefined;
+  if (Array.isArray(值)) {
+    const 数组 = 值.map(项 => 提取正文描述字段_V1(项, 当前键)).filter(项 => 项 !== undefined);
+    return 数组.length ? 数组 : undefined;
+  }
+  if (typeof 值 === 'object') {
+    const 对象 = {};
+    Object.entries(值).forEach(([键, 子值]) => {
+      if (String(键 || '').startsWith('_')) return;
+      if (['使用效果', '属性加成', '装备技能', '副职业参数', '_效果数组', '消耗'].includes(键)) return;
+      const 提取后 = 提取正文描述字段_V1(子值, 键);
+      if (提取后 !== undefined) 对象[键] = 提取后;
+    });
+    return Object.keys(对象).length ? 对象 : undefined;
+  }
+  return undefined;
+}
+
 function 构建运行时物品摘要_V1(物品定义 = {}) {
-  return 清理正文运行时值_V1({
+  return 提取正文描述字段_V1({
     类型: 物品定义?.类型,
     品质: 物品定义?.品质,
     描述: 物品定义?.描述,
     装备槽位: 物品定义?.装备槽位,
   }) || {};
+}
+
+function 正文需要商店库存_V1(文本 = '') {
+  return /商店|店铺|购买|出售|交易|库存|价格|折扣|商品|逛店|采购|补给/.test(String(文本 || ''));
+}
+
+function 构建正文商店库存摘要_V1(地点数据 = {}, 数据根 = {}, 文本 = '') {
+  if (!地点数据 || typeof 地点数据 !== 'object' || !正文需要商店库存_V1(文本)) return undefined;
+  const 输出 = {};
+  Object.entries(地点数据.商店 || {}).forEach(([商店名, 商店数据]) => {
+    if (!运行时文本命中名称_V1(文本, 商店名) && !/商店|店铺|购买|出售|交易|库存|价格|折扣|商品|逛店|采购|补给/.test(String(文本 || ''))) return;
+    const 商品输出 = {};
+    Object.entries(商店数据?.库存 || {}).forEach(([商品名, 交易数据]) => {
+      if (!运行时文本命中名称_V1(文本, 商品名) && Object.keys(商品输出).length >= 12) return;
+      const 物品摘要 = 构建运行时物品摘要_V1(数据根?.物品?.[商品名] || {});
+      const 条目 = 清理正文运行时值_V1({
+        ...物品摘要,
+        库存: 交易数据?.库存,
+        价格倍率: 交易数据?.价格倍率,
+        折扣: 交易数据?.折扣,
+        需求声望: 交易数据?.需求声望,
+      });
+      if (条目) 商品输出[商品名] = 条目;
+    });
+    if (Object.keys(商品输出).length) 输出[商店名] = 商品输出;
+  });
+  return Object.keys(输出).length ? 输出 : undefined;
 }
 
 function 为运行时物品定义注入提示_V1(物品定义 = {}) {
@@ -597,8 +703,9 @@ function 生成MVU正文视图_V1(数据输入 = null, userInput = '', plotText 
   const 视图 = {
     sys: 清理正文运行时值_V1({ 系统播报: 数据根?.sys?.系统播报 }) || {},
     world: 清理正文运行时值_V1({
-      时间: 数据根?.world?.时间,
-      交易请求: 数据根?.world?.交易请求,
+      时间: {
+        当前: 数据根?.world?.时间?._calendar || 数据根?.world?.时间?.当前 || '',
+      },
       战斗: 数据根?.world?.战斗?.进行中 ? 数据根.world.战斗 : undefined,
       地点: {},
       动态地点: {},
@@ -608,7 +715,9 @@ function 生成MVU正文视图_V1(数据输入 = null, userInput = '', plotText 
   };
   地点名集合.forEach(地点名 => {
     const 地点 = 数据根?.world?.地点?.[地点名];
-    const 清理后 = 清理正文运行时值_V1(地点);
+    const 清理后 = 提取正文描述字段_V1(地点);
+    const 商店摘要 = 构建正文商店库存摘要_V1(地点, 数据根, 文本);
+    if (清理后 && 商店摘要) 清理后.商店 = 商店摘要;
     if (清理后) {
       if (!视图.world.地点) 视图.world.地点 = {};
       视图.world.地点[地点名] = 清理后;
@@ -616,14 +725,14 @@ function 生成MVU正文视图_V1(数据输入 = null, userInput = '', plotText 
   });
   动态地点名集合.forEach(地点名 => {
     const 地点 = 数据根?.world?.动态地点?.[地点名];
-    const 清理后 = 清理正文运行时值_V1(地点);
+    const 清理后 = 提取正文描述字段_V1(地点);
     if (清理后) {
       if (!视图.world.动态地点) 视图.world.动态地点 = {};
       视图.world.动态地点[地点名] = 清理后;
     }
   });
   角色名集合.forEach(角色名 => {
-    const 清理后 = 清理正文运行时值_V1(数据根?.char?.[角色名]);
+    const 清理后 = 提取正文描述字段_V1(数据根?.char?.[角色名]);
     if (清理后) 视图.char[角色名] = 清理后;
   });
   物品名集合.forEach(物品名 => {
@@ -944,7 +1053,7 @@ function injectRuntimeCharacterTodoDefaults_V1(charData = {}, charName = '', sou
 }
 
 try {
-  globalThis.__LWCS_MVU_RUNTIME_VIEW__ = Object.freeze({
+  const 运行时视图接口 = Object.freeze({
     占位符: MVU_RUNTIME_VIEW_PLACEHOLDER_V1,
     更新结构提示占位符: MVU_UPDATE_STRUCTURE_HINTS_PLACEHOLDER_V1,
     生成MVU正文视图: 生成MVU正文视图_V1,
@@ -953,6 +1062,9 @@ try {
     生成MVU更新结构提示: 生成MVU更新结构提示_V1,
     替换MVU运行时视图占位符: 替换MVU运行时视图占位符_V1,
   });
+  globalThis.__LWCS_MVU_RUNTIME_VIEW__ = 运行时视图接口;
+  try { if (globalThis.parent && globalThis.parent !== globalThis) globalThis.parent.__LWCS_MVU_RUNTIME_VIEW__ = 运行时视图接口; } catch (错误) {}
+  try { if (globalThis.top && globalThis.top !== globalThis) globalThis.top.__LWCS_MVU_RUNTIME_VIEW__ = 运行时视图接口; } catch (错误) {}
 } catch (错误) {}
 
 function 追加系统播报文本(数据对象 = {}, 文本 = '', 分隔符 = ' ') {
@@ -1360,8 +1472,7 @@ function createDefaultRingSkillShell() {
 }
 
 function buildDefaultRingSkillMap(ringIndex, ringAge) {
-  const safeRingIndex = Math.max(1, Math.floor(Number(ringIndex) || 1));
-  const baseSkillKey = `第${safeRingIndex}魂技`;
+  const baseSkillKey = '第1魂技';
   const skills = {
     [baseSkillKey]: createDefaultRingSkillShell(),
   };
@@ -1372,8 +1483,7 @@ function buildDefaultRingSkillMap(ringIndex, ringAge) {
 }
 
 function buildDefaultBloodlineRingSkillMap(ringIndex, ringAge) {
-  const safeRingIndex = Math.max(1, Math.floor(Number(ringIndex) || 1));
-  const baseSkillKey = `第${safeRingIndex}血脉魂技`;
+  const baseSkillKey = '第1血脉魂技';
   const skills = { [baseSkillKey]: createDefaultRingSkillShell() };
   if (Math.floor(Number(ringAge) || 0) >= 100000) skills[`${baseSkillKey}·其二`] = createDefaultRingSkillShell();
   return skills;
@@ -2612,7 +2722,6 @@ const SKILL_DELIVERY_FORM_POOL_V1 = [
   '召唤承载',
   '造物承载',
   '标记触发',
-  '延迟触发',
 ];
 
 const SKILL_MAIN_MECHANIC_DISTRIBUTION_V1 = {
@@ -2745,12 +2854,12 @@ const SPECIAL_RULE_EXPANDED_ARCHETYPE_SET_V1 = new Set([
 
 const SKILL_DELIVERY_FORM_BY_TYPE_V1 = {
   强攻系: ['直接生效', '自身附体', '远程命中'],
-  控制系: ['直接生效', '范围展开', '延迟触发', '标记触发'],
-  食物系: ['造物承载', '延迟触发', '远程命中'],
-  精神系: ['直接生效', '标记触发', '延迟触发', '范围展开'],
+  控制系: ['直接生效', '范围展开', '标记触发'],
+  食物系: ['造物承载', '远程命中'],
+  精神系: ['直接生效', '标记触发', '范围展开'],
   防御系: ['自身附体', '直接生效', '范围展开'],
   敏攻系: ['直接生效', '远程命中', '自身附体'],
-  元素系: ['远程命中', '范围展开', '延迟触发', '直接生效'],
+  元素系: ['远程命中', '范围展开', '直接生效'],
   辅助系: ['直接生效', '范围展开', '标记触发'],
   治疗系: ['直接生效', '范围展开', '标记触发'],
   召唤系: ['召唤承载', '范围展开', '直接生效', '标记触发'],
@@ -4263,8 +4372,8 @@ const 原型编译条目 = (原型, 默认字段 = {}) => Object.freeze({ 原型
 const SKILL_RUNTIME_CONSUMER_TO_PROTOTYPES_V1 = Object.freeze({
   direct_damage: [原型编译条目('伤害结算')],
   multi_damage: [原型编译条目('伤害结算')],
-  delay_burst: [原型编译条目('伤害结算', { 触发: '延迟' })],
-  dot_damage: [原型编译条目('伤害结算', { 触发: '每回合' })],
+  delay_burst: [原型编译条目('延迟结算')],
+  dot_damage: [原型编译条目('状态施加', { 状态: '持续创伤' })],
   dot_detonate: [原型编译条目('结算修正', { 结算: '持续伤害引爆' })],
   armor_penetration: [原型编译条目('结算修正', { 结算: '防御穿透' })],
   lifesteal: [原型编译条目('结算修正', { 结算: '吸血' })],
@@ -4287,7 +4396,7 @@ const SKILL_RUNTIME_CONSUMER_TO_PROTOTYPES_V1 = Object.freeze({
   mastery_raise: [原型编译条目('结算修正', { 结算: '技能掌控度' })],
   speed_reduce: [原型编译条目('属性修正', { 属性: '敏捷' })],
   speed_raise: [原型编译条目('属性修正', { 属性: '敏捷' })],
-  slow: [原型编译条目('属性修正', { 属性: '敏捷' })],
+  slow: [原型编译条目('状态施加', { 状态: '迟缓' })],
   gravity_ratio_adjust: [原型编译条目('结算修正', { 结算: '重力倍率' })],
   cultivation_boost: [原型编译条目('修炼速度修正')],
   shield: [原型编译条目('护盾变化')],
@@ -4317,7 +4426,7 @@ const SKILL_RUNTIME_CONSUMER_TO_PROTOTYPES_V1 = Object.freeze({
   clone: [原型编译条目('召唤生成', { 召唤物名称: '分身' }), 原型编译条目('判定修正', { 判定: '闪避' }), 原型编译条目('结算修正', { 结算: '受到伤害' })],
   copy: [原型编译条目('复制执行')],
   summon: [原型编译条目('召唤生成')],
-  field_create: [原型编译条目('召唤生成', { 目标: '召唤物', 行动模式: '场地压制' })],
+  field_create: [原型编译条目('场地施加')],
   counter: [原型编译条目('结算修正', { 结算: '反击' })],
   on_hit_counter: [原型编译条目('结算修正', { 结算: '反击' })],
   damage_to_heal: [原型编译条目('规则改写', { 规则: '伤害转治疗' })],
@@ -4349,7 +4458,7 @@ const SKILL_RUNTIME_CONSUMER_TO_PROTOTYPES_V1 = Object.freeze({
   mechanism_grant: [原型编译条目('机制授予')],
   effect_reverse: [原型编译条目('规则改写', { 规则: '效果反转' })],
   dispel_buff: [原型编译条目('状态移除', { 状态: '任意增益' })],
-  steal_buff: [原型编译条目('机制窃取', { 机制: '增益' })],
+  steal_buff: [原型编译条目('机制窃取', { 窃取目标: '增益' })],
   stealth: [原型编译条目('状态施加', { 状态: '隐匿' })],
   guard: [原型编译条目('目标选择修正', { 选择: '护卫' })],
   taunt: [原型编译条目('目标选择修正', { 选择: '嘲讽' })],
@@ -4364,7 +4473,8 @@ const SKILL_PROTOTYPE_FIELD_OPTIONS_V1 = Object.freeze({
   原型: Object.freeze([]),
   目标: Object.freeze(['自身', '单体', '群体', '全场', '食用者', '召唤物', '装备者']),
   生效方式: Object.freeze(['独立生效', '跟随主原型']),
-  触发: Object.freeze(['立即', '每回合', '命中后', '施放后', '回合结束', '状态结束', '常驻', '延迟']),
+  触发: Object.freeze(['立即', '每回合', '施放后', '回合结束', '状态结束', '常驻']),
+  触发条件: Object.freeze(['计时结束', '再次命中', '主动引爆', '状态结束']),
   伤害类型: Object.freeze(['物理近战', '物理远程', '元素近战', '元素远程', '能量范围', '纯精神冲击', '魂力冲击', '神圣伤害', '异常毒素爆炸', '真实伤害']),
   驱动属性: Object.freeze(['力量', '防御', '敏捷', '魂力上限', '精神力上限', '体力上限']),
   影响方向: Object.freeze(['成功率', '效果强度', '持续时间', '层级压制', '消耗', '前摇']),
@@ -4372,12 +4482,15 @@ const SKILL_PROTOTYPE_FIELD_OPTIONS_V1 = Object.freeze({
   属性: Object.freeze(['力量', '防御', '敏捷', '生命上限', '体力上限', '魂力上限', '精神力上限', '威力', '掌控', '控制', '速度']),
   判定: Object.freeze(['命中', '闪避', '反应', '控制成功', '控制抵抗']),
   结算: Object.freeze(['最终伤害', '最终治疗', '护盾获得', '受到伤害', '反伤', '吸血', '分摊', '防御穿透', '消耗', '前摇', '技能效果', '反击', '持续伤害引爆', '技能掌控度', '重力倍率', '自损增幅', '炸环增幅', '厄运反噬伤害']),
-  状态: Object.freeze(['中毒', '流血', '灼烧', '冻伤', '眩晕', '沉默', '缴械', '致盲', '禁疗', '治疗反转', '隐匿', '护盾', '无敌', '霸体', '标记', '封技', '位移限制', '任意负面', '任意增益', '任意状态']),
+  调整方式: Object.freeze(['延长', '压缩']),
+  状态: Object.freeze(['中毒', '流血', '灼烧', '冻伤', '持续创伤', '迟缓', '眩晕', '沉默', '缴械', '致盲', '禁疗', '治疗反转', '隐匿', '护盾', '无敌', '霸体', '标记', '封技', '位移限制', '真身', '任意负面', '任意增益', '任意状态']),
   匹配原型: Object.freeze(['无', '资源变化', '属性修正', '判定修正', '结算修正', '护盾变化', '规则防御', '目标选择修正', '行动判断修正']),
   数值方向: Object.freeze(['负向', '正向', '任意']),
   类型: Object.freeze(['负面', '增益', '控制', '隐匿', '斩盾', '窃取']),
   规则: Object.freeze(['治疗转伤害', '伤害转治疗', '效果反转']),
   机制: Object.freeze([...Object.keys(SKILL_MECHANISM_META_V1 || {}), '控制机制', '回复机制', '护盾', '隐匿', '增益'].sort()),
+  抹消目标: Object.freeze([...Object.keys(SKILL_MECHANISM_META_V1 || {}), '控制机制', '回复机制', '护盾', '隐匿', '增益'].sort()),
+  窃取目标: Object.freeze([...Object.keys(SKILL_MECHANISM_META_V1 || {}), '控制机制', '回复机制', '护盾', '隐匿', '增益'].sort()),
   来源: Object.freeze(['自身', '目标', '双方', '召唤物']),
   去向: Object.freeze(['自身', '目标', '双方', '召唤物']),
   范围: Object.freeze(['单个', '全部', '随机', '最低层级', '最高层级']),
@@ -4408,6 +4521,7 @@ const SKILL_PROTOTYPE_FIELD_TYPE_V1 = Object.freeze({
   目标: '枚举',
   生效方式: '枚举',
   触发: '枚举',
+  触发条件: '枚举',
   伤害类型: '枚举',
   驱动属性: '枚举',
   影响方向: '枚举',
@@ -4415,12 +4529,15 @@ const SKILL_PROTOTYPE_FIELD_TYPE_V1 = Object.freeze({
   属性: '多枚举',
   判定: '枚举',
   结算: '枚举',
+  调整方式: '枚举',
   状态: '枚举',
   匹配原型: '枚举',
   数值方向: '枚举',
   类型: '多枚举',
   规则: '枚举',
   机制: '枚举',
+  抹消目标: '枚举',
+  窃取目标: '枚举',
   来源: '枚举',
   去向: '枚举',
   范围: '枚举',
@@ -4445,6 +4562,9 @@ const SKILL_PROTOTYPE_FIELD_TYPE_V1 = Object.freeze({
   物品类型: '枚举',
   威力倍率: '数字',
   攻击段数: '整数',
+  延迟回合: '整数',
+  调整回合: '整数',
+  结算倍率: '带符号数值',
   防御穿透: '数字',
   随机下限: '数字',
   随机上限: '数字',
@@ -4463,11 +4583,14 @@ const SKILL_PROTOTYPE_FIELD_TYPE_V1 = Object.freeze({
   保留回合: '整数',
   保留回合数: '整数',
   召唤物名称: '文本',
+  场地名称: '文本',
   行动模式: '枚举',
   值: '文本',
   使用效果: '原型列表',
   授予效果: '原型列表',
   状态效果: '原型列表',
+  结算效果: '原型列表',
+  场地效果: '原型列表',
   条件分支: '条件分支',
 });
 
@@ -4475,6 +4598,7 @@ const SKILL_PROTOTYPE_FIELD_DEFAULT_V1 = Object.freeze({
   目标: '单体',
   生效方式: '独立生效',
   触发: '立即',
+  触发条件: '计时结束',
   伤害类型: '物理近战',
   驱动属性: '魂力上限',
   影响方向: '效果强度',
@@ -4482,11 +4606,14 @@ const SKILL_PROTOTYPE_FIELD_DEFAULT_V1 = Object.freeze({
   属性: '力量',
   判定: '命中',
   结算: '最终伤害',
+  调整方式: '延长',
   状态: '眩晕',
   匹配原型: '资源变化',
   数值方向: '任意',
   类型: '负面',
   规则: '伤害转治疗',
+  抹消目标: '复苏',
+  窃取目标: '增益',
   来源: '目标',
   去向: '自身',
   范围: '单个',
@@ -4515,6 +4642,9 @@ const SKILL_PROTOTYPE_FIELD_DEFAULT_V1 = Object.freeze({
   条件处理: '替换效果',
   威力倍率: 100,
   攻击段数: 1,
+  延迟回合: 1,
+  调整回合: 1,
+  结算倍率: '+100%',
   防御穿透: 0,
   随机下限: 0.5,
   随机上限: 1.8,
@@ -4530,6 +4660,7 @@ const SKILL_PROTOTYPE_FIELD_DEFAULT_V1 = Object.freeze({
   强度: 1,
   可用次数: 1,
   回溯tick: 0,
+  场地名称: '场地效果',
 });
 
 const SKILL_PROTOTYPE_CONTROL_TYPE_V1 = Object.freeze({
@@ -4571,7 +4702,8 @@ const 构建原型字段定义_V1 = (字段名, 原型 = '') => Object.freeze({
 });
 
 const SKILL_PROTOTYPE_DEFINITION_LIST_V1 = Object.freeze([
-  ['伤害结算', '战斗结算', '敌对', ['威力倍率', '伤害类型', '攻击段数', '防御穿透', '触发', '持续回合', '驱动属性', '影响方向'], ['威力倍率', '伤害类型'], '造成直接、持续、多段或延迟伤害'],
+  ['伤害结算', '战斗结算', '敌对', ['威力倍率', '伤害类型', '攻击段数', '防御穿透', '触发', '持续回合', '驱动属性', '影响方向'], ['威力倍率', '伤害类型'], '造成一次或多段即时伤害'],
+  ['延迟结算', '战斗结算', '敌对', ['延迟回合', '触发条件', '结算效果', '驱动属性', '影响方向'], ['延迟回合', '结算效果'], '延迟若干回合后执行内部结算效果'],
   ['资源变化', '战斗结算', '上下文', ['资源', '数值', '触发', '持续回合', '持续tick', '驱动属性', '影响方向'], ['资源', '数值'], '恢复或扣除生命、体力、魂力、精神力等资源'],
   ['护盾变化', '战斗结算', '上下文', ['数值', '触发', '持续回合', '驱动属性', '影响方向'], ['数值'], '获得、削减、斩除或窃取护盾'],
   ['属性修正', '战斗结算', '上下文', ['属性', '数值', '持续回合', '驱动属性', '影响方向'], ['属性', '数值'], '修正力量、防御、敏捷、资源上限等属性'],
@@ -4579,6 +4711,7 @@ const SKILL_PROTOTYPE_DEFINITION_LIST_V1 = Object.freeze([
   ['行动打断', '战斗结算', '敌对', ['打断类型', '数值', '驱动属性', '影响方向'], ['打断类型', '数值'], '打断释放、蓄力或持续动作'],
   ['结算修正', '战斗结算', '上下文', ['结算', '数值', '随机下限', '随机上限', '持续回合', '驱动属性', '影响方向'], ['结算', '数值'], '修正最终伤害、治疗、护盾、消耗、前摇等结果'],
   ['状态施加', '战斗结算', '上下文', ['状态', '层级', '数值', '持续回合', '状态效果', '驱动属性', '影响方向'], ['状态'], '施加中毒、冻伤、沉默、缴械、隐匿、霸体、无敌等概括状态'],
+  ['状态时窗修正', '战斗结算', '敌对', ['状态', '调整方式', '调整回合', '结算倍率', '驱动属性', '影响方向'], ['状态', '调整方式'], '延长、压缩或改写目标持续状态的结算窗口'],
   ['状态移除', '战斗结算', '上下文', ['状态', '匹配原型', '资源', '数值方向', '数量', '层级', '概率', '驱动属性', '影响方向'], [], '按状态名或状态内部原型效果移除状态'],
   ['规则防御', '战斗结算', '可赋予', ['规则', '次数', '触发', '驱动属性', '影响方向'], ['规则', '次数'], '格挡、免死、替身、抵消、复活等防御规则'],
   ['状态转移', '战斗结算', '上下文', ['状态', '来源', '去向', '数量'], ['状态'], '把状态从一方转移到另一方'],
@@ -4587,8 +4720,8 @@ const SKILL_PROTOTYPE_DEFINITION_LIST_V1 = Object.freeze([
   ['拆层转存', '战斗结算', '上下文', ['状态', '来源', '去向', '数量', '持续回合'], [], '从目标减益中拆出层数并转存到自身或指定对象'],
   ['资源锁定', '战斗结算', '敌对', ['资源', '数值', '持续回合', '驱动属性', '影响方向'], ['数值'], '锁定目标资源回复、转化或消耗通道'],
   ['规则改写', '战斗结算', '上下文', ['规则', '数值', '驱动属性', '影响方向'], ['规则'], '改写治疗、伤害或增减益方向'],
-  ['机制抹消', '战斗结算', '敌对', ['机制', '数量', '范围', '驱动属性', '影响方向'], ['机制'], '封锁或移除目标机制'],
-  ['机制窃取', '战斗结算', '敌对', ['机制', '数量', '保留回合', '驱动属性', '影响方向'], ['机制'], '夺取增益、技能、护盾或状态'],
+  ['机制抹消', '战斗结算', '敌对', ['抹消目标', '数量', '范围', '驱动属性', '影响方向'], ['抹消目标'], '封锁或移除目标机制'],
+  ['机制窃取', '战斗结算', '敌对', ['窃取目标', '数量', '保留回合', '驱动属性', '影响方向'], ['窃取目标'], '夺取增益、技能、护盾或状态'],
   ['机制授予', '战斗结算', '可赋予', ['授予效果', '可用次数', '触发', '驱动属性', '影响方向'], ['授予效果'], '临时授予技能、状态或效果'],
   ['复制执行', '战斗结算', '上下文', ['复制类型', '复制来源', '复制字段', '复制条件', '复制方式', '技能个数', '削减比例', '可用次数', '目标技能', '状态', '保留回合'], ['复制类型'], '复制技能、属性、状态或自身镜像'],
   ['时光回溯', '战斗结算', '可赋予', ['回溯对象', '回溯范围', '回溯tick', '次数'], ['回溯对象'], '回退生命、资源、状态或位置'],
@@ -4598,6 +4731,7 @@ const SKILL_PROTOTYPE_DEFINITION_LIST_V1 = Object.freeze([
   ['修炼速度修正', '战斗外', '可赋予', ['修炼类型', '数值', '有效期tick'], ['数值'], '修正修炼、冥想或功法运行速度'],
   ['成长收益修正', '战斗外', '可赋予', ['成长项', '属性', '数值', '有效期tick'], ['成长项', '数值'], '修正训练加成或副职业经验收益'],
   ['召唤生成', '战斗结算', '召唤物', ['召唤物名称', '数量', '行动模式', '继承属性比例', '持续回合'], ['召唤物名称', '数量'], '生成战斗或非战斗召唤物'],
+  ['场地施加', '战斗结算', '全场', ['场地名称', '持续回合', '场地效果', '驱动属性', '影响方向'], ['场地名称'], '展开影响战场的场地效果'],
 ]);
 
 const SKILL_PROTOTYPE_COMMON_FIELDS_V1 = Object.freeze(['原型', '目标', '生效方式', '条件分支']);
@@ -6394,7 +6528,8 @@ function 规范化执行效果触发_V1(value = '') {
     状态结束后: '状态结束',
   };
   const normalized = mapping[text] || text;
-  return ['立即', '每回合', '命中后', '施放后', '回合结束', '状态结束', '常驻', '延迟'].includes(normalized) ? normalized : '';
+  if (normalized === '命中后' || normalized === '延迟') return '';
+  return ['立即', '每回合', '施放后', '回合结束', '状态结束', '常驻'].includes(normalized) ? normalized : '';
 }
 
 function 规范化执行效果数值_V1(value, action = '') {
@@ -6576,6 +6711,58 @@ function 格式化原型比例变化_V1(value, 方向 = 1, 按倍率 = false) {
   return formatSkillSignedChangeValue(abs * (方向 < 0 ? -1 : 1), true);
 }
 
+function 构建资源转移原型组_V1({
+  目标 = '单体',
+  资源 = '魂力',
+  比例 = 0.1,
+  转化比例 = 1,
+  持续回合 = 0,
+  生效方式 = '独立生效',
+} = {}) {
+  const 基础比例 = Math.max(0, Number(比例 || 0));
+  const 回收比例 = 基础比例 * Math.max(0, Number(转化比例 || 1));
+  const 共享字段 = 持续回合 > 0 ? { 持续回合: Math.max(1, Math.round(Number(持续回合 || 1))) } : {};
+  return [
+    {
+      原型: '资源变化',
+      目标,
+      资源: 转换原型资源字段_V1(资源),
+      数值: 格式化原型比例变化_V1(基础比例, -1),
+      生效方式,
+      ...共享字段,
+    },
+    {
+      原型: '资源变化',
+      目标: '自身',
+      资源: 转换原型资源字段_V1(资源),
+      数值: 格式化原型比例变化_V1(回收比例, 1),
+      生效方式: '独立生效',
+      ...共享字段,
+    },
+  ];
+}
+
+function 构建护盾窃取原型组_V1({ 目标 = '单体', 比例 = 0.45, 持续回合 = 0 } = {}) {
+  const 窃取比例 = Math.max(0, Number(比例 || 0));
+  const 共享字段 = 持续回合 > 0 ? { 持续回合: Math.max(1, Math.round(Number(持续回合 || 1))) } : {};
+  return [
+    {
+      原型: '护盾变化',
+      目标,
+      数值: 格式化原型比例变化_V1(窃取比例, -1),
+      生效方式: '独立生效',
+      ...共享字段,
+    },
+    {
+      原型: '护盾变化',
+      目标: '自身',
+      数值: 格式化原型比例变化_V1(窃取比例, 1),
+      生效方式: '独立生效',
+      ...共享字段,
+    },
+  ];
+}
+
 function 补足机制模板原型数值_V1(原型 = '', 字段 = {}, source = {}) {
   if (!字段 || typeof 字段 !== 'object') return;
   const 取首个数值 = keys => {
@@ -6600,6 +6787,30 @@ function 补足机制模板原型数值_V1(原型 = '', 字段 = {}, source = {}
       if (rawPen !== undefined) 字段.防御穿透 = Number(rawPen) || 0;
     }
     return;
+  }
+  if (原型 === '延迟结算') {
+    if (字段.延迟回合 === undefined) {
+      const rawDelay = 取首个数值(['延迟回合', '延迟时长', 'delayRounds', 'delayWindow']);
+      const delayNumber = Number(String(rawDelay ?? '').replace(/[^\d.-]/g, ''));
+      字段.延迟回合 = Math.max(1, Math.round(Number.isFinite(delayNumber) && delayNumber > 0 ? delayNumber : 1));
+    }
+    if (字段.触发条件 === undefined) {
+      const rawTrigger = String(source.触发条件 || source.triggerRule || '').trim();
+      字段.触发条件 = rawTrigger && SKILL_PROTOTYPE_FIELD_OPTIONS_V1.触发条件.includes(rawTrigger) ? rawTrigger : '计时结束';
+    }
+    if (字段.结算效果 === undefined) {
+      const rawPower = 取首个数值(['威力倍率', '爆发倍率', 'burstRatio', 'powerRatio', '数值']);
+      const powerNumber = Number(rawPower);
+      字段.结算效果 = [{
+        原型: '伤害结算',
+        目标: source.目标 || 字段.目标 || '单体',
+        威力倍率: Number.isFinite(powerNumber) ? Math.max(1, Math.round(powerNumber > 0 && powerNumber <= 10 ? powerNumber * 100 : powerNumber)) : 180,
+        伤害类型: String(source.伤害类型 || source.damageType || '物理近战').trim() || '物理近战',
+        生效方式: '独立生效',
+        驱动属性: '魂力上限',
+        影响方向: '效果强度',
+      }];
+    }
   }
   if (原型 === '护盾变化') {
     if (字段.数值 === undefined) {
@@ -6693,6 +6904,21 @@ function 补足机制模板原型数值_V1(原型 = '', 字段 = {}, source = {}
         字段.数值 = 格式化原型比例变化_V1(raw, 1, 按倍率);
         return;
       }
+  } else if (原型 === '状态时窗修正') {
+    if (字段.状态 === undefined) 字段.状态 = String(source.状态 || source.状态名称 || '持续创伤').trim() || '持续创伤';
+    if (字段.调整方式 === undefined) {
+      const sourceText = String(source.调整方式 || source.机制 || source.动作 || '').trim();
+      字段.调整方式 = /压缩|引爆|缩短/.test(sourceText) ? '压缩' : '延长';
+    }
+    if (字段.调整回合 === undefined) {
+      const rawRounds = 取首个数值(['调整回合', '持续回合', '延长回合', '压缩回合', 'consumeRounds', 'extendRounds']);
+      字段.调整回合 = Math.max(1, Math.round(Number(rawRounds || 1)));
+    }
+    if (字段.结算倍率 === undefined) {
+      const rawRatio = 取首个数值(['结算倍率', '引爆倍率', '压缩倍率', 'compressRatio']);
+      字段.结算倍率 = rawRatio === undefined ? '+100%' : 格式化原型比例变化_V1(rawRatio, 1, true);
+    }
+    return;
   } else if (原型 === '目标选择修正') {
     const 选择 = String(字段.选择 || '').trim();
     const map = {
@@ -6705,8 +6931,44 @@ function 补足机制模板原型数值_V1(原型 = '', 字段 = {}, source = {}
     if (raw !== undefined) 字段.次数 = Math.max(1, Math.round(Number(raw) || 1));
     return;
   } else if (原型 === '机制抹消') {
-    if (字段.机制 === undefined) 字段.机制 = String(source.抹消目标 || source.suppressTarget || '').trim();
+    if (字段.抹消目标 === undefined) 字段.抹消目标 = String(source.抹消目标 || source.机制抹消目标 || source.suppressTarget || source.机制 || '').trim();
     if (字段.数量 === undefined) 字段.数量 = Math.max(1, Math.round(Number(source.数量 || source.抹消数量 || 1)));
+    return;
+  } else if (原型 === '机制窃取') {
+    if (字段.窃取目标 === undefined) 字段.窃取目标 = String(source.窃取目标 || source.抹消目标 || source.stealTarget || source.机制 || '').trim();
+    if (字段.数量 === undefined) 字段.数量 = Math.max(1, Math.round(Number(source.数量 || source.窃取数量 || 1)));
+    if (字段.保留回合 === undefined && source.持续回合 !== undefined) 字段.保留回合 = Math.max(1, Math.round(Number(source.持续回合 || 1)));
+    return;
+  } else if (原型 === '状态施加') {
+    if (字段.状态 === undefined) 字段.状态 = String(source.状态 || source.状态名称 || source.机制 || '持续创伤').trim() || '持续创伤';
+    if (字段.状态效果 === undefined) {
+      const 状态名 = String(字段.状态 || '').trim();
+      const 每回合伤害 = 取首个数值(['每回合伤害', 'dot_damage', '持续真伤dot']);
+      const 敏捷倍率 = 取首个数值(['agi_ratio', 'speed_ratio', '敏捷倍率']);
+      if (每回合伤害 !== undefined) {
+        const 数值 = Number(每回合伤害);
+        字段.状态效果 = [{
+          原型: '资源变化',
+          目标: '自身',
+          资源: '生命',
+          数值: Number.isFinite(数值) ? -Math.abs(Math.round(数值)) : 格式化原型比例变化_V1(每回合伤害, -1),
+          触发: '每回合',
+          生效方式: '独立生效',
+          驱动属性: '魂力上限',
+          影响方向: '效果强度',
+        }];
+      } else if (状态名 === '迟缓' && 敏捷倍率 !== undefined) {
+        字段.状态效果 = [{
+          原型: '属性修正',
+          目标: '自身',
+          属性: '敏捷',
+          数值: 格式化原型比例变化_V1(敏捷倍率, 1, true),
+          生效方式: '独立生效',
+          驱动属性: '魂力上限',
+          影响方向: '效果强度',
+        }];
+      }
+    }
     return;
   } else if (原型 === '状态转移') {
     if (字段.状态 === undefined) 字段.状态 = String(source.状态 || '任意状态').trim() || '任意状态';
@@ -6738,6 +7000,18 @@ function 补足机制模板原型数值_V1(原型 = '', 字段 = {}, source = {}
     if (字段.召唤物名称 === undefined) 字段.召唤物名称 = String(source.召唤物名称 || source.实体名称 || source.状态名称 || source.特殊机制标识 || source.机制 || '召唤物').trim() || '召唤物';
     if (字段.数量 === undefined) 字段.数量 = Math.max(1, Math.round(Number(source.数量 || source.召唤数量 || source.repeatCount || 1)));
     return;
+  } else if (原型 === '场地施加') {
+    if (字段.场地名称 === undefined) 字段.场地名称 = String(source.场地名称 || source.实体名称 || source.状态名称 || '场地效果').trim() || '场地效果';
+    if (字段.持续回合 === undefined && source.持续回合 !== undefined) 字段.持续回合 = Math.max(0, Math.round(Number(source.持续回合 || 0)));
+    if (字段.场地效果 === undefined && String(source.核心机制描述 || '').trim()) {
+      字段.场地效果 = [{
+        原型: '行动判断修正',
+        目标: '全场',
+        判断: '判断干扰',
+        数值: '+10%',
+        生效方式: '独立生效',
+      }];
+    }
   } else if (原型 === '修炼速度修正') {
     raw = 取首个数值(['数值', '修炼速度倍率', '修炼倍率', 'cultivateRatio']);
   } else if (原型 === '成长收益修正') {
@@ -6857,8 +7131,13 @@ function 收口原型效果条目_V1(value = {}, fallbackTargetModel = '单体',
   if (原型字段.属性 !== undefined) 原型字段.属性 = 中文化技能机制参数值_V1(原型字段.属性);
   if (原型字段.驱动属性 !== undefined) 原型字段.驱动属性 = 中文化技能机制参数值_V1(原型字段.驱动属性);
   if (原型字段.数值 !== undefined) 原型字段.数值 = 规范化执行效果数值_V1(原型字段.数值);
+  if (原型字段.结算倍率 !== undefined) 原型字段.结算倍率 = 规范化执行效果数值_V1(原型字段.结算倍率);
   if (原型字段.防御穿透 !== undefined) 原型字段.防御穿透 = Math.max(0, Math.min(100, Math.round(Number(原型字段.防御穿透) || 0)));
   if (!['独立生效', '跟随主原型'].includes(String(原型字段.生效方式 || '').trim())) 原型字段.生效方式 = '独立生效';
+  if (原型字段.生效方式 === '跟随主原型') {
+    delete 原型字段.驱动属性;
+    delete 原型字段.影响方向;
+  }
   if (原型字段.匹配原型 === '无') delete 原型字段.匹配原型;
   if (原型 !== '状态移除' || !原型字段.匹配原型) delete 原型字段.数值方向;
   补足机制模板原型数值_V1(原型, 原型字段, value);
@@ -6880,7 +7159,7 @@ function 收口原型效果条目_V1(value = {}, fallbackTargetModel = '单体',
       delete 原型字段[key];
     }
   });
-  ['使用效果', '授予效果', '状态效果'].forEach(key => {
+  ['使用效果', '授予效果', '状态效果', '结算效果', '场地效果'].forEach(key => {
     const 嵌套源 = Array.isArray(value[key]) ? value[key] : [];
     if (!嵌套源.length) return;
     if (!允许字段集合.has(key)) {
@@ -6959,6 +7238,28 @@ function 收口技能执行效果数组_V1(effectArray = [], options = {}) {
   return effectList;
 }
 
+function 断言技能执行效果原型契约_V1(effectArray = [], path = '_效果数组') {
+  if (!Array.isArray(effectArray)) return;
+  effectArray.forEach((effect, index) => {
+    if (!effect || typeof effect !== 'object' || Array.isArray(effect)) {
+      throw new Error(`技能执行结构错误:${path}[${index}]不是效果对象`);
+    }
+    const 原型 = String(effect.原型 || '').trim();
+    if (!原型) throw new Error(`技能执行结构错误:${path}[${index}]缺少原型`);
+    if (String(effect.机制 || '').trim()) throw new Error(`技能执行结构错误:${path}[${index}]仍写入机制字段`);
+    ['使用效果', '授予效果', '状态效果', '结算效果', '场地效果'].forEach(key => {
+      if (Array.isArray(effect[key])) 断言技能执行效果原型契约_V1(effect[key], `${path}[${index}].${key}`);
+    });
+    if (Array.isArray(effect.条件分支)) {
+      effect.条件分支.forEach((branch, branchIndex) => {
+        ['替换效果', '追加效果'].forEach(key => {
+          if (Array.isArray(branch?.[key])) 断言技能执行效果原型契约_V1(branch[key], `${path}[${index}].条件分支[${branchIndex}].${key}`);
+        });
+      });
+    }
+  });
+}
+
 function 收口造物承载物品模板数组_V1(effectArray = [], skill = {}) {
   const source = Array.isArray(effectArray) ? effectArray : [];
   const skillName = String(skill?.魂技名 || skill?.技能名称 || skill?.name || AI_TODO_SKILL_NAME).trim() || AI_TODO_SKILL_NAME;
@@ -6985,6 +7286,7 @@ function 收口技能执行结构_V1(skill = {}, options = {}) {
   skill._效果数组 = String(skill.承载方式 || '').trim() === '造物承载'
     ? 收口造物承载物品模板数组_V1(skill._效果数组 || [], skill)
     : 收口技能执行效果数组_V1(skill._效果数组 || [], options);
+  if (String(skill.承载方式 || '').trim() !== '造物承载') 断言技能执行效果原型契约_V1(skill._效果数组);
   清理技能根层执行元数据_V1(skill);
   return skill;
 }
@@ -10116,11 +10418,20 @@ function buildSeventhRingTrueBodySkill(
     }
   }
   效果数组.push({
-    机制: '状态挂载',
+    原型: '状态施加',
     目标: '自身',
-    状态名称: `第七魂环真身:${skill.魂技名}`,
+    状态: '真身',
+    数值: '+100%',
     持续回合: { C: 3, B: 4, A: 5, S: 6, 'S+': 7 }[grade] || 4,
-    特殊机制标识: '真身',
+    状态效果: [{
+      原型: '属性修正',
+      目标: '自身',
+      属性: ['力量', '防御', '敏捷', '魂力上限', '精神力上限'],
+      数值: '+100%',
+      生效方式: '独立生效',
+      驱动属性: '魂力上限',
+      影响方向: '效果强度',
+    }],
   });
   skill._效果数组 = 效果数组.filter(Boolean);
   return 收口技能执行结构_V1(skill, { 目标模型: '自身' });
@@ -10694,16 +11005,27 @@ function autoGenerateSkill(
     Math.max(Number(state.持续真伤dot || 0), Number(stateCalc.dot_damage || 0)) > 0
   ) {
     packedEffects.push({
-      机制: String(state.状态名称 || '').includes('流血') ? '流血DOT' : '持续伤害DOT',
+      原型: '状态施加',
       目标: normalizedTarget,
-      状态名称:
+      状态:
         String(state.状态名称 || '无') === '无'
           ? secondary.includes('流血DOT')
             ? '流血'
             : '持续创伤'
           : state.状态名称,
       持续回合: Math.max(1, Number(state.持续回合 || (secondary.includes('流血DOT') ? 2 : 3))),
-      dot_damage: Math.max(1, Number(state.持续真伤dot || stateCalc.dot_damage || 0)),
+      状态效果: [{
+        原型: '资源变化',
+        目标: '自身',
+        资源: '生命',
+        数值: -Math.max(1, Math.round(Number(state.持续真伤dot || stateCalc.dot_damage || 0))),
+        触发: '每回合',
+        生效方式: '独立生效',
+        驱动属性: '魂力上限',
+        影响方向: '效果强度',
+      }],
+      驱动属性: '魂力上限',
+      影响方向: '效果强度',
     });
   }
   if ((secondary.includes('净化') || secondary.includes('解控')) && !packedEffects.some(e => e.机制 === '解控')) {
@@ -10787,10 +11109,21 @@ function autoGenerateSkill(
     });
   if (secondary.includes('减速') || secondary.includes('迟缓'))
     packedEffects.push({
-      机制: '减速',
+      原型: '状态施加',
       目标: normalizedTarget,
+      状态: '迟缓',
       持续回合: Math.max(1, Math.round((state.持续回合 || 1) * secondaryDurationScale)),
-      agi_ratio: state.面板修改比例?.agi || 0.8,
+      状态效果: [{
+        原型: '属性修正',
+        目标: '自身',
+        属性: '敏捷',
+        数值: 格式化原型比例变化_V1(state.面板修改比例?.agi || 0.8, 1, true),
+        生效方式: '独立生效',
+        驱动属性: '魂力上限',
+        影响方向: '效果强度',
+      }],
+      驱动属性: '魂力上限',
+      影响方向: '效果强度',
     });
   if (secondary.includes('致盲'))
     packedEffects.push({ 机制: '致盲', 目标: normalizedTarget, 持续回合: Math.max(1, Number(state.持续回合 || 1)) });
@@ -10811,9 +11144,11 @@ function autoGenerateSkill(
     });
   if (secondary.includes('窃取增益'))
     packedEffects.push({
-      机制: '窃取增益',
+      原型: '机制窃取',
       目标: normalizedTarget,
-      窃取数量: Math.max(1, Math.round(({ C: 1, B: 1, A: 2, S: 2 }[grade] || 1) * secondaryDurationScale)),
+      窃取目标: '增益',
+      数量: Math.max(1, Math.round(({ C: 1, B: 1, A: 2, S: 2 }[grade] || 1) * secondaryDurationScale)),
+      保留回合: Math.max(1, Number(state.持续回合 || 1)),
     });
   if (secondary.includes('隐身'))
     packedEffects.push({
@@ -11121,19 +11456,13 @@ function autoGenerateSkill(
   if (main === '特殊规则类' && archetype === '召唤') {
     const meta = state.召唤元数据 || {};
     packedEffects.push({
-      机制: '召唤',
+      原型: '召唤生成',
       目标: '自身',
       召唤物名称: meta.召唤物名称 || '待命召唤物',
-      召唤数量: Math.max(1, Number(meta.召唤数量 || 1)),
+      数量: Math.max(1, Number(meta.召唤数量 || 1)),
       继承属性比例: Number(meta.继承属性比例 || 0.3),
       持续回合: Math.max(1, Number(state.持续回合 || 3)),
       行动模式: meta.行动模式 || '协同攻击',
-      承伤规则: meta.承伤规则 || '不替主承伤',
-      召唤模板来源: meta.召唤模板来源 || '技能固定模板',
-      计算层效果: {
-        final_damage_mult: Number(state.计算层效果?.final_damage_mult || 1),
-        damage_reduction: Number(state.计算层效果?.damage_reduction || 0),
-      },
     });
   }
   if (main === '特殊规则类' && archetype === '状态交换')
@@ -11168,23 +11497,22 @@ function autoGenerateSkill(
   const mainMechanismSuppressDuration = Math.max(1, Number(state.持续回合 || 2));
   const secondaryMechanismSuppressDuration = Math.max(1, Math.min(mainMechanismSuppressDuration, grade === 'S' ? 2 : 1));
   if (main === '特殊规则类' && archetype === '吞噬')
-    packedEffects.push({
-      机制: '吞噬',
+    packedEffects.push(...构建资源转移原型组_V1({
       目标: normalizedTarget,
-      资源类型: resourceDrainType,
-      夺取比例: Number((({ C: 0.12, B: 0.16, A: 0.22, S: 0.28 }[grade] || 0.16) * secondaryEffectScale).toFixed(2)),
+      资源: resourceDrainType,
+      比例: Number((({ C: 0.12, B: 0.16, A: 0.22, S: 0.28 }[grade] || 0.16) * secondaryEffectScale).toFixed(2)),
       转化比例: Number(({ C: 0.9, B: 1.0, A: 1.1, S: 1.2 }[grade] || 1.0).toFixed(2)),
-    });
+    }));
   if (main === '特殊规则类' && archetype === '能力共享')
     packedEffects.push(appendPackedEffectConditionBranches({
-      机制: '能力共享',
+      原型: '资源变化',
       目标: resolvePackedSemanticTarget('能力共享'),
-      资源类型: resourceRefeedType,
-      反灌比例: Number((({ C: 0.12, B: 0.18, A: 0.24, S: 0.3 }[grade] || 0.18) * secondaryEffectScale).toFixed(2)),
+      资源: 转换原型资源字段_V1(resourceRefeedType),
+      数值: 格式化原型比例变化_V1(Number((({ C: 0.12, B: 0.18, A: 0.24, S: 0.3 }[grade] || 0.18) * secondaryEffectScale).toFixed(2)), 1),
     }, 是否食物系 ? 食物恢复自服禁用分支 : []));
   if (main === '特殊规则类' && archetype === '机制抹消')
     packedEffects.push({
-      机制: '机制抹消',
+      原型: '机制抹消',
       目标: normalizedTarget,
       抹消目标: mechanismSuppressTarget,
       抹消方式: '移除并封锁',
@@ -11192,10 +11520,10 @@ function autoGenerateSkill(
     });
   if (main === '特殊规则类' && archetype === '引爆持续伤害')
     packedEffects.push({
-      机制: '引爆持续伤害',
+      原型: '结算修正',
       目标: normalizedTarget,
-      引爆倍率: Number(({ C: 1.3, B: 1.55, A: 1.8, S: 2.1 }[grade] || 1.55).toFixed(2)),
-      消耗持续伤害: true,
+      结算: '持续伤害引爆',
+      数值: 格式化原型比例变化_V1(Number(({ C: 1.3, B: 1.55, A: 1.8, S: 2.1 }[grade] || 1.55).toFixed(2)), 1, true),
     });
   if (main === '特殊规则类' && archetype === '斩盾')
     packedEffects.push({
@@ -11204,12 +11532,11 @@ function autoGenerateSkill(
       斩盾倍率: Number(({ C: 0.7, B: 0.95, A: 1.2, S: 1.5 }[grade] || 0.95).toFixed(2)),
     });
   if (main === '特殊规则类' && archetype === '窃取护盾')
-    packedEffects.push({
-      机制: '窃取护盾',
+    packedEffects.push(...构建护盾窃取原型组_V1({
       目标: normalizedTarget,
-      窃盾比例: Number(({ C: 0.45, B: 0.6, A: 0.78, S: 1.0 }[grade] || 0.6).toFixed(2)),
+      比例: Number(({ C: 0.45, B: 0.6, A: 0.78, S: 1.0 }[grade] || 0.6).toFixed(2)),
       持续回合: Math.max(2, Number(state.持续回合 || 2)),
-    });
+    }));
   if (secondary.includes('状态转移'))
     packedEffects.push({
       原型: '状态转移',
@@ -11221,10 +11548,10 @@ function autoGenerateSkill(
     });
   if (secondary.includes('引爆持续伤害'))
     packedEffects.push({
-      机制: '引爆持续伤害',
+      原型: '结算修正',
       目标: normalizedTarget,
-      引爆倍率: Number((({ C: 1.0, B: 1.2, A: 1.35, S: 1.5 }[grade] || 1.2) * secondaryEffectScale).toFixed(2)),
-      消耗持续伤害: true,
+      结算: '持续伤害引爆',
+      数值: 格式化原型比例变化_V1(Number((({ C: 1.0, B: 1.2, A: 1.35, S: 1.5 }[grade] || 1.2) * secondaryEffectScale).toFixed(2)), 1, true),
     });
   if (secondary.includes('斩盾'))
     packedEffects.push({
@@ -11233,20 +11560,18 @@ function autoGenerateSkill(
       斩盾倍率: Number((({ C: 0.45, B: 0.6, A: 0.8, S: 1.0 }[grade] || 0.6) * secondaryEffectScale).toFixed(2)),
     });
   if (secondary.includes('窃取护盾'))
-    packedEffects.push({
-      机制: '窃取护盾',
+    packedEffects.push(...构建护盾窃取原型组_V1({
       目标: normalizedTarget,
-      窃盾比例: Number((({ C: 0.3, B: 0.45, A: 0.6, S: 0.8 }[grade] || 0.45) * secondaryEffectScale).toFixed(2)),
+      比例: Number((({ C: 0.3, B: 0.45, A: 0.6, S: 0.8 }[grade] || 0.45) * secondaryEffectScale).toFixed(2)),
       持续回合: Math.max(1, Number(state.持续回合 || 1)),
-    });
+    }));
   if (secondary.includes('吞噬'))
-    packedEffects.push({
-      机制: '吞噬',
+    packedEffects.push(...构建资源转移原型组_V1({
       目标: normalizedTarget,
-      资源类型: resourceDrainType,
-      夺取比例: Number((({ C: 0.08, B: 0.12, A: 0.16, S: 0.22 }[grade] || 0.12) * secondaryEffectScale).toFixed(2)),
+      资源: resourceDrainType,
+      比例: Number((({ C: 0.08, B: 0.12, A: 0.16, S: 0.22 }[grade] || 0.12) * secondaryEffectScale).toFixed(2)),
       转化比例: Number(({ C: 0.85, B: 0.95, A: 1.05, S: 1.15 }[grade] || 0.95).toFixed(2)),
-    });
+    }));
   if (main === '特殊规则类' && archetype === '资源燃烧')
     packedEffects.push({
       机制: '资源燃烧',
@@ -11281,14 +11606,14 @@ function autoGenerateSkill(
     });
   if (secondary.includes('能力共享'))
     packedEffects.push(appendPackedEffectConditionBranches({
-      机制: '能力共享',
+      原型: '资源变化',
       目标: resolvePackedSemanticTarget('能力共享'),
-      资源类型: resourceRefeedType,
-      反灌比例: Number((({ C: 0.1, B: 0.14, A: 0.18, S: 0.24 }[grade] || 0.14) * secondaryEffectScale).toFixed(2)),
+      资源: 转换原型资源字段_V1(resourceRefeedType),
+      数值: 格式化原型比例变化_V1(Number((({ C: 0.1, B: 0.14, A: 0.18, S: 0.24 }[grade] || 0.14) * secondaryEffectScale).toFixed(2)), 1),
     }, 是否食物系 ? 食物恢复自服禁用分支 : []));
   if (secondary.includes('机制抹消'))
     packedEffects.push({
-      机制: '机制抹消',
+      原型: '机制抹消',
       目标: normalizedTarget,
       抹消目标: mechanismSuppressTarget,
       抹消方式: '仅封锁后续',
@@ -11306,7 +11631,7 @@ function autoGenerateSkill(
     packedEffects.push({
       原型: '机制窃取',
       目标: normalizedTarget,
-      机制: mechanismSuppressTarget,
+      窃取目标: mechanismSuppressTarget,
       数值: 格式化原型比例变化_V1(Number(stateCalc.mechanism_steal_ratio || 0.35), 1),
       保留回合: state.持续回合 || 1,
     });
@@ -11362,12 +11687,17 @@ function autoGenerateSkill(
     (Number(field.持续回合 || 0) > 0 && String(field.核心机制描述 || '无') !== '无');
   if (shouldPackFieldEffect) {
     packedEffects.push({
-      机制: '召唤与场地',
-      目标: normalizedTarget,
-      实体名称: String(field.实体名称 || state.状态名称 || '场地效果'),
+      原型: '场地施加',
+      目标: '全场',
+      场地名称: String(field.实体名称 || state.状态名称 || '场地效果'),
       持续回合: Number(field.持续回合 || state.持续回合 || 0),
-      继承属性比例: Number(field.继承属性比例 || 0),
-      核心机制描述: String(field.核心机制描述 || state.特殊机制标识 || '场地效果'),
+      场地效果: [{
+        原型: '行动判断修正',
+        目标: '全场',
+        判断: '判断干扰',
+        数值: '+10%',
+        生效方式: '独立生效',
+      }],
     });
   }
 
@@ -11413,13 +11743,30 @@ function autoGenerateSkill(
         ? resolvePackedSemanticTarget(archetype, normalizedTarget)
         : normalizedTarget;
     packedEffects.push({
-      机制: '状态挂载',
+      原型: '状态施加',
       目标: genericStateTarget,
-      状态名称: state.状态名称,
+      状态: ['中毒', '流血', '灼烧', '冻伤', '持续创伤', '迟缓', '眩晕', '沉默', '缴械', '致盲', '禁疗', '治疗反转', '隐匿', '护盾', '无敌', '霸体', '标记', '封技', '位移限制', '真身'].includes(String(state.状态名称 || '').trim())
+        ? String(state.状态名称).trim()
+        : '标记',
       持续回合: state.持续回合 || 0,
-      面板修改比例: state.面板修改比例,
-      计算层效果: state.计算层效果,
-      特殊机制标识: state.特殊机制标识 && state.特殊机制标识 !== '无' ? String(state.特殊机制标识) : undefined,
+      状态效果: [
+        ...Object.entries(state.面板修改比例 || {}).flatMap(([属性键, 倍率]) => {
+          const 属性 = 中文化技能机制参数值_V1(属性键);
+          const 数值 = Number(倍率);
+          if (!属性 || !Number.isFinite(数值) || Math.abs(数值 - 1) < 0.001) return [];
+          return [{
+            原型: '属性修正',
+            目标: '自身',
+            属性,
+            数值: 格式化原型比例变化_V1(数值, 1, true),
+            生效方式: '独立生效',
+            驱动属性: '魂力上限',
+            影响方向: '效果强度',
+          }];
+        }),
+      ],
+      驱动属性: '魂力上限',
+      影响方向: '效果强度',
     });
   }
 
@@ -11681,7 +12028,7 @@ function 展开生成校验效果条目_V1(效果数组 = []) {
   const visit = effect => {
     if (!effect || typeof effect !== 'object' || Array.isArray(effect)) return;
     result.push(effect);
-    ['使用效果', '授予效果'].forEach(key => {
+    ['使用效果', '授予效果', '状态效果', '结算效果', '场地效果'].forEach(key => {
       if (Array.isArray(effect[key])) effect[key].forEach(visit);
     });
   };
@@ -13810,35 +14157,64 @@ function 构建技能机制决策临时数据_V1(skill = {}, context = {}) {
     ? cloneJsonValue(现有决策.机制选择)
     : {};
   const 机制选择 = {};
+  const 取提示 = typeof 上下文?.取运行时提示 === 'function' ? 上下文.取运行时提示 : null;
+  const 限流提示 = (类型, 完整提示) => (取提示 ? 取提示(类型, 完整提示) : 完整提示);
   const 副机制字段数量 = 脚本判定副机制字段数量_V1(上下文);
   const 需要副作用字段 = 脚本判定是否出现副作用字段_V1(上下文);
   机制选择.主机制 = 规范化机制限选单值_V1(
     原机制选择.主机制,
     候选池.主机制候选,
-    构建机制待生成提示词_V1('主机制', 候选池.主机制候选),
+    限流提示('机制主机制', 构建机制待生成提示词_V1('主机制', 候选池.主机制候选)),
   );
   if (副机制字段数量 >= 1) {
     机制选择.副机制1 = 规范化机制限选单值_V1(
       原机制选择.副机制1,
       候选池.副机制候选,
-      构建机制待生成提示词_V1('副机制1', 候选池.副机制候选, '若出现副机制则先填写副机制1'),
+      限流提示('机制副机制', 构建机制待生成提示词_V1('副机制1', 候选池.副机制候选, '若出现副机制则先填写副机制1')),
     );
   }
   if (副机制字段数量 >= 2) {
     机制选择.副机制2 = 规范化机制限选单值_V1(
       原机制选择.副机制2,
       候选池.副机制候选,
-      构建机制待生成提示词_V1('副机制2', 候选池.副机制候选, '仅在脚本要求2个副机制时填写，且不能与副机制1重复'),
+      限流提示('机制副机制', 构建机制待生成提示词_V1('副机制2', 候选池.副机制候选, '仅在脚本要求2个副机制时填写，且不能与副机制1重复')),
     );
   }
   if (需要副作用字段) {
     机制选择.副作用类型 = 规范化机制限选单值_V1(
       原机制选择.副作用类型,
       技能副作用类型候选_V1,
-      构建机制待生成提示词_V1('副作用类型', 技能副作用类型候选_V1, '仅在脚本判定出现副作用时填写'),
+      限流提示('机制副作用', 构建机制待生成提示词_V1('副作用类型', 技能副作用类型候选_V1, '仅在脚本判定出现副作用时填写')),
     );
   }
   return { 机制选择 };
+}
+
+function 构建机制决策蓝图覆盖_V1(临时决策 = {}, context = {}) {
+  const 选择 = 临时决策 && typeof 临时决策.机制选择 === 'object' && !Array.isArray(临时决策.机制选择)
+    ? 临时决策.机制选择
+    : {};
+  const 候选池 = 构建技能机制候选池_V1(context);
+  const 主机制原型 = 规范化机制限选单值_V1(选择.主机制, 候选池.主机制候选, '');
+  if (!主机制原型) return null;
+  const 副机制 = [选择.副机制1, 选择.副机制2]
+    .map(值 => 规范化机制限选单值_V1(值, 候选池.副机制候选, ''))
+    .filter((值, 索引, 数组) => 值 && 数组.indexOf(值) === 索引);
+  const 蓝图 = {
+    主机制大类: findMainMechanicGroupByArchetype(主机制原型),
+    主机制原型,
+  };
+  if (副机制.length) 蓝图.副机制 = 副机制;
+  return 蓝图;
+}
+
+function 构建机制决策副作用列表_V1(临时决策 = {}, context = {}) {
+  const 选择 = 临时决策 && typeof 临时决策.机制选择 === 'object' && !Array.isArray(临时决策.机制选择)
+    ? 临时决策.机制选择
+    : {};
+  const 副作用类型 = 规范化机制限选单值_V1(选择.副作用类型, 技能副作用类型候选_V1, '');
+  const 副作用条目 = 副作用类型 ? 构建副作用条目_V1(副作用类型, context) : null;
+  return 副作用条目 ? [副作用条目] : [];
 }
 
 function 构建副作用条目_V1(副作用类型 = '', context = {}) {
@@ -13940,6 +14316,9 @@ function 将副作用条目转原型效果_V1(副作用 = {}) {
 
 function 直接自动生成技能结构_V1(skill = {}, context = {}) {
   if (!skill || typeof skill !== 'object') return false;
+  const 临时决策 = skill?.[技能机制决策临时字段_V1];
+  const 临时蓝图 = 临时决策 && typeof 临时决策 === 'object' ? 构建机制决策蓝图覆盖_V1(临时决策, context) : null;
+  const 临时副作用列表 = 临时决策 && typeof 临时决策 === 'object' ? 构建机制决策副作用列表_V1(临时决策, context) : [];
   const 系别 = String(context?.type || '强攻系').trim() || '强攻系';
   const 天赋层级 = String(context?.talentTier || '正常').trim() || '正常';
   const 魂环年限 = Math.max(100, Number(context?.age || 1000));
@@ -13969,6 +14348,8 @@ function 直接自动生成技能结构_V1(skill = {}, context = {}) {
         unlockedAttributes: Array.isArray(context?.unlockedAttributes) ? context.unlockedAttributes : [],
         attributeCapacity: Array.isArray(context?.attributeCapacity) ? context.attributeCapacity : [],
         elementTrigger: String(context?.elementTrigger || '').trim(),
+        blueprintOverride: context?.blueprintOverride || 临时蓝图 || undefined,
+        副作用列表: Array.isArray(context?.副作用列表) && context.副作用列表.length ? context.副作用列表 : 临时副作用列表,
       });
   const 效果数组 = Array.isArray(生成结果?._效果数组) ? clonePackedSkillEffects(生成结果._效果数组) : [];
   if (!效果数组.length) return false;
@@ -13991,9 +14372,6 @@ function ensureSkillStructGenerated(skill, context = {}) {
     skill.魂技名 = buildSkillNameTodoText(context?.textContext || context);
   }
   let hasPackedEffects = Array.isArray(skill._效果数组) && skill._效果数组.length > 0;
-  if (skill?.[技能机制决策临时字段_V1] && typeof skill[技能机制决策临时字段_V1] === 'object') {
-    delete skill[技能机制决策临时字段_V1];
-  }
   if (!hasPackedEffects && context?.允许自动生成技能结构 === true) {
     直接自动生成技能结构_V1(skill, context);
     hasPackedEffects = Array.isArray(skill._效果数组) && skill._效果数组.length > 0;
@@ -14017,6 +14395,7 @@ function ensureSkillStructGenerated(skill, context = {}) {
 
   applySkillElementInheritance(skill, context);
   if (!Array.isArray(skill._效果数组) || skill._效果数组.length === 0) return skill;
+  delete skill[技能机制决策临时字段_V1];
   if (skill.画面描述 === SKILL_TEXT_UNKNOWN) skill.画面描述 = AI_TODO_SKILL_VISUAL;
   if (skill.效果描述 === SKILL_TEXT_UNKNOWN) skill.效果描述 = AI_TODO_SKILL_EFFECT;
   清理技能根层执行元数据_V1(skill);
