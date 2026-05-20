@@ -291,7 +291,12 @@ function resolveShellPreviewTitle(previewKey, fallback = '') {
       const payload = JSON.parse(decodeURIComponent(key.slice('技能设计台：'.length)));
       const scope = String(payload && payload.scope || '').trim();
       const label = String(payload && payload.label || '').trim();
+      const 预览路径 = Array.isArray(payload && payload.path) ? payload.path : [];
+      const 槽位名 = String(预览路径[预览路径.length - 1] || '').trim();
       const scopeTitleMap = {
+        武魂融合技: '武魂融合技设计',
+        自创魂技: '自创魂技设计',
+        魂技: '魂技设计',
         fusion_skill: '融合技设计',
         art: '功法设计',
         special_ability: '特殊能力设计',
@@ -300,7 +305,7 @@ function resolveShellPreviewTitle(previewKey, fallback = '') {
         blood_skill: '血脉技能设计',
         blood_passive: '血脉被动设计'
       };
-      return [scopeTitleMap[scope] || '技能设计', label].filter(Boolean).join(' / ') || '技能设计';
+      return [scopeTitleMap[scope] || '技能设计', 槽位名, label].filter(Boolean).join(' / ') || '技能设计';
     } catch (err) {
       return '技能设计';
     }

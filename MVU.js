@@ -4048,7 +4048,7 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     可副机制: true,
     目标语义: '敌对',
-    运行时消费器: 'dot_detonate',
+    运行时消费器: 'damage_chain',
     摘要提示: { skillType: '输出', mainType: '特殊规则类', effectMode: '触发' },
     designerMainHint: '特殊规则类',
     designerSubHint: '伤害链',
@@ -4138,7 +4138,7 @@ const SKILL_MECHANISM_META_V1 = (() => {
     可主机制: true,
     可副机制: true,
     目标语义: '敌对',
-    运行时消费器: 'cost_increase',
+    运行时消费器: 'resource_lock',
     摘要提示: { skillType: '控制', mainType: '特殊规则类', controlStrength: '软控', effectMode: '持续' },
     designerMainHint: '特殊规则类',
     designerSubHint: '资源锁定',
@@ -4282,7 +4282,7 @@ const SKILL_RUNTIME_CONSUMER_TO_PROTOTYPES_V1 = Object.freeze({
   heal_to_damage: [原型编译条目('规则改写', { 规则: '治疗转伤害' })],
   status_exchange: [原型编译条目('状态交换')],
   status_transfer: [原型编译条目('状态转移')],
-  copy_status: [原型编译条目('复制执行', { 复制类型: '状态' })],
+  copy_status: [原型编译条目('拆层转存')],
   rule_rewrite: [原型编译条目('规则改写')],
   power_amplify: [原型编译条目('结算修正', { 结算: '最终伤害' })],
   skill_effect_amplify: [原型编译条目('结算修正', { 结算: '技能效果' })],
@@ -4295,11 +4295,13 @@ const SKILL_RUNTIME_CONSUMER_TO_PROTOTYPES_V1 = Object.freeze({
   random_target_shift: [原型编译条目('目标选择修正', { 选择: '随机目标偏转' })],
   self_sacrifice_gain: [原型编译条目('结算修正', { 结算: '自损增幅' })],
   ring_burst_gain: [原型编译条目('结算修正', { 结算: '炸环增幅' })],
+  damage_chain: [原型编译条目('伤害链')],
   shield_break: [原型编译条目('护盾变化', { 数值: '-100%' })],
   shield_steal: [原型编译条目('护盾变化', { 目标: '单体' }), 原型编译条目('护盾变化', { 目标: '自身' })],
   resource_drain: [原型编译条目('资源变化', { 目标: '单体' }), 原型编译条目('资源变化', { 目标: '自身' })],
   resource_refeed: [原型编译条目('资源变化')],
   resource_burn: [原型编译条目('资源变化', { 目标: '单体', 触发: '每回合' })],
+  resource_lock: [原型编译条目('资源锁定')],
   mechanism_suppress: [原型编译条目('机制抹消')],
   mechanism_steal: [原型编译条目('机制窃取')],
   mechanism_grant: [原型编译条目('机制授予')],
@@ -4539,6 +4541,9 @@ const SKILL_PROTOTYPE_DEFINITION_LIST_V1 = Object.freeze([
   ['规则防御', '战斗结算', '可赋予', ['规则', '次数', '触发', '驱动属性', '影响方向'], ['规则', '次数'], '格挡、免死、替身、抵消、复活等防御规则'],
   ['状态转移', '战斗结算', '上下文', ['状态', '来源', '去向', '数量'], ['状态'], '把状态从一方转移到另一方'],
   ['状态交换', '战斗结算', '上下文', ['状态', '范围', '数量'], ['状态'], '交换双方状态或效果'],
+  ['伤害链', '战斗结算', '敌对', ['数值', '数量', '持续回合', '驱动属性', '影响方向'], ['数值'], '按本次伤害继续向目标链式追加伤害'],
+  ['拆层转存', '战斗结算', '上下文', ['状态', '来源', '去向', '数量', '持续回合'], [], '从目标减益中拆出层数并转存到自身或指定对象'],
+  ['资源锁定', '战斗结算', '敌对', ['资源', '数值', '持续回合', '驱动属性', '影响方向'], ['数值'], '锁定目标资源回复、转化或消耗通道'],
   ['规则改写', '战斗结算', '上下文', ['规则', '数值', '驱动属性', '影响方向'], ['规则'], '改写治疗、伤害或增减益方向'],
   ['机制抹消', '战斗结算', '敌对', ['机制', '数量', '范围', '驱动属性', '影响方向'], ['机制'], '封锁或移除目标机制'],
   ['机制窃取', '战斗结算', '敌对', ['机制', '数量', '保留回合', '驱动属性', '影响方向'], ['机制'], '夺取增益、技能、护盾或状态'],
@@ -6666,6 +6671,26 @@ function 补足机制模板原型数值_V1(原型 = '', 字段 = {}, source = {}
     if (字段.数量 === undefined) 字段.数量 = Math.max(1, Math.round(Number(source.数量 || 1)));
     if (字段.来源 === undefined) 字段.来源 = String(source.来源 || '自身').trim() || '自身';
     if (字段.去向 === undefined) 字段.去向 = String(source.去向 || '目标').trim() || '目标';
+    return;
+  } else if (原型 === '伤害链') {
+    if (字段.数值 === undefined) {
+      const rawChain = 取首个数值(['数值', '链式比例', 'chainRatio', 'chain_ratio']);
+      if (rawChain !== undefined) 字段.数值 = 格式化原型比例变化_V1(rawChain, 1);
+    }
+    if (字段.数量 === undefined) 字段.数量 = Math.max(1, Math.round(Number(source.数量 || source.链式目标数 || source.chainTargets || 2)));
+    return;
+  } else if (原型 === '拆层转存') {
+    if (字段.状态 === undefined && source.状态 !== undefined) 字段.状态 = String(source.状态 || '').trim();
+    if (字段.数量 === undefined) 字段.数量 = Math.max(1, Math.round(Number(source.数量 || source.拆层数量 || source.splitLayers || 1)));
+    if (字段.来源 === undefined) 字段.来源 = String(source.来源 || '目标').trim() || '目标';
+    if (字段.去向 === undefined) 字段.去向 = String(source.去向 || source.转存目标 || '自身').trim() || '自身';
+    return;
+  } else if (原型 === '资源锁定') {
+    if (字段.资源 === undefined) 字段.资源 = 转换原型资源字段_V1(String(source.资源 || source.资源类型 || '魂力').trim());
+    if (字段.数值 === undefined) {
+      const rawLock = 取首个数值(['数值', '锁定比例', 'lockRatio', 'lock_ratio']);
+      if (rawLock !== undefined) 字段.数值 = 格式化原型比例变化_V1(rawLock, 1);
+    }
     return;
   } else if (原型 === '召唤生成') {
     if (字段.召唤物名称 === undefined) 字段.召唤物名称 = String(source.召唤物名称 || source.实体名称 || source.状态名称 || source.特殊机制标识 || source.机制 || '召唤物').trim() || '召唤物';
@@ -11190,11 +11215,11 @@ function autoGenerateSkill(
     });
   if (main === '特殊规则类' && archetype === '资源锁定')
     packedEffects.push({
-      机制: '资源锁定',
+      原型: '资源锁定',
       目标: normalizedTarget,
-      锁定比例: Number(({ C: 0.18, B: 0.25, A: 0.34, S: 0.45, 'S+': 0.58 }[grade] || 0.25).toFixed(2)),
+      资源: 转换原型资源字段_V1(resourceDrainType),
+      数值: formatSkillSignedChangeValue(Number(({ C: 0.18, B: 0.25, A: 0.34, S: 0.45, 'S+': 0.58 }[grade] || 0.25).toFixed(2)), true),
       持续回合: Math.max(1, Number(state.持续回合 || 1)),
-      限制规则: '资源回复与转化受阻',
     });
   if (secondary.includes('资源燃烧'))
     packedEffects.push({
@@ -11206,11 +11231,11 @@ function autoGenerateSkill(
     });
   if (secondary.includes('资源锁定'))
     packedEffects.push({
-      机制: '资源锁定',
+      原型: '资源锁定',
       目标: normalizedTarget,
-      锁定比例: Number((({ C: 0.12, B: 0.18, A: 0.24, S: 0.32 }[grade] || 0.18) * secondaryEffectScale).toFixed(2)),
+      资源: 转换原型资源字段_V1(resourceDrainType),
+      数值: formatSkillSignedChangeValue(Number((({ C: 0.12, B: 0.18, A: 0.24, S: 0.32 }[grade] || 0.18) * secondaryEffectScale).toFixed(2)), true),
       持续回合: Math.max(1, Math.round((state.持续回合 || 1) * secondaryDurationScale)),
-      限制规则: '资源回复与转化受阻',
     });
   if (secondary.includes('能力共享'))
     packedEffects.push(appendPackedEffectConditionBranches({
@@ -11659,6 +11684,9 @@ function findPackedEffectByMechanism(效果数组 = [], mechanism = '') {
   }
   if (normalizedMechanism === '机制抹消') return byPrototype('机制抹消');
   if (normalizedMechanism === '状态转移') return byPrototype('状态转移');
+  if (normalizedMechanism === '伤害链') return byPrototype('伤害链');
+  if (normalizedMechanism === '拆层转存') return byPrototype('拆层转存');
+  if (normalizedMechanism === '资源锁定') return byPrototype('资源锁定');
   if (normalizedMechanism === '引爆持续伤害') {
     const effect = byPrototype('结算修正', item => String(item?.结算 || '').trim() === '持续伤害引爆');
     return effect ? { ...effect, 引爆倍率: 读取生成校验比例数值_V1(effect.数值) } : null;

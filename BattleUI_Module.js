@@ -5875,6 +5875,9 @@ class BattleUIComponent {
       能力共享: 'resource_refeed',
       机制抹消: 'mechanism_suppress',
       机制窃取: 'mechanism_steal',
+      伤害链: 'damage_chain',
+      拆层转存: 'copy_status',
+      资源锁定: 'resource_lock',
     });
     const LOCAL_BATTLE_DEFENSE_NATURE_BY_LABEL = Object.freeze({
       反制: '反制',
@@ -12886,12 +12889,12 @@ class BattleUIComponent {
         };
         const directResourceRefeedEffect = actionEffects.find(effect => 是能力共享机制效果(effect)) || null;
         const directResourceBurnEffect = actionEffects.find(effect => effect?.机制 === '资源燃烧') || null;
-        const directResourceLockEffect = actionEffects.find(effect => effect?.机制 === '资源锁定') || null;
-        const directDamageChainEffect = actionEffects.find(effect => effect?.机制 === '伤害链') || null;
+        const directResourceLockEffect = actionEffects.find(effect => effect?.原型 === '资源锁定') || null;
+        const directDamageChainEffect = actionEffects.find(effect => effect?.原型 === '伤害链') || null;
         const directLifeLinkEffect = actionEffects.find(effect => effect?.机制 === '生命链接') || null;
         const directDotExtendEffect = actionEffects.find(effect => effect?.机制 === '延长持续伤害') || null;
         const directDotCompressEffect = actionEffects.find(effect => effect?.机制 === '压缩持续伤害') || null;
-        const directDotSplitStoreEffect = actionEffects.find(effect => effect?.机制 === '拆层转存') || null;
+        const directDotSplitStoreEffect = actionEffects.find(effect => effect?.原型 === '拆层转存') || null;
         const directDotDetonateEffect = actionEffects.find(effect => effect?.机制 === '引爆持续伤害') || null;
         const directStatusTransferEffect = actionEffects.find(effect => effect?.原型 === '状态转移') || null;
         const directVolatileEffect = actionEffects.find(effect =>
@@ -12935,7 +12938,7 @@ class BattleUIComponent {
         const directGrantEffect = actionEffects.find(effect => effect?.原型 === '机制授予') || null;
         const directMechanismSuppressEffect = actionEffects.find(effect => effect?.原型 === '机制抹消') || null;
         const directMechanismStealEffect = actionEffects.find(effect => effect?.原型 === '机制窃取') || null;
-        const directStateExchangeEffect = actionEffects.find(effect => effect?.原型 === '状态交换' || effect?.机制 === '状态交换') || null;
+        const directStateExchangeEffect = actionEffects.find(effect => effect?.原型 === '状态交换') || null;
         const directPrototypeEffects = actionEffects.filter(effect =>
           effect?.原型 && (
             (effect.原型 === '资源变化' && 读取战斗数值正负(effect?.数值) < 0) ||
@@ -13427,7 +13430,11 @@ class BattleUIComponent {
           resolveSkillTargetContext(playerAction.skill, attacker, defender, combatData, effect);
         const resolveDirectMechanismTargetList = (effect, options = {}) => {
           const mechanism = String(effect?.机制 || effect?.名称 || effect?.类型 || '').trim();
-          if (['资源锁定', '召唤与场地', '生命链接'].includes(mechanism)) {
+          const prototype = String(effect?.原型 || '').trim();
+          if (
+            ['资源锁定', '召唤与场地', '生命链接'].includes(mechanism) ||
+            ['状态转移', '伤害链', '拆层转存', '资源锁定'].includes(prototype)
+          ) {
             const hostileTarget = defender && defender !== attacker ? defender : null;
             const friendlyTarget = attacker || null;
             const contextHint = String(effect?.目标 || '').trim();
@@ -14111,7 +14118,7 @@ class BattleUIComponent {
           const targetUnits = resolveDirectMechanismTargetList(effect);
           const prototypeRatio = Math.abs(读取战斗数值正负(effect?.数值));
           const chainRatio = Math.max(0.1, Number(effect?.链式比例 || effect?.chain_ratio || prototypeRatio || 0.45));
-          const chainTargets = Math.max(1, Number(effect?.链式目标数 || effect?.chain_targets || 2));
+          const chainTargets = Math.max(1, Number(effect?.链式目标数 || effect?.数量 || effect?.chain_targets || 2));
           const baseDamage = Math.max(1, Number(result?.dmg || result?.totalProjectedDamage || 0));
           let totalChainDamage = 0;
           targetUnits.slice(0, chainTargets).forEach(targetObj => {
@@ -14341,11 +14348,12 @@ class BattleUIComponent {
           if (effect?.原型 === '机制抹消') return applyMechanismSuppressEffect(effect);
           if (effect?.原型 === '机制窃取') return applyMechanismStealEffect(effect);
           if (effect?.原型 === '位移执行') return applyMovementEffect(effect);
+          if (effect?.原型 === '伤害链') return applyDamageChainEffect(effect);
+          if (effect?.原型 === '资源锁定') return applyResourceLockEffect(effect);
+          if (effect?.原型 === '拆层转存') return applyLayerStoreEffect(effect);
           const mechanism = String(effect?.机制 || effect?.名称 || effect?.类型 || '').trim();
-          if (mechanism === '伤害链') return applyDamageChainEffect(effect);
           if (mechanism === '生命链接') return applyLifeLinkEffect(effect);
           if (mechanism === '资源燃烧') return applyResourceBurnEffect(effect);
-          if (mechanism === '资源锁定') return applyResourceLockEffect(effect);
           if (mechanism === '延长持续伤害' || mechanism === '压缩持续伤害') {
             return applyDotDurationAdjustEffect(effect);
           }
@@ -14527,7 +14535,7 @@ class BattleUIComponent {
 
         applyLayerStoreEffect = effect => {
           if (!effect) return false;
-          const sourceObj = resolveSkillEffectTargetCharacter(playerAction.skill, effect, attacker, defender);
+          const sourceObj = resolveDirectMechanismTargetList(effect, { single: true });
           const candidate = pickTransferableCondition(sourceObj, ['debuff']);
           if (!candidate) {
             result.desc += ` [拆层转存] 未找到可转存的减益层。`;

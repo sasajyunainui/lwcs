@@ -75,6 +75,9 @@
           const payload = JSON.parse(decodeURIComponent(key.slice('技能设计台：'.length)));
           const scope = String(payload && payload.scope || '').trim();
           const label = String(payload && payload.label || '').trim();
+          const 预览路径 = Array.isArray(payload && payload.path) ? payload.path : [];
+          const 槽位名 = String(预览路径[预览路径.length - 1] || '').trim();
+          const 槽位标签 = 读取技能设计台槽位序号标签(槽位名, '');
           const scopeTitleMap = {
             武魂融合技: '武魂融合技设计',
             art: '功法设计',
@@ -84,7 +87,7 @@
             blood_skill: '血脉技能设计',
             blood_passive: '血脉被动设计'
           };
-          return [scopeTitleMap[scope] || '技能设计', label].filter(Boolean).join(' / ') || '技能设计';
+          return [scopeTitleMap[scope] || '技能设计', 槽位标签, label].filter(Boolean).join(' / ') || '技能设计';
         } catch (err) {
           return '技能设计';
         }
@@ -11850,10 +11853,10 @@
         case '拆层转存':
           return [
             buildSkillDesignerRuntimeObject({
-              '机制': '拆层转存',
+              '原型': '拆层转存',
               '目标': target,
-              '拆层数量': parseSkillDesignerIntegerInputValue(params['splitLayers'], 1, 1),
-              '转存目标': normalizeSkillUiText(params['storeTarget'], '自身'),
+              '数量': parseSkillDesignerIntegerInputValue(params['splitLayers'], 1, 1),
+              '去向': normalizeSkillUiText(params['storeTarget'], '自身'),
               '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
             }),
           ].filter(effect => safeEntries(effect).length);
@@ -11870,20 +11873,20 @@
         case '资源锁定':
           return [
             buildSkillDesignerRuntimeObject({
-              '机制': '资源锁定',
+              '原型': '资源锁定',
               '目标': target,
-              '数值': parseSkillDesignerFactorInputValue(params['lockRatio'], 1.5, { plusBase: true }),
+              '资源': normalizeSkillUiText(params['resourceType'], '魂力'),
+              '数值': `${Math.round(parseSkillDesignerPercentRatio(params['lockRatio'], 0.5) * 100)}%`,
               '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
-              '限制规则': normalizeSkillUiText(params['lockRule'], ''),
             }),
           ].filter(effect => safeEntries(effect).length);
         case '伤害链':
           return [
             buildSkillDesignerRuntimeObject({
-              '机制': '伤害链',
+              '原型': '伤害链',
               '目标': target,
-              '引爆倍率': parseSkillDesignerFactorInputValue(params['chainRatio'], 0.45),
-              '链式目标数': parseSkillDesignerIntegerInputValue(params['chainTargets'], 2, 1),
+              '数值': `${Math.round(parseSkillDesignerPercentRatio(params['chainRatio'], 0.45) * 100)}%`,
+              '数量': parseSkillDesignerIntegerInputValue(params['chainTargets'], 2, 1),
               '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
             }),
           ].filter(effect => safeEntries(effect).length);
@@ -12465,10 +12468,10 @@
           break;
         case '拆层转存':
           effects.push(buildSkillDesignerRuntimeObject({
-            '机制': '拆层转存',
+            '原型': '拆层转存',
             '目标': offensiveTarget,
-            '拆层数量': parseSkillDesignerIntegerInputValue(params['splitLayers'], 1, 1),
-            '转存目标': normalizeSkillUiText(params['storeTarget'], '自身'),
+            '数量': parseSkillDesignerIntegerInputValue(params['splitLayers'], 1, 1),
+            '去向': normalizeSkillUiText(params['storeTarget'], '自身'),
             '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
           }));
           break;
@@ -12483,19 +12486,19 @@
           break;
         case '资源锁定':
           effects.push(buildSkillDesignerRuntimeObject({
-            '机制': '资源锁定',
+            '原型': '资源锁定',
             '目标': offensiveTarget,
-            '数值': parseSkillDesignerFactorInputValue(params['lockRatio'], 1.5, { plusBase: true }),
+            '资源': normalizeSkillUiText(params['resourceType'], '魂力'),
+            '数值': `${Math.round(parseSkillDesignerPercentRatio(params['lockRatio'], 0.5) * 100)}%`,
             '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
-            '限制规则': normalizeSkillUiText(params['lockRule'], ''),
           }));
           break;
         case '伤害链':
           effects.push(buildSkillDesignerRuntimeObject({
-            '机制': '伤害链',
+            '原型': '伤害链',
             '目标': offensiveTarget,
-            '引爆倍率': parseSkillDesignerFactorInputValue(params['chainRatio'], 0.45),
-            '链式目标数': parseSkillDesignerIntegerInputValue(params['chainTargets'], 2, 1),
+            '数值': `${Math.round(parseSkillDesignerPercentRatio(params['chainRatio'], 0.45) * 100)}%`,
+            '数量': parseSkillDesignerIntegerInputValue(params['chainTargets'], 2, 1),
             '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
           }));
           break;
@@ -23583,7 +23586,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             目标: '单体',
             消耗: '无',
             _效果数组: Object.freeze([
-              Object.freeze({ 原型: '状态转移', 目标: '单体', 状态: '眩晕', 数量: 1 }),
+              Object.freeze({ 原型: '状态转移', 目标: '单体', 状态: '迟缓诅咒', 数量: 1 }),
             ]),
           }),
           预期: Object.freeze({
@@ -23782,8 +23785,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             目标: '单体',
             消耗: '无',
             _效果数组: Object.freeze([
-              Object.freeze({ 原型: '资源变化', 目标: '单体', 资源: '生命', 数值: '+20%' }),
-              Object.freeze({ 原型: '规则改写', 目标: '单体', 规则: '治疗转伤害', 数值: '100%' }),
+              Object.freeze({ 原型: '伤害链', 目标: '单体', 数值: '100%', 数量: 1 }),
             ]),
           }),
           预期: Object.freeze({
@@ -23971,7 +23973,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             目标: '单体',
             消耗: '无',
             _效果数组: Object.freeze([
-              Object.freeze({ 原型: '状态转移', 目标: '单体', 状态: '眩晕', 数量: 1 }),
+              Object.freeze({ 原型: '拆层转存', 目标: '单体', 数量: 1, 持续回合: 2 }),
             ]),
           }),
           预期: Object.freeze({
@@ -24048,7 +24050,7 @@ if (state && state['状态名称'] !== '无') desc += `${desc ? '<br/>' : ''}<sp
             目标: '单体',
             消耗: '无',
             _效果数组: Object.freeze([
-              Object.freeze({ 原型: '状态施加', 目标: '单体', 状态: '封技', 层级: 1, 持续回合: 1 }),
+              Object.freeze({ 原型: '资源锁定', 目标: '单体', 资源: '魂力', 数值: '50%', 持续回合: 2 }),
             ]),
           }),
           预期: Object.freeze({
@@ -27867,8 +27869,288 @@ ${extraRequirement}
       if (/battle|combat|战斗|切磋|单挑/.test(文本)) return 'battle';
       if (/trade|交易|购买|出售|竞拍|拍卖/.test(文本)) return 'trade';
       if (/craft|profession|job|副职业|工坊|锻造|制造|设计|修理|维修/.test(文本)) return 'profession';
+      if (/travel|move|移动|前往|赶往|抵达|出发|启程|赶路|去往/.test(文本)) return 'travel';
       if (/routine|daily|日常|修炼|冥想|拟态/.test(文本)) return 'routine';
       return '';
+    }
+
+    function 读取移动请求文本(payload = {}, 字段列表 = [], 回退值 = '') {
+      for (const 字段 of 字段列表) {
+        if (payload && payload[字段] !== undefined && payload[字段] !== null && payload[字段] !== '') {
+          return toText(payload[字段], 回退值).trim();
+        }
+      }
+      return toText(回退值, '').trim();
+    }
+
+    function 读取移动请求数值(payload = {}, 字段列表 = [], 回退值 = 0) {
+      for (const 字段 of 字段列表) {
+        if (payload && payload[字段] !== undefined && payload[字段] !== null && payload[字段] !== '') {
+          return toNumber(payload[字段], 回退值);
+        }
+      }
+      return toNumber(回退值, 0);
+    }
+
+    function 规范地点键名(名称 = '') {
+      return toText(名称, '')
+        .replace(/^斗罗大陆-/, '')
+        .replace(/^斗灵大陆-/, '')
+        .trim();
+    }
+
+    function 取地点叶名(名称 = '') {
+      const 清理名 = 规范地点键名(名称);
+      const 片段 = 清理名.split('-').map(item => item.trim()).filter(Boolean);
+      return 片段[片段.length - 1] || 清理名;
+    }
+
+    function 查找世界地点数据(snapshot, 名称 = '') {
+      const rootData = deepGet(snapshot, 'rootData', {});
+      const 候选名列表 = [];
+      const 清理名 = 规范地点键名(名称);
+      const 叶名 = 取地点叶名(名称);
+      [名称, 清理名, 叶名].forEach(item => {
+        const 文本 = toText(item, '').trim();
+        if (文本 && !候选名列表.includes(文本)) 候选名列表.push(文本);
+      });
+      const 静态地点 = deepGet(rootData, 'world.地点', {});
+      const 动态地点 = deepGet(rootData, 'world.动态地点', {});
+      for (const 候选名 of 候选名列表) {
+        if (静态地点 && typeof 静态地点 === 'object' && 静态地点[候选名]) {
+          return { name: 候选名, data: 静态地点[候选名], source: 'world.地点' };
+        }
+        if (动态地点 && typeof 动态地点 === 'object' && 动态地点[候选名]) {
+          return { name: 候选名, data: 动态地点[候选名], source: 'world.动态地点' };
+        }
+      }
+      return { name: 清理名 || 叶名, data: null, source: '' };
+    }
+
+    function 构建移动绝对位置(snapshot, 目标地点 = '', 父节点 = '') {
+      const 原始目标 = toText(目标地点, '').trim();
+      if (/^(斗罗大陆|斗灵大陆)-/.test(原始目标)) return 原始目标;
+      const 当前位置 = toText(deepGet(snapshot, 'activeChar.状态.位置', ''), '');
+      const 大陆前缀 = 当前位置.startsWith('斗灵大陆-') ? '斗灵大陆' : '斗罗大陆';
+      const 目标清理名 = 规范地点键名(原始目标);
+      const 父清理名 = 规范地点键名(父节点);
+      if (!父清理名 || 父清理名 === 大陆前缀) return `${大陆前缀}-${目标清理名}`;
+      if (目标清理名 === 父清理名 || 目标清理名.startsWith(`${父清理名}-`)) return `${大陆前缀}-${目标清理名}`;
+      return `${大陆前缀}-${父清理名}-${目标清理名}`;
+    }
+
+    function 推导移动动态地点坐标(snapshot, request = {}) {
+      const mapBridge = window.__sheepMapBridge;
+      if (mapBridge && typeof mapBridge.deriveDynamicLocationCoord === 'function') {
+        try {
+          const result = mapBridge.deriveDynamicLocationCoord(request.归属父节点, {
+            targetName: request.目标地点,
+            direction: request.方位,
+            ticks: request.耗时tick,
+            method: request.移动方式,
+          });
+          if (result && result.ok && Number.isFinite(toNumber(result.x, NaN)) && Number.isFinite(toNumber(result.y, NaN))) {
+            return { ok: true, x: Math.round(toNumber(result.x, 0)), y: Math.round(toNumber(result.y, 0)), source: result.source || 'map_bridge' };
+          }
+        } catch (error) {}
+      }
+
+      const rootData = deepGet(snapshot, 'rootData', {});
+      const 父级 = 查找世界地点数据(snapshot, request.归属父节点);
+      const 父坐标 = 父级.data && Number.isFinite(toNumber(父级.data.x, NaN)) && Number.isFinite(toNumber(父级.data.y, NaN))
+        ? { x: toNumber(父级.data.x, 0), y: toNumber(父级.data.y, 0) }
+        : null;
+      const 同级坐标 = safeEntries(deepGet(rootData, 'world.动态地点', {}))
+        .filter(([, item]) => item && typeof item === 'object' && toText(item.归属父节点, '') === 父级.name)
+        .map(([, item]) => ({ x: toNumber(item.x, NaN), y: toNumber(item.y, NaN) }))
+        .filter(coord => Number.isFinite(coord.x) && Number.isFinite(coord.y) && coord.x >= 0 && coord.y >= 0);
+      const 基准 = 父坐标 || 同级坐标[同级坐标.length - 1] || null;
+      if (!基准) return { ok: false, reason: 'parent_coord_unavailable' };
+      const 方位 = toText(request.方位, '');
+      const 向量 = {
+        x: /东/.test(方位) ? 1 : (/西/.test(方位) ? -1 : 0),
+        y: /南/.test(方位) ? 1 : (/北/.test(方位) ? -1 : 0),
+      };
+      if (!向量.x && !向量.y) {
+        向量.x = 1;
+        向量.y = 1;
+      }
+      const 步长 = Math.max(12, Math.min(60, 14 + Math.floor(toNumber(request.耗时tick, 1) * 4)));
+      const 偏移序号 = 同级坐标.length + 1;
+      let x = Math.round(基准.x + 向量.x * 步长 + (偏移序号 % 3) * 7);
+      let y = Math.round(基准.y + 向量.y * 步长 + Math.floor(偏移序号 / 3) * 7);
+      const 已占用 = new Set(同级坐标.map(coord => `${Math.round(coord.x)},${Math.round(coord.y)}`));
+      while (已占用.has(`${x},${y}`)) {
+        x += 9;
+        y += 6;
+      }
+      return { ok: true, x, y, source: 父坐标 ? 'parent_coord' : 'sibling_coord' };
+    }
+
+    function 计算移动基础消耗(snapshot, request = {}) {
+      const 角色数据 = request.charData || {};
+      const 属性 = 角色数据.属性 || {};
+      const 财富 = 角色数据.财富 || {};
+      const tick = Math.max(0.1, toNumber(request.耗时tick, 1));
+      const 方式 = toText(request.移动方式, '步行');
+      let 联邦币 = 0;
+      let 魂力 = 0;
+      let 体力 = 0;
+      if (/步行|跑|徒步/.test(方式)) {
+        体力 = Math.max(1, Math.round(tick * 3));
+      } else if (/短驳|校车|公交/.test(方式)) {
+        联邦币 = Math.max(1, Math.round(tick * 2));
+      } else if (/魂导汽车|魂导车|列车|巨轮|船|车/.test(方式)) {
+        联邦币 = Math.max(1, Math.round(tick * 10));
+      } else if (/飞行|斗铠|机甲|肉身/.test(方式)) {
+        魂力 = Math.max(1, Math.round(tick * 8));
+        体力 = Math.max(1, Math.round(tick * 2));
+      } else if (/传送|空间/.test(方式)) {
+        魂力 = Math.max(1, Math.round(tick * 20));
+      } else {
+        体力 = Math.max(1, Math.round(tick * 2));
+      }
+      const 当前联邦币 = toNumber(财富.联邦币, 0);
+      const 当前魂力 = toNumber(属性.魂力, 0);
+      const 当前体力 = toNumber(属性.体力, 0);
+      if (联邦币 > 当前联邦币) return { ok: false, reason: '联邦币不足', 联邦币, 魂力, 体力 };
+      if (魂力 > 当前魂力) return { ok: false, reason: '魂力不足', 联邦币, 魂力, 体力 };
+      if (体力 > 当前体力) return { ok: false, reason: '体力不足', 联邦币, 魂力, 体力 };
+      return {
+        ok: true,
+        联邦币,
+        魂力,
+        体力,
+        消耗文本: [
+          联邦币 > 0 ? `${联邦币}联邦币` : '',
+          魂力 > 0 ? `${魂力}魂力` : '',
+          体力 > 0 ? `${体力}体力` : '',
+        ].filter(Boolean).join(' / ') || '无额外消耗',
+      };
+    }
+
+    function 解析移动模块意图请求(snapshot, payload = {}, narrativeText = '') {
+      const 角色名 = 读取移动请求文本(payload, ['角色', 'char', 'character', '人物', '对象'], toText(snapshot && snapshot.activeName, ''));
+      const 目标地点 = 读取移动请求文本(payload, ['目标地点', 'targetLoc', 'targetLocation', 'location', 'destination', 'target', '地点'], '');
+      if (!目标地点) return null;
+      const 角色 = resolveSnapshotCharacter(snapshot, 角色名);
+      if (!角色.key || !角色.char) return { invalid: true, reason: 'travel_character_unresolved', 角色: 角色名, 目标地点 };
+      return {
+        角色: 角色.displayName || 角色.key,
+        charKey: 角色.key,
+        charData: 角色.char,
+        目标地点: 规范地点键名(目标地点) || 取地点叶名(目标地点),
+        原始目标地点: 目标地点,
+        归属父节点: 读取移动请求文本(payload, ['归属父节点', '父节点', 'parent', 'parentNode'], ''),
+        层级: Math.max(1, Math.floor(读取移动请求数值(payload, ['层级', 'level'], 4))),
+        节点类型: 读取移动请求文本(payload, ['节点类型', 'nodeType', 'type'], '地点'),
+        移动方式: 读取移动请求文本(payload, ['移动方式', 'method', 'travelMethod'], /飞行|车|列车|船|传送/.test(narrativeText) ? '' : '步行') || '步行',
+        耗时tick: Math.max(0.1, 读取移动请求数值(payload, ['耗时tick', 'ticks', 'est_ticks', 'durationTicks'], 1)),
+        方位: 读取移动请求文本(payload, ['方位', 'direction'], ''),
+        描述: 读取移动请求文本(payload, ['描述', 'desc', 'description'], `${取地点叶名(目标地点)}。`),
+      };
+    }
+
+    function 构建新动态地点移动补丁(snapshot, request = {}) {
+      if (!request || request.invalid) return { ok: false, reason: request?.reason || 'travel_request_invalid', patchOps: [] };
+      const 父级 = 查找世界地点数据(snapshot, request.归属父节点);
+      if (!request.归属父节点 || !父级.data) return { ok: false, reason: 'travel_parent_missing', patchOps: [] };
+      const 已有目标 = 查找世界地点数据(snapshot, request.原始目标地点 || request.目标地点);
+      if (已有目标.data) return { ok: false, reason: 'travel_target_already_exists', patchOps: [] };
+      const 坐标 = 推导移动动态地点坐标(snapshot, { ...request, 归属父节点: 父级.name });
+      if (!坐标.ok) return { ok: false, reason: 坐标.reason || 'travel_coord_unavailable', patchOps: [] };
+      const 消耗 = 计算移动基础消耗(snapshot, request);
+      if (!消耗.ok) return { ok: false, reason: 消耗.reason || 'travel_cost_unavailable', patchOps: [] };
+      const activePath = escapeJsonPointerValue(request.charKey);
+      const targetPath = escapeJsonPointerValue(request.目标地点);
+      const finalLocName = 构建移动绝对位置(snapshot, request.目标地点, 父级.name);
+      const 当前tick = toNumber(deepGet(snapshot, 'rootData.world.时间.tick', 0), 0);
+      const patchOps = [
+        {
+          op: 'insert',
+          path: `/world/动态地点/${targetPath}`,
+          value: {
+            归属父节点: 父级.name,
+            层级: request.层级,
+            节点类型: request.节点类型,
+            描述: request.描述,
+            x: 坐标.x,
+            y: 坐标.y,
+            状态: 'intact',
+          },
+        },
+        { op: 'replace', path: `/char/${activePath}/状态/位置`, value: finalLocName },
+        { op: 'add', path: `/char/${activePath}/状态/横坐标`, value: 坐标.x },
+        { op: 'add', path: `/char/${activePath}/状态/纵坐标`, value: 坐标.y },
+        { op: 'replace', path: '/world/时间/tick', value: Number((当前tick + request.耗时tick).toFixed(2)) },
+        { op: 'replace', path: '/sys/系统播报', value: `[移动完成] ${request.角色} 经${request.移动方式}抵达 ${finalLocName}，耗时 ${request.耗时tick} tick。` },
+      ];
+      if (消耗.联邦币 > 0) patchOps.push({
+        op: 'replace',
+        path: `/char/${activePath}/财富/联邦币`,
+        value: Math.max(0, toNumber(deepGet(request.charData, '财富.联邦币', 0), 0) - 消耗.联邦币),
+      });
+      if (消耗.魂力 > 0) patchOps.push({
+        op: 'replace',
+        path: `/char/${activePath}/属性/魂力`,
+        value: Math.max(0, toNumber(deepGet(request.charData, '属性.魂力', 0), 0) - 消耗.魂力),
+      });
+      if (消耗.体力 > 0) patchOps.push({
+        op: 'replace',
+        path: `/char/${activePath}/属性/体力`,
+        value: Math.max(0, toNumber(deepGet(request.charData, '属性.体力', 0), 0) - 消耗.体力),
+      });
+      return { ok: true, patchOps, finalLocName, coord: 坐标, cost: 消耗 };
+    }
+
+    async function 执行移动模块意图路由(snapshot, request = {}) {
+      if (!request || request.invalid) return 构建模块路由失败结果('travel', request, request?.reason || 'travel_request_invalid');
+      const mapBridge = window.__sheepMapBridge;
+      const 已有目标 = 查找世界地点数据(snapshot, request.原始目标地点 || request.目标地点);
+      if (已有目标.data) {
+        if (!mapBridge || typeof mapBridge.travelToNode !== 'function') {
+          return 构建模块路由失败结果('travel', request, 'map_bridge_unavailable');
+        }
+        const result = mapBridge.travelToNode(已有目标.name || request.目标地点);
+        if (!result?.ok) return 构建模块路由失败结果('travel', request, result?.reason || 'map_travel_failed', { result });
+        await refreshLiveSnapshot({ force: true });
+        return 构建模块路由成功结果('travel', request, { dispatchMode: 'map_bridge', result });
+      }
+
+      const 补丁结果 = 构建新动态地点移动补丁(snapshot, request);
+      if (!补丁结果.ok || !补丁结果.patchOps.length) {
+        return 构建模块路由失败结果('travel', request, 补丁结果.reason || 'travel_patch_unavailable');
+      }
+      try {
+        await applyJsonPatchOpsByEditor(补丁结果.patchOps, { force: true });
+        await refreshLiveSnapshot({ force: true });
+      } catch (error) {
+        return 构建模块路由失败结果('travel', request, error && error.message ? error.message : 'travel_patch_failed');
+      }
+
+      const systemPrompt = [
+        '以下内容属于前端已经完成的移动结算，不要在正文直接复述“JSONPatch / 变量更新 / 系统提示”等术语。',
+        '',
+        `[移动结算]`,
+        `角色：${request.角色}`,
+        `目标地点：${补丁结果.finalLocName}`,
+        `移动方式：${request.移动方式}`,
+        `耗时：${request.耗时tick} tick`,
+        `资源消耗：${补丁结果.cost.消耗文本}`,
+        `地点描述：${request.描述}`,
+        '',
+        '请直接承接这次移动后的自然剧情反馈，描写路途片段、抵达环境、角色反应与下一步可行动空间。除非剧情上确有新增变化，不要重复结算同一批变量。',
+      ].join('\n');
+      const dispatchResult = await dispatchUiAiRequest(
+        `我前往【${补丁结果.finalLocName}】。`,
+        systemPrompt,
+        { requestKind: 'travel_route', skipActionLock: true },
+      );
+      return 构建模块路由成功结果('travel', request, {
+        dispatchMode: 'patch',
+        patchOps: 补丁结果.patchOps,
+        dispatchResult,
+      });
     }
 
     function 解析日常模块意图请求(snapshot, payload = {}, narrativeText = '') {
@@ -28061,6 +28343,8 @@ ${extraRequirement}
         request = buildTradeRequestFromObject(snapshot, payload);
       } else if (moduleKind === 'profession') {
         request = buildDirectProfessionRequest(snapshot, payload);
+      } else if (moduleKind === 'travel') {
+        request = 解析移动模块意图请求(snapshot, payload, text);
       } else if (moduleKind === 'routine') {
         request = 解析日常模块意图请求(snapshot, payload, text);
       } else {
@@ -28115,6 +28399,10 @@ ${extraRequirement}
           'trade_inline_action_unavailable',
           'trade_continuation_dispatch_failed',
         );
+      }
+
+      if (moduleKind === 'travel') {
+        return await 执行移动模块意图路由(snapshot, request);
       }
 
       if (moduleKind === 'routine') {
