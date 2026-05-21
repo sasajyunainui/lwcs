@@ -382,7 +382,6 @@
         .replace(/player_action/gi, '玩家行动')
         .replace(/settle_result/gi, '结算结果')
 
-        .replace(/捐献请求/gi, '捐赠安排')
         .replace(/request 变量/gi, '当前安排')
         .replace(/展示/g, '查看')
         .replace(/显示/g, '查看')
@@ -5150,11 +5149,22 @@
     }
 
     function summarizeSummonEffectUi(effect) {
-      const name = normalizeSkillUiText(effect && effect['召唤物名称'], '召唤物');
-      const count = Math.max(1, toNumber(effect && effect['召唤数量'], 1));
-      const duration = Math.max(0, toNumber(effect && effect['持续回合'], 0));
-      const mode = normalizeSkillUiText(effect && effect['行动模式'], '');
-      return [`召唤【${name}】×${count}`, mode, duration > 0 ? `持续:${duration}回合` : ''].filter(Boolean).join(' / ');
+      const 单位类型 = normalizeSkillUiText(effect && effect['召唤单位类型'], '魂兽');
+      const 物种 = normalizeSkillUiText(effect && effect['召唤物种'], '');
+      const 名称 = normalizeSkillUiText(effect && effect['召唤物名称'], '召唤物');
+      const 数量 = Math.max(1, toNumber(effect && (effect['数量'] ?? effect['召唤数量']), 1));
+      const 持续回合 = Math.max(0, toNumber(effect && effect['持续回合'], 0));
+      const 行动模式 = normalizeSkillUiText(effect && effect['行动模式'], '');
+      const 允许继承 = 技能设计台召唤单位允许继承属性(单位类型);
+      const 强度 = Number(effect && effect['强度']);
+      const 继承比例 = Number(effect && effect['继承属性比例']);
+      return [
+        `召唤${单位类型}${物种 && 物种 !== '未指定' ? `/${物种}` : ''}【${名称}】×${数量}`,
+        行动模式,
+        !允许继承 && Number.isFinite(强度) ? `强度:${强度}` : '',
+        允许继承 && Number.isFinite(继承比例) ? `继承:${Math.round(继承比例 * 100)}%` : '',
+        持续回合 > 0 ? `持续:${持续回合}回合` : '',
+      ].filter(Boolean).join(' / ');
     }
 
     function extractConstructEffectMeta(effectArray) {
@@ -5467,9 +5477,12 @@
       隐蔽度: '越高越难发现',
       实力继承: '分身继承多少实力',
       分身称谓: '分身的名字',
+      召唤单位类型: '召唤出的单位类别',
+      召唤物种: '召唤单位的物种',
       召唤物名称: '召唤出的对象',
       召唤数量: '召唤几个',
-      继承比例: '继承本体多少实力',
+      召唤强度: '独立单位的模板强度',
+      构造继承: '构造体继承多少实力',
       行动模式: '召唤物怎么行动',
       承伤规则: '召唤物怎么承伤',
       模板来源: '召唤物按什么生成',
@@ -5708,10 +5721,14 @@
     const SKILL_DESIGNER_PARAM_TRIGGER_RESULT_OPTIONS = Object.freeze(['爆发', '刷新', '召唤']);
     const SKILL_DESIGNER_PARAM_RULE_REWRITE_OPTIONS = Object.freeze(['治疗转伤害', '伤害转治疗', '效果反转']);
     const SKILL_DESIGNER_PARAM_CLONE_TYPE_OPTIONS = Object.freeze(['物理分身', '精神力分身']);
+    const 技能设计台召唤单位类型选项 = Object.freeze(['人类', '魂师', '魂兽', '灵体', '造物', '分身', '投影', '傀儡', '深渊生物']);
+    const 技能设计台召唤承伤规则选项 = Object.freeze(['不替主承伤', '可承伤', '护卫承伤', '分摊承伤']);
+    const 技能设计台召唤模板来源选项 = Object.freeze(['技能固定模板', '已存在召唤物', '目标复刻', '自身投影', '剧情指定']);
     const SKILL_DESIGNER_PARAM_PENETRATION_TARGET_OPTIONS = Object.freeze(['防御', '护盾', '抗性']);
     const SKILL_DESIGNER_PARAM_LIFESTEAL_RESOURCE_OPTIONS = Object.freeze(['生命', '魂力', '精神力']);
     const SKILL_DESIGNER_PARAM_RESOURCE_TRANSFER_TYPE_OPTIONS = Object.freeze(['魂力', '精神力', '双资源']);
     const SKILL_DESIGNER_PARAM_MECHANISM_SUPPRESS_TARGET_OPTIONS = Object.freeze(['复苏', '护盾', '隐身', '增益', '防御机制', '回复机制', '控制机制', '特殊规则']);
+    const 技能设计台机制窃取目标选项 = Object.freeze(['复苏', '护盾', '隐身', '增益', '防御机制', '回复机制']);
     const SKILL_DESIGNER_PARAM_MECHANISM_SUPPRESS_MODE_OPTIONS = Object.freeze(['移除并封锁', '仅封锁后续']);
     const SKILL_DESIGNER_PARAM_INTERRUPT_WINDOW_OPTIONS = Object.freeze(['前摇', '吟唱中', '引导中']);
     const SKILL_DESIGNER_PARAM_COUNTER_RULE_OPTIONS = Object.freeze(['受击后', '格挡后', '受控后']);
@@ -5737,10 +5754,14 @@
       TRIGGER_RESULT: SKILL_DESIGNER_PARAM_TRIGGER_RESULT_OPTIONS,
       RULE_REWRITE: SKILL_DESIGNER_PARAM_RULE_REWRITE_OPTIONS,
       CLONE_TYPE: SKILL_DESIGNER_PARAM_CLONE_TYPE_OPTIONS,
+      SUMMON_UNIT_TYPE: 技能设计台召唤单位类型选项,
+      SUMMON_DAMAGE_RULE: 技能设计台召唤承伤规则选项,
+      SUMMON_TEMPLATE_SOURCE: 技能设计台召唤模板来源选项,
       PENETRATION_TARGET: SKILL_DESIGNER_PARAM_PENETRATION_TARGET_OPTIONS,
       LIFESTEAL_RESOURCE: SKILL_DESIGNER_PARAM_LIFESTEAL_RESOURCE_OPTIONS,
       RESOURCE_TRANSFER_TYPE: SKILL_DESIGNER_PARAM_RESOURCE_TRANSFER_TYPE_OPTIONS,
       MECHANISM_SUPPRESS_TARGET: SKILL_DESIGNER_PARAM_MECHANISM_SUPPRESS_TARGET_OPTIONS,
+      MECHANISM_STEAL_TARGET: 技能设计台机制窃取目标选项,
       MECHANISM_SUPPRESS_MODE: SKILL_DESIGNER_PARAM_MECHANISM_SUPPRESS_MODE_OPTIONS,
       INTERRUPT_WINDOW: SKILL_DESIGNER_PARAM_INTERRUPT_WINDOW_OPTIONS,
       COUNTER_RULE: SKILL_DESIGNER_PARAM_COUNTER_RULE_OPTIONS,
@@ -5998,7 +6019,7 @@
     }
 
     const SKILL_DESIGNER_CONDITION_BRANCH_TYPE_OPTIONS = Object.freeze(['目标', '存活', '性别', '年龄', '等级', '系别', '身份', '物种', '邪魂师', '深渊生物', '魂兽', '生命比例', '体力比例', '魂力比例', '精神力比例', '生命数值', '体力数值', '魂力数值', '精神力数值', '状态', '状态层级', '护盾', '受伤部位', '当前行动', '当前领域', '位置', '命中', '暴击', '被闪避']);
-    const SKILL_DESIGNER_CONDITION_BRANCH_OBJECT_OPTIONS = Object.freeze(['目标']);
+    const SKILL_DESIGNER_CONDITION_BRANCH_OBJECT_OPTIONS = Object.freeze(['目标', '自身']);
     const SKILL_DESIGNER_CONDITION_BRANCH_COMPARE_OPTIONS = Object.freeze(['==', '!=', '>', '>=', '<', '<=', '有', '无']);
     const SKILL_DESIGNER_CONDITION_BRANCH_ACTION_OPTIONS = Object.freeze(['替换效果', '追加效果', '禁用基础效果']);
     const SKILL_DESIGNER_CONDITION_BRANCH_FLAG_TYPES = Object.freeze(['存活', '邪魂师', '深渊生物', '魂兽', '命中', '暴击', '被闪避']);
@@ -6181,58 +6202,105 @@
           }
           return normalized;
         })
+继续
         .filter(Boolean);
     }
 
-    function 规范化技能设计台等价比较效果(effect = {}) {
-      if (!effect || typeof effect !== 'object' || Array.isArray(effect)) return effect;
-      const copy = cloneJsonValue(effect);
-      delete copy['条件分支'];
-      if (copy['目标'] === undefined || copy['目标'] === null || normalizeSkillUiText(copy['目标'], '') === '') delete copy['目标'];
-      Object.keys(copy).forEach(key => {
-        const value = copy[key];
-        if (value === undefined || value === null || (typeof value === 'string' && !value.trim())) delete copy[key];
+    function 规范化技能设计台等价比较效果(效果 = {}) {
+      if (!效果 || typeof 效果 !== 'object' || Array.isArray(效果)) return 效果;
+      const 副本 = cloneJsonValue(效果);
+      delete 副本['条件分支'];
+      if (副本['目标'] === undefined || 副本['目标'] === null || normalizeSkillUiText(副本['目标'], '') === '') delete 副本['目标'];
+      Object.keys(副本).forEach(键 => {
+        const 值 = 副本[键];
+        if (值 === undefined || 值 === null || (typeof 值 === 'string' && !值.trim())) delete 副本[键];
       });
-      return copy;
+      return 副本;
     }
 
-    function 稳定序列化技能设计台效果(value) {
-      if (Array.isArray(value)) return `[${value.map(稳定序列化技能设计台效果).join(',')}]`;
-      if (value && typeof value === 'object') {
-        return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${稳定序列化技能设计台效果(value[key])}`).join(',')}}`;
+    function 稳定序列化技能设计台效果(值) {
+      if (Array.isArray(值)) return `[${值.map(稳定序列化技能设计台效果).join(',')}]`;
+      if (值 && typeof 值 === 'object') {
+        return `{${Object.keys(值).sort().map(键 => `${JSON.stringify(键)}:${稳定序列化技能设计台效果(值[键])}`).join(',')}}`;
       }
-      return JSON.stringify(value);
+      return JSON.stringify(值);
     }
 
-    function 技能设计台条件分支替换效果等价(parentEffect = {}, replacementEffects = []) {
-      const effects = Array.isArray(replacementEffects) ? replacementEffects : [];
-      if (effects.length !== 1) return false;
-      const base = 规范化技能设计台等价比较效果(parentEffect);
-      const replacement = 规范化技能设计台等价比较效果(effects[0]);
-      if (!replacement['目标'] && base['目标']) replacement['目标'] = base['目标'];
-      if (!base['目标'] && replacement['目标'] === '自身') delete replacement['目标'];
-      else if (!base['目标'] && replacement['目标']) base['目标'] = replacement['目标'];
-      return 稳定序列化技能设计台效果(base) === 稳定序列化技能设计台效果(replacement);
+    function 技能设计台条件分支替换效果等价(父效果 = {}, 替换效果列表 = []) {
+      const 效果列表 = Array.isArray(替换效果列表) ? 替换效果列表 : [];
+      if (效果列表.length !== 1) return false;
+      const 基础 = 规范化技能设计台等价比较效果(父效果);
+      const 替换 = 规范化技能设计台等价比较效果(效果列表[0]);
+      if (!替换['目标'] && 基础['目标']) 替换['目标'] = 基础['目标'];
+      if (!基础['目标'] && 替换['目标'] === '自身') delete 替换['目标'];
+      else if (!基础['目标'] && 替换['目标']) 基础['目标'] = 替换['目标'];
+      return 稳定序列化技能设计台效果(基础) === 稳定序列化技能设计台效果(替换);
     }
 
-    function normalizeSkillDesignerConditionBranchList(value = [], fallbackTarget = '单体', recordViolation = () => {}, parentEffect = {}) {
-      return (Array.isArray(value) ? value : [])
-        .map(branch => {
-          if (!branch || typeof branch !== 'object' || Array.isArray(branch)) return null;
-          const 条件 = normalizeSkillDesignerConditionBranchConditionList(branch['条件'] || [], recordViolation);
+    function 规范化技能设计台机制目标(值 = '', 模式 = '抹消') {
+      const 候选 = 模式 === '窃取' ? 技能设计台机制窃取目标选项 : SKILL_DESIGNER_PARAM_MECHANISM_SUPPRESS_TARGET_OPTIONS;
+      const 候选集合 = new Set(候选);
+      const 别名 = {
+        隐匿: '隐身',
+        潜行: '隐身',
+        防御: '防御机制',
+        护盾机制: '护盾',
+        回复: '回复机制',
+        恢复: '回复机制',
+        治疗: '回复机制',
+        控制: '控制机制',
+        特殊: '特殊规则',
+      };
+      const 列表 = (Array.isArray(值) ? 值 : [值])
+        .flatMap(条目 => normalizeSkillUiText(条目, '').split(/[、,，/|｜；;\s]+/g))
+        .map(条目 => normalizeSkillUiText(条目, ''))
+        .map(条目 => 别名[条目] || 条目)
+        .filter(条目 => 候选集合.has(条目));
+      const 去重 = Array.from(new Set(列表));
+      return 去重.length > 1 ? 去重 : 去重[0] || (模式 === '窃取' ? '增益' : '复苏');
+    }
+
+    function 清理技能设计台等价替换条件分支(值) {
+      if (!值 || typeof 值 !== 'object') return 值;
+      if (Array.isArray(值)) {
+        值.forEach(条目 => 清理技能设计台等价替换条件分支(条目));
+        return 值;
+      }
+      if (Array.isArray(值['条件分支'])) {
+        值['条件分支'] = 值['条件分支']
+          .filter(分支 => !(normalizeSkillUiText(分支 && 分支['处理'], '') === '替换效果' && 技能设计台条件分支替换效果等价(值, 分支 && 分支['替换效果'] || [])))
+          .map(分支 => {
+            ['替换效果', '追加效果'].forEach(键 => {
+              if (Array.isArray(分支 && 分支[键])) 清理技能设计台等价替换条件分支(分支[键]);
+            });
+            return 分支;
+          });
+        if (!值['条件分支'].length) delete 值['条件分支'];
+      }
+      ['使用效果', '授予效果', '状态效果', '结算效果', '场地效果'].forEach(键 => {
+        if (Array.isArray(值[键])) 清理技能设计台等价替换条件分支(值[键]);
+      });
+      return 值;
+    }
+
+    function normalizeSkillDesignerConditionBranchList(值 = [], fallbackTarget = '单体', recordViolation = () => {}, parentEffect = {}) {
+      return (Array.isArray(值) ? 值 : [])
+        .map(分支 => {
+          if (!分支 || typeof 分支 !== 'object' || Array.isArray(分支)) return null;
+          const 条件 = normalizeSkillDesignerConditionBranchConditionList(分支['条件'] || [], recordViolation);
           if (!条件.length) return null;
-          const 处理 = SKILL_DESIGNER_CONDITION_BRANCH_ACTION_OPTIONS.includes(normalizeSkillUiText(branch['处理'], ''))
-            ? normalizeSkillUiText(branch['处理'], '')
+          const 处理 = SKILL_DESIGNER_CONDITION_BRANCH_ACTION_OPTIONS.includes(normalizeSkillUiText(分支['处理'], ''))
+            ? normalizeSkillUiText(分支['处理'], '')
             : '替换效果';
-          const normalized = { 条件, 处理 };
+          const 收口结果 = { 条件, 处理 };
           if (处理 === '替换效果' || 处理 === '追加效果') {
-            const key = 处理 === '替换效果' ? '替换效果' : '追加效果';
-            const effects = normalizeSkillDesignerExecutionEffectArray(branch[key] || [], fallbackTarget);
-            if (!effects.length) return null;
-            if (处理 === '替换效果' && 技能设计台条件分支替换效果等价(parentEffect, effects)) return null;
-            normalized[key] = effects;
+            const 字段名 = 处理 === '替换效果' ? '替换效果' : '追加效果';
+            const 效果列表 = normalizeSkillDesignerExecutionEffectArray(分支[字段名] || [], fallbackTarget);
+            if (!效果列表.length) return null;
+            if (处理 === '替换效果' && 技能设计台条件分支替换效果等价(parentEffect, 效果列表)) return null;
+            收口结果[字段名] = 效果列表;
           }
-          return normalized;
+          return 收口结果;
         })
         .filter(Boolean);
     }
@@ -6431,11 +6499,11 @@
         if (raw !== undefined) 字段['次数'] = Math.max(1, parseSkillDesignerIntegerInputValue(raw, 1, 1));
         return;
       } else if (原型 === '机制抹消') {
-        if (字段['抹消目标'] === undefined) 字段['抹消目标'] = normalizeSkillUiText(source['抹消目标'] || source.suppressTarget, '');
+        字段['抹消目标'] = 规范化技能设计台机制目标(字段['抹消目标'] ?? source['抹消目标'] ?? source.suppressTarget, '抹消');
         if (字段['数量'] === undefined) 字段['数量'] = Math.max(1, parseSkillDesignerIntegerInputValue(source['数量'] || source['抹消数量'], 1, 1));
         return;
       } else if (原型 === '机制窃取') {
-        if (字段['窃取目标'] === undefined) 字段['窃取目标'] = normalizeSkillUiText(source['窃取目标'] || source['抹消目标'] || source.stealTarget, '');
+        字段['窃取目标'] = 规范化技能设计台机制目标(字段['窃取目标'] ?? source['窃取目标'] ?? source['抹消目标'] ?? source.stealTarget, '窃取');
         if (字段['数量'] === undefined) 字段['数量'] = Math.max(1, parseSkillDesignerIntegerInputValue(source['数量'] || source['窃取数量'], 1, 1));
         if (字段['保留回合'] === undefined && source['持续回合'] !== undefined) 字段['保留回合'] = Math.max(1, parseSkillDesignerIntegerInputValue(source['持续回合'], 1, 1));
         return;
@@ -6475,10 +6543,20 @@
         if (字段['数量'] === undefined) 字段['数量'] = Math.max(1, parseSkillDesignerIntegerInputValue(source['数量'], 1, 1));
         if (字段['来源'] === undefined) 字段['来源'] = normalizeSkillUiText(source['来源'], '自身');
         if (字段['去向'] === undefined) 字段['去向'] = normalizeSkillUiText(source['去向'], '目标');
+        if (字段['条件分支'] === undefined) 字段['条件分支'] = [{
+          条件: [{ 类型: '状态', 对象: /目标/.test(字段['来源']) ? '目标' : '自身', 比较: '无', 状态: 字段['状态'] || '任意状态' }],
+          处理: '禁用基础效果',
+        }];
         return;
       } else if (原型 === '召唤生成') {
+        if (字段['召唤单位类型'] === undefined) 字段['召唤单位类型'] = normalizeSkillUiText(source['召唤单位类型'], '魂兽');
+        if (字段['召唤物种'] === undefined) 字段['召唤物种'] = normalizeSkillUiText(source['召唤物种'] || source['物种'], 字段['召唤单位类型'] === '魂兽' ? '未指定魂兽' : '未指定');
         if (字段['召唤物名称'] === undefined) 字段['召唤物名称'] = normalizeSkillUiText(source['召唤物名称'] || source['实体名称'] || source['状态名称'] || source['特殊机制标识'] || source['机制'], '召唤物');
         if (字段['数量'] === undefined) 字段['数量'] = Math.max(1, parseSkillDesignerIntegerInputValue(source['数量'] || source['召唤数量'] || source.repeatCount, 1, 1));
+        if (字段['强度'] === undefined) 字段['强度'] = Math.max(0.01, toNumber(source['强度'] || source['召唤强度'], 1));
+        if (字段['承伤规则'] === undefined) 字段['承伤规则'] = normalizeSkillUiText(source['承伤规则'], '不替主承伤');
+        if (字段['召唤模板来源'] === undefined) 字段['召唤模板来源'] = normalizeSkillUiText(source['召唤模板来源'], '技能固定模板');
+        if (!技能设计台召唤单位允许继承属性(字段['召唤单位类型'])) delete 字段['继承属性比例'];
         return;
       } else if (原型 === '场地施加') {
         if (字段['场地名称'] === undefined) 字段['场地名称'] = normalizeSkillUiText(source['场地名称'] || source['实体名称'] || source['状态名称'], '场地效果');
@@ -6536,15 +6614,72 @@
         const 文本 = String(原值).trim();
         return /%$/.test(文本) || /^x\d/i.test(文本);
       };
-      if (['数值', '随机下限', '随机上限', '威力倍率'].some(key => 非固定文本(字段[key]))) return true;
+      if (['数值', '随机下限', '随机上限', '威力倍率', '概率', '结算倍率', '继承属性比例', '转化比例'].some(key => 非固定文本(字段[key]))) return true;
       if (Number(字段['威力倍率'] || 0) > 0) return true;
+      if (Number(字段['概率'] || 0) > 0 && Number(字段['概率'] || 0) < 1) return true;
       if (原型 === '伤害结算' && Number(字段['防御穿透'] || 0) > 0) return true;
       return false;
     }
 
+    const 技能设计台纯布尔控制状态集合 = new Set(['眩晕', '沉默', '缴械', '致盲', '封技', '位移限制', '霸体', '无敌']);
+
+    function 清理技能设计台纯布尔控制字段(原型 = '', 字段 = {}) {
+      if (normalizeSkillUiText(原型, '') !== '状态施加' || !字段 || typeof 字段 !== 'object') return;
+      const 状态名 = normalizeSkillUiText(字段['状态'], '');
+      if (!技能设计台纯布尔控制状态集合.has(状态名)) return;
+      delete 字段['数值'];
+      delete 字段['驱动属性'];
+      delete 字段['影响方向'];
+      delete 字段['概率'];
+    }
+
+    function 限制技能设计台护盾变化数值(字段 = {}) {
+      if (!字段 || typeof 字段 !== 'object' || 字段['数值'] === undefined) return;
+      const 文本 = normalizeSkillUiText(字段['数值'], '');
+      const 匹配 = 文本.match(/^(-?)(\d+(?:\.\d+)?)%$/);
+      if (!匹配) return;
+      const 符号 = 匹配[1] === '-' ? '-' : '+';
+      const 数值 = Math.max(0, Math.min(100, Number(匹配[2]) || 0));
+      字段['数值'] = `${符号}${Math.round(数值)}%`;
+    }
+
+    function 技能设计台召唤单位允许继承属性(召唤单位类型 = '') {
+      return ['灵体', '造物', '分身', '投影', '傀儡'].includes(normalizeSkillUiText(召唤单位类型, ''));
+    }
+
+    function 清理技能设计台召唤字段(原型 = '', 字段 = {}) {
+      if (normalizeSkillUiText(原型, '') !== '召唤生成' || !字段 || typeof 字段 !== 'object') return;
+      字段['召唤单位类型'] = normalizeSkillUiText(字段['召唤单位类型'], '魂兽');
+      字段['召唤物种'] = normalizeSkillUiText(字段['召唤物种'], 字段['召唤单位类型'] === '魂兽' ? '未指定魂兽' : '未指定');
+      字段['数量'] = Math.max(1, parseSkillDesignerIntegerInputValue(字段['数量'], 1, 1));
+      字段['强度'] = Math.max(0.01, toNumber(字段['强度'], 1));
+      if (!技能设计台召唤单位允许继承属性(字段['召唤单位类型'])) delete 字段['继承属性比例'];
+      else 字段['继承属性比例'] = Math.max(0, Math.min(1, toNumber(字段['继承属性比例'], 0)));
+    }
+
+    const 技能设计台精神默认驱动原型集合 = new Set([
+      '状态转移',
+      '状态交换',
+      '判定修正',
+      '目标选择修正',
+      '行动判断修正',
+      '行动打断',
+      '机制抹消',
+      '资源锁定',
+      '规则改写',
+    ]);
+
+    function 选择技能设计台默认驱动属性(原型 = '', 字段 = {}) {
+      const 原型名 = normalizeSkillUiText(原型, '');
+      const 状态名 = normalizeSkillUiText(字段 && 字段['状态'], '');
+      if (技能设计台精神默认驱动原型集合.has(原型名)) return '精神力上限';
+      if (原型名 === '状态施加' && ['迟缓', '眩晕', '沉默', '缴械', '致盲', '封技', '位移限制', '标记'].includes(状态名)) return '精神力上限';
+      return '魂力上限';
+    }
+
     function 补齐技能设计台非固定数值默认驱动判定(原型 = '', 字段 = {}) {
       if (!技能设计台原型值需要默认驱动判定(原型, 字段)) return;
-      字段['驱动属性'] = '魂力上限';
+      字段['驱动属性'] = 选择技能设计台默认驱动属性(原型, 字段);
       字段['影响方向'] = '效果强度';
     }
 
@@ -6587,7 +6722,6 @@
         armor_pen: '破甲比例',
         agi_ratio: '敏捷倍率',
         stealth_level: '隐蔽度',
-        daily_trigger_limit: '每日触发上限',
         invincible_tier_threshold: '免疫等级阈值',
         death_save_count: '免死次数',
         min_hp_floor: '最低生命保留',
@@ -6672,6 +6806,7 @@
       if (字段['驱动属性'] !== undefined) 字段['驱动属性'] = getSkillDesignerPackedPropertyLabel(字段['驱动属性']);
       if (字段['数值'] !== undefined) 字段['数值'] = normalizeSkillDesignerEffectValue(字段['数值']);
       if (字段['结算倍率'] !== undefined) 字段['结算倍率'] = normalizeSkillDesignerEffectValue(字段['结算倍率']);
+      if (原型 === '护盾变化') 限制技能设计台护盾变化数值(字段);
       if (!['独立生效', '跟随主原型'].includes(normalizeSkillUiText(字段['生效方式'], ''))) 字段['生效方式'] = '独立生效';
       if (字段['生效方式'] === '跟随主原型') {
         delete 字段['驱动属性'];
@@ -6680,7 +6815,9 @@
       if (字段['匹配原型'] === '无') delete 字段['匹配原型'];
       if (原型 !== '状态移除' || !字段['匹配原型']) delete 字段['数值方向'];
       fillSkillDesignerPrototypeValueFromTemplate(原型, 字段, value);
+      清理技能设计台召唤字段(原型, 字段);
       补齐技能设计台非固定数值默认驱动判定(原型, 字段);
+      清理技能设计台纯布尔控制字段(原型, 字段);
       safeEntries(字段).forEach(([key, raw]) => {
         const 字段定义 = 原型定义['字段定义'] && typeof 原型定义['字段定义'] === 'object' ? 原型定义['字段定义'][key] : null;
         const 类型 = normalizeSkillUiText(字段定义 && 字段定义['类型'], '');
@@ -7061,13 +7198,18 @@
           return;
         }
 
-        if (mechanism === '召唤') {
+        if (mechanism === '召唤' || mechanism === '召唤生成') {
           pushParamHint('召唤', {
             duration: durationText,
+            召唤单位类型: normalizeSkillUiText(effect && effect['召唤单位类型'], ''),
+            召唤物种: normalizeSkillUiText(effect && effect['召唤物种'], ''),
             summonName: normalizeSkillUiText(effect && effect['召唤物名称'], ''),
-            summonCount: formatSkillDesignerNumericInput(effect && effect['召唤数量'], 0),
+            summonCount: formatSkillDesignerNumericInput(effect && (effect['召唤数量'] ?? effect['数量']), 0),
+            召唤强度: formatSkillDesignerNumericInput(effect && effect['强度']),
             inheritRatio: formatSkillDesignerNumericInput(effect && effect['继承属性比例']),
             summonMode: normalizeSkillUiText(effect && effect['行动模式'], ''),
+            damageRule: normalizeSkillUiText(effect && effect['承伤规则'], ''),
+            templateSource: normalizeSkillUiText(effect && effect['召唤模板来源'], ''),
           });
           return;
         }
@@ -7075,7 +7217,7 @@
         if (mechanism === '无敌金身') {
           pushParamHint('无敌金身', {
             duration: durationText,
-            dailyLimit: formatSkillDesignerNumericInput(effect && effect['每日触发上限'], 3),
+            每日触发次数: formatSkillDesignerNumericInput(effect && effect['触发限制'] && effect['触发限制']['次数'], 3),
             tierThreshold: formatSkillDesignerNumericInput(effect && effect['免疫等级阈值'], 100),
             reduceRatio: formatSkillDesignerNumericInput(effect && effect['damage_reduction']),
           });
@@ -8061,8 +8203,24 @@
     }
 
     function buildSkillDesignerMechanicSummary(draft = {}) {
-      void draft;
-      return '';
+      const normalizedEffects = 规范化技能设计台原型效果列表(draft && draft.prototypeEffects, draft && draft.target);
+      const translator = 读取窗口函数('__LWCS_TRANSLATE_SKILL_EFFECTS__') || __mvuBridgeRoot.__LWCS_TRANSLATE_SKILL_EFFECTS__;
+      if (typeof translator === 'function' && normalizedEffects.length) {
+        try {
+          const text = normalizeSkillUiText(translator({
+            _效果数组: normalizedEffects,
+            消耗: formatSkillDesignerCostText(draft.costType, draft.costValues),
+            前摇: Math.max(0, toNumber(draft && draft['前摇'], 0)),
+            附带属性: Array.isArray(draft && draft.attachedAttributes) ? draft.attachedAttributes : [],
+            副作用列表: Array.isArray(draft && draft.sideEffectPrototypeEffects) ? draft.sideEffectPrototypeEffects : [],
+          }, { maxDepth: 6 }), '');
+          if (text) return text;
+        } catch (error) {}
+      }
+      return normalizedEffects
+        .map(effect => normalizeSkillUiText(effect && effect['原型'], ''))
+        .filter(Boolean)
+        .join(' / ');
     }
 
     function 构建技能设计台模板原型效果列表(draft = {}, previewMeta = {}) {
@@ -9398,7 +9556,7 @@
         case '无敌金身':
           return [
             createSkillDesignerNumberParam('duration', '持续回合', '2', '1'),
-            createSkillDesignerNumberParam('dailyLimit', '每日触发', '3', '1'),
+            createSkillDesignerNumberParam('每日触发次数', '每日触发', '3', '1'),
             createSkillDesignerNumberParam('tierThreshold', '免疫位阶', '100', '0.5'),
             createSkillDesignerNumberParam('reduceRatio', '附带减伤', '0.18'),
           ];
@@ -9525,13 +9683,16 @@
           ];
         case '召唤':
           return [
+            createSkillDesignerSelectParam('召唤单位类型', '召唤单位类型', 技能设计台召唤单位类型选项),
+            createSkillDesignerTextParam('召唤物种', '召唤物种', '龙类 / 魂师 / 深渊魔傀'),
             createSkillDesignerTextParam('summonName', '召唤物名称', '本命召唤兽'),
             createSkillDesignerNumberParam('summonCount', '召唤数量', '1', '1'),
-            createSkillDesignerNumberParam('inheritRatio', '继承比例', '0.35'),
+            createSkillDesignerNumberParam('召唤强度', '召唤强度', '1.0'),
+            createSkillDesignerNumberParam('inheritRatio', '构造继承', '0.35'),
             createSkillDesignerNumberParam('duration', '持续回合', '3', '1'),
             createSkillDesignerTextParam('summonMode', '行动模式', '协同攻击'),
-            createSkillDesignerTextParam('damageRule', '承伤规则', '不替主承伤'),
-            createSkillDesignerTextParam('templateSource', '模板来源', '技能固定模板'),
+            createSkillDesignerSelectParam('damageRule', '承伤规则', 技能设计台召唤承伤规则选项),
+            createSkillDesignerSelectParam('templateSource', '模板来源', 技能设计台召唤模板来源选项),
           ];
         case '复制':
           return [
@@ -9766,6 +9927,11 @@
         const paramState = mechanicParams[label] && typeof mechanicParams[label] === 'object' ? mechanicParams[label] : {};
         const segments = defs
           .map(def => {
+            if (label === '召唤') {
+              const 单位类型 = normalizeSkillUiText(paramState['召唤单位类型'], '魂兽');
+              if (def.key === 'inheritRatio' && !技能设计台召唤单位允许继承属性(单位类型)) return '';
+              if (def.key === '召唤强度' && 技能设计台召唤单位允许继承属性(单位类型)) return '';
+            }
             const value = normalizeSkillUiText(paramState[def.key], '');
             return value ? `${def.label}:${value}` : '';
           })
@@ -9782,6 +9948,14 @@
         const defs = getSkillDesignerMechanicParamDefs(label);
         if (!defs.length) return '';
         const paramState = mechanicParams[label] && typeof mechanicParams[label] === 'object' ? mechanicParams[label] : {};
+        const 可见参数定义 = label === '召唤'
+          ? defs.filter(def => {
+            const 单位类型 = normalizeSkillUiText(paramState['召唤单位类型'], '魂兽');
+            if (def.key === 'inheritRatio') return 技能设计台召唤单位允许继承属性(单位类型);
+            if (def.key === '召唤强度') return !技能设计台召唤单位允许继承属性(单位类型);
+            return true;
+          })
+          : defs;
         const title = section && section.kind === 'primary'
           ? `主机制 / ${label}`
           : `副机制 ${++secondaryIndex} / ${label}`;
@@ -9789,7 +9963,7 @@
           <div class=\"skill-designer-subsection\">
             <div class=\"mvu-editor-label\">${htmlEscape(title)}</div>
             <div class=\"mvu-editor-field-grid\">
-              ${defs.map(def => {
+              ${可见参数定义.map(def => {
                 const currentValue = normalizeSkillUiText(paramState[def.key], '');
                 const paramHint = normalizeSkillUiText(def.hint, getSkillDesignerParamHint(def.label, def.key));
                 const labelHtml = `
@@ -9868,12 +10042,15 @@
       const valueOf = name => normalizeSkillUiText(effect && effect[name], '');
       if (prototype === '伤害结算' && ['触发', '持续回合'].includes(key)) return false;
       if (prototype === '判定修正') return !['层级', '持续回合', '持续tick', '触发'].includes(key);
+      if (prototype === '状态施加' && 技能设计台纯布尔控制状态集合.has(valueOf('状态')) && ['数值', '驱动属性', '影响方向', '概率'].includes(key)) return false;
       if (prototype === '状态施加' && key === '数值') {
         return 读取技能设计台多枚举值(effect && effect['状态']).some(state => ['中毒', '流血', '灼烧', '冻伤', '禁疗', '治疗反转', '护盾'].includes(state));
       }
       if (prototype === '状态施加' && key === '状态效果') {
         return 技能设计台状态需要默认内部效果(effect && effect['状态']);
       }
+      if (prototype === '召唤生成' && key === '继承属性比例') return 技能设计台召唤单位允许继承属性(valueOf('召唤单位类型'));
+      if (prototype === '召唤生成' && key === '强度') return !技能设计台召唤单位允许继承属性(valueOf('召唤单位类型'));
       if (prototype === '状态移除' && ['资源', '数值方向'].includes(key)) return valueOf('匹配原型') === '资源变化';
       if (prototype === '目标选择修正' && key === '层级') return valueOf('选择') === '嘲讽';
       if (prototype === '行动判断修正' && key === '层级') return false;
@@ -10665,7 +10842,9 @@
         return effect;
       }).filter(Boolean);
       const 规范后效果列表 = 规范化技能设计台原型生效方式列表(effects);
-      return 允许空列表 && !规范后效果列表.length ? [] : 规范化技能设计台原型效果列表(规范后效果列表, target);
+      const 归一效果列表 = 允许空列表 && !规范后效果列表.length ? [] : 规范化技能设计台原型效果列表(规范后效果列表, target);
+      清理技能设计台等价替换条件分支(归一效果列表);
+      return 归一效果列表;
     }
 
     function 构建技能设计台原型摘要(draft = {}) {
@@ -10713,7 +10892,7 @@
         if (prototype === '规则防御') return `防御：${简写(effect['规则'], '规则')}${简写(effect['次数']) ? ` ${简写(effect['次数'])}次` : ''}${持续文本(effect)}${条件文本(effect)}`;
         if (prototype === '目标选择修正') return `目标：${简写(effect['选择'], '选择')} ${数值文本(effect, '+0')}${持续文本(effect)}${条件文本(effect)}`;
         if (prototype === '行动判断修正') return `判断：${简写(effect['判断'], '判断')} ${数值文本(effect, '+0')}${持续文本(effect)}${条件文本(effect)}`;
-        if (prototype === '召唤生成') return `召唤：${简写(effect['召唤物名称'], '召唤物')} ×${简写(effect['数量'], '1')}${持续文本(effect)}${条件文本(effect)}`;
+        if (prototype === '召唤生成') return `${summarizeSummonEffectUi(effect)}${条件文本(effect)}`;
         if (prototype === '修炼速度修正') return `修炼 ${数值文本(effect, '+0')}${持续文本(effect)}${条件文本(effect)}`;
         if (prototype === '成长收益修正') return `成长：${简写(effect['成长项'], '成长项')} ${数值文本(effect, '+0')}${持续文本(effect)}${条件文本(effect)}`;
         return [prototype, 数值文本(effect), 持续文本(effect).replace(/^，/, '')].filter(Boolean).join(' ');
@@ -11021,11 +11200,13 @@
           if (原型) {
             const 转换结果 = { ...result, ...(typeof 原型条目 === 'object' && 原型条目 ? 原型条目 : {}), '原型': 原型 };
             delete 转换结果['机制'];
+            delete 转换结果['运行机制'];
             return 转换结果;
           }
         }
-        delete result['机制'];
       }
+      delete result['机制'];
+      delete result['运行机制'];
       return result;
     }
 
@@ -11383,6 +11564,9 @@
                 ? 'dotRatio'
                 : 'powerRatio';
           if (primaryLabel === '持续伤害') {
+            const 基准伤害效果 = {
+              '威力倍率': parseSkillDesignerFactorInputValue(params[powerKey], 0.35),
+            };
             return [{
               '原型': '状态施加',
               '目标': target,
@@ -11392,7 +11576,7 @@
                 '原型': '资源变化',
                 '目标': '自身',
                 '资源': '生命',
-                '数值': -Math.max(1, Math.round(estimateSkillDesignerDotDamage(primaryDamageEffect, params['dotRatio']) || 10)),
+                '数值': -Math.max(1, Math.round(estimateSkillDesignerDotDamage(基准伤害效果, params['dotRatio']) || 10)),
                 '触发': '每回合',
                 '生效方式': '独立生效',
                 '驱动属性': '魂力上限',
@@ -11512,10 +11696,13 @@
         case '禁疗':
           return [
             buildSkillDesignerRuntimeObject({
-              '机制': '禁疗',
+              '原型': '状态施加',
               '目标': target,
+              '状态': '禁疗',
               '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
-              'heal_block_ratio': parseSkillDesignerPercentRatio(params['banHealRatio'], 1.0),
+              '数值': `-${Math.round(parseSkillDesignerPercentRatio(params['banHealRatio'], 1.0) * 100)}%`,
+              '驱动属性': '魂力上限',
+              '影响方向': '效果强度',
             }),
           ].filter(effect => safeEntries(effect).length);
         case '治疗反转':
@@ -11701,12 +11888,15 @@
         case '无敌金身':
           return [
             buildSkillDesignerRuntimeObject({
-              '机制': '无敌金身',
+              '原型': '状态施加',
               '目标': grantableTarget,
+              '状态': '无敌',
               '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
-              '每日触发上限': parseSkillDesignerIntegerInputValue(params['dailyLimit'], 3, 1),
-              '免疫等级阈值': parseSkillDesignerNumericInputValue(params['tierThreshold'], 100, 1),
-              'damage_reduction': parseSkillDesignerPercentRatio(params['reduceRatio'], 0.18),
+              '层级': parseSkillDesignerIntegerInputValue(params['tierThreshold'], 100, 1),
+              '触发限制': {
+                '周期': '每日',
+                '次数': parseSkillDesignerIntegerInputValue(params['每日触发次数'], 3, 1),
+              },
             }),
           ].filter(effect => safeEntries(effect).length);
         case '伤害反射':
@@ -12030,18 +12220,25 @@
           ].filter(effect => safeEntries(effect).length);
         }
         case '召唤':
+          const 召唤单位类型 = normalizeSkillUiText(params['召唤单位类型'], '魂兽');
+          const 召唤效果 = {
+            '原型': '召唤生成',
+            '目标': '自身',
+            '召唤单位类型': 召唤单位类型,
+            '召唤物种': normalizeSkillUiText(params['召唤物种'], 召唤单位类型 === '魂兽' ? '未指定魂兽' : '未指定'),
+            '召唤物名称': normalizeSkillUiText(params['summonName'], '本命召唤兽'),
+            '数量': parseSkillDesignerIntegerInputValue(params['summonCount'], 1, 1),
+            '强度': Math.max(0.01, toNumber(params['召唤强度'], 1)),
+            '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 3, 1),
+            '行动模式': normalizeSkillUiText(params['summonMode'], '协同攻击'),
+            '承伤规则': normalizeSkillUiText(params['damageRule'], '不替主承伤'),
+            '召唤模板来源': normalizeSkillUiText(params['templateSource'], '技能固定模板'),
+          };
+          if (技能设计台召唤单位允许继承属性(召唤单位类型)) {
+            召唤效果['继承属性比例'] = parseSkillDesignerPercentRatio(params['inheritRatio'], 0.35);
+          }
           return [
-            buildSkillDesignerRuntimeObject({
-              '机制': '召唤',
-              '目标': '自身',
-              '召唤物名称': normalizeSkillUiText(params['summonName'], '本命召唤兽'),
-              '召唤数量': parseSkillDesignerIntegerInputValue(params['summonCount'], 1, 1),
-              '继承属性比例': parseSkillDesignerPercentRatio(params['inheritRatio'], 0.35),
-              '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 3, 1),
-              '行动模式': normalizeSkillUiText(params['summonMode'], '协同攻击'),
-              '承伤规则': normalizeSkillUiText(params['damageRule'], '不替主承伤'),
-              '召唤模板来源': normalizeSkillUiText(params['templateSource'], '技能固定模板'),
-            }),
+            buildSkillDesignerRuntimeObject(召唤效果),
           ].filter(effect => safeEntries(effect).length);
         case '复制':
           const 复制类型文本 = toText(params['copyTarget'], '');
@@ -12063,13 +12260,21 @@
         case '反制':
           return [
             buildSkillDesignerRuntimeObject({
-              '机制': '反制',
+              '原型': '状态施加',
               '目标': grantableTarget,
+              '状态': '反制',
               '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
-              '反击倍率': parseSkillDesignerFactorInputValue(params['counterRatio'], 1.0),
-              'damage_reduction': 0.15,
-              '反制对象': normalizeSkillUiText(params['counterTarget'], ''),
-              '触发条件': normalizeSkillUiText(params['triggerRule'], ''),
+              '状态效果': [{
+                '原型': '结算修正',
+                '目标': '自身',
+                '结算': '反击',
+                '数值': normalizeSkillDesignerEffectValue(parseSkillDesignerFactorInputValue(params['counterRatio'], 1.0), '倍率提升'),
+                '生效方式': '独立生效',
+                '驱动属性': '魂力上限',
+                '影响方向': '效果强度',
+              }],
+              '驱动属性': '魂力上限',
+              '影响方向': '效果强度',
             }),
           ].filter(effect => safeEntries(effect).length);
         case '转化': {
@@ -12232,7 +12437,7 @@
             buildSkillDesignerRuntimeObject({
               '原型': '机制窃取',
               '目标': target,
-              '窃取目标': normalizeSkillUiText(params['stealTarget'], '复苏'),
+              '窃取目标': 规范化技能设计台机制目标(params['stealTarget'], '窃取'),
               '数值': `${Math.round(parseSkillDesignerPercentRatio(params['stealRatio'], 0.4) * 100)}%`,
               '保留回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
             }),
@@ -12395,6 +12600,8 @@
               '资源': normalizeSkillUiText(params['resourceType'], '魂力'),
               '数值': `-${Math.round(parseSkillDesignerPercentRatio(params['drainRatio'], 0.18) * 100)}%`,
               '生效方式': '独立生效',
+              '资源转移角色': '来源扣减',
+              '转化比例': parseSkillDesignerFactorInputValue(params['convertRatio'], 1),
             },
             {
               '原型': '资源变化',
@@ -12402,6 +12609,7 @@
               '资源': normalizeSkillUiText(params['resourceType'], '魂力'),
               '数值': `+${Math.round(parseSkillDesignerPercentRatio(params['drainRatio'], 0.18) * parseSkillDesignerFactorInputValue(params['convertRatio'], 1) * 100)}%`,
               '生效方式': '独立生效',
+              '资源转移角色': '自身回收',
             },
           ].filter(effect => safeEntries(effect).length);
         case '能力共享':
@@ -12411,6 +12619,7 @@
               '目标': target,
               '资源': normalizeSkillUiText(params['resourceType'], '魂力'),
               '数值': `+${Math.round(parseSkillDesignerPercentRatio(params['refeedRatio'], 0.2) * 100)}%`,
+              '资源转移角色': '共享获得',
             }),
           ].filter(effect => safeEntries(effect).length);
         case '机制抹消':
@@ -12500,22 +12709,42 @@
           break;
         case '反击':
           effects.push(buildSkillDesignerRuntimeObject({
-            '机制': '受击反击',
+            '原型': '状态施加',
             '目标': grantableTarget,
+            '状态': '受击反击',
             '持续回合': 2,
-            '反击倍率': parseSkillDesignerFactorInputValue(params['counterRatio'], 0.8),
-            '反击条件': normalizeSkillUiText(params['counterRule'], ''),
+            '状态效果': [{
+              '原型': '结算修正',
+              '目标': '自身',
+              '结算': '反击',
+              '数值': normalizeSkillDesignerEffectValue(parseSkillDesignerFactorInputValue(params['counterRatio'], 0.8), '倍率提升'),
+              '生效方式': '独立生效',
+              '驱动属性': '魂力上限',
+              '影响方向': '效果强度',
+            }],
+            '驱动属性': '魂力上限',
+            '影响方向': '效果强度',
           }));
           break;
         case '沉默':
           effects.push(buildSkillDesignerRuntimeObject({
-            '机制': '沉默',
+            '原型': '状态施加',
             '目标': offensiveTarget,
+            '状态': '沉默',
             '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
-            '限制范围': normalizeSkillUiText(params['muteScope'], ''),
           }));
           break;
         case '减速':
+          effects.push(buildSkillDesignerRuntimeObject({
+            '原型': '属性修正',
+            '目标': offensiveTarget,
+            '属性': '敏捷',
+            '数值': 格式化技能设计台原型比例变化(parseSkillDesignerReductionFactor(params['slowRatio'], 0.8), 1, true),
+            '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
+            '驱动属性': '魂力上限',
+            '影响方向': '效果强度',
+          }));
+          break;
         case '迟缓':
           effects.push({
             '原型': '状态施加',
@@ -12531,25 +12760,26 @@
               '驱动属性': '魂力上限',
               '影响方向': '效果强度',
             }],
-            '驱动属性': '魂力上限',
-            '影响方向': '效果强度',
           });
           break;
         case '致盲':
           effects.push(buildSkillDesignerRuntimeObject({
-            '机制': '致盲',
+            '原型': '状态施加',
             '目标': offensiveTarget,
+            '状态': '致盲',
             '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
-            '影响内容': normalizeSkillUiText(params['blindEffect'], ''),
           }));
           break;
         case '禁疗':
           if (!runtimeState || !runtimeState.effects.some(effect => toText(effect && effect['状态'], '') === '禁疗')) {
             effects.push(buildSkillDesignerRuntimeObject({
-              '机制': '禁疗',
+              '原型': '状态施加',
               '目标': offensiveTarget,
+              '状态': '禁疗',
               '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
-              'heal_block_ratio': parseSkillDesignerPercentRatio(params['banHealRatio'], 1.0),
+              '数值': `-${Math.round(parseSkillDesignerPercentRatio(params['banHealRatio'], 1.0) * 100)}%`,
+              '驱动属性': '魂力上限',
+              '影响方向': '效果强度',
             }));
           }
           break;
@@ -12688,20 +12918,23 @@
           break;
         case '缴械':
           effects.push(buildSkillDesignerRuntimeObject({
-            '机制': '缴械',
+            '原型': '状态施加',
             '目标': offensiveTarget,
+            '状态': '缴械',
             '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
-            '限制范围': normalizeSkillUiText(params['disarmScope'], ''),
           }));
           break;
         case '无敌金身':
           effects.push(buildSkillDesignerRuntimeObject({
-            '机制': '无敌金身',
+            '原型': '状态施加',
             '目标': grantableTarget,
+            '状态': '无敌',
             '持续回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
-            '每日触发上限': parseSkillDesignerIntegerInputValue(params['dailyLimit'], 3, 1),
-            '免疫等级阈值': parseSkillDesignerNumericInputValue(params['tierThreshold'], 100, 1),
-            'damage_reduction': parseSkillDesignerPercentRatio(params['reduceRatio'], 0.18),
+            '层级': parseSkillDesignerIntegerInputValue(params['tierThreshold'], 100, 1),
+            '触发限制': {
+              '周期': '每日',
+              '次数': parseSkillDesignerIntegerInputValue(params['每日触发次数'], 3, 1),
+            },
           }));
           break;
         case '伤害反射':
@@ -12817,12 +13050,15 @@
             '资源': normalizeSkillUiText(params['resourceType'], '魂力'),
             '数值': `-${Math.round(parseSkillDesignerPercentRatio(params['drainRatio'], 0.18) * 100)}%`,
             '生效方式': '独立生效',
+            '资源转移角色': '来源扣减',
+            '转化比例': parseSkillDesignerFactorInputValue(params['convertRatio'], 1),
           }, {
             '原型': '资源变化',
             '目标': '自身',
             '资源': normalizeSkillUiText(params['resourceType'], '魂力'),
             '数值': `+${Math.round(parseSkillDesignerPercentRatio(params['drainRatio'], 0.18) * parseSkillDesignerFactorInputValue(params['convertRatio'], 1) * 100)}%`,
             '生效方式': '独立生效',
+            '资源转移角色': '自身回收',
           });
           break;
         case '能力共享':
@@ -12831,6 +13067,7 @@
             '目标': grantableTarget,
             '资源': normalizeSkillUiText(params['resourceType'], '魂力'),
             '数值': `+${Math.round(parseSkillDesignerPercentRatio(params['refeedRatio'], 0.2) * 100)}%`,
+            '资源转移角色': '共享获得',
           }));
           break;
         case '机制抹消':
@@ -12931,7 +13168,7 @@
           effects.push(buildSkillDesignerRuntimeObject({
             '原型': '机制窃取',
             '目标': offensiveTarget,
-            '窃取目标': normalizeSkillUiText(params['stealTarget'], '复苏'),
+            '窃取目标': 规范化技能设计台机制目标(params['stealTarget'], '窃取'),
             '数值': `${Math.round(parseSkillDesignerPercentRatio(params['stealRatio'], 0.4) * 100)}%`,
             '保留回合': parseSkillDesignerIntegerInputValue(params['duration'], 2, 1),
           }));
@@ -13070,7 +13307,8 @@
         if (!effect || typeof effect !== 'object') return effect;
         const cloned = cloneJsonValue(effect);
         if (normalizeSkillUiText(draft && draft.type, '') === '食物系') {
-          if (!normalizeSkillUiText(cloned['目标'], '') || normalizeSkillUiText(cloned['目标'], '') === '自身') cloned['目标'] = '食用者';
+          if (normalizeSkillUiText(cloned['原型'], '') === '机制授予') cloned['目标'] = '食用者';
+          else if (!normalizeSkillUiText(cloned['目标'], '') || normalizeSkillUiText(cloned['目标'], '') === '自身') cloned['目标'] = '食用者';
           delete cloned['对象'];
           delete cloned['目标模型'];
         }
@@ -13339,42 +13577,6 @@
         scope,
         designDraft: null
       }];
-    }
-
-    function formatPermanentBonusSummary(bonusMap) {
-      const labels = { str: '力量', def: '防御', agi: '敏捷', vit_max: '体力上限', men_max: '精神力上限', sp_max: '魂力上限' };
-      const segments = [];
-      safeEntries(bonusMap).forEach(([key, value]) => {
-        const amount = Math.floor(toNumber(value, 0));
-        if (amount > 0 && labels[key]) segments.push(`${labels[key]}+${amount}`);
-      });
-      return segments.join('，') || '无';
-    }
-
-    function buildPermanentBonusList(bonusObj) {
-      return safeEntries(bonusObj).map(([rawName, bonus]) => {
-        const safeBonus = bonus && typeof bonus === 'object' ? bonus : {};
-        const name = normalizeSkillUiText(safeBonus['名称'] || rawName, '永久成长');
-        const bonusSummary = formatPermanentBonusSummary(safeBonus['属性加成'] || {});
-        const effectDesc = normalizeSkillUiText(safeBonus['效果描述'] || safeBonus['描述'], bonusSummary !== '无' ? `固定加成：${bonusSummary}` : '未知');
-        return {
-          name,
-          type: '永久成长',
-          target: '自身',
-          bonus: bonusSummary === '无' ? '固定成长' : bonusSummary,
-          cost: '无',
-          desc: [
-            effectDesc !== '未知' ? `效果：${effectDesc}` : '',
-            bonusSummary !== '无' ? `固定加成：${bonusSummary}` : ''
-          ].filter(Boolean).join('<br/>') || effectDesc || '永久成长',
-          visualDesc: '体力封印解开后，成长已永久固化。',
-          effectDesc,
-          effectSummary: bonusSummary === '无' ? '未知' : `固定加成：${bonusSummary}`,
-          status: normalizeSkillUiText(safeBonus['状态'], '已固化'),
-          mainRole: '永久成长',
-          tags: ['永久成长', '固定增益']
-        };
-      });
     }
 
     function buildSpiritRingInfo(ringIndex, ring, skills, options = {}) {
@@ -13672,7 +13874,6 @@
           魂环: [],
           bloodSkills: [],
           bloodPassives: [],
-          bloodPermanentBonuses: [],
           sealLv: 0,
           core: '未凝聚',
           lifeFire: false,
@@ -13686,13 +13887,11 @@
       const bloodlineData = deepGet(activeChar, '血脉之力', {});
       const rawRings = Object.fromEntries(取血脉气血魂环条目_桥接(bloodlineData));
       const rawPassives = deepGet(activeChar, '血脉之力.被动', {});
-      const rawPermanentBonuses = deepGet(activeChar, '血脉之力.永久加成', {});
       const hasBloodlineData = toText(bloodline, '无') !== '无'
         || sealLv > 0
         || safeEntries(rawRings).length > 0
         || safeEntries(rawSkills).length > 0
-        || safeEntries(rawPassives).length > 0
-        || safeEntries(rawPermanentBonuses).length > 0;
+        || safeEntries(rawPassives).length > 0;
       const ringEntries = 取血脉气血魂环条目_桥接(bloodlineData)
         .sort((a, b) => 读取槽位序号_桥接(a[0], 1) - 读取槽位序号_桥接(b[0], 1))
         .map(([index, ring]) => buildSpiritRingInfo(index, ring, buildSkillList(Object.fromEntries(取气血魂环魂技条目_桥接(ring)), {
@@ -13726,7 +13925,6 @@
           category: '血脉特性',
           scope: 'blood_passive',
         }),
-        bloodPermanentBonuses: buildPermanentBonusList(rawPermanentBonuses),
         sealLv,
         core,
         lifeFire: !!deepGet(activeChar, '血脉之力.生命之火', false),
@@ -13858,16 +14056,6 @@
       const quest = activeChar && activeChar.任务请求;
       if (quest && toText(quest.action, '无') !== '无') {
         push(`任务：${toText(quest.任务名称, '未命名任务')}`);
-      }
-
-      const promotion = activeChar && activeChar.晋升请求;
-      if (promotion && toText(promotion.目标势力, '无') !== '无') {
-        push(`晋升：${toText(promotion.目标势力)} / ${toText(promotion.目标职位, '')}`.trim());
-      }
-
-      const donate = activeChar && activeChar.捐献请求;
-      if (donate && toText(donate.物品名称, '无') !== '无') {
-        push(`捐献：${toText(donate.物品名称)} × ${toNumber(donate.数量, 1)}`);
       }
 
       const interact = activeChar && activeChar.互动请求;
@@ -14379,14 +14567,6 @@
             })
           });
         });
-        safeEntries(deepGet(activeChar, '血脉之力.永久加成', {})).forEach(([name, bonus]) => {
-          extraSkills.push({
-            category: '血脉永久成长',
-            name: name || '永久成长',
-            level: `第${toNumber(bonus && bonus['来源层级'], 0)}层`,
-            desc: toText(bonus && bonus['效果描述'], '无说明')
-          });
-        });
       }
       safeRecords(deepGet(activeChar, '武魂融合技', {})).forEach(fusion => {
         const fusionName = toText(fusion['名称'], fusion.name || fusion.recordKey || '武魂融合技');
@@ -14800,6 +14980,7 @@
 
     function buildHeaderRenderSignature(snapshot) {
       const status = deepGet(snapshot, 'activeChar.状态', {});
+      const battleDomain = toText(deepGet(snapshot, 'rootData.world.战斗.当前领域', ''), '');
       const bloodline = snapshot && snapshot.bloodline && snapshot.bloodline.valid
         ? { bloodline: snapshot.bloodline.bloodline, sealLv: snapshot.bloodline.sealLv }
         : null;
@@ -14808,7 +14989,7 @@
         currentLoc: toText(snapshot && snapshot.currentLoc, ''),
         worldTimeText: toText(deepGet(snapshot, 'rootData.world.时间._calendar', deepGet(snapshot, 'rootData.world.时间.calendar', '')), ''),
         action: toText(status && status.行动, ''),
-        activeDomain: toText(status && status.当前领域, ''),
+        activeDomain: battleDomain,
         wound: getDisplayWoundLabel(deepGet(snapshot, 'activeChar.属性', {})),
         alive: deepGet(status, '存活', true) !== false,
         bloodline,
@@ -15554,7 +15735,7 @@
       const allowNsfwLongPress = canOpenPrivateArchive(snapshot);
       const mentalRealmText = 读取显示精神境界(stat);
       const 伤势显示 = woundLabel && woundLabel !== '无' ? woundLabel : '无伤';
-      const 领域文本 = toText(status.当前领域, '常态');
+      const 领域文本 = toText(deepGet(snapshot, 'rootData.world.战斗.当前领域', ''), '常态');
       const 领域显示 = 领域文本 && 领域文本 !== '无' ? 领域文本 : '常态';
       const nextSoulDisplayText = nextLevelSoul.isMax
         ? '下级魂力 已满级'
@@ -15953,7 +16134,6 @@
             { label: '血环', value: String((config.魂环 || []).length || 0), tone: 'gold' },
             { label: '技能', value: String((config.bloodSkills || []).length || 0) },
             { label: '特性', value: String((config.bloodPassives || []).length || 0) },
-            { label: '成长', value: String((config.bloodPermanentBonuses || []).length || 0) },
           ],
           rows: [
             { label: '状态', value: config.lifeFire ? '已点燃' : '等待命火' },
@@ -19144,7 +19324,13 @@
               if (!行 || !原型行需要默认驱动判定(行)) return;
               const 驱动输入 = 读取原型行字段输入(行, '驱动属性');
               const 方向输入 = 读取原型行字段输入(行, '影响方向');
-              if (驱动输入) 驱动输入.value = '魂力上限';
+              const 原型 = normalizeSkillUiText(行.querySelector('[data-skill-designer-prototype-select]')?.value || 原型行字段值(行, '原型'), '');
+              const 字段 = {};
+              ['状态', '数值', '随机下限', '随机上限', '威力倍率'].forEach(字段名 => {
+                const 字段值 = 原型行字段值(行, 字段名);
+                if (字段值) 字段[字段名] = 字段值;
+              });
+              if (驱动输入) 驱动输入.value = 选择技能设计台默认驱动属性(原型, 字段);
               if (方向输入) 方向输入.value = '效果强度';
               syncScalingField(行.querySelector('[data-skill-designer-scaling-field]'));
             };
@@ -21865,14 +22051,6 @@
                   <div class="ring-hover-copy"><em>效果描述</em><span>${htmlEscape(bloodMainSkill ? bloodMainSkill.effectDesc : '未知')}</span></div>
                 </div>
               </div>
-              ${snapshot.bloodline.bloodPermanentBonuses && snapshot.bloodline.bloodPermanentBonuses.length ? `
-                <div class="archive-card">
-                  <div class="archive-card-head"><div class="archive-card-title">永久成长</div></div>
-                  <div class="ability-detail-card">
-                    ${snapshot.bloodline.bloodPermanentBonuses.slice(0, 4).map(item => `<div class="ring-hover-copy"><em>${htmlEscape(item.name || '永久成长')}</em><span>${htmlEscape(item.effectDesc || item.effectSummary || '永久成长')}</span></div>`).join('')}
-                  </div>
-                </div>
-              ` : ''}
               ${snapshot.bloodline.bloodPassives && snapshot.bloodline.bloodPassives.length ? `
                 <div class="archive-card">
                   <div class="archive-card-head"><div class="archive-card-title">被动特性</div></div>
@@ -22591,12 +22769,6 @@
                         path: [...basePath, '节点类型'],
                         kind: 'string',
                         rawValue: toText(item && item.节点类型, '未知'),
-                      })}`,
-                      `重要度 ${makeInlineEditableValue(String(toNumber(item && item.importance, 0)), {
-                        path: [...basePath, 'importance'],
-                        kind: 'number',
-                        rawValue: toNumber(item && item.importance, 0),
-                        editorMeta: { min: 0, integer: true, hint: '最小 0 · 整数' },
                       })}`,
                       `状态 ${makeInlineEditableValue(toText(item && item.state, 'intact'), {
                         path: [...basePath, 'state'],
@@ -24702,7 +24874,7 @@
             对象: '自身',
             消耗: '无',
             _效果数组: Object.freeze([
-              Object.freeze({ 原型: '召唤生成', 目标: '召唤物', 召唤物名称: '白虎影', 数量: 2, 继承属性比例: 0.35, 持续回合: 3, 行动模式: '协同攻击' }),
+              Object.freeze({ 原型: '召唤生成', 目标: '召唤物', 召唤单位类型: '魂兽', 召唤物种: '虎类', 召唤物名称: '白虎影', 数量: 2, 强度: 1.1, 持续回合: 3, 行动模式: '协同攻击', 承伤规则: '不替主承伤', 召唤模板来源: '技能固定模板' }),
             ]),
           }),
           预期: Object.freeze({
@@ -26102,7 +26274,7 @@
       const totalValue = basePrice * quantity;
       const pointsEarned = Math.floor((totalValue / 1000) * talentMultiplier);
       const rewardLabel = getDonateRewardLabel(targetFaction);
-      const systemPrompt = `以下内容属于前端代发的阵营捐献请求，请直接承接剧情与后续处理，不要输出 JSON 块或变量维护指令。
+      const systemPrompt = `以下内容属于前端代发的阵营捐赠安排，请直接承接剧情与后续处理，不要输出 JSON 块或变量维护指令。
 
 [捐献摘要]
 角色：${activeName}
@@ -26236,9 +26408,9 @@ ${extraRequirement}
 
 
     function buildFactionAffairConsoleHtml(snapshot, preferredFactionName = '') {
-      const pendingDonateItem = toText(deepGet(snapshot, 'activeChar.捐献请求.物品名称', '无'), '无');
-      const pendingDonateFaction = toText(deepGet(snapshot, 'activeChar.捐献请求.目标势力', '无'), '无');
-      const pendingDonateQty = Math.max(1, toNumber(deepGet(snapshot, 'activeChar.捐献请求.数量', 1), 1));
+      const pendingDonateItem = '无';
+      const pendingDonateFaction = '无';
+      const pendingDonateQty = 1;
       const factionNames = [];
       [preferredFactionName, pendingDonateFaction, ...(snapshot.势力 || []).map(([name]) => name), '唐门', '史莱克学院', '战神殿', '传灵塔', '联邦军方', '血神军团', '圣灵教'].forEach(name => {
         const text = toText(name, '').trim();
@@ -27030,7 +27202,6 @@ ${extraRequirement}
         },
         状态: {
           存活: true,
-          当前领域: '无',
         },
         装备: buildTemporaryBattleEquipmentShell(),
         自创魂技: {},
@@ -32164,7 +32335,7 @@ window.EquipmentManager = {
   isSelfResolvableUsageTarget(target = '') {
     const text = String(target || '').trim();
     if (!text) return true;
-    return /自身|召唤物/.test(text);
+    return /自身|使用者|食用者|召唤物/.test(text);
   },
 
   mapUsagePropertyKey(property = '') {
@@ -32306,9 +32477,9 @@ window.EquipmentManager = {
     const description = toText(effect['描述'], prototype);
     if (prototype === '机制授予') {
       return {
-        target,
+        target: '自身',
         type: 'mechanism_grant',
-        description: description || '机制授予',
+        description: description || '获得后续触发权',
         value: {
           触发条件: toText(effect['触发条件'], '下次有效行动'),
           可用次数: Math.max(1, toNumber(effect['可用次数'], 1)),
@@ -32832,5 +33003,3 @@ window.mvuSetMainTab = setMainTab;
 
 
 })();
-
-

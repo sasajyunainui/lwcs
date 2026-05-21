@@ -2294,7 +2294,6 @@ class BattleUIComponent {
       破甲比例: 'armor_pen',
       敏捷倍率: 'agi_ratio',
       隐蔽度: 'stealth_level',
-      每日触发上限: 'daily_trigger_limit',
       免疫等级阈值: 'invincible_tier_threshold',
       免死次数: 'death_save_count',
       最低生命保留: 'min_hp_floor',
@@ -2505,6 +2504,7 @@ class BattleUIComponent {
         const 状态 = String(effect?.状态 || '').trim();
         hydrated.运行机制 = '状态施加';
         hydrated.状态名称 = 状态 || '状态';
+        const 触发限制 = effect?.触发限制 && typeof effect.触发限制 === 'object' ? effect.触发限制 : null;
         const 状态字段表 = {
           眩晕: ['skip_turn', '布尔'],
           封技: ['skill_seal', '布尔'],
@@ -2522,6 +2522,9 @@ class BattleUIComponent {
         };
         const [字段名, 模式] = 状态字段表[状态] || [];
         写字段(字段名, 模式 || '增量', 模式 === '布尔' ? 1 : 数值 || Number(effect?.层级 || 1));
+        if (状态 === '无敌' && 触发限制 && String(触发限制.周期 || '').trim() === '每日') {
+          写字段('每日触发次数上限', '次数', 触发限制.次数);
+        }
         if (['中毒', '流血', '灼烧', '冻伤'].includes(状态) && 数值 < 0) 写字段('dot_damage', '增量', Math.abs(数值));
         if (Array.isArray(effect?.状态效果)) {
           hydrated.状态效果 = deepClonePlain(effect.状态效果);
@@ -2940,7 +2943,7 @@ class BattleUIComponent {
         'hot_heal_ratio',
         'damage_share_count',
         'invincible_tier_threshold',
-        'daily_trigger_limit',
+        '每日触发次数上限',
         'bonus_true_damage_ratio',
         'life_steal_ratio',
         'element_seal_ratio',
@@ -3099,7 +3102,7 @@ class BattleUIComponent {
       mechanism_steal(ctx) {
         const state = ctx.state || {};
         const 缩放 = 计算规则机制缩放系数(ctx.attacker, ctx.attackerFinalStat, ctx.defender, ctx.defenderFinalStat, 1);
-        state.窃取目标 = normalizeBattleMechanismSuppressionTargets(ctx.effect?.窃取目标 || '增益');
+        state.窃取目标 = normalizeBattleMechanismSuppressionTargets(ctx.effect?.窃取目标 || '增益', '窃取');
         state.抹消方式 = normalizeBattleMechanismSuppressionMode('仅封锁后续');
         ctx.directPayload.mechanism_steal_ratio = Number(((Math.abs(读取战斗数值正负(ctx.effect?.数值 || '+35%')) || 0.35) * 缩放).toFixed(4));
         ctx.ensureStateShell(ctx.effect?.状态名称 || '机制窃取', ['机制窃取']);
@@ -3207,7 +3210,6 @@ class BattleUIComponent {
         ctx.directPayload.super_armor = true;
         ctx.directPayload.damage_reduction = Math.max(Number(ctx.directPayload.damage_reduction || 0), Number(ctx.effect.damage_reduction || 0));
         ctx.directPayload.invincible_tier_threshold = Number(ctx.effect.免疫等级阈值 || ctx.effect.invincible_tier_threshold || 100);
-        ctx.directPayload.daily_trigger_limit = Math.max(0, Number(ctx.effect.每日触发上限 || ctx.effect.daily_trigger_limit || 0));
         ctx.ensureStateShell(ctx.effect?.状态名称 || '无敌金身', ['无敌金身']);
       },
       damage_reflect(ctx) {
@@ -3300,16 +3302,19 @@ class BattleUIComponent {
       },
       summon(ctx) {
         const count = Math.max(1, Number(ctx.effect.召唤数量 || ctx.effect.数量 || 1));
-        const inheritRatio = Math.max(0, Math.min(1, Number(ctx.effect.继承属性比例 || 0.3)));
+        const 召唤单位类型 = String(ctx.effect.召唤单位类型 || '魂兽').trim() || '魂兽';
+        const 允许继承属性 = ['灵体', '造物', '分身', '投影', '傀儡'].includes(召唤单位类型);
+        const 继承比例 = 允许继承属性 ? Math.max(0, Math.min(1, Number(ctx.effect.继承属性比例 || 0))) : 0;
+        const 召唤强度 = 允许继承属性 ? 继承比例 : Math.max(0.01, Number(ctx.effect.强度 || 1));
         const mode = String(ctx.effect.行动模式 || '').trim();
         ctx.directPayload.final_damage_mult = Math.max(
           Number(ctx.directPayload.final_damage_mult || 1),
-          Number(ctx.effect?.计算层效果?.final_damage_mult || Math.min(1.5, 1 + inheritRatio * 0.18 + count * 0.03)),
+          Number(ctx.effect?.计算层效果?.final_damage_mult || Math.min(1.5, 1 + 召唤强度 * 0.12 + count * 0.03)),
         );
         if (/护卫|承伤/.test(mode + String(ctx.effect.承伤规则 || ''))) {
           ctx.directPayload.damage_reduction = Math.max(
             Number(ctx.directPayload.damage_reduction || 0),
-            Number(ctx.effect?.计算层效果?.damage_reduction || Math.min(0.3, inheritRatio * 0.22)),
+            Number(ctx.effect?.计算层效果?.damage_reduction || Math.min(0.3, 召唤强度 * 0.08)),
           );
         }
         ctx.ensureStateShell(ctx.effect?.状态名称 || ctx.effect?.召唤物名称 || '召唤物', ['召唤']);
@@ -3882,7 +3887,7 @@ class BattleUIComponent {
         damage_share_count: 0,
         heal_inversion_ratio: 0,
         invincible_tier_threshold: 0,
-        daily_trigger_limit: 0,
+        每日触发次数上限: 0,
         bonus_true_damage_ratio: 0,
         life_steal_ratio: 0,
         element_seal_ratio: 0,
@@ -3936,7 +3941,7 @@ class BattleUIComponent {
             'min_hp_floor',
             'damage_share_count',
             'invincible_tier_threshold',
-            'daily_trigger_limit',
+            '每日触发次数上限',
             'time_rewind_count',
           ].includes(key)
         ) {
@@ -5888,7 +5893,6 @@ class BattleUIComponent {
       斩杀补伤: 'judge_effect',
       穿透: 'armor_penetration',
       吸血: 'lifesteal',
-      召唤与场地: 'summon',
       吞噬: 'resource_drain',
       能力共享: 'resource_refeed',
       机制抹消: 'mechanism_suppress',
@@ -5925,7 +5929,7 @@ class BattleUIComponent {
       复苏: '复苏',
       能力共享: '资源回复',
     });
-    const BATTLE_MECHANISM_SUPPRESSION_TARGET_SET = new Set([
+    const 战斗机制抹消目标集合 = new Set([
       '复苏',
       '护盾',
       '隐身',
@@ -5935,13 +5939,15 @@ class BattleUIComponent {
       '控制机制',
       '特殊规则',
     ]);
+    const 战斗机制窃取目标集合 = new Set(['复苏', '护盾', '隐身', '增益', '防御机制', '回复机制']);
 
     function getFallbackBattleMechanismConsumer(label = '') {
       return String(LOCAL_BATTLE_MECHANISM_CONSUMER_BY_LABEL[String(label || '').trim()] || '').trim();
     }
 
-    function normalizeBattleMechanismSuppressionTargets(value) {
+    function normalizeBattleMechanismSuppressionTargets(value, mode = '抹消') {
       const source = Array.isArray(value) ? value : [value];
+      const 候选集合 = mode === '窃取' ? 战斗机制窃取目标集合 : 战斗机制抹消目标集合;
       const alias = {
         隐匿: '隐身',
         潜行: '隐身',
@@ -5956,7 +5962,7 @@ class BattleUIComponent {
             .flatMap(item => String(item || '').split(/[、,，/|｜；;\s]+/g))
             .map(item => String(item || '').trim())
             .map(item => alias[item] || item)
-            .filter(item => BATTLE_MECHANISM_SUPPRESSION_TARGET_SET.has(item)),
+            .filter(item => 候选集合.has(item)),
         ),
       );
     }
@@ -8134,7 +8140,7 @@ class BattleUIComponent {
           damage_share_count: stateModule.计算层效果?.damage_share_count ?? 0,
           heal_inversion_ratio: stateModule.计算层效果?.heal_inversion_ratio ?? 0,
           invincible_tier_threshold: stateModule.计算层效果?.invincible_tier_threshold ?? 0,
-          daily_trigger_limit: stateModule.计算层效果?.daily_trigger_limit ?? 0,
+          每日触发次数上限: stateModule.计算层效果?.每日触发次数上限 ?? 0,
           bonus_true_damage_ratio: stateModule.计算层效果?.bonus_true_damage_ratio ?? 0,
           life_steal_ratio: stateModule.计算层效果?.life_steal_ratio ?? 0,
         },
@@ -10455,7 +10461,7 @@ class BattleUIComponent {
         );
         if (next.lock_level !== undefined) next.lock_level = scaleBattleLockLevel(next.lock_level, controlScale);
         if (next.dot_damage !== undefined) next.dot_damage = scaleBattleValue(next.dot_damage, damageScale, { min: 0, digits: 2 });
-        ['death_save_count', 'revive_count', 'substitute_count', 'damage_share_count', 'daily_trigger_limit'].forEach(key => {
+        ['death_save_count', 'revive_count', 'substitute_count', 'damage_share_count', '每日触发次数上限'].forEach(key => {
           if (next[key] !== undefined) next[key] = Math.max(0, Math.round(Number(next[key] || 0) * stateScale));
         });
         if (next.invincible_tier_threshold !== undefined) next.invincible_tier_threshold = Math.max(0, Number(next.invincible_tier_threshold || 0));
@@ -11513,7 +11519,7 @@ class BattleUIComponent {
           const quota = consumeDailyMechanismTrigger(
             defender,
             `${defender.name || '目标'}:无敌金身`,
-            Math.max(1, Number(ce.daily_trigger_limit || 3)),
+            Math.max(1, Number(ce.每日触发次数上限 || 3)),
             currentTick,
           );
           if (!quota.allowed) {
@@ -12563,7 +12569,9 @@ class BattleUIComponent {
         const usageEffects = deepClone(foodEffect.使用效果).map(effect => {
           if (!effect || typeof effect !== 'object') return effect;
           const next = { ...effect };
-          if (!String(next.目标 || '').trim() || String(next.目标 || '').trim() === '食用者') {
+          if (String(next.原型 || '').trim() === '机制授予') {
+            next.目标 = targetName ? '食用者' : '自身';
+          } else if (!String(next.目标 || '').trim() || String(next.目标 || '').trim() === '食用者') {
             next.目标 = targetName ? '食用者' : '自身';
           }
           return next;
@@ -12684,21 +12692,25 @@ class BattleUIComponent {
             npcAction.skill.name || npcAction.skill.技能名称 || '未知技能',
           );
         }
+        let 本次为食物即食 = false;
         if (是否战斗即食(playerAction, playerAction.skill)) {
           const 即食技能 = 构建食物即食技能(playerAction.skill, playerAction);
           if (即食技能) {
+            本次为食物即食 = true;
             playerAction.skill = normalizeSkillData(即食技能, 即食技能.name || 即食技能.魂技名 || '食物系魂技·即食');
             result.desc += ` [食物即食] ${playerAction.target_name ? `目标:${playerAction.target_name}。` : '自身食用。'}`;
           }
         }
-        const 授予触发结果 = 触发行动前效果授予(attacker, playerAction.skill, defender);
-        if (授予触发结果.日志) {
-          playerAction.skill = normalizeSkillData(
-            授予触发结果.skill,
-            授予触发结果.skill?.name || 授予触发结果.skill?.魂技名 || playerAction.skill?.name || '技能',
-          );
-          playerAction.skill = 按技能掌控度缩放技能(playerAction.skill, attacker);
-          result.desc += 授予触发结果.日志;
+        if (!本次为食物即食) {
+          const 授予触发结果 = 触发行动前效果授予(attacker, playerAction.skill, defender);
+          if (授予触发结果.日志) {
+            playerAction.skill = normalizeSkillData(
+              授予触发结果.skill,
+              授予触发结果.skill?.name || 授予触发结果.skill?.魂技名 || playerAction.skill?.name || '技能',
+            );
+            playerAction.skill = 按技能掌控度缩放技能(playerAction.skill, attacker);
+            result.desc += 授予触发结果.日志;
+          }
         }
 
         const 施放分支 = String(playerAction?.分支标记 || playerAction?.skill?._runtime_分支标记 || '').trim();
@@ -12887,22 +12899,12 @@ class BattleUIComponent {
         const directShieldStealEffect =
           directPrototypeShieldStealEffect ||
           null;
-        const 资源负向原型列表 = actionEffects.filter(effect => 是指定原型(effect, '资源变化') && 原型数值(effect) < 0);
-        const 资源自身正向原型列表 = actionEffects.filter(effect => {
-          if (!是指定原型(effect, '资源变化') || 原型数值(effect) <= 0) return false;
-          return String(effect?.目标 || '').trim() === '自身';
-        });
-        const 存在原型吞噬组合 = 资源负向原型列表.length > 0 && 资源自身正向原型列表.length > 0;
-        const directResourceDrainEffect = actionEffects.find(effect => 读取战斗效果标签(effect) === '吞噬') || (存在原型吞噬组合 ? 资源负向原型列表[0] : null);
-        const 是能力共享机制效果 = effect => {
-          const 机制名 = 读取战斗效果标签(effect);
-          if (!机制名) return false;
-          if (机制名 === '能力共享') return true;
-          return String(getBattleSkillMechanismMeta(机制名)?.运行时消费器 || '').trim() === 'resource_refeed';
-        };
+        const 资源吞噬扣减效果 = actionEffects.find(effect => 是指定原型(effect, '资源变化') && String(effect?.资源转移角色 || '').trim() === '来源扣减') || null;
+        const 资源吞噬回收效果 = actionEffects.find(effect => 是指定原型(effect, '资源变化') && String(effect?.资源转移角色 || '').trim() === '自身回收') || null;
+        const 存在原型吞噬组合 = !!(资源吞噬扣减效果 && 资源吞噬回收效果);
+        const directResourceDrainEffect = 存在原型吞噬组合 ? 资源吞噬扣减效果 : null;
         const directResourceRefeedEffect =
-          actionEffects.find(effect => 是能力共享机制效果(effect)) ||
-          actionEffects.find(effect => 是指定原型(effect, '资源变化') && 原型数值(effect) > 0 && String(effect?.目标 || '').trim() !== '自身') ||
+          actionEffects.find(effect => 是指定原型(effect, '资源变化') && String(effect?.资源转移角色 || '').trim() === '共享获得') ||
           null;
         const directResourceBurnEffect = actionEffects.find(effect =>
           effect?.原型 === '状态施加' &&
@@ -12942,17 +12944,11 @@ class BattleUIComponent {
         const directShieldEffect = actionEffects.find(effect =>
           读取战斗效果标签(effect) === '护盾' || (effect?.原型 === '护盾变化' && 读取战斗数值正负(effect?.数值) > 0 && !是原型窃盾自增(effect)),
         ) || null;
-        const 是场地召唤原型 = effect =>
-          是指定原型(effect, '召唤生成') &&
-          /场地|领域|结界|压制/.test(`${String(effect?.召唤物名称 || '')}${String(effect?.行动模式 || '')}${String(effect?.类型 || '')}`);
         const directFieldEffect =
-          actionEffects.find(effect => 读取战斗效果标签(effect) === '召唤与场地') ||
           actionEffects.find(effect => 是指定原型(effect, '场地施加')) ||
-          actionEffects.find(effect => 是场地召唤原型(effect)) ||
           null;
         const directSummonEffect =
-          actionEffects.find(effect => 读取战斗效果标签(effect) === '召唤') ||
-          actionEffects.find(effect => 是指定原型(effect, '召唤生成') && !是场地召唤原型(effect)) ||
+          actionEffects.find(effect => 是指定原型(effect, '召唤生成')) ||
           null;
         const directCopyEffect = actionEffects.find(effect => effect?.原型 === '复制执行') || null;
         const directGrantEffect = actionEffects.find(effect => effect?.原型 === '机制授予') || null;
@@ -12961,11 +12957,11 @@ class BattleUIComponent {
         const directStateExchangeEffect = actionEffects.find(effect => effect?.原型 === '状态交换') || null;
         const directPrototypeEffects = actionEffects.filter(effect =>
           effect?.原型 && (
-            (effect.原型 === '资源变化' && 读取战斗数值正负(effect?.数值) < 0) ||
+            (effect.原型 === '资源变化' && 读取战斗数值正负(effect?.数值) < 0 && effect !== directResourceDrainEffect) ||
             (effect.原型 === '护盾变化' && 读取战斗数值正负(effect?.数值) < 0 && effect !== directPrototypeShieldStealEffect) ||
             (effect.原型 === '结算修正' && ['持续伤害引爆', '分摊'].includes(String(effect?.结算 || '').trim()) && effect !== directDotDetonateEffect) ||
             (effect.原型 === '状态转移' && effect !== directStatusTransferEffect) ||
-            (effect.原型 === '资源变化' && 读取战斗数值正负(effect?.数值) > 0 && effect !== directResourceRefeedEffect) ||
+            (effect.原型 === '资源变化' && 读取战斗数值正负(effect?.数值) > 0 && effect !== directResourceRefeedEffect && effect !== 资源吞噬回收效果) ||
             (effect.原型 === '状态时窗修正' && effect !== directDotExtendEffect && effect !== directDotCompressEffect) ||
             (effect.原型 === '场地施加' && effect !== directFieldEffect) ||
             effect.原型 === '位移执行'
@@ -13455,7 +13451,7 @@ class BattleUIComponent {
           const mechanism = 读取战斗效果标签(effect);
           const prototype = String(effect?.原型 || '').trim();
           if (
-            ['资源锁定', '召唤与场地', '生命链接'].includes(mechanism) ||
+            ['资源锁定', '生命链接'].includes(mechanism) ||
             ['状态转移', '伤害链', '拆层转存', '资源锁定'].includes(prototype)
           ) {
             const hostileTarget = defender && defender !== attacker ? defender : null;
@@ -13752,31 +13748,38 @@ class BattleUIComponent {
             : null;
           const baseCond = templateEntry ? deepClone(templateEntry[1]) : null;
           const count = Math.max(1, Number(effect?.召唤数量 || effect?.数量 || baseCond?.召唤物?.召唤数量 || 1));
-          const inheritRatio = Math.max(0, Math.min(1, Number(effect?.继承属性比例 || baseCond?.召唤物?.继承属性比例 || 0.3)));
-          const duration = Math.max(1, Number(effect?.持续回合 || baseCond?.duration || 2));
-          const summonName = String(effect?.召唤物名称 || baseCond?.召唤物?.召唤物名称 || `${skillName || '技能'}召唤物`).trim();
-          const mode = String(effect?.行动模式 || baseCond?.召唤物?.行动模式 || '协同攻击').trim();
-          const damageRule = String(effect?.承伤规则 || baseCond?.召唤物?.承伤规则 || '不替主承伤').trim();
+          const 召唤单位类型 = String(effect?.召唤单位类型 || baseCond?.召唤物?.召唤单位类型 || '魂兽').trim() || '魂兽';
+          const 召唤物种 = String(effect?.召唤物种 || baseCond?.召唤物?.召唤物种 || (召唤单位类型 === '魂兽' ? '未指定魂兽' : '未指定')).trim();
+          const 允许继承属性 = ['灵体', '造物', '分身', '投影', '傀儡'].includes(召唤单位类型);
+          const 继承比例 = 允许继承属性 ? Math.max(0, Math.min(1, Number(effect?.继承属性比例 || baseCond?.召唤物?.继承属性比例 || 0))) : 0;
+          const 召唤强度 = 允许继承属性 ? 继承比例 : Math.max(0.01, Number(effect?.强度 || baseCond?.召唤物?.强度 || 1));
+          const 持续回合 = Math.max(1, Number(effect?.持续回合 || baseCond?.duration || 2));
+          const 召唤物名称 = String(effect?.召唤物名称 || baseCond?.召唤物?.召唤物名称 || `${skillName || '技能'}召唤物`).trim();
+          const 行动模式 = String(effect?.行动模式 || baseCond?.召唤物?.行动模式 || '协同攻击').trim();
+          const 承伤规则 = String(effect?.承伤规则 || baseCond?.召唤物?.承伤规则 || '不替主承伤').trim();
+          const 召唤模板来源 = String(effect?.召唤模板来源 || baseCond?.召唤物?.召唤模板来源 || '技能固定模板').trim();
           const calc = effect?.计算层效果 && typeof effect.计算层效果 === 'object' ? effect.计算层效果 : {};
           const battleEffect = {
             ...createEmptyCombatEffectMap(),
-            final_damage_mult: Number(calc.final_damage_mult || Math.min(1.5, 1 + inheritRatio * 0.18 + count * 0.03)),
+            final_damage_mult: Number(calc.final_damage_mult || Math.min(1.5, 1 + 召唤强度 * 0.12 + count * 0.03)),
           };
-          if (/护卫|承伤|分摊/.test(mode + damageRule)) {
-            battleEffect.damage_reduction = Number(calc.damage_reduction || Math.min(0.3, inheritRatio * 0.22));
+          if (/护卫|承伤|分摊/.test(行动模式 + 承伤规则)) {
+            battleEffect.damage_reduction = Number(calc.damage_reduction || Math.min(0.3, 召唤强度 * 0.08));
           }
+          const 召唤物记录 = { 召唤单位类型, 召唤物种, 召唤物名称, 召唤数量: count, 强度: 召唤强度, 行动模式, 承伤规则, 召唤模板来源 };
+          if (允许继承属性) 召唤物记录.继承属性比例 = 继承比例;
           const cond = {
             ...(baseCond || {}),
             类型: 'buff',
             层数: count,
-            描述: `由[${skillName || '召唤'}]生成的战斗召唤物`,
-            duration,
+            描述: `由[${skillName || '召唤'}]生成的${召唤单位类型}`,
+            duration: 持续回合,
             面板修改比例: baseCond?.面板修改比例 || { str: 1, def: 1, agi: 1, sp_max: 1 },
             战斗效果: battleEffect,
-            召唤物: { 召唤物名称: summonName, 召唤数量: count, 继承属性比例: inheritRatio, 行动模式: mode, 承伤规则: damageRule },
+            召唤物: 召唤物记录,
           };
-          const key = putConditionWithUniqueKey(attacker, `召唤:${summonName}`, cond);
-          result.desc += ` [召唤] ${attacker.name || '施术者'}召唤【${summonName}】×${count}，进入[${key}]。`;
+          const key = putConditionWithUniqueKey(attacker, `召唤:${召唤物名称}`, cond);
+          result.desc += ` [召唤] ${attacker.name || '施术者'}召唤${召唤单位类型}【${召唤物名称}】×${count}，进入[${key}]。`;
           return true;
         };
 
@@ -14265,7 +14268,7 @@ class BattleUIComponent {
           if (!effect) return false;
           const sourceUnits = resolveSkillEffectTargetCharacters(playerAction.skill, effect, attacker, defender, combatData)
             .filter(targetObj => targetObj && targetObj !== attacker);
-          const tags = normalizeBattleMechanismSuppressionTargets(effect?.窃取目标 || []);
+          const tags = normalizeBattleMechanismSuppressionTargets(effect?.窃取目标 || [], '窃取');
           const stealCount = Math.max(1, Math.floor(Number(effect?.数量 || 1)));
           const keepTurns = Math.max(1, Number(effect?.保留回合 || effect?.持续回合 || 1));
           let moved = 0;
@@ -15012,7 +15015,7 @@ class BattleUIComponent {
                   death_save_count: scaledCalc?.death_save_count ?? 0,
                   damage_share_count: scaledCalc?.damage_share_count ?? 0,
                   invincible_tier_threshold: scaledCalc?.invincible_tier_threshold ?? 0,
-                  daily_trigger_limit: scaledCalc?.daily_trigger_limit ?? 0,
+                  每日触发次数上限: scaledCalc?.每日触发次数上限 ?? 0,
                 },
               };
               if (directTauntEffect && targetObj !== attacker) {
